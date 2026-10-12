@@ -1,0 +1,87 @@
+{
+  "id": "protobuf-request-parsing-a-body-that-spells-one-field-both-s",
+  "title": "Protobuf request parsing: a body that spells one field both snake_case and camelCase is rejected with INVALID_PARAMETER_VALUE before any handler or validator acts",
+  "kind": "rule",
+  "answers": [
+    "Why does the server return 400 'Request specifies both secret_id and secretId' when I send a gateway secret update?",
+    "Where is the check that stops a JSON body with both proto-name and JSON-name keys from being parsed?",
+    "Does the duplicate-key guard also apply to workspace create and update requests?"
+  ],
+  "body": "Path: mlflow/server/handlers.py:_get_request_message, the single protobuf parse point for proto-backed REST endpoints (tracking, gateway secrets, model definitions, endpoints, scorers, and so on), and mlflow/server/handlers.py:_get_workspace_request_message for workspace create/update bodies.\nRule: Both parsers call mlflow/server/handlers.py:_reject_conflicting_field_aliases on the raw JSON before parse_dict. It rejects any object that contains a field's proto name and its JSON name (for example secret_id and secretId, default_artifact_root and defaultArtifactRoot), in either key order, and recurses into nested message lists such as model_configs. Map fields and google.protobuf well-known types are skipped because their keys are caller-chosen.\nSymptom: A body that supplied both spellings was authorized by a raw-key validator against one gateway secret while the handler, parsing the same body through the proto, acted on the other, so a user with READ only on a secret could update it.\nConstraints: ParseDict silently lets the later key win, so any new protobuf parser added to handlers.py must go through the same guard or the split returns. A body with only one spelling of each field is unaffected; the guard does not change which spelling is accepted.",
+  "applies": "Basic-auth and non-auth REST request bodies that map to protobuf messages in mlflow/server/handlers.py; not for query-string parameters read by _get_request_param.",
+  "tags": [
+    "auth",
+    "gateway",
+    "protobuf",
+    "security",
+    "request-parsing"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_reject_conflicting_field_aliases",
+      "hash": "sha256:b2f0eb69e74c45e1f7e0158a",
+      "line": 1103,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b2f0eb69e74c45e1f7e0158a",
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_get_request_message",
+      "hash": "sha256:d835807c60947d5087bb6d63",
+      "line": 1157,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:d835807c60947d5087bb6d63",
+      "fanout": {
+        "files": 5,
+        "sites": 192,
+        "refs": 247
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_get_workspace_request_message",
+      "hash": "sha256:b824cd159fec98e0950b1d3b",
+      "line": 1556,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b824cd159fec98e0950b1d3b",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25869"
+  },
+  "created": "2026-10-12T05:37:19.185Z",
+  "verified": "2026-10-12T05:37:19.185Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "trace-invoke-jobs-issue-detection-genai-evaluate-scorer-trac",
+    "artifact-host-policy-a-tracking-server-connects-only-to-the",
+    "model-registry-createmodelversion-for-prompts-source-must-be",
+    "model-registry-createmodelversion-prompt-branch-select-promp"
+  ],
+  "says": [
+    "Updating a gateway secret fails with an error about conflicting field names.",
+    "API requests fail when sending properties in both camel case and underscore notation.",
+    "Workspace creation request is rejected because the payload contains duplicate attribute aliases.",
+    "Prevent read-only users from modifying credentials through conflicting request property spellings."
+  ],
+  "search": "In mlflow/server/handlers.py, _get_request_message and _get_workspace_request_message call _reject_conflicting_field_aliases on raw JSON before parse_dict to reject requests providing both proto and JSON field names with INVALID_PARAMETER_VALUE. The check recurses into nested message lists like model_configs but skips map fields and google.protobuf well-known types. It applies to REST request bodies mapping to protobuf messages including tracking, gateway secrets, endpoints, scorers, and workspace operations, but not query-string parameters in _get_request_param.",
+  "saysFor": "s2:9c35b156443cde224438be4f431d7ca157b80f9edb8f2902224cf1b9e09d4d7a"
+}

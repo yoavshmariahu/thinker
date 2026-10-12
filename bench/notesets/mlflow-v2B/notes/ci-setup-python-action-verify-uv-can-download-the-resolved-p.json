@@ -1,0 +1,53 @@
+{
+  "id": "ci-setup-python-action-verify-uv-can-download-the-resolved-p",
+  "title": "CI setup-python action: verify uv can download the resolved Python version before installing dependencies",
+  "kind": "rule",
+  "answers": [
+    "CI job fails because uv cannot install the Python version the test fixture requires",
+    "Where does CI check that uv can provision the pinned Python version on the runner platform?",
+    "How do I add or change an early validation step in the setup-python CI composite action?",
+    "Why does the CI setup step error out telling me to update required-version in pyproject.toml?"
+  ],
+  "body": "Path: .github/actions/setup-python/action.yml (composite action `setup-python`) resolves the Python version via get-python-version, runs setup-uv, then the \"Check uv Python support\" step, then the uv dependency install. Every workflow that uses this local action to provision Python with uv goes through this sequence.\nRule: After setup-uv, query `uv python list \"$PYTHON_VERSION\" --all-versions --only-downloads`. Empty output means uv's catalog has no download for that version on this runner's platform, so the step emits `::error::` naming `uv --version` and pointing at `required-version` in pyproject.toml, then exits 1. Keep any new early check in this composite action, after setup-uv and before dependency install, so failures surface immediately instead of mid-job.\nSymptom: CI jobs failed late, after setup, when uv 0.11.14 could not provision Python 3.10.21 even though the fixture required that version.\nConstraints: The check only confirms that uv's catalog lists a download for the version on the current platform. It does not download the interpreter, enumerate other platforms, or change version pins; fixing a failure means updating the uv `required-version` or the Python pin, not editing this step. Does not cover workflows that install Python without this composite action.",
+  "applies": "CI workflows that call the local .github/actions/setup-python composite action to install Python through uv.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "uv",
+    "python",
+    "build"
+  ],
+  "deps": [
+    {
+      "path": ".github/actions/setup-python/action.yml",
+      "symbol": "downloads",
+      "hash": "sha256:a31858aab6c2c9ec8475fdca",
+      "line": 74,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25968"
+  },
+  "created": "2026-10-12T05:35:15.438Z",
+  "verified": "2026-10-12T05:35:15.438Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Build jobs fail midway through dependency installation because the requested Python version is unavailable.",
+    "Continuous integration setup errors out asking to update the required version in project settings.",
+    "Fail test runs immediately during environment initialization if the needed Python release cannot be downloaded.",
+    "Why did our build pipeline reject the Python runtime version specified by the test fixtures?"
+  ],
+  "search": "The CI setup-python composite action (.github/actions/setup-python/action.yml) validates that uv can download the resolved Python version before installing dependencies. Following setup-uv, the step queries uv python list for downloads matching PYTHON_VERSION, emitting an error referencing uv --version and required-version in pyproject.toml before exiting 1 if missing. This early check surfaces runtime provisioning failures immediately rather than failing late during dependency installation or fixture execution. The check only verifies uv's platform download catalog without downloading the interpreter or altering pins, and applies exclusively to workflows calling this composite action.",
+  "saysFor": "s2:8f0864e8122ae47a91ab5acd4ed574f3f6f8126a175cd78a85090f2ffdcf127b"
+}

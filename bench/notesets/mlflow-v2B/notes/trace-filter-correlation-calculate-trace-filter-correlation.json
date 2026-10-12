@@ -1,0 +1,103 @@
+{
+  "id": "trace-filter-correlation-calculate-trace-filter-correlation",
+  "title": "Trace filter correlation (calculate_trace_filter_correlation, trace correlation API): convert experiment IDs to int for trace_info.experiment_id binds; keep str only at the public boundary",
+  "kind": "rule",
+  "answers": [
+    "Trace correlation or filter-correlation request fails with a psycopg/PostgreSQL type error when experiment_ids are passed on PostgreSQL with psycopg v3",
+    "How do I add another filter option to trace filter correlation without breaking the SQL bind on PostgreSQL?",
+    "Where are trace filter correlation counts (filter1, filter2, joint, total) computed in the SQL tracking store?",
+    "Why does the public experiment_ids string argument get turned into an integer before the trace correlation SQL runs?"
+  ],
+  "body": "Path: Trace filter correlation (the API that returns total, filter1, filter2 and joint trace counts for two filter_strings, with an optional base_filter) enters at mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore.calculate_trace_filter_correlation. It accepts string experiment IDs, resolves them through _filter_experiment_ids, then builds subqueries with _build_trace_filter_subquery and counts them in _get_trace_correlation_counts.\nRule: After _filter_experiment_ids returns, keep the IDs as int (do not re-stringify them). The subquery and count helpers take list[int] and bind against SqlTraceInfo.experiment_id, which is an INTEGER column. Convert to str only at the public API boundary, never before a SQL bind. Any new filter or count added to this path must follow the same rule.\nSymptom: On PostgreSQL with the psycopg v3 driver, trace filter correlation failed on the query because a VARCHAR bind was compared with the INTEGER trace_info.experiment_id column. The public API accepted string IDs, so the failure appeared for ordinary calls.\nConstraints: Applies to the SQL tracking store only. The fix is about bind types, not filter semantics, so filter strings and base_filter behave as before. A regression test, test_trace_filter_correlation_binds_integer_experiment_ids in tests/db/test_workspace_tracking_store.py, is parametrized with base_filter None and a base tag filter. It runs through the psycopg3_store fixture and checks zero counts on an empty experiment and counts equal to 1 after one matching trace is logged.",
+  "applies": "SQL tracking store trace correlation and trace search counts when the backend is PostgreSQL with psycopg v3; not the file store or in-memory paths.",
+  "tags": [
+    "tracing",
+    "trace-correlation",
+    "postgresql",
+    "psycopg3",
+    "sqlalchemy",
+    "experiment-id"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "SqlAlchemyStore.calculate_trace_filter_correlation",
+      "hash": "sha256:3e657777f3ca0630c19d5f1a",
+      "line": 5512,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3e657777f3ca0630c19d5f1a",
+      "fanout": {
+        "files": 10,
+        "sites": 30,
+        "refs": 42
+      }
+    },
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "SqlAlchemyStore._build_trace_filter_subquery",
+      "hash": "sha256:8f548fcd12251bac71c64cad",
+      "line": 5574,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8f548fcd12251bac71c64cad",
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "SqlAlchemyStore._get_trace_correlation_counts",
+      "hash": "sha256:5f83efd8be03a30613d20eea",
+      "line": 5603,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5f83efd8be03a30613d20eea",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "tests/db/test_workspace_tracking_store.py",
+      "symbol": "test_trace_filter_correlation_binds_integer_experiment_ids",
+      "hash": "sha256:2f71dff2a9c2fcd4180a830c",
+      "line": 85,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2f71dff2a9c2fcd4180a830c",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26179"
+  },
+  "created": "2026-10-12T05:32:14.877Z",
+  "verified": "2026-10-12T05:32:14.877Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "logged-model-search-filter-string-metric-comparisons-join-a",
+    "logged-model-search-search-logged-models-eager-load-tags-par",
+    "logged-model-tags-set-logged-model-tags-writes-through-bulk",
+    "sql-tracking-store-bulk-upserts-dedupe-rows-by-conflict-key"
+  ],
+  "says": [
+    "Trace filter correlation queries fail with a database type error on PostgreSQL backends.",
+    "Calculating joint trace counts across multiple filters crashes when specifying experiment identifiers.",
+    "Support trace correlation and overlap analysis seamlessly on PostgreSQL tracking database deployments.",
+    "Comparing trace filter criteria returns an unexpected database error during ordinary requests."
+  ],
+  "search": "In mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore.calculate_trace_filter_correlation, experiment IDs must remain integers after resolution through _filter_experiment_ids to bind against the INTEGER column in SqlTraceInfo.experiment_id. Subquery and count helpers _build_trace_filter_subquery and _get_trace_correlation_counts require list[int], converting to string only at the public API boundary. This avoids PostgreSQL type mismatch errors with psycopg v3, applies solely to the SQL tracking store, and preserves existing filter semantics.",
+  "saysFor": "s2:368d8272cde6b2fad02f73f948947d458aa6b3746bd80d89a8a3a0dc3a09cf2b"
+}

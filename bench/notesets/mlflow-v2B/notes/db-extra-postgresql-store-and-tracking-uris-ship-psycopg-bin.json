@@ -1,0 +1,74 @@
+{
+  "id": "db-extra-postgresql-store-and-tracking-uris-ship-psycopg-bin",
+  "title": "db extra / postgresql:// store and tracking URIs: ship psycopg[binary] next to psycopg2-binary, since SQLAlchemy 2.1 defaults bare postgresql:// to psycopg3",
+  "kind": "rule",
+  "answers": [
+    "Starting an MLflow server with a postgresql:// backend store URI fails with ModuleNotFoundError: No module named 'psycopg' after a fresh install",
+    "Which packages does the mlflow[db] extra install for PostgreSQL and MySQL backends?",
+    "Where is the psycopg driver dependency declared for the db extra?",
+    "Adding a new database driver to the db extra: what must change together?"
+  ],
+  "body": "Path: pip install mlflow[db] resolves the `db` extra in pyproject.toml (libs/skinny/pyproject.toml and pyproject.release.toml mirror it); the SQLAlchemy engine built for backend-store and tracking URIs in the tracking store goes through this extra's drivers.\nRule: The `db` extra must include both `psycopg2-binary` (for older SQLAlchemy and explicit postgresql+psycopg2:// URLs) and `psycopg[binary]` (psycopg3, the default driver for bare postgresql:// under SQLAlchemy 2.1+). Declare it in dev/pyproject.py:build where the extras are generated, not only in uv.lock; uv.lock's psycopg entry comes from the dev-only db-test group and is not packaged.\nSymptom: On Python 3.11+ a fresh install could resolve SQLAlchemy 2.1, and starting an MLflow server or store with a bare postgresql:// URI failed during engine creation with ModuleNotFoundError: No module named 'psycopg'.\nConstraints: Applies to packaging metadata only. Not needed for SQLite or MySQL-only setups. Does not change how URIs are parsed; the fix is installing the driver.",
+  "applies": "Packaging of the mlflow `db` extra and PostgreSQL driver selection for SQLAlchemy engines; not runtime URI parsing.",
+  "tags": [
+    "packaging",
+    "db-extra",
+    "postgresql",
+    "psycopg",
+    "sqlalchemy",
+    "tracking"
+  ],
+  "deps": [
+    {
+      "path": "dev/pyproject.py",
+      "symbol": "build",
+      "hash": "sha256:55755259d69fd1ad33e1efcf",
+      "line": 241,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:55755259d69fd1ad33e1efcf",
+      "fanout": {
+        "files": 105,
+        "sites": 14,
+        "refs": 241
+      }
+    },
+    {
+      "path": "libs/skinny/pyproject.toml",
+      "hash": "sha256:e64bc1d17c956d700538a236",
+      "missing": false
+    },
+    {
+      "path": "pyproject.toml",
+      "hash": "sha256:459e93fed0b67fec529ee594",
+      "missing": false
+    },
+    {
+      "path": "pyproject.release.toml",
+      "hash": "sha256:facc7de50f65ab42568258f1",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26271"
+  },
+  "created": "2026-10-12T05:28:37.296Z",
+  "verified": "2026-10-12T05:28:37.296Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "build-metadata-edit-extras-in-dev-pyproject-py-regenerate-th",
+    "mlflow-version-string-bump-mlflow-version-py-version-and-eve"
+  ],
+  "says": [
+    "Starting the tracking server with a PostgreSQL database fails immediately after a fresh install.",
+    "A fresh database installation crashes with missing driver errors when connecting to PostgreSQL.",
+    "Ensure standard database installation works out of the box with PostgreSQL on recent Python.",
+    "Newly installed tracking server cannot connect to PostgreSQL backend stores without manual driver installation."
+  ],
+  "search": "Packaging the db extra across dev/pyproject.py:build, pyproject.toml, libs/skinny/pyproject.toml, and pyproject.release.toml requires declaring both psycopg2-binary and psycopg[binary] dependencies. This supports explicit postgresql+psycopg2:// URIs on older SQLAlchemy alongside bare postgresql:// URIs that resolve to psycopg3 on SQLAlchemy 2.1+ under Python 3.11+. Declaring dependencies only in uv.lock fails because its psycopg entry originates from the unpackaged dev-only db-test group, causing fresh installs to fail with ModuleNotFoundError for 'psycopg'. This rule applies strictly to packaging metadata for PostgreSQL backend stores and does not alter URI parsing or affect SQLite and MySQL configurations.",
+  "saysFor": "s2:9d5a01fdf5a16e2735f8f55d1fbf01ac62eccd771c3d349379ee5d4a2ee0f598"
+}

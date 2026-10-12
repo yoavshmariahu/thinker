@@ -1,0 +1,46 @@
+{
+  "id": "community-label-workflow-label-community-job-skip-bot-and-in",
+  "title": "Community-label workflow (label-community job): skip bot and internal-association PRs in job-level `if`, not in the shell step",
+  "kind": "rule",
+  "answers": [
+    "Why does the community-label action still start a runner for bot PRs or maintainer PRs?",
+    "Where is the bot and MEMBER/COLLABORATOR/OWNER exclusion for community labeling handled?",
+    "How do I add another cheap skip condition to a GitHub Actions job without paying for a runner?",
+    "Why does the Databricks profile and commit-email check still run in a shell step?"
+  ],
+  "body": "Path: .github/workflows/community-label.yml:label-community job. Decides which pull_request events get the community label. Covers bot-authored PRs, internal PRs by author_association, and the external-author path that calls `gh api users/$AUTHOR` and checks company/email for Databricks affiliation before labeling.\nRule: Put eligibility checks that only read event context (user.type, author_association, repository) in the job-level `if:` so ineligible PRs are skipped before runner allocation. Keep only checks that need an API call or a lookup (profile company/email, commit-email affiliation) in the run script. Do not duplicate a job-level gate as a shell `exit 0` guard.\nSymptom: Bot and internal PRs used to allocate an ubuntu-slim runner, run the step, and exit 0 after the shell guard fired, wasting runner time on every such PR.\nConstraints: Job-level `if:` can only use event fields and expressions, not API results, so it cannot replace the profile lookup. The author_association list is written as fromJSON('[\"MEMBER\",\"COLLABORATOR\",\"OWNER\"]') inside `contains`. Applies to this workflow; other workflows may still use shell guards.",
+  "applies": "Applies to .github/workflows/community-label.yml; general pattern for any GitHub Actions job that filters pull_request events.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "community-label",
+    "workflow",
+    "runner-cost"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/community-label.yml",
+      "hash": "sha256:9d19a490ddc75153d19ff8c1",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25901"
+  },
+  "created": "2026-10-12T05:35:59.761Z",
+  "verified": "2026-10-12T05:35:59.761Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Automated community labeling wastes runner minutes on internal team pull requests.",
+    "Stop allocating cloud build machines for bot pull requests that skip labeling.",
+    "Pull request triage automation spends compute credits running jobs for repository maintainers.",
+    "Skip automated labeling jobs before provisioning runners when the author is a collaborator."
+  ],
+  "search": "In .github/workflows/community-label.yml:label-community, filter out bot authors (user.type) and internal contributors using job-level `if:` with contains(fromJSON('[\"MEMBER\",\"COLLABORATOR\",\"OWNER\"]'), github.event.pull_request.author_association) before runner allocation. This avoids provisioning an ubuntu-slim runner only to exit 0 in a shell script guard. API calls like `gh api users/$AUTHOR` that inspect Databricks company or commit-email affiliation remain inside the step script because job-level conditions cannot evaluate external API results. This rule applies specifically to community-label.yml as a pattern for filtering pull_request workflows.",
+  "saysFor": "s2:61f2020402303c201689e338c14d706bda508a26fa9ab3ef2cdcef85b8f092f8"
+}

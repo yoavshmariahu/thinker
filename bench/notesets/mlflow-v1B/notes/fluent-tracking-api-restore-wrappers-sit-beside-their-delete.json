@@ -1,0 +1,131 @@
+{
+  "id": "fluent-tracking-api-restore-wrappers-sit-beside-their-delete",
+  "title": "fluent tracking API: restore wrappers sit beside their delete wrappers in tracking/fluent.py and must be exported from mlflow/__init__.py",
+  "kind": "rule",
+  "answers": [
+    "How do I restore a deleted experiment or run from the top-level mlflow module?",
+    "Why is mlflow.restore_run not found after I added a new fluent tracking function?",
+    "Where is the fluent delete_experiment / delete_run wrapper implemented?",
+    "What has to change when adding a new public mlflow.* tracking function?"
+  ],
+  "body": "Path: mlflow/tracking/fluent.py:delete_experiment, restore_experiment, delete_run, restore_run are thin fluent wrappers that call MlflowClient().delete_* / restore_* with the given experiment_id or run_id; they cover the top-level mlflow.delete_experiment, mlflow.restore_experiment, mlflow.delete_run and mlflow.restore_run calls.\nRule: Keep each restore_* fluent function immediately after its delete_* counterpart and make it a one-line delegation to MlflowClient, with no new backend logic. A new public fluent function must also be added to the import block and to __all__ in mlflow/__init__.py:__all__ (or it is not reachable as mlflow.<name>), and to docs/api_reference/api_inventory.txt, which is generated and must be regenerated.\nConstraints: Applies to lifecycle (soft delete and restore) wrappers over existing MlflowClient methods. Does not cover the storage, REST restore RPC or CLI layers, which already existed and are not changed by this pattern. Tests for the pair follow the delete-then-verify style in tests/tracking/fluent/test_fluent.py:test_restore_experiment and test_restore_run.",
+  "applies": "Public fluent API additions in mlflow/tracking/fluent.py that wrap MlflowClient lifecycle operations; not for changes inside MlflowClient or the stores.",
+  "tags": [
+    "tracking",
+    "fluent-api",
+    "lifecycle",
+    "exports"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/tracking/fluent.py",
+      "symbol": "restore_experiment",
+      "hash": "sha256:2fd8cd90e090139b747a4843",
+      "line": 2455,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2fd8cd90e090139b747a4843",
+      "fanout": {
+        "files": 17,
+        "sites": 20,
+        "refs": 24
+      }
+    },
+    {
+      "path": "mlflow/tracking/fluent.py",
+      "symbol": "restore_run",
+      "hash": "sha256:eb0476d2c4f7f787022f6b97",
+      "line": 3168,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:eb0476d2c4f7f787022f6b97",
+      "fanout": {
+        "files": 13,
+        "sites": 19,
+        "refs": 24
+      }
+    },
+    {
+      "path": "mlflow/__init__.py",
+      "symbol": "__all__",
+      "hash": "sha256:1cdf0cd4c5a39b92b3026736",
+      "line": 209,
+      "missing": false,
+      "fanout": {
+        "files": 96,
+        "sites": 0,
+        "refs": 111
+      }
+    },
+    {
+      "path": "docs/api_reference/api_inventory.txt",
+      "hash": "sha256:208ffee71bd42edf1587e081",
+      "missing": false
+    },
+    {
+      "path": "tests/tracking/fluent/test_fluent.py",
+      "symbol": "test_restore_run",
+      "hash": "sha256:b70f2fa547b3ff5faf6ba243",
+      "line": 1312,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b70f2fa547b3ff5faf6ba243",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/tracking/fluent.py",
+      "symbol": "delete_experiment",
+      "hash": "sha256:47f35ef2602dffc6fd2c519f",
+      "line": 2420,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:47f35ef2602dffc6fd2c519f",
+      "fanout": {
+        "files": 28,
+        "sites": 67,
+        "refs": 74
+      }
+    },
+    {
+      "path": "tests/tracking/fluent/test_fluent.py",
+      "symbol": "test_restore_experiment",
+      "hash": "sha256:306e34f6f7b2f43ead37bc84",
+      "line": 1300,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:306e34f6f7b2f43ead37bc84",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25852"
+  },
+  "created": "2026-10-12T05:44:07.775Z",
+  "verified": "2026-10-12T05:44:07.775Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "test-experiment-creation-pass-an-explicit-tmp-path-artifact",
+    "fluent-create-experiment-a-failed-trace-location-link-soft-d"
+  ],
+  "says": [
+    "How can I restore a deleted run directly from the top level interface?",
+    "Allow users to undelete experiments easily without calling internal client methods.",
+    "The function to recover deleted tracking runs is missing from the main package.",
+    "Provide top level commands to bring back accidentally removed experiments and runs.",
+    "Why is there a delete option for experiments but no corresponding restore command?"
+  ],
+  "search": "In mlflow/tracking/fluent.py, public restore wrappers restore_experiment and restore_run must sit directly after their delete counterparts as one-line delegations to MlflowClient and be exported in mlflow/__init__.py:__all__. Adding these public fluent tracking functions also requires updating docs/api_reference/api_inventory.txt and testing delete-and-restore pairs in tests/tracking/fluent/test_fluent.py. This applies only to fluent lifecycle wrappers over existing MlflowClient methods and does not alter backend storage, REST RPC, or CLI implementations.",
+  "saysFor": "s2:1ef005230508a7fa4e10ab5217021e29c8b7c8e31d7dc7a4230b32114e49a127"
+}

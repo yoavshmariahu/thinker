@@ -1,0 +1,50 @@
+{
+  "id": "stacked-pr-advice-handled-by-the-stack-nudge-workflow-not-th",
+  "title": "Stacked-PR advice: handled by the Stack Nudge workflow, not the advice.js advice comment",
+  "kind": "map",
+  "answers": [
+    "Where is the 'Not a GitHub stack' message handled now?",
+    "How do I change the wording or trigger of the stacked PR recommendation?",
+    "Why did the advice comment stop mentioning stacked PRs?"
+  ],
+  "body": "Path: .github/workflows/stack-nudge.yml:nudge job handles the stacked-PR recommendation for PR open and edit events, keyed on the 🥞 Stacked PR phrase in the PR body.\nRule: The stacked-PR message was moved out of .github/workflows/advice.js (its STACKED_PR_SECTION check and the \"Not a GitHub stack\" block were removed). To change that recommendation's text, trigger, or author gating, edit stack-nudge.yml rather than advice.js.\nConstraints: advice.js still builds the other advice sections (for example media and UI-file checks); only the stacked-PR part moved.",
+  "applies": "Anyone looking for where stacked-PR guidance on pull requests is produced in the repo's workflows.",
+  "tags": [
+    "github-actions",
+    "pull-request",
+    "stacked-prs",
+    "advice"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/stack-nudge.yml",
+      "hash": "sha256:56ded5799d7874b5e36a99b7",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/advice.js",
+      "hash": "sha256:a103c464595e35c679342dd8",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25846"
+  },
+  "created": "2026-10-12T05:44:30.363Z",
+  "verified": "2026-10-12T05:44:30.363Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "stack-nudge-workflow-stacked-pr-nudge-posts-once-per-pr-only"
+  ],
+  "says": [
+    "Update the wording and trigger conditions for the stacked pull request recommendation comment.",
+    "The general automated advice comment on pull requests no longer mentions stacked pull requests.",
+    "Change author eligibility criteria for receiving automated suggestions about stacked pull requests."
+  ],
+  "search": "Stacked-PR recommendations for pull requests are handled by the nudge job in .github/workflows/stack-nudge.yml, not by .github/workflows/advice.js. The stacked-PR message, its STACKED_PR_SECTION check, and the 'Not a GitHub stack' block were removed from advice.js. To modify the stacked-PR recommendation text, trigger phrase ('🥞 Stacked PR'), or author gating, edit stack-nudge.yml rather than advice.js. The advice.js script still builds other advice sections such as media and UI-file checks.",
+  "saysFor": "s2:bf2eeeca2395ed02e4a96f545a53435f1b91ec217a4dab8b8bc638200a3cd879"
+}

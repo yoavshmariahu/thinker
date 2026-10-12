@@ -1,0 +1,87 @@
+{
+  "id": "mlflow-top-level-api-exports-a-new-public-mlflow-function-ne",
+  "title": "mlflow top-level API exports: a new public mlflow.* function needs an import, an __all__ entry, and an api_inventory.txt line",
+  "kind": "rule",
+  "answers": [
+    "How do I make a new tracking function available as mlflow.something at the top level?",
+    "Why does my new fluent function not show up in the mlflow namespace or in the API reference inventory?",
+    "Where are the public mlflow.* names exported and listed?",
+    "I added a new fluent wrapper to mlflow/tracking/fluent.py; what else must change for it to be public?"
+  ],
+  "body": "Path: mlflow/__init__.py:__all__ re-exports the fluent tracking functions from mlflow/tracking/fluent.py (run, log_*, delete_*, search_*, etc.) so they are callable as mlflow.<name>; docs/api_reference/api_inventory.txt lists every public mlflow.* name for the API reference.\nRule: A new public fluent function in mlflow/tracking/fluent.py:<function name> is exposed by three coordinated edits: add it to the `from mlflow.tracking.fluent import (...)` block in mlflow/__init__.py, add its string to `__all__` in mlflow/__init__.py, and add the dotted name (mlflow.<name>) in sorted position in docs/api_reference/api_inventory.txt. Keep the list in the same order the neighbouring entries use.\nConstraints: Applies to public functions meant for users. Private helpers (leading underscore) and client-only methods on MlflowClient do not need these edits. The inventory file is auto-generated, so regenerating it (e.g. via the autoformat tooling) is preferable to hand-editing when available; the diff hand-inserted the two new lines.",
+  "applies": "Adding any new public top-level mlflow.* function that is re-exported from a submodule such as mlflow/tracking/fluent.py.",
+  "tags": [
+    "tracking",
+    "fluent-api",
+    "exports",
+    "api-reference"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/tracking/fluent.py",
+      "symbol": "restore_experiment",
+      "hash": "sha256:2fd8cd90e090139b747a4843",
+      "line": 2455,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2fd8cd90e090139b747a4843",
+      "fanout": {
+        "files": 17,
+        "sites": 20,
+        "refs": 24
+      }
+    },
+    {
+      "path": "mlflow/tracking/fluent.py",
+      "symbol": "restore_run",
+      "hash": "sha256:eb0476d2c4f7f787022f6b97",
+      "line": 3168,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:eb0476d2c4f7f787022f6b97",
+      "fanout": {
+        "files": 13,
+        "sites": 19,
+        "refs": 24
+      }
+    },
+    {
+      "path": "mlflow/__init__.py",
+      "symbol": "__all__",
+      "hash": "sha256:1cdf0cd4c5a39b92b3026736",
+      "line": 209,
+      "missing": false,
+      "fanout": {
+        "files": 97,
+        "sites": 0,
+        "refs": 112
+      }
+    },
+    {
+      "path": "docs/api_reference/api_inventory.txt",
+      "hash": "sha256:62ca427c6eb6fbc8b8282476",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25852"
+  },
+  "created": "2026-10-12T05:37:17.511Z",
+  "verified": "2026-10-12T05:37:17.511Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "tracking-fluent-api-experiment-and-run-soft-delete-restore-w"
+  ],
+  "says": [
+    "A newly released tracking function cannot be imported directly from the root library.",
+    "The restore run feature is missing from the published API reference documentation.",
+    "Make newly added experiment restoration methods accessible directly from the main package.",
+    "New tracking commands fail to appear in the official reference inventory list."
+  ],
+  "search": "Exporting a new public fluent function from `mlflow/tracking/fluent.py` requires importing it in `mlflow/__init__.py`, adding its name to `__all__`, and adding the dotted entry in sorted order to `docs/api_reference/api_inventory.txt`. Applies to public top-level `mlflow.*` functions meant for users, such as `restore_experiment` and `restore_run`. Private helpers with leading underscores and client-only methods on `MlflowClient` are excluded from these requirements.",
+  "saysFor": "s2:49ea998748184072dc5872cf89b47102a44f240c13cb18807ba30e18d4032c1e"
+}

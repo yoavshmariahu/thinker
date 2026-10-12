@@ -1,0 +1,54 @@
+{
+  "id": "copilot-pr-scheduled-ci-retry-pr-selection-lives-in-retry-ym",
+  "title": "Copilot PR scheduled CI retry: PR selection lives in retry.yml and per-commit decisions in retry.sh",
+  "kind": "map",
+  "answers": [
+    "Where are scheduled CI retries for Copilot PRs selected and triggered?",
+    "Why does the Retry workflow only run on weekdays in JST, and how do I trigger a dry run manually?",
+    "Which PRs get automatic CI retries: open, non-draft, auto-merge enabled, non-conflicting?"
+  ],
+  "body": "Path: .github/workflows/retry.yml (the Retry workflow: cron 0,30 9-17 * * 1-5 in Asia/Tokyo, plus workflow_dispatch whose dry_run input defaults to true) runs the rerun step, which searches open non-draft PRs authored by app/copilot-swe-agent created in the last 72 hours and keeps those with autoMergeRequest set and mergeable != CONFLICTING.\nRule: The workflow only chooses PRs and passes each head SHA to .github/workflows/retry.sh (`retry.sh [--dry-run] OWNER/REPO SHA`), which makes all per-commit decisions; merge requirements are not changed on this path.\nConstraints: Only Copilot-authored PRs are candidates; the file carries a TODO to extend this to other bot and human PRs. Manual dispatches are dry runs unless dry_run is set to false.",
+  "applies": "Scope: scheduled and manual CI rerun selection for Copilot PRs in .github/workflows/retry.yml and retry.sh; not other automation.",
+  "tags": [
+    "ci",
+    "retry",
+    "copilot",
+    "github-actions"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/retry.yml",
+      "hash": "sha256:d7b181d8eb96458cd5beacb3",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/retry.sh",
+      "hash": "sha256:fef211e1be0d4b81d0106e16",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26020"
+  },
+  "created": "2026-10-12T05:34:57.361Z",
+  "verified": "2026-10-12T05:34:57.361Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "ci-auto-retry-sweep-retry-yml-eligibility-is-the-auto-rerun",
+    "retry-sh-rerun-notices-link-to-the-failed-run-attempt-attemp",
+    "retry-workflow-log-grouping-title-each-pr-group-with-its-ful"
+  ],
+  "says": [
+    "Failed pipeline checks on bot pull requests are not retrying automatically over the weekend.",
+    "Trigger a test run to see which bot pull requests would be retried.",
+    "The automated test rerun process is skipping bot pull requests that lack auto merge.",
+    "Why did failed checks stop rerunning on bot pull requests created three days ago?",
+    "Automatically rerun failed pipeline checks on pull requests opened by the coding assistant."
+  ],
+  "search": "Scheduled CI retries for Copilot PRs separate selection in .github/workflows/retry.yml from per-commit rerun decisions in .github/workflows/retry.sh. The workflow runs weekdays 9:00-17:00 JST via cron and via workflow_dispatch (dry_run defaulting to true), targeting open, non-draft PRs created within 72 hours by app/copilot-swe-agent that have autoMergeRequest enabled and no merge conflicts. Head SHAs are forwarded to retry.sh, which makes all per-commit decisions without altering merge requirements. This applies solely to Copilot PR rerun automation, running as dry runs unless explicitly set to false.",
+  "saysFor": "s2:d7df2075d446c527bc38553d3916b48fe1263ec766376174945ca638b34a9de7"
+}

@@ -1,0 +1,103 @@
+{
+  "id": "invoke-endpoints-issue-detection-genai-evaluate-scorer-calle",
+  "title": "Invoke endpoints (issue detection, GenAI evaluate, scorer): caller-supplied trace_ids must belong to the authorized experiment before any run or job is created",
+  "kind": "rule",
+  "answers": [
+    "Why can a user run issue detection on traces from an experiment they cannot read?",
+    "Where is the check that trace ids belong to the experiment being invoked on issues/invoke handled?",
+    "Adding a new field or provider to the GenAI evaluate invoke request: where do trace ids get validated?",
+    "Why does a rejected invoke request create no evaluation run?"
+  ],
+  "body": "Path: mlflow/server/handlers.py:_invoke_issue_detection_handler, _invoke_genai_evaluate_handler and _invoke_scorer_handler handle the POST /ajax-api/3.0/mlflow/issues/invoke, genai/evaluate/invoke and scorer/invoke requests (trace_ids plus experiment_id, credentials, scorers); all three pass trace_ids through mlflow/server/handlers.py:_validate_trace_ids_in_experiment.\nRule: The route validators (validate_can_update_experiment) only check the caller's permission on the request's experiment_id and never look at trace_ids. Any new invoke-style handler that accepts trace_ids must call _validate_trace_ids_in_experiment(store, trace_ids, experiment_id) before fetching credentials, resolving scorers, creating a run or submitting a job, so a rejected request leaves no run and no job.\nSymptom: A user who could update their own experiment supplied trace ids from another experiment; the job analyzed those traces and wrote the results into the caller's run (broken object authorization, GHSA-v7w2-x9m4-3743).\nConstraints: The helper raises a generic PERMISSION_DENIED (403, message 'Not all requested traces could be accessed.') only when an existing trace resolves to a different experiment. Missing traces are not rejected here; they fail later in the job. The check lives in the handler rather than the auth validators so it also protects deployments that mount the handlers without the basic-auth app.",
+  "applies": "Any server handler that takes caller-supplied trace_ids alongside an experiment_id to start a job or write assessments/runs.",
+  "tags": [
+    "auth",
+    "security",
+    "trace_ids",
+    "invoke",
+    "experiment-authorization"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_validate_trace_ids_in_experiment",
+      "hash": "sha256:e0a067d0fa110ff436bd457f",
+      "line": 5345,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e0a067d0fa110ff436bd457f",
+      "fanout": {
+        "files": 2,
+        "sites": 10,
+        "refs": 11
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_invoke_issue_detection_handler",
+      "hash": "sha256:b04751cfe36d29c0005098d7",
+      "line": 5380,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b04751cfe36d29c0005098d7",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_invoke_genai_evaluate_handler",
+      "hash": "sha256:4027add5566dfd6ac9aa3bfb",
+      "line": 5491,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4027add5566dfd6ac9aa3bfb",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_invoke_scorer_handler",
+      "hash": "sha256:c5b87a0afdd493819e5e41c0",
+      "line": 7401,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c5b87a0afdd493819e5e41c0",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25873"
+  },
+  "created": "2026-10-12T05:39:43.290Z",
+  "verified": "2026-10-12T05:39:43.290Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "artifact-host-policy-tracking-server-refuses-host-addressed",
+    "artifact-repository-creation-on-the-server-use-get-artifact",
+    "workspace-default-artifact-root-validation-values-must-carry",
+    "genai-scorer-provenance-registered-scorer-version-does-not-s"
+  ],
+  "says": [
+    "A user who can update one experiment can run issue detection on traces from another experiment",
+    "Issue detection job writes results into my run using trace IDs from a different experiment",
+    "Trace IDs from another experiment are accepted by GenAI evaluate and scorer invoke requests",
+    "Rejected evaluation or issue detection request should not create a run or job",
+    "Trace IDs must belong to the experiment being used before any evaluation or issue job starts"
+  ],
+  "search": "Invoke endpoints for issue detection, GenAI evaluate and scorer: caller-supplied trace IDs must belong to the authorized experiment via a shared validation helper, run before credentials, scorer resolution, run creation or job submission. Permission check on experiment_id alone is insufficient; a rejected request creates no run or job. Missing traces are not rejected here.",
+  "saysFor": "s2:e91a34174382f5b053035be3f7e6ff96071f6a30c4a88e2b5b32b92764abb8a1"
+}

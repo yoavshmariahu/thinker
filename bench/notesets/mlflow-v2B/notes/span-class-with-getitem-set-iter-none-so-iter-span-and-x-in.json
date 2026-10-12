@@ -1,0 +1,85 @@
+{
+  "id": "span-class-with-getitem-set-iter-none-so-iter-span-and-x-in",
+  "title": "Span class with __getitem__: set __iter__ = None so iter(span) and 'x' in span fail fast instead of using the legacy sequence protocol",
+  "kind": "rule",
+  "answers": [
+    "Why does iter(span) or 'name' in span on a trace span give a confusing error?",
+    "Why does defining __getitem__ on a MLflow entity make it look iterable?",
+    "How do I make a tracing span class reject iteration and membership tests cleanly?"
+  ],
+  "body": "Path: mlflow/entities/span.py:Span is the tracing span entity (LiveSpan and immutable Span share it); user code can call iter(span), `key in span`, or subscript it, and those paths all go through the class's special methods.\nRule: When a class defines __getitem__ and must reject subscripting, also set `__iter__ = None` right beside it. Without __iter__, Python falls back to the legacy sequence protocol, so iter(span) succeeds and returns an iterator that fails on first use, and `\"name\" in span` gets the subscript error message. __iter__ = None makes iter() raise TypeError \"not iterable\" and membership tests fail the same way. Annotate the always-raising __getitem__ with -> NoReturn.\nSymptom: After the subscript hint was added, iter(span) and `\"name\" in span` produced misleading errors (a not-subscriptable message for a membership test) instead of a clean not-iterable error.\nConstraints: Applies to classes in mlflow/entities/span.py that define __getitem__ for guidance only. Tested in tests/entities/test_span.py:test_span_is_not_iterable. Do not set __iter__ on a class that is meant to be iterated.",
+  "applies": "Tracing span entity special-method behavior in mlflow/entities/span.py (iteration and membership).",
+  "tags": [
+    "tracing",
+    "span",
+    "python-protocol",
+    "iteration"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "Span.__getitem__",
+      "hash": "sha256:9a8bac9eb6e8bd84712fd4cc",
+      "line": 308,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9a8bac9eb6e8bd84712fd4cc",
+      "fanout": {
+        "files": 5,
+        "sites": 1,
+        "refs": 9
+      }
+    },
+    {
+      "path": "tests/entities/test_span.py",
+      "symbol": "test_span_is_not_iterable",
+      "hash": "sha256:5567c614fd312e1550bb288c",
+      "line": 1530,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5567c614fd312e1550bb288c",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "Span",
+      "hash": "sha256:a5012de3297b90299c66578d",
+      "line": 119,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a5012de3297b90299c66578d",
+      "fanout": {
+        "files": 102,
+        "sites": 85,
+        "refs": 453
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26008"
+  },
+  "created": "2026-10-12T05:34:37.826Z",
+  "verified": "2026-10-12T05:34:37.826Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "span-dict-style-get-tracing-span-entity-raise-a-guiding-attr",
+    "span-subscript-access-span-key-on-tracing-spans-raise-a-guid",
+    "livespan-record-exception-normalize-string-input-to-exceptio"
+  ],
+  "says": [
+    "Checking whether an attribute is inside a trace span shows a misleading error message.",
+    "Looping over trace span objects gives a confusing subscripting error instead of not iterable.",
+    "Make membership checks on trace spans fail cleanly with an intuitive error explanation.",
+    "Users trying to iterate over a trace span receive an incorrect failure notice."
+  ],
+  "search": "In mlflow/entities/span.py:Span, setting __iter__ = None alongside an always-raising __getitem__ ensures that iter(span) and membership tests fail immediately as not iterable rather than falling back to the legacy sequence protocol. This prevents misleading subscript error messages when users perform iteration or membership checks on LiveSpan or immutable Span instances. The guidance applies only to span classes that define __getitem__ strictly for user guidance and must not be used on classes intended to support iteration.",
+  "saysFor": "s2:d7d37d0da1d777f20e1429a84f4f0375d8f915baa471d560b24a460bcc21f9b1"
+}

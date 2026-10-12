@@ -1,0 +1,56 @@
+{
+  "id": "ai-gateway-typesafe-endpoints-gateway-typesafe-v1-systemone",
+  "title": "AI Gateway TypeSafe endpoints: /gateway/typesafe/v1/systemone is a raw passthrough, not a judge model",
+  "kind": "rule",
+  "answers": [
+    "Can I point make_judge at my AI Gateway TypeSafe endpoint using gateway:/?",
+    "How do I send a raw System One evaluation request through MLflow AI Gateway?",
+    "Why does the judge model selector not list my TypeSafe gateway endpoint?",
+    "Where is the TypeSafe gateway passthrough documented in the Gateway query and provider pages?"
+  ],
+  "body": "Path: `POST /gateway/typesafe/v1/systemone` is the AI Gateway passthrough for raw TypeSafe System One structured evaluation requests (state plus noul/choice questions). The gateway endpoint name goes in the request body's `model` field and the gateway attaches its server-side TypeSafe key. It is not a chat, embeddings, OpenAI-compatible or streaming API.\nRule: Keep the two TypeSafe workflows separate. Raw System One calls go through the gateway passthrough route; MLflow judges use direct `model=\"typesafe:/...\"` URIs. Do not pass a TypeSafe gateway endpoint as `gateway:/...` to `make_judge()`, and do not expect TypeSafe passthrough endpoints in judge model selectors. Gateway-backed TypeSafe judge execution and endpoint selection were explicitly deferred to a follow-up.\nConstraints: Applies to documentation and clients calling the passthrough route. For judges, use the direct TypeSafe URI with local credentials. The workspace header applies to the passthrough route like other gateway passthroughs.",
+  "applies": "Applies to AI Gateway TypeSafe passthrough usage and to the boundary between gateway endpoints and make_judge TypeSafe models.",
+  "tags": [
+    "ai-gateway",
+    "typesafe",
+    "passthrough",
+    "judges",
+    "endpoints"
+  ],
+  "deps": [
+    {
+      "path": "docs/docs/genai/governance/ai-gateway/endpoints/model-providers.mdx",
+      "hash": "sha256:71aae0a1c069c90112cd9379",
+      "missing": false
+    },
+    {
+      "path": "docs/docs/genai/governance/ai-gateway/endpoints/query-endpoints.mdx",
+      "hash": "sha256:691a1991c80b71438c122246",
+      "missing": false
+    },
+    {
+      "path": "docs/docs/genai/eval-monitor/scorers/llm-judge/custom-judges/typesafe.mdx",
+      "hash": "sha256:ed1348b9d680cc9585d21b89",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26153"
+  },
+  "created": "2026-10-12T05:32:45.737Z",
+  "verified": "2026-10-12T05:32:45.737Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "My TypeSafe endpoint does not appear in the judge model dropdown selector.",
+    "Using a gateway endpoint URI for custom evaluation judges fails to run.",
+    "Send raw structured evaluation requests through the gateway using server managed credentials.",
+    "Why does the evaluation scoring interface reject gateway paths for TypeSafe judges?"
+  ],
+  "search": "POST /gateway/typesafe/v1/systemone provides an AI Gateway passthrough for raw TypeSafe System One structured evaluation requests using the model request body field and server-side keys. Raw System One calls use this passthrough route, whereas MLflow judges require direct model=\"typesafe:/...\" URIs with local credentials and cannot reference gateway:/... endpoints or appear in judge model selectors. Documented in docs/docs/genai/governance/ai-gateway/endpoints/model-providers.mdx, query-endpoints.mdx, and docs/docs/genai/eval-monitor/scorers/llm-judge/custom-judges/typesafe.mdx, the route does not support chat, embeddings, OpenAI-compatible, or streaming formats.",
+  "saysFor": "s2:bcd2e1ffeb54c384210ce0acf19df3fc89423a93736babaed68fb432487051ab"
+}

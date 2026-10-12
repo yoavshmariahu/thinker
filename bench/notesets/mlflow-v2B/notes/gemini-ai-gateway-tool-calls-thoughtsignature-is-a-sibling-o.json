@@ -1,0 +1,88 @@
+{
+  "id": "gemini-ai-gateway-tool-calls-thoughtsignature-is-a-sibling-o",
+  "title": "Gemini AI Gateway tool calls: thoughtSignature is a sibling of functionCall on the Part, never nested inside it",
+  "kind": "rule",
+  "answers": [
+    "Gemini multi-turn tool calling fails with a 400 after the first function call through the AI Gateway",
+    "Gateway dropped the thought signature from Gemini function-call responses, so the next turn lost it",
+    "Where does the Gemini adapter convert OpenAI-style tool_calls into Gemini functionCall parts?",
+    "Where is thoughtSignature read from a Gemini response into the OpenAI-style tool call?",
+    "Do Gemini thought signatures need special placement when sent back in the conversation history?"
+  ],
+  "body": "Path: Gemini chat requests and responses through the AI Gateway. Request side converts OpenAI-style assistant tool_calls into Gemini `contents` parts in mlflow/gateway/providers/gemini.py:GeminiAdapter.chat_to_model; response side turns Gemini `functionCall` parts into OpenAI tool calls in GeminiAdapter._convert_function_call_to_openai_choice.\nRule: The signature lives on the Part, beside `functionCall`: build `part = {\"functionCall\": fc}` and set `part[\"thoughtSignature\"]` (not `fc[\"thoughtSignature\"]`). On read, look up `thoughtSignature` / `thought_signature` on the part first, then fall back to the same keys inside `functionCall` for older responses.\nSymptom: Multi-turn tool calling against Gemini 3.x failed because the nested signature was rejected by Gemini, and on responses the signature was silently missing from tool calls because only the nested location was checked.\nConstraints: Applies to the Gemini-format request/response conversion in the gateway adapter. The signature is only added when the tool call id has an entry in call_id_to_thought_signature_map; it is not invented otherwise. Tests that build Gemini parts should use this shape (see tests/gateway/providers/test_gemini.py:test_gemini_chat_function_calling_thought_signature).",
+  "applies": "Gateway Gemini adapter (mlflow/gateway/providers/gemini.py) for function calling with thought signatures; the same conversion is used for any provider that routes through GeminiAdapter.",
+  "tags": [
+    "gateway",
+    "gemini",
+    "function-calling",
+    "thought-signature"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/gemini.py",
+      "symbol": "GeminiAdapter.chat_to_model",
+      "hash": "sha256:df37a4b2cd50c08f0c00369c",
+      "line": 108,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:df37a4b2cd50c08f0c00369c",
+      "fanout": {
+        "files": 21,
+        "sites": 47,
+        "refs": 51
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/gemini.py",
+      "symbol": "GeminiAdapter._convert_function_call_to_openai_choice",
+      "hash": "sha256:fca45739f1840d76dbaa5af1",
+      "line": 267,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:fca45739f1840d76dbaa5af1",
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "tests/gateway/providers/test_gemini.py",
+      "symbol": "test_gemini_chat_function_calling_thought_signature",
+      "hash": "sha256:b926b2d3d52cbbba8e50e048",
+      "line": 1016,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b926b2d3d52cbbba8e50e048",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25865"
+  },
+  "created": "2026-10-12T05:31:08.170Z",
+  "verified": "2026-10-12T05:31:08.170Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "vertex-ai-gateway-tool-calls-assert-thoughtsignature-on-the",
+    "gemini-ai-gateway-chat-responses-geminiadapter-detect-tool-c",
+    "gemini-ai-gateway-request-conversion-parallel-tool-results-g",
+    "gemini-ai-gateway-tool-result-conversion-geminiadapter-chat"
+  ],
+  "says": [
+    "Chat gateway requests to Gemini fail with bad request errors during multi-turn tool conversations.",
+    "The AI Gateway drops model reasoning signatures when external tools are called in chat.",
+    "Support multi-turn function calling without losing model thoughts between successive chat turns.",
+    "Follow-up questions fail with a 400 error after the model runs a tool."
+  ],
+  "search": "In the AI Gateway Gemini adapter, thought signatures must be placed as a sibling to functionCall on the Part, never nested inside it. This governs request conversion from OpenAI tool calls in GeminiAdapter.chat_to_model and response conversion in GeminiAdapter._convert_function_call_to_openai_choice, preventing 400 errors and dropped signatures in Gemini 3.x multi-turn tool calling. On responses, the adapter reads thoughtSignature or thought_signature from the part first before falling back to inside functionCall, adding it only when an entry exists in call_id_to_thought_signature_map. Applies to mlflow/gateway/providers/gemini.py and is tested in tests/gateway/providers/test_gemini.py:test_gemini_chat_function_calling_thought_signature.",
+  "saysFor": "s2:cf0fb49d4f66e996587ba71c4564aaa9646aebb589eb0e04d30ad36c47af95b9"
+}

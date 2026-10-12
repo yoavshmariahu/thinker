@@ -1,0 +1,69 @@
+{
+  "id": "databricks-uri-detection-bare-databricks-is-an-exact-string",
+  "title": "Databricks URI detection: bare 'databricks' is an exact-string match, and every other form goes through urlparse scheme",
+  "kind": "rule",
+  "answers": [
+    "Why does is_databricks_uri return False for a capitalized bare 'Databricks' but True for 'DATABRICKS://PROFILE'?",
+    "Which tracking URI forms count as Databricks URIs (databricks, databricks:profile, databricks://scope:prefix)?",
+    "Where is the check that decides whether a tracking or registry URI points at Databricks?",
+    "Why does is_databricks_uri skip urlparse for the plain 'databricks' string?"
+  ],
+  "body": "Path: Classification of a tracking/registry URI string as a Databricks URI in `mlflow/utils/uri.py:is_databricks_uri`. It receives the raw URI a user passes (default profile `databricks`, profile `databricks://profile`, secret-scope form `databricks://scope:prefix`, or other schemes such as `http://`, `mlruns`, `sqlite:///`).\nRule: The function checks `uri == \"databricks\"` first as an exact string match, and only then calls `urllib.parse.urlparse(uri).scheme == \"databricks\"`. The fast path exists so the common bare literal avoids the parser; behavior is otherwise parser-defined. Because the bare check is exact, a bare `Databricks` (no colon) returns False, while `DATABRICKS://PROFILE` returns True since urlparse lowercases the scheme. Keep any optimization of this function inside that same split. Coverage lives in `tests/utils/test_uri.py:test_is_databricks_uri`, parametrized over these forms.\nConstraints: Covers only the scheme/literal classification; it does not validate the profile or secret-scope part after `databricks://`. Non-Databricks forms (`mlruns`, `http://whatever`, `sqlite:////tmp/mlflow.db`) must stay False.\nApplies: Changes to how MLflow recognizes Databricks URIs from a user-supplied string.",
+  "applies": "Any edit to the Databricks-URI string classifier in mlflow/utils/uri.py; not for downstream code that consumes the result.",
+  "tags": [
+    "uri",
+    "databricks",
+    "tracking-uri",
+    "parsing"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/utils/uri.py",
+      "symbol": "is_databricks_uri",
+      "hash": "sha256:b235fb617d03933baf7f25b5",
+      "line": 82,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b235fb617d03933baf7f25b5",
+      "fanout": {
+        "files": 57,
+        "sites": 67,
+        "refs": 141
+      }
+    },
+    {
+      "path": "tests/utils/test_uri.py",
+      "symbol": "test_is_databricks_uri",
+      "hash": "sha256:7718589df6dcc7c488df6daa",
+      "line": 139,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7718589df6dcc7c488df6daa",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25725"
+  },
+  "created": "2026-10-12T05:46:01.476Z",
+  "verified": "2026-10-12T05:46:01.476Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Setting tracking location to capitalized Databricks without a protocol prefix is not recognized.",
+    "Tracking server address fails to connect when typing Databricks with a capital letter.",
+    "Support case-insensitive detection when entering the default workspace name as tracking destination.",
+    "Entering Databricks as the model registry address is rejected unless written in lowercase.",
+    "Recognize uppercase tracking server addresses when using full workspace connection strings."
+  ],
+  "search": "Databricks URI detection in mlflow/utils/uri.py:is_databricks_uri tests uri == 'databricks' as an exact string match before falling back to urllib.parse.urlparse(uri).scheme == 'databricks'. Because the bare literal check is case-exact, bare 'Databricks' returns False while 'DATABRICKS://PROFILE' returns True via urlparse scheme lowercasing. Applies to tracking and registry URI classification including databricks, databricks:profile, and secret-scope forms, keeping non-Databricks schemes like mlruns, http://, and sqlite:/// as False without validating profile or secret-scope contents.",
+  "saysFor": "s2:3d42fa0633db9da497286851419b3bde17e92265e6085e490f3d5b37a18fbe49"
+}

@@ -1,0 +1,72 @@
+{
+  "id": "otel-collector-test-fixture-wait-for-the-health-check-endpoi",
+  "title": "OTel collector test fixture: wait for the health_check endpoint before yielding, and always stop the container in finally",
+  "kind": "rule",
+  "answers": [
+    "Why does the OpenTelemetry collector test fixture flake or sleep for five seconds before tracing tests run?",
+    "How do I add a new tracing test that needs the OTLP collector to be ready, and how is it torn down?",
+    "Where is the collector readiness check and shutdown handled for the OTLP export tests?"
+  ],
+  "body": "Path: tests/tracing/conftest.py:otel_collector is the pytest fixture that starts a Docker OpenTelemetry collector for OTLP trace export tests (single export and dual MLflow+OTel export in tests/tracing/utils/test_otlp.py). It launches `docker run` via subprocess.Popen and yields (log_path, otlp_port) to consumers.\nRule: readiness is decided by polling the collector's health_check extension over HTTP (requests.get on 127.0.0.1:<health_port>/ until status 200, 10 second deadline, 0.1s interval), not by a fixed time.sleep. Inside the readiness loop, if process.poll() shows the container already exited, the fixture raises RuntimeError with the captured log file contents; on deadline it raises TimeoutError with the logs. Termination (terminate, wait 5s, then kill) lives in a finally block around the yield so readiness failures also stop the container.\nSymptom: tests slept a fixed five seconds and could start sending spans before the collector listened, or the collector kept running after a failed startup. Early exits gave no diagnostic output.\nConstraints: applies to the Docker-based collector fixture only; if you add another external process fixture, copy the poll-then-yield-then-finally shape rather than sleeping. Requires the health_check extension to be enabled in the collector config (service.extensions).",
+  "applies": "Test fixtures in tests/tracing that start the OpenTelemetry collector container.",
+  "tags": [
+    "tracing",
+    "otel",
+    "testing",
+    "fixtures",
+    "docker"
+  ],
+  "deps": [
+    {
+      "path": "tests/tracing/conftest.py",
+      "symbol": "otel_collector",
+      "hash": "sha256:5e4b149ed93af1411288d44f",
+      "line": 70,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:06a43571f28889a466596033",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 4
+      }
+    },
+    {
+      "path": "tests/tracing/utils/test_otlp.py",
+      "symbol": "test_export_to_otel_collector",
+      "hash": "sha256:29618d9c500fe0a95288e770",
+      "line": 116,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:29618d9c500fe0a95288e770",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26038"
+  },
+  "created": "2026-10-12T05:30:09.885Z",
+  "verified": "2026-10-12T05:30:09.885Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "otel-collector-test-fixture-allocate-free-otlp-and-health-po",
+    "otel-collector-test-fixture-retry-only-the-docker-pull-of-th"
+  ],
+  "says": [
+    "Tracing export test suite flakes intermittently because the background collector takes too long starting up.",
+    "Spans sent during automated tracing tests are lost before the trace receiver starts listening.",
+    "Container processes left behind after failed tracing test runs keep holding local ports open.",
+    "Show diagnostic logs immediately when background trace collector fails during local test execution.",
+    "Stop relying on arbitrary sleep delays before running automated trace export validation suites."
+  ],
+  "search": "In tests/tracing/conftest.py:otel_collector, the Docker OpenTelemetry collector fixture for OTLP trace export tests in tests/tracing/utils/test_otlp.py polls the HTTP health_check extension endpoint until status 200 rather than using time.sleep. If process.poll() indicates an early exit or the ten-second deadline expires, the fixture raises RuntimeError or TimeoutError with log contents, and container termination is guaranteed in a finally block. This applies specifically to the Docker-based collector fixture and requires service.extensions to enable health_check.",
+  "saysFor": "s2:b9f472f6a4595a92bf445dac3b35864c9f3c92acc0a6a67060b55e9767535895"
+}

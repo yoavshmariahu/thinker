@@ -1,0 +1,101 @@
+{
+  "id": "tracking-fluent-api-experiment-and-run-soft-delete-restore-w",
+  "title": "tracking fluent API: experiment and run soft-delete/restore wrappers live side by side in mlflow/tracking/fluent.py",
+  "kind": "map",
+  "answers": [
+    "Where is restoring a deleted experiment handled in the fluent API?",
+    "Where is mlflow.restore_run implemented?",
+    "Where is the delete_run / delete_experiment wrapper defined so I can find its restore counterpart?",
+    "Which function do the fluent lifecycle helpers delegate to?"
+  ],
+  "body": "Path: mlflow/tracking/fluent.py holds the top-level lifecycle helpers for experiments and runs. delete_experiment and restore_experiment (experiment soft-delete and undelete by experiment_id) sit next to each other, and delete_run and restore_run (run soft-delete and undelete by run_id) sit next to each other further down the file.\nRule: Each fluent lifecycle function is a one-line delegation to MlflowClient: restore_experiment calls MlflowClient().restore_experiment(experiment_id) and restore_run calls MlflowClient().restore_run(run_id). The actual state change is in the MlflowClient methods and the store layers below them, so changes to restore behaviour belong there, not in the fluent wrapper. When changing one half of a delete/restore pair, check the other half and its docstring example in the same file.\nConstraints: Covers only the fluent (mlflow.*) entry points. The REST restore RPCs, CLI and UI restore paths are separate code and are not in fluent.py.",
+  "applies": "Locating or changing the top-level mlflow.* experiment or run delete/restore functions.",
+  "tags": [
+    "tracking",
+    "fluent-api",
+    "experiments",
+    "runs",
+    "soft-delete",
+    "restore"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/tracking/fluent.py",
+      "symbol": "restore_experiment",
+      "hash": "sha256:2fd8cd90e090139b747a4843",
+      "line": 2455,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2fd8cd90e090139b747a4843",
+      "fanout": {
+        "files": 17,
+        "sites": 20,
+        "refs": 24
+      }
+    },
+    {
+      "path": "mlflow/tracking/fluent.py",
+      "symbol": "restore_run",
+      "hash": "sha256:eb0476d2c4f7f787022f6b97",
+      "line": 3168,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:eb0476d2c4f7f787022f6b97",
+      "fanout": {
+        "files": 13,
+        "sites": 19,
+        "refs": 24
+      }
+    },
+    {
+      "path": "mlflow/tracking/fluent.py",
+      "symbol": "delete_experiment",
+      "hash": "sha256:47f35ef2602dffc6fd2c519f",
+      "line": 2420,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:47f35ef2602dffc6fd2c519f",
+      "fanout": {
+        "files": 28,
+        "sites": 68,
+        "refs": 75
+      }
+    },
+    {
+      "path": "mlflow/tracking/fluent.py",
+      "symbol": "delete_run",
+      "hash": "sha256:42903c236aae636ba3e4a031",
+      "line": 3137,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:42903c236aae636ba3e4a031",
+      "fanout": {
+        "files": 24,
+        "sites": 45,
+        "refs": 53
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25852"
+  },
+  "created": "2026-10-12T05:37:17.847Z",
+  "verified": "2026-10-12T05:37:17.847Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "mlflow-top-level-api-exports-a-new-public-mlflow-function-ne"
+  ],
+  "says": [
+    "Allow users to restore deleted experiments through the top-level Python library",
+    "Provide a Python helper to undelete accidentally removed tracking runs",
+    "Document how to recover deleted experiments alongside the deletion code examples",
+    "Restoring an experiment in Python behaves inconsistently compared to deleting an experiment",
+    "Make experiment recovery functions available directly from the main tracking package"
+  ],
+  "search": "In mlflow/tracking/fluent.py, experiment and run lifecycle functions (delete_experiment, restore_experiment, delete_run, and restore_run) are one-line wrappers delegating directly to MlflowClient methods. Actual state changes occur in MlflowClient and store layers, but paired delete/restore functions and docstring examples in fluent.py should be maintained together. This covers only top-level mlflow.* fluent entry points, excluding REST RPCs, CLI, and UI restore paths.",
+  "saysFor": "s2:c4fd53d1f9cb60bc0b0ecc6ea43bf3e3032a5c2220f8687704ed14423bc1f48f"
+}

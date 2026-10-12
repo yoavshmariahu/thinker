@@ -1,0 +1,85 @@
+{
+  "id": "test-db-uri-fixture-default-experiment-is-created-per-test-c",
+  "title": "test db_uri fixture: Default experiment is created per test copy, so the session cached_db stays schema-only",
+  "kind": "rule",
+  "answers": [
+    "Tests using a bare SQLite tracking URI wrote artifacts into the shared ./mlruns and another xdist worker deleted them, how is that fixed?",
+    "Where is the Default experiment (experiment 0) created for test SQLite databases?",
+    "Why does the cached SQLite test database contain no experiments, and how do I add one for my test?",
+    "How do I point the default experiment artifact location at a test's tmp directory?"
+  ],
+  "body": "Path: tests/conftest.py:cached_db builds the session-cached SQLite tracking database (schema and migrations only); tests/conftest.py:db_uri copies it into each test's tmp dir and yields a sqlite:/// tracking URI that tests and `mlflow run` subprocesses use.\nRule: cached_db calls mlflow/store/db/utils.py:_initialize_tables on an engine from create_sqlalchemy_engine_with_retry and disposes it in a finally block; it must not insert experiments. db_uri inserts the Default experiment row (id 0, name Experiment.DEFAULT_EXPERIMENT_NAME, ACTIVE) into the per-test copy with artifact_location under that test's tmp_path/artifacts, timestamps from get_current_time_millis, and workspace DEFAULT_WORKSPACE_NAME. Do not UPDATE an existing row's artifact_location in the copy; there is no row to update.\nSymptom: Tests that opened a bare sqlite tracking URI had their Default experiment artifacts land in the shared repo ./mlruns; under pytest-xdist, one worker's autouse clean_up_mlruns_directory fixture deleted another worker's artifacts, causing flaky missing-artifact failures.\nConstraints: Applies to fixtures and tests that go through db_uri. The insert is skipped when IS_TRACING_SDK_ONLY is set or the cache file is missing (the cache-building step is also skipped in tracing-only and missing-dependency cases). Tests that build their own store from cached_db still choose their own artifact root.",
+  "applies": "Test infrastructure for the MLflow tracking SQLite store under tests/; applies when writing or changing tests that depend on the Default experiment or its artifact location.",
+  "tags": [
+    "tests",
+    "sqlite",
+    "fixtures",
+    "xdist",
+    "artifacts"
+  ],
+  "deps": [
+    {
+      "path": "tests/conftest.py",
+      "symbol": "cached_db",
+      "hash": "sha256:3ca091a168cf4ad1113b81a7",
+      "line": 1292,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3ca091a168cf4ad1113b81a7",
+      "fanout": {
+        "files": 7,
+        "sites": 0,
+        "refs": 19
+      }
+    },
+    {
+      "path": "tests/conftest.py",
+      "symbol": "db_uri",
+      "hash": "sha256:2fa2ab2ccfeccaeea50ee964",
+      "line": 1321,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ce4229f3643edf24dc560030",
+      "fanout": {
+        "files": 53,
+        "sites": 0,
+        "refs": 293
+      }
+    },
+    {
+      "path": "mlflow/store/db/utils.py",
+      "symbol": "_initialize_tables",
+      "hash": "sha256:3a599ab34bd6b6a609b95492",
+      "line": 86,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3a599ab34bd6b6a609b95492",
+      "fanout": {
+        "files": 9,
+        "sites": 8,
+        "refs": 16
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25753"
+  },
+  "created": "2026-10-12T05:45:47.698Z",
+  "verified": "2026-10-12T05:45:47.698Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "tests-store-tracking-conftest-reuse-the-root-session-cached"
+  ],
+  "says": [
+    "Tests writing artifacts into the shared mlruns folder and another worker deleting them",
+    "Default experiment missing from the SQLite test database used by tests",
+    "Test database fixture should insert the Default experiment into each per-test copy",
+    "Set the Default experiment artifact location to a test's temporary directory"
+  ],
+  "search": "Test SQLite fixtures: the session-cached database holds schema only, while the per-test copy gets the Default experiment row with artifact location under that test's temporary path. Do not insert experiments into the cached database or update an existing artifact location in the copy. Insert is skipped in tracing-only mode or when the cache file is missing.",
+  "saysFor": "s2:eaf63da6b0e3ce0beff71a306d0b3037bd09185b112855a6b7314fb3d4e9dd17"
+}

@@ -1,0 +1,102 @@
+{
+  "id": "typescript-agent-traces-git-source-metadata-is-resolved-fiel",
+  "title": "TypeScript agent traces: Git source metadata is resolved field by field and merged into trace metadata at span start",
+  "kind": "rule",
+  "answers": [
+    "Why do my TypeScript traces show no branch or repo URL when the repo has no commits yet?",
+    "Where does the SDK add mlflow.source.git.commit / branch / repoURL to traces?",
+    "How are credentials stripped from a git remote before it is recorded on a trace?",
+    "Why does a trace keep the old commit after I switched branches in the same process?"
+  ],
+  "body": "Path: Every trace started by the TypeScript SDK's MLflow and Unity Catalog span processors (libs/typescript/core/src/exporters/mlflow.ts:MlflowSpanProcessor onStart and uc_table.ts:DatabricksUCTableSpanProcessor onStart) spreads resolveEnvironmentMetadata() from libs/typescript/core/src/core/utils/environment.ts into traceMetadata, so agent sessions run inside a Git checkout (Codex, Claude Code and other integrations built on @mlflow/core) get source provenance without any integration code.\nRule: resolveGitMetadata runs three independent git calls (rev-parse HEAD, branch --show-current, config --get remote.origin.url) and omits each one that fails; a failed commit lookup must not short-circuit branch or origin. The origin passes through stripCredentialsFromUrl, which clears userinfo from URL remotes and leaves SSH-style remotes unchanged. Tests inject the GitCommandRunner instead of shelling out.\nSymptom: In a newly initialized repository with an unborn branch, traces were missing mlflow.source.git.branch and mlflow.source.git.repoURL, because the commit lookup returned early and dropped the other two fields.\nConstraints: Values are computed once per process by resolveEnvironmentMetadata (cachedEnvironmentMetadata) at the first trace start, so a later checkout or cwd change in the same process is not reflected. Each git call has a 1 second timeout with stdin and stderr ignored. Outside a Git work tree, nothing is added and the trace is unchanged.",
+  "applies": "TypeScript SDK (libs/typescript/core) trace export for the MLflow and Unity Catalog processors; not the Python tracing path.",
+  "tags": [
+    "typescript",
+    "tracing",
+    "git",
+    "trace-metadata",
+    "uc-table",
+    "mlflow-exporter"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/core/src/core/utils/environment.ts",
+      "symbol": "resolveEnvironmentMetadata",
+      "hash": "sha256:7bf98f226c73a0459a065381",
+      "line": 56,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7bf98f226c73a0459a065381",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 4
+      }
+    },
+    {
+      "path": "libs/typescript/core/src/core/utils/environment.ts",
+      "symbol": "resolveGitMetadata",
+      "hash": "sha256:28ade0c3605149d615c01a95",
+      "line": 41,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:28ade0c3605149d615c01a95",
+      "fanout": {
+        "files": 2,
+        "sites": 6,
+        "refs": 8
+      }
+    },
+    {
+      "path": "libs/typescript/core/src/exporters/mlflow.ts",
+      "symbol": "MlflowSpanProcessor",
+      "hash": "sha256:fce56b1c93758da7e559177c",
+      "line": 37,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:fce56b1c93758da7e559177c",
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 5
+      }
+    },
+    {
+      "path": "libs/typescript/core/src/exporters/uc_table.ts",
+      "symbol": "DatabricksUCTableSpanProcessor",
+      "hash": "sha256:2ca10c9b7eb9340f23f82b4a",
+      "line": 29,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2ca10c9b7eb9340f23f82b4a",
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25825"
+  },
+  "created": "2026-10-12T05:38:03.941Z",
+  "verified": "2026-10-12T05:38:03.941Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "uc-trace-export-typescript-session-and-user-must-be-copied-t",
+    "typescript-tracing-spans-setting-attributes-on-an-already-en",
+    "typescript-span-processor-tests-mock-the-environment-helper"
+  ],
+  "says": [
+    "Trace details view shows no branch name or repository link in brand new projects.",
+    "Agent trace metadata still displays the previous branch after switching branches mid session.",
+    "Remove private username and password tokens from repository links shown in execution traces.",
+    "Display source control commit and repository details automatically in assistant session trace views."
+  ],
+  "search": "TypeScript SDK trace exporters in MlflowSpanProcessor and DatabricksUCTableSpanProcessor merge Git provenance into traceMetadata at span start. In libs/typescript/core/src/core/utils/environment.ts, resolveGitMetadata independently retrieves commit, branch, and remote origin URL so an unborn branch does not drop the other fields. Remote origin URLs pass through stripCredentialsFromUrl to strip user credentials from URL remotes. Environment metadata is cached once per process at the first trace start, does not track later checkout changes, and does not apply to Python tracing.",
+  "saysFor": "s2:2c0fb8f0f17e7e3a09754b93760102a34803eaafeb06b9bef55bc404a1680b18"
+}

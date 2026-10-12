@@ -1,0 +1,51 @@
+{
+  "id": "approval-triggered-rerun-gate-rerun-workflow-run-yml-relies",
+  "title": "Approval-triggered rerun gate: rerun-workflow-run.yml relies on the rerun.yml run concluding success, so non-approving reviews must leave the trigger job skipped, not successful",
+  "kind": "rule",
+  "answers": [
+    "Why does a review comment or change request not trigger the rerun workflow now that the artifact is gone?",
+    "If I add a job to rerun.yml, will non-approving reviews start a rerun?",
+    "How is the approval check enforced for the rerun workflow after the PR-number artifact was removed?"
+  ],
+  "body": "Path: .github/workflows/rerun.yml (single job approved, gated by `if: github.event.review.state == 'approved'` and an allowed-author check) feeds .github/workflows/rerun-workflow-run.yml, which only proceeds when `workflow_run.conclusion == 'success'`.\nRule: The approval check is now carried by the run conclusion. A run whose only job is skipped by its `if` concludes `skipped`, which fails the `success` gate, so comments, change requests, and unauthorized reviews do not rerun. Keep the approval condition in the job `if`; do not add an unconditional job or a step that exits 0 to the rerun.yml run, since that would make the run conclude `success` for non-approvals.\nSymptom: Without the artifact (which previously failed to download for non-approvals), a non-approving review could have triggered the rerun; the gate on run conclusion is what prevents it.\nConstraints: Verified by a reviewer against a real run (copilot/update-rerun-workflow-order, run 33895204959), where the all-skipped run concluded `skipped`. Holds only while rerun.yml has exactly one job. Adding a second job requires re-checking this gate.",
+  "applies": "Any change to rerun.yml triggers or its job conditions that feed the approval-triggered rerun workflow.",
+  "tags": [
+    "github-actions",
+    "workflow_run",
+    "approval",
+    "gate",
+    "skipped"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/rerun.yml",
+      "hash": "sha256:f09960f43d841018af6de4bb",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/rerun-workflow-run.yml",
+      "hash": "sha256:1123ab8d5531b5e8f2408d10",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25592"
+  },
+  "created": "2026-10-12T05:48:12.270Z",
+  "verified": "2026-10-12T05:48:12.270Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "approval-triggered-rerun-rerun-workflow-run-yml-reads-the-pr"
+  ],
+  "says": [
+    "Review comments or change requests no longer trigger the rerun workflow after approval",
+    "Adding a job to the approval rerun workflow makes non-approving reviews start a rerun",
+    "Approval check for the rerun workflow no longer depends on the removed PR-number artifact"
+  ],
+  "search": "Approval-triggered rerun gate: the rerun-workflow-run workflow proceeds only when the triggering rerun.yml run concludes success, so the approval condition must stay in the single job's if, and non-approving reviews leave it skipped. Do not add an unconditional job or an exit-0 step to rerun.yml; re-check the gate if a second job is added.",
+  "saysFor": "s2:512697232489ee45dc86f490f6b6f050d2f68b297c059df4a9b63cf96d50c659"
+}

@@ -1,0 +1,47 @@
+{
+  "id": "copilot-review-request-workflow-publish-the-draft-and-reques",
+  "title": "Copilot review request workflow: publish the draft and request the review as steps of one job, gated to Copilot bot PRs",
+  "kind": "rule",
+  "answers": [
+    "Why does the Copilot review workflow mark a draft PR ready for review itself?",
+    "Why are gh pr ready and the Copilot review request in the same job instead of two jobs?",
+    "Where is the logic that publishes Copilot draft PRs and requests @copilot review?",
+    "Why does a maintainer's draft PR never get auto-published?"
+  ],
+  "body": "Path: .github/workflows/copilot-review.yml:request-review handles pull_request_target opened, ready_for_review and review_requested events. It requests a Copilot review for non-draft PRs from OWNER, MEMBER or COLLABORATOR authors or from the Copilot bot, and for Copilot-bot draft PRs on review_requested it runs the 'Mark ready for review' step (gh pr ready) before the 'Request Copilot review' step (gh pr edit --add-reviewer @copilot).\nRule: keep the publish step and the review-request step in the same job so they run in one invocation. A write made with GITHUB_TOKEN (gh pr ready) does not start other workflow runs, so a separate job would publish the PR and never receive the ready_for_review event it needs. Gate the draft path on github.event.pull_request.user.login == 'Copilot' and user.type == 'Bot' so maintainer drafts are never published automatically.\nSymptom: Copilot PRs are created as drafts and the earlier trigger set (opened, ready_for_review) missed the review-request trigger, so Copilot PRs were never reviewed.\nConstraints: the draft path runs only for review_requested on a draft Copilot bot PR; non-draft paths keep the OWNER/MEMBER/COLLABORATOR or Copilot-bot author condition. The job's permissions are pull-requests: write only. The PR description says markPullRequestReadyForReview may need contents: write (cli/cli#8910), and a review comment reports 'Resource not accessible by integration' without it and asks for contents: write to be granted now. The diff does not add it, so check the first run of the publish step before assuming it works.",
+  "applies": "Edits to .github/workflows/copilot-review.yml trigger types or the Mark ready / Request review steps; for any workflow where one step's side effect must start a later workflow, prefer same-job sequencing over a separate job.",
+  "tags": [
+    "github-actions",
+    "copilot",
+    "pull-request",
+    "workflow",
+    "draft-pr"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/copilot-review.yml",
+      "hash": "sha256:d3b12c032c69d87e4f909e39",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25534"
+  },
+  "created": "2026-10-12T05:49:45.998Z",
+  "verified": "2026-10-12T05:49:45.998Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Why did requesting review on a bot draft pull request fail to start the review?",
+    "Human maintainer draft pull requests should never be automatically published when requesting reviews.",
+    "Automated code reviews never arrived on draft pull requests opened by the coding bot.",
+    "Automatically publish bot draft pull requests and request review in a single unified step.",
+    "Prevent developer draft pull requests from being published when automated reviewers are assigned."
+  ],
+  "search": "In .github/workflows/copilot-review.yml:request-review, publishing a draft PR with gh pr ready and requesting a Copilot review with gh pr edit --add-reviewer @copilot are combined within a single job. Running both steps sequentially in one job prevents missed events, as actions taken with GITHUB_TOKEN do not trigger downstream workflows. Draft publishing is gated to pull requests where user.login == 'Copilot' and user.type == 'Bot', preventing maintainer drafts from being published automatically. The job specifies pull-requests: write permissions, with a known potential need for contents: write.",
+  "saysFor": "s2:d7ff570d299fd4a50613dc169f53530f6a00b2abb92e3f6a562a57589f10a0c5"
+}

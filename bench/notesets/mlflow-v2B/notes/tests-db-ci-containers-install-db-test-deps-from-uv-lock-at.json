@@ -1,0 +1,65 @@
+{
+  "id": "tests-db-ci-containers-install-db-test-deps-from-uv-lock-at",
+  "title": "tests/db CI containers: install DB test deps from uv.lock at container start, not via Dockerfile build args",
+  "kind": "rule",
+  "answers": [
+    "Database CI job failed with 'operator does not exist: bigint > character varying' on a postgresql:// store; how are the DB test containers' dependencies installed?",
+    "How do I add a new database driver or pytest plugin to the tests/db Docker images?",
+    "Why does docker compose build no longer take a DEPENDENCIES build arg or INSTALL_MLFLOW_FROM_REPO?",
+    "Where is the mlflow DB test environment (psycopg, mysqlclient, pyodbc) set up for the compose services?"
+  ],
+  "body": "Path: tests/db/compose.yml services (mlflow-postgresql, mlflow-mysql, mlflow-mssql, mlflow-sqlite and their migration-* variants) start from tests/db/Dockerfile and tests/db/Dockerfile.mssql, and every container runs tests/db/entrypoint.sh before the command, which is where the DB test environment is built.\nRule: Dockerfiles only provide the base image (python:3.11 plus uv); the environment is created at entrypoint time by `uv sync --locked --no-default-groups --extra db --group db-test` into /opt/venv, then the command runs via `uv run --no-sync \"$@\"` (tests/db/entrypoint.sh). The DB-only drivers (psycopg[binary], mysqlclient, pyodbc, psutil, pytest tooling) are the `db-test` dependency group in pyproject.toml, so add new test deps there and regenerate uv.lock rather than editing Dockerfiles.\nSymptom: Unpinned installs in the Docker build let CI resolve SQLAlchemy 2.1, where bare postgresql:// picks psycopg v3 and string parameters are cast to ::VARCHAR, so numeric filters failed with 'operator does not exist: bigint > character varying'.\nConstraints: The DEPENDENCIES build argument, extract_deps.py and INSTALL_MLFLOW_FROM_REPO no longer exist; the repo's mlflow is always the uv project. Per-container sync is intentional (a shared cache volume would not survive `compose.sh down --volumes`). Do not use the host .venv in the container; the venv is /opt/venv so bind-mounted repos are not overwritten.",
+  "applies": "tests/db Docker Compose database test images and their entrypoint; not the packaged mlflow[db] extra used by end users.",
+  "tags": [
+    "tests",
+    "database",
+    "docker",
+    "uv",
+    "ci",
+    "sqlalchemy",
+    "postgresql"
+  ],
+  "deps": [
+    {
+      "path": "tests/db/entrypoint.sh",
+      "hash": "sha256:c8272ad3a3b7c4d9410bed19",
+      "missing": false
+    },
+    {
+      "path": "tests/db/compose.yml",
+      "hash": "sha256:5271839d60b3d6b4fd61bda2",
+      "missing": false
+    },
+    {
+      "path": "pyproject.toml",
+      "hash": "sha256:459e93fed0b67fec529ee594",
+      "missing": false
+    },
+    {
+      "path": "tests/db/compose.sh",
+      "hash": "sha256:7a0ba22e5f9116f89f1ef2cb",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26168"
+  },
+  "created": "2026-10-12T05:29:25.982Z",
+  "verified": "2026-10-12T05:29:25.982Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "tests-db-ci-scripts-keep-shell-tracing-off-and-uv-quiet-so-t"
+  ],
+  "says": [
+    "Searching experiment runs with numeric filters fails on PostgreSQL database backends.",
+    "Filtering metrics with numerical comparisons causes database type mismatch errors.",
+    "Metric search queries fail on Postgres tracking stores due to improper type casting.",
+    "Ensure numerical search filters work reliably across all supported database tracking stores."
+  ],
+  "search": "Docker Compose database test containers in tests/db build environments at entrypoint start using uv sync locked against the db-test group and db extra rather than via Dockerfile build arguments. Dockerfiles provide only the python:3.11 and uv base image, while database drivers such as psycopg[binary], mysqlclient, pyodbc, and pytest tooling are configured in pyproject.toml under db-test and synced into /opt/venv via tests/db/entrypoint.sh. This applies to compose.yml test services to prevent unpinned driver issues on stores like PostgreSQL, while DEPENDENCIES build args, extract_deps.py, and INSTALL_MLFLOW_FROM_REPO are removed.",
+  "saysFor": "s2:75a6b04ea71e0144a5c367df7d198a855ddd5f2f9daf7d3e5ee1c7ffb669c179"
+}

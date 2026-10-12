@@ -1,0 +1,72 @@
+{
+  "id": "docker-compose-example-test-retry-only-docker-compose-pull-a",
+  "title": "Docker Compose example test: retry only `docker compose pull`, and run logs and cleanup from an EXIT trap",
+  "kind": "rule",
+  "answers": [
+    "Why does the artifacts example integration test fail when Docker Hub times out pulling postgres?",
+    "Where is the retry logic for transient Docker image pulls in the MLflow artifacts integration test?",
+    "If I add another step to the Docker compose example test, will its cleanup still run when it fails?",
+    "How do I make the example test stop on build or application errors without retrying them?"
+  ],
+  "body": "Path: tests/tracking/test_mlflow_artifacts.py:test_mlflow_artifacts_example writes a shell script that runs `docker compose pull --ignore-buildable`, `./build.sh`, and `docker compose run ... python example.py` for the artifacts example, then collects logs and tears down containers and images.\nRule: Retry only the registry step: `docker compose pull` runs up to 3 times with 5s and 10s sleeps, and the script fails after the third attempt. Build and application commands are not retried. The script uses `set -e` so build or app failures stop immediately. Put logs and `docker compose down {rmi_option} --volumes --remove-orphans` in an `EXIT` trap, not after the commands, so they run exactly once on success, on exhausted pulls, and on failures. The trap captures `status=$?` first and sets `status=1` only if log collection or cleanup itself fails, so the original nonzero exit code is preserved.\nSymptom: The CI job for the artifacts example failed when Docker Hub's auth endpoint timed out while pulling `postgres`. Earlier versions also skipped cleanup on failure, because a plain `exit` or a failed command bypassed the trailing `docker compose down`, so images pulled before the failure were not removed on GitHub Actions.\nConstraints: Applies to this generated shell script in the Docker-based artifacts example test. Do not add retries around build or application commands, since those failures are not transient registry errors. The `--rmi all` cleanup is only added when `is_github_actions()` is true.",
+  "applies": "Docker Compose-based integration tests in tests/tracking that generate a shell script with set -e and cleanup; not for unit tests or non-Docker tests.",
+  "tags": [
+    "tests",
+    "docker",
+    "ci",
+    "integration-test",
+    "retry"
+  ],
+  "deps": [
+    {
+      "path": "tests/tracking/test_mlflow_artifacts.py",
+      "symbol": "test_mlflow_artifacts_example",
+      "hash": "sha256:d030592902a606b59629b020",
+      "line": 246,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e8d65e452d935a5cb0d39bd9",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/tracking/test_mlflow_artifacts.py",
+      "symbol": "is_github_actions",
+      "hash": "sha256:f6e96900407108cd7fa1db78",
+      "line": 242,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f6e96900407108cd7fa1db78",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25910"
+  },
+  "created": "2026-10-12T05:42:36.808Z",
+  "verified": "2026-10-12T05:42:36.808Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "mlflow-artifacts-example-s3-storage-rustfs-service-plus-one"
+  ],
+  "says": [
+    "Artifacts example integration test fails intermittently when image downloads time out in continuous integration.",
+    "Failed integration test runs leave leftover container images and volumes behind on build workers.",
+    "Automatically retry downloading container images without retrying failing application or build steps.",
+    "Ensure container logs and resources are always cleaned up even if test steps fail.",
+    "Network timeouts during container setup cause the entire integration test run to fail permanently."
+  ],
+  "search": "The Docker Compose artifacts integration test in tests/tracking/test_mlflow_artifacts.py retries docker compose pull up to three times with sleeps while leaving build and application commands unretried under set -e. Container log collection and docker compose down cleanup run from an EXIT trap to ensure teardown occurs exactly once and preserves non-zero exit codes on failure. Container image removal via --rmi all in cleanup is added only when is_github_actions() returns true, applying solely to this generated shell script.",
+  "saysFor": "s2:ef6e95bc50c57c510b5e6f0a3bd397a78c7dfc62e3c31f6e2dfe4664f1b32793"
+}

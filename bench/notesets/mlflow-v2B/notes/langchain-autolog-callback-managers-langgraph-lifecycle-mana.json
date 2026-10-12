@@ -1,0 +1,74 @@
+{
+  "id": "langchain-autolog-callback-managers-langgraph-lifecycle-mana",
+  "title": "LangChain autolog callback managers: LangGraph lifecycle managers must not receive the MLflow tracer",
+  "kind": "rule",
+  "answers": [
+    "Why does mlflow.langchain.autolog() print 'Error in MlflowLangchainTracer.on_interrupt callback' when a LangGraph graph calls interrupt() or resumes with Command(resume=...)?",
+    "Where does MLflow decide which LangChain callback managers get the MlflowLangchainTracer injected?",
+    "How do I make a new callback manager type skip MLflow tracer injection under autologging?",
+    "Tracing a LangGraph human-in-the-loop graph with interrupt and resume: are the traces still recorded correctly?"
+  ],
+  "body": "Path: Autologging for LangChain/LangGraph traces. Every `BaseCallbackManager` constructed while `mlflow.langchain.autolog()` is on goes through `mlflow/langchain/autolog.py:_patched_callback_manager_init`, which injects a `MlflowLangchainTracer` into `inheritable_handlers` unless one is already present or log_traces is off.\nRule: `_patched_callback_manager_init` returns early when `mlflow/langchain/autolog.py:_is_langgraph_lifecycle_manager` is true, i.e. when `type(manager).__module__ == \"langgraph.callbacks\"`. LangGraph's graph lifecycle managers (sync/async, used for on_interrupt / on_resume) accept only `GraphCallbackHandler` subclasses, so an injected tracer would receive hooks it does not implement. Detect such classes by module, not by importing them or by duck-typing hook names, so langgraph stays optional and a future `on_interrupt` on `BaseCallbackManager` cannot silently disable tracing.\nSymptom: With LangGraph >= 1.1.8, every `interrupt()` and every resume logged `Error in MlflowLangchainTracer.on_interrupt/on_resume callback: AttributeError(...)`. Traces themselves were recorded correctly; only the error logs were spurious.\nConstraints: Applies only to managers whose class lives in `langgraph.callbacks`. Ordinary `CallbackManager` instances still get exactly one tracer. If LangGraph moves these classes, the log noise returns but traces are not lost. Tests live in `tests/langgraph/test_langgraph_autolog.py` (interrupt/resume with `caplog`; `get_*_graph_callback_manager_for_config` managers have empty handler lists).",
+  "applies": "Any change to MLflow autologging callback-manager injection or LangGraph (>=1.1.8) interrupt/resume tracing in mlflow/langchain/autolog.py.",
+  "tags": [
+    "tracing",
+    "langchain",
+    "langgraph",
+    "autolog",
+    "callbacks"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/langchain/autolog.py",
+      "symbol": "_is_langgraph_lifecycle_manager",
+      "hash": "sha256:08c516eb4c00ce5be238da6a",
+      "line": 87,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:08c516eb4c00ce5be238da6a",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/langchain/autolog.py",
+      "symbol": "_patched_callback_manager_init",
+      "hash": "sha256:f5fc76626e1e014ce7e2e470",
+      "line": 99,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f5fc76626e1e014ce7e2e470",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "tests/langgraph/test_langgraph_autolog.py",
+      "hash": "sha256:8d5c74cdb3c0e26b638cdd97",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26136"
+  },
+  "created": "2026-10-12T05:32:43.472Z",
+  "verified": "2026-10-12T05:32:43.472Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Execution logs show spurious callback errors whenever a workflow pauses or resumes.",
+    "Eliminate false tracer error logs during human-in-the-loop agent graph pauses and resumes.",
+    "Autologging prints tracer attribute errors during graph interrupts even though traces record fine.",
+    "Agent tracing outputs noisy callback warnings each time an interactive run waits for input."
+  ],
+  "search": "In mlflow.langchain.autolog._patched_callback_manager_init, skip injecting MlflowLangchainTracer into LangGraph lifecycle managers identified when their class module equals 'langgraph.callbacks'. LangGraph lifecycle managers for interrupt and resume only accept GraphCallbackHandler subclasses, so skipping them avoids spurious AttributeError logs while traces remain recorded correctly. Class detection uses module string inspection rather than direct imports or duck typing to keep langgraph optional, applying strictly to managers in langgraph.callbacks.",
+  "saysFor": "s2:6b32b5ff604cbb0abae8cd158a95715294b9e61f941582e7400763cc0cab1000"
+}

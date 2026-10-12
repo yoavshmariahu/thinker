@@ -1,0 +1,89 @@
+{
+  "id": "search-logged-models-ordering-always-end-with-a-stable-model",
+  "title": "search_logged_models ordering: always end with a stable model_id tie-breaker unless the caller sorts by model_id",
+  "kind": "rule",
+  "answers": [
+    "Why does the order of logged models change between identical searches when several models have the same metric or creation time?",
+    "How do I make search_logged_models results stable across pages when user sort keys tie?",
+    "Why does sorting logged models by model_id produce a duplicated ORDER BY clause?"
+  ],
+  "body": "Path: mlflow/store/tracking/sqlalchemy_store.py:_apply_order_by_search_logged_models builds the ORDER BY for search_logged_models from the user's order_by list (field_name plus ascending) and then appends default keys. Any change to sort order or paging for logged models goes through this function.\nRule: After the user's keys, append creation_timestamp_ms desc only if the caller did not sort by creation_timestamp_ms, and append SqlLoggedModel.model_id asc only if the caller did not sort by model_id (tracked with has_model_id, mirroring has_creation_timestamp). model_id is the final key, so ties in user sort keys resolve the same way on every page.\nSymptom: When user-provided sort keys tied (for example several models with the same metric value), page boundaries were not deterministic, so paginated results could repeat or drop models.\nConstraints: Only affects logged-model search ordering. When the caller already sorts by model_id, no extra model_id key is added, so the ORDER BY does not repeat the same column. Verify ORDER BY shape by compiling the query from _apply_order_by_search_logged_models in a test, as the test test_search_logged_models_order_by_model_id_does_not_duplicate_tiebreaker does.",
+  "applies": "Logged model search ORDER BY construction in the SQLAlchemy tracking store; applies when adding or changing default sort keys for logged models.",
+  "tags": [
+    "tracking",
+    "logged-models",
+    "search",
+    "pagination",
+    "sorting",
+    "determinism"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "SqlAlchemyStore._apply_order_by_search_logged_models",
+      "hash": "sha256:ed81baaabcffd60026132c70",
+      "line": 3523,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ed81baaabcffd60026132c70",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_runs.py",
+      "symbol": "test_search_logged_models_order_by_model_id_does_not_duplicate_tiebreaker",
+      "hash": "sha256:308cd1fc442214617654452f",
+      "line": 4104,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:308cd1fc442214617654452f",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "_apply_order_by_search_logged_models",
+      "hash": "sha256:ed81baaabcffd60026132c70",
+      "line": 3523,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ed81baaabcffd60026132c70",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25935"
+  },
+  "created": "2026-10-12T05:39:28.080Z",
+  "verified": "2026-10-12T05:39:28.080Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "search-logged-models-metric-ordering-keep-one-latest-metric",
+    "sql-trace-rollup-routing-in-raw-range-points-read-non-groupe",
+    "logged-model-tag-upsert-dedupe-tag-keys-before-bulk-upsert-s",
+    "sqlalchemy-tracking-store-hard-delete-mlflow-gc-bulk-delete"
+  ],
+  "says": [
+    "Model search results shift unpredictably between pages when models share identical sort values.",
+    "Identical searches on the model page return items in different orders when scores tie.",
+    "Make model list pagination consistent and stable when sorting by creation time or metrics.",
+    "Models drop or reappear across pages because secondary sorting is not deterministic.",
+    "Prevent model search order from shuffling randomly when several models have identical metrics."
+  ],
+  "search": "In mlflow/store/tracking/sqlalchemy_store.py:_apply_order_by_search_logged_models, logged model searches must append a final SqlLoggedModel.model_id asc tie-breaker unless the caller already sorted by model_id. The builder also appends creation_timestamp_ms desc unless creation timestamp was explicitly specified by the caller. Tracking whether model_id is present prevents duplicated columns in the generated ORDER BY clause while ensuring deterministic page boundaries when user sort keys tie. Applies to ORDER BY construction for search_logged_models queries in the SQLAlchemy tracking store.",
+  "saysFor": "s2:96e1a95b479e4f6358e9cd2b964d90427b9fcd7e77f14fbfa221247a0e9d78c1"
+}

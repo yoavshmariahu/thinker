@@ -1,0 +1,47 @@
+{
+  "id": "docs-preview-workflow-preview-docs-yml-concurrency-key-must",
+  "title": "docs preview workflow (preview-docs.yml): concurrency key must include head repository full_name, since branch names collide across forks",
+  "kind": "rule",
+  "answers": [
+    "Why did a docs preview for my PR get cancelled or its deployment cleaned up by someone else's PR?",
+    "Why are preview deployments from different forks interfering with each other?",
+    "Where is the docs preview concurrency group defined?",
+    "How do I add another field to the docs preview serialization key?"
+  ],
+  "body": "Path: .github/workflows/preview-docs.yml triggers on completed `workflow_run` events and handles docs preview deployment and artifact cleanup for each pull request's head branch.\nRule: The concurrency group is `${{ github.workflow }}-${{ github.event.workflow_run.head_repository.full_name }}-${{ github.event.workflow_run.head_branch }}`. Include the head repository identity because a branch name such as `master` is not unique across forks; keying on head_branch alone lets unrelated PRs share one pending slot.\nSymptom: A preview run for one PR was dropped or its pending deployment skipped when an unrelated PR with the same branch name finished, because GitHub keeps only one pending run per group.\nConstraints: Keep `cancel-in-progress: false` so cleanup of a previous preview is not interrupted. Only successive runs for the same fork and branch are meant to serialize; do not collapse the key back to head_branch or run_id.",
+  "applies": "Applies to the docs preview workflow triggered by workflow_run; not to the release publish workflows.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "docs",
+    "preview",
+    "concurrency"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/preview-docs.yml",
+      "hash": "sha256:f7af9cdde0df3c0894c6de58",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25622"
+  },
+  "created": "2026-10-12T05:47:34.799Z",
+  "verified": "2026-10-12T05:47:34.799Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "My documentation preview site disappeared after someone else merged an unrelated pull request.",
+    "Pull request preview deployments from different forks are cancelling each other out.",
+    "Documentation preview builds get skipped when another contributor uses the same branch name.",
+    "Why did another contributor's pull request cancel my documentation preview deployment?",
+    "Prevent preview site deployments from being overwritten by pull requests from other forks."
+  ],
+  "search": "In .github/workflows/preview-docs.yml, the docs preview workflow concurrency group must include github.event.workflow_run.head_repository.full_name alongside github.workflow and head_branch because branch names collide across forks. This applies to the workflow triggered by workflow_run for docs preview deployment and artifact cleanup, keeping cancel-in-progress set to false so previous cleanups finish. Only successive runs for the same fork and branch serialize, and the key must not be collapsed back to head_branch or run_id, nor applied to release publish workflows.",
+  "saysFor": "s2:312d96e3ea09c1fe506554ed4272e34aff51db05728db83a11da3bc4e51497f8"
+}

@@ -1,0 +1,53 @@
+{
+  "id": "issue-repro-triage-load-issue-keep-the-open-issue-guard-in-p",
+  "title": "issue repro triage _load_issue: keep the open-issue guard in Python even though the workflow already strips pull_request",
+  "kind": "rule",
+  "answers": [
+    "Why does _load_issue still reject pull_request payloads when the workflow already filters them?",
+    "How can I run the issue reproduction triage script directly from the CLI with a raw GitHub issue JSON?",
+    "Where is the check that the target issue must be open enforced in the triage script?",
+    "Why is there a duplicate open-issue check in dev/issue_repro_triage.py?"
+  ],
+  "body": "Path: dev/issue_repro_triage.py:_load_issue, which reads the issue JSON file passed to the issue repro triage script and verifies that its number matches expected_issue_number. This is the path for both the workflow-produced issue.json and raw GitHub issue payloads passed by direct CLI invocation.\nRule: Keep the guard `if \"pull_request\" in issue or issue.get(\"state\") != \"open\": raise ValueError(\"target must be an open issue\")` even though the workflow's fetch step already strips pull_request and rejects closed issues. It is defense-in-depth for direct CLI use, where a raw payload may still contain pull_request or a non-open state. A comment in the function records this reason so the guard is not removed as redundant.\nSymptom: Without this guard, a direct CLI run with a raw pull request or closed-issue payload would proceed to triage instead of failing with a clear \"target must be an open issue\" error.\nConstraints: Do not remove this check on the assumption that the workflow filters first; the workflow filter does not run for direct CLI calls. The check lives in Python, not in the workflow, so changes to the workflow's jq rules do not replace it.",
+  "applies": "Changes to how the issue repro triage script validates its input issue file, including direct CLI use outside GitHub Actions.",
+  "tags": [
+    "issue-repro-triage",
+    "validation",
+    "cli",
+    "defense-in-depth"
+  ],
+  "deps": [
+    {
+      "path": "dev/issue_repro_triage.py",
+      "symbol": "_load_issue",
+      "hash": "sha256:5cc966e4e9ab249c28ddd400",
+      "line": 155,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5cc966e4e9ab249c28ddd400",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26257"
+  },
+  "created": "2026-10-12T05:31:41.381Z",
+  "verified": "2026-10-12T05:31:41.381Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The local issue reproduction tool runs triage on closed issues instead of rejecting them.",
+    "Passing a pull request payload to the triage command should fail with a clear error.",
+    "Ensure direct command line triage execution verifies that the target issue is currently open."
+  ],
+  "search": "The issue reproduction triage script in dev/issue_repro_triage.py:_load_issue rejects closed issues and pull request payloads even though the GitHub Actions workflow filters them beforehand. The function checks for pull_request in the issue dictionary and confirms the state is open, raising ValueError if the target is ineligible. This defense-in-depth guard specifically protects direct CLI execution using raw issue payloads, where workflow-level filtering does not run.",
+  "saysFor": "s2:e99446aabdb850bde0a08e536f6cd47fb1b04ccd385510f8219c14c32c424433"
+}

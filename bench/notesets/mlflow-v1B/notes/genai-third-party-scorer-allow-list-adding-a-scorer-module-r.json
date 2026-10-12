@@ -1,0 +1,83 @@
+{
+  "id": "genai-third-party-scorer-allow-list-adding-a-scorer-module-r",
+  "title": "genai third-party scorer allow-list: adding a scorer module requires updating THIRD_PARTY_SCORER_ALLOWED_MODULES, enforced by an AST completeness test",
+  "kind": "howto",
+  "answers": [
+    "I added a new RAGAS or DeepEval scorer module and it fails to load with 'not in the allow-list'; what do I change?",
+    "How do I make sure a new TruLens or Phoenix scorer class in a new submodule is still deserializable?",
+    "Which test checks that the third-party scorer allow-list stays in sync with the scorer modules?"
+  ],
+  "body": "Path: The allow-list `mlflow/genai/scorers/scorer_utils.py:THIRD_PARTY_SCORER_ALLOWED_MODULES` gates which modules `mlflow/genai/scorers/base.py:Scorer.model_validate` may import for third-party scorers; it must be an exact match, so a new submodule is not covered by its package root.\nRule: When you add a scorer class in a new module under the ragas, deepeval, trulens or phoenix packages, add that module's full dotted path to the frozenset verbatim (each `scorers` submodule is listed separately). Then run `tests/genai/scorers/test_serialization.py::test_third_party_scorer_allow_list_is_exactly_the_scorer_defining_modules`, which AST-scans the four packages and requires the allow-list to equal the set of modules that define `Scorer` subclasses. The test fails on both a missing module and a stale entry.\nSymptom: Without the entry, a newly added scorer saved and reloaded via the registry is rejected with 'not in the allow-list' even though it is a legitimate MLflow scorer.\nConstraints: Do not add a package prefix as a shortcut; the matcher is exact. Modules that define no `Scorer` subclass (for example `trulens.scorers` package init) must stay out of the list.",
+  "applies": "Maintainers adding or moving third-party scorer modules under mlflow/genai/scorers/{ragas,deepeval,trulens,phoenix}.",
+  "tags": [
+    "genai",
+    "scorers",
+    "allow-list",
+    "testing"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/genai/scorers/scorer_utils.py",
+      "symbol": "THIRD_PARTY_SCORER_ALLOWED_MODULES",
+      "hash": "sha256:3d8852f4c35aaeddc7ee0210",
+      "line": 50,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 6
+      }
+    },
+    {
+      "path": "tests/genai/scorers/test_serialization.py",
+      "symbol": "test_third_party_scorer_allow_list_is_exactly_the_scorer_defining_modules",
+      "hash": "sha256:70449555f15dfaad0097572d",
+      "line": 975,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:70449555f15dfaad0097572d",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "Scorer.model_validate",
+      "hash": "sha256:b8c3aa1b8884209829c59b77",
+      "line": 480,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b8c3aa1b8884209829c59b77",
+      "fanout": {
+        "files": 45,
+        "sites": 116,
+        "refs": 142
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25906"
+  },
+  "created": "2026-10-12T05:42:45.364Z",
+  "verified": "2026-10-12T05:42:45.364Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "genai-scorer-serialization-a-new-persisted-timeout-field-mus",
+    "genai-third-party-scorer-deserialization-match-the-module-al",
+    "genai-scorer-timeout-scorer-run-bounds-every-scorer-invocati"
+  ],
+  "says": [
+    "Newly registered third party evaluation metrics fail to reload with an allow list error.",
+    "Saved evaluation judges from external integration libraries cannot be loaded back into projects.",
+    "Enable reopening saved evaluation runs that use external assessment metrics.",
+    "Loading a saved evaluation run rejects valid external scoring algorithms as unauthorized."
+  ],
+  "search": "Adding third-party scorer modules requires exact dotted path registration in mlflow/genai/scorers/scorer_utils.py:THIRD_PARTY_SCORER_ALLOWED_MODULES, enforced by tests/genai/scorers/test_serialization.py:test_third_party_scorer_allow_list_is_exactly_the_scorer_defining_modules. The AST test requires the frozenset to match exactly the modules defining Scorer subclasses across ragas, deepeval, trulens, and phoenix, rejecting missing or stale entries. Package prefixes and modules without Scorer subclasses are prohibited.",
+  "saysFor": "s2:bb4eb04bf040dfb55b4cc7786b014397b298a9247ded2a8baf11b058efeb530e"
+}

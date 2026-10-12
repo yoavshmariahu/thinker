@@ -1,0 +1,85 @@
+{
+  "id": "jest-offline-tests-drive-react-query-with-onlinemanager-seto",
+  "title": "Jest offline tests: drive React Query with onlineManager.setOnline(false) and reset it in afterEach",
+  "kind": "howto",
+  "answers": [
+    "How do I write a test that simulates the browser being offline for a React Query hook?",
+    "How do I test that a query still resolves when navigator.onLine is false?",
+    "Why does my offline test leak state into other tests in the same file?"
+  ],
+  "body": "Path: experiment-tracking/hooks/useServerInfo.test.tsx and shared/web-shared/query-client/createMlflowQueryClient.test.ts exercise the offline path through the real client from createMlflowQueryClient, using the onlineManager re-exported by shared/web-shared/query-client/queryClient.ts.\nRule: To simulate offline, call onlineManager.setOnline(false) after creating the client, and always reset in afterEach or finally with onlineManager.setOnline(true) then onlineManager.setOnline(undefined), then queryClient.clear(). Setting true first makes the reset notify subscribers; setOnline(undefined) restores automatic detection but does not notify.\nSymptom: Without the reset, offline state persists to later tests in the same file and a paused query hangs the test instead of failing it.\nConstraints: onlineManager is a module singleton, but Jest gives each test file its own module registry, so the state does not leak across files. Use fetchQuery or renderHook with a wrapper that uses the real factory client; a bare new QueryClient() would not test the shipped default.",
+  "applies": "Jest tests for React Query hooks and clients in mlflow/server/js; not for Cypress or browser e2e tests.",
+  "tags": [
+    "jest",
+    "react-query",
+    "onlinemanager",
+    "testing",
+    "offline"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/shared/web-shared/query-client/createMlflowQueryClient.test.ts",
+      "symbol": "queryClient",
+      "hash": "sha256:11eae297f756de2da796e992",
+      "line": 11,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:11eae297f756de2da796e992",
+      "fanout": {
+        "files": 253,
+        "sites": 0,
+        "refs": 589
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/hooks/useServerInfo.test.tsx",
+      "symbol": "queryClient",
+      "hash": "sha256:71368b26f4dc8621b4287faf",
+      "line": 288,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:265373d407754f1ee905abfb",
+      "fanout": {
+        "files": 253,
+        "sites": 0,
+        "refs": 590
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/hooks/useServerInfo.test.tsx",
+      "symbol": "afterEach",
+      "hash": "sha256:f1db66005fb0d105247f2900",
+      "line": 294,
+      "missing": false,
+      "fanout": {
+        "files": 135,
+        "sites": 156,
+        "refs": 267
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/shared/web-shared/query-client/queryClient.ts",
+      "hash": "sha256:f79d7d51521939cee5353017",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25961"
+  },
+  "created": "2026-10-12T05:30:39.029Z",
+  "verified": "2026-10-12T05:30:39.029Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The web interface hangs when attempting to load server information without internet connectivity.",
+    "Server status queries should still resolve properly when the browser is disconnected.",
+    "Network requests stay paused even after the application comes back online.",
+    "Ensure the experiment tracking dashboard functions correctly during offline browser mode."
+  ],
+  "search": "Offline Jest unit tests for React Query hooks in mlflow/server/js simulate network disconnection using onlineManager.setOnline(false) on the client from createMlflowQueryClient. Tests must clean up in afterEach or finally by calling onlineManager.setOnline(true), onlineManager.setOnline(undefined), and queryClient.clear(). Calling setOnline(true) first notifies subscribers before restoring automatic detection, preventing paused queries and leaked offline state across tests in the same file. Applies to Jest hook and client tests using the shipped factory client, not to Cypress or browser end-to-end tests.",
+  "saysFor": "s2:8e6fbfc58b1e95fe537a74bd42ca73641bec42e8444ab3b75f0ea88c7510bb78"
+}

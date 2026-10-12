@@ -1,0 +1,53 @@
+{
+  "id": "sql-tracking-store-trace-tests-build-non-ascii-span-inputs-w",
+  "title": "SQL tracking store trace tests: build non-ASCII span inputs with dump_span_attribute_value, not json.dumps defaults",
+  "kind": "howto",
+  "answers": [
+    "How do I write a test that checks trace search matches non-ASCII span inputs?",
+    "My non-ASCII trace search test passes even without the fix, why?",
+    "How do I build a span with inputs in a SQL store test so the JSON matches what the tracing SDK stores?"
+  ],
+  "body": "Path: Tests for trace search in tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_traces.py build spans with OTelReadableSpan and create_mlflow_span, then call store.log_spans and store.search_traces with trace.text or span.content filters.\nRule: For non-ASCII search tests, serialize the span INPUTS attribute with mlflow/tracing/utils.py:dump_span_attribute_value, the same way the SDK does, instead of the json.dumps defaults used by the create_test_span helper. Those defaults escape non-ASCII to \\uXXXX, so the test would not reproduce the bug.\nSymptom: A test that uses create_test_span with non-ASCII text stores escaped JSON, so the search would match even on broken code and the regression goes unnoticed.\nConstraints: Use the MSSQL skip marker for these tests, because MSSQL intentionally keeps the escaped form. Parametrize over both trace.text and span.content and over LIKE and ILIKE, and assert the round trip with get_trace.\nApplies: Writing regression tests for span content serialization or trace full-text search in the SQL tracking store test suite.",
+  "applies": "Tests for trace search and span content in the SQL tracking store; not for tests of the file or artifact store.",
+  "tags": [
+    "tracing",
+    "testing",
+    "sql-store",
+    "unicode",
+    "search"
+  ],
+  "deps": [
+    {
+      "path": "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_traces.py",
+      "symbol": "test_search_traces_with_full_text_filter_non_ascii",
+      "hash": "sha256:f01ba18a9bdc76eefe0b8b34",
+      "line": 910,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f01ba18a9bdc76eefe0b8b34",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26130"
+  },
+  "created": "2026-10-12T05:29:39.612Z",
+  "verified": "2026-10-12T05:29:39.612Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Full-text search on traces fails when searching for non-English or accented words.",
+    "Searching trace span inputs with international characters returns no matching results.",
+    "Trace search should find spans containing Unicode text without escaping characters."
+  ],
+  "search": "In tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_traces.py, tests checking trace search against non-ASCII span inputs must serialize the span INPUTS attribute with mlflow/tracing/utils.py:dump_span_attribute_value instead of default json.dumps. Using default json.dumps escapes non-ASCII characters to \\uXXXX, causing search tests to pass on broken code and hiding regressions. Tests should parametrize over trace.text and span.content with LIKE and ILIKE, assert round trips via get_trace, and include the MSSQL skip marker because MSSQL intentionally retains escaped text. The guidance applies to regression tests for span content serialization and trace full-text search in the SQL tracking store, but not to file or artifact stores.",
+  "saysFor": "s2:79685a22ceeb52c31300229545b1603b937c6bd5ed133f55ef5c6c3538bff5ea"
+}

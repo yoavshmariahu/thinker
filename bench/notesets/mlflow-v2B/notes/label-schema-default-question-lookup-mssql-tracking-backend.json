@@ -1,0 +1,57 @@
+{
+  "id": "label-schema-default-question-lookup-mssql-tracking-backend",
+  "title": "Label schema default question lookup (MSSQL tracking backend): boolean column filters use `== sqlalchemy.true()`, not `.is_(True)`",
+  "kind": "rule",
+  "answers": [
+    "Label schema or review queue questions fail to load when MLflow uses SQL Server 2022 or older as the tracking backend. What is wrong?",
+    "Why does the protected default label schema lookup produce an IS 1 predicate on MSSQL?",
+    "How should I write a boolean column comparison in a SQLAlchemy tracking store query so it works on MSSQL?",
+    "Where is the default label schema seeded per experiment in the SQL tracking store?"
+  ],
+  "body": "Path: Seeding of the protected default label schema (the default question shown in the review queue) for an experiment runs through mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore._ensure_default_label_schema, which looks up existing SqlLabelSchema rows by experiment_id and is_default before inserting one. It is reached from label schema listing (list_label_schemas) on both the standard and workspace-aware tracking stores.\nRule: Compare boolean columns with SQLAlchemy equality against sqlalchemy.true() (SqlLabelSchema.is_default == sqlalchemy.true()), not Column.is_(True). `.is_(True)` compiles to `IS 1`, which MSSQL 2022 and older reject; `== true()` compiles to `= 1`, which is valid there. Apply the same pattern to any new boolean filter in the SQL stores that may run on MSSQL.\nSymptom: On an MSSQL tracking backend, loading label-schema and review-queue questions for an experiment failed with a SQL syntax error, because the default-question lookup emitted `is_default IS 1`.\nConstraints: Applies to MSSQL-compatible SQL built with SQLAlchemy in the tracking store. Other dialects accept either form, so the change is needed only for correctness on MSSQL. A regression test compiles the query with the mssql dialect (literal_binds) and asserts `is_default = 1` appears and `IS 1` does not.",
+  "applies": "SQLAlchemy boolean column filters in the SQL tracking store, especially label schema / review queue lookups, when MSSQL is the backend.",
+  "tags": [
+    "tracking",
+    "sqlalchemy",
+    "mssql",
+    "label-schema",
+    "review-queue"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "SqlAlchemyStore._ensure_default_label_schema",
+      "hash": "sha256:0816b496bb26bff206065962",
+      "line": 9273,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0816b496bb26bff206065962",
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26093"
+  },
+  "created": "2026-10-12T05:29:51.475Z",
+  "verified": "2026-10-12T05:29:51.475Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "search-filter-numeric-attributes-searchutils-get-value-retur"
+  ],
+  "says": [
+    "Review queue questions fail to load when our experiment tracking uses SQL Server.",
+    "Opening the experiment label schema crashes with a database syntax error on SQL Server.",
+    "Allow default labeling questions to display properly when connected to Microsoft SQL Server.",
+    "The review queue shows database errors instead of the default evaluation question."
+  ],
+  "search": "In SqlAlchemyStore._ensure_default_label_schema, boolean column filters must compare against sqlalchemy.true() using equality rather than Column.is_(True) so queries compile to '= 1' instead of 'IS 1' on MSSQL 2022 and older. This lookup runs during default label schema seeding when listing label schemas on standard and workspace tracking stores, preventing SQL syntax errors on MSSQL backends. Other dialects accept either syntax, and the regression test compiles the query with the mssql dialect asserting 'is_default = 1' appears instead of 'IS 1'.",
+  "saysFor": "s2:de8f6cf24800bcb5a629bc206bbb61cbe1a478e80f697799f037b21edf4c30e3"
+}

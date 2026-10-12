@@ -1,0 +1,89 @@
+{
+  "id": "vertex-ai-claude-gateway-requests-anthropic-version-and-mode",
+  "title": "Vertex AI Claude gateway requests: anthropic_version and model-stripping live on _VertexAIClaudeAdapter, not the provider hook",
+  "kind": "rule",
+  "answers": [
+    "Why do mlflow.genai judges on vertex_ai:/claude-* fail with 'anthropic_version: Field required' and a SCORER_ERROR with an empty judge column?",
+    "How does a Claude model on Vertex AI get its request body formatted when called through the gateway adapter instead of the chat endpoint?",
+    "Where is the anthropic_version field added for Claude partner models on Vertex AI?",
+    "Which code removes the model field from the body for Vertex Claude requests?"
+  ],
+  "body": "Path: `mlflow/gateway/providers/vertex_ai.py:_VertexAIClaudeProvider` serves Claude models on Vertex AI (`vertex_ai:/claude-*`), including chat and streaming requests and the judge path that formats via `adapter_class` (`GatewayAdapter._invoke_and_handle_tools` in `mlflow.genai.judges.adapters.gateway_adapter`).\nRule: Vertex-required Anthropic fields (`anthropic_version` set, `model` removed from the body) are applied in `_VertexAIClaudeAdapter.chat_to_model` via the shared classmethod `_VertexAIClaudeAdapter._apply_vertex_fields`. `_VertexAIClaudeProvider.adapter_class` returns this adapter, and `_VertexAIClaudeProvider._prepare_payload` reuses `_apply_vertex_fields` for the `_chat`/`_chat_stream` path. Keep the transformation on the adapter so any caller that formats via `adapter_class` gets a valid payload.\nSymptom: Every Claude-on-Vertex judge call was rejected with `anthropic_version: Field required`. The failure surfaced as a `SCORER_ERROR` with `value=None`, so `mlflow.genai.evaluate()` finished and rendered a table with an empty judge column.\nConstraints: Applies to Claude models on Vertex AI only. Bedrock already does the equivalent in its own adapter (`AmazonBedrockAnthropicAdapter.chat_to_model`). Gemini and MaaS/OpenAI-compatible Vertex models use different adapters and are not affected by this change.",
+  "applies": "Vertex AI Claude (`vertex_ai:/claude-*`) request formatting in the gateway and in judges that use it.",
+  "tags": [
+    "gateway",
+    "vertex-ai",
+    "anthropic",
+    "judges",
+    "evaluation"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIClaudeAdapter",
+      "hash": "sha256:8918d71922bcb70552b6dabc",
+      "line": 122,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8918d71922bcb70552b6dabc",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 7
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIClaudeProvider",
+      "hash": "sha256:6a81877a43e38e9a8739c766",
+      "line": 145,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6a81877a43e38e9a8739c766",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "tests/gateway/providers/test_vertex_ai.py",
+      "symbol": "test_claude_adapter_applies_vertex_fields_without_provider_hooks",
+      "hash": "sha256:c8a097f7682f1c3c22830581",
+      "line": 673,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c8a097f7682f1c3c22830581",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25556"
+  },
+  "created": "2026-10-12T05:41:41.291Z",
+  "verified": "2026-10-12T05:41:41.291Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "vertex-ai-maas-raw-proxy-gateway-proxy-post-to-the-endpoints",
+    "vertex-ai-claude-passthrough-anthropic-beta-is-filtered-per",
+    "vertex-ai-passthrough-and-proxy-routes-vertexaiprovider-forw",
+    "vertex-ai-gateway-auth-headers-claude-and-maas-delegates-alw"
+  ],
+  "says": [
+    "Evaluation metrics table displays blank judge columns when evaluating with Claude on Vertex.",
+    "Generative AI evaluation fails with a scoring error when using Vertex Claude models.",
+    "Claude judge evaluations on Vertex AI return empty score cards in the dashboard.",
+    "Fix evaluation runs failing silently with missing judge scores on Vertex Claude endpoints.",
+    "Model evaluation results show empty columns instead of scores for Claude judges."
+  ],
+  "search": "Vertex AI Claude requests (vertex_ai:/claude-*) format payloads by setting anthropic_version and removing the model field in _VertexAIClaudeAdapter.chat_to_model via _VertexAIClaudeAdapter._apply_vertex_fields so callers using adapter_class like mlflow.genai judges receive valid payloads. _VertexAIClaudeProvider.adapter_class returns this adapter and reuses _apply_vertex_fields in _prepare_payload for chat and streaming. This applies to Vertex AI Claude models and does not apply to Bedrock, Gemini, or MaaS/OpenAI-compatible Vertex models.",
+  "saysFor": "s2:744dc196fc7fed9aba16fec0737eacf5a71cdc892b613184ef9205819d9a95ad"
+}

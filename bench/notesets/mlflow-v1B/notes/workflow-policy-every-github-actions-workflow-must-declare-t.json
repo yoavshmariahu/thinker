@@ -1,0 +1,48 @@
+{
+  "id": "workflow-policy-every-github-actions-workflow-must-declare-t",
+  "title": "workflow policy: every GitHub Actions workflow must declare top-level concurrency, enforced by the rego deny rule deny_workflow_without_concurrency",
+  "kind": "rule",
+  "answers": [
+    "A workflow file fails the policy check with a message that it must declare 'concurrency' explicitly; what do I add?",
+    "How do I add concurrency to a new or existing GitHub Actions workflow in this repo?",
+    "Where is the workflow policy that requires concurrency enforced, and why would a new event not cancel older runs?"
+  ],
+  "body": "Path: .github/policy.rego:deny_workflow_without_concurrency is the conftest-style deny rule that scans every workflow under .github/workflows; it fires when a file has `input.jobs` (so composite actions with `runs` are exempt) and no top-level `input.concurrency`.\nRule: Every workflow file must declare a top-level `concurrency:` block. The repo's placeholder for workflows with no meaningful grouping yet is `group: ${{ github.run_id }}` with `cancel-in-progress: false`, which makes each run its own group, so it never supersedes or waits on another run. Grouping by `${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}` is the standard choice when new events should supersede in-flight runs. The rule's message lists both options.\nSymptom: Without a concurrency block a new event never supersedes runs already in flight, so stale runs keep consuming runners and repo-mutating workflows can race.\nConstraints: Only checked on workflow files (`input.jobs` present); composite actions are not required to declare it. The run_id placeholder is an opt-out, not a grouping decision; replacing it with a real group is a follow-up per the PR. Placement convention used by the 29 workflows is directly after the `on:` block and before `defaults:`.",
+  "applies": "Any workflow file under .github/workflows that the workflow policy check evaluates; not composite actions.",
+  "tags": [
+    "github-actions",
+    "concurrency",
+    "policy",
+    "ci"
+  ],
+  "deps": [
+    {
+      "path": ".github/policy.rego",
+      "hash": "sha256:c9bdfb9326a5b78b8f142b4a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25611"
+  },
+  "created": "2026-10-12T05:47:50.189Z",
+  "verified": "2026-10-12T05:47:50.189Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "github-actions-cache-mode-policy-github-policy-rego-workflow",
+    "github-actions-pull-request-triggers-github-policy-rego-omit"
+  ],
+  "says": [
+    "Older pipeline runs keep executing and wasting build runners after newer commits are pushed.",
+    "Simultaneous automated build jobs are racing and conflicting when modifying shared repository state.",
+    "The automated pull request check fails stating that workflow concurrency must be declared explicitly.",
+    "Automatically cancel in-flight test runs whenever a contributor pushes updates to their pull request.",
+    "Enforce a rule requiring all automation pipelines to specify how concurrent runs are handled."
+  ],
+  "search": "Every GitHub Actions workflow file under .github/workflows must declare top-level concurrency, enforced by .github/policy.rego:deny_workflow_without_concurrency. The policy fires when input.jobs is present without top-level input.concurrency, exempting composite actions containing runs. Workflows can use the run_id placeholder group: ${{ github.run_id }} with cancel-in-progress: false, or group by ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }} to cancel in-flight runs. Without concurrency, stale runs consume runners and mutating workflows can race; placement convention follows after on: and before defaults:.",
+  "saysFor": "s2:c59db82c119866aa9c27bc48e11797c5f049fceddadd9ce8289637fe64937cf8"
+}

@@ -1,0 +1,99 @@
+{
+  "id": "model-registry-createmodelversion-for-prompts-source-must-be",
+  "title": "Model registry CreateModelVersion for prompts: source must be a placeholder or a non-file URI with a scheme",
+  "kind": "rule",
+  "answers": [
+    "Why does creating a prompt version or register_prompt return 400 'Invalid prompt source' for my source path?",
+    "Which source values can a prompt-tagged model version use on the REST CreateModelVersion endpoint?",
+    "Where is local filesystem access for prompt model versions blocked in the server?",
+    "Why does a model version get-artifact call serve files from a server-side directory when the source was a bare relative name?"
+  ],
+  "body": "Path: Prompt-tagged CreateModelVersion requests (REST model-version creation, including prompt versions made by register_prompt and create_prompt_version) enter mlflow/server/handlers.py:_create_model_version, which calls mlflow/server/handlers.py:_validate_prompt_source on the request source.\nRule: _validate_prompt_source classifies the source with mlflow/utils/uri.py:get_uri_scheme, not urlparse. A non-empty scheme other than file goes through _validate_non_local_source_contains_relative_paths. Any schemeless or file source is accepted only if it exactly equals a value in mlflow/prompt/constants.py:_PROMPT_SOURCE_PLACEHOLDERS, otherwise it gets a 400. A schemeless value selects LocalArtifactRepository and becomes the directory that get-artifact serves from, so a separator-free name like 'mlflow' is also unsafe.\nSymptom: A prompt version created with a source such as 'mlflow', 'etc', '.', a percent-encoded absolute path, or 'C:/Windows' was stored as the artifact location, and the model-version get-artifact endpoint could then serve files from that local path.\nConstraints: Applies only to requests whose prompt tag is effectively true. Regular model versions still go through _validate_source_run and _validate_source_model. An empty source is now rejected for prompt-tagged requests, so callers must send a placeholder. This does not restrict which remote schemes are allowed; ftp:// and similar pass the traversal check.",
+  "applies": "Server-side validation of CreateModelVersion sources for prompt-tagged model versions in mlflow/server/handlers.py; not client-side artifact handling for regular models.",
+  "tags": [
+    "model-registry",
+    "prompts",
+    "security",
+    "path-validation"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_validate_prompt_source",
+      "hash": "sha256:96927c193f87ff04d9cce28d",
+      "line": 3150,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:96927c193f87ff04d9cce28d",
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_create_model_version",
+      "hash": "sha256:92e16071a077643fdce0cab2",
+      "line": 3361,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:92e16071a077643fdce0cab2",
+      "fanout": {
+        "files": 7,
+        "sites": 54,
+        "refs": 72
+      }
+    },
+    {
+      "path": "mlflow/prompt/constants.py",
+      "symbol": "_PROMPT_SOURCE_PLACEHOLDERS",
+      "hash": "sha256:06f280c80f4dfdda26fb2acb",
+      "line": 14,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/utils/uri.py",
+      "symbol": "get_uri_scheme",
+      "hash": "sha256:8f0b4cfbd208fe9751a66186",
+      "line": 292,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8f0b4cfbd208fe9751a66186",
+      "fanout": {
+        "files": 12,
+        "sites": 14,
+        "refs": 26
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25870"
+  },
+  "created": "2026-10-12T05:36:54.400Z",
+  "verified": "2026-10-12T05:36:54.400Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "model-registry-createmodelversion-prompt-branch-select-promp",
+    "prompt-source-placeholders-client-store-and-server-allowlist",
+    "artifact-host-policy-a-tracking-server-connects-only-to-the",
+    "protobuf-request-parsing-a-body-that-spells-one-field-both-s"
+  ],
+  "says": [
+    "Saving a new prompt version fails with an invalid prompt source error.",
+    "Creating prompt versions in the model registry rejects empty or local storage locations.",
+    "Downloading artifacts for registered prompts should not expose local files from the server.",
+    "Registering a prompt fails when providing a relative file location instead of placeholders."
+  ],
+  "search": "Server-side CreateModelVersion validation for prompt-tagged model versions in mlflow/server/handlers.py:_create_model_version requires sources to be approved placeholders or non-file URIs with schemes via mlflow/server/handlers.py:_validate_prompt_source. Sources classified using mlflow/utils/uri.py:get_uri_scheme must match mlflow/prompt/constants.py:_PROMPT_SOURCE_PLACEHOLDERS if schemeless or file, or pass _validate_non_local_source_contains_relative_paths for non-empty non-file schemes, else returning a 400. Bare relative names or local file paths previously allowed get-artifact to serve arbitrary files from the server local filesystem. Applies only when the prompt tag is effectively true, empty sources are rejected, regular model versions continue using _validate_source_run and _validate_source_model, and remote schemes like ftp:// are not restricted.",
+  "saysFor": "s2:acbce7d2808e497ed426aae99440c9cdee623e11d80b8bbab1e8369d79214e56"
+}

@@ -1,0 +1,70 @@
+{
+  "id": "sessions-trace-drawer-custom-views-mount-experimentcustomvie",
+  "title": "Sessions trace drawer custom views: mount ExperimentCustomViewProvider on the session page only when no outer custom view definition exists",
+  "kind": "rule",
+  "answers": [
+    "Saved custom trace views or Create custom view are missing when I open View full trace from a session",
+    "How do I make a custom trace view appear in the session chat page's trace drawer?",
+    "Where is the custom view provider wired into the Sessions single-chat page?",
+    "Why does the session page reuse an existing custom view definition instead of nesting a provider?"
+  ],
+  "body": "Path: mlflow/server/js/src/experiment-tracking/pages/experiment-chat-sessions/single-chat-view/ExperimentSingleChatSessionPage.tsx:ContextProviders. Every session chat page render (Sessions → session → View full trace drawer) passes through this wrapper, which wraps the page children in the trace explorer context providers.\nRule: Standalone trace-drawer routes must mount the custom-view provider whenever shouldEnableModelTraceExplorerCustomTraceView() is true. Only mount it when useOptionalCustomViewDefinition() returns undefined, so an outer definition is reused rather than nested. Mount it lazily (React.lazy plus Suspense) keyed by experimentId, matching the TracesV3Logs guard.\nSymptom: Users opening View full trace from a session saw no saved views (e.g. Span review) and no Create custom view action, even with the feature flag on.\nConstraints: Applies only when the custom trace view flag is enabled; when disabled the children render unwrapped. Do not add a second provider inside a route that already has one.",
+  "applies": "Session chat page (single-chat-view) trace drawer; any new standalone trace-drawer route that needs custom views.",
+  "tags": [
+    "tracing",
+    "custom-trace-view",
+    "sessions",
+    "trace-drawer",
+    "frontend"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/pages/experiment-chat-sessions/single-chat-view/ExperimentSingleChatSessionPage.tsx",
+      "symbol": "ContextProviders",
+      "hash": "sha256:aae8882e9c6ee1638fbe88dc",
+      "line": 63,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:aae8882e9c6ee1638fbe88dc",
+      "fanout": {
+        "files": 7,
+        "sites": 0,
+        "refs": 14
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/pages/experiment-chat-sessions/single-chat-view/ExperimentSingleChatSessionPage.tsx",
+      "symbol": "shouldEnableModelTraceExplorerCustomTraceView",
+      "hash": "sha256:e60f74c474f8eba893bc17be",
+      "line": 76,
+      "missing": false,
+      "fanout": {
+        "files": 10,
+        "sites": 6,
+        "refs": 23
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25779"
+  },
+  "created": "2026-10-12T05:40:06.441Z",
+  "verified": "2026-10-12T05:40:06.441Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "session-chat-page-custom-view-provider-lazy-load-experimentc"
+  ],
+  "says": [
+    "Opening View full trace from a chat session does not show any saved trace views.",
+    "The Create custom view button is missing inside the session trace drawer.",
+    "Saved views like Span review do not appear when viewing a session trace drawer.",
+    "Enable custom trace views and saved views when inspecting traces from chat sessions.",
+    "Custom trace view options are not showing up in the full trace side panel."
+  ],
+  "search": "Standalone trace-drawer routes like ContextProviders in mlflow/server/js/src/experiment-tracking/pages/experiment-chat-sessions/single-chat-view/ExperimentSingleChatSessionPage.tsx must mount ExperimentCustomViewProvider lazily with React.lazy and Suspense keyed by experimentId whenever shouldEnableModelTraceExplorerCustomTraceView() is true. The provider is mounted only when useOptionalCustomViewDefinition() returns undefined so an outer definition is reused rather than nested. When the custom trace view flag is disabled, children render unwrapped without adding a duplicate provider.",
+  "saysFor": "s2:c2b56358c965408ce55d4d412ca45c5b840a0be0aaee5bd3f3479c260107d1f1"
+}

@@ -1,0 +1,112 @@
+{
+  "id": "typescript-tracing-source-metadata-git-commit-branch-and-san",
+  "title": "TypeScript tracing source metadata: Git commit, branch and sanitized origin URL are attached to each trace once per process, each field resolved independently",
+  "kind": "rule",
+  "answers": [
+    "Why do my TypeScript agent traces show no Git commit or branch?",
+    "Traces from a freshly initialized repo with no commits lost the branch and remote URL. Why?",
+    "Where does the mlflow.source.git.repoURL trace metadata get set in the TypeScript SDK?",
+    "Does the Unity Catalog exporter also record repository provenance on traces?"
+  ],
+  "body": "Path: libs/typescript/core/src/core/utils/environment.ts:resolveEnvironmentMetadata runs when a trace starts in libs/typescript/core/src/exporters/mlflow.ts:MlflowSpanProcessor and libs/typescript/core/src/exporters/uc_table.ts:DatabricksUCTableSpanProcessor, merging Git provenance into traceMetadata for both the standard MLflow and Unity Catalog exporters.\nRule: Each of commit (rev-parse HEAD), branch (branch --show-current) and origin URL (config --get remote.origin.url) is read by environment.ts:resolveGitMetadata independently; a failure of one must not drop the others, because an unborn branch makes rev-parse fail while branch and remote still succeed. The origin URL passes through stripCredentialsFromUrl so userinfo is removed, while SSH-style remotes are kept as-is. Results are cached for the process lifetime in resolveEnvironmentMetadata, so the metadata reflects the cwd and repo at the first trace only.\nSymptom: Traces produced by TypeScript agents in a repo with no commits yet had no mlflow.source.git.branch or mlflow.source.git.repoURL, even though those values were available.\nConstraints: Applies only when git is on PATH and the process runs inside a work tree; outside a repo the result is an empty object. Each git call has a 1s timeout and ignores stderr. Changing directory or repo after the first trace does not update the cached values. Tests should inject the GitCommandRunner into resolveGitMetadata rather than calling the cached resolver, or mock the environment module as uc_table_processor.test.ts does.",
+  "applies": "TypeScript @mlflow/core tracing: any span processor that builds traceMetadata for MLflow or Unity Catalog traces.",
+  "tags": [
+    "typescript",
+    "tracing",
+    "git",
+    "trace-metadata",
+    "unity-catalog"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/core/src/core/utils/environment.ts",
+      "symbol": "resolveGitMetadata",
+      "hash": "sha256:28ade0c3605149d615c01a95",
+      "line": 41,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:28ade0c3605149d615c01a95",
+      "fanout": {
+        "files": 2,
+        "sites": 6,
+        "refs": 8
+      }
+    },
+    {
+      "path": "libs/typescript/core/src/core/utils/environment.ts",
+      "symbol": "resolveEnvironmentMetadata",
+      "hash": "sha256:7bf98f226c73a0459a065381",
+      "line": 56,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7bf98f226c73a0459a065381",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 4
+      }
+    },
+    {
+      "path": "libs/typescript/core/src/exporters/mlflow.ts",
+      "symbol": "MlflowSpanProcessor",
+      "hash": "sha256:ab924d4d972953a2d512a1f3",
+      "line": 37,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ab924d4d972953a2d512a1f3",
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 5
+      }
+    },
+    {
+      "path": "libs/typescript/core/src/exporters/uc_table.ts",
+      "symbol": "DatabricksUCTableSpanProcessor",
+      "hash": "sha256:b2b43727a0b04da71aa7cb44",
+      "line": 29,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b2b43727a0b04da71aa7cb44",
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 6
+      }
+    },
+    {
+      "path": "libs/typescript/core/tests/exporters/uc_table_processor.test.ts",
+      "symbol": "resolveEnvironmentMetadata",
+      "hash": "sha256:a2462d1ac29b4c11aaa15159",
+      "line": 26,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a2462d1ac29b4c11aaa15159",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25825"
+  },
+  "created": "2026-10-12T05:44:54.290Z",
+  "verified": "2026-10-12T05:44:54.290Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Agent traces in a newly initialized repository are missing branch and repository links.",
+    "Source control information disappears completely from traces when there are no commits yet.",
+    "Strip personal credentials and passwords from remote repository links stored on recorded traces.",
+    "Display source version control provenance details on traces exported to the catalog.",
+    "Show the active branch on execution traces even if commit resolution fails."
+  ],
+  "search": "In TypeScript tracing (MlflowSpanProcessor and DatabricksUCTableSpanProcessor), resolveEnvironmentMetadata attaches Git provenance—commit, branch, and sanitized origin URL—to traceMetadata independently via resolveGitMetadata so failure of one field does not drop the others. Origin URLs are stripped of credentials using stripCredentialsFromUrl, SSH remotes are preserved as-is, and metadata is cached for the process lifetime based on the working directory at the first trace. This applies only when git is on PATH inside a work tree, using a one-second timeout per git command while ignoring stderr. Tests should inject GitCommandRunner into resolveGitMetadata or mock the environment module rather than relying on the process-level cache.",
+  "saysFor": "s2:7489103595ef8863195dac45996193cdf8c7763b7cab7ca0a727a5de9601df26"
+}

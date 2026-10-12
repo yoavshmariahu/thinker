@@ -1,0 +1,117 @@
+{
+  "id": "vertex-ai-passthrough-and-proxy-routes-vertexaiprovider-forw",
+  "title": "Vertex AI passthrough and proxy routes: VertexAIProvider forwards to the Claude or MaaS delegate instead of GeminiProvider",
+  "kind": "rule",
+  "answers": [
+    "Why does /gateway/anthropic/v1/messages return 400 for a Claude model hosted on Vertex AI?",
+    "Why did a /gateway/proxy/{endpoint}/v1/messages request on a Vertex endpoint go to generativelanguage.googleapis.com?",
+    "Why is token usage missing on the span for a streaming Anthropic passthrough to a Vertex Claude endpoint?",
+    "Where is the passthrough or proxy handling for Vertex AI Claude and MaaS models?"
+  ],
+  "body": "Path: `mlflow/gateway/providers/vertex_ai.py:VertexAIProvider` receives AI Gateway passthrough requests (`/gateway/anthropic/v1/messages`, `/gateway/openai/v1/chat/completions`, Gemini passthrough) and raw proxy requests (`/gateway/proxy/{endpoint}/...`) for Vertex AI endpoints, and extracts passthrough token usage from non-streaming responses.\nRule: `VertexAIProvider._passthrough`, `_proxy` and `_extract_passthrough_token_usage` forward to `self._delegate` when one exists (Claude or MaaS) and fall back to the Gemini implementation otherwise. `_VertexAIClaudeProvider._passthrough` posts to `{model}:rawPredict` or `:streamRawPredict` with `anthropic_version` in the body and no `model` field, because the inherited `AnthropicProvider._passthrough` posts to `base_url + \"messages\"` with the model in the body, which Vertex rejects. `_VertexAIClaudeProvider._proxy` maps `v1/messages` (leading slash and query string tolerated) onto those same paths and returns 501 for any other path, since Vertex exposes only the Messages API for Claude. `_VertexAIMaaSProvider` inherits the OpenAI-compatible passthrough, which posts to `_api_base`. Both delegates must be constructed with `enable_tracing` passed through, because `_set_span_token_usage` no-ops when the delegate's own flag is False.\nSymptom: Anthropic passthrough on a Claude Vertex endpoint was rejected with 400, and proxy requests were sent to the public Gemini host with a Vertex OAuth token. Streaming passthrough spans on Vertex never received a token usage attribute.\nConstraints: Gemini models keep the previous Gemini code path. The MaaS raw proxy still runs through `proxy_root_url()`, which strips the `/openapi` segment; that was left for a separate change. Non-`v1/messages` proxy paths on Claude return 501 by design, not a bug.",
+  "applies": "Vertex AI gateway endpoints serving passthrough or proxy routes for Claude or MaaS models.",
+  "tags": [
+    "gateway",
+    "vertex-ai",
+    "passthrough",
+    "proxy",
+    "tracing"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "VertexAIProvider",
+      "hash": "sha256:8460f9e2ef789326ca55fa53",
+      "line": 351,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8460f9e2ef789326ca55fa53",
+      "fanout": {
+        "files": 4,
+        "sites": 12,
+        "refs": 21
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIClaudeProvider",
+      "hash": "sha256:6a81877a43e38e9a8739c766",
+      "line": 145,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6a81877a43e38e9a8739c766",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIMaaSProvider",
+      "hash": "sha256:2aefcb4d2df8fff31707df5c",
+      "line": 283,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2aefcb4d2df8fff31707df5c",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "tests/gateway/providers/test_vertex_ai.py",
+      "symbol": "test_claude_passthrough_uses_raw_predict_endpoint",
+      "hash": "sha256:c822c5d8c5595e000483a131",
+      "line": 727,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c822c5d8c5595e000483a131",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "VertexAIProvider._passthrough",
+      "hash": "sha256:c67a80e552bd7b7be34d9ce6",
+      "line": 464,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c67a80e552bd7b7be34d9ce6",
+      "fanout": {
+        "files": 3,
+        "sites": 5,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25833"
+  },
+  "created": "2026-10-12T05:44:52.326Z",
+  "verified": "2026-10-12T05:44:52.326Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "vertex-ai-maas-raw-proxy-gateway-proxy-post-to-the-endpoints",
+    "vertex-ai-claude-gateway-requests-anthropic-version-and-mode",
+    "vertex-ai-claude-passthrough-anthropic-beta-is-filtered-per",
+    "vertex-ai-gateway-auth-headers-claude-and-maas-delegates-alw"
+  ],
+  "says": [
+    "Claude passthrough requests through the gateway fail with invalid request errors.",
+    "Proxy requests for partner models are incorrectly routed to public endpoints instead.",
+    "Streaming responses through gateway passthrough are missing token usage metrics in traces.",
+    "Routing Claude messages through the gateway endpoint sends requests to the wrong provider.",
+    "Enable token usage tracking on streaming passthrough spans for Vertex hosted models."
+  ],
+  "search": "VertexAIProvider in mlflow/gateway/providers/vertex_ai.py forwards _passthrough, _proxy, and _extract_passthrough_token_usage to self._delegate (_VertexAIClaudeProvider or _VertexAIMaaSProvider) with enable_tracing passed through so streaming spans capture token usage attributes. _VertexAIClaudeProvider._passthrough targets {model}:rawPredict or :streamRawPredict with anthropic_version and no model field, while its proxy route maps v1/messages and returns 501 for other paths. This applies to Vertex AI Claude and MaaS passthrough and proxy routes, while Gemini models retain the fallback GeminiProvider path.",
+  "saysFor": "s2:ae4da924ef5c71e90aae34fd2fecedb6a45a936d75dcb1ed45f47b4b528ef38e"
+}

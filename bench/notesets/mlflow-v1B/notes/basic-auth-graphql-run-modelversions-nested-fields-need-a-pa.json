@@ -1,0 +1,114 @@
+{
+  "id": "basic-auth-graphql-run-modelversions-nested-fields-need-a-pa",
+  "title": "basic-auth GraphQL run.modelVersions: nested fields need a (parent type, field) entry in PROTECTED_NESTED_FIELDS and a per-model READ post-filter",
+  "kind": "rule",
+  "answers": [
+    "Why does the nested modelVersions list under a run in mlflowGetRun or mlflowSearchRuns show registered models the user cannot read?",
+    "How do I make another nested GraphQL field on a run or model type get permission-filtered in the basic-auth server?",
+    "Where in the basic-auth server is the GraphQL authorization middleware that filters run model versions?",
+    "Why does the top-level mlflowSearchModelVersions filter work but the same data under a run leaks?"
+  ],
+  "body": "Path: GraphQL requests to the basic-auth `/graphql` endpoint, including `mlflowGetRun` and `mlflowSearchRuns` and the nested `run.modelVersions` field the run page and runs table request. The chokepoint is `mlflow/server/auth/__init__.py:GraphQLAuthorizationMiddleware.resolve`, with post-resolution filtering in `GraphQLAuthorizationMiddleware._post_resolve`.\nRule: Nested fields are gated by `GraphQLAuthorizationMiddleware.PROTECTED_NESTED_FIELDS`, keyed by `(info.parent_type.name, field_name)`, not by bare field name. `MlflowRunExtension.modelVersions` is listed there, so `resolve` runs the auth check and `_post_resolve` filters the list with the per-model READ predicate. The parent-type key keeps the same-named sub-field of `MlflowSearchModelVersionsResponse` out of the middleware, so it is not filtered twice. To protect a new nested field that bypasses the filtered search, add its (parent type, field) pair to that set and add a matching branch in `_post_resolve`.\nSymptom: A user with READ on an experiment could read name, version, description, source URI, tags and aliases of registered models they held no permission on, through the nested run field. The REST SearchModelVersions endpoint and top-level mlflowSearchModelVersions withheld the same rows.\nConstraints: The nested field has no `input`, so the pre-check passes and only the result filter applies. Admins short-circuit as elsewhere in `resolve`. Applies to the basic-auth app only. The test `tests/server/auth/test_auth.py:test_graphql_nested_run_model_versions_filtered_by_model_permission` covers both mlflowGetRun and mlflowSearchRuns.",
+  "applies": "GraphQL authorization in the basic-auth app for any nested field reachable from runs or other top-level queries that resolve through unfiltered search implementations.",
+  "tags": [
+    "basic-auth",
+    "graphql",
+    "authorization",
+    "model-registry",
+    "runs"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "GraphQLAuthorizationMiddleware",
+      "hash": "sha256:29bd157beeed792da5c02b35",
+      "line": 5110,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:29bd157beeed792da5c02b35",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "GraphQLAuthorizationMiddleware._post_resolve",
+      "hash": "sha256:e6060ba25423d27a457e697d",
+      "line": 5226,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e6060ba25423d27a457e697d",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "tests/server/auth/test_auth.py",
+      "symbol": "test_graphql_nested_run_model_versions_filtered_by_model_permission",
+      "hash": "sha256:055139fc4c468cf0c71cdb32",
+      "line": 1581,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:055139fc4c468cf0c71cdb32",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "GraphQLAuthorizationMiddleware.resolve",
+      "hash": "sha256:fdce265e6ac5606dc3680e3a",
+      "line": 5134,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:fdce265e6ac5606dc3680e3a",
+      "fanout": {
+        "files": 160,
+        "sites": 131,
+        "refs": 307
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "GraphQLAuthorizationMiddleware.PROTECTED_NESTED_FIELDS",
+      "hash": "sha256:7d3523d7c9691b4ca6a4df05",
+      "line": 5132,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25905"
+  },
+  "created": "2026-10-12T05:42:47.056Z",
+  "verified": "2026-10-12T05:42:47.056Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "basic-auth-fastapi-response-filters-lookup-is-keyed-on-the-e",
+    "basic-auth-gateway-secrets-creating-a-secret-requires-the-wo",
+    "basic-auth-fail-closed-backstop-only-response-filters-filter",
+    "basic-auth-model-version-create-read-on-the-source-run-or-lo"
+  ],
+  "says": [
+    "The run details page displays registered model versions that the user cannot read.",
+    "Unauthorized model versions and descriptions appear inside the runs table for restricted users.",
+    "Hide model versions from the experiment run screen when users lack model permissions.",
+    "Viewing an experiment run leaks metadata of models the account has no access to."
+  ],
+  "search": "In the basic-auth app, GraphQL requests to /graphql protect nested fields by adding (parent_type, field_name) entries to GraphQLAuthorizationMiddleware.PROTECTED_NESTED_FIELDS and filtering results in GraphQLAuthorizationMiddleware._post_resolve with a per-model READ check. This mechanism protects MlflowRunExtension.modelVersions during mlflowGetRun and mlflowSearchRuns queries without double-filtering MlflowSearchModelVersionsResponse. Because the nested field has no input arguments, pre-resolution passes and only result filtering applies, while admins short-circuit in resolve. Applies to GraphQL queries in basic-auth and is tested by tests/server/auth/test_auth.py:test_graphql_nested_run_model_versions_filtered_by_model_permission.",
+  "saysFor": "s2:b9ea6081fc03153a185a6ab2968423522b1a50280861a70bfdee5d517e1dddff"
+}

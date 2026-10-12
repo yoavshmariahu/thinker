@@ -1,0 +1,55 @@
+{
+  "id": "tests-docker-compose-integration-tests-call-compose-get-logs",
+  "title": "tests/docker compose integration tests: call compose.get_logs() before compose.stop() on failure",
+  "kind": "rule",
+  "answers": [
+    "Nightly integration test times out waiting for /health with no container output, how do I see why?",
+    "How do I get docker compose container logs when a docker-based MLflow integration test fails?",
+    "Where is the docker compose lifecycle for the backend and artifact store integration test handled?",
+    "Why are the container logs gone after the integration test fails?"
+  ],
+  "body": "Path: tests/docker/test_integrations.py:test_backend_and_artifact_store_integration builds a docker compose stack (tracking server with a backend store and artifact store, e.g. the PostgreSQL variant), starts it, then logs and loads a model against the server at localhost:5000.\nRule: Drive the compose stack with explicit compose.start() inside try, and on Exception call compose.get_logs(), print stdout and stderr, re-raise, then compose.stop() in finally. Dump logs before stop because stop() removes the containers and their logs.\nSymptom: The PostgreSQL integration job timed out with 'HTTP endpoint not ready within 300.0 seconds ... /health' and the CI output had no container logs, so the server's startup error could not be diagnosed.\nConstraints: Applies to docker-compose integration tests that wait on a service health endpoint. Logs are only printed on failure; a passing run does not print them. The PR's own tests were not run in Docker, only lint.",
+  "applies": "Docker compose based integration tests under tests/docker/ that use a testcontainers-style DockerCompose object with start/get_logs/stop.",
+  "tags": [
+    "area/build",
+    "testing",
+    "docker",
+    "integration-tests",
+    "debugging"
+  ],
+  "deps": [
+    {
+      "path": "tests/docker/test_integrations.py",
+      "symbol": "test_backend_and_artifact_store_integration",
+      "hash": "sha256:62d45102625ab4e3d0ce42da",
+      "line": 19,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:62d45102625ab4e3d0ce42da",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26255"
+  },
+  "created": "2026-10-12T05:31:43.799Z",
+  "verified": "2026-10-12T05:31:43.799Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Tracking server health checks time out during integration runs without providing container logs.",
+    "Show container startup logs whenever the tracking service fails to become healthy.",
+    "Backend storage integration checks fail on health timeouts with no diagnostic error output.",
+    "Capture server failure logs before containers are stopped during automated integration runs."
+  ],
+  "search": "Docker compose integration tests in tests/docker/test_integrations.py must call compose.get_logs() and print output on exceptions before invoking compose.stop() in finally blocks. This applies to tests that spin up tracking servers with backend and artifact stores where container shutdown removes diagnostic logs needed when health endpoint checks time out. Container logs are dumped only upon test failure and are suppressed for passing runs.",
+  "saysFor": "s2:9cb3f6b894f17698dfc94195d937e6172a41f9a7919248e2ba452e522e420888"
+}

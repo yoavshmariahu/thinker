@@ -1,0 +1,62 @@
+{
+  "id": "mlflow-traces-search-cli-comma-separated-order-by-entries-mu",
+  "title": "mlflow traces search CLI: comma-separated --order-by entries must be stripped of surrounding whitespace before reaching the trace search parser",
+  "kind": "rule",
+  "answers": [
+    "Why does mlflow traces search fail with \"Invalid order_by clause ' status'. Could not be parsed\" when I put a space after the comma in --order-by?",
+    "How do I pass multiple sort fields to mlflow traces search --order-by, and does the order of fields and DESC/ASC matter?",
+    "Where is the --order-by option of the traces search CLI command parsed into a list?",
+    "Does mlflow traces search accept a space after each comma in its ordering option?"
+  ],
+  "body": "Path: mlflow/cli/traces.py:search_traces is the `mlflow traces search` CLI entry point. It takes the --experiment-id, --order-by, --filter and related options, and turns the --order-by string into a list that is passed to TracingClient.search_traces for trace listing.\nRule: Split the comma-separated --order-by string and strip each entry (`[o.strip() for o in order_by.split(\",\")]`) before passing it on. The downstream sqlparse-based order_by parser rejects any leading or trailing whitespace, so an entry like ' status' fails. The same stripping is already done by the `mlflow datasets search` CLI, so new comma-list CLI options should follow that pattern.\nSymptom: Running `mlflow traces search --experiment-id 1 --order-by \"timestamp_ms DESC, status\"` (the form shown in the help text) raised MlflowException \"Invalid order_by clause ' status'. Could not be parsed.\" and exited non-zero, while the same command without the space worked.\nConstraints: Applies to splitting comma-separated CLI values for trace search ordering. Stripping only trims whitespace around each entry; it does not change how a field name or DESC/ASC direction is validated. Verified by a CLI unit test in tests/cli/test_traces.py that asserts the order_by list passed to search_traces has no leading spaces.",
+  "applies": "The mlflow traces search CLI --order-by option and similar comma-separated list options in mlflow/cli; not the Python TracingClient API, which takes a list directly.",
+  "tags": [
+    "tracing",
+    "cli",
+    "order-by",
+    "traces-search"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/cli/traces.py",
+      "symbol": "search_traces",
+      "hash": "sha256:4e911882986d1ca7aa410e02",
+      "line": 245,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4e911882986d1ca7aa410e02",
+      "fanout": {
+        "files": 98,
+        "sites": 557,
+        "refs": 688
+      }
+    },
+    {
+      "path": "tests/cli/test_traces.py",
+      "hash": "sha256:46c3d7c1d0d2b6f09bd033a4",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26192"
+  },
+  "created": "2026-10-12T05:28:50.999Z",
+  "verified": "2026-10-12T05:28:50.999Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "cli-traces-delete-trace-ids-strip-whitespace-around-each-com"
+  ],
+  "says": [
+    "Searching traces fails when putting spaces after commas in the sort order option.",
+    "Allow spaces between comma separated sort fields in the trace search command line.",
+    "The trace search tool crashes on multi field ordering examples copied from help text.",
+    "Sorting traces by multiple attributes gives an invalid clause error due to spaces.",
+    "Trace listing commands should ignore whitespace around comma delimited sort criteria."
+  ],
+  "search": "The `mlflow traces search` CLI entry point `search_traces` in `mlflow/cli/traces.py` must strip whitespace from comma-separated `--order-by` entries before passing them to `TracingClient.search_traces`. Trimming prevents the downstream `sqlparse` parser from rejecting valid clauses that contain leading or trailing spaces, matching the pattern in `mlflow datasets search`. Applies to comma-separated CLI list options without altering validation for field names, sort directions, or the Python `TracingClient` API.",
+  "saysFor": "s2:95e1878fca248f92adb7b28ad8debb383a3caa2f747c91bb615b42276a35deda"
+}

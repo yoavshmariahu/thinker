@@ -1,0 +1,51 @@
+{
+  "id": "langchain-test-matrix-openai-is-capped-below-3-in-ml-package",
+  "title": "LangChain test matrix: openai is capped below 3 in ml-package-versions.yml to match the OpenAI matrix until httpx2 mocking is supported",
+  "kind": "rule",
+  "answers": [
+    "Why is openai pinned to less than 3 in the LangChain test requirements?",
+    "Why do LangChain tests fail after openai 3.x was released?",
+    "Where is the openai version cap for the langchain flavor test matrix defined?",
+    "How do I update the openai version constraint for the langchain test requirements?"
+  ],
+  "body": "Path: mlflow/ml-package-versions.yml defines the package requirements for the langchain flavor test matrix (the version blocks whose requirements include the langchain test extras and the openai mock dependency used by tests/openai/mock_openai.py).\nRule: Keep the openai entry in the langchain test requirement lists capped as \"openai<3\", matching the existing OpenAI matrix. Lift the cap only once the client mocking (which depends on httpx2) and async cleanup in the tests support openai 3.x. Change both langchain requirement blocks together so they stay consistent.\nSymptom: LangChain test runs broke when an unpinned openai resolved to the 3.x line, because the test mocking and async cleanup did not yet support the httpx2-based client.\nConstraints: Applies to test requirements in ml-package-versions.yml, not to the runtime openai dependency of the langchain flavor. Remove the cap only after verifying mock_openai and async cleanup against openai 3.x.",
+  "applies": "Test dependency pinning for the langchain flavor matrix in ml-package-versions.yml.",
+  "tags": [
+    "langchain",
+    "openai",
+    "test-matrix",
+    "dependency-pin",
+    "ml-package-versions"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/ml-package-versions.yml",
+      "hash": "sha256:89750152037ceaf59f912beb",
+      "missing": false
+    },
+    {
+      "path": "tests/openai/mock_openai.py",
+      "hash": "sha256:4ba8aafff6d671578ec8c4b7",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26124"
+  },
+  "created": "2026-10-12T05:29:42.011Z",
+  "verified": "2026-10-12T05:29:42.011Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Continuous integration builds for LangChain fail after the latest OpenAI major release.",
+    "Pin the OpenAI package version in automated test suites until mock support is updated.",
+    "Automated test runs for the LangChain integration are breaking during pull request checks.",
+    "Support the newest OpenAI client version in our LangChain automated test matrix."
+  ],
+  "search": "In mlflow/ml-package-versions.yml, the openai dependency for the langchain flavor test matrix must remain pinned below version 3 to match the OpenAI test matrix. Unpinned versions broke LangChain tests because test mocking in tests/openai/mock_openai.py and async cleanup do not yet support the httpx2 client in openai 3.x. This constraint applies strictly to test requirements across both langchain requirement blocks in ml-package-versions.yml, not to the runtime flavor dependency.",
+  "saysFor": "s2:64d6d7c9075f88e9c0562fd03c2300c2420cfbb66118a8c130c2467525fe02af"
+}

@@ -1,0 +1,88 @@
+{
+  "id": "vertex-ai-maas-raw-proxy-gateway-proxy-post-to-the-endpoints",
+  "title": "Vertex AI MaaS raw proxy (/gateway/proxy/...): post to the /endpoints/openapi base URL as is, do not strip the root with proxy_root_url",
+  "kind": "rule",
+  "answers": [
+    "Raw proxy calls to Llama, Mistral or DeepSeek models on Vertex AI return 404 or reach the wrong URL through the AI Gateway proxy route",
+    "Why does the Vertex AI MaaS proxy drop a leading v1/ from the request path?",
+    "Where is the raw proxy URL built for Vertex AI partner (MaaS) models in the gateway?",
+    "Add streaming pass-through to the gateway proxy for Vertex AI open models"
+  ],
+  "body": "Path: `mlflow/gateway/providers/vertex_ai.py:_VertexAIMaaSProvider._proxy` handles raw proxy requests (`/gateway/proxy/{endpoint}/...`) for Vertex AI MaaS partner and open models (Llama, Mistral, DeepSeek, OpenAI-compatible chat/completions). `VertexAIProvider.proxy` forwards these to this override.\nRule: Do not use the inherited `OpenAICompatibleProvider._proxy` for MaaS. It calls `proxy_root_url()`, which strips the last segment of `_api_base`; for Vertex MaaS that segment is `/openapi`, which is part of the API root. `_VertexAIMaaSProvider._proxy` posts to `_api_base` unchanged through `send_proxy_request`, and drops a leading `/` and a `v1/` prefix from the caller's path, because OpenAI SDK clients send `v1/chat/completions`.\nSymptom: Raw proxy calls to Vertex MaaS models were sent to `.../locations/{location}/endpoints/chat/completions` instead of `.../endpoints/openapi/chat/completions`, so the upstream request did not reach the model.\nConstraints: Applies only to `_VertexAIMaaSProvider`, not to Claude or Gemini on Vertex AI. Streaming detection (`meta[\"is_streaming\"]`) and header construction (`self._get_headers`) follow the base implementation; the client's `authorization` header is not forwarded and the Vertex bearer token is used instead. Other OpenAI-compatible providers still depend on `proxy_root_url()` and must not copy this override.",
+  "applies": "Raw proxy requests (`/gateway/proxy/...`) to Vertex AI MaaS partner models in the AI Gateway.",
+  "tags": [
+    "gateway",
+    "vertex-ai",
+    "proxy",
+    "maas",
+    "openapi"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIMaaSProvider",
+      "hash": "sha256:2aefcb4d2df8fff31707df5c",
+      "line": 283,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2aefcb4d2df8fff31707df5c",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "VertexAIProvider",
+      "hash": "sha256:8460f9e2ef789326ca55fa53",
+      "line": 351,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8460f9e2ef789326ca55fa53",
+      "fanout": {
+        "files": 4,
+        "sites": 12,
+        "refs": 21
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIMaaSProvider._proxy",
+      "hash": "sha256:ea2edb4b8b493684478f2269",
+      "line": 327,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ea2edb4b8b493684478f2269",
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25834"
+  },
+  "created": "2026-10-12T05:44:41.767Z",
+  "verified": "2026-10-12T05:44:41.767Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "vertex-ai-claude-gateway-requests-anthropic-version-and-mode",
+    "vertex-ai-claude-passthrough-anthropic-beta-is-filtered-per",
+    "vertex-ai-passthrough-and-proxy-routes-vertexaiprovider-forw"
+  ],
+  "says": [
+    "Proxy calls to open partner models return not found errors through the gateway.",
+    "Chat completion requests to hosted open source models fail with missing endpoint routes.",
+    "Fix gateway proxy routing dropping required path segments for open source model endpoints.",
+    "Raw proxy requests to third party models on the gateway reach wrong URLs.",
+    "Open source models hosted on Vertex return four zero four through gateway proxy."
+  ],
+  "search": "In mlflow/gateway/providers/vertex_ai.py, _VertexAIMaaSProvider._proxy handles raw proxy requests (/gateway/proxy/...) by posting directly to _api_base without calling proxy_root_url(), preserving the /openapi URL segment, while stripping leading / and v1/ prefixes from the path. This applies to Vertex AI MaaS partner models (Llama, Mistral, DeepSeek), using the Vertex bearer token rather than forwarding client authorization. It does not apply to Claude or Gemini on Vertex AI, nor to other OpenAI-compatible providers that rely on proxy_root_url().",
+  "saysFor": "s2:bda15d7da77e19fda121a76e35ca39b0edf6d111a6ec5de38abe7f1183c9b95b"
+}

@@ -1,0 +1,74 @@
+{
+  "id": "scorer-registry-hydration-register-get-and-list-must-set-sco",
+  "title": "scorer registry hydration: register, get and list must set scorer_version from the ScorerVersion entity, and Databricks responses may lack the attribute",
+  "kind": "rule",
+  "answers": [
+    "Why does get_scorer or list_scorers return a scorer whose version is None on Databricks?",
+    "How does a scorer returned from register_scorer learn its registered version?",
+    "Where is the scorer version set when loading a scorer from the tracking store?",
+    "I need to add a field to scheduled scorer responses; how do the Databricks and MLflow stores differ?"
+  ],
+  "body": "Path: Scorer retrieval and registration in mlflow/genai/scorers/registry.py: the tracking-store backed registry (register_scorer, list_scorers, get_scorer, list_scorer_versions) and the Databricks-backed registry that talks to scheduled scorer endpoints. Both return Scorer objects to callers of mlflow.genai scorer register/get/list APIs.\nRule: The tracking-store path hydrates through _hydrate_scorer(scorer, scorer_version_entity, online_config), which takes the ScorerVersion entity and sets _experiment_id, _scorer_version and the sampling config from it. Pass the entity, not just the experiment id. On the Databricks path, read the version with getattr(response, _SCORER_VERSION_ATTRIBUTE, None) (the module constant, not a literal string) because older server responses may not include the field; register_scorer and update_registered_scorer read it from the response config directly.\nSymptom: Scorers returned by get or list on Databricks had no registered version, so later assessments could not carry scorer provenance.\nConstraints: The getattr fallback means a missing field yields None rather than an error; provenance is then simply absent. Local (tracking) scorers always get a version from the store.",
+  "applies": "Scorer register, get, list and list-versions APIs across the tracking store and the Databricks scheduled-scorer backend in mlflow/genai/scorers/registry.py.",
+  "tags": [
+    "genai",
+    "scorers",
+    "registry",
+    "databricks",
+    "versioning"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/genai/scorers/registry.py",
+      "symbol": "_hydrate_scorer",
+      "hash": "sha256:d63806886d573521735d78d3",
+      "line": 324,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:d63806886d573521735d78d3",
+      "fanout": {
+        "files": 1,
+        "sites": 4,
+        "refs": 4
+      }
+    },
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "Scorer.scorer_version",
+      "hash": "sha256:1e3e14c533ad96a2bd0eec29",
+      "line": 368,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1e3e14c533ad96a2bd0eec29",
+      "fanout": {
+        "files": 36,
+        "sites": 1,
+        "refs": 279
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25570"
+  },
+  "created": "2026-10-12T05:48:38.918Z",
+  "verified": "2026-10-12T05:48:38.918Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "genai-scorer-provenance-registered-scorer-version-does-not-s",
+    "genai-scorer-serialization-a-new-persisted-timeout-field-mus",
+    "genai-scorer-timeout-scorer-run-bounds-every-scorer-invocati"
+  ],
+  "says": [
+    "Registered evaluators show an empty version number when listed in the registry.",
+    "Retrieved scorers are missing their version details when viewed on cloud workspaces.",
+    "Evaluation assessments lack scorer version information needed to track provenance back to models.",
+    "Make sure registered scorers always display their assigned version after saving them.",
+    "Scorers fetched from the registry show blank version fields instead of numbers."
+  ],
+  "search": "In mlflow/genai/scorers/registry.py, scorer retrieval and registration APIs must populate scorer_version on returned Scorer objects using the ScorerVersion entity or the backend response. The tracking-store backend hydrates via _hydrate_scorer(scorer, scorer_version_entity, online_config) to set _experiment_id, _scorer_version, and sampling config from the entity. The Databricks backend reads the version via getattr(response, _SCORER_VERSION_ATTRIBUTE, None) to safely handle older responses where the attribute is absent, while register_scorer and update_registered_scorer read from the response config. Applies to register_scorer, get_scorer, list_scorers, and list_scorer_versions across tracking and Databricks scheduled-scorer stores, allowing a missing Databricks version to yield None without failing.",
+  "saysFor": "s2:ecbc46db74228957689e63cea982ce92819eca147c429f7251dfbd9eb9c87972"
+}

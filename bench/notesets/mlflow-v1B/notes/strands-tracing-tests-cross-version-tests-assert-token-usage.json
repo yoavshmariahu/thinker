@@ -1,0 +1,55 @@
+{
+  "id": "strands-tracing-tests-cross-version-tests-assert-token-usage",
+  "title": "Strands tracing tests (cross-version-tests): assert token usage through _core_token_usage, not exact CHAT_USAGE dicts, because strands 1.54+ adds cache-token keys",
+  "kind": "rule",
+  "answers": [
+    "Why do the strands autolog tests fail on strands 1.54.0 with a token usage dict mismatch?",
+    "How should a strands tracing test compare CHAT_USAGE or trace token_usage when the supported strands range spans old and new versions?",
+    "Where is the helper that trims strands token usage to input, output and total tokens?"
+  ],
+  "body": "Path: tests/strands/test_strands_tracing.py:_core_token_usage is the test-side helper that normalizes a span's CHAT_USAGE attribute and a trace's info.token_usage before comparing them; it covers strands autolog single-agent and multi-agent tracing tests run by the cross-version-tests job across strands 1.7.1 through latest.\nRule: Compare usage with _core_token_usage(...) == {input_tokens, output_tokens, total_tokens} instead of comparing the whole usage dict. strands >= 1.54 also emits cache_read_input_tokens and cache_creation_input_tokens (typically 0), which MLflow's gen_ai translation copies into CHAT_USAGE and the aggregated trace token_usage whenever present.\nSymptom: On strands 1.54.0 the scheduled cross-version-tests run for the strands / autologging job went red, because test_strands_autolog_single_trace and test_multiple_agents_single_trace asserted an exact 3-key usage dict and got 5 keys.\nConstraints: Use this only for the core token counts; do not drop cache keys from assertions that specifically check cache behaviour. The helper currently indexes each core key directly, so a strands version that omits a core key raises KeyError rather than a clean mismatch; filtering by key presence is the more robust form (review suggestion). Token counts themselves must still be asserted unchanged.",
+  "applies": "Tests under tests/strands that assert MLflow token usage recorded from strands spans; the cross-version range is strands 1.7.1 to latest.",
+  "tags": [
+    "strands",
+    "tracing",
+    "tests",
+    "cross-version",
+    "token-usage"
+  ],
+  "deps": [
+    {
+      "path": "tests/strands/test_strands_tracing.py",
+      "symbol": "_core_token_usage",
+      "hash": "sha256:1f57d1ee507278999f53447a",
+      "line": 19,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1f57d1ee507278999f53447a",
+      "fanout": {
+        "files": 1,
+        "sites": 4,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25685"
+  },
+  "created": "2026-10-12T05:40:51.697Z",
+  "verified": "2026-10-12T05:40:51.697Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Strands autolog tests fail on strands 1.54 with a token usage dict mismatch",
+    "Strands tracing test reports extra cache token keys in usage, breaking exact comparison",
+    "Token counts in strands tracing tests should compare only input, output and total tokens",
+    "Cross-version strands tests go red after 1.54 because of cache token fields",
+    "Keep cache token assertions only where cache behaviour is actually tested"
+  ],
+  "search": "Strands tracing tests compare token usage through a core-token helper instead of exact usage dicts, because strands 1.54 and later add cache-token keys. Use it only for core token counts; keep cache keys in assertions that check cache behaviour. Token counts must stay unchanged.",
+  "saysFor": "s2:6575cedf2be0d15a355add8d78a4cb4907beb17089671269606b8c91dd8879e5"
+}

@@ -1,0 +1,72 @@
+{
+  "id": "claude-code-transcript-tracing-emit-one-llm-span-per-logical",
+  "title": "Claude Code transcript tracing: emit one LLM span per logical assistant message, coalescing split entries by message.id, so tool-only and thinking-only turns carry usage and cost",
+  "kind": "rule",
+  "answers": [
+    "Claude Code trace shows no token usage or cost for turns that only call tools",
+    "Why are thinking-only assistant messages missing from my Claude Code traces?",
+    "How does MLflow handle a Claude Code assistant message split across several transcript lines?",
+    "Where are LLM spans created for Claude Code session transcripts?"
+  ],
+  "body": "Path: Claude Code session transcript (JSONL) to MLflow trace conversion, covering assistant entries with text, tool_use, or thinking blocks and their usage; chokepoint libs/typescript/integrations/claude-code/src/tracing.ts:createLlmAndToolSpans, which calls getLogicalAssistantMessage.\nRule: Create one LLM span per logical assistant message when it has non-empty text, a thinking block, or usage. Coalesce consecutive assistant entries with the same message.id (skipping progress rows, stopping at any other entry type such as user) via getLogicalAssistantMessage; key dedupe on emittedLlmMessageKeys so the message is emitted once. Merge usage field-by-field ({...usage, ...entry.message.usage}) rather than summing, because Claude Code can repeat the full per-message usage on every split fragment. Entries without message.id are keyed by transcript index and are never merged. Tool spans are still emitted per tool_use block.\nSymptom: Traces for Claude Code sessions recorded no token usage or cost for assistant messages that only invoked tools or only contained thinking blocks, and split messages were undercounted or dropped.\nConstraints: Applies to the transcript path (processTranscript). Coalescing is keyed only on message.id; it does not merge across user turns even if an id repeats. Summing usage fields across fragments would double count and must not be used.",
+  "applies": "TypeScript Claude Code integration transcript tracing under libs/typescript/integrations/claude-code/; the live tracing path is not covered by this change.",
+  "tags": [
+    "tracing",
+    "claude-code",
+    "typescript",
+    "usage",
+    "cost"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/integrations/claude-code/src/tracing.ts",
+      "symbol": "getLogicalAssistantMessage",
+      "hash": "sha256:04857a06613c49acdd35adc7",
+      "line": 186,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:04857a06613c49acdd35adc7",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/claude-code/src/tracing.ts",
+      "symbol": "createLlmAndToolSpans",
+      "hash": "sha256:ec612201e7b0abdc001eecc8",
+      "line": 372,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0f6d37862c597201ad2d8f22",
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25931"
+  },
+  "created": "2026-10-12T05:30:58.158Z",
+  "verified": "2026-10-12T05:30:58.158Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "typescript-agent-tracing-integrations-trace-user-attribution",
+    "claude-code-transcript-tracing-llm-span-end-falls-back-to-th"
+  ],
+  "says": [
+    "Session traces show zero token usage and zero cost for turns that only executed tools.",
+    "Assistant thinking steps are completely missing from the session trace timeline.",
+    "Token consumption and expenses are undercounted when assistant responses are split across multiple events.",
+    "Display accurate token counts and cost estimates for every assistant action in session traces."
+  ],
+  "search": "TypeScript Claude Code transcript tracing creates one LLM span per logical assistant message containing text, thinking blocks, or usage by coalescing consecutive entries with matching message.id in libs/typescript/integrations/claude-code/src/tracing.ts:createLlmAndToolSpans via getLogicalAssistantMessage. Usage is merged field-by-field rather than summed across split fragments to prevent double counting, and emittedLlmMessageKeys ensures deduplication while tool spans remain emitted per tool_use block. Resolves missing token usage and costs for tool-only or thinking-only turns, as well as undercounting from split transcript entries. Applies strictly to transcript processing (processTranscript) rather than live tracing, excludes entries without message.id from coalescing, and never merges across user turns.",
+  "saysFor": "s2:73fb634102272aaf2fa23174a65afc16df145851151900a29c006d5ebcbbb613"
+}

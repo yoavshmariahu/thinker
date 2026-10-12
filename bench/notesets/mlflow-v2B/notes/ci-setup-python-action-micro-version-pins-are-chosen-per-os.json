@@ -1,0 +1,46 @@
+{
+  "id": "ci-setup-python-action-micro-version-pins-are-chosen-per-os",
+  "title": "CI setup-python action: micro-version pins are chosen per OS and must match the hosted runner tool cache",
+  "kind": "rule",
+  "answers": [
+    "Which Python patch version does CI install on Linux versus macOS or Windows for 3.10 and 3.11?",
+    "Why did the lint job use Python 3.10.21 from the hosted toolcache, and where is that pin set?",
+    "I want to add a new Python micro version pin for the setup-python action. Which branch do I edit?",
+    "Where is the OS-specific Python version selection handled in the shared CI setup?"
+  ],
+  "body": "Path: .github/actions/setup-python/action.yml (composite action `setup-python`, version-selection shell block) maps a requested major.minor Python (3.10, 3.11, 3.12) to a concrete micro version when PIN_MICRO_VERSION is true, branching on RUNNER_OS. Every CI job that provisions Python through this local action goes through this mapping.\nRule: Keep each micro pin equal to the version the hosted runner image caches for that OS (the runner-images Readme Python section). In this action Linux 3.10 is 3.10.21 and Linux 3.11 is 3.11.16, while macOS and Windows 3.11 stay on the cached 3.11.9 and non-Linux 3.10 stays 3.10.11. Change the matching `if [ \"$RUNNER_OS\" ...` branch, not a global constant.\nConstraints: Applies only when PIN_MICRO_VERSION is true. Pins for 3.12 and other OS branches are outside this change. Verify against the runner image manifest for the runner label in use, since macOS ARM64 and Ubuntu 24.04 caches differ.",
+  "applies": "Edits to the local setup-python composite action version selection for CI Python installs.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "python",
+    "setup-python",
+    "runner-cache"
+  ],
+  "deps": [
+    {
+      "path": ".github/actions/setup-python/action.yml",
+      "hash": "sha256:c98e5b5d94be6c9b687188cd",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25903"
+  },
+  "created": "2026-10-12T05:36:02.881Z",
+  "verified": "2026-10-12T05:36:02.881Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Automated tests run on different Python patch versions between Linux and Mac builds.",
+    "Configure continuous integration to use the preinstalled Python release to speed up setup.",
+    "Which specific Python patch release is installed for our lint and test pipelines?",
+    "Update the default Python minor patch release for Linux automated test machines."
+  ],
+  "search": "The shared CI setup-python composite action (.github/actions/setup-python/action.yml) maps requested Python major.minor versions to specific micro-version pins based on RUNNER_OS when PIN_MICRO_VERSION is true. Each micro version must match the version cached in the hosted runner image manifest for that operating system rather than using a global constant. In this configuration, Linux pins are set to 3.10.21 and 3.11.16, while macOS and Windows maintain cached 3.11.9, and non-Linux 3.10 remains 3.10.11. Applies to local setup-python version selection; pins for 3.12 and other operating systems are outside this change and must be verified against runner image manifests.",
+  "saysFor": "s2:df95c70823ce2c30527cfc45ed604eddf9979b1245e6fc81dfbb9bc31f1d188b"
+}

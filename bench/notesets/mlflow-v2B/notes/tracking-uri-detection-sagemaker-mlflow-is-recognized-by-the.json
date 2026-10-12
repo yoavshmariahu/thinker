@@ -1,0 +1,55 @@
+{
+  "id": "tracking-uri-detection-sagemaker-mlflow-is-recognized-by-the",
+  "title": "Tracking URI detection: SageMaker MLflow is recognized by the mlflow-tracking-server ARN shape, not by partition, region, or account",
+  "kind": "rule",
+  "answers": [
+    "Why is my SageMaker endpoint ARN not treated as an MLflow tracking server?",
+    "How does MLflow detect that a tracking URI points to a SageMaker MLflow server?",
+    "Will a new AWS partition or region break SageMaker MLflow tracking URI detection?",
+    "Where is the SageMaker tracking URI check implemented?"
+  ],
+  "body": "Path: Tracking URI shape checks in mlflow/utils/uri.py, used when choosing backend-specific behavior (for example client-side cost). is_sagemaker_mlflow_tracking_uri accepts only arn:<partition>:sagemaker:<region>:<account>:mlflow-tracking-server/<id>; SageMaker endpoint ARNs, sagemaker:/<region> strings, and http(s) URLs are not matched.\nRule: Detection splits the ARN into parts, then checks the 'arn' prefix, the 'sagemaker' service, the exact resource type 'mlflow-tracking-server', a '/' separator, and a nonempty resource id. It deliberately does not validate partition, region, or account, so new AWS partitions and regions are accepted without an allowlist update.\nSymptom: n/a (convention for URI detection).\nConstraints: An empty id after the slash (e.g. '.../mlflow-tracking-server/') is rejected. Similar-looking resource types such as 'mlflow-tracking-server-other' are rejected by the exact match.",
+  "applies": "Detection of SageMaker MLflow tracking-server ARNs in tracking URIs; not for general ARN validation.",
+  "tags": [
+    "sagemaker",
+    "tracking-uri",
+    "arn",
+    "uri"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/utils/uri.py",
+      "symbol": "is_sagemaker_mlflow_tracking_uri",
+      "hash": "sha256:455a855d24e6c5e73427368f",
+      "line": 90,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:455a855d24e6c5e73427368f",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26178"
+  },
+  "created": "2026-10-12T05:29:16.932Z",
+  "verified": "2026-10-12T05:29:16.932Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Connecting to a SageMaker tracking server in a newly launched AWS region fails",
+    "SageMaker model endpoint identifiers are not recognized as valid tracking server locations",
+    "Support custom AWS cloud partitions for SageMaker tracking server connection addresses",
+    "Tracking server connection fails when the resource identifier contains a trailing slash",
+    "Allow connecting to SageMaker tracking servers across any AWS account or partition"
+  ],
+  "search": "SageMaker MLflow tracking URI detection in mlflow/utils/uri.py:is_sagemaker_mlflow_tracking_uri matches the exact ARN structure arn:<partition>:sagemaker:<region>:<account>:mlflow-tracking-server/<id>. The detection checks the arn prefix, sagemaker service, exact mlflow-tracking-server resource type, slash separator, and a non-empty resource id, deliberately omitting partition, region, and account validation to support new regions and partitions. It rejects SageMaker endpoint ARNs, sagemaker:/<region> strings, http(s) URLs, trailing slashes with empty ids, and non-exact resource types like mlflow-tracking-server-other.",
+  "saysFor": "s2:798233fcda3190c73c913ea68bca86fd54793566e3806554af29385ffcab292b"
+}

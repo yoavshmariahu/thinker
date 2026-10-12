@@ -1,0 +1,91 @@
+{
+  "id": "db-engine-creation-bare-postgresql-uris-are-pinned-to-the-ps",
+  "title": "db engine creation: bare postgresql:// URIs are pinned to the psycopg2 driver before the engine is built",
+  "kind": "rule",
+  "answers": [
+    "Why does my MLflow server fail with 'No module named psycopg' after upgrading SQLAlchemy to 2.1 with a postgresql:// backend store URI?",
+    "How do I make a PostgreSQL tracking or backend URI use psycopg2 explicitly, or use psycopg3?",
+    "Where is the PostgreSQL driver chosen for a tracking, registry, or auth database URI?",
+    "Where does the auth database upgrade command create its engine from a PostgreSQL URL?"
+  ],
+  "body": "Path: Tracking, model-registry and auth database URIs (backend-store-uri, tracking URI for a PostgreSQL server) are turned into SQLAlchemy engines in mlflow/store/db/utils.py:create_sqlalchemy_engine; the auth `upgrade` command in mlflow/server/auth/db/cli.py:upgrade calls create_engine directly.\nRule: A bare `postgresql://` scheme is rewritten to `postgresql+psycopg2://` before sqlalchemy.create_engine is called, so the driver no longer depends on the SQLAlchemy default (2.1 defaults to psycopg3). Any new direct create_engine call on a PostgreSQL URL must apply the same normalization, as mlflow/server/auth/db/cli.py:upgrade now does.\nSymptom: After SQLAlchemy 2.1 was installed, starting a server or store with a bare postgresql:// backend or tracking URI failed at engine creation with ModuleNotFoundError: No module named 'psycopg'.\nConstraints: Applies only to PostgreSQL URLs; SQLite and MySQL URLs are untouched, and an explicit +psycopg2 or +psycopg scheme is the user's choice. Do not add this rewrite to the fs2db migrate path (mlflow/store/fs2db/__init__.py:migrate): that path only accepts SQLite targets and registers a SQLite-only PRAGMA listener, so a PostgreSQL rewrite there is unreachable.",
+  "applies": "Any code that turns a user-supplied database URI into a SQLAlchemy engine for MLflow's SQL stores; not for SQLite or MySQL URIs.",
+  "tags": [
+    "database",
+    "postgresql",
+    "sqlalchemy",
+    "psycopg",
+    "driver",
+    "engine"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/db/utils.py",
+      "symbol": "create_sqlalchemy_engine",
+      "hash": "sha256:61718c221861416239b6ced5",
+      "line": 383,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:61718c221861416239b6ced5",
+      "fanout": {
+        "files": 2,
+        "sites": 9,
+        "refs": 12
+      }
+    },
+    {
+      "path": "mlflow/server/auth/db/cli.py",
+      "symbol": "upgrade",
+      "hash": "sha256:a8c1ac3ac627e93bba9944ac",
+      "line": 12,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a8c1ac3ac627e93bba9944ac",
+      "fanout": {
+        "files": 36,
+        "sites": 32,
+        "refs": 111
+      }
+    },
+    {
+      "path": "tests/server/auth/db/test_cli.py",
+      "hash": "sha256:cecf4d241b97cb91356e33fb",
+      "missing": false
+    },
+    {
+      "path": "mlflow/store/fs2db/__init__.py",
+      "symbol": "migrate",
+      "hash": "sha256:dae1530ce07c133acd6c19be",
+      "line": 85,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:dae1530ce07c133acd6c19be",
+      "fanout": {
+        "files": 26,
+        "sites": 6,
+        "refs": 42
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26239"
+  },
+  "created": "2026-10-12T05:32:01.095Z",
+  "verified": "2026-10-12T05:32:01.095Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "db-extra-install-psycopg3-alongside-psycopg2-binary-never-as"
+  ],
+  "says": [
+    "Tracking server crashes on startup when configured with a standard PostgreSQL database address.",
+    "Starting the server with a PostgreSQL backend fails with missing database driver errors.",
+    "The database upgrade command for authentication fails when pointing to a PostgreSQL database.",
+    "Allow standard PostgreSQL connection strings to work without requiring explicit driver prefixes."
+  ],
+  "search": "When creating SQLAlchemy engines for tracking, model registry, and auth stores in mlflow/store/db/utils.py:create_sqlalchemy_engine and mlflow/server/auth/db/cli.py:upgrade, bare postgresql:// URIs are rewritten to postgresql+psycopg2:// before calling sqlalchemy.create_engine. This prevents engine creation failures with ModuleNotFoundError for 'psycopg' caused by SQLAlchemy 2.1 defaulting bare postgresql:// schemes to psycopg3. This normalization applies strictly to PostgreSQL database URIs while leaving SQLite, MySQL, and explicit driver schemes untouched, and must not be added to the SQLite-only fs2db migration path.",
+  "saysFor": "s2:ddfb44123daead6209c35c360f6c407d41d608b714b43daa4a43194230db0881"
+}

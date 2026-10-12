@@ -1,0 +1,51 @@
+{
+  "id": "github-actions-policy-step-rules-github-policy-rego-iterate",
+  "title": "GitHub Actions policy step rules (.github/policy.rego): iterate step_entries(input) so composite-action and parallel steps are covered",
+  "kind": "rule",
+  "answers": [
+    "Why does my new conftest check for workflow steps not fire on steps inside a composite action.yml?",
+    "Which policy rule flags actions/github-script without retries or ${{ }} in its script, and how are its step locations reported?",
+    "How do I add a step-level check to the GitHub Actions policy that also covers parallel step groups?"
+  ],
+  "body": "Path: .github/policy.rego:step_entries returns every step the step-level Conftest rules see: workflow jobs[].steps, parallel children, and composite-action runs.steps. It feeds token, checkout, create-github-app-token, github-script (retries, script interpolation), run-block interpolation, and step `if:` interpolation checks.\nRule: Step-level deny rules must iterate `some entry in step_entries(input)` with `step := entry.step`, not `input.jobs` or the old `job_steps(job)`. Report with `entry.location` (e.g. \"job 'x', step #2\", or the parallel/positional form) so unnamed steps are still locatable. Keep one rule per check; do not duplicate a workflow and a composite variant.\nSymptom: Steps in composite actions (action.yml runs.steps) and parallel groups bypassed several step-level policy checks, because traversal was workflow-job-only and composite steps were handled by separate, partial duplicate rules.\nConstraints: Job-level rules (e.g. job-level `if:` interpolation) do not go through step_entries. contains_github_token now guards with is_string(value), so non-string `with`/`env` values are skipped rather than erroring.",
+  "applies": "Applies to .github/policy.rego step-level rules evaluated over workflow and composite action YAML; not to job-level or trigger-level rules.",
+  "tags": [
+    "github-actions",
+    "policy",
+    "conftest",
+    "rego",
+    "composite-action"
+  ],
+  "deps": [
+    {
+      "path": ".github/policy.rego",
+      "symbol": "step_entries",
+      "hash": "sha256:bb52cffb992c37dd76c7128e",
+      "line": 103,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 20,
+        "refs": 20
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25900"
+  },
+  "created": "2026-10-12T05:43:04.667Z",
+  "verified": "2026-10-12T05:43:04.667Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "My new Conftest step check does not fire on steps inside a composite action.yml file",
+    "Which policy check warns about actions/github-script without retries or with script interpolation, and where are step locations reported?",
+    "How do I make a new step-level GitHub Actions policy check also cover parallel step groups?"
+  ],
+  "search": "GitHub Actions policy step traversal: step-level deny rules must iterate the shared step_entries helper, which covers workflow job steps, parallel children and composite action steps, reporting the entry location. Job-level rules such as job if interpolation do not use it; avoid duplicate workflow and composite rules.",
+  "saysFor": "s2:e719bc4f9a4b2639559857e1937da8eae62c8f2d3cfc71d84c3a65184d98243e"
+}

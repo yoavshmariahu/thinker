@@ -1,0 +1,62 @@
+{
+  "id": "auto-rerun-label-create-the-repository-label-with-its-exact",
+  "title": "auto-rerun label: create the repository label with its exact description before any workflow or dependabot.yml applies it",
+  "kind": "howto",
+  "answers": [
+    "Why does the bot PR step fail or skip labeling with auto-rerun?",
+    "Where is the auto-rerun label defined and what should its description say?",
+    "How do I add a new automation that opts PRs into CI retries?"
+  ],
+  "body": "Path: .github/dependabot.yml (Dependabot `labels`), .github/workflows/uv.yml and .github/workflows/update-model-catalog.yml (`gh pr create --label` and `gh pr edit --add-label`) apply `auto-rerun`; .github/workflows/retry.yml searches on it. The label is a repository label, not created by these files.\nRule: Create the `auto-rerun` label in the repo before merging any change that applies it, using the description `Automatically rerun eligible failed CI runs (up to 3 retries).`. Labels referenced in the workflows are only applied if they already exist.\nConstraints: This note covers the label's prerequisite only; it does not change the retry selection logic. If the label is missing, the retry sweep finds no candidates for those PRs. Check the label exists before debugging retry eligibility.",
+  "applies": "Any workflow or Dependabot config in this repo that adds or searches the auto-rerun label.",
+  "tags": [
+    "labels",
+    "ci",
+    "github-actions",
+    "dependabot"
+  ],
+  "deps": [
+    {
+      "path": ".github/dependabot.yml",
+      "hash": "sha256:80ab90daa638c84f83801118",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/uv.yml",
+      "hash": "sha256:9b682d7da9595cfb55096299",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/update-model-catalog.yml",
+      "hash": "sha256:1de1d9dcc50c441a01380c51",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/retry.yml",
+      "hash": "sha256:d7b181d8eb96458cd5beacb3",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26065"
+  },
+  "created": "2026-10-12T05:34:04.512Z",
+  "verified": "2026-10-12T05:34:04.512Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "bot-pr-creation-workflows-set-gh-debug-api-on-the-gh-step-to"
+  ],
+  "says": [
+    "Automated dependency pull requests fail continuous integration checks without retrying failed tests.",
+    "Automatically retry failed build runs on automated model catalog pull requests.",
+    "The automatic rerun tag is missing from newly opened bot pull requests.",
+    "Enable automated test retries for pull requests created by repository bots.",
+    "Scheduled retry sweeps skip failing pull requests instead of re-running tests."
+  ],
+  "search": "Repository workflows and Dependabot configurations using the `auto-rerun` label require the label to exist beforehand with the description `Automatically rerun eligible failed CI runs (up to 3 retries).`. The label is referenced in `.github/dependabot.yml`, `.github/workflows/uv.yml`, and `.github/workflows/update-model-catalog.yml`, while `.github/workflows/retry.yml` searches on it. This guidance covers the prerequisite label creation only, without modifying the retry selection logic.",
+  "saysFor": "s2:7dc58de044415e7f54647d950d5602344b8869a3dea3ca61bd0411cdf2bcd387"
+}

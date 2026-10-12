@@ -1,0 +1,109 @@
+{
+  "id": "genai-scorer-timeout-scorer-run-bounds-every-scorer-invocati",
+  "title": "genai scorer timeout: Scorer.run bounds every scorer invocation with a daemon thread; None means 300s, 0 disables",
+  "kind": "rule",
+  "answers": [
+    "A custom scorer hangs and stalls my whole mlflow.genai.evaluate run. How do I bound one scorer call?",
+    "Why does a timed-out scorer show up as a SCORER_ERROR feedback instead of failing the evaluation?",
+    "How do I turn off the scorer timeout for one judge scorer, or set a per-scorer limit?",
+    "Where is the scorer timeout enforced for offline evaluate, session scorers and online monitoring?",
+    "Why did my test asserting the scorer thread name MlflowGenAIEvalScorer start failing?"
+  ],
+  "body": "Path: Every scorer invocation (offline evaluate, session-level scorers, online monitoring, ensemble sub-scorers) goes through `mlflow/genai/scorers/base.py:Scorer.run`; the `@scorer(timeout=...)` option (`scorer`) is stored on `Scorer.timeout`.\nRule: In `Scorer.run`, `timeout=None` resolves to `DEFAULT_SCORER_TIMEOUT` (300s) and `0` disables the bound; a positive value goes to `Scorer._run_with_timeout`, which runs the scorer in a daemon thread named `MlflowScorer-<name>` that re-enters `run()` guarded by the `_in_scorer_timeout` ContextVar, then joins with `min(timeout, threading.TIMEOUT_MAX)`.\nSymptom: One hung LLM judge call blocked the entire evaluation with no way to bound it; after the fix an overrun raises `MlflowTimeoutError`, which the harness records as a `SCORER_ERROR` row while other scorers still produce metrics.\nConstraints: The timeout is validated in `scorer` (non-negative finite number, bool rejected). Thread-local MLflow state (active run, active model) is not carried into the worker because `_run_with_timeout` uses `copy_context()`, which only copies ContextVars, so a bounded scorer may not see the caller's active run; this was raised in review and is not shown as resolved. Abandoned threads keep running after a timeout. Code that asserts the scorer runs on a `MlflowGenAIEvalScorer` thread must not assume that name once a timeout applies.",
+  "applies": "Custom scorers created with `mlflow.genai.scorers.scorer` (and anything that calls `Scorer.run`) in evaluate and monitoring; not for built-in judges that bypass `Scorer.run`.",
+  "tags": [
+    "genai",
+    "scorers",
+    "timeout",
+    "evaluate",
+    "monitoring"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "Scorer.run",
+      "hash": "sha256:6de244862e8074780a169ac3",
+      "line": 763,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6de244862e8074780a169ac3"
+    },
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "Scorer._run_with_timeout",
+      "hash": "sha256:54675c8d5b9d12dfbb9b03e9",
+      "line": 828,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:54675c8d5b9d12dfbb9b03e9",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "scorer",
+      "hash": "sha256:21619760c491329d7f9f28e4",
+      "line": 1379,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6abc043fbceb3d3237177fb7",
+      "fanout": {
+        "files": 134,
+        "sites": 245,
+        "refs": 1995
+      }
+    },
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "DEFAULT_SCORER_TIMEOUT",
+      "hash": "sha256:77541b74f82e6bfb5fb4fe01",
+      "line": 57,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "Scorer.timeout",
+      "hash": "sha256:f974c1640c0b14d4b5d4338d",
+      "line": 454,
+      "missing": false,
+      "fanout": {
+        "files": 212,
+        "sites": 30,
+        "refs": 921
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25720"
+  },
+  "created": "2026-10-12T05:40:38.023Z",
+  "verified": "2026-10-12T05:40:38.023Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "genai-scorer-serialization-a-new-persisted-timeout-field-mus",
+    "genai-third-party-scorer-deserialization-match-the-module-al",
+    "genai-third-party-scorer-allow-list-adding-a-scorer-module-r",
+    "scorer-registry-hydration-register-get-and-list-must-set-sco"
+  ],
+  "says": [
+    "A slow custom evaluation metric freezes the entire model assessment job indefinitely.",
+    "Timed out evaluation judges show up as scoring error entries in test results.",
+    "Allow setting a custom time limit for individual evaluation metrics.",
+    "Provide an option to disable the five minute timeout on long running judges.",
+    "Ensure stalled scoring checks do not prevent the remaining evaluation metrics from completing."
+  ],
+  "search": "Custom GenAI scorer execution in mlflow/genai/scorers/base.py:Scorer.run bounds invocations using a daemon thread with DEFAULT_SCORER_TIMEOUT (300s) by default, while timeout=0 disables it. Overruns raise MlflowTimeoutError recorded as SCORER_ERROR rows, while abandoned threads continue running. The runner copies ContextVars via copy_context() rather than thread-local MLflow state, applies to @scorer in evaluate and monitoring, and does not cover built-in judges bypassing Scorer.run.",
+  "saysFor": "s2:1f52cd9c4ba3b229be347ec5d737203083e9629f62cee3c3122931e2949c1601"
+}

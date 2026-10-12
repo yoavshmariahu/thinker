@@ -1,0 +1,60 @@
+{
+  "id": "db-migration-ci-check-run-every-migration-compose-service-re",
+  "title": "DB migration CI check: run every migration-* compose service, report per-service results, fail the step if any failed",
+  "kind": "rule",
+  "answers": [
+    "Why does the master CI migration check fail with only a generic exit code instead of naming the database that broke?",
+    "How do I add a new migration service (e.g. another database backend) so the CI migration check picks it up?",
+    "Where is the CI step that runs the database migration checks for each backend handled?",
+    "Why did the migration check keep going after one database failed, and how does it decide the overall job result?"
+  ],
+  "body": "Path: .github/workflows/master.yml, the \"Run migration check\" step in the database job. It runs `./tests/db/compose.sh down --volumes --remove-orphans`, then loops over `./tests/db/compose.sh config --services | grep '^migration-'` and runs `compose.sh run --rm --no-TTY` for each service (e.g. migration-mssql, migration-postgres).\nRule: Every `migration-*` service runs even when an earlier one fails. Each service's exit status is recorded in a `results` array (\"name: ✅\" or \"name: ❌ (exit code N)\"), a `::error::` annotation naming the service and exit code is emitted on failure, the summary is printed with `printf`, and the step ends with `exit \"$failed\"`. New migration backends are picked up automatically by the `^migration-` service-name prefix, so name new services with that prefix.\nSymptom: A failed migration job showed only a generic step exit code. Diagnosing it meant reading logs to find that migration-mssql had timed out, and later services were not reported at all once an earlier one aborted the loop.\nConstraints: Applies to the CI migration check in master.yml only. Do not reintroduce `set +e` with an ERR trap or a `test $err = 0` tail; that pattern hides which service failed. This does not change how an individual migration service runs or its compose definition in tests/db.",
+  "applies": "CI workflow for database migration checks in .github/workflows/master.yml; not the migrations themselves or the compose files.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "database",
+    "migrations",
+    "mssql",
+    "postgres",
+    "build"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/master.yml",
+      "symbol": "results",
+      "hash": "sha256:09d155c57dec8b629336aa60",
+      "line": 176,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 0,
+        "refs": 15
+      }
+    },
+    {
+      "path": "tests/db/compose.sh",
+      "hash": "sha256:7a0ba22e5f9116f89f1ef2cb",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26299"
+  },
+  "created": "2026-10-12T05:31:22.512Z",
+  "verified": "2026-10-12T05:31:22.512Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The database migration pipeline fails with a generic error without naming the broken database.",
+    "Continuous integration stops testing remaining database migrations when an earlier database check fails.",
+    "Automated migration checks should display individual pass or fail status for every database.",
+    "Show clear error annotations identifying which database backend timed out during migration testing."
+  ],
+  "search": "In .github/workflows/master.yml, the database migration check step runs every compose service matching '^migration-' using tests/db/compose.sh, continuing execution even when individual services fail. The step records per-service exit statuses in a results array, emits a GitHub Actions '::error::' annotation with the service name and exit code for failures, prints a summary, and exits with the failure count. New database migration backends are automatically discovered by prefixing service names with 'migration-'. This workflow-level rule applies only to master.yml, avoiding 'set +e' with ERR traps or 'test $err = 0' patterns, and does not alter compose definitions in tests/db.",
+  "saysFor": "s2:74d4838976e8187089febfbbcc9869a4b571fa02f96113b75b0feddd2c1f63d4"
+}

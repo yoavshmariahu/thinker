@@ -1,0 +1,68 @@
+{
+  "id": "strands-autologging-with-a-shared-opentelemetry-provider-spa",
+  "title": "Strands autologging with a shared OpenTelemetry provider: spans without an MLflow request ID are skipped, not registered",
+  "kind": "rule",
+  "answers": [
+    "Why does mlflow.strands.autolog raise KeyError(None) when my app also sends OpenTelemetry spans?",
+    "Strands tracing with a shared tracer provider: how are spans from other instrumentation handled?",
+    "Where is the Strands span processor's on_start deciding whether a span belongs to MLflow tracing?",
+    "How do I make a new span processor ignore child spans that MLflow's base processor did not tag with a request ID?"
+  ],
+  "body": "Path: mlflow/strands/autolog.py:on_start is the Strands span processor hook that runs for every OpenTelemetry span started while mlflow.strands.autolog() is enabled, including spans from other instrumentation when MLflow shares a global tracer provider (MLFLOW_USE_DEFAULT_TRACER_PROVIDER=false).\nRule: After the base processor runs, read the request ID with get_otel_attribute(span, SpanAttributeKey.REQUEST_ID) and return early when it is None, before create_mlflow_span and InMemoryTraceManager.register_span. Foreign spans then stay outside MLflow tracing. Apply the same guard in any MLflow span processor that registers spans after delegating to a base processor.\nSymptom: With a shared provider, starting an unrelated span (for example a remote-parent server span) raised KeyError(None) from the Strands autolog path, because the base processor had skipped the span and left no request ID to register it under.\nConstraints: Applies to spans whose request ID is missing after the base processor has run. Does not change how spans that do carry a request ID are created or registered. Regression coverage is test_strands_autolog_shared_provider_skips_foreign_span in tests/strands/test_strands_tracing.py, which asserts no traces are produced.",
+  "applies": "Strands autologging (mlflow.strands.autolog) when MLflow shares an OpenTelemetry tracer provider with other instrumentation.",
+  "tags": [
+    "tracing",
+    "strands",
+    "autolog",
+    "opentelemetry",
+    "shared-provider"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/strands/autolog.py",
+      "symbol": "on_start",
+      "hash": "sha256:e2fef016a25246538fbf4010",
+      "line": 43,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e2fef016a25246538fbf4010",
+      "fanout": {
+        "files": 15,
+        "sites": 24,
+        "refs": 35
+      }
+    },
+    {
+      "path": "tests/strands/test_strands_tracing.py",
+      "symbol": "test_strands_autolog_shared_provider_skips_foreign_span",
+      "hash": "sha256:1e9fe400a527e40aa62adbff",
+      "line": 332,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1e9fe400a527e40aa62adbff",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25807"
+  },
+  "created": "2026-10-12T05:39:48.713Z",
+  "verified": "2026-10-12T05:39:48.713Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Strands automatic logging crashes with a key error when the application emits external tracing spans.",
+    "Strands tracing should safely ignore foreign OpenTelemetry spans when using a shared tracer provider.",
+    "Starting third-party tracing spans causes Strands autologging to crash with missing request identifiers."
+  ],
+  "search": "In mlflow/strands/autolog.py:on_start, inspect get_otel_attribute(span, SpanAttributeKey.REQUEST_ID) after the base processor runs and return early if it is None, before calling create_mlflow_span and InMemoryTraceManager.register_span. This guard ensures foreign OpenTelemetry spans from a shared tracer provider (MLFLOW_USE_DEFAULT_TRACER_PROVIDER=false) are excluded from MLflow tracing instead of raising KeyError(None). The same early-return check should be applied to any MLflow span processor that registers spans after delegating to a base processor. The rule applies only to spans missing a request ID and is verified by test_strands_autolog_shared_provider_skips_foreign_span.",
+  "saysFor": "s2:fa5d0ff9a84e2e3dd5a66a7ddadd42768df760ef26e1b846ea44b042ba8a1f2a"
+}

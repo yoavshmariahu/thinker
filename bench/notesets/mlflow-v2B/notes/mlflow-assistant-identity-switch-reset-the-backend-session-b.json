@@ -1,0 +1,72 @@
+{
+  "id": "mlflow-assistant-identity-switch-reset-the-backend-session-b",
+  "title": "MLflow Assistant identity switch: reset the backend session boundary separately from the transcript",
+  "kind": "rule",
+  "answers": [
+    "After switching users without reloading, why does the next assistant message continue the previous user's conversation?",
+    "How does the MLflow Assistant handle sessionId and in-flight streams when the signed-in user changes?",
+    "Where is the assistant session reset logic that reset() uses?",
+    "What should I call to clear the assistant session without wiping the saved chat?"
+  ],
+  "body": "Path: mlflow/server/js/src/assistant/AssistantContext.tsx:AssistantProvider handles sending messages, the backend session id (sessionId), the active EventSource stream, and reset. The shared helper resetSessionBoundary clears these and leaves the transcript alone; reset() calls it and then also clears messages, tokenUsage and the stored chat.\nRule: When the resolved identity changes on a mounted provider, re-seed the transcript for the new user and call resetSessionBoundary, which nulls sessionId, closes the in-flight stream, and clears per-turn state. Do not call reset() there, because it would also wipe the just-seeded transcript. Gate the reset on a resolved identity so the loading-to-resolved transition does not tear down a session started during loading.\nSymptom: After a live Alice to Bob switch on the same mounted panel, Bob's transcript was Bob's, but Bob's next non-new-session message still sent Alice's session_id and continued Alice's backend conversation.\nConstraints: Applies to any state that ties the UI to a backend session or stream. Plain reset (user clicks new chat) still clears the transcript. The loading-to-resolved transition must not count as a switch.",
+  "applies": "Frontend MLflow Assistant session handling on identity change within a mounted provider; not for a full page reload, which already remounts state.",
+  "tags": [
+    "uiux",
+    "assistant",
+    "auth",
+    "session",
+    "streaming"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/assistant/AssistantContext.tsx",
+      "symbol": "AssistantProvider",
+      "hash": "sha256:e53277cf544973312743edd7",
+      "line": 279,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e53277cf544973312743edd7",
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 10
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/assistant/AssistantContext.tsx",
+      "symbol": "reset",
+      "hash": "sha256:588fc7a1e8dc664ba50abdc2",
+      "line": 894,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:588fc7a1e8dc664ba50abdc2",
+      "fanout": {
+        "files": 178,
+        "sites": 108,
+        "refs": 403
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26009"
+  },
+  "created": "2026-10-12T05:34:31.752Z",
+  "verified": "2026-10-12T05:34:31.752Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "mlflow-assistant-chat-transcript-persistence-key-the-saved-c"
+  ],
+  "says": [
+    "Switching accounts without refreshing continues the previous user's ongoing backend assistant conversation.",
+    "Changing signed in users should disconnect the active assistant session without clearing saved chats.",
+    "New messages after switching users erroneously send replies to the earlier user's chat session.",
+    "Ensure live user account switches terminate in flight assistant streams and backend sessions.",
+    "The assistant panel mixes conversations when a new user signs in without reloading."
+  ],
+  "search": "MLflow Assistant identity switching resets backend session boundaries separately from transcript re-seeding. When the resolved identity changes on a mounted `AssistantProvider` in `mlflow/server/js/src/assistant/AssistantContext.tsx`, `resetSessionBoundary` nulls `sessionId`, aborts active `EventSource` streams, and clears per-turn state without wiping transcripts like `reset()` does. Resetting must be gated on a resolved identity so initial loading transitions do not cancel active sessions. Applies to frontend assistant session handling during live identity changes without full page reloads, while standard new chat resets still clear transcripts.",
+  "saysFor": "s2:f5aea5cac95ffbadd68ab5afa22f14e3ad8fd7e5a85eb94a74fa2eca78e3cdf9"
+}

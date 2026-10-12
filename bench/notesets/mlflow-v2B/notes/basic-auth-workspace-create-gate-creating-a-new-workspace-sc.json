@@ -1,0 +1,75 @@
+{
+  "id": "basic-auth-workspace-create-gate-creating-a-new-workspace-sc",
+  "title": "basic-auth workspace create gate: creating a new workspace-scoped resource must check _user_can_create_in_workspace via a validate_can_create_* validator",
+  "kind": "rule",
+  "answers": [
+    "Who is allowed to create a gateway secret when workspaces are enabled?",
+    "Why is a user with USE on a workspace still denied creating an experiment or a registered model?",
+    "I want to add a create route for a new resource type in the basic-auth server. Which validator should gate it?",
+    "Where is the workspace create permission for gateway secrets handled?"
+  ],
+  "body": "Path: mlflow/server/auth/__init__.py:validate_can_create_gateway_secret, with the sibling validate_can_create_experiment, validate_can_create_registered_model and validate_can_create_mcp_server, is registered in the before-request validator map for the create route (CreateGatewaySecret is mapped there). These validators decide whether a new workspace-scoped resource may be persisted.\nRule: A validator for creating a new workspace-scoped resource returns mlflow/server/auth/__init__.py:_user_can_create_in_workspace() and does not reuse per-resource checks. The after-request MANAGE grant only records the creator as owner and must not be the gate. Keep the create validators consistent so that a user denied one create route is denied the others that cross the same workspace boundary.\nSymptom: A user without a workspace create grant could create gateway secrets while being denied experiments and registered models in the same workspace.\nConstraints: With MLFLOW_ENABLE_WORKSPACES off, the same validators allow any authenticated user, which keeps single-tenant behavior. Model-definition and endpoint creates still gate on USE of the referenced resources rather than a workspace create grant; that policy was intentionally left for a follow-up, so do not assume the create-grant rule applies to them.",
+  "applies": "Basic-auth server create routes for workspace-scoped resources (experiments, registered models, MCP servers, gateway secrets); not for gateway model-definition or endpoint creation.",
+  "tags": [
+    "auth",
+    "basic-auth",
+    "workspaces",
+    "permissions",
+    "gateway-secrets",
+    "create"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_create_gateway_secret",
+      "hash": "sha256:093cd50f1be16e361fb797a7",
+      "line": 2028,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:093cd50f1be16e361fb797a7",
+      "fanout": {
+        "files": 3,
+        "sites": 5,
+        "refs": 7
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_user_can_create_in_workspace",
+      "hash": "sha256:074d79bf71ea77c4a20176aa",
+      "line": 702,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:074d79bf71ea77c4a20176aa",
+      "fanout": {
+        "files": 4,
+        "sites": 7,
+        "refs": 10
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25895"
+  },
+  "created": "2026-10-12T05:36:18.432Z",
+  "verified": "2026-10-12T05:36:18.432Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "basic-auth-fail-closed-backstop-only-response-filters-author",
+    "auth-server-list-routes-filter-results-after-the-handler-by",
+    "gateway-authorization-validators-must-read-resource-ids-from",
+    "ai-gateway-model-discovery-get-gateway-mlflow-v1-models-list"
+  ],
+  "says": [
+    "Users without permission to create in a workspace can still add gateway secrets.",
+    "Workspace permissions block creating experiments and models but unexpectedly permit adding gateway secrets.",
+    "Block users lacking workspace creation permissions from creating any workspace-scoped resources.",
+    "Keep creation access consistent across experiments, registered models, and AI gateway secrets."
+  ],
+  "search": "Creation routes for workspace-scoped resources in the basic-auth server must verify authorization via mlflow/server/auth/__init__.py:_user_can_create_in_workspace using before-request validators such as validate_can_create_gateway_secret, validate_can_create_experiment, validate_can_create_registered_model, and validate_can_create_mcp_server. After-request MANAGE ownership grants merely record the owner and must not act as the authorization gate. When MLFLOW_ENABLE_WORKSPACES is disabled, these validators allow any authenticated user, and gateway model-definition or endpoint creation routes are excluded from this rule.",
+  "saysFor": "s2:f86ae436d58e872157d368db82838306ebd257f624737442ae3467e8cc9a8020"
+}

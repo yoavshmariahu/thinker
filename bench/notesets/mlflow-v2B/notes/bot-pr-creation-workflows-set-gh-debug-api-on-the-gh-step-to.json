@@ -1,0 +1,54 @@
+{
+  "id": "bot-pr-creation-workflows-set-gh-debug-api-on-the-gh-step-to",
+  "title": "bot PR-creation workflows: set GH_DEBUG=api on the gh step to log API requests when diagnosing duplicate labels or events",
+  "kind": "howto",
+  "answers": [
+    "Why are labels like team-review showing up twice on the automated model catalog or uv.lock PRs?",
+    "How do I turn on gh API request logging in a GitHub Actions step that creates or labels a bot PR?",
+    "Where is the GH_DEBUG setting for the update-model-catalog or uv.lock PR-creation step?",
+    "How can I tell whether a duplicate label comes from the client or the server side?"
+  ],
+  "body": "Path: .github/workflows/update-model-catalog.yml (step id `pr`) and .github/workflows/uv.yml (the step that opens the uv.lock PR). Both steps run `gh` to create the bot PR and apply labels, using the mlflow-app[bot] token.\nRule: Both bot PR-creation steps set `GH_DEBUG: api` in their step `env:` block, next to `GH_TOKEN`, so the `gh` CLI logs its API requests into the Actions log. Keep this env var on those steps when investigating duplicate label or review-request events, and compare the logged requests against the PR's event history to separate client-side duplication from server-side duplication.\nSymptom: Duplicate `labeled` events on bot PRs (for example team-review applied twice) cancelled a Protect run and caused a reviewer to be assigned twice, with no record in the logs of which API calls the bot made.\nConstraints: This is a diagnostic setting added to find the cause; the change does not fix the duplication itself. It only affects the `gh` calls inside these two steps, not other workflows. The debug output is verbose, so search the step log rather than reading it whole.",
+  "applies": "Diagnosing duplicate labels or events on bot-created PRs in the two workflows that create them; not a general logging setting for all workflows.",
+  "tags": [
+    "github-actions",
+    "gh-cli",
+    "bot-pr",
+    "debugging",
+    "labels",
+    "ci"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/update-model-catalog.yml",
+      "hash": "sha256:1de1d9dcc50c441a01380c51",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/uv.yml",
+      "hash": "sha256:9b682d7da9595cfb55096299",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26285"
+  },
+  "created": "2026-10-12T05:31:29.896Z",
+  "verified": "2026-10-12T05:31:29.896Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "auto-rerun-label-create-the-repository-label-with-its-exact"
+  ],
+  "says": [
+    "Automated bot pull requests assign reviewers twice and apply duplicate review labels.",
+    "Duplicate label events on automated pull requests are cancelling required protection checks.",
+    "Enable detailed bot request logging to troubleshoot duplicate labels on automated pull requests.",
+    "Find why automated catalog and dependency pull requests trigger repeated review assignment events."
+  ],
+  "search": "To diagnose duplicate label or review-request events on bot PRs, set GH_DEBUG: api alongside GH_TOKEN in the pr step of .github/workflows/update-model-catalog.yml and the PR creation step of .github/workflows/uv.yml. This causes the gh CLI to log its API requests in GitHub Actions logs so client-side and server-side duplicate events can be distinguished. The setting is purely diagnostic, applies only to gh steps in those two workflows, and does not resolve the duplication itself.",
+  "saysFor": "s2:d099ff99aea17b5b6f2851c53bcdfbec1a2347fa7b093afc2514f3f21fd98f7c"
+}

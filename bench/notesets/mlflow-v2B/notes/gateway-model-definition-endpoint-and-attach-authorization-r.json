@@ -1,0 +1,168 @@
+{
+  "id": "gateway-model-definition-endpoint-and-attach-authorization-r",
+  "title": "Gateway model-definition, endpoint and attach authorization: read secret_id and model_config(s) from the parsed proto, and give the attach route its own validator",
+  "kind": "rule",
+  "answers": [
+    "Why could a camelCase-only gateway endpoint create body skip the USE check on the model definition?",
+    "Why does attaching a model to an endpoint need a different validator than creating or updating an endpoint?",
+    "Where is the permission check for models/attach and which field does it read?"
+  ],
+  "body": "Path: mlflow/server/auth/__init__.py:validate_can_create_gateway_model_definition, validate_can_update_gateway_model_definition, validate_can_create_gateway_endpoint, validate_can_update_gateway_endpoint and validate_can_attach_model_to_gateway_endpoint, the before-request checks for /api/3.0/mlflow/gateway/model-definitions/* , /endpoints/create, /endpoints/update and /endpoints/models/attach.\nRule: These validators parse the body with _get_request_message(<ProtoRequest>()) and authorize on the bound fields (msg.secret_id, msg.model_configs[i].model_definition_id, msg.model_config.model_definition_id), not on body.get(\"secret_id\") or body.get(\"model_configs\"). Endpoint validators share mlflow/server/auth/__init__.py:_model_configs_from_request. The attach route maps to validate_can_attach_model_to_gateway_endpoint because AttachModelToGatewayEndpoint has a singular model_config field that UpdateGatewayEndpoint does not define; it requires UPDATE on the endpoint and USE on model_config.model_definition_id.\nSymptom: A camelCase-only body (secretId, modelConfigs, modelConfig) was invisible to the raw-key read, so the USE check on the referenced secret or model definition was skipped and the handler linked a resource the caller could not use.\nConstraints: Protobuf parsing decides which alias wins, so validators must follow the parsed message rather than raw keys. Attach previously reused the endpoint-update validator, which parses the wrong message and misses model_config. Model-definition and endpoint creates still gate on USE of referenced resources, not on a workspace create grant.",
+  "applies": "Basic-auth gateway routes for secrets-linked model definitions, endpoints and endpoint model attachments in mlflow/server/auth/__init__.py; not for the non-gateway routes.",
+  "tags": [
+    "auth",
+    "gateway",
+    "model-definition",
+    "endpoint",
+    "attach",
+    "authorization"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_create_gateway_model_definition",
+      "hash": "sha256:b26d210e1e70aa81780b87d3",
+      "line": 2087,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b26d210e1e70aa81780b87d3",
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_update_gateway_model_definition",
+      "hash": "sha256:f35b0bf8d3217abcee255709",
+      "line": 2101,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f35b0bf8d3217abcee255709",
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_create_gateway_model_definition",
+      "hash": "sha256:b26d210e1e70aa81780b87d3",
+      "line": 2087,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b26d210e1e70aa81780b87d3",
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_update_gateway_model_definition",
+      "hash": "sha256:f35b0bf8d3217abcee255709",
+      "line": 2101,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f35b0bf8d3217abcee255709",
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_create_gateway_endpoint",
+      "hash": "sha256:b26dea8b32142599724e05fc",
+      "line": 2191,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b26dea8b32142599724e05fc",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_update_gateway_endpoint",
+      "hash": "sha256:6d24fe318cb6637690447ded",
+      "line": 2200,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6d24fe318cb6637690447ded",
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_create_gateway_endpoint",
+      "hash": "sha256:b26dea8b32142599724e05fc",
+      "line": 2191,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b26dea8b32142599724e05fc",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_update_gateway_endpoint",
+      "hash": "sha256:6d24fe318cb6637690447ded",
+      "line": 2200,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6d24fe318cb6637690447ded",
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_attach_model_to_gateway_endpoint",
+      "hash": "sha256:735d36f7da13392dfaf1a90e",
+      "line": 2213,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:735d36f7da13392dfaf1a90e"
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25869"
+  },
+  "created": "2026-10-12T05:37:19.936Z",
+  "verified": "2026-10-12T05:37:19.936Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "gateway-authorization-validators-must-read-resource-ids-from",
+    "jobs-search-under-basic-auth-non-admins-only-see-jobs-whose",
+    "basic-auth-fail-closed-backstop-only-response-filters-author",
+    "basic-auth-issue-detection-invoke-experiment-update-is-not-e"
+  ],
+  "says": [
+    "Attaching a model to an endpoint succeeds without permission to use that model.",
+    "Creating an endpoint with camel case payload bypasses access checks on referenced models.",
+    "Users can link gateway secrets they do not own when defining new models.",
+    "Ensure attaching a model to an endpoint checks edit access on both resources.",
+    "Unauthorized model definitions can be linked to gateway endpoints through the API."
+  ],
+  "search": "Gateway validators for model definitions, endpoints, and model attachments in mlflow/server/auth/__init__.py must read secret_id and model_configs from parsed protobuf messages rather than raw body keys. Reading raw keys causes camelCase bodies with secretId, modelConfigs, or modelConfig to bypass USE permission checks on referenced secrets or model definitions. The attach route /endpoints/models/attach uses validate_can_attach_model_to_gateway_endpoint to handle its singular model_config field, requiring UPDATE on the endpoint and USE on model_config.model_definition_id instead of reusing the update validator. This applies to basic-auth routes for model definitions and endpoints, where creation gates on USE permissions for referenced resources rather than workspace create grants.",
+  "saysFor": "s2:7b3f92a3264a85f285760c89dff4d01d44d99d916f21e55b15c2f577636339fb"
+}

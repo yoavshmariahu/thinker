@@ -1,0 +1,87 @@
+{
+  "id": "basic-auth-model-version-read-filter-judge-each-version-obje",
+  "title": "basic-auth model-version read filter: judge each version object with _rm_or_prompt_read_predicate and cache the predicate per request",
+  "kind": "rule",
+  "answers": [
+    "Why can a user with a wildcard registered-model grant see prompt versions, or lose access to prompts they were granted?",
+    "Why is mlflowSearchRuns slow or doing many grant lookups for basic-auth users when runs include model versions?",
+    "Which predicate decides which model versions a user can read in GraphQL search results?"
+  ],
+  "body": "Path: Model-version visibility in the basic-auth GraphQL path, covering the top-level `mlflowSearchModelVersions` result and the nested `run.modelVersions` list. Both go through `mlflow/server/auth/__init__.py:GraphQLAuthorizationMiddleware._filter_model_versions_result` and `_post_resolve`, which use the helper `GraphQLAuthorizationMiddleware._model_version_read_predicate`.\nRule: Pass the whole model-version object to the predicate from `_rm_or_prompt_read_predicate(username)`, not the name with a registered-model predicate. Prompt versions are then judged by prompt grants, matching the REST `filter_search_model_versions`, and a registered-model grant (including `*`) does not reveal them. The predicate is memoized per request on the Flask `g` object, keyed by username, so one `mlflowSearchRuns` call builds it once instead of once per run.\nSymptom: Prompt-version metadata could be revealed through a matching registered-model grant without a prompt grant, while prompts a user was granted were hidden. Each run in the runs table also triggered a user lookup plus a grants query.\nConstraints: The per-request cache lives only for the current Flask request and is keyed by username. The filter is a no-op on data that was already filtered, so the second pass on top-level search is safe. Test: `tests/server/auth/test_auth.py:test_graphql_search_model_versions_judges_prompts_by_prompt_grants`.",
+  "applies": "Visibility of model versions and prompt versions in basic-auth GraphQL responses, and any new resolver that filters model-version lists per user.",
+  "tags": [
+    "basic-auth",
+    "graphql",
+    "model-registry",
+    "prompts",
+    "performance"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "GraphQLAuthorizationMiddleware._model_version_read_predicate",
+      "hash": "sha256:ebe3709771f7d058714fee16",
+      "line": 5237,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ebe3709771f7d058714fee16",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "GraphQLAuthorizationMiddleware._filter_model_versions_result",
+      "hash": "sha256:833140c4c06a4f22e0110243",
+      "line": 5247,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:833140c4c06a4f22e0110243",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "tests/server/auth/test_auth.py",
+      "symbol": "test_graphql_search_model_versions_judges_prompts_by_prompt_grants",
+      "hash": "sha256:40feba487cde6ef1a275ea44",
+      "line": 1540,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:40feba487cde6ef1a275ea44",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25905"
+  },
+  "created": "2026-10-12T05:42:47.328Z",
+  "verified": "2026-10-12T05:42:47.328Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "basic-auth-graphql-run-modelversions-nested-fields-need-a-pa",
+    "basic-auth-legacy-admin-credential-password1234-is-rejected",
+    "basic-auth-admin-bootstrap-initial-admin-password-comes-only",
+    "basic-auth-job-search-post-jobs-search-returns-only-the-call"
+  ],
+  "says": [
+    "Searching runs is extremely slow when runs display associated model versions in the table.",
+    "Users with access to all models can see prompt versions they were never granted.",
+    "Prompt templates that were explicitly shared with a user fail to appear in search.",
+    "Separate prompt version visibility from registered model permissions across search and run details."
+  ],
+  "search": "In basic-auth GraphQL authorization middleware, GraphQLAuthorizationMiddleware._filter_model_versions_result passes the full version object to _rm_or_prompt_read_predicate so prompt versions are evaluated against prompt grants rather than registered-model grants. The predicate is cached per request on Flask g by username to prevent redundant user and grant queries during mlflowSearchRuns when runs contain model versions. This prevents wildcard registered-model grants from exposing prompt versions, ensures granted prompts remain visible, and safely no-ops on already-filtered results. Applies to basic-auth GraphQL model-version filtering including mlflowSearchModelVersions, run.modelVersions, and any new resolver filtering model versions per user.",
+  "saysFor": "s2:3356825bdc8499b27c0153b1e7bd74fbcb65bde096b54db18c30775cb229567c"
+}

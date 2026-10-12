@@ -1,0 +1,85 @@
+{
+  "id": "gateway-endpoint-experiment-id-on-create-update-check-omissi",
+  "title": "Gateway endpoint experiment_id on create/update: check omission with `is not None`, never truthiness, so explicit \"\" and 0 are parsed and not silently dropped",
+  "kind": "rule",
+  "answers": [
+    "Creating a gateway endpoint with usage_tracking enabled ended up with a null experiment ID even though I passed an experiment_id. Why?",
+    "Updating a gateway endpoint with experiment_id set to 0 or an empty string: is it treated as omitted?",
+    "Where is the optional experiment_id handled when creating or updating a gateway endpoint in the SQL store?"
+  ],
+  "body": "Path: Gateway endpoint create and update in the SQL tracking store, through mlflow/store/tracking/gateway/sqlalchemy_mixin.py:create_gateway_endpoint and update_gateway_endpoint. These handle the optional experiment_id that links an endpoint to an experiment for usage tracking, and they call mlflow/utils/validation.py:_parse_experiment_id to convert it.\nRule: Treat experiment_id as omitted only when it is None (`experiment_id is not None` before parsing, else store None). Do not use truthiness such as `if experiment_id`, which sends \"\" and 0 down the omitted path. With this, \"\" raises INVALID_PARAMETER_VALUE and 0 is stored as experiment 0.\nSymptom: On create with usage tracking on, an explicit experiment_id of \"\" or 0 was treated as absent, so the endpoint was stored with a null experiment ID and usage tracking was effectively disabled instead of the value being rejected or used.\nConstraints: Applies only to optional-ID handling in gateway endpoint create/update. Search and trace paths have no omission semantics, so they parse every value they receive. Existing tests cover \"0\" and 0 being accepted and \"\" being rejected.",
+  "applies": "Gateway endpoint create/update in the SQL tracking store, and any new optional ID field where 0 or empty string is a legal or illegal explicit value.",
+  "tags": [
+    "gateway",
+    "endpoint",
+    "experiment-id",
+    "optional-field",
+    "truthiness"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/tracking/gateway/sqlalchemy_mixin.py",
+      "symbol": "create_gateway_endpoint",
+      "hash": "sha256:f3cad726ff3f7e0ee176ff50",
+      "line": 614,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f3cad726ff3f7e0ee176ff50",
+      "fanout": {
+        "files": 12,
+        "sites": 131,
+        "refs": 140
+      }
+    },
+    {
+      "path": "mlflow/store/tracking/gateway/sqlalchemy_mixin.py",
+      "symbol": "update_gateway_endpoint",
+      "hash": "sha256:5ec641b1b93527af9f528c77",
+      "line": 773,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5ec641b1b93527af9f528c77",
+      "fanout": {
+        "files": 7,
+        "sites": 9,
+        "refs": 10
+      }
+    },
+    {
+      "path": "mlflow/utils/validation.py",
+      "symbol": "_parse_experiment_id",
+      "hash": "sha256:3228e73fee5e5753168f8687",
+      "line": 578,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3228e73fee5e5753168f8687",
+      "fanout": {
+        "files": 4,
+        "sites": 14,
+        "refs": 18
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26223"
+  },
+  "created": "2026-10-12T05:32:05.745Z",
+  "verified": "2026-10-12T05:32:05.745Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "sql-tracking-store-experiment-id-parsing-search-trace-scorer"
+  ],
+  "says": [
+    "Setting the experiment identifier to zero on a gateway endpoint silently disables usage tracking.",
+    "Gateway endpoint usage tracking does not link when using the default experiment zero.",
+    "Entering an empty experiment identifier on a gateway endpoint should fail validation instead of saving.",
+    "Updating a gateway endpoint with experiment zero resets the tracking experiment to empty.",
+    "Creating a gateway endpoint with usage tracking ignores an explicit experiment zero."
+  ],
+  "search": "Gateway endpoint creation and updates in mlflow/store/tracking/gateway/sqlalchemy_mixin.py must check optional experiment_id omission using `is not None` rather than truthiness before calling _parse_experiment_id. Using truthiness treats explicit values of zero or empty string as omitted, silently disabling usage tracking with a null experiment instead of storing experiment 0 or raising INVALID_PARAMETER_VALUE. This rule applies to create_gateway_endpoint and update_gateway_endpoint in the SQL tracking store, but excludes search and trace paths which have no omission semantics and parse every value.",
+  "saysFor": "s2:a2413459132a611dfe8ef4efba5ceb5a1a12d128ed290a47547988e5a6197861"
+}

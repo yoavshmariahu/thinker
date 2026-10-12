@@ -1,0 +1,85 @@
+{
+  "id": "runs-table-loading-overlay-never-spread-ag-grid-overlay-para",
+  "title": "Runs table loading overlay: never spread ag-grid overlay params into the design-system Spinner",
+  "kind": "rule",
+  "answers": [
+    "Why does the experiment runs table loading spinner show api, columnApi or context attributes in the DOM?",
+    "How do I pass a new option or param into the runs table loading overlay spinner?",
+    "Where is the loading spinner for the experiment runs table defined?",
+    "I'm adding a custom ag-grid component to the runs table that receives grid params; what must it not forward?"
+  ],
+  "body": "Path: The experiment runs grid's loading state. `experimentPage.column-utils.tsx:getFrameworkComponents` registers `loadingOverlayComponent`, which renders `UntrackedSpinner` and is shown by `ExperimentViewRunsTable.tsx` (the `ExperimentViewRunsTable` grid) while runs load.\nRule: ag-grid injects its own props (`api`, `columnApi`, `context`, `reactContainer`, plus any `loadingOverlayComponentParams`) into registered framework components. `UntrackedSpinner` must take no props and render `<Spinner loading={false} />` with explicit values; do not spread props into `Spinner`. Remove stale overlay params from the grid (`loadingOverlayComponentParams={{ showImmediately: true }}` was dropped) since they are not part of the design-system `Spinner` API.\nSymptom: Grid internals such as `api`, `columnApi`, `context`, `reactContainer` and `showImmediately` were serialized as DOM attributes on the runs table loading spinner (issue #26089).\nConstraints: Applies to ag-grid components registered as framework/overlay components in the experiment runs table. Does not apply to cell renderers that deliberately consume grid params. Regression is covered by the test 'does not forward ag-grid loading overlay params to spinner DOM' in `experimentPage.column-utils.enzyme.test.tsx`, which mounts `getFrameworkComponents().loadingOverlayComponent` with grid-style params and asserts none appear in `wrapper.html()`.",
+  "applies": "Runs table (experiment page) loading overlay and any ag-grid framework component that wraps a design-system component in the experiment-tracking UI.",
+  "tags": [
+    "ag-grid",
+    "experiment-tracking",
+    "runs-table",
+    "loading-overlay",
+    "spinner",
+    "uiux"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/experiment-page/utils/experimentPage.column-utils.tsx",
+      "symbol": "UntrackedSpinner",
+      "hash": "sha256:0cafa10b29fe98363f515511",
+      "line": 78,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0cafa10b29fe98363f515511",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/experiment-page/utils/experimentPage.column-utils.tsx",
+      "symbol": "getFrameworkComponents",
+      "hash": "sha256:6e3cd5b90040bb258fb20a84",
+      "line": 87,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6e3cd5b90040bb258fb20a84",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 4
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/runs/ExperimentViewRunsTable.tsx",
+      "symbol": "ExperimentViewRunsTable",
+      "hash": "sha256:d8b4295dabe88b5bb2777122",
+      "line": 99,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:d8b4295dabe88b5bb2777122",
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 8
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26102"
+  },
+  "created": "2026-10-12T05:29:50.208Z",
+  "verified": "2026-10-12T05:29:50.208Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The loading spinner on the experiment runs table leaks internal properties into the page markup.",
+    "Stop internal table properties from appearing as attributes on the runs loading spinner element.",
+    "Fix invalid HTML attributes showing up on the experiment page loading indicator.",
+    "Remove unexpected DOM attributes leaked by the loading animation on the experiment runs table.",
+    "Inspect element on the runs table loading indicator reveals internal grid attributes in the DOM."
+  ],
+  "search": "In the experiment runs table loading overlay, ag-grid framework components wrapping design-system components must not spread injected grid props into Spinner. UntrackedSpinner registered in mlflow/server/js/src/experiment-tracking/components/experiment-page/utils/experimentPage.column-utils.tsx takes no props and renders Spinner with explicit values to prevent serializing api, columnApi, context, reactContainer, or showImmediately into the DOM. Grid overlay params like showImmediately are removed from ExperimentViewRunsTable.tsx because they are not part of the Spinner API. This applies to runs table overlay components but does not apply to cell renderers that deliberately consume grid params.",
+  "saysFor": "s2:ec499ecffac6f0193a73fa6f9eb4147cfc26967ae17482df375467578fb49068"
+}

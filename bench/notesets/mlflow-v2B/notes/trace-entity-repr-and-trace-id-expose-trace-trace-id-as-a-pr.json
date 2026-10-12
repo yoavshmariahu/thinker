@@ -1,0 +1,96 @@
+{
+  "id": "trace-entity-repr-and-trace-id-expose-trace-trace-id-as-a-pr",
+  "title": "Trace entity repr and trace_id: expose trace.trace_id as a property over info.trace_id and quote it in repr",
+  "kind": "rule",
+  "answers": [
+    "Why does trace.trace_id raise AttributeError when repr(trace) shows a trace_id?",
+    "How is repr(Trace) formatted, and why is the trace id quoted?",
+    "Where is the trace id stored on a Trace object and how do I read it directly?",
+    "What does repr print for a Trace whose info is None?"
+  ],
+  "body": "Path: The Trace entity in mlflow/entities/trace.py wraps a TraceInfo (`info`) and TraceData (`data`); tracing APIs that return traces to users (get and search results, fluent tracing) pass through it. Chokepoints are mlflow/entities/trace.py:Trace.trace_id and mlflow/entities/trace.py:Trace.__repr__.\nRule: The authoritative id is `info.trace_id`. Trace must not store a second copy; it exposes a read-only `trace_id` property that delegates to `self.info.trace_id`. `Trace.__repr__` must only advertise attributes that exist, print the id with `!r` so it is quoted valid Python, and read it defensively via `getattr(self.info, \"trace_id\", None) if self.info else None` so a Trace with info=None still prints `Trace(trace_id=None)`. Do not add deprecated aliases such as request_id on Trace; the PR dropped one after review.\nSymptom: Users who saw `Trace(trace_id=...)` in repr and wrote `trace.trace_id` got an AttributeError, because the repr advertised a top-level attribute that did not exist; the id also printed unquoted.\nConstraints: Applies to the Trace entity. TraceInfo.trace_id remains the real field and is unchanged. Covered by tests/entities/test_trace.py:test_trace_repr_and_trace_id.",
+  "applies": "Trace entity in mlflow/entities/trace.py; applies to code that reads a trace's id or prints a Trace object, not to TraceInfo itself.",
+  "tags": [
+    "tracing",
+    "trace",
+    "entities",
+    "repr"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/entities/trace.py",
+      "symbol": "Trace.trace_id",
+      "hash": "sha256:7c54fb2e948ee909af27c9e5",
+      "line": 45,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ddf3669baf4fe20f3deba2f6",
+      "fanout": {
+        "files": 164,
+        "sites": 0,
+        "refs": 1996
+      }
+    },
+    {
+      "path": "mlflow/entities/trace.py",
+      "symbol": "Trace.__repr__",
+      "hash": "sha256:680858a76d9496540b4b4f5a",
+      "line": 41,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:680858a76d9496540b4b4f5a",
+      "fanout": {
+        "files": 5,
+        "sites": 5,
+        "refs": 5
+      }
+    },
+    {
+      "path": "tests/entities/test_trace.py",
+      "symbol": "test_trace_repr_and_trace_id",
+      "hash": "sha256:90cf348139150eccfc6b7a13",
+      "line": 595,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:90cf348139150eccfc6b7a13",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/entities/trace.py",
+      "symbol": "trace_id",
+      "hash": "sha256:7c54fb2e948ee909af27c9e5",
+      "line": 45,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ddf3669baf4fe20f3deba2f6",
+      "fanout": {
+        "files": 164,
+        "sites": 0,
+        "refs": 1996
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26007"
+  },
+  "created": "2026-10-12T05:30:20.698Z",
+  "verified": "2026-10-12T05:30:20.698Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Accessing the identifier property on a returned trace object causes an attribute error.",
+    "Printed trace representations display an unquoted identifier that cannot be copied as valid code.",
+    "Allow reading the trace identifier directly from trace query and search results.",
+    "Printing a trace object that lacks metadata displays empty identifier values safely."
+  ],
+  "search": "In mlflow/entities/trace.py, the Trace entity exposes a read-only trace_id property delegating to self.info.trace_id and formats Trace.__repr__ with quoted identifiers using !r. The __repr__ implementation safely inspects info with getattr so missing metadata prints Trace(trace_id=None), while deprecated aliases like request_id are omitted. Applies to the Trace entity returned by get, search, and fluent tracing APIs rather than TraceInfo itself, resolving AttributeError when accessing trace_id.",
+  "saysFor": "s2:97c08686f45872067f98b83c66633dbf954dc48b1435c45546c5359148f77710"
+}

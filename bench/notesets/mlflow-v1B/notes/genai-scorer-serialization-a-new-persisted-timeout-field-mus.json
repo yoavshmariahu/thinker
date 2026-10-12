@@ -1,0 +1,120 @@
+{
+  "id": "genai-scorer-serialization-a-new-persisted-timeout-field-mus",
+  "title": "genai scorer serialization: a new persisted timeout field must reload legacy scorers as 0, not the new default",
+  "kind": "rule",
+  "answers": [
+    "After upgrading MLflow, my already-registered scorers suddenly time out. Why?",
+    "Why does a freshly created scorer serialize timeout as None but a reloaded old scorer comes back as 0?",
+    "How do I add a new option to a registered scorer without changing behavior for existing monitoring jobs?",
+    "Where is the scorer timeout saved and reloaded during registration?"
+  ],
+  "body": "Path: Scorer persistence goes through `mlflow/genai/scorers/base.py:Scorer.model_dump` into `SerializedScorer`, and back through `Scorer._reconstruct_decorator_scorer` (and `Scorer.model_validate`) when a registered scorer is loaded for evaluate or online monitoring.\nRule: `SerializedScorer.timeout` defaults to `0` so a payload missing the key reloads as unbounded, the legacy behavior; `Scorer.timeout` defaults to `None`, so only freshly created scorers get `DEFAULT_SCORER_TIMEOUT`. When adding a field to `SerializedScorer`, choose the default that reproduces pre-existing behavior for old payloads and set the new default only on the in-memory object.\nSymptom: Without this split, scorers registered before the change would have started being bounded at 300s on reload, failing long-running judge calls in existing monitoring workloads.\nConstraints: Tests in `tests/genai/scorers/test_serialization.py` pin this (a payload with the `timeout` key deleted reloads to `0`). This applies to the serialized form only; it does not change how an explicitly set `timeout` round-trips.",
+  "applies": "Serialization and deserialization of `@scorer` / `Scorer` objects, including any new field added to `SerializedScorer`.",
+  "tags": [
+    "genai",
+    "scorers",
+    "serialization",
+    "backward-compatibility",
+    "timeout"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "SerializedScorer",
+      "hash": "sha256:42907f3c0f613452ddddbe65",
+      "line": 165,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:42907f3c0f613452ddddbe65",
+      "fanout": {
+        "files": 11,
+        "sites": 32,
+        "refs": 70
+      }
+    },
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "Scorer.model_dump",
+      "hash": "sha256:dfe7e48186c1758d380e68a0",
+      "line": 406,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:dfe7e48186c1758d380e68a0",
+      "fanout": {
+        "files": 94,
+        "sites": 258,
+        "refs": 279
+      }
+    },
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "Scorer._reconstruct_decorator_scorer",
+      "hash": "sha256:1d44c8cede1ee8469ea6f502",
+      "line": 712,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1d44c8cede1ee8469ea6f502",
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 5
+      }
+    },
+    {
+      "path": "tests/genai/scorers/test_serialization.py",
+      "hash": "sha256:b204a64d3b304af77bdf2324",
+      "missing": false
+    },
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "Scorer.model_validate",
+      "hash": "sha256:b8c3aa1b8884209829c59b77",
+      "line": 480,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b8c3aa1b8884209829c59b77",
+      "fanout": {
+        "files": 45,
+        "sites": 116,
+        "refs": 142
+      }
+    },
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "Scorer.timeout",
+      "hash": "sha256:f974c1640c0b14d4b5d4338d",
+      "line": 454,
+      "missing": false,
+      "fanout": {
+        "files": 212,
+        "sites": 30,
+        "refs": 921
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25720"
+  },
+  "created": "2026-10-12T05:40:38.422Z",
+  "verified": "2026-10-12T05:40:38.422Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "genai-third-party-scorer-deserialization-match-the-module-al",
+    "genai-third-party-scorer-allow-list-adding-a-scorer-module-r",
+    "genai-scorer-provenance-registered-scorer-version-does-not-s",
+    "scorer-registry-hydration-register-get-and-list-must-set-sco"
+  ],
+  "says": [
+    "Existing registered evaluators suddenly time out on long tasks after an upgrade.",
+    "Production LLM judge monitoring jobs fail with timeout errors after updating.",
+    "Previously saved scorers should remain unbounded instead of timing out at five minutes.",
+    "Long-running evaluation jobs crash from unexpected timeouts on legacy registered judges.",
+    "Older evaluation scorers fail during monitoring because a default time limit was applied."
+  ],
+  "search": "When serializing scorers in `mlflow.genai.scorers.base`, `SerializedScorer.timeout` defaults to `0` to keep legacy stored payloads unbounded, while in-memory `Scorer.timeout` defaults to `None` so only newly created scorers receive `DEFAULT_SCORER_TIMEOUT`. When loading registered scorers for evaluation or online monitoring via `Scorer._reconstruct_decorator_scorer` and `Scorer.model_validate`, missing timeout keys reload as `0` instead of imposing a 300-second limit. When adding any new persisted field to `SerializedScorer`, default values must preserve pre-existing behavior for older serialized payloads while applying new defaults solely to fresh in-memory objects. This constraint applies strictly to the serialized schema format and does not alter round-tripping for explicitly defined timeouts.",
+  "saysFor": "s2:634473ee7fce66ad332a250ef33fc53b64bd8182f682e1ccce06391222fc47d6"
+}

@@ -1,0 +1,107 @@
+{
+  "id": "uc-model-load-register-artifact-routing-mlflow-use-databrick",
+  "title": "Unity Catalog model load/register artifacts: MLFLOW_USE_DATABRICKS_SDK_MODEL_ARTIFACTS_REPO_FOR_UC selects the Files API repo on both paths, default off with scoped cloud credentials",
+  "kind": "rule",
+  "answers": [
+    "UC model load_model fails on DBR 15.4 LTS because vended tokens are blocked; how do I route models:/catalog.schema.model downloads through the Databricks Files API?",
+    "Where does mlflow.register_model to databricks-uc choose between scoped storage credentials and the SDK Files API?",
+    "Does loading a delta-shared Unity Catalog model use scoped tokens or the Databricks SDK?",
+    "Which environment variable turns on the Files-API artifact path for Unity Catalog models, and what is its default?"
+  ],
+  "body": "Path: Unity Catalog model-registry artifact transfer for models:/<catalog>.<schema>.<model>/<version> URIs, on the load path (mlflow.<flavor>.load_model) and the register path (create_model_version on databricks-uc). Chokepoints: mlflow/store/artifact/unity_catalog_models_artifact_repo.py:UnityCatalogModelsArtifactRepository._get_artifact_repo (load) and mlflow/store/_unity_catalog/registry/rest_store.py:UcModelRegistryStore._get_artifact_repo (register).\nRule: Both chokepoints read MLFLOW_USE_DATABRICKS_SDK_MODEL_ARTIFACTS_REPO_FOR_UC (mlflow/environment_variables.py) at call time. When true they return DatabricksSDKModelsArtifactRepository and pass registry_uri (load) or self.store_uri (register) so host/token creds resolve on both paths. When false they keep the scoped-token route (_get_scoped_token, or _get_temporary_model_version_write_credentials plus get_artifact_repo_from_storage_info). Any new UC model artifact path must check this flag in the same way.\nSymptom: If a UC model path ignored the flag, it kept requesting scoped cloud credentials, which Unity Catalog blocks on DBR 15.4 LTS, so load or register failed there.\nConstraints: Default is False, so behavior is unchanged unless the variable is set to true. Covers only databricks-uc model URIs; Volumes and DBFS artifact paths are not governed by this flag. databricks-sdk (>=0.20.0,<1) is now a skinny requirement (requirements/skinny-requirements.txt).",
+  "applies": "Unity Catalog model-version artifact upload and download (load_model and register_model on databricks-uc); not Volumes, DBFS or non-UC artifact repos.",
+  "tags": [
+    "unity-catalog",
+    "model-registry",
+    "artifacts",
+    "databricks-sdk",
+    "feature-flag"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/environment_variables.py",
+      "symbol": "MLFLOW_USE_DATABRICKS_SDK_MODEL_ARTIFACTS_REPO_FOR_UC",
+      "hash": "sha256:c702dffb494a71467110dd92",
+      "line": 1172,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 0,
+        "refs": 14
+      }
+    },
+    {
+      "path": "mlflow/store/artifact/unity_catalog_models_artifact_repo.py",
+      "symbol": "UnityCatalogModelsArtifactRepository._get_artifact_repo",
+      "hash": "sha256:dcf01c1a77ee218b5e163c5c",
+      "line": 170,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:dcf01c1a77ee218b5e163c5c",
+      "fanout": {
+        "files": 20,
+        "sites": 37,
+        "refs": 70
+      }
+    },
+    {
+      "path": "mlflow/store/_unity_catalog/registry/rest_store.py",
+      "symbol": "UcModelRegistryStore._get_artifact_repo",
+      "hash": "sha256:a8ee1ef8f21380efbaa7a560",
+      "line": 1120,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a8ee1ef8f21380efbaa7a560",
+      "fanout": {
+        "files": 20,
+        "sites": 37,
+        "refs": 70
+      }
+    },
+    {
+      "path": "mlflow/store/artifact/databricks_sdk_models_artifact_repo.py",
+      "symbol": "DatabricksSDKModelsArtifactRepository",
+      "hash": "sha256:6b64fa9759599d9cbbfa08d5",
+      "line": 38,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6b64fa9759599d9cbbfa08d5",
+      "fanout": {
+        "files": 7,
+        "sites": 9,
+        "refs": 22
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25986"
+  },
+  "created": "2026-10-12T05:35:08.236Z",
+  "verified": "2026-10-12T05:35:12.700Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "databrickssdkmodelsartifactrepository-uc-model-files-api-dow",
+    "databricks-model-resources-a-new-resource-type-needs-an-enum",
+    "unity-catalog-model-version-dependencies-a-new-resource-type",
+    "databrickssdkmodelsartifactrepository-uc-model-files-go-thro"
+  ],
+  "history": [
+    {
+      "at": "2026-10-12T05:35:12.708Z",
+      "reason": "merged from new session",
+      "prevBody": "Path: Unity Catalog model-registry artifact I/O. Model load (models:/<catalog>.<schema>.<model>/<version> with databricks-uc) goes through mlflow/store/artifact/unity_catalog_models_artifact_repo.py:UnityCatalogModelsArtifactRepository._get_artifact_repo; model register (create_model_version upload) goes through mlflow/store/_unity_catalog/registry/rest_store.py:UcModelRegistryStore._get_artifact_repo.\nRule: Both _get_artifact_repo methods check MLFLOW_USE_DATABRICKS_SDK_MODEL_ARTIFACTS_REPO_FOR_UC.get() first (defined in mlflow/environment_variables.py, default False, read at call time). When true, they return DatabricksSDKModelsArtifactRepository (mlflow/store/artifact/databricks_sdk_models_artifact_repo.py) and skip the scoped-token request entirely. When false, the existing scoped-token / PresignedUrlArtifactRepository path is unchanged. Keep the gate at the top of both methods so load and register switch together.\nSymptom: Unity Catalog blocks use of vended tokens, so the scoped-credential path cannot be relied on for load and register on MLR 15.4 LTS.\nConstraints: Default behavior is unchanged when the flag is unset. The flag only governs UC model artifacts (models:/ paths on databricks-uc), not Volumes or DBFS artifact URIs."
+    }
+  ],
+  "says": [
+    "Loading registered models fails on restricted clusters because temporary storage tokens are blocked.",
+    "Registering a model version into the catalog fails when uploading model artifact files.",
+    "Enable downloading catalog model artifacts through the platform file service instead of cloud credentials.",
+    "Allow deploying registered models on locked down cluster environments where cloud tokens are disabled."
+  ],
+  "search": "The MLFLOW_USE_DATABRICKS_SDK_MODEL_ARTIFACTS_REPO_FOR_UC environment variable configures Unity Catalog model load and register paths to use DatabricksSDKModelsArtifactRepository via the Files API. By default, the flag is false, leaving the scoped cloud credential route active, which fails on DBR 15.4 LTS where vended credentials are blocked. The setting is checked at runtime in UnityCatalogModelsArtifactRepository._get_artifact_repo for loading and UcModelRegistryStore._get_artifact_repo for registration. This applies only to databricks-uc model URIs, excluding Volumes, DBFS, and non-UC artifact repositories.",
+  "saysFor": "s2:630aaa66186cd04a35bc05fdf74b591f72c75ee72deeb88298cca673c4f2ee96"
+}

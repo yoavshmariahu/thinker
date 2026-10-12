@@ -1,0 +1,99 @@
+{
+  "id": "typescript-tracing-integrations-keep-trace-helpers-local-ins",
+  "title": "TypeScript tracing integrations: keep trace helpers local instead of importing new exports from @mlflow/core",
+  "kind": "rule",
+  "answers": [
+    "Can a tracing integration import a newly added helper from @mlflow/core?",
+    "Why is getCurrentUser duplicated across the Codex, Qwen Code, OpenCode and OpenClaw packages?",
+    "How do I add a helper to an integration without breaking users on older core versions?"
+  ],
+  "body": "Path: Each TypeScript agent integration (claude-code, codex, qwen-code, opencode, openclaw under libs/typescript/integrations/) is an independent npm package that depends on @mlflow/core through a declared version floor. Trace-metadata helpers used by these packages are defined inside each package, for example the getCurrentUser helper in codex/src/tracing.ts, qwen-code/src/tracing.ts, opencode/src/index.ts and openclaw/src/service.ts.\nRule: When adding a helper that a new integration feature needs, define it locally in the package with a 'Keep local' comment explaining that integrations must support older @mlflow/core floors, instead of importing a new export from @mlflow/core. Claude Code keeps its copy in claude-code/src/_internal.ts.\nSymptom: Reviewers noted that an export newer than the declared core floor can be resolved as undefined when an existing lockfile keeps an older compatible core, causing trace finalization or notification processing to throw at runtime.\nConstraints: Applies to new shared helpers in integration packages. If a change genuinely needs a newer core export, the core dependency floor must be raised first; scripts/check-min-mlflow-deps.sh is the check for this failure mode.",
+  "applies": "Adding or sharing helpers across TypeScript integration packages that depend on @mlflow/core.",
+  "tags": [
+    "typescript",
+    "integrations",
+    "mlflow-core",
+    "dependency-floor",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/integrations/claude-code/src/_internal.ts",
+      "symbol": "getCurrentUser",
+      "hash": "sha256:bb234798fbf9dee04e217a86",
+      "line": 21,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:bb234798fbf9dee04e217a86",
+      "fanout": {
+        "files": 8,
+        "sites": 6,
+        "refs": 28
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/codex/src/tracing.ts",
+      "symbol": "getCurrentUser",
+      "hash": "sha256:6239d75139fae1180ffd79c4",
+      "line": 49,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6239d75139fae1180ffd79c4",
+      "fanout": {
+        "files": 8,
+        "sites": 6,
+        "refs": 28
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/claude-code/src/tracing.ts",
+      "hash": "sha256:142421ea0133a8ec42a51707",
+      "missing": false
+    },
+    {
+      "path": "libs/typescript/integrations/claude-code/src/index.ts",
+      "hash": "sha256:5a7c74b5fd110a548aea143c",
+      "missing": false
+    },
+    {
+      "path": "libs/typescript/integrations/openclaw/src/service.ts",
+      "symbol": "getCurrentUser",
+      "hash": "sha256:6239d75139fae1180ffd79c4",
+      "line": 39,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6239d75139fae1180ffd79c4",
+      "fanout": {
+        "files": 8,
+        "sites": 6,
+        "refs": 28
+      }
+    },
+    {
+      "path": "libs/typescript/scripts/check-min-mlflow-deps.sh",
+      "hash": "sha256:3f7f0c29d77fde2a5d7cc3aa",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26221"
+  },
+  "created": "2026-10-12T05:29:00.215Z",
+  "verified": "2026-10-12T05:29:00.215Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "typescript-agent-tracing-integrations-trace-user-attribution"
+  ],
+  "says": [
+    "Coding assistant plugin crashes during notification processing when installed with existing project dependencies.",
+    "Trace finalization throws an unexpected error when using agent integrations alongside older platform libraries.",
+    "Agent integration features should maintain backward compatibility with older shared core libraries.",
+    "Prevent runtime crashes during trace export when project dependency lockfiles resolve earlier library releases."
+  ],
+  "search": "TypeScript agent integration packages under libs/typescript/integrations/ must define trace helpers locally rather than importing new exports from @mlflow/core. Because packages like claude-code, codex, qwen-code, opencode, and openclaw declare older core version floors, importing new core exports can resolve to undefined and crash trace finalization or notification processing. New helpers must be declared with a 'Keep local' comment documenting the backward compatibility requirement. If an integration strictly requires a new core export, the core dependency floor must be raised and verified with scripts/check-min-mlflow-deps.sh.",
+  "saysFor": "s2:15f127204da5f0d03641c5e9bbf3022046b1a22abbb62bb015d9c864ff4d0517"
+}

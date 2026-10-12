@@ -1,0 +1,45 @@
+{
+  "id": "copilot-setup-steps-changes-to-copilot-setup-steps-yml-are-o",
+  "title": "Copilot setup steps: changes to copilot-setup-steps.yml are only exercised by the agent after merge, so verify with the first real cloud agent session",
+  "kind": "map",
+  "answers": [
+    "How do I test a change to the Copilot agent environment setup before merging?",
+    "My Copilot cloud agent broke after a merge that only touched the workflow file; how do I confirm the fix?",
+    "Which check validates the copilot-setup-steps file, and does it cover the Copilot launcher?"
+  ],
+  "body": "Path: .github/workflows/copilot-setup-steps.yml is validated by the `copilot-setup-steps` check, which runs the file as an ordinary workflow; the Copilot launcher reads it from the default branch and splices its steps into an agent job.\nRule: Treat the `copilot-setup-steps` check as a schema and syntax check only. Launch behaviour of the agent depends on the default-branch copy, so a PR cannot exercise it before merge; confirmation is the first successful cloud agent session after the change lands.\nSymptom: A change that passed CI broke every new Copilot cloud agent session (for example a `parallel:` group the launcher could not parse), and nothing in CI or PR review flagged it.\nConstraints: Applies to any change to copilot-setup-steps.yml. Does not apply to other workflows, which CI runs normally.",
+  "applies": "Changes to the Copilot cloud agent setup workflow; inferred from the PR description rather than the launcher code.",
+  "tags": [
+    "github-actions",
+    "copilot",
+    "cloud-agent",
+    "ci-validation"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/copilot-setup-steps.yml",
+      "hash": "sha256:aeb92149234e2c7264f2ae52",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25545"
+  },
+  "created": "2026-10-12T05:41:50.883Z",
+  "verified": "2026-10-12T05:41:50.883Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Why did the cloud coding agent break after we merged environment setup changes?",
+    "Pull request validation passed but the cloud coding agent failed to start after merge.",
+    "How can we test cloud coding agent environment changes before merging the pull request?",
+    "The automated setup check only verifies syntax and cannot guarantee the cloud agent launches.",
+    "Verify the cloud coding agent in a real session immediately after landing setup updates."
+  ],
+  "search": "Changes to .github/workflows/copilot-setup-steps.yml are only exercised by the Copilot cloud agent after merge because the launcher reads steps strictly from the default branch. The copilot-setup-steps check serves solely as a syntax and schema validator, unable to verify launcher execution during pull request review. Verification requires checking the first real cloud agent session that runs after the change lands. This restriction applies specifically to copilot-setup-steps.yml rather than ordinary workflows.",
+  "saysFor": "s2:6e8feb27cc703842833824c95d6195810acb77fa10b08c476d1f1cb637eb623d"
+}

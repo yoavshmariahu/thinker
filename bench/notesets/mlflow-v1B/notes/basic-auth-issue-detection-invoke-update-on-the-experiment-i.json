@@ -1,0 +1,89 @@
+{
+  "id": "basic-auth-issue-detection-invoke-update-on-the-experiment-i",
+  "title": "basic-auth issue detection invoke: UPDATE on the experiment is not enough, a body secret_id also needs USE on that gateway secret",
+  "kind": "rule",
+  "answers": [
+    "Why does issue detection return 403 for a secret I can see when I invoke it on my own experiment?",
+    "Which permission does the issues/invoke route check on the experiment and on the gateway secret it is given?",
+    "Where is the basic-auth gate for the issue-detection invoke route, and how does it treat an empty or unknown secret_id?",
+    "Can a user with only READ on a gateway secret run issue detection with it?"
+  ],
+  "body": "Path: `POST /ajax-api/3.0/mlflow/issues/invoke` (issue detection, which runs a job in an experiment and can decrypt a gateway secret into the job environment) is gated in the basic-auth app by `mlflow/server/auth/__init__.py:validate_can_invoke_issue_detection`, wired through the `(INVOKE_ISSUE_DETECTION, \"POST\")` entry of the before-request validator map. `genai/evaluate/invoke` and `scorer/invoke` are not affected.\nRule: The validator requires UPDATE on the body's `experiment_id` via `validate_can_update_experiment`, then, only when the body has a truthy `secret_id`, requires USE on that secret through `mlflow/server/auth/__init__.py:_get_gateway_secret_permission(secret_id).can_use`. The same helper backs `_get_permission_from_gateway_secret_id`, so workspace resolution and the default-permission floor match the gateway secret RPCs. An unknown secret id resolves to no grant and is denied, so the route does not reveal whether a secret exists.\nConstraints: READ on the secret is not enough, and neither is ownership without a MANAGE/USE grant on the secret being checked by the route itself. An absent or empty `secret_id` passes the gate after the experiment check, because the handler (`_invoke_issue_detection_handler`) only fetches provider credentials when `secret_id` is truthy. Do not change the falsy guard to an `is None` check, because that would 403 requests the handler treats as having no secret. The validator reads the raw `secret_id` JSON key with `request.get_json(silent=True)`, not a proto parse, so any alias spelling of the field is not checked here. An endpoint_name passed to the same route is NOT checked against gateway-endpoint permissions; that is a known open gap.\nApplies: Basic-auth authorization for issue-detection invoke requests, and any new invoke route that hands a gateway secret id to a job.",
+  "applies": "Authorization for POST /ajax-api/3.0/mlflow/issues/invoke in the basic-auth app, including its optional secret_id and experiment_id body fields.",
+  "tags": [
+    "basic-auth",
+    "authorization",
+    "gateway",
+    "secrets",
+    "issue-detection",
+    "genai"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_invoke_issue_detection",
+      "hash": "sha256:9f7271c736ea2426c870ce09",
+      "line": 2091,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9f7271c736ea2426c870ce09",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_get_gateway_secret_permission",
+      "hash": "sha256:a36e4562788f03785bfba710",
+      "line": 1094,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a36e4562788f03785bfba710",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "tests/server/auth/test_auth.py",
+      "symbol": "test_issue_detection_invoke_requires_use_permission_on_secret",
+      "hash": "sha256:4550f828daa27f0c3d1f293f",
+      "line": 7427,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4550f828daa27f0c3d1f293f",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25848"
+  },
+  "created": "2026-10-12T05:44:24.148Z",
+  "verified": "2026-10-12T05:44:24.148Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "basic-auth-fastapi-response-filters-lookup-is-keyed-on-the-e",
+    "basic-auth-gateway-secret-model-definition-and-endpoint-vali",
+    "basic-auth-job-search-post-jobs-search-returns-only-the-call",
+    "basic-auth-model-version-create-read-on-the-source-run-or-lo"
+  ],
+  "says": [
+    "Running issue detection fails with access denied when selecting a credential with read access.",
+    "Users need permission to use the chosen gateway secret when launching issue detection.",
+    "Why is issue detection rejected when I can edit the experiment and view the secret?",
+    "Ensure starting an issue detection job validates permissions on both the experiment and secret."
+  ],
+  "search": "In the basic-auth app, POST /ajax-api/3.0/mlflow/issues/invoke (INVOKE_ISSUE_DETECTION) uses validate_can_invoke_issue_detection to require UPDATE on experiment_id and, when secret_id is truthy, USE on that secret via _get_gateway_secret_permission(secret_id).can_use. READ permission or secret ownership without a USE grant is insufficient, and an unknown secret ID is denied without revealing whether the secret exists. An absent or empty secret_id passes after experiment validation because _invoke_issue_detection_handler only fetches credentials when secret_id is truthy. The route reads raw secret_id JSON rather than protobuf, does not check endpoint_name against endpoint permissions, and does not affect genai/evaluate/invoke or scorer/invoke.",
+  "saysFor": "s2:e0266bee79aad99dd326cffd072161014070db144458ea1d7ac7bcfc3e09b4b2"
+}

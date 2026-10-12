@@ -1,0 +1,109 @@
+{
+  "id": "prompt-search-on-unity-catalog-registries-order-by-is-accept",
+  "title": "Prompt search on Unity Catalog registries: order_by is accepted but not applied, so results come back unordered",
+  "kind": "rule",
+  "answers": [
+    "order_by is ignored when searching prompts in a Unity Catalog registry",
+    "Does prompt search ordering work for UC-backed prompts?",
+    "Why does mlflow.genai.search_prompts ignore my order_by on Unity Catalog?"
+  ],
+  "body": "Path: Prompt search against a Unity Catalog registry. The order_by argument from mlflow.genai.search_prompts and MlflowClient.search_prompts passes through mlflow/tracking/_model_registry/fluent.py:search_prompts and mlflow/tracking/client.py:MlflowClient.search_prompts before it reaches the Unity Catalog store's search_prompts.\nRule: The Unity Catalog store's search_prompts accepts order_by in its signature but does not use it; its docstring says so. The search_prompts docstrings in fluent.py and client.py state 'Not honored by Unity Catalog registries.' When a caller needs ordered prompt results on UC, sort the returned list on the client side. Do not rely on the parameter reaching the server.\nSymptom: On a Unity Catalog registry, passing order_by to prompt search returns results in no guaranteed order and raises no error.\nConstraints: Applies only to Unity Catalog registries. The open-source store path implements order_by through search_registered_models, so ordering works there. This behavior is pre-existing and was not changed by the change that added order_by to the fluent and client layers.",
+  "applies": "Prompt search or ordering questions when the active registry is Unity Catalog.",
+  "tags": [
+    "prompt-registry",
+    "unity-catalog",
+    "search"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/tracking/_model_registry/fluent.py",
+      "symbol": "search_prompts",
+      "hash": "sha256:c075f2379053a7deb5d91623",
+      "line": 712,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c075f2379053a7deb5d91623",
+      "fanout": {
+        "files": 16,
+        "sites": 38,
+        "refs": 55
+      }
+    },
+    {
+      "path": "mlflow/tracking/client.py",
+      "symbol": "MlflowClient.search_prompts",
+      "hash": "sha256:789cb06a8951f5e99af60e52",
+      "line": 917,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:789cb06a8951f5e99af60e52",
+      "fanout": {
+        "files": 16,
+        "sites": 38,
+        "refs": 55
+      }
+    },
+    {
+      "path": "mlflow/tracking/_model_registry/client.py",
+      "symbol": "order_by",
+      "hash": "sha256:b544020dac3805ad40d4ad76",
+      "line": 144,
+      "missing": false,
+      "fanout": {
+        "files": 96,
+        "sites": 78,
+        "refs": 849
+      }
+    },
+    {
+      "path": "mlflow/tracking/_model_registry/client.py",
+      "symbol": "search_prompts",
+      "hash": "sha256:48cf2910042d9471ec7012e6",
+      "line": 515,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:48cf2910042d9471ec7012e6",
+      "fanout": {
+        "files": 16,
+        "sites": 38,
+        "refs": 55
+      }
+    },
+    {
+      "path": "mlflow/tracking/_model_registry/client.py",
+      "symbol": "search_registered_models",
+      "hash": "sha256:10df5958bdd474327c0fefee",
+      "line": 140,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:10df5958bdd474327c0fefee",
+      "fanout": {
+        "files": 30,
+        "sites": 94,
+        "refs": 141
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25967"
+  },
+  "created": "2026-10-12T05:30:42.156Z",
+  "verified": "2026-10-12T05:30:42.156Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "prompt-registry-search-mlflow-genai-search-prompts-mlflowcli"
+  ],
+  "says": [
+    "Sorting prompts by column has no effect when searching within Unity Catalog.",
+    "Prompt search results in Unity Catalog arrive unordered despite specifying sort direction.",
+    "Why does the prompt catalog ignore my requested ordering without showing an error?",
+    "Make prompt search order work properly on Unity Catalog instead of failing silently.",
+    "Unity Catalog prompt listings remain unordered even when asking for ascending order."
+  ],
+  "search": "Prompt search on Unity Catalog registries accepts the order_by parameter in its signature but does not honor or apply it. Results are returned in no guaranteed order without raising an error, requiring callers needing ordered results on UC to sort client-side. In contrast, open-source store registries implement order_by through search_registered_models, where sorting functions normally. This limitation is documented in search_prompts docstrings across fluent and client layers as pre-existing behavior.",
+  "saysFor": "s2:09cc360f679682ff510abd6f5b86724c2e6a6fb9828f90c85bbe915e402aeb58"
+}

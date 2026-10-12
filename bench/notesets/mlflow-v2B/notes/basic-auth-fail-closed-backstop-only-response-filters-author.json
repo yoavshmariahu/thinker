@@ -1,0 +1,115 @@
+{
+  "id": "basic-auth-fail-closed-backstop-only-response-filters-author",
+  "title": "basic-auth fail-closed backstop: only response filters authorize a route on their own; ownership grants and cleanups do not",
+  "kind": "rule",
+  "answers": [
+    "Why can a user without a workspace create grant still create a gateway secret in the basic-auth server?",
+    "A route has an after-request ownership grant but no before-request validator. Is it blocked by the fail-closed check?",
+    "Where does the auth server decide whether a route without a before-request validator is allowed through?",
+    "I'm adding a new response filter for a list route. Do I need to register it somewhere so the fail-closed check accepts it?"
+  ],
+  "body": "Path: mlflow/server/auth/__init__.py:_authorized_outside_before_request is the fail-closed backstop for routes that have no before-request validator. It is consulted for every request in the basic-auth app, including gateway secret, experiment and registered-model create and list routes.\nRule: A route counts as self-authorizing only if its AFTER_REQUEST_HANDLERS entry is in mlflow/server/auth/__init__.py:_SELF_AUTHORIZING_AFTER_REQUEST_HANDLERS (the filter_* and redact_* response handlers). Ownership grants (set_can_manage_*) and permission cleanups (for example _cleanup_workspace_permissions) run after an already-authorized write, so they must not exempt a route. Every route that carries a set_can_manage_* grant must have a before-request validator registered in the before-request map; mlflow/server/auth/__init__.py:validate_can_create_gateway_secret is the example added for CreateGatewaySecret.\nSymptom: With workspaces enabled, a user denied CreateExperiment and CreateRegisteredModel could still create gateway secrets, because the MANAGE grant handler silently satisfied the backstop and no create check ran.\nConstraints: Applies to routes gated by before-request validators and response filters. When you add a new response filter, add it to _SELF_AUTHORIZING_AFTER_REQUEST_HANDLERS; a new ownership grant needs its own before-request validator, not a filter entry. tests/server/auth/test_authorization_coverage.py:test_every_ownership_grant_route_has_a_before_request_validator fails if a grant route lacks a validator; tests/server/auth/test_fail_closed_flag.py:test_ownership_grant_after_handler_does_not_authorize_route covers the backstop itself.",
+  "applies": "Basic-auth server (mlflow/server/auth) request authorization for any route with an AFTER_REQUEST handler; not for the content of individual validators.",
+  "tags": [
+    "auth",
+    "basic-auth",
+    "authorization",
+    "fail-closed",
+    "workspaces",
+    "gateway-secrets"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_authorized_outside_before_request",
+      "hash": "sha256:855a6e60cbc400b3b719dc10",
+      "line": 3682,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:855a6e60cbc400b3b719dc10",
+      "fanout": {
+        "files": 3,
+        "sites": 12,
+        "refs": 12
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_SELF_AUTHORIZING_AFTER_REQUEST_HANDLERS",
+      "hash": "sha256:9a4beefa32f822287e0e4e7c",
+      "line": 4488,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_create_gateway_secret",
+      "hash": "sha256:093cd50f1be16e361fb797a7",
+      "line": 2028,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:093cd50f1be16e361fb797a7",
+      "fanout": {
+        "files": 3,
+        "sites": 5,
+        "refs": 7
+      }
+    },
+    {
+      "path": "tests/server/auth/test_authorization_coverage.py",
+      "symbol": "test_every_ownership_grant_route_has_a_before_request_validator",
+      "hash": "sha256:122b401a346a87070621f8c2",
+      "line": 185,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:122b401a346a87070621f8c2",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/server/auth/test_fail_closed_flag.py",
+      "symbol": "test_ownership_grant_after_handler_does_not_authorize_route",
+      "hash": "sha256:674f770ffc418421066d7517",
+      "line": 45,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:674f770ffc418421066d7517",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25895"
+  },
+  "created": "2026-10-12T05:36:18.267Z",
+  "verified": "2026-10-12T05:36:18.267Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "jobs-search-under-basic-auth-non-admins-only-see-jobs-whose",
+    "auth-server-list-routes-filter-results-after-the-handler-by",
+    "basic-auth-createmodelversion-source-run-model-read-check-mu",
+    "gateway-model-definition-endpoint-and-attach-authorization-r"
+  ],
+  "says": [
+    "A user without permission to create workspace items can still add gateway secrets.",
+    "Restricted team members can unexpectedly save AI gateway connection credentials in locked workspaces.",
+    "Prevent users who lack workspace creation access from adding new gateway secrets.",
+    "Users blocked from creating experiments can still configure gateway credentials in the workspace."
+  ],
+  "search": "In the basic-auth server, mlflow/server/auth/__init__.py:_authorized_outside_before_request acts as the fail-closed backstop for routes without a before-request validator by authorizing only handlers listed in _SELF_AUTHORIZING_AFTER_REQUEST_HANDLERS. Ownership grants like set_can_manage_* and cleanup handlers do not authorize a route on their own and require a dedicated before-request validator such as validate_can_create_gateway_secret. New response filters must be registered in _SELF_AUTHORIZING_AFTER_REQUEST_HANDLERS, as checked by tests/server/auth/test_authorization_coverage.py:test_every_ownership_grant_route_has_a_before_request_validator and tests/server/auth/test_fail_closed_flag.py:test_ownership_grant_after_handler_does_not_authorize_route.",
+  "saysFor": "s2:3ce7a78682865c5c17f4ee33e2926806abf7fef11fa570cfd69124a8b2c0aa48"
+}

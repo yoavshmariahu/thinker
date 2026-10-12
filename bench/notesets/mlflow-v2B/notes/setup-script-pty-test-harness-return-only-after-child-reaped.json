@@ -1,0 +1,61 @@
+{
+  "id": "setup-script-pty-test-harness-return-only-after-child-reaped",
+  "title": "setup-script PTY test harness: return only after child reaped AND PTY EOF, so buffered final output is not truncated",
+  "kind": "rule",
+  "answers": [
+    "Why is the 'Setup complete' line missing from the setup.sh e2e test transcript in CI?",
+    "How do the setup-script tests drive an interactive process and collect its output?",
+    "Where does run_interactive decide the child process has finished?",
+    "How should a test helper treat EIO when reading from a PTY master after the child exits?"
+  ],
+  "body": "Path: tests/agent/setup_sh_test_utils.py:run_interactive, the PTY driver used by tests/agent/test_setup_sh_e2e.py to run interactive setup-script flows: it writes scripted responses to the pty master fd, reads transcript output, and reaps the child with waitpid(WNOHANG).\nRule: Track child reaping (`reaped`) and terminal EOF (`eof`) as independent flags and return `(exitcode, output)` only when both are true. Treat an empty `os.read` as EOF and treat Linux PTY `EIO` as EOF; re-raise other OSErrors. Once `eof` is set, stop selecting the closed fd (`select.select([] if eof else [fd], ...)`).\nSymptom: The test returned as soon as the child exited, while the PTY still held final buffered bytes, so the captured transcript was cut short and assertions on the last lines (e.g. `Setup complete`) failed intermittently in CI.\nConstraints: Applies only to the test helper's PTY reading loop. Do not return on child exit alone; the child can exit while output remains buffered. Other read errors must still propagate.",
+  "applies": "Test-only: PTY-driven setup.sh / interactive-process tests under tests/agent; does not change product code.",
+  "tags": [
+    "testing",
+    "pty",
+    "setup-sh",
+    "flaky-test",
+    "tests/agent"
+  ],
+  "deps": [
+    {
+      "path": "tests/agent/setup_sh_test_utils.py",
+      "symbol": "run_interactive",
+      "hash": "sha256:6a7cf468d3e0de3fa916828b",
+      "line": 45,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6a7cf468d3e0de3fa916828b",
+      "fanout": {
+        "files": 3,
+        "sites": 11,
+        "refs": 14
+      }
+    },
+    {
+      "path": "tests/agent/test_setup_sh_e2e.py",
+      "hash": "sha256:2828f8c56a641b8eab196b01",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25995"
+  },
+  "created": "2026-10-12T05:30:25.148Z",
+  "verified": "2026-10-12T05:30:25.148Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Automated setup script tests are intermittently failing in continuous integration pipelines.",
+    "The test transcript drops the final completion message when running the setup script.",
+    "Terminal output from the installation script gets truncated before the test finishes running.",
+    "End to end setup tests randomly fail to detect the completion confirmation message.",
+    "Ensure the test harness captures trailing command line output when running installation scripts."
+  ],
+  "search": "Interactive process test helper tests/agent/setup_sh_test_utils.py:run_interactive, used by tests/agent/test_setup_sh_e2e.py, must return only after child process reaping via waitpid and PTY EOF both occur. An empty os.read or Linux PTY EIO signals EOF, at which point the closed file descriptor must be removed from select.select while other OSErrors propagate. This prevents truncating buffered terminal output and intermittently failing assertions in continuous integration, and applies solely to the test helper PTY reading loop without modifying product code.",
+  "saysFor": "s2:11db4ad10312517e72fb1bebc6015c4eb6a1122edf60b47e4e37c6adec2a1843"
+}

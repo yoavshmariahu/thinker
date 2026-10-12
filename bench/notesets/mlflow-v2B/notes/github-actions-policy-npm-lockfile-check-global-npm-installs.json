@@ -1,0 +1,53 @@
+{
+  "id": "github-actions-policy-npm-lockfile-check-global-npm-installs",
+  "title": "GitHub Actions policy npm lockfile check: global npm installs are exempt only when the whole command is a standalone global install",
+  "kind": "rule",
+  "answers": [
+    "Why is `npm install -g` flagged as a mutable lockfile install in CI?",
+    "Why does a chained command like `npm install lodash && npm install -g npm` pass the lockfile policy?",
+    "Where is the npm global install exemption for the lockfile check?"
+  ],
+  "body": "Path: .github/policy.rego handles the lockfile-check rule for `npm install` in workflow run blocks; the global-install exemption is decided per command in the same rule.\nRule: The exemption matches only a complete, standalone global npm install whose remaining arguments are plain package names, with `-g` / `--global` either before or after those package arguments. A `-g`/`--global` token elsewhere on a multi-command line must not exempt a local install in the same run block.\nSymptom: Global installs such as `npm install eslint -g` were still reported as mutable lockfile installs, while a chained local install could slip through when a later `--global` token appeared on the same line.\nConstraints: Global installs are not checked for lockfile use; local installs (no global flag) still need the lockfile check. Review comments indicate the exemption was validated against accepted and rejected command forms before merge.",
+  "applies": "Editing the npm install lockfile rule in .github/policy.rego.",
+  "tags": [
+    "github-actions",
+    "policy",
+    "npm",
+    "lockfile"
+  ],
+  "deps": [
+    {
+      "path": ".github/policy.rego",
+      "symbol": "step_entries",
+      "hash": "sha256:bb52cffb992c37dd76c7128e",
+      "line": 103,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 20,
+        "refs": 20
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25900"
+  },
+  "created": "2026-10-12T05:36:06.088Z",
+  "verified": "2026-10-12T05:36:06.088Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "github-actions-policy-step-checks-iterate-step-entries-input"
+  ],
+  "says": [
+    "CI policy incorrectly flags global package installation commands as lockfile violations.",
+    "Chained package install commands in workflows bypass the required lockfile checks.",
+    "Global tool installations in build steps should not require a lockfile.",
+    "Workflow validation blocks standalone global package installs across our build pipelines."
+  ],
+  "search": "GitHub Actions policy exempts npm installs from lockfile checks only when the command is a complete, standalone global install of package names. Configured in .github/policy.rego, the rule permits -g or --global either before or after package arguments while preventing a global flag elsewhere on a multi-command line from exempting local installs. This resolves false positive mutable lockfile errors on global installs while stopping chained local commands from bypassing verification. Local installs without global flags remain strictly subject to lockfile enforcement.",
+  "saysFor": "s2:af7639a5c167ab6f17d077bee1bffef1d320d8f5f649077d9f97543508185ae0"
+}

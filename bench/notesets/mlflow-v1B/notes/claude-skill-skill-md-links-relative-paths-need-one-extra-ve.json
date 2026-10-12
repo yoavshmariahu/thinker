@@ -1,0 +1,51 @@
+{
+  "id": "claude-skill-skill-md-links-relative-paths-need-one-extra-ve",
+  "title": "Claude skill SKILL.md links: relative paths need one extra ../ versus the old .claude/rules location",
+  "kind": "rule",
+  "answers": [
+    "A link in the Python style guide to clint or the repo root is broken after the move; how do I fix it?",
+    "I'm adding a link from a skill document to a file in .github or dev; what relative path should I use?",
+    "Where is the workflow policy file referenced from the GitHub Actions style guide?"
+  ],
+  "body": "Path: Markdown guidance under `.claude/skills/<skill-name>/SKILL.md` (currently `python-style` and `github-actions-style`) that links to repo files such as `dev/clint/`, `.github/policy.rego`, or the ruff docs; these are read as skill content, not as rules.\nRule: A skill lives one directory deeper than the old `.claude/rules/*.md` files, so each relative link to a repo-root path needs one more `../` than before. Example from the diff: `.github/policy.rego` is linked as `../../../.github/policy.rego` from `.claude/skills/github-actions-style/SKILL.md`, and `dev/clint/` as `../../../dev/clint/` from `.claude/skills/python-style/SKILL.md`. External URLs are unaffected.\nConstraints: Applies to links inside SKILL.md files under `.claude/skills/`. The move kept all rule content; only these relative links were changed, so re-check link targets when moving a file again.",
+  "applies": "Any markdown link written inside a .claude/skills/<name>/SKILL.md file in this repository.",
+  "tags": [
+    "claude-skills",
+    "markdown-links",
+    "relative-paths",
+    "python-style",
+    "github-actions-style"
+  ],
+  "deps": [
+    {
+      "path": ".claude/skills/python-style/SKILL.md",
+      "hash": "sha256:79d8318ac650c575001a8a89",
+      "missing": false
+    },
+    {
+      "path": ".claude/skills/github-actions-style/SKILL.md",
+      "hash": "sha256:3f9674caeba76179d5820626",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26010"
+  },
+  "created": "2026-10-12T05:42:04.680Z",
+  "verified": "2026-10-12T05:42:04.680Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "python-and-github-actions-style-guidance-edit-the-shared-ski"
+  ],
+  "says": [
+    "Links in the Python style skill are broken after the rules move; how do I fix the paths?",
+    "Relative links in the GitHub Actions style skill point to the wrong folder after the move.",
+    "Which relative path should a skill document use to link to repo-root files?"
+  ],
+  "search": "Relative markdown links inside .claude/skills/<name>/SKILL.md files need one extra ../ compared with the old .claude/rules location, because skills sit one directory deeper. Applies to repo-root targets such as dev/clint or .github/policy.rego. External URLs are unaffected. Re-check link targets whenever a skill file is moved.",
+  "saysFor": "s2:bf0f1883287af2ad7e5ef89ca0ca179340757bbf092141118d6e5b2a490fa7f0"
+}

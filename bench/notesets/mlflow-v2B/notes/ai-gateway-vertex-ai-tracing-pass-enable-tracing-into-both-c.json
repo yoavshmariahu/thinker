@@ -1,0 +1,101 @@
+{
+  "id": "ai-gateway-vertex-ai-tracing-pass-enable-tracing-into-both-c",
+  "title": "AI Gateway Vertex AI tracing: pass enable_tracing into both Claude and MaaS delegates or passthrough span token usage is lost",
+  "kind": "rule",
+  "answers": [
+    "Vertex AI Claude streaming passthrough traces have no token usage attribute on the span",
+    "Where is enable_tracing set for the delegate providers behind a Vertex AI endpoint?",
+    "Why does the Gemini usage extractor return nothing for an Anthropic response on a Vertex AI endpoint?"
+  ],
+  "body": "Path: Tracing and token-usage recording for Vertex AI passthrough requests, which runs through `mlflow/gateway/providers/vertex_ai.py:VertexAIProvider.__init__` (where the delegate is constructed) and `_extract_passthrough_token_usage` for non-streaming responses.\nRule: `VertexAIProvider.__init__` passes `enable_tracing` into `_VertexAIClaudeProvider` and `_VertexAIMaaSProvider`, which forward it to `BaseProvider.__init__`. Streaming passthrough accumulates usage on the delegate, and `BaseProvider._set_span_token_usage` does nothing when the delegate's own flag is False. Non-streaming usage must be read through the delegate's `_extract_passthrough_token_usage`, because the Gemini extractor looks for `usageMetadata` and returns nothing for an Anthropic response.\nSymptom: Traces for streaming Claude passthrough on a Vertex AI endpoint had no token usage on the span.\nConstraints: Applies when a new delegate is constructed or a usage extractor is added for a Vertex delegate. Gemini models use the Gemini path and are not affected.",
+  "applies": "Applies to tracing and token usage for Vertex AI endpoints that route to a Claude or MaaS delegate.",
+  "tags": [
+    "ai-gateway",
+    "vertex-ai",
+    "tracing",
+    "token-usage"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "VertexAIProvider",
+      "hash": "sha256:8460f9e2ef789326ca55fa53",
+      "line": 351,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8460f9e2ef789326ca55fa53",
+      "fanout": {
+        "files": 4,
+        "sites": 12,
+        "refs": 21
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIClaudeProvider",
+      "hash": "sha256:6a81877a43e38e9a8739c766",
+      "line": 145,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6a81877a43e38e9a8739c766",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIMaaSProvider",
+      "hash": "sha256:2aefcb4d2df8fff31707df5c",
+      "line": 283,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2aefcb4d2df8fff31707df5c",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "VertexAIProvider.__init__",
+      "hash": "sha256:5ed321de94f2397d0060bb3e",
+      "line": 373,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5ed321de94f2397d0060bb3e",
+      "fanout": {
+        "files": 272,
+        "sites": 309,
+        "refs": 434
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25833"
+  },
+  "created": "2026-10-12T05:38:02.491Z",
+  "verified": "2026-10-12T05:38:02.491Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "ai-gateway-vertex-ai-passthrough-routes-claude-and-maas-mode",
+    "ai-gateway-vertex-ai-auth-headers-always-drop-client-credent",
+    "vertex-ai-maas-raw-proxy-gateway-proxy-post-to-the-endpoints",
+    "vertex-ai-claude-passthrough-client-anthropic-beta-is-filter"
+  ],
+  "says": [
+    "Streaming Claude requests on Vertex AI endpoints show missing token usage in traces.",
+    "Gateway execution trace spans lack token counts for streaming calls to Vertex models.",
+    "Token usage is blank on trace details for Claude endpoints hosted on Vertex.",
+    "Record token metrics on traces when routing passthrough requests through Vertex AI delegates.",
+    "Non-streaming Vertex Claude calls do not capture token consumption in gateway trace spans."
+  ],
+  "search": "In `mlflow/gateway/providers/vertex_ai.py:VertexAIProvider.__init__`, the `enable_tracing` parameter must be passed when instantiating `_VertexAIClaudeProvider` and `_VertexAIMaaSProvider` delegates. Without this flag set to True on delegates, `BaseProvider._set_span_token_usage` skips recording streaming token usage on trace spans, and non-streaming responses require the delegate's `_extract_passthrough_token_usage` rather than the Gemini extractor. Applies to delegate construction and token usage extractors for Vertex AI Claude and MaaS endpoints, while native Gemini models remain unaffected.",
+  "saysFor": "s2:e4e64d61b2abb764b58f41e5d17ff565a64ee8d644a8765f15965cf5c4b5aef1"
+}

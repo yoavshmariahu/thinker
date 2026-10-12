@@ -1,0 +1,63 @@
+{
+  "id": "tests-examples-run-example-scripts-hermetically-with-the-sha",
+  "title": "tests/examples: run example scripts hermetically with the shared db_uri fixture and a patched HTTP helper",
+  "kind": "howto",
+  "answers": [
+    "How do I write a test that runs a repo example script without calling a real API?",
+    "Why is my example test slow on Windows CI because it creates a new SQLite tracking DB?",
+    "How do I mock an HTTP helper used by a judge when running examples/ through runpy?",
+    "Where do example tests live and how are they structured?"
+  ],
+  "body": "Path: `tests/examples/test_examples.py` runs repository examples from `examples/` (for example `examples/typesafe_judges/evaluate.py`) as tests. `test_typesafe_judges_example` runs that script with `runpy` against a tracking store and checks results, traces and assessment metadata.\nRule: Inject the shared `db_uri` fixture and set the tracking URI to it, restoring the previous URI with `request.addfinalizer`, instead of creating a fresh `tmp_path` SQLite file, which re-runs all migrations and is costly on Windows CI. Stub the network by `mock.patch`-ing the judge's HTTP helper (`mlflow.genai.judges.typesafe._get_http_response_with_retries`) with a `side_effect` that returns a `requests.Response` whose `_content` is the JSON body. Assert the URL, auth header and request payload shape inside the side effect; the production call passes url, headers and json as keyword arguments, so `respond(**kwargs)` is the right signature.\nConstraints: Use this for hermetic example tests that need no real key; set the API key with `monkeypatch.setenv`. Live-key validation is done manually and is not part of this test.",
+  "applies": "Applies to tests that exercise scripts under examples/ that call external model APIs.",
+  "tags": [
+    "testing",
+    "examples",
+    "fixtures",
+    "mocking",
+    "typesafe",
+    "sqlite"
+  ],
+  "deps": [
+    {
+      "path": "tests/examples/test_examples.py",
+      "symbol": "test_typesafe_judges_example",
+      "hash": "sha256:5697ce46756f3b4b6208b939",
+      "line": 36,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5697ce46756f3b4b6208b939",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "examples/typesafe_judges/evaluate.py",
+      "hash": "sha256:3b62b620dbad24dbf13deefa",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26153"
+  },
+  "created": "2026-10-12T05:32:45.943Z",
+  "verified": "2026-10-12T05:32:45.943Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "typesafe-judge-models-in-make-judge-only-bool-and-finite-lit"
+  ],
+  "says": [
+    "Automated test runs for sample evaluation scripts take too long on Windows.",
+    "Running model evaluation examples in automated checks fails when external services are unreachable.",
+    "Enable running sample evaluation tutorials without requiring live external network access.",
+    "Speed up example script test execution by reusing database connections during validation."
+  ],
+  "search": "Hermetic testing of example scripts in tests/examples/test_examples.py uses the shared db_uri fixture and mocks external HTTP helpers to evaluate examples without network calls or migration overhead. In test_typesafe_judges_example, the tracking URI is temporarily pointed to db_uri while mlflow.genai.judges.typesafe._get_http_response_with_retries is patched with a side effect verifying URL, auth header, and JSON payload. This applies to examples exercising external model APIs, avoiding costly SQLite file recreations on Windows CI, while live-key verification remains a manual process.",
+  "saysFor": "s2:c00fe5fcaed3bfe864025c98856fda522c9dfffafd148f73405b22aa5c0921ef"
+}

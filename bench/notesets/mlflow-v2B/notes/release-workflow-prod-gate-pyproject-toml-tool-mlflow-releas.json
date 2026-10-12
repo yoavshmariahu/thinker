@@ -1,0 +1,53 @@
+{
+  "id": "release-workflow-prod-gate-pyproject-toml-tool-mlflow-releas",
+  "title": "release workflow prod gate: pyproject.toml [tool.mlflow-release] version is a major.minor branch marker, never a [project].version",
+  "kind": "rule",
+  "answers": [
+    "Why does pyproject.toml have a version under [tool.mlflow-release] when the version lives in mlflow/version.py?",
+    "The python.yml release workflow prod PyPI upload failed at 'Validate ref and version' on branch-2.11 — how do I fix it?",
+    "Can I bump the version in pyproject.toml for a new patch release, or does the release gate need per-patch updates?",
+    "Where is the release branch version checked before publishing to PyPI?"
+  ],
+  "body": "Path: The release-workflow version check for prod (destination=pypi) uploads. The `python.yml` \"Validate ref and version\" step in mlflow/releases greps the repo-root pyproject.toml for a `version = \"...\"` line and compares its major.minor to the release branch. The build itself is driven by setup.py reading mlflow/version.py; pyproject.toml's `[tool.mlflow-release]` table is never read by setuptools.\nRule: Keep the marker as `[tool.mlflow-release] version = \"<major.minor>\"` in pyproject.toml (for branch-2.11, `\"2.11\"`). Only major.minor is checked, so it is set once per release line and does not change for patch releases; the published version stays in mlflow/version.py. Do not add a `[project]` table or `[project].version`, because that conflicts with setup.py's dynamic version and the MLFLOW_SKINNY package-name toggle.\nSymptom: The prod release job failed at the \"Validate ref and version\" gate on branch-2.11 because pyproject.toml had no `version = \"...\"` line, even though the TestPyPI build was fine (the gate is skipped for test-pypi).\nConstraints: Applies only to the prod pypi destination; TestPyPI builds skip this gate and do not need the marker. Do not use this marker to set the package version or to change build metadata.\nApplies: Release-branch setup and changes to the version gate in mlflow/releases python.yml, or edits to the [tool.mlflow-release] table in pyproject.toml.",
+  "applies": "Release-branch setup and changes to the prod version gate in the mlflow/releases python.yml workflow, or edits to the [tool.mlflow-release] table in pyproject.toml.",
+  "tags": [
+    "release",
+    "pypi",
+    "pyproject",
+    "build",
+    "release-workflow"
+  ],
+  "deps": [
+    {
+      "path": "pyproject.toml",
+      "hash": "sha256:459e93fed0b67fec529ee594",
+      "missing": false
+    },
+    {
+      "path": "mlflow/version.py",
+      "hash": "sha256:56c14a2a9c524b7861018d9b",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26084"
+  },
+  "created": "2026-10-12T05:33:14.169Z",
+  "verified": "2026-10-12T05:33:14.169Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "mlflow-version-string-bump-mlflow-version-py-version-and-eve"
+  ],
+  "says": [
+    "Production release deployment fails during the version validation check while test publishing succeeds.",
+    "Publishing a patch release is blocked by the release branch version gate.",
+    "Release workflow rejects production upload because the branch marker line is missing.",
+    "Clarify whether patch updates require updating configuration version markers before publishing."
+  ],
+  "search": "For production package publishing in mlflow/releases python.yml, the version gate compares the release branch against version = \"<major.minor>\" under [tool.mlflow-release] in pyproject.toml. This marker is set once per release branch, does not change for patch releases, and is separate from the published package version in mlflow/version.py. Do not add [project] or [project].version tables, which conflict with setup.py dynamic versioning and MLFLOW_SKINNY. The validation gate applies exclusively to production PyPI uploads and is skipped for TestPyPI destinations.",
+  "saysFor": "s2:b029c49e29861fb0ef4b521b01b824e556a649a501e9a59b4f91c3a2de629689"
+}

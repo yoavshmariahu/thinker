@@ -1,0 +1,58 @@
+{
+  "id": "mlflow-assistant-system-prompts-remove-every-directive-that",
+  "title": "MLflow Assistant system prompts: remove every directive that pushes unsolicited follow-up offers, in both prompt variants",
+  "kind": "rule",
+  "answers": [
+    "Why does the MLflow Assistant keep offering to do more after answering my question?",
+    "How do I make the Assistant stop padding responses with unsolicited follow-up offers?",
+    "Where are the Assistant's instructions about offering to complete tasks or asking follow-up questions?",
+    "When I change Assistant response-length behavior, which prompt files must I update?"
+  ],
+  "body": "Path: Assistant system prompt text for Claude Code provider, covering how answers to how-to, conceptual and documentation-backed questions are phrased and whether the Assistant offers follow-up work. Chokepoint: mlflow/assistant/providers/claude_code.py:CLAUDE_SYSTEM_PROMPT, plus the parallel prompt variant in mlflow/assistant/providers/prompts.py.\nRule: Response-behavior rules live in several sections of each prompt, so a change is only effective if no other section contradicts it. The fix for unsolicited offers removed the 'offer to do it for them' phrasing in the minimize-steps paragraph, added 'Do not ask follow-up questions or offer additional help unless the request is ambiguous or you need information' under 'Match Response Length to the Question', and rewrote the 'Presenting Documentation Results' directive that had said ALWAYS offer to complete tasks. Apply the same wording to both prompt variants.\nSymptom: After answering a question, the Assistant appended offers such as 'Would you like me to set this up for you?' or asked follow-up questions the user did not need, making responses longer and less focused.\nConstraints: Applies to prompt text only. Clarifying questions remain allowed when the request is ambiguous or required information is missing. Requests that explicitly ask the Assistant to perform a task still must be completed.",
+  "applies": "Any change to MLflow Assistant system prompt wording about follow-up offers, response length, or documentation-based answers.",
+  "tags": [
+    "assistant",
+    "system-prompt",
+    "prompt-engineering",
+    "uiux"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/assistant/providers/claude_code.py",
+      "symbol": "CLAUDE_SYSTEM_PROMPT",
+      "hash": "sha256:d8aa005741eca66d85b5c11a",
+      "line": 106,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/assistant/providers/prompts.py",
+      "hash": "sha256:b57ca060d30e2e10fd089eb8",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25925"
+  },
+  "created": "2026-10-12T05:42:32.595Z",
+  "verified": "2026-10-12T05:42:32.595Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The assistant keeps asking if I want help after answering my question.",
+    "Stop the AI assistant from adding unwanted follow-up offers at the end of answers.",
+    "Assistant replies are too chatty and constantly propose extra setup tasks.",
+    "Make documentation answers direct without asking if the user wants tasks completed.",
+    "The chat helper repeatedly offers unrequested assistance on simple questions."
+  ],
+  "search": "System prompts for the MLflow Assistant in mlflow/assistant/providers/claude_code.py:CLAUDE_SYSTEM_PROMPT and mlflow/assistant/providers/prompts.py must remove all directives that encourage unsolicited follow-up offers across both prompt variants. Under Match Response Length to the Question, prompts must instruct the assistant not to ask follow-up questions or offer additional help unless the request is ambiguous, and Presenting Documentation Results must no longer instruct it to always offer task completion. This change prevents verbose responses containing unwanted setup offers while still permitting clarifying questions for ambiguous inputs.",
+  "saysFor": "s2:84f396a0b7a5cd0127833b73e5d803cb5d6a5738d2302422e7aff3f2f702bc60"
+}

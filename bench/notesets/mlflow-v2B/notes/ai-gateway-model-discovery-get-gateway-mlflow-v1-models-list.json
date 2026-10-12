@@ -1,0 +1,89 @@
+{
+  "id": "ai-gateway-model-discovery-get-gateway-mlflow-v1-models-list",
+  "title": "AI Gateway model discovery: GET /gateway/mlflow/v1/models lists endpoint names filtered by per-endpoint USE permission",
+  "kind": "rule",
+  "answers": [
+    "Why does my user see no models from the OpenAI-compatible models API even though they can query the gateway endpoint?",
+    "How do I list available gateway endpoints with the OpenAI SDK client.models.list()?",
+    "Where is the filter that hides gateway endpoints a user has no USE permission on from the models listing?",
+    "Why is the model id returned by the gateway models API the endpoint name rather than the provider model name?"
+  ],
+  "body": "Path: `GET /gateway/mlflow/v1/models`, the OpenAI-compatible model list that `client.models.list()` or any OpenAI SDK pointed at the gateway calls. It reads the gateway endpoints of the active workspace from the tracking store and returns an OpenAI `list` of `model` objects; chokepoint is mlflow/server/gateway_api.py:list_models.\nRule: Each returned `id` is a gateway endpoint name, so it can be passed as `model` to `/gateway/mlflow/v1/chat/completions`. list_models skips endpoints with no name, sorts by name, sets `created` from endpoint created_at (ms // 1000) and `owned_by` to \"mlflow\". With auth enabled, mlflow/server/auth/__init__.py:_get_gateway_validator only requires authentication for this path; the real authorization is the response filter mlflow/server/auth/__init__.py:_filter_list_gateway_models, which keeps a model only if `_validate_gateway_use_permission(model[\"id\"], username)` passes.\nConstraints: Lists only endpoints in the workspace selected by the request (tests use the X-MLFLOW-WORKSPACE header); other workspaces' endpoints with the same name are not returned. Unauthenticated calls get 401. Returns 501 when the gateway is disabled. The filter checks each endpoint individually, which the code comment accepts because discovery is infrequent. Model definitions and providers are not listed here.\nApplies: Gateway OpenAI-compatible model discovery in the auth server and gateway API; not for the chat completions or passthrough routes.",
+  "applies": "Applies to the gateway models listing route under the auth server; the USE check is the same one gateway invocation uses.",
+  "tags": [
+    "ai-gateway",
+    "auth",
+    "openai-compatible",
+    "models",
+    "permissions",
+    "workspace"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/gateway_api.py",
+      "symbol": "list_models",
+      "hash": "sha256:e932f1a2c66a6d5a8ad1f052",
+      "line": 994,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e932f1a2c66a6d5a8ad1f052",
+      "fanout": {
+        "files": 12,
+        "sites": 28,
+        "refs": 39
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_filter_list_gateway_models",
+      "hash": "sha256:60410ca3d2c81358f6924608",
+      "line": 5973,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:60410ca3d2c81358f6924608",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_get_gateway_validator",
+      "hash": "sha256:e002651ad053e29267feee55",
+      "line": 5498,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e002651ad053e29267feee55",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25940"
+  },
+  "created": "2026-10-12T05:35:33.413Z",
+  "verified": "2026-10-12T05:35:33.413Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "basic-auth-fail-closed-backstop-only-response-filters-author",
+    "basic-auth-workspace-create-gate-creating-a-new-workspace-sc",
+    "jobs-search-under-basic-auth-non-admins-only-see-jobs-whose",
+    "auth-server-list-routes-filter-results-after-the-handler-by"
+  ],
+  "says": [
+    "The model discovery endpoint does not display available models to users with query access.",
+    "Only show gateway endpoints that the logged-in user has permission to use.",
+    "Users in a specific workspace cannot find their assigned endpoints in the model catalog.",
+    "Why does the models listing return endpoint names instead of underlying provider model names?"
+  ],
+  "search": "GET /gateway/mlflow/v1/models in mlflow/server/gateway_api.py:list_models returns OpenAI-compatible model listings using gateway endpoint names from the active workspace, sorted by name with owned_by set to \"mlflow\". When auth is enabled, mlflow/server/auth/__init__.py:_filter_list_gateway_models filters endpoints using _validate_gateway_use_permission(model[\"id\"], username), while _get_gateway_validator enforces authentication. Unauthenticated calls return 401, disabled gateways return 501, and endpoints are filtered by workspace (via X-MLFLOW-WORKSPACE) without listing provider model definitions.",
+  "saysFor": "s2:8adf816245152340a477538aac6482cc407a90883d4a4b7a03f6b81db67fd028"
+}

@@ -1,0 +1,72 @@
+{
+  "id": "basic-auth-request-validators-parse-each-endpoint-only-throu",
+  "title": "basic-auth request validators: parse each endpoint only through its own request proto class, never a shared or combined shape",
+  "kind": "rule",
+  "answers": [
+    "Why did an unrelated extra field in a log-batch body change the authorization result?",
+    "Why does a LogMetric parse break a valid LogBatch request?",
+    "How should a new validator choose which proto class to parse the body with?"
+  ],
+  "body": "Path: Basic-auth body validators in `mlflow/server/auth/__init__.py` that run for a specific route, such as `validate_can_log_metric` (LogMetric) and `validate_can_log_batch` (LogBatch), selected by the route-to-validator map keyed by the request proto class.\nRule: Each validator calls `_get_request_message(<its own endpoint proto>())` only. Do not parse the same body as several proto shapes and combine the results, and do not wrap the parse in a broad `except` that turns it into a 403. A malformed body surfaces the normal handler error through the app's MlflowException handler, as in `validate_can_update_run`. The one caught case is RESOURCE_DOES_NOT_EXIST on a referenced id, which is denied uniformly.\nSymptom: Parsing a LogBatch body also as LogMetric let the top-level `model_id` (which LogBatch ignores) turn a valid batch into a 403, and an unknown `metrics` field could deny a LogMetric; a broad parse-time except hid malformed requests behind a flat 403.\nConstraints: Fields the matched endpoint ignores must not affect authorization. Presence checks should still use the message's fields so camelCase aliases bind. Applies to basic-auth only.\nApplies: Any new or changed basic-auth validator that parses a tracking or registry request body to decide permission.",
+  "applies": "Convention for basic-auth validators that parse a JSON request body with a proto class; applies to every route with a per-endpoint validator.",
+  "tags": [
+    "auth",
+    "basic-auth",
+    "validators",
+    "proto",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_log_metric",
+      "hash": "sha256:43c8b13e1d7cccd82fe297a1",
+      "line": 1254,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:43c8b13e1d7cccd82fe297a1",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_log_batch",
+      "hash": "sha256:a053f43883fb6b8bda406d67",
+      "line": 1263,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a053f43883fb6b8bda406d67",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25664"
+  },
+  "created": "2026-10-12T05:47:06.050Z",
+  "verified": "2026-10-12T05:47:06.050Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "basic-auth-request-validators-parse-the-json-body-through-th",
+    "basic-auth-logmetric-logbatch-metric-routing-a-per-metric-mo",
+    "basic-auth-fastapi-response-filters-lookup-is-keyed-on-the-e",
+    "basic-auth-gateway-secret-model-definition-and-endpoint-vali"
+  ],
+  "says": [
+    "Logging a batch of run data fails with permission denied when extra parameters are present.",
+    "Invalid metric logging payloads should return bad request errors instead of permission denied.",
+    "Unrelated metadata in batch logging requests should not block users who have write access."
+  ],
+  "search": "Basic-auth request validators in mlflow/server/auth/__init__.py must parse JSON bodies solely with _get_request_message using their own endpoint proto class rather than combining multiple proto shapes. Validators must not wrap parsing in broad exception handlers that mask malformed payloads as 403 denials, allowing the standard MlflowException handler to surface validation errors while uniformly denying RESOURCE_DOES_NOT_EXIST on referenced identifiers. This avoids scenarios where extra fields ignored by an endpoint—such as model_id in LogBatch or metrics in LogMetric—improperly cause authorization failures. Applies to all basic-auth routes with per-endpoint request validators deciding permissions from tracking or registry request bodies.",
+  "saysFor": "s2:c9f260d572def9aad923f64aea3477176e91db885b8fc012b6eaa513a4a12004"
+}

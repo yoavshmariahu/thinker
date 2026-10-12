@@ -1,0 +1,114 @@
+{
+  "id": "databrickssdkmodelsartifactrepository-uc-model-files-go-thro",
+  "title": "DatabricksSDKModelsArtifactRepository: UC model files go through WorkspaceClient().files with a single streamed download; list_artifacts returns [] for a file or missing path",
+  "kind": "rule",
+  "answers": [
+    "Listing a Unity Catalog model version's artifacts raises NotFound when the path is a single file; how is that handled?",
+    "Why are UC model downloads single-stream with no presigned URL, and where is that decided?",
+    "Where is the Databricks workspace client built for model artifact I/O on serverless or SEG compute?",
+    "How do I change the chunk size used when downloading Unity Catalog model files?"
+  ],
+  "body": "Path: The Files-API artifact repo for UC model versions stored under /Models/<catalog>/<schema>/<model>/<version>. It handles list_artifacts, log_artifact and upload (_upload_to_cloud), and download (_download_from_cloud) for both model load and model register. Chokepoint: mlflow/store/artifact/databricks_sdk_models_artifact_repo.py:DatabricksSDKModelsArtifactRepository.\nRule: The workspace client comes from _get_databricks_workspace_client(registry_uri): it uses host and token from get_databricks_host_creds when both are present, otherwise default WorkspaceClient() auth. Downloads stream resp.contents in MLFLOW_MULTIPART_DOWNLOAD_CHUNK_SIZE chunks. CloudArtifactRepository._download_file forces this single-stream branch for this class by class-name check, since presigned-URL parallel download does not apply. list_artifacts first calls _is_dir (files.get_directory_metadata, NotFound means False) and returns [] for a file or missing directory.\nSymptom: On serverless or SEG compute a bare WorkspaceClient() failed with 'default auth: cannot configure default credentials' on Spark executors. Listing a path that was a file or did not exist was not reported as an empty result.\nConstraints: Used only when MLFLOW_USE_DATABRICKS_SDK_MODEL_ARTIFACTS_REPO_FOR_UC is enabled. Upload always passes overwrite=True. databricks.sdk and its NotFound class are imported lazily inside the methods, so the module imports without them being used.",
+  "applies": "Internals of UC model artifact transfer through the Databricks Files API (list, upload, download of model version files); not general cloud artifact repos.",
+  "tags": [
+    "unity-catalog",
+    "model-registry",
+    "artifacts",
+    "databricks-sdk",
+    "downloads",
+    "serverless"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/artifact/databricks_sdk_models_artifact_repo.py",
+      "symbol": "DatabricksSDKModelsArtifactRepository",
+      "hash": "sha256:6b64fa9759599d9cbbfa08d5",
+      "line": 38,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6b64fa9759599d9cbbfa08d5",
+      "fanout": {
+        "files": 7,
+        "sites": 9,
+        "refs": 22
+      }
+    },
+    {
+      "path": "mlflow/store/artifact/databricks_sdk_models_artifact_repo.py",
+      "symbol": "_get_databricks_workspace_client",
+      "hash": "sha256:9d13e5702befd242cd970849",
+      "line": 13,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9d13e5702befd242cd970849",
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/store/artifact/cloud_artifact_repo.py",
+      "symbol": "CloudArtifactRepository._download_file",
+      "hash": "sha256:77526a542c9c1a30e58a2e8d",
+      "line": 273,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:77526a542c9c1a30e58a2e8d",
+      "fanout": {
+        "files": 15,
+        "sites": 31,
+        "refs": 43
+      }
+    },
+    {
+      "path": "mlflow/utils/uri.py",
+      "symbol": "is_fuse_or_uc_volumes_uri",
+      "hash": "sha256:1c89da873bcfd5ef66bc6e2f",
+      "line": 106,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1c89da873bcfd5ef66bc6e2f",
+      "fanout": {
+        "files": 6,
+        "sites": 5,
+        "refs": 11
+      }
+    },
+    {
+      "path": "mlflow/environment_variables.py",
+      "symbol": "MLFLOW_MULTIPART_DOWNLOAD_CHUNK_SIZE",
+      "hash": "sha256:5e0af9eb96dab6590acefc98",
+      "line": 711,
+      "missing": false,
+      "fanout": {
+        "files": 10,
+        "sites": 0,
+        "refs": 23
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25986"
+  },
+  "created": "2026-10-12T05:35:13.132Z",
+  "verified": "2026-10-12T05:35:13.132Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "databrickssdkmodelsartifactrepository-uc-model-files-api-dow",
+    "uc-model-load-register-artifact-routing-mlflow-use-databrick",
+    "databricks-sdk-models-artifact-repo-workspace-client-resolve"
+  ],
+  "says": [
+    "Loading registered models fails on serverless clusters with credential errors on worker nodes.",
+    "Model artifact browser shows an empty result instead of crashing on single files.",
+    "Catalog model registration and loading fail when run across distributed cluster executors.",
+    "Provide an option to adjust chunk size for downloading large model artifacts."
+  ],
+  "search": "DatabricksSDKModelsArtifactRepository manages Unity Catalog model artifacts under /Models/<catalog>/<schema>/<model>/<version> using WorkspaceClient().files, resolving credentials via _get_databricks_workspace_client(registry_uri) using get_databricks_host_creds before falling back to default WorkspaceClient() auth. Downloads are forced to single-stream chunks of MLFLOW_MULTIPART_DOWNLOAD_CHUNK_SIZE by a class-name check in CloudArtifactRepository._download_file because presigned URLs do not apply, while uploads always pass overwrite=True. Directory listings call _is_dir via get_directory_metadata, catching NotFound to return [] for a file or missing directory rather than raising. This repo applies only when MLFLOW_USE_DATABRICKS_SDK_MODEL_ARTIFACTS_REPO_FOR_UC is enabled, preventing default credential failures on serverless or SEG Spark executors, and lazily imports databricks.sdk and NotFound.",
+  "saysFor": "s2:be4137f7d74e1f273bcfd0df470568b70a0d6025d5736e69c8d744d7a9fc4351"
+}

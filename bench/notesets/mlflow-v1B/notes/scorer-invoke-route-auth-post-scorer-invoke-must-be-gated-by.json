@@ -1,0 +1,72 @@
+{
+  "id": "scorer-invoke-route-auth-post-scorer-invoke-must-be-gated-by",
+  "title": "scorer/invoke route auth: POST scorer/invoke must be gated by validate_can_update_experiment, not the no-op validate_gateway_proxy",
+  "kind": "rule",
+  "answers": [
+    "Any authenticated user can run scorers on traces in experiments they cannot access via the scorer invoke endpoint. Why is that route not checking permissions?",
+    "How is the permission check for the POST /ajax-api/3.0/mlflow/scorer/invoke route configured?",
+    "Which validator protects the issues/invoke and genai/evaluate/invoke routes, and should scorer/invoke use the same one?",
+    "Where is authorization for the scorer invoke endpoint defined in the basic-auth app?"
+  ],
+  "body": "Path: mlflow/server/auth/__init__.py route-to-validator map (the (INVOKE_SCORER, \"POST\") entry) decides who may call POST /ajax-api/3.0/mlflow/scorer/invoke, which takes experiment_id, serialized or registered scorer, and trace_ids to start scoring jobs that write assessments.\nRule: Map (INVOKE_SCORER, \"POST\") to validate_can_update_experiment, the same validator as the sibling INVOKE_ISSUE_DETECTION and INVOKE_GENAI_EVALUATE invoke routes, since these routes create runs in an experiment. Do not leave an invoke route on validate_gateway_proxy, which performs no experiment check.\nSymptom: Any authenticated user could run scorers against, and write assessments to, traces in experiments they could not access (GHSA-6c27-cp6h-c66m).\nConstraints: The route validator only checks UPDATE on the request's experiment_id and does not inspect trace_ids. A user who owns the experiment they name passes it, so trace ownership must also be checked in the handler (see the scorer trace-binding note). Applies to the basic-auth app route table.",
+  "applies": "Auth route mapping for scorer/invoke in the basic-auth app; applies to any new invoke-style route that accepts trace_ids.",
+  "tags": [
+    "auth",
+    "invoke",
+    "scorer",
+    "security",
+    "basic-auth"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_update_experiment",
+      "hash": "sha256:42ea8e2dda6ed8c49a46305f",
+      "line": 1200,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:42ea8e2dda6ed8c49a46305f",
+      "fanout": {
+        "files": 2,
+        "sites": 7,
+        "refs": 17
+      }
+    },
+    {
+      "path": "tests/server/test_handlers.py",
+      "symbol": "test_invoke_scorer_submits_jobs",
+      "hash": "sha256:e162f6e2ac0a6b442a5906f8",
+      "line": 5545,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e162f6e2ac0a6b442a5906f8",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25721"
+  },
+  "created": "2026-10-12T05:40:41.959Z",
+  "verified": "2026-10-12T05:40:41.959Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "mlflow-server-basic-auth-startup-validate-mlflow-flask-serve"
+  ],
+  "says": [
+    "Users without edit permissions can still run scorers on traces in private experiments.",
+    "Restrict trace scoring so only members with experiment update access can launch evaluations.",
+    "Teammates can write score assessments into experiments they are not authorized to modify.",
+    "Block unauthorized users from triggering scorer jobs against restricted evaluation traces.",
+    "Anyone who logs in can evaluate traces in experiments they should not access."
+  ],
+  "search": "In mlflow/server/auth/__init__.py, route authorization for (INVOKE_SCORER, \"POST\") must map to validate_can_update_experiment instead of validate_gateway_proxy. This protects POST /ajax-api/3.0/mlflow/scorer/invoke, matching INVOKE_ISSUE_DETECTION and INVOKE_GENAI_EVALUATE, to ensure callers have update permissions on the requested experiment_id before creating runs and writing assessments. The route validator only checks UPDATE on experiment_id without inspecting trace_ids, leaving trace ownership checks to the handler. Applies to route mappings in the basic-auth app for invoke-style routes accepting trace_ids.",
+  "saysFor": "s2:c4e8ade11c49c665966d6116788e708f1da5aa1d6a9082a0f59d1455dc9301d5"
+}

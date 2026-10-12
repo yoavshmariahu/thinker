@@ -1,0 +1,127 @@
+{
+  "id": "databricks-model-resources-a-new-resource-type-needs-an-enum",
+  "title": "Databricks model resources: a new resource type needs an enum member, a DatabricksResource subclass, and a _get_resource_class_by_type entry; model-version dependency wiring is separate and deferred",
+  "kind": "rule",
+  "answers": [
+    "How do I declare a Unity Catalog model service dependency when logging a model?",
+    "Why doesn't my new Databricks dependency type show up in the logged model's resources in MLmodel?",
+    "Where are Databricks resource types mapped to their classes for MLmodel serialization?",
+    "Why isn't UC model-version registration sending my model service dependency?"
+  ],
+  "body": "Path: mlflow/models/resources.py:_get_resource_class_by_type and the Databricks resource classes (DatabricksVectorSearchIndex, DatabricksServingEndpoint, DatabricksUCConnection, DatabricksApp, DatabricksLakebase, DatabricksUCModelService). This is the resource-declaration path used when a model is logged with `resources=`: each declared dependency is serialized into the MLmodel `resources` section and rebuilt from YAML or dict via _ResourceBuilder.\nRule: To add a Databricks dependency type, (1) add a ResourceType enum member with a snake_case wire value (ResourceType.UC_MODEL_SERVICE = \"uc_model_service\"), (2) add a DatabricksResource subclass whose `type` property returns that member and whose __init__ calls super() with the name and on_behalf_of_user, and (3) register its wire value in the \"databricks\" map inside _get_resource_class_by_type. Steps 1-3 together give to_dict/from_dict and YAML round-trip. Do not add it to UC model-version dependency registration (get_model_version_dependencies in mlflow/store/_unity_catalog/registry/rest_store.py) until the backend CreateModelVersionRequest DependencyType proto accepts the new type, because an unknown type there fails registration.\nConstraints: Applies to resource metadata declared at model logging time. It does not change model-version dependency registration, and existing types such as serving_endpoint stay as they are for backward compatibility.",
+  "applies": "Adding or changing Databricks resource declarations for logged models (MLmodel resources); not UC model-version dependency registration.",
+  "tags": [
+    "area/models",
+    "resources",
+    "databricks",
+    "unity-catalog",
+    "mlmodel"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/models/resources.py",
+      "symbol": "ResourceType",
+      "hash": "sha256:eb202e672f4178b74d459d84",
+      "line": 11,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:eb202e672f4178b74d459d84",
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 50
+      }
+    },
+    {
+      "path": "mlflow/models/resources.py",
+      "symbol": "DatabricksUCModelService",
+      "hash": "sha256:ae09fe12b1be44086dd6f1aa",
+      "line": 279,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ae09fe12b1be44086dd6f1aa",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 4
+      }
+    },
+    {
+      "path": "mlflow/models/resources.py",
+      "symbol": "_get_resource_class_by_type",
+      "hash": "sha256:f6ffd37a06967737797bbaef",
+      "line": 298,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f6ffd37a06967737797bbaef",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/store/_unity_catalog/registry/rest_store.py",
+      "symbol": "__init__",
+      "hash": "sha256:78b27611982e22faa15fa69e",
+      "line": 389,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:78b27611982e22faa15fa69e",
+      "fanout": {
+        "files": 272,
+        "sites": 309,
+        "refs": 434
+      }
+    },
+    {
+      "path": "mlflow/store/_unity_catalog/registry/rest_store.py",
+      "symbol": "get_model_version_dependencies",
+      "hash": "sha256:29c17f38c86e772007eeb89c",
+      "line": 271,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:29c17f38c86e772007eeb89c",
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 8
+      }
+    },
+    {
+      "path": "mlflow/models/resources.py",
+      "symbol": "ResourceType.UC_MODEL_SERVICE",
+      "hash": "sha256:5047a12410fe4f3a94b5652b",
+      "line": 25,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26137"
+  },
+  "created": "2026-10-12T05:32:42.124Z",
+  "verified": "2026-10-12T05:32:42.124Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "unity-catalog-model-version-dependencies-a-new-resource-type",
+    "uc-model-load-register-artifact-routing-mlflow-use-databrick"
+  ],
+  "says": [
+    "A declared model service dependency is missing from the logged model resource metadata.",
+    "Support declaring model service dependencies when logging models to the catalog.",
+    "The logged model does not display the attached service in its resource list.",
+    "Registering a model version fails because the new dependency type is not recognized.",
+    "Custom service dependencies specified during model logging are dropped from the model details."
+  ],
+  "search": "Adding a Databricks model dependency type requires adding a snake_case ResourceType enum member, a DatabricksResource subclass returning that type, and an entry in _get_resource_class_by_type. This enables YAML and dictionary serialization for dependencies declared under resources= at model logging time. Do not wire the new dependency into Unity Catalog model-version registration in get_model_version_dependencies until the backend CreateModelVersionRequest DependencyType proto supports it, or registration will fail. The rule applies to logged model resource metadata, leaving existing types like serving_endpoint unchanged for backward compatibility.",
+  "saysFor": "s2:5632cd01d0b05d950dda372e5e01dbe3f8d67ecbde1b407307e0aed74bd99b6c"
+}

@@ -1,0 +1,87 @@
+{
+  "id": "pr-whitespace-only-lint-check-build-the-diff-from-local-git",
+  "title": "PR whitespace-only lint check: build the diff from local git against a base revision, not the GitHub .diff URL",
+  "kind": "rule",
+  "answers": [
+    "The whitespace-check lint step failed with a transient 503 while downloading the PR diff. What changed?",
+    "How does the whitespace-only CI check get the pull request diff now?",
+    "Where is the PR diff fetched for the whitespace check in lint?",
+    "Why does lint.yml pass --base-revision HEAD^1 to the whitespace check?"
+  ],
+  "body": "Path: dev/check_whitespace_only.py:main, the CI lint check that decides whether a pull request changes only whitespace; it takes the --repo, --pr and --base-revision inputs from .github/workflows/lint.yml and gets the diff through get_pr_diff. Bypass-label lookup (get_pr_labels) runs only when whitespace-only changes are detected.\nRule: get_pr_diff runs `git diff --no-ext-diff --no-color <base>...HEAD` on the local checkout instead of downloading github.com/<owner>/<repo>/pull/<n>.diff, which failed with a transient GitHub 503. The base comes from the required --base-revision argument in parse_args; lint.yml passes HEAD^1, which exists because actions/checkout uses fetch-depth: 2.\nSymptom: The whitespace-check step in lint failed with an HTTP 503 while fetching the PR .diff from GitHub, although the code under review was fine.\nConstraints: Use this pattern when a CI check needs PR diff content and the revision it needs is already in the checkout. The bypass-label lookup still calls the GitHub API and is unchanged. If the checkout depth is reduced below what HEAD^1 needs, the git diff step breaks.",
+  "applies": "CI and dev tooling that needs the PR diff in MLflow lint workflows, especially dev/check_whitespace_only.py and .github/workflows/lint.yml.",
+  "tags": [
+    "ci",
+    "lint",
+    "github-actions",
+    "whitespace",
+    "git-diff",
+    "build"
+  ],
+  "deps": [
+    {
+      "path": "dev/check_whitespace_only.py",
+      "symbol": "get_pr_diff",
+      "hash": "sha256:3833aed6df998a65a6fe73ef",
+      "line": 57,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3833aed6df998a65a6fe73ef",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "dev/check_whitespace_only.py",
+      "symbol": "parse_args",
+      "hash": "sha256:31647357623c36991df77826",
+      "line": 108,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:31647357623c36991df77826",
+      "fanout": {
+        "files": 59,
+        "sites": 75,
+        "refs": 77
+      }
+    },
+    {
+      "path": "dev/check_whitespace_only.py",
+      "symbol": "main",
+      "hash": "sha256:35562a81dce7a68b6f247b6b",
+      "line": 134,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:35562a81dce7a68b6f247b6b"
+    },
+    {
+      "path": ".github/workflows/lint.yml",
+      "hash": "sha256:86030cddebefeb6cb6ae79b4",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26094"
+  },
+  "created": "2026-10-12T05:33:16.104Z",
+  "verified": "2026-10-12T05:33:16.104Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "dev-check-whitespace-only-py-base-revision-is-required-and-m"
+  ],
+  "says": [
+    "Pull request linting fails randomly with server error while downloading the code diff.",
+    "The whitespace validation step in continuous integration crashed due to an external network failure.",
+    "Inspect pull request changes locally instead of fetching diff files from the web.",
+    "Whitespace checker fails if git history is not checked out with sufficient depth.",
+    "Allow pull requests with only formatting changes to proceed when special labels exist."
+  ],
+  "search": "In dev/check_whitespace_only.py:main and .github/workflows/lint.yml, the whitespace-only lint check generates the pull request diff using local git diff rather than downloading the GitHub .diff URL. get_pr_diff executes git diff --no-ext-diff --no-color <base>...HEAD using a required --base-revision passed as HEAD^1 from parse_args, enabled by fetch-depth: 2 in actions/checkout. Bypass-label lookup through get_pr_labels still queries the GitHub API when whitespace-only changes occur, but reducing checkout depth breaks the diff command.",
+  "saysFor": "s2:8d9ae5f9f8064cfe1bc0a1426e1274587eb8da624ba845be4194aa7644f30a78"
+}

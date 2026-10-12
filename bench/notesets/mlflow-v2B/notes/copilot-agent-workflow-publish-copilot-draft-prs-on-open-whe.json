@@ -1,0 +1,46 @@
+{
+  "id": "copilot-agent-workflow-publish-copilot-draft-prs-on-open-whe",
+  "title": "Copilot agent workflow: publish Copilot draft PRs on open when they already have changes, else wait for Copilot's review request",
+  "kind": "rule",
+  "answers": [
+    "Why did a Copilot-created draft PR stay in draft and never get a review run?",
+    "Copilot opened an empty draft PR; when does the workflow mark it ready for review?",
+    "Where is the logic that decides which Copilot draft PRs get published automatically?",
+    "Does a human review request on a Copilot draft PR trigger the publish step?"
+  ],
+  "body": "Path: .github/workflows/copilot-agent.yml, job publish-draft, handles pull_request_target events (opened, review_requested) for draft PRs authored by the Copilot bot account, and decides whether to mark them ready for review.\nRule: Trigger on both opened and review_requested. Publish on opened only when github.event.pull_request.changed_files > 0 (includes pure renames). Publish on review_requested only when github.event.sender.login == 'Copilot'. Keep the user.login == 'Copilot' and user.type == 'Bot' identity checks and the linked-issue comment step unchanged.\nSymptom: A Copilot draft PR that already contained file changes at open time stayed in draft, so the initial review run was skipped; the review only ran after a manual or later ready-for-review transition.\nConstraints: Empty opened drafts (changed_files == 0) are intentionally left alone and wait for Copilot to request a review after finishing. Human-originated review requests must not publish a Copilot draft. Does not apply to non-Copilot PR authors.",
+  "applies": "Changes to the Copilot Agent GitHub Actions workflow's draft-publishing conditions; not for other workflows.",
+  "tags": [
+    "github-actions",
+    "copilot",
+    "workflow",
+    "draft-pr",
+    "ci"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/copilot-agent.yml",
+      "hash": "sha256:5b2162116e11586a9819c8f4",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26145"
+  },
+  "created": "2026-10-12T05:32:30.705Z",
+  "verified": "2026-10-12T05:32:30.705Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Automated draft pull requests with changes remain stuck in draft without triggering reviews.",
+    "Automatically mark assistant pull requests ready for review when they open with changes.",
+    "Empty bot pull requests should wait for review requests before being published.",
+    "Human reviewers requesting reviews on bot draft pull requests should not publish them."
+  ],
+  "search": "In .github/workflows/copilot-agent.yml:publish-draft, handle pull_request_target opened and review_requested events to publish Copilot bot draft PRs. The job marks a draft ready for review on opened only if github.event.pull_request.changed_files > 0, and on review_requested only when github.event.sender.login == 'Copilot'. Empty opened drafts wait until Copilot finishes and requests review, while review requests from human senders must not publish drafts. This applies specifically to the Copilot Agent workflow's draft-publishing conditions.",
+  "saysFor": "s2:d4109ce91fc6b9c8dc9d8d4648c95a8888a8187dd36c25dc47812d4bbbbd61d7"
+}

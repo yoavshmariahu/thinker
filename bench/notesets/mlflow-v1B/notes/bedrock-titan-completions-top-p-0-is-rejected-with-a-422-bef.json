@@ -1,0 +1,88 @@
+{
+  "id": "bedrock-titan-completions-top-p-0-is-rejected-with-a-422-bef",
+  "title": "Bedrock Titan completions: top_p=0 is rejected with a 422 before any upstream call, because Titan requires topP strictly greater than 0",
+  "kind": "rule",
+  "answers": [
+    "Why does a Bedrock Titan completion return a 422 when top_p is 0?",
+    "Why is top_p zero rejected for amazon titan models through the gateway?",
+    "Where is top_p validated for Bedrock Titan completions?"
+  ],
+  "body": "Path: Titan completion requests (llm/v1/completions routed to amazon.titan models) pass through AWSTitanAdapter.completions_to_model in mlflow/gateway/providers/bedrock.py, which validates n and top_p, halves temperature, and builds the textGenerationConfig.\nRule: AWSTitanAdapter.completions_to_model raises AIGatewayException with status_code=422 when top_p == 0, because MLflow accepts 0 but Titan requires topP > 0. The check runs before the request reaches AmazonBedrockProvider._request, so no call is made to Bedrock.\nSymptom: Without the guard, top_p=0 would be forwarded to Titan, which the adapter comment says requires a value strictly greater than 0.\nConstraints: Applies only to Titan; the AI21 adapter has no equivalent check. Only exactly 0 is rejected; negative or out-of-range values are not validated here. An absent top_p is unaffected because the check uses payload.get.",
+  "applies": "Bedrock Titan completions adapter validation in mlflow/gateway/providers/bedrock.py; not AI21 or other providers.",
+  "tags": [
+    "bedrock",
+    "gateway",
+    "completions",
+    "validation",
+    "top_p",
+    "titan"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/bedrock.py",
+      "symbol": "AWSTitanAdapter.completions_to_model",
+      "hash": "sha256:f00e82083243c1ac1da6576d",
+      "line": 124,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f00e82083243c1ac1da6576d",
+      "fanout": {
+        "files": 6,
+        "sites": 11,
+        "refs": 11
+      }
+    },
+    {
+      "path": "tests/gateway/providers/test_bedrock.py",
+      "symbol": "test_bedrock_titan_rejects_top_p_zero",
+      "hash": "sha256:ff37b07dc1539284a58d20d5",
+      "line": 500,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ff37b07dc1539284a58d20d5",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/bedrock.py",
+      "symbol": "AmazonBedrockProvider._request",
+      "hash": "sha256:19737278713c26029a13a888",
+      "line": 372,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:19737278713c26029a13a888",
+      "fanout": {
+        "files": 13,
+        "sites": 48,
+        "refs": 59
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25795"
+  },
+  "created": "2026-10-12T05:40:21.448Z",
+  "verified": "2026-10-12T05:40:21.448Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "bedrock-titan-and-ai21-jurassic-completions-request-body-top",
+    "bedrock-completions-adapters-top-k-is-deliberately-left-unma",
+    "ai-gateway-anthropic-messages-passthrough-on-amazon-bedrock",
+    "ai-gateway-bedrock-streaming-passthrough-aws-event-stream-ex"
+  ],
+  "says": [
+    "Submitting a Titan completion with nucleus sampling set to zero returns a validation error.",
+    "Why does setting the sampling threshold to zero fail on Amazon Titan completions?",
+    "Setting the sampling parameter to zero triggers a 422 error on Titan models.",
+    "Titan completions should accept zero for nucleus sampling without immediately rejecting the request."
+  ],
+  "search": "In mlflow/gateway/providers/bedrock.py, AWSTitanAdapter.completions_to_model validates Titan completion requests and raises an AIGatewayException with status_code=422 when top_p equals 0, preventing upstream calls to AmazonBedrockProvider._request because Titan requires topP strictly greater than 0. This validation applies exclusively to Titan models and does not check AI21 models or negative and out-of-range values. The check is tested in tests/gateway/providers/test_bedrock.py:test_bedrock_titan_rejects_top_p_zero.",
+  "saysFor": "s2:c5e44b26e48deea96d2ed76d74b5716220f4eefc4897dc13546529150f52c199"
+}

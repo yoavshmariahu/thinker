@@ -1,0 +1,52 @@
+{
+  "id": "ci-setup-pyenv-action-pyenv-tag-and-expected-commit-sha-must",
+  "title": "CI setup-pyenv action: pyenv tag and expected commit SHA must be bumped together",
+  "kind": "rule",
+  "answers": [
+    "How do I upgrade pyenv used by the CI environment-recreation tests?",
+    "Why does the pyenv setup step fail with a SHA mismatch after changing the version?",
+    "Which pyenv version lets model-serving tests recreate Python 3.10.21 and 3.11.16?",
+    "Where is the pyenv clone pinned and verified in CI?"
+  ],
+  "body": "Path: .github/actions/setup-pyenv/action.yml (composite action `setup-pyenv`, Linux step) clones https://github.com/pyenv/pyenv.git at a pinned tag with a retry loop, then compares `git rev-parse HEAD` against an expected commit SHA and exits 1 on mismatch. Model-serving tests that recreate environments depend on this clone.\nRule: When changing the pyenv tag, update the `--branch` tag, the comment naming it, and `expected_sha` in the same edit, using the commit that tag resolves to. Confirm the new version ships build definitions for every Python micro version the tests install (this PR used v2.8.5 for 3.10.21 and 3.11.16) before pushing.\nConstraints: Covers the Linux branch only. The SHA check is the reproducibility guard, so a tag bump without a SHA update always fails at this step.",
+  "applies": "Changes to the pyenv version used by CI Python environment recreation on Linux runners.",
+  "tags": [
+    "ci",
+    "pyenv",
+    "github-actions",
+    "reproducibility"
+  ],
+  "deps": [
+    {
+      "path": ".github/actions/setup-pyenv/action.yml",
+      "symbol": "expected_sha",
+      "hash": "sha256:a2ff8558d37143557de43e15",
+      "line": 36,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25903"
+  },
+  "created": "2026-10-12T05:36:02.944Z",
+  "verified": "2026-10-12T05:36:02.944Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Automated test environment setup failed with a commit hash verification mismatch error.",
+    "Upgrade the environment recreation tool so model serving tests can install newer Python releases.",
+    "Model serving automated tests are unable to recreate the requested Python environment on Linux.",
+    "How do we update the pinned Python environment manager version for our build pipeline?"
+  ],
+  "search": "The CI setup-pyenv composite action (.github/actions/setup-pyenv/action.yml) clones pyenv at a pinned tag and validates git rev-parse HEAD against expected_sha as a reproducibility guard. Updating the pyenv version requires changing the --branch tag, the accompanying comment, and expected_sha simultaneously to avoid an immediate exit 1 mismatch failure. Applies to Linux CI Python environment recreation used by model-serving tests, requiring confirmation that the chosen pyenv release includes build definitions for required Python micro versions. Covers the Linux branch only, where a tag bump without an updated SHA will always fail.",
+  "saysFor": "s2:325906fda76c5f0e09771140eead43b94549d49dee8895258ea6c0a0c6e8fc05"
+}

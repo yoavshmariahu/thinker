@@ -1,0 +1,61 @@
+{
+  "id": "push-images-workflow-tests-test-push-images-workflow-py-pins",
+  "title": "push-images workflow: tests/test_push_images_workflow.py pins the YAML structure, so edits must update its assertions",
+  "kind": "howto",
+  "answers": [
+    "How do I test changes to the Docker image publish workflow locally?",
+    "Why does my edit to push-images.yml fail a pytest test?",
+    "Which test checks that floating image tags are promoted after versioned images are pushed?",
+    "Where are the workflow ordering and permissions checks for the release image job?"
+  ],
+  "body": "Path: tests/test_push_images_workflow.py, function test_floating_image_tags_are_promoted_after_versioned_images_are_published, parses .github/workflows/push-images.yml with yaml.safe_load and asserts job order, step indexes, permissions and concurrency.\nRule: Run `UV_FROZEN=1 uv run pytest tests/test_push_images_workflow.py` after editing push-images.yml. The test requires that all metadata steps use flavor latest=false and contain no `type=raw,value=latest`. It also requires the Validate image tags step to run before the first push, check-latest to have only contents: read permissions and no concurrency, and promote-latest to have needs, if, concurrency and exactly three imagetools create writes that follow a single latest-release check.\nSymptom: Not applicable (this is a test convention). Edits that reorder steps or rename them break the test even when the workflow is valid.\nConstraints: The test checks text patterns in the run scripts, so reformatting a command (for example, changing line continuations or the flag order) breaks it. The repo pre-commit hooks check-github-workflows and check-actions also validate this workflow file.",
+  "applies": "Edits to .github/workflows/push-images.yml or its structural test.",
+  "tags": [
+    "testing",
+    "github-actions",
+    "docker",
+    "workflow-test"
+  ],
+  "deps": [
+    {
+      "path": "tests/test_push_images_workflow.py",
+      "symbol": "test_floating_image_tags_are_promoted_after_versioned_images_are_published",
+      "hash": "sha256:dfc9c6323f0a5d7fda45a7a5",
+      "line": 8,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:dfc9c6323f0a5d7fda45a7a5",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": ".github/workflows/push-images.yml",
+      "symbol": "type",
+      "hash": "sha256:12cc98e840eedef6ad066e56",
+      "line": 55,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26120"
+  },
+  "created": "2026-10-12T05:33:02.238Z",
+  "verified": "2026-10-12T05:33:02.238Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Automated workflow validation tests fail after changing the container publishing pipeline.",
+    "Run local unit tests to verify changes to the container release workflow.",
+    "Pipeline structural tests fail when reordering release steps or formatting script commands.",
+    "Changes to image publish steps cause regression test failures in release verification."
+  ],
+  "search": "The structural test test_floating_image_tags_are_promoted_after_versioned_images_are_published in tests/test_push_images_workflow.py parses .github/workflows/push-images.yml with yaml.safe_load to enforce job order, step indexes, permissions, and concurrency. Edits to the workflow must be verified using UV_FROZEN=1 uv run pytest tests/test_push_images_workflow.py and keep metadata steps on latest=false without type=raw,value=latest. It requires check-latest to have contents: read permissions and no concurrency, promote-latest to have three imagetools create writes following a latest-release check, and repo pre-commit hooks check-github-workflows and check-actions to pass.",
+  "saysFor": "s2:3e7a18e82cc987cecbf586c9764bbf45dc6762e751739b223971c90535c37269"
+}

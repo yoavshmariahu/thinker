@@ -1,0 +1,100 @@
+{
+  "id": "typescript-tracing-spans-setting-attributes-on-an-already-en",
+  "title": "TypeScript tracing spans: setting attributes on an already-ended span requires toggling allowMutatingEndedSpan and restoring it",
+  "kind": "howto",
+  "answers": [
+    "Why does setting an attribute on a span in the TypeScript SDK get ignored after the span has ended?",
+    "How do I add an attribute to a root span from a span processor's onEnd hook?",
+    "Where is the allowMutatingEndedSpan flag used when writing trace attributes?"
+  ],
+  "body": "Path: Span processors in libs/typescript/core/src/exporters/uc_table.ts:DatabricksUCTableSpanProcessor run on span end, and they look up the MLflow span wrapper via InMemoryTraceManager.getInstance().getSpan(traceId, spanId) (libs/typescript/core/src/core/trace_manager.ts) before exporting.\nRule: To write an attribute onto a span that has already ended, save mlflowSpan.allowMutatingEndedSpan, set it to true, call mlflowSpan.setAttribute(...) inside try, and restore the saved value in finally. This is the pattern in DatabricksUCTableSpanProcessor.setUserSessionSpanAttributes. Warn and return if getSpan returns nothing, instead of throwing.\nSymptom: Without the toggle, the attribute write on an ended span is dropped and the exported OTel span lacks the attribute.\nConstraints: Restoring the previous flag value in finally matters so later writes on that span keep their normal ended-span protection. Do not leave the flag set to true.",
+  "applies": "TypeScript SDK span processors that need to add attributes to root spans during export.",
+  "tags": [
+    "tracing",
+    "typescript",
+    "span",
+    "span-processor",
+    "ended-span"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/core/src/exporters/uc_table.ts",
+      "symbol": "DatabricksUCTableSpanProcessor",
+      "hash": "sha256:2ca10c9b7eb9340f23f82b4a",
+      "line": 29,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2ca10c9b7eb9340f23f82b4a",
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 6
+      }
+    },
+    {
+      "path": "libs/typescript/core/src/core/trace_manager.ts",
+      "symbol": "InMemoryTraceManager",
+      "hash": "sha256:cac274582786437179fe9f51",
+      "line": 176,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:cac274582786437179fe9f51",
+      "fanout": {
+        "files": 19,
+        "sites": 1,
+        "refs": 62
+      }
+    },
+    {
+      "path": "libs/typescript/core/src/core/trace_manager.ts",
+      "symbol": "InMemoryTraceManager.getInstance",
+      "hash": "sha256:86f79ff0b7e0697b535156ff",
+      "line": 192,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:86f79ff0b7e0697b535156ff",
+      "fanout": {
+        "files": 17,
+        "sites": 32,
+        "refs": 35
+      }
+    },
+    {
+      "path": "libs/typescript/core/src/exporters/uc_table.ts",
+      "symbol": "DatabricksUCTableSpanProcessor.setUserSessionSpanAttributes",
+      "hash": "sha256:ee919130f7e4e7dffdf2e43c",
+      "line": 144,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ee919130f7e4e7dffdf2e43c",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26209"
+  },
+  "created": "2026-10-12T05:31:58.720Z",
+  "verified": "2026-10-12T05:31:58.720Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "uc-trace-export-typescript-session-and-user-must-be-copied-t",
+    "typescript-agent-traces-git-source-metadata-is-resolved-fiel",
+    "typescript-span-processor-tests-mock-the-environment-helper"
+  ],
+  "says": [
+    "Exported trace viewer is missing user session properties added at completion time.",
+    "Custom attributes added when a task finishes do not show up in exported traces.",
+    "Ensure attributes attached to completed execution steps are successfully saved and displayed.",
+    "Root trace record omits final session tags applied during trace export."
+  ],
+  "search": "In TypeScript SDK span processors such as DatabricksUCTableSpanProcessor, setting attributes on an already-ended span requires toggling mlflowSpan.allowMutatingEndedSpan. Callers must save the existing flag value, set it to true, call mlflowSpan.setAttribute inside try, and restore the previous flag value in finally. Without this toggle, attribute writes on ended spans are dropped and omitted from exported spans. Spans are retrieved via InMemoryTraceManager.getInstance().getSpan(traceId, spanId), which should warn and return rather than throwing when a span is not found.",
+  "saysFor": "s2:db85d22141ee76b422edbdeaadc5dcf01982b184a3a4bfdacd786e81ca6e935f"
+}

@@ -1,0 +1,63 @@
+{
+  "id": "cache-hf-composite-github-actions-cache-hf-only-the-job-that",
+  "title": "cache-hf composite (.github/actions/cache-hf): only the job that populates a cache key gets cache-mode write; restore-only consumers get read",
+  "kind": "rule",
+  "answers": [
+    "Windows slow tests keep re-downloading Hugging Face datasets on every run",
+    "Which CI jobs are allowed to save the Hugging Face datasets cache?",
+    "Can I still pass restore-only to the cache-hf action?",
+    "Where is the Hugging Face datasets cache handled in CI?"
+  ],
+  "body": "Path: .github/actions/cache-hf/action.yml caches ~/.cache/huggingface/hub/datasets-- with a key of runner.os plus the hash of tests/data/test_huggingface_dataset_and_source.py; it is called by test workflows such as master.yml, slow-tests.yml, protobuf-cross-test.yml and test-requirements.yml.\nRule: The composite has no restore-only input and always runs actions/cache. Control saves per job instead: the job that writes a key gets `cache-mode: write` (master.yml writes the Linux key, the slow-tests.yml windows job writes the Windows key), and jobs that only restore get `cache-mode: read` with no restore-only input. Choose writer or reader by the key the job computes and by whether it runs on schedule or dispatch, not by whether it is a pull request job.\nSymptom: Marking the Windows slow-tests job read-only left the Windows HF cache key with no writer, so after a miss every run would redownload the datasets; review caught it and the job was set to write.\nConstraints: The key includes runner.os, so each OS has its own key and needs its own writer. Read-only jobs must not be the only job for a key. Scheduled and manual runs still save, so they need write when they are the populator.",
+  "applies": "Changes to the cache-hf composite action or to which CI jobs read or write the HF datasets cache.",
+  "tags": [
+    "github-actions",
+    "cache",
+    "huggingface",
+    "ci",
+    "cache-mode"
+  ],
+  "deps": [
+    {
+      "path": ".github/actions/cache-hf/action.yml",
+      "hash": "sha256:adb499f90da20ab3de358763",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/slow-tests.yml",
+      "hash": "sha256:3b4c714d6c11ca0a1af414ae",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/master.yml",
+      "hash": "sha256:7a23e9e2645572c59f7793f4",
+      "missing": false
+    },
+    {
+      "path": "tests/data/test_huggingface_dataset_and_source.py",
+      "hash": "sha256:0e766f54901103d22d727bf6",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25809"
+  },
+  "created": "2026-10-12T05:45:27.298Z",
+  "verified": "2026-10-12T05:45:27.298Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "ci-hugging-face-datasets-cache-cache-hf-action-restore-only"
+  ],
+  "says": [
+    "Windows slow test runs keep downloading Hugging Face datasets from scratch every time.",
+    "Ensure Windows continuous integration builds save their downloaded dataset cache for future runs.",
+    "Automated test jobs on Windows are taking too long because cache misses persist.",
+    "Configure dataset cache permissions so only populating pipeline jobs can save cached files."
+  ],
+  "search": "In .github/actions/cache-hf/action.yml, jobs that populate the Hugging Face dataset cache key must use cache-mode: write, while restore-only consumers use cache-mode: read without a restore-only input. Because cache keys incorporate runner.os alongside the hash of tests/data/test_huggingface_dataset_and_source.py, each operating system requires an assigned writer job, such as master.yml for Linux and slow-tests.yml for Windows. Writer status must be determined by the computed cache key and whether the job runs on schedule or dispatch rather than pull request status.",
+  "saysFor": "s2:5217b5014f5a4297923f20b5a15a1e43a778a3266d709066b6d0d4797eeabc26"
+}

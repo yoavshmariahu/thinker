@@ -1,0 +1,63 @@
+{
+  "id": "python-and-github-actions-style-conventions-where-they-live",
+  "title": "Python and GitHub Actions style conventions: where they live now (shared skills, not path-scoped rules)",
+  "kind": "map",
+  "answers": [
+    "Where are the Python coding and testing conventions for MLflow defined now?",
+    "Where did the GitHub Actions workflow guidelines go after the .claude/rules move?",
+    "Why does Copilot review point to .claude/skills instead of .claude/rules?",
+    "I want to change the workflow style guide for pipefail or secrets; which file do I edit?"
+  ],
+  "body": "Path: The MLflow style guidance for Python source/tests and for GitHub Actions workflows and composite actions. Python conventions are in .claude/skills/python-style/SKILL.md; workflow and action conventions are in .claude/skills/github-actions-style/SKILL.md. Both are reached by agents through .agents/skills -> ../.claude/skills, and Copilot code review reads them via .github/instructions/python.instructions.md (applyTo **/*.py) and .github/instructions/github-actions.instructions.md (applyTo .github/workflows and .github/actions yml).\nRule: Edit the style content in the SKILL.md files, not in .claude/rules/ (those path-scoped files were removed). Keep the .github/instructions/*.instructions.md files as thin pointers to the skill paths, and keep their applyTo scopes unchanged.\nConstraints: The skills need to be selected or invoked by an agent; this layout does not guarantee automatic activation or automatic Copilot review discovery. Skill frontmatter (name, description) is what makes the skill discoverable.",
+  "applies": "Repository-level layout for MLflow's Python and GitHub Actions style guidance; applies when locating or editing these conventions.",
+  "tags": [
+    "claude-skills",
+    "copilot-instructions",
+    "python-style",
+    "github-actions",
+    "docs"
+  ],
+  "deps": [
+    {
+      "path": ".claude/skills/python-style/SKILL.md",
+      "hash": "sha256:8cc106b631c28ccb484f8b68",
+      "missing": false
+    },
+    {
+      "path": ".claude/skills/github-actions-style/SKILL.md",
+      "hash": "sha256:3b83bc3660ebad3c1de394a5",
+      "missing": false
+    },
+    {
+      "path": ".github/instructions/python.instructions.md",
+      "hash": "sha256:413ede6beeaa5cd4c20557be",
+      "missing": false
+    },
+    {
+      "path": ".github/instructions/github-actions.instructions.md",
+      "hash": "sha256:5400069ea2fe0db0bf8a4ba4",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26010"
+  },
+  "created": "2026-10-12T05:34:29.445Z",
+  "verified": "2026-10-12T05:34:29.445Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "claude-skill-docs-when-moving-a-doc-one-directory-deeper-bum"
+  ],
+  "says": [
+    "Automated code reviews reference missing or outdated project style guide files.",
+    "Where can contributors find the official coding guidelines for automated workflows?",
+    "Update project coding conventions for Python tests and workflow automation scripts.",
+    "AI review assistant fails to find repository guidelines during pull request inspections."
+  ],
+  "search": "Repository style guidance for Python and GitHub Actions resides in .claude/skills/python-style/SKILL.md and .claude/skills/github-actions-style/SKILL.md rather than path-scoped .claude/rules/ files. Thin pointer files in .github/instructions/python.instructions.md and .github/instructions/github-actions.instructions.md direct Copilot code review to these skill paths with unchanged applyTo scopes. Applies when modifying repository-level coding conventions or workflow standards, where skill frontmatter controls discoverability because the layout does not guarantee automatic activation.",
+  "saysFor": "s2:5566eaa4953aefa2f0b0322e1d5383e3fda1aa11095e78b4f564820586d45086"
+}

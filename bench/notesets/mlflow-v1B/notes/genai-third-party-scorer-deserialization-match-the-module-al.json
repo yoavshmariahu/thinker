@@ -1,0 +1,71 @@
+{
+  "id": "genai-third-party-scorer-deserialization-match-the-module-al",
+  "title": "genai third-party scorer deserialization: match the module allow-list exactly and validate metric_name and kwargs before any import",
+  "kind": "rule",
+  "answers": [
+    "Why does loading a registered RAGAS, DeepEval, TruLens or Phoenix scorer fail with 'not in the allow-list' when it was saved from a run artifact path?",
+    "How are third-party scorer class and metric_name checked before MLflow imports the module when rebuilding a scorer from stored data?",
+    "Where is the allow-list of scorer modules for third-party scorer deserialization defined and enforced?",
+    "What happens if a scorer payload sets kwargs to include metric_name, or a dotted metric_name?"
+  ],
+  "body": "Path: Rebuilding a third-party scorer (ragas, deepeval, trulens, phoenix) from a stored `third_party_scorer_data` payload goes through `mlflow/genai/scorers/base.py:Scorer.model_validate`, which reads module, class, metric_name and kwargs and then calls `importlib.import_module`. The allow-list is `mlflow/genai/scorers/scorer_utils.py:THIRD_PARTY_SCORER_ALLOWED_MODULES`.\nRule: Allow-list membership is exact string equality against the 14 scorer-defining modules (the four package roots plus their `scorers` submodules), never a package-prefix or `startswith` match. Checks run before any import: module is in the frozenset, `metric_name.isidentifier()`, and `\"metric_name\"` is not a key of kwargs. After `getattr`, the resolved object must be `inspect.isclass` and a `Scorer` subclass before instantiation. Any new scorer-defining module must be added to the frozenset explicitly.\nSymptom: A file placed below an allow-listed package (for example a run artifact under a `file://` experiment artifact root, resolved as `mlflow.genai.scorers.trulens.<run_id>.artifacts.payload`) was importable, so its top-level code ran before the class or metric-name checks.\nConstraints: MLflow's own serializers always emit the defining module, so registered scorers from any release still load; only hand-built paths that no serializer emits are rejected. No public API or payload schema changes. Applies to `Scorer.model_validate` third-party branch only, not to built-in judges or `@scorer` functions.",
+  "applies": "Scorer deserialization of third-party scorer payloads in mlflow/genai/scorers; any change to which modules or metric_name/kwargs values a stored scorer may carry.",
+  "tags": [
+    "genai",
+    "scorers",
+    "serialization",
+    "security",
+    "allow-list"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "Scorer.model_validate",
+      "hash": "sha256:b8c3aa1b8884209829c59b77",
+      "line": 480,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b8c3aa1b8884209829c59b77",
+      "fanout": {
+        "files": 45,
+        "sites": 116,
+        "refs": 142
+      }
+    },
+    {
+      "path": "mlflow/genai/scorers/scorer_utils.py",
+      "symbol": "THIRD_PARTY_SCORER_ALLOWED_MODULES",
+      "hash": "sha256:3d8852f4c35aaeddc7ee0210",
+      "line": 50,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25906"
+  },
+  "created": "2026-10-12T05:42:45.125Z",
+  "verified": "2026-10-12T05:42:45.125Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "genai-scorer-serialization-a-new-persisted-timeout-field-mus",
+    "genai-scorer-timeout-scorer-run-bounds-every-scorer-invocati",
+    "genai-third-party-scorer-allow-list-adding-a-scorer-module-r"
+  ],
+  "says": [
+    "Loading an external evaluation metric stored under experiment run artifacts fails validation.",
+    "Block untrusted code execution when reopening saved third party evaluators from artifact storage.",
+    "Evaluation runs fail to restore when metric names contain periods or invalid characters.",
+    "Stored evaluation metrics fail to load if configuration parameters conflict with metric names."
+  ],
+  "search": "Third-party scorer deserialization in mlflow/genai/scorers/base.py:Scorer.model_validate validates module against mlflow/genai/scorers/scorer_utils.py:THIRD_PARTY_SCORER_ALLOWED_MODULES using exact string equality before importing. Prior to importlib.import_module, it verifies metric_name.isidentifier() and ensures metric_name is not in kwargs, then checks that the resolved attribute is a Scorer subclass. This prevents importing arbitrary files under artifact roots while preserving loading of legitimate registered scorers, and does not apply to built-in judges or @scorer functions.",
+  "saysFor": "s2:720af1bcc2550b35bac66a21d64d045263a35b2502e553bd403994292ca16fa6"
+}

@@ -1,0 +1,81 @@
+{
+  "id": "prompt-registration-register-prompt-returns-promptversion-an",
+  "title": "prompt registration: register_prompt returns PromptVersion, and its docstrings in GenAI, fluent and MlflowClient must agree",
+  "kind": "rule",
+  "answers": [
+    "What does mlflow.genai.register_prompt return?",
+    "The register_prompt docs say it returns a Prompt, but the code gives a PromptVersion. Which is right?",
+    "Where are the register_prompt docstrings for the GenAI API, fluent registry and MlflowClient?"
+  ],
+  "body": "Path: Prompt registration entry points: mlflow/genai/prompts/__init__.py:register_prompt (GenAI API), mlflow/tracking/_model_registry/fluent.py:register_prompt (fluent registry API), and mlflow/tracking/client.py:MlflowClient.register_prompt. A call creates a new version of a named prompt and hands back the created version.\nRule: The value returned is a PromptVersion (annotated `-> PromptVersion`), not the Prompt entity. Document it as `:py:class:`PromptVersion <mlflow.entities.PromptVersion>`` in the Returns section. When you edit one of the three register_prompt docstrings, update the other two so the public docs match the annotation and runtime behavior.\nSymptom: The API reference said register_prompt returns a Prompt object, which contradicts the actual PromptVersion return value and the type annotation.\nConstraints: Applies to the Returns text of register_prompt docstrings. It does not cover the Prompt entity itself or other prompt functions such as load or search.",
+  "applies": "Documentation of MLflow prompt registration return values in the GenAI, fluent and client APIs.",
+  "tags": [
+    "prompts",
+    "docs",
+    "register_prompt",
+    "return-type"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/genai/prompts/__init__.py",
+      "symbol": "register_prompt",
+      "hash": "sha256:d4dcb08110c1a3ad7a00434c",
+      "line": 33,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:d4dcb08110c1a3ad7a00434c",
+      "fanout": {
+        "files": 24,
+        "sites": 212,
+        "refs": 230
+      }
+    },
+    {
+      "path": "mlflow/tracking/_model_registry/fluent.py",
+      "symbol": "register_prompt",
+      "hash": "sha256:e11f162d6d424f2ccdc1b338",
+      "line": 591,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e11f162d6d424f2ccdc1b338",
+      "fanout": {
+        "files": 24,
+        "sites": 212,
+        "refs": 230
+      }
+    },
+    {
+      "path": "mlflow/tracking/client.py",
+      "symbol": "MlflowClient.register_prompt",
+      "hash": "sha256:9aa9e34231c1c3b634c03275",
+      "line": 640,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9aa9e34231c1c3b634c03275",
+      "fanout": {
+        "files": 24,
+        "sites": 212,
+        "refs": 230
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25650"
+  },
+  "created": "2026-10-12T05:47:14.227Z",
+  "verified": "2026-10-12T05:47:14.227Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The prompt registry documentation incorrectly states that registering a prompt returns the base entity.",
+    "Registering a new prompt returns a prompt version rather than the parent prompt.",
+    "Prompt registration return value documentation does not match the actual runtime behavior.",
+    "Make the return type description consistent across all prompt management documentation pages."
+  ],
+  "search": "Prompt registration entry points in mlflow/genai/prompts/__init__.py:register_prompt, mlflow/tracking/_model_registry/fluent.py:register_prompt, and mlflow/tracking/client.py:MlflowClient.register_prompt return a PromptVersion (annotated -> PromptVersion). Docstrings must document the return value as :py:class:`PromptVersion <mlflow.entities.PromptVersion>` in the Returns section across all three files to keep public documentation in sync. This rule applies strictly to the Returns text of register_prompt docstrings and does not cover the Prompt entity itself or functions like load or search.",
+  "saysFor": "s2:dfd2d7a5f59633cf4b5b8180899876d730707a046354d6dcdfda934ace930f60"
+}

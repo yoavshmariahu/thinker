@@ -1,0 +1,72 @@
+{
+  "id": "shared-web-shared-query-client-import-the-queryclient-throug",
+  "title": "shared/web-shared query-client: import the QueryClient through the local re-export, not the @mlflow/mlflow alias",
+  "kind": "rule",
+  "answers": [
+    "Why does the shared web-shared notebook renderer import from a relative path instead of @mlflow/mlflow?",
+    "Where should a new web-shared component get its QueryClient from?",
+    "Can code under shared/web-shared import from src/common through the alias?"
+  ],
+  "body": "Path: shared/web-shared/query-client/queryClient.ts re-exports QueryClient, QueryClientProvider and onlineManager from common/utils/reactQueryHooks, and createMlflowQueryClient.ts imports QueryClient from that local file. The notebook renderer (oss-notebook-renderer/bootstrap.tsx) reaches the factory through a relative import.\nRule: Code under shared/web-shared/ should stay self-contained and import its query client through the local ./queryClient or relative paths, not through @mlflow/mlflow/src/common/... aliases. The app shell (src/app.tsx) is outside web-shared and keeps using the alias to import the factory.\nSymptom: Not a user-visible symptom; the rule keeps the shared package portable across entry points.\nConstraints: Applies to files under shared/web-shared/. Outside web-shared, aliased imports are fine.",
+  "applies": "Imports within mlflow/server/js/src/shared/web-shared; other packages are not covered.",
+  "tags": [
+    "imports",
+    "web-shared",
+    "portability",
+    "react-query"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/shared/web-shared/query-client/createMlflowQueryClient.ts",
+      "symbol": "createMlflowQueryClient",
+      "hash": "sha256:3ac4327183320a197086367d",
+      "line": 3,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1d211a1ef7c24f52bbf7a853",
+      "fanout": {
+        "files": 4,
+        "sites": 5,
+        "refs": 11
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/shared/web-shared/model-trace-explorer/oss-notebook-renderer/bootstrap.tsx",
+      "symbol": "AppComponent",
+      "hash": "sha256:380ce90c95028843299a00aa",
+      "line": 54,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:380ce90c95028843299a00aa",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/shared/web-shared/query-client/queryClient.ts",
+      "hash": "sha256:f79d7d51521939cee5353017",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25961"
+  },
+  "created": "2026-10-12T05:30:39.384Z",
+  "verified": "2026-10-12T05:30:39.384Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "oss-mlflow-ui-queryclient-build-with-createmlflowqueryclient"
+  ],
+  "says": [
+    "Make shared notebook interface components reusable across different web entry points.",
+    "Ensure embedded notebook visualization widgets remain self-contained without external application dependencies."
+  ],
+  "search": "Code within mlflow/server/js/src/shared/web-shared must import QueryClient locally through ./queryClient or relative paths rather than the @mlflow/mlflow/src/common alias. This maintains portability across entry points such as the notebook renderer in oss-notebook-renderer/bootstrap.tsx, whereas the outer app shell in src/app.tsx may still use aliased imports.",
+  "saysFor": "s2:e236524416a0b82fdbba3c5676720c59ed5a685ffe0ff16e2fed1ab9c043c9ef"
+}

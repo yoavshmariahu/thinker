@@ -1,0 +1,88 @@
+{
+  "id": "mlflow-agent-setup-shell-tests-stub-missing-commands-with-sh",
+  "title": "mlflow agent setup shell tests: stub missing commands with shell functions instead of PATH symlinks, and pass fixtures inside the script",
+  "kind": "rule",
+  "answers": [
+    "Why do the mlflow agent setup shell tests fail on Windows Git Bash?",
+    "How do I test the setup script's no-jq or local-server path without a real curl or jq binary?",
+    "Where is the JSON escaping test fixture for json_escape defined?",
+    "How do I add a new unit test for a setup.sh helper that takes a tricky string argument?"
+  ],
+  "body": "Path: tests/agent/test_setup_sh_unit.py runs functions from the agent setup shell script (json_escape, json_experiment_strings, configure_local and similar helpers) through the run_shell helper, covering the JSON escaping, no-jq fallback, and local-server tracking paths.\nRule: Keep quoted test fixtures inside the script body passed to run_shell (for example value='a\\path\"with-quote' then json_escape \"$value\") rather than as a positional argv, because Git Bash on Windows rewrites argv through MSYS path conversion. To simulate a missing or fake command, define a shell function in the script (e.g. curl() { :; }, sed() { \"$sed_bin\" \"$@\"; }) and clear PATH, instead of creating symlinks or executable stubs in tmp_path, since Windows cannot create the POSIX symlinks those tests relied on.\nSymptom: The setup shell unit tests passed on POSIX but failed on Windows Git Bash because the fixture string was mangled by argument conversion and the tmp_path symlinks to head/sed or the fake curl binary could not be created or executed.\nConstraints: Applies to tests that drive the setup shell script via run_shell. Function stubs only shadow commands called from the script itself; a test that needs a real external binary to be found on PATH still needs it there. The production setup script is not changed by this convention.",
+  "applies": "Shell unit tests for the mlflow agent setup script in tests/agent/test_setup_sh_unit.py, including any new test that needs a fake command or a tricky string argument.",
+  "tags": [
+    "agent-setup",
+    "shell",
+    "tests",
+    "windows",
+    "git-bash",
+    "pytest"
+  ],
+  "deps": [
+    {
+      "path": "tests/agent/test_setup_sh_unit.py",
+      "symbol": "test_json_escape",
+      "hash": "sha256:15c0c5b5ac278651c03483d7",
+      "line": 50,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:04ad5e0b3bf2dcb036e090b8",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/agent/test_setup_sh_unit.py",
+      "symbol": "test_json_experiment_strings_fallback_handles_compact_response",
+      "hash": "sha256:9c155e083d31add1c1a94c4e",
+      "line": 371,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6a810b4527b366619c71f532",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/agent/test_setup_sh_unit.py",
+      "symbol": "test_local_server_always_prints_mlflow_command",
+      "hash": "sha256:e75d0147b50a5991ef23d99d",
+      "line": 571,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:79716bbee16e3cb4a7f40113",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25694"
+  },
+  "created": "2026-10-12T05:40:40.450Z",
+  "verified": "2026-10-12T05:40:40.450Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "mlflow-agent-setup-databricks-cli-test-compare-the-installed",
+    "mlflow-agent-setup-coding-agent-prompt-edit-the-tracing-chec"
+  ],
+  "says": [
+    "Shell unit tests for the setup script fail on Windows due to symlink permission errors.",
+    "Quoted test strings get mangled by command line path conversion in Windows Git Bash.",
+    "Mock missing command line tools in test scripts without relying on filesystem symbolic links.",
+    "Fix setup script unit tests failing on Windows when simulating missing parser utilities.",
+    "Ensure setup test fixtures pass cleanly across operating systems without escaping corruption."
+  ],
+  "search": "In tests/agent/test_setup_sh_unit.py, unit tests exercising setup.sh helpers via run_shell must define test fixtures inside the script body and mock commands using shell functions while clearing PATH. This avoids Windows Git Bash failures caused by MSYS argument conversion mangling argv fixtures and the inability to create POSIX symlinks in tmp_path for stub binaries like curl, sed, or head. This convention applies only to tests invoking the script via run_shell without altering production setup.sh, and real external binaries required on PATH must remain accessible.",
+  "saysFor": "s2:20de84a1ac68e65f6005f55982f024a441552d8756ccbd116bccca7c37c70c07"
+}

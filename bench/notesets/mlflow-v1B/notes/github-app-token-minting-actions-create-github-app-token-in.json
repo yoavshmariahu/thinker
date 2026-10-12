@@ -1,0 +1,46 @@
+{
+  "id": "github-app-token-minting-actions-create-github-app-token-in",
+  "title": "GitHub App token minting (actions/create-github-app-token in workflows): require literal owner and repositories inputs, enforced by policy.rego deny rule",
+  "kind": "rule",
+  "answers": [
+    "Why does the policy check fail with 'must set a non-empty with.repositories' on my workflow's GitHub App token step?",
+    "How do I narrow the GitHub App installation token to only mlflow and internal repos in a workflow?",
+    "Where is the rule that stops create-github-app-token steps from having no owner or repository scope?",
+    "Why must I write repositories: mlflow instead of using github.repository for the App token?"
+  ],
+  "body": "Path: .github/policy.rego:deny_create_app_token_without_repository_scope walks every workflow job (input.jobs, via job_steps) and checks each step whose uses starts with actions/create-github-app-token@ (client-id/private-key token minting, e.g. autoformat, copilot-agent, uv, ui-review, nailaopus workflows).\nRule: Every such step must set non-empty literal values for both with.owner and with.repositories; a blank or missing value produces a Conftest denial naming the job id and the missing key. Use bare repository names (repositories: mlflow, or a comma list such as mlflow,internal), not ${{ github.repository }}, which expands to mlflow/mlflow and matches nothing.\nSymptom: A workflow's App token step without owner/repositories was rejected by the policy check (the token would otherwise be issued without an explicit repository narrowing).\nConstraints: Covers only steps the rule's job_steps traversal sees in workflow jobs, as written in the diff; it does not check the permission-* inputs (a separate deny rule covers permissions). Applies to the create-github-app-token action only.",
+  "applies": "Workflow YAML under .github/workflows that mints GitHub App tokens with actions/create-github-app-token, checked by Conftest with .github/policy.rego.",
+  "tags": [
+    "github-actions",
+    "policy",
+    "conftest",
+    "github-app",
+    "security"
+  ],
+  "deps": [
+    {
+      "path": ".github/policy.rego",
+      "hash": "sha256:c9bdfb9326a5b78b8f142b4a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25866"
+  },
+  "created": "2026-10-12T05:43:56.269Z",
+  "verified": "2026-10-12T05:43:56.269Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Automated policy check rejects pull request for missing target repository restrictions on application credentials.",
+    "Continuous integration compliance check fails because token generation lacks explicit repository scope.",
+    "Restrict generated application tokens to specific repositories to pass automated security checks.",
+    "Why did the security gate fail on application token creation in my workflow?"
+  ],
+  "search": "Workflow steps using `actions/create-github-app-token@` must specify non-empty literal values for both `with.owner` and `with.repositories`, enforced by `deny_create_app_token_without_repository_scope` in `.github/policy.rego` via Conftest. Repositories must be bare names (e.g. `repositories: mlflow` or `mlflow,internal`) rather than `${{ github.repository }}` which expands to `mlflow/mlflow` and matches nothing. This policy check inspects `input.jobs` via `job_steps` in `.github/workflows` (such as autoformat, copilot-agent, uv, ui-review, and nailaopus), but does not validate `permission-*` inputs.",
+  "saysFor": "s2:fb89e0b07e2a9e85eb10eeef5c26858c12a16444570760b9c63bd5e35d46b672"
+}

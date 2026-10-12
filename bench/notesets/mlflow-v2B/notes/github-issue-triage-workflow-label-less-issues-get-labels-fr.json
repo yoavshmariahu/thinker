@@ -1,0 +1,46 @@
+{
+  "id": "github-issue-triage-workflow-label-less-issues-get-labels-fr",
+  "title": "GitHub issue triage workflow: label-less issues get labels from title prefixes [BUG]/[SETUP-BUG]/[FR]/[DOC-FIX] in triage.yml",
+  "kind": "rule",
+  "answers": [
+    "Why did my newly opened issue with a [BUG] title get the bug label automatically?",
+    "How do I add a new title prefix so issues get a label when they are filed?",
+    "Where is the automatic labeling of issues based on title prefix handled?",
+    "Why was a new issue with labels already set left alone by the triage bot?"
+  ],
+  "body": "Path: .github/workflows/triage.yml (job `label`, triggered on `issues: opened`) handles newly opened GitHub issues that have no labels at all; it maps a leading title prefix to labels via `gh issue edit --add-label`. It uses no LLM or external service.\nRule: Keep this workflow title-only and label-gated: the job `if` checks `github.event.issue.labels[0] == null`, so it only runs for issues with zero labels. Prefix matching strips leading whitespace with `${TITLE#...}` and uppercases with `${title^^}` before a quoted `case` pattern, which makes matching case-insensitive; unmatched titles hit `*)` and exit 0 without changes. To add a prefix, add a `case` arm and its labels; keep the `\"[PREFIX]\"*` quoting so brackets match literally.\nConstraints: Applies only to issues opened with no labels; issues filed through issue forms or already labeled are skipped. Labels are added, never removed, and existing labels are not inspected beyond the first slot. Edits to the `case` arms must keep uppercase patterns because the title is uppercased before matching.",
+  "applies": "Repository GitHub Actions automation for issue labeling in mlflow/mlflow; not for PR labeling or for issues that already carry labels.",
+  "tags": [
+    "github-actions",
+    "issues",
+    "triage",
+    "labels",
+    "ci"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/triage.yml",
+      "hash": "sha256:d4e625a0d77ab1a86d9138da",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26296"
+  },
+  "created": "2026-10-12T05:31:24.520Z",
+  "verified": "2026-10-12T05:31:24.520Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Automatically assign category labels to newly opened tickets based on their title prefix.",
+    "Issues submitted with preselected tags do not receive automatic labels from title prefixes.",
+    "Add automated label assignment for new feature requests starting with bracketed prefixes.",
+    "Forms that preassign tags prevent the triage automation from adding title labels."
+  ],
+  "search": "GitHub issue triage automation in .github/workflows/triage.yml labels newly opened, label-less issues by matching title prefixes using gh issue edit --add-label. The label job runs on issues: opened only when github.event.issue.labels[0] is null, stripping leading whitespace and uppercasing titles before matching quoted uppercase case patterns like \"[PREFIX]\"*. Applies only to issue labeling in mlflow/mlflow; issues filed through forms or already carrying labels are skipped, labels are never removed, and it does not apply to pull requests.",
+  "saysFor": "s2:bd13186c118c102f043e8d99fe6fd83c6d85aafdf9c29b56f1529353021927af"
+}

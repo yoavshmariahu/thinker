@@ -1,0 +1,69 @@
+{
+  "id": "gateway-adapter-formatting-override-only-chat-to-model-in-an",
+  "title": "Gateway adapter formatting: override only chat_to_model in Anthropic-style adapters, since chat_streaming_to_model delegates to it",
+  "kind": "rule",
+  "answers": [
+    "Why would a Vertex or Anthropic request field be added twice when streaming is used through the gateway adapter?",
+    "How do I add a provider-specific field to Anthropic adapter requests for both chat and streaming?",
+    "Where is streaming request formatting for Anthropic-based gateway providers handled?"
+  ],
+  "body": "Path: `mlflow/gateway/providers/vertex_ai.py:_VertexAIClaudeAdapter` subclasses `mlflow/gateway/providers/anthropic.py:AnthropicAdapter`. Both the non-streaming and streaming request formatting used by judges and the gateway go through this adapter's classmethods.\nRule: In an `AnthropicAdapter` subclass, override `chat_to_model` only. The inherited `chat_streaming_to_model` calls `cls.chat_to_model`, so a streaming override would apply the same transformation twice. Keep the override idempotent anyway, and put any provider-specific transform in a helper classmethod (for example `_apply_vertex_fields`) that the provider hook can reuse.\nSymptom: Not a user-visible failure by itself. A double-applied transform is harmless only while it stays idempotent, and it becomes a bug if the helper stops being idempotent.\nConstraints: Applies when subclassing `AnthropicAdapter` for a new provider whose requests need extra or removed fields. If you need the field only in the provider's `_chat`/`_chat_stream` path and not in judge formatting, the adapter override is still the right place, because judges bypass the provider hooks.",
+  "applies": "Writing or changing Anthropic-style adapter subclasses in the gateway providers.",
+  "tags": [
+    "gateway",
+    "adapters",
+    "anthropic",
+    "streaming"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIClaudeAdapter",
+      "hash": "sha256:8918d71922bcb70552b6dabc",
+      "line": 122,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8918d71922bcb70552b6dabc",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 7
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/anthropic.py",
+      "symbol": "AnthropicAdapter",
+      "hash": "sha256:dfcba57182a7a5a4c8aae015",
+      "line": 172,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:dfcba57182a7a5a4c8aae015",
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 22
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25556"
+  },
+  "created": "2026-10-12T05:41:41.531Z",
+  "verified": "2026-10-12T05:41:41.531Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "vertex-ai-claude-gateway-requests-anthropic-version-and-mode"
+  ],
+  "says": [
+    "Streaming chat requests through the model gateway duplicate provider specific configuration parameters.",
+    "Model gateway evaluation judges send repeated request options when streaming is enabled.",
+    "Why are gateway request parameters getting duplicated when streaming language model responses?",
+    "Ensure custom provider fields are applied only once during streaming gateway conversations."
+  ],
+  "search": "In Anthropic-style gateway adapter subclasses such as mlflow/gateway/providers/vertex_ai.py:_VertexAIClaudeAdapter subclassing AnthropicAdapter, override chat_to_model only because chat_streaming_to_model delegates to it. Overrides must remain idempotent and place provider-specific transformations in reusable helper classmethods like _apply_vertex_fields to avoid duplicate field additions during streaming. This applies to request formatting in gateway providers and judges, where judges bypass provider hooks like _chat and _chat_stream.",
+  "saysFor": "s2:231c70499f14ac6b07e740fc0724459e9cb55c99c71a97b7b5fadf00e5750317"
+}

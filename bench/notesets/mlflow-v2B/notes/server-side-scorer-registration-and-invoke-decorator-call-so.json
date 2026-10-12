@@ -1,0 +1,89 @@
+{
+  "id": "server-side-scorer-registration-and-invoke-decorator-call-so",
+  "title": "Server-side scorer registration and invoke: decorator (call_source) scorers are blocked unless MLFLOW_SERVER_ENABLE_CUSTOM_SCORERS is set; third-party egress kwargs are always rejected",
+  "kind": "rule",
+  "answers": [
+    "Why does registering my @scorer decorator scorer on the MLflow server return a 400 'not supported' error?",
+    "How do I allow custom decorator scorers to run on the tracking server (env flag)?",
+    "Does a decorator scorer nested inside an ensemble get rejected when a scorer is registered or invoked?",
+    "Where is the server-side check that blocks third-party judge api_base / completion_kwargs overrides?"
+  ],
+  "body": "Path: Serialized scorer payloads sent to the register-scorer and scorer/invoke endpoints (and stored scorers re-fetched from the tracking store) pass through mlflow/server/handlers.py:_validate_serialized_scorer_payload before any store write or job submission.\nRule: The decorator check (`call_source` present, i.e. code later exec()'d on deserialization) goes through mlflow/genai/scorers/scorer_utils.py:custom_scorer_execution_blocked, which is opt-in via the MLFLOW_SERVER_ENABLE_CUSTOM_SCORERS env var and recursive into ensemble sub-scorers. The third-party egress check (mlflow/server/handlers.py:_validate_third_party_scorer_data) is separate and must stay unconditional; never gate it on that flag.\nSymptom: Before this change the server rejected any top-level call_source scorer with no operator override, and a decorator nested in an ensemble was not caught by the top-level-only check. Conversely, when relaxing the exec guard, the egress-kwargs guard must not be relaxed with it (that is the SSRF fix GHSA-2wqp-q3c6-ccj5).\nConstraints: Applies only to server-side handling of serialized scorers. The client-side _check_can_be_registered() is a separate, client-only check. With the flag unset, decorator scorers stay rejected; with it set, they pass the gate but the third-party kwargs rule still applies to the same payload.",
+  "applies": "Server-side validation of serialized scorers in mlflow/server/handlers.py; not the Python client registration path.",
+  "tags": [
+    "scorers",
+    "evaluation",
+    "server-security",
+    "env-flag",
+    "register-scorer",
+    "scorer-invoke"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_validate_serialized_scorer_payload",
+      "hash": "sha256:b21e3fc326dd6d3dbf78047a",
+      "line": 6129,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b21e3fc326dd6d3dbf78047a",
+      "fanout": {
+        "files": 1,
+        "sites": 4,
+        "refs": 4
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_validate_serialized_scorer_payload",
+      "hash": "sha256:b21e3fc326dd6d3dbf78047a",
+      "line": 6129,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b21e3fc326dd6d3dbf78047a",
+      "fanout": {
+        "files": 1,
+        "sites": 4,
+        "refs": 4
+      }
+    },
+    {
+      "path": "mlflow/genai/scorers/scorer_utils.py",
+      "symbol": "custom_scorer_execution_blocked",
+      "hash": "sha256:158076d82a28d7a4f10e4099",
+      "line": 435,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:158076d82a28d7a4f10e4099",
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25993"
+  },
+  "created": "2026-10-12T05:34:48.379Z",
+  "verified": "2026-10-12T05:34:48.379Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "third-party-scorer-payloads-trulens-ragas-deepeval-phoenix-j",
+    "model-registry-createmodelversion-for-prompts-source-must-be",
+    "model-registry-createmodelversion-prompt-branch-select-promp",
+    "artifact-host-policy-a-tracking-server-connects-only-to-the"
+  ],
+  "says": [
+    "Registering a custom scoring function on the tracking server fails with a not supported error.",
+    "Allow administrators to enable custom Python evaluation metrics on the shared tracking server.",
+    "Ensemble evaluators containing custom scoring functions get rejected when submitted to the server.",
+    "Third party evaluation endpoint overrides are blocked when registering custom model judges."
+  ],
+  "search": "Server-side validation of serialized scorers in mlflow/server/handlers.py:_validate_serialized_scorer_payload blocks decorator scorers with call_source via mlflow/genai/scorers/scorer_utils.py:custom_scorer_execution_blocked unless the MLFLOW_SERVER_ENABLE_CUSTOM_SCORERS environment variable is set. This execution guard recurses into ensemble sub-scorers, whereas third-party egress overrides in _validate_third_party_scorer_data remain unconditionally rejected to prevent SSRF vulnerabilities. The rule applies only to server-side registration and invoke endpoints, leaving client-side validation in _check_can_be_registered separate.",
+  "saysFor": "s2:90ff21bf203065b7e4f2e0d9dfc4a249744d6bf52495b1c2eb4170e42ce77b47"
+}

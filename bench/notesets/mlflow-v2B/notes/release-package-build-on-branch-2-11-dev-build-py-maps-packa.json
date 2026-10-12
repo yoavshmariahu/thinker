@@ -1,0 +1,94 @@
+{
+  "id": "release-package-build-on-branch-2-11-dev-build-py-maps-packa",
+  "title": "Release package build on branch-2.11: dev/build.py maps --package-type onto the legacy setup.py via MLFLOW_SKINNY, and the release path must clear that variable",
+  "kind": "rule",
+  "answers": [
+    "Why does the mlflow/releases python.yml workflow build the wrong package name (mlflow-skinny instead of mlflow) for 2.11?",
+    "How is the mlflow-skinny package built on the 2.11 release branch?",
+    "Where is the 2.11 release wheel/sdist build entry point handled?",
+    "Why does dev/build.py build the wheel from the source tree before the sdist?"
+  ],
+  "body": "Path: dev/build.py:main and dev/build.py:parse_args receive `python dev/build.py --package-type <release|skinny>` from the mlflow/releases python.yml workflow on branch-2.11; dev/build.py:build runs `python -m build --wheel` then `python -m build --sdist` with the merged environment.\nRule: On the legacy single-setup.py layout, the package name is chosen by the MLFLOW_SKINNY env var, so `release` must pass MLFLOW_SKINNY as an empty string and `skinny` must pass \"1\" (dev/build.py:main). Build the wheel directly from the tree (not from the sdist) so setup.py package_data (JS UI, alembic/recipes) is bundled.\nSymptom: If the caller's environment had MLFLOW_SKINNY set to a non-empty value, a `release` run silently produced the mlflow-skinny package instead of the full mlflow package.\nConstraints: Applies only to the branch-2.11 release line. Empty string is falsey under setup.py's bool(os.environ.get(\"MLFLOW_SKINNY\")) check, which is why \"\" is used rather than deleting the key. The `release` path also refuses to run if mlflow/server/js/build is missing or empty (dev/build.py:main), so the UI must be built first. The --sha flag is accepted for interface parity and ignored. Does not apply to branch-2.13 (which delegates to dev/build.sh) or v3+ branches.",
+  "applies": "branch-2.11 release tooling only: dev/build.py as the workflow entry point, its MLFLOW_SKINNY handling and its wheel-then-sdist build order.",
+  "tags": [
+    "release",
+    "build",
+    "branch-2.11",
+    "setup.py",
+    "mlflow_skinny",
+    "mlflow-skinny",
+    "dev-tooling"
+  ],
+  "deps": [
+    {
+      "path": "dev/build.py",
+      "symbol": "main",
+      "hash": "sha256:a1dd8a3ce896ba7c7b8bd6fe",
+      "line": 89,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a1dd8a3ce896ba7c7b8bd6fe"
+    },
+    {
+      "path": "dev/build.py",
+      "symbol": "parse_args",
+      "hash": "sha256:89e6414f32a07d72d81cb280",
+      "line": 37,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:89e6414f32a07d72d81cb280",
+      "fanout": {
+        "files": 59,
+        "sites": 75,
+        "refs": 77
+      }
+    },
+    {
+      "path": "dev/build.py",
+      "symbol": "wheel",
+      "hash": "sha256:e2542fea3452b87125f7be0e",
+      "line": 130,
+      "missing": false,
+      "fanout": {
+        "files": 18,
+        "sites": 0,
+        "refs": 58
+      }
+    },
+    {
+      "path": "dev/build.py",
+      "symbol": "parse_args",
+      "hash": "sha256:89e6414f32a07d72d81cb280",
+      "line": 37,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:89e6414f32a07d72d81cb280",
+      "fanout": {
+        "files": 59,
+        "sites": 75,
+        "refs": 77
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26073"
+  },
+  "created": "2026-10-12T05:33:17.577Z",
+  "verified": "2026-10-12T05:33:17.577Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "release-package-build-on-branch-2-13-dev-build-py-shim-deleg"
+  ],
+  "says": [
+    "The release pipeline produced the lightweight package instead of the standard full package.",
+    "Full release build fails because the user interface assets have not been compiled yet.",
+    "Packaged release distribution is missing web frontend files and migration recipes.",
+    "Ensure automated publishing builds the complete application rather than the slimmed down distribution."
+  ],
+  "search": "On branch-2.11 release builds, dev/build.py handles --package-type by explicitly passing MLFLOW_SKINNY as an empty string for release packages or \"1\" for skinny packages. The build runs python -m build --wheel directly from the tree before building the sdist to bundle setup.py package_data like the JS UI and alembic recipes. The release build requires mlflow/server/js/build to exist and be non-empty, while --sha is accepted and ignored. This logic applies strictly to branch-2.11 and does not apply to branch-2.13 or v3+ branches.",
+  "saysFor": "s2:6f8a6dc9ec4a999ddb3b6872826eb5013286f110e8867022a5886f12747d3ba0"
+}

@@ -1,0 +1,56 @@
+{
+  "id": "retry-sh-rerun-notices-link-to-the-failed-run-attempt-attemp",
+  "title": "retry.sh rerun notices: link to the failed run attempt (/attempts/N), not the latest run",
+  "kind": "rule",
+  "answers": [
+    "Why do the rerun-failed-jobs notices in the CI retry workflow link to a run that has a different attempt than the one that failed?",
+    "How do I make the dry-run or notice output for protect.yml point at the right run attempt in retry.sh?",
+    "Where in the workflows is the retry notice URL built and how is the run attempt number passed to it?",
+    "Retry notice links from the CI retry script are missing the attempt suffix; what should the URL look like?"
+  ],
+  "body": "Path: .github/workflows/retry.sh:rerun handles the auto-retry of failed workflow runs for a commit. It reads eligible runs from the `runs` JSON via a jq TSV query (id, workflow, attempt) in the main loop, then either prints a dry-run line or calls `gh run rerun --failed` and emits a `::notice title=Rerun failed jobs::` annotation with the run link.\nRule: Carry the run `attempt` through the TSV row, the while-read loop, and every `rerun` call (including the deferred protect.yml call), and build both the dry-run echo and the notice URL as `https://github.com/$repository/actions/runs/$1/attempts/$3`. A run-level URL without `/attempts/N` resolves to the latest attempt, which may not be the attempt that actually failed and triggered the retry.\nSymptom: A retry notice in a GitHub Actions run linked to the run page, which showed the newest attempt rather than the failed attempt that caused the retry, so the reader could not see the failing jobs the notice referred to.\nConstraints: Applies to any new notice or dry-run line that points at a rerun target in this script. The protect.yml branch stores protect_attempt separately and must pass it too; it was previously the only path skipped by the attempt. Does not change the `gh run rerun` invocation itself, which still reruns failed jobs only.",
+  "applies": "Scope: the rerun/notice/dry-run output in .github/workflows/retry.sh; not the gh CLI behavior or other workflows.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "retry",
+    "workflow",
+    "notices"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/retry.sh",
+      "hash": "sha256:fef211e1be0d4b81d0106e16",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/retry.sh",
+      "hash": "sha256:fef211e1be0d4b81d0106e16",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26169"
+  },
+  "created": "2026-10-12T05:32:22.366Z",
+  "verified": "2026-10-12T05:32:22.366Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "copilot-pr-scheduled-ci-retry-pr-selection-lives-in-retry-ym",
+    "retry-sh-check-suite-rollup-github-managed-dynamic-runs-are",
+    "retry-sh-rollup-keep-only-the-latest-run-per-workflow-and-ev",
+    "retry-sh-rerun-ordering-protect-is-submitted-last-only-after"
+  ],
+  "says": [
+    "Clicking the retry notice opens the newest run attempt rather than the failed one.",
+    "The rerun notification link shows the latest execution instead of the failing attempt.",
+    "Update rerun notices so their links point directly to the failed attempt number.",
+    "Developers cannot see which jobs failed because the rerun notice points to the wrong attempt."
+  ],
+  "search": "In .github/workflows/retry.sh, rerun notice annotations and dry-run log lines must include the attempt number in the run URL as https://github.com/$repository/actions/runs/$1/attempts/$3 instead of resolving to the latest run attempt. The run attempt is parsed from the runs jq query and propagated through the TSV row, the while-read loop, and rerun calls including protect.yml via protect_attempt. This rule applies only to notice and dry-run output in retry.sh without modifying the gh run rerun command or other workflows.",
+  "saysFor": "s2:83d085da453c32c0c628e92779dc071fe1bac90838fa7f119cd798729dac024a"
+}

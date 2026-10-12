@@ -1,0 +1,128 @@
+{
+  "id": "prompt-cache-load-prompt-promptcache-entries-are-scoped-by-r",
+  "title": "Prompt cache (load_prompt, PromptCache): entries are scoped by resolved registry URI and active workspace, and mutations invalidate only their own scope",
+  "kind": "rule",
+  "answers": [
+    "Loading the same prompt name from two registries in one process returns the first registry's template from cache without contacting the second registry",
+    "After loading a prompt in one workspace, why does a load in another workspace on the same registry return the wrong version?",
+    "Where is the prompt cache key built, and which registry URI does load_prompt use for cache lookups?",
+    "When I add a new prompt mutation that changes an alias or version, which registry_uri should I pass to PromptCache invalidation?"
+  ],
+  "body": "Path: Prompt cache used by MlflowClient.load_prompt (prompts:/name/version and prompts:/name@alias URIs with cache_ttl_seconds) and by prompt mutations in MlflowClient (register_prompt, set_prompt_alias, delete_prompt_alias, set/delete_prompt_version_tag, delete_prompt_version, delete_prompt). Chokepoint is mlflow/prompt/registry_utils.py:PromptCache, keyed by mlflow/prompt/registry_utils.py:PromptCacheKey.\nRule: PromptCacheKey.from_parts and from_uri require a keyword registry_uri. They store a SHA-256 registry_namespace of that URI plus workspace from get_request_workspace(), alongside name, version and alias. MlflowClient passes self._registry_uri to every PromptCache get/set/delete/delete_all call in mlflow/tracking/client.py. PromptCache.delete_all matches on registry_namespace, workspace and name, so invalidating one registry or workspace leaves other scopes' entries intact. Invalidation runs after the registry call returns, so a mutation that raises leaves cached entries in place.\nSymptom: In an app that talks to more than one prompt registry, or to several workspaces on the same registry URI, one scope's prompt template or version was served to another scope from the process-wide cache with no registry request. Alias changes in one scope also failed to refresh the other scope correctly.\nConstraints: TTL and cache-reuse behavior are unchanged. The namespace is a hash, so raw registry URIs (which may contain credentials) do not appear in key repr. Passing registry_uri=None raises ValueError, so the URI must be resolved before any cache access. The cache is in-process only. Any new prompt mutation that changes what a name/version/alias resolves to must call PromptCache invalidation with the same registry_uri=self._registry_uri scope.",
+  "applies": "Changes to prompt loading, prompt caching, or prompt mutations that touch the prompt cache in mlflow/prompt/registry_utils.py or MlflowClient prompt methods.",
+  "tags": [
+    "prompts",
+    "prompt-registry",
+    "cache",
+    "workspaces",
+    "registry-uri"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/prompt/registry_utils.py",
+      "symbol": "PromptCacheKey",
+      "hash": "sha256:f74fe8617006a6fa56da1623",
+      "line": 36,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f74fe8617006a6fa56da1623",
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 53
+      }
+    },
+    {
+      "path": "mlflow/prompt/registry_utils.py",
+      "symbol": "PromptCache",
+      "hash": "sha256:68e7895635bd0621346f6063",
+      "line": 354,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:68e7895635bd0621346f6063",
+      "fanout": {
+        "files": 6,
+        "sites": 0,
+        "refs": 59
+      }
+    },
+    {
+      "path": "mlflow/tracking/client.py",
+      "symbol": "MlflowClient.load_prompt",
+      "hash": "sha256:242d7af2c2842d8482b8d159",
+      "line": 993,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:242d7af2c2842d8482b8d159",
+      "fanout": {
+        "files": 23,
+        "sites": 239,
+        "refs": 274
+      }
+    },
+    {
+      "path": "mlflow/tracking/client.py",
+      "symbol": "MlflowClient.set_prompt_alias",
+      "hash": "sha256:b6999525ffe8de9cb222286a",
+      "line": 1265,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b6999525ffe8de9cb222286a",
+      "fanout": {
+        "files": 12,
+        "sites": 31,
+        "refs": 39
+      }
+    },
+    {
+      "path": "mlflow/prompt/registry_utils.py",
+      "symbol": "PromptCacheKey.from_parts",
+      "hash": "sha256:e6f48fa327618afb855dede7",
+      "line": 53,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e6f48fa327618afb855dede7",
+      "fanout": {
+        "files": 3,
+        "sites": 44,
+        "refs": 44
+      }
+    },
+    {
+      "path": "mlflow/prompt/registry_utils.py",
+      "symbol": "PromptCache.delete_all",
+      "hash": "sha256:54a740f2495f6f20894eb37c",
+      "line": 443,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:54a740f2495f6f20894eb37c",
+      "fanout": {
+        "files": 2,
+        "sites": 7,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26066"
+  },
+  "created": "2026-10-12T05:33:37.234Z",
+  "verified": "2026-10-12T05:33:37.234Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "prompt-source-placeholders-client-store-and-server-allowlist"
+  ],
+  "says": [
+    "Switching between workspaces shows cached prompt templates from the previous workspace.",
+    "Loading a prompt from another registry returns the template cached by the first registry.",
+    "Updating a prompt alias in one environment serves the wrong version in another.",
+    "Prompt versions should stay isolated when switching between multiple workspaces.",
+    "Changing an alias on a prompt should only invalidate cache in the current workspace."
+  ],
+  "search": "Prompt cache entries in PromptCache and PromptCacheKey are scoped by a SHA-256 registry namespace hash of registry_uri plus the workspace from get_request_workspace(). MlflowClient passes self._registry_uri to PromptCache methods, and delete_all matches on registry_namespace, workspace, and name so mutations invalidate only their own scope. Invalidation runs only after a registry call returns, while passing registry_uri=None raises ValueError. The cache is in-process only, and any new prompt mutation altering name, version, or alias resolution must call invalidation using the resolved registry_uri scope.",
+  "saysFor": "s2:5b230eea1c598c34023de59e80c014b27305a3b3767703d8ec60fee50ce10af5"
+}

@@ -1,0 +1,94 @@
+{
+  "id": "mlflow-server-basic-auth-startup-validate-mlflow-flask-serve",
+  "title": "mlflow server basic-auth startup: validate MLFLOW_FLASK_SERVER_SECRET_KEY in the parent process before any worker spawns",
+  "kind": "rule",
+  "answers": [
+    "mlflow server --app-name basic-auth keeps restarting workers and never exits with an error; what's wrong?",
+    "Where is the basic-auth CSRF secret key checked when the server starts?",
+    "How do I add another required basic-auth setting so the server fails once instead of crash-looping?",
+    "Why does create_app still raise when the app is run under waitress or gunicorn without the secret key?"
+  ],
+  "body": "Path: `mlflow server` CLI startup for the basic-auth app (`mlflow/server/__init__.py:_bootstrap_basic_auth`, called from `_run_server` before uvicorn workers are spawned) and the per-worker Flask factory `mlflow/server/auth/__init__.py:create_app`, which also runs for waitress, gunicorn, tests and embedding.\nRule: the required secret key check lives in `mlflow/server/auth/__init__.py:get_flask_server_secret_key`; `_bootstrap_basic_auth` calls it first, then `bootstrap_admin_user`, so a misconfigured server fails in the parent process before any worker is spawned. `create_app` calls the same helper for `app.secret_key`, so the factory stays safe outside the CLI. For a new required basic-auth setting, add a similar validator and call it from the same pre-flight, keeping the cheap checks before the admin bootstrap.\nSymptom: `mlflow server --app-name basic-auth` without `MLFLOW_FLASK_SERVER_SECRET_KEY` raised `MlflowException` inside `create_app` in every worker; the uvicorn supervisor restarted each crashed worker indefinitely, so the command never exited and the real error was buried under repeated tracebacks.\nConstraints: applies to the `basic-auth` app only; the default app skips `bootstrap_admin_user` and does not need the key. The pre-flight tests in `tests/server/test_init.py` must set `MLFLOW_FLASK_SERVER_SECRET_KEY` to exercise the admin bootstrap path. The `mlflow.server.auth` import requires the optional `auth` extra, so it is imported inside the function.",
+  "applies": "Startup of `mlflow server` with `--app-name basic-auth`, and any change to basic-auth configuration validation or `create_app`.",
+  "tags": [
+    "server",
+    "auth",
+    "basic-auth",
+    "startup",
+    "secret-key",
+    "cli"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/__init__.py",
+      "symbol": "_bootstrap_basic_auth",
+      "hash": "sha256:9f16b2ff83d01eaa73177535",
+      "line": 330,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9f16b2ff83d01eaa73177535",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "get_flask_server_secret_key",
+      "hash": "sha256:22e2d87a63537076ff18a86c",
+      "line": 6209,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:22e2d87a63537076ff18a86c",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "create_app",
+      "hash": "sha256:5aa317a1b2050f4bf7ecbbab",
+      "line": 6229,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5aa317a1b2050f4bf7ecbbab",
+      "fanout": {
+        "files": 7,
+        "sites": 0,
+        "refs": 16
+      }
+    },
+    {
+      "path": "tests/server/test_init.py",
+      "hash": "sha256:22affe57cf790c4796b02bf7",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25754"
+  },
+  "created": "2026-10-12T05:40:16.862Z",
+  "verified": "2026-10-12T05:40:16.862Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "basic-auth-admin-bootstrap-initial-admin-password-comes-only",
+    "basic-auth-legacy-admin-credential-password1234-is-rejected",
+    "gateway-model-listing-auth-get-gateway-mlflow-v1-models-requ",
+    "basic-auth-graphql-run-modelversions-nested-fields-need-a-pa"
+  ],
+  "says": [
+    "The authentication server crash loops indefinitely instead of exiting with a clear configuration error.",
+    "Starting the tracking service with user login enabled keeps restarting without showing why.",
+    "The secure server fails to start and buries the missing secret key error in logs.",
+    "Validate server security settings immediately so startup aborts cleanly when configuration is missing."
+  ],
+  "search": "During mlflow server startup with --app-name basic-auth, _bootstrap_basic_auth must validate MLFLOW_FLASK_SERVER_SECRET_KEY via get_flask_server_secret_key in the parent process before any uvicorn worker spawns. This pre-flight validation prevents infinite worker crash loops where missing secret keys cause repeated worker restarts that bury errors under supervisor tracebacks. The secret key check is also called within create_app for standalone WSGI servers like waitress or gunicorn, applying exclusively to basic-auth server deployments.",
+  "saysFor": "s2:2db45da252d913d06b7fd6ee5ea8f03d0b9089c48cb738d65adb6d4e40073c09"
+}

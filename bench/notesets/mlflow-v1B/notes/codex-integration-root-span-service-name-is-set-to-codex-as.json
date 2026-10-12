@@ -1,0 +1,52 @@
+{
+  "id": "codex-integration-root-span-service-name-is-set-to-codex-as",
+  "title": "Codex integration root span: service.name is set to codex as a span attribute in processNotify",
+  "kind": "rule",
+  "answers": [
+    "How do I identify the Codex agent in OpenTelemetry service name on traces?",
+    "Where is the root span for a Codex conversation created?",
+    "Why does my Codex trace root span have no service.name attribute?"
+  ],
+  "body": "Path: libs/typescript/integrations/codex/src/tracing.ts:processNotify handles each Codex notify payload (one conversation turn) and creates the root agent span named codex_conversation with the user prompt as inputs and the model attribute.\nRule: The root span's OpenTelemetry service.name is set by adding 'service.name': 'codex' to the root span's attributes alongside model, so the agent identifies itself to OTel-aware backends; any new root attribute for the Codex integration goes in the same attributes object.\nSymptom: Codex traces did not identify the Codex agent through service.name before this change.\nConstraints: Applies to the root span created in processNotify only; child spans and other integrations are not affected by this attribute.",
+  "applies": "Codex CLI tracing integration in libs/typescript/integrations/codex; not general MLflow span attributes.",
+  "tags": [
+    "codex",
+    "tracing",
+    "opentelemetry",
+    "service-name"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/integrations/codex/src/tracing.ts",
+      "symbol": "processNotify",
+      "hash": "sha256:7135c55820d0280643d69f4e",
+      "line": 49,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7135c55820d0280643d69f4e",
+      "fanout": {
+        "files": 4,
+        "sites": 10,
+        "refs": 19
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25825"
+  },
+  "created": "2026-10-12T05:44:54.413Z",
+  "verified": "2026-10-12T05:44:54.413Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Codex traces don't show which agent produced them in the service name field.",
+    "How do I set the OpenTelemetry service name for Codex conversation traces?",
+    "Codex root span is missing the service name attribute; where is it added?"
+  ],
+  "search": "Codex integration root span created in processNotify now carries service.name set to codex in the same attributes object as model. Applies only to the root span for each conversation turn, not child spans or other integrations.",
+  "saysFor": "s2:ee74ad3603b6878484f263740548cdbfc0bccc57e9c9a993414281991b3067ad"
+}

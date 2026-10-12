@@ -1,0 +1,55 @@
+{
+  "id": "typescript-packages-engines-node-floor-must-rise-with-databr",
+  "title": "TypeScript packages: engines.node floor must rise with @databricks/sdk-experimental, keeping package engines and README in sync",
+  "kind": "rule",
+  "answers": [
+    "Installing @mlflow/core on Node 20 gives an engine incompatibility after the Databricks SDK upgrade",
+    "What Node.js version does the MLflow TypeScript SDK require?",
+    "Where is the Node engine declared for the Codex, OpenAI or Gemini integrations?"
+  ],
+  "body": "Path: Node.js engine requirements are declared in the \"engines\" field of each libs/typescript package.json (core and the integrations such as codex, openai, gemini, claude-code, vercel, opencode, openclaw, qwen-code) and in the Node requirement note in libs/typescript/README.md. @mlflow/core pulls in @databricks/sdk-experimental as a runtime dependency.\nRule: When upgrading @databricks/sdk-experimental to 0.18.0, which declares node >=22 in the lockfile, raise engines.node to >=22 in core and every integration package and update the README note to match, so the declared floor matches the transitive requirement.\nSymptom: Consumers on Node 18 or 20 would install a dependency whose engine requirement they do not meet, which can fail or warn at install time.\nConstraints: The >=22 requirement was read from package-lock.json in review. Verify the engine of any newer SDK version before copying this floor. Lowering the floor is not possible while the SDK requires 22.",
+  "applies": "Any change to the Node engine floor or to a dependency that raises its own Node requirement in libs/typescript.",
+  "tags": [
+    "node",
+    "engines",
+    "dependencies",
+    "databricks",
+    "packaging"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/core/package.json",
+      "hash": "sha256:596a2b9df2aa716bfbb88d69",
+      "missing": false
+    },
+    {
+      "path": "libs/typescript/README.md",
+      "hash": "sha256:385e2f6ac5d63a897524f89a",
+      "missing": false
+    },
+    {
+      "path": "libs/typescript/integrations/codex/package.json",
+      "hash": "sha256:f462b355e1f52972f4c83bc6",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25823"
+  },
+  "created": "2026-10-12T05:31:27.660Z",
+  "verified": "2026-10-12T05:31:27.660Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Package installation shows unsupported environment warnings when installing dependencies on older runtime versions.",
+    "The setup documentation specifies an outdated minimum runtime version that fails during installation.",
+    "Update getting started prerequisites to clearly require modern runtime environments across all packages.",
+    "Ensure the installer engine requirements match the actual platform dependencies to prevent setup errors."
+  ],
+  "search": "Upgrading @databricks/sdk-experimental to 0.18.0 requires raising the engines.node floor to >=22 across all libs/typescript package.json manifests and libs/typescript/README.md. This applies to core and all integration packages including codex, openai, gemini, claude-code, vercel, opencode, openclaw, and qwen-code. Keeping declared package engine constraints in sync with transitive requirements avoids installation failures and incompatibility warnings on Node 18 and 20. The engine requirement cannot be lowered below 22 while the underlying Databricks SDK dependency requires it.",
+  "saysFor": "s2:dae57bdf549084882c17c71c33f57a639d6a97c334295a4d7c7c62e2092dfce6"
+}

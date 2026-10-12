@@ -1,0 +1,101 @@
+{
+  "id": "telemetry-events-import-env-pack-lazily-inside-parse-and-env",
+  "title": "telemetry events: import env_pack lazily inside parse() and env_pack functions to avoid an events -> env_pack -> models.model import cycle",
+  "kind": "rule",
+  "answers": [
+    "Why does importing mlflow.telemetry.events fail with a circular import after adding a new event?",
+    "Where does RegisterModelEvent get the EnvPackType values without causing an import cycle?",
+    "How do I add a telemetry event that depends on a model or utils module without breaking imports?"
+  ],
+  "body": "Path: mlflow/telemetry/events.py:RegisterModelEvent.parse needs mlflow/utils/env_pack.py:EnvPackType to validate the env_pack value. env_pack imports models code, and models code imports telemetry events, so a top-level import would close a cycle.\nRule: Put imports that reach mlflow.utils.env_pack or mlflow.models inside the function that needs them (for example the first line of RegisterModelEvent.parse and the telemetry import inside mlflow/utils/env_pack.py:pack_env_for_databricks_model_serving). Keep module-level imports in events.py limited to the modules that do not create the cycle.\nSymptom: Adding a top-level import of env_pack into events.py causes import errors at package import time, before any telemetry call runs.\nConstraints: Lazy imports add a small cost on each call, which is acceptable for telemetry parse paths. mlflow/models/model.py imports LogModelEvent at module level without issue because events.py does not import models.",
+  "applies": "Edits to mlflow/telemetry/events.py or mlflow/utils/env_pack.py that add imports between telemetry and model or utils modules.",
+  "tags": [
+    "telemetry",
+    "import-cycle",
+    "env-pack",
+    "models"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/telemetry/events.py",
+      "symbol": "RegisterModelEvent",
+      "hash": "sha256:e58242433818cc5d6597c4d0",
+      "line": 297,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e58242433818cc5d6597c4d0",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/utils/env_pack.py",
+      "symbol": "pack_env_for_databricks_model_serving",
+      "hash": "sha256:991b513c663926e1e506d3fd",
+      "line": 117,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:991b513c663926e1e506d3fd",
+      "fanout": {
+        "files": 4,
+        "sites": 15,
+        "refs": 23
+      }
+    },
+    {
+      "path": "mlflow/telemetry/events.py",
+      "symbol": "RegisterModelEvent.parse",
+      "hash": "sha256:78e080025e58fbe9c124dbaa",
+      "line": 301,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:78e080025e58fbe9c124dbaa",
+      "fanout": {
+        "files": 210,
+        "sites": 172,
+        "refs": 566
+      }
+    },
+    {
+      "path": "mlflow/utils/env_pack.py",
+      "symbol": "EnvPackType",
+      "hash": "sha256:6a80a942f162b509d051e8a4",
+      "line": 22,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 7
+      }
+    },
+    {
+      "path": "mlflow/models/model.py",
+      "hash": "sha256:04e17819f64bb3455cca1446",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25923"
+  },
+  "created": "2026-10-12T05:35:48.894Z",
+  "verified": "2026-10-12T05:35:48.894Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "telemetry-event-parameters-log-model-register-model-env-pack",
+    "env-pack-telemetry-record-success-before-the-yield-in-pack-e"
+  ],
+  "says": [
+    "Importing the machine learning package fails on startup with a circular dependency error.",
+    "Registering a trained model crashes immediately when validating model serving environments.",
+    "Model registry tools fail to load because of an initialization loop in telemetry.",
+    "Ensure model packaging and registry operations can be imported without startup crashes."
+  ],
+  "search": "Telemetry events avoid circular imports by importing mlflow.utils.env_pack and mlflow.models lazily inside functions like RegisterModelEvent.parse and pack_env_for_databricks_model_serving instead of at module level. This applies to edits in mlflow/telemetry/events.py and mlflow/utils/env_pack.py where RegisterModelEvent.parse needs EnvPackType to validate env_pack, but env_pack imports models which imports telemetry events. Module-level imports in events.py must avoid closing the cycle, lazy imports incur an acceptable per-call cost, and mlflow/models/model.py may import LogModelEvent at module level because events.py does not import models.",
+  "saysFor": "s2:979618ab3dee30e3bc5910ae922a562f4690fda83f5afdac3fe05c734d00b143"
+}

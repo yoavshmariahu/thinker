@@ -1,0 +1,59 @@
+{
+  "id": "protect-js-poll-cadence-the-first-two-sleeps-after-the-immed",
+  "title": "protect.js poll cadence: the first two sleeps after the immediate sweep are 15s regardless of pending jobs, then 30s or 5 minutes by pending count",
+  "kind": "rule",
+  "answers": [
+    "Why does the Protect check now recheck after 15 seconds even when only a few jobs are pending?",
+    "Where is the polling interval for the Protect workflow chosen, and how many sleeps are short?",
+    "Why did the fast 5-second polling for PRs with five or fewer pending jobs disappear?",
+    "Protect check is slow to fail or pass on a busy PR; what controls how often it re-polls?"
+  ],
+  "body": "Path: .github/workflows/protect.js:getSleepLength is the sleep-interval chooser for the Protect check-polling loop in the Copilot/CI protect workflow; it takes the loop's iterationCount and the number of pending jobs and returns the milliseconds to wait before the next fetchChecks sweep.\nRule: in getSleepLength, return 15 * 1000 whenever iterationCount <= 2, independent of numPendingJobs; for later iterations keep the existing (numPendingJobs <= 7 ? 30 : 5 * 60) * 1000 choice. The earlier shortcut that gave 5s only when both iterationCount <= 5 and numPendingJobs <= 5 is removed, so the pending-job count no longer shortens the early cadence.\nConstraints: this sets the cadence only; it does not change pass/fail logic or what fetchChecks reads. Each sweep can make several paginated GitHub API calls (workflow runs plus jobs per run), and a review on this PR flagged that the 15s early polls add API pressure on busy PRs and raise rate-limit exhaustion risk; that trade-off was accepted for earlier failure detection. A review comment also said the code polls every 10s for three sweeps, which does not match this diff or the PR description (15s, two polls); treat the diff as the source of truth and verify before changing either the code or the description. Applies only to protect.js polling, not to other workflows' retry timing.",
+  "applies": "Any change to how the Protect check-polling script in .github/workflows waits between sweeps, or to how many early sweeps happen before the 30s/5min backoff.",
+  "tags": [
+    "github-actions",
+    "protect",
+    "polling",
+    "rate-limit",
+    "ci"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/protect.js",
+      "symbol": "getSleepLength",
+      "hash": "sha256:8cbb87c34baee8bbbd0eabd4",
+      "line": 1,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8cbb87c34baee8bbbd0eabd4",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25656"
+  },
+  "created": "2026-10-12T05:47:04.264Z",
+  "verified": "2026-10-12T05:47:04.264Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "protect-workflow-check-status-logging-print-checks-sorted-by",
+    "protect-js-check-status-logging-keep-a-github-skipped-conclu",
+    "protect-workflow-rate-limit-logging-read-x-ratelimit-remaini"
+  ],
+  "says": [
+    "Pull request protection checks take too long to detect early test suite failures.",
+    "Why did the fast initial five second polling on pull requests change to fifteen?",
+    "Status check polling causes high API usage on pull requests with many pending jobs.",
+    "Adjust how frequently the protection workflow rechecks pending pull request job statuses."
+  ],
+  "search": "In .github/workflows/protect.js:getSleepLength, the check-polling loop sets the first two sleep intervals (iterationCount <= 2) to 15 seconds regardless of numPendingJobs, before backing off to 30 seconds (if numPendingJobs <= 7) or 5 minutes. This eliminates the previous 5-second polling shortcut that applied when iterationCount <= 5 and numPendingJobs <= 5, trading increased GitHub API pressure and rate-limit risk for faster failure detection. This guidance sets the cadence only and does not alter fetchChecks queries or pass/fail gating logic.",
+  "saysFor": "s2:770d618a04d1e9342df5a02809a7c87038aad82ad0a084a40b80e595e93e2b72"
+}

@@ -1,0 +1,70 @@
+{
+  "id": "generated-serving-dockerfile-apt-socket-timeouts-and-retries",
+  "title": "Generated serving Dockerfile: apt socket timeouts and retries are injected only for MLflow-managed base images",
+  "kind": "rule",
+  "answers": [
+    "Serving image build hangs forever on a stalled Ubuntu or Debian package mirror. How do I make apt fail and retry?",
+    "Where do the apt timeout or retry settings for generated model-serving Dockerfiles come from?",
+    "Why does my custom base image Dockerfile still hang on apt-get update when MLflow builds the serving image?",
+    "How do I change the apt config MLflow writes into a generated serving Dockerfile, and which fixtures must match?"
+  ],
+  "body": "Path: mlflow/models/docker_utils.py:generate_dockerfile builds the Dockerfile for model serving images (the nginx-only python-slim path and the UBUNTU_BASE_IMAGE path). Its apt setup steps for those MLflow-controlled base images pass through the snippet SETUP_APT_TIMEOUTS.\nRule: SETUP_APT_TIMEOUTS writes /etc/apt/apt.conf.d/99-mlflow-timeouts with Acquire::http::Timeout \"30\", Acquire::https::Timeout \"30\" and Acquire::Retries \"3\", and is prepended before the apt-get update/install RUN in each MLflow-controlled branch of generate_dockerfile. Any change to these settings belongs in that constant, and the generated output in tests/resources/dockerfile/Dockerfile_* must be updated to match, since the tests compare against those fixtures.\nSymptom: a generated serving-image build stalled indefinitely when a package mirror accepted the connection and stopped sending data, because apt has no default socket timeout and never reached its retry logic.\nConstraints: applies only to base images MLflow controls (python slim and UBUNTU_BASE_IMAGE). Caller-supplied custom base images get no injected apt config and remain unchanged. Escaping matters: the Python string uses doubled backslashes (\\\\n, \\\\) so the emitted Dockerfile contains a single \\n and line continuations.",
+  "applies": "Generated model-serving Dockerfiles built by mlflow/models/docker_utils.py; not custom user base images and not other apt usage in the repo.",
+  "tags": [
+    "docker",
+    "serving",
+    "apt",
+    "dockerfile",
+    "model-serving",
+    "timeouts"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/models/docker_utils.py",
+      "symbol": "SETUP_APT_TIMEOUTS",
+      "hash": "sha256:9986295cad44e47cd81b104a",
+      "line": 73,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/models/docker_utils.py",
+      "symbol": "generate_dockerfile",
+      "hash": "sha256:11eeecec3437c71784a70b14",
+      "line": 92,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:11eeecec3437c71784a70b14",
+      "fanout": {
+        "files": 4,
+        "sites": 6,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25800"
+  },
+  "created": "2026-10-12T05:39:55.585Z",
+  "verified": "2026-10-12T05:39:55.585Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "generated-serving-dockerfile-java-setup-install-openjdk-ver"
+  ],
+  "says": [
+    "Building a model serving container hangs indefinitely while downloading operating system packages.",
+    "Add connection timeouts and automatic retries to package installation during container creation.",
+    "Serving container builds using custom base images still freeze during package updates.",
+    "Model deployment builds stall forever when an external software mirror stops responding."
+  ],
+  "search": "Generated model serving Dockerfile creation in mlflow/models/docker_utils.py:generate_dockerfile injects apt socket timeouts and retries via SETUP_APT_TIMEOUTS for MLflow-managed base images. The configuration writes Acquire::http::Timeout and Acquire::https::Timeout to 30 seconds and Acquire::Retries to 3 in /etc/apt/apt.conf.d/99-mlflow-timeouts before package installations. Changes require updating pinned test fixtures in tests/resources/dockerfile/Dockerfile_*, and the injection does not apply to user-supplied custom base images.",
+  "saysFor": "s2:32cab383654ae0e51bc633cecb5c2ec4e8d36dd6c50fd268c75d5174331a5535"
+}

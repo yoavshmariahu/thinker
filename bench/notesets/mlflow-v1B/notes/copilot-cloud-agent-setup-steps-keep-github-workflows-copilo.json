@@ -1,0 +1,47 @@
+{
+  "id": "copilot-cloud-agent-setup-steps-keep-github-workflows-copilo",
+  "title": "Copilot cloud agent setup steps: keep .github/workflows/copilot-setup-steps.yml as a flat list of run/uses steps, no parallel: groups",
+  "kind": "rule",
+  "answers": [
+    "Copilot cloud agent sessions fail with 'Failed to launch agent' in about 2 seconds and produce no session logs after a workflow change",
+    "Why does the copilot-setup-steps workflow break when I add a parallel: block to speed up setup?",
+    "Where are the Copilot cloud agent environment setup steps defined in this repo?",
+    "How do I add a cache restore or setup action to the Copilot agent's pre-session steps?"
+  ],
+  "body": "Path: .github/workflows/copilot-setup-steps.yml, the job that Copilot cloud agent sessions read from the default branch to prepare their environment (setup-node, setup-python, setup-java, cache restores, pre-commit and install-bin caches, lint dependency install).\nRule: The Copilot launcher splices these steps into its own job, so every entry must be a plain `run` or `uses` step. Do not use a `parallel:` group (or any other non-run/uses construct); flatten parallel work into sequential steps. Cache restores and `pin-micro-version: false` on setup-python can stay as ordinary step `with:` inputs.\nSymptom: Cloud agent sessions failed in about 2s with 'Failed to launch agent', with no session logs and no 'Running Copilot cloud agent' run. Introduced when a `parallel:` group was added to this file.\nConstraints: Applies to edits of copilot-setup-steps.yml. Ordinary CI runs this file as a normal workflow and stays green even when the launcher would reject it, so a green CI does not prove sessions will launch.",
+  "applies": "Edits to the Copilot cloud agent setup workflow file; does not cover other GitHub Actions workflows.",
+  "tags": [
+    "github-actions",
+    "copilot",
+    "cloud-agent",
+    "ci",
+    "regression"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/copilot-setup-steps.yml",
+      "hash": "sha256:aeb92149234e2c7264f2ae52",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25545"
+  },
+  "created": "2026-10-12T05:41:50.739Z",
+  "verified": "2026-10-12T05:41:50.739Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The cloud coding agent fails immediately on launch with no session logs.",
+    "Why do agent sessions crash instantly with a failed to launch message?",
+    "Add cache restoration and environment setup steps before the cloud agent starts.",
+    "Cloud agent sessions fail to start after changing the environment preparation steps.",
+    "Investigate why the automated assistant crashes within seconds before running any tasks."
+  ],
+  "search": "Copilot cloud agent environment preparation in .github/workflows/copilot-setup-steps.yml must remain a flat sequential list of run or uses steps without parallel: groups because the launcher splices them directly into its job. Prepares the environment using setup-node, setup-python (supporting pin-micro-version: false), setup-java, cache restores, and lint dependency installation. Applies strictly to copilot-setup-steps.yml, where using parallel blocks causes agent launches to fail within seconds with 'Failed to launch agent', while standard CI remains green and masks the failure.",
+  "saysFor": "s2:7a1b342cb18e610646f97cc0ef06a4c40692b348eb3aa6eeceef988218d23494"
+}

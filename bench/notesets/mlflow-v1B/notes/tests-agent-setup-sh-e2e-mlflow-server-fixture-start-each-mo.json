@@ -1,0 +1,59 @@
+{
+  "id": "tests-agent-setup-sh-e2e-mlflow-server-fixture-start-each-mo",
+  "title": "tests/agent setup.sh E2E mlflow_server fixture: start each module's server from a copy of session cached_db, not a fresh migration",
+  "kind": "rule",
+  "answers": [
+    "Flaky CI: setup.sh remote-setup E2E tests fail because the MLflow server never becomes ready within the timeout",
+    "Where is the MLflow server used by the setup.sh remote-setup tests started, and which database does it use?",
+    "How do I add another setup.sh E2E test that needs a running MLflow tracking server with a database?",
+    "Why does each E2E test module get its own SQLite database and artifact root for the MLflow server?"
+  ],
+  "body": "Path: tests/agent/test_setup_sh_e2e.py:mlflow_server is the module-scoped fixture that launches a real, unauthenticated `mlflow server` subprocess for the setup.sh remote-setup E2E tests and yields its base URL; it is the chokepoint for every test in that module that needs a live tracking server.\nRule: Seed the per-server database by copying the session-cached, pre-migrated SQLite file (`cached_db` fixture parameter) to `tmp_path / \"mlflow.db\"` with `shutil.copy2` before the process starts, instead of letting the server run schema migrations on an empty DB. Keep artifacts in a per-server `tmp_path / \"artifacts\"` directory passed as `--default-artifact-root`, and keep the existing readiness and cleanup logic unchanged. Pass `db_path` into `--backend-store-uri=sqlite:///{db_path}`.\nSymptom: Remote-setup E2E tests intermittently failed because the server's first-run migrations were slow under CI load and exhausted the readiness timeout, so the server was never reachable and the test failed before any setup.sh assertion ran.\nConstraints: Applies to fixtures that start a server against SQLite in tests/agent. The copy only avoids migration time if `cached_db` already holds the migrated schema; each module still gets its own DB file and artifact root so tests do not share state. Does not change product server code or the non-E2E tests.",
+  "applies": "Applies to the module-scoped MLflow server fixture used by tests/agent/test_setup_sh_e2e.py; not to product server startup or other test directories.",
+  "tags": [
+    "tests",
+    "agent",
+    "setup.sh",
+    "e2e",
+    "flaky",
+    "ci",
+    "sqlite",
+    "mlflow-server",
+    "fixture"
+  ],
+  "deps": [
+    {
+      "path": "tests/agent/test_setup_sh_e2e.py",
+      "symbol": "mlflow_server",
+      "hash": "sha256:f1e57428fb78bc907903cfa6",
+      "line": 90,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f1e57428fb78bc907903cfa6",
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 110
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25757"
+  },
+  "created": "2026-10-12T05:40:18.246Z",
+  "verified": "2026-10-12T05:40:18.246Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Flaky setup.sh remote-setup E2E tests time out waiting for the MLflow server",
+    "MLflow server in setup.sh E2E tests never becomes ready within timeout",
+    "Seed the E2E test server database from the cached migrated SQLite file",
+    "Adding a setup.sh E2E test that needs a running MLflow tracking server"
+  ],
+  "search": "setup.sh remote-setup E2E module-scoped mlflow_server fixture: seed each server's SQLite database by copying the session-cached pre-migrated file instead of running migrations on an empty DB. Each module keeps its own database file and artifact root. Readiness and cleanup logic stay unchanged; does not affect product server code or non-E2E tests.",
+  "saysFor": "s2:c9b65dea94ccc3053f1b22bbabbe39b4cf081282907ea31fde8fda18ea9f9c04"
+}

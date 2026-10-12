@@ -1,0 +1,114 @@
+{
+  "id": "mistral-and-groq-autologging-inject-active-span-traceparent",
+  "title": "Mistral and Groq autologging: inject active span traceparent into SDK request headers, caller headers take precedence",
+  "kind": "rule",
+  "answers": [
+    "Why does my AI Gateway span not appear under the MLflow trace for a Mistral or Groq call?",
+    "Why is token usage counted twice when Groq requests go through the gateway with autologging on?",
+    "Does Mistral autologging overwrite a custom http_headers value I pass to chat.complete?",
+    "Where are the tracing headers merged into Groq extra_headers?"
+  ],
+  "body": "Path: Autologging wrappers for Mistral chat.complete / complete_async (mlflow/mistral/autolog.py:patched_class_call, async_patched_class_call) and Groq chat.completions.create (mlflow/groq/_groq_autolog.py:patched_call). Every SDK call made while autolog is enabled passes through the per-file _inject_tracing_headers helper, including calls that already carry user http_headers or extra_headers.\nRule: Before calling the original SDK method, merge the header dict from mlflow/tracing/distributed.py:_get_tracing_headers_from_span(span) with the caller's dict as `tracing_headers | dict(existing)`, so caller keys win. Write the merged dict to a new kwargs entry (Mistral: `http_headers`, Groq: `extra_headers`) instead of mutating the user's dict. Do this after the span inputs are captured, so span.inputs keeps the user's headers and never shows traceparent. Wrap the merge in try/except with a debug log so header injection cannot break the SDK call.\nSymptom: AI Gateway spans did not join the client MLflow trace, and the gateway's token usage was counted alongside the client span's usage, so totals were doubled.\nConstraints: Injection happens only when a span exists and produces headers; Mistral's helper returns early when span is None. A custom user header (e.g. X-Custom) is preserved in the outgoing request. The traceparent sampling flag is not stored on the span, so tests compare only the trace and span IDs.",
+  "applies": "Applies to mlflow/mistral and mlflow/groq autologging request paths; the same merge pattern fits any autologged SDK that accepts per-request headers.",
+  "tags": [
+    "tracing",
+    "autologging",
+    "mistral",
+    "groq",
+    "distributed-tracing",
+    "headers"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/groq/_groq_autolog.py",
+      "symbol": "_inject_tracing_headers",
+      "hash": "sha256:0f941caca7df22c89e0d56d2",
+      "line": 61,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0f941caca7df22c89e0d56d2",
+      "fanout": {
+        "files": 5,
+        "sites": 7,
+        "refs": 8
+      }
+    },
+    {
+      "path": "mlflow/mistral/autolog.py",
+      "symbol": "_inject_tracing_headers",
+      "hash": "sha256:9098065d257e0a24f215a5ed",
+      "line": 122,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9098065d257e0a24f215a5ed",
+      "fanout": {
+        "files": 5,
+        "sites": 7,
+        "refs": 8
+      }
+    },
+    {
+      "path": "mlflow/mistral/autolog.py",
+      "symbol": "patched_class_call",
+      "hash": "sha256:e408e6e9896e32e1c8155d4d",
+      "line": 31,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e408e6e9896e32e1c8155d4d",
+      "fanout": {
+        "files": 8,
+        "sites": 1,
+        "refs": 19
+      }
+    },
+    {
+      "path": "mlflow/groq/_groq_autolog.py",
+      "symbol": "patched_call",
+      "hash": "sha256:eb158810bb21f242397f10ae",
+      "line": 29,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:eb158810bb21f242397f10ae",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 8
+      }
+    },
+    {
+      "path": "libs/typescript/core/src/core/entities/span.ts",
+      "symbol": "inputs",
+      "hash": "sha256:6d5d93020e25da0adcd95027",
+      "line": 61,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6d5d93020e25da0adcd95027",
+      "fanout": {
+        "files": 244,
+        "sites": 8,
+        "refs": 1143
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26177"
+  },
+  "created": "2026-10-12T05:32:24.691Z",
+  "verified": "2026-10-12T05:32:24.691Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "autologging-safety-validation-kwargs-that-autolog-rewrites-m"
+  ],
+  "says": [
+    "Token usage counts are doubled when routing logged Groq requests through AI Gateway.",
+    "Gateway traces fail to connect to client traces during automated logging of model calls.",
+    "Automatic tracing overwrites custom HTTP headers supplied in Mistral chat completion requests.",
+    "Link AI Gateway call spans directly under the main application trace for autologged requests."
+  ],
+  "search": "Autologging wrappers for Mistral and Groq must inject span traceparent headers into request kwargs while preserving caller-provided headers. Missing trace headers caused AI Gateway spans to detach from the client trace and led to doubled token usage counts. Header injection merges tracing headers into http_headers for Mistral and extra_headers for Groq after span inputs are captured, without mutating caller dicts.",
+  "saysFor": "s2:f61acef621862f107907d0920dc744d7a5d568650659d0f93b404c2aafbd9625"
+}

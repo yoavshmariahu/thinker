@@ -1,0 +1,86 @@
+{
+  "id": "uc-table-span-processor-root-span-user-session-enrichment-is",
+  "title": "UC table span processor: root-span user/session enrichment is best-effort and must not block root span export",
+  "kind": "rule",
+  "answers": [
+    "Root span disappeared from the Unity Catalog trace table after a tracing update",
+    "Why is the root span missing when setting user or session attributes fails in the UC table exporter?",
+    "Where are user and session attributes added to the root span before it is sent to the Databricks UC trace table?",
+    "Where is an exporter or enrichment error handled for spans sent to Unity Catalog?"
+  ],
+  "body": "Path: Handles every span ending in the Databricks Unity Catalog trace-table exporter path (kinds of requests: any traced LLM call whose root span is exported to UC). Chokepoint is mlflow/tracing/processor/uc_table.py:DatabricksUCTableSpanProcessor.on_end, which, for a root span (span._parent is None), enriches user and session attributes via _set_user_session_span_attributes, then calls super().on_end to export.\nRule: Enrichment is best-effort. Wrap the call to _set_user_session_span_attributes in try/except Exception in on_end, log the failure at debug level with the exception text and traceback, and always fall through to super().on_end(span) so the root span is still exported exactly once. Do not move the enrichment call in front of export without this guard, and do not swallow exceptions raised by the exporter itself, which stay visible.\nSymptom: If enrichment raised (e.g. an attribute-immutability error from an OpenTelemetry version change), the root span was never exported, so the whole trace was missing from the UC trace table while child spans were still recorded.\nConstraints: Applies to root spans only (span._parent is None). Non-root spans are not enriched and not wrapped. The regression test test_on_end_exports_root_span_when_user_session_enrichment_fails in tests/tracing/processor/test_uc_table_processor.py shows the pattern: patch _set_user_session_span_attributes with side_effect, assert it was called once with the span, assert export was called once, and check the debug record.",
+  "applies": "Use for any change to the Databricks UC table tracing exporter's root-span on_end handling, including user/session attributes and other per-root-span enrichment added to that processor.",
+  "tags": [
+    "tracing",
+    "unity-catalog",
+    "uc-table",
+    "span-processor",
+    "root-span",
+    "export",
+    "error-handling"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/tracing/processor/uc_table.py",
+      "symbol": "DatabricksUCTableSpanProcessor.on_end",
+      "hash": "sha256:f09609592c0a5377836739f6",
+      "line": 86,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f09609592c0a5377836739f6",
+      "fanout": {
+        "files": 18,
+        "sites": 35,
+        "refs": 48
+      }
+    },
+    {
+      "path": "mlflow/tracing/processor/uc_table.py",
+      "symbol": "DatabricksUCTableSpanProcessor._set_user_session_span_attributes",
+      "hash": "sha256:ca5047533b9da8b49c781cb1",
+      "line": 96,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ca5047533b9da8b49c781cb1",
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "tests/tracing/processor/test_uc_table_processor.py",
+      "symbol": "test_on_end_exports_root_span_when_user_session_enrichment_fails",
+      "hash": "sha256:b7d7d1c9b1e13f232d25de75",
+      "line": 135,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b7d7d1c9b1e13f232d25de75",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26063"
+  },
+  "created": "2026-10-12T05:30:00.105Z",
+  "verified": "2026-10-12T05:30:00.105Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Top-level traces disappeared from the catalog trace table while child spans are still recorded.",
+    "Entire language model traces are missing from the catalog trace view after tracing updates.",
+    "Failed user or session attribute tagging should not prevent traces from appearing in tables.",
+    "Root spans fail to export to the catalog trace table when metadata enrichment errors.",
+    "Ensure catalog traces still export even if user and session details cannot be attached."
+  ],
+  "search": "In mlflow/tracing/processor/uc_table.py:DatabricksUCTableSpanProcessor.on_end, user and session enrichment via _set_user_session_span_attributes is best-effort and must be wrapped in try/except Exception to always fall through to super().on_end. Enrichment failures are logged at debug level with exception text and traceback, without swallowing exporter exceptions or moving enrichment ahead of export unguarded. This applies only to root spans (span._parent is None) during export to Databricks Unity Catalog trace tables, while non-root spans are not enriched. Verified by test_on_end_exports_root_span_when_user_session_enrichment_fails in tests/tracing/processor/test_uc_table_processor.py.",
+  "saysFor": "s2:5bf549b596ab836671f0a871b595153a9909263cf8dc62bdd8d4cf55797b040a"
+}

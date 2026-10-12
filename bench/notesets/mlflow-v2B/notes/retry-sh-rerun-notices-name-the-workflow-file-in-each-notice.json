@@ -1,0 +1,48 @@
+{
+  "id": "retry-sh-rerun-notices-name-the-workflow-file-in-each-notice",
+  "title": "retry.sh rerun notices: name the workflow file in each ::notice and dry-run line, and keep dry runs annotation-free",
+  "kind": "rule",
+  "answers": [
+    "Retry workflow rerun logs don't say which workflow was rerun",
+    "How do dry-run retry outputs differ from real reruns?",
+    "Where is the ::notice for an auto-retried workflow emitted?",
+    "How does retry.sh find the protect.yml run and rerun it last?"
+  ],
+  "body": "Path: .github/workflows/retry.sh:rerun takes the eligible failed runs for a commit (rows built from the `runs` jq query, id plus workflow) and either prints a dry-run line or calls `gh run rerun --failed` on each one. protect.yml is held back and rerun after the parallel batch.\nRule: Derive the workflow name as the filename with `.workflowRun.workflow.resourcePath | split(\"/\")[-1]` in the `runs` query, and pass it as the second argument to `rerun`. Emit `::notice title=Rerun failed jobs::<workflow>: https://github.com/$repository/actions/runs/<id>` after the `gh run rerun` call. Identify protect.yml by exact filename equality on that value, not by suffix match. Dry runs use a plain echo of `Would rerun failed jobs for <workflow>: <url>` and no `::notice`.\nSymptom: Rerun log lines did not name the workflow being retried, so a reader could not tell from the log which workflow to look for or collect.\nConstraints: Applies to the rerun output in retry.sh only. The notice is printed after `gh run rerun` in this diff with no check of that command's exit status, so it is not guaranteed to mean the request succeeded. Does not change the `gh run rerun --failed` arguments or the PR grouping in retry.yml.",
+  "applies": "Scope: rerun/notice/dry-run output in .github/workflows/retry.sh; not other workflows or the gh CLI.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "retry",
+    "rerun",
+    "annotations"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/retry.sh",
+      "hash": "sha256:fef211e1be0d4b81d0106e16",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26135"
+  },
+  "created": "2026-10-12T05:32:59.484Z",
+  "verified": "2026-10-12T05:32:59.484Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "retry-sh-rerun-notices-link-to-the-failed-run-attempt-attemp"
+  ],
+  "says": [
+    "The retry logs and annotations do not mention which workflow was retried.",
+    "Show the name of the retried workflow in each rerun log and notice message.",
+    "Ensure dry run retry executions print plain text messages without posting workflow notice annotations.",
+    "We cannot identify which failing pipeline was rerun from looking at the retry annotations."
+  ],
+  "search": "In .github/workflows/retry.sh, rerun output must display the workflow filename parsed via .workflowRun.workflow.resourcePath | split(\"/\")[-1] in both dry-run echo lines and ::notice title=Rerun failed jobs:: annotations. Dry runs print plain text messages without creating annotations, while protect.yml is matched by exact filename equality rather than suffix matching to be rerun last. This applies specifically to rerun output in retry.sh and does not alter gh run rerun arguments, exit status verification, or PR grouping in retry.yml.",
+  "saysFor": "s2:6f9dc8190c96a6f55b15c69ddd495e0e3e3e46688a4dbee7450c1e138b604a69"
+}

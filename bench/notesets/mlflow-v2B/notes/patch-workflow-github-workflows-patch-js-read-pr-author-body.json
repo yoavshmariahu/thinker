@@ -1,0 +1,47 @@
+{
+  "id": "patch-workflow-github-workflows-patch-js-read-pr-author-body",
+  "title": "patch workflow (.github/workflows/patch.js): read PR author, body, labels and number from context.payload.pull_request instead of re-fetching them via the API",
+  "kind": "rule",
+  "answers": [
+    "Why does the patch-release labeling workflow make extra GitHub API calls for pull request details and labels?",
+    "How does the patch workflow decide to skip bot-authored PRs and PRs already carrying a version label?",
+    "Where is the code that adds a vX.Y.Z patch label to a PR handled?",
+    "How do I add another PR field, such as title or base branch, to the patch labeling logic?"
+  ],
+  "body": "Path: .github/workflows/patch.js:module.exports handles the github-script step that runs on pull request events to decide whether a PR gets a patch-release version label. It reads base, body, labels, number and user from the event payload, skips branch-X.Y targets and bot-authored PRs (except Copilot), finds an existing vX.Y.Z label, lists releases, and writes the label with github.rest.issues.addLabels.\nRule: Use the event snapshot in context.payload.pull_request for PR fields the workflow needs (body, user, labels, number, base). Do not call pulls.get or issues.listLabelsOnIssue to re-read them; only call the API for data the payload does not carry (such as releases) or for writes (addLabels). Version-label detection runs as labels.find(...) over the payload labels.\nConstraints: Payload values reflect the PR state when the triggering event fired, so a label or body edited mid-run will not be seen. Applies to this workflow's pull_request event path; does not change the release-listing or label-writing calls.",
+  "applies": "Applies to the patch-release labeling github-script in .github/workflows/patch.js; not to other workflows that legitimately need fresh API state.",
+  "tags": [
+    "github-actions",
+    "workflow",
+    "patch-release",
+    "ci",
+    "build"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/patch.js",
+      "hash": "sha256:bdad1e8525a859b0f45286d6",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25904"
+  },
+  "created": "2026-10-12T05:35:46.248Z",
+  "verified": "2026-10-12T05:35:46.248Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Patch release labeling is making redundant GitHub requests for pull request metadata.",
+    "Automated version tagger should inspect pull request authors without calling the remote service.",
+    "Prevent automated patch version labels from being added to bot pull requests.",
+    "Pull requests targeting maintenance branches should not receive patch version labels.",
+    "Check existing version labels directly from the event data instead of querying labels again."
+  ],
+  "search": "The patch-release labeling script in .github/workflows/patch.js must read pull request body, user, labels, number, and base directly from context.payload.pull_request rather than re-fetching them with pulls.get or issues.listLabelsOnIssue. Remote API calls are restricted to listing releases and writing labels via github.rest.issues.addLabels, with version-label detection using labels.find over payload labels while skipping bot authors except Copilot and branch-X.Y targets. This rule applies only to .github/workflows/patch.js on pull_request events, with the constraint that payload data reflects the event snapshot and will not reflect mid-run edits.",
+  "saysFor": "s2:eb9207b2110969d9a8957b31490154ac03b64dbdc482a8c7b9e605581a7b762c"
+}

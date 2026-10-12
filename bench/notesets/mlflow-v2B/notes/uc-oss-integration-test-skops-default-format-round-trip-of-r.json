@@ -1,0 +1,56 @@
+{
+  "id": "uc-oss-integration-test-skops-default-format-round-trip-of-r",
+  "title": "UC-OSS integration test: skops default format round-trip of RandomForestClassifier needs sklearn.tree._tree.Tree as a trusted type",
+  "kind": "rule",
+  "answers": [
+    "Why does the UC-OSS integration test fail when it logs a RandomForestClassifier with the default skops format?",
+    "How do I allow sklearn tree models to load under skops trusted types in MLflow tests?",
+    "Where is skops_trusted_types passed when the UC-OSS test logs and registers a sklearn model?",
+    "Which sklearn type must be trusted for skops serialization of tree-based models?"
+  ],
+  "body": "Path: tests/uc_oss/test_uc_oss_integration.py:test_integration logs a locally built sklearn RandomForestClassifier (with input_example and registered_model_name) and round-trips it through the default skops serialization format, then loads it back for prediction.\nRule: When a sklearn tree-based model (RandomForest, which contains sklearn.tree._tree.Tree objects) is logged with the default skops format, pass skops_trusted_types=[\"sklearn.tree._tree.Tree\"] to the log call so the reviewed Tree type is trusted on load. Do not widen trust beyond the specific reviewed types needed.\nSymptom: The UC-OSS integration check failed on the skops round trip of the locally created RandomForestClassifier once the current dependency set was installed.\nConstraints: Applies to the default skops format only; the parameter is not needed for other serialization formats. The UC-OSS test is GitHub Actions-only and is skipped elsewhere, so verify in that environment or via dev/flavors/tests.",
+  "applies": "Test-side handling of sklearn tree models in the UC-OSS integration test under skops serialization.",
+  "tags": [
+    "skops",
+    "sklearn",
+    "uc-oss",
+    "integration-test",
+    "serialization",
+    "trusted-types"
+  ],
+  "deps": [
+    {
+      "path": "tests/uc_oss/test_uc_oss_integration.py",
+      "symbol": "test_integration",
+      "hash": "sha256:a1b8841f26ca6a992e1854df",
+      "line": 56,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a1b8841f26ca6a992e1854df",
+      "fanout": {
+        "files": 7,
+        "sites": 0,
+        "refs": 49
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26124"
+  },
+  "created": "2026-10-12T05:29:41.918Z",
+  "verified": "2026-10-12T05:29:41.918Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Open source catalog integration checks fail when reloading registered random forest models.",
+    "Automated catalog tests fail to load logged tree models during prediction verification.",
+    "Allow saved tree models to reload securely during catalog integration testing.",
+    "Continuous integration pipelines fail when verifying deserialization of registered tree classifiers."
+  ],
+  "search": "In tests/uc_oss/test_uc_oss_integration.py:test_integration, logging a sklearn tree model like RandomForestClassifier with the default skops format requires passing skops_trusted_types=['sklearn.tree._tree.Tree'] so the type is trusted on load. Trust must not be widened beyond the specific reviewed types needed. This parameter applies only to the default skops serialization format and is not needed for other formats. The UC-OSS test is GitHub Actions-only and skipped elsewhere, verifiable in that environment or via dev/flavors/tests.",
+  "saysFor": "s2:81d0e33d46213da1a3a6290e7113fd8917a259fc58762d2863f74b0be7267d35"
+}

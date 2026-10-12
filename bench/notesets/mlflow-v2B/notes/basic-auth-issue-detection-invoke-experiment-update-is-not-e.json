@@ -1,0 +1,74 @@
+{
+  "id": "basic-auth-issue-detection-invoke-experiment-update-is-not-e",
+  "title": "Basic-auth issue detection invoke: experiment UPDATE is not enough when a gateway secret_id is passed; also require USE on that secret",
+  "kind": "rule",
+  "answers": [
+    "Why can a user run issue detection with another user's AI Gateway secret?",
+    "What permission does POST issues/invoke need when the request includes a secret_id?",
+    "Where is the auth check for issue detection invoke handled?",
+    "If I add a route that decrypts a gateway secret taken from the request, which permission should it check?"
+  ],
+  "body": "Path: mlflow/server/auth/__init__.py:validate_can_invoke_issue_detection, registered for (INVOKE_ISSUE_DETECTION, POST) in BEFORE_REQUEST_VALIDATORS. It guards POST /ajax-api/3.0/mlflow/issues/invoke, the issue-detection job launch, which takes experiment_id, trace_ids, provider, model and an optional secret_id.\nRule: The validator first requires UPDATE on the request's experiment (validate_can_update_experiment). If the JSON body has a truthy secret_id, it also requires USE on that gateway secret via _get_gateway_secret_permission(secret_id).can_use, the same helper the gateway secret RPCs use. The handler (_invoke_issue_detection_handler) decrypts that secret through _fetch_provider_credentials, so any route that passes a caller-supplied secret id to credential fetch needs this USE check.\nSymptom: Any user with UPDATE on their own experiment could make the server decrypt and use another user's AI Gateway secret, with the plaintext provider key injected into the job environment.\nConstraints: An absent or empty secret_id skips the secret check, matching the handler's `if secret_id:`; do not switch to `is None` or the request is 403ed for a value the handler treats as no secret. Unknown secret ids resolve to no grant and are denied, so the route is not an existence oracle. genai/evaluate/invoke and scorer/invoke take no secret_id and keep only the experiment check. An endpoint_name on the same route is not checked against endpoint permissions (known gap).",
+  "applies": "Basic-auth server authorization for issue-detection invoke and any route that uses a caller-supplied gateway secret id; not for the gateway secret CRUD routes or the evaluate/scorer invoke routes.",
+  "tags": [
+    "auth",
+    "basic-auth",
+    "gateway",
+    "security",
+    "issue-detection"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_invoke_issue_detection",
+      "hash": "sha256:9f7271c736ea2426c870ce09",
+      "line": 2121,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9f7271c736ea2426c870ce09",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_get_gateway_secret_permission",
+      "hash": "sha256:a36e4562788f03785bfba710",
+      "line": 1103,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a36e4562788f03785bfba710",
+      "fanout": {
+        "files": 1,
+        "sites": 7,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25848"
+  },
+  "created": "2026-10-12T05:37:27.598Z",
+  "verified": "2026-10-12T05:37:27.598Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "gateway-model-definition-endpoint-and-attach-authorization-r",
+    "auth-server-list-routes-filter-results-after-the-handler-by",
+    "gateway-authorization-validators-must-read-resource-ids-from",
+    "jobs-search-under-basic-auth-non-admins-only-see-jobs-whose"
+  ],
+  "says": [
+    "Running issue detection allows members to use another person's saved gateway credentials.",
+    "Users can trigger trace issue scans using private AI gateway keys without permission.",
+    "Require access rights on the selected gateway secret when launching issue detection jobs.",
+    "Prevent team members from running automated issue detection with credentials they cannot use."
+  ],
+  "search": "For POST /ajax-api/3.0/mlflow/issues/invoke, mlflow/server/auth/__init__.py:validate_can_invoke_issue_detection requires UPDATE on the experiment and checks USE via _get_gateway_secret_permission(secret_id).can_use when a truthy secret_id is present. Any route decrypting a caller-supplied secret via _fetch_provider_credentials must perform this USE check, whereas empty or absent secret_id values skip it and unknown IDs are denied. Scorer and evaluation invoke routes do not accept secret_id, and endpoint_name on this route is not checked against endpoint permissions.",
+  "saysFor": "s2:acaf9d8403197ffb1f28cd57536ce52f6aa0c5bdbecda8548cb6e00260a24471"
+}

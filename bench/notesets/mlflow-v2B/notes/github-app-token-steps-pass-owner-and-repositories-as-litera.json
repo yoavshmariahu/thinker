@@ -1,0 +1,50 @@
+{
+  "id": "github-app-token-steps-pass-owner-and-repositories-as-litera",
+  "title": "GitHub App token steps: pass owner and repositories as literal bare repo names, not github.repository",
+  "kind": "howto",
+  "answers": [
+    "Which value should I put in repositories for a create-github-app-token step so the token can reach mlflow?",
+    "How do I scope a GitHub App token to two repositories in the same org in a workflow?",
+    "My app token step has no repository access after I set repositories to github.repository; why?",
+    "Where do the owner and repositories inputs get set for the bot token in the CI workflows?"
+  ],
+  "body": "Path: .github/workflows/*.yml steps that use `actions/create-github-app-token` with `client-id`/`private-key` and `permission-*` inputs (examples: uv.yml, copilot-agent.yml, ui-review.yml, nailaopus.yml). The `owner` and `repositories` lines sit in that same `with:` block; the policy check is .github/policy.rego:deny_create_app_token_without_repository_scope.\nRule: For a single repo set `owner: mlflow` and `repositories: mlflow`. For several repos under one owner, use a comma-separated list of bare names with no owner prefix, e.g. `repositories: mlflow,internal` as in nailaopus.yml. Do not write `repositories: ${{ github.repository }}`; it expands to `mlflow/mlflow`, which matches nothing. After editing, run conftest over the workflow and confirm that removing either `owner` or `repositories` produces the denial.\nConstraints: `repositories` narrows the token below the App's installation permissions and does not grant anything new. The values are literals in the file, so a repo rename or a new target repo requires editing each workflow.",
+  "applies": "Choosing owner/repositories values for a GitHub App token step in .github/workflows; not for PAT or GITHUB_TOKEN steps.",
+  "tags": [
+    "github-actions",
+    "github-app-token",
+    "workflow-scope",
+    "conftest"
+  ],
+  "deps": [
+    {
+      "path": ".github/policy.rego",
+      "hash": "sha256:c9bdfb9326a5b78b8f142b4a",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/nailaopus.yml",
+      "hash": "sha256:3bd1f17e0f60e480ac42b2bc",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25866"
+  },
+  "created": "2026-10-12T05:37:04.885Z",
+  "verified": "2026-10-12T05:37:04.885Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Bot token has no repository access when configured using workflow repository context variables.",
+    "Automation bots cannot access target repositories due to organization prefixes in repository lists.",
+    "Enable a bot token to access multiple repositories within the same organization.",
+    "Bot workflow steps fail permission checks when target repositories use full owner paths."
+  ],
+  "search": "GitHub App token steps configure owner and repositories as literal bare repository names rather than prefixed paths or github.repository expressions. In .github/workflows/*.yml steps using actions/create-github-app-token, single repos set bare names like mlflow, while multiple repos use comma-separated bare names like mlflow,internal. Using ${{ github.repository }} expands to owner/repo and matches nothing, causing the token to lack repository access. This scope narrows the token within installed permissions without granting new access, and does not apply to personal access tokens or GITHUB_TOKEN.",
+  "saysFor": "s2:047cbf665019c87154758d8b2fb377f8a029200bb425872056bf0b60992695f9"
+}

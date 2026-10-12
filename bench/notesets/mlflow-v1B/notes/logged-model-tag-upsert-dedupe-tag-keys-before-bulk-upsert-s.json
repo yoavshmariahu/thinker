@@ -1,0 +1,89 @@
+{
+  "id": "logged-model-tag-upsert-dedupe-tag-keys-before-bulk-upsert-s",
+  "title": "logged model tag upsert: dedupe tag keys before _bulk_upsert so the last value wins on Postgres",
+  "kind": "rule",
+  "answers": [
+    "Setting tags on a logged model fails on Postgres when the same tag key is passed twice in one call",
+    "Where are logged model tags overwritten, and how are duplicate tag keys resolved?",
+    "Adding a bulk upsert for another table with a composite primary key: what must happen to repeated keys?"
+  ],
+  "body": "Path: mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore.set_logged_model_tags handles writing or overwriting tags on a logged model (the set-tags path taking a list of LoggedModelTag). It checks the model exists via _get_logged_model_record, then writes all of that model_id's tags in one session through _bulk_upsert into SqlLoggedModelTag.\nRule: Collapse the input to a dict keyed by tag.key before building the rows passed to _bulk_upsert, so the last occurrence of a key wins. A single INSERT ... ON CONFLICT (model_id, tag_key) DO UPDATE cannot touch the same row twice, so duplicates must be removed in Python first.\nSymptom: On PostgreSQL, setting logged model tags where the same key appeared twice in one call failed with CardinalityViolation (\"ON CONFLICT DO UPDATE command cannot affect row a second time\"). The earlier session.merge loop silently kept the last value, and SQLite and MySQL still do.\nConstraints: Applies to any caller of _bulk_upsert whose input can repeat a composite key. The dedupe preserves last-value-wins behavior. Does not cover delete_logged_model_tag.",
+  "applies": "Logged model tag writes in the SQLAlchemy tracking store, and any new _bulk_upsert caller whose input may repeat a key.",
+  "tags": [
+    "tracking",
+    "sqlalchemy",
+    "postgres",
+    "logged-model",
+    "tags",
+    "upsert"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "set_logged_model_tags",
+      "hash": "sha256:0840a545096f37d7c6a283c5",
+      "line": 2752,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0840a545096f37d7c6a283c5",
+      "fanout": {
+        "files": 23,
+        "sites": 35,
+        "refs": 60
+      }
+    },
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "_bulk_upsert",
+      "hash": "sha256:78ae8ec905be5c44d79d4106",
+      "line": 10344,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:78ae8ec905be5c44d79d4106",
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "SqlAlchemyStore.set_logged_model_tags",
+      "hash": "sha256:0840a545096f37d7c6a283c5",
+      "line": 2752,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0840a545096f37d7c6a283c5",
+      "fanout": {
+        "files": 23,
+        "sites": 35,
+        "refs": 60
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25862"
+  },
+  "created": "2026-10-12T05:44:14.483Z",
+  "verified": "2026-10-12T05:44:14.483Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "search-logged-models-metric-ordering-keep-one-latest-metric",
+    "search-logged-models-ordering-always-end-with-a-stable-model",
+    "sql-trace-rollup-routing-in-raw-range-points-read-non-groupe",
+    "sqlalchemy-tracking-store-hard-delete-mlflow-gc-bulk-delete"
+  ],
+  "says": [
+    "Setting logged model tags fails on PostgreSQL when the same tag key is passed twice in one call",
+    "Duplicate tag keys in one logged model tag update cause a cardinality error on Postgres",
+    "Logged model tags with repeated keys should keep the last value instead of failing",
+    "Overwriting logged model tags in bulk raises a database error on Postgres for repeated keys",
+    "Bulk tag upsert for logged models must handle repeated keys the same way on every database"
+  ],
+  "search": "Logged model tag writes in the SQLAlchemy tracking store: duplicate tag keys are collapsed into a dict before the bulk upsert so the last value wins, avoiding a Postgres ON CONFLICT error when a key repeats in one call. Applies to any bulk upsert whose input may repeat a composite key. Does not cover tag deletion.",
+  "saysFor": "s2:1fcbe6cf97784b9c2e7ce4c4627f68f7ab49224d04a2d1a64d5bcafb12615577"
+}

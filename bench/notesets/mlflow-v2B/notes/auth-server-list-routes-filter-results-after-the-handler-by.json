@@ -1,0 +1,179 @@
+{
+  "id": "auth-server-list-routes-filter-results-after-the-handler-by",
+  "title": "",
+  "kind": "rule",
+  "answers": [
+    "Does a POST list or search route in the auth server get a per-user response filter, or only GET routes?",
+    "How do I add per-user filtering to a FastAPI search endpoint that uses POST?",
+    "Where is the response filter looked up for a FastAPI endpoint in the auth server?"
+  ],
+  "body": "Path: mlflow/server/auth/__init__.py request authorization for FastAPI routes. `_get_gateway_validator` maps gateway paths to validators, and `FASTAPI_ENDPOINT_RESPONSE_FILTERS` maps handler functions to response filters that rewrite the JSON body before it is returned. Existing entries cover jobs search, MCP endpoint search and MCP server get.\nRule: For a list route whose visible set depends on per-resource permissions, return `_get_require_authentication_validator()` for that path in `_get_gateway_validator`, then add a filter in `FASTAPI_ENDPOINT_RESPONSE_FILTERS` keyed by the handler function. Import the handler from its module (as `_list_gateway_models_endpoint` from mlflow/server/gateway_api.py:list_models) so the dict key is the same function object the router serves. The filter parses the body, keeps only items the user can access, and re-serializes it. `_find_fastapi_response_filter(request)` resolves the filter from the endpoint function alone and does not check the HTTP method, so a POST collection route such as jobs search (mlflow/server/auth/__init__.py:_filter_search_jobs) is filtered the same way as a GET list.\nConstraints: Per-item permission checks in a filter cost one check per item, so this pattern fits low-frequency listings only. Add the new path to `test_find_fastapi_validator_handles_static_prefix` in tests/server/auth/test_auth.py, including the static-prefix variant. A new gateway_router route is also expected to return 501 when the gateway is disabled, as checked in tests/server/test_gateway_disable.py.",
+  "applies": "FastAPI routes in the auth server that return collections filtered by user permissions; not for routes that check a single resource by id.",
+  "tags": [
+    "auth",
+    "fastapi",
+    "response-filter",
+    "post",
+    "list-routes"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_find_fastapi_response_filter",
+      "hash": "sha256:cecc1e4e71dd520a8a96cd04",
+      "line": 5995,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:cecc1e4e71dd520a8a96cd04",
+      "fanout": {
+        "files": 3,
+        "sites": 5,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_get_gateway_validator",
+      "hash": "sha256:e002651ad053e29267feee55",
+      "line": 5498,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e002651ad053e29267feee55",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_get_require_authentication_validator",
+      "hash": "sha256:f4e3a8f0c74c6adf053adc6c",
+      "line": 5746,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f4e3a8f0c74c6adf053adc6c",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_find_fastapi_response_filter",
+      "hash": "sha256:cecc1e4e71dd520a8a96cd04",
+      "line": 5995,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:cecc1e4e71dd520a8a96cd04",
+      "fanout": {
+        "files": 3,
+        "sites": 5,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_filter_search_jobs",
+      "hash": "sha256:88e66715f12a4c8eab82a7cd",
+      "line": 5965,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:88e66715f12a4c8eab82a7cd",
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_filter_search_jobs",
+      "hash": "sha256:88e66715f12a4c8eab82a7cd",
+      "line": 5965,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:88e66715f12a4c8eab82a7cd",
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/server/gateway_api.py",
+      "symbol": "list_models",
+      "hash": "sha256:e932f1a2c66a6d5a8ad1f052",
+      "line": 994,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e932f1a2c66a6d5a8ad1f052",
+      "fanout": {
+        "files": 12,
+        "sites": 28,
+        "refs": 39
+      }
+    },
+    {
+      "path": "tests/server/auth/test_auth.py",
+      "symbol": "test_find_fastapi_validator_handles_static_prefix",
+      "hash": "sha256:266bc6643fd9134b47adb9a4",
+      "line": 358,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:266bc6643fd9134b47adb9a4",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/server/test_gateway_disable.py",
+      "hash": "sha256:56563622d2c9ae467cdf518a",
+      "missing": false
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_get_require_authentication_validator",
+      "hash": "sha256:f4e3a8f0c74c6adf053adc6c",
+      "line": 5746,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f4e3a8f0c74c6adf053adc6c"
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25899"
+  },
+  "created": "2026-10-12T05:35:33.977Z",
+  "verified": "2026-10-12T05:36:22.448Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "basic-auth-createmodelversion-source-run-model-read-check-mu",
+    "basic-auth-source-read-check-report-a-nonexistent-run-logged",
+    "gateway-model-definition-endpoint-and-attach-authorization-r",
+    "basic-auth-issue-detection-invoke-experiment-update-is-not-e"
+  ],
+  "history": [
+    {
+      "at": "2026-10-12T05:36:22.457Z",
+      "reason": "extended by a new session",
+      "prevBody": "Path: mlflow/server/auth/__init__.py request authorization for FastAPI routes. `_get_gateway_validator` maps gateway paths to validators, and `FASTAPI_ENDPOINT_RESPONSE_FILTERS` maps handler functions to response filters that rewrite the JSON body before it is returned. Existing entries cover jobs search, MCP endpoint search and MCP server get.\nRule: For a list route whose visible set depends on per-resource permissions, return `_get_require_authentication_validator()` for that path in `_get_gateway_validator`, then add a filter in `FASTAPI_ENDPOINT_RESPONSE_FILTERS` keyed by the handler function. Import the handler from its module (as `_list_gateway_models_endpoint` from mlflow/server/gateway_api.py:list_models) so the dict key is the same function object the router serves. The filter parses the body, keeps only items the user can access, and re-serializes it.\nConstraints: Per-item permission checks in a filter cost one check per item, so this pattern fits low-frequency listings only. Add the new path to `test_find_fastapi_validator_handles_static_prefix` in tests/server/auth/test_auth.py, including the static-prefix variant. A new gateway_router route is also expected to return 501 when the gateway is disabled, as checked in tests/server/test_gateway_disable.py.\nApplies: FastAPI routes in the auth server that return collections filtered by user permissions; not for routes that check a single resource by id."
+    }
+  ],
+  "says": [
+    "Users can see background jobs in search results that they lack permissions to access.",
+    "Filter job search results so members only see items they are authorized to view.",
+    "Unauthorized models appear in the model catalog search for restricted accounts.",
+    "Hide inaccessible gateway endpoints from users searching the shared directory.",
+    "Restricted users should not see private jobs when searching the workspace."
+  ],
+  "search": "FastAPI collection routes in the auth server whose visible items depend on per-resource permissions use `_get_require_authentication_validator()` in `_get_gateway_validator` and a response filter registered in `FASTAPI_ENDPOINT_RESPONSE_FILTERS`. `_find_fastapi_response_filter(request)` resolves the filter solely from the endpoint function object, so POST search collection routes such as `_filter_search_jobs` are filtered identically to GET lists. This pattern applies only to low-frequency collection listings because per-item checks run per item, not to routes checking a single resource by id. New routes must be added to `test_find_fastapi_validator_handles_static_prefix` in `tests/server/auth/test_auth.py` and return 501 when the gateway is disabled as checked in `tests/server/test_gateway_disable.py`.",
+  "saysFor": "s2:a741a4afcfa817dff4ca0be6a23320c1544b06da617314386ec63f2a7e3504bc"
+}

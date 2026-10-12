@@ -1,0 +1,49 @@
+{
+  "id": "mlflow-agent-setup-prompt-trace-quality-checks-agent-must-re",
+  "title": "mlflow agent setup prompt trace-quality checks: agent must report missing token usage, cost, session or preview fields instead of fabricating them",
+  "kind": "rule",
+  "answers": [
+    "Why does the agent write made-up token counts or cost into traces during mlflow agent setup?",
+    "How does the setup wizard tell the coding agent to set session_id, request_preview or response_preview on a trace?",
+    "Where are the trace quality checks for token usage and secret exposure handled?",
+    "What should the agent do when a traced LLM call has no token counts?"
+  ],
+  "body": "Path: mlflow/agent/setup/setup.sh:build_agent_prompt includes the \"## 4. Instrument the application\" and \"## 6. Validate trace quality\" sections, which govern autologging preference, mlflow.update_current_trace(session_id=...) and request_preview/response_preview, deployment environment metadata, token and cost checks, duplicate-span checks, and credential exposure checks.\nRule: The prompt's quality checks require the agent to confirm input/output token counts and cost on LLM paths; if they are missing, it must investigate the instrumentation and report the limitation, never fabricate values. Session IDs must reuse the application's own ID rather than generating one per trace, and environment metadata must come from existing application configuration rather than hardcoded values.\nConstraints: Guidance text for the setup agent only; it does not change tracing APIs or the shared instrumentation skill, and it does not apply to non-LLM paths where no token counts exist.\nApplies: Changes to the trace-quality or instrumentation guidance given to the coding agent by mlflow agent setup.",
+  "applies": "Trace-quality and instrumentation instructions in the mlflow agent setup coding-agent prompt.",
+  "tags": [
+    "area/tracing",
+    "mlflow-agent-setup",
+    "prompt",
+    "token-usage",
+    "session"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/agent/setup/setup.sh",
+      "hash": "sha256:3471fa4c4aac193488bdc977",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25547"
+  },
+  "created": "2026-10-12T05:49:00.201Z",
+  "verified": "2026-10-12T05:49:00.201Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "mlflow-agent-setup-warehouse-picker-parse-databricks-warehou"
+  ],
+  "says": [
+    "The setup assistant is inventing fake token usage and cost metrics on traced calls.",
+    "Make the assistant report missing token counts as a limitation instead of generating numbers.",
+    "Trace sessions show random IDs per request instead of preserving the application user session.",
+    "Deployment environment tags on traces are hardcoded rather than extracted from app configuration.",
+    "Audit setup prompt instructions to prevent the coding agent from exposing credentials in traces."
+  ],
+  "search": "In mlflow/agent/setup/setup.sh:build_agent_prompt, sections for instrumenting and validating trace quality require the coding agent to verify token counts and costs on LLM paths and report limitations rather than fabricating values. The instructions also require reusing existing application session IDs via mlflow.update_current_trace instead of generating per-trace IDs, reading environment metadata from config rather than hardcoding, and checking for duplicate spans and credential exposure. This rule applies strictly to the prompt text provided to the setup agent and does not alter tracing APIs or non-LLM execution paths.",
+  "saysFor": "s2:99721a8d62a3112793101122744194f61bbf5b6ddd340f84e8cc37f6fb466b91"
+}

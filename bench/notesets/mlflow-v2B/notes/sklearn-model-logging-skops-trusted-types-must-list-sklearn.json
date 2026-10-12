@@ -1,0 +1,55 @@
+{
+  "id": "sklearn-model-logging-skops-trusted-types-must-list-sklearn",
+  "title": "sklearn model logging: skops_trusted_types must list sklearn.tree._tree.Tree for tree-based models such as RandomForest",
+  "kind": "rule",
+  "answers": [
+    "Logging a scikit-learn RandomForest model with skops fails or is rejected when loading, what do I pass?",
+    "How do I register a sklearn model in the model registry with trusted skops types?",
+    "Where is the skops_trusted_types option for mlflow.sklearn.log_model handled and documented?",
+    "Which types need to be trusted when saving a sklearn tree-based model with skops?"
+  ],
+  "body": "Path: mlflow/tracking/_model_registry/fluent.py:register_model is the docstring example that logs a scikit-learn RandomForestRegressor with mlflow.sklearn.log_model and then registers it. Sklearn model logging (save/log/register flows) passes a skops_trusted_types list through log_model.\nRule: For tree-based sklearn estimators logged through mlflow.sklearn.log_model, pass skops_trusted_types=[\"sklearn.tree._tree.Tree\"] alongside signature and name. The example in register_model was updated this way, so copy that pattern when writing new sklearn examples or docs that log tree models.\nConstraints: Stated for RandomForest-style examples in the diff; the PR does not show which other estimators need the argument, so check the skops error for other model types. Applies only when skops serialization is used for sklearn logging.",
+  "applies": "Sklearn model logging examples and docs that use skops-based serialization for tree models.",
+  "tags": [
+    "sklearn",
+    "skops",
+    "model-registry",
+    "logging"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/tracking/_model_registry/fluent.py",
+      "symbol": "register_model",
+      "hash": "sha256:19673d0621b22344eb3bf9f4",
+      "line": 68,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:19673d0621b22344eb3bf9f4",
+      "fanout": {
+        "files": 26,
+        "sites": 38,
+        "refs": 58
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26131"
+  },
+  "created": "2026-10-12T05:29:31.768Z",
+  "verified": "2026-10-12T05:29:31.768Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Registering a random forest model in the model registry fails with untrusted type errors.",
+    "Loading a registered decision tree model fails because internal tree types are not trusted.",
+    "Update model registry tutorial examples for tree-based models to include necessary trusted types.",
+    "Saving a tree estimator with secure serialization fails during the model registration flow.",
+    "Allow users to register random forest models without running into serialization trust errors."
+  ],
+  "search": "When logging tree-based scikit-learn estimators such as RandomForestRegressor using skops serialization in mlflow.sklearn.log_model, skops_trusted_types must explicitly include sklearn.tree._tree.Tree. This pattern is documented in the mlflow/tracking/_model_registry/fluent.py:register_model example and should be followed when authoring documentation and examples for sklearn model registration. The requirement applies specifically to skops-based serialization flows for tree models and does not specify requirements for non-tree estimators.",
+  "saysFor": "s2:b6f697949889fcd04814275d68c42f67b3b3ec750a9ab9a97e2f887ef8cd9761"
+}

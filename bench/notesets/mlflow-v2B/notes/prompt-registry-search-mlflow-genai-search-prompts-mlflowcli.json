@@ -1,0 +1,85 @@
+{
+  "id": "prompt-registry-search-mlflow-genai-search-prompts-mlflowcli",
+  "title": "Prompt Registry search (mlflow.genai.search_prompts, MlflowClient.search_prompts): order_by is the last keyword parameter, forwarded by keyword through each layer",
+  "kind": "rule",
+  "answers": [
+    "mlflow.genai.search_prompts results are not sorted; how do I order prompts by name?",
+    "How do I pass order_by to MlflowClient.search_prompts when listing prompts?",
+    "How do I add a new parameter to the prompt search API without breaking existing positional calls?",
+    "Where is order_by handled for prompt search in the fluent and client layers?"
+  ],
+  "body": "Path: Prompt search requests (listing or filtering prompts by name, tag, or filter string, with paging) enter at mlflow/genai/prompts/__init__.py:search_prompts (mlflow.genai.search_prompts), then go through mlflow/tracking/_model_registry/fluent.py:search_prompts (shared with the legacy mlflow.search_prompts), then mlflow/tracking/client.py:MlflowClient.search_prompts, which forwards to the registry client's search_prompts.\nRule: order_by (a list of 'column ASC|DESC' strings) is threaded through all three layers as the final parameter. Each layer passes it by keyword (order_by=order_by) to the next, not positionally. In the fluent paging wrapper (pagination_wrapper_func), order_by is passed on every page request. Put any new search parameter at the end of the signature so existing positional calls keep working.\nSymptom: Users calling mlflow.genai.search_prompts had no way to get prompts back in a chosen order and had to sort the returned list on the client side.\nConstraints: Covers the prompt search family in these three modules. It is not a general fix for other registry search methods. Unity Catalog registries do not honor order_by; see the companion note on that.",
+  "applies": "Changing or extending prompt search parameters in the genai prompts, fluent registry, or MlflowClient search_prompts layers.",
+  "tags": [
+    "prompt-registry",
+    "search",
+    "tracking",
+    "genai"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/genai/prompts/__init__.py",
+      "symbol": "search_prompts",
+      "hash": "sha256:7a8dfd4d603f7cf482db27b7",
+      "line": 146,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7a8dfd4d603f7cf482db27b7",
+      "fanout": {
+        "files": 16,
+        "sites": 38,
+        "refs": 55
+      }
+    },
+    {
+      "path": "mlflow/tracking/_model_registry/fluent.py",
+      "symbol": "search_prompts",
+      "hash": "sha256:c075f2379053a7deb5d91623",
+      "line": 712,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c075f2379053a7deb5d91623",
+      "fanout": {
+        "files": 16,
+        "sites": 38,
+        "refs": 55
+      }
+    },
+    {
+      "path": "mlflow/tracking/client.py",
+      "symbol": "MlflowClient.search_prompts",
+      "hash": "sha256:789cb06a8951f5e99af60e52",
+      "line": 917,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:789cb06a8951f5e99af60e52",
+      "fanout": {
+        "files": 16,
+        "sites": 38,
+        "refs": 55
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25967"
+  },
+  "created": "2026-10-12T05:30:41.411Z",
+  "verified": "2026-10-12T05:30:41.411Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "prompt-search-on-unity-catalog-registries-order-by-is-accept"
+  ],
+  "says": [
+    "Prompt registry search results cannot be sorted by name or creation date.",
+    "Searching for prompts always returns an unsorted list without any ordering options.",
+    "Add ascending and descending sort options to the prompt registry search screen.",
+    "We need prompt search to return items in alphabetical order across pages.",
+    "Allow users to choose the sort order when filtering prompts in the catalog."
+  ],
+  "search": "Prompt search ordering passes order_by as the final keyword parameter through mlflow.genai.search_prompts, fluent search_prompts, and MlflowClient.search_prompts. Each layer passes order_by by keyword to the next, and the fluent pagination_wrapper_func includes it on every page request. Any new prompt search parameter must be added at the end of the signature to prevent breaking positional calls. This covers prompt search in these three modules rather than general registry search, and Unity Catalog registries do not honor order_by.",
+  "saysFor": "s2:a16586c7a7957bf46fcecde530452d157178620a0a7f2ebd9b33acf074bdc5fe"
+}

@@ -1,0 +1,62 @@
+{
+  "id": "db-extra-install-psycopg3-alongside-psycopg2-binary-never-as",
+  "title": "db extra: install psycopg3 alongside psycopg2-binary, never as a replacement",
+  "kind": "rule",
+  "answers": [
+    "Why does the docker-build integration test or a container image fail with 'No module named psycopg' after installing mlflow[db]?",
+    "Which PostgreSQL driver packages does the mlflow db extra install?",
+    "Can I drop psycopg2-binary from the db extra and only keep psycopg3?"
+  ],
+  "body": "Path: The `db` optional-dependency extra in pyproject.toml is what `pip install mlflow[db]` pulls in for SQL-backed tracking, registry and auth stores, and it is also what the docker-build image installs.\nRule: Keep both `psycopg2-binary` and `psycopg[binary]` in the `db` extra. psycopg2 serves SQLAlchemy versions below 2.1, where the bare postgresql:// scheme defaults to psycopg2, and psycopg3 serves SQLAlchemy 2.1+, where the default flips to psycopg3. Removing either one breaks one side of that version range.\nSymptom: On SQLAlchemy 2.1, a PostgreSQL backend started from the db extra failed with ModuleNotFoundError: No module named 'psycopg', and the docker-build integration test failed because its image installs this extra.\nConstraints: Installing the driver does not change any URI; the scheme pinning in create_sqlalchemy_engine (mlflow/store/db/utils.py) is a separate rule. Dependency lockfile churn from this change is generated and not a pattern to copy.",
+  "applies": "Dependency or extra changes to the `db` extra and any image or CI job that installs it.",
+  "tags": [
+    "dependencies",
+    "extras",
+    "psycopg",
+    "postgresql",
+    "docker",
+    "packaging"
+  ],
+  "deps": [
+    {
+      "path": "pyproject.toml",
+      "hash": "sha256:459e93fed0b67fec529ee594",
+      "missing": false
+    },
+    {
+      "path": "mlflow/store/db/utils.py",
+      "symbol": "create_sqlalchemy_engine",
+      "hash": "sha256:61718c221861416239b6ced5",
+      "line": 383,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:61718c221861416239b6ced5",
+      "fanout": {
+        "files": 2,
+        "sites": 9,
+        "refs": 12
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26239"
+  },
+  "created": "2026-10-12T05:32:01.276Z",
+  "verified": "2026-10-12T05:32:01.276Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "db-engine-creation-bare-postgresql-uris-are-pinned-to-the-ps"
+  ],
+  "says": [
+    "Container images built with database support fail to connect to PostgreSQL backend stores.",
+    "Installing database extras results in missing driver errors when connecting to PostgreSQL.",
+    "Ensure database installation packages include PostgreSQL drivers for both older and newer environments.",
+    "Automated container builds fail during database initialization due to missing PostgreSQL libraries."
+  ],
+  "search": "The db optional-dependency extra in pyproject.toml must retain both psycopg2-binary and psycopg[binary] dependencies rather than replacing one with the other. This dual-driver requirement ensures compatibility across SQLAlchemy versions, where versions below 2.1 default bare postgresql:// URIs to psycopg2 and SQLAlchemy 2.1+ defaults to psycopg3. Omitting psycopg[binary] causes ModuleNotFoundError for 'psycopg' on SQLAlchemy 2.1 during PostgreSQL backend startup and breaks docker-build container images. This rule governs dependency packaging for SQL stores and container images without modifying runtime URI scheme pinning or lockfile generation patterns.",
+  "saysFor": "s2:398326b605871c7aae713c67e707d59682178562032528b138d6f9ec45b5cded"
+}

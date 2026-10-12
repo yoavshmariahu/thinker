@@ -1,0 +1,55 @@
+{
+  "id": "artifact-registry-tests-snapshot-module-level-registry-with",
+  "title": "artifact registry tests: snapshot module-level registry with monkeypatch before reloading the module",
+  "kind": "rule",
+  "answers": [
+    "Why does the artifact repository registry lose the file-plugin scheme after running the registry tests?",
+    "How do I write a test that reloads a module with mocked entry points without breaking later tests?",
+    "Where is the artifact registry test that reloads the module and restores _artifact_repository_registry?"
+  ],
+  "body": "Path: tests/store/artifact/test_artifact_repository_registry.py:test_standard_artifact_registry covers how the artifact repository registry is rebuilt from mocked entry points (the scheme-to-repository mapping that file-plugin and other installed plugins register into) and checked for the standard schemes.\nRule: Before a test reloads a module that holds a process-global registry (here artifact_repository_registry._artifact_repository_registry), call monkeypatch.setattr(module, \"<global>\", module.<global>) so pytest restores the original object on teardown, including when the test fails. Reloading replaces the global, and without this restore the worker keeps the mocked registry and later tests lose installed plugin registrations.\nSymptom: Tests that passed in isolation failed depending on which shard or test order ran them, with plugin schemes such as file-plugin missing from the artifact registry in later tests.\nConstraints: Applies to tests that reload modules or mutate module-level registries. It is not needed when the test only calls functions and never replaces module globals. Snapshotting after the reload would capture the mocked object, so the monkeypatch.setattr call must come before the reload.",
+  "applies": "Test code under tests/store/artifact/ that reloads modules or patches module-level registries; general pattern for any test in the mlflow test suite that calls importlib.reload on a module with global state.",
+  "tags": [
+    "testing",
+    "pytest",
+    "artifact-repository",
+    "monkeypatch",
+    "module-reload",
+    "test-isolation"
+  ],
+  "deps": [
+    {
+      "path": "tests/store/artifact/test_artifact_repository_registry.py",
+      "symbol": "test_standard_artifact_registry",
+      "hash": "sha256:746d187beefc4465302ca77e",
+      "line": 17,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:746d187beefc4465302ca77e",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26013"
+  },
+  "created": "2026-10-12T05:41:58.855Z",
+  "verified": "2026-10-12T05:41:58.855Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Automated tests fail intermittently depending on test execution order or shard selection.",
+    "Custom storage plugins disappear during test runs after running registry tests.",
+    "Prevent test module reloads from wiping out global storage plugin registrations.",
+    "Tests pass in isolation but fail when executed together in full test suites."
+  ],
+  "search": "Test guidance in tests/store/artifact/test_artifact_repository_registry.py:test_standard_artifact_registry requires snapshotting module-level registries using monkeypatch.setattr before calling importlib.reload on modules with global state. Calling monkeypatch.setattr before reloading ensures pytest restores the original _artifact_repository_registry during teardown so subsequent tests retain installed plugin schemes like file-plugin. Applies to tests under tests/store/artifact/ that mutate or reload module globals, and is unnecessary when tests only call functions without replacing globals.",
+  "saysFor": "s2:9a831611db7f580862db08ec1177ffcc16e4ea4fa1b1305cd13de613726df8bd"
+}

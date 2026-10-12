@@ -1,0 +1,74 @@
+{
+  "id": "graphql-authorization-middleware-nested-run-modelversions-is",
+  "title": "GraphQL authorization middleware: nested run.modelVersions is gated by PROTECTED_NESTED_FIELDS keyed on (parent type, field), not by bare field name",
+  "kind": "rule",
+  "answers": [
+    "Why can a user with READ on an experiment see registered-model names and versions under a run's modelVersions in the run page or runs table when they lack model permissions?",
+    "How do I protect another nested GraphQL field under mlflowGetRun or mlflowSearchRuns in the basic-auth server?",
+    "Where is the GraphQL permission filter for model versions attached to runs, and why does it not run for MlflowSearchModelVersionsResponse.modelVersions?"
+  ],
+  "body": "Path: mlflow/server/auth/__init__.py:GraphQLAuthorizationMiddleware.resolve handles every GraphQL field resolved by the basic-auth server: top-level queries such as mlflowSearchModelVersions and nested fields reached through mlflowGetRun or mlflowSearchRuns, such as run.modelVersions used by the run page and runs table.\nRule: Top-level fields are listed by name in PROTECTED_FIELDS. Nested fields are listed as (ParentGraphQLType, fieldName) tuples in PROTECTED_NESTED_FIELDS, e.g. {(\"MlflowRunExtension\", \"modelVersions\")}, and resolve matches them on info.parent_type.name. Keying on the parent type keeps a same-named field on another type out of the middleware. The post-resolve step in _post_resolve then filters the returned list per object.\nSymptom: A user with READ on an experiment could read name, version, description, source URI, tags and aliases of registered models they had no permission on, through run.modelVersions, while REST SearchModelVersions and top-level mlflowSearchModelVersions withheld the same rows.\nConstraints: Nested fields are checked after the resolver runs, so the resolver must return the full object list before filtering. Admins short-circuit. A bare name entry would also match MlflowSearchModelVersionsResponse.modelVersions, which is already filtered, and cause a second pass with an extra grants lookup.",
+  "applies": "GraphQL field authorization in the basic-auth server (mlflow/server/auth); applies to any new nested field that exposes per-resource data.",
+  "tags": [
+    "auth",
+    "graphql",
+    "authorization",
+    "model-registry",
+    "tracking",
+    "security"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "GraphQLAuthorizationMiddleware",
+      "hash": "sha256:29bd157beeed792da5c02b35",
+      "line": 5147,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:29bd157beeed792da5c02b35",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "GraphQLAuthorizationMiddleware.resolve",
+      "hash": "sha256:fdce265e6ac5606dc3680e3a",
+      "line": 5171,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:fdce265e6ac5606dc3680e3a",
+      "fanout": {
+        "files": 171,
+        "sites": 139,
+        "refs": 322
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25905"
+  },
+  "created": "2026-10-12T05:35:50.809Z",
+  "verified": "2026-10-12T05:35:50.809Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "gateway-authorization-validators-must-read-resource-ids-from",
+    "ai-gateway-model-discovery-get-gateway-mlflow-v1-models-list",
+    "gateway-endpoint-bindings-unscoped-binding-listing-without-e",
+    "graphql-model-version-filtering-judge-each-version-with-rm-o"
+  ],
+  "says": [
+    "Users without model permissions can still see registered model names on the run page.",
+    "The experiment runs table displays model descriptions and tags to unauthorized viewers.",
+    "Hide registered model details on run views for users lacking model access permissions.",
+    "Experiment read access should not reveal registered model versions without model authorization."
+  ],
+  "search": "GraphQL field authorization in mlflow/server/auth/__init__.py gates nested fields such as run.modelVersions using (ParentGraphQLType, fieldName) tuples in PROTECTED_NESTED_FIELDS matching on info.parent_type.name in GraphQLAuthorizationMiddleware.resolve. Top-level queries are listed by name in PROTECTED_FIELDS, while nested fields like ('MlflowRunExtension', 'modelVersions') under mlflowGetRun or mlflowSearchRuns are filtered per-object in _post_resolve after resolver execution. Keying on parent type prevents matching same-named fields like MlflowSearchModelVersionsResponse.modelVersions, and administrators short-circuit the checks.",
+  "saysFor": "s2:dbde82790dcd81456c0434b38a96611e7b28f8af7f36cb04a951d35abe8fed49"
+}

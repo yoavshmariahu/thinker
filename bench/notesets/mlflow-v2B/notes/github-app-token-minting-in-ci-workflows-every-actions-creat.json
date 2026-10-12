@@ -1,0 +1,46 @@
+{
+  "id": "github-app-token-minting-in-ci-workflows-every-actions-creat",
+  "title": "GitHub App token minting in CI workflows: every actions/create-github-app-token step must set non-empty owner and repositories",
+  "kind": "rule",
+  "answers": [
+    "Why does conftest deny my workflow step that mints a GitHub App token with actions/create-github-app-token?",
+    "A workflow policy check says 'must set a non-empty with.repositories': how do I fix it for a new bot step?",
+    "Where is the check that requires explicit repository scope on GitHub App tokens?",
+    "Can I drop the owner or repositories input from create-github-app-token to get a token for all installed repos?"
+  ],
+  "body": "Path: .github/policy.rego:deny_create_app_token_without_repository_scope, the conftest check run over workflow YAML. It inspects every step whose `uses` starts with `actions/create-github-app-token@` (the step that mints an installation token for bot PR creation, labeling, Copilot, nailaopus, and similar workflows) and reads its `with.owner` and `with.repositories` inputs.\nRule: Each such step must set a non-empty `owner` and a non-empty `repositories` in `with`. A missing key or a whitespace-only value produces a denial that names the job and the missing key. The rule checks presence only, so the chosen values still have to be correct; use literal values (see the howto note on scope values).\nConstraints: Applies only to `actions/create-github-app-token@` steps. It is separate from `deny_create_app_token_without_permissions`, which checks the `permission-*` inputs, so a step must pass both. It does not evaluate expressions; `repositories` is not validated against the real repo list.",
+  "applies": "Writing or reviewing any workflow under .github/workflows that uses actions/create-github-app-token; the conftest run over workflow YAML.",
+  "tags": [
+    "github-actions",
+    "github-app-token",
+    "policy",
+    "conftest",
+    "security"
+  ],
+  "deps": [
+    {
+      "path": ".github/policy.rego",
+      "hash": "sha256:c9bdfb9326a5b78b8f142b4a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25866"
+  },
+  "created": "2026-10-12T05:37:04.734Z",
+  "verified": "2026-10-12T05:37:04.734Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "CI policy blocks workflow steps that generate bot tokens without specifying target repositories.",
+    "Bot authentication steps fail validation due to missing repository scope in workflow definitions.",
+    "Workflow checks should require explicit repository and owner configurations for bot token creation.",
+    "Pipeline linter denies app token steps that leave the owner or repository blank."
+  ],
+  "search": "A conftest policy check requires every actions/create-github-app-token step in .github/workflows to declare non-empty owner and repositories inputs. Implemented in .github/policy.rego:deny_create_app_token_without_repository_scope, missing keys or whitespace-only values cause workflow denial naming the job and missing key. The rule inspects presence only and does not evaluate expressions or validate against real repository lists. It operates separately from deny_create_app_token_without_permissions, requiring both permission and repository scoping to pass.",
+  "saysFor": "s2:fd7b7d795697e003e7189b5eb14b2ba60596f703ffc36d48ae3f3319634cbda2"
+}

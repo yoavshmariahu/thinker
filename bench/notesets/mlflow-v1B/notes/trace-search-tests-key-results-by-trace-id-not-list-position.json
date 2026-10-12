@@ -1,0 +1,53 @@
+{
+  "id": "trace-search-tests-key-results-by-trace-id-not-list-position",
+  "title": "trace search tests: key results by trace_id, not list position, when order_by timestamp_ms ties",
+  "kind": "rule",
+  "answers": [
+    "Why does test_search_traces_with_assessments fail intermittently with assert 1 == 3?",
+    "How should a test check assessments on traces returned by search_traces with order_by timestamp_ms?",
+    "Where is the trace search ordering test for assessments handled?"
+  ],
+  "body": "Path: tests/tracing/test_assessment.py:test_search_traces_with_assessments covers searching traces with assessments attached (search_traces with return_type=\"list\" and order_by=[\"timestamp_ms\"]) and checking each trace's feedback/assessment list.\nRule: Traces created in the same millisecond share timestamp_ms, so their order in search results is decided by the random request_id tie-break, not creation order. Tests must look up each returned trace by info.trace_id (build a dict keyed by trace id, then index by the id of the span they created) instead of asserting on traces[0] / traces[1].\nSymptom: The test passed or failed at random (roughly half the runs), reporting something like assert 1 == 3 because the trace with 1 assessment came back first.\nConstraints: Applies to tests that create several traces quickly and assert on search output order. Not needed when timestamps are guaranteed distinct or when the test asserts the ordering itself, which then needs an explicit tie-break or distinct timestamps.",
+  "applies": "Test code asserting on order of trace search results that tie on timestamp_ms, in tests/tracing.",
+  "tags": [
+    "tracing",
+    "tests",
+    "flaky",
+    "search",
+    "assessments"
+  ],
+  "deps": [
+    {
+      "path": "tests/tracing/test_assessment.py",
+      "symbol": "test_search_traces_with_assessments",
+      "hash": "sha256:0d012be9546c152c7312bc8c",
+      "line": 761,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0d012be9546c152c7312bc8c",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25644"
+  },
+  "created": "2026-10-12T05:40:58.312Z",
+  "verified": "2026-10-12T05:40:58.312Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Trace search results sort unpredictably when multiple traces share the exact same timestamp",
+    "Searching traces ordered by time returns tied results in a non-deterministic sequence",
+    "Trace assessment search tests fail intermittently because result ordering ties are random"
+  ],
+  "search": "Trace search tests in tests/tracing asserting on search_traces results ordered by timestamp_ms must look up traces by info.trace_id rather than list index. Because traces created in the same millisecond share timestamps, result ordering is decided by a random request_id tie-break rather than creation order, causing intermittent assertion failures when indexing by position. This applies to tests in tests/tracing that create multiple traces rapidly, unless timestamps are guaranteed distinct or an explicit tie-break is tested.",
+  "saysFor": "s2:91fac39152704373c442a97540cc3de856eb52cda02e5fdab04fb4501a6f261e"
+}

@@ -1,0 +1,55 @@
+{
+  "id": "test-experiment-selection-resolve-an-existing-experiment-by",
+  "title": "test experiment selection: resolve an existing experiment by name and activate it by ID instead of calling set_experiment by name",
+  "kind": "rule",
+  "answers": [
+    "Why does my compatibility test write its evaluation run to the Default experiment instead of the one from the older version?",
+    "Why does mlflow.set_experiment by name create a new experiment with the ./mlruns fallback location?",
+    "How do I make a test fail fast when the expected experiment is missing?"
+  ],
+  "body": "Path: tests/test_mlflow_version_comp.py:test_mlflow_2_x_comp, which reopens a tracking database written by MLflow 2.x and runs the 3.x check_evaluate and check_load steps against it.\nRule: To use an experiment that a previous step created, call mlflow.get_experiment_by_name(name), assert it is not None, and then call mlflow.set_experiment(experiment_id=experiment.experiment_id). Do not call mlflow.set_experiment(name) to reuse it: when the name is not found, set_experiment creates a new experiment, and that experiment falls back to the ./mlruns artifact location.\nSymptom: The evaluation run was logged into the Default experiment, not the 2.x-created experiment, and artifacts were written under the shared ./mlruns directory.\nConstraints: Applies when a test must activate an experiment it did not create in the same step. For experiments the test creates itself, pass an explicit artifact_location as well.",
+  "applies": "Tests that switch the active experiment across MLflow versions or after reopening a tracking store.",
+  "tags": [
+    "testing",
+    "tracking",
+    "experiments",
+    "compatibility"
+  ],
+  "deps": [
+    {
+      "path": "tests/test_mlflow_version_comp.py",
+      "symbol": "test_mlflow_2_x_comp",
+      "hash": "sha256:2eb4db29b36092ee97a40fed",
+      "line": 107,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e4abe4b2829b026cd75721d7",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25763"
+  },
+  "created": "2026-10-12T05:40:19.850Z",
+  "verified": "2026-10-12T05:40:19.850Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "test-experiment-creation-pass-an-explicit-tmp-path-artifact"
+  ],
+  "says": [
+    "Compatibility test logs its evaluation run into the Default experiment instead of the older one",
+    "Set experiment by name creates a new experiment in the mlruns fallback location",
+    "Compatibility test should reuse an experiment from the 2.x run by ID",
+    "Test should fail fast when the expected experiment is missing"
+  ],
+  "search": "In the 2.x-to-3.x compatibility test, reuse an existing experiment by looking it up by name, asserting it exists, and activating it by ID rather than calling set_experiment by name. set_experiment by name creates a new experiment with the ./mlruns fallback when not found. For self-created experiments, also pass an explicit artifact location.",
+  "saysFor": "s2:9c78ca7d2f3e4c55e0dbc6a313b1ba775168d96ae2a6197c568df69bb82f39cb"
+}

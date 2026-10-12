@@ -1,0 +1,64 @@
+{
+  "id": "mlflow-artifacts-example-s3-storage-rustfs-service-plus-one",
+  "title": "mlflow_artifacts example S3 storage: RustFS service plus one-shot AWS CLI bucket creation, gated by service_completed_successfully",
+  "kind": "rule",
+  "answers": [
+    "Why does the mlflow_artifacts docker-compose example fail with pull access denied for minio/mc?",
+    "How do I point the MLflow artifacts example's S3 endpoint at a different S3-compatible store in docker-compose?",
+    "How is the bucket created for the mlflow_artifacts example's artifact store?",
+    "Where is the artifact storage service and console port (9001) configured for the MLflow artifacts example?"
+  ],
+  "body": "Path: examples/mlflow_artifacts/docker-compose.yml (services storage, create-bucket, and the mlflow server service) runs the tracking server with artifacts going to an S3-compatible store; the README's docker-compose section and test_mlflow_artifacts_example exercise this file.\nRule: Storage is the RustFS image pinned to rustfs/rustfs:1.0.0-alpha.83 and healthchecked via curl on /health. The bucket is created by a one-shot amazon/aws-cli:2.33.25 service that uses head-bucket then create-bucket against http://storage:9000, and the server service waits on it with condition: service_completed_successfully. MLFLOW_S3_ENDPOINT_URL must use the in-network service name (http://storage:9000), and AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY must match RUSTFS_ACCESS_KEY/RUSTFS_SECRET_KEY.\nSymptom: The example's tests failed in CI because Docker could not pull minio/mc (Docker Hub returned 404 for that repository), so tests/tracking/test_mlflow_artifacts.py::test_mlflow_artifacts_example could not start the compose stack. The fix was to replace the MinIO and mc images, not to change MLflow code.\nConstraints: Applies only to this example's compose file. Do not reintroduce minio/mc for bucket setup. The top-level compose `version:` key was dropped in this layout. The MLflow server code and the S3 artifact repository are unchanged by this example.",
+  "applies": "Scope: the mlflow_artifacts example's docker-compose setup and its README; not the core MLflow artifact repository code.",
+  "tags": [
+    "examples",
+    "docker-compose",
+    "artifacts",
+    "s3",
+    "minio",
+    "rustfs",
+    "ci"
+  ],
+  "deps": [
+    {
+      "path": "examples/mlflow_artifacts/docker-compose.yml",
+      "hash": "sha256:7e6b0a34bb4a83e859ca389e",
+      "missing": false
+    },
+    {
+      "path": "tests/tracking/test_mlflow_artifacts.py",
+      "symbol": "test_mlflow_artifacts_example",
+      "hash": "sha256:d030592902a606b59629b020",
+      "line": 246,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e8d65e452d935a5cb0d39bd9",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25808"
+  },
+  "created": "2026-10-12T05:45:11.741Z",
+  "verified": "2026-10-12T05:45:11.741Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "docker-compose-example-test-retry-only-docker-compose-pull-a"
+  ],
+  "says": [
+    "The sample container walkthrough cannot start because the bucket setup image cannot be downloaded.",
+    "Our artifact storage tutorial crashes before starting due to an unpullable helper image.",
+    "Make the artifact storage sample initialize its cloud bucket with reliable container images.",
+    "Ensure the artifact server demo waits for bucket creation before starting services."
+  ],
+  "search": "In examples/mlflow_artifacts/docker-compose.yml, artifact storage uses the rustfs/rustfs:1.0.0-alpha.83 service healthchecked on /health, with bucket creation handled by a one-shot amazon/aws-cli:2.33.25 service that runs head-bucket then create-bucket against http://storage:9000. The mlflow server service must wait on bucket creation using condition: service_completed_successfully, while MLFLOW_S3_ENDPOINT_URL points to http://storage:9000 and matching AWS and RUSTFS access keys and secret keys are supplied. This setup replaces minio and minio/mc images after 404 pull failures in test_mlflow_artifacts_example without modifying core MLflow artifact repository code. The rule applies only to this example compose setup and drops the top-level version key.",
+  "saysFor": "s2:4d7b2861cfee939e252533425dc8ca1944cc1319e8189fa4ff732acd2eaa7b53"
+}

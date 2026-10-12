@@ -1,0 +1,61 @@
+{
+  "id": "github-actions-scheduled-state-mutating-workflows-serialize",
+  "title": "GitHub Actions scheduled state-mutating workflows: serialize runs with concurrency group github.workflow, cancel-in-progress false",
+  "kind": "rule",
+  "answers": [
+    "Why do manual dispatches of the stale or duplicate-PR workflow wait instead of running alongside the nightly cron run?",
+    "Scheduled stale-issue, stale-PR, duplicate-PR or flaky-test workflows are running at the same time and mutating labels or comments. How is that prevented?",
+    "How do I add a concurrency setting to a new scheduled GitHub workflow that writes to the repo?",
+    "Where is the concurrency policy for the cron-driven repo-maintenance workflows defined?"
+  ],
+  "body": "Path: .github/workflows/stale.yml, .github/workflows/stale-prs.yml, .github/workflows/duplicate-prs.yml, .github/workflows/flaky-test-detector.yml. These cron plus workflow_dispatch workflows are the scheduled, state-mutating repo-maintenance jobs (closing stale issues and PRs, flagging duplicate PRs, detecting flaky tests); their top-level concurrency block controls whether a manual dispatch can overlap a scheduled run.\nRule: Use a top-level `concurrency:` block with `group: ${{ github.workflow }}` and `cancel-in-progress: false` for such workflows, so all runs of the same workflow (cron and manual) share one queue and run one at a time without cancelling each other. Do not key the group on `github.run_id`, which gives every run its own group and so no serialization.\nSymptom: Per-run groups (`${{ github.run_id }}`) let a manual dispatch start while a cron run was still mutating the same issues or PRs, so the two runs could race on the same state.\nConstraints: Applies to workflows whose runs modify shared repo state and should not overlap. Do not turn on cancel-in-progress for these, since cancelling a half-finished state-mutating run could leave it inconsistent. Read-only or independent workflows can keep their own grouping.",
+  "applies": "GitHub Actions workflow concurrency for scheduled, state-mutating repo-maintenance workflows in .github/workflows.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "concurrency",
+    "workflows"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/stale.yml",
+      "hash": "sha256:3fea670bdac385c6eaabe7be",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/stale-prs.yml",
+      "hash": "sha256:bcfaa791b9cd9ca7daa21e43",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/duplicate-prs.yml",
+      "hash": "sha256:7d86d4f5646aa2148d0ec206",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/flaky-test-detector.yml",
+      "hash": "sha256:613db574b06454599cf14c9d",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25620"
+  },
+  "created": "2026-10-12T05:41:05.458Z",
+  "verified": "2026-10-12T05:41:05.458Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Manual cleanup runs are conflicting with scheduled maintenance and modifying the same tickets simultaneously.",
+    "Prevent scheduled stale issue cleanups and manual triggers from running at the same time.",
+    "Why did a manually started repository maintenance task wait for the scheduled run to finish?",
+    "Ensure overlapping runs of maintenance jobs queue safely instead of cancelling active label updates.",
+    "Scheduled flaky test detection runs conflict with manual runs when updating comments."
+  ],
+  "search": "Scheduled state-mutating repository maintenance workflows serialize runs using a top-level `concurrency:` block with `group: ${{ github.workflow }}` and `cancel-in-progress: false`. This applies to cron and `workflow_dispatch` workflows like `stale.yml`, `stale-prs.yml`, `duplicate-prs.yml`, and `flaky-test-detector.yml` that close stale issues and PRs, flag duplicate PRs, or detect flaky tests. Do not key the group on `github.run_id`, which fails to serialize runs, and do not enable `cancel-in-progress` to avoid leaving state inconsistent midway through execution.",
+  "saysFor": "s2:aae429380de68d8bc4c8bf3c0e70f4fba68c1d04775be1a8be178acb920dd53f"
+}

@@ -1,0 +1,75 @@
+{
+  "id": "basic-auth-createmodelversion-source-run-model-read-check-mu",
+  "title": "basic-auth CreateModelVersion: source run/model READ check must use proto-parsed runId/modelId, not raw body keys",
+  "kind": "rule",
+  "answers": [
+    "Why can a user create a model version from a run they cannot read when the REST body uses camelCase runId?",
+    "Where does basic auth decide whether a model-versions/create request may reference a source run or logged model?",
+    "How should a new field on model version create that references another resource be authorized?",
+    "Why does the model-versions/create validator parse the body through the proto instead of reading JSON keys?"
+  ],
+  "body": "Path: mlflow/server/auth/__init__.py:validate_can_create_model_version, the before-request validator for POST /api/2.0/mlflow/model-versions/create. It runs for any create-model-version request that sets a source run or logged model (run_id/runId or model_id/modelId in the JSON body) and checks READ on that source before the handler anchors the new version to it.\nRule: Parse the body with _get_request_message(CreateModelVersion()), test presence with msg.HasField(\"run_id\") and msg.HasField(\"model_id\"), and authorize the bound values through _get_run_permission / _get_model_permission (via _can_read_model_version_source). Do not read raw request JSON keys: the proto JSON parser also binds the lowerCamelCase aliases, so a body carrying only runId or modelId skipped the READ check while the handler still used that id.\nSymptom: An authenticated user with no READ on another user's run could create a model version pointing at that run through a registered model they own, then read the run's artifacts through that version, since artifact reads on a version are authorized only against the caller's own registered model.\nConstraints: HasField keeps the rule that an explicitly empty id is denied rather than treated as absent. A non-dict body degrades to an empty message and falls through to the handler's own validation. The same proto-parse pattern is used by validate_can_log_metric, validate_can_log_batch and validate_can_update_run_or_logged_model; the registered-model/prompt update check still runs first.",
+  "applies": "Basic-auth server authorization of POST model-versions/create source run and logged-model references; not for handlers that take no source id.",
+  "tags": [
+    "auth",
+    "basic-auth",
+    "model-registry",
+    "security",
+    "model-versions"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_create_model_version",
+      "hash": "sha256:9eae272ce33b91870100198a",
+      "line": 1415,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9eae272ce33b91870100198a",
+      "fanout": {
+        "files": 2,
+        "sites": 6,
+        "refs": 7
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_can_read_model_version_source",
+      "hash": "sha256:4c6f7a309ecfe51d60883997",
+      "line": 1448,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4c6f7a309ecfe51d60883997",
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25892"
+  },
+  "created": "2026-10-12T05:36:24.042Z",
+  "verified": "2026-10-12T05:36:24.042Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "jobs-search-under-basic-auth-non-admins-only-see-jobs-whose",
+    "gateway-authorization-validators-must-read-resource-ids-from",
+    "basic-auth-fail-closed-backstop-only-response-filters-author",
+    "basic-auth-source-read-check-report-a-nonexistent-run-logged"
+  ],
+  "says": [
+    "Users can register a model version from an experiment run they cannot view.",
+    "Prevent users from creating model versions referencing training runs they cannot read.",
+    "Unauthorized members can view private run artifacts by registering a new model version.",
+    "Model registry allows linking private experiment runs when saving new model versions.",
+    "Block unauthorized users from accessing another user's run outputs through the model registry."
+  ],
+  "search": "In `mlflow/server/auth/__init__.py`, `validate_can_create_model_version` checks source run and logged-model READ authorization for `POST /api/2.0/mlflow/model-versions/create` by parsing the request body into a `CreateModelVersion` protobuf message. Using `HasField('run_id')` and `HasField('model_id')` binds lowerCamelCase JSON aliases like `runId` and `modelId` so permissions are verified before anchoring the version. Explicitly empty IDs are denied, non-dictionary bodies fall through to handler validation, and this proto-parsing pattern also applies to `validate_can_log_metric`, `validate_can_log_batch`, and `validate_can_update_run_or_logged_model`. The rule applies to model version creation requests specifying a source run or logged model, with registered model authorization still running first.",
+  "saysFor": "s2:0bb90515aaf6cfd725503fd1e14833656c178b63bda93f85d78e400ea623a212"
+}

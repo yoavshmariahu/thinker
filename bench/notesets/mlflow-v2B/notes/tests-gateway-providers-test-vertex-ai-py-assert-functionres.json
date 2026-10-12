@@ -1,0 +1,69 @@
+{
+  "id": "tests-gateway-providers-test-vertex-ai-py-assert-functionres",
+  "title": "tests/gateway/providers/test_vertex_ai.py: assert functionResponse parts within the answering user turn, not across all contents",
+  "kind": "rule",
+  "answers": [
+    "Why did the Vertex AI parallel tool call test pass even though Gemini rejected the request?",
+    "How should a test check that Gemini request contents group function responses correctly?",
+    "Where are Vertex AI chat request bodies asserted for function calls and function responses?"
+  ],
+  "body": "Path: Vertex AI chat request tests in tests/gateway/providers/test_vertex_ai.py, which mock the POST and inspect the `contents` array sent to Gemini. The relevant check is test_chat_parallel_tool_calls_omit_all_function_call_ids, which covers the Vertex AI variant with call ids stripped from the grouped parts.\nRule: When asserting Gemini request contents for tool calling, read the functionResponse parts from the final user turn that answers the calls (for example `contents[-1][\"parts\"]`), and assert their count equals the functionCall count. Counting functionResponse parts across all turns cannot detect responses split into one user turn each, so the test passed with the grouping bug.\nSymptom: The test counted function responses across every turn and stayed green on master while real parallel calls failed with a 400 from Gemini.\nConstraints: Applies to tests that inspect request bodies. Sequential-round tests should instead check the per-turn structure (role and part count per turn), as in tests/gateway/providers/test_gemini.py:test_gemini_chat_function_calling_sequential_calls_keep_separate_response_turns.\nApplies: Tests of Gemini and Vertex AI request bodies built by the gateway adapter.",
+  "applies": "Test assertions on Gemini-format request contents in the gateway provider tests.",
+  "tags": [
+    "gateway",
+    "gemini",
+    "vertex-ai",
+    "tests",
+    "tool-calling"
+  ],
+  "deps": [
+    {
+      "path": "tests/gateway/providers/test_vertex_ai.py",
+      "symbol": "test_chat_parallel_tool_calls_omit_all_function_call_ids",
+      "hash": "sha256:932a5b93b63c31f6d161ebcd",
+      "line": 351,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:932a5b93b63c31f6d161ebcd",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/gateway/providers/test_gemini.py",
+      "symbol": "test_gemini_chat_function_calling_sequential_calls_keep_separate_response_turns",
+      "hash": "sha256:193ac820b1f9624332f738a2",
+      "line": 988,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:193ac820b1f9624332f738a2",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26001"
+  },
+  "created": "2026-10-12T05:34:46.179Z",
+  "verified": "2026-10-12T05:34:46.179Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Parallel tool calling through the AI gateway fails with a bad request error.",
+    "The chat gateway returns an error when executing multiple function calls simultaneously.",
+    "Simultaneous tool responses in chat conversations are rejected by the upstream model provider.",
+    "Make sure parallel tool calls return responses properly grouped in a single turn.",
+    "Running parallel functions in the chat interface crashes with upstream provider rejection."
+  ],
+  "search": "Gateway provider tests in tests/gateway/providers/test_vertex_ai.py must assert functionResponse parts within the final answering user turn rather than across the entire contents array. In test_chat_parallel_tool_calls_omit_all_function_call_ids, functionResponse parts in contents[-1]['parts'] must match functionCall counts to ensure responses are not improperly split across multiple user turns. Global counts allowed parallel tool call grouping bugs to pass tests while failing in production with 400 errors from Gemini, whereas sequential tests verify per-turn role and part structure.",
+  "saysFor": "s2:8b1ea4726e5866ad712dd09ad0711fd3bda091268a8cb6696cf4b5bbd0c3d647"
+}

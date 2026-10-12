@@ -1,0 +1,60 @@
+{
+  "id": "trace-detail-pretty-view-top-level-chat-payloads-render-once",
+  "title": "trace detail Pretty view: top-level chat payloads render once as chat cards, with the anonymous top-level field skipped",
+  "kind": "rule",
+  "answers": [
+    "Trace detail Pretty view shows duplicate User and Assistant cards for OTEL-style chat span inputs and outputs",
+    "Why does a span's input list of role/parts messages appear twice in the trace right pane?",
+    "Where are top-level chat arrays converted into chat cards in the trace Pretty renderer?",
+    "Searching inside a trace span in Pretty mode: why do chat messages disappear or change layout?"
+  ],
+  "body": "Path: mlflow/server/js/src/shared/web-shared/model-trace-explorer/v2/right-pane/ModelTraceExplorerDefaultSpanView.tsx:ModelTraceExplorerDefaultSpanView renders a span's inputs and outputs in the trace detail right pane in Pretty or raw mode; top-level chat arrays like [{role, parts:[{type, content}]}] pass through getInputChatMessages and getOutputChatMessages before renderSectionPayload.\nRule: when getInputChatMessages or getOutputChatMessages reports hasTopLevelChatPayload, renderNonChatFields is called with skipAnonymousTopLevelField so the field with key '' (the whole payload) is filtered out by filterNonChatFields; named non-chat fields still render as Pretty fields. Do not add a separate render path for the active search match; the removed active-match bypass in renderSectionPayload was the reason search made chat payloads render as raw fields again.\nSymptom: in the trace detail Pretty view, a single chat input or output appeared as User/Assistant cards and again as a generic field, so each message showed twice.\nConstraints: applies only to Pretty render mode with top-level chat payloads; raw mode and named fields (e.g. a key next to messages) are unaffected. Chat detection is still done in the helpers, not in renderSectionPayload.",
+  "applies": "Trace detail right pane (model-trace-explorer v2) span inputs/outputs Pretty rendering for chat-format payloads.",
+  "tags": [
+    "tracing",
+    "trace-explorer",
+    "pretty-view",
+    "chat-messages",
+    "frontend"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/shared/web-shared/model-trace-explorer/v2/right-pane/ModelTraceExplorerDefaultSpanView.tsx",
+      "symbol": "ModelTraceExplorerDefaultSpanView",
+      "hash": "sha256:0b0e8bfaa694d82456206875",
+      "line": 103,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0b0e8bfaa694d82456206875",
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/shared/web-shared/model-trace-explorer/v2/right-pane/ModelTraceExplorerRightPane.test.tsx",
+      "hash": "sha256:b320ddfaf499fb0da1ca6718",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26097"
+  },
+  "created": "2026-10-12T05:29:48.464Z",
+  "verified": "2026-10-12T05:29:48.464Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Chat messages appear twice in the trace detail pane under the pretty view.",
+    "User and assistant conversation cards are duplicated in the formatted trace inspector.",
+    "Searching inside a trace span makes formatted chat cards revert to raw fields.",
+    "Show top-level conversation messages only once when viewing formatted trace details."
+  ],
+  "search": "In the trace detail right pane, ModelTraceExplorerDefaultSpanView renders top-level chat payloads once in Pretty mode by passing skipAnonymousTopLevelField to renderNonChatFields so filterNonChatFields filters out the empty-key payload. This prevents top-level chat inputs and outputs from appearing twice as both User/Assistant cards and generic fields, without using active-match search bypasses that revert chats to raw fields. Applies only to Pretty render mode with top-level chat arrays in model-trace-explorer v2, leaving raw mode and named non-chat fields unaffected.",
+  "saysFor": "s2:92688ba5a3115c965bdaba319acc45849890489ce48f6f3a0beb9e9ece83ea98"
+}

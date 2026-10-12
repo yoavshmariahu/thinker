@@ -1,0 +1,103 @@
+{
+  "id": "typescript-span-processor-tests-mock-the-environment-helper",
+  "title": "TypeScript span processor tests: mock the environment helper in suites that instantiate the processor so Git state does not leak into assertions",
+  "kind": "howto",
+  "answers": [
+    "Why does my TypeScript exporter test assert trace metadata that changes with the checkout?",
+    "How do I write a Unity Catalog processor test that checks source git metadata?",
+    "Which test suites need to mock resolveEnvironmentMetadata?"
+  ],
+  "body": "Path: Test suites that construct DatabricksUCTableSpanProcessor (libs/typescript/core/tests/exporters/uc_table_processor.test.ts, end-to-end block) run the real onStart path, which calls resolveEnvironmentMetadata from libs/typescript/core/src/core/utils/environment.ts.\nRule: In such a suite, jest.mock('../../src/core/utils/environment') with a fixed resolveEnvironmentMetadata return (branch, commit, repoURL), then assert the keys with toMatchObject on trace.info.traceMetadata. Suites that import only MlflowClient (for example tests/exporters/uc_table.test.ts) never reach onStart, so they need no mock. Test resolveGitMetadata itself by passing a fake runner as the second argument, not by mocking.\nConstraints: resolveEnvironmentMetadata caches per process, so an unmocked processor test would read whatever repository the test runner is in and could differ between machines. Do not mock inside the resolveGitMetadata suite (libs/typescript/core/tests/core/utils/environment.test.ts), because that suite calls the injected runner directly.",
+  "applies": "Jest tests in libs/typescript/core that instantiate MLflow or Unity Catalog span processors.",
+  "tags": [
+    "testing",
+    "jest",
+    "typescript",
+    "tracing",
+    "git-metadata"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/core/src/core/utils/environment.ts",
+      "symbol": "resolveEnvironmentMetadata",
+      "hash": "sha256:7bf98f226c73a0459a065381",
+      "line": 56,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7bf98f226c73a0459a065381",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 4
+      }
+    },
+    {
+      "path": "libs/typescript/core/src/exporters/uc_table.ts",
+      "symbol": "DatabricksUCTableSpanProcessor",
+      "hash": "sha256:2ca10c9b7eb9340f23f82b4a",
+      "line": 29,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2ca10c9b7eb9340f23f82b4a",
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 6
+      }
+    },
+    {
+      "path": "libs/typescript/core/tests/exporters/uc_table_processor.test.ts",
+      "symbol": "resolveEnvironmentMetadata",
+      "hash": "sha256:a2462d1ac29b4c11aaa15159",
+      "line": 30,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a2462d1ac29b4c11aaa15159",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 4
+      }
+    },
+    {
+      "path": "libs/typescript/core/tests/exporters/uc_table.test.ts",
+      "hash": "sha256:a6c663acb0e968dae533c733",
+      "missing": false
+    },
+    {
+      "path": "libs/typescript/core/tests/core/utils/environment.test.ts",
+      "symbol": "resolveGitMetadata",
+      "hash": "sha256:a28c492747f68352f96f74f2",
+      "line": 36,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 6,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25825"
+  },
+  "created": "2026-10-12T05:38:04.567Z",
+  "verified": "2026-10-12T05:38:04.567Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "typescript-agent-traces-git-source-metadata-is-resolved-fiel",
+    "typescript-tracing-spans-setting-attributes-on-an-already-en",
+    "uc-trace-export-typescript-session-and-user-must-be-copied-t"
+  ],
+  "says": [
+    "Automated test runs fail intermittently across different developer machines due to local checkout details.",
+    "Continuous integration build verification fails when testing trace exporter metadata on different branches.",
+    "Trace exporter test assertions vary depending on the local source control workspace.",
+    "Ensure trace export tests produce consistent metadata assertions regardless of developer environment."
+  ],
+  "search": "Jest test suites in libs/typescript/core that instantiate DatabricksUCTableSpanProcessor must mock resolveEnvironmentMetadata from libs/typescript/core/src/core/utils/environment.ts to prevent local Git checkout state from leaking into traceMetadata assertions. Assert the fixed branch, commit, and repoURL using toMatchObject on trace.info.traceMetadata. Suites importing only MlflowClient do not reach onStart and need no mock, while resolveGitMetadata tests should inject a fake runner instead of mocking. Because resolveEnvironmentMetadata caches per process, unmocked processor tests risk reading host repository state and failing across different machines.",
+  "saysFor": "s2:dd98cb814daec410929fd3ed595844278a003f4809a22aceab1d114d8cb2ba7d"
+}

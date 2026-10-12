@@ -1,0 +1,59 @@
+{
+  "id": "logged-model-search-order-by-metric-pagination-needs-exactly",
+  "title": "Logged model search order by metric: pagination needs exactly one latest metric row per model (row_number, not rank)",
+  "kind": "rule",
+  "answers": [
+    "Why does paging through logged models sorted by a metric return the same model more than once?",
+    "Logged model search ordered by metrics.<name> with tied dataset metrics shows duplicate models across pages, how is that fixed?",
+    "Where is the metric ordering for search_logged_models with order_by handled?",
+    "How does the latest metric value per logged model get chosen when sorting by a metric?"
+  ],
+  "body": "Path: Logged-model search (search_logged_models with order_by on metrics.<name>, used by paginated logged-model lists) passes through mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore._apply_order_by_search_logged_models, which builds a per-model subquery of logged model metric rows and outer-joins it into the ORDER BY.\nRule: Keep one row per model_id in that subquery by using row_number() (filtered to row_num == 1), not rank(). rank() keeps every tied row, so ties across datasets duplicated the model before pagination. The window ORDER BY is metric_timestamp_ms desc, metric_step desc, then run_id asc as a deterministic tie-breaker.\nSymptom: A logged model sorted by a metric appeared several times in the result set when its latest metric rows tied across datasets (for example train/val/test with the same value), so paginated listings repeated models.\nConstraints: Applies only to metric-based ordering in search_logged_models. run_id asc only makes the choice deterministic; it does not define a meaningful preference between datasets. Non-metric order keys are not affected by this subquery.",
+  "applies": "SQL tracking store, search_logged_models ordering by metric values with pagination (max_results / page_token).",
+  "tags": [
+    "tracking",
+    "logged-models",
+    "search",
+    "pagination",
+    "sqlalchemy"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "SqlAlchemyStore._apply_order_by_search_logged_models",
+      "hash": "sha256:ed81baaabcffd60026132c70",
+      "line": 3591,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ed81baaabcffd60026132c70",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25935"
+  },
+  "created": "2026-10-12T05:30:55.166Z",
+  "verified": "2026-10-12T05:30:55.166Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "search-filter-numeric-attributes-searchutils-get-value-retur",
+    "tracking-search-time-filters-numeric-experiment-and-dataset",
+    "logged-model-search-order-by-model-id-asc-is-appended-as-the"
+  ],
+  "says": [
+    "Paging through models sorted by metric displays the same model multiple times.",
+    "Models with identical scores across datasets appear repeatedly when browsing sorted model lists.",
+    "Stop duplicate model entries from showing up when sorting models by an evaluation metric.",
+    "Sorting the logged models list by score causes duplicate entries across pages."
+  ],
+  "search": "SqlAlchemyStore._apply_order_by_search_logged_models must filter metric subqueries using row_number() equal to 1 instead of rank() when sorting logged models by a metric. Using rank() retained tied rows across datasets such as train and test, causing duplicate models to appear across paginated search_logged_models results. The ordering subquery breaks ties using metric_timestamp_ms desc, metric_step desc, and run_id asc, applying only to metric-based ordering in the SQL tracking store.",
+  "saysFor": "s2:7d0a1594e94b3dd2dbcd138a3bab3fc006a0a82e319315d6f44eef405b7dadef"
+}

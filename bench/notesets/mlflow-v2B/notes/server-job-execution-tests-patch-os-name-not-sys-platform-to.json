@@ -1,0 +1,99 @@
+{
+  "id": "server-job-execution-tests-patch-os-name-not-sys-platform-to",
+  "title": "Server job-execution tests: patch os.name, not sys.platform, to get past the Windows job-backend guard",
+  "kind": "rule",
+  "answers": [
+    "Server startup tests fail only on Windows with 'MLflow job backend does not support Windows system' instead of the expected rollup validation error",
+    "How do I make a test of _run_server pass the job-backend check when job execution or trace rollups are enabled?",
+    "Why does mock.patch('sys.platform') not change the behavior of the job executor requirement check?",
+    "Where is the Windows rejection for the MLflow job backend implemented?"
+  ],
+  "body": "Path: Server startup in mlflow/server/__init__.py (_run_server) calls validate_executor_config() when job execution is enabled, which reaches LocalJobExecutor.check_requirements in mlflow/server/jobs/local_executor.py; that is where the job backend refuses Windows. Tests in tests/server/test_init.py that enable job execution or trace rollups go through this path.\nRule: To get past the Windows check in a test, patch `os.name` (e.g. mock.patch(\"os.name\", \"posix\")), because LocalJobExecutor.check_requirements tests `os.name == \"nt\"`. Patching `sys.platform` with return_value=... does nothing for this guard and is the wrong form for replacing a plain attribute. Keep mocking mlflow.server.jobs.utils._check_requirements alongside it, since that is what the other tests rely on.\nSymptom: On Windows CI the startup tests raised 'MLflow job backend does not support Windows system.' before reaching the trace rollup validation, so pytest.raises(match=...) failed with a regex mismatch. On Linux and macOS the same tests passed because os.name was already 'posix', which hid the bug.\nConstraints: Only needed for tests that enable job execution and reach validate_executor_config. Tests that do not enable job execution never reach this guard and should not be changed. If a test's own mock raises before the guard (for example a side_effect on _check_requirements), no os.name patch is needed.",
+  "applies": "Tests under tests/server/ that exercise _run_server with job execution or trace rollups enabled, especially on Windows CI shards.",
+  "tags": [
+    "testing",
+    "windows",
+    "server",
+    "job-execution",
+    "trace-rollups",
+    "mock"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/jobs/local_executor.py",
+      "symbol": "LocalJobExecutor.check_requirements",
+      "hash": "sha256:b322afca6cce205fdd694e04",
+      "line": 515,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b322afca6cce205fdd694e04",
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 7
+      }
+    },
+    {
+      "path": "tests/server/test_init.py",
+      "symbol": "test_run_server_rejects_invalid_enabled_rollup_schedule",
+      "hash": "sha256:8869bba67df14b2dd427a47f",
+      "line": 206,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8869bba67df14b2dd427a47f",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/server/test_init.py",
+      "symbol": "test_run_server_passes_public_store_config_to_job_runner",
+      "hash": "sha256:8144bc85b30eced2da753d05",
+      "line": 353,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8144bc85b30eced2da753d05",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/server/__init__.py",
+      "symbol": "_run_server",
+      "hash": "sha256:6ccb32e68b0e18e45b976093",
+      "line": 345,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6ccb32e68b0e18e45b976093",
+      "fanout": {
+        "files": 9,
+        "sites": 18,
+        "refs": 61
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26205"
+  },
+  "created": "2026-10-12T05:28:49.958Z",
+  "verified": "2026-10-12T05:28:49.958Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Server startup test suite fails on Windows machines when testing background job execution.",
+    "Windows test builds fail with unsupported operating system errors when trace rollups are enabled.",
+    "Allow server validation tests to run on Windows without being blocked by backend platform checks.",
+    "Background job backend checks prevent trace rollup verification tests from passing on Windows.",
+    "Server startup verification crashes on Windows runners before reaching expected schedule validation errors."
+  ],
+  "search": "In tests under tests/server/ that exercise _run_server with job execution or trace rollups enabled, patch os.name to 'posix' rather than patching sys.platform to bypass the Windows platform check. LocalJobExecutor.check_requirements in mlflow/server/jobs/local_executor.py checks os.name == 'nt' during validate_executor_config, so mocking sys.platform fails to prevent the Windows rejection error. Tests such as test_run_server_rejects_invalid_enabled_rollup_schedule and test_run_server_passes_public_store_config_to_job_runner must also continue mocking mlflow.server.jobs.utils._check_requirements. This patch is only required for tests reaching validate_executor_config with job execution enabled, and can be omitted if a mock raises before reaching the guard.",
+  "saysFor": "s2:52a78391d58d6bd16e3e8084a2f068ab5270d90ac77d32d33baf1d2221020bca"
+}

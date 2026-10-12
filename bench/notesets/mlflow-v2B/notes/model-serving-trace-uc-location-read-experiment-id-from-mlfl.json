@@ -1,0 +1,69 @@
+{
+  "id": "model-serving-trace-uc-location-read-experiment-id-from-mlfl",
+  "title": "Model Serving trace UC location: read experiment id from MLFLOW_EXPERIMENT_ID in serving, never validate it against the local store",
+  "kind": "rule",
+  "answers": [
+    "Why do traces from a Databricks Model Serving endpoint go to the inference table instead of the Unity Catalog experiment table?",
+    "How does the serving container pick the experiment ID used to resolve the Unity Catalog trace location?",
+    "Where is the UC trace location resolved for model serving, and what happens when the experiment is not in the local tracking store?",
+    "If I add another serving-only tracing option that depends on the experiment ID, which code path does it go through?"
+  ],
+  "body": "Path: Tracing export setup for Databricks Model Serving. `mlflow/tracing/provider.py:_resolve_experiment_uc_location` decides whether serving traces are bound to a Unity Catalog experiment (UC-backed tables) or keep the inference-table path. It takes the experiment id, looks it up in the Databricks tracking store, and reads the UC catalog/schema/table prefix from the experiment tags.\nRule: In serving (`in_serving`), read the experiment id directly from `MLFLOW_EXPERIMENT_ID.get()`. Only outside serving call `_get_experiment_id()`. `_get_experiment_id()` validates the id against the local tracking store, where a serving experiment does not exist, so it raises and the UC location is lost. The fix is to skip that validation in serving, not to catch the error.\nSymptom: Traces from a UC-bound serving experiment were silently routed to the inference-table path instead of the Unity Catalog-backed experiment tables.\nConstraints: Applies only when the serving branch is taken. Non-serving callers keep the validated `_get_experiment_id()` lookup. If the env var is unset, the function still returns None as before. Tests in `tests/tracing/test_provider.py:test_resolve_uc_location_in_serving_bypasses_local_experiment_validation` set `MLFLOW_EXPERIMENT_ID` and mock `_get_experiment_id` to raise, to pin this behavior.",
+  "applies": "Tracing export for Databricks Model Serving containers where the experiment is bound to Unity Catalog; does not change non-serving tracing.",
+  "tags": [
+    "tracing",
+    "model-serving",
+    "databricks",
+    "unity-catalog",
+    "experiment-id"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/tracing/provider.py",
+      "symbol": "_resolve_experiment_uc_location",
+      "hash": "sha256:19006da50fce71a40ff5ec8d",
+      "line": 768,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:19006da50fce71a40ff5ec8d",
+      "fanout": {
+        "files": 2,
+        "sites": 8,
+        "refs": 15
+      }
+    },
+    {
+      "path": "tests/tracing/test_provider.py",
+      "symbol": "test_resolve_uc_location_in_serving_bypasses_local_experiment_validation",
+      "hash": "sha256:3258b50527c8347f4ccfaf0c",
+      "line": 1156,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3258b50527c8347f4ccfaf0c",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25913"
+  },
+  "created": "2026-10-12T05:35:35.333Z",
+  "verified": "2026-10-12T05:35:35.333Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Serving endpoint traces appear in inference tables instead of the catalog experiment table.",
+    "Model serving requests are not exporting traces to the configured catalog destination.",
+    "Traces from deployed model endpoints fail to route to catalog experiment tables.",
+    "Missing serving traces in the catalog table for endpoints linked to experiments."
+  ],
+  "search": "Model serving trace export in mlflow/tracing/provider.py:_resolve_experiment_uc_location must read the experiment ID directly from MLFLOW_EXPERIMENT_ID.get() without local store validation. Bypassing _get_experiment_id() during serving prevents errors caused by checking against a nonexistent local tracking store, preserving the Unity Catalog destination. Previously, failed local validation silently diverted traces from Unity Catalog experiment tables back to default inference tables. This rule applies strictly when in_serving is active, leaving non-serving callers on validated _get_experiment_id() lookups and returning None if the environment variable is unset.",
+  "saysFor": "s2:ddc64135e39de5ac551991cfd52432d8d2953c871f36941acce0a927a020de9f"
+}

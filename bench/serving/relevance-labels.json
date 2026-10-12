@@ -1,0 +1,3777 @@
+{
+ "PR26252-hard": {
+  "set": "first",
+  "gold": [
+   "mlflow/models/evaluation/validation.py"
+  ],
+  "candidates": 21,
+  "ratings": {
+   "eval-results-table-attaches-model-outputs-by-position-not-in": {
+    "rating": 0,
+    "why": "About positional attachment of outputs in DefaultEvaluator.log_eval_table. Same subpackage as validation.py but a different function and concern; it says nothing about the baseline threshold math."
+   },
+   "use-pandas-array-not-to-numpy-when-moving-nullable-outputs-i": {
+    "rating": 0,
+    "why": "About nullable dtype handling when building the eval table. Unrelated to the relative-change threshold calculation."
+   },
+   "non-grouped-raw-gaps-must-be-read-before-the-final-rollup-va": {
+    "rating": 0,
+    "why": "About SQL trace rollup read ordering in SqlAlchemyStore. Unrelated to model validation."
+   },
+   "raising-a-flavor-s-tested-minimum-can-orphan-a-requirement-s": {
+    "rating": 0,
+    "why": "About flavor version matrix YAML and requirement selectors. Unrelated to validation thresholds."
+   },
+   "workspace-default-artifact-root-must-be-a-uri-or-an-absolute": {
+    "rating": 0,
+    "why": "About workspace artifact-root validation in the server handlers. Unrelated to model metric comparison."
+   },
+   "strip-only-a-bullet-marker-plus-whitespace-from-llm-failure": {
+    "rating": 0,
+    "why": "About parsing bullet markers in GenAI discovery extraction. Unrelated to the validation threshold."
+   },
+   "basic-auth-password-policy-must-be-enforced-in-the-store-s-u": {
+    "rating": 0,
+    "why": "About password length policy in the auth store. Unrelated to model validation."
+   },
+   "the-torch-2-10-gate-must-stay-in-sync-across-the-code-error": {
+    "rating": 0,
+    "why": "About the torch version gate for pickle-free loading. Unrelated to the validation threshold."
+   },
+   "moving-a-skill-file-requires-fixing-its-relative-links-and-t": {
+    "rating": 0,
+    "why": "About moving skill files and their relative links. Unrelated to the code path."
+   },
+   "assistant-system-prompt-variants-must-be-changed-together-an": {
+    "rating": 0,
+    "why": "About keeping assistant system prompt variants in sync. Unrelated to the validation logic."
+   },
+   "genai-eval-aggregate-metrics-must-carry-the-managed-dataset": {
+    "rating": 0,
+    "why": "About forwarding the managed dataset when logging GenAI aggregate metrics. Shares the word metrics but not the validation threshold code path."
+   },
+   "legacy-serialized-scorers-must-reload-with-timeout-0-not-the": {
+    "rating": 0,
+    "why": "About scorer timeout defaults on deserialization. Unrelated to the baseline comparison."
+   },
+   "example-compose-storage-endpoint-credentials-and-bucket-must": {
+    "rating": 0,
+    "why": "About docker-compose example storage configuration. Unrelated."
+   },
+   "validate-policy-changes-with-regal-lint-and-conftest-over-al": {
+    "rating": 0,
+    "why": "About linting and conftest for workflow policy. Unrelated."
+   },
+   "repeated-tag-keys-in-one-set-logged-model-tags-call-must-be": {
+    "rating": 0,
+    "why": "About deduplicating tag keys before bulk upsert. Unrelated to validation."
+   },
+   "prompt-model-version-sources-must-be-a-placeholder-or-a-vali": {
+    "rating": 0,
+    "why": "About prompt model-version source validation. Unrelated."
+   },
+   "logmetric-logbatch-metric-routing-to-a-loggedmodel-also-requ": {
+    "rating": 0,
+    "why": "About auth permissions for LogMetric and LogBatch. Shares the word metric but is a different mechanism."
+   },
+   "scope-args-used-for-trace-rows-must-also-be-passed-to-metric": {
+    "rating": 0,
+    "why": "About frontend trace-table scope parameters. Unrelated."
+   },
+   "raising-a-dependency-s-node-floor-requires-updating-engines": {
+    "rating": 0,
+    "why": "About Node engines fields in TypeScript packages. Unrelated."
+   },
+   "gemini-functionresponse-response-must-be-a-json-object-wrap": {
+    "rating": 0,
+    "why": "About Gemini tool response wrapping in the gateway. Unrelated."
+   },
+   "titan-rejects-top-p-0-with-a-422-before-calling-bedrock": {
+    "rating": 0,
+    "why": "About Bedrock Titan top_p validation in the gateway. Unrelated."
+   }
+  }
+ },
+ "PR26244-hard": {
+  "set": "first",
+  "gold": [
+   "mlflow/entities/logged_model.py"
+  ],
+  "candidates": 23,
+  "ratings": {
+   "archived-uc-span-links-must-be-normalized-against-the-preser": {
+    "rating": 0,
+    "why": "About span link normalization during OTLP span reconstruction. Different entity and mechanism from logged model status_message serialization."
+   },
+   "built-in-span-type-docs-table-must-list-every-spantype-const": {
+    "rating": 0,
+    "why": "About documenting SpanType constants in span docs. Unrelated to logged model protobuf conversion."
+   },
+   "new-public-livespan-methods-need-a-noopspan-stub-and-an-api": {
+    "rating": 0,
+    "why": "About NoOpSpan stubs and API inventory for LiveSpan methods. Unrelated to logged model status message."
+   },
+   "scorerversion-from-proto-must-coerce-int-experiment-id-to-st": {
+    "rating": 0,
+    "why": "About int-to-str coercion in ScorerVersion.from_proto. Same proto-to-entity boundary idea, but a different entity and field, so it does not change how the LoggedModel fix is written."
+   },
+   "uc-span-links-must-stay-inside-their-source-trace-location": {
+    "rating": 0,
+    "why": "About UC span link location scoping. Unrelated to logged model serialization."
+   },
+   "modelversion-to-proto-must-assign-the-nested-deployment-job": {
+    "rating": 0,
+    "why": "Describes a to_proto that silently drops a field, which is a similar bug pattern, but it concerns ModelVersion's nested deployment_job_state, not LoggedModel's status message. It points to the wrong file and does not inform the fix."
+   },
+   "use-pandas-array-not-to-numpy-when-moving-nullable-outputs-i": {
+    "rating": 0,
+    "why": "About pandas nullable dtype handling in the default evaluator. Unrelated."
+   },
+   "body-gating-auth-validators-must-authorize-on-the-proto-boun": {
+    "rating": 0,
+    "why": "About auth body validators for request fields. Unrelated to entity serialization."
+   },
+   "evaluate-list-features-with-numpy-targets-truth-value-and-em": {
+    "rating": 0,
+    "why": "About list input handling in evaluation dataset conversion. Unrelated."
+   },
+   "modelversiondeploymentjobstate-to-proto-must-build-the-messa": {
+    "rating": 0,
+    "why": "About which proto message type a deployment job state to_proto builds. Different entity and concern from LoggedModel status_message."
+   },
+   "protect-js-keeps-skipped-as-its-own-state-that-still-passes": {
+    "rating": 0,
+    "why": "About CI merge-gate logic in protect.js. Unrelated."
+   },
+   "in-tests-select-a-pre-existing-experiment-by-resolving-its-i": {
+    "rating": 0,
+    "why": "About selecting experiments by ID in cross-version tests. Unrelated."
+   },
+   "skops-format-sklearn-models-must-be-blocked-by-mlflow-allow": {
+    "rating": 0,
+    "why": "About pickle deserialization gating in sklearn loading. Unrelated."
+   },
+   "git-metadata-fields-must-be-resolved-independently-unborn-re": {
+    "rating": 0,
+    "why": "About TypeScript git metadata resolution. Unrelated."
+   },
+   "uc-model-version-converters-must-hasfield-guard-unset-deploy": {
+    "rating": 0,
+    "why": "About HasField guards in Unity Catalog model-version converters. Different entity and field; does not touch LoggedModel or status_message."
+   },
+   "assistant-unsolicited-follow-up-offers-come-from-system-prom": {
+    "rating": 0,
+    "why": "About assistant system prompts. Unrelated."
+   },
+   "docker-compose-logs-and-teardown-must-run-from-an-exit-trap": {
+    "rating": 0,
+    "why": "About docker compose teardown in a test. Unrelated."
+   },
+   "claude-code-defaults-mlflow-enable-async-trace-logging-to-tr": {
+    "rating": 0,
+    "why": "About a Claude Code env default for async trace logging. Unrelated."
+   },
+   "read-pr-head-sha-from-github-event-workflow-run-head-sha-in": {
+    "rating": 0,
+    "why": "About GitHub workflow PR SHA lookup. Unrelated."
+   },
+   "genai-eval-aggregate-metrics-must-carry-the-managed-dataset": {
+    "rating": 0,
+    "why": "About forwarding the dataset when logging GenAI aggregate metrics. Touches logged models only via dataset linkage, not status message serialization."
+   },
+   "request-bodies-that-spell-one-protobuf-field-both-snake-case": {
+    "rating": 0,
+    "why": "About server request parsing and alias conflicts. Unrelated to entity-to-proto conversion of LoggedModel."
+   },
+   "example-bucket-init-container-order-via-service-completed-su": {
+    "rating": 0,
+    "why": "About docker-compose init ordering in an example. Unrelated."
+   },
+   "guard-a-while-read-over-a-herestring-with-n-when-the-input-m": {
+    "rating": 0,
+    "why": "About a shell loop in a GitHub workflow. Unrelated."
+   }
+  }
+ },
+ "PR26245-hard": {
+  "set": "first",
+  "gold": [
+   "mlflow/entities/model_registry/prompt_version.py"
+  ],
+  "candidates": 22,
+  "ratings": {
+   "modelversion-to-proto-must-assign-the-nested-deployment-job": {
+    "rating": 0,
+    "why": "About ModelVersion proto conversion of deployment_job_state. Nothing about the caller's tags dict or the internal tags a prompt version adds."
+   },
+   "modelversiondeploymentjobstate-to-proto-must-build-the-messa": {
+    "rating": 0,
+    "why": "About which proto message type deployment job state builds. Unrelated to tag mutation during prompt creation."
+   },
+   "uc-model-version-converters-must-hasfield-guard-unset-deploy": {
+    "rating": 0,
+    "why": "About HasField guards in Unity Catalog proto converters. Unrelated to the tags dictionary bug."
+   },
+   "prompt-source-placeholder-literals-must-change-together-with": {
+    "rating": 1,
+    "why": "Points at AbstractStore.create_prompt_version, the prompt-creation chokepoint, but the rule is about source placeholder literals and the server allowlist, not tags. Saves searching only."
+   },
+   "repeated-tag-keys-in-one-set-logged-model-tags-call-must-be": {
+    "rating": 0,
+    "why": "About deduplicating repeated tag keys in SqlAlchemyStore logged-model tag writes. Different subsystem and a different tag mechanism."
+   },
+   "prompt-branch-selection-must-use-the-effective-is-prompt-tag": {
+    "rating": 1,
+    "why": "Relates to the is_prompt tag that prompt versions carry and ModelVersion._is_prompt. It is about server request routing in handlers.py, not about the tags dict being mutated, so it only points at the nearby concept."
+   },
+   "prompt-model-version-sources-must-be-a-placeholder-or-a-vali": {
+    "rating": 0,
+    "why": "About validating prompt model-version sources in the server handler for path traversal. Not about tags or the caller's dictionary."
+   },
+   "remove-on-error-must-re-raise-the-original-error-when-partia": {
+    "rating": 0,
+    "why": "About cleanup handlers in file_utils. Unrelated."
+   },
+   "version-bounds-must-be-kept-in-sync-across-ml-package-versio": {
+    "rating": 0,
+    "why": "About ML package version pins. Unrelated."
+   },
+   "assistant-system-prompt-variants-must-be-changed-together-an": {
+    "rating": 0,
+    "why": "About assistant system prompt variants. Unrelated."
+   },
+   "automation-workflows-keep-job-github-token-at-contents-read": {
+    "rating": 0,
+    "why": "About GitHub workflow token permissions. Unrelated."
+   },
+   "gateway-model-ids-are-endpoint-names-unnamed-endpoints-are-s": {
+    "rating": 0,
+    "why": "About gateway model listing and created_at units. Unrelated."
+   },
+   "setup-prompt-wording-is-pinned-by-ordered-substring-assertio": {
+    "rating": 0,
+    "why": "About setup.sh prompt wording tests. Unrelated."
+   },
+   "nested-graphql-fields-that-return-per-model-resources-must-b": {
+    "rating": 0,
+    "why": "About GraphQL authorization for nested fields. Unrelated."
+   },
+   "query-backed-model-links-must-show-loading-error-and-missing": {
+    "rating": 0,
+    "why": "About UI loading and error states for model links. Unrelated."
+   },
+   "component-tests-assert-visible-output-and-mock-hooks-with-th": {
+    "rating": 0,
+    "why": "About frontend component test conventions. Unrelated."
+   },
+   "create-experiment-with-trace-location-a-failed-link-soft-del": {
+    "rating": 0,
+    "why": "About create_experiment cleanup on trace_location failure. Unrelated."
+   },
+   "strip-only-a-bullet-marker-plus-whitespace-from-llm-failure": {
+    "rating": 0,
+    "why": "About bullet parsing in discovery extraction. Unrelated."
+   },
+   "model-version-read-filtering-must-use-the-prompt-aware-predi": {
+    "rating": 0,
+    "why": "About read authorization predicates for model versions and prompts. Not about tags or creation."
+   },
+   "preview-docs-concurrency-key-must-include-head-repository-no": {
+    "rating": 0,
+    "why": "About the preview-docs workflow concurrency key. Unrelated."
+   },
+   "warehouse-menu-ordering-lives-in-json-warehouse-rows-running": {
+    "rating": 0,
+    "why": "About SQL warehouse menu ordering in setup.sh. Unrelated."
+   },
+   "new-link-componentids-and-version-page-strings-must-be-regis": {
+    "rating": 0,
+    "why": "About registering UI componentIds and i18n strings. Unrelated."
+   }
+  }
+ },
+ "PR26066-hard": {
+  "set": "first",
+  "gold": [
+   "mlflow/prompt/registry_utils.py",
+   "mlflow/tracking/client.py"
+  ],
+  "candidates": 23,
+  "ratings": {
+   "create-experiment-with-trace-location-a-failed-link-soft-del": {
+    "rating": 0,
+    "why": "About create_experiment cleanup after a failed trace_location link. Unrelated to prompt caching or registry-scoped cache keys."
+   },
+   "fluent-restore-delete-wrappers-are-one-line-delegations-to-m": {
+    "rating": 0,
+    "why": "About fluent restore/delete wrappers delegating to MlflowClient. Not about prompt registry cache state."
+   },
+   "new-fluent-tracking-functions-must-be-exported-in-both-mlflo": {
+    "rating": 0,
+    "why": "About exporting fluent tracking functions in mlflow/__init__.py. Unrelated to the prompt cache."
+   },
+   "prompt-model-version-sources-must-be-a-placeholder-or-a-vali": {
+    "rating": 0,
+    "why": "Prompt-related, but it covers server-side validation of model-version source URIs in CreateModelVersion. It does not touch the client-side prompt cache keyed by registry, and reading it would not change how the cache fix is written."
+   },
+   "prompt-source-placeholder-literals-must-change-together-with": {
+    "rating": 0,
+    "why": "Covers placeholder source literals shared between the server allowlist and senders such as register_prompt. Same prompt subsystem, but not the caching or invalidation path the task changes."
+   },
+   "query-backed-model-links-must-show-loading-error-and-missing": {
+    "rating": 0,
+    "why": "About React model-link loading and error states in the model registry UI. Unrelated."
+   },
+   "tests-asserting-the-oss-trace-truncation-limit-must-clear-th": {
+    "rating": 0,
+    "why": "About clearing a truncation-length cache in tracing tests. It is a similar cache-clearing pattern but a different cache and change."
+   },
+   "component-tests-assert-visible-output-and-mock-hooks-with-th": {
+    "rating": 0,
+    "why": "About UI component test conventions for model version pages. Unrelated."
+   },
+   "assistant-system-prompt-variants-must-be-changed-together-an": {
+    "rating": 0,
+    "why": "About Assistant system prompt text variants. Shares the word 'prompt' but not the prompt registry cache."
+   },
+   "hf-datasets-cache-each-runner-os-key-needs-exactly-one-savin": {
+    "rating": 0,
+    "why": "About CI cache save/restore for Hugging Face datasets. Unrelated."
+   },
+   "agent-tracing-guidance-lives-in-the-setup-sh-prompt-not-the": {
+    "rating": 0,
+    "why": "About agent setup prompt tracing guidance. Unrelated to the prompt registry cache."
+   },
+   "version-bounds-must-be-kept-in-sync-across-ml-package-versio": {
+    "rating": 0,
+    "why": "About ML package version bounds in pyproject files. Unrelated."
+   },
+   "setup-prompt-checklist-steps-must-stay-in-dependency-order": {
+    "rating": 0,
+    "why": "About checklist step ordering in the setup.sh agent prompt. Unrelated."
+   },
+   "modelversiondeploymentjobstate-to-proto-must-build-the-messa": {
+    "rating": 0,
+    "why": "About the deployment job state proto message type. Unrelated."
+   },
+   "alias-count-is-aggregated-per-level-across-sibling-fragments": {
+    "rating": 0,
+    "why": "About GraphQL alias counting. The word 'alias' is shared, but the mechanism is unrelated."
+   },
+   "in-tests-select-a-pre-existing-experiment-by-resolving-its-i": {
+    "rating": 0,
+    "why": "About cross-version test experiment selection. Unrelated."
+   },
+   "repeated-tag-keys-in-one-set-logged-model-tags-call-must-be": {
+    "rating": 0,
+    "why": "About deduplicating logged model tag keys before bulk upsert. Unrelated."
+   },
+   "ui-preview-comment-states-must-share-one-marker-prefix-and-o": {
+    "rating": 0,
+    "why": "About UI preview PR comment markers. Unrelated."
+   },
+   "model-version-source-uri-shape-decides-which-source-row-rend": {
+    "rating": 0,
+    "why": "About UI source-row rendering from model URI shape. Unrelated to caching."
+   },
+   "ts-trace-git-provenance-is-merged-in-both-exporter-span-proc": {
+    "rating": 0,
+    "why": "About TypeScript git metadata in trace exporters. Unrelated."
+   },
+   "setup-python-action-picks-micro-versions-per-os-in-one-shell": {
+    "rating": 0,
+    "why": "About per-OS Python patch version selection in CI. Unrelated."
+   },
+   "cached-db-must-stay-schema-only-per-test-db-uri-copies-own-t": {
+    "rating": 0,
+    "why": "About test database fixtures and the Default experiment row. Unrelated to prompt caching."
+   },
+   "server-must-re-read-the-stored-registered-scorer-by-name-and": {
+    "rating": 0,
+    "why": "About server scorer handlers re-reading stored scorers. Unrelated."
+   }
+  }
+ },
+ "PR26265-hard": {
+  "set": "first",
+  "gold": [
+   "mlflow/artifacts/__init__.py"
+  ],
+  "candidates": 20,
+  "ratings": {
+   "gemini-functionresponse-response-must-be-a-json-object-wrap": {
+    "rating": 0,
+    "why": "Covers Gemini functionResponse wrapping in mlflow/gateway/providers/gemini.py. Nothing about artifact text or dict loading or decoding."
+   },
+   "workspace-default-artifact-root-must-be-a-uri-or-an-absolute": {
+    "rating": 0,
+    "why": "Covers workspace default_artifact_root validation in server handlers. Unrelated to reading artifacts as UTF-8."
+   },
+   "remove-on-error-must-re-raise-the-original-error-when-partia": {
+    "rating": 0,
+    "why": "Covers cleanup in file_utils.remove_on_error during partial downloads. Does not touch artifact text or dict loading."
+   },
+   "example-compose-storage-endpoint-credentials-and-bucket-must": {
+    "rating": 0,
+    "why": "Covers keeping storage hostnames and credentials in sync in the example docker-compose setup. No relation to the decoding fix."
+   },
+   "shell-setup-tests-must-stub-commands-and-pass-fixtures-witho": {
+    "rating": 0,
+    "why": "Covers shell setup unit tests for Windows Git Bash. Unrelated to artifact encoding."
+   },
+   "prompt-model-version-sources-must-be-a-placeholder-or-a-vali": {
+    "rating": 0,
+    "why": "Covers prompt source validation in CreateModelVersion. Unrelated to text artifact loading."
+   },
+   "modelversion-to-proto-must-assign-the-nested-deployment-job": {
+    "rating": 0,
+    "why": "Covers ModelVersion proto round-tripping of deployment_job_state. Unrelated to artifact decoding."
+   },
+   "sdk-models-repo-must-skip-the-parallel-presigned-url-downloa": {
+    "rating": 0,
+    "why": "Covers single-stream routing for the SDK models artifact repo. Does not address how downloaded text is decoded."
+   },
+   "docker-compose-logs-and-teardown-must-run-from-an-exit-trap": {
+    "rating": 0,
+    "why": "Covers compose logs and teardown in an example test's EXIT trap. Unrelated."
+   },
+   "github-token-shorthand-check-only-matches-string-values": {
+    "rating": 0,
+    "why": "Covers workflow policy regex checks in .github/policy.rego. Unrelated."
+   },
+   "archived-uc-span-links-must-be-normalized-against-the-preser": {
+    "rating": 0,
+    "why": "Covers span link normalization for archived UC traces. Unrelated."
+   },
+   "uc-model-load-and-register-must-share-one-files-api-routing": {
+    "rating": 0,
+    "why": "Covers UC model artifact repo routing based on an env flag. Does not involve text or dict decoding in mlflow/artifacts."
+   },
+   "windows-checkout-without-symlink-support-builds-an-empty-mlf": {
+    "rating": 0,
+    "why": "Covers build-time symlink checks for mlflow-skinny and mlflow-tracing on Windows. Unrelated."
+   },
+   "serving-uc-trace-location-must-read-mlflow-experiment-id-dir": {
+    "rating": 0,
+    "why": "Covers experiment ID resolution for UC trace locations in model serving. Unrelated."
+   },
+   "uc-model-load-and-register-must-gate-on-the-sdk-files-api-fl": {
+    "rating": 0,
+    "why": "Duplicate-style note on UC model artifact routing via an env flag. Does not involve text or dict loading."
+   },
+   "download-target-filename-require-path-and-script-name-must-s": {
+    "rating": 0,
+    "why": "Covers keeping download URL, filename, and require paths in sync in workflow YAML. Unrelated."
+   },
+   "createmodelversion-camelcase-runid-modelid-aliases-must-get": {
+    "rating": 0,
+    "why": "Covers auth read checks for CreateModelVersion aliases. Unrelated."
+   },
+   "example-bucket-init-container-order-via-service-completed-su": {
+    "rating": 0,
+    "why": "Covers docker-compose startup ordering for bucket creation in the example. Unrelated."
+   },
+   "bedrock-stream-exception-frames-must-raise-httpexception-wit": {
+    "rating": 0,
+    "why": "Covers Bedrock event-stream exception mapping to HTTP statuses. Unrelated."
+   },
+   "query-backed-model-links-must-show-loading-error-and-missing": {
+    "rating": 0,
+    "why": "Covers loading, error, and missing-data UI states in model registry links. Unrelated."
+   }
+  }
+ },
+ "PR26519-hard": {
+  "set": "first",
+  "gold": [
+   "mlflow/utils/proto_json_utils.py"
+  ],
+  "candidates": 33,
+  "ratings": {
+   "basic-auth-password-policy-must-be-enforced-in-the-store-s-u": {
+    "rating": 0,
+    "why": "About basic-auth password validation in the auth store. Unrelated to converting named inputs into a scoring request payload."
+   },
+   "consume-non-streaming-databricks-sdk-responses-to-release-po": {
+    "rating": 0,
+    "why": "About releasing pooled HTTP connections for Databricks SDK responses. Not about request payload serialization."
+   },
+   "destination-key-scan-must-be-shape-agnostic-walk-all-nested": {
+    "rating": 0,
+    "why": "Scorer-payload destination-key validation on the server. Shares a 'list of pairs' idea but is a different code path and purpose."
+   },
+   "is-databricks-uri-must-match-scheme-case-insensitively-only": {
+    "rating": 0,
+    "why": "URI scheme classification for Databricks. Unrelated to input serialization."
+   },
+   "pre-flight-and-connection-time-webhook-public-ip-checks-must": {
+    "rating": 0,
+    "why": "Webhook SSRF public-IP classification. Unrelated."
+   },
+   "prompt-model-version-sources-must-be-a-placeholder-or-a-vali": {
+    "rating": 0,
+    "why": "Prompt model-version source validation. Unrelated."
+   },
+   "public-genai-fluent-apis-backed-by-oss-only-routes-need-data": {
+    "rating": 0,
+    "why": "Databricks API-disabled guard on genai fluent APIs. Unrelated."
+   },
+   "remove-on-error-log-lines-must-reflect-the-actual-cleanup-ou": {
+    "rating": 0,
+    "why": "Logging in file cleanup helper. Unrelated."
+   },
+   "remove-on-error-must-re-raise-the-original-error-when-partia": {
+    "rating": 0,
+    "why": "Cleanup exception handling in file_utils. Unrelated."
+   },
+   "sdk-models-repo-must-skip-the-parallel-presigned-url-downloa": {
+    "rating": 0,
+    "why": "Artifact download routing for the SDK models repo. Unrelated."
+   },
+   "third-party-scorer-kwargs-must-not-carry-llm-endpoint-destin": {
+    "rating": 0,
+    "why": "Server-side SSRF validation of scorer kwargs. Unrelated to named tensor inputs."
+   },
+   "uc-model-version-converters-must-hasfield-guard-unset-deploy": {
+    "rating": 0,
+    "why": "Unity Catalog proto-to-entity converters with HasField guards. Different proto conversion, not the request-payload path."
+   },
+   "webhook-ssrf-guard-passed-ipv6-transition-addresses-that-emb": {
+    "rating": 0,
+    "why": "Webhook SSRF IPv6 handling. Unrelated."
+   },
+   "workspace-default-artifact-root-must-be-a-uri-or-an-absolute": {
+    "rating": 0,
+    "why": "Workspace artifact root validation. Unrelated."
+   },
+   "evaluate-list-features-with-numpy-targets-truth-value-and-em": {
+    "rating": 0,
+    "why": "Evaluation dataset conversion of list inputs. Different function and purpose from scoring-request payload serialization."
+   },
+   "use-pandas-array-not-to-numpy-when-moving-nullable-outputs-i": {
+    "rating": 0,
+    "why": "Default evaluator table construction for nullable dtypes. Unrelated."
+   },
+   "targets-presence-is-decided-by-is-not-none-never-by-truthine": {
+    "rating": 0,
+    "why": "Evaluation dataset targets normalization. Unrelated to request serialization."
+   },
+   "request-bodies-that-spell-one-protobuf-field-both-snake-case": {
+    "rating": 0,
+    "why": "Server-side rejection of conflicting field aliases in handlers.py. It concerns incoming request parsing, not client-side payload conversion in proto_json_utils."
+   },
+   "repeated-tag-keys-in-one-set-logged-model-tags-call-must-be": {
+    "rating": 0,
+    "why": "Tag deduplication in the SQL tracking store. Unrelated."
+   },
+   "every-serialized-scorer-entry-point-must-run-validate-serial": {
+    "rating": 0,
+    "why": "Scorer payload validation in server handlers. Unrelated."
+   },
+   "judge-path-resolves-vertex-providers-then-formats-via-adapte": {
+    "rating": 0,
+    "why": "GenAI judge gateway formatting path. Unrelated to named input serialization."
+   },
+   "testing-pt2-pickle-guard-behavior-by-swapping-the-sample-inp": {
+    "rating": 0,
+    "why": "PyTorch pt2 pickle-guard testing. Unrelated."
+   },
+   "reflected-third-party-scorer-attribute-must-be-a-scorer-subc": {
+    "rating": 0,
+    "why": "Scorer class resolution during deserialization. Unrelated."
+   },
+   "titan-rejects-top-p-0-with-a-422-before-calling-bedrock": {
+    "rating": 0,
+    "why": "Bedrock Titan parameter validation. Unrelated."
+   },
+   "validate-metric-name-and-kwargs-before-import-module-in-thir": {
+    "rating": 0,
+    "why": "Scorer metric_name validation before import. Unrelated."
+   },
+   "bedrock-adapters-silently-drop-request-keys-that-are-not-ren": {
+    "rating": 0,
+    "why": "Bedrock adapter parameter renaming. Unrelated."
+   },
+   "vertex-claude-request-fields-must-live-on-the-adapter-not-th": {
+    "rating": 0,
+    "why": "Vertex Claude request formatting in the gateway. Unrelated to named tensor inputs."
+   },
+   "eval-results-table-attaches-model-outputs-by-position-not-in": {
+    "rating": 0,
+    "why": "Eval results table alignment. Unrelated."
+   },
+   "every-feedback-from-a-registered-scorer-must-get-scorername": {
+    "rating": 0,
+    "why": "Scorer feedback metadata. Unrelated."
+   },
+   "do-not-map-top-k-onto-any-bedrock-field-jurassic-topkreturn": {
+    "rating": 0,
+    "why": "Bedrock top_k mapping. Unrelated."
+   },
+   "vertex-ai-gateway-config-fields-that-are-not-strings-need-a": {
+    "rating": 0,
+    "why": "Vertex AI gateway config validators. Unrelated."
+   },
+   "async-scorer-paths-must-carry-the-registered-scorer-version": {
+    "rating": 0,
+    "why": "Scorer version restoration in async jobs. Unrelated."
+   },
+   "bedrock-passthrough-must-build-a-new-body-and-never-mutate-t": {
+    "rating": 0,
+    "why": "Bedrock passthrough body mutation. Unrelated."
+   }
+  }
+ },
+ "PR26204-hard": {
+  "set": "first",
+  "gold": [
+   "mlflow/cli/traces.py"
+  ],
+  "candidates": 20,
+  "ratings": {
+   "docker-compose-logs-and-teardown-must-run-from-an-exit-trap": {
+    "rating": 0,
+    "why": "Concerns docker compose teardown in an example test. Nothing about parsing trace IDs or the trace deletion CLI."
+   },
+   "vertex-ai-gateway-config-fields-that-are-not-strings-need-a": {
+    "rating": 0,
+    "why": "Concerns Vertex AI gateway config validators. Unrelated to trace deletion or ID parsing."
+   },
+   "invoke-handlers-must-bind-caller-supplied-trace-ids-to-the-a": {
+    "rating": 0,
+    "why": "Covers binding trace IDs to an experiment in /invoke handlers for issue detection and evaluation. It is not about the CLI delete command's ID list parsing, so reading it would not change the fix."
+   },
+   "scope-args-used-for-trace-rows-must-also-be-passed-to-metric": {
+    "rating": 0,
+    "why": "Frontend hook scoping for the traces table. Unrelated to the deletion command."
+   },
+   "run-delete-cascade-models-must-mirror-sqlrun-s-orm-delete-ca": {
+    "rating": 0,
+    "why": "Covers run hard-delete cascade tuples in the SQL store. Different deletion path and not about trace IDs."
+   },
+   "create-experiment-with-trace-location-a-failed-link-soft-del": {
+    "rating": 0,
+    "why": "Covers cleanup when create_experiment fails on trace_location. Unrelated to trace deletion input handling."
+   },
+   "logged-model-traces-page-assessment-summaries-and-count-badg": {
+    "rating": 0,
+    "why": "Frontend metrics filtering by loggedModelId. Unrelated to the CLI deletion command."
+   },
+   "warehouse-menu-ordering-lives-in-json-warehouse-rows-running": {
+    "rating": 0,
+    "why": "Covers SQL warehouse menu ordering in the agent setup shell script. Unrelated."
+   },
+   "strip-only-a-bullet-marker-plus-whitespace-from-llm-failure-label": {
+    "rating": 0,
+    "why": "Covers bullet-marker stripping in LLM label parsing. It shares the idea of stripping whitespace but is a different code path and does not touch trace ID lists."
+   },
+   "the-three-invoke-handlers-share-one-trace-ids-input-contract": {
+    "rating": 0,
+    "why": "Describes type validation and dedup for trace_ids in /invoke handlers. Those are server handlers, not the CLI delete path, and the note says nothing about whitespace around comma-separated entries."
+   },
+   "trace-search-results-with-equal-timestamp-ms-have-no-defined": {
+    "rating": 0,
+    "why": "Test-ordering guidance for trace search results. Unrelated to deletion or ID parsing."
+   },
+   "protect-js-check-log-order-is-derived-from-state-key-order": {
+    "rating": 0,
+    "why": "Covers check ordering in a GitHub workflow script. Unrelated."
+   },
+   "logged-model-search-order-must-end-with-a-stable-model-id-ti": {
+    "rating": 0,
+    "why": "Covers logged-model search ordering tiebreakers. Unrelated to trace deletion."
+   },
+   "example-bucket-init-container-order-via-service-completed-su": {
+    "rating": 0,
+    "why": "Covers docker-compose init ordering for an example bucket. Unrelated."
+   },
+   "new-fluent-tracking-functions-must-be-exported-in-both-mlflo": {
+    "rating": 0,
+    "why": "Covers exporting new fluent functions from mlflow/__init__.py. Not about the delete CLI or trace ID handling."
+   },
+   "search-logged-models-metric-ordering-returns-duplicate-model": {
+    "rating": 0,
+    "why": "Covers metric ordering SQL for logged models. Unrelated to trace deletion."
+   },
+   "gateway-model-ids-are-endpoint-names-unnamed-endpoints-are-s": {
+    "rating": 0,
+    "why": "Covers the gateway model listing endpoint. Unrelated."
+   },
+   "invoke-routes-must-be-authorized-with-validate-can-update-ex": {
+    "rating": 0,
+    "why": "Covers authorization mapping for invoke routes. Not about the CLI delete command or ID parsing."
+   },
+   "setup-prompt-checklist-steps-must-stay-in-dependency-order": {
+    "rating": 0,
+    "why": "Covers checklist ordering in the agent setup prompt. Unrelated."
+   },
+   "trace-experiment-binding-lookup-must-be-unscoped-generic-on": {
+    "rating": 0,
+    "why": "Covers the server-side trace-to-experiment binding check for invoke handlers. It is about authorization, not whitespace handling in the CLI deletion list, so it does not point at the fix's code path."
+   }
+  }
+ },
+ "PR26523-hard": {
+  "set": "first",
+  "gold": [
+   "mlflow/gateway/providers/anthropic.py"
+  ],
+  "candidates": 22,
+  "ratings": {
+   "bedrock-adapters-silently-drop-request-keys-that-are-not-ren": {
+    "rating": 0,
+    "why": "Covers Bedrock completions adapters' key renaming (topP, Titan/Jurassic bodies). The task concerns Anthropic and Vertex Claude chat requests, so reading this would not change the fix."
+   },
+   "bedrock-anthropic-passthrough-anthropic-models-only-api-key": {
+    "rating": 0,
+    "why": "Bedrock passthrough auth and model gating. Different provider and different code path from the Anthropic/Vertex chat tool_choice change."
+   },
+   "bedrock-passthrough-must-build-a-new-body-and-never-mutate-t": {
+    "rating": 1,
+    "why": "Points at a real hazard for any body-field deletion (mutating the caller payload breaks FallbackProvider), which the fix could hit. But it is specific to Bedrock passthrough, so it is a useful caution rather than the mechanism itself."
+   },
+   "bedrock-stream-exception-frames-must-raise-httpexception-wit": {
+    "rating": 0,
+    "why": "Bedrock event-stream exception mapping. Unrelated to parallel_tool_calls or tool_choice translation."
+   },
+   "do-not-map-top-k-onto-any-bedrock-field-jurassic-topkreturn": {
+    "rating": 0,
+    "why": "Bedrock top_k mapping rules. Unrelated to the requested change."
+   },
+   "do-not-override-chat-streaming-to-model-on-the-vertex-claude": {
+    "rating": 1,
+    "why": "Notes that the Anthropic base streaming path delegates to chat_to_model, which is where the fix would go. Useful for avoiding a double transform, but it is about adapter structure rather than the parallel-tool mechanism."
+   },
+   "enable-tracing-must-be-passed-into-vertex-ai-delegates-or-pa": {
+    "rating": 0,
+    "why": "Tracing flag forwarding to Vertex delegates. Does not touch request body formatting."
+   },
+   "gemini-functionresponse-response-must-be-a-json-object-wrap": {
+    "rating": 0,
+    "why": "Gemini functionResponse formatting for tool results. Different provider and tool mechanism from Anthropic tool_choice."
+   },
+   "gemini-thoughtsignature-is-a-sibling-of-functioncall-on-the": {
+    "rating": 0,
+    "why": "Gemini thoughtSignature placement. Unrelated to the Anthropic or Vertex Claude request change."
+   },
+   "judge-path-resolves-vertex-providers-then-formats-via-adapte": {
+    "rating": 1,
+    "why": "Map showing that judge requests format via adapter_class.chat_to_model and skip provider hooks. The fix in the adapter would also reach this path, so the note is a useful map, but it says nothing about the fix itself."
+   },
+   "titan-rejects-top-p-0-with-a-422-before-calling-bedrock": {
+    "rating": 0,
+    "why": "Titan-specific top_p validation. Unrelated to the requested change."
+   },
+   "vertex-ai-claude-endpoints-reject-unsupported-anthropic-beta": {
+    "rating": 1,
+    "why": "Same class of problem (Vertex Claude rejecting unsupported input) and the same provider family, so it points at the right area. But it filters headers, not body fields, and it is a different change."
+   },
+   "vertex-ai-maas-raw-proxy-must-post-to-the-endpoints-openapi": {
+    "rating": 0,
+    "why": "MaaS raw proxy URL handling. Unrelated to Claude chat request formatting."
+   },
+   "vertex-claude-request-fields-must-live-on-the-adapter-not-th": {
+    "rating": 2,
+    "why": "Says Claude-on-Vertex request field transforms belong in _VertexAIClaudeAdapter.chat_to_model, not only in _prepare_payload. The fix must add the parallel_tool_calls translation there, and this note changes where the engineer makes the edit."
+   },
+   "vertex-delegates-must-always-drop-client-auth-headers-before": {
+    "rating": 0,
+    "why": "Auth header handling for Vertex delegates. Unrelated to request body fields."
+   },
+   "vertex-raw-proxy-is-dispatched-through-vertexaiprovider-to-i": {
+    "rating": 0,
+    "why": "Raw proxy dispatch routing. Not the chat request path the fix touches."
+   },
+   "vertexaiprovider-must-forward-passthrough-proxy-and-usage-ex": {
+    "rating": 0,
+    "why": "Forwarding passthrough, proxy and usage hooks to the delegate. The fix is in chat request formatting, not these hooks."
+   },
+   "vertex-ai-gateway-config-fields-that-are-not-strings-need-a": {
+    "rating": 0,
+    "why": "Config validation for auth_config string fields. Unrelated to the request change."
+   },
+   "a-new-gateway-route-must-be-registered-in-the-auth-validator": {
+    "rating": 0,
+    "why": "Gateway route registration and auth wiring. Unrelated to the request body change."
+   },
+   "gateway-model-ids-are-endpoint-names-unnamed-endpoints-are-s": {
+    "rating": 0,
+    "why": "Model listing endpoint behavior. Unrelated."
+   },
+   "request-bodies-that-spell-one-protobuf-field-both-snake-case": {
+    "rating": 0,
+    "why": "Protobuf snake/camel alias conflict checks in server handlers. Unrelated to provider request formatting."
+   },
+   "gateway-model-listing-must-be-filtered-per-endpoint-by-use-p": {
+    "rating": 0,
+    "why": "Authorization filtering for model listings. Unrelated."
+   }
+  }
+ },
+ "PR26311-hard": {
+  "set": "first",
+  "gold": [
+   "mlflow/data/evaluation_dataset.py"
+  ],
+  "candidates": 20,
+  "ratings": {
+   "evaluate-list-features-with-numpy-targets-truth-value-and-em": {
+    "rating": 1,
+    "why": "Same file and function (convert_data_to_mlflow_dataset) that the task's conversion path runs through, so it is a useful map. But it covers list-input truthiness and empty-list crashes in the targets/data[0] handling, not hashing of uneven nested arrays of dicts, so it would not change the fix."
+   },
+   "targets-presence-is-decided-by-is-not-none-never-by-truthine": {
+    "rating": 1,
+    "why": "Same function, convert_data_to_mlflow_dataset, so it points at the right area. It is about how optional targets presence is tested (is not None vs truthiness), which is unrelated to the content-hashing failure the task describes."
+   },
+   "hf-datasets-cache-each-runner-os-key-needs-exactly-one-savin": {
+    "rating": 0,
+    "why": "CI cache configuration for Hugging Face datasets in GitHub Actions. Shares the 'hf-datasets' wording with the task but has nothing to do with dataset hashing or evaluation dataset conversion."
+   },
+   "eval-results-table-attaches-model-outputs-by-position-not-in": {
+    "rating": 0,
+    "why": "Concerns the default evaluator's eval results table and positional alignment of outputs. It is a different module and a different concern from hashing dataset contents during conversion."
+   },
+   "use-pandas-array-not-to-numpy-when-moving-nullable-outputs-i": {
+    "rating": 0,
+    "why": "Concerns nullable pandas dtypes in the default evaluator's table construction. Not related to hashing nested arrays of dicts."
+   },
+   "genai-eval-aggregate-metrics-must-carry-the-managed-dataset": {
+    "rating": 0,
+    "why": "Forwarding a managed EvaluationDataset to log_metrics for GenAI aggregate metrics. It touches dataset objects in evaluation but not dataset conversion or hashing."
+   },
+   "every-feedback-from-a-registered-scorer-must-get-scorername": {
+    "rating": 0,
+    "why": "Scorer feedback metadata for GenAI evaluation. Unrelated to dataset hashing or conversion."
+   },
+   "gemini-functionresponse-response-must-be-a-json-object-wrap": {
+    "rating": 0,
+    "why": "Gemini gateway tool-response formatting. Unrelated to evaluation datasets."
+   },
+   "basic-auth-password-policy-must-be-enforced-in-the-store-s-u": {
+    "rating": 0,
+    "why": "Password policy in the auth store. Unrelated."
+   },
+   "trace-experiment-binding-lookup-must-be-unscoped-generic-on": {
+    "rating": 0,
+    "why": "Trace-to-experiment permission validation in server handlers. Unrelated."
+   },
+   "retry-transient-docker-hub-pull-failures-before-building-the": {
+    "rating": 0,
+    "why": "Docker pull retry in the artifacts example test. Unrelated."
+   },
+   "cache-hf-action-path-key-and-restore-keys-are-duplicated-in": {
+    "rating": 0,
+    "why": "Duplicated cache-step config in the cache-hf GitHub action. It mentions the HF datasets test file but is CI plumbing, not the hashing mechanism."
+   },
+   "search-logged-models-metric-ordering-returns-duplicate-model": {
+    "rating": 0,
+    "why": "SQL ordering in the tracking store's search_logged_models. Unrelated."
+   },
+   "destination-key-scan-must-be-shape-agnostic-walk-all-nested": {
+    "rating": 0,
+    "why": "Destination-key validation for third-party scorer payloads. Unrelated, despite the nested-structure wording."
+   },
+   "legacy-serialized-scorers-must-reload-with-timeout-0-not-the": {
+    "rating": 0,
+    "why": "Scorer timeout defaults during deserialization. Unrelated."
+   },
+   "example-bucket-init-container-order-via-service-completed-su": {
+    "rating": 0,
+    "why": "Docker compose ordering for the artifacts example. Unrelated."
+   },
+   "component-tests-assert-visible-output-and-mock-hooks-with-th": {
+    "rating": 0,
+    "why": "React component tests for the model registry UI. Unrelated."
+   },
+   "protect-js-poll-cadence-in-getsleeplength-trades-merge-gate": {
+    "rating": 0,
+    "why": "Polling interval in the protect.js CI gate. Unrelated."
+   },
+   "nested-graphql-fields-that-return-per-model-resources-must-b": {
+    "rating": 0,
+    "why": "GraphQL authorization middleware for nested fields. Unrelated, despite the 'nested' wording."
+   },
+   "query-backed-model-links-must-show-loading-error-and-missing": {
+    "rating": 0,
+    "why": "Loading and error states in a model registry UI link component. Unrelated."
+   }
+  }
+ },
+ "PR26362-hard": {
+  "set": "first",
+  "gold": [
+   "mlflow/utils/validation.py"
+  ],
+  "candidates": 31,
+  "ratings": {
+   "basic-auth-password-policy-must-be-enforced-in-the-store-s-u": {
+    "rating": 1,
+    "why": "Gives a transferable pattern: validate in the store's update method (the choke point for create and update) before persisting, not only in REST handlers. It is about password length in basic-auth, not experiment names, but it maps the same create/update validation structure and the validation.py helper."
+   },
+   "consume-non-streaming-databricks-sdk-responses-to-release-po": {
+    "rating": 0,
+    "why": "About HTTP connection pooling for Databricks SDK responses in rest_utils. Unrelated to experiment name validation."
+   },
+   "destination-key-scan-must-be-shape-agnostic-walk-all-nested": {
+    "rating": 0,
+    "why": "Same file (validation.py) but about scanning scorer payloads for destination keys. Nothing the engineer would use for name validation."
+   },
+   "is-databricks-uri-must-match-scheme-case-insensitively-only": {
+    "rating": 0,
+    "why": "URI scheme classification in uri.py. Unrelated to experiment names."
+   },
+   "pre-flight-and-connection-time-webhook-public-ip-checks-must": {
+    "rating": 0,
+    "why": "Webhook SSRF public-IP classification in validation.py. Same file, but a different change with no bearing on name validation."
+   },
+   "prompt-model-version-sources-must-be-a-placeholder-or-a-vali": {
+    "rating": 0,
+    "why": "Prompt source validation for CreateModelVersion. Unrelated to experiment names."
+   },
+   "public-genai-fluent-apis-backed-by-oss-only-routes-need-data": {
+    "rating": 0,
+    "why": "Guarding genai fluent APIs on Databricks. Unrelated to experiment name validation."
+   },
+   "remove-on-error-log-lines-must-reflect-the-actual-cleanup-ou": {
+    "rating": 0,
+    "why": "File cleanup logging in file_utils. Unrelated."
+   },
+   "remove-on-error-must-re-raise-the-original-error-when-partia": {
+    "rating": 0,
+    "why": "File cleanup exception handling in file_utils. Unrelated."
+   },
+   "sdk-models-repo-must-skip-the-parallel-presigned-url-downloa": {
+    "rating": 0,
+    "why": "Artifact download routing for SDK models repo. Unrelated."
+   },
+   "third-party-scorer-kwargs-must-not-carry-llm-endpoint-destin": {
+    "rating": 0,
+    "why": "Scorer kwargs SSRF validation in validation.py. Same file, but nothing applicable to experiment names."
+   },
+   "uc-model-version-converters-must-hasfield-guard-unset-deploy": {
+    "rating": 0,
+    "why": "Unity Catalog proto converters for model versions. Unrelated."
+   },
+   "webhook-ssrf-guard-passed-ipv6-transition-addresses-that-emb": {
+    "rating": 0,
+    "why": "IPv6 transition address handling for webhook SSRF. Same file, different change."
+   },
+   "workspace-default-artifact-root-must-be-a-uri-or-an-absolute": {
+    "rating": 0,
+    "why": "Validation of workspace default_artifact_root in handlers. A different field and entity, so it does not affect experiment name checks."
+   },
+   "strip-only-a-bullet-marker-plus-whitespace-from-llm-failure": {
+    "rating": 0,
+    "why": "Bullet parsing in genai discovery extraction. Unrelated."
+   },
+   "scorerversion-from-proto-must-coerce-int-experiment-id-to-st": {
+    "rating": 0,
+    "why": "Coerces experiment_id type in ScorerVersion entity hydration. Shares only the experiment_id name, with no bearing on name validation."
+   },
+   "create-experiment-with-trace-location-a-failed-link-soft-del": {
+    "rating": 1,
+    "why": "Points at tracking/fluent.py:create_experiment, the client-side create path where a name check could go. It concerns cleanup after a trace_location failure, not name validation, so it is a map only."
+   },
+   "titan-rejects-top-p-0-with-a-422-before-calling-bedrock": {
+    "rating": 0,
+    "why": "Bedrock Titan parameter validation. Unrelated."
+   },
+   "trace-experiment-binding-lookup-must-be-unscoped-generic-on": {
+    "rating": 0,
+    "why": "Trace-to-experiment binding checks for invoke handlers. Unrelated to experiment names."
+   },
+   "legacy-mlruns-detection-check-one-known-metadata-path-per-nu": {
+    "rating": 0,
+    "why": "Legacy mlruns detection. Unrelated."
+   },
+   "prompt-source-placeholder-literals-must-change-together-with": {
+    "rating": 0,
+    "why": "Prompt source placeholder constants. Unrelated."
+   },
+   "evaluate-list-features-with-numpy-targets-truth-value-and-em": {
+    "rating": 0,
+    "why": "Evaluation dataset conversion crashes. Unrelated."
+   },
+   "the-three-invoke-handlers-share-one-trace-ids-input-contract": {
+    "rating": 0,
+    "why": "trace_ids input contract for invoke handlers. Unrelated."
+   },
+   "vertex-ai-gateway-config-fields-that-are-not-strings-need-a": {
+    "rating": 0,
+    "why": "Vertex AI gateway config parsing. Unrelated."
+   },
+   "gateway-secret-creation-must-require-the-workspace-create-gr": {
+    "rating": 0,
+    "why": "Gateway secret permission gating. Unrelated."
+   },
+   "invoke-handlers-must-bind-caller-supplied-trace-ids-to-the-a": {
+    "rating": 0,
+    "why": "Trace authorization for invoke handlers. Unrelated."
+   },
+   "jobs-must-omit-permissions-to-inherit-an-empty-token-job-lev": {
+    "rating": 0,
+    "why": "GitHub workflow policy. Unrelated."
+   },
+   "workspace-create-validators-are-listed-in-the-two-workspace": {
+    "rating": 0,
+    "why": "Workspace create-permission tests. Unrelated."
+   },
+   "response-filter-lookup-is-keyed-on-the-endpoint-function-and": {
+    "rating": 0,
+    "why": "Job response filtering. Unrelated."
+   },
+   "in-tests-select-a-pre-existing-experiment-by-resolving-its-i": {
+    "rating": 0,
+    "why": "Cross-version test experiment selection. Unrelated to name validation."
+   },
+   "targets-presence-is-decided-by-is-not-none-never-by-truthine": {
+    "rating": 0,
+    "why": "Evaluation dataset targets handling. Unrelated."
+   }
+  }
+ },
+ "PR26172-hard": {
+  "set": "first",
+  "gold": [
+   "mlflow/genai/scorers/scorer_utils.py"
+  ],
+  "candidates": 23,
+  "ratings": {
+   "allow-list-must-equal-the-set-of-scorer-defining-modules-a-c": {
+    "rating": 0,
+    "why": "Concerns the THIRD_PARTY_SCORER_ALLOWED_MODULES frozenset and a completeness test for third-party scorer modules. Same file as the likely fix, but it says nothing about parsing decorator function signatures."
+   },
+   "async-scorer-paths-must-carry-the-registered-scorer-version": {
+    "rating": 0,
+    "why": "About restoring _scorer_version in background job paths (invoke_genai_evaluate_job, invoke_scorer_job, OnlineSessionSampler). Not the signature-reconstruction mechanism."
+   },
+   "legacy-serialized-scorers-must-reload-with-timeout-0-not-the": {
+    "rating": 0,
+    "why": "About the timeout default on SerializedScorer for legacy payloads. It touches the decorator reload path only tangentially and does not involve signature text or function recreation."
+   },
+   "reflected-third-party-scorer-attribute-must-be-a-scorer-subc": {
+    "rating": 0,
+    "why": "Concerns the isclass/issubclass check in Scorer.model_validate for third-party classes. Unrelated to rebuilding decorator-scorer functions from source."
+   },
+   "scorer-invocation-timeout-is-enforced-only-inside-scorer-run": {
+    "rating": 0,
+    "why": "Describes the timeout thread mechanism in Scorer.run and _run_with_timeout. Not related to signature parsing or loading."
+   },
+   "third-party-scorer-module-must-match-the-allow-list-exactly": {
+    "rating": 0,
+    "why": "Covers exact-match module allow-listing before import_module for third-party scorers. Different security check from signature parsing."
+   },
+   "timeout-worker-does-not-inherit-mlflow-thread-local-state-su": {
+    "rating": 0,
+    "why": "About thread-local state (active run) not propagating into the timeout worker thread. Not relevant to loading decorator scorers."
+   },
+   "validate-metric-name-and-kwargs-before-import-module-in-thir": {
+    "rating": 0,
+    "why": "Validation of metric_name and kwargs before import_module for Ragas/DeepEval scorers. Unrelated to decorator signature reconstruction."
+   },
+   "every-serialized-scorer-entry-point-must-run-validate-serial": {
+    "rating": 0,
+    "why": "Server handler payload validation (_validate_serialized_scorer_payload) for register/invoke/evaluate routes. Different layer from the loading bug."
+   },
+   "new-span-keyword-arguments-must-be-threaded-through-every-tr": {
+    "rating": 0,
+    "why": "Tracing span keyword-argument plumbing in mlflow/tracing/fluent.py. Unrelated."
+   },
+   "gemini-thoughtsignature-is-a-sibling-of-functioncall-on-the": {
+    "rating": 0,
+    "why": "Gemini provider Part structure for thoughtSignature. Unrelated."
+   },
+   "gemini-functionresponse-response-must-be-a-json-object-wrap": {
+    "rating": 0,
+    "why": "Gemini functionResponse wrapping rules. Unrelated."
+   },
+   "run-the-function-signature-check-locally-with-base-revision": {
+    "rating": 0,
+    "why": "About dev/check_function_signatures.py, a CI script that compares API signatures against a base git revision. Shares the word 'signature' but is not the decorator-scorer source parsing path."
+   },
+   "destination-key-scan-must-be-shape-agnostic-walk-all-nested": {
+    "rating": 0,
+    "why": "Destination-key scanning in mlflow/utils/validation.py for third-party scorer payloads. Unrelated to parsing signatures."
+   },
+   "public-genai-fluent-apis-backed-by-oss-only-routes-need-data": {
+    "rating": 0,
+    "why": "Databricks API guards on review-queue fluent APIs. Unrelated."
+   },
+   "vertex-ai-gateway-config-fields-that-are-not-strings-need-a": {
+    "rating": 0,
+    "why": "Vertex AI gateway config validators. Unrelated."
+   },
+   "prompt-source-placeholder-literals-must-change-together-with": {
+    "rating": 0,
+    "why": "Prompt source placeholder constants and UI literal sync. Unrelated."
+   },
+   "request-bodies-that-spell-one-protobuf-field-both-snake-case": {
+    "rating": 0,
+    "why": "Protobuf field alias conflict rejection in server handlers. Unrelated."
+   },
+   "skops-format-sklearn-models-must-be-blocked-by-mlflow-allow": {
+    "rating": 0,
+    "why": "Pickle deserialization gating for sklearn skops models. Unrelated."
+   },
+   "component-tests-assert-visible-output-and-mock-hooks-with-th": {
+    "rating": 0,
+    "why": "Frontend component test conventions for model registry pages. Unrelated."
+   },
+   "the-three-invoke-handlers-share-one-trace-ids-input-contract": {
+    "rating": 0,
+    "why": "trace_ids validation and dedup in the invoke handlers. Unrelated."
+   },
+   "workspace-default-artifact-root-must-be-a-uri-or-an-absolute": {
+    "rating": 0,
+    "why": "Workspace artifact root validation. Unrelated."
+   },
+   "pt2-pytorch-models-must-be-validated-before-torch-export-loa": {
+    "rating": 0,
+    "why": "PyTorch pt2 archive pickle validation. Unrelated."
+   }
+  }
+ },
+ "PR26267-hard": {
+  "set": "first",
+  "gold": [
+   "mlflow/server/auth/__init__.py",
+   "mlflow/server/fastapi_app.py",
+   "mlflow/server/handlers.py",
+   "mlflow/server/mcp_server_api.py",
+   "mlflow/server/mlflow_response.py",
+   "mlflow/server/server_info_api.py"
+  ],
+  "candidates": 53,
+  "ratings": {
+   "a-new-gateway-route-must-be-registered-in-the-auth-validator": {
+    "rating": 0,
+    "why": "About gateway routes and their auth validator registration; unrelated to server-info."
+   },
+   "admin-bootstrap-and-rotation-checks-must-read-the-primary-db": {
+    "rating": 0,
+    "why": "About primary vs read-replica DB reads for admin bootstrap; unrelated."
+   },
+   "anyio-4-15-0-removed-from-thread-so-every-server-request-ret": {
+    "rating": 1,
+    "why": "Points at fastapi_app.py's WSGI bridge and anyio threading, a neighboring area, but it is about an anyio version pin causing 500s, not a dedicated thread pool for server-info."
+   },
+   "artifact-uris-that-make-the-server-connect-to-a-named-host-m": {
+    "rating": 0,
+    "why": "Artifact URI host policy in handlers; unrelated to the server-info pool."
+   },
+   "auth-validators-must-be-mapped-to-the-route-s-own-request-pr": {
+    "rating": 0,
+    "why": "Auth validator-to-proto mapping for gateway routes; unrelated."
+   },
+   "bare-root-cannot-be-added-to-public-suffix-or-ungated-marker": {
+    "rating": 1,
+    "why": "Governs how bare public paths are added to the public-route tables in auth; the fix must keep server-info publicly reachable, and this note states the rule for doing that safely, though it is not about the thread pool."
+   },
+   "basic-auth-admin-bootstrap-runs-in-the-mlflow-server-cli-pro": {
+    "rating": 0,
+    "why": "CLI admin bootstrap ordering; unrelated to request serving or server-info."
+   },
+   "basic-auth-job-search-must-be-narrowed-to-the-caller-s-own-j": {
+    "rating": 0,
+    "why": "Job search response filtering; unrelated."
+   },
+   "basic-auth-password-policy-must-be-enforced-in-the-store-s-u": {
+    "rating": 0,
+    "why": "Password validation in the auth store; unrelated."
+   },
+   "basic-auth-pre-flight-checks-the-secret-key-before-the-admin": {
+    "rating": 0,
+    "why": "Basic-auth startup ordering; unrelated."
+   },
+   "basic-auth-secret-key-is-validated-in-the-mlflow-server-pare": {
+    "rating": 0,
+    "why": "Basic-auth secret key pre-flight; unrelated."
+   },
+   "body-gating-auth-validators-must-authorize-on-the-proto-boun": {
+    "rating": 0,
+    "why": "Body-gating validators for model/run requests; unrelated."
+   },
+   "createmodelversion-camelcase-runid-modelid-aliases-must-get": {
+    "rating": 0,
+    "why": "CreateModelVersion source-read checks; unrelated."
+   },
+   "do-not-decorate-artifact-repo-helpers-with-catch-mlflow-exce": {
+    "rating": 0,
+    "why": "Decorator rule for artifact repo helpers in handlers.py; unrelated to the thread pool."
+   },
+   "every-body-supplied-gateway-secret-id-must-be-authorized-thr": {
+    "rating": 0,
+    "why": "Gateway secret USE checks; unrelated."
+   },
+   "every-serialized-scorer-entry-point-must-run-validate-serial": {
+    "rating": 0,
+    "why": "Scorer payload validation; unrelated."
+   },
+   "gateway-model-ids-are-endpoint-names-unnamed-endpoints-are-s": {
+    "rating": 0,
+    "why": "Gateway model listing format; unrelated."
+   },
+   "gateway-model-listing-must-be-filtered-per-endpoint-by-use-p": {
+    "rating": 0,
+    "why": "Gateway model listing permission filter; unrelated."
+   },
+   "gateway-secret-creation-must-require-the-workspace-create-gr": {
+    "rating": 0,
+    "why": "Gateway secret creation grant; unrelated."
+   },
+   "invoke-handler-tests-must-stub-batch-get-trace-infos-for-the": {
+    "rating": 0,
+    "why": "Invoke-handler test stubbing; unrelated."
+   },
+   "invoke-handlers-must-bind-caller-supplied-trace-ids-to-the-a": {
+    "rating": 0,
+    "why": "Trace-id binding for invoke handlers; unrelated."
+   },
+   "invoke-routes-must-be-authorized-with-validate-can-update-ex": {
+    "rating": 0,
+    "why": "Invoke route authorization; unrelated."
+   },
+   "issue-detection-invoke-must-require-use-on-the-body-s-gatewa": {
+    "rating": 0,
+    "why": "Issue-detection secret checks; unrelated."
+   },
+   "legacy-basic-auth-admin-password-password1234-must-never-boo": {
+    "rating": 0,
+    "why": "Legacy admin password handling; unrelated."
+   },
+   "logmetric-logbatch-metric-routing-to-a-loggedmodel-also-requ": {
+    "rating": 0,
+    "why": "LogMetric/LogBatch model permission checks; unrelated."
+   },
+   "model-version-read-filtering-must-use-the-prompt-aware-predi": {
+    "rating": 0,
+    "why": "GraphQL model-version read filtering; unrelated."
+   },
+   "nested-graphql-fields-that-return-per-model-resources-must-b": {
+    "rating": 0,
+    "why": "GraphQL nested field protection; unrelated."
+   },
+   "only-response-filters-self-authorize-a-route-ownership-grant": {
+    "rating": 0,
+    "why": "Authorization backstop for ownership grants on write routes; does not touch unauthenticated server-info access."
+   },
+   "per-request-permission-predicates-that-run-once-per-row-must": {
+    "rating": 0,
+    "why": "GraphQL predicate memoization; unrelated."
+   },
+   "plain-flask-ui-routes-need-an-explicit-authenticated-only-va": {
+    "rating": 1,
+    "why": "Covers how plain non-API routes like HOME and SERVER_VERSION are registered in auth with static prefix handling, a nearby convention. It concerns authenticated-only access rather than public access, and says nothing about the thread pool."
+   },
+   "prompt-branch-selection-must-use-the-effective-is-prompt-tag": {
+    "rating": 0,
+    "why": "Prompt tag classification; unrelated."
+   },
+   "prompt-model-version-sources-must-be-a-placeholder-or-a-vali": {
+    "rating": 0,
+    "why": "Prompt source validation; unrelated."
+   },
+   "request-bodies-that-spell-one-protobuf-field-both-snake-case": {
+    "rating": 0,
+    "why": "Protobuf alias rejection in request parsing; unrelated."
+   },
+   "consume-non-streaming-databricks-sdk-responses-to-release-po": {
+    "rating": 0,
+    "why": "Databricks SDK connection pooling; unrelated."
+   },
+   "gemini-functionresponse-response-must-be-a-json-object-wrap": {
+    "rating": 0,
+    "why": "Gemini adapter; unrelated."
+   },
+   "uc-model-load-and-register-must-share-one-files-api-routing": {
+    "rating": 0,
+    "why": "UC model artifact routing; unrelated."
+   },
+   "scorer-invocation-timeout-is-enforced-only-inside-scorer-run": {
+    "rating": 0,
+    "why": "Scorer timeout threading; unrelated to server request pool."
+   },
+   "scoring-server-readiness-timeout-must-report-the-last-ping-e": {
+    "rating": 0,
+    "why": "Scoring server client readiness; unrelated."
+   },
+   "spark-scoring-server-tests-must-cancel-jobs-and-join-backgro": {
+    "rating": 0,
+    "why": "Spark test cleanup; unrelated."
+   },
+   "generated-serving-dockerfiles-must-bound-apt-timeouts-and-re": {
+    "rating": 0,
+    "why": "Dockerfile apt config; unrelated."
+   },
+   "assistant-unsolicited-follow-up-offers-come-from-system-prom": {
+    "rating": 0,
+    "why": "Assistant system prompt wording; unrelated."
+   },
+   "use-o-1-removal-when-draining-graphql-selection-lists-in-the": {
+    "rating": 0,
+    "why": "GraphQL query scanner; unrelated."
+   },
+   "public-genai-fluent-apis-backed-by-oss-only-routes-need-data": {
+    "rating": 0,
+    "why": "Databricks API guard on genai fluent APIs; unrelated."
+   },
+   "response-filter-lookup-is-keyed-on-the-endpoint-function-and": {
+    "rating": 0,
+    "why": "Response filter lookup and job serialization; unrelated."
+   },
+   "server-marker-env-var-names-in-host-policy-must-stay-equal-t": {
+    "rating": 0,
+    "why": "Server artifact env var names in host policy; unrelated."
+   },
+   "server-must-re-read-the-stored-registered-scorer-by-name-and": {
+    "rating": 0,
+    "why": "Scorer re-read in invoke handlers; unrelated."
+   },
+   "the-three-invoke-handlers-share-one-trace-ids-input-contract": {
+    "rating": 0,
+    "why": "Invoke trace_ids input contract; unrelated."
+   },
+   "trace-experiment-binding-lookup-must-be-unscoped-generic-on": {
+    "rating": 0,
+    "why": "Trace-experiment binding lookup; unrelated."
+   },
+   "vertex-ai-gateway-config-fields-that-are-not-strings-need-a": {
+    "rating": 0,
+    "why": "Vertex AI config parsing; unrelated."
+   },
+   "workspace-default-artifact-root-must-be-a-uri-or-an-absolute": {
+    "rating": 0,
+    "why": "Workspace artifact root validation; unrelated."
+   },
+   "test-static-prefix-route-constants-by-reloading-mlflow-serve": {
+    "rating": 1,
+    "why": "Shows how to test static-prefix route constants in auth tests, which the engineer would need to verify that the public server-info path still works with a static prefix. It does not cover the thread pool."
+   },
+   "tests-that-run-basic-auth-through-run-server-must-set-the-se": {
+    "rating": 0,
+    "why": "Basic-auth CLI test setup; unrelated."
+   },
+   "assistant-system-prompt-variants-must-be-changed-together-an": {
+    "rating": 0,
+    "why": "Assistant prompt variants; unrelated."
+   }
+  }
+ },
+ "PR26332-hard": {
+  "set": "first",
+  "gold": [
+   "mlflow/genai/judges/utils/parsing_utils.py"
+  ],
+  "candidates": 20,
+  "ratings": {
+   "gemini-functionresponse-response-must-be-a-json-object-wrap": {
+    "rating": 0,
+    "why": "Covers Gemini functionResponse wrapping in gateway providers. Nothing about parsing judge replies or markdown code fences."
+   },
+   "strip-only-a-bullet-marker-plus-whitespace-from-llm-failure": {
+    "rating": 0,
+    "why": "Concerns bullet-prefix stripping in discovery/extraction.py. It is LLM-output parsing, but a different parser and a different change, and it says nothing about code fences."
+   },
+   "warehouse-picker-drops-sql-warehouses-when-the-databricks-js": {
+    "rating": 0,
+    "why": "Shell-side Databricks JSON parsing in setup.sh. Unrelated to the judge reply parser."
+   },
+   "long-setup-command-in-the-agent-action-card-overflows-instea": {
+    "rating": 0,
+    "why": "CSS overflow in the onboarding React card. Unrelated."
+   },
+   "interactive-pty-test-helper-must-drain-output-to-eof-and-rea": {
+    "rating": 0,
+    "why": "PTY test helper for setup.sh tests. Unrelated."
+   },
+   "assistant-unsolicited-follow-up-offers-come-from-system-prom": {
+    "rating": 0,
+    "why": "Assistant system prompt wording about follow-up offers. Unrelated."
+   },
+   "repeated-tag-keys-in-one-set-logged-model-tags-call-must-be": {
+    "rating": 0,
+    "why": "Tag deduplication in the SQLAlchemy tracking store. Unrelated."
+   },
+   "pr-closed-workflow-cache-deletion-must-be-job-scoped-and-lim": {
+    "rating": 0,
+    "why": "GitHub Actions cache cleanup. Unrelated."
+   },
+   "vertex-claude-request-fields-must-live-on-the-adapter-not-th": {
+    "rating": 0,
+    "why": "Vertex Claude request formatting. It touches the judges adapter path, but it concerns request building, not parsing judge responses or fence cleanup."
+   },
+   "crewai-autolog-leaked-llm-api-key-into-agent-crew-span-attri": {
+    "rating": 0,
+    "why": "CrewAI span attribute sanitization. Unrelated."
+   },
+   "trace-explorer-v2-user-visible-strings-must-go-through-react": {
+    "rating": 0,
+    "why": "react-intl usage in the trace explorer UI. Unrelated."
+   },
+   "scorer-invocation-timeout-is-enforced-only-inside-scorer-run": {
+    "rating": 0,
+    "why": "Scorer timeout enforcement in scorers/base.py. Related to judges in general, but not to response parsing or fence stripping."
+   },
+   "gemini-thoughtsignature-is-a-sibling-of-functioncall-on-the": {
+    "rating": 0,
+    "why": "Gemini thoughtSignature placement in gateway providers. Unrelated."
+   },
+   "destination-key-scan-must-be-shape-agnostic-walk-all-nested": {
+    "rating": 0,
+    "why": "Server-side validation of scorer payload destination keys. Unrelated."
+   },
+   "request-bodies-that-spell-one-protobuf-field-both-snake-case": {
+    "rating": 0,
+    "why": "Protobuf alias conflict checks in server handlers. Unrelated."
+   },
+   "credential-key-filter-must-run-on-the-key-before-the-value-i": {
+    "rating": 0,
+    "why": "CrewAI credential key filtering. Unrelated."
+   },
+   "body-gating-auth-validators-must-authorize-on-the-proto-boun": {
+    "rating": 0,
+    "why": "Auth body validators in server/auth. Unrelated."
+   },
+   "third-party-scorer-kwargs-must-not-carry-llm-endpoint-destin": {
+    "rating": 0,
+    "why": "SSRF validation of third-party scorer kwargs. Unrelated."
+   },
+   "catalog-release-sync-must-delete-stale-json-assets-after-upl": {
+    "rating": 0,
+    "why": "Model catalog release publishing script. Unrelated."
+   },
+   "helm-probe-defaults-for-existing-probes-must-keep-the-previo": {
+    "rating": 0,
+    "why": "Helm probe defaults. Unrelated."
+   }
+  }
+ },
+ "PR26619-hard": {
+  "set": "first",
+  "gold": [
+   "mlflow/store/tracking/sqlalchemy_store.py"
+  ],
+  "candidates": 25,
+  "ratings": {
+   "legacy-mlruns-detection-check-one-known-metadata-path-per-nu": {
+    "rating": 0,
+    "why": "Covers legacy mlruns data detection in tracking service utils. Unrelated to parsing comparators in experiment or tag search filters."
+   },
+   "logged-model-search-order-must-end-with-a-stable-model-id-ti": {
+    "rating": 0,
+    "why": "Covers ORDER BY tiebreakers for logged model search. The task concerns comparator parsing in filter strings, so this would not change the fix."
+   },
+   "logged-model-store-tests-go-in-test-sqlalchemy-store-runs-py": {
+    "rating": 0,
+    "why": "Only says where logged-model store tests live and which tag upsert cases to cover. Nothing about comparators or experiment and tag filters."
+   },
+   "mlflow-gc-hard-delete-of-runs-with-large-metric-histories-ex": {
+    "rating": 0,
+    "why": "Covers memory use when hard-deleting runs during mlflow gc. Unrelated to search filter parsing."
+   },
+   "non-grouped-raw-gaps-must-be-read-before-the-final-rollup-va": {
+    "rating": 0,
+    "why": "Covers trace metrics rollup read ordering on MSSQL. Unrelated to filter comparators."
+   },
+   "repeated-tag-keys-in-one-set-logged-model-tags-call-must-be": {
+    "rating": 0,
+    "why": "Covers deduplicating tag keys on logged model tag writes. This is the write path, not parsing tag filters in searches."
+   },
+   "run-delete-cascade-models-must-mirror-sqlrun-s-orm-delete-ca": {
+    "rating": 0,
+    "why": "Covers the cascade tuple used when hard-deleting runs. Unrelated to search filter comparators."
+   },
+   "search-logged-models-metric-ordering-returns-duplicate-model": {
+    "rating": 0,
+    "why": "Covers window-function ordering for logged model metric sorts. Does not touch comparator handling in experiment or tag filters."
+   },
+   "is-databricks-uri-must-match-scheme-case-insensitively-only": {
+    "rating": 0,
+    "why": "Shares the idea of case-insensitive matching but applies to URI scheme detection in mlflow/utils/uri.py. It does not touch the search filter parser."
+   },
+   "fluent-restore-delete-wrappers-are-one-line-delegations-to-m": {
+    "rating": 0,
+    "why": "Covers keeping fluent restore and delete wrappers thin. Unrelated to filter parsing."
+   },
+   "trace-experiment-binding-lookup-must-be-unscoped-generic-on": {
+    "rating": 0,
+    "why": "Covers trace-to-experiment permission checks in server handlers. Unrelated to filter comparators."
+   },
+   "public-genai-fluent-apis-backed-by-oss-only-routes-need-data": {
+    "rating": 0,
+    "why": "Covers the databricks_api_disabled guard on genai APIs. Unrelated to search filter parsing."
+   },
+   "scorerversion-from-proto-must-coerce-int-experiment-id-to-st": {
+    "rating": 0,
+    "why": "Covers int-to-string conversion of experiment_id in a scorer entity. Unrelated to comparator handling in searches."
+   },
+   "uc-model-load-and-register-must-share-one-files-api-routing": {
+    "rating": 0,
+    "why": "Covers Unity Catalog artifact repository routing. Unrelated to search filters."
+   },
+   "request-bodies-that-spell-one-protobuf-field-both-snake-case": {
+    "rating": 0,
+    "why": "Covers rejecting conflicting snake_case and camelCase request fields. Unrelated to comparator handling in filter strings."
+   },
+   "cached-db-must-stay-schema-only-per-test-db-uri-copies-own-t": {
+    "rating": 0,
+    "why": "Covers test fixture handling of the Default experiment in SQLite test databases. Unrelated to filter parsing."
+   },
+   "setup-prompt-checklist-steps-must-stay-in-dependency-order": {
+    "rating": 0,
+    "why": "Covers step ordering in the agent setup prompt. Unrelated to search filters."
+   },
+   "test-databricks-guardrails-across-both-tracking-uri-forms-an": {
+    "rating": 0,
+    "why": "Covers tests for databricks_api_disabled on genai review queues. Unrelated to comparator handling."
+   },
+   "parallel-tests-lose-artifacts-when-a-bare-sqlite-tracking-ur": {
+    "rating": 0,
+    "why": "Covers test fixtures and artifact directories for parallel SQLite runs. Unrelated to filter parsing."
+   },
+   "tracking-uri-in-mlflow-artifacts-scheme-error-must-be-redact": {
+    "rating": 0,
+    "why": "Covers redacting credentials from artifact scheme error messages. Unrelated to search filters."
+   },
+   "workspace-default-artifact-root-must-be-a-uri-or-an-absolute": {
+    "rating": 0,
+    "why": "Covers validating workspace default artifact roots. Unrelated to comparator handling in experiment or tag searches."
+   },
+   "artifact-uris-that-make-the-server-connect-to-a-named-host-m": {
+    "rating": 0,
+    "why": "Covers the trusted-host policy for server-side artifact URIs. Unrelated to search filter parsing."
+   },
+   "example-compose-storage-endpoint-credentials-and-bucket-must": {
+    "rating": 0,
+    "why": "Covers keeping storage endpoints and credentials in sync in the example docker-compose. Unrelated to the task."
+   },
+   "nested-graphql-fields-that-return-per-model-resources-must-b": {
+    "rating": 0,
+    "why": "Covers GraphQL authorization for nested run fields. Unrelated to comparators in experiment or tag filters."
+   },
+   "example-bucket-init-container-order-via-service-completed-su": {
+    "rating": 0,
+    "why": "Covers init container ordering in the example docker-compose. Unrelated to the task."
+   }
+  }
+ },
+ "PR26082-hard": {
+  "set": "first",
+  "gold": [
+   "mlflow/genai/discovery/pipeline.py"
+  ],
+  "candidates": 20,
+  "ratings": {
+   "strip-only-a-bullet-marker-plus-whitespace-from-llm-failure": {
+    "rating": 0,
+    "why": "Bullet-prefix parsing of LLM failure labels in discovery/extraction.py. Same feature package, but not the dedup-group path in pipeline.py."
+   },
+   "repeated-tag-keys-in-one-set-logged-model-tags-call-must-be": {
+    "rating": 0,
+    "why": "Tag-key dedup in SqlAlchemyStore.set_logged_model_tags. Unrelated."
+   },
+   "non-grouped-raw-gaps-must-be-read-before-the-final-rollup-va": {
+    "rating": 0,
+    "why": "SQL trace rollup read ordering. Unrelated."
+   },
+   "new-span-keyword-arguments-must-be-threaded-through-every-tr": {
+    "rating": 0,
+    "why": "Span kwargs in fluent tracing entry points. Unrelated."
+   },
+   "search-logged-models-metric-ordering-returns-duplicate-model": {
+    "rating": 0,
+    "why": "rank vs row_number in logged model metric ordering. Unrelated."
+   },
+   "eval-results-table-attaches-model-outputs-by-position-not-in": {
+    "rating": 0,
+    "why": "Positional assignment in the default evaluator eval table. Unrelated."
+   },
+   "copilot-setup-steps-yml-steps-must-be-a-flat-list-of-run-use": {
+    "rating": 0,
+    "why": "Copilot setup workflow YAML schema. Unrelated."
+   },
+   "logged-model-search-order-must-end-with-a-stable-model-id-ti": {
+    "rating": 0,
+    "why": "Logged model search tiebreakers. Unrelated."
+   },
+   "the-three-invoke-handlers-share-one-trace-ids-input-contract": {
+    "rating": 0,
+    "why": "trace_ids validation in server invoke handlers. Unrelated to group validation."
+   },
+   "protect-js-check-log-order-is-derived-from-state-key-order": {
+    "rating": 0,
+    "why": "protect.js check log ordering. Unrelated."
+   },
+   "changelog-script-must-skip-not-found-graphql-errors-for-issu": {
+    "rating": 0,
+    "why": "Changelog GraphQL fetch. Unrelated."
+   },
+   "issue-pr-workflows-must-share-a-per-issue-concurrency-group": {
+    "rating": 0,
+    "why": "GitHub workflow concurrency keys. Unrelated."
+   },
+   "evaluate-list-features-with-numpy-targets-truth-value-and-em": {
+    "rating": 0,
+    "why": "List-input handling in evaluation dataset conversion. Unrelated."
+   },
+   "new-public-livespan-methods-need-a-noopspan-stub-and-an-api": {
+    "rating": 0,
+    "why": "LiveSpan/NoOpSpan API stubs. Unrelated."
+   },
+   "example-bucket-init-container-order-via-service-completed-su": {
+    "rating": 0,
+    "why": "docker-compose startup ordering for an example. Unrelated."
+   },
+   "publish-workflows-must-share-a-concurrency-group-keyed-on-th": {
+    "rating": 0,
+    "why": "Publish workflow concurrency keys. Unrelated."
+   },
+   "logged-model-store-tests-go-in-test-sqlalchemy-store-runs-py": {
+    "rating": 0,
+    "why": "Location of logged-model store tests. Unrelated."
+   },
+   "linked-issue-comment-job-runs-after-publish-draft-and-holds": {
+    "rating": 0,
+    "why": "copilot-agent workflow job permissions. Unrelated."
+   },
+   "concurrency-is-resolved-before-job-level-if-so-no-op-runs-ca": {
+    "rating": 0,
+    "why": "GitHub workflow concurrency and if conditions. Unrelated."
+   },
+   "warehouse-picker-drops-sql-warehouses-when-the-databricks-js": {
+    "rating": 0,
+    "why": "Shell parsing of Databricks JSON. Unrelated."
+   }
+  }
+ },
+ "PR26093-hard": {
+  "set": "first",
+  "gold": [
+   "mlflow/store/tracking/sqlalchemy_store.py"
+  ],
+  "candidates": 26,
+  "ratings": {
+   "legacy-mlruns-detection-check-one-known-metadata-path-per-nu": {
+    "rating": 0,
+    "why": "Covers legacy mlruns detection in the tracking service utils, which is unrelated to label schema lookup or the SQL Server boolean comparison."
+   },
+   "logged-model-search-order-must-end-with-a-stable-model-id-ti": {
+    "rating": 0,
+    "why": "Concerns logged model search ordering and tiebreakers in sqlalchemy_store.py. Same file, but it does not touch the protected label schema flag comparison."
+   },
+   "logged-model-store-tests-go-in-test-sqlalchemy-store-runs-py": {
+    "rating": 0,
+    "why": "About where logged-model tests live and tag upsert duplicate-key cases. It mentions MSSQL only in CI context and says nothing about the IS vs = boolean comparison."
+   },
+   "mlflow-gc-hard-delete-of-runs-with-large-metric-histories-ex": {
+    "rating": 0,
+    "why": "Covers memory use in hard-deleting runs during gc. Unrelated to label schemas or the protected flag query."
+   },
+   "non-grouped-raw-gaps-must-be-read-before-the-final-rollup-va": {
+    "rating": 0,
+    "why": "Covers trace rollup read ordering and MSSQL REPEATABLE READ phantom rows. A different mechanism from the label schema protected-flag comparison."
+   },
+   "repeated-tag-keys-in-one-set-logged-model-tags-call-must-be": {
+    "rating": 0,
+    "why": "Deduplication of logged model tag keys before bulk upsert. Same file but a different write path than the label schema lookup."
+   },
+   "run-delete-cascade-models-must-mirror-sqlrun-s-orm-delete-ca": {
+    "rating": 0,
+    "why": "Concerns the run delete cascade tuple used by bulk hard deletes. Unrelated to label schema queries."
+   },
+   "search-logged-models-metric-ordering-returns-duplicate-model": {
+    "rating": 0,
+    "why": "Metric-ordering window function for logged model search. Same file but not the protected-flag check."
+   },
+   "public-genai-fluent-apis-backed-by-oss-only-routes-need-data": {
+    "rating": 0,
+    "why": "Databricks guard decorator for genai review queue APIs. It does not address the SQL query generated for label schemas on SQL Server."
+   },
+   "test-databricks-guardrails-across-both-tracking-uri-forms-an": {
+    "rating": 0,
+    "why": "Tests for Databricks guardrails on genai functions. Unrelated to the database query bug."
+   },
+   "workspace-default-artifact-root-must-be-a-uri-or-an-absolute": {
+    "rating": 0,
+    "why": "Validation of workspace default artifact roots. Unrelated to label schemas or SQL comparisons."
+   },
+   "per-request-permission-predicates-that-run-once-per-row-must": {
+    "rating": 0,
+    "why": "Memoization of GraphQL permission predicates on flask g. Unrelated to label schema lookup."
+   },
+   "tracking-uri-in-mlflow-artifacts-scheme-error-must-be-redact": {
+    "rating": 0,
+    "why": "Redaction of credentials in an artifact URI scheme error. Unrelated to the label schema query."
+   },
+   "test-mlflow-server-fixtures-should-start-from-the-cached-pre": {
+    "rating": 0,
+    "why": "Test server fixture setup for e2e tests. Unrelated to the SQL Server query failure."
+   },
+   "cached-db-must-stay-schema-only-per-test-db-uri-copies-own-t": {
+    "rating": 0,
+    "why": "Test DB fixture rules for the default experiment row. Unrelated to label schemas or the protected flag."
+   },
+   "artifact-uris-that-make-the-server-connect-to-a-named-host-m": {
+    "rating": 0,
+    "why": "Trusted-host policy for server artifact URIs. Unrelated to the label schema lookup."
+   },
+   "component-tests-assert-visible-output-and-mock-hooks-with-th": {
+    "rating": 0,
+    "why": "Frontend component test conventions for model registry pages. Unrelated to the backend query."
+   },
+   "trace-experiment-binding-lookup-must-be-unscoped-generic-on": {
+    "rating": 0,
+    "why": "Trace-experiment binding validation in handlers. Unrelated to label schema loading."
+   },
+   "uc-model-load-and-register-must-share-one-files-api-routing": {
+    "rating": 0,
+    "why": "Unity Catalog artifact repo routing flag. Unrelated to the SQL Server label schema bug."
+   },
+   "do-not-decorate-artifact-repo-helpers-with-catch-mlflow-exce": {
+    "rating": 0,
+    "why": "Decorator rule for artifact repo helpers in server handlers. Unrelated to label schema queries."
+   },
+   "download-target-filename-require-path-and-script-name-must-s": {
+    "rating": 0,
+    "why": "GitHub workflow script download sync rule. Unrelated to the database query."
+   },
+   "admin-bootstrap-and-rotation-checks-must-read-the-primary-db": {
+    "rating": 0,
+    "why": "Auth store primary versus replica reads for admin bootstrap. Unrelated to label schema loading."
+   },
+   "pt2-pytorch-models-must-be-validated-before-torch-export-loa": {
+    "rating": 0,
+    "why": "PyTorch pt2 archive validation. Unrelated to the tracking store query."
+   },
+   "uc-model-load-and-register-must-gate-on-the-sdk-files-api-fl": {
+    "rating": 0,
+    "why": "Unity Catalog artifact repo flag gating. Unrelated to the label schema SQL bug."
+   },
+   "use-the-repo-standard-workflow-concurrency-group-not-github": {
+    "rating": 0,
+    "why": "GitHub workflow concurrency group convention. Unrelated to the task."
+   },
+   "workflow-scope-github-actions-guidance-is-declared-in-two-mi": {
+    "rating": 0,
+    "why": "Reviewer path glob configuration for GitHub Actions guidance. Unrelated to the task."
+   }
+  }
+ },
+ "PR26503-hard": {
+  "set": "first",
+  "gold": [
+   "mlflow/utils/string_utils.py"
+  ],
+  "candidates": 34,
+  "ratings": {
+   "basic-auth-password-policy-must-be-enforced-in-the-store-s-u": {
+    "rating": 0,
+    "why": "Covers basic-auth password validation in the auth store; unrelated to rendering CLI tables."
+   },
+   "consume-non-streaming-databricks-sdk-responses-to-release-po": {
+    "rating": 0,
+    "why": "About HTTP connection pooling for Databricks SDK responses in rest_utils; no connection to table output."
+   },
+   "destination-key-scan-must-be-shape-agnostic-walk-all-nested": {
+    "rating": 0,
+    "why": "Scorer payload destination-key validation; unrelated to table display."
+   },
+   "is-databricks-uri-must-match-scheme-case-insensitively-only": {
+    "rating": 0,
+    "why": "URI scheme classification for Databricks; unrelated to table rendering."
+   },
+   "pre-flight-and-connection-time-webhook-public-ip-checks-must": {
+    "rating": 0,
+    "why": "Webhook SSRF public-IP classification; unrelated to table display."
+   },
+   "prompt-model-version-sources-must-be-a-placeholder-or-a-vali": {
+    "rating": 0,
+    "why": "Prompt source validation in server handlers; unrelated to CLI table output."
+   },
+   "public-genai-fluent-apis-backed-by-oss-only-routes-need-data": {
+    "rating": 0,
+    "why": "Databricks API guard decorator for genai APIs; unrelated to table formatting."
+   },
+   "remove-on-error-log-lines-must-reflect-the-actual-cleanup-ou": {
+    "rating": 0,
+    "why": "Logging in file_utils.remove_on_error; a different utility with no bearing on table headers or string_utils."
+   },
+   "remove-on-error-must-re-raise-the-original-error-when-partia": {
+    "rating": 0,
+    "why": "Cleanup exception handling in remove_on_error; unrelated to rendering tables."
+   },
+   "sdk-models-repo-must-skip-the-parallel-presigned-url-downloa": {
+    "rating": 0,
+    "why": "Artifact download routing for SDK models repo; unrelated to table display."
+   },
+   "third-party-scorer-kwargs-must-not-carry-llm-endpoint-destin": {
+    "rating": 0,
+    "why": "Scorer kwargs destination-key SSRF validation; unrelated to table output."
+   },
+   "uc-model-version-converters-must-hasfield-guard-unset-deploy": {
+    "rating": 0,
+    "why": "Unity Catalog proto-to-entity converters; unrelated to table display."
+   },
+   "webhook-ssrf-guard-passed-ipv6-transition-addresses-that-emb": {
+    "rating": 0,
+    "why": "IPv6 transition SSRF checks for webhooks; unrelated to table rendering."
+   },
+   "workspace-default-artifact-root-must-be-a-uri-or-an-absolute": {
+    "rating": 0,
+    "why": "Workspace artifact root validation; unrelated to CLI table output."
+   },
+   "eval-results-table-attaches-model-outputs-by-position-not-in": {
+    "rating": 0,
+    "why": "Evaluator eval-table row alignment; a different table concept with no link to the shared CLI table printer."
+   },
+   "register-session-header-aggregates-per-column-via-rendersess": {
+    "rating": 0,
+    "why": "Frontend traces-table session header aggregation; unrelated to the CLI table display."
+   },
+   "session-token-sums-keep-undefined-when-every-trace-lacks-a-c": {
+    "rating": 0,
+    "why": "Frontend token usage sums in traces table cells; unrelated to CLI table headers."
+   },
+   "suppress-session-level-aggregates-when-a-grouped-table-page": {
+    "rating": 0,
+    "why": "Frontend session aggregate suppression in traces tables; unrelated to the fix."
+   },
+   "scope-args-used-for-trace-rows-must-also-be-passed-to-metric": {
+    "rating": 0,
+    "why": "Frontend trace metrics scope forwarding in TracesV3Logs; unrelated."
+   },
+   "search-logged-models-metric-ordering-returns-duplicate-model": {
+    "rating": 0,
+    "why": "SQL ordering for logged models search; unrelated to table printing."
+   },
+   "component-tests-assert-visible-output-and-mock-hooks-with-th": {
+    "rating": 0,
+    "why": "React component test conventions for model registry; unrelated."
+   },
+   "evaluate-list-features-with-numpy-targets-truth-value-and-em": {
+    "rating": 0,
+    "why": "Evaluation dataset list handling; unrelated to table display."
+   },
+   "logged-model-traces-page-assessment-summaries-and-count-badg": {
+    "rating": 0,
+    "why": "Frontend logged-model traces page hooks; unrelated."
+   },
+   "per-request-permission-predicates-that-run-once-per-row-must": {
+    "rating": 0,
+    "why": "GraphQL auth predicate memoization; unrelated to table output."
+   },
+   "use-pandas-array-not-to-numpy-when-moving-nullable-outputs-i": {
+    "rating": 0,
+    "why": "Pandas nullable dtype handling in default evaluator; unrelated."
+   },
+   "non-grouped-raw-gaps-must-be-read-before-the-final-rollup-va": {
+    "rating": 0,
+    "why": "SQL trace rollup ordering; unrelated to table rendering."
+   },
+   "targets-presence-is-decided-by-is-not-none-never-by-truthine": {
+    "rating": 0,
+    "why": "Evaluation dataset target normalization; unrelated."
+   },
+   "built-in-span-type-docs-table-must-list-every-spantype-const": {
+    "rating": 0,
+    "why": "Docs table for span types; a different table, unrelated to the CLI table printer."
+   },
+   "long-setup-command-in-the-agent-action-card-overflows-instea": {
+    "rating": 0,
+    "why": "CSS overflow in onboarding UI card; unrelated."
+   },
+   "hf-datasets-cache-each-runner-os-key-needs-exactly-one-savin": {
+    "rating": 0,
+    "why": "CI cache configuration for HF datasets; unrelated."
+   },
+   "protect-js-check-log-order-is-derived-from-state-key-order": {
+    "rating": 0,
+    "why": "CI protect.js check log ordering; unrelated to table output."
+   },
+   "trace-search-results-with-equal-timestamp-ms-have-no-defined": {
+    "rating": 0,
+    "why": "Test ordering for trace search results; unrelated."
+   },
+   "trace-experiment-binding-lookup-must-be-unscoped-generic-on": {
+    "rating": 0,
+    "why": "Trace-experiment binding permission check in handlers; unrelated."
+   },
+   "cached-db-must-stay-schema-only-per-test-db-uri-copies-own-t": {
+    "rating": 0,
+    "why": "Test DB fixture conventions; unrelated to table display."
+   }
+  }
+ },
+ "PR26063-hard": {
+  "set": "first",
+  "gold": [
+   "mlflow/tracing/processor/uc_table.py"
+  ],
+  "candidates": 20,
+  "ratings": {
+   "uc-span-links-must-stay-inside-their-source-trace-location": {
+    "rating": 0,
+    "why": "Concerns span link normalization in entities/span.py, a different mechanism from the best-effort user/session tagging step and its failure handling in the UC table processor."
+   },
+   "serving-uc-trace-location-must-read-mlflow-experiment-id-dir": {
+    "rating": 0,
+    "why": "Concerns experiment ID resolution for UC trace locations in model serving (provider.py), not the root-span tagging or export failure path."
+   },
+   "codex-integration-identifies-itself-via-opentelemetry-servic": {
+    "rating": 0,
+    "why": "Codex TypeScript integration's service.name attribute; unrelated to the Python UC table processor's tagging step."
+   },
+   "strands-span-processor-must-ignore-spans-with-no-mlflow-requ": {
+    "rating": 0,
+    "why": "Strands autolog on_start skipping foreign spans; unrelated to UC table export or root-span tagging."
+   },
+   "archived-uc-span-links-must-be-normalized-against-the-preserved-request-id": {
+    "rating": 0,
+    "why": "Span link normalization when rebuilding spans from OTLP; a different code path from the processor's tagging and export behavior."
+   },
+   "suppress-session-level-aggregates-when-a-grouped-table-page-may-be-incomplete": {
+    "rating": 0,
+    "why": "Frontend session aggregate rendering in the traces table; unrelated to backend span processing."
+   },
+   "bare-root-cannot-be-added-to-public-suffix-or-ungated-marker-tables": {
+    "rating": 0,
+    "why": "Basic-auth route matching invariant; unrelated to trace export."
+   },
+   "ts-trace-git-provenance-is-merged-in-both-exporter-span-processors-and-cached-per-process": {
+    "rating": 1,
+    "why": "Points at DatabricksUCTableSpanProcessor.onStart as a chokepoint for adding metadata in the TypeScript exporter, a useful map, but it is about Git provenance in TS, not the Python user/session tagging fix."
+   },
+   "new-span-keyword-arguments-must-be-threaded-through-every-trace-entry-point": {
+    "rating": 0,
+    "why": "Concerns adding keyword args to trace/start_span entry points in fluent.py; unrelated to the processor's failure handling."
+   },
+   "copilot-setup-steps-yml-steps-must-be-a-flat-list-of-run-uses-entries": {
+    "rating": 0,
+    "why": "CI workflow schema for Copilot agent setup; unrelated."
+   },
+   "tracking-uri-in-mlflow-artifacts-scheme-error-must-be-redacted-of-credentials-before-logging": {
+    "rating": 0,
+    "why": "Credential redaction in artifact URI scheme errors; unrelated to the UC span tagging path."
+   },
+   "built-in-span-type-docs-table-must-list-every-spantype-const": {
+    "rating": 0,
+    "why": "Documentation parity for SpanType constants; unrelated."
+   },
+   "test-shared-provider-strands-behavior-with-mlflow-use-default-tracer-provider-false": {
+    "rating": 0,
+    "why": "Strands shared-provider test recipe; unrelated."
+   },
+   "model-catalog-assets-publish-only-from-master-push-never-from-pull-request-runs": {
+    "rating": 0,
+    "why": "Model catalog publish workflow; unrelated."
+   },
+   "codex-notify-hook-must-log-only-the-error-stack-or-message-never-the-raw-exception": {
+    "rating": 0,
+    "why": "Codex hook error logging to avoid leaking credentials; unrelated to the UC processor's debug logging of tagging failures."
+   },
+   "repeated-tag-keys-in-one-set-logged-model-tags-call-must-be-deduplicated-before-the-bulk-upsert": {
+    "rating": 0,
+    "why": "Logged model tag dedup in the SQLAlchemy store; unrelated."
+   },
+   "claude-code-defaults-mlflow-enable-async-trace-logging-to-true-only-when-unset": {
+    "rating": 0,
+    "why": "Claude Code async logging default in TypeScript config; unrelated."
+   },
+   "workflow-concurrency-cancels-only-pull-request-runs": {
+    "rating": 0,
+    "why": "GitHub workflow concurrency settings; unrelated."
+   },
+   "scope-args-used-for-trace-rows-must-also-be-passed-to-metrics-backed-hooks-in-tracesv3logs": {
+    "rating": 0,
+    "why": "Frontend scope parameter forwarding for trace hooks; unrelated."
+   },
+   "every-feedback-from-a-registered-scorer-must-get-scorername-and-scorerversion-metadata-including-error-feedback": {
+    "rating": 0,
+    "why": "Scorer feedback metadata helper; unrelated to span tagging or export."
+   }
+  }
+ },
+ "PR26130-hard": {
+  "set": "first",
+  "gold": [
+   "mlflow/store/tracking/sqlalchemy_store.py"
+  ],
+  "candidates": 24,
+  "ratings": {
+   "legacy-mlruns-detection-check-one-known-metadata-path-per-nu": {
+    "rating": 0,
+    "why": "Covers legacy mlruns directory detection in the tracking service utils. Nothing about trace or span content search or escaping."
+   },
+   "logged-model-search-order-must-end-with-a-stable-model-id-ti": {
+    "rating": 0,
+    "why": "Concerns logged-model search ordering and tiebreakers in sqlalchemy_store.py. Same file, but not the span content filter or its encoding."
+   },
+   "logged-model-store-tests-go-in-test-sqlalchemy-store-runs-py": {
+    "rating": 0,
+    "why": "Test file placement and repeated-key tag upsert tests for logged models. Does not touch trace content search."
+   },
+   "mlflow-gc-hard-delete-of-runs-with-large-metric-histories-ex": {
+    "rating": 0,
+    "why": "Hard-delete memory behavior during mlflow gc. Unrelated to search or stored span content."
+   },
+   "non-grouped-raw-gaps-must-be-read-before-the-final-rollup-va": {
+    "rating": 0,
+    "why": "Trace metrics rollup read ordering under MSSQL isolation. Same file, but a different mechanism from span content search."
+   },
+   "repeated-tag-keys-in-one-set-logged-model-tags-call-must-be": {
+    "rating": 0,
+    "why": "Deduplicating logged model tag keys before bulk upsert. Unrelated to trace text filtering or escaping."
+   },
+   "run-delete-cascade-models-must-mirror-sqlrun-s-orm-delete-ca": {
+    "rating": 0,
+    "why": "Run delete cascade tuple for bulk hard deletes. Unrelated to search or content storage."
+   },
+   "search-logged-models-metric-ordering-returns-duplicate-model": {
+    "rating": 0,
+    "why": "Window function tiebreak in logged model metric ordering. Not related to trace content search."
+   },
+   "gemini-functionresponse-response-must-be-a-json-object-wrap": {
+    "rating": 0,
+    "why": "Gemini tool response wrapping in the gateway provider. Unrelated to tracking store search."
+   },
+   "response-filter-lookup-is-keyed-on-the-endpoint-function-and": {
+    "rating": 0,
+    "why": "Auth response filter registration and job serialization. Unrelated to trace search."
+   },
+   "eval-results-table-attaches-model-outputs-by-position-not-in": {
+    "rating": 0,
+    "why": "Positional alignment of evaluation table outputs. Unrelated to trace content or search."
+   },
+   "example-bucket-init-container-order-via-service-completed-su": {
+    "rating": 0,
+    "why": "Docker compose startup ordering for the artifacts example. Unrelated."
+   },
+   "logged-model-traces-page-assessment-summaries-and-count-badg": {
+    "rating": 0,
+    "why": "UI count and assessment hooks on the logged model Traces page. Not about backend content search encoding."
+   },
+   "example-compose-storage-endpoint-credentials-and-bucket-must": {
+    "rating": 0,
+    "why": "Storage credential and bucket sync in the artifacts example compose file. Unrelated."
+   },
+   "parallel-tests-lose-artifacts-when-a-bare-sqlite-tracking-ur": {
+    "rating": 0,
+    "why": "Test fixture artifact root isolation for SQLite. Unrelated to search over trace content."
+   },
+   "basic-auth-job-search-must-be-narrowed-to-the-caller-s-own-j": {
+    "rating": 0,
+    "why": "Job search ownership filtering under basic auth. Unrelated."
+   },
+   "scope-args-used-for-trace-rows-must-also-be-passed-to-metric": {
+    "rating": 0,
+    "why": "Forwarding scope args to UI count hooks. Unrelated to the backend search filter."
+   },
+   "test-mlflow-server-fixtures-should-start-from-the-cached-pre": {
+    "rating": 0,
+    "why": "E2E server fixture DB copying in agent setup tests. Unrelated."
+   },
+   "trace-search-results-with-equal-timestamp-ms-have-no-defined": {
+    "rating": 0,
+    "why": "Test assertions on trace search ordering for same-millisecond traces. Tests ordering, not content matching or escaping."
+   },
+   "crewai-autolog-leaked-llm-api-key-into-agent-crew-span-attri": {
+    "rating": 0,
+    "why": "CrewAI attribute sanitization for API keys. Concerns span attributes, not how span content is stored or searched."
+   },
+   "plain-flask-ui-routes-need-an-explicit-authenticated-only-va": {
+    "rating": 0,
+    "why": "Auth validators for plain Flask UI routes. Unrelated."
+   },
+   "trace-experiment-binding-lookup-must-be-unscoped-generic-on": {
+    "rating": 0,
+    "why": "Trace-to-experiment permission validation in handlers. Unrelated to content search."
+   },
+   "scorerversion-from-proto-must-coerce-int-experiment-id-to-st": {
+    "rating": 0,
+    "why": "Scorer entity proto conversion for experiment_id. Unrelated."
+   },
+   "workspace-default-artifact-root-must-be-a-uri-or-an-absolute": {
+    "rating": 0,
+    "why": "Workspace artifact root validation. Unrelated to trace search."
+   }
+  }
+ },
+ "PR26225-hard": {
+  "set": "harder",
+  "gold": [
+   "mlflow/environment_variables.py",
+   "mlflow/gateway/guardrail_utils.py",
+   "mlflow/gateway/guardrails.py",
+   "mlflow/genai/evaluation/job.py",
+   "mlflow/genai/scorers/base.py",
+   "mlflow/genai/scorers/job.py",
+   "mlflow/server/__init__.py",
+   "mlflow/store/tracking/gateway/sqlalchemy_mixin.py"
+  ],
+  "candidates": 40,
+  "ratings": {
+   "server-side-decorator-call-source-scorers-are-blocked-unless": {
+    "rating": 2,
+    "why": "Describes the exact mechanism the task changes: the gate on executing decorator (call_source) scorers in server-side paths via custom_scorer_execution_blocked, including recursion into ensemble_scorer_data and the register/invoke payload validation. The fix must change this same guard, from an env-flag gate to an unconditional refusal enforced at rebuild."
+   },
+   "third-party-scorer-egress-kwargs-rejection-must-stay-uncondi": {
+    "rating": 1,
+    "why": "Points at the server-side scorer payload validation chokepoint (_validate_serialized_scorer_payload, custom_scorer_execution_blocked) but is about SSRF egress kwargs for third-party scorers, a different change. It saves searching but does not govern the decorator-scorer refusal."
+   },
+   "third-party-scorer-checks-must-run-before-import-and-before": {
+    "rating": 1,
+    "why": "Points at Scorer.model_validate, the deserialization chokepoint where the refusal must go, but its rule is about ordering import_module and Scorer-subclass checks for third-party scorers. It says nothing about refusing custom decorator scorers."
+   },
+   "third-party-scorer-metric-name-must-be-an-identifier-and-mus": {
+    "rating": 1,
+    "why": "Same Scorer.model_validate chokepoint, but the rule concerns metric_name validation for third-party scorers. It is a map to the area, not guidance on the decorator-scorer refusal."
+   },
+   "third-party-scorer-module-allow-list-is-matched-exactly-neve": {
+    "rating": 1,
+    "why": "Names Scorer.model_validate and the allow-list for third-party modules in base.py. It is a locator for the rebuild area but concerns a different check on different scorer types."
+   },
+   "validate-the-resolved-scorer-payload-that-a-job-will-run-not": {
+    "rating": 1,
+    "why": "Duplicate id entry; see the earlier entry for this note."
+   },
+   "trace-binding-guard-for-invoke-endpoints-lives-in-handlers-n": {
+    "rating": 1,
+    "why": "Locates _invoke_scorer_handler and the handler-level validation pattern for background jobs. It is a useful map to the server invoke path but concerns trace ownership, not scorer code execution."
+   },
+   "server-process-marker-env-var-names-must-mirror-mlflow-serve": {
+    "rating": 1,
+    "why": "Covers is_tracking_server_process and how server-process detection is keyed off env vars. The task requires the server not to pick up executor permission from its environment, so this points at related detection machinery, but it is about artifact host policy."
+   },
+   "scorer-signature-with-parentheses-in-defaults-fails-to-reloa": {
+    "rating": 1,
+    "why": "Points at recreate_function in scorer_utils.py, the function where scorers are rebuilt and where the refusal must be enforced. The note itself concerns AST-based signature parsing, not refusal, so it is only a locator."
+   },
+   "adding-a-field-to-the-fastapi-job-response-model-must-update": {
+    "rating": 0,
+    "why": "About job API response fields and test assertions; unrelated to scorer code execution."
+   },
+   "adding-a-public-fluent-api-function-requires-updating-the-to": {
+    "rating": 0,
+    "why": "Public fluent API export conventions; unrelated."
+   },
+   "azure-multipart-upload-sas-must-branch-on-credential-type-ac": {
+    "rating": 0,
+    "why": "Azure artifact upload SAS logic; unrelated."
+   },
+   "dataset-association-on-genai-metrics-is-gated-on-is-managed": {
+    "rating": 0,
+    "why": "Dataset association for evaluation metrics in _run_harness; unrelated to scorer loading or guardrails."
+   },
+   "dev-version-bumps-must-change-every-version-string-together": {
+    "rating": 0,
+    "why": "Version bump conventions; unrelated."
+   },
+   "fastapi-response-filters-are-opted-in-by-endpoint-function-n": {
+    "rating": 0,
+    "why": "FastAPI response filter registration for auth; unrelated."
+   },
+   "gateway-auth-config-delivered-list-options-must-accept-a-com": {
+    "rating": 0,
+    "why": "Gateway provider config validation for comma-separated auth_config values; does not touch guardrails or scorers."
+   },
+   "gateway-list-routes-need-authentication-plus-a-per-item-use": {
+    "rating": 0,
+    "why": "Gateway list-route auth filtering; unrelated to guardrail loading."
+   },
+   "gateway-model-listing-only-named-endpoints-sorted-by-name-id": {
+    "rating": 0,
+    "why": "OpenAI-compatible gateway model listing; unrelated."
+   },
+   "genai-evaluate-aggregate-logged-model-metrics-must-carry-the": {
+    "rating": 0,
+    "why": "Dataset forwarding to log_metrics in the evaluation harness; unrelated."
+   },
+   "host-addressed-artifact-uris-must-pass-the-host-policy-befor": {
+    "rating": 0,
+    "why": "Host policy for artifact URIs; unrelated to scorer code execution."
+   },
+   "invoke-endpoints-must-bind-caller-supplied-trace-ids-to-the": {
+    "rating": 0,
+    "why": "Trace-to-experiment binding for invoke endpoints; a different validation concern from scorer code execution."
+   },
+   "job-search-under-basic-auth-must-be-narrowed-to-the-caller-s": {
+    "rating": 0,
+    "why": "Job search filtering under basic auth; unrelated."
+   },
+   "keep-the-langchain-test-matrix-openai-pin-in-sync-with-the-o": {
+    "rating": 0,
+    "why": "Test matrix pin for langchain and openai; unrelated."
+   },
+   "omit-docstrings-that-only-restate-a-private-helper-s-name": {
+    "rating": 0,
+    "why": "Docstring convention for private helpers; does not affect the fix."
+   },
+   "optional-experiment-id-must-be-checked-with-is-not-none-not": {
+    "rating": 0,
+    "why": "Gateway endpoint experiment_id validation; unrelated."
+   },
+   "prompt-code-path-is-selected-only-by-an-effective-is-prompt": {
+    "rating": 0,
+    "why": "Prompt model version tag handling; unrelated."
+   },
+   "prompt-model-version-sources-must-be-a-placeholder-or-a-vali": {
+    "rating": 0,
+    "why": "Prompt source validation; unrelated."
+   },
+   "protobuf-request-parsers-must-reject-bodies-that-spell-one-f": {
+    "rating": 0,
+    "why": "Protobuf field alias validation; unrelated."
+   },
+   "pyproject-tool-mlflow-release-version-is-a-branch-marker-for": {
+    "rating": 0,
+    "why": "Release gate version marker in pyproject; unrelated."
+   },
+   "sql-backed-experiment-ids-must-be-parsed-with-the-shared-val": {
+    "rating": 0,
+    "why": "SQL experiment ID parsing; unrelated."
+   },
+   "uc-model-load-and-register-must-both-gate-on-the-databricks": {
+    "rating": 0,
+    "why": "UC model artifact repo routing via env flag; the environment_variables.py mention is incidental and unrelated to scorer execution."
+   },
+   "uc-model-load-and-register-must-switch-artifact-repo-togethe": {
+    "rating": 0,
+    "why": "UC model artifact routing; unrelated."
+   },
+   "vertex-ai-claude-passthrough-must-filter-client-anthropic-be": {
+    "rating": 0,
+    "why": "Vertex AI header filtering; unrelated."
+   },
+   "createmodelversion-source-read-check-must-authorize-the-prot": {
+    "rating": 0,
+    "why": "Model version auth checks; unrelated."
+   },
+   "tests-that-enable-job-execution-must-patch-os-name-not-sys-p": {
+    "rating": 0,
+    "why": "Test patching for job execution on Windows; unrelated."
+   },
+   "test-the-pt2-pickle-guard-by-rewriting-the-archive-s-sample": {
+    "rating": 0,
+    "why": "PyTorch pt2 pickle guard tests; unrelated."
+   },
+   "test-multi-process-budget-behavior-with-two-trackers-on-one": {
+    "rating": 0,
+    "why": "Redis budget tracker tests; unrelated."
+   },
+   "issue-detection-invoke-must-require-use-on-the-gateway-secre": {
+    "rating": 0,
+    "why": "Issue-detection gateway secret permission; unrelated to scorer code execution."
+   },
+   "typesafe-judges-are-direct-typesafe-models-not-gateway-endpo": {
+    "rating": 0,
+    "why": "TypeSafe judge docs and constraints; make_judge must keep working but this note does not cover its code path."
+   }
+  }
+ },
+ "PR26270-hard": {
+  "set": "harder",
+  "gold": [
+   "mlflow/gateway/providers/gemini.py",
+   "mlflow/gateway/providers/litellm.py"
+  ],
+  "candidates": 27,
+  "ratings": {
+   "anthropic-usage-parsing-is-shared-by-anthropicprovider-and-t": {
+    "rating": 0,
+    "why": "Covers Anthropic token usage extraction shared with Bedrock. Nothing about tool-call indexing in Gemini or LiteLLM streams."
+   },
+   "bedrock-anthropic-passthrough-must-build-a-new-body-not-muta": {
+    "rating": 0,
+    "why": "Bedrock Anthropic passthrough request-body construction. Unrelated to the Gemini or LiteLLM tool-call index fix."
+   },
+   "bedrock-anthropic-passthrough-only-anthropic-models-bearer-t": {
+    "rating": 0,
+    "why": "Bedrock passthrough model and auth gating. Unrelated to tool-call streaming indices."
+   },
+   "bedrock-streaming-exception-frames-must-raise-httpexception": {
+    "rating": 0,
+    "why": "Bedrock SSE exception-frame status mapping. Streaming, but a different mechanism from tool-call indexing."
+   },
+   "claude-on-vertex-passthrough-and-proxy-must-use-rawpredict-p": {
+    "rating": 0,
+    "why": "Vertex Claude rawPredict routing. Unrelated to Gemini tool-call indices."
+   },
+   "empty-upstream-error-bodies-must-fall-back-to-the-reason-phr": {
+    "rating": 0,
+    "why": "Upstream error-body fallback in utils.py. Not related to streamed tool-call positions."
+   },
+   "gemini-candidates-can-mix-text-and-functioncall-parts-in-any": {
+    "rating": 1,
+    "why": "Points at GeminiAdapter.model_to_chat_streaming and _convert_function_call_to_openai_choice, the streaming tool-call path the fix touches. The note is about part ordering and the tool-call branch selection, not index assignment, so it is only a map."
+   },
+   "gemini-parallel-functionresponse-parts-must-share-one-user-t": {
+    "rating": 0,
+    "why": "Request-side conversion of tool responses in chat_to_model. Different direction from the streamed response indexing the fix changes."
+   },
+   "gemini-thoughtsignature-must-be-a-sibling-of-functioncall-on": {
+    "rating": 1,
+    "why": "Describes the read-side _convert_function_call_to_openai_choice, which the fix may edit. It is about thoughtSignature placement, not tool-call indices, so it only locates the function."
+   },
+   "gemini-tool-message-content-must-be-coerced-to-a-json-object": {
+    "rating": 0,
+    "why": "Coercion of tool-message content into functionResponse.response on the request side. Does not touch streamed tool-call indices."
+   },
+   "streaming-gateway-errors-show-reason-phrase-instead-of-upstr": {
+    "rating": 0,
+    "why": "Error-detail extraction for streaming upstream failures. Unrelated to tool-call indexing."
+   },
+   "vertex-ai-claude-passthrough-must-filter-client-anthropic-be": {
+    "rating": 0,
+    "why": "Vertex anthropic-beta header filtering. Unrelated to Gemini tool-call indices."
+   },
+   "vertex-ai-maas-raw-proxy-drops-the-openapi-segment-from-the": {
+    "rating": 0,
+    "why": "Vertex MaaS proxy URL handling. Unrelated to the fix."
+   },
+   "vertex-ai-passthrough-and-proxy-must-be-forwarded-to-the-cla": {
+    "rating": 0,
+    "why": "Vertex delegate routing for Claude and MaaS. Gemini models keep the inherited GeminiProvider routing, which the note does not discuss in terms of tool-call indices."
+   },
+   "vertex-ai-thought-signature-test-asserts-the-gemini-part-lev": {
+    "rating": 0,
+    "why": "Test assertion on the outgoing request shape for thoughtSignature. Request side, not streamed tool-call indexing."
+   },
+   "vertex-delegates-always-drop-the-client-s-auth-headers-befor": {
+    "rating": 0,
+    "why": "Vertex auth-header handling. Unrelated to tool-call indices."
+   },
+   "vertex-maas-proxy-must-send-the-vertex-bearer-token-not-the": {
+    "rating": 0,
+    "why": "Vertex MaaS proxy auth. Unrelated to the fix."
+   },
+   "vertex-proxy-tests-go-through-vertexaiprovider-proxy-not-the": {
+    "rating": 0,
+    "why": "Testing guidance for the Vertex proxy route. Not related to tool-call streaming."
+   },
+   "openai-autolog-stream-hook-must-bind-loop-variable-before-th": {
+    "rating": 0,
+    "why": "OpenAI autolog tracing hook. Unrelated to gateway tool-call indices."
+   },
+   "llamaindex-deferred-streaming-response-loses-mlflow-parent-c": {
+    "rating": 0,
+    "why": "LlamaIndex tracer context handling. Unrelated."
+   },
+   "malformed-dedup-group-indices-crash-issue-discovery-or-silen": {
+    "rating": 0,
+    "why": "Dedup group-index validation in issue discovery. Shares the word 'indices' only; unrelated."
+   },
+   "claude-code-llm-spans-must-be-emitted-per-logical-assistant": {
+    "rating": 0,
+    "why": "Claude Code tracing spans. Unrelated."
+   },
+   "mlflow-and-llamaindex-span-contexts-must-be-attached-and-res": {
+    "rating": 0,
+    "why": "LlamaIndex span context attach and reset. Unrelated."
+   },
+   "every-openai-autolog-streaming-span-must-end-when-the-stream": {
+    "rating": 0,
+    "why": "OpenAI autolog span closing. Unrelated."
+   },
+   "test-multi-process-budget-behavior-with-two-trackers-on-one": {
+    "rating": 0,
+    "why": "Redis budget tracker testing. Unrelated."
+   },
+   "assistant-system-prompts-new-behavioral-directives-must-be-c": {
+    "rating": 0,
+    "why": "Assistant system prompt edits. Unrelated."
+   },
+   "span-cost-setter-must-not-overwrite-an-llm-cost-that-was-alr": {
+    "rating": 0,
+    "why": "Span cost attribute setter. Unrelated."
+   }
+  }
+ },
+ "PR26291-hard": {
+  "set": "harder",
+  "gold": [
+   "mlflow/store/model_registry/file_store.py",
+   "mlflow/store/model_registry/sqlalchemy_store.py"
+  ],
+  "candidates": 22,
+  "ratings": {
+   "fractional-model-version-literals-must-be-rejected-before-in": {
+    "rating": 0,
+    "why": "Covers rejecting float literals in model-version search filter parsing (_get_search_model_versions_filter_clauses). That is search filtering, not resolving the 'latest' alias, so reading it would not change the fix."
+   },
+   "model-version-arguments-must-be-normalized-to-int-before-ali": {
+    "rating": 1,
+    "why": "Points at SqlAlchemyStore version-argument handling (_validate_model_version) in the same store the fix touches, but it concerns delete_model_version alias cleanup, not computing the highest version for the 'latest' alias. It is a useful map, not a description of the mechanism."
+   },
+   "numeric-search-filters-must-bind-ints-on-sql-stores-psycopg": {
+    "rating": 0,
+    "why": "Concerns int() coercion of search filter values for psycopg VARCHAR binding. It mentions version_number only as a search column and does not touch alias or latest-version resolution."
+   },
+   "prompt-placeholder-source-strings-are-a-shared-contract-betw": {
+    "rating": 0,
+    "why": "Prompt source placeholder strings and the server allowlist are unrelated to resolving the latest version of a stage-based model."
+   },
+   "invalidate-prompt-cache-after-the-registry-mutation-succeeds": {
+    "rating": 0,
+    "why": "Prompt cache invalidation ordering in MlflowClient is unrelated to latest-version alias resolution."
+   },
+   "prompt-cache-entries-must-be-scoped-by-registry-uri-and-acti": {
+    "rating": 0,
+    "why": "Prompt cache key scoping by registry URI and workspace is unrelated to the 'latest' alias bug."
+   },
+   "prompt-code-path-is-selected-only-by-an-effective-is-prompt": {
+    "rating": 0,
+    "why": "The is_prompt tag branch in create_model_version is unrelated to version resolution for stage-based models."
+   },
+   "provider-free-model-cost-lookup-must-iterate-catalog-provide": {
+    "rating": 0,
+    "why": "Provider catalog ordering for model cost lookup has nothing to do with model registry versions."
+   },
+   "openinference-model-name-is-read-from-llm-response-model-nam": {
+    "rating": 0,
+    "why": "OpenInference span model-name extraction is unrelated to model registry version resolution."
+   },
+   "assistant-system-prompts-new-behavioral-directives-must-be-c": {
+    "rating": 0,
+    "why": "Assistant system prompt directives are unrelated to model registry behavior."
+   },
+   "prompt-model-version-sources-must-be-a-placeholder-or-a-vali": {
+    "rating": 0,
+    "why": "Prompt source validation in handlers is unrelated to resolving the latest version or alias."
+   },
+   "gateway-authz-validators-must-read-resource-ids-from-the-par": {
+    "rating": 0,
+    "why": "Gateway authorization resource ID parsing is unrelated to the latest-version alias behavior."
+   },
+   "promptversion-must-not-write-its-internal-tags-into-the-call": {
+    "rating": 0,
+    "why": "PromptVersion constructor tag mutation is unrelated to alias or latest-version resolution."
+   },
+   "docker-floating-tags-move-only-when-the-release-is-github-s": {
+    "rating": 0,
+    "why": "Docker image tag promotion in CI is unrelated to model registry versions."
+   },
+   "createmodelversion-source-read-check-must-authorize-the-prot": {
+    "rating": 0,
+    "why": "CreateModelVersion authorization on source run and model is unrelated to resolving the latest version."
+   },
+   "protobuf-request-parsers-must-reject-bodies-that-spell-one-f": {
+    "rating": 0,
+    "why": "Conflicting snake_case and camelCase field rejection in request parsers is unrelated to the alias bug."
+   },
+   "uc-model-load-and-register-must-switch-artifact-repo-togethe": {
+    "rating": 0,
+    "why": "Unity Catalog artifact repo routing is unrelated to stage-based latest-version resolution."
+   },
+   "pt2-archives-must-be-validated-before-torch-export-load-when": {
+    "rating": 0,
+    "why": "PyTorch pt2 archive pickle validation is unrelated to model registry versions."
+   },
+   "uc-model-load-and-register-must-both-gate-on-the-databricks": {
+    "rating": 0,
+    "why": "Duplicate of the UC artifact repo routing note; unrelated to the latest-version alias."
+   },
+   "model-version-read-checks-must-be-prompt-aware-and-judge-the": {
+    "rating": 0,
+    "why": "GraphQL model-version read authorization is about access filtering, not which version the latest alias resolves to."
+   },
+   "telemetry-event-parameters-must-be-bounded-to-enums-booleans": {
+    "rating": 0,
+    "why": "Telemetry parameter bounding is unrelated to model version resolution."
+   },
+   "environment-provenance-is-merged-into-trace-metadata-first-i": {
+    "rating": 0,
+    "why": "TypeScript trace metadata merge order is unrelated to the model registry."
+   }
+  }
+ },
+ "PR26269-hard": {
+  "set": "harder",
+  "gold": [
+   "mlflow/gateway/providers/anthropic.py"
+  ],
+  "candidates": 26,
+  "ratings": {
+   "anthropic-usage-parsing-is-shared-by-anthropicprovider-and-t": {
+    "rating": 0,
+    "why": "Same file, but it is about token usage extraction helpers shared with Bedrock. Nothing about tool-call indexing, choice selection, or finish-event emission, so it would not change the fix."
+   },
+   "bedrock-anthropic-passthrough-must-build-a-new-body-not-muta": {
+    "rating": 0,
+    "why": "Bedrock passthrough request-body construction. Different provider and different concern from streaming tool-call indices."
+   },
+   "bedrock-anthropic-passthrough-only-anthropic-models-bearer-t": {
+    "rating": 0,
+    "why": "Bedrock passthrough auth and model gating. Unrelated to the streaming tool-call bug."
+   },
+   "bedrock-streaming-exception-frames-must-raise-httpexception": {
+    "rating": 0,
+    "why": "Bedrock event-stream exception-frame to HTTP status mapping. Streaming, but a different provider and error path, not tool-call numbering."
+   },
+   "claude-on-vertex-passthrough-and-proxy-must-use-rawpredict-p": {
+    "rating": 0,
+    "why": "Vertex Claude URL and body routing for passthrough and proxy. Not the streaming chunk conversion in anthropic.py."
+   },
+   "empty-upstream-error-bodies-must-fall-back-to-the-reason-phr": {
+    "rating": 0,
+    "why": "Upstream error-body detail fallback in utils.py. Unrelated to streamed tool-call output."
+   },
+   "gemini-candidates-can-mix-text-and-functioncall-parts-in-any": {
+    "rating": 1,
+    "why": "Gemini streaming has the same class of bug: text parts before functionCall parts must not disturb tool-call handling. It is a different provider's chokepoint, so it is a useful analogy but does not describe the Anthropic fix."
+   },
+   "gemini-parallel-functionresponse-parts-must-share-one-user-t": {
+    "rating": 0,
+    "why": "Request-side grouping of Gemini functionResponse turns. Concerns outgoing tool results, not streamed tool-call indices."
+   },
+   "gemini-thoughtsignature-must-be-a-sibling-of-functioncall-on": {
+    "rating": 0,
+    "why": "Gemini thoughtSignature placement. Unrelated to the Anthropic streaming fix."
+   },
+   "gemini-tool-message-content-must-be-coerced-to-a-json-object": {
+    "rating": 0,
+    "why": "Gemini tool-result content coercion. Unrelated to streaming index or finish-event behavior."
+   },
+   "streaming-gateway-errors-show-reason-phrase-instead-of-upstr": {
+    "rating": 0,
+    "why": "Error message extraction for streamed upstream HTTP errors. Not about tool-call streaming output."
+   },
+   "vertex-ai-claude-passthrough-must-filter-client-anthropic-be": {
+    "rating": 0,
+    "why": "Vertex anthropic-beta header filtering. Unrelated to the streaming tool-call bug."
+   },
+   "vertex-ai-maas-raw-proxy-drops-the-openapi-segment-from-the": {
+    "rating": 0,
+    "why": "Vertex MaaS proxy URL construction. Unrelated."
+   },
+   "vertex-ai-passthrough-and-proxy-must-be-forwarded-to-the-cla": {
+    "rating": 0,
+    "why": "Vertex provider delegation and tracing. Unrelated to Anthropic stream chunk formatting."
+   },
+   "vertex-ai-thought-signature-test-asserts-the-gemini-part-lev": {
+    "rating": 0,
+    "why": "Gemini Vertex test shape for thoughtSignature. Unrelated."
+   },
+   "vertex-delegates-always-drop-the-client-s-auth-headers-befor": {
+    "rating": 0,
+    "why": "Vertex auth-header handling. Unrelated."
+   },
+   "vertex-maas-proxy-must-send-the-vertex-bearer-token-not-the": {
+    "rating": 0,
+    "why": "Vertex MaaS proxy auth header. Unrelated."
+   },
+   "vertex-proxy-tests-go-through-vertexaiprovider-proxy-not-the": {
+    "rating": 0,
+    "why": "Vertex proxy test conventions. Unrelated."
+   },
+   "openai-autolog-stream-hook-must-bind-loop-variable-before-th": {
+    "rating": 0,
+    "why": "OpenAI autolog tracing hook for zero-chunk streams. Different subsystem, not the gateway provider."
+   },
+   "every-openai-autolog-streaming-span-must-end-when-the-stream": {
+    "rating": 0,
+    "why": "OpenAI autolog span lifecycle. Unrelated to the gateway's tool-call output."
+   },
+   "llamaindex-deferred-streaming-response-loses-mlflow-parent-c": {
+    "rating": 0,
+    "why": "LlamaIndex tracer span context. Unrelated."
+   },
+   "protect-js-check-log-order-is-the-key-order-of-state-so-new": {
+    "rating": 0,
+    "why": "CI check-ordering script. Unrelated."
+   },
+   "openai-autolog-tests-use-mock-scenarios-selected-by-the-firs": {
+    "rating": 0,
+    "why": "OpenAI autolog test mock conventions. Unrelated."
+   },
+   "gateway-model-listing-only-named-endpoints-sorted-by-name-id": {
+    "rating": 0,
+    "why": "Gateway /models listing. Unrelated to streaming."
+   },
+   "keep-the-langchain-test-matrix-openai-pin-in-sync-with-the-o": {
+    "rating": 0,
+    "why": "Test matrix version pin. Unrelated."
+   },
+   "claude-code-llm-and-conversation-span-end-times-must-derive": {
+    "rating": 0,
+    "why": "Claude Code TypeScript integration span timing. Unrelated."
+   }
+  }
+ },
+ "PR26307-hard": {
+  "set": "harder",
+  "gold": [
+   "mlflow/entities/span.py"
+  ],
+  "candidates": 23,
+  "ratings": {
+   "lazyspan-getattr-must-fall-back-to-span-getattr-on-a-miss": {
+    "rating": 2,
+    "why": "Covers LazySpan.__getattr__ and the rule that _ensure_materialized runs before lookup. Copy and pickle probes on a half-initialized LazySpan go through this same __getattr__ to materialize path, which is the mechanism behind the missing-internal-key failure."
+   },
+   "do-not-add-deprecated-aliases-to-trace-for-old-identifier-na": {
+    "rating": 0,
+    "why": "Deprecated aliases on the Trace entity. Unrelated to copy or pickle."
+   },
+   "livespan-record-exception-normalize-string-input-to-exceptio": {
+    "rating": 0,
+    "why": "record_exception string normalization. Unrelated."
+   },
+   "loggedmodel-to-proto-must-write-every-field-that-from-proto": {
+    "rating": 0,
+    "why": "LoggedModel proto round-trip. Unrelated."
+   },
+   "span-classes-that-define-getitem-must-also-set-iter-none": {
+    "rating": 0,
+    "why": "__iter__ = None on span classes. Not part of the copy/pickle mechanism."
+   },
+   "span-get-must-stay-an-unresolved-attribute-hint-via-getattr": {
+    "rating": 0,
+    "why": "Keeps get() unresolvable for hasattr probes. Says nothing about copy or pickle."
+   },
+   "span-getitem-hint-lookup-must-not-evaluate-attribute-getters": {
+    "rating": 0,
+    "why": "Diagnostic hints in __getitem__. Not about copy or pickle."
+   },
+   "trace-trace-id-lives-on-trace-info-repr-and-accessors-must-r": {
+    "rating": 0,
+    "why": "Trace.trace_id delegation and repr. Not about serialization or copying."
+   },
+   "pretty-section-rendering-must-not-bypass-chat-cards-for-acti": {
+    "rating": 0,
+    "why": "Frontend chat card rendering. Unrelated."
+   },
+   "test-the-pt2-pickle-guard-by-rewriting-the-archive-s-sample": {
+    "rating": 0,
+    "why": "PyTorch pt2 pickle guard tests. Different subsystem."
+   },
+   "third-party-scorer-metric-name-must-be-an-identifier-and-mus": {
+    "rating": 0,
+    "why": "Scorer deserialization validation. Unrelated."
+   },
+   "ts-integrations-keep-a-local-getcurrentuser-copy-to-respect": {
+    "rating": 0,
+    "why": "TypeScript dependency floors. Unrelated."
+   },
+   "pt2-archives-must-be-validated-before-torch-export-load-when": {
+    "rating": 0,
+    "why": "PyTorch pt2 archive validation. Different subsystem."
+   },
+   "shap-explainer-artifacts-are-pickle-based-keep-docs-and-nest": {
+    "rating": 0,
+    "why": "SHAP explainer pickle safety. Different subsystem."
+   },
+   "sql-backed-experiment-ids-must-be-parsed-with-the-shared-val": {
+    "rating": 0,
+    "why": "Experiment ID parsing. Unrelated."
+   },
+   "writing-attributes-to-an-already-ended-mlflow-span-requires": {
+    "rating": 0,
+    "why": "TypeScript allowMutatingEndedSpan toggling. Unrelated."
+   },
+   "invoke-endpoints-must-bind-caller-supplied-trace-ids-to-the": {
+    "rating": 0,
+    "why": "Server-side permission checks. Unrelated."
+   },
+   "assistant-transcript-persist-write-must-be-gated-on-the-seed": {
+    "rating": 0,
+    "why": "Frontend transcript persistence. Unrelated."
+   },
+   "whitespace-check-diffs-the-local-git-checkout-so-ci-must-kee": {
+    "rating": 0,
+    "why": "CI lint fetch depth. Unrelated."
+   },
+   "grid-loadingoverlaycomponent-name-must-match-the-key-registe": {
+    "rating": 0,
+    "why": "Runs table loading overlay key. Unrelated."
+   },
+   "bedrock-anthropic-passthrough-must-build-a-new-body-not-muta": {
+    "rating": 0,
+    "why": "Gateway Bedrock body mutation. Unrelated."
+   },
+   "mlflowspanhandler-open-spans-and-pending-spans-are-guarded-b": {
+    "rating": 0,
+    "why": "LlamaIndex tracer locking. Unrelated."
+   },
+   "autolog-must-forward-trace-headers-to-mistral-groq-sdk-calls": {
+    "rating": 0,
+    "why": "Trace header injection for Mistral and Groq. Unrelated to copy or pickle."
+   }
+  }
+ },
+ "PR26369-hard": {
+  "set": "harder",
+  "gold": [
+   "mlflow/store/db/trace_rollups.py",
+   "mlflow/store/tracking/sqlalchemy_store.py",
+   "mlflow/store/tracking/utils/sql_trace_metrics_utils.py",
+   "mlflow/store/tracking/utils/sql_trace_rollups.py"
+  ],
+  "candidates": 25,
+  "ratings": {
+   "bare-postgresql-urls-must-be-pinned-to-psycopg2-before-engin": {
+    "rating": 0,
+    "why": "Engine-creation driver pinning in mlflow/store/db/utils.py. Does not touch rollup sums, metric queries, span-cost queries, or PostgreSQL time bucketing."
+   },
+   "batched-upserts-with-on-conflict-must-dedupe-conflict-keys-b": {
+    "rating": 0,
+    "why": "Dedupe of conflict keys for logged-model tag upserts. Unrelated to rollup maintenance or trace metric queries."
+   },
+   "boolean-column-predicates-must-use-true-not-is-true-for-mssq": {
+    "rating": 0,
+    "why": "MSSQL boolean predicate syntax in _ensure_default_label_schema. Unrelated to the task."
+   },
+   "bulk-upsert-picks-a-native-upsert-per-dialect-and-falls-back": {
+    "rating": 0,
+    "why": "Dialect dispatch for _bulk_upsert. It is a generic write helper and does not touch rollup or span-cost queries."
+   },
+   "experiment-and-evaluation-dataset-numeric-filters-must-rejec": {
+    "rating": 0,
+    "why": "Float rejection in experiment and dataset search filters. Different filter builders and a different change from rollup aggregation."
+   },
+   "logged-model-search-must-eager-load-every-child-relationship": {
+    "rating": 0,
+    "why": "Eager loading for logged-model search. Unrelated to rollups or trace metrics."
+   },
+   "logged-model-search-order-by-must-end-with-a-unique-model-id": {
+    "rating": 0,
+    "why": "Deterministic ordering for logged-model pagination. Unrelated to trace search sorting or rollups."
+   },
+   "metric-comparisons-in-logged-model-filter-string-must-join-o": {
+    "rating": 0,
+    "why": "Metric join dedupe for logged-model filter_string. Unrelated to the task."
+   },
+   "metric-ordered-logged-model-search-must-keep-one-metric-row": {
+    "rating": 0,
+    "why": "row_number logic for logged-model metric ordering. Unrelated to trace rollups or span costs."
+   },
+   "non-ascii-span-content-is-invisible-to-trace-text-search-on": {
+    "rating": 0,
+    "why": "JSON serialization of spans.content for text search. It does not affect rollup, sort, or bucketing logic."
+   },
+   "numeric-search-filters-must-bind-ints-on-sql-stores-psycopg": {
+    "rating": 0,
+    "why": "int coercion for SQL search filter values on psycopg v3. It is about search filter binding, not rollup sum types or time-bucket SQL."
+   },
+   "sql-backed-experiment-ids-must-be-parsed-with-the-shared-val": {
+    "rating": 0,
+    "why": "Experiment ID validation helpers. Unrelated to rollup or metric query logic."
+   },
+   "trace-filter-correlation-must-pass-experiment-ids-to-trace-i": {
+    "rating": 0,
+    "why": "Integer binding of experiment IDs in calculate_trace_filter_correlation. Different function and mechanism from the rollup and span-cost changes."
+   },
+   "numeric-search-filters-fail-on-postgresql-psycopg-v3-because": {
+    "rating": 0,
+    "why": "SearchUtils._get_value token parsing for run, experiment, and MCP filters. Not about rollups or trace metric sums."
+   },
+   "fractional-numeric-filter-values-must-be-compared-exactly-ne": {
+    "rating": 0,
+    "why": "In-memory fractional comparisons in the file store search matchers. Unrelated to the SQL rollup and metric path."
+   },
+   "fractional-model-version-literals-must-be-rejected-before-in": {
+    "rating": 0,
+    "why": "Model-version filter parsing in the model registry. Unrelated to the task."
+   },
+   "psycopg-v3-regression-tests-go-in-tests-db-test-workspace-tr": {
+    "rating": 0,
+    "why": "Location guidance for psycopg v3 regression tests. Does not describe the rollup or span-cost mechanism."
+   },
+   "mlflow-traces-search-order-by-rejects-entries-with-spaces-af": {
+    "rating": 0,
+    "why": "CLI whitespace stripping for --order-by in mlflow/cli/traces.py. It is in the trace-sort area by name, but it is a different change from the empty-value ordering in the store and does not affect the fix."
+   },
+   "append-new-optional-params-last-on-public-search-prompts-sig": {
+    "rating": 0,
+    "why": "Public signature ordering for search_prompts. Unrelated to the task."
+   },
+   "extras-defined-in-dev-pyproject-py-must-be-mirrored-into-eve": {
+    "rating": 0,
+    "why": "Packaging extras and lockfile sync. Unrelated to the task."
+   },
+   "schema-merge-results-must-not-depend-on-which-side-holds-any": {
+    "rating": 0,
+    "why": "Schema type merging in mlflow/types/schema.py. Unrelated to the task."
+   },
+   "malformed-dedup-group-indices-crash-issue-discovery-or-silen": {
+    "rating": 0,
+    "why": "Issue discovery dedup validation in the GenAI pipeline. Unrelated to the task."
+   },
+   "run-check-migration-with-pypi-mlflow-pre-migration-and-the-l": {
+    "rating": 0,
+    "why": "Migration test scripts. They do not describe the rollup SQL, span-cost queries, or sorting changes."
+   },
+   "metrics-filter-lists-in-usecountinfo-and-useassessmentcountm": {
+    "rating": 0,
+    "why": "Frontend metrics filter arrays. Unrelated to the backend rollup and trace query work."
+   },
+   "claude-code-llm-and-conversation-span-end-times-must-derive": {
+    "rating": 0,
+    "why": "Claude Code tracing span end times in the TypeScript integration. Unrelated to the task."
+   }
+  }
+ },
+ "PR26442-hard": {
+  "set": "harder",
+  "gold": [
+   "docs/docs/genai/governance/ai-gateway/endpoints/model-providers.mdx",
+   "mlflow/gateway/config.py",
+   "mlflow/gateway/providers/typesafe.py",
+   "mlflow/server/gateway_api.py",
+   "mlflow/utils/providers.py"
+  ],
+  "candidates": 57,
+  "ratings": {
+   "adding-a-field-to-the-fastapi-job-response-model-must-update": {
+    "rating": 0,
+    "why": "Relates to the FastAPI Job response model in job_api.py, which is unrelated to AI Gateway provider configuration."
+   },
+   "anthropic-usage-parsing-is-shared-by-anthropicprovider-and-t": {
+    "rating": 0,
+    "why": "Concerns Anthropic and Bedrock token usage parsing in gateway providers, which is unrelated to configuring TypeSafe base URLs."
+   },
+   "artifact-inline-preview-needs-the-extension-in-both-server-m": {
+    "rating": 0,
+    "why": "Concerns artifact text preview extensions, which is unrelated to AI Gateway endpoints."
+   },
+   "bedrock-anthropic-passthrough-must-build-a-new-body-not-muta": {
+    "rating": 0,
+    "why": "Covers request body mutation handling for Bedrock Anthropic passthrough, unrelated to TypeSafe provider configuration."
+   },
+   "bedrock-anthropic-passthrough-only-anthropic-models-bearer-t": {
+    "rating": 0,
+    "why": "Concerns authentication headers and model restrictions for Bedrock Anthropic passthrough, unrelated to TypeSafe base URLs."
+   },
+   "bedrock-streaming-exception-frames-must-raise-httpexception": {
+    "rating": 0,
+    "why": "Covers Bedrock streaming exception mapping, which is unrelated to TypeSafe provider endpoints."
+   },
+   "capability-endpoints-share-one-fetch-path-in-utils-server-in": {
+    "rating": 0,
+    "why": "Relates to server capability endpoint fetching in REST stores, unrelated to AI Gateway model providers."
+   },
+   "claude-on-vertex-passthrough-and-proxy-must-use-rawpredict-p": {
+    "rating": 0,
+    "why": "Involves URL path formatting for Claude models on Vertex AI, unrelated to TypeSafe provider configuration."
+   },
+   "client-side-llm-cost-selection-must-mirror-server-side-cost": {
+    "rating": 0,
+    "why": "Focuses on client-side tracing cost calculation backends, unrelated to Gateway provider endpoint configuration."
+   },
+   "context-manager-telemetry-must-record-failure-only-for-the-w": {
+    "rating": 0,
+    "why": "Relates to telemetry event recording in generator context managers, unrelated to AI Gateway configuration."
+   },
+   "cost-tests-with-ambiguous-model-names-must-pass-model-provid": {
+    "rating": 0,
+    "why": "Concerns model catalog ambiguity in tracing cost tests, which is in the same file (providers.py) but not something an engineer would use for endpoint configuration."
+   },
+   "empty-upstream-error-bodies-must-fall-back-to-the-reason-phr": {
+    "rating": 0,
+    "why": "Covers upstream HTTP error response parsing fallbacks in provider utils, unrelated to TypeSafe base URL configuration."
+   },
+   "experiment-and-evaluation-dataset-numeric-filters-must-rejec": {
+    "rating": 0,
+    "why": "Relates to SQL search filter validation for experiments and datasets, unrelated to AI Gateway."
+   },
+   "fastapi-response-filters-are-opted-in-by-endpoint-function-n": {
+    "rating": 0,
+    "why": "Concerns FastAPI response permission filtering in auth middleware, unrelated to TypeSafe gateway provider configuration."
+   },
+   "fractional-model-version-literals-must-be-rejected-before-in": {
+    "rating": 0,
+    "why": "Covers model version SQL search filter validation, unrelated to AI Gateway."
+   },
+   "fractional-numeric-filter-values-must-be-compared-exactly-ne": {
+    "rating": 0,
+    "why": "Concerns numeric search filter comparison in SearchUtils, unrelated to AI Gateway."
+   },
+   "gateway-auth-config-delivered-list-options-must-accept-a-com": {
+    "rating": 1,
+    "why": "Points directly to the chokepoints in mlflow/server/gateway_api.py:_build_endpoint_config and mlflow/gateway/config.py where database-managed endpoints unpack auth_config options to build provider configs, though the specific rule is about comma-separated list parsing."
+   },
+   "gateway-list-routes-need-authentication-plus-a-per-item-use": {
+    "rating": 0,
+    "why": "Concerns permission filtering on gateway list routes in auth middleware, unrelated to configuring TypeSafe provider endpoints."
+   },
+   "gateway-model-listing-only-named-endpoints-sorted-by-name-id": {
+    "rating": 0,
+    "why": "Covers response shaping for the OpenAI-compatible model listing route in gateway_api.py, which is not used for configuring provider base URLs."
+   },
+   "gemini-candidates-can-mix-text-and-functioncall-parts-in-any": {
+    "rating": 0,
+    "why": "Specific to Gemini response candidate parsing in gateway providers, unrelated to TypeSafe base URL configuration."
+   },
+   "gemini-parallel-functionresponse-parts-must-share-one-user-t": {
+    "rating": 0,
+    "why": "Specific to Gemini chat message turn formatting, unrelated to TypeSafe base URL configuration."
+   },
+   "gemini-thoughtsignature-must-be-a-sibling-of-functioncall-on": {
+    "rating": 0,
+    "why": "Specific to Gemini thought signature schema structure, unrelated to TypeSafe base URL configuration."
+   },
+   "gemini-tool-message-content-must-be-coerced-to-a-json-object": {
+    "rating": 0,
+    "why": "Specific to Gemini tool message formatting, unrelated to TypeSafe base URL configuration."
+   },
+   "host-addressed-artifact-uris-must-pass-the-host-policy-befor": {
+    "rating": 0,
+    "why": "Relates to artifact URI scheme validation against host policy, unrelated to AI Gateway providers."
+   },
+   "import-time-schema-construction-in-mlflow-types-responses-mu": {
+    "rating": 0,
+    "why": "Pertains to suppressing schema construction warnings in mlflow.types, unrelated to AI Gateway providers."
+   },
+   "invoke-endpoints-must-bind-caller-supplied-trace-ids-to-the": {
+    "rating": 0,
+    "why": "Relates to trace authorization on invoke background-job endpoints, unrelated to AI Gateway providers."
+   },
+   "job-search-under-basic-auth-must-be-narrowed-to-the-caller-s": {
+    "rating": 0,
+    "why": "Concerns job filtering under basic authentication, unrelated to AI Gateway providers."
+   },
+   "numeric-search-filters-fail-on-postgresql-psycopg-v3-because": {
+    "rating": 0,
+    "why": "Concerns SQL search filter parsing for PostgreSQL psycopg v3, unrelated to AI Gateway."
+   },
+   "optional-experiment-id-must-be-checked-with-is-not-none-not": {
+    "rating": 0,
+    "why": "Specific to validating experiment_id in gateway endpoint tracking database mixins, unrelated to TypeSafe provider configuration."
+   },
+   "prompt-code-path-is-selected-only-by-an-effective-is-prompt": {
+    "rating": 0,
+    "why": "Concerns model version prompt tag checks, unrelated to AI Gateway providers."
+   },
+   "prompt-model-version-sources-must-be-a-placeholder-or-a-vali": {
+    "rating": 0,
+    "why": "Concerns prompt source URI validation, unrelated to AI Gateway."
+   },
+   "protobuf-request-parsers-must-reject-bodies-that-spell-one-f": {
+    "rating": 0,
+    "why": "Concerns Protobuf field naming validation in handlers.py, unrelated to AI Gateway."
+   },
+   "provider-free-model-cost-lookup-must-iterate-catalog-provide": {
+    "rating": 0,
+    "why": "Relates to catalog iteration ordering for model cost calculation in providers.py, which the engineer would not use for endpoint configuration options."
+   },
+   "review-queue-fluent-apis-must-be-guarded-on-databricks-track": {
+    "rating": 0,
+    "why": "Concerns review queue fluent API restrictions on Databricks, unrelated to AI Gateway."
+   },
+   "sdk-models-repo-workspace-client-must-resolve-host-and-token": {
+    "rating": 0,
+    "why": "Concerns Databricks SDK credential resolution in artifact repositories, unrelated to AI Gateway."
+   },
+   "search-logged-models-rejects-lowercase-like-ilike-in-operato": {
+    "rating": 0,
+    "why": "Concerns SQL operator case normalization in logged model search, unrelated to AI Gateway."
+   },
+   "server-process-marker-env-var-names-must-mirror-mlflow-serve": {
+    "rating": 0,
+    "why": "Concerns tracking server process environment variable synchronization, unrelated to AI Gateway."
+   },
+   "server-side-decorator-call-source-scorers-are-blocked-unless": {
+    "rating": 0,
+    "why": "Concerns custom scorer execution gating on the server, unrelated to AI Gateway."
+   },
+   "sql-backed-experiment-ids-must-be-parsed-with-the-shared-val": {
+    "rating": 0,
+    "why": "Concerns experiment ID parsing in SQL stores, unrelated to AI Gateway provider configuration."
+   },
+   "streaming-gateway-errors-show-reason-phrase-instead-of-upstr": {
+    "rating": 0,
+    "why": "Concerns error message extraction in streaming gateway requests, unrelated to TypeSafe base URL configuration."
+   },
+   "third-party-scorer-egress-kwargs-rejection-must-stay-uncondi": {
+    "rating": 0,
+    "why": "Pertains to third-party scorer payload validation for SSRF prevention in eval-monitor, unrelated to AI Gateway provider configuration."
+   },
+   "trace-binding-guard-for-invoke-endpoints-lives-in-handlers-n": {
+    "rating": 0,
+    "why": "Concerns trace ownership validation location in invoke handlers, unrelated to AI Gateway."
+   },
+   "trace-ids-input-contract-shared-by-the-three-invoke-handlers": {
+    "rating": 0,
+    "why": "Concerns input validation for trace IDs in invoke background job handlers, unrelated to AI Gateway."
+   },
+   "tracking-uri-detectors-check-uri-shape-only-not-partition-re": {
+    "rating": 0,
+    "why": "Concerns SageMaker tracking URI detection regex/parsing, unrelated to AI Gateway."
+   },
+   "typesafe-judges-are-direct-typesafe-models-not-gateway-endpo": {
+    "rating": 0,
+    "why": "Concerns TypeSafe model restrictions when creating LLM judges in eval-monitor, not AI Gateway endpoints or provider configuration."
+   },
+   "validate-the-resolved-scorer-payload-that-a-job-will-run-not": {
+    "rating": 0,
+    "why": "Relates to serialized scorer payload validation in background job handlers, unrelated to AI Gateway."
+   },
+   "vertex-ai-claude-passthrough-must-filter-client-anthropic-be": {
+    "rating": 0,
+    "why": "Specific to header filtering for Vertex AI Claude passthrough in VertexAIConfig, unrelated to TypeSafe base URL configuration."
+   },
+   "vertex-ai-maas-raw-proxy-drops-the-openapi-segment-from-the": {
+    "rating": 0,
+    "why": "Concerns URL path segment manipulation for Vertex AI MaaS proxy routes, unrelated to TypeSafe base URL configuration."
+   },
+   "vertex-ai-passthrough-and-proxy-must-be-forwarded-to-the-cla": {
+    "rating": 0,
+    "why": "Concerns delegating passthrough and proxy calls in VertexAIProvider, unrelated to TypeSafe base URL configuration."
+   },
+   "vertex-ai-thought-signature-test-asserts-the-gemini-part-lev": {
+    "rating": 0,
+    "why": "Specific to testing Gemini thought signature structure under Vertex AI, unrelated to TypeSafe base URL configuration."
+   },
+   "vertex-delegates-always-drop-the-client-s-auth-headers-befor": {
+    "rating": 0,
+    "why": "Concerns client authorization header stripping for Vertex AI delegates, unrelated to TypeSafe base URL configuration."
+   },
+   "vertex-maas-proxy-must-send-the-vertex-bearer-token-not-the": {
+    "rating": 0,
+    "why": "Concerns authentication headers for Vertex AI MaaS proxy, unrelated to TypeSafe base URL configuration."
+   },
+   "vertex-proxy-tests-go-through-vertexaiprovider-proxy-not-the": {
+    "rating": 0,
+    "why": "Concerns test conventions for VertexAIProvider proxy routing, unrelated to TypeSafe base URL configuration."
+   },
+   "workspace-support-probe-a-404-on-server-info-is-not-proof-of": {
+    "rating": 0,
+    "why": "Concerns workspace support probing via server-info and server-features endpoints, unrelated to AI Gateway."
+   },
+   "assistant-system-prompts-new-behavioral-directives-must-be-c": {
+    "rating": 0,
+    "why": "Concerns assistant system prompt maintenance, unrelated to AI Gateway provider configuration."
+   },
+   "append-new-optional-params-last-on-public-search-prompts-sig": {
+    "rating": 0,
+    "why": "Concerns parameter ordering on search_prompts public API signatures, unrelated to AI Gateway."
+   },
+   "gateway-authz-validators-must-read-resource-ids-from-the-par": {
+    "rating": 0,
+    "why": "Concerns gateway authorization validator parsing of protobuf request messages, unrelated to TypeSafe endpoint provider configuration."
+   }
+  }
+ },
+ "PR26327-hard": {
+  "set": "harder",
+  "gold": [
+   "mlflow/utils/search_utils.py"
+  ],
+  "candidates": 34,
+  "ratings": {
+   "artifact-inline-preview-needs-the-extension-in-both-server-m": {
+    "rating": 0,
+    "why": "Concerns inline text preview MIME types and file extensions, which is unrelated to search filter parsing."
+   },
+   "capability-endpoints-share-one-fetch-path-in-utils-server-in": {
+    "rating": 0,
+    "why": "Describes REST capability endpoint fetching in server_info.py; shares terms like 'endpoints' but is unrelated to MCP search parsing."
+   },
+   "client-side-llm-cost-selection-must-mirror-server-side-cost": {
+    "rating": 0,
+    "why": "Deals with LLM span cost calculation across tracking backends, unrelated to search parsing."
+   },
+   "context-manager-telemetry-must-record-failure-only-for-the-w": {
+    "rating": 0,
+    "why": "Concerns telemetry tracking around generator context managers, unrelated to search filtering."
+   },
+   "cost-tests-with-ambiguous-model-names-must-pass-model-provid": {
+    "rating": 0,
+    "why": "Addresses model provider resolution in cost tests, unrelated to MCP search."
+   },
+   "experiment-and-evaluation-dataset-numeric-filters-must-rejec": {
+    "rating": 0,
+    "why": "Addresses float validation in SQLAlchemy store for experiment and dataset searches, explicitly distinguishing them from MCP searches."
+   },
+   "fractional-model-version-literals-must-be-rejected-before-in": {
+    "rating": 0,
+    "why": "Focuses on model-version search float literals in the model registry store and explicitly excludes MCP search paths."
+   },
+   "fractional-numeric-filter-values-must-be-compared-exactly-ne": {
+    "rating": 0,
+    "why": "Discusses in-memory numeric attribute matching for runs and models, unrelated to SQL parser attribute name handling for MCP searches."
+   },
+   "import-time-schema-construction-in-mlflow-types-responses-mu": {
+    "rating": 0,
+    "why": "Concerns schema construction warning logs in type hints, unrelated to search parsing."
+   },
+   "numeric-search-filters-fail-on-postgresql-psycopg-v3-because": {
+    "rating": 1,
+    "why": "Serves as a useful map pointing directly to mlflow/utils/search_utils.py:SearchUtils and identifying it as the shared search parser that handles MCP stores, but deals with an unrelated PostgreSQL numeric token parsing issue."
+   },
+   "optional-experiment-id-must-be-checked-with-is-not-none-not": {
+    "rating": 0,
+    "why": "Covers experiment_id validation in gateway endpoints, unrelated to MCP access endpoint search."
+   },
+   "prompt-model-version-sources-must-be-a-placeholder-or-a-vali": {
+    "rating": 0,
+    "why": "Concerns URI validation for prompt model version sources, unrelated to search filtering."
+   },
+   "provider-free-model-cost-lookup-must-iterate-catalog-provide": {
+    "rating": 0,
+    "why": "Deals with provider catalog iteration ordering for model costs, unrelated to search parsing."
+   },
+   "review-queue-fluent-apis-must-be-guarded-on-databricks-track": {
+    "rating": 0,
+    "why": "Covers Databricks API guards on review queue fluent functions, unrelated to search parsing."
+   },
+   "sdk-models-repo-workspace-client-must-resolve-host-and-token": {
+    "rating": 0,
+    "why": "Deals with Databricks SDK client authentication in artifact repositories, unrelated to search filtering."
+   },
+   "search-logged-models-rejects-lowercase-like-ilike-in-operato": {
+    "rating": 0,
+    "why": "Addresses operator case normalization in mlflow/utils/search_logged_model_utils.py specifically for logged models, which is a different tool and file than MCP search parsing."
+   },
+   "sql-backed-experiment-ids-must-be-parsed-with-the-shared-val": {
+    "rating": 0,
+    "why": "Concerns experiment ID parsing validation in tracking and gateway stores, unrelated to MCP endpoint search filtering."
+   },
+   "third-party-scorer-egress-kwargs-rejection-must-stay-uncondi": {
+    "rating": 0,
+    "why": "Covers SSRF prevention in third-party scorer payload validation, unrelated to search parsing."
+   },
+   "tracking-uri-detectors-check-uri-shape-only-not-partition-re": {
+    "rating": 0,
+    "why": "Deals with SageMaker tracking URI validation, unrelated to search filtering."
+   },
+   "workspace-support-probe-a-404-on-server-info-is-not-proof-of": {
+    "rating": 0,
+    "why": "Concerns probing workspace support via REST endpoints, unrelated to search filter parsing."
+   },
+   "psycopg-v3-regression-tests-go-in-tests-db-test-workspace-tr": {
+    "rating": 0,
+    "why": "Concerns test placement for database regression tests, unrelated to MCP endpoint search logic."
+   },
+   "workspace-support-error-guidance-must-name-the-configured-ml": {
+    "rating": 0,
+    "why": "Covers error message wording for workspace support, unrelated to search filtering."
+   },
+   "trace-filter-correlation-must-pass-experiment-ids-to-trace-i": {
+    "rating": 0,
+    "why": "Concerns SQL parameter types for trace filter correlation queries, unrelated to MCP search."
+   },
+   "numeric-search-filters-must-bind-ints-on-sql-stores-psycopg": {
+    "rating": 0,
+    "why": "Covers numeric type coercion in SQLAlchemy tracking and model registry store query builders, unrelated to MCP search attribute parsing."
+   },
+   "protobuf-request-parsers-must-reject-bodies-that-spell-one-f": {
+    "rating": 0,
+    "why": "Deals with protobuf field naming conflict validation in request handlers, unrelated to search filtering."
+   },
+   "span-getitem-hint-lookup-must-not-evaluate-attribute-getters": {
+    "rating": 0,
+    "why": "Concerns Span diagnostic hints during bracket access, unrelated to search filtering."
+   },
+   "gateway-auth-config-delivered-list-options-must-accept-a-com": {
+    "rating": 0,
+    "why": "Deals with parsing comma-separated strings in gateway model configs, unrelated to search filtering."
+   },
+   "batched-upserts-with-on-conflict-must-dedupe-conflict-keys-b": {
+    "rating": 0,
+    "why": "Addresses deduplication of conflict keys during bulk upserts in SQLAlchemyStore, unrelated to search parsing."
+   },
+   "gateway-list-routes-need-authentication-plus-a-per-item-use": {
+    "rating": 0,
+    "why": "Deals with gateway authorization filtering on list routes, unrelated to search filter parsing."
+   },
+   "non-ascii-span-content-is-invisible-to-trace-text-search-on": {
+    "rating": 0,
+    "why": "Addresses JSON serialization encoding for span content in SQL stores, unrelated to search filter parsing."
+   },
+   "session-user-root-span-attributes-are-uc-only-the-generic-ml": {
+    "rating": 0,
+    "why": "Deals with TypeScript trace exporter attributes for Unity Catalog, unrelated to search parsing."
+   },
+   "gateway-authz-validators-must-read-resource-ids-from-the-par": {
+    "rating": 0,
+    "why": "Concerns resource ID extraction in AI Gateway authorization helpers, unrelated to search filtering."
+   },
+   "schema-merge-must-accept-anytype-on-the-right-hand-side-so-i": {
+    "rating": 0,
+    "why": "Deals with schema merging logic in mlflow/types/schema.py, unrelated to search parsing."
+   },
+   "tests-that-enable-job-execution-must-patch-os-name-not-sys-p": {
+    "rating": 0,
+    "why": "Concerns test environment patching for job execution requirements, unrelated to search parsing."
+   }
+  }
+ },
+ "PR26300-hard": {
+  "set": "harder",
+  "gold": [
+   "mlflow/gateway/providers/gemini.py"
+  ],
+  "candidates": 25,
+  "ratings": {
+   "anthropic-usage-parsing-is-shared-by-anthropicprovider-and-t": {
+    "rating": 0,
+    "why": "Concerns Anthropic and Bedrock token usage extraction, unrelated to Gemini or Vertex AI gateway requests."
+   },
+   "bedrock-anthropic-passthrough-must-build-a-new-body-not-muta": {
+    "rating": 0,
+    "why": "Concerns request body mutation in Bedrock Anthropic passthrough, unrelated to Gemini gateway endpoints."
+   },
+   "bedrock-anthropic-passthrough-only-anthropic-models-bearer-t": {
+    "rating": 0,
+    "why": "Concerns authentication and model validation for Bedrock Anthropic passthrough, unrelated to Gemini."
+   },
+   "bedrock-streaming-exception-frames-must-raise-httpexception": {
+    "rating": 0,
+    "why": "Concerns SSE exception mapping for Amazon Bedrock streaming, unrelated to Gemini gateway endpoints."
+   },
+   "claude-on-vertex-passthrough-and-proxy-must-use-rawpredict-p": {
+    "rating": 0,
+    "why": "Concerns Claude models on Vertex AI rawPredict routing, not Gemini models or tool choice handling."
+   },
+   "empty-upstream-error-bodies-must-fall-back-to-the-reason-phr": {
+    "rating": 0,
+    "why": "Concerns HTTP error fallback handling in provider utils, unrelated to tool choice configuration."
+   },
+   "gemini-candidates-can-mix-text-and-functioncall-parts-in-any": {
+    "rating": 0,
+    "why": "Concerns response parsing (model_to_chat) for Gemini and Vertex AI candidates, not outgoing request conversion (chat_to_model) where tool choice is configured."
+   },
+   "gemini-parallel-functionresponse-parts-must-share-one-user-t": {
+    "rating": 1,
+    "why": "Useful map pointing directly to GeminiAdapter.chat_to_model in mlflow/gateway/providers/gemini.py as the request conversion chokepoint for Gemini and Vertex AI chat/streaming, though it discusses tool response turns rather than tool choice."
+   },
+   "gemini-thoughtsignature-must-be-a-sibling-of-functioncall-on": {
+    "rating": 1,
+    "why": "Points to GeminiAdapter.chat_to_model in mlflow/gateway/providers/gemini.py as the request conversion chokepoint, though it covers thoughtSignature placement rather than tool choice."
+   },
+   "gemini-tool-message-content-must-be-coerced-to-a-json-object": {
+    "rating": 1,
+    "why": "Points to GeminiAdapter.chat_to_model in mlflow/gateway/providers/gemini.py as the conversion chokepoint shared by Vertex AI for chat and streaming, though it covers tool message content parsing rather than tool choice."
+   },
+   "streaming-gateway-errors-show-reason-phrase-instead-of-upstr": {
+    "rating": 0,
+    "why": "Concerns upstream error extraction across streaming and proxy requests in provider utils, unrelated to tool choice."
+   },
+   "vertex-ai-claude-passthrough-must-filter-client-anthropic-be": {
+    "rating": 0,
+    "why": "Concerns header filtering for Claude on Vertex AI, unrelated to Gemini endpoints."
+   },
+   "vertex-ai-maas-raw-proxy-drops-the-openapi-segment-from-the": {
+    "rating": 0,
+    "why": "Concerns URL path stripping for Vertex AI MaaS models, unrelated to Gemini endpoints."
+   },
+   "vertex-ai-passthrough-and-proxy-must-be-forwarded-to-the-cla": {
+    "rating": 0,
+    "why": "Concerns delegating passthrough and proxy routes to Claude/MaaS delegates in VertexAIProvider, not Gemini chat request conversion."
+   },
+   "vertex-ai-thought-signature-test-asserts-the-gemini-part-lev": {
+    "rating": 1,
+    "why": "Points to GeminiAdapter.chat_to_model in mlflow/gateway/providers/gemini.py as the request conversion chokepoint and test_vertex_ai.py for tool-calling tests, though it focuses on thought signature test assertions."
+   },
+   "vertex-delegates-always-drop-the-client-s-auth-headers-befor": {
+    "rating": 0,
+    "why": "Concerns auth header stripping for Vertex Claude and MaaS delegates, unrelated to Gemini tool choice."
+   },
+   "vertex-maas-proxy-must-send-the-vertex-bearer-token-not-the": {
+    "rating": 0,
+    "why": "Concerns bearer token forwarding for Vertex MaaS proxy routes, unrelated to Gemini endpoints."
+   },
+   "vertex-proxy-tests-go-through-vertexaiprovider-proxy-not-the": {
+    "rating": 0,
+    "why": "Concerns testing patterns for Vertex AI raw proxy routes, unrelated to Gemini chat tool choice."
+   },
+   "authorization-validators-must-parse-the-route-s-own-request": {
+    "rating": 0,
+    "why": "Concerns server protobuf request parsing in gateway auth validators, unrelated to provider request conversion."
+   },
+   "gateway-auth-config-delivered-list-options-must-accept-a-com": {
+    "rating": 0,
+    "why": "Concerns parsing comma-separated strings in gateway auth_config, unrelated to tool choice."
+   },
+   "gateway-model-listing-only-named-endpoints-sorted-by-name-id": {
+    "rating": 0,
+    "why": "Concerns sorting and filtering in the gateway model listing endpoint, unrelated to tool choice."
+   },
+   "gateway-list-routes-need-authentication-plus-a-per-item-use": {
+    "rating": 0,
+    "why": "Concerns FastAPI authentication filters for gateway list routes, unrelated to model provider adapters."
+   },
+   "openai-autolog-stream-hook-must-bind-loop-variable-before-th": {
+    "rating": 0,
+    "why": "Concerns OpenAI autologging stream loop variables, completely unrelated to gateway providers."
+   },
+   "optional-experiment-id-must-be-checked-with-is-not-none-not": {
+    "rating": 0,
+    "why": "Concerns experiment_id validation in gateway store mixins, unrelated to provider tool handling."
+   },
+   "openai-autolog-tests-use-mock-scenarios-selected-by-the-firs": {
+    "rating": 0,
+    "why": "Concerns mock scenarios in OpenAI autologging tests, completely unrelated to gateway providers."
+   }
+  }
+ },
+ "PR26267-hard#b2": {
+  "set": "harder",
+  "gold": [
+   "mlflow/server/auth/__init__.py",
+   "mlflow/server/fastapi_app.py",
+   "mlflow/server/handlers.py",
+   "mlflow/server/mcp_server_api.py",
+   "mlflow/server/mlflow_response.py",
+   "mlflow/server/server_info_api.py"
+  ],
+  "candidates": 47,
+  "ratings": {
+   "adding-a-field-to-the-fastapi-job-response-model-must-update": {
+    "rating": 0,
+    "why": "About the Job response model and its exact-dict test assertions in job_api.py; unrelated to server-info routing or worker capacity."
+   },
+   "authorization-validators-must-parse-the-route-s-own-request": {
+    "rating": 0,
+    "why": "Gateway attach-route authorization validators and parse_dict field dropping; unrelated to the server-info endpoint or its public access."
+   },
+   "createmodelversion-source-read-check-must-authorize-the-prot": {
+    "rating": 0,
+    "why": "Model-version source-read authorization; does not touch server-info or the worker pool."
+   },
+   "fastapi-response-filters-are-opted-in-by-endpoint-function-n": {
+    "rating": 0,
+    "why": "Response filtering for user-scoped collections under basic-auth; does not affect the server-info endpoint's unauthenticated access or capacity."
+   },
+   "gateway-auth-config-delivered-list-options-must-accept-a-com": {
+    "rating": 0,
+    "why": "Gateway provider config validation; unrelated."
+   },
+   "gateway-authz-validators-must-read-resource-ids-from-the-par": {
+    "rating": 0,
+    "why": "Gateway resource-ID authorization; unrelated."
+   },
+   "gateway-list-routes-need-authentication-plus-a-per-item-use": {
+    "rating": 0,
+    "why": "Gateway list route auth filtering; unrelated to server-info."
+   },
+   "gateway-model-listing-only-named-endpoints-sorted-by-name-id": {
+    "rating": 0,
+    "why": "Shape of the OpenAI-compatible gateway model list; unrelated."
+   },
+   "gateway-route-to-validator-names-are-pinned-by-authorization": {
+    "rating": 0,
+    "why": "Guardrail validator names pinned by coverage tests; unrelated."
+   },
+   "gateway-secret-create-needs-a-workspace-create-grant-fail-cl": {
+    "rating": 0,
+    "why": "Gateway secret creation authorization; unrelated."
+   },
+   "host-addressed-artifact-uris-must-pass-the-host-policy-befor": {
+    "rating": 0,
+    "why": "Artifact URI host policy in handlers; unrelated to server-info."
+   },
+   "invoke-endpoints-must-bind-caller-supplied-trace-ids-to-the": {
+    "rating": 0,
+    "why": "Trace-to-experiment binding for invoke handlers; unrelated."
+   },
+   "issue-detection-invoke-must-require-use-on-the-gateway-secre": {
+    "rating": 0,
+    "why": "Secret USE permission for issue-detection invoke; unrelated."
+   },
+   "job-search-under-basic-auth-must-be-narrowed-to-the-caller-s": {
+    "rating": 0,
+    "why": "Job search creator filtering; unrelated."
+   },
+   "model-version-create-denies-a-nonexistent-source-run-model-w": {
+    "rating": 0,
+    "why": "Model-version source existence oracle handling; unrelated."
+   },
+   "model-version-read-checks-must-be-prompt-aware-and-judge-the": {
+    "rating": 0,
+    "why": "GraphQL model-version read predicates; unrelated."
+   },
+   "nested-graphql-fields-over-protected-resources-must-be-liste": {
+    "rating": 0,
+    "why": "GraphQL nested field authorization; unrelated."
+   },
+   "only-response-filters-may-self-authorize-a-route-in-the-fail": {
+    "rating": 0,
+    "why": "Fail-closed backstop for basic-auth routes; does not change how the server-info route is exempted or served."
+   },
+   "per-row-permission-predicates-in-graphql-resolvers-are-memoi": {
+    "rating": 0,
+    "why": "GraphQL per-request predicate memoization; unrelated."
+   },
+   "prompt-code-path-is-selected-only-by-an-effective-is-prompt": {
+    "rating": 0,
+    "why": "Prompt tag handling in model version creation; unrelated."
+   },
+   "prompt-model-version-sources-must-be-a-placeholder-or-a-vali": {
+    "rating": 0,
+    "why": "Prompt source validation; unrelated."
+   },
+   "protobuf-request-parsers-must-reject-bodies-that-spell-one-f": {
+    "rating": 0,
+    "why": "Protobuf body alias conflict checks; unrelated to server-info."
+   },
+   "server-process-marker-env-var-names-must-mirror-mlflow-serve": {
+    "rating": 0,
+    "why": "Artifact host-policy env var names; unrelated."
+   },
+   "server-side-decorator-call-source-scorers-are-blocked-unless": {
+    "rating": 0,
+    "why": "Custom scorer execution gating; unrelated."
+   },
+   "third-party-scorer-egress-kwargs-rejection-must-stay-uncondi": {
+    "rating": 0,
+    "why": "Scorer SSRF kwargs validation; unrelated."
+   },
+   "trace-binding-guard-for-invoke-endpoints-lives-in-handlers-n": {
+    "rating": 0,
+    "why": "Trace ownership guard for invoke handlers; unrelated."
+   },
+   "trace-ids-input-contract-shared-by-the-three-invoke-handlers": {
+    "rating": 0,
+    "why": "trace_ids input validation for invoke handlers; unrelated."
+   },
+   "unscoped-gateway-endpoint-binding-listing-is-admin-only-endp": {
+    "rating": 0,
+    "why": "Gateway binding list authorization; unrelated."
+   },
+   "validate-the-resolved-scorer-payload-that-a-job-will-run-not": {
+    "rating": 0,
+    "why": "Scorer payload validation before job creation; unrelated."
+   },
+   "mlflow-ui-stays-on-a-loading-skeleton-with-zero-api-calls-wh": {
+    "rating": 0,
+    "why": "Client QueryClient networkMode when offline; a client-side concern, not the server worker pool."
+   },
+   "capability-endpoints-share-one-fetch-path-in-utils-server-in": {
+    "rating": 0,
+    "why": "Client-side fetch path in mlflow/utils/server_info.py; the fix is server-side routing and capacity, so reading this would not change the server change."
+   },
+   "a-hanging-server-info-request-leaves-the-whole-ui-on-a-skele": {
+    "rating": 0,
+    "why": "Client-side AbortController timeout in the UI hook; it addresses the same symptom from the browser, not the server's dedicated capacity for the endpoint."
+   },
+   "test-a-fetch-level-abort-by-stubbing-global-fetch-not-fetcha": {
+    "rating": 0,
+    "why": "Jest testing of client fetch aborts; unrelated to the server fix."
+   },
+   "test-multi-process-budget-behavior-with-two-trackers-on-one": {
+    "rating": 0,
+    "why": "Redis budget tracker tests; unrelated."
+   },
+   "new-gateway-routes-must-be-added-to-the-auth-validator-looku": {
+    "rating": 1,
+    "why": "Points at the auth validator lookup with STATIC_PREFIX_ENV_VAR handling for FastAPI routes, the chokepoint that determines public access under a static prefix. It is about gateway routes, not server-info, but a fix here would need the same lookup."
+   },
+   "workspace-support-probe-a-404-on-server-info-is-not-proof-of": {
+    "rating": 0,
+    "why": "Client-side workspace probing fallback; does not concern the server's handling of server-info."
+   },
+   "tests-of-workspace-probes-assert-the-endpoint-sequence-on-th": {
+    "rating": 0,
+    "why": "Client store tests asserting probe endpoint order; unrelated to server capacity."
+   },
+   "scoring-server-readiness-timeout-hides-the-last-ping-error": {
+    "rating": 0,
+    "why": "Pyfunc scoring server readiness loop; unrelated."
+   },
+   "oss-entry-points-must-construct-queryclient-via-the-shared-f": {
+    "rating": 0,
+    "why": "Client QueryClient factory usage; unrelated to the server."
+   },
+   "under-shared-web-shared-import-the-local-query-client-re-exp": {
+    "rating": 0,
+    "why": "Client import conventions; unrelated."
+   },
+   "serverinfo-query-gates-router-creation-and-its-fallback-is-c": {
+    "rating": 0,
+    "why": "Client UI router gating on serverInfo; not the server mechanism the fix changes."
+   },
+   "spark-scoring-server-test-must-clean-up-its-job-thread-and-s": {
+    "rating": 0,
+    "why": "Spark test cleanup; unrelated."
+   },
+   "workspace-support-error-guidance-must-name-the-configured-ml": {
+    "rating": 0,
+    "why": "Workspace error message wording; unrelated."
+   },
+   "prompt-placeholder-source-strings-are-a-shared-contract-betw": {
+    "rating": 0,
+    "why": "Prompt placeholder strings; unrelated."
+   },
+   "openai-autolog-streaming-span-left-open-when-the-stream-rais": {
+    "rating": 0,
+    "why": "OpenAI autolog streaming; unrelated."
+   },
+   "gemini-parallel-functionresponse-parts-must-share-one-user-t": {
+    "rating": 0,
+    "why": "Gemini adapter message conversion; unrelated."
+   },
+   "release-package-requires-the-pre-built-js-ui-dev-build-py-gu": {
+    "rating": 0,
+    "why": "Release packaging guard; unrelated."
+   }
+  }
+ },
+ "PR26252-hard#b2": {
+  "set": "harder",
+  "gold": [
+   "mlflow/models/evaluation/validation.py"
+  ],
+  "candidates": 20,
+  "ratings": {
+   "ndcg-at-k-duplicate-retrieved-docs-must-be-expanded-as-id-oc": {
+    "rating": 0,
+    "why": "About NDCG duplicate-document expansion in metric_definitions.py. Not about validation.py or the baseline relative-change threshold."
+   },
+   "fractional-numeric-filter-values-must-be-compared-exactly-ne": {
+    "rating": 0,
+    "why": "About in-memory search filter numeric comparisons (search_utils.py). Unrelated to model validation thresholds."
+   },
+   "pt2-torch-version-gate-must-stay-in-sync-with-the-pickle-fre": {
+    "rating": 0,
+    "why": "About the torch version gate for pt2 pickle-free loading. Unrelated to the relative-change validation logic."
+   },
+   "genai-evaluate-aggregate-logged-model-metrics-must-carry-the": {
+    "rating": 0,
+    "why": "About forwarding dataset to mlflow.log_metrics in GenAI evaluation. Does not touch the validation threshold computation."
+   },
+   "metric-comparisons-in-logged-model-filter-string-must-join-o": {
+    "rating": 0,
+    "why": "About SQL join behavior for logged-model filter_string pagination. Unrelated to validation.py."
+   },
+   "malformed-dedup-group-indices-crash-issue-discovery-or-silen": {
+    "rating": 0,
+    "why": "About dedup group index validation in the discovery pipeline. Unrelated to model validation."
+   },
+   "budget-amount-is-deliberately-not-part-of-window-identity": {
+    "rating": 0,
+    "why": "About Redis budget window identity. Unrelated to baseline/candidate validation."
+   },
+   "dedup-merge-proposals-must-be-validated-before-any-merge-sta": {
+    "rating": 0,
+    "why": "About dedup merge state in discovery pipeline. Unrelated to validation.py."
+   },
+   "schema-merge-results-must-not-depend-on-which-side-holds-any": {
+    "rating": 0,
+    "why": "About symmetric schema merging with AnyType in types/schema.py. Shares the word 'merge' only."
+   },
+   "model-catalog-bot-pr-labels-and-reviewers-must-be-set-on-bot": {
+    "rating": 0,
+    "why": "About the model catalog GitHub workflow labels and reviewers. Unrelated."
+   },
+   "test-multi-process-budget-behavior-with-two-trackers-on-one": {
+    "rating": 0,
+    "why": "About testing Redis budget trackers with fakeredis. Unrelated."
+   },
+   "assistant-system-prompts-new-behavioral-directives-must-be-c": {
+    "rating": 0,
+    "why": "About assistant system prompt consistency. Unrelated."
+   },
+   "metric-ordered-logged-model-search-must-keep-one-metric-row": {
+    "rating": 0,
+    "why": "About row_number vs rank in SQL metric ordering for logged models. Unrelated to validation thresholds."
+   },
+   "run-the-whitespace-only-check-locally-against-a-fetched-base": {
+    "rating": 0,
+    "why": "About running the whitespace-only lint check locally. Unrelated."
+   },
+   "guard-regex-match-on-yaml-values-with-is-string-before-match": {
+    "rating": 0,
+    "why": "About the Rego policy regex guard for YAML values. Unrelated."
+   },
+   "numeric-search-filters-must-bind-ints-on-sql-stores-psycopg": {
+    "rating": 0,
+    "why": "About int binding for SQL search filters with psycopg. Unrelated."
+   },
+   "third-party-scorer-metric-name-must-be-an-identifier-and-mus": {
+    "rating": 0,
+    "why": "About scorer metric_name validation during deserialization. Shares the word 'metric' only."
+   },
+   "sql-backed-experiment-ids-must-be-parsed-with-the-shared-val": {
+    "rating": 0,
+    "why": "About experiment ID parsing in SQL stores. Unrelated."
+   },
+   "prompt-model-version-sources-must-be-a-placeholder-or-a-vali": {
+    "rating": 0,
+    "why": "About prompt model version source validation in server handlers. Unrelated."
+   },
+   "cost-tests-with-ambiguous-model-names-must-pass-model-provid": {
+    "rating": 0,
+    "why": "About builtin cost test provider arguments. Unrelated."
+   }
+  }
+ },
+ "PR26265-hard#b2": {
+  "set": "harder",
+  "gold": [
+   "mlflow/artifacts/__init__.py"
+  ],
+  "candidates": 20,
+  "ratings": {
+   "non-ascii-span-content-is-invisible-to-trace-text-search-on": {
+    "rating": 0,
+    "why": "About JSON serialization of span content for trace.text search on SQL backends. It shares the non-ASCII theme but not the artifact read path or its decoding."
+   },
+   "gemini-tool-message-content-must-be-coerced-to-a-json-object": {
+    "rating": 0,
+    "why": "Gemini functionResponse coercion for tool messages. Unrelated to artifact text or dict loading."
+   },
+   "span-content-search-tests-must-serialize-inputs-the-way-the": {
+    "rating": 0,
+    "why": "Test convention for trace search serialization. Unrelated to artifact decoding."
+   },
+   "only-the-authorizationpermissionmismatch-403-may-trigger-the": {
+    "rating": 0,
+    "why": "Azure multipart upload fallback error handling. Unrelated."
+   },
+   "prompt-model-version-sources-must-be-a-placeholder-or-a-vali": {
+    "rating": 0,
+    "why": "Prompt model version source validation in server handlers. Unrelated."
+   },
+   "uc-model-load-and-register-must-switch-artifact-repo-togethe": {
+    "rating": 0,
+    "why": "Unity Catalog artifact repo routing flag. Different transport/credential concern, not text decoding."
+   },
+   "scorer-signature-with-parentheses-in-defaults-fails-to-reloa": {
+    "rating": 0,
+    "why": "Scorer signature parsing on reload. Unrelated."
+   },
+   "uc-model-load-and-register-must-both-gate-on-the-databricks": {
+    "rating": 0,
+    "why": "Duplicate of the UC artifact repo flag rule about scoped tokens. Unrelated to decoding."
+   },
+   "cloudartifactrepository-single-stream-download-guard-must-co": {
+    "rating": 0,
+    "why": "Download dispatch guard by class name for the Databricks SDK repo. Same general area (artifact download) but a different mechanism; it does not touch text or dict loading."
+   },
+   "artifact-inline-preview-needs-the-extension-in-both-server-m": {
+    "rating": 0,
+    "why": "Covers UI inline preview and MIME type lists for text extensions. Same broad theme of text artifacts, but it does not govern how load_text or load_dict decode bytes."
+   },
+   "azure-multipart-upload-sas-must-branch-on-credential-type-ac": {
+    "rating": 0,
+    "why": "Azure SAS signing for multipart uploads. Unrelated."
+   },
+   "flavor-serialization-format-default-is-resolved-at-call-time": {
+    "rating": 0,
+    "why": "Model flavor serialization defaults. Unrelated."
+   },
+   "sql-backed-experiment-ids-must-be-parsed-with-the-shared-val": {
+    "rating": 0,
+    "why": "Experiment ID parsing in SQL stores. Unrelated."
+   },
+   "workspace-support-probe-a-404-on-server-info-is-not-proof-of": {
+    "rating": 0,
+    "why": "Workspace capability probing. Unrelated."
+   },
+   "tests-that-enable-job-execution-must-patch-os-name-not-sys-p": {
+    "rating": 0,
+    "why": "Server startup test patching for Windows guard. Unrelated."
+   },
+   "artifacts-example-test-docker-cleanup-must-run-from-an-exit": {
+    "rating": 0,
+    "why": "Docker cleanup trap in an example test script. Shares a test file path with artifacts but has nothing to do with the decoding fix."
+   },
+   "gateway-authz-validators-must-read-resource-ids-from-the-par": {
+    "rating": 0,
+    "why": "Gateway authorization validators. Unrelated."
+   },
+   "createmodelversion-source-read-check-must-authorize-the-prot": {
+    "rating": 0,
+    "why": "Model version authorization checks. Unrelated."
+   },
+   "test-the-pt2-pickle-guard-by-rewriting-the-archive-s-sample": {
+    "rating": 0,
+    "why": "PyTorch pt2 pickle guard testing. Unrelated."
+   },
+   "sdk-models-repo-workspace-client-must-resolve-host-and-token": {
+    "rating": 0,
+    "why": "Databricks SDK workspace client credential resolution. Unrelated to text decoding."
+   }
+  }
+ },
+ "PR26311-hard#b2": {
+  "set": "harder",
+  "gold": [
+   "mlflow/data/evaluation_dataset.py"
+  ],
+  "candidates": 20,
+  "ratings": {
+   "schema-merge-results-must-not-depend-on-which-side-holds-any": {
+    "rating": 0,
+    "why": "Concerns AnyType merge symmetry in mlflow/types/schema.py. The task is about hashing nested arrays of dicts during evaluation-dataset fingerprinting, which this note does not touch."
+   },
+   "schema-merge-must-accept-anytype-on-the-right-hand-side-so-i": {
+    "rating": 0,
+    "why": "Concerns right-hand AnyType handling in schema _merge for infer_signature. Unrelated to dataset hashing or the fallback path in evaluation_dataset.py."
+   },
+   "schema-enforcement-series-rebuilds-must-keep-the-input-dataf": {
+    "rating": 0,
+    "why": "Concerns preserving DataFrame index when enforcing pyfunc column schemas in mlflow/models/utils.py. Not related to hashing or evaluation datasets."
+   },
+   "span-getitem-hint-lookup-must-not-evaluate-attribute-getters": {
+    "rating": 0,
+    "why": "Concerns Span.__getitem__ diagnostic hints and hasattr/getter side effects in mlflow/entities/span.py. Unrelated to dataset hashing."
+   },
+   "empty-upstream-error-bodies-must-fall-back-to-the-reason-phr": {
+    "rating": 0,
+    "why": "Concerns gateway provider error-body fallback in mlflow/gateway/providers/utils.py. Unrelated to the evaluation dataset hashing fix."
+   },
+   "span-get-must-stay-an-unresolved-attribute-hint-via-getattr": {
+    "rating": 0,
+    "why": "Concerns keeping Span.get unresolvable and using __getattr__ hints in mlflow/entities/span.py. Unrelated to dataset hashing."
+   },
+   "scorer-signature-with-parentheses-in-defaults-fails-to-reloa": {
+    "rating": 0,
+    "why": "Concerns AST-based signature parsing when reloading scorers in mlflow/genai/scorers. Unrelated to hashing dataset contents."
+   },
+   "numeric-search-filters-must-bind-ints-on-sql-stores-psycopg": {
+    "rating": 0,
+    "why": "Concerns int coercion in SQL store search filters for psycopg. Unrelated to the hashing code path in evaluation_dataset.py."
+   },
+   "span-classes-that-define-getitem-must-also-set-iter-none": {
+    "rating": 0,
+    "why": "Concerns making Span classes non-iterable by setting __iter__ = None. Unrelated to dataset hashing."
+   },
+   "dataset-association-on-genai-metrics-is-gated-on-is-managed": {
+    "rating": 0,
+    "why": "Concerns dataset association on GenAI metrics in mlflow/genai/evaluation/base.py. Same broad domain as evaluation datasets, but a different code path that does not involve content hashing or conversion of datasets."
+   },
+   "gemini-tool-message-content-must-be-coerced-to-a-json-object": {
+    "rating": 0,
+    "why": "Concerns Gemini tool-message conversion in gateway providers. Unrelated to dataset hashing."
+   },
+   "genai-evaluate-aggregate-logged-model-metrics-must-carry-the": {
+    "rating": 0,
+    "why": "Concerns forwarding the managed dataset name and digest into log_metrics in the GenAI harness. Related to evaluation datasets, but it is about metric logging, not hashing or converting dataset content."
+   },
+   "artifacts-example-test-retry-only-the-docker-compose-pull-st": {
+    "rating": 0,
+    "why": "Concerns retrying docker compose pulls in an artifacts example test script. Unrelated to dataset hashing."
+   },
+   "experiment-and-evaluation-dataset-numeric-filters-must-rejec": {
+    "rating": 0,
+    "why": "Concerns float rejection in SQL search filters for experiments and datasets. Unrelated to content hashing in evaluation_dataset.py."
+   },
+   "gemini-thoughtsignature-must-be-a-sibling-of-functioncall-on": {
+    "rating": 0,
+    "why": "Concerns Gemini thoughtSignature placement in gateway providers. Unrelated to dataset hashing."
+   },
+   "metric-comparisons-in-logged-model-filter-string-must-join-o": {
+    "rating": 0,
+    "why": "Concerns the join shape for metric filters in logged-model search. Unrelated to dataset hashing."
+   },
+   "every-experiment-page-sub-route-needs-an-entry-in-the-route": {
+    "rating": 0,
+    "why": "Concerns the frontend route-to-tab map for experiment pages. Unrelated to dataset hashing."
+   },
+   "ndcg-at-k-duplicate-retrieved-docs-must-be-expanded-as-id-oc": {
+    "rating": 0,
+    "why": "Concerns duplicate document expansion in legacy ndcg_at_k metrics. Unrelated to dataset hashing."
+   },
+   "artifacts-example-test-docker-cleanup-must-run-from-an-exit": {
+    "rating": 0,
+    "why": "Concerns Docker cleanup via EXIT trap in an artifacts example test script. Unrelated to dataset hashing."
+   },
+   "context-manager-telemetry-must-record-failure-only-for-the-w": {
+    "rating": 0,
+    "why": "Concerns telemetry failure recording for context managers in env_pack.py. Unrelated to dataset hashing."
+   }
+  }
+ }
+}

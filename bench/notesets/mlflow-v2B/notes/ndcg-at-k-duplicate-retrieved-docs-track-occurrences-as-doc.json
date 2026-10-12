@@ -1,0 +1,69 @@
+{
+  "id": "ndcg-at-k-duplicate-retrieved-docs-track-occurrences-as-doc",
+  "title": "ndcg_at_k duplicate retrieved docs: track occurrences as (doc_id, n) tuples and test relevance against original targets, never string-suffixed IDs",
+  "kind": "rule",
+  "answers": [
+    "Why does NDCG@k give a nonzero score when none of the retrieved documents are relevant?",
+    "How does ndcg_at_k handle repeated document IDs in the predictions list?",
+    "Where are duplicate retrieved documents expanded for the legacy NDCG metric?",
+    "Why do relevant duplicate predictions still count toward NDCG after the duplicate handling change?"
+  ],
+  "body": "Path: mlflow/metrics/metric_definitions.py:_expand_duplicate_retrieved_docs is the chokepoint for the legacy `ndcg_at_k` metric. It takes a retrieved-document list (predictions) that may repeat IDs and the target (relevant) document IDs, and returns expanded predictions plus expanded targets used to score ranking.\nRule: Give each retrieved occurrence an internal identity `(original_id, occurrence_number)`, starting at 1 for the first time an ID appears. Mark an occurrence relevant only if its original ID is in the original target set, by adding `(doc_id, n)` for each matching occurrence. Do not encode generated suffixes such as `f\"{doc_id}_bc574ae_{n}\"` into strings, because a real document ID can equal that string and inherit relevance it should not have. Keep the input target collection unmodified by building a new set.\nSymptom: For targets `[\"a_bc574ae_2\"]` and predictions `[\"a\", \"a\", \"z\"]`, NDCG@3 came out around 0.63 even though no retrieved document is relevant, because the second `\"a\"` was renamed to the real target string `\"a_bc574ae_2\"`.\nConstraints: Applies to the legacy metric path that calls this helper. It does not change short-retrieval-list handling or the GenAI scorers. Relevant duplicates should still each count as relevant occurrences. The regression tests check that renaming every ID through a bijection leaves scores unchanged, which catches any reintroduction of string-based identity.",
+  "applies": "Legacy mlflow ndcg_at_k metric in area/evaluation; duplicate retrieved document expansion only, not GenAI scorers.",
+  "tags": [
+    "evaluation",
+    "metrics",
+    "ndcg",
+    "retrieval",
+    "duplicates"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/metrics/metric_definitions.py",
+      "symbol": "_expand_duplicate_retrieved_docs",
+      "hash": "sha256:01d777513f8a231f5cf7365b",
+      "line": 409,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:01d777513f8a231f5cf7365b",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "tests/metrics/test_metric_definitions.py",
+      "symbol": "test_ndcg_at_k_preserves_relevance_when_ids_are_renamed",
+      "hash": "sha256:eb219256093b1b25cbdc549b",
+      "line": 378,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:eb219256093b1b25cbdc549b",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26041"
+  },
+  "created": "2026-10-12T05:30:05.163Z",
+  "verified": "2026-10-12T05:30:05.163Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Search ranking metric gives a nonzero score when no retrieved documents match.",
+    "Evaluating ranking models with duplicate results reports incorrect relevance scores.",
+    "Ranking quality metrics award false relevance credit when search results repeat items.",
+    "Evaluation score is unexpectedly positive despite all retrieved items being irrelevant."
+  ],
+  "search": "Duplicate document expansion for the legacy ndcg_at_k metric in mlflow/metrics/metric_definitions.py:_expand_duplicate_retrieved_docs tracks occurrences as (original_id, occurrence_number) tuples instead of appending string suffixes. Retrieved occurrences are marked relevant only if the original ID belongs to the original target set, building a new target set without mutating input targets. Using tuple identities prevents generated suffix strings from colliding with real target document IDs and producing false positive relevance scores. This applies strictly to the legacy evaluation metric helper, preserving relevant duplicate counts while leaving short-retrieval handling and GenAI scorers unchanged.",
+  "saysFor": "s2:fb046b4577c26497d1c304480009008443a2727eda9c7907dc93224f194ecd80"
+}

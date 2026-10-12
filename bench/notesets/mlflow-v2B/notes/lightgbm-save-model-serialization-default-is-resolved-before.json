@@ -1,0 +1,70 @@
+{
+  "id": "lightgbm-save-model-serialization-default-is-resolved-before",
+  "title": "LightGBM save_model: serialization default is resolved before the lgb.Booster branch, so native Boosters can be labelled cloudpickle",
+  "kind": "rule",
+  "answers": [
+    "Why does my native lightgbm.Booster log show cloudpickle as its serialization format on Databricks?",
+    "Why is the LightGBM logged-model telemetry reporting cloudpickle for a Booster?",
+    "How does mlflow.lightgbm save a lightgbm.Booster versus a scikit-learn-style LightGBM model?"
+  ],
+  "body": "Path: mlflow/lightgbm/__init__.py:save_model and log_model handle both native lightgbm.Booster objects and sklearn-style LightGBM models. Both pass through the serialization_format resolution before the Booster check.\nRule: The Databricks-dependent cloudpickle default is meant for sklearn-style LightGBM models only. A native lgb.Booster is always saved in LightGBM's native format and should not have its flavor configuration or telemetry labelled with the serializer default. When changing the default for a model type, make the default depend on the model type as well as the context, and assert the Booster case separately in tests.\nSymptom: On Databricks, a native lightgbm.Booster logged without serialization_format reported serialization_format cloudpickle in its flavor configuration and telemetry, although the artifact was written in the native format.\nConstraints: The review flagged this mismatch. The diff resolves the default before the Booster branch, so verify the current code before relying on the label for Boosters. The fix is to apply the default only to non-Booster models.",
+  "applies": "LightGBM save/log for native lightgbm.Booster versus sklearn-style models when serialization_format is omitted on Databricks.",
+  "tags": [
+    "area/models",
+    "lightgbm",
+    "serialization",
+    "databricks",
+    "telemetry"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/lightgbm/__init__.py",
+      "symbol": "_get_default_serialization_format",
+      "hash": "sha256:9bd1641dfee8f1bf3c672f14",
+      "line": 104,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9bd1641dfee8f1bf3c672f14",
+      "fanout": {
+        "files": 6,
+        "sites": 13,
+        "refs": 13
+      }
+    },
+    {
+      "path": "mlflow/lightgbm/__init__.py",
+      "symbol": "save_model",
+      "hash": "sha256:4e2e148bd633419e0099af7c",
+      "line": 137,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4e2e148bd633419e0099af7c",
+      "fanout": {
+        "files": 97,
+        "sites": 692,
+        "refs": 745
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25992"
+  },
+  "created": "2026-10-12T05:34:54.645Z",
+  "verified": "2026-10-12T05:34:54.645Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "model-serialization-defaults-omitted-serialization-format-re"
+  ],
+  "says": [
+    "The model details page incorrectly displays cloudpickle format for native LightGBM models on Databricks.",
+    "Native booster models report cloudpickle in their model configuration despite saving in native format.",
+    "Display the correct native serialization format for logged booster models in Databricks workspaces.",
+    "Model telemetry shows the wrong serializer type when logging native gradient boosting models."
+  ],
+  "search": "In mlflow/lightgbm/__init__.py:save_model and log_model, default serialization format resolution occurs before the native lgb.Booster branch, incorrectly labelling native boosters as cloudpickle on Databricks. Native Boosters are always saved in LightGBM native format, so the Databricks cloudpickle default should apply only to scikit-learn-style LightGBM models. Fixing this requires conditioning the default serialization format on the model type as well as the context, and asserting native Booster serialization separately in tests.",
+  "saysFor": "s2:7a60776182b1961861503fdfd1e657d0c2188b2a2b49c4b1f2cd231cd0ca8067"
+}

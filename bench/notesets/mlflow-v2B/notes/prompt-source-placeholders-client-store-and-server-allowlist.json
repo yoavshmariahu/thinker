@@ -1,0 +1,133 @@
+{
+  "id": "prompt-source-placeholders-client-store-and-server-allowlist",
+  "title": "Prompt source placeholders: client, store and server allowlist must change together",
+  "kind": "rule",
+  "answers": [
+    "Why does register_prompt start failing with 400 after I changed the dummy source value?",
+    "Where are the placeholder source values for prompt versions defined and used?",
+    "How do I add a new prompt sender that does not use a real artifact source?",
+    "Which UI and Python call sites send the fixed source string for prompt model versions?"
+  ],
+  "body": "Path: Prompt version creation from MlflowClient.register_prompt (mlflow/tracking/client.py), AbstractStore.create_prompt_version (mlflow/store/model_registry/abstract_store.py), and the UI prompt-creation call in mlflow/server/js/src/experiment-tracking/pages/prompts/api.ts all send a fixed placeholder source to the CreateModelVersion endpoint.\nRule: The two Python senders import _CLIENT_PROMPT_SOURCE_PLACEHOLDER ('dummy-source') and _STORE_PROMPT_SOURCE_PLACEHOLDER ('prompt-template') from mlflow/prompt/constants.py. Those are also the only schemeless values in _PROMPT_SOURCE_PLACEHOLDERS, which the server allowlist in mlflow/server/handlers.py:_validate_prompt_source uses. Any new schemeless prompt sender must add its value to that frozenset. The TypeScript literal cannot be imported, so it carries a pointer comment and must be kept in sync by hand.\nSymptom: Changing one placeholder literal in a sender without updating the allowlist made prompt registration return 400 with no compile-time signal.\nConstraints: Remote-scheme sources such as s3:// and mlflow-artifacts:/ are not placeholders and pass without listing. Editing the allowlist to add a value makes that value accepted for every prompt-tagged request, so keep the set minimal.",
+  "applies": "Changes to prompt registration senders or the prompt source allowlist; not regular (non-prompt) model version creation.",
+  "tags": [
+    "prompts",
+    "model-registry",
+    "constants",
+    "sync"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/prompt/constants.py",
+      "symbol": "_PROMPT_SOURCE_PLACEHOLDERS",
+      "hash": "sha256:06f280c80f4dfdda26fb2acb",
+      "line": 14,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_validate_prompt_source",
+      "hash": "sha256:96927c193f87ff04d9cce28d",
+      "line": 3150,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:96927c193f87ff04d9cce28d",
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/tracking/client.py",
+      "symbol": "MlflowClient",
+      "hash": "sha256:b04e50d06bb4ef2d0faf470f",
+      "line": 224,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b04e50d06bb4ef2d0faf470f",
+      "fanout": {
+        "files": 206,
+        "sites": 945,
+        "refs": 1391
+      }
+    },
+    {
+      "path": "mlflow/store/model_registry/abstract_store.py",
+      "symbol": "AbstractStore",
+      "hash": "sha256:5470eef8d30a21e3ed5ae8f1",
+      "line": 51,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5470eef8d30a21e3ed5ae8f1",
+      "fanout": {
+        "files": 30,
+        "sites": 0,
+        "refs": 67
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/pages/prompts/api.ts",
+      "hash": "sha256:7246d48aa28a6225289ce12b",
+      "missing": false
+    },
+    {
+      "path": "mlflow/tracking/client.py",
+      "symbol": "MlflowClient.register_prompt",
+      "hash": "sha256:9379596bdc252f903a119f59",
+      "line": 640,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9379596bdc252f903a119f59",
+      "fanout": {
+        "files": 24,
+        "sites": 224,
+        "refs": 242
+      }
+    },
+    {
+      "path": "mlflow/store/model_registry/abstract_store.py",
+      "symbol": "AbstractStore.create_prompt_version",
+      "hash": "sha256:75ec9766b2f9f27821be179a",
+      "line": 751,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:75ec9766b2f9f27821be179a",
+      "fanout": {
+        "files": 7,
+        "sites": 20,
+        "refs": 22
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25870"
+  },
+  "created": "2026-10-12T05:36:55.143Z",
+  "verified": "2026-10-12T05:36:55.143Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "model-registry-createmodelversion-for-prompts-source-must-be",
+    "trace-invoke-jobs-issue-detection-genai-evaluate-scorer-trac",
+    "model-registry-createmodelversion-prompt-branch-select-promp",
+    "prompt-cache-load-prompt-promptcache-entries-are-scoped-by-r"
+  ],
+  "says": [
+    "Creating a new prompt version fails immediately with a bad request error.",
+    "The prompt creation screen gives an unexpected four hundred error when saving.",
+    "Saving a prompt template in the interface is rejected by the server.",
+    "Registering prompts from our client application encounters an unexpected validation failure.",
+    "Allow newly added prompt creation clients to save prompt versions successfully."
+  ],
+  "search": "Prompt version creation sends fixed placeholder sources that must match the server allowlist in mlflow/server/handlers.py:_validate_prompt_source. The Python senders import _CLIENT_PROMPT_SOURCE_PLACEHOLDER ('dummy-source') and _STORE_PROMPT_SOURCE_PLACEHOLDER ('prompt-template') from mlflow/prompt/constants.py, which are the only schemeless entries in _PROMPT_SOURCE_PLACEHOLDERS. The UI prompt-creation call in api.ts uses a TypeScript literal that must be synced manually with the allowlist to avoid 400 errors. Remote schemes like s3:// and mlflow-artifacts:/ bypass placeholder validation, and the allowlist applies only to prompt-tagged requests rather than regular model versions.",
+  "saysFor": "s2:ca58fa29b5fe2bb41d0921bbe2b4e057938251f8be26dd827171ee189f013236"
+}

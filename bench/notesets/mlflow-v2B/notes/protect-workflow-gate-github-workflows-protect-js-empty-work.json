@@ -1,0 +1,70 @@
+{
+  "id": "protect-workflow-gate-github-workflows-protect-js-empty-work",
+  "title": "Protect workflow gate (.github/workflows/protect.js): empty workflow-run discovery retries 3 times then fails, never passes on DCO alone",
+  "kind": "rule",
+  "answers": [
+    "Protect passed with only the DCO check green while the MLflow tests workflow was still running",
+    "Why does Protect fail with 'No workflow runs found ... Rerun this job' on a PR?",
+    "How many times does the Protect gate retry an empty workflow-run list and how long does it wait between tries?",
+    "Where is workflow-run discovery handled in the Protect check that gates PR merges?"
+  ],
+  "body": "Path: .github/workflows/protect.js:module.exports is the Protect gate script that polls a PR's check runs and workflow runs at the head SHA until required checks pass. The workflow-run discovery step calls listWorkflowRunsForRepo (paginated, filtered by head_sha) and drops protect.yml, dynamic-event runs and IGNORED_WORKFLOWS before deduplicating to the latest rerun. It is invoked from .github/workflows/protect.yml via actions/github-script.\nRule: When the filtered workflow-run list is empty, re-query up to three times with a 5000 ms sleep between attempts, calling core.warning for each empty attempt. If the third fetch is still empty, throw Error asking for the job to be rerun, so Protect fails closed instead of treating empty discovery as 'no workflows expected'. Pass `core` from protect.yml (`script({ github, context, core })`) so core.warning is available to the script.\nSymptom: Protect went green on the DCO check alone while the MLflow tests workflow for the same SHA was still active, because the workflow-run query briefly returned zero runs.\nConstraints: Covers only the workflow-run discovery step; check-run polling and failure detection are unchanged. Retries happen only when the filtered result is empty; a non-empty result proceeds immediately. Each empty attempt is one paginated list request. The throw is a deliberate fail-closed choice, so a repo that legitimately has no non-ignored workflows for a SHA will also fail here. An existing note recommends core.setFailed and return for this same 'no workflow runs after 3 attempts' case, but the code in this diff throws, so check protect.js before copying either pattern.",
+  "applies": "Edits to workflow-run discovery in .github/workflows/protect.js or the github-script invocation in .github/workflows/protect.yml.",
+  "tags": [
+    "protect",
+    "github-actions",
+    "ci",
+    "workflow-runs",
+    "merge-gate"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/protect.js",
+      "symbol": "IGNORED_WORKFLOWS",
+      "hash": "sha256:a31f258cb06605ac4abbe8f6",
+      "line": 30,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a31f258cb06605ac4abbe8f6",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": ".github/workflows/protect.yml",
+      "symbol": "script",
+      "hash": "sha256:d860466be34b31376cc4b049",
+      "line": 42,
+      "missing": false,
+      "fanout": {
+        "files": 27,
+        "sites": 14,
+        "refs": 88
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26118"
+  },
+  "created": "2026-10-12T05:32:57.838Z",
+  "verified": "2026-10-12T05:32:57.838Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "protect-workflow-check-github-workflows-protect-js-report-ex",
+    "approval-rerun-workflows-workflow-run-workflows-must-name-th"
+  ],
+  "says": [
+    "Pull request protection check passed before test runs even finished executing.",
+    "Pull request merge gate failed with a message asking to rerun the job.",
+    "Require the pull request merge check to wait when test workflows start slowly.",
+    "Merge check turned green on developer certificate while automated tests were still running."
+  ],
+  "search": "The Protect merge gate script in .github/workflows/protect.js polls workflow runs and retries empty discovery results up to three times with a 5000 ms sleep before throwing an error. It passes core from actions/github-script in .github/workflows/protect.yml so core.warning can be logged for empty attempts, preventing Protect from passing prematurely on DCO alone when active test runs are temporarily missing. Applies to workflow-run discovery edits in .github/workflows/protect.js and .github/workflows/protect.yml; check-run polling and failure detection remain unchanged.",
+  "saysFor": "s2:a7d9e9edc2e2ad7e48a648f4a144b7b570347939f924062cb607958083ff8edf"
+}

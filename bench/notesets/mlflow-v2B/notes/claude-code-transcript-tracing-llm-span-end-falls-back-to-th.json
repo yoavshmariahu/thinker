@@ -1,0 +1,73 @@
+{
+  "id": "claude-code-transcript-tracing-llm-span-end-falls-back-to-th",
+  "title": "Claude Code transcript tracing: LLM span end falls back to the last coalesced fragment timestamp plus 1s, and the conversation root end is padded by 1s",
+  "kind": "rule",
+  "answers": [
+    "Claude Code LLM span ends too early or the root span ends before its last LLM span",
+    "Why is the Claude Code trace timeline invalid when the session ends with a progress row?",
+    "How is the end time of a Claude Code LLM span computed?",
+    "Where is the conversation root span end time computed for Claude Code traces?"
+  ],
+  "body": "Path: Timing of LLM and conversation root spans built from Claude Code session transcripts; chokepoints libs/typescript/integrations/claude-code/src/tracing.ts:createLlmAndToolSpans (LLM end time) and processTranscript (conversation end time).\nRule: For an LLM span, the fallback end is the timestamp of the last coalesced entry (lastIdx) plus 1s, not the first fragment's timestamp. The end is the next logical timestamp when present; if the message has tool uses, it is capped at the fallback (Math.min). For processTranscript, a parsed last-entry timestamp is padded by NANOSECONDS_PER_S so terminal progress or metadata rows cannot end the root before a child LLM span.\nSymptom: For a Claude Code turn split across several JSONL entries, the LLM span closed at the first fragment's time while its final content arrived later, and when the transcript ended with a progress row the root conversation span finished before a fallback LLM span, producing an incomplete timeline.\nConstraints: The 1s padding applies only when a timestamp parses; the existing fallback to convStart + 10s still applies when the end is missing or not after start. Do not measure fallback duration from the first fragment.",
+  "applies": "Span timing in the Claude Code transcript tracing path under libs/typescript/integrations/claude-code/; not applicable to other integrations.",
+  "tags": [
+    "tracing",
+    "claude-code",
+    "typescript",
+    "timing",
+    "spans"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/integrations/claude-code/src/tracing.ts",
+      "symbol": "createLlmAndToolSpans",
+      "hash": "sha256:ec612201e7b0abdc001eecc8",
+      "line": 372,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0f6d37862c597201ad2d8f22",
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 4
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/claude-code/src/tracing.ts",
+      "symbol": "processTranscript",
+      "hash": "sha256:4718af474db349227c26be43",
+      "line": 528,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4718af474db349227c26be43",
+      "fanout": {
+        "files": 9,
+        "sites": 55,
+        "refs": 65
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25931"
+  },
+  "created": "2026-10-12T05:30:58.452Z",
+  "verified": "2026-10-12T05:30:58.452Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "typescript-agent-tracing-integrations-trace-user-attribution",
+    "claude-code-transcript-tracing-emit-one-llm-span-per-logical"
+  ],
+  "says": [
+    "The conversation timeline in the trace view ends before the assistant finished generating text.",
+    "Streaming assistant turns show timeline bars that cut off before final output arrives.",
+    "Trace waterfall shows the parent session finishing earlier than its model call.",
+    "Make the overall conversation trace bar include the full duration of model responses.",
+    "Sessions ending on a progress update display truncated timeline bars in traces."
+  ],
+  "search": "Claude Code transcript tracing in libs/typescript/integrations/claude-code/ calculates LLM span end times in createLlmAndToolSpans using the last coalesced entry timestamp plus 1s, capped with Math.min when tool uses exist, and pads root conversation span end times in processTranscript by 1s (NANOSECONDS_PER_S). This prevents root spans from ending before child LLM spans when transcripts terminate on progress or metadata rows, and avoids cutting off turns split across entries. The 1s padding applies only when a timestamp parses, retaining the fallback to convStart + 10s if the end is missing or non-positive. This rule applies strictly to libs/typescript/integrations/claude-code/ and does not apply to other integrations.",
+  "saysFor": "s2:c32bffb8f8efdf9e2b901534e9f2a0de6a0fe96a15a38d81653fa3763db0ff27"
+}

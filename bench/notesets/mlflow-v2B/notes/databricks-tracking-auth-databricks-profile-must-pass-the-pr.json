@@ -1,0 +1,82 @@
+{
+  "id": "databricks-tracking-auth-databricks-profile-must-pass-the-pr",
+  "title": "Databricks tracking auth: databricks://<profile> must pass the profile to the Databricks CLI token call, not authenticate by host",
+  "kind": "rule",
+  "answers": [
+    "Codex tracing set to databricks://<profile> uses the wrong Databricks CLI account when several profiles point at the same workspace",
+    "Where is the Databricks auth provider built from a databricks:// tracking URI?",
+    "Why does the SDK Config get the resolved host when a profile is supplied?"
+  ],
+  "body": "Path: Handles tracking URIs of the form databricks://<profile> and related Databricks host, token and config-path settings when the TypeScript SDK builds its auth provider. createDatabricksAuth in libs/typescript/core/src/auth/index.ts resolves host and profile, then constructs the Databricks SDK Config that fetches tokens.\nRule: Construct the SDK Config with the resolved `host` variable (not the raw options.host) together with `profile`. With @databricks/sdk-experimental 0.18.0 the token fetch runs `databricks auth token --profile <profile>` instead of selecting by `--host`, so the chosen profile wins when several CLI profiles target one workspace host.\nSymptom: A Codex trace configured with databricks://<profile> could authenticate as a different CLI profile that matched the same workspace host.\nConstraints: Covered for databricks-cli auth_type profiles by the 'passes the tracking URI profile to Databricks CLI authentication' test in libs/typescript/core/tests/core/auth.test.ts. Does not change OSS or Kubernetes auth paths.",
+  "applies": "Profile-based Databricks auth in the TypeScript core package (tracking URI databricks://<profile>).",
+  "tags": [
+    "databricks",
+    "auth",
+    "tracing",
+    "typescript",
+    "codex"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/core/src/auth/index.ts",
+      "symbol": "createDatabricksAuth",
+      "hash": "sha256:e55654cf0343f67fd343279d",
+      "line": 217,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e55654cf0343f67fd343279d",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "libs/typescript/core/tests/core/auth.test.ts",
+      "symbol": "host",
+      "hash": "sha256:a9f5325504d3a6c869d35f70",
+      "line": 168,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:44d6a24531fa813f91d1fc56",
+      "fanout": {
+        "files": 69,
+        "sites": 1,
+        "refs": 228
+      }
+    },
+    {
+      "path": "libs/typescript/core/tests/core/auth.test.ts",
+      "symbol": "profile",
+      "hash": "sha256:34e67b0cc74a18b8baa27306",
+      "line": 167,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4cd18adbdce8ad8f98fe4c46",
+      "fanout": {
+        "files": 38,
+        "sites": 1,
+        "refs": 89
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25823"
+  },
+  "created": "2026-10-12T05:31:27.177Z",
+  "verified": "2026-10-12T05:31:27.177Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Codex tracing logs to the wrong account when multiple profiles share the same workspace.",
+    "Traces record under a different user profile despite choosing a specific workspace profile.",
+    "Ensure tracking authentication respects the designated profile rather than matching only by workspace.",
+    "Running Codex tracing with a configured profile sends events to an unintended account."
+  ],
+  "search": "For profile-based Databricks auth in the TypeScript core package, createDatabricksAuth in libs/typescript/core/src/auth/index.ts must construct the Databricks SDK Config using the resolved host variable together with profile so token fetching invokes `databricks auth token --profile <profile>` rather than selecting by `--host`. This prevents a Codex trace configured with a databricks://<profile> tracking URI from authenticating as a different CLI profile that targets the same workspace host. The rule applies to databricks-cli auth_type profiles and is tested in libs/typescript/core/tests/core/auth.test.ts, without changing OSS or Kubernetes auth paths.",
+  "saysFor": "s2:69eec448c9a190aa43a510434776f47633f101e7598b89a58ae596584c8e4780"
+}

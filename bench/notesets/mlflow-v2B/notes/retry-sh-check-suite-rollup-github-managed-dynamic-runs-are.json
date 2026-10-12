@@ -1,0 +1,55 @@
+{
+  "id": "retry-sh-check-suite-rollup-github-managed-dynamic-runs-are",
+  "title": "retry.sh check-suite rollup: GitHub-managed dynamic runs are excluded before pending and retry-budget checks",
+  "kind": "rule",
+  "answers": [
+    "Why are Copilot PR retries skipped even though the CI looks finished?",
+    "Why does a Copilot code review run block the scheduled CI retry for a PR?",
+    "Where are dynamic workflow runs filtered out of the retry decision in retry.sh?"
+  ],
+  "body": "Path: .github/workflows/retry.sh (the paginated GraphQL check-suite query and the jq `suites` rollup) collects check suites for one commit SHA; every pending or failed decision is based on that rollup.\nRule: Drop runs whose workflowRun.event is \"dynamic\" in the suites select, before any status or conclusion check. GitHub-managed dynamic runs (Copilot coding-agent and Copilot review) use the same github-actions app as normal CI, so they must not count as pending or as retryable failures.\nSymptom: A Copilot PR was never retried because a pending Copilot review or coding-agent run looked like in-progress CI, or a failed dynamic run was rerun on every scheduled attempt and failed each time.\nConstraints: Only github-actions app runs in the rollup are affected; ordinary pending workflow runs still block retries. Verified that pending and failed dynamic runs are ignored while other pending checks still skip the commit.",
+  "applies": "Scope: check-suite selection in .github/workflows/retry.sh; not the Protect workflow's own handling of dynamic runs.",
+  "tags": [
+    "ci",
+    "retry",
+    "copilot",
+    "dynamic-runs",
+    "github-actions"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/retry.sh",
+      "symbol": "suites",
+      "hash": "sha256:15eb7d4fbc98cd5f6a123682",
+      "line": 61,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26020"
+  },
+  "created": "2026-10-12T05:34:57.492Z",
+  "verified": "2026-10-12T05:34:57.492Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "retry-sh-rerun-notices-link-to-the-failed-run-attempt-attemp",
+    "retry-sh-rollup-keep-only-the-latest-run-per-workflow-and-ev"
+  ],
+  "says": [
+    "Pull request automated retries are stalled because Copilot code review checks appear stuck in progress.",
+    "Scheduled test retries keep repeatedly triggering on failed Copilot agent runs.",
+    "Ensure pending Copilot review runs do not prevent automated retries of failed pull request checks.",
+    "Our pull request checks never automatically retry after normal build failures when Copilot is active."
+  ],
+  "search": "Filtering check suites in .github/workflows/retry.sh requires dropping workflow runs where workflowRun.event is dynamic before checking status, conclusions, or retry budgets. This prevents GitHub-managed dynamic runs from Copilot coding-agent and Copilot review from being treated as pending CI or retryable failures in the jq suites rollup. The rule applies exclusively to github-actions app runs in the retry script check-suite rollup, while ordinary pending workflows continue to block retries.",
+  "saysFor": "s2:cf9ae9c4693809e18b5bfd6cba9eb0ccc17a3fb093fa8fcb8f2814aa8b2fe8ac"
+}

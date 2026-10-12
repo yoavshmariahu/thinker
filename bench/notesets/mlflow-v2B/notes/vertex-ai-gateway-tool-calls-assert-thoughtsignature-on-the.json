@@ -1,0 +1,72 @@
+{
+  "id": "vertex-ai-gateway-tool-calls-assert-thoughtsignature-on-the",
+  "title": "Vertex AI gateway tool calls: assert thoughtSignature on the Part, not on functionCall",
+  "kind": "rule",
+  "answers": [
+    "Vertex AI tool-call requests through the gateway are missing the thought signature in the request body",
+    "How do I test that a Vertex AI function call keeps its thoughtSignature?",
+    "Where is the Vertex AI tool-calling thought signature test?",
+    "Why did the Vertex AI thought-signature test fail after the Gemini placement fix?"
+  ],
+  "body": "Path: Vertex AI chat requests through the AI Gateway that include assistant tool_calls with a thought signature; the request `contents` are built by the shared Gemini conversion, tested in tests/gateway/providers/test_vertex_ai.py:test_chat_tool_calling_preserves_thought_signature.\nRule: When checking a Gemini-format `functionCall` part in a request body, find the enclosing part (the dict that contains the `functionCall` key) and assert `thoughtSignature` on that part, and assert it is absent from the `functionCall` dict itself. Do not index `thoughtSignature` off the `functionCall` value.\nSymptom: The Vertex AI test asserted the signature nested in `functionCall`, which blocked an earlier fix attempt (#25806) that correctly moved the signature to the Part level.\nConstraints: Applies to test assertions on request bodies built by the Gemini conversion. Response-side tests use the same Part-level shape with a nested fallback.",
+  "applies": "Tests of Vertex AI / Gemini request bodies that carry thought signatures in the gateway providers.",
+  "tags": [
+    "gateway",
+    "vertex-ai",
+    "tests",
+    "thought-signature"
+  ],
+  "deps": [
+    {
+      "path": "tests/gateway/providers/test_vertex_ai.py",
+      "symbol": "test_chat_tool_calling_preserves_thought_signature",
+      "hash": "sha256:c58180c61333ca6b0ae4001e",
+      "line": 268,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c58180c61333ca6b0ae4001e",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/gemini.py",
+      "symbol": "GeminiAdapter.chat_to_model",
+      "hash": "sha256:df37a4b2cd50c08f0c00369c",
+      "line": 108,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:df37a4b2cd50c08f0c00369c",
+      "fanout": {
+        "files": 21,
+        "sites": 47,
+        "refs": 51
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25865"
+  },
+  "created": "2026-10-12T05:31:08.393Z",
+  "verified": "2026-10-12T05:31:08.393Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "gemini-ai-gateway-tool-calls-thoughtsignature-is-a-sibling-o",
+    "gemini-ai-gateway-request-conversion-parallel-tool-results-g",
+    "gemini-ai-gateway-tool-result-conversion-geminiadapter-chat"
+  ],
+  "says": [
+    "Gateway chat requests with tool calls are missing thought signatures in Vertex AI.",
+    "Model reasoning signatures are lost when forwarding assistant tool calls through the gateway.",
+    "Preserve assistant thinking signatures across multi-turn tool calling chats on Google Cloud.",
+    "Function call requests sent to Vertex AI drop the assistant model thinking signature."
+  ],
+  "search": "When testing Vertex AI chat tool calling in the gateway, assert thoughtSignature on the enclosing part dictionary that contains functionCall, and assert it is absent from the functionCall dict itself. Do not index thoughtSignature directly off the functionCall value. This applies to test assertions on request bodies built by GeminiAdapter.chat_to_model in tests/gateway/providers/test_vertex_ai.py:test_chat_tool_calling_preserves_thought_signature, while response tests use the Part-level shape with a nested fallback.",
+  "saysFor": "s2:b3cb7a7c198e9379010d82d03fd44fc8e1735e87dba7c2de3fccb354ce6d19c6"
+}

@@ -1,0 +1,47 @@
+{
+  "id": "ui-preview-workflow-pr-comment-only-the-finalize-job-writes",
+  "title": "UI Preview workflow PR comment: only the finalize job writes the terminal success or failure comment, and only after notify, build and deploy finish",
+  "kind": "rule",
+  "answers": [
+    "The UI Preview comment on a PR is stuck at 'Building and deploying' after the deployment failed. Why?",
+    "Where do I change the URL, Commit or Run rows shown in the UI Preview PR comment?",
+    "Why doesn't the UI Preview comment get updated on push events or canceled runs?",
+    "Which job creates or updates the UI Preview comment on a pull request?"
+  ],
+  "body": "Path: .github/workflows/ui-preview.yml job `finalize`, the only job that creates or PATCHes the sticky \"UI Preview\" PR comment (found by COMMENT_MARKER) for non-push runs. It shows the app URL, commit and workflow-run link for the success state, and N/A plus a failure message for the failed state.\nRule: Keep a single terminal writer. `finalize` has `needs: [notify, build, deploy]` and runs under `always() && !cancelled()`, so it sees the final result of every job and cannot race them. The deployed URL is exported by `deploy` as `outputs.app-url` and read as `needs.deploy.outputs.app-url`. The find-then-PATCH-or-create step stays inside `finalize`. The `deploy` job has `permissions: {}`, and `pull-requests: write` is granted only to `finalize`.\nSymptom: The UI Preview PR comment stayed at 'Building and deploying…' after a failed deployment. A fast build failure let `notify` and a separate comment step both see that no marker comment existed, so both created one, and the in-progress one could be the last written.\nConstraints: `finalize` runs only when deploy succeeded, build failed, or deploy failed. It is skipped for `push` events and for canceled runs, and it does not write a comment for those. A new job that writes this comment should be added to the `needs` list of `finalize` instead of posting its own comment. Keep the URL, Commit and Run rows identical across in-progress, success and failure states.",
+  "applies": "Changes to the UI Preview GitHub Actions workflow that post, update or finalize the preview comment on a pull request.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "ui-preview",
+    "pr-comment",
+    "workflow"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/ui-preview.yml",
+      "hash": "sha256:231aeeccebd617f225528a1a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25674"
+  },
+  "created": "2026-10-12T05:46:36.956Z",
+  "verified": "2026-10-12T05:46:36.956Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The preview comment on the pull request is stuck on building and deploying after failure.",
+    "The automated pull request comment never updates with the failure explanation when deployment fails.",
+    "Two conflicting status comments appeared on the pull request for the same preview run.",
+    "Update the sticky preview comment with the app link once the deployment succeeds.",
+    "Show consistent status rows for the preview link, commit, and workflow run on comments."
+  ],
+  "search": "In .github/workflows/ui-preview.yml, the finalize job is the sole job authorized to create or PATCH the sticky UI Preview pull request comment (identified by COMMENT_MARKER) for non-push runs. Running under needs: [notify, build, deploy] with if: always() && !cancelled(), finalize consumes outputs.app-url from deploy to post success links or failure messages, preventing race conditions that leave comments stuck in 'Building and deploying'. The finalize job holds exclusive pull-requests: write permissions while deploy has empty permissions, and it skips execution without writing comments on push events or canceled runs. Any additional job modifying preview status must be added to finalize's needs dependencies rather than posting directly, maintaining identical URL, Commit, and Run rows across all states.",
+  "saysFor": "s2:a0eb291ddde1647880ea004ba7fa9ce0e5807442ae1d2381f2dcc464248a9f58"
+}

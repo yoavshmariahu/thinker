@@ -1,0 +1,66 @@
+{
+  "id": "tests-db-check-migration-run-pre-migration-with-latest-pypi",
+  "title": "tests/db check_migration: run pre-migration with latest PyPI mlflow via isolated uv run and a locked requirements export",
+  "kind": "howto",
+  "answers": [
+    "How does the database migration check compare the PyPI mlflow release against the repo's mlflow?",
+    "Why does check_migration.sh use uv export and uv run --isolated --no-project?",
+    "How do I run the pre-migration step of the DB migration test locally?",
+    "Where is the schema migration check that runs mlflow db upgrade in CI?"
+  ],
+  "body": "Path: tests/db/check_migration.sh drives the database migration check: `python check_migration.py pre-migration` (created with the latest mlflow from PyPI) and `python check_migration.py post-migration` run after `mlflow db upgrade $MLFLOW_TRACKING_URI` using the repository's mlflow.\nRule: To run the old-version step without touching the project env, export the locked set first: `uv export --locked --no-default-groups --extra db --group db-test --no-emit-workspace --no-hashes --output-file $locked`, then `uv run --isolated --no-project --with mlflow --with-requirements $locked python check_migration.py pre-migration`. Run the post-migration steps with `uv run --no-sync` so they use the synced project venv.\nConstraints: `--isolated` and `--no-project` are required so the repo's pyproject does not leak into the PyPI-mlflow run; `--no-sync` keeps uv from re-syncing the venv that tests/db/entrypoint.sh created. The export must use the same groups and extras as entrypoint.sh or the two environments will drift.",
+  "applies": "Database migration check in tests/db; the pre-migration step needs network access to PyPI.",
+  "tags": [
+    "tests",
+    "database",
+    "migration",
+    "uv",
+    "howto"
+  ],
+  "deps": [
+    {
+      "path": "tests/db/check_migration.sh",
+      "hash": "sha256:6bd7b4e41c3fa587548bd54b",
+      "missing": false
+    },
+    {
+      "path": "tests/db/entrypoint.sh",
+      "hash": "sha256:c8272ad3a3b7c4d9410bed19",
+      "missing": false
+    },
+    {
+      "path": "tests/db/check_migration.py",
+      "symbol": "MLFLOW_TRACKING_URI",
+      "hash": "sha256:3e45e1ec796136f027ef8c62",
+      "line": 4,
+      "missing": false,
+      "fanout": {
+        "files": 94,
+        "sites": 0,
+        "refs": 210
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26168"
+  },
+  "created": "2026-10-12T05:29:26.132Z",
+  "verified": "2026-10-12T05:29:26.132Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "tests-db-ci-scripts-keep-shell-tracing-off-and-uv-quiet-so-t"
+  ],
+  "says": [
+    "Upgrading the backend tracking database schema from the previous release fails.",
+    "Make sure existing tracking databases upgrade seamlessly without data loss or corruption.",
+    "The tracking server crashes after running database upgrade against our existing store.",
+    "Verify that database migrations are backward compatible with the latest public version.",
+    "Upgrading to the newest server release breaks schema compatibility with older databases."
+  ],
+  "search": "Database migration checks in tests/db/check_migration.sh test upgrades from the latest PyPI release by running pre-migration with an isolated uv run against a locked requirements export. The script exports dependencies using uv export with locked, db extra, and db-test group flags, executes python check_migration.py pre-migration using uv run --isolated --no-project, runs mlflow db upgrade, and executes post-migration using uv run --no-sync. This task applies to database migration testing requiring PyPI network access, where isolation prevents repository pyproject leakage into the PyPI run and locked requirements must match entrypoint.sh to prevent environment drift.",
+  "saysFor": "s2:f1f4aac50b6cf1cd0d32fc8482b73f05ab0f54714d8a133f1907a3e0e64c762a"
+}

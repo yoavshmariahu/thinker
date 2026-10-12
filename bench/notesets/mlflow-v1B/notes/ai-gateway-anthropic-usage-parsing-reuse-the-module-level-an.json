@@ -1,0 +1,87 @@
+{
+  "id": "ai-gateway-anthropic-usage-parsing-reuse-the-module-level-an",
+  "title": "AI Gateway Anthropic usage parsing: reuse the module-level Anthropic usage helpers for any passthrough that returns Anthropic bodies unchanged",
+  "kind": "rule",
+  "answers": [
+    "Why do gateway traces show blank input and output tokens and no cost for Claude on Bedrock?",
+    "How is Anthropic token usage parsed for streaming chunks in the gateway, and where is that code?",
+    "Where should a new provider get usage extraction if it proxies Anthropic Messages responses?",
+    "Why does Anthropic input_tokens get normalized to include cache tokens in the gateway?"
+  ],
+  "body": "Path: Token usage extraction for the Anthropic Messages passthrough, both the unary response body and streaming SSE chunks, lives in mlflow/gateway/providers/anthropic.py. It is used by AnthropicProvider and by AmazonBedrockProvider for Claude models, and the result feeds the span's token counts and cost on gateway traces.\nRule: Use the module-level helpers _extract_anthropic_passthrough_token_usage and _extract_anthropic_streaming_token_usage as the one parser for Anthropic usage. They normalize input_tokens to include cache tokens. A provider whose passthrough returns Anthropic bodies or events unchanged should delegate its _extract_passthrough_token_usage and _extract_streaming_token_usage overrides to these helpers instead of reimplementing the parsing.\nSymptom: If a passthrough skips usage extraction, the span gets no usage, so the trace shows blank tokens and cost for the call.\nConstraints: Applies only when the upstream response shape is Anthropic's. Bedrock InvokeModel qualifies, since it returns Anthropic response bodies and stream events unchanged. Do not use these helpers for OpenAI-shaped or Gemini responses.",
+  "applies": "Usage and cost extraction for Anthropic-format responses in AI Gateway providers, including Bedrock Claude passthrough; not for other provider response formats.",
+  "tags": [
+    "gateway",
+    "tracing",
+    "token-usage",
+    "anthropic",
+    "bedrock"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/anthropic.py",
+      "symbol": "_extract_anthropic_passthrough_token_usage",
+      "hash": "sha256:0230e64d648d518c5927fa43",
+      "line": 76,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0230e64d648d518c5927fa43",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/anthropic.py",
+      "symbol": "_extract_anthropic_streaming_token_usage",
+      "hash": "sha256:323c84d4cfcfda5d5f098029",
+      "line": 100,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:323c84d4cfcfda5d5f098029",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/bedrock.py",
+      "symbol": "AmazonBedrockProvider._extract_passthrough_token_usage",
+      "hash": "sha256:9ca9d47dc1dcb73dd9176318",
+      "line": 844,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9ca9d47dc1dcb73dd9176318",
+      "fanout": {
+        "files": 8,
+        "sites": 25,
+        "refs": 25
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25863"
+  },
+  "created": "2026-10-12T05:44:10.642Z",
+  "verified": "2026-10-12T05:44:10.642Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "ai-gateway-bedrock-streaming-passthrough-aws-event-stream-ex",
+    "ai-gateway-anthropic-messages-passthrough-on-amazon-bedrock",
+    "bedrock-completions-adapters-top-k-is-deliberately-left-unma",
+    "bedrock-titan-and-ai21-jurassic-completions-request-body-top"
+  ],
+  "says": [
+    "Gateway traces show blank input and output tokens and no cost for Claude on Bedrock",
+    "Token usage and cost missing from AI Gateway traces for Anthropic models served through Bedrock",
+    "Streaming Claude responses through the gateway show no token counts on the trace span"
+  ],
+  "search": "AI Gateway Anthropic usage parsing: reuse the shared module-level Anthropic usage helpers for unary and streaming passthrough responses that return Anthropic bodies unchanged, so span token counts and cost are filled. Those helpers normalize input_tokens to include cache tokens; do not use them for OpenAI-shaped or Gemini responses.",
+  "saysFor": "s2:9226ee6c52c2bfe8d156fd146570c6ded917aa720726ba82ca40bffb78dcdc58"
+}

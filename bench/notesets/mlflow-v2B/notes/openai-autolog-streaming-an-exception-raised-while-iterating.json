@@ -1,0 +1,71 @@
+{
+  "id": "openai-autolog-streaming-an-exception-raised-while-iterating",
+  "title": "OpenAI autolog streaming: an exception raised while iterating a stream must end the span with ERROR status before re-raising",
+  "kind": "rule",
+  "answers": [
+    "Why is my OpenAI streaming trace missing when the stream fails partway through?",
+    "An OpenAI stream raised APIError after some chunks under mlflow.openai.autolog(); why was no trace exported?",
+    "Where is the OpenAI streaming chunk-logging hook, and how does it end the span?",
+    "Does breaking out of an OpenAI stream early also end the autolog span?"
+  ],
+  "body": "Path: mlflow/openai/autolog.py:_stream_output_logging_hook wraps the iterator returned for stream=True calls (chat completions and Responses API, sync and async clients). It adds one chunk event per chunk, collects output, and ends the span after the last chunk; server error events and network errors raised during iteration pass through it.\nRule: Wrap the iteration loop in try/except Exception and call _end_span_on_exception(span, e) before re-raising, so the span gets an exception event and ERROR status and the trace is exported. The success path still calls _process_last_chunk unchanged. Non-streaming calls already get this from patched_call / async_patched_call via _end_span_on_exception.\nSymptom: When a stream raised after some chunks (for example an overload or content-filter error event), the user saw the OpenAI APIError but no trace was logged for the root-level call, and the trace stayed in InMemoryTraceManager until it timed out.\nConstraints: Catches Exception only, so GeneratorExit from break or close() is not caught and that early-stop path is unchanged. Applies only to streaming calls under autolog; non-streaming paths are not affected by this hook.",
+  "applies": "Streaming responses from OpenAI chat completions and Responses API when mlflow.openai.autolog() is enabled.",
+  "tags": [
+    "openai",
+    "autolog",
+    "streaming",
+    "tracing",
+    "error-handling"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/openai/autolog.py",
+      "symbol": "_stream_output_logging_hook",
+      "hash": "sha256:80def39bcaacc0fecf39ddfb",
+      "line": 345,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:80def39bcaacc0fecf39ddfb",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/openai/autolog.py",
+      "symbol": "_end_span_on_exception",
+      "hash": "sha256:ffbe6455a0304d28bc7681fc",
+      "line": 535,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ffbe6455a0304d28bc7681fc",
+      "fanout": {
+        "files": 1,
+        "sites": 4,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26305"
+  },
+  "created": "2026-10-12T05:31:19.925Z",
+  "verified": "2026-10-12T05:31:19.925Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "openai-autolog-streaming-a-stream-that-yields-zero-chunks-mu"
+  ],
+  "says": [
+    "Streaming chat requests that fail mid-stream leave no trace in the tracking dashboard.",
+    "Traces should be recorded with error status when a streaming response fails midway.",
+    "Missing trace logs when an AI stream encounters a server error during generation.",
+    "Failed streaming completions never appear in the trace list when interrupted by errors."
+  ],
+  "search": "In mlflow/openai/autolog.py:_stream_output_logging_hook, stream iteration loops must be wrapped in try/except Exception to call _end_span_on_exception before re-raising so the span records an exception event and ERROR status. This applies to sync and async streaming responses from OpenAI chat completions and Responses API under autolog. The hook catches Exception only, leaving GeneratorExit from early termination unhandled, and does not alter non-streaming calls.",
+  "saysFor": "s2:7972fccb469c87b564b877dd45005a56acdb501f096a364b697691bf6ed8b1ec"
+}

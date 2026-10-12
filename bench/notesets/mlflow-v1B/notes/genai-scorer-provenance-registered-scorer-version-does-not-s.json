@@ -1,0 +1,165 @@
+{
+  "id": "genai-scorer-provenance-registered-scorer-version-does-not-s",
+  "title": "genai scorer provenance: registered scorer_version does not survive serialization, so async scorer and evaluate jobs must pass it as a separate parameter",
+  "kind": "rule",
+  "answers": [
+    "Assessments from the UI scorer invoke or async evaluate run are missing scorerName and scorerVersion metadata",
+    "Why does a registered scorer's version come back as None after it runs as a background job?",
+    "Where is the scorer version restored for online monitoring or trace-level scoring jobs?",
+    "How do I add another field to the scorer/invoke or genai/evaluate/invoke job payload?"
+  ],
+  "body": "Path: Background scorer execution that rebuilds a Scorer from a stored JSON payload: mlflow/genai/scorers/job.py:invoke_scorer_job (scorer/invoke trace scoring), mlflow/genai/evaluation/job.py:invoke_genai_evaluate_job (genai/evaluate/invoke), and the online run_online_trace_scorer_job / run_online_session_scorer_job, which feed mlflow/genai/scorers/online/sampler.py. Handler entry points are mlflow/server/handlers.py:_invoke_scorer_handler and _invoke_genai_evaluate_handler.\nRule: Scorer.scorer_version is a PrivateAttr left out of model_dump, so Scorer.model_validate_json never restores it. Send the registered version as its own job param (scorer_version / scorer_versions, parallel to serialized_scorers) and reapply it with Scorer._set_registration_metadata(..., scorer_version=...) after deserializing. The handlers resolve the stored scorer with tracking_store.get_scorer(experiment_id, name, version) and submit that record's canonical serialized_scorer together with the resolved scorer_version, not the client's copy.\nSymptom: Assessments produced by the UI-triggered async scorer or evaluate runs carried no mlflow.assessment.scorerName / scorerVersion, even though the same scorer run synchronously recorded them.\nConstraints: Only applies when a version is set; unregistered scorers pass None and get no provenance. scorer_versions must match serialized_scorers in length (rejected with INVALID_PARAMETER_VALUE in the handler and in the job). Trace-level and online paths both need this; the job itself does not look up the store.",
+  "applies": "Any async/background job that rebuilds a Scorer from serialized JSON and must keep registered provenance; scorer/invoke, genai/evaluate/invoke and online monitoring.",
+  "tags": [
+    "genai",
+    "scorers",
+    "assessments",
+    "provenance",
+    "jobs",
+    "online-monitoring"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "Scorer._set_registration_metadata",
+      "hash": "sha256:1225e611dd2caa6264593005",
+      "line": 382,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1225e611dd2caa6264593005",
+      "fanout": {
+        "files": 6,
+        "sites": 9,
+        "refs": 12
+      }
+    },
+    {
+      "path": "mlflow/genai/scorers/job.py",
+      "symbol": "invoke_scorer_job",
+      "hash": "sha256:3ca50051fb034d5408f13485",
+      "line": 142,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3ca50051fb034d5408f13485",
+      "fanout": {
+        "files": 5,
+        "sites": 1,
+        "refs": 7
+      }
+    },
+    {
+      "path": "mlflow/genai/evaluation/job.py",
+      "symbol": "invoke_genai_evaluate_job",
+      "hash": "sha256:bf0d4f21482efab8e97f5e44",
+      "line": 25,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:bf0d4f21482efab8e97f5e44",
+      "fanout": {
+        "files": 4,
+        "sites": 7,
+        "refs": 14
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_invoke_scorer_handler",
+      "hash": "sha256:c5b87a0afdd493819e5e41c0",
+      "line": 7401,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c5b87a0afdd493819e5e41c0",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_invoke_genai_evaluate_handler",
+      "hash": "sha256:4027add5566dfd6ac9aa3bfb",
+      "line": 5491,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4027add5566dfd6ac9aa3bfb",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/genai/scorers/online/sampler.py",
+      "symbol": "scorer_version",
+      "hash": "sha256:d2bce59300c1e967f092eb18",
+      "line": 39,
+      "missing": false,
+      "fanout": {
+        "files": 36,
+        "sites": 1,
+        "refs": 279
+      }
+    },
+    {
+      "path": "mlflow/genai/scorers/online/sampler.py",
+      "symbol": "experiment_id",
+      "hash": "sha256:20a6dd8b90b7608bcc4d4dcf",
+      "line": 34,
+      "missing": false,
+      "fanout": {
+        "files": 158,
+        "sites": 7,
+        "refs": 1987
+      }
+    },
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "Scorer.scorer_version",
+      "hash": "sha256:1e3e14c533ad96a2bd0eec29",
+      "line": 368,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1e3e14c533ad96a2bd0eec29",
+      "fanout": {
+        "files": 36,
+        "sites": 1,
+        "refs": 279
+      }
+    },
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "Scorer.model_validate_json",
+      "hash": "sha256:e1265a3ded04cbc6e07874c0",
+      "line": 688,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e1265a3ded04cbc6e07874c0"
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25570"
+  },
+  "created": "2026-10-12T05:48:37.949Z",
+  "verified": "2026-10-12T05:48:37.949Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "scorer-register-invoke-evaluate-payloads-validate-every-seri",
+    "invoke-endpoints-trace-ids-input-contract-reject-empty-lists",
+    "genai-scorer-serialization-a-new-persisted-timeout-field-mus",
+    "scorer-registry-hydration-register-get-and-list-must-set-sco"
+  ],
+  "says": [
+    "Assessments created by background evaluation jobs are missing scorer name and version tags.",
+    "Running an evaluator asynchronously from the UI drops the judge version on results.",
+    "Asynchronous scoring runs should record the same evaluator version metadata as synchronous runs.",
+    "Online trace monitoring jobs generate assessment scores with empty scorer version labels.",
+    "Preserve the registered scorer version when launching evaluation tasks in the background."
+  ],
+  "search": "Because `Scorer.scorer_version` is a private attribute omitted during JSON serialization, asynchronous evaluation and scorer background jobs must transmit `scorer_version` or `scorer_versions` as an explicit job parameter and restore it with `Scorer._set_registration_metadata` after deserialization. Route handlers `_invoke_scorer_handler` and `_invoke_genai_evaluate_handler` resolve canonical scorers via `tracking_store.get_scorer` and submit the stored record's serialized payload alongside the resolved version. This mechanism applies to `invoke_scorer_job`, `invoke_genai_evaluate_job`, and online monitoring jobs (`run_online_trace_scorer_job`, `run_online_session_scorer_job`). Unregistered scorers pass `None`, and the length of `scorer_versions` must match `serialized_scorers` or the job is rejected with `INVALID_PARAMETER_VALUE`.",
+  "saysFor": "s2:2e85bb2541f9991729b12b5054b2eb17b2d239b417ddd2a4d1e7669a762fb31d"
+}

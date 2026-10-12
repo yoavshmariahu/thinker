@@ -1,0 +1,72 @@
+{
+  "id": "azure-blob-multipart-upload-delegation-key-request-only-403",
+  "title": "Azure Blob multipart upload delegation-key request: only 403 AuthorizationPermissionMismatch falls back to proxied upload, other Azure errors propagate",
+  "kind": "rule",
+  "answers": [
+    "Why did my Azure artifact upload silently go through the MLflow proxy instead of showing an authentication error?",
+    "Which Azure errors make a multipart artifact upload fall back to proxied upload?",
+    "Azure 403 AuthorizationFailure when logging artifacts with DefaultAzureCredential: where is it handled?",
+    "Where does MLflow request the user delegation key for Azure artifact uploads?"
+  ],
+  "body": "Path: The user-delegation-key request inside Azure Blob multipart upload setup, which runs when a token-credential client uploads an artifact in blocks. The chokepoint is mlflow/store/artifact/azure_blob_artifact_repo.py:AzureBlobArtifactRepository.create_multipart_upload, where HttpResponseError from get_user_delegation_key is classified and then either converted to the fallback exception or re-raised.\nRule: Convert an azure.core HttpResponseError into _UnsupportedMultipartUploadException (raised `from e`) only when status_code == 403 and error_code == \"AuthorizationPermissionMismatch\", which is the RBAC case where the identity lacks permission to request a delegation key. Re-raise every other HttpResponseError unchanged. Do not match on status code alone: Azure also returns 403 for AuthenticationFailed and AuthorizationFailure, and a broad match hides those failures behind the proxy fallback.\nSymptom: Before the fix, a broad 403 match would have converted authentication, account, and network-policy failures into the proxied-upload fallback, so the upload would proceed through the proxy and the real Azure error would never reach the user.\nConstraints: Throttling (429), transient Azure failures, and authentication failures must still propagate to the caller. The fallback exception is only meant for the ordinary proxied-upload path, so keep it narrow whenever a new Azure error code is considered for fallback.",
+  "applies": "Error handling for Azure Blob multipart upload setup, specifically which Azure responses from the delegation-key request trigger the proxied-upload fallback.",
+  "tags": [
+    "azure",
+    "artifacts",
+    "error-handling",
+    "rbac",
+    "authentication"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/artifact/azure_blob_artifact_repo.py",
+      "symbol": "AzureBlobArtifactRepository.create_multipart_upload",
+      "hash": "sha256:2cdfc0e77094544a836775b4",
+      "line": 239,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2cdfc0e77094544a836775b4",
+      "fanout": {
+        "files": 9,
+        "sites": 16,
+        "refs": 33
+      }
+    },
+    {
+      "path": "mlflow/exceptions.py",
+      "symbol": "_UnsupportedMultipartUploadException",
+      "hash": "sha256:da99b885881cbb95396cc12b",
+      "line": 216,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:da99b885881cbb95396cc12b",
+      "fanout": {
+        "files": 5,
+        "sites": 5,
+        "refs": 16
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26031"
+  },
+  "created": "2026-10-12T05:30:19.161Z",
+  "verified": "2026-10-12T05:30:19.161Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "azure-blob-artifact-multipart-upload-token-credentials-defau"
+  ],
+  "says": [
+    "Azure authentication failures are hidden because large artifact uploads silently switch to proxy.",
+    "Surface actual Azure permission errors instead of silently routing uploads through proxy.",
+    "Invalid credentials cause slow proxied uploads instead of showing the Azure access error.",
+    "Report network policy rejections immediately when uploading model artifacts to Azure storage.",
+    "Users cannot diagnose Azure authorization problems because upload error messages are suppressed."
+  ],
+  "search": "During Azure Blob multipart upload setup in `AzureBlobArtifactRepository.create_multipart_upload`, `HttpResponseError` from `get_user_delegation_key` is converted to `_UnsupportedMultipartUploadException` only when status is 403 and error code is `AuthorizationPermissionMismatch`. All other HTTP errors, including 403 status for `AuthenticationFailed` and `AuthorizationFailure`, are re-raised unchanged so underlying authentication, account, and network-policy errors do not silently trigger the proxy fallback. Transient errors, throttling (429), and authentication failures must propagate to the caller.",
+  "saysFor": "s2:ab621b3ac35157c6d2cfac51987dd1f8bd9e06cbac4152e18d624da06b4dd649"
+}

@@ -1,0 +1,87 @@
+{
+  "id": "ai-gateway-amazon-bedrock-anthropic-messages-streaming-aws-e",
+  "title": "AI Gateway Amazon Bedrock Anthropic Messages streaming: AWS event-stream frames are re-emitted as Anthropic SSE, with mid-stream errors mapped to HTTP status",
+  "kind": "rule",
+  "answers": [
+    "Why is streaming on the Bedrock Anthropic Messages passthrough not valid SSE?",
+    "What HTTP status does a throttling error mid-stream from Bedrock produce on the gateway?",
+    "Why does the Bedrock streaming passthrough need boto3 installed?",
+    "Where are Bedrock event stream frames converted to Anthropic server-sent events?"
+  ],
+  "body": "Path: Streaming (`stream: true`) Anthropic Messages requests on a Bedrock Claude endpoint. `mlflow/gateway/providers/bedrock.py:_event_stream_to_anthropic_sse` reads Bedrock's InvokeModelWithResponseStream body, which uses the AWS event stream binary framing, and yields SSE to the client and to usage/trace aggregation.\nRule: Decode frames with botocore's `EventStreamBuffer`. Each `chunk` frame carries a base64 JSON `bytes` field holding one Anthropic event; re-emit it as `event: <type>\\ndata: <json>\\n\\n`. An exception frame raises `HTTPException` with the status from `_BEDROCK_STREAM_EXCEPTION_STATUS` (`throttlingException` 429, `serviceUnavailableException` 503, `modelTimeoutException` 408, anything else 502), the same way `send_stream_request` reports pre-first-frame errors, so `safe_stream` writes that status into the SSE error chunk. The stream is requested at the invoke path plus `-with-response-stream`. Missing botocore raises an ImportError with a `pip install boto3` hint.\nSymptom: none recorded as a user-facing bug; the change exists so that Anthropic clients receive parseable SSE and the gateway can record usage and traces from the stream.\nConstraints: Applies only to the streaming branch of `_passthrough`; unary requests use `send_request` and are not decoded this way. Frames can arrive split at arbitrary byte offsets, which `EventStreamBuffer` handles.",
+  "applies": "Streaming Anthropic Messages passthrough on Amazon Bedrock; not for Bedrock streams from other model families or the converse/invoke_model_with_response_stream code paths.",
+  "tags": [
+    "ai-gateway",
+    "bedrock",
+    "streaming",
+    "sse",
+    "event-stream",
+    "anthropic",
+    "error-status"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/bedrock.py",
+      "symbol": "_event_stream_to_anthropic_sse",
+      "hash": "sha256:6a914e52d652128a8d052bf9",
+      "line": 47,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6a914e52d652128a8d052bf9",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/bedrock.py",
+      "symbol": "_BEDROCK_STREAM_EXCEPTION_STATUS",
+      "hash": "sha256:3f83bda8db56195a4c8610cd",
+      "line": 40,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/utils.py",
+      "symbol": "send_stream_request",
+      "hash": "sha256:7ca0d1b8c43b1278d3d57a78",
+      "line": 179,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7ca0d1b8c43b1278d3d57a78",
+      "fanout": {
+        "files": 13,
+        "sites": 20,
+        "refs": 38
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25863"
+  },
+  "created": "2026-10-12T05:37:15.556Z",
+  "verified": "2026-10-12T05:37:15.556Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "ai-gateway-upstream-error-detail-streaming-and-proxy-request",
+    "ai-gateway-amazon-bedrock-anthropic-messages-passthrough-bui",
+    "ai-gateway-bedrock-passthrough-token-usage-reuse-the-anthrop"
+  ],
+  "says": [
+    "Streaming responses from Bedrock Claude endpoints should return valid server-sent events to clients.",
+    "Translate Bedrock mid-stream throttling exceptions into standard HTTP 429 error messages in the stream.",
+    "Streaming requests to Bedrock Claude models fail because client applications cannot parse the response.",
+    "Ensure streaming Bedrock Claude calls record token usage and traces on the gateway."
+  ],
+  "search": "Streaming Anthropic Messages passthrough requests on Amazon Bedrock Claude endpoints are decoded by mlflow/gateway/providers/bedrock.py:_event_stream_to_anthropic_sse from InvokeModelWithResponseStream AWS event-stream frames into Anthropic SSE using botocore's EventStreamBuffer. Base64 JSON chunk frames are re-emitted as SSE events, while exception frames raise HTTPException mapped via _BEDROCK_STREAM_EXCEPTION_STATUS (throttlingException to 429, serviceUnavailableException to 503, modelTimeoutException to 408, others to 502) for safe_stream. Streams are requested at the invoke path plus -with-response-stream, and missing botocore raises an ImportError suggesting pip install boto3. Applies only to the streaming branch of _passthrough for Claude models, whereas unary requests use send_request.",
+  "saysFor": "s2:6bf2148afbe3546f925245f20ba47abce0840790226e0eaa88a5bb3632c59c9a"
+}

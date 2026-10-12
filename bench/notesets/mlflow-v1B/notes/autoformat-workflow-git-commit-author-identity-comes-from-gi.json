@@ -1,0 +1,53 @@
+{
+  "id": "autoformat-workflow-git-commit-author-identity-comes-from-gi",
+  "title": "autoformat workflow: git commit author identity comes from github.event.issue.user, not API lookups",
+  "kind": "rule",
+  "answers": [
+    "Autoformat commits show the wrong author or a bot name when a PR is auto-formatted from a comment",
+    "How does the autoformat workflow pick the git user.name and user.email for its fix commit?",
+    "Why does the autoformat job no longer call gh pr view or gh api users to resolve the author?",
+    "Where is the mlflow-app[bot] attribution set for autoformat commits?"
+  ],
+  "body": "Path: .github/workflows/autoformat.yml, job step \"Configure git\" (runs before the autoformat commit is pushed). It sets git user.name and user.email for commits made when a maintainer's comment triggers formatting on a PR.\nRule: Take the identity from the workflow event payload: AUTHOR_LOGIN, AUTHOR_ID and AUTHOR_TYPE env vars read from github.event.issue.user.{login,id,type}. Do not use gh pr view or gh api users/<login> to look these up; those calls need a token and an extra network round trip. If AUTHOR_TYPE is \"Bot\", use LOGIN=mlflow-app[bot] and the hardcoded verified ID 191841109; otherwise use the login and id from the payload. The email is always the noreply form ${ID}+${LOGIN}@users.noreply.github.com.\nConstraints: Applies only to this step's identity logic. If the bot account ID changes, the hardcoded 191841109 must be updated by hand. The step no longer needs GH_TOKEN, PR_NUMBER or REPO env vars, so do not re-add them for identity lookup.",
+  "applies": "Autoformat GitHub Actions workflow, commit author identity for comment-triggered fixes.",
+  "tags": [
+    "github-actions",
+    "autoformat",
+    "ci",
+    "git-identity",
+    "bot"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/autoformat.yml",
+      "symbol": "LOGIN",
+      "hash": "sha256:dbfc9c6e1856dac7bd72af46",
+      "line": 264,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25902"
+  },
+  "created": "2026-10-12T05:42:52.400Z",
+  "verified": "2026-10-12T05:42:52.400Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Automated formatting commits on pull requests show an incorrect author or bot account.",
+    "Comment-triggered style fixes should attribute commits to the maintainer who requested them.",
+    "Code formatting commits display wrong username and email address in pull request history.",
+    "Ensure automated cleanup commits correctly credit the user commenting on the pull request."
+  ],
+  "search": "In .github/workflows/autoformat.yml, git commit author identity for comment-triggered fixes is derived directly from github.event.issue.user rather than GitHub API calls. It sets AUTHOR_LOGIN, AUTHOR_ID, and AUTHOR_TYPE from the event payload, mapping bots to mlflow-app[bot] with ID 191841109 and constructing noreply emails without needing GH_TOKEN or gh CLI queries. Applies exclusively to the Configure git step in the autoformat workflow, requiring manual updates if the bot account ID changes.",
+  "saysFor": "s2:696379ce6a36a09915bd9cb283f10f29ad90aa65a0505aad76fdd18959a0db48"
+}

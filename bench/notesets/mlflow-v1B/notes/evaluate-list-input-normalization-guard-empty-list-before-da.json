@@ -1,0 +1,55 @@
+{
+  "id": "evaluate-list-input-normalization-guard-empty-list-before-da",
+  "title": "evaluate list input normalization: guard empty list before data[0] and test targets with `is not None`, not truthiness",
+  "kind": "rule",
+  "answers": [
+    "mlflow.models.evaluate raises 'truth value of an array with more than one element is ambiguous' when I pass list features with NumPy targets",
+    "Passing an empty list as evaluation data to mlflow evaluate fails with IndexError instead of a validation error",
+    "What happens when targets=[] is passed to evaluate with list data, is it treated as no targets?",
+    "Where are list features for mlflow.models.evaluate converted into a dataset?"
+  ],
+  "body": "Path: mlflow/data/evaluation_dataset.py:convert_data_to_mlflow_dataset is the chokepoint that normalizes `data` and `targets` passed to mlflow.models.evaluate / evaluation datasets. List inputs are reshaped (flat lists become one-feature rows) and passed to mlflow.data.from_numpy; NumPy inputs pass through unchanged.\nRule: In the list branch, check `data` is non-empty before indexing `data[0]` (`if data and not isinstance(data[0], (list, np.ndarray))`). Check `targets is not None` rather than `if targets` because truthiness of a multi-element np.ndarray raises ValueError. Explicit empty targets are kept (converted to an empty array) so they fail the standard length validation in the evaluation dataset rather than being silently dropped as absent.\nSymptom: Evaluating with list features and multi-element NumPy targets raised 'The truth value of an array with more than one element is ambiguous'. Empty list evaluation data raised IndexError.\nConstraints: Applies to list `data` in convert_data_to_mlflow_dataset only. The ndarray branch is untouched. Only `targets=None` means no targets; do not reintroduce truthiness checks on targets.",
+  "applies": "Any change to how list or NumPy features/targets are normalized for mlflow.models.evaluate or MLflow evaluation datasets.",
+  "tags": [
+    "evaluation",
+    "numpy",
+    "list-input",
+    "bugfix"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/data/evaluation_dataset.py",
+      "symbol": "convert_data_to_mlflow_dataset",
+      "hash": "sha256:e0fd548686ce6dc0e0f79f06",
+      "line": 181,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e0fd548686ce6dc0e0f79f06",
+      "fanout": {
+        "files": 2,
+        "sites": 6,
+        "refs": 8
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25623"
+  },
+  "created": "2026-10-12T05:41:06.655Z",
+  "verified": "2026-10-12T05:41:06.655Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Model evaluation crashes when passing list features alongside array target values.",
+    "Providing an empty dataset to model evaluation should show a clean validation message.",
+    "Empty target values in model evaluation get dropped silently instead of raising validation errors.",
+    "Evaluating a model with multi-element target arrays fails with an ambiguous truth error.",
+    "Running model assessment on an empty list of inputs causes an unexpected crash."
+  ],
+  "search": "In mlflow/data/evaluation_dataset.py:convert_data_to_mlflow_dataset, list data normalization must guard against empty lists before indexing data[0] and check targets with is not None instead of truthiness. This applies to normalizing list or NumPy features and targets for mlflow.models.evaluate or MLflow evaluation datasets, ensuring multi-element np.ndarray targets do not raise ValueError and empty lists avoid IndexError. Explicit empty targets are converted to an empty array to fail standard length validation, leaving the ndarray branch untouched and treating only targets=None as absent targets.",
+  "saysFor": "s2:6ed0ef3cf7a703ba8111d417292c319b2f195689e0abcc2cdafd39772e8b3461"
+}

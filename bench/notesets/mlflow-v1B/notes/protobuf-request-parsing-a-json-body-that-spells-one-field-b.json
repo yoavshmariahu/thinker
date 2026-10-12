@@ -1,0 +1,89 @@
+{
+  "id": "protobuf-request-parsing-a-json-body-that-spells-one-field-b",
+  "title": "protobuf request parsing: a JSON body that spells one field both snake_case and camelCase is rejected with INVALID_PARAMETER_VALUE before parse_dict",
+  "kind": "rule",
+  "answers": [
+    "Why does my gateway secret update return 400 saying the request specifies both 'secret_id' and 'secretId'?",
+    "A client sent both snake_case and camelCase keys for the same field in a tracking or registry request; why is it rejected now?",
+    "Where is the check that stops duplicate field spellings in REST request bodies?",
+    "Does a workspace create or update body that carries both default_artifact_root and defaultArtifactRoot get rejected?",
+    "Why are map-field keys and google.protobuf well-known fields exempt from the alias-conflict check?"
+  ],
+  "body": "Path: Every proto-backed REST request body parsed by mlflow/server/handlers.py:_get_request_message (tracking, model registry, gateway and other ajax endpoints), plus workspace create/update bodies parsed by mlflow/server/handlers.py:_get_workspace_request_message. The chokepoint is mlflow/server/handlers.py:_reject_conflicting_field_aliases, which runs on the raw JSON before parse_dict.\nRule: If a message field and its json_name both appear as keys in the same object, reject with INVALID_PARAMETER_VALUE. The check recurses into nested non-map message fields, including each item of a repeated list (for example model_configs). Map entries and google.protobuf.* types are skipped because their keys are caller-chosen. Any new body parser must call _reject_conflicting_field_aliases before parse_dict, or go through _get_request_message.\nSymptom: ParseDict accepts both spellings and the later key wins, while basic-auth validators read the raw snake_case key. A user with READ on one gateway secret could send secret_id for their own secret and secretId for another, so authorization checked one secret and the handler updated the other (GHSA-3g8m-hm3x-gh2r).\nConstraints: Applies to request bodies only, not query parameters read by _get_request_param. A body with only one spelling, in either form, is accepted. Applies whether or not the basic-auth app is mounted, since the handler-side guard protects every deployment.",
+  "applies": "Any proto-backed REST request body in mlflow/server/handlers.py, in every app, including workspace create and update.",
+  "tags": [
+    "security",
+    "protobuf",
+    "request-parsing",
+    "gateway",
+    "basic-auth"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_reject_conflicting_field_aliases",
+      "hash": "sha256:b2f0eb69e74c45e1f7e0158a",
+      "line": 1098,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b2f0eb69e74c45e1f7e0158a",
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_get_request_message",
+      "hash": "sha256:d835807c60947d5087bb6d63",
+      "line": 1152,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:d835807c60947d5087bb6d63",
+      "fanout": {
+        "files": 5,
+        "sites": 178,
+        "refs": 233
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_get_workspace_request_message",
+      "hash": "sha256:b824cd159fec98e0950b1d3b",
+      "line": 1551,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b824cd159fec98e0950b1d3b",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25869"
+  },
+  "created": "2026-10-12T05:43:57.555Z",
+  "verified": "2026-10-12T05:43:57.555Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "scorer-register-invoke-evaluate-payloads-validate-every-seri",
+    "invoke-endpoints-trace-ids-input-contract-reject-empty-lists",
+    "model-registry-prompt-source-validation-prompt-tagged-model",
+    "artifact-host-policy-tracking-server-refuses-host-addressed"
+  ],
+  "says": [
+    "Updating a gateway secret returns an invalid parameter error about duplicate keys.",
+    "Creating a workspace fails when submitting both naming styles for default artifact storage.",
+    "Tracking and model registry requests fail when payload contains conflicting field name aliases.",
+    "Why does updating a secret return an error about specifying the same property twice?"
+  ],
+  "search": "Proto-backed REST request bodies parsed in mlflow/server/handlers.py via _get_request_message or _get_workspace_request_message are checked by _reject_conflicting_field_aliases before parse_dict to reject with INVALID_PARAMETER_VALUE if a message field and its json_name both appear in the same JSON object. The validation recurses into nested non-map message fields and repeated lists such as model_configs, but skips map entries and google.protobuf.* types. The guard applies to tracking, model registry, gateway, and workspace create or update bodies regardless of basic-auth mounting, but does not apply to query parameters parsed by _get_request_param or bodies containing only one spelling.",
+  "saysFor": "s2:b4c61caeb7200486ef33b82c008d012fba1c321e17c34be1a3016259ba9ab359"
+}

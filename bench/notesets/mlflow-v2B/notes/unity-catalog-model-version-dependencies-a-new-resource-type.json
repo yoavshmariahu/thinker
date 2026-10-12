@@ -1,0 +1,127 @@
+{
+  "id": "unity-catalog-model-version-dependencies-a-new-resource-type",
+  "title": "Unity Catalog model-version dependencies: a new resource type needs its DependencyType enum member and its wiring in get_model_version_dependencies together",
+  "kind": "rule",
+  "answers": [
+    "Why does registering a model to Unity Catalog fail with an unknown enum label when a new resource type is emitted as a dependency?",
+    "How do I record a new kind of model resource (for example a model service or endpoint) as a dependency when registering a model version in Unity Catalog?",
+    "Where are model resources like langchain tools or table dependencies mapped to Unity Catalog DependencyType values?",
+    "Which files must change when adding a new DATABRICKS_* dependency type for Unity Catalog model registration?"
+  ],
+  "body": "Path: mlflow/store/_unity_catalog/registry/rest_store.py:get_model_version_dependencies builds the dependency list (DATABRICKS_TABLE, UC_FUNCTION, UC_CONNECTION, MODEL_ENDPOINT, UC_MODEL_SERVICE, ...) for a model's resources that is carried on the CreateModelVersionRequest when a model is registered to UC through the legacy/proxy path.\nRule: Adding a dependency type is a two-part change that must land in one PR. (1) Add the member to the DependencyType enum in mlflow/protos/databricks_uc_registry_messages.proto, then regenerate mlflow/protos/databricks_uc_registry_messages_pb2.py and _pb2.pyi with dev/generate_protos.py (pinned protoc + mypy-protobuf). (2) Add a `_DEP_TYPE_*` string constant next to the existing ones in rest_store.py and an extend call using _fetch_langchain_dependency_from_model_resources with the matching ResourceType value, inside the resources branch of get_model_version_dependencies.\nSymptom: Emitting the new DATABRICKS_* type string before the enum member exists makes proto conversion fail with 'unknown enum label', so model-version registration to UC errors out.\nConstraints: Entries with on_behalf_of_user set are excluded, matching the other types. The old-model branch (the else path for models without resources) is not changed by this pattern. Tests to extend: test_create_model_version_with_resources and test_create_model_version_with_invoker_resources in tests/store/_unity_catalog/model_registry/test_unity_catalog_rest_store.py.",
+  "applies": "Adding a new resource type to Unity Catalog model-version dependency registration on the legacy/proxy path in MLflow.",
+  "tags": [
+    "model-registry",
+    "unity-catalog",
+    "protobuf",
+    "dependencies"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/_unity_catalog/registry/rest_store.py",
+      "symbol": "get_model_version_dependencies",
+      "hash": "sha256:29c17f38c86e772007eeb89c",
+      "line": 271,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:29c17f38c86e772007eeb89c",
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 8
+      }
+    },
+    {
+      "path": "mlflow/store/_unity_catalog/registry/rest_store.py",
+      "symbol": "_fetch_langchain_dependency_from_model_resources",
+      "hash": "sha256:6f69223ddede6e649bbbeb5b",
+      "line": 364,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6f69223ddede6e649bbbeb5b",
+      "fanout": {
+        "files": 1,
+        "sites": 6,
+        "refs": 6
+      }
+    },
+    {
+      "path": "tests/store/_unity_catalog/model_registry/test_unity_catalog_rest_store.py",
+      "symbol": "langchain_local_model_dir_with_resources",
+      "hash": "sha256:f1817a98e237519b8c6bf1d0",
+      "line": 342,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f1817a98e237519b8c6bf1d0",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/protos/databricks_uc_registry_messages_pb2.py",
+      "symbol": "DATABRICKS_TABLE",
+      "hash": "sha256:bdb4894f6d82f190e356179c",
+      "line": 379,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 11
+      }
+    },
+    {
+      "path": "mlflow/protos/databricks_uc_registry_messages_pb2.py",
+      "symbol": "CreateModelVersionRequest",
+      "hash": "sha256:19b2a9045ce06e46ef21e500",
+      "line": 652,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 3,
+        "refs": 14
+      }
+    },
+    {
+      "path": "mlflow/protos/databricks_uc_registry_messages_pb2.py",
+      "symbol": "DependencyType",
+      "hash": "sha256:b8bf1ee1b8faf1d1d532c276",
+      "line": 356,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 12
+      }
+    },
+    {
+      "path": "dev/generate_protos.py",
+      "hash": "sha256:810d8aa123210522986672b9",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26140"
+  },
+  "created": "2026-10-12T05:32:40.400Z",
+  "verified": "2026-10-12T05:32:40.400Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "databricks-model-resources-a-new-resource-type-needs-an-enum",
+    "uc-model-load-register-artifact-routing-mlflow-use-databrick"
+  ],
+  "says": [
+    "Registering a model version in the catalog fails when declaring new resource dependencies.",
+    "Model version creation crashes with an unrecognized type error when saving dependent services.",
+    "Allow model versions in the catalog to track new upstream endpoint and service dependencies.",
+    "Catalog model registration errors out when saving models linked to external tools.",
+    "Enable registering models in the catalog alongside their linked endpoint resources."
+  ],
+  "search": "Adding a new resource dependency type for Unity Catalog model-version registration on the legacy path requires defining the DependencyType enum member in mlflow/protos/databricks_uc_registry_messages.proto and regenerating protobuf bindings via dev/generate_protos.py. Simultaneously, a matching _DEP_TYPE_* constant and _fetch_langchain_dependency_from_model_resources call must be added inside mlflow/store/_unity_catalog/registry/rest_store.py:get_model_version_dependencies. Both parts must land in a single PR to prevent CreateModelVersionRequest proto serialization failing with unknown enum label errors. Entries with on_behalf_of_user set are excluded, and tests in tests/store/_unity_catalog/model_registry/test_unity_catalog_rest_store.py must be extended.",
+  "saysFor": "s2:4286b839ce6abf5bb92fe7cf0de70789258dcb91baf84282729f72fddec00964"
+}

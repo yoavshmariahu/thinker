@@ -1,0 +1,70 @@
+{
+  "id": "openai-autolog-tests-reproduce-a-failure-during-stream-itera",
+  "title": "OpenAI autolog tests: reproduce a failure during stream iteration with the ERROR_MID_STREAM mock case",
+  "kind": "howto",
+  "answers": [
+    "How do I write a test where an OpenAI streaming response fails partway through?",
+    "How does the mock OpenAI server produce a streaming error event?",
+    "Where are the per-message-content mock behaviors for the OpenAI chat endpoint defined?"
+  ],
+  "body": "Path: tests/openai/mock_openai.py:chat is the FastAPI mock server returning canned SSE responses keyed on the first message's content (e.g. EMPTY_STREAM, AZURE_ANNOTATIONS); tests/openai/test_openai_autolog.py drives autolog against it.\nRule: To test a stream that fails during iteration, send a user message whose content is ERROR_MID_STREAM. The mock emits one normal chunk followed by an {\"error\": ...} SSE event, which the OpenAI SDK raises as openai.APIError while the caller iterates. Assert the trace status is ERROR, the span has a mlflow.chunk.item.0 event and an exception event, as in test_chat_completions_streaming_error_mid_stream.\nConstraints: Run the test with both the sync and async client variants (client._is_async selects how the stream is consumed), and wrap consumption in pytest.raises(openai.APIError) since the exception must still reach the caller.",
+  "applies": "Writing or extending OpenAI autolog tests that need a streaming response to fail mid-iteration.",
+  "tags": [
+    "openai",
+    "autolog",
+    "testing",
+    "streaming",
+    "mock"
+  ],
+  "deps": [
+    {
+      "path": "tests/openai/mock_openai.py",
+      "symbol": "chat",
+      "hash": "sha256:b89a84751a500c1eaba6b0bb",
+      "line": 185,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b89a84751a500c1eaba6b0bb",
+      "fanout": {
+        "files": 310,
+        "sites": 93,
+        "refs": 1992
+      }
+    },
+    {
+      "path": "tests/openai/test_openai_autolog.py",
+      "symbol": "test_chat_completions_streaming_error_mid_stream",
+      "hash": "sha256:f5c47c097720eec3bd4a0020",
+      "line": 535,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f5c47c097720eec3bd4a0020",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26305"
+  },
+  "created": "2026-10-12T05:31:20.220Z",
+  "verified": "2026-10-12T05:31:20.220Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "openai-autolog-streaming-a-stream-that-yields-zero-chunks-mu"
+  ],
+  "says": [
+    "We need automated test cases for streaming chat failures that occur after receiving chunks.",
+    "Simulate a partial streaming response failure to verify error events in trace tracking.",
+    "Add test coverage verifying that streaming responses interrupted by errors record failed traces.",
+    "Test whether streaming chat connection interruptions create error spans in the telemetry log."
+  ],
+  "search": "To test an OpenAI streaming response failure during iteration in tests/openai/test_openai_autolog.py, send a user message with content ERROR_MID_STREAM to the mock server at tests/openai/mock_openai.py:chat. The mock emits one normal chunk followed by an error SSE event raised as openai.APIError during iteration, which should produce a span with ERROR status, a chunk event, and an exception event. Tests must cover sync and async clients and wrap iteration in pytest.raises(openai.APIError).",
+  "saysFor": "s2:2d205f92d35467e40f63827b2344ab879d451706ecbe9b931f9354ea7e1235a2"
+}

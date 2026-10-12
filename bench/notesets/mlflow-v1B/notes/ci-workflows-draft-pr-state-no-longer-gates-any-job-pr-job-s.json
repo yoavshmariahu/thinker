@@ -1,0 +1,75 @@
+{
+  "id": "ci-workflows-draft-pr-state-no-longer-gates-any-job-pr-job-s",
+  "title": "CI workflows: draft PR state no longer gates any job; PR job skips now come from event, label, author or closed-action checks",
+  "kind": "map",
+  "answers": [
+    "Do CI jobs run on draft pull requests in MLflow?",
+    "Where is the draft-PR handling for GitHub Actions jobs?",
+    "Why does the labeling or patch job run on draft PRs now?",
+    "Which CI jobs still get skipped on a pull request?"
+  ],
+  "body": "Path: job-level `if:` conditions across .github/workflows. Jobs in build-wheel.yml, docs.yml, js.yml, lint.yml, master.yml, protobuf-cross-test.yml, protos.yml, tracing.yml, typescript.yml, labeling.yml and patch.yml have no draft check. Chokepoints that still gate PR runs: the pull_request alternatives in examples.yml, r.yml, slow-tests.yml, test-requirements.yml, uc-oss.yml and cross-version-tests.yml (`set-matrix`); `github.event.action != 'closed'` in release-note.yml (`validate-labeled`); and the `ui-preview` label plus author check (OWNER/MEMBER/COLLABORATOR or the Copilot bot) in ui-preview.yml.\nRule: Draft state is not a gate anywhere in these workflows, so draft and ready PRs run the same jobs. Jobs without an `if:` run on every pull_request event. No `ready_for_review` trigger was added, because pull_request events already fire for drafts. Disabled jobs stay disabled with a literal `if: false` (fs2db.yml), not with a dead predicate.\nSymptom: (omitted for a map.) Before the change, Phase 1 draft gates skipped these jobs on draft PRs, so a draft showed no checks for them.\nConstraints: To find why a PR job did not run, check event-name alternatives, labels, author association and action, not draft. Copilot lifecycle and authorization workflows were left unchanged. Does not cover push, schedule or workflow_dispatch triggers.",
+  "applies": "Where CI job gating is decided for pull requests in .github/workflows, after the Phase 1 draft-gate removal.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "draft-pr",
+    "map"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/labeling.yml",
+      "hash": "sha256:d561f4bcff728b7bbe73f7d4",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/patch.yml",
+      "hash": "sha256:42b25d290dee00ebdc71c499",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/release-note.yml",
+      "hash": "sha256:70bd55ca7846f6523eb9c924",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/ui-preview.yml",
+      "hash": "sha256:231aeeccebd617f225528a1a",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/master.yml",
+      "hash": "sha256:7a23e9e2645572c59f7793f4",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/fs2db.yml",
+      "hash": "sha256:8a087ad00976b51dd5f30ed6",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25668"
+  },
+  "created": "2026-10-12T05:47:03.152Z",
+  "verified": "2026-10-12T05:47:03.152Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "ci-draft-pr-gates-in-github-workflows-a-copilot-authored-dra",
+    "github-workflows-api-driven-label-size-review-release-note-j",
+    "ci-pull-request-path-filters-copilot-yml-workflow-edits-skip",
+    "github-workflows-the-curl-output-filename-must-match-the-rel"
+  ],
+  "says": [
+    "Why do draft pull requests still run CI jobs like labeling or patch now?",
+    "Which CI checks still get skipped on a pull request, and based on what?",
+    "Draft PRs show the same checks as ready PRs; is that intended for MLflow?",
+    "Why is a CI job missing on my pull request, and which label or author rule causes it?"
+  ],
+  "search": "CI job gating for pull requests after draft-state gates were removed: draft and ready PRs run the same jobs. Jobs skip only on event-name alternatives, the ui-preview label and author check, or the release-note closed action. Disabled jobs use a literal if: false.",
+  "saysFor": "s2:c38271226f25e97b936b84b097ebc30e2cb658e38099df990b9181caf60ef598"
+}

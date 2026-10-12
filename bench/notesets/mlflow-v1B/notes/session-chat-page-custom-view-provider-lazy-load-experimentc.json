@@ -1,0 +1,56 @@
+{
+  "id": "session-chat-page-custom-view-provider-lazy-load-experimentc",
+  "title": "Session chat page custom view provider: lazy-load ExperimentCustomViewProvider because @a2ui is ESM-only",
+  "kind": "rule",
+  "answers": [
+    "Why is the Sessions chat page bundle large or failing to load when custom views are off?",
+    "Why does ExperimentCustomViewProvider load through React.lazy in the session page?",
+    "How do I import the custom view provider without pulling @a2ui into the chat-session route?"
+  ],
+  "body": "Path: mlflow/server/js/src/experiment-tracking/pages/experiment-chat-sessions/single-chat-view/ExperimentSingleChatSessionPage.tsx:LazyExperimentCustomViewProvider. This module-level lazy import is the only place the session chat route loads the custom-view provider, which is used by ContextProviders.\nRule: Import ExperimentCustomViewProvider via a dynamic import wrapped in React.lazy and rendered inside React.Suspense, rather than a static import, so @a2ui (ESM-only, pulled in transitively) is only added to the graph when the feature is enabled.\nSymptom: (omitted; this is a bundling convention.)\nConstraints: Keep the Suspense fallback in place when wrapping the lazy provider; the fallback is a GenericSkeleton.",
+  "applies": "Frontend imports of ExperimentCustomViewProvider from route-level pages in the MLflow JS app.",
+  "tags": [
+    "tracing",
+    "custom-trace-view",
+    "bundling",
+    "lazy-loading",
+    "frontend"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/pages/experiment-chat-sessions/single-chat-view/ExperimentSingleChatSessionPage.tsx",
+      "symbol": "LazyExperimentCustomViewProvider",
+      "hash": "sha256:cca6c467d051288b0c641b99",
+      "line": 55,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:cca6c467d051288b0c641b99",
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25779"
+  },
+  "created": "2026-10-12T05:40:06.543Z",
+  "verified": "2026-10-12T05:40:06.543Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "sessions-trace-drawer-custom-views-mount-experimentcustomvie"
+  ],
+  "says": [
+    "The chat sessions page fails to load when custom views are disabled.",
+    "Opening a chat session takes too long because the initial page download is huge.",
+    "Do not load custom view code on the chat session screen when disabled.",
+    "The chat session view crashes when loading without custom views enabled in our environment."
+  ],
+  "search": "In frontend route-level pages of the MLflow JS app, LazyExperimentCustomViewProvider in mlflow/server/js/src/experiment-tracking/pages/experiment-chat-sessions/single-chat-view/ExperimentSingleChatSessionPage.tsx imports ExperimentCustomViewProvider via a dynamic import wrapped in React.lazy and rendered inside React.Suspense instead of a static import. This ensures transitively imported ESM-only @a2ui is only pulled into the module graph when the feature is enabled. A Suspense fallback using GenericSkeleton must remain in place.",
+  "saysFor": "s2:4dc1ba8fd8736d288d0cc634e5a199eadf1514e4dd08a065784fda3898e57171"
+}

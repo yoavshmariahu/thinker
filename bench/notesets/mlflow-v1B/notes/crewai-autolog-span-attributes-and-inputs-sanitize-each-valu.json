@@ -1,0 +1,99 @@
+{
+  "id": "crewai-autolog-span-attributes-and-inputs-sanitize-each-valu",
+  "title": "CrewAI autolog span attributes and inputs: sanitize each value before str() or span.set_attribute, never write raw CrewAI objects",
+  "kind": "rule",
+  "answers": [
+    "Why did my CrewAI LLM api_key show up in the trace span attributes after calling mlflow.crewai.autolog?",
+    "Where are Agent, Task, Crew or LLM fields turned into span attributes for CrewAI tracing?",
+    "How do I add a new CrewAI object or field to the tracing output without leaking credentials?",
+    "Where does mlflow.spanInputs get built for CrewAI Crew.kickoff or Task.execute_sync?"
+  ],
+  "body": "Path: Everything mlflow.crewai.autolog writes onto a trace goes through mlflow/crewai/autolog.py:_set_span_attributes (Crew, Task, Agent, LLM, Flow, Knowledge attributes) and mlflow/crewai/autolog.py:_construct_full_inputs (span inputs for kickoff, Task.execute_sync, Agent.execute_task). Outputs in patched_class_call and patched_standalone_call also pass through _sanitize_value.\nRule: Set attributes with mlflow/crewai/autolog.py:_set_sanitized_attribute rather than span.set_attribute directly. It drops credential-named keys, then calls mlflow/crewai/autolog.py:_sanitize_value before any str() conversion. Sanitize before stringifying: str(agent.llm) embeds api_key, so the sanitizer must run on the object first. _sanitize_value reduces crewai BaseLLM objects to their model name (_get_llm_summary) and walks other pydantic models field by field with a reference-cycle guard.\nSymptom: A provider key passed as LLM(api_key=...) appeared in the trace: in the agent's llm / function_calling_llm attributes, in the crew's manager_llm / planning_llm / function_calling_llm attributes, and in mlflow.spanInputs of agent and task spans.\nConstraints: Applies to the CrewAI autolog path only. Agent and Crew attributes now hold sanitized dict strings instead of pydantic repr strings, which is a cosmetic shape change. A test asserts that when sanitization raises, the value is replaced with a placeholder string such as \"<dict: omitted, sanitization failed>\" rather than the raw value (fail closed).",
+  "applies": "Any change to mlflow.crewai.autolog that adds an attribute, input or output derived from a CrewAI object.",
+  "tags": [
+    "crewai",
+    "tracing",
+    "autolog",
+    "security",
+    "credentials"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/crewai/autolog.py",
+      "symbol": "_sanitize_value",
+      "hash": "sha256:146957bfaa024d59b079b2f4",
+      "line": 491,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:146957bfaa024d59b079b2f4",
+      "fanout": {
+        "files": 2,
+        "sites": 11,
+        "refs": 13
+      }
+    },
+    {
+      "path": "mlflow/crewai/autolog.py",
+      "symbol": "_set_sanitized_attribute",
+      "hash": "sha256:b53085e3e64acfc7313ae680",
+      "line": 367,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b53085e3e64acfc7313ae680",
+      "fanout": {
+        "files": 2,
+        "sites": 7,
+        "refs": 8
+      }
+    },
+    {
+      "path": "mlflow/crewai/autolog.py",
+      "symbol": "_construct_full_inputs",
+      "hash": "sha256:df2e266e3c27eb54353de362",
+      "line": 292,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:df2e266e3c27eb54353de362",
+      "fanout": {
+        "files": 6,
+        "sites": 11,
+        "refs": 12
+      }
+    },
+    {
+      "path": "mlflow/crewai/autolog.py",
+      "symbol": "_set_span_attributes",
+      "hash": "sha256:635dbc139cfbf9b97cceb3e0",
+      "line": 310,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:635dbc139cfbf9b97cceb3e0",
+      "fanout": {
+        "files": 4,
+        "sites": 8,
+        "refs": 9
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25845"
+  },
+  "created": "2026-10-12T05:44:32.741Z",
+  "verified": "2026-10-12T05:44:32.741Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "crewai-autolog-credential-key-filter-sensitive-key-pattern-d"
+  ],
+  "says": [
+    "My CrewAI LLM api_key appeared in the trace span attributes after enabling MLflow autologging",
+    "Agent, task or crew fields leak credentials into CrewAI trace attributes and span inputs",
+    "Trace inputs for CrewAI kickoff show the provider key passed to the LLM",
+    "How do I add a new CrewAI field to tracing without leaking credentials?"
+  ],
+  "search": "CrewAI autolog must write span attributes and inputs through the sanitized setter, which drops credential-named keys and sanitizes values before any string conversion. Covers Crew, Task, Agent, LLM and Flow attributes plus span inputs for kickoff and task execution. Sanitize before str(), since str of an LLM embeds the api_key. Failed sanitization must fail closed with a placeholder.",
+  "saysFor": "s2:c446fff7bd92284c3eec36695ce5b3b6fbfa2d35f911e4b046d89b99b2c4877e"
+}

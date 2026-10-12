@@ -1,0 +1,51 @@
+{
+  "id": "claude-skill-docs-when-moving-a-doc-one-directory-deeper-bum",
+  "title": "Claude skill docs: when moving a doc one directory deeper, bump its relative links by one ../",
+  "kind": "rule",
+  "answers": [
+    "A relative link in a style doc is broken after I moved it into a skill folder; how do I fix it?",
+    "I'm adding a new skill directory under .claude/skills; how should links to repo files be written?",
+    "Why do links to .github/policy.rego and dev/clint break in the Python and workflow guides?"
+  ],
+  "body": "Path: Markdown style docs that Claude and Copilot load from .claude/skills/<skill-name>/SKILL.md, such as .claude/skills/python-style/SKILL.md and .claude/skills/github-actions-style/SKILL.md, which link to repo files like dev/clint and .github/policy.rego.\nRule: A skill lives one directory deeper than the old .claude/rules/*.md files, so each relative link to a repo-root file needs one extra ../ when moved (e.g. ../../dev/clint/ became ../../../dev/clint/, and ../../.github/policy.rego became ../../../.github/policy.rego). Preserve all rule content otherwise; the move changed only frontmatter (name, description) and these links.\nConstraints: Applies to relative links inside skill documents. Skill frontmatter must carry name and description; the old paths: globs are dropped because skills are selected by description, not by file path.",
+  "applies": "Any move or addition of a Markdown guide under .claude/skills/ that links to files elsewhere in the repo.",
+  "tags": [
+    "claude-skills",
+    "markdown-links",
+    "docs",
+    "frontmatter"
+  ],
+  "deps": [
+    {
+      "path": ".claude/skills/python-style/SKILL.md",
+      "hash": "sha256:8cc106b631c28ccb484f8b68",
+      "missing": false
+    },
+    {
+      "path": ".claude/skills/github-actions-style/SKILL.md",
+      "hash": "sha256:3b83bc3660ebad3c1de394a5",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26010"
+  },
+  "created": "2026-10-12T05:34:29.456Z",
+  "verified": "2026-10-12T05:34:29.456Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "python-and-github-actions-style-conventions-where-they-live"
+  ],
+  "says": [
+    "Links to repository files in the coding style guides are broken.",
+    "Assistant documentation fails to open referenced policy files after folder reorganization.",
+    "Fix broken file references inside migrated helper skills documents.",
+    "Clicking repository links in the workflow style guide gives a not found error."
+  ],
+  "search": "When moving Markdown style guides from .claude/rules/*.md into .claude/skills/<skill-name>/SKILL.md (such as .claude/skills/python-style/SKILL.md and .claude/skills/github-actions-style/SKILL.md), each relative link to repository files like dev/clint and .github/policy.rego must add an extra ../ because skills live one directory deeper. Skill frontmatter requires name and description fields while dropping paths globs. All other rule content is preserved. This applies to any addition or move of Markdown guides under .claude/skills/ that link to files elsewhere in the repository.",
+  "saysFor": "s2:ac00a1ae0ca503f7a26c999f75886da28dd004ba086bba4de53b53c6f20cfc33"
+}

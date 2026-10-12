@@ -1,0 +1,47 @@
+{
+  "id": "copilot-code-review-comments-lead-each-finding-with-the-reco",
+  "title": "Copilot code review comments: lead each finding with the recommended fix, then a short why",
+  "kind": "rule",
+  "answers": [
+    "How should Copilot review comments be formatted on pull requests?",
+    "Where do I change the wording or structure of the automated code review findings?",
+    "Why do the Copilot review comments start with a Fix section and then a Why section?",
+    "Which file controls what the Copilot PR reviewer writes when it suggests a change?"
+  ],
+  "body": "Path: .github/instructions/code-review.instructions.md is the instruction file the Copilot code reviewer reads when it writes findings on pull requests; it governs the shape of each review comment, not the code under review.\nRule: When a finding has a fix, the comment uses two sections in order: \"**🔧 Fix:**\" with the recommended change first (only the detail needed to implement it), then \"**💡 Why:**\" stating the trigger and the concrete consequence. Keep the Review Comment Format section above the Knowledge Cutoff section so the format guidance is read first.\nConstraints: Applies to review comments that have a recommended fix. Edit this file, not the reviewer code, to change comment wording; the instruction file is excluded for the cloud-agent via excludeAgent. Does not govern general repository docs or non-review bot output.",
+  "applies": "Only the Copilot code-review instruction file for MLflow pull request reviews; does not affect runtime library code.",
+  "tags": [
+    "copilot",
+    "code-review",
+    "instructions",
+    "ci-bot",
+    "review-format"
+  ],
+  "deps": [
+    {
+      "path": ".github/instructions/code-review.instructions.md",
+      "hash": "sha256:f7bdd41ad61e04825158fbd8",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25864"
+  },
+  "created": "2026-10-12T05:31:05.589Z",
+  "verified": "2026-10-12T05:31:05.589Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Put the suggested code fix first in pull request review comments before the explanation.",
+    "Automated code review comments should lead directly with the recommended change.",
+    "The automated reviewer explains the problem before showing what needs to be changed.",
+    "Pull request findings bury the concrete fix underneath a long explanation.",
+    "Review comments should show the suggested fix followed by a short rationale."
+  ],
+  "search": "Copilot pull request review comment structure is defined in .github/instructions/code-review.instructions.md, requiring findings with fixes to lead with \"**🔧 Fix:**\" followed by \"**💡 Why:**\". The Review Comment Format section must remain above the Knowledge Cutoff section so formatting guidance is read first. This rule governs MLflow PR review comments proposing fixes, is excluded for the cloud-agent via excludeAgent, and does not alter reviewer code, repository documentation, or runtime library code.",
+  "saysFor": "s2:941ae8a12b28989fdde2351d17138c1ede66aa1096a759e45e321d931458f7c8"
+}

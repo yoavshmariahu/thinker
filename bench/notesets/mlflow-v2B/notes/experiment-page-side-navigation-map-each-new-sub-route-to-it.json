@@ -1,0 +1,56 @@
+{
+  "id": "experiment-page-side-navigation-map-each-new-sub-route-to-it",
+  "title": "Experiment page side navigation: map each new sub-route to its parent tab in ExperimentPageRoutePathToTabNameMap so the nav item stays highlighted",
+  "kind": "rule",
+  "answers": [
+    "Why is the Datasets item in the experiment side navigation not highlighted when I open a single dataset?",
+    "How do I make a nested experiment page (like a detail view) keep its parent tab selected in the side nav?",
+    "Where is the mapping from experiment page routes to the active side navigation tab defined?",
+    "How do I add a new experiment page route so the sidebar selection works?"
+  ],
+  "body": "Path: Experiment page side navigation highlighting. `useGetExperimentPageActiveTabByRoute` (mlflow/server/js/src/experiment-tracking/components/experiment-page/hooks/useGetExperimentPageActiveTabByRoute.tsx) resolves the current URL to an ExperimentPageTabName via the `ExperimentPageRoutePathToTabNameMap` built from RoutePaths, and that tab drives which side nav item is selected (Datasets, Models, Chat sessions, Judges, Review queue, etc.).\nRule: Every experiment route that should belong to an existing tab needs its own entry in `ExperimentPageRoutePathToTabNameMap` pointing at the parent tab. The dataset detail route `RoutePaths.experimentPageTabDatasetDetail` maps to `ExperimentPageTabName.Datasets`, alongside the list route `RoutePaths.experimentPageTabDatasets`. Without an entry, the route resolves to no tab and nothing is selected.\nSymptom: When a user opened an individual dataset page from the experiment, the Datasets item in the left side navigation was no longer highlighted, so the page appeared to be outside the Datasets section.\nConstraints: Only needed for routes nested under an existing tab; a route with its own tab (e.g. chat single session) maps to its own ExperimentPageTabName. Unknown routes still return undefined. The unit test (useGetExperimentPageActiveTabByRoute.test.tsx) mocks `matchPath` from RoutingUtils; its mock now supports `:param` segments and exact paths, so add a case with a concrete path such as /experiments/123/datasets/dataset-456 when adding a route.",
+  "applies": "Experiment tracking UI: any new route nested under an experiment page tab that must keep that tab's side nav item selected.",
+  "tags": [
+    "uiux",
+    "experiment-tracking",
+    "routing",
+    "side-navigation",
+    "datasets"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/experiment-page/hooks/useGetExperimentPageActiveTabByRoute.tsx",
+      "symbol": "useGetExperimentPageActiveTabByRoute",
+      "hash": "sha256:e76eceaace8e6e2ec25fa76c",
+      "line": 48,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e76eceaace8e6e2ec25fa76c",
+      "fanout": {
+        "files": 4,
+        "sites": 5,
+        "refs": 10
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26187"
+  },
+  "created": "2026-10-12T05:29:01.369Z",
+  "verified": "2026-10-12T05:29:01.369Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Opening an individual dataset unselects the Datasets item in the experiment side navigation.",
+    "The left sidebar navigation does not stay highlighted when viewing dataset details.",
+    "Why does the side navigation highlight disappear when drilling into a single experiment dataset?",
+    "Keep the parent section selected in the sidebar when opening nested experiment pages.",
+    "The sidebar loses its active tab indicator when navigating to an experiment detail screen."
+  ],
+  "search": "`useGetExperimentPageActiveTabByRoute` in `mlflow/server/js/src/experiment-tracking/components/experiment-page/hooks/useGetExperimentPageActiveTabByRoute.tsx` maps URL routes to `ExperimentPageTabName` via `ExperimentPageRoutePathToTabNameMap` to maintain side navigation tab highlighting. Every nested experiment route must map explicitly to its parent tab (such as `RoutePaths.experimentPageTabDatasetDetail` mapping to `ExperimentPageTabName.Datasets`), otherwise no tab is selected. Guidance applies to nested routes under existing experiment tabs (e.g., Datasets, Models, Judges, Review queue), while standalone tabs map to distinct tab names and unmapped routes return undefined. Unit testing in `useGetExperimentPageActiveTabByRoute.test.tsx` uses a mocked `matchPath` supporting `:param` segments and exact paths like `/experiments/123/datasets/dataset-456`.",
+  "saysFor": "s2:8322796b35b50669532bc7e598d800c993715cda3dd6a614eaafed630c354c88"
+}

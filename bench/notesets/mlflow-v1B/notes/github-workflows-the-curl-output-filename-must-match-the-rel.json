@@ -1,0 +1,84 @@
+{
+  "id": "github-workflows-the-curl-output-filename-must-match-the-rel",
+  "title": "GitHub workflows: the curl output filename must match the relative require path in github-script",
+  "kind": "rule",
+  "answers": [
+    "Why does a workflow fail with a module-not-found error after the script download step?",
+    "Where do I change the file name a workflow downloads and then requires?",
+    "How do I add a second job to a workflow that reuses a downloaded script?"
+  ],
+  "body": "Path: The fetch step and the github-script step in each lightweight workflow under .github/workflows (for example labeling.yml, pr-size.yml, team-review.yml, release-note.yml validate-labeled and post-merge jobs) are coupled by filename.\nRule: The `-o <name>.js` target written by the Fetch script step must equal the `require('./<name>.js')` argument in the following github-script `script:` block. Both are relative to the workspace root, where the file is written. release-note.yml has two jobs that each download `release-note.js` into the root, and each job requires it with `require(\"./release-note.js\")`.\nSymptom: The script step fails to load its helper, which stops labeling, size, or review actions from running.\nConstraints: Keep the download in the same job as the require, since each job starts on a fresh runner. The reviewers flagged that relative requires should use the absolute `${GITHUB_WORKSPACE}` path. The post-PR diff uses relative requires across all of these workflows, approval.yml included, so this note records the relative form the PR actually uses. Check the current file before changing the path style.",
+  "applies": "Workflow files that download a helper script with curl and load it through actions/github-script.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "github-script",
+    "require"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/labeling.yml",
+      "symbol": "script",
+      "hash": "sha256:4eb6b1d2ffd1c41465e02bbf",
+      "line": 42,
+      "missing": false,
+      "fanout": {
+        "files": 27,
+        "sites": 14,
+        "refs": 88
+      }
+    },
+    {
+      "path": ".github/workflows/release-note.yml",
+      "symbol": "script",
+      "hash": "sha256:90ef3edc56ead32b061ab5d7",
+      "line": 50,
+      "missing": false,
+      "fanout": {
+        "files": 27,
+        "sites": 14,
+        "refs": 88
+      }
+    },
+    {
+      "path": ".github/workflows/approval.yml",
+      "symbol": "script",
+      "hash": "sha256:ccec0cb39e5a7ff4d6dbfb84",
+      "line": 35,
+      "missing": false,
+      "fanout": {
+        "files": 27,
+        "sites": 14,
+        "refs": 88
+      }
+    },
+    {
+      "path": ".github/workflows/release-note.js",
+      "hash": "sha256:3e9318056364f5da5011d278",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25705"
+  },
+  "created": "2026-10-12T05:46:20.618Z",
+  "verified": "2026-10-12T05:46:20.618Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "github-workflows-api-driven-label-size-review-release-note-j",
+    "ci-draft-pr-gates-in-github-workflows-a-copilot-authored-dra",
+    "ci-workflows-draft-pr-state-no-longer-gates-any-job-pr-job-s"
+  ],
+  "says": [
+    "Automated labeling or review bot fails with a module not found error.",
+    "Pull request size check crashes immediately after downloading its helper script.",
+    "A subsequent job in the release notes check cannot find the downloaded script.",
+    "Fix automated pull request approval checks crashing due to mismatched script filenames."
+  ],
+  "search": "In lightweight GitHub Actions workflows under `.github/workflows`, the `-o <name>.js` target in the fetch step must match the relative `require('./<name>.js')` path in `actions/github-script`. This applies across workflows such as `labeling.yml`, `pr-size.yml`, `team-review.yml`, `approval.yml`, and `release-note.yml` (in `validate-labeled` and `post-merge` jobs). Each runner starts fresh, so downloading and requiring must occur within the same job. Although reviewers suggested `${GITHUB_WORKSPACE}`, existing workflows consistently use relative require paths from the workspace root.",
+  "saysFor": "s2:a3594382ca2b7e2cbca963e0eb235a548b0b540d7b939562a68a6e2d8f893eb1"
+}

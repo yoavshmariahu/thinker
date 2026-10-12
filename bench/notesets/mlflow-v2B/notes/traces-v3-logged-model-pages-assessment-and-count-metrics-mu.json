@@ -1,0 +1,96 @@
+{
+  "id": "traces-v3-logged-model-pages-assessment-and-count-metrics-mu",
+  "title": "Traces V3 logged model pages: assessment and count metrics must carry the logged model ID filter like trace rows do",
+  "kind": "rule",
+  "answers": [
+    "Why do the assessment summary percentages on a logged model's Traces tab include traces from other models in the experiment?",
+    "Why does the trace count badge on the logged model page show a number that does not match the rows visible for that model?",
+    "Where is the logged model ID applied to the Traces V3 count and assessment metrics requests?",
+    "How do I add another scoping field (like a run ID) to the trace count or assessment metrics on the Traces page?"
+  ],
+  "body": "Path: Traces V3 logs view (TracesV3Logs.tsx:TracesV3LogsImpl) feeds the trace row query and two metrics-backed hooks: useCountInfo.ts:useCountInfo (row/session counts) and hooks/useAssessmentCountMetrics.ts:useAssessmentCountMetrics (categorical assessment summaries). Both build a metrics filter list from runUuid and loggedModelId.\nRule: Every metrics-backed hook on a Traces page must receive the same scope as the visible rows. The filter list is built with createTraceMetadataFilter in the metrics DSL, e.g. trace.metadata.`mlflow.modelId` = \"<id>\", appended after the existing mlflow.sourceRun filter when runUuid is set. Pass loggedModelId from TracesV3LogsImpl into both hooks.\nSymptom: On a logged model's Traces page, assessment summaries and count badges aggregated across the whole experiment, so a model with six correct=True traces could show True 50% because another model had six correct=False traces.\nConstraints: Applies to the metrics endpoint (trace metrics DSL) path. The row search path uses a different filter syntax and is already scoped separately. useAssessmentCountMetrics only runs when shouldUseInfinitePaginatedTraces() is true and not disabled.",
+  "applies": "Traces V3 Logs page metrics and count hooks in the experiment-tracking UI, for logged model or run-scoped views.",
+  "tags": [
+    "traces",
+    "logged-model",
+    "metrics",
+    "assessments",
+    "frontend"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v3/hooks/useAssessmentCountMetrics.ts",
+      "symbol": "useAssessmentCountMetrics",
+      "hash": "sha256:b339f6ee7246b1c39af5c5ba",
+      "line": 13,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b339f6ee7246b1c39af5c5ba",
+      "fanout": {
+        "files": 4,
+        "sites": 11,
+        "refs": 20
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v3/hooks/useCountInfo.ts",
+      "symbol": "useCountInfo",
+      "hash": "sha256:a2ccf04fe55796a440bc60ad",
+      "line": 23,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a2ccf04fe55796a440bc60ad",
+      "fanout": {
+        "files": 5,
+        "sites": 8,
+        "refs": 15
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v3/TracesV3Logs.tsx",
+      "symbol": "TracesV3LogsImpl",
+      "hash": "sha256:7642b73457b40b8de73cdd84",
+      "line": 150,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7642b73457b40b8de73cdd84",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v3/TracesV3Logs.tsx",
+      "symbol": "shouldUseInfinitePaginatedTraces",
+      "hash": "sha256:43bfe106a68dbd01f6c71e5f",
+      "line": 555,
+      "missing": false,
+      "fanout": {
+        "files": 11,
+        "sites": 5,
+        "refs": 28
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25928"
+  },
+  "created": "2026-10-12T05:35:20.689Z",
+  "verified": "2026-10-12T05:35:20.689Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Assessment summary percentages on the model traces tab include traces from other models",
+    "The trace count badge on the logged model page does not match visible rows",
+    "Filter trace metrics and assessment summaries by the selected model on the traces screen",
+    "Model evaluation summaries show incorrect accuracy percentages because evaluations aggregate across the whole experiment",
+    "Trace badges on the model details page should reflect only that model's traces"
+  ],
+  "search": "In the Traces V3 logs view (TracesV3Logs.tsx:TracesV3LogsImpl), metrics-backed hooks useCountInfo and useAssessmentCountMetrics must receive loggedModelId alongside runUuid to scope row counts and assessment summaries to visible rows. Metrics filters are built with createTraceMetadataFilter in the metrics DSL, appending trace.metadata.`mlflow.modelId` after mlflow.sourceRun. This applies to the UI metrics endpoint path for logged model or run-scoped views when shouldUseInfinitePaginatedTraces() is true and enabled, distinct from the separately scoped row search path.",
+  "saysFor": "s2:c64e02e0a0d74ba4a825bb44b677296a92b0ea2b1398d86bdc09081658b55df9"
+}

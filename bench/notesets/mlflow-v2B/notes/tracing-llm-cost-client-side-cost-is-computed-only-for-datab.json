@@ -1,0 +1,70 @@
+{
+  "id": "tracing-llm-cost-client-side-cost-is-computed-only-for-datab",
+  "title": "Tracing LLM cost: client-side cost is computed only for Databricks and SageMaker tracking URIs; a user-set cost is never overwritten",
+  "kind": "rule",
+  "answers": [
+    "Why do my SageMaker-hosted MLflow traces show no LLM cost?",
+    "Which tracking backends compute trace costs in the client versus on the server?",
+    "If I set llm.cost manually on a span, why does MLflow replace it with a calculated cost?",
+    "Where is the decision to compute span cost at span end handled?"
+  ],
+  "body": "Path: Span cost selection for LLM spans (cost shown on traces). LiveSpan.end() calls set_span_cost_attribute, gated by mlflow/tracing/utils/__init__.py:should_compute_cost_client_side, which returns True for Databricks and SageMaker MLflow tracking URIs. Other backends compute cost server-side in translate_span_when_storing when SqlAlchemyStore logs spans.\nRule: When adding a tracking backend, add it to should_compute_cost_client_side only if its server does not compute cost. set_span_cost_attribute returns early if LLM_COST is already present on the span, including an explicit null, so a user-provided cost is kept and not recalculated.\nSymptom: Traces logged to a SageMaker MLflow tracking server had no cost, because the backend did not compute it and the client did not either.\nConstraints: Governs only which side computes cost and whether an existing value is replaced. It does not change the pricing table or the cost calculation itself, and it does not apply to non-LLM spans.",
+  "applies": "Tracing cost attribution for LLM spans across tracking backends (Databricks, SageMaker, other servers).",
+  "tags": [
+    "tracing",
+    "cost",
+    "sagemaker",
+    "databricks",
+    "llm"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/tracing/utils/__init__.py",
+      "symbol": "should_compute_cost_client_side",
+      "hash": "sha256:267bb05816d391f3ddd8a5bd",
+      "line": 943,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:267bb05816d391f3ddd8a5bd",
+      "fanout": {
+        "files": 6,
+        "sites": 6,
+        "refs": 15
+      }
+    },
+    {
+      "path": "mlflow/tracing/utils/__init__.py",
+      "symbol": "set_span_cost_attribute",
+      "hash": "sha256:8d14fffed1f3b2396f5766fc",
+      "line": 957,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8d14fffed1f3b2396f5766fc",
+      "fanout": {
+        "files": 4,
+        "sites": 3,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26178"
+  },
+  "created": "2026-10-12T05:29:16.815Z",
+  "verified": "2026-10-12T05:29:16.815Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Traces logged to our SageMaker tracking server show zero cost for language models",
+    "Manually specified trace costs are getting overwritten by automatic cost calculations",
+    "Calculate token costs on the client side when logging traces to SageMaker",
+    "Language model traces should preserve custom cost values attached to individual spans",
+    "Token spend is missing from trace spans when using a hosted SageMaker server"
+  ],
+  "search": "LLM span cost attribution in mlflow/tracing/utils/__init__.py:set_span_cost_attribute is executed at LiveSpan.end() only when should_compute_cost_client_side returns True for Databricks and SageMaker tracking URIs. Other backends compute cost server-side in translate_span_when_storing when SqlAlchemyStore logs spans, and set_span_cost_attribute returns early if LLM_COST is already present or explicitly null. This rule governs only client versus server cost calculation location and preserving user-set costs for LLM spans, without altering the pricing table or cost calculations.",
+  "saysFor": "s2:1f705ea2c605dd0fab03955fa2defad4667e2ad1cd59469abff9b5945f6da17e"
+}

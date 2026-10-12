@@ -1,0 +1,48 @@
+{
+  "id": "github-actions-job-permissions-policy-github-policy-rego-a-j",
+  "title": "GitHub Actions job permissions policy (.github/policy.rego): a job may omit permissions to inherit the workflow default, and a job-level permissions: {} is denied as redundant",
+  "kind": "rule",
+  "answers": [
+    "Conftest fails with \"sets redundant 'permissions: {}'\" on my workflow job, what do I change?",
+    "Do I need to add a permissions block to each job in a workflow that already sets top-level permissions: {}?",
+    "Why did the 'jobs are missing permissions' policy error go away for jobs without a permissions key?",
+    "Where is the job-level GitHub Actions permissions check enforced?"
+  ],
+  "body": "Path: .github/policy.rego:deny_redundant_job_permissions checks every workflow job in input.jobs (the workflow files that Conftest reads from .github/workflows) for a job-level `permissions` key set to the empty object, such as the job-level `permissions: {}` in copilot-agent.yml, rerun.yml, ui-preview.yml and ui-review.yml.\nRule: A job that omits `permissions` inherits the workflow-level default, so the policy no longer requires a job-level block. The old deny_jobs_without_permissions rule and its jobs_without_permissions helper were removed. A job-level `permissions: {}` is denied with the message \"Job '<id>' sets redundant 'permissions: {}'. Omit it to inherit the workflow's empty default permissions.\" Fix the denial by deleting the key from the job, not by adding a grant.\nSymptom: The old rule reported \"The following jobs are missing permissions\" for any job without a permissions key, which pushed authors to add an empty `permissions: {}` to every job. The current rule reverses that, so the empty declaration now fails Conftest.\nConstraints: The rule matches only an exact empty object. Non-empty job-level grants are not flagged by it and remain governed by the workflow's own permissions. This applies to workflow YAML checked by Conftest, and it does not change the workflow-level permissions block.",
+  "applies": "Workflow YAML under .github/workflows checked by Conftest with .github/policy.rego; covers job-level permissions only, not workflow-level or non-empty grants.",
+  "tags": [
+    "github-actions",
+    "permissions",
+    "conftest",
+    "policy",
+    "workflows"
+  ],
+  "deps": [
+    {
+      "path": ".github/policy.rego",
+      "hash": "sha256:c9bdfb9326a5b78b8f142b4a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25678"
+  },
+  "created": "2026-10-12T05:46:30.219Z",
+  "verified": "2026-10-12T05:46:30.219Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "github-actions-cache-mode-policy-github-policy-rego-workflow"
+  ],
+  "says": [
+    "Conftest fails my job with redundant permissions: {} — what should I change in the workflow?",
+    "Do I have to add an empty permissions block to every job when top-level permissions is already empty?",
+    "Why did the jobs-missing-permissions error stop appearing for jobs without a permissions key?",
+    "Conftest rejects an empty job-level permissions block as redundant, so I should delete it from the job"
+  ],
+  "search": "GitHub Actions job-level permissions policy: a job-level permissions set to an empty object is denied as redundant and should be deleted so the job inherits the workflow default. Jobs omitting permissions are no longer required to declare it. Matches only the exact empty object; non-empty job grants are not flagged.",
+  "saysFor": "s2:267927309748e8f975ac1efc716dab57d8305304dde8b9f39ca727cf282a75c0"
+}

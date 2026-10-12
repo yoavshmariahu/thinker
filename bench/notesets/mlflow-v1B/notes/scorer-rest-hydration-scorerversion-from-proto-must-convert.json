@@ -1,0 +1,85 @@
+{
+  "id": "scorer-rest-hydration-scorerversion-from-proto-must-convert",
+  "title": "Scorer REST hydration: ScorerVersion.from_proto must convert experiment_id int to str",
+  "kind": "rule",
+  "answers": [
+    "Why did updating online scoring start() or stop() fail with HTTP 400 for a scorer loaded through the REST tracking store?",
+    "Why does a scorer retrieved from the REST store have an integer experiment_id instead of a string?",
+    "Where is the scorer protobuf converted into a ScorerVersion entity?",
+    "How should a new protobuf int field that the entity declares as str be mapped in from_proto?"
+  ],
+  "body": "Path: Scorer retrieval through the REST tracking store (remote scorers, scorer versions, online scoring start/stop configuration) turns the protobuf `Scorer` message into a `ScorerVersion` entity via mlflow/entities/scorer.py:ScorerVersion.from_proto.\nRule: The protobuf `experiment_id` is an int32, but `ScorerVersion.experiment_id` is typed str. `from_proto` must wrap it as `str(proto.experiment_id)`; the earlier `# type: ignore[arg-type]` hid the mismatch and let the raw int leak into callers. Fix pattern: convert at the protobuf-to-entity boundary, keep the wire format unchanged, and cover it with a test that builds a real `ProtoScorer` and asserts the string value (tests/entities/test_scorer.py:test_from_proto_converts_experiment_id_to_string).\nSymptom: A user retrieved a scorer and then called start() or stop() to update online scoring config. The request used the implicit integer experiment ID, and the server rejected it with HTTP 400 because the API requires a string experiment ID.\nConstraints: Applies to ScorerVersion.from_proto when mapping experiment IDs. This PR changed only ScorerVersion; it does not cover SQL store query parameter binding (that is a separate fix, #25282/#25315). Do not change the proto field type to fix this.",
+  "applies": "Scorer entities hydrated from protobuf in the tracking REST client; any from_proto that maps an int proto ID into a str entity field.",
+  "tags": [
+    "tracking",
+    "scorer",
+    "rest",
+    "experiment-id",
+    "protobuf",
+    "online-scoring"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/entities/scorer.py",
+      "symbol": "ScorerVersion.from_proto",
+      "hash": "sha256:75fd26e995ff415082a496c6",
+      "line": 145,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:75fd26e995ff415082a496c6",
+      "fanout": {
+        "files": 78,
+        "sites": 336,
+        "refs": 351
+      }
+    },
+    {
+      "path": "tests/entities/test_scorer.py",
+      "symbol": "test_from_proto_converts_experiment_id_to_string",
+      "hash": "sha256:bdf6acbec0b040b232518019",
+      "line": 5,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:bdf6acbec0b040b232518019",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/entities/scorer.py",
+      "symbol": "ScorerVersion.experiment_id",
+      "hash": "sha256:a2550efa5eaa24cac92111dd",
+      "line": 69,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b093a80744813340371c1c16",
+      "fanout": {
+        "files": 158,
+        "sites": 7,
+        "refs": 1987
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25768"
+  },
+  "created": "2026-10-12T05:40:08.614Z",
+  "verified": "2026-10-12T05:40:08.614Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Starting or stopping online scoring fails with a bad request error on remote servers.",
+    "Updating online evaluation settings on a retrieved scorer throws an invalid request error.",
+    "Activating automated scoring produces an error stating the experiment identifier is invalid.",
+    "Enabling continuous monitoring for a registered scorer fails due to incorrect experiment formatting.",
+    "Turning on or pausing live scoring rejects the request with a client error."
+  ],
+  "search": "In mlflow/entities/scorer.py:ScorerVersion.from_proto, the int32 protobuf experiment_id must be explicitly converted to str when constructing a ScorerVersion entity. This conversion at the protobuf-to-entity boundary prevents integer experiment IDs from leaking into callers and causing HTTP 400 errors during online scoring start or stop requests. The wire format and protobuf field definition remain unchanged. Applies to scorer entity hydration in the tracking REST client and does not cover SQL store query parameter binding.",
+  "saysFor": "s2:81c184c474acb160d7c49217481b81129a836a38114439be55933288f69a1689"
+}

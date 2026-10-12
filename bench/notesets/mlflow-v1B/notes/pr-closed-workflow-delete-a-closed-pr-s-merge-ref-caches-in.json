@@ -1,0 +1,45 @@
+{
+  "id": "pr-closed-workflow-delete-a-closed-pr-s-merge-ref-caches-in",
+  "title": "PR Closed workflow: delete a closed PR's merge-ref caches in a dependent job with job-level actions: write",
+  "kind": "rule",
+  "answers": [
+    "Why are GitHub Actions caches from a closed or merged pull request removed automatically?",
+    "How do I add another cleanup step to the workflow that runs when a PR is closed?",
+    "Where is the cache deletion for closed PRs handled, and which permissions does it need?"
+  ],
+  "body": "Path: .github/workflows/pr-closed.yml (workflow \"PR Closed\", triggered by pull_request_target closed) handles closing or merging a PR: the `cancel` job cancels that PR's workflow runs, and the `delete-caches` job runs after it (`needs: cancel`) to delete the PR's Actions caches.\nRule: Keep cache cleanup in a separate dependent job, not in `cancel`. It deletes only caches whose ref is `refs/pull/$PR_NUMBER/merge`, via `gh cache delete --all --ref ... --succeed-on-no-caches --repo ...`. Grant `actions: write` at job level only, and keep top-level workflow permissions denied for caches. Use `runs-on: ubuntu-slim` and `timeout-minutes: 5`.\nConstraints: Applies to the pull_request_target closed trigger in this workflow. The cleanup targets only the merge ref; caches under other refs are not touched by this job. Use the same job-level permission pattern when adding other steps that need write access, rather than widening top-level permissions.",
+  "applies": "GitHub Actions workflow changes that touch PR lifecycle events, cache cleanup, or token permissions in .github/workflows/pr-closed.yml.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "cache",
+    "permissions",
+    "pull-request"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/pr-closed.yml",
+      "hash": "sha256:960834be4cab5553f2fc50f0",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25871"
+  },
+  "created": "2026-10-12T05:43:34.283Z",
+  "verified": "2026-10-12T05:43:34.283Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Build cache storage is running out of space from old closed pull requests.",
+    "Automatically clear build caches when a pull request gets closed or merged.",
+    "Cache cleanup fails during pull request closure due to insufficient workflow permissions.",
+    "Make sure workflow cache removal runs only after running jobs are cancelled."
+  ],
+  "search": "In .github/workflows/pr-closed.yml, the PR Closed workflow handles pull request closure by running a separate delete-caches job dependent on cancel (needs: cancel). The cleanup job runs on ubuntu-slim with timeout-minutes: 5, granting actions: write at job level only while keeping top-level workflow cache permissions denied. Caches are purged using gh cache delete --all --ref refs/pull/$PR_NUMBER/merge --succeed-on-no-caches --repo ..., targeting only merge-ref caches without touching other refs.",
+  "saysFor": "s2:d749232dc5d43bb6ed8d55911e011ea571bb58392e39a9b4e500928e93a14fd9"
+}

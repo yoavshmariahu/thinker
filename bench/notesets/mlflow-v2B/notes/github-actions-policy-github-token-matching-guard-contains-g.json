@@ -1,0 +1,44 @@
+{
+  "id": "github-actions-policy-github-token-matching-guard-contains-g",
+  "title": "GitHub Actions policy github.token matching: guard contains_github_token with is_string before regex matching",
+  "kind": "rule",
+  "answers": [
+    "Why does the conftest policy crash or misbehave on a with: or env: value that is a number or boolean?",
+    "Why is the github.token shorthand check not catching a value in a step's with: block?",
+    "Where is the github.token interpolation detection helper in the policy?"
+  ],
+  "body": "Path: .github/policy.rego:contains_github_token is the helper used by the github.token shorthand rules that scan step `with` and `env` values for `${{ github.token }}`.\nRule: Check `is_string(value)` before calling `regex.match` on a YAML value. Workflow `with` and `env` values can be booleans, numbers, or objects, and regex matching on non-strings is not a valid match. The guard is inside `contains_github_token` so both callers (`with` and `env` shorthand rules) get it.\nSymptom: Policy evaluation for steps with non-string inputs did not produce a clean result for the github.token shorthand check, so the rule could not reliably judge those values.\nConstraints: Only the github.token shorthand helper needed the guard in this change; other rules that match on specific string fields (e.g., `step.run`) are not covered by this note.",
+  "applies": "Writing or debugging string-matching checks over arbitrary YAML values in .github/policy.rego.",
+  "tags": [
+    "github-actions",
+    "policy",
+    "rego",
+    "github-token"
+  ],
+  "deps": [
+    {
+      "path": ".github/policy.rego",
+      "hash": "sha256:c9bdfb9326a5b78b8f142b4a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25900"
+  },
+  "created": "2026-10-12T05:36:06.037Z",
+  "verified": "2026-10-12T05:36:06.037Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Workflow policy validation crashes on steps that use boolean or numeric input values.",
+    "CI policy checks fail unexpectedly when step environment variables are numbers.",
+    "Pipeline security checks should safely handle non-string parameters in workflow configurations.",
+    "Workflow linting fails to evaluate steps containing boolean flags."
+  ],
+  "search": "GitHub Actions policy evaluation guards token string matching with an is_string check before executing regular expressions on YAML values. In .github/policy.rego, contains_github_token verifies values are strings so scanning step with and env blocks for ${{ github.token }} does not crash on booleans, numbers, or objects. This prevents policy misbehavior when evaluating workflow steps containing non-string inputs. The guard is constrained to the token helper and does not cover rules matching specific string fields like step.run.",
+  "saysFor": "s2:91e4bf69531ce8eeaf526b9fdc5b8298705f805c125a9d120d7751c256abbba1"
+}

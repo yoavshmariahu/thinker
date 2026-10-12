@@ -1,0 +1,90 @@
+{
+  "id": "gateway-openai-compatible-models-listing-list-models-maps-na",
+  "title": "gateway OpenAI-compatible models listing: list_models maps named gateway endpoints to OpenAI model objects with the endpoint name as id",
+  "kind": "map",
+  "answers": [
+    "Where is GET /gateway/mlflow/v1/models handled?",
+    "Why does client.models.list() return gateway endpoint names instead of provider model names?",
+    "Why are some gateway endpoints missing from the OpenAI models response?",
+    "What timestamp format does the gateway models response use for created?"
+  ],
+  "body": "Path: `GET /gateway/mlflow/v1/models` is handled by `mlflow/server/gateway_api.py:list_models`, which reads gateway endpoints from the store via `store.list_gateway_endpoints()` and returns the OpenAI list payload defined in `mlflow/gateway/schemas/models.py:ResponsePayload` and `ModelObject`.\nRule: Each returned model's `id` is the gateway endpoint name, which is the value callers pass as `model` to `/gateway/mlflow/v1/chat/completions`. Endpoints without a name are skipped, and the rest are sorted by name. `created` is the endpoint's `created_at` converted from milliseconds to seconds (`// 1000`), and `owned_by` is the constant `\"mlflow\"`.\nConstraints: The schema extends `ResponseModel` from `mlflow/gateway/base_models`. The route is served from the gateway router, so it returns 501 with the gateway-disabled message when the gateway is turned off (covered by `tests/server/test_gateway_disable.py`). Authorization is not in this handler; see the related gateway model listing auth note.\nApplies: Changes to the gateway OpenAI-compatible models listing or to its response shape, and to the mapping from gateway endpoints to model IDs.",
+  "applies": "The gateway OpenAI-compatible models listing response: its ids, ordering, created field and schema.",
+  "tags": [
+    "gateway",
+    "openai-compatible",
+    "models-list",
+    "endpoints"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/gateway_api.py",
+      "symbol": "list_models",
+      "hash": "sha256:e932f1a2c66a6d5a8ad1f052",
+      "line": 989,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e932f1a2c66a6d5a8ad1f052",
+      "fanout": {
+        "files": 12,
+        "sites": 28,
+        "refs": 39
+      }
+    },
+    {
+      "path": "mlflow/gateway/schemas/models.py",
+      "symbol": "ResponsePayload",
+      "hash": "sha256:d5017e18c4c9b144738d2be6",
+      "line": 11,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:d5017e18c4c9b144738d2be6",
+      "fanout": {
+        "files": 30,
+        "sites": 56,
+        "refs": 137
+      }
+    },
+    {
+      "path": "mlflow/gateway/schemas/models.py",
+      "symbol": "ModelObject",
+      "hash": "sha256:1c65a3fced3ba37172e8ac56",
+      "line": 4,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1c65a3fced3ba37172e8ac56",
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "tests/server/test_gateway_disable.py",
+      "hash": "sha256:56563622d2c9ae467cdf518a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25940"
+  },
+  "created": "2026-10-12T05:42:31.210Z",
+  "verified": "2026-10-12T05:42:31.210Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "gateway-model-listing-auth-get-gateway-mlflow-v1-models-requ"
+  ],
+  "says": [
+    "The model picker shows gateway endpoint names instead of the underlying provider model names.",
+    "Unnamed gateway endpoints are missing from the list of available models.",
+    "Sort the available gateway models alphabetically by name in the model list.",
+    "Model creation dates in the gateway listing appear with incorrect second-based timestamps.",
+    "Listing gateway models returns a service disabled error when the gateway feature is off."
+  ],
+  "search": "The OpenAI-compatible model listing route `GET /gateway/mlflow/v1/models` is handled by `mlflow.server.gateway_api:list_models`, mapping endpoints from `store.list_gateway_endpoints()` to `mlflow.gateway.schemas.models.ResponsePayload` and `ModelObject`. Each model object sets `id` to the endpoint name, sets `owned_by` to `\"mlflow\"`, converts `created_at` from milliseconds to seconds (`// 1000`), skips unnamed endpoints, and sorts results by name. The route schema extends `ResponseModel` from `mlflow.gateway.base_models` and returns a 501 gateway-disabled error when the gateway is disabled. This handler does not perform authorization checks and applies to changes in gateway OpenAI-compatible model listing responses, response shapes, and endpoint ID mappings.",
+  "saysFor": "s2:a6a6e743ebb5844fb3c8f7d26a1cbbe45bf9267a85718259086b5ef45b9065ca"
+}

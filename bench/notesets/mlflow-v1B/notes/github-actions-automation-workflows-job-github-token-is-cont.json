@@ -1,0 +1,55 @@
+{
+  "id": "github-actions-automation-workflows-job-github-token-is-cont",
+  "title": "GitHub Actions automation workflows: job GITHUB_TOKEN is contents: read; PR and write scopes come from the mlflow-app App token",
+  "kind": "rule",
+  "answers": [
+    "Why does the uv.lock update workflow no longer have pull-requests write permission on GITHUB_TOKEN?",
+    "A workflow that opens or edits PRs fails with 403 after a permissions change; where do PR write scopes come from now?",
+    "Where is the permissions block for the experimental decorator removal or model catalog bot jobs?",
+    "How do I give a new scheduled bot job write access to create PRs without widening GITHUB_TOKEN?"
+  ],
+  "body": "Path: `.github/workflows/uv.yml` (uv.lock auto-update job), `.github/workflows/remove-experimental-decorators.yml` (decorator-removal job), and `.github/workflows/update-model-catalog.yml` (catalog PR job) are scheduled or manual bot jobs that push branches and open PRs; their job-level `permissions:` block is the chokepoint.\nRule: Keep each of these jobs at `permissions: contents: read` at job level. Do not re-add `contents: write` or `pull-requests: write` to the job's GITHUB_TOKEN. Write operations that need to reach GitHub go through the `mlflow-app` token minted by `actions/create-github-app-token` in the job's first step, and that token's scopes are what preserve write access.\nConstraints: Applies to the job-level GITHUB_TOKEN of these bot workflows. Does not cover `secrets.GITHUB_TOKEN` used by a separate publish job in update-model-catalog.yml, which keeps its own permissions. Verify that any new write step uses the App token output (`steps.app-token.outputs.token`) rather than `github.token`, or it will fail under read-only permissions.",
+  "applies": "Workflow permission blocks in .github/workflows for scheduled or manual bot jobs that open PRs or push branches using the mlflow-app GitHub App.",
+  "tags": [
+    "github-actions",
+    "permissions",
+    "security",
+    "ci"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/uv.yml",
+      "hash": "sha256:d47d3edb6a2e65e419a9488c",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/remove-experimental-decorators.yml",
+      "hash": "sha256:d0f1f9d5a3952a27040405cc",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/update-model-catalog.yml",
+      "hash": "sha256:2e512fbbf5220f13f67d4198",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25605"
+  },
+  "created": "2026-10-12T05:47:48.235Z",
+  "verified": "2026-10-12T05:47:48.235Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Scheduled dependency update bot fails with permission denied when opening a pull request.",
+    "Automated maintenance tasks cannot push branches or create pull requests on the repository.",
+    "Enable automated catalog update tasks to submit pull requests using repository app credentials.",
+    "Automated code cleanup bot receives authorization errors when submitting pull requests."
+  ],
+  "search": "GitHub Actions automation workflows in .github/workflows/uv.yml, .github/workflows/remove-experimental-decorators.yml, and .github/workflows/update-model-catalog.yml restrict job-level GITHUB_TOKEN to contents: read. Pull request creation and branch pushes must use the token minted by actions/create-github-app-token via steps.app-token.outputs.token rather than github.token. This policy applies to these automated bot jobs and excludes the separate publish job in update-model-catalog.yml which uses secrets.GITHUB_TOKEN.",
+  "saysFor": "s2:5071425254b6254e9fb7dbeb674bd924fc5a18340030027d7b841bdccf72953b"
+}

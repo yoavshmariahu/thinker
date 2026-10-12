@@ -1,0 +1,73 @@
+{
+  "id": "model-registry-search-version-number-filter-is-coerced-to-in",
+  "title": "Model registry search: version_number filter is coerced to int in the SQL store and rejects fractional values",
+  "kind": "rule",
+  "answers": [
+    "Why does searching model versions by version_number fail with a character varying error on PostgreSQL?",
+    "Why does version_number = 1.5 in a model version search return an error instead of version 1?",
+    "Can I search model versions with a quoted version number like version_number='2'?",
+    "Where is the version_number model-version filter handled for the SQL registry store?"
+  ],
+  "body": "Path: Model-version search (`search_model_versions`) on the SQL registry store turns parsed filter_string clauses such as `version_number`, `name`, and `run_id` into SQL in mlflow/store/model_registry/sqlalchemy_store.py:_get_search_model_versions_filter_clauses.\nRule: For the numeric `version_number` attribute, reject any float from the parser first, then call `int(value)`; if that raises TypeError or ValueError, raise INVALID_PARAMETER_VALUE with \"Invalid value for numeric attribute '<key>': <value>\". Quoted integers such as `'2'` are parsed as strings and succeed after this conversion, so the same rule covers both quoted and unquoted input.\nSymptom: Model-version searches on PostgreSQL with psycopg v3 failed because a quoted version number was bound as VARCHAR. A fractional literal like `version_number = 1.5` was once silently truncated by int() to 1 and could return the wrong version.\nConstraints: This check lives only in the SQL registry store. The diff does not change the FileStore path (mlflow/utils/search_utils.py:SearchModelVersionUtils._does_model_version_match_clauses), so a fractional literal may still be truncated there; do not assume both backends reject it. Non-numeric attributes are unaffected.",
+  "applies": "SQL model registry (`search_model_versions`) numeric version_number filters; not the FileStore file-based registry.",
+  "tags": [
+    "model-registry",
+    "search",
+    "model-version",
+    "version_number",
+    "sqlalchemy",
+    "postgresql",
+    "psycopg3"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/model_registry/sqlalchemy_store.py",
+      "symbol": "_get_search_model_versions_filter_clauses",
+      "hash": "sha256:9907ec9ccfc049483bb2fd09",
+      "line": 665,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9907ec9ccfc049483bb2fd09",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/utils/search_utils.py",
+      "symbol": "SearchModelVersionUtils._does_model_version_match_clauses",
+      "hash": "sha256:b73c5916d2f542338fd86b2f",
+      "line": 1471,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b73c5916d2f542338fd86b2f",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26170"
+  },
+  "created": "2026-10-12T05:30:17.488Z",
+  "verified": "2026-10-12T05:30:17.488Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "search-filter-numeric-attributes-searchutils-get-value-retur"
+  ],
+  "says": [
+    "Searching model versions by quoted version number fails with a database type error.",
+    "Filtering model versions using decimal numbers should show an error instead of truncating.",
+    "Model registry search crashes when filtering on version number on PostgreSQL backends.",
+    "Filter by version number should accept quoted integer values when searching registered models."
+  ],
+  "search": "SQL model registry search in mlflow/store/model_registry/sqlalchemy_store.py:_get_search_model_versions_filter_clauses coerces the numeric version_number filter to int and rejects float values. Parsed float values are rejected immediately, while string integers like '2' are successfully converted via int(value), raising INVALID_PARAMETER_VALUE for non-integer inputs. This prevents PostgreSQL psycopg v3 query failures caused by binding quoted versions as VARCHAR and prevents fractional values like 1.5 from silently truncating to 1. The check applies strictly to the SQL store search_model_versions path and numeric attributes, leaving FileStore and SearchModelVersionUtils._does_model_version_match_clauses unchanged.",
+  "saysFor": "s2:5481cad7efed07565ad7d919eb9fc1e9c53f598257fb2518a2fd27ba4e0e9a7f"
+}

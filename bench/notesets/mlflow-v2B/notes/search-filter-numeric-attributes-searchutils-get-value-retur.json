@@ -1,0 +1,148 @@
+{
+  "id": "search-filter-numeric-attributes-searchutils-get-value-retur",
+  "title": "Search filter numeric attributes: SearchUtils._get_value returns int or float; only experiment and evaluation-dataset builders reject fractional values",
+  "kind": "rule",
+  "answers": [
+    "Why do run start_time filters fail with psycopg v3 on PostgreSQL when the value is a plain number?",
+    "Why does a fractional creation_time filter on experiments raise an error while the same filter on runs is accepted?",
+    "Where is the numeric value of an attribute filter like start_time or created_at parsed?",
+    "How are fractional logged-model creation_timestamp comparisons evaluated in memory?",
+    "Does the MCP registry created_at filter accept fractional values?"
+  ],
+  "body": "Path: Parses the right-hand side of attribute comparisons in search filter strings (run attributes.start_time, experiment creation_time, evaluation-dataset created_time, logged-model creation_timestamp, MCP registry created_at) through mlflow/utils/search_utils.py:SearchUtils._get_value; the parsed condition dicts feed the SQL filter builders and the in-memory matchers.\nRule: _get_value returns int for integer literal tokens and float for other numeric tokens, instead of the raw string. The in-memory matchers (SearchUtils._does_run_match_clause, SearchUtils._does_logged_model_match_clause, SearchUtils._does_model_match_clause) call int() only when the value is still a str, so fractional comparisons stay exact (1.5 neither equals nor truncates to 1). The integer-only check is not in the shared parser: mlflow/store/tracking/sqlalchemy_store.py:_get_search_experiments_filter_clauses and _get_search_datasets_filter_clauses raise invalid_parameter_value when the value is a float.\nSymptom: On PostgreSQL with the psycopg v3 driver, run start_time and MCP registry timestamp filters bound a string against an integer column and errored, because the parser left numeric tokens as strings.\nConstraints: Applies only to numeric attribute keys; string and identifier values are unchanged. Do not add a float rejection to the run, logged-model or MCP builders, since they compare fractions exactly on purpose. Experiment and dataset searches keep their integer-only validation.",
+  "applies": "Search filter parsing and SQL/in-memory matching for numeric attributes across tracking stores (runs, experiments, datasets, logged models, MCP registry).",
+  "tags": [
+    "search",
+    "filter",
+    "numeric-attributes",
+    "psycopg3",
+    "postgresql",
+    "tracking",
+    "mcp-registry"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/utils/search_utils.py",
+      "symbol": "SearchUtils._get_value",
+      "hash": "sha256:5695cab8f8f5a828d29796ca",
+      "line": 436,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5695cab8f8f5a828d29796ca",
+      "fanout": {
+        "files": 1,
+        "sites": 6,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/utils/search_utils.py",
+      "symbol": "SearchUtils._does_run_match_clause",
+      "hash": "sha256:09dddd9b790845982cbb9d1a",
+      "line": 691,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:09dddd9b790845982cbb9d1a",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/utils/search_utils.py",
+      "symbol": "SearchUtils",
+      "hash": "sha256:8061f72517b58994c5f92e14",
+      "line": 172,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8061f72517b58994c5f92e14",
+      "fanout": {
+        "files": 11,
+        "sites": 0,
+        "refs": 171
+      }
+    },
+    {
+      "path": "mlflow/utils/search_utils.py",
+      "symbol": "_get_value",
+      "hash": "sha256:5695cab8f8f5a828d29796ca",
+      "line": 436,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5695cab8f8f5a828d29796ca",
+      "fanout": {
+        "files": 1,
+        "sites": 6,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "_get_search_experiments_filter_clauses",
+      "hash": "sha256:89020edabf9dded58bde7923",
+      "line": 10175,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:89020edabf9dded58bde7923",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "_get_search_datasets_filter_clauses",
+      "hash": "sha256:553b894cf7dad27acb23d27f",
+      "line": 10761,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:553b894cf7dad27acb23d27f",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/utils/search_utils.py",
+      "symbol": "SearchUtils._does_model_match_clause",
+      "hash": "sha256:6f480f1ef64a1ab101fbcb6c",
+      "line": 740,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6f480f1ef64a1ab101fbcb6c",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26180"
+  },
+  "created": "2026-10-12T05:29:15.288Z",
+  "verified": "2026-10-12T05:29:15.288Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "logged-model-search-filter-string-metric-comparisons-join-a",
+    "logged-model-search-search-logged-models-eager-load-tags-par",
+    "logged-model-tags-set-logged-model-tags-writes-through-bulk",
+    "sql-tracking-store-bulk-upserts-dedupe-rows-by-conflict-key"
+  ],
+  "says": [
+    "Searching runs by start time fails on PostgreSQL databases due to type mismatch errors.",
+    "Numeric timestamp search filters should be treated as numbers rather than text strings.",
+    "Filtering experiments by fractional creation times should produce a clear validation error.",
+    "Run search filters with decimal values truncate or fail instead of matching exact numbers.",
+    "Allow searching logged models and runs using decimal numbers without losing precision."
+  ],
+  "search": "In search filter parsing across tracking stores, SearchUtils._get_value in mlflow/utils/search_utils.py returns int for integer tokens and float for other numeric tokens instead of raw strings. In-memory matchers (SearchUtils._does_run_match_clause, SearchUtils._does_logged_model_match_clause, SearchUtils._does_model_match_clause) only cast to int when the value is a string, preserving exact fractional comparisons for runs, logged models, and MCP registry timestamps. Integer-only validation is enforced specifically in mlflow/store/tracking/sqlalchemy_store.py via _get_search_experiments_filter_clauses and _get_search_datasets_filter_clauses, which raise invalid_parameter_value on float inputs. This guidance applies only to numeric attribute keys, leaving string and identifier tokens unchanged and forbidding float rejections in run, logged-model, or MCP builders.",
+  "saysFor": "s2:4ab5899b4f0dd6ea84fa2aea16099995f0ebe9e394a1379a2b5030854a4e759a"
+}

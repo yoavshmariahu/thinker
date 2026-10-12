@@ -1,0 +1,72 @@
+{
+  "id": "databrickssdkmodelsartifactrepository-uc-model-files-api-dow",
+  "title": "DatabricksSDKModelsArtifactRepository (UC model Files API): downloads stay single-stream and list_artifacts returns [] for files or missing paths",
+  "kind": "rule",
+  "answers": [
+    "Downloading a large Unity Catalog model file via the Files API is slow or ignores the chunk size setting; why?",
+    "Listing artifacts of a UC model version returns nothing or errors when the path is a single file or does not exist; how is it handled?",
+    "Where do model files under /Models/<catalog>/<schema>/<model>/<version> get listed, uploaded or downloaded through WorkspaceClient().files?",
+    "Where is the single-stream versus parallel presigned download decision made for cloud artifact repos?"
+  ],
+  "body": "Path: mlflow/store/artifact/databricks_sdk_models_artifact_repo.py:DatabricksSDKModelsArtifactRepository handles list_artifacts, log_artifact, _upload_to_cloud and _download_from_cloud for files under /Models/<catalog>/<schema>/<model>/<version>, using WorkspaceClient().files. The download/upload guard lives in mlflow/store/artifact/cloud_artifact_repo.py:CloudArtifactRepository._download_file.\nRule: _download_file must take the single-stream _download_from_cloud branch for this repo, because it has no presigned URLs for the parallel multipart path. The guard compares type(self).__name__ to \"DatabricksSDKModelsArtifactRepository\". Download streams in MLFLOW_MULTIPART_DOWNLOAD_CHUNK_SIZE chunks (default 100 MB). list_artifacts first calls _is_dir, which catches databricks.sdk.errors.platform.NotFound from get_directory_metadata, and returns [] for a file or missing directory instead of raising.\nConstraints: The guard matches on class name as a string, so renaming the class or adding a subclass silently disables the single-stream exception. The SDK import is lazy, so the module loads without databricks-sdk being imported at package import time.",
+  "applies": "Changing list, upload or download behavior of the Files-API-backed UC model artifact repo, or the cloud artifact download branching it relies on.",
+  "tags": [
+    "unity-catalog",
+    "artifacts",
+    "files-api",
+    "download",
+    "list-artifacts"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/artifact/databricks_sdk_models_artifact_repo.py",
+      "symbol": "DatabricksSDKModelsArtifactRepository",
+      "hash": "sha256:6b64fa9759599d9cbbfa08d5",
+      "line": 38,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6b64fa9759599d9cbbfa08d5",
+      "fanout": {
+        "files": 7,
+        "sites": 9,
+        "refs": 22
+      }
+    },
+    {
+      "path": "mlflow/store/artifact/cloud_artifact_repo.py",
+      "symbol": "CloudArtifactRepository._download_file",
+      "hash": "sha256:77526a542c9c1a30e58a2e8d",
+      "line": 273,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:77526a542c9c1a30e58a2e8d",
+      "fanout": {
+        "files": 15,
+        "sites": 31,
+        "refs": 43
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25987"
+  },
+  "created": "2026-10-12T05:35:08.424Z",
+  "verified": "2026-10-12T05:35:08.424Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "uc-model-load-register-artifact-routing-mlflow-use-databrick",
+    "databrickssdkmodelsartifactrepository-uc-model-files-go-thro"
+  ],
+  "says": [
+    "Downloading large model files from the catalog takes too long without parallel transfer.",
+    "The model version artifact browser displays an empty list when clicking a single file.",
+    "Catalog model artifact listing returns no files when opening a missing folder path.",
+    "Enable parallel multipart download streams when retrieving large model files from the catalog."
+  ],
+  "search": "In DatabricksSDKModelsArtifactRepository (handling list_artifacts, log_artifact, _upload_to_cloud, and _download_from_cloud under /Models/<catalog>/<schema>/<model>/<version>), CloudArtifactRepository._download_file forces single-stream downloads in MLFLOW_MULTIPART_DOWNLOAD_CHUNK_SIZE chunks by comparing type(self).__name__ to 'DatabricksSDKModelsArtifactRepository', as presigned URLs for parallel multipart downloads are unavailable. For directory listings, list_artifacts calls _is_dir, which catches databricks.sdk.errors.platform.NotFound from get_directory_metadata and returns [] for a single file or missing directory instead of raising. Subclassing or renaming the repository class silently breaks the single-stream guard, and databricks-sdk is imported lazily at runtime.",
+  "saysFor": "s2:85d055f29ec257aeca63e675721364b4801c345c993666dc6f2b15d69c684654"
+}

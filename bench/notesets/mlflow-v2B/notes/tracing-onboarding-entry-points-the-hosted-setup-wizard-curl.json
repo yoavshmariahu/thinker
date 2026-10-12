@@ -1,0 +1,79 @@
+{
+  "id": "tracing-onboarding-entry-points-the-hosted-setup-wizard-curl",
+  "title": "tracing onboarding entry points: the hosted setup wizard curl command is the shared one-line setup, and skills are installed separately",
+  "kind": "rule",
+  "answers": [
+    "The tracing quickstart and README used to say to run `uvx mlflow@latest agent setup`. What replaced it, and what does the new command do?",
+    "Does the MLflow setup wizard install MLflow skills? Where do I find the skills installation instructions?",
+    "Where is the one-line setup command shown in the agent action card on the tracing empty state, and what text sits above it?",
+    "Where is the 'Fastest start' callout for tracing setup in README and the skinny package README?"
+  ],
+  "body": "Path: Onboarding entry points that show a one-line tracing setup command: docs/docs/genai/tracing/quickstart/index.mdx, docs/docs/genai/eval-monitor/regression-testing.mdx, README.md and its generated copy libs/skinny/README_SKINNY.md, and the tracing empty-state card mlflow/server/js/src/experiment-tracking/components/onboarding/AgentActionCard.tsx:AgentActionCard (AGENT_SETUP_COMMAND).\nRule: The shared command is `curl -LsSf https://mlflow.org/wizard/setup.sh | sh`. It connects to an MLflow server or Databricks workspace and launches an installed coding agent (Claude Code, Codex, or OpenCode) to add tracing. It does NOT install MLflow skills or write evaluation code, so any copy that mentions regression tests or evaluation must link to the separate skills installation at https://github.com/mlflow/skills#installation. Change the command and its companion copy in all four places together, and regenerate README_SKINNY.md from README.md instead of hand-editing it.\nConstraints: Applies to the generic OSS entry points only; Databricks-specific workspace URLs, experiment IDs or warehouse IDs must not be embedded. Does not cover the `mlflow agent setup` CLI implementation or historical changelog entries, which stay unchanged. Ship the copy only after https://mlflow.org/wizard/setup.sh returns HTTP 200 in production, since a non-200 response leaves every changed onboarding path with a command that cannot run.",
+  "applies": "OSS tracing onboarding copy and commands in README, docs quickstart, regression-testing guide, and the agent action card; not the CLI code itself.",
+  "tags": [
+    "tracing",
+    "onboarding",
+    "docs",
+    "setup-wizard",
+    "readme",
+    "agent-action-card"
+  ],
+  "deps": [
+    {
+      "path": "README.md",
+      "hash": "sha256:e9b30b8aee35e78fb87bdbbf",
+      "missing": false
+    },
+    {
+      "path": "libs/skinny/README_SKINNY.md",
+      "hash": "sha256:57d224be449ef5c669447ad2",
+      "missing": false
+    },
+    {
+      "path": "docs/docs/genai/tracing/quickstart/index.mdx",
+      "hash": "sha256:5b8787df5df4e471cc9aa96c",
+      "missing": false
+    },
+    {
+      "path": "docs/docs/genai/eval-monitor/regression-testing.mdx",
+      "hash": "sha256:3c3b3538ca9077a780b994a5",
+      "missing": false
+    },
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/onboarding/AgentActionCard.tsx",
+      "symbol": "AgentActionCard",
+      "hash": "sha256:a7ce3538a932737577d37ebe",
+      "line": 31,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a7ce3538a932737577d37ebe",
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 12
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25949"
+  },
+  "created": "2026-10-12T05:30:43.462Z",
+  "verified": "2026-10-12T05:30:43.462Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "agent-action-card-onboarding-strings-regenerate-src-lang-def"
+  ],
+  "says": [
+    "Update the one-line quickstart command on the tracing empty state screen",
+    "The setup wizard instructions do not install skills needed for evaluation regression testing",
+    "Replace the outdated setup command in the tracing onboarding documentation and project overview",
+    "Add links to separate skills installation from the tracing getting started guide",
+    "The agent action card command fails because the setup script url is unreachable"
+  ],
+  "search": "The shared one-line tracing setup command across open-source onboarding entry points is `curl -LsSf https://mlflow.org/wizard/setup.sh | sh`, which launches an installed coding agent (Claude Code, Codex, or OpenCode) to add tracing. Because the wizard does not install MLflow skills or write evaluation code, copy referencing regression testing or evaluation must link to https://github.com/mlflow/skills#installation. The command and copy must be updated synchronously in README.md, libs/skinny/README_SKINNY.md, docs/docs/genai/tracing/quickstart/index.mdx, docs/docs/genai/eval-monitor/regression-testing.mdx, and AgentActionCard.tsx only after the URL returns HTTP 200, without embedding Databricks-specific workspace URLs or IDs.",
+  "saysFor": "s2:38989ea3b90c402abb1900a610816acd1c0e7e00c74afb2cf2387496322f8689"
+}

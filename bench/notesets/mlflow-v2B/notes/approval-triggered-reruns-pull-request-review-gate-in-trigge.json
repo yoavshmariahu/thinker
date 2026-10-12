@@ -1,0 +1,54 @@
+{
+  "id": "approval-triggered-reruns-pull-request-review-gate-in-trigge",
+  "title": "Approval-triggered reruns: pull_request_review gate in trigger-rerun.yml hands off to a workflow_run worker in rerun.yml",
+  "kind": "map",
+  "answers": [
+    "Where is the logic that reruns failed checks after a PR is approved?",
+    "Who is allowed to approve a PR and cause reruns (author association and bot allowlist)?",
+    "Why is there a separate trigger workflow instead of rerunning directly on pull_request_review?",
+    "Which concurrency setting controls overlapping approval reruns?"
+  ],
+  "body": "Path: .github/workflows/trigger-rerun.yml:approved is the PR approval gate. It fires on pull_request_review submitted and only passes when the review state is approved and the reviewer is OWNER, MEMBER or COLLABORATOR, or a bot in the mlflow-app[bot] / nailaopus[bot] allowlist. .github/workflows/rerun.yml:rerun is the worker that runs on workflow_run completion and reads the PR head SHA from the event.\nRule: Keep the two-step split. The approval job is a no-data trigger because a workflow_run trigger needs a completed run to react to; the worker must reread the head SHA from `github.event.workflow_run.head_sha` and not receive data from the trigger. The worker only runs when `workflow_run.conclusion == 'success'`. Its concurrency group is keyed by `workflow_run.head_branch` with cancel-in-progress true, while the trigger's group is keyed by `github.ref` with cancel-in-progress false.\nConstraints: The pull_request_review form is used because it works for approvals on forks (see the linked StackOverflow reference in the trigger file's header). Changes to who may approve belong in the `if:` of trigger-rerun.yml; changes to which runs get rerun belong in the jq pipeline of rerun.yml.",
+  "applies": "Scope: the approval-triggered rerun path in .github/workflows/trigger-rerun.yml and .github/workflows/rerun.yml; not the Protect gate or retry workflow.",
+  "tags": [
+    "github-actions",
+    "pull_request_review",
+    "workflow_run",
+    "approval",
+    "rerun"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/trigger-rerun.yml",
+      "hash": "sha256:eb6c1ec332d4928910c3eafc",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/rerun.yml",
+      "hash": "sha256:15dfdf1ad45c4e4314ca5d50",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26030"
+  },
+  "created": "2026-10-12T05:34:01.979Z",
+  "verified": "2026-10-12T05:34:01.979Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "approval-rerun-workflows-workflow-run-workflows-must-name-th"
+  ],
+  "says": [
+    "Which team roles and automation bots are permitted to trigger check reruns on approval?",
+    "Allow designated GitHub bot accounts to trigger automated test reruns upon pull request approval.",
+    "Cancel older in-progress rerun jobs when a pull request branch receives a new approval.",
+    "Ensure automated CI reruns execute properly when pull requests originate from forked repositories.",
+    "Reviews from external contributors should not trigger automated test reruns on pull requests."
+  ],
+  "search": "Approval-triggered CI reruns use a two-step architecture where `.github/workflows/trigger-rerun.yml:approved` gates approvals and triggers `.github/workflows/rerun.yml:rerun` via a `workflow_run` event. The trigger checks for approved reviews by repository OWNER, MEMBER, COLLABORATOR, or bots in `mlflow-app[bot]` and `nailaopus[bot]`, passing execution to the worker when conclusion is success. The worker reads `github.event.workflow_run.head_sha`, cancels in-progress jobs per head branch, while the trigger uses `github.ref` without cancellation to reliably support approvals on forked repositories.",
+  "saysFor": "s2:62f7a9a42a57e687ad4dc64bc3589a14e03e19bceccea8f8aa66551895228008"
+}

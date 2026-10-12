@@ -1,0 +1,60 @@
+{
+  "id": "span-types-docs-the-span-type-table-in-genai-concepts-must-l",
+  "title": "Span types docs: the span-type table in genai concepts must list every SpanType member from mlflow/entities/span.py",
+  "kind": "rule",
+  "answers": [
+    "Why are WORKFLOW, TASK, GUARDRAIL or EVALUATOR missing from the span types documentation?",
+    "Where is the list of built-in span types documented for tracing users?",
+    "I added a new span type in the tracing SDK; what docs must I update so users can see it?",
+    "Which page describes the span type values like LLM, RETRIEVER, TOOL and what each one means?"
+  ],
+  "body": "Path: docs/docs/genai/concepts/span.mdx is the user-facing table of built-in span types (\"Span types\" tab, LLM, RETRIEVER, PARSER, RERANKER, MEMORY, UNKNOWN and so on). It documents the values that the SpanType class in mlflow/entities/span.py:SpanType accepts when a user sets span_type on a trace span.\nRule: Treat SpanType in mlflow/entities/span.py:SpanType as the source of truth. Whenever a member is added to it, add a matching row (value in quotes plus a one-line meaning) to the span-type table in docs/docs/genai/concepts/span.mdx in the same change. This PR closed a gap where WORKFLOW, TASK, GUARDRAIL and EVALUATOR existed in the enum but had no docs row.\nSymptom: Users reading the span concepts page did not learn that the four span types existed, so they did not use them or assumed they were unsupported.\nConstraints: Applies to the documented built-in enum values only. Custom user-supplied span_type strings are not part of this table. Does not cover the Python API reference, which is generated from code.",
+  "applies": "Any change that adds, renames or removes a built-in span type in the tracing SDK or its docs.",
+  "tags": [
+    "tracing",
+    "docs",
+    "span-type",
+    "documentation-sync"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "SpanType",
+      "hash": "sha256:6412190e31eaf49c60b46955",
+      "line": 72,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6412190e31eaf49c60b46955",
+      "fanout": {
+        "files": 115,
+        "sites": 0,
+        "refs": 908
+      }
+    },
+    {
+      "path": "docs/docs/genai/concepts/span.mdx",
+      "hash": "sha256:aa9adec76e0ddb166296fe99",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25736"
+  },
+  "created": "2026-10-12T05:45:43.231Z",
+  "verified": "2026-10-12T05:45:43.231Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The span concepts documentation is missing descriptions for workflow, task, guardrail, and evaluator types.",
+    "Where can I find the complete list of built in trace span types?",
+    "Update the span types table in the documentation to include all supported values.",
+    "GenAI tracing documentation does not show evaluator and guardrail as supported span categories.",
+    "Clarify what built in span type values like retriever and tool represent in traces."
+  ],
+  "search": "The user-facing span-type table in docs/docs/genai/concepts/span.mdx must list every built-in member from mlflow/entities/span.py:SpanType, adding a quoted value and one-line description whenever an enum member is added, renamed, or removed. This ensures enum values such as WORKFLOW, TASK, GUARDRAIL, and EVALUATOR are documented alongside LLM, RETRIEVER, PARSER, RERANKER, MEMORY, and UNKNOWN. The requirement applies only to built-in enum values in the concepts table, excluding custom user-supplied span_type strings and the generated Python API reference.",
+  "saysFor": "s2:c2f93b700aa3e4a81845b8aa03473e993d83fe869c956c0d71db66de606991a7"
+}

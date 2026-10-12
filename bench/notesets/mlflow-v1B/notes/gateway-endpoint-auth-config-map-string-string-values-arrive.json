@@ -1,0 +1,85 @@
+{
+  "id": "gateway-endpoint-auth-config-map-string-string-values-arrive",
+  "title": "gateway endpoint auth_config: map<string,string> values arrive as strings, so list options need a before-validator that splits commas",
+  "kind": "rule",
+  "answers": [
+    "Setting a list option like vertex_anthropic_betas through the gateway API gives a validation error on the first request",
+    "How do I pass a list-valued provider option through auth_config as a string?",
+    "Where does the gateway convert per-model auth_config into provider config objects?"
+  ],
+  "body": "Path: Database-managed gateway endpoints carry per-model auth_config, which is a proto map<string,string>. mlflow/server/gateway_api.py:_build_endpoint_config copies those values into provider config models such as mlflow/gateway/config.py:VertexAIConfig.\nRule: A list-valued option read from auth_config must accept its string form. Add a field_validator(mode='before') on the config model that splits a comma-separated string, strips whitespace and drops empty items, so '' becomes an empty list. Non-string values (YAML lists) pass through unchanged. Do the coercion in the config model so bad input is rejected when the endpoint is configured, not on the first request.\nSymptom: Setting vertex_anthropic_betas through the API failed for every string form, including '' and JSON-looking lists. The error was raised when the first request hit the endpoint, not when the endpoint was created.\nConstraints: Covers only the value conversion for options delivered via auth_config. It does not change the proto or the REST handler, which can only send strings. This PR verified the Vertex option only; other providers' list options were not checked.",
+  "applies": "Gateway endpoint config built from the server API auth_config for any provider config model with list-valued options.",
+  "tags": [
+    "gateway",
+    "auth-config",
+    "config",
+    "validation",
+    "vertex-ai"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/config.py",
+      "symbol": "VertexAIConfig.validate_vertex_anthropic_betas",
+      "hash": "sha256:c0d288259e89292b03d18c42",
+      "line": 330,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c0d288259e89292b03d18c42",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/server/gateway_api.py",
+      "symbol": "_build_endpoint_config",
+      "hash": "sha256:09a4bd66ac50972e87468402",
+      "line": 340,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:09a4bd66ac50972e87468402",
+      "fanout": {
+        "files": 2,
+        "sites": 7,
+        "refs": 8
+      }
+    },
+    {
+      "path": "mlflow/gateway/config.py",
+      "symbol": "VertexAIConfig",
+      "hash": "sha256:ac2ee9a849ab02f2202dc63e",
+      "line": 322,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ac2ee9a849ab02f2202dc63e",
+      "fanout": {
+        "files": 5,
+        "sites": 8,
+        "refs": 23
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25835"
+  },
+  "created": "2026-10-12T05:44:43.376Z",
+  "verified": "2026-10-12T05:44:43.376Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "vertex-ai-claude-passthrough-anthropic-beta-is-filtered-per"
+  ],
+  "says": [
+    "Configuring a model gateway endpoint with list settings fails on the first request.",
+    "Allow comma separated strings for list options when setting up gateway endpoints.",
+    "Empty string settings for endpoint options trigger unexpected validation errors during model calls.",
+    "Endpoint creation accepts invalid list parameters but crashes later when receiving requests.",
+    "Validate model gateway endpoint configuration settings immediately upon creation instead of during queries."
+  ],
+  "search": "In gateway provider config models like mlflow/gateway/config.py:VertexAIConfig, list-valued options passed via proto map<string,string> auth_config require a before-validator to split comma-separated strings, strip whitespace, and drop empty items. This coerces string values in the config model so invalid inputs are rejected during endpoint configuration rather than on the first request, leaving YAML lists untouched. This applies to options delivered via auth_config in mlflow/server/gateway_api.py:_build_endpoint_config without modifying proto definitions, REST handlers, or unverified providers.",
+  "saysFor": "s2:204bc5873c3077023176cf96223aec352b1c22b7b7f1cc0ca68558add9a42ffa"
+}

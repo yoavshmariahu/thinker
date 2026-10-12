@@ -1,0 +1,89 @@
+{
+  "id": "workspace-default-artifact-root-validation-values-must-carry",
+  "title": "Workspace default_artifact_root validation: values must carry a URI scheme or be an absolute path",
+  "kind": "rule",
+  "answers": [
+    "Creating or editing a workspace with a relative default artifact root like 'team-a' returned success, and experiment artifacts silently landed on the client machine. How is this prevented now?",
+    "Which workspace fields go through the default_artifact_root validator on POST /api/3.0/mlflow/workspaces and PATCH /api/3.0/mlflow/workspaces/<name>?",
+    "Why does C:team-a or a:b get rejected for a workspace storage path, and why is an absolute local path still accepted?",
+    "Where is the check that rejects scheme-less artifact roots for workspaces?"
+  ],
+  "body": "Path: Workspace create and update requests (POST /api/3.0/mlflow/workspaces, PATCH /api/3.0/mlflow/workspaces/<name>) pass default_artifact_root through mlflow/server/handlers.py:_validate_workspace_default_artifact_root, which every experiment in that workspace inherits as its artifact root.\nRule: After the shared storage-location checks (_validate_optional_workspace_storage_location), reject any trimmed non-empty value where mlflow/utils/uri.py:get_uri_scheme returns an empty scheme and os.path.isabs is false, with INVALID_PARAMETER_VALUE naming the field. Keep this in the default_artifact_root wrapper, not the shared helper, so trace_archival_config.location keeps its own message and experiment artifact_location behaviour is unchanged.\nSymptom: A relative root such as 'team-a' was stored verbatim, so experiments got artifact_location 'team-a/<id>', tracking clients treated it as a local path, and log_artifact/log_model wrote to the client's working directory while the server artifact browser stayed empty with no error.\nConstraints: None (field absent) and '' or whitespace (clear the override) behave as before. Absolute local paths such as '/mnt/artifacts' remain valid, mirroring the server-level --default-artifact-root. Single-letter 'schemes' like 'C:team-a' are rejected because get_uri_scheme classifies them as local. Trace archival location is validated by a different function and is not covered by this check.",
+  "applies": "Workspace create/update validation of default_artifact_root on the tracking server; does not cover experiment-level artifact_location or trace archival location.",
+  "tags": [
+    "workspaces",
+    "artifact-root",
+    "validation",
+    "default_artifact_root",
+    "tracking-server"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_validate_workspace_default_artifact_root",
+      "hash": "sha256:2bb5654f556bcbd56b714de7",
+      "line": 1507,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2bb5654f556bcbd56b714de7",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/utils/uri.py",
+      "symbol": "get_uri_scheme",
+      "hash": "sha256:8f0b4cfbd208fe9751a66186",
+      "line": 276,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8f0b4cfbd208fe9751a66186",
+      "fanout": {
+        "files": 11,
+        "sites": 14,
+        "refs": 26
+      }
+    },
+    {
+      "path": "tests/server/test_workspace_endpoints.py",
+      "symbol": "test_create_workspace_rejects_non_uri_default_artifact_root",
+      "hash": "sha256:78d6c1b4b2b9a5631c1cd84d",
+      "line": 532,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:78d6c1b4b2b9a5631c1cd84d",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25700"
+  },
+  "created": "2026-10-12T05:46:17.853Z",
+  "verified": "2026-10-12T05:46:17.853Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "model-registry-prompt-source-validation-prompt-tagged-model",
+    "invoke-endpoints-issue-detection-genai-evaluate-scorer-calle",
+    "scorer-register-invoke-evaluate-payloads-validate-every-seri",
+    "invoke-endpoints-trace-ids-input-contract-reject-empty-lists"
+  ],
+  "says": [
+    "Logged experiment artifacts are saving to local laptops instead of central workspace storage.",
+    "The workspace artifact browser shows nothing even though model logging completed without errors.",
+    "Creating a workspace with a relative artifact folder path should trigger a validation error.",
+    "Workspace setup rejects storage paths starting with drive letters like a Windows path.",
+    "Workspace storage settings must require a valid URI scheme or an absolute directory path."
+  ],
+  "search": "Workspace default_artifact_root validation on POST /api/3.0/mlflow/workspaces and PATCH /api/3.0/mlflow/workspaces/<name> requires values to carry a URI scheme or be an absolute path. In mlflow/server/handlers.py:_validate_workspace_default_artifact_root, mlflow/utils/uri.py:get_uri_scheme and os.path.isabs reject non-empty trimmed relative values with INVALID_PARAMETER_VALUE. This prevents relative roots from causing client-side artifact writes while server artifact browsers remain empty, and rejects single-letter prefixes like C:team-a. Absolute local paths, empty strings to clear overrides, and absent fields remain valid, while experiment artifact_location and trace archival location are excluded.",
+  "saysFor": "s2:3f7017ec7d4d826f774435a26b7117dde1e365aaf7e4f6460eb51935d5a65064"
+}

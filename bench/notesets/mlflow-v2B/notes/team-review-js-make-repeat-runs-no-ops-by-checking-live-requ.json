@@ -1,0 +1,83 @@
+{
+  "id": "team-review-js-make-repeat-runs-no-ops-by-checking-live-requ",
+  "title": "team-review.js: make repeat runs no-ops by checking live requested reviewers from the API, not the event payload",
+  "kind": "rule",
+  "answers": [
+    "Why did re-running team review assign a third reviewer to the PR?",
+    "Why were review stats double-counted when the team-review workflow ran twice?",
+    "Where does the team-review script decide whether to skip assigning reviewers?",
+    "If I add a new reviewer-type exclusion to team review, where do I put it?"
+  ],
+  "body": "Path: .github/workflows/team-review.js (the exported async handler run by team-review.yml) reads the PR's approvals, currently requested reviewers, and the stats file of team members (`loadStats` → `stats.reviewCounts`), then picks reviewers to assign to a PR.\nRule: Read requested reviewers with `github.rest.pulls.listRequestedReviewers` at run time rather than `context.payload.pull_request.requested_reviewers`, because the event payload is a snapshot taken when the run was triggered and does not show reviewers assigned by an earlier queued run. Then return early when any requested user is a team member (a key of `stats.reviewCounts`), excluding the Copilot task initiator (`copilotInitiator`). Requests for `Copilot` or non-team users must not trigger the early return.\nSymptom: A re-run or queued duplicate of team review read stale requested reviewers, assigned an extra reviewer, and double-counted the stats for the same PR.\nConstraints: The skip only applies when a team member is already requested. If a PR has only Copilot or outside reviewers requested, team review still assigns two reviewers. Any new exclusion should be added to the filter, not to the payload read.",
+  "applies": "Reviewer selection in .github/workflows/team-review.js; applies to any change to how team review decides whether a PR already has reviewers.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "team-review",
+    "reviewers",
+    "idempotency"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/team-review.js",
+      "symbol": "loadStats",
+      "hash": "sha256:8b5974a5e15baed528aff67a",
+      "line": 4,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8b5974a5e15baed528aff67a",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": ".github/workflows/team-review.js",
+      "symbol": "stats",
+      "hash": "sha256:1f337763b4b82eab9e2eb501",
+      "line": 16,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b01b7db3a0e3ea37ff1d2e7b",
+      "fanout": {
+        "files": 10,
+        "sites": 0,
+        "refs": 42
+      }
+    },
+    {
+      "path": ".github/workflows/team-review.js",
+      "symbol": "copilotInitiator",
+      "hash": "sha256:d3a4b90c94996cb28434c18e",
+      "line": 175,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:d3a4b90c94996cb28434c18e",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26281"
+  },
+  "created": "2026-10-12T05:31:37.283Z",
+  "verified": "2026-10-12T05:31:37.283Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Re-running the automated reviewer assignment assigned extra reviewers to my pull request.",
+    "Team review metrics are being double counted when reviewer assignment runs multiple times.",
+    "Automated team review should not assign additional reviewers if team members are already assigned.",
+    "Pull requests receive too many reviewers when review assignment triggers fire in close succession."
+  ],
+  "search": "In .github/workflows/team-review.js, requested reviewers must be retrieved dynamically via github.rest.pulls.listRequestedReviewers rather than read from context.payload.pull_request.requested_reviewers. If any requested reviewer is a team member in stats.reviewCounts, excluding copilotInitiator, the script exits early to avoid assigning duplicate reviewers and double-counting stats during re-runs or queued executions. Requests for Copilot or external non-team users must not trigger the early exit, ensuring team review still assigns two reviewers unless an existing team member is already requested.",
+  "saysFor": "s2:ddc18af3a3fddca870cf291e79f945a20249d16334564057c85cb9ad1ba8d5c0"
+}

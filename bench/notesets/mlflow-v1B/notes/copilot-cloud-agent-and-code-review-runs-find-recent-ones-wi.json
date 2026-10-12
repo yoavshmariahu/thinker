@@ -1,0 +1,53 @@
+{
+  "id": "copilot-cloud-agent-and-code-review-runs-find-recent-ones-wi",
+  "title": "Copilot cloud agent and code review runs: find recent ones with gh api event=dynamic, filtered by .path rather than workflow name",
+  "kind": "howto",
+  "answers": [
+    "How do I find the recent Copilot cloud agent setup runs for this repo?",
+    "Which gh api query lists the Copilot code review runs and their html_url?",
+    "What path string identifies a Copilot cloud agent run versus a code review run in the Actions runs list?",
+    "Where is the command for locating dynamic Copilot workflow runs documented?"
+  ],
+  "body": "Path: .github/workflows/copilot-setup-steps.yml and .github/workflows/copilot-code-review.yml carry the lookup query as a comment header; it calls the GitHub Actions runs API (`/repos/mlflow/mlflow/actions/runs?event=dynamic&per_page=100`) and filters `.workflow_runs[]` on `.path`.\nRule: Copilot-launched runs are listed with `event=dynamic`, and they are identified by `.path`, not `.name`: cloud agent is `dynamic/copilot-swe-agent/copilot`; code review is `dynamic/agents/copilot-pull-request-reviewer`. Output fields used are `{id, name, created_at, conclusion, html_url}`.\nConstraints: The query reads only the first 100 dynamic runs (`per_page=100`, no pagination shown), so older runs may not appear. It needs `gh` authenticated against mlflow/mlflow. The path strings are the ones written in the workflow comments; if the launcher changes them, the filter returns nothing and the comment must be updated.",
+  "applies": "Maintainers looking up recent Copilot cloud agent or code review runs in the MLflow repo; does not cover other dynamic or non-Copilot workflow runs.",
+  "tags": [
+    "copilot",
+    "github-actions",
+    "gh-cli",
+    "debugging",
+    "workflow-runs"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/copilot-setup-steps.yml",
+      "hash": "sha256:aeb92149234e2c7264f2ae52",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/copilot-code-review.yml",
+      "hash": "sha256:220e516fb4429e99b8cbcf98",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25731"
+  },
+  "created": "2026-10-12T05:45:53.198Z",
+  "verified": "2026-10-12T05:45:53.198Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "copilot-workflow-concurrency-use-the-standard-workflow-event"
+  ],
+  "says": [
+    "Where can I view recent automated code review runs and their web links?",
+    "Find recent cloud coding agent sessions and their completion statuses for this repository.",
+    "How do maintainers list the latest automated pull request reviewer runs?",
+    "Search for recent automated agent runs to inspect their execution history and results."
+  ],
+  "search": "Recent Copilot cloud agent and code review runs in mlflow/mlflow are located via gh api querying /repos/mlflow/mlflow/actions/runs?event=dynamic&per_page=100 and filtering .workflow_runs[] by .path rather than workflow name. Documented in comment headers of .github/workflows/copilot-setup-steps.yml and .github/workflows/copilot-code-review.yml, using paths dynamic/copilot-swe-agent/copilot for cloud agent and dynamic/agents/copilot-pull-request-reviewer for code review to extract id, name, created_at, conclusion, and html_url. Limited to the first 100 dynamic runs without pagination, requires authentication against mlflow/mlflow, and does not cover non-Copilot or non-dynamic runs.",
+  "saysFor": "s2:95c40338af9b72d94d697b37849c02087b675b460ffd1e4dbd4946abf90cf71c"
+}

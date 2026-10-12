@@ -1,0 +1,86 @@
+{
+  "id": "logged-model-traces-page-counts-and-assessment-summaries-pas",
+  "title": "Logged model Traces page counts and assessment summaries: pass loggedModelId into metrics hooks so they match visible rows",
+  "kind": "rule",
+  "answers": [
+    "Why do the assessment percentages on a logged model's Traces tab not match the trace rows shown?",
+    "Categorical assessment summary shows True/False percentages across the whole experiment instead of the selected logged model",
+    "How do I scope trace count or session count badges to a logged model?",
+    "Where is the logged model scope applied to the Traces V3 count and assessment metrics?"
+  ],
+  "body": "Path: mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v3/TracesV3Logs.tsx:TracesV3LogsImpl renders the Traces tab (trace rows, counts, session counts, assessment summaries). Row and metadata queries are scoped by loggedModelId; the metrics-backed hooks useCountInfo (hooks/useCountInfo.ts:useCountInfo) and useAssessmentCountMetrics (hooks/useAssessmentCountMetrics.ts:useAssessmentCountMetrics) feed count badges and categorical assessment summaries.\nRule: Any new metrics-backed hook on the Traces V3 page must accept loggedModelId (and runUuid) and build its metrics filters from both, the way useCountInfo and useAssessmentCountMetrics do. The filter is a trace metadata filter on mlflow.modelId via createTraceMetadataFilter. Without it, the metrics endpoint aggregates across the experiment.\nSymptom: On a logged model page, a categorical assessment such as correct showed a percentage mixing traces from other logged models in the same experiment (e.g. True 50% when the model's own six traces were all True), while the visible rows were correct.\nConstraints: Only applies when loggedModelId is set. When it is undefined, no mlflow.modelId filter is added and experiment-wide behaviour is unchanged. Keep the runUuid and loggedModelId filters combined (both applied) when both are present.",
+  "applies": "Traces V3 experiment page metrics hooks (counts, sessions, assessment summaries) on logged model views.",
+  "tags": [
+    "traces",
+    "logged-model",
+    "assessments",
+    "metrics",
+    "frontend"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v3/TracesV3Logs.tsx",
+      "symbol": "TracesV3LogsImpl",
+      "hash": "sha256:7642b73457b40b8de73cdd84",
+      "line": 150,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7642b73457b40b8de73cdd84",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v3/hooks/useCountInfo.ts",
+      "symbol": "useCountInfo",
+      "hash": "sha256:a2ccf04fe55796a440bc60ad",
+      "line": 23,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a2ccf04fe55796a440bc60ad",
+      "fanout": {
+        "files": 5,
+        "sites": 8,
+        "refs": 15
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v3/hooks/useAssessmentCountMetrics.ts",
+      "symbol": "useAssessmentCountMetrics",
+      "hash": "sha256:b339f6ee7246b1c39af5c5ba",
+      "line": 13,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b339f6ee7246b1c39af5c5ba",
+      "fanout": {
+        "files": 4,
+        "sites": 11,
+        "refs": 20
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25928"
+  },
+  "created": "2026-10-12T05:42:26.758Z",
+  "verified": "2026-10-12T05:42:26.758Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "traces-v3-metrics-filters-use-the-metrics-dsl-from-createtra"
+  ],
+  "says": [
+    "Assessment percentages on the model traces tab include results from other models in the experiment.",
+    "Evaluation summary badges on the model page contradict the individual trace rows displayed below.",
+    "Make trace count and session badges reflect only the selected model instead of all models.",
+    "Categorical assessment scores show fifty percent even when all listed traces for this model passed.",
+    "The traces dashboard should calculate quality metrics exclusively for the active logged model."
+  ],
+  "search": "On the Traces V3 experiment page, any metrics-backed hook must accept loggedModelId and runUuid and build its metrics filters from both so count badges and assessment summaries match visible rows. Filters are built using createTraceMetadataFilter on mlflow.modelId, which prevents the metrics endpoint from aggregating across the whole experiment. This rule applies only when loggedModelId is set in TracesV3LogsImpl, useCountInfo, and useAssessmentCountMetrics; when undefined, no mlflow.modelId filter is added. When both runUuid and loggedModelId are present, both filters must remain combined.",
+  "saysFor": "s2:cc87414323c4173f3d31a194dd282d836edf18f430f6d9899531330ea4223fba"
+}

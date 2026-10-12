@@ -1,0 +1,138 @@
+{
+  "id": "genai-assessment-provenance-stamp-every-feedback-from-a-scor",
+  "title": "genai assessment provenance: stamp every Feedback from a scorer with add_scorer_metadata, including error feedback, merging existing metadata",
+  "kind": "rule",
+  "answers": [
+    "Which metadata keys identify the scorer and version that produced an assessment?",
+    "I added a new scorer execution path; how do I make its feedback record the scorer version?",
+    "Assessment metadata from a scorer lost its existing keys after I set scorer provenance",
+    "Where are scorer assessments written with mlflow.assessment.scorerName?"
+  ],
+  "body": "Path: Every place a registered or custom scorer turns its result into Feedback before logging it to a trace or session: harness scoring in mlflow/genai/evaluation/harness.py:_compute_eval_scores, session-level scoring in mlflow/genai/evaluation/session_utils.py (both the success and exception branches of run_scorer), and online error assessments in mlflow/genai/scorers/online/trace_processor.py:_log_error_assessments.\nRule: Call mlflow/genai/evaluation/utils.py:add_scorer_metadata(scorer, feedbacks) on the feedback list before logging. It is a no-op when scorer.scorer_version is None. Otherwise it merges AssessmentMetadataKey.SCORER_NAME (mlflow.assessment.scorerName) and AssessmentMetadataKey.SCORER_VERSION (mlflow.assessment.scorerVersion, stored as a string) into the existing feedback.metadata, keeping keys the scorer already set. Keys are defined in mlflow/tracing/constant.py:AssessmentMetadataKey.\nSymptom: Assessments from registered scorers that failed (error feedback) or from session-level scorers were recorded without the scorer name and version, so the exact scorer version that produced them could not be identified.\nConstraints: Use the helper on error feedback too, not only on successful results. Do not overwrite existing feedback.metadata; the helper copies it. Non-registered scorers (no version) are untouched. UI rendering of these keys is not part of this contract.",
+  "applies": "Any new code path in mlflow/genai that converts a scorer's output or failure into Feedback assessments on traces or sessions.",
+  "tags": [
+    "genai",
+    "assessments",
+    "metadata",
+    "scorers",
+    "tracing"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/genai/evaluation/utils.py",
+      "symbol": "add_scorer_metadata",
+      "hash": "sha256:52033e4f2ad3dcd9e917bbe4",
+      "line": 411,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:52033e4f2ad3dcd9e917bbe4",
+      "fanout": {
+        "files": 4,
+        "sites": 6,
+        "refs": 10
+      }
+    },
+    {
+      "path": "mlflow/tracing/constant.py",
+      "symbol": "AssessmentMetadataKey",
+      "hash": "sha256:f40667d4733b157cd96597d9",
+      "line": 170,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f40667d4733b157cd96597d9",
+      "fanout": {
+        "files": 19,
+        "sites": 0,
+        "refs": 81
+      }
+    },
+    {
+      "path": "mlflow/genai/evaluation/harness.py",
+      "symbol": "_compute_eval_scores",
+      "hash": "sha256:4e7bd700a64b3591674c6f58",
+      "line": 919,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4e7bd700a64b3591674c6f58",
+      "fanout": {
+        "files": 7,
+        "sites": 6,
+        "refs": 28
+      }
+    },
+    {
+      "path": "mlflow/genai/scorers/online/trace_processor.py",
+      "symbol": "_log_error_assessments",
+      "hash": "sha256:6574dbc500fbd00f8b8bd3a2",
+      "line": 226,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6574dbc500fbd00f8b8bd3a2",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/genai/evaluation/session_utils.py",
+      "symbol": "run_scorer",
+      "hash": "sha256:6c25c6a47d86b8cf2938f5d9",
+      "line": 129,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6c25c6a47d86b8cf2938f5d9",
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/tracing/constant.py",
+      "symbol": "AssessmentMetadataKey.SCORER_NAME",
+      "hash": "sha256:49aaf7f50d0278131a272648",
+      "line": 181,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 5
+      }
+    },
+    {
+      "path": "mlflow/tracing/constant.py",
+      "symbol": "AssessmentMetadataKey.SCORER_VERSION",
+      "hash": "sha256:8d9408ab3c8f9dc19f77eaa4",
+      "line": 182,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 5
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25570"
+  },
+  "created": "2026-10-12T05:48:38.718Z",
+  "verified": "2026-10-12T05:48:38.718Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "span-description-api-description-is-stored-only-as-the-mlflo"
+  ],
+  "says": [
+    "Trace evaluation feedback is missing the scorer name and version that produced it.",
+    "Failed evaluator runs log error assessments without recording which judge version failed.",
+    "Custom metadata on evaluation assessments disappears when scorer provenance is attached.",
+    "Session-level evaluation assessments do not display which registered scorer generated them.",
+    "Include the scorer name and version on all trace assessments including failure reports."
+  ],
+  "search": "Every code path logging scorer outputs or errors as feedback must call `mlflow.genai.evaluation.utils.add_scorer_metadata(scorer, feedbacks)` before writing assessments to a trace or session. If `scorer.scorer_version` is present, the helper merges `AssessmentMetadataKey.SCORER_NAME` (`mlflow.assessment.scorerName`) and `AssessmentMetadataKey.SCORER_VERSION` (`mlflow.assessment.scorerVersion`) into `feedback.metadata` while preserving existing metadata keys. This applies to harness evaluation (`_compute_eval_scores`), session evaluation (`run_scorer` success and failure branches), and online error assessments (`_log_error_assessments`). The function is a no-op for non-registered scorers without a version, must be called on error feedback as well as successes, and does not govern UI rendering.",
+  "saysFor": "s2:5be5cfbb246b7b737eec3da306f44177693ed577187647959ab0cf0426f034df"
+}

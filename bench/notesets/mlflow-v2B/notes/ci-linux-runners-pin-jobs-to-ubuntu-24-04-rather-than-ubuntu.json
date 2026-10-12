@@ -1,0 +1,61 @@
+{
+  "id": "ci-linux-runners-pin-jobs-to-ubuntu-24-04-rather-than-ubuntu",
+  "title": "CI Linux runners: pin jobs to ubuntu-24.04 rather than ubuntu-latest, while keeping ubuntu-slim and macOS runners",
+  "kind": "rule",
+  "answers": [
+    "Why did CI jobs stop working after GitHub moved ubuntu-latest, and how is the runner pinned?",
+    "Which runner should a new Linux GitHub Actions job use: ubuntu-latest, ubuntu-24.04 or ubuntu-slim?",
+    "Where is the default runner for the generated flavor matrix jobs set?",
+    "Where is the Ubuntu runner choice handled for the lint, docs, or test workflows?"
+  ],
+  "body": "Path: .github/workflows/*.yml (runs-on of every PR, push and scheduled job, e.g. master.yml, lint.yml, docs.yml, typescript.yml) and dev/flavors/src/flavors/_matrix.py:get_runs_on, which supplies the default runner for dynamically generated flavor matrix jobs.\nRule: Linux jobs run on `ubuntu-24.04`, not `ubuntu-latest`, because GitHub is migrating `ubuntu-latest` to Ubuntu 26.04 (Oct-Nov 2026). `get_runs_on` falls back to `ubuntu-24.04` when no version-specific `runs_on` is configured. Keep `ubuntu-slim` for lightweight jobs (see the github-actions-style skill), and leave non-Ubuntu runners such as `macos-latest` unchanged.\nConstraints: Applies to Linux runners in MLflow CI. Does not apply to `ubuntu-slim` jobs (15-minute timeout) or macOS/Windows jobs. Revisit this pin after the 26.04 migration has been validated, since the pin is a time-boxed workaround and not a permanent choice.",
+  "applies": "MLflow GitHub Actions workflows and the flavor matrix generator; choosing or changing the runner label for CI jobs.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "runners",
+    "ubuntu",
+    "flavors"
+  ],
+  "deps": [
+    {
+      "path": "dev/flavors/src/flavors/_matrix.py",
+      "symbol": "get_runs_on",
+      "hash": "sha256:84d3b54ab45647ac510f57bb",
+      "line": 234,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:84d3b54ab45647ac510f57bb",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": ".github/workflows/master.yml",
+      "hash": "sha256:b4cbc606274abac24bf05d23",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26183"
+  },
+  "created": "2026-10-12T05:32:16.098Z",
+  "verified": "2026-10-12T05:32:16.098Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Continuous integration jobs broke unexpectedly after GitHub upgraded the default Linux virtual environment.",
+    "Standardize our Linux build pipelines on a specific stable operating system version.",
+    "Which virtual machine image should new automated test jobs use for Linux builds?",
+    "Keep lightweight automated jobs on slim Linux machines while pinning standard build runners.",
+    "Ensure Mac and Windows continuous integration tasks are unaffected by Linux runner adjustments."
+  ],
+  "search": "CI Linux runner configuration pins jobs to ubuntu-24.04 rather than ubuntu-latest across GitHub Actions workflows (.github/workflows/*.yml including master.yml, lint.yml, docs.yml, typescript.yml) and dev/flavors/src/flavors/_matrix.py:get_runs_on. The get_runs_on helper falls back to ubuntu-24.04 when no version-specific runs_on is configured, as a time-boxed workaround for GitHub migrating ubuntu-latest to Ubuntu 26.04. Applies to MLflow CI Linux runners and flavor matrix generation, while keeping ubuntu-slim for lightweight jobs and leaving macos-latest and Windows jobs unchanged. The pin must be revisited after the 26.04 migration is validated and does not apply to 15-minute timeout ubuntu-slim jobs.",
+  "saysFor": "s2:cfcdc9fc23b861f29939a07d26e65a01d603205799d9f88a80148f1e1b929971"
+}

@@ -1,0 +1,83 @@
+{
+  "id": "openinference-model-name-translation-llm-response-model-name",
+  "title": "OpenInference model name translation: llm.response.model_name beats llm.model_name and llm.request.model_name, first non-empty key wins",
+  "kind": "rule",
+  "answers": [
+    "Trace UI shows the request alias instead of the resolved model for an OpenInference span",
+    "Model name is missing from the trace model badge when inputs and outputs are hidden on an OpenInference LLM span",
+    "Which OpenInference attribute decides the model name MLflow stores for a trace span?",
+    "How do I add another OpenInference model-name key, such as an embedding or provider-specific attribute, to trace ingestion?"
+  ],
+  "body": "Path: mlflow/tracing/otel/translation/open_inference.py:OpenInferenceTranslator is the chokepoint for OpenInference-format spans (LLM and embedding spans from instrumentors such as TypeSafe) when they are stored in MLflow; translate_span_when_storing maps their attributes to the MLflow model name that feeds the trace UI model badge.\nRule: resolve the model from the ordered OpenInferenceTranslator.MODEL_NAME_KEYS list: llm.response.model_name, then llm.model_name, then llm.request.model_name, then embedding.model_name. Empty strings and null values are skipped so the next key is used. An explicit MLflow model attribute already on the span stays authoritative and is not overwritten. To support another OpenInference model key, insert it into this list at the correct precedence instead of adding a parallel lookup.\nSymptom: OpenInference spans that reported only llm.request.model_name (or only the response model) showed the request alias instead of the resolved model, or lost the model entirely when inputs and outputs were hidden.\nConstraints: applies only to OpenInference-format attributes and only when no explicit MLflow model attribute is present. The list is order-sensitive, so reordering it changes which model wins. Covered by test_translate_openinference_model_name (raw and JSON-encoded values, precedence, empty and null fallback, legacy and embedding keys).",
+  "applies": "Trace ingestion of OpenInference spans that carry LLM or embedding model-name attributes (mlflow/tracing/otel/translation).",
+  "tags": [
+    "tracing",
+    "openinference",
+    "otel",
+    "model-name",
+    "trace-ui"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/tracing/otel/translation/open_inference.py",
+      "symbol": "OpenInferenceTranslator",
+      "hash": "sha256:c04fb8aa96f8d43e824e1c50",
+      "line": 11,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c04fb8aa96f8d43e824e1c50",
+      "fanout": {
+        "files": 3,
+        "sites": 1,
+        "refs": 33
+      }
+    },
+    {
+      "path": "tests/tracing/otel/test_span_translation.py",
+      "symbol": "test_translate_openinference_model_name",
+      "hash": "sha256:8612c2bd65bc0164ec0cb1c0",
+      "line": 705,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8612c2bd65bc0164ec0cb1c0",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/tracing/otel/translation/open_inference.py",
+      "symbol": "OpenInferenceTranslator.MODEL_NAME_KEYS",
+      "hash": "sha256:6c84052ea1208ceb29ff5e34",
+      "line": 52,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 8
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26047"
+  },
+  "created": "2026-10-12T05:33:47.682Z",
+  "verified": "2026-10-12T05:33:47.682Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "openinference-structured-llm-spans-with-redacted-inputs-outp"
+  ],
+  "says": [
+    "The trace view displays the requested alias instead of the actual model that answered.",
+    "Model badge in the trace details screen is missing when hiding inputs and outputs.",
+    "Show the resolved response model name on the trace card rather than the request tag.",
+    "Trace details should display the actual responding model instead of leaving the badge empty."
+  ],
+  "search": "In mlflow/tracing/otel/translation/open_inference.py:OpenInferenceTranslator.translate_span_when_storing, model names for OpenInference spans are resolved in order from MODEL_NAME_KEYS: llm.response.model_name, llm.model_name, llm.request.model_name, and embedding.model_name. The first non-empty and non-null key is used, while existing explicit MLflow model attributes remain authoritative and are not overwritten. This applies to OpenInference-format spans lacking explicit model attributes, as tested in test_translate_openinference_model_name.",
+  "saysFor": "s2:b7e261f33e8d08040b3df06145a190072889903a062d34f1f57fbb270cf00510"
+}

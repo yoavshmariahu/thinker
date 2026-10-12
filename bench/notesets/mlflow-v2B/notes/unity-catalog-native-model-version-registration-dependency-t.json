@@ -1,0 +1,54 @@
+{
+  "id": "unity-catalog-native-model-version-registration-dependency-t",
+  "title": "Unity Catalog native model-version registration: dependency types without a governance securable are dropped, not errors",
+  "kind": "rule",
+  "answers": [
+    "Why is my model's resource missing from the governance dependency list when registering a model to Unity Catalog natively?",
+    "Does a model service or model endpoint dependency show up in the UC native create-model-version request?",
+    "Which resource types become table, function, or connection securables in the native Unity Catalog registration path?"
+  ],
+  "body": "Path: The native Unity Catalog model-version create path translates MLflow resource dependencies into the governance DependencyList on the native CreateModelVersion request. Only vector index and table map to a table securable, UC function to a function securable, and UC connection to a connection securable.\nRule: A dependency type has a governance representation only if the governance DependencyList has a securable for it. Types with none (DATABRICKS_MODEL_ENDPOINT, DATABRICKS_UC_MODEL_SERVICE, and any unknown kind) are silently dropped on this path, which is intentional. Do not add a governance securable for a new type just to make it appear here unless the governance API defines one; the legacy/proxy path still carries it via get_model_version_dependencies.\nSymptom: A resource type that is recorded on the legacy path is absent from the native governance dependency list, which can look like a lost dependency.\nConstraints: This applies only to the native (governance) path. Legacy/proxy registration still records these types. Covered by test_create_model_version_translates_dependencies_to_governance in tests/store/_unity_catalog/model_registry/test_unity_catalog_rest_store_native.py.",
+  "applies": "Native Unity Catalog model-version registration (governance DependencyList) for model resource dependency types in MLflow.",
+  "tags": [
+    "model-registry",
+    "unity-catalog",
+    "governance",
+    "dependencies"
+  ],
+  "deps": [
+    {
+      "path": "tests/store/_unity_catalog/model_registry/test_unity_catalog_rest_store_native.py",
+      "symbol": "test_create_model_version_translates_dependencies_to_governance",
+      "hash": "sha256:74daad645e1bc8eb6f3257a0",
+      "line": 1782,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:74daad645e1bc8eb6f3257a0",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26140"
+  },
+  "created": "2026-10-12T05:32:40.528Z",
+  "verified": "2026-10-12T05:32:40.528Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Model service and endpoint dependencies do not show up in catalog governance lists.",
+    "Registered model versions appear to lose endpoint dependencies in native catalog lineage views.",
+    "Why are some linked model resources missing from governance dependency records after registration?",
+    "Show model endpoint and service connections under native catalog governance dependency views.",
+    "Certain model dependencies vanish from the governance tab when registering models natively."
+  ],
+  "search": "In native Unity Catalog model-version registration, resource dependencies translate into governance DependencyList securables only for vector index and table (table securable), UC function (function securable), and UC connection (connection securable). Resource types without a governance securable, including DATABRICKS_MODEL_ENDPOINT, DATABRICKS_UC_MODEL_SERVICE, and unknown kinds, are intentionally dropped without raising errors. Do not add governance securables for new types unless defined by the governance API, as the legacy/proxy path still retains them via get_model_version_dependencies. Applies strictly to native governance model-version creation, verified in tests/store/_unity_catalog/model_registry/test_unity_catalog_rest_store_native.py:test_create_model_version_translates_dependencies_to_governance.",
+  "saysFor": "s2:1c863052de8075eede85be93e76d7a428e9f425335bf8cb107b5429e21f7c4f8"
+}

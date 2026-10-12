@@ -1,0 +1,66 @@
+{
+  "id": "tests-tracking-test-client-py-build-extra-sqlite-registry-da",
+  "title": "tests/tracking/test_client.py: build extra SQLite registry databases by copying the cached_db fixture, not by running fresh migrations",
+  "kind": "howto",
+  "answers": [
+    "My new prompt registry test is slow on Windows CI because each SQLite registry database runs a full migration; how do I avoid that?",
+    "How do I create two isolated SQLite-backed prompt registries in a MlflowClient test?",
+    "Where are the registry-isolation and workspace-isolation prompt cache test fixtures defined?"
+  ],
+  "body": "Path: Client-level prompt registry tests in tests/tracking/test_client.py that need several SQLite registry databases, covering cache isolation by registry URI, cache isolation by workspace, invalidation scope, and failed-mutation cache preservation. Fixtures isolated_registry_uris and workspace_registry_uri there create the databases.\nRule: Each extra SQLite registry file should be created by shutil.copy2 of the session-scoped cached_db fixture into tmp_path, then addressed as sqlite:///<path>. Do not call MlflowClient against a fresh sqlite path, because each one runs the full schema migration. Put this copying in a shared fixture rather than repeating it inside parametrized tests.\nSymptom: Not a user-facing symptom; the review flagged that fresh-migration tests add substantial Windows CI time, eight-plus migrations for a single parametrized test.\nConstraints: Applies to SQLite URIs only. For workspace-scoped tests, the fixture sets MLFLOW_ENABLE_WORKSPACES=true with monkeypatch before the client is created. Tests that set WorkspaceContext still need monkeypatch on mlflow.tracking.fluent._get_experiment_id as the existing workspace tests do.",
+  "applies": "Writing or changing tests that create multiple SQLite-backed MlflowClient prompt registries in tests/tracking/test_client.py.",
+  "tags": [
+    "tests",
+    "sqlite",
+    "prompts",
+    "ci-performance",
+    "fixtures"
+  ],
+  "deps": [
+    {
+      "path": "tests/tracking/test_client.py",
+      "symbol": "isolated_registry_uris",
+      "hash": "sha256:4fed23cb2ba6d023d200cfaf",
+      "line": 2411,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4fed23cb2ba6d023d200cfaf",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 4
+      }
+    },
+    {
+      "path": "tests/tracking/test_client.py",
+      "symbol": "workspace_registry_uri",
+      "hash": "sha256:514d7274b0ca346ee9628523",
+      "line": 2419,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:514d7274b0ca346ee9628523",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26066"
+  },
+  "created": "2026-10-12T05:33:37.484Z",
+  "verified": "2026-10-12T05:33:37.484Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Windows continuous integration builds take far too long running prompt registry tests.",
+    "Speed up slow prompt registry test execution on Windows continuous integration pipelines."
+  ],
+  "search": "In tests/tracking/test_client.py, tests requiring extra SQLite prompt registry databases must copy the session-scoped cached_db fixture into tmp_path with shutil.copy2 rather than calling MlflowClient against a fresh SQLite path. This avoids running full schema migrations that add substantial Windows CI time during cache isolation and invalidation tests using fixtures isolated_registry_uris or workspace_registry_uri. Applies strictly to SQLite URIs; workspace tests set MLFLOW_ENABLE_WORKSPACES=true via monkeypatch before client creation, and WorkspaceContext tests still require monkeypatching mlflow.tracking.fluent._get_experiment_id.",
+  "saysFor": "s2:d528e405d44f38a04e0d9f76c15c33a8d85bc490e09e332af996dc17f10776f7"
+}

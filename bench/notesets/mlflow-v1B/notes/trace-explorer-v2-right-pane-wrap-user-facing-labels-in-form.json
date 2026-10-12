@@ -1,0 +1,61 @@
+{
+  "id": "trace-explorer-v2-right-pane-wrap-user-facing-labels-in-form",
+  "title": "Trace explorer v2 right pane: wrap user-facing labels in FormattedMessage and regenerate en.json, not hardcode English",
+  "kind": "rule",
+  "answers": [
+    "Span link tab shows English text that does not translate, how do I localize it?",
+    "Where are the span link Jump to linked span, Trace ID, Span ID and See more labels defined?",
+    "How do I add a new user-facing string to the redesigned trace explorer (v2) so it is extracted into the message catalog?",
+    "Why do the trace explorer tooltips use intl.formatMessage while the labels use FormattedMessage?"
+  ],
+  "body": "Path: Right-pane tabs of the redesigned (v2) trace explorer, which render a selected span's links, attributes and events. The span link UI goes through mlflow/server/js/src/shared/web-shared/model-trace-explorer/v2/right-pane/ModelTraceExplorerLinksTab.tsx:SpanLinkEntry, which renders the Jump to linked span button, Trace ID / Span ID / Linked span labels, the Attributes section and the See more / See less toggle.\nRule: Every user-facing string in these components is wrapped in a FormattedMessage (imported from '@databricks/i18n') with a defaultMessage and a description, or passed through intl.formatMessage for attributes such as tooltips. Sibling tabs such as ModelTraceExplorerAttributesTab and ModelTraceExplorerEventsTab already follow this. After adding or changing a string, run `yarn i18n` to regenerate mlflow/server/js/src/lang/default/en.json and then `yarn i18n:check`; do not hand-write the catalog entries.\nConstraints: Applies to visible labels and tooltips in the v2 trace explorer. Two-state text such as See more / See less needs a separate FormattedMessage per branch, each with its own description. Unit tests that query by rendered text keep working under an IntlProvider with locale=\"en\", so existing tests should not need changes just because strings were wrapped.",
+  "applies": "Any edit to user-facing text in the redesigned (v2) trace explorer right-pane components under model-trace-explorer/v2 in the MLflow OSS frontend.",
+  "tags": [
+    "tracing",
+    "trace-explorer",
+    "i18n",
+    "frontend",
+    "formatted-message"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/shared/web-shared/model-trace-explorer/v2/right-pane/ModelTraceExplorerLinksTab.tsx",
+      "symbol": "SpanLinkEntry",
+      "hash": "sha256:034d635458330b64f71e63b6",
+      "line": 49,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:034d635458330b64f71e63b6",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/lang/default/en.json",
+      "hash": "sha256:8ef7fb523a1fe42462728e43",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25580"
+  },
+  "created": "2026-10-12T05:48:21.487Z",
+  "verified": "2026-10-12T05:48:21.487Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Trace explorer side panel displays English text instead of the selected language",
+    "Span link details in the trace view do not translate into other languages",
+    "Jump to linked span button and span identifier labels appear only in English",
+    "The see more toggle in trace span details remains untranslated after language switch",
+    "Localize all labels and tooltips in the redesigned trace explorer side drawer"
+  ],
+  "search": "User-facing labels and tooltips in redesigned v2 trace explorer right-pane components under model-trace-explorer/v2 must use FormattedMessage from @databricks/i18n with defaultMessage and description, or intl.formatMessage for attributes. After modifying strings, run yarn i18n to regenerate mlflow/server/js/src/lang/default/en.json and check with yarn i18n:check instead of manually editing catalog files. Two-state text like See more and See less requires a separate FormattedMessage per branch. This applies to ModelTraceExplorerLinksTab.tsx:SpanLinkEntry, ModelTraceExplorerAttributesTab, and ModelTraceExplorerEventsTab.",
+  "saysFor": "s2:6fadf2c833af5b90bfd127d878e92382aeb183ea06da44a2cfe2830a9a171373"
+}

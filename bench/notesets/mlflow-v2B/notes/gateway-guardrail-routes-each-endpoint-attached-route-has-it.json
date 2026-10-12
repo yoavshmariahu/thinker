@@ -1,0 +1,87 @@
+{
+  "id": "gateway-guardrail-routes-each-endpoint-attached-route-has-it",
+  "title": "gateway guardrail routes: each endpoint-attached route has its own validator that reads its own request message",
+  "kind": "rule",
+  "answers": [
+    "Which permission check guards add, remove or update guardrail on a gateway endpoint?",
+    "Why does test_authorization_coverage fail after I change the guardrail routes?",
+    "How do I add a new route that modifies a gateway endpoint's guardrails?"
+  ],
+  "body": "Path: mlflow/server/auth/__init__.py guardrail validators for /api/3.0/mlflow/gateway/guardrails/add-to-endpoint, remove-from-endpoint, update-config and list-for-endpoint, which gate on the owning gateway endpoint's UPDATE or READ permission.\nRule: Each route maps to its own validator (validate_can_add_guardrail_to_gateway_endpoint, validate_can_remove_guardrail_from_gateway_endpoint, validate_can_update_gateway_endpoint_guardrail_config, validate_can_read_gateway_endpoint_guardrail_configs), and each parses its own protobuf request before calling _get_gateway_endpoint_permission. When adding such a route, register a route-specific validator and update the assertions in tests/server/auth/test_authorization_coverage.py that name the expected validator.\nSymptom: Route-to-validator name assertions in test_authorization_coverage fail if the validator name is changed without updating the test.\nConstraints: Applies to endpoint-attached guardrail routes; the generic validate_can_update_gateway_endpoint and validate_can_read_gateway_endpoint are used for the core endpoint routes, not these.",
+  "applies": "Gateway guardrail endpoint routes and their authorization coverage tests.",
+  "tags": [
+    "gateway",
+    "auth",
+    "guardrail",
+    "tests"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_add_guardrail_to_gateway_endpoint",
+      "hash": "sha256:ba82b41ff8cb2ab7c1b141d4",
+      "line": 2052,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ba82b41ff8cb2ab7c1b141d4",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_update_gateway_endpoint_guardrail_config",
+      "hash": "sha256:6fadbd1da4e52205db208c2f",
+      "line": 2060,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6fadbd1da4e52205db208c2f",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "tests/server/auth/test_authorization_coverage.py",
+      "symbol": "test_gateway_guardrail_gating",
+      "hash": "sha256:310b08df63a3efbe8c67e90a",
+      "line": 203,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:310b08df63a3efbe8c67e90a",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25937"
+  },
+  "created": "2026-10-12T05:30:46.232Z",
+  "verified": "2026-10-12T05:30:46.232Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "ai-gateway-model-discovery-get-gateway-mlflow-v1-models-list",
+    "auth-server-list-routes-filter-results-after-the-handler-by",
+    "basic-auth-fail-closed-backstop-only-response-filters-author",
+    "basic-auth-auth-tests-run-the-server-auth-test-files-with-uv"
+  ],
+  "says": [
+    "Adding a guardrail to a gateway endpoint requires update permissions on that endpoint.",
+    "Users cannot remove or modify guardrails on endpoints they do not have access to.",
+    "Viewing guardrail configurations on a gateway endpoint fails when read access is missing.",
+    "Prevent unauthorized team members from modifying guardrail settings attached to an endpoint.",
+    "Updating an endpoint guardrail configuration requires edit rights on the parent endpoint."
+  ],
+  "search": "Each endpoint-attached gateway guardrail route in mlflow/server/auth/__init__.py must have its own dedicated validator that parses its specific protobuf request before checking permissions via _get_gateway_endpoint_permission. Routes for adding, removing, updating configuration, and listing guardrails (add-to-endpoint, remove-from-endpoint, update-config, list-for-endpoint) map respectively to validate_can_add_guardrail_to_gateway_endpoint, validate_can_remove_guardrail_from_gateway_endpoint, validate_can_update_gateway_endpoint_guardrail_config, and validate_can_read_gateway_endpoint_guardrail_configs to check the owning endpoint's UPDATE or READ permission. When adding a route, the route-specific validator must be registered and assertions in tests/server/auth/test_authorization_coverage.py:test_gateway_guardrail_gating must be updated to prevent route-to-validator test failures. This rule applies strictly to endpoint-attached guardrail routes rather than core endpoint routes, which use generic validators validate_can_update_gateway_endpoint and validate_can_read_gateway_endpoint.",
+  "saysFor": "s2:20eba2dacfc7c242558edbfddfebc84ee3ade6b8b8b59184740ba71a40ffdb8f"
+}

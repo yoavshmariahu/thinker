@@ -1,0 +1,81 @@
+{
+  "id": "loggedmodel-proto-serialization-to-proto-must-write-every-fi",
+  "title": "LoggedModel proto serialization: to_proto must write every field from_proto reads (status_message was dropped)",
+  "kind": "rule",
+  "answers": [
+    "Why does a FAILED logged model lose its failure reason after it is fetched or round-tripped through proto?",
+    "How do I add a new field to a logged model so it survives the REST/proto conversion?",
+    "Where are logged model entities converted to and from protobuf messages?",
+    "Why is status_message empty on a logged model returned by the tracking store or REST client?"
+  ],
+  "body": "Path: mlflow/entities/logged_model.py:LoggedModel.to_proto builds the pb2.LoggedModel sent over the tracking API (REST store and client responses); mlflow/entities/logged_model.py:LoggedModel.from_proto parses it back into an entity for logged-model lookups, listings and status reporting.\nRule: Any field that LoggedModel.from_proto reads from LoggedModelInfo must also be written in LoggedModel.to_proto, and the two should be kept symmetric. The fix for the dropped reason was adding status_message=self.status_message to the info block in to_proto, alongside status, tags and source_run_id.\nSymptom: A logged model in FAILED status had its reason attached in the entity, but after a to_proto/from_proto round trip (e.g. via the REST store) status_message came back as an empty string.\nConstraints: Applies to the LoggedModelInfo block of to_proto; the data block (metrics, params) is handled separately in the same method. When adding a field, add a round-trip test (to_proto then from_proto, assert equality) in tests/entities/test_logged_model.py, which is the pattern this fix used.",
+  "applies": "Any change to LoggedModel fields or their proto mapping in mlflow/entities/logged_model.py, including tracking-store and REST-client paths that go through the proto form.",
+  "tags": [
+    "tracking",
+    "logged-model",
+    "protobuf",
+    "rest",
+    "bugfix"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/entities/logged_model.py",
+      "symbol": "LoggedModel.to_proto",
+      "hash": "sha256:412d2d8221ad647595b9e431",
+      "line": 192,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:412d2d8221ad647595b9e431",
+      "fanout": {
+        "files": 82,
+        "sites": 427,
+        "refs": 434
+      }
+    },
+    {
+      "path": "mlflow/entities/logged_model.py",
+      "symbol": "LoggedModel.from_proto",
+      "hash": "sha256:b7fde3e4551ab8ab97c6c09f",
+      "line": 213,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b7fde3e4551ab8ab97c6c09f",
+      "fanout": {
+        "files": 80,
+        "sites": 339,
+        "refs": 354
+      }
+    },
+    {
+      "path": "tests/entities/test_logged_model.py",
+      "symbol": "status_message",
+      "hash": "sha256:805d3505fdef93cac8fbcee7",
+      "line": 13,
+      "missing": false,
+      "fanout": {
+        "files": 42,
+        "sites": 0,
+        "refs": 148
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26244"
+  },
+  "created": "2026-10-12T05:28:41.744Z",
+  "verified": "2026-10-12T05:28:41.744Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Failed models show an empty failure reason after fetching them from the server.",
+    "The error message explaining why a model failed disappears when viewing model details.",
+    "Preserve the explanation message when loading failed models across the remote tracking API.",
+    "Model status displays failed but the failure explanation text is missing on screen."
+  ],
+  "search": "LoggedModel.to_proto must serialize status_message to the LoggedModelInfo block so fields read by LoggedModel.from_proto are preserved. Omitting status_message caused models in FAILED status to lose their failure reason during REST store and client round trips. The guidance applies to LoggedModel protobuf serialization in mlflow/entities/logged_model.py for fields converted between entities and pb2.LoggedModel.",
+  "saysFor": "s2:5a8cb7fbb24437dd7baa808e04f5b6f24cfc7f1975017c54591f761359e6e0e4"
+}

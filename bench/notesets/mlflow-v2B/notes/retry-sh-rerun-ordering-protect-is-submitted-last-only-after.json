@@ -1,0 +1,64 @@
+{
+  "id": "retry-sh-rerun-ordering-protect-is-submitted-last-only-after",
+  "title": "retry.sh rerun ordering: Protect is submitted last, only after every other rerun request succeeds",
+  "kind": "rule",
+  "answers": [
+    "Why did Protect fail immediately and use up an attempt when another rerun failed?",
+    "Why is the protect.yml workflow rerun delayed until after the other reruns?",
+    "Where is the Protect-last rerun ordering in the retry script?"
+  ],
+  "body": "Path: .github/workflows/retry.sh (the `rerun` function and the while-read loop over eligible rows) submits `gh run rerun --failed` for each eligible failed workflow; the protect.yml run is identified from its workflow resourcePath and held back.\nRule: Submit non-Protect reruns in parallel as background jobs, wait for all of them, then submit the Protect rerun only if every preceding rerun request succeeded. Keep a nonzero exit status when any request failed so the next scheduled run retries.\nSymptom: When one non-Protect rerun request failed, Protect was still submitted and failed right away (protect.js stopped it while the other workflow stayed failed), spending a Protect attempt and possibly exhausting the commit-wide retry budget.\nConstraints: The wait covers the rerun requests, not the reruns' own completion. Verified with mocked parallel requests on both success and failure paths; no real reruns were submitted during validation.",
+  "applies": "Scope: rerun dispatch order in .github/workflows/retry.sh; not protect.js or protect.yml logic itself.",
+  "tags": [
+    "ci",
+    "retry",
+    "protect",
+    "ordering",
+    "github-actions"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/retry.sh",
+      "hash": "sha256:fef211e1be0d4b81d0106e16",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/protect.js",
+      "symbol": "failed",
+      "hash": "sha256:61cf7423a6537d2d290f09b4",
+      "line": 148,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8ece3ab9017b4a376f1cdf6d",
+      "fanout": {
+        "files": 159,
+        "sites": 12,
+        "refs": 466
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26020"
+  },
+  "created": "2026-10-12T05:34:57.834Z",
+  "verified": "2026-10-12T05:34:57.834Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "protect-check-status-logging-github-workflows-protect-js-log",
+    "protect-workflow-check-github-workflows-protect-js-report-ex",
+    "approval-rerun-workflows-workflow-run-workflows-must-name-th",
+    "retry-sh-rerun-notices-link-to-the-failed-run-attempt-attemp"
+  ],
+  "says": [
+    "The protection check fails immediately and consumes a retry attempt when another rerun request fails.",
+    "Branch protection retries are exhausting our retry budget because other workflow reruns failed.",
+    "Wait until all other retry requests succeed before dispatching the final branch protection rerun.",
+    "Do not launch the protection workflow rerun if any preceding rerun submission encounters an error."
+  ],
+  "search": "In .github/workflows/retry.sh, non-Protect failed workflow reruns are dispatched in parallel as background jobs using gh run rerun --failed, and protect.yml is submitted last only if every preceding rerun request succeeded. If any rerun request fails, the script maintains a nonzero exit status so the next scheduled run can retry without wasting a Protect attempt. The waiting logic applies to dispatching rerun requests rather than waiting for workflow completion, and does not alter protect.js or protect.yml logic.",
+  "saysFor": "s2:f34ac9500e37aa05bd68ce171bae8baa8d7a28f9f8508cc52e580e145de84757"
+}

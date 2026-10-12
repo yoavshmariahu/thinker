@@ -1,0 +1,85 @@
+{
+  "id": "ai-gateway-endpoint-config-from-auth-config-list-valued-prov",
+  "title": "AI Gateway endpoint config from auth_config: list-valued provider options must accept the comma-separated string form because auth_config is map<string, string>",
+  "kind": "rule",
+  "answers": [
+    "Why does my Vertex AI endpoint fail its first request when I set a list option through the gateway API?",
+    "How do I pass a list of values as an auth_config option when creating a gateway model?",
+    "Where are gateway endpoint provider options read from auth_config in the server?",
+    "How are empty strings handled for gateway config list options set through the API?"
+  ],
+  "body": "Path: Database-managed AI Gateway endpoints build their provider config in mlflow/server/gateway_api.py:_build_endpoint_config, which reads provider settings from the model's `auth_config` and passes them into the provider's pydantic config class (for Vertex AI, mlflow/gateway/config.py:VertexAIConfig).\nRule: `auth_config` is `map<string, string>` in the service proto, so a list option can only arrive as a string over the API. Give such a field a `field_validator(..., mode=\"before\")` that splits a string on commas, strips whitespace and drops empties, and returns other values unchanged. VertexAIConfig.validate_vertex_anthropic_betas is the pattern; it matches the comma-separated convention used for allowed hosts and origins. Then pass the raw auth_config value through in _build_endpoint_config.\nSymptom: Setting a list option (for example a list of anthropic-beta values) through the API made every string form fail pydantic list validation, and the error surfaced on the first request to the endpoint rather than when the endpoint was created.\nConstraints: YAML and direct Python configs can still pass real lists, and the validator leaves those alone. An empty string becomes [] (for Vertex's option this means drop the header). Test the string form through _build_endpoint_config, since the YAML-list tests do not exercise it.",
+  "applies": "Any gateway provider config field that is a list and can be set through a database-managed endpoint's auth_config; not for scalar string options.",
+  "tags": [
+    "gateway",
+    "auth-config",
+    "proto",
+    "config-validation",
+    "vertex-ai"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/gateway_api.py",
+      "symbol": "_build_endpoint_config",
+      "hash": "sha256:b0d328c69ba6f09a9ffd8fe9",
+      "line": 341,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b0d328c69ba6f09a9ffd8fe9",
+      "fanout": {
+        "files": 2,
+        "sites": 7,
+        "refs": 8
+      }
+    },
+    {
+      "path": "mlflow/gateway/config.py",
+      "symbol": "VertexAIConfig",
+      "hash": "sha256:ac2ee9a849ab02f2202dc63e",
+      "line": 332,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ac2ee9a849ab02f2202dc63e",
+      "fanout": {
+        "files": 5,
+        "sites": 8,
+        "refs": 23
+      }
+    },
+    {
+      "path": "mlflow/gateway/config.py",
+      "symbol": "VertexAIConfig.validate_vertex_anthropic_betas",
+      "hash": "sha256:c0d288259e89292b03d18c42",
+      "line": 340,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c0d288259e89292b03d18c42",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25835"
+  },
+  "created": "2026-10-12T05:37:46.579Z",
+  "verified": "2026-10-12T05:37:46.579Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "vertex-ai-claude-passthrough-client-anthropic-beta-is-filter"
+  ],
+  "says": [
+    "Creating a gateway endpoint with multiple provider options fails on its first request.",
+    "Allow comma-separated values when setting endpoint provider configuration options through the API.",
+    "Specifying beta feature options when registering a model endpoint causes validation errors during queries.",
+    "Our new endpoint crashes when passing multiple provider settings as a single string."
+  ],
+  "search": "Database-managed AI Gateway endpoints in mlflow/server/gateway_api.py:_build_endpoint_config parse provider settings from model auth_config (map<string, string>) into Pydantic configs such as mlflow/gateway/config.py:VertexAIConfig. List-valued fields must use a field_validator(..., mode=\"before\") like VertexAIConfig.validate_vertex_anthropic_betas to split comma-separated strings, strip whitespace, and drop empty entries to avoid validation errors on the first request. Applies to list-valued fields configured through API auth_config, while YAML and Python configurations pass native lists directly.",
+  "saysFor": "s2:676ae1efb5b19892cbcd27e1d6d32920f4d583384765201eb784c6c4d509ae82"
+}

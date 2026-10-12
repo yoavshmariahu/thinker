@@ -1,0 +1,55 @@
+{
+  "id": "model-catalog-bot-pr-workflow-reviewer-and-label-policy-must",
+  "title": "model catalog bot PR workflow: reviewer and label policy must be applied on both the create and the existing-PR edit paths",
+  "kind": "rule",
+  "answers": [
+    "Model catalog daily refresh PR is still requesting TomeHirata as reviewer after the policy change; how do I remove it from open PRs?",
+    "Why does an already-open model catalog PR not get the team-review label when the workflow reruns?",
+    "Where does the update-model-catalog workflow add reviewers and labels when it creates or reuses a PR?",
+    "How do I change the labels applied by the LiteLLM model pricing bot PR without leaving existing PRs inconsistent?"
+  ],
+  "body": "Path: .github/workflows/update-model-catalog.yml, the PR step that looks up an open PR for the bot branch with `gh pr list --head \"$branch\"` and then either runs `gh pr edit \"$existing_pr\"` (rerun path) or `gh pr create` (first run of the day). This is where the daily LiteLLM-sourced model catalog refresh gets its reviewer and labels.\nRule: `gh pr create` flags (`--reviewer`, `--label`) only affect newly created PRs. Any reviewer or label policy change must also be made in the existing-PR `gh pr edit` branch, using `--remove-reviewer` for old reviewers and `--add-label` for new labels. The PR establishes this pattern: the edit branch now removes `TomeHirata` and adds both `auto-rerun` and `team-review`, and the create branch adds the same labels without `--reviewer`.\nSymptom: After the policy change, newly created model catalog PRs had the new labels, but a PR that was already open kept the old reviewer and lacked `team-review`, because every daily rerun only edited it with `auto-rerun`.\nConstraints: Applies to the bot branch PR in this workflow only. Keep `auto-rerun` on both paths, since the rerun trigger depends on it. Do not assume a label or reviewer change reaches an open PR without editing that branch as well.",
+  "applies": "Changing reviewers or labels on the auto-generated model catalog PR in update-model-catalog.yml; not other bot workflows.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "model-catalog",
+    "bot-pr",
+    "labels",
+    "reviewers"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/update-model-catalog.yml",
+      "symbol": "existing_pr",
+      "hash": "sha256:2575279d897c059d70f1fff1",
+      "line": 146,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 8
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26139"
+  },
+  "created": "2026-10-12T05:32:36.172Z",
+  "verified": "2026-10-12T05:32:36.172Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Automated model catalog pull requests continue requesting retired reviewers after policy updates.",
+    "Existing model catalog bot pull requests lack required team review labels on reruns.",
+    "Update daily model pricing refresh pull requests to reflect new reviewer assignment rules.",
+    "Ensure automated model updates apply review tags to already open pull requests.",
+    "Daily catalog refresh pull requests retain obsolete reviewers on recurring automated runs."
+  ],
+  "search": "The daily model catalog refresh workflow in `.github/workflows/update-model-catalog.yml` must apply reviewer and label policy updates to both `gh pr create` and existing-PR `gh pr edit` branches. When updating policies, the edit branch must explicitly pass `--remove-reviewer` for retired reviewers and `--add-label` for new labels such as `team-review` to prevent open PRs from remaining inconsistent. Applies exclusively to the model catalog bot branch pull requests, requiring `auto-rerun` to be retained on both execution paths.",
+  "saysFor": "s2:301d3aea89391f522c3e1ddc21e1450511a37c4b88831e6746c74373315da189"
+}

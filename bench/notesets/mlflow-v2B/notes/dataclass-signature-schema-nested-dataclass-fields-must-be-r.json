@@ -1,0 +1,82 @@
+{
+  "id": "dataclass-signature-schema-nested-dataclass-fields-must-be-r",
+  "title": "dataclass signature schema: nested dataclass fields must be read via dataclasses.fields(), not __annotations__",
+  "kind": "rule",
+  "answers": [
+    "Why does my nested dataclass model signature reject a message that has a role field inherited from a base class?",
+    "Model signature inference for a nested dataclass input (a child object or list of child objects inside a ColSpec) with inherited or overridden fields",
+    "Where is the code that converts a nested dataclass type hint into an Object schema property in MLflow?"
+  ],
+  "body": "Path: Model signature inference for pyfunc/RAG-style inputs whose type hints are dataclasses. A nested dataclass (a field of a top-level dataclass, or the item type of list[Dataclass]) is turned into an Object ColSpec by mlflow/types/schema.py:_convert_dataclass_to_nested_object, which calls _convert_field_to_property for each field.\nRule: Enumerate the fields of a nested dataclass with dataclasses.fields(dataclass) and use field.name / field.type. Do not iterate dataclass.__annotations__: it only lists the fields declared directly on that class, so inherited fields disappear and overridden fields keep the base's annotation order. dataclasses.fields() also drops ClassVar, InitVar and KW_ONLY pseudo-fields automatically, so no extra filtering is needed.\nSymptom: A user passed a valid nested object (e.g. a chat message whose role comes from a base class) and schema validation failed because the inherited field was missing from the generated Object properties.\nConstraints: Applies to nested dataclasses only. Top-level signature conversion (convert_dataclass_to_schema) is not changed by this fix, so verify it separately if a top-level inherited field is missing. Covered by tests in tests/types/test_schema.py for nested lists, inherited-only children, overridden fields, pseudo-fields and diamond inheritance.",
+  "applies": "Schema inference for nested dataclass type hints in mlflow/types/schema.py; not for dict/TypedDict or top-level signature handling.",
+  "tags": [
+    "schema",
+    "dataclass",
+    "model-signature",
+    "inheritance",
+    "scoring"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/types/schema.py",
+      "symbol": "_convert_dataclass_to_nested_object",
+      "hash": "sha256:c154e509cc31bdd19f9a045c",
+      "line": 1478,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c154e509cc31bdd19f9a045c",
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/types/schema.py",
+      "symbol": "_convert_field_to_property",
+      "hash": "sha256:1afc00d548188312ff7452be",
+      "line": 1486,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1afc00d548188312ff7452be",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "tests/types/test_schema.py",
+      "symbol": "test_schema",
+      "hash": "sha256:2499cb5f8c38d2ce8cce5b63",
+      "line": 989,
+      "missing": false,
+      "fanout": {
+        "files": 14,
+        "sites": 0,
+        "refs": 108
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26071"
+  },
+  "created": "2026-10-12T05:29:57.672Z",
+  "verified": "2026-10-12T05:29:57.672Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "schema-type-merge-anytype-inferred-from-none-merges-with-a-c"
+  ],
+  "says": [
+    "Model input validation rejects nested chat messages containing fields inherited from base classes.",
+    "Inferred model signature drops inherited attributes from nested input objects.",
+    "Support inherited fields in nested structured inputs during model signature verification.",
+    "Serving requests fail validation because nested parameters are missing recognized base properties."
+  ],
+  "search": "Model signature inference for nested dataclasses in mlflow/types/schema.py:_convert_dataclass_to_nested_object must enumerate fields using dataclasses.fields() rather than iterating dataclass.__annotations__. This ensures inherited fields are included, overridden field annotation order is preserved, and pseudo-fields such as ClassVar, InitVar, and KW_ONLY are excluded when generating Object ColSpec properties. It resolves schema validation failures on nested objects like chat messages with inherited roles, but applies strictly to nested dataclasses rather than top-level schemas or TypedDict structures. Verification is covered in tests/types/test_schema.py:test_schema across nested lists, inherited children, overridden fields, and diamond inheritance.",
+  "saysFor": "s2:816934aae2b4373226dde0f49a30a8245d97169ca479e0b4c529cffce7b2db18"
+}

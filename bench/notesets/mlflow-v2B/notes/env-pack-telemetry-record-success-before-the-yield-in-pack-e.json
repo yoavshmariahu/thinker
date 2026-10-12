@@ -1,0 +1,72 @@
+{
+  "id": "env-pack-telemetry-record-success-before-the-yield-in-pack-e",
+  "title": "env_pack telemetry: record success before the yield in pack_env_for_databricks_model_serving so a caller error inside the with-block is not counted as a packing failure",
+  "kind": "rule",
+  "answers": [
+    "Why does the env_pack telemetry show failure when my code inside the with-block raised an error?",
+    "How is the env_pack success or failure recorded when packing the environment for Databricks Model Serving fails?",
+    "Where is the env_pack telemetry event emitted for register_model with env_pack set?",
+    "How do I add telemetry to a generator-based context manager without misattributing errors raised by the caller?"
+  ],
+  "body": "Path: mlflow/utils/env_pack.py:pack_env_for_databricks_model_serving is the public context manager that register_model uses when env_pack is set. It wraps the inner generator mlflow/utils/env_pack.py:_pack_env_for_databricks_model_serving, which does the actual packing, and emits one env_pack event per call.\nRule: In a generator-based context manager that yields to a caller, record success just before the yield and set a packed flag. In the except branch, record failure only if packed is still False, then re-raise. An exception raised by the caller after the yield is re-raised without an env_pack failure event. Keep the event's params (install_dependencies = bool(enforce_pip_requirements)) computed once, before the try.\nSymptom: If the event were recorded after the yield or on every exception, errors from the caller's own code (for example a failed model log step inside the with-block) would be reported as env_pack failures, which skews the success rate.\nConstraints: _record_event already returns early when telemetry is disabled, so this path does not check is_telemetry_enabled itself. The reviewer noted that disabling telemetry after client initialization is still not a no-op for this path; that was left as a follow-up. Applies only to the Databricks Model Serving env pack, not to other packing code.",
+  "applies": "Telemetry added around any context manager or generator in mlflow/utils/env_pack.py or similar code that yields control to a caller while doing work.",
+  "tags": [
+    "telemetry",
+    "env-pack",
+    "databricks",
+    "model-serving",
+    "context-manager"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/utils/env_pack.py",
+      "symbol": "pack_env_for_databricks_model_serving",
+      "hash": "sha256:991b513c663926e1e506d3fd",
+      "line": 117,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:991b513c663926e1e506d3fd",
+      "fanout": {
+        "files": 4,
+        "sites": 15,
+        "refs": 23
+      }
+    },
+    {
+      "path": "mlflow/utils/env_pack.py",
+      "symbol": "_pack_env_for_databricks_model_serving",
+      "hash": "sha256:8b57e8b16c96c1ce18a52ebd",
+      "line": 175,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8b57e8b16c96c1ce18a52ebd",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25923"
+  },
+  "created": "2026-10-12T05:35:48.398Z",
+  "verified": "2026-10-12T05:35:48.398Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "telemetry-events-import-env-pack-lazily-inside-parse-and-env"
+  ],
+  "says": [
+    "Environment packing metrics falsely report failures when user model logging code throws an error.",
+    "Why are environment preparation metrics dropping when the actual failure happened in user code?",
+    "User errors during model registration should not skew environment packaging success rate metrics.",
+    "Environment packing telemetry incorrectly counts custom block execution errors as packaging failures.",
+    "Make environment packaging telemetry record success as soon as the environment completes packing."
+  ],
+  "search": "`mlflow/utils/env_pack.py:pack_env_for_databricks_model_serving` records telemetry success and sets a flag immediately before yielding control, recording failure only if an exception occurs while the flag remains false. Exceptions raised by caller code within the context block are re-raised without emitting environment packaging failure events to avoid skewing success rate metrics. Telemetry event parameters (`install_dependencies = bool(enforce_pip_requirements)`) are computed once prior to the try-block. Guidance applies specifically to Databricks Model Serving environment packing context managers and does not cover other packaging routines.",
+  "saysFor": "s2:7d3911bbabaf092c9a2da4cd1e5bc7ea9fe92b9b8cbadc16998fbeffdea37c8a"
+}

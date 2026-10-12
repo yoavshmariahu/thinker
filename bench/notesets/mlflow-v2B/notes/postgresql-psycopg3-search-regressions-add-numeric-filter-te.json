@@ -1,0 +1,79 @@
+{
+  "id": "postgresql-psycopg3-search-regressions-add-numeric-filter-te",
+  "title": "PostgreSQL psycopg3 search regressions: add numeric filter tests to tests/db/test_workspace_tracking_store.py and run them against a real PostgreSQL",
+  "kind": "howto",
+  "answers": [
+    "How do I write a regression test for a numeric filter that must work on PostgreSQL with psycopg v3?",
+    "Where are the MCP registry timestamp filter database tests?",
+    "Why are the PostgreSQL search tests skipped in my local run?",
+    "How do I test run attribute filters against the SQL store instead of the in-memory matcher?"
+  ],
+  "body": "Path: tests/db/test_workspace_tracking_store.py exercises SQL search on PostgreSQL with the psycopg v3 driver through the psycopg3_store and psycopg3_registry_store fixtures: run search (test_search_runs_time_filter_binds_integers), MCP registry search over servers, versions and access endpoints (test_search_mcp_registry_time_filters_bind_integers), and dataset and model-version numeric filters.\nRule: When a new numeric attribute reaches SQLAlchemy, add a case here that creates a real row, filters on it with a numeric comparison, and asserts the row comes back; a string bound to an integer column fails at query time, so the assertion catches it. Keep the in-memory matcher checks in tests/utils/test_search_utils.py.\nSymptom: none (how-to).\nConstraints: These tests need a configured PostgreSQL tracking URI; without it they are collected and skipped locally, so run them in a PostgreSQL-backed environment before relying on them. Fractional-value behavior is not covered by these database tests.",
+  "applies": "Adding or changing numeric search filters that run through the SQL tracking or registry stores on PostgreSQL.",
+  "tags": [
+    "testing",
+    "postgresql",
+    "psycopg3",
+    "search",
+    "mcp-registry",
+    "how-to"
+  ],
+  "deps": [
+    {
+      "path": "tests/db/test_workspace_tracking_store.py",
+      "symbol": "test_search_runs_time_filter_binds_integers",
+      "hash": "sha256:abf866a3006fa05feadc2ffa",
+      "line": 168,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:abf866a3006fa05feadc2ffa",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/db/test_workspace_tracking_store.py",
+      "symbol": "test_search_mcp_registry_time_filters_bind_integers",
+      "hash": "sha256:652c3b155f6ae2cd71c8ca6e",
+      "line": 188,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:652c3b155f6ae2cd71c8ca6e",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/utils/test_search_utils.py",
+      "hash": "sha256:d88343727dbc60b645927e75",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26180"
+  },
+  "created": "2026-10-12T05:29:15.537Z",
+  "verified": "2026-10-12T05:29:15.537Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "psycopg-v3-search-regressions-test-through-a-postgresql-psyc",
+    "trace-filter-correlation-calculate-trace-filter-correlation"
+  ],
+  "says": [
+    "Searching runs by numerical metrics fails with a database query error on Postgres.",
+    "Filtering registry servers or versions by timestamp produces a database type mismatch error.",
+    "Model version and dataset search filters crash when comparing integer attributes against databases.",
+    "Verify that numeric search queries work against actual database engines instead of simulated storage.",
+    "Database validation tests for search filters are unexpectedly skipped during local development."
+  ],
+  "search": "When adding or changing numeric search filters for SQL tracking or registry stores on PostgreSQL with psycopg v3, add regression test cases to tests/db/test_workspace_tracking_store.py using the psycopg3_store and psycopg3_registry_store fixtures. The tests must create a real database row, apply a numeric comparison filter, and assert the row is returned, catching query-time failures when strings bind to integer columns across run search, MCP registry searches, datasets, and model versions. Keep in-memory matcher checks in tests/utils/test_search_utils.py; these database tests require a configured PostgreSQL tracking URI, are skipped locally without one, and do not cover fractional-value behavior.",
+  "saysFor": "s2:cae88559663e46e2fb3a0d054b8c58babbae60006a491ef3213140870b6b3356"
+}

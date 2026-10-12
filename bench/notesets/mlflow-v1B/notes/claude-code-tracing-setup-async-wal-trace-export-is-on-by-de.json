@@ -1,0 +1,68 @@
+{
+  "id": "claude-code-tracing-setup-async-wal-trace-export-is-on-by-de",
+  "title": "Claude Code tracing setup: async WAL trace export is on by default; only an explicit MLFLOW_ENABLE_ASYNC_TRACE_LOGGING value overrides it",
+  "kind": "rule",
+  "answers": [
+    "Why are Claude Code traces no longer blocking the Stop hook or getting lost when the backend upload fails?",
+    "How do I turn off async trace logging for Claude Code tracing?",
+    "Where is the Claude Code tracing environment defaulting handled?",
+    "Does async trace logging also change the default for other TypeScript SDK users?"
+  ],
+  "body": "Path: Claude Code tracing startup, reached through libs/typescript/integrations/claude-code/src/config.ts:ensureInitialized, which reads the MLFLOW_CLAUDE_TRACING_ENABLED, tracking URI, experiment and workspace settings before any Stop-hook trace is exported.\nRule: ensureInitialized sets process.env[MLFLOW_ENABLE_ASYNC_TRACE_LOGGING] with ??= 'true' (constant defined in config.ts). Unset means the TypeScript SDK's existing WAL-backed async export path is used; an explicit 'false' or 'true' is left untouched. Do not change the SDK-wide default for this; the override is scoped to the Claude Code integration.\nConstraints: Applies only when the Claude Code integration initializes. The assignment sits before the tracking-URI check, so it runs only on paths that reach that point. It does not add retry, logging or persistence logic; delivery retries are handled by the SDK's background daemon.",
+  "applies": "Claude Code integration startup and its env-var defaults; not the generic TypeScript SDK default.",
+  "tags": [
+    "tracing",
+    "claude-code",
+    "typescript",
+    "async-trace-logging",
+    "config"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/integrations/claude-code/src/config.ts",
+      "symbol": "ensureInitialized",
+      "hash": "sha256:18457c9ceb1c3715f4121d07",
+      "line": 303,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:18457c9ceb1c3715f4121d07",
+      "fanout": {
+        "files": 10,
+        "sites": 15,
+        "refs": 30
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/claude-code/src/config.ts",
+      "symbol": "MLFLOW_ENABLE_ASYNC_TRACE_LOGGING",
+      "hash": "sha256:d251ffdf69bf2cc2bb141a02",
+      "line": 11,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c27bbc28e2768037062c3650",
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 9
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25541"
+  },
+  "created": "2026-10-12T05:48:58.833Z",
+  "verified": "2026-10-12T05:48:58.833Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Claude Code tracing exports traces in the background; how do I turn that off?",
+    "Claude Code traces stop blocking the Stop hook; can I opt out of async logging?",
+    "Async trace logging defaults on for Claude Code only; explicit setting overrides it."
+  ],
+  "search": "Claude Code integration sets async WAL trace logging on by default at startup via a ??= default for the async trace logging env variable. An explicit true or false value is respected. The SDK-wide default must not change, and the override is limited to the Claude Code integration. It adds no retry or persistence logic.",
+  "saysFor": "s2:7d1e546aa069f069d8ef0544714aa8504517ee56e92e6ed8a95003adda8ff3b3"
+}

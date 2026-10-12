@@ -1,0 +1,86 @@
+{
+  "id": "autologging-safety-validation-kwargs-that-autolog-rewrites-m",
+  "title": "autologging safety validation: kwargs that autolog rewrites must have a ValidationExemptArgument entry",
+  "kind": "rule",
+  "answers": [
+    "Why does Mistral complete fail the autolog argument check when I pass http_headers?",
+    "Which SDK arguments are exempt from autologging argument validation for Mistral and Groq?",
+    "What do I have to add to safety.py when an autolog patch injects a new kwarg before calling the SDK?"
+  ],
+  "body": "Path: mlflow/utils/autologging_utils/safety.py:ValidationExemptArgument — the list of exemptions the autologging safety wrapper consults when it compares the arguments the user passed with the arguments the original SDK function receives. Entries cover provider, method, argument name, and a validator for the allowed value type.\nRule: When an autolog patch rewrites a kwarg before calling the original method, add a ValidationExemptArgument(provider, method, validator, None, arg_name) whose validator accepts None or Mapping. This PR added entries for mistral complete and complete_async (http_headers) and groq create (extra_headers), next to the existing anthropic extra_headers and gemini config.http_options.headers entries.\nSymptom: Without an exemption, the injected traceparent makes the header argument differ from the user's input, which the safety check treats as an unexpected change.\nConstraints: Add an entry only for an argument the patch actually rewrites. The validator should accept None so calls with no user headers still pass. The injected value may differ from the user input, so the exemption accepts any mapping rather than checking equality.",
+  "applies": "Applies to autologging patches that add or replace a kwarg (headers, config) before calling the wrapped SDK method.",
+  "tags": [
+    "autologging",
+    "safety",
+    "validation",
+    "mistral",
+    "groq",
+    "headers"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/utils/autologging_utils/safety.py",
+      "symbol": "ValidationExemptArgument",
+      "hash": "sha256:d274f690be94e7e54823b2c7",
+      "line": 863,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:d274f690be94e7e54823b2c7",
+      "fanout": {
+        "files": 2,
+        "sites": 15,
+        "refs": 16
+      }
+    },
+    {
+      "path": "mlflow/mistral/autolog.py",
+      "symbol": "_inject_tracing_headers",
+      "hash": "sha256:9098065d257e0a24f215a5ed",
+      "line": 122,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9098065d257e0a24f215a5ed",
+      "fanout": {
+        "files": 5,
+        "sites": 7,
+        "refs": 8
+      }
+    },
+    {
+      "path": "mlflow/groq/_groq_autolog.py",
+      "symbol": "_inject_tracing_headers",
+      "hash": "sha256:0f941caca7df22c89e0d56d2",
+      "line": 61,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0f941caca7df22c89e0d56d2",
+      "fanout": {
+        "files": 5,
+        "sites": 7,
+        "refs": 8
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26177"
+  },
+  "created": "2026-10-12T05:32:24.961Z",
+  "verified": "2026-10-12T05:32:24.961Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "mistral-and-groq-autologging-inject-active-span-traceparent"
+  ],
+  "says": [
+    "Mistral model completion calls fail safety checks when custom HTTP headers are provided.",
+    "Automatic tracing crashes when passing extra headers to Groq chat completions.",
+    "Allow custom headers in model requests without triggering unexpected change validation errors.",
+    "Autologging flags an argument mismatch when custom request headers are sent.",
+    "Support custom HTTP options when automatically tracking model provider calls."
+  ],
+  "search": "Autologging patches that rewrite keyword arguments before calling wrapped SDK methods must include a `ValidationExemptArgument` in `mlflow/utils/autologging_utils/safety.py`. The exemption validator must accept `None` or a `Mapping` to allow injected tracing headers without failing safety argument validation. Exemptions apply to specific rewritten arguments such as `http_headers` in Mistral (`complete`, `complete_async`) and `extra_headers` in Groq (`create`). Entries are added only for arguments the patch rewrites, accepting any mapping rather than requiring equality.",
+  "saysFor": "s2:6e47515b1d47dbec4b0f0d3cb9fc5980319f217cdeb5361deaddf136c5dd0b56"
+}

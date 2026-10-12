@@ -1,0 +1,73 @@
+{
+  "id": "model-registry-createmodelversion-prompt-branch-select-promp",
+  "title": "Model registry CreateModelVersion prompt branch: select prompt handling only when the effective is_prompt tag is 'true'",
+  "kind": "rule",
+  "answers": [
+    "Why was a model version tagged mlflow.prompt.is_prompt=false treated as a prompt and skipped source validation?",
+    "How are duplicate tag keys resolved when creating a model version through the REST API?",
+    "What decides whether _create_model_version uses the prompt branch or regular source validation?",
+    "Why does a model version with a duplicate is_prompt tag not show up as a prompt?"
+  ],
+  "body": "Path: CreateModelVersion requests that carry tags enter mlflow/server/handlers.py:_create_model_version, where mlflow/server/handlers.py:_is_prompt_request decides between the prompt branch (_validate_prompt_source) and the regular branch (_validate_source_run / _validate_source_model).\nRule: _is_prompt_request collapses request_message.tags into a dict keyed by tag key, so the last value wins, and returns true only when the effective IS_PROMPT_TAG_KEY value lowercased equals 'true'. This mirrors ModelVersion._is_prompt. Checking only for the presence of a key is wrong, because the stored entity then differs from what the handler routed.\nSymptom: A model version created with mlflow.prompt.is_prompt set to 'false' took the prompt path, so source-run and source-model validation were skipped. With duplicate tags [true, false], the handler took the prompt path while the persisted entity was not a prompt.\nConstraints: Only the effective final value matters, so [true, false] is not a prompt and [false, true] is. Any non-'true' value, including '0' or empty, uses regular source validation and returns 'Invalid model version source' for traversal sources.",
+  "applies": "Prompt-versus-regular dispatch for CreateModelVersion requests in mlflow/server/handlers.py; not the client-side ModelVersion property.",
+  "tags": [
+    "model-registry",
+    "prompts",
+    "tags",
+    "security"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_is_prompt_request",
+      "hash": "sha256:ea40c3d3d0840898df2c7649",
+      "line": 3462,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ea40c3d3d0840898df2c7649",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_create_model_version",
+      "hash": "sha256:92e16071a077643fdce0cab2",
+      "line": 3361,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:92e16071a077643fdce0cab2",
+      "fanout": {
+        "files": 7,
+        "sites": 54,
+        "refs": 72
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25870"
+  },
+  "created": "2026-10-12T05:36:54.617Z",
+  "verified": "2026-10-12T05:36:54.617Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "server-side-scorer-registration-and-invoke-decorator-call-so",
+    "prompt-source-placeholders-client-store-and-server-allowlist",
+    "artifact-host-policy-a-tracking-server-connects-only-to-the",
+    "protobuf-request-parsing-a-body-that-spells-one-field-both-s"
+  ],
+  "says": [
+    "Setting the prompt tag to false still treated the model version as a prompt.",
+    "Model versions with false prompt tags should not skip standard model source checks.",
+    "Duplicate tags on a new model version should resolve using the last value provided.",
+    "Registering a regular model with a negative prompt flag triggered the wrong validation."
+  ],
+  "search": "Dispatching CreateModelVersion requests in mlflow/server/handlers.py:_create_model_version selects prompt handling only when mlflow/server/handlers.py:_is_prompt_request evaluates the effective IS_PROMPT_TAG_KEY value lowercased to 'true'. Tag entries in request_message.tags are collapsed into a dictionary where the last value wins, mirroring ModelVersion._is_prompt rather than checking key presence. Previously, setting mlflow.prompt.is_prompt to 'false' or having duplicate tags like [true, false] routed requests to the prompt path, bypassing _validate_source_run and _validate_source_model. Any non-'true' value such as '0' or empty falls back to regular source validation, and the rule does not apply to client-side ModelVersion properties.",
+  "saysFor": "s2:65b056a733c8759d473e48f070db5e704dfb8bb77a0fb01b0c4865aeaeeb509d"
+}

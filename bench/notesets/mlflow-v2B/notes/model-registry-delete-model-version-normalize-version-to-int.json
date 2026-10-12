@@ -1,0 +1,54 @@
+{
+  "id": "model-registry-delete-model-version-normalize-version-to-int",
+  "title": "Model registry delete model version: normalize version to int before removing its aliases",
+  "kind": "rule",
+  "answers": [
+    "Deleting a model version through the tracking server left its alias still attached to the registered model; how do I fix that?",
+    "Why does alias cleanup miss an alias when the version is passed as a string like \"2\" instead of 2?",
+    "Where does the SQL registry store delete a model version and clean up aliases?",
+    "Does a registry API that takes a version as a string need its own validation before alias removal?"
+  ],
+  "body": "Path: Deleting a registered model version on the SQL model registry store (`mlflow/store/model_registry/sqlalchemy_store.py:SqlAlchemyStore.delete_model_version`), including requests that arrive via the tracking server REST API with the version as a string, and the alias cleanup that runs in the same call.\nRule: Coerce and validate `version` with `_validate_model_version` at the top of `SqlAlchemyStore.delete_model_version`, before any alias comparison, so the integer alias version is compared against an integer. Any new store method that compares a version against stored alias versions should normalize its input the same way first.\nSymptom: After deleting a model version through the tracking server (where the version arrives as a string), the alias that pointed at that version was still listed on the registered model instead of being removed. Calling the store directly with an int worked.\nConstraints: The root cause is a str-vs-int comparison in alias cleanup; the fix is input normalization, not a change to the alias query. Applies to the SQL store path; the diff does not show whether the FileStore delete path needs the same normalization.",
+  "applies": "SQL model registry `delete_model_version` and alias cleanup for version inputs that may be strings (tracking server REST path) or ints (direct client/store calls).",
+  "tags": [
+    "model-registry",
+    "aliases",
+    "delete-model-version",
+    "sqlalchemy"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/model_registry/sqlalchemy_store.py",
+      "symbol": "SqlAlchemyStore.delete_model_version",
+      "hash": "sha256:2d9fcad71952de93ac0cd5b1",
+      "line": 1245,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2d9fcad71952de93ac0cd5b1",
+      "fanout": {
+        "files": 16,
+        "sites": 33,
+        "refs": 36
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26173"
+  },
+  "created": "2026-10-12T05:32:17.407Z",
+  "verified": "2026-10-12T05:32:17.407Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Deleting a model version leaves its alias still pointing to the deleted version.",
+    "Removed model versions still have active aliases displayed on the registered model.",
+    "Deleting a model version from the tracking server should clear its assigned aliases.",
+    "Model aliases do not get cleaned up when deleting versions through the server."
+  ],
+  "search": "Model registry version deletion in mlflow/store/model_registry/sqlalchemy_store.py:SqlAlchemyStore.delete_model_version must normalize the version parameter to an integer before removing associated aliases. _validate_model_version coerces and validates version at the entry of SqlAlchemyStore.delete_model_version so string version inputs from tracking server REST requests match stored integer alias versions. Without normalization, string-versus-integer comparison caused deleted model versions to retain their aliases on the registered model. This applies to the SQL model registry store path, not FileStore, and resolves via input coercion rather than modifying the alias query.",
+  "saysFor": "s2:aece64efc92fbd1689f057cd109bcb858c8e9aefad89d28d0898208e8b98a969"
+}

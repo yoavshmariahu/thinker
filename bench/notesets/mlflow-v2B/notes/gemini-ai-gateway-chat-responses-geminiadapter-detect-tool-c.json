@@ -1,0 +1,102 @@
+{
+  "id": "gemini-ai-gateway-chat-responses-geminiadapter-detect-tool-c",
+  "title": "Gemini AI Gateway chat responses (GeminiAdapter): detect tool calls by any functionCall part, not parts[0], and keep sibling text as message content",
+  "kind": "rule",
+  "answers": [
+    "Gateway Gemini chat response dropped my tool call when the model wrote text before the function call",
+    "AI Gateway returns a 500 KeyError 'functionCall' when a Gemini candidate has text and a function call together",
+    "Where is the Gemini candidate-to-OpenAI tool_calls conversion handled in the gateway?",
+    "Streaming Gemini chat through the gateway: how are text and tool calls combined into one delta?"
+  ],
+  "body": "Path: Gemini generateContent responses (chat and streaming) returned through the AI Gateway, including Vertex AI which inherits the same adapter. Chokepoints are mlflow/gateway/providers/gemini.py:GeminiAdapter.model_to_chat and GeminiAdapter.model_to_chat_streaming, which pick the tool-call path, and GeminiAdapter._convert_function_call_to_openai_choice, which builds the OpenAI-style message or stream delta.\nRule: Choose the tool-call branch with `any(part.get(\"functionCall\") for part in parts)`, never by inspecting `parts[0]`. Inside _convert_function_call_to_openai_choice, skip parts without a `functionCall`, collect every `text` part into one string, and set `content` to that joined string (or None when empty) alongside `tool_calls` on both the message and the stream delta. Text-only candidates still take the original text path.\nSymptom: When Gemini put text before a functionCall, the tool call was silently dropped and the user got a plain text reply with no tool_calls. When the functionCall came first, the gateway raised KeyError 'functionCall' and returned a server error. A text part placed after the call was also lost.\nConstraints: Applies to candidate parts in the Gemini response format only; request-side conversion of assistant tool_calls is a separate path. Parts that have neither text nor functionCall (e.g. thoughtSignature-only parts) are ignored by the loop. Covered by tests/gateway/providers/test_gemini.py:test_gemini_chat_mixed_text_and_function_call_parts and test_gemini_chat_streaming_mixed_text_and_function_call_parts, parametrized on text-then-call and call-then-text.",
+  "applies": "Gateway Gemini response conversion (mlflow/gateway/providers/gemini.py) for any candidate mixing text and functionCall parts, including the Vertex AI adapter that inherits these methods.",
+  "tags": [
+    "gateway",
+    "gemini",
+    "tool-calling",
+    "streaming",
+    "vertex-ai"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/gemini.py",
+      "symbol": "GeminiAdapter.model_to_chat",
+      "hash": "sha256:b16b27ff30fbb9f483dbfd65",
+      "line": 384,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b16b27ff30fbb9f483dbfd65",
+      "fanout": {
+        "files": 19,
+        "sites": 24,
+        "refs": 28
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/gemini.py",
+      "symbol": "GeminiAdapter.model_to_chat_streaming",
+      "hash": "sha256:1b1701d96c24016f94be280d",
+      "line": 443,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1b1701d96c24016f94be280d",
+      "fanout": {
+        "files": 10,
+        "sites": 10,
+        "refs": 11
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/gemini.py",
+      "symbol": "GeminiAdapter._convert_function_call_to_openai_choice",
+      "hash": "sha256:fca45739f1840d76dbaa5af1",
+      "line": 267,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:fca45739f1840d76dbaa5af1",
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "tests/gateway/providers/test_gemini.py",
+      "symbol": "test_gemini_chat_mixed_text_and_function_call_parts",
+      "hash": "sha256:9e42a3132ecaf068f9db46d1",
+      "line": 1193,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9e42a3132ecaf068f9db46d1",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26109"
+  },
+  "created": "2026-10-12T05:33:03.659Z",
+  "verified": "2026-10-12T05:33:03.659Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "gemini-ai-gateway-tool-calls-thoughtsignature-is-a-sibling-o",
+    "gemini-ai-gateway-request-conversion-parallel-tool-results-g",
+    "gemini-ai-gateway-tool-result-conversion-geminiadapter-chat"
+  ],
+  "says": [
+    "Tool calls are dropped when the model returns text before calling a tool.",
+    "Gateway chat throws an internal server error when responses combine text with tools.",
+    "Chat responses lose the accompanying text explanation when the model triggers a tool.",
+    "Streaming chat fails to deliver tool calls if the model outputs text first.",
+    "Ensure both text explanations and tool calls appear in gateway chat replies."
+  ],
+  "search": "In mlflow/gateway/providers/gemini.py, GeminiAdapter.model_to_chat and model_to_chat_streaming must detect tool calls using `any(part.get('functionCall') for part in parts)` rather than checking `parts[0]`. In GeminiAdapter._convert_function_call_to_openai_choice, parts without functionCall are skipped, all text parts are combined into content alongside tool_calls on messages and stream deltas, and parts lacking text or functionCall like thoughtSignature are ignored. Without this, placing text before functionCall drops the tool call, placing functionCall first causes a KeyError and 500 server error, and trailing text is discarded. This rule applies to Gemini and Vertex AI response conversions for chat and streaming chat, but excludes request-side assistant tool call conversion.",
+  "saysFor": "s2:23fd4312d22bb5dbfc511aad33fc982e3f425c7bf810d278199baed13885a0db"
+}

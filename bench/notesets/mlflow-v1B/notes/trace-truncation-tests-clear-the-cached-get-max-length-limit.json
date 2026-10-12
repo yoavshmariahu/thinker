@@ -1,0 +1,67 @@
+{
+  "id": "trace-truncation-tests-clear-the-cached-get-max-length-limit",
+  "title": "Trace truncation tests: clear the cached _get_max_length limit before and after each test, because URI restore does not reset it",
+  "kind": "rule",
+  "answers": [
+    "Why do trace preview truncation tests fail with 1021 instead of 1000 depending on test order?",
+    "How do I write a test that depends on the OSS vs Databricks trace preview length limit?",
+    "Where is the trace request/response preview truncation limit cached and how do I reset it in tests?",
+    "Why does a Databricks tracking URI test leak state into later trace truncation tests?"
+  ],
+  "body": "Path: Trace request/response preview truncation (smart and naive truncation of trace inputs and outputs for the tracing preview fields) goes through mlflow/tracing/utils/truncation.py:_get_max_length, which picks the 1,000-char OSS or 10,000-char Databricks limit based on the active tracking URI.\nRule: _get_max_length caches its result on first call. Restoring the tracking URI between tests does not clear that cache. Any test asserting a specific truncation length must call _get_max_length.cache_clear() before and after the test, via a fixture such as tests/entities/test_trace.py:clear_truncation_max_length_cache, and apply it to each such test.\nSymptom: After a test that exercised a Databricks tracking URI ran earlier in the same pytest process, OSS truncation assertions in tests/entities/test_trace.py failed with 'assert 1021 == 1000'. The failure only appeared under certain test orderings, so it looked unrelated to the PR that surfaced it.\nConstraints: Test-only pattern. Do not clear the cache in production code, since the cache is intentional and keeps the limit stable per process. Only needed for tests that assert the actual truncated length; tests that do not depend on the limit do not need it.",
+  "applies": "Tests that assert trace preview or truncation lengths in the mlflow tracing test suite; not production tracing code.",
+  "tags": [
+    "tracing",
+    "testing",
+    "truncation",
+    "test-isolation"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/tracing/utils/truncation.py",
+      "symbol": "_get_max_length",
+      "hash": "sha256:80f2b46c9fa013fc0cf100ad",
+      "line": 59,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:80f2b46c9fa013fc0cf100ad",
+      "fanout": {
+        "files": 3,
+        "sites": 1,
+        "refs": 5
+      }
+    },
+    {
+      "path": "tests/entities/test_trace.py",
+      "symbol": "clear_truncation_max_length_cache",
+      "hash": "sha256:204282b6649104a5e18ab3e7",
+      "line": 384,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:204282b6649104a5e18ab3e7",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25724"
+  },
+  "created": "2026-10-12T05:46:00.112Z",
+  "verified": "2026-10-12T05:46:00.112Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Trace request and response preview fields truncate text at the wrong character limit",
+    "Trace preview length tests fail intermittently depending on the order tests are executed",
+    "Trace preview cuts off text at the open source limit inside managed workspaces"
+  ],
+  "search": "Tests asserting trace preview truncation lengths must clear the cached mlflow/tracing/utils/truncation.py:_get_max_length limit before and after execution using a fixture like tests/entities/test_trace.py:clear_truncation_max_length_cache. The limit helper caches the 1,000-character OSS or 10,000-character Databricks limit on first call, so restoring tracking URIs between tests leaks cached limits and causes order-dependent failures like assert 1021 == 1000. This is strictly a test fixture requirement and must never be called in production code where process-level cache stability is intended.",
+  "saysFor": "s2:c25d5ae0838239e9f1c2bbfcf0ee8569738df3f25b4008e5c88c09c296d45528"
+}

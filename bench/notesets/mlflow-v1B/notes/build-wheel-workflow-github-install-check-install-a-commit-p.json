@@ -1,0 +1,46 @@
+{
+  "id": "build-wheel-workflow-github-install-check-install-a-commit-p",
+  "title": "build-wheel workflow GitHub install check: install a commit-pinned GitHub archive tarball, not a git+ requirement",
+  "kind": "rule",
+  "answers": [
+    "Why is the GitHub wheel installation check in CI slow or timing out when it installs MLflow from the tested commit?",
+    "How does the build-wheel CI job install the libs/skinny or libs/tracing subdirectory from a specific commit?",
+    "Where is the CI step that verifies the built MLflow wheel installs from GitHub at the checked-out commit?"
+  ],
+  "body": "Path: .github/workflows/build-wheel.yml (the GitHub installation step in the build-wheel job) takes the checked-out commit from `git rev-parse HEAD` and runs `uv run --isolated --no-project --with <URL>` for the root package, `libs/skinny`, or `libs/tracing` (selected by MATRIX_TYPE) to confirm `import mlflow` works from GitHub.\nRule: Build the URL as `https://github.com/${REPO}/archive/${REF}.tar.gz`, appending `#subdirectory=libs/${MATRIX_TYPE}` for non-dev matrix entries and nothing for `dev`. Do not use a `git+https://github.com/...git@${REF}` requirement, because `uv` fetches the full Git history for `git+` requirements.\nSymptom: The installation check took 33-43s per leg and was vulnerable to transient Git backend failures, so the 240s per-attempt timeout meant a failed attempt waited four minutes before retrying. After the change the step runs in about 19-30s and the per-attempt timeout is 120s.\nConstraints: Applies to the build-wheel workflow's install-from-GitHub verification. Pinning to the commit SHA keeps the test on the exact commit that built the wheel. Retry loop (3 attempts) and `timeout -k 10` wrapper are kept as they were. Does not cover the wheel build itself or other workflows.",
+  "applies": "CI verification step in .github/workflows/build-wheel.yml that installs MLflow from a GitHub commit; not general pip or uv usage.",
+  "tags": [
+    "ci",
+    "build",
+    "github-actions",
+    "uv",
+    "wheel",
+    "installation-test"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/build-wheel.yml",
+      "hash": "sha256:e76c2567b5effc6aa95e08bd",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25810"
+  },
+  "created": "2026-10-12T05:45:10.524Z",
+  "verified": "2026-10-12T05:45:10.524Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The wheel installation check in CI is running very slowly and timing out.",
+    "Speed up the automated GitHub package install step to prevent four-minute retry delays.",
+    "Installation verification fails frequently in the build pipeline due to transient repository timeouts.",
+    "Reduce build workflow runtimes by downloading a release archive instead of full history."
+  ],
+  "search": "In .github/workflows/build-wheel.yml, the GitHub installation verification step must install a commit-pinned archive tarball from https://github.com/${REPO}/archive/${REF}.tar.gz rather than using a git+ requirement with uv. Using git+ forces uv to download the entire Git history, causing slow runs and 240-second timeout delays on transient failures. This guidance applies specifically to the build-wheel install check across root, libs/skinny, and libs/tracing matrix builds while preserving the three-attempt retry loop and per-attempt timeout.",
+  "saysFor": "s2:dc2719a641c306de94b98541bc7c55bbddfb1f3440607352805cae0e2897cb13"
+}

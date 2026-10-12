@@ -1,0 +1,58 @@
+{
+  "id": "dependency-declarations-list-directly-imported-packages-in-r",
+  "title": "dependency declarations: list directly imported packages in requirements/skinny-requirements.yaml and exclude broken releases with `unsupported`",
+  "kind": "rule",
+  "answers": [
+    "Why does the MLflow server /health endpoint return HTTP 500 after a fresh pip install of mlflow?",
+    "How do I block a broken upstream release of a dependency from being installed with mlflow?",
+    "Where do I declare a new third-party package that mlflow-skinny imports directly?",
+    "Which file sets the allowed version range for anyio or other skinny dependencies?"
+  ],
+  "body": "Path: Dependency version policy for the mlflow and mlflow-skinny install metadata. `requirements/skinny-requirements.yaml` holds per-package entries (pip_release, minimum, max_major_version, unsupported) that generate the `dependencies` lists in the root `pyproject.toml` and `libs/skinny/pyproject.toml`, and the resolved set in `uv.lock`. Packages reached only through transitive imports, such as anyio via starlette, are affected by this path.\nRule: If mlflow code imports a third-party package directly, add an entry for it in `requirements/skinny-requirements.yaml` instead of relying on a transitive install. Regenerate `pyproject.toml`, `libs/skinny/pyproject.toml`, and `uv.lock` together. To stop a known-broken upstream release from being installed, add it to that entry's `unsupported` list; it is emitted as `!=<version>` in both pyproject files (e.g. `anyio<5,>=3.6.2,!=4.15.0`), so `pip install mlflow` no longer resolves it.\nSymptom: After anyio 4.15.0 was released, a fresh `pip install mlflow` (which resolves deps live from PyPI, not from uv.lock) installed it, every request including `/health` returned HTTP 500 with `module 'anyio' has no attribute 'from_thread'`, and the Helm chart e2e pod never became ready.\nConstraints: Use `unsupported` only for releases confirmed broken for mlflow; it applies to every install of mlflow-skinny, so it is not a per-environment workaround. Dev-only or test-only tooling does not belong in this file. A package that the code does not import directly does not need an entry just because it is pulled in transitively.",
+  "applies": "Any change that adds, bounds, or excludes a runtime dependency of mlflow or mlflow-skinny, including the root and libs/skinny pyproject.toml files.",
+  "tags": [
+    "dependencies",
+    "packaging",
+    "pyproject",
+    "anyio",
+    "mlflow-skinny",
+    "release-blocker"
+  ],
+  "deps": [
+    {
+      "path": "requirements/skinny-requirements.yaml",
+      "hash": "sha256:b7fc58b978fc79464fa8fd60",
+      "missing": false
+    },
+    {
+      "path": "pyproject.toml",
+      "hash": "sha256:444add10550aa53919c7fc8f",
+      "missing": false
+    },
+    {
+      "path": "libs/skinny/pyproject.toml",
+      "hash": "sha256:9648968a65ac7bb2f0e26d96",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25559"
+  },
+  "created": "2026-10-12T05:48:41.999Z",
+  "verified": "2026-10-12T05:48:41.999Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Tracking server crashes with internal errors on the health check endpoint after installation.",
+    "Newly deployed server pods fail startup readiness checks due to a broken dependency.",
+    "Prevent automated deployments from installing known broken third-party library releases.",
+    "Fresh server installations fail all incoming requests after an upstream package release.",
+    "Block incompatible package versions so newly launched tracking service instances stay healthy."
+  ],
+  "search": "Package dependency declarations in requirements/skinny-requirements.yaml require directly imported third-party packages to be listed and allow blocking broken releases with unsupported. The unsupported entries emit !=<version> constraints into root and libs/skinny/pyproject.toml and uv.lock, preventing fresh pip installs from pulling broken packages like anyio 4.15.0 that crash server health endpoints with HTTP 500. Applies to direct runtime dependencies of mlflow and mlflow-skinny, not to dev-only tooling, test tooling, or unimported transitive packages.",
+  "saysFor": "s2:e41113afa68c1f3e15319d88d6c7d6923a61b2a0cb34fd68067468ae8f28a578"
+}

@@ -1,0 +1,51 @@
+{
+  "id": "github-actions-concurrency-for-helm-and-update-model-catalog",
+  "title": "GitHub Actions concurrency for helm and update-model-catalog: PR runs supersede per ref, while scheduled and dispatched publish runs are never cancelled",
+  "kind": "rule",
+  "answers": [
+    "Why do older helm chart CI runs keep going after I push a new commit to my PR?",
+    "Why was my scheduled model catalog run cancelled, or why can't it be cancelled?",
+    "Where is the concurrency group for the helm workflow defined?",
+    "Should a new workflow that pushes tags or opens PRs use cancel-in-progress?"
+  ],
+  "body": "Path: `.github/workflows/helm.yml` (chart render and lint checks on PRs) and `.github/workflows/update-model-catalog.yml` (catalog generation, `create-pr`, and `publish` jobs) each define a top-level `concurrency:` block; that block is the chokepoint that decides which in-flight run is cancelled when a newer one starts.\nRule: Both workflows use group `${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}`, so a new run supersedes only older runs of the same workflow, same event type, and same ref. `helm.yml` sets `cancel-in-progress: true` because it only renders and checks charts. `update-model-catalog.yml` sets `cancel-in-progress: ${{ github.event_name == 'pull_request' }}` because its `publish` job pushes tags and `create-pr` pushes branches; only `pull_request` runs may be cancelled.\nConstraints: Apply the conditional form to any workflow whose later jobs write to the repo, tags, or releases; keep plain `cancel-in-progress: true` only for read-only validation workflows. Keep `event_name` in the group key so a scheduled or manual run never shares a group with a PR run on the same ref. Does not cover job-level `permissions:` or the publish token choice, which are separate rules.",
+  "applies": "Changes to concurrency or cancellation behaviour of the helm or update-model-catalog GitHub Actions workflows, or adding concurrency to another PR-triggered workflow.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "concurrency",
+    "helm",
+    "model-catalog"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/helm.yml",
+      "hash": "sha256:3456bde8c62fd2e2da58ba23",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/update-model-catalog.yml",
+      "hash": "sha256:2e512fbbf5220f13f67d4198",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25594"
+  },
+  "created": "2026-10-12T05:48:02.009Z",
+  "verified": "2026-10-12T05:48:02.009Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Older pull request checks continue running after pushing a new commit to the branch.",
+    "A scheduled catalog publication pipeline was unexpectedly cancelled before finishing its release tasks.",
+    "Automatically cancel obsolete deployment chart validation runs when updating an open pull request.",
+    "Ensure publishing and release workflows never get cancelled while writing tags or branches."
+  ],
+  "search": "GitHub Actions workflow concurrency in .github/workflows/helm.yml and .github/workflows/update-model-catalog.yml uses group ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }} to supersede only runs sharing workflow, event, and ref. Read-only validation in helm.yml enables cancel-in-progress: true, while update-model-catalog.yml restricts cancel-in-progress to pull_request events because its jobs push branches and tags. Workflows that write to repositories, tags, or releases must use conditional cancellation, and the rule excludes job permissions or publish token configuration.",
+  "saysFor": "s2:e91f759286685194036e1002c41967c50e733a70e8473e59e4b6eef75a8e39e2"
+}

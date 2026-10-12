@@ -1,0 +1,149 @@
+{
+  "id": "basic-auth-job-search-post-jobs-search-returns-only-the-call",
+  "title": "basic-auth job search: POST /jobs/search returns only the caller's own jobs, creator-less jobs are hidden from non-admins",
+  "kind": "rule",
+  "answers": [
+    "Under basic-auth, a non-admin user can see other users' job ids, params and result/error text from the job search listing; how is that scoped?",
+    "Why does a job I submitted not show up in the native jobs search for another user, or why is a legacy job with no creator missing from search?",
+    "Where is the job search response filtered by owner, and how does the admin listing stay unfiltered?",
+    "Adding a new field to the FastAPI job response model: does it need to be carried for the auth layer to see ownership?"
+  ],
+  "body": "Path: Native FastAPI job listing `POST /ajax-api/3.0/jobs/search` on the basic-auth app, which returns every job in the store (unpaginated). Per-id get and cancel routes are handled separately by `_get_job_route_validator`. The search response passes through `mlflow/server/auth/__init__.py:_filter_search_jobs`.\nRule: `_filter_search_jobs` keeps only jobs whose `creator` equals the caller's username, and drops jobs with a missing creator (fail closed, same as the per-id ownership check). It is registered in `FASTAPI_ENDPOINT_RESPONSE_FILTERS` keyed on `mlflow/server/job_api.py:search_jobs`. The `creator` field on the `mlflow/server/job_api.py:Job` response model is what the filter reads, so any change that drops it from the response silently hides every job from non-admins.\nSymptom: Under `--app-name basic-auth`, any authenticated non-admin could call the job search and enumerate every other user's jobs, including params and results, while get-by-id already returned 403 for the same job (GHSA-9pch-m9gq-c25q).\nConstraints: Applies to non-admins only; admins skip response filters and keep the full listing including creator-less rows. Jobs with no recorded creator (rows predating the creator column, worker-spawned online-scoring child jobs) are invisible to non-admins in search. Filtering is post-response and is only correct because the search handler returns the full result set without pagination. Covered by `tests/server/auth/test_auth.py:test_job_search_only_returns_callers_jobs`.",
+  "applies": "Basic-auth FastAPI job search (`/ajax-api/3.0/jobs/search`), the `Job` response model, and any new job listing route that must be owner-scoped.",
+  "tags": [
+    "basic-auth",
+    "jobs",
+    "authorization",
+    "fastapi",
+    "security"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_filter_search_jobs",
+      "hash": "sha256:88e66715f12a4c8eab82a7cd",
+      "line": 5927,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:88e66715f12a4c8eab82a7cd",
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_get_job_route_validator",
+      "hash": "sha256:7337283d97b4143615ccec30",
+      "line": 5732,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7337283d97b4143615ccec30",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_filter_search_jobs",
+      "hash": "sha256:88e66715f12a4c8eab82a7cd",
+      "line": 5927,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:88e66715f12a4c8eab82a7cd",
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "creator",
+      "hash": "sha256:c4498faeaed755343cc3b0ba",
+      "line": 1542,
+      "missing": false,
+      "fanout": {
+        "files": 25,
+        "sites": 0,
+        "refs": 173
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "auth",
+      "hash": "sha256:03badf007472d7e5bcdfb8d3",
+      "line": 5305,
+      "missing": false,
+      "fanout": {
+        "files": 139,
+        "sites": 5,
+        "refs": 1136
+      }
+    },
+    {
+      "path": "mlflow/server/job_api.py",
+      "symbol": "Job",
+      "hash": "sha256:7e31d3bbd48d74a915b17a41",
+      "line": 18,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7e31d3bbd48d74a915b17a41"
+    },
+    {
+      "path": "mlflow/server/job_api.py",
+      "symbol": "search_jobs",
+      "hash": "sha256:ea644e8e93a5ff9aa993f081",
+      "line": 121,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ea644e8e93a5ff9aa993f081",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "tests/server/auth/test_auth.py",
+      "symbol": "test_job_search_only_returns_callers_jobs",
+      "hash": "sha256:5129f9eb18f34878b3b7aab5",
+      "line": 4857,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5129f9eb18f34878b3b7aab5",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25899"
+  },
+  "created": "2026-10-12T05:43:08.270Z",
+  "verified": "2026-10-12T05:43:08.270Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "basic-auth-fail-closed-backstop-only-response-filters-filter",
+    "basic-auth-model-version-create-read-on-the-source-run-or-lo",
+    "basic-auth-request-validators-parse-the-json-body-through-th",
+    "basic-auth-issue-detection-invoke-update-on-the-experiment-i"
+  ],
+  "says": [
+    "Non-admin users can see all submitted jobs, parameters, and error logs across accounts.",
+    "The jobs list should only display runs created by the currently logged-in account.",
+    "Legacy jobs without a recorded author are missing from the search jobs screen.",
+    "Prevent regular members from viewing job results and parameters launched by other users."
+  ],
+  "search": "In basic-auth FastAPI, POST /ajax-api/3.0/jobs/search runs _filter_search_jobs registered in FASTAPI_ENDPOINT_RESPONSE_FILTERS on mlflow/server/job_api.py:search_jobs to return only unpaginated jobs where creator matches the caller's username. Jobs missing a creator on the Job response model are dropped for non-admins, while admin callers bypass response filtering and retain creator-less rows. Per-ID retrieval and cancellation routes are handled separately by _get_job_route_validator. Applies to --app-name basic-auth job search and is verified by tests/server/auth/test_auth.py:test_job_search_only_returns_callers_jobs.",
+  "saysFor": "s2:5b2cb1c2347365aaae3eab0229e216c4b0afd633709aec852839c22932bee269"
+}

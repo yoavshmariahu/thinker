@@ -1,0 +1,52 @@
+{
+  "id": "copilot-agent-draft-publish-chain-the-review-request-through",
+  "title": "Copilot agent draft publish: chain the review request through a GitHub App token, because GITHUB_TOKEN-created events never start another workflow",
+  "kind": "rule",
+  "answers": [
+    "Why does Copilot review never start after the Copilot agent marks its PR ready for review?",
+    "How do I make a workflow's action trigger a different workflow's ready_for_review run?",
+    "Where is the Copilot draft PR published to ready for review?"
+  ],
+  "body": "Path: .github/workflows/copilot-agent.yml:publish-draft. This job runs on pull_request_target review_requested events for draft PRs opened by the Copilot bot, mints an app token with actions/create-github-app-token, and runs `gh pr ready`. The ready_for_review event it emits is what starts .github/workflows/copilot-review.yml.\nRule: Events created with the default GITHUB_TOKEN do not start other workflow runs. A step whose side effect must trigger a downstream workflow has to authenticate with the app token (client-id from APP_CLIENT_ID, private-key from APP_PRIVATE_KEY) and pass its output as GH_TOKEN. The publish step in copilot-agent.yml:publish-draft is the reference pattern.\nSymptom: The PR was published to ready for review, but Copilot Review never ran, because the ready_for_review event created with GITHUB_TOKEN did not trigger copilot-review.yml.\nConstraints: Only needed when a downstream workflow must react to the emitted event. A step whose effect has no downstream trigger can keep GITHUB_TOKEN.",
+  "applies": "Applies to workflows in .github/workflows/ where one workflow's action must trigger another workflow; not to plain comments or labels that no workflow listens for.",
+  "tags": [
+    "github-actions",
+    "copilot",
+    "workflows",
+    "github-app-token"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/copilot-agent.yml",
+      "hash": "sha256:4bf7efc5eb33d9ebfb546068",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/copilot-review.yml",
+      "hash": "sha256:d3b12c032c69d87e4f909e39",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25642"
+  },
+  "created": "2026-10-12T05:47:36.010Z",
+  "verified": "2026-10-12T05:47:36.010Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "copilot-agent-draft-publish-the-app-token-that-runs-gh-pr-re",
+    "copilot-draft-pr-handoff-publish-to-ready-lives-in-copilot-a"
+  ],
+  "says": [
+    "Copilot marked its pull request ready for review, but automated code review never started.",
+    "Bot pull requests published out of draft status do not trigger automated review checks.",
+    "Why did the automated reviewer fail to launch when the bot published its pull request?",
+    "Ensure automated code reviews launch automatically after the bot marks its pull request ready."
+  ],
+  "search": "Copilot agent draft publishing must chain ready_for_review events using an app token minted via actions/create-github-app-token, because events created with the default GITHUB_TOKEN do not trigger downstream workflows like .github/workflows/copilot-review.yml. In .github/workflows/copilot-agent.yml:publish-draft, authenticate using APP_CLIENT_ID and APP_PRIVATE_KEY and pass the output as GH_TOKEN to gh pr ready. Applies to workflows in .github/workflows/ where one workflow's action must trigger another workflow, but not to steps whose effects have no downstream triggers or plain comments and labels.",
+  "saysFor": "s2:d212324817c9a1b258a1bb1a0c053914031519e04c1c876d66524a23ececd625"
+}

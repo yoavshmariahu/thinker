@@ -1,0 +1,57 @@
+{
+  "id": "agent-action-card-onboarding-strings-regenerate-src-lang-def",
+  "title": "agent action card onboarding strings: regenerate src/lang/default/en.json after editing copy, and let the long setup command wrap in its flex row",
+  "kind": "howto",
+  "answers": [
+    "I changed the tab label or description text in the agent action card; why does en.json show new and removed message IDs?",
+    "The one-line setup command in the empty-state card overflows its box on narrow widths. How do I make it wrap?",
+    "How do I update the UI translation catalog after changing a FormattedMessage in the onboarding components?",
+    "Where is the 'One-line setup' tab label defined and translated?"
+  ],
+  "body": "Path: UI onboarding strings in mlflow/server/js/src/experiment-tracking/components/onboarding/AgentActionCard.tsx:AgentActionCard, including the 'One-line setup' tab trigger, the description above the terminal command, and the <code> element that displays the command; their translation catalog is mlflow/server/js/src/lang/default/en.json.\nRule: Each FormattedMessage's message ID in en.json is a hash derived from its defaultMessage and description, so editing either string changes the key: the old entry is removed and a new one is added. Regenerate the catalog through the UI i18n tooling rather than hand-editing keys, then check i18n consistency. For a long displayed command, the code element in the flex row needs minWidth: 0 and overflowWrap: 'anywhere' so it wraps instead of pushing the copy button out of the card.\nConstraints: Applies to strings rendered by FormattedMessage in the UI. Not needed for plain-text docs or README edits, which have no translation catalog.",
+  "applies": "Editing copy or layout in the experiment-tracking onboarding agent action card and its en.json message catalog.",
+  "tags": [
+    "i18n",
+    "ui",
+    "onboarding",
+    "agent-action-card",
+    "translations"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/onboarding/AgentActionCard.tsx",
+      "symbol": "AgentActionCard",
+      "hash": "sha256:a7ce3538a932737577d37ebe",
+      "line": 31,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a7ce3538a932737577d37ebe",
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 12
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25949"
+  },
+  "created": "2026-10-12T05:30:43.693Z",
+  "verified": "2026-10-12T05:30:43.693Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "tracing-onboarding-entry-points-the-hosted-setup-wizard-curl"
+  ],
+  "says": [
+    "The setup command in the onboarding card overflows and pushes the copy button outside.",
+    "Wrap long terminal instructions inside the setup card so the copy button remains visible.",
+    "Editing the onboarding tab label or description caused translation catalog entries to change unexpectedly.",
+    "The quick setup command spills out of its container on narrow display widths."
+  ],
+  "search": "When updating UI onboarding strings or layout in mlflow/server/js/src/experiment-tracking/components/onboarding/AgentActionCard.tsx:AgentActionCard, regenerate the translation catalog at mlflow/server/js/src/lang/default/en.json using UI i18n tooling because FormattedMessage IDs are hashed from defaultMessage and description. In the empty-state card, displayed commands in code elements inside flex rows require minWidth: 0 and overflowWrap: 'anywhere' so long commands wrap without displacing the copy button. This applies to UI strings rendered by FormattedMessage rather than plain-text docs or README edits.",
+  "saysFor": "s2:5237ac5051de1e89b4245cc1ad69be9a2dc9f988276f34cf80c272ad9ac31dbd"
+}

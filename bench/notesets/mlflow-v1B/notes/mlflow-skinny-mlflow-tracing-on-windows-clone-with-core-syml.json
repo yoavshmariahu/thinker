@@ -1,0 +1,53 @@
+{
+  "id": "mlflow-skinny-mlflow-tracing-on-windows-clone-with-core-syml",
+  "title": "mlflow-skinny/mlflow-tracing on Windows: clone with core.symlinks enabled or turn on Developer Mode before building from source",
+  "kind": "howto",
+  "answers": [
+    "How do I build mlflow-skinny from source on Windows without the 'not a directory' error?",
+    "Building mlflow-tracing wheel on Windows produces a package with no modules, what do I change?",
+    "What git flag is needed to clone mlflow so libs/skinny/mlflow becomes a real directory on Windows?"
+  ],
+  "body": "Path: libs/skinny/setup.py and libs/tracing/setup.py are the build-time entry points that check whether the libs/<pkg>/mlflow symlink resolved; their error message names the fix.\nRule: on Windows, the linked package only materializes if git creates symlinks at checkout. Either enable Developer Mode (or run elevated), or clone with `git -c core.symlinks=true clone https://github.com/mlflow/mlflow`, then build libs/skinny or libs/tracing from that checkout.\nConstraints: the PR's manual test used a fresh `--depth=1` clone; re-cloning with the flag is the path the guard suggests, and Linux and macOS checkouts already resolve the symlinks, so the flag is only needed on Windows.",
+  "applies": "Source builds of mlflow-skinny or mlflow-tracing on Windows; irrelevant on Linux/macOS or when installing published wheels from PyPI.",
+  "tags": [
+    "windows",
+    "git",
+    "symlink",
+    "build",
+    "mlflow-skinny",
+    "mlflow-tracing"
+  ],
+  "deps": [
+    {
+      "path": "libs/skinny/setup.py",
+      "hash": "sha256:6b1a0cc1abfde77a0996411d",
+      "missing": false
+    },
+    {
+      "path": "libs/tracing/setup.py",
+      "hash": "sha256:d8b199a1ba470c7d5a0a4451",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25713"
+  },
+  "created": "2026-10-12T05:46:15.779Z",
+  "verified": "2026-10-12T05:46:15.779Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "mlflow-skinny-mlflow-tracing-build-stop-with-an-error-when-l"
+  ],
+  "says": [
+    "Building the lightweight client from source on Windows fails with a directory error.",
+    "Creating the tracing package on Windows produces an empty archive with no modules.",
+    "Need the source installation for the minimal client to work properly on Windows.",
+    "Package built from source on Windows is missing its internal module folders."
+  ],
+  "search": "Building mlflow-skinny or mlflow-tracing from source on Windows requires enabling Developer Mode or cloning with git -c core.symlinks=true so the package symlink resolves. Build entry points libs/skinny/setup.py and libs/tracing/setup.py verify that libs/<pkg>/mlflow exists as a directory and report the error. The rule applies only to Windows source builds and is irrelevant on Linux, macOS, or when installing prebuilt wheels from PyPI.",
+  "saysFor": "s2:a36d24719f9e1020a67e0ed70fb9e60fa4856e80288520f3509ad77e3a5013f4"
+}

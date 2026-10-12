@@ -1,0 +1,71 @@
+{
+  "id": "shap-explainer-logging-the-nested-scikit-learn-model-is-seri",
+  "title": "SHAP explainer logging: the nested scikit-learn model is serialized with cloudpickle, not skops, because the explainer itself is already pickle",
+  "kind": "rule",
+  "answers": [
+    "Why does logging a SHAP explainer for a scikit-learn tree model fail with an untrusted type error from skops?",
+    "Which serialization format does mlflow.shap.log_explainer use for the underlying sklearn model?",
+    "Where is the SHAP explainer save path that extracts and saves the inner sklearn model?",
+    "Does saving a standalone sklearn model with mlflow.sklearn change when SHAP is involved?"
+  ],
+  "body": "Path: mlflow.shap.log_explainer and mlflow.shap.save_explainer (chokepoint mlflow/shap/__init__.py:save_explainer) handle logging or saving a SHAP explainer with serialize_model_using_mlflow=True. When the wrapped model is sklearn, the inner estimator is extracted and saved as an MLmodel sub-artifact under underlying_model.\nRule: save_explainer passes serialization_format=mlflow.sklearn.SERIALIZATION_FORMAT_CLOUDPICKLE to mlflow.sklearn.save_model for that nested model. Do not auto-trust skops types for it (for example sklearn.tree._tree.Tree) and do not add a trust-list option to this path, because the SHAP artifact is already pickle-based and the nested model shares that trust boundary. Standalone mlflow.sklearn saves keep skops as default.\nSymptom: Logging a SHAP explainer over a scikit-learn tree model failed because skops 0.15 rejects sklearn.tree._tree.Tree by default, unless the caller supplied a trusted-types list.\nConstraints: Applies only to the sklearn branch of save_explainer. The pytorch branch and standalone mlflow.sklearn.log_model/save_model are unaffected. Test coverage: tests/shap/test_log.py:test_log_model_serializes_underlying_model_with_cloudpickle asserts the format is cloudpickle, skops_trusted_types is None, and model.pkl exists.",
+  "applies": "Use when touching how MLflow SHAP explainers save or log their nested scikit-learn model, or when a SHAP logging call fails on skops untrusted types.",
+  "tags": [
+    "shap",
+    "sklearn",
+    "serialization",
+    "skops",
+    "cloudpickle",
+    "pickle"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/shap/__init__.py",
+      "symbol": "save_explainer",
+      "hash": "sha256:abce7b96f9c639006b9bfd18",
+      "line": 387,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:abce7b96f9c639006b9bfd18",
+      "fanout": {
+        "files": 2,
+        "sites": 5,
+        "refs": 7
+      }
+    },
+    {
+      "path": "tests/shap/test_log.py",
+      "symbol": "test_log_model_serializes_underlying_model_with_cloudpickle",
+      "hash": "sha256:8582ab344d28efe3692a4b75",
+      "line": 388,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8582ab344d28efe3692a4b75",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26138"
+  },
+  "created": "2026-10-12T05:29:28.964Z",
+  "verified": "2026-10-12T05:29:28.964Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Logging model explanations for a tree-based model fails with an untrusted type error.",
+    "Saving an explainer for a machine learning model crashes due to security type checks.",
+    "Packaging model explainability artifacts should not require configuring trusted types manually.",
+    "Recording feature importance explainers alongside trained models fails during the save process.",
+    "Allow logging explainers without triggering security rejections on the underlying model."
+  ],
+  "search": "When logging or saving SHAP explainers with serialize_model_using_mlflow=True, mlflow/shap/__init__.py:save_explainer forces serialization_format=mlflow.sklearn.SERIALIZATION_FORMAT_CLOUDPICKLE when saving the nested scikit-learn underlying_model. Cloudpickle is used instead of skops because the outer SHAP explainer is already pickle-based, so no skops_trusted_types list is accepted or auto-configured on this path. This rule applies strictly to the sklearn branch of save_explainer to fix untrusted type errors on sklearn.tree._tree.Tree, leaving standalone mlflow.sklearn saves and the pytorch branch unaffected.",
+  "saysFor": "s2:599a6cf09ec81492cb4805052ace09c25d7ddda94ef2b0392e76d9029e695e33"
+}

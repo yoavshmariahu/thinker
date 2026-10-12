@@ -1,0 +1,57 @@
+{
+  "id": "logged-model-search-order-by-model-id-asc-is-appended-as-the",
+  "title": "Logged model search order_by: model_id asc is appended as the final key unless the caller already orders by model_id",
+  "kind": "rule",
+  "answers": [
+    "Why are logged model search results in a different order across pages when user sort keys tie?",
+    "How do I sort logged models by model_id without a duplicate ORDER BY term?",
+    "Where are the default trailing sort keys for search_logged_models added?"
+  ],
+  "body": "Path: Logged-model search ordering built from the caller's order_by list (metrics.<name>, creation_timestamp, model_id, and other logged model fields) runs through mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore._apply_order_by_search_logged_models, which appends default trailing keys after the user's clauses.\nRule: After the user's keys, the method appends creation_timestamp_ms desc only when no creation_timestamp key was supplied (has_creation_timestamp), and model_id asc only when no model_id key was supplied (has_model_id, detected via SqlLoggedModel.ALIASES). This makes paginated results deterministic when user keys tie, without repeating a key the caller already set.\nSymptom: (convention, no user-facing symptom recorded)\nConstraints: Applies to search_logged_models ordering only. When the caller sorts by model_id, the explicit key is the only model_id term; the test test_search_logged_models_order_by_model_id_does_not_duplicate_tiebreaker asserts the compiled ORDER BY shape.",
+  "applies": "Ordering of search_logged_models results in the SQL tracking store, including pagination determinism for ties.",
+  "tags": [
+    "tracking",
+    "logged-models",
+    "search",
+    "pagination",
+    "ordering"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "SqlAlchemyStore._apply_order_by_search_logged_models",
+      "hash": "sha256:ed81baaabcffd60026132c70",
+      "line": 3591,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ed81baaabcffd60026132c70",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25935"
+  },
+  "created": "2026-10-12T05:30:55.315Z",
+  "verified": "2026-10-12T05:30:55.315Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "logged-model-search-order-by-metric-pagination-needs-exactly",
+    "search-filter-numeric-attributes-searchutils-get-value-retur",
+    "tracking-search-time-filters-numeric-experiment-and-dataset"
+  ],
+  "says": [
+    "Model search results shift order unpredictably across pages when their primary sort values tie.",
+    "Make model listing pagination deterministic whenever multiple models share the same creation date.",
+    "Ensure paginated model search maintains consistent row ordering when custom sort fields have ties."
+  ],
+  "search": "SqlAlchemyStore._apply_order_by_search_logged_models appends creation_timestamp_ms desc and model_id asc as default trailing tiebreakers unless those keys were already supplied. This ensures deterministic pagination across tied user sort keys without duplicating explicit model_id or creation_timestamp clauses in the compiled SQL ORDER BY. It applies specifically to search_logged_models ordering in the SQL tracking store.",
+  "saysFor": "s2:649910f5b2544bcc8f20de57a0e2efeb30c5aa45ae21144273fe263626b12b05"
+}

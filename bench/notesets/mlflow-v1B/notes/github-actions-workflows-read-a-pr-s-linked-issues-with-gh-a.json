@@ -1,0 +1,44 @@
+{
+  "id": "github-actions-workflows-read-a-pr-s-linked-issues-with-gh-a",
+  "title": "GitHub Actions workflows: read a PR's linked issues with gh api graphql using typed -F variables and a --jq filter",
+  "kind": "howto",
+  "answers": [
+    "How do I get the issue numbers a pull request closes from inside a workflow step?",
+    "How do I call the GraphQL API with gh in a workflow with owner and repo variables?",
+    "Why does my gh api graphql query fail on the number argument?"
+  ],
+  "body": "Path: .github/workflows/copilot-agent.yml, step \"Comment on linked issues\" in job comment-on-linked-issues. This is the pattern for running a GraphQL query from a workflow step to read a PR's linked issues (closingIssuesReferences) before acting on them.\nRule: Pass owner and number with -F so they are typed (Int for number), and pass the query text with -f. Derive the repo name with ${REPO#*/} from github.repository, since the GraphQL call needs owner and name separately. Filter the output with --jq '.data.repository.pullRequest.closingIssuesReferences.nodes[].number' and loop over the lines with a for loop.\nConstraints: Use GH_TOKEN from secrets.GITHUB_TOKEN; the token needs pull-requests: read to query and issues: write to comment. Results are capped by first: N in the query (the PR uses 10).",
+  "applies": "Applies to GitHub Actions steps in this repo that need PR-to-issue linkage data; not needed for REST-only calls.",
+  "tags": [
+    "github-actions",
+    "graphql",
+    "gh-cli",
+    "workflow"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/copilot-agent.yml",
+      "hash": "sha256:4bf7efc5eb33d9ebfb546068",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25645"
+  },
+  "created": "2026-10-12T05:47:23.293Z",
+  "verified": "2026-10-12T05:47:23.293Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Find all issues linked to a pull request during automated workflow runs.",
+    "Automatically post comments to tickets closed by a pull request when it merges.",
+    "Querying linked issues in an automated pull request task fails on number arguments.",
+    "Identify the issues referenced by a pull request to perform follow-up actions."
+  ],
+  "search": "Workflow steps querying linked pull request issues with `gh api graphql` must pass typed variables using `-F` and query strings with `-f`. In `.github/workflows/copilot-agent.yml`, the `comment-on-linked-issues` job queries `closingIssuesReferences`, splits `github.repository` into owner and repo with `${REPO#*/}`, and filters output with `--jq '.data.repository.pullRequest.closingIssuesReferences.nodes[].number'`. The step requires `GH_TOKEN` from `secrets.GITHUB_TOKEN` with permissions `pull-requests: read` and `issues: write`, with results limited by `first: N`.",
+  "saysFor": "s2:39cf6b4c6ea832858479932374ce7ba96a64a255e2a596f1c1d0d0f70e3122ac"
+}

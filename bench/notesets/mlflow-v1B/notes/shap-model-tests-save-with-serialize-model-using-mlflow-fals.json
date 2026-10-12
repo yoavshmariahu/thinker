@@ -1,0 +1,69 @@
+{
+  "id": "shap-model-tests-save-with-serialize-model-using-mlflow-fals",
+  "title": "SHAP model tests: save with serialize_model_using_mlflow=False to exercise the SHAP pickle guard instead of sklearn's",
+  "kind": "howto",
+  "answers": [
+    "How do I write a test that checks SHAP explainer loading is blocked when pickle deserialization is disabled?",
+    "Why does my SHAP load test still pass after removing the SHAP pickle guard?",
+    "How do I save a SHAP explainer without the sklearn serialization path in tests?"
+  ],
+  "body": "Path: tests/shap/test_log.py covers mlflow.shap.save_explainer and load paths; the shap_model fixture is sklearn-backed, so default saves route loading through the sklearn loader.\nRule: To test the SHAP-side guard, call mlflow.shap.save_explainer(..., serialize_model_using_mlflow=False) so the load goes straight to mlflow/shap/__init__.py:_load_explainer, then set MLFLOW_ALLOW_PICKLE_DESERIALIZATION to false with monkeypatch.setenv and assert MlflowException matches 'MLFLOW_ALLOW_PICKLE_DESERIALIZATION'. Parametrize over mlflow.shap.load_explainer and pyfunc.load_model to cover both entry points.\nSymptom: A guard test passed even with the guard removed, because the sklearn loader's own guard raised first.\nConstraints: Use this pattern only for checks on the SHAP loader. For sklearn-specific guard tests, keep the default save path.",
+  "applies": "Tests for mlflow.shap save/load guards in tests/shap.",
+  "tags": [
+    "testing",
+    "shap",
+    "pickle",
+    "security"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/shap/__init__.py",
+      "symbol": "_load_explainer",
+      "hash": "sha256:710550e8b41b598fed0463d3",
+      "line": 641,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:710550e8b41b598fed0463d3",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "tests/shap/test_log.py",
+      "symbol": "shap_model",
+      "hash": "sha256:50120cd3ffb80f73f11afd65",
+      "line": 30,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:50120cd3ffb80f73f11afd65",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 19
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25566"
+  },
+  "created": "2026-10-12T05:48:32.044Z",
+  "verified": "2026-10-12T05:48:32.044Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "shap-explainer-loading-pickle-deserialization-is-blocked-unl"
+  ],
+  "says": [
+    "SHAP security check tests falsely pass even when the guard has been removed.",
+    "Security verification for SHAP explainer loading is masked by another model loader check.",
+    "Ensure SHAP deserialization safety tests specifically verify the native SHAP loader.",
+    "Test that loading a SHAP explainer is blocked when pickle deserialization is disabled."
+  ],
+  "search": "In tests/shap/test_log.py, testing the SHAP pickle deserialization guard in mlflow/shap/__init__.py:_load_explainer requires saving explainers with serialize_model_using_mlflow=False. Tests must set MLFLOW_ALLOW_PICKLE_DESERIALIZATION to false with monkeypatch.setenv, assert MlflowException matches the flag name, and parametrize over mlflow.shap.load_explainer and pyfunc.load_model. This prevents the default sklearn-backed shap_model fixture from routing through the sklearn loader guard and masking a removed SHAP guard. Use this pattern exclusively for SHAP loader checks while keeping default save paths for sklearn tests.",
+  "saysFor": "s2:2f68e77f3226af4feec7770bc4d7b1d1bfa0f81e042934b00bdd6a42c5a4cb26"
+}

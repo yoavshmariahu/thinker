@@ -1,0 +1,81 @@
+{
+  "id": "telemetry-tests-verify-new-events-with-validate-telemetry-re",
+  "title": "telemetry tests: verify new events with validate_telemetry_record for end-to-end calls and by mocking _record_event for env_pack success and failure",
+  "kind": "howto",
+  "answers": [
+    "How do I write a test that checks a new telemetry event is sent when I call mlflow.register_model or Model.log?",
+    "How do I test that the env_pack telemetry records success or failure correctly?",
+    "What fixtures do I use to check telemetry parameters in the tests?"
+  ],
+  "body": "Path: tests/telemetry/test_tracked_events.py covers end-to-end events by calling the public API (mlflow.pyfunc.log_model, mlflow.register_model) with the mock_requests and mock_telemetry_client fixtures and checking the record with validate_telemetry_record(mock_telemetry_client, mock_requests, <event name>, <params>). tests/telemetry/test_events.py covers parse() directly with parametrized argument dicts, including SimpleNamespace stand-ins for flavor and env_pack objects.\nRule: For a new event, add a parametrized parse() test that covers known values, None, and an unknown value mapping to \"other\". Add one end-to-end test in test_tracked_events.py. For env_pack, patch mlflow.telemetry.track._record_event and assert on the call args: the event class, the params dict, and the success and duration_ms kwargs. Build the packable model with a tmp_path artifacts directory whose MLmodel has databricks_runtime set, and patch mlflow.utils.env_pack.download_artifacts and sys.prefix.\nSymptom: Not applicable; this is a testing convention.\nConstraints: Patch _record_event at mlflow.telemetry.track, not at events, because env_pack imports it lazily from there. Does not cover the real network upload path.",
+  "applies": "Writing or changing tests for telemetry events in tests/telemetry or for telemetry emitted from mlflow/utils/env_pack.py.",
+  "tags": [
+    "telemetry",
+    "testing",
+    "env-pack",
+    "model-registry"
+  ],
+  "deps": [
+    {
+      "path": "tests/telemetry/test_tracked_events.py",
+      "symbol": "test_log_model",
+      "hash": "sha256:ff6e8676a9873817769f28ca",
+      "line": 360,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ff6e8676a9873817769f28ca",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/telemetry/test_events.py",
+      "symbol": "test_register_model_parse_params",
+      "hash": "sha256:fa34ec485af4bc339626118c",
+      "line": 214,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:fa34ec485af4bc339626118c",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/utils/test_env_pack.py",
+      "symbol": "test_pack_env_records_failure_telemetry",
+      "hash": "sha256:e5eaf4a40bd6b09b26581bf5",
+      "line": 223,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e5eaf4a40bd6b09b26581bf5",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25923"
+  },
+  "created": "2026-10-12T05:35:49.469Z",
+  "verified": "2026-10-12T05:35:49.469Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Track usage analytics whenever users log models or register models in the catalog.",
+    "Record telemetry on whether packaging environment dependencies for model serving succeeded or failed.",
+    "Measure the duration and success rate when packaging environments for model deployment.",
+    "Ensure telemetry metrics are accurately recorded when logging or registering models."
+  ],
+  "search": "Testing telemetry events requires adding parametrized parse() tests for known, None, and other values, an end-to-end test via validate_telemetry_record, and patching mlflow.telemetry.track._record_event for env_pack. In tests/telemetry/test_tracked_events.py, end-to-end events are checked by calling mlflow.pyfunc.log_model or mlflow.register_model with mock_requests and mock_telemetry_client fixtures, while env_pack tests assert on event class, params, success, and duration_ms. Packable models require an MLmodel with databricks_runtime set alongside patched download_artifacts and sys.prefix, _record_event must be patched at mlflow.telemetry.track due to lazy imports, and the real network upload path is not covered.",
+  "saysFor": "s2:2a3142cb403bef51bc2b6e3f33bedc853d25d3cb80d6029edaa997238884eb97"
+}

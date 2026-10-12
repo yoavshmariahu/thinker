@@ -1,0 +1,100 @@
+{
+  "id": "protect-check-status-logging-github-workflows-protect-js-log",
+  "title": "Protect check status logging (.github/workflows/protect.js): log checks sorted by STATE key order, failure first",
+  "kind": "rule",
+  "answers": [
+    "Why does the Protect job log list failed checks before pending and passing ones?",
+    "Where are the workflow-run attempt links in the Protect job output built, and what does the ?pr= query do?",
+    "How do I change the priority order of check statuses shown in the Protect log?"
+  ],
+  "body": "Path: .github/workflows/protect.js:module.exports builds the `checks` list (name, url, pendingJobs, status) from a PR's check runs and workflow-run attempts, then prints one line per check in the Protect job log. Workflow-run attempt links are `run.html_url/attempts/<run_attempt>`.\nRule: Print order comes from `STATUS_ORDER = Object.values(STATE)` in protect.js, so it follows the key insertion order of `STATE` (currently failure, pending, success, skipped). `checks.sort(...)` by `STATUS_ORDER.indexOf(status)` runs just before the logging `forEach`. To change priority, reorder the keys in `STATE`; do not add a second hardcoded status list. Workflow-run attempt URLs also carry `?pr=<pullRequest.number>`.\nConstraints: Only the logged order is covered by this rule; this note does not establish that the gate decision depends on that order. A status missing from `STATE` gets `indexOf` -1 and sorts to the top. The sort mutates `checks` in place. Applies to protect.js logging only, not to the gate's polling or failure detection.",
+  "applies": "Scope: the Protect gate script .github/workflows/protect.js, its check-status log output and workflow-run links; not other workflows.",
+  "tags": [
+    "protect",
+    "github-actions",
+    "ci",
+    "logging",
+    "check-status"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/protect.js",
+      "symbol": "pendingJobs",
+      "hash": "sha256:add7bfda02d63cdca4a52480",
+      "line": 149,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:20f821d87988c50e36727add",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 7
+      }
+    },
+    {
+      "path": ".github/workflows/protect.js",
+      "symbol": "STATUS_ORDER",
+      "hash": "sha256:f01a31b0e29bdb972fab234d",
+      "line": 28,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f01a31b0e29bdb972fab234d",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": ".github/workflows/protect.js",
+      "symbol": "STATE",
+      "hash": "sha256:642f9156a0739ea0b82bb89e",
+      "line": 22,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:642f9156a0739ea0b82bb89e",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 18
+      }
+    },
+    {
+      "path": ".github/workflows/protect.js",
+      "symbol": "pullRequest",
+      "hash": "sha256:ecac78478cefe6d2a511e5be",
+      "line": 19,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6487de17415952dc3b6502d6",
+      "fanout": {
+        "files": 5,
+        "sites": 4,
+        "refs": 12
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26014"
+  },
+  "created": "2026-10-12T05:34:25.321Z",
+  "verified": "2026-10-12T05:34:25.321Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "protect-workflow-check-github-workflows-protect-js-report-ex",
+    "retry-sh-rerun-ordering-protect-is-submitted-last-only-after"
+  ],
+  "says": [
+    "Show failed checks at the top of the pull request protection log.",
+    "Pull request gate logs should display failing jobs before pending or successful ones.",
+    "Why does the pull request status log list failed tests first?",
+    "Change the sorting priority of status checks shown in the verification summary.",
+    "Workflow attempt links in the validation summary need pull request query parameters."
+  ],
+  "search": "In .github/workflows/protect.js, status check logging sorts checks by STATUS_ORDER matching STATE key insertion order, listing failures first. To adjust status priority in the Protect log, reorder keys in STATE rather than creating a secondary status list. Workflow-run attempt links appended to checks include run attempt numbers and pull request query parameters. This rule governs only log output formatting in protect.js without affecting polling, gating decisions, or other workflows.",
+  "saysFor": "s2:736ca2c23663b4ba2d1f351a69c0ed383228317d16629075afddf8fe2c2c1134"
+}

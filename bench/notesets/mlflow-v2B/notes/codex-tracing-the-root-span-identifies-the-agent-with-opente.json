@@ -1,0 +1,61 @@
+{
+  "id": "codex-tracing-the-root-span-identifies-the-agent-with-opente",
+  "title": "Codex tracing: the root span identifies the agent with OpenTelemetry service.name set to 'codex'",
+  "kind": "rule",
+  "answers": [
+    "How does a Codex trace say which service or agent produced it?",
+    "Where is the service.name attribute set for Codex root spans?",
+    "Why does my Codex root span have a model attribute but no service name?"
+  ],
+  "body": "Path: processNotify in libs/typescript/integrations/codex/src/tracing.ts handles each Codex notify payload (one conversation turn) and creates the root codex_conversation AGENT span carrying the user prompt, start time and model.\nRule: Put 'service.name' into the root span's attributes object next to model (attributes: { model, 'service.name': 'codex' }) so the trace identifies its emitting agent through the OpenTelemetry service.name key. Set it only on the root span; child spans are unchanged.\nConstraints: Applies to the Codex integration's root span only. The Codex listing page (docs/docs/genai/tracing/integrations/listing/codex.mdx) and libs/typescript/integrations/codex/README.md document this value, so update them together if the name changes. The test 'sets the OpenTelemetry service name on the root span' in libs/typescript/integrations/codex/tests/tracing.test.ts asserts it.",
+  "applies": "Codex TypeScript integration (libs/typescript/integrations/codex) root span creation; other integrations are not covered by this note.",
+  "tags": [
+    "codex",
+    "tracing",
+    "opentelemetry",
+    "service-name",
+    "integration"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/integrations/codex/src/tracing.ts",
+      "symbol": "processNotify",
+      "hash": "sha256:80bea4f39326954f549eb127",
+      "line": 54,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:80bea4f39326954f549eb127",
+      "fanout": {
+        "files": 4,
+        "sites": 10,
+        "refs": 19
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/codex/tests/tracing.test.ts",
+      "hash": "sha256:8bc76114304f00cb0ff71336",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25825"
+  },
+  "created": "2026-10-12T05:38:04.110Z",
+  "verified": "2026-10-12T05:38:04.110Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "typescript-agent-tracing-integrations-trace-user-attribution"
+  ],
+  "says": [
+    "The trace details view shows the model but does not identify the agent.",
+    "Conversation traces are missing the service name label in the telemetry dashboard.",
+    "Filter traces by agent name in the observability monitoring screen.",
+    "Add service identification to the root turn in the trace viewer."
+  ],
+  "search": "In libs/typescript/integrations/codex/src/tracing.ts:processNotify, the root codex_conversation AGENT span must include 'service.name': 'codex' in its attributes object alongside model. This OpenTelemetry attribute identifies the emitting agent on root spans only, leaving child spans unchanged. If this value changes, update docs/docs/genai/tracing/integrations/listing/codex.mdx and libs/typescript/integrations/codex/README.md accordingly. This guidance applies exclusively to the Codex TypeScript integration root span and covers no other integrations.",
+  "saysFor": "s2:80cf7a690d8372f4e9e005f95e87f2741ec086fcfe0a2208bcca1c9802c68d6d"
+}

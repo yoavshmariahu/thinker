@@ -1,0 +1,66 @@
+{
+  "id": "responses-schema-import-suppress-expected-union-inference-wa",
+  "title": "responses schema import: suppress expected union-inference warnings only by exact message during module-level schema build",
+  "kind": "rule",
+  "answers": [
+    "Importing mlflow.types.responses prints 'Union type hint is inferred as AnyType' warnings into my app's root logging; how do I silence it?",
+    "Where does the module-level ResponsesAgentRequest schema get built, and what logger does its type-hint inference use?",
+    "I want to add another expected warning filter during schema construction without hiding ordinary union warnings elsewhere; how is that done?"
+  ],
+  "body": "Path: mlflow/types/responses.py module-level code builds the request/response JSON schemas for ResponsesAgentRequest and related ResponsesAgentStreamEvent types by calling _infer_schema_from_type_hint at import time; this is the path every `import mlflow.types.responses` takes.\nRule: wrap import-time schema construction in suppress_logs(\"mlflow.types.type_hints\", filter_regex=...) from mlflow/utils/logging_utils.py:suppress_logs, combined with MlflowEventsAndWarningsBehaviorGlobally, and filter with the exact expected-message regex _EXPECTED_UNION_INFERENCE_WARNING in mlflow/types/responses.py. Keep the regex anchored to the full message so only those known messages are dropped.\nSymptom: applications using custom root logging (host-managed logging) saw the two expected union-inference warnings every time mlflow.types.responses was imported, even though nothing was wrong.\nConstraints: applies only while the module-level schema is constructed at import. Other union-inference warnings raised elsewhere in mlflow.types.type_hints must still be emitted. Do not replace this with a global disable of the type_hints logger.",
+  "applies": "mlflow/types/responses.py import-time schema construction and its log/warning filtering; not runtime ResponsesAgent request handling.",
+  "tags": [
+    "area/models",
+    "mlflow.types.responses",
+    "logging",
+    "warnings",
+    "type-hints"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/types/responses.py",
+      "symbol": "_EXPECTED_UNION_INFERENCE_WARNING",
+      "hash": "sha256:aa826f7f9ac6f7d31c58424c",
+      "line": 36,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/utils/logging_utils.py",
+      "symbol": "suppress_logs",
+      "hash": "sha256:50714a158b96303b1c4632e5",
+      "line": 223,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:50714a158b96303b1c4632e5",
+      "fanout": {
+        "files": 5,
+        "sites": 6,
+        "refs": 11
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26033"
+  },
+  "created": "2026-10-12T05:33:52.647Z",
+  "verified": "2026-10-12T05:33:52.647Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Application startup logs are cluttered with union type inference warning messages.",
+    "Spurious type hint warnings appear in the console every time the package loads.",
+    "Silence expected schema warnings on startup without hiding genuine warning logs elsewhere.",
+    "Filter out benign initialization warnings from host managed application logging output."
+  ],
+  "search": "Import-time schema construction in mlflow/types/responses.py suppresses expected union-inference warnings by anchoring filters to exact messages rather than disabling loggers globally. Module-level construction for ResponsesAgentRequest and ResponsesAgentStreamEvent wraps _infer_schema_from_type_hint using suppress_logs(\"mlflow.types.type_hints\", filter_regex=...) and _EXPECTED_UNION_INFERENCE_WARNING. This prevents benign warning spam in applications using custom root logging without hiding legitimate union-inference warnings elsewhere in mlflow.types.type_hints. The suppression applies strictly during import-time schema creation and not to runtime request handling.",
+  "saysFor": "s2:6d41fb2005091bf9a161bae181f8bc42939cc783a30c8b160706c8cca6ec2e8a"
+}

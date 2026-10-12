@@ -1,0 +1,103 @@
+{
+  "id": "trace-invoke-jobs-issue-detection-genai-evaluate-scorer-trac",
+  "title": "Trace invoke jobs (issue detection, GenAI evaluate, scorer): trace_ids must belong to the authorized experiment before any run or job is created",
+  "kind": "rule",
+  "answers": [
+    "Why can a user with write access to their own experiment run issue detection or evaluation on traces from another experiment?",
+    "Where is the check that stops a foreign trace id being scored or analyzed through the invoke endpoints?",
+    "Why does a rejected trace request leave no run or job behind in the MLflow server?"
+  ],
+  "body": "Path: POST /ajax-api/3.0/mlflow/issues/invoke, /genai/evaluate/invoke and /scorer/invoke take caller-supplied trace_ids plus an experiment_id; the route validator only checks UPDATE on experiment_id. Chokepoint: mlflow/server/handlers.py:_validate_trace_ids_in_experiment, called from _invoke_issue_detection_handler, _invoke_genai_evaluate_handler and _invoke_scorer_handler.\nRule: Any handler that queues a job on caller-given trace_ids must call _validate_trace_ids_in_experiment(store, trace_ids, experiment_id) before fetching credentials, resolving scorers or creating the run. It batch-fetches via batch_get_trace_infos and raises PERMISSION_DENIED (403, generic message) if any existing trace has a different experiment_id. Missing traces are not rejected here and fail later in the job.\nSymptom: A user who owns experiment A could supply trace ids from experiment B; the job read those traces and wrote results into the caller's run in A.\nConstraints: The guard lives in the handler, not the auth validator, so it also protects deployments that mount the handlers without the basic-auth app. Do not scope the batch lookup by experiment_ids, because that hides foreign traces and makes the check vacuous.",
+  "applies": "Server-side job-invoking handlers in mlflow/server/handlers.py that accept trace_ids; not client-side SDK calls.",
+  "tags": [
+    "security",
+    "auth",
+    "tracing",
+    "genai-evaluate",
+    "issue-detection",
+    "scorer"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_validate_trace_ids_in_experiment",
+      "hash": "sha256:e0a067d0fa110ff436bd457f",
+      "line": 5500,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e0a067d0fa110ff436bd457f",
+      "fanout": {
+        "files": 2,
+        "sites": 10,
+        "refs": 11
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_invoke_issue_detection_handler",
+      "hash": "sha256:b04751cfe36d29c0005098d7",
+      "line": 5535,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b04751cfe36d29c0005098d7",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_invoke_genai_evaluate_handler",
+      "hash": "sha256:4027add5566dfd6ac9aa3bfb",
+      "line": 5646,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4027add5566dfd6ac9aa3bfb",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_invoke_scorer_handler",
+      "hash": "sha256:c5b87a0afdd493819e5e41c0",
+      "line": 7565,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c5b87a0afdd493819e5e41c0",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25873"
+  },
+  "created": "2026-10-12T05:31:02.302Z",
+  "verified": "2026-10-12T05:31:02.302Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "model-registry-createmodelversion-prompt-branch-select-promp",
+    "prompt-source-placeholders-client-store-and-server-allowlist",
+    "artifact-host-policy-a-tracking-server-connects-only-to-the",
+    "protobuf-request-parsing-a-body-that-spells-one-field-both-s"
+  ],
+  "says": [
+    "Users can run evaluation jobs on traces belonging to someone else's experiment",
+    "Prevent issue detection from analyzing traces outside the authorized experiment",
+    "Scoring traces from another workspace experiment should return a permission denied error",
+    "Trace analysis jobs should reject foreign trace identifiers before creating an experiment run",
+    "Running evaluations with invalid trace identifiers should not leave empty runs behind"
+  ],
+  "search": "Server-side trace invoke handlers (_invoke_issue_detection_handler, _invoke_genai_evaluate_handler, and _invoke_scorer_handler in mlflow/server/handlers.py) must call _validate_trace_ids_in_experiment before fetching credentials, resolving scorers, or creating a run. The check batch-fetches traces via batch_get_trace_infos without scoping by experiment_ids and raises PERMISSION_DENIED (403) if any existing trace belongs to a different experiment_id, while missing traces fail later in the job. This guard protects POST endpoints /ajax-api/3.0/mlflow/issues/invoke, /genai/evaluate/invoke, and /scorer/invoke in handlers rather than the auth validator, applying to server-side job-invoking handlers rather than client-side SDK calls.",
+  "saysFor": "s2:319bf33e0b848d8432ebad0aeb811ce8cb7facc6996186c074c7b6653c5fd016"
+}

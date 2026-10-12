@@ -1,0 +1,45 @@
+{
+  "id": "push-images-promotion-gate-promote-latest-with-a-job-level-i",
+  "title": "push-images promotion: gate promote-latest with a job-level if before its concurrency group, not inside a step",
+  "kind": "rule",
+  "answers": [
+    "Why can a pending latest-image promotion get dropped when a newer non-latest release finishes?",
+    "How do I add a serialized job to push-images without losing runs in its concurrency group?",
+    "Why is the Latest-release check a separate job from promote-latest?",
+    "Where is the promotion concurrency group defined?"
+  ],
+  "body": "Path: .github/workflows/push-images.yml job check-latest (outputs promote) feeds job promote-latest, which is the only job that writes floating GHCR tags. promote-latest is serialized by concurrency group push-images-promote-latest.\nRule: GitHub keeps one running and one pending run per concurrency group, and a newly queued run replaces the pending one even with cancel-in-progress: false. So a run that will skip must not enter the group. Make the decision in a separate job that exposes an output, and gate the writing job with `if: needs.check-latest.outputs.promote == 'true'` at job level. Keep the in-job re-check before the writes.\nSymptom: A pending canonical-latest promotion could be silently replaced by a later non-latest patch run. That later run then skipped, so no run promoted the canonical release and the floating tags stayed stale.\nConstraints: The replacement behavior comes from a review comment, not from a test run. The check-latest job itself has no concurrency block, and the push-images job has none either.",
+  "applies": "Any concurrency group in push-images.yml or a similar release workflow where some runs skip and others must not be dropped.",
+  "tags": [
+    "github-actions",
+    "concurrency",
+    "release",
+    "docker"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/push-images.yml",
+      "hash": "sha256:f81e2019e4c7412cfdc9deb4",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26120"
+  },
+  "created": "2026-10-12T05:33:02.067Z",
+  "verified": "2026-10-12T05:33:02.067Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The latest container image tag points to an outdated release version.",
+    "Publishing a patch version caused the latest release container tag to stall.",
+    "Ensure floating image tags update reliably when multiple releases build at once.",
+    "Container registry latest tag was not updated after a new release finished."
+  ],
+  "search": "In .github/workflows/push-images.yml, gate the promote-latest job at the job level using if: needs.check-latest.outputs.promote == 'true' before entering the push-images-promote-latest concurrency group. Because GitHub concurrency groups replace pending runs even when cancel-in-progress is false, skipping runs must be filtered out by an upstream check-latest job output rather than within a step. Applies to release concurrency groups writing floating GHCR tags where neither check-latest nor push-images has concurrency blocks.",
+  "saysFor": "s2:ab713331ae1a904e465c0105fffef2bfe0769b97ec27d10cc2ddf7960f70d76c"
+}

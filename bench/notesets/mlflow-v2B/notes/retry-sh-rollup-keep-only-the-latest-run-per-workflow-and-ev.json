@@ -1,0 +1,67 @@
+{
+  "id": "retry-sh-rollup-keep-only-the-latest-run-per-workflow-and-ev",
+  "title": "retry.sh rollup: keep only the latest run per workflow and event, and skip the whole commit when a failed run has used its retry budget",
+  "kind": "rule",
+  "answers": [
+    "Why does a Copilot PR stop getting CI retries after a few attempts?",
+    "Why are manual reruns counted toward the retry limit for a PR?",
+    "Where is the three-retry limit enforced for scheduled CI reruns?"
+  ],
+  "body": "Path: .github/workflows/retry.sh (the paginated check-suite query, then the `suites` and `runs` jq steps) decides, for one head SHA, whether any failed workflow is still eligible for `gh run rerun --failed`.\nRule: Group workflow runs by [workflow resourcePath, event] and keep only the max by [createdAt, databaseId]. Then skip the whole commit if any run is not COMPLETED, or if any failed, timed-out, or startup-failed run has attempt null or (attempt - 1) >= MAX_RETRIES (default 3, set in retry.yml).\nConstraints: The budget uses runAttempt, so manual reruns also consume it. Pages are combined with --slurp and deduplicated first; GraphQL errors or a missing commit fail the script closed rather than guessing.",
+  "applies": "Scope: retry budget and pending-state logic in .github/workflows/retry.sh; not the per-PR search in retry.yml.",
+  "tags": [
+    "ci",
+    "retry",
+    "copilot",
+    "retry-budget",
+    "github-actions"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/retry.sh",
+      "symbol": "runs",
+      "hash": "sha256:3fadbfb022af8eeb0436aeb9",
+      "line": 79,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 9
+      }
+    },
+    {
+      "path": ".github/workflows/retry.sh",
+      "symbol": "suites",
+      "hash": "sha256:15eb7d4fbc98cd5f6a123682",
+      "line": 61,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26020"
+  },
+  "created": "2026-10-12T05:34:57.637Z",
+  "verified": "2026-10-12T05:34:57.637Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "retry-sh-check-suite-rollup-github-managed-dynamic-runs-are",
+    "retry-sh-rerun-notices-link-to-the-failed-run-attempt-attemp"
+  ],
+  "says": [
+    "Pull requests stop getting automated retries once any workflow hits the maximum retry limit.",
+    "Manual test reruns triggered by developers are consuming the automated retry budget for pull requests.",
+    "The automated retry system skips our commit whenever another check is still running.",
+    "Explain why scheduled retries halt after three attempts on failed or timed out checks."
+  ],
+  "search": "In .github/workflows/retry.sh, workflow runs are grouped by workflow resourcePath and event keeping only the latest by createdAt and databaseId, skipping the commit if any run is incomplete or exceeds MAX_RETRIES. Commits are skipped if any failed, timed-out, or startup-failed run has a null attempt or an attempt count meeting or exceeding MAX_RETRIES, defaulting to three in retry.yml. Because runAttempt is used, manual reruns consume the retry budget, and GraphQL pagination errors or missing commits fail closed.",
+  "saysFor": "s2:0561ca9af543aa41b50c5ac9b2198bb1faeddf7dce1ba28bb384108cdf06eb20"
+}

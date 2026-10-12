@@ -1,0 +1,103 @@
+{
+  "id": "sql-tracking-store-experiment-id-parsing-search-trace-scorer",
+  "title": "SQL tracking store experiment ID parsing (search, trace, scorer, gateway endpoint paths): use shared _parse_experiment_id/_parse_experiment_ids so bad IDs raise INVALID_PARAMETER_VALUE, not ValueError",
+  "kind": "rule",
+  "answers": [
+    "Searching runs, datasets, or logged models with a non-numeric experiment ID returned an internal server error instead of a clean invalid-parameter error. How should experiment ID strings be converted in the SQL store?",
+    "Why does deleting traces or creating a gateway endpoint reject a bad experiment_id with INVALID_PARAMETER_VALUE now, and where is that check implemented?",
+    "Where is the experiment ID integer conversion for list_scorers_across_experiments or filter_active_experiment_ids handled after the old SqlAlchemyStore._parse_experiment_id was removed?",
+    "I am adding a new tracking store method that takes experiment_ids from a request. What helper should I use to coerce them to integers?"
+  ],
+  "body": "Path: Store methods that take experiment IDs from user requests and build SQL filters on them: run/dataset/logged-model search (search_runs, _search_datasets, search_logged_models), trace metrics and correlation (query_trace_metrics, calculate_trace_filter_correlation), trace deletion (_delete_traces), issue search (search_issues), scorer and online-scoring config writes, experiment tag deletion, and gateway endpoint create/update. They route through mlflow/utils/validation.py:_parse_experiment_id (single ID) and mlflow/utils/validation.py:_parse_experiment_ids (list).\nRule: Convert experiment IDs with _parse_experiment_id or _parse_experiment_ids instead of calling int() inline or using a store-local parser. On failure they raise MlflowException with error_code INVALID_PARAMETER_VALUE and the message \"Invalid experiment ID '...'. Experiment ID must be a valid integer.\" The old SqlAlchemyStore._parse_experiment_id staticmethod and the separate \"must be valid integers\" message in list_scorers_across_experiments were removed in favor of these helpers. In _hard_delete_experiment the ID is parsed once before the per-table delete loop.\nSymptom: Non-numeric experiment IDs such as \"not-a-number\", \"12abc\" or \"\" reached int() unguarded in these paths, so the caller got a raw ValueError surfaced as an internal server error rather than a clean invalid-parameter error.\nConstraints: The helpers take non-None values only; callers must handle an omitted (None) ID themselves. An empty string is rejected. Paths that already validate the ID before reaching SQL (for example through _get_experiment) still go through the same helper.",
+  "applies": "Tracking store SQL backends (SQLite, PostgreSQL, MySQL, MSSQL) for any method that accepts experiment IDs as strings from a request, including gateway endpoint create/update.",
+  "tags": [
+    "tracking",
+    "sqlalchemy",
+    "experiment-id",
+    "validation",
+    "gateway",
+    "error-handling"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/utils/validation.py",
+      "symbol": "_parse_experiment_id",
+      "hash": "sha256:3228e73fee5e5753168f8687",
+      "line": 578,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3228e73fee5e5753168f8687",
+      "fanout": {
+        "files": 4,
+        "sites": 14,
+        "refs": 18
+      }
+    },
+    {
+      "path": "mlflow/utils/validation.py",
+      "symbol": "_parse_experiment_ids",
+      "hash": "sha256:b81407ce29267a131d617d0f",
+      "line": 589,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b81407ce29267a131d617d0f",
+      "fanout": {
+        "files": 1,
+        "sites": 8,
+        "refs": 9
+      }
+    },
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "SqlAlchemyStore._get_experiment",
+      "hash": "sha256:efb04814c19750751fa68792",
+      "line": 776,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:efb04814c19750751fa68792",
+      "fanout": {
+        "files": 4,
+        "sites": 16,
+        "refs": 18
+      }
+    },
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "SqlAlchemyStore._hard_delete_experiment",
+      "hash": "sha256:c7117a8cc1c15adb1fb51c6b",
+      "line": 938,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c7117a8cc1c15adb1fb51c6b",
+      "fanout": {
+        "files": 4,
+        "sites": 4,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26223"
+  },
+  "created": "2026-10-12T05:32:05.496Z",
+  "verified": "2026-10-12T05:32:05.496Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "logged-model-search-search-logged-models-eager-load-tags-par",
+    "third-party-scorer-payloads-trulens-ragas-deepeval-phoenix-j",
+    "logged-model-tags-set-logged-model-tags-writes-through-bulk",
+    "sql-tracking-store-bulk-upserts-dedupe-rows-by-conflict-key"
+  ],
+  "says": [
+    "Searching runs with an invalid experiment identifier triggers an internal server error.",
+    "Filtering models or datasets by non-numeric experiment ID should display a clear validation error.",
+    "Creating a gateway endpoint with a malformed experiment ID returns a server crash.",
+    "Deleting traces using an empty experiment ID causes an unexpected internal error."
+  ],
+  "search": "SQL tracking store methods that accept experiment IDs from requests must convert them using mlflow/utils/validation.py:_parse_experiment_id or _parse_experiment_ids instead of inline int() calls or store-local parsers. When parsing non-numeric strings or empty strings, the helpers raise MlflowException with error_code INVALID_PARAMETER_VALUE and the message that experiment ID must be a valid integer, avoiding raw ValueError internal server errors. The rule applies to run, dataset, model, and issue searches, trace metrics, trace deletion, scorer configs, and gateway endpoint creation or updates across SQLite, PostgreSQL, MySQL, and MSSQL. Callers must handle omitted None values themselves because the helpers accept only non-None values and reject empty strings.",
+  "saysFor": "s2:1720cfced41a8b84b70d2418c4e2ba524988701220319092899b255a26713815"
+}

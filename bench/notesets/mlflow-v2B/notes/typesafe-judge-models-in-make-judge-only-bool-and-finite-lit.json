@@ -1,0 +1,124 @@
+{
+  "id": "typesafe-judge-models-in-make-judge-only-bool-and-finite-lit",
+  "title": "TypeSafe judge models in make_judge(): only bool and finite Literal outputs via typesafe:/ URIs",
+  "kind": "rule",
+  "answers": [
+    "Why does my make_judge() TypeSafe judge reject feedback_value_type=str or int?",
+    "How do I get a categorical label out of a TypeSafe judge, and what values are allowed in the Literal?",
+    "Where is the TypeSafe probability or confidence stored on the assessment?",
+    "Can I use a TypeSafe judge with a {{ trace }} template or with inference_params or base_url?"
+  ],
+  "body": "Path: `make_judge(model=\"typesafe:/<model-id>\")` and built-in judges that accept a `model` argument (e.g. `is_correct`) send one TypeSafe System One question per judge through the TypeSafe judge client in `mlflow/genai/judges/typesafe.py`, with HTTP going through `_get_http_response_with_retries`. Covers bool yes/no decisions and categorical Literal labels, and writes TypeSafe probability data into assessment metadata.\nRule: `feedback_value_type` must be `bool` (sent as a Noul question; True when `typesafe.probability >= 0.5`) or a finite `Literal[...]` (sent as a Choice question). Literal values must be JSON string, number or boolean scalars with distinct string forms, 1 to 255 values. Metadata keys: `typesafe.model`, `typesafe.probability` (bool), `typesafe.probabilities` and `typesafe.confidence` (Literal), optional `typesafe.legend`; no rationale text. TypeSafe has no abstention, so represent uncertainty as an explicit literal such as \"unknown\".\nConstraints: Applies only to `typesafe:/` URIs. Unsupported: unconstrained str/int/float/object/container outputs, Score questions, `{{ trace }}`, multi-question judges, and `inference_params`, `base_url`, `extra_headers`. Use a versioned ID such as `typesafe:/jev-1.13.0` when results must be reproducible; `jev-latest` floats. Direct calls need a local `TYPESAFE_API_KEY`. Does not apply to `gateway:/` models.",
+  "applies": "Applies to MLflow GenAI judges (make_judge and built-in judges) configured with a typesafe:/ model URI.",
+  "tags": [
+    "evaluation",
+    "judges",
+    "typesafe",
+    "make_judge",
+    "literal",
+    "assessment-metadata"
+  ],
+  "deps": [
+    {
+      "path": "docs/docs/genai/eval-monitor/scorers/llm-judge/custom-judges/typesafe.mdx",
+      "hash": "sha256:ed1348b9d680cc9585d21b89",
+      "missing": false
+    },
+    {
+      "path": "tests/examples/test_examples.py",
+      "symbol": "test_typesafe_judges_example",
+      "hash": "sha256:5697ce46756f3b4b6208b939",
+      "line": 36,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5697ce46756f3b4b6208b939",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/genai/judges/typesafe.py",
+      "symbol": "probability",
+      "hash": "sha256:98cea270a0e1c455e8d90007",
+      "line": 301,
+      "missing": false,
+      "fanout": {
+        "files": 20,
+        "sites": 0,
+        "refs": 40
+      }
+    },
+    {
+      "path": "mlflow/genai/judges/typesafe.py",
+      "symbol": "model",
+      "hash": "sha256:5b07276778a777268aea06b5",
+      "line": 291,
+      "missing": false,
+      "fanout": {
+        "files": 279,
+        "sites": 47,
+        "refs": 1999
+      }
+    },
+    {
+      "path": "mlflow/genai/judges/typesafe.py",
+      "symbol": "probabilities",
+      "hash": "sha256:2354d41c9f0e7d399fc870d7",
+      "line": 308,
+      "missing": false,
+      "fanout": {
+        "files": 11,
+        "sites": 0,
+        "refs": 29
+      }
+    },
+    {
+      "path": "mlflow/genai/judges/typesafe.py",
+      "symbol": "confidence",
+      "hash": "sha256:8136cd6a24f80feda355c8e6",
+      "line": 309,
+      "missing": false,
+      "fanout": {
+        "files": 31,
+        "sites": 1,
+        "refs": 95
+      }
+    },
+    {
+      "path": "mlflow/genai/judges/typesafe.py",
+      "symbol": "legend",
+      "hash": "sha256:9a1b91ebc02f96f8f18df2e5",
+      "line": 315,
+      "missing": false,
+      "fanout": {
+        "files": 8,
+        "sites": 6,
+        "refs": 23
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26153"
+  },
+  "created": "2026-10-12T05:32:45.725Z",
+  "verified": "2026-10-12T05:32:45.725Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "tests-examples-run-example-scripts-hermetically-with-the-sha"
+  ],
+  "says": [
+    "Custom evaluation judge crashes when configured for freeform text or numeric score output.",
+    "Allow the model evaluation judge to classify outputs into a fixed list of categories.",
+    "The automated judge assessment displays probability scores but never includes an explanation or reasoning.",
+    "Add an explicit unknown label option for uncertain ratings in the evaluation scoring rubric.",
+    "Model evaluator setup rejects custom connection endpoints and full execution trace templates."
+  ],
+  "search": "MLflow GenAI judges configured with typesafe:/ URIs restrict feedback_value_type to bool or finite Literal outputs with 1 to 255 scalar values. The TypeSafe judge client in mlflow/genai/judges/typesafe.py evaluates one question per judge and records typesafe.model, typesafe.probability, or typesafe.probabilities and typesafe.confidence in assessment metadata without rationale text. The typesafe:/ integration does not support unconstrained str, int, float, container types, Score questions, {{ trace }}, multi-question judges, inference_params, base_url, or extra_headers. Direct calls require TYPESAFE_API_KEY, versioned model IDs ensure reproducible results, and gateway:/ models are not covered.",
+  "saysFor": "s2:2a31d0ad9422e9090794ca8daed62e58d431a14c7dc101d7789a51206516cdce"
+}

@@ -1,0 +1,46 @@
+{
+  "id": "build-wheel-github-installation-check-install-the-commit-pin",
+  "title": "build-wheel GitHub installation check: install the commit-pinned source from a codeload tarball, not a git+ URL",
+  "kind": "rule",
+  "answers": [
+    "Why is the build-wheel GitHub installation check slow or timing out?",
+    "How do I make a CI install test pull a specific commit of MLflow from GitHub, including the skinny or tracing subdirectory?",
+    "Where is the commit-pinned GitHub install for the wheel test handled, and what sets its per-attempt timeout?",
+    "How do the matrix legs map to the subdirectory install URL in the wheel workflow?"
+  ],
+  "body": "Path: .github/workflows/build-wheel.yml, the installation step that runs `uv run --isolated --no-project --with \"$URL\" python -I -c 'import mlflow'` for each matrix leg (MATRIX_TYPE dev, skinny, tracing) against the checked-out commit (REF from `git rev-parse HEAD`).\nRule: Build the URL as `https://github.com/${REPO}/archive/${REF}.tar.gz`, appending `#subdirectory=libs/${MATRIX_TYPE}` for every leg except `dev`, which installs the repository root with no fragment. Do not use `git+https://github.com/...@${REF}` for this check: `uv` fetches the full Git history for `git+` requirements, which was slow and exposed the job to transient Git backend failures. Keep the retry loop (3 attempts) and size each attempt's `timeout -k 10` to the observed runtime (120s, not 240s).\nSymptom: The GitHub installation check took 33-43s per leg on `git+` URLs, and a transient Git failure or a hung attempt waited out the 240s per-attempt timeout before the retry ran.\nConstraints: Applies to installs pinned to a commit SHA in CI. The tarball is fetched from codeload, so it carries no Git history and needs no git client. Does not change the PyPI or local wheel build steps. With the tarball, observed runtime was 19-30s per leg, so 120s leaves room for retries.",
+  "applies": "CI installation check of the MLflow wheel from a pinned GitHub commit in .github/workflows/build-wheel.yml; not PyPI installs or local builds.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "build",
+    "uv",
+    "installation-test"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/build-wheel.yml",
+      "hash": "sha256:2ac595703c0b735c07657ec2",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25810"
+  },
+  "created": "2026-10-12T05:38:15.235Z",
+  "verified": "2026-10-12T05:38:15.235Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Continuous integration package installation checks are timing out while downloading from GitHub.",
+    "Automated wheel build validation runs very slowly during the commit installation step.",
+    "Speed up continuous integration installation tests for specific commits across library variants.",
+    "Prevent transient Git download failures from hanging automated wheel test workflows."
+  ],
+  "search": "In .github/workflows/build-wheel.yml, commit-pinned source installation checks must install from codeload tarballs at https://github.com/${REPO}/archive/${REF}.tar.gz rather than git+ URLs to avoid slow full-history Git clones. Matrix legs dev, skinny, and tracing append #subdirectory=libs/${MATRIX_TYPE} except for dev which installs from the root, executed via uv run --isolated --no-project --with \"$URL\" python -I -c 'import mlflow'. The step maintains 3 retry attempts with a 120-second per-attempt timeout and applies only to commit-pinned CI checks.",
+  "saysFor": "s2:53f88ee7a842d2db29dc881fe2dba824ee6ddc82dcc23d4e6c9871171ad70c67"
+}

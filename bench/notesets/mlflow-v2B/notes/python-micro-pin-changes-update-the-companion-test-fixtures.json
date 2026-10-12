@@ -1,0 +1,79 @@
+{
+  "id": "python-micro-pin-changes-update-the-companion-test-fixtures",
+  "title": "Python micro pin changes: update the companion test fixtures and version assertions that pin the same version",
+  "kind": "rule",
+  "answers": [
+    "After changing the default Python patch version in CI, which test fixtures must also change?",
+    "Why does an entrypoint assertion on sys.version_info fail after a Python pin bump?",
+    "Where are the conda.yaml, python_env.yaml and MLmodel python_version values for test resources?",
+    "How do I bump the Python version recorded in model-metadata compatibility tests?"
+  ],
+  "body": "Path: test resource projects under tests/resources (example_virtualenv_project, example_virtualenv_no_python_env, example_virtualenv_conda_project, example_mlflow_1x_sklearn_model) hold python pins in python_env.yaml, conda.yaml, MLmodel, and entrypoint.py version asserts; tests/sklearn/test_sklearn_model_export.py embeds python_version strings inline in test_sklearn_compatible_with_mlflow_2_4_0.\nRule: When the CI Python micro pin moves, change every fixture that records that exact version in the same PR: the python field of python_env.yaml, the python= line of conda.yaml, the python_version flavor entry in MLmodel, the sys.version_info equality assertion in entrypoint.py, and the inline YAML in the sklearn export test. Follow the prior precedent from #23684 for this set.\nConstraints: Only fixtures that record the pinned version are touched; the sklearn version assertion (1.4.2) and other library pins stay as they are. Historical model metadata written for older releases should not be rewritten.",
+  "applies": "Any PR that changes a shared Python micro version pin used by CI test resources and model metadata.",
+  "tags": [
+    "tests",
+    "python-version",
+    "fixtures",
+    "model-metadata"
+  ],
+  "deps": [
+    {
+      "path": "tests/resources/example_virtualenv_project/python_env.yaml",
+      "hash": "sha256:89cda8f779bdfe3ea758f61f",
+      "missing": false
+    },
+    {
+      "path": "tests/resources/example_virtualenv_no_python_env/python_env.yaml",
+      "hash": "sha256:89cda8f779bdfe3ea758f61f",
+      "missing": false
+    },
+    {
+      "path": "tests/resources/example_virtualenv_conda_project/conda.yaml",
+      "hash": "sha256:eeb4114128eaaf234aacd4cb",
+      "missing": false
+    },
+    {
+      "path": "tests/resources/example_mlflow_1x_sklearn_model/MLmodel",
+      "hash": "sha256:4dfcc0d6d572db8102811265",
+      "missing": false
+    },
+    {
+      "path": "tests/sklearn/test_sklearn_model_export.py",
+      "symbol": "test_sklearn_compatible_with_mlflow_2_4_0",
+      "hash": "sha256:a3ef977af9eed2cf4b0e2acb",
+      "line": 830,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:58c72c5eb02fc03fa0c3e131",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/resources/example_virtualenv_project/entrypoint.py",
+      "hash": "sha256:baea807bc8778263280ca993",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25903"
+  },
+  "created": "2026-10-12T05:36:03.085Z",
+  "verified": "2026-10-12T05:36:03.085Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Automated test fixtures fail after updating the default Python patch release.",
+    "Runtime version assertions fail across sample project environments following a Python upgrade.",
+    "Model metadata compatibility tests break when changing the default environment version.",
+    "Synchronize environment version definitions across all example test projects during upgrades."
+  ],
+  "search": "When changing the shared CI Python micro version pin, companion test fixtures and assertions recording that exact version must be updated in the same pull request. Affected resources include python_env.yaml, conda.yaml, MLmodel flavor entries, and entrypoint.py sys.version_info asserts in tests/resources sample projects, along with inline YAML in tests/sklearn/test_sklearn_model_export.py:test_sklearn_compatible_with_mlflow_2_4_0. Applies only to fixtures recording the pinned Python version following the precedent from #23684; library pins like sklearn 1.4.2 and historical model metadata from older releases remain unchanged.",
+  "saysFor": "s2:9629f7f7822d2f2c9346bbbeaa7aac973f041aa1c6ab85ed2c2795a64d364f08"
+}

@@ -1,0 +1,75 @@
+{
+  "id": "approval-rerun-workflows-workflow-run-workflows-must-name-th",
+  "title": "Approval rerun workflows: workflow_run.workflows must name the trigger's `name:` field, while path-based filters use the filename",
+  "kind": "rule",
+  "answers": [
+    "After approving a PR, failed checks no longer get rerun automatically. Why did the rerun worker stop firing?",
+    "I'm renaming the approval trigger workflow file. What else has to change so the rerun still happens?",
+    "Why does retry.sh or protect.js ignore the rerun workflow by path, and how does that relate to the workflow name?",
+    "Where is the workflow_run filter for the approval rerun defined?"
+  ],
+  "body": "Path: .github/workflows/trigger-rerun.yml (pull_request_review approval gate, `name: trigger-rerun`) feeds .github/workflows/rerun.yml (workflow_run worker that reruns failed checks at the PR head SHA). Path-based references to the worker also live in .github/workflows/retry.sh (rerun exclusion via workflow.resourcePath) and .github/workflows/protect.js:IGNORED_WORKFLOWS.\nRule: In rerun.yml, `on.workflow_run.workflows` matches the upstream workflow's `name:` value (trigger-rerun), not its filename. A mismatch makes the worker silently never run. Filters that read `workflow.resourcePath` use the filename, e.g. `endswith(\"/rerun.yml\")` in retry.sh and `.github/workflows/trigger-rerun.yml` in protect.js. Renaming a file or its `name:` means updating the matching reference type in each place.\nSymptom: After a maintainer approved a PR, the failed checks were not rerun, because the rerun worker's workflow_run filter did not match the trigger workflow's name.\nConstraints: Applies whenever the approval trigger or the worker is renamed, or their `name:` changes. The mismatch is not caught by lint; it only appears at runtime after approval, so verify with a real approval or a review of the name fields.",
+  "applies": "Scope: approval-triggered rerun workflows in .github/workflows (trigger-rerun.yml, rerun.yml) and their name or path references in retry.sh and protect.js; not other workflows.",
+  "tags": [
+    "github-actions",
+    "workflow_run",
+    "rerun",
+    "ci"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/trigger-rerun.yml",
+      "hash": "sha256:eb6c1ec332d4928910c3eafc",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/rerun.yml",
+      "hash": "sha256:15dfdf1ad45c4e4314ca5d50",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/retry.sh",
+      "hash": "sha256:fef211e1be0d4b81d0106e16",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/protect.js",
+      "symbol": "IGNORED_WORKFLOWS",
+      "hash": "sha256:a31f258cb06605ac4abbe8f6",
+      "line": 30,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a31f258cb06605ac4abbe8f6",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26030"
+  },
+  "created": "2026-10-12T05:34:01.763Z",
+  "verified": "2026-10-12T05:34:01.763Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "protect-workflow-check-github-workflows-protect-js-report-ex",
+    "retry-sh-rerun-notices-link-to-the-failed-run-attempt-attemp",
+    "approval-triggered-reruns-pull-request-review-gate-in-trigge",
+    "retry-sh-rerun-ordering-protect-is-submitted-last-only-after"
+  ],
+  "says": [
+    "Failed checks do not automatically rerun after a maintainer approves the pull request.",
+    "Approving a pull request fails to restart the failing continuous integration tests.",
+    "Broken checks stay failed after an approval review instead of retesting automatically.",
+    "Ensure pull request approval triggers rerun of failed jobs after workflow file changes.",
+    "Automatic rerun worker never triggers when an authorized reviewer approves a code submission."
+  ],
+  "search": "In `.github/workflows/rerun.yml`, `on.workflow_run.workflows` must match the upstream workflow's `name:` attribute (`trigger-rerun`) from `.github/workflows/trigger-rerun.yml` rather than its YAML filename. Path-based filters such as `endswith('/rerun.yml')` in `.github/workflows/retry.sh` and `.github/workflows/protect.js:IGNORED_WORKFLOWS` depend on workflow filenames. A name mismatch causes the PR approval rerun worker to silently fail to trigger on approved reviews; renaming either workflow requires updating both name and path references across these files.",
+  "saysFor": "s2:4657801192af74d5632bd43467e4aec949ac2267ed7dc10db1344251c828ff0f"
+}

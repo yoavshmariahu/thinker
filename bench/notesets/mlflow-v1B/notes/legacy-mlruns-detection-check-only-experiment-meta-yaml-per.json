@@ -1,0 +1,56 @@
+{
+  "id": "legacy-mlruns-detection-check-only-experiment-meta-yaml-per",
+  "title": "legacy mlruns detection: check only <experiment>/meta.yaml per numeric dir via os.scandir, never walk experiment contents",
+  "kind": "rule",
+  "answers": [
+    "Why does MLflow startup take a long time or slow down when a local mlruns folder has many experiments and artifacts and no tracking URI is set?",
+    "Where is the check that detects existing legacy file-store mlruns data when no tracking URI is configured?",
+    "Why does MLflow treat a non-numeric folder or a folder without meta.yaml as not legacy data?",
+    "How does the backward-compatibility fallback decide between the SQLite default and the old ./mlruns file store?"
+  ],
+  "body": "Path: Tracking URI resolution with no URI configured calls mlflow/tracking/_tracking_service/utils.py:_has_existing_mlruns_data to decide whether a local ./mlruns directory holds legacy file-store experiments; it runs on every default-tracking lookup, so cost matters.\nRule: Discovery lists only the top level of DEFAULT_LOCAL_FILE_AND_ARTIFACT_PATH with os.scandir, keeps entries that are directories with a purely numeric name, and checks os.path.join(entry.path, FileStore.META_DATA_FILE_NAME) with os.path.lexists. It must not iterdir() or enumerate experiment contents, because that made the check scale with the number of artifact files (about 13x slower on 20 experiments x 20 files in the PR's benchmark).\nRule: Use lexists rather than exists or is_file so that any entry named meta.yaml counts (including directories and symlinks), preserving the prior behavior.\nRule: Any OSError from scandir (missing mlruns, permissions) returns False; a missing mlruns directory is covered by this rather than a separate exists() pre-check.\nConstraints: Applies only to the legacy-data probe. Non-numeric directories are ignored and a meta.yaml at mlruns top level is not considered. Does not validate the contents of meta.yaml. FileStore is deprecated, so the probe only decides the fallback path.",
+  "applies": "Local default tracking-URI resolution in mlflow/tracking/_tracking_service; not for the FileStore read/write code itself.",
+  "tags": [
+    "tracking",
+    "file-store",
+    "mlruns",
+    "performance",
+    "backward-compat"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/tracking/_tracking_service/utils.py",
+      "symbol": "_has_existing_mlruns_data",
+      "hash": "sha256:4a929ddf0d4133f84b8cb7de",
+      "line": 32,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4a929ddf0d4133f84b8cb7de",
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25726"
+  },
+  "created": "2026-10-12T05:45:55.574Z",
+  "verified": "2026-10-12T05:45:55.574Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "MLflow startup is slow when a local mlruns folder has many experiments and artifacts and no tracking URI is set",
+    "Default tracking URI lookup slows down with many artifact files in the local mlruns folder",
+    "MLflow treats a folder without meta.yaml as legacy file store data when no tracking URI is configured",
+    "Non-numeric folders in mlruns are ignored when detecting old file store experiments",
+    "Fallback between the SQLite default and the old mlruns file store picks the wrong backend"
+  ],
+  "search": "Legacy mlruns detection used for default tracking URI resolution: it scans only the top level of the local mlruns directory with a non-recursive scan, keeping numeric-named directories that contain a meta.yaml entry (lexists, so directories and symlinks count). It never walks experiment contents, and any OS error returns false. Only decides the fallback path; FileStore is deprecated.",
+  "saysFor": "s2:cbab168ae12f050b791c4c1629adef9d802c26387cc9a1aeceecf3879d68bf51"
+}

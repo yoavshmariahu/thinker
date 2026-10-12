@@ -1,0 +1,60 @@
+{
+  "id": "mlflow-skinny-mlflow-tracing-build-stop-with-an-error-when-l",
+  "title": "mlflow-skinny/mlflow-tracing build: stop with an error when libs/*/mlflow is not a directory, instead of shipping an empty wheel",
+  "kind": "rule",
+  "answers": [
+    "Why does the mlflow-skinny wheel install but `import mlflow` fails on Windows?",
+    "pip install ./libs/skinny exits with 'is not a directory, so this build would produce a wheel with no code in it'",
+    "Where is the build check for missing symlinked package code in mlflow-tracing handled?",
+    "How do I add a build-time check to mlflow-skinny without editing the generated pyproject.toml?"
+  ],
+  "body": "Path: libs/skinny/setup.py and libs/tracing/setup.py run whenever mlflow-skinny or mlflow-tracing is built from a source checkout (wheel via setuptools, or pip install ./libs/skinny). Both packages get their `mlflow` code from the git symlink libs/<pkg>/mlflow pointing at the repo's mlflow package, which [tool.setuptools.packages.find] needs to resolve.\nRule: the guard is module-level code in each setup.py: `if not (Path(__file__).parent / \"mlflow\").is_dir()` raises SystemExit with the fix instructions, then calls bare `setup()` so metadata still comes from pyproject.toml. Put packaging-time checks in setup.py beside the generated pyproject.toml (dev/pyproject.py output, do-not-edit), not in pyproject.toml.\nSymptom: on a Windows checkout without symlink support (core.symlinks=false, Developer Mode off), the build exited 0 and produced a wheel with 0 .py files. It installed cleanly and declared the `mlflow` console entry point, but nothing could be imported.\nConstraints: only fires when libs/<pkg>/mlflow is missing or not a directory; it is a no-op on Linux CI and PyPI builds, and the wheel file list is identical with and without it. It does not repoint setuptools at the real tree (the alternative in the issue, not done here).",
+  "applies": "Build of mlflow-skinny (libs/skinny) and mlflow-tracing (libs/tracing) from a source checkout; not relevant to the main mlflow package build.",
+  "tags": [
+    "build",
+    "packaging",
+    "windows",
+    "symlink",
+    "mlflow-skinny",
+    "mlflow-tracing",
+    "setuptools"
+  ],
+  "deps": [
+    {
+      "path": "libs/skinny/setup.py",
+      "hash": "sha256:6b1a0cc1abfde77a0996411d",
+      "missing": false
+    },
+    {
+      "path": "libs/tracing/setup.py",
+      "hash": "sha256:d8b199a1ba470c7d5a0a4451",
+      "missing": false
+    },
+    {
+      "path": "dev/pyproject.py",
+      "hash": "sha256:0e8a7a3fad4f9b2cb5d9f2f3",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25713"
+  },
+  "created": "2026-10-12T05:46:15.729Z",
+  "verified": "2026-10-12T05:46:15.729Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "mlflow-skinny-mlflow-tracing-on-windows-clone-with-core-syml"
+  ],
+  "says": [
+    "Installing the lightweight client on Windows succeeds but importing the package fails completely.",
+    "Building the minimal client package from source creates an empty distribution containing no code.",
+    "The tracking client installs cleanly from source on Windows but contains zero executable files.",
+    "Fail the local package build immediately if required source links are missing on Windows."
+  ],
+  "search": "Source builds in libs/skinny/setup.py and libs/tracing/setup.py must verify that their local mlflow symlink path is an existing directory and raise SystemExit otherwise before calling setup(). This packaging check prevents builds on Windows checkouts without symlink support from silently producing empty wheels that install without code. Packaging-time validation belongs in setup.py alongside the generated pyproject.toml and applies only to source builds of mlflow-skinny and mlflow-tracing.",
+  "saysFor": "s2:abecebb801edeb5472cb59e97f741d1b0f27e5697fa632ea1b6b020df1cfe58a"
+}

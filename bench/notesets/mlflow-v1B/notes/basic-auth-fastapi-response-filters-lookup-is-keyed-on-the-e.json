@@ -1,0 +1,127 @@
+{
+  "id": "basic-auth-fastapi-response-filters-lookup-is-keyed-on-the-e",
+  "title": "basic-auth FastAPI response filters: lookup is keyed on the endpoint function for any HTTP method, so a POST collection route can be filtered",
+  "kind": "rule",
+  "answers": [
+    "How do I make a POST list endpoint return only the rows the caller is allowed to see under basic-auth?",
+    "Why is my registered response filter not applied to a POST route?",
+    "Where does the FastAPI response filter get looked up for a request?",
+    "Does the admin account bypass the per-user response filtering on FastAPI routes?"
+  ],
+  "body": "Path: The basic-auth FastAPI permission middleware `mlflow/server/auth/__init__.py:fastapi_permission_middleware` runs for every FastAPI route. For non-admin callers it asks `mlflow/server/auth/__init__.py:_find_fastapi_response_filter` for a filter and rewrites the JSON body of successful (status < 400) responses through it.\nRule: `_find_fastapi_response_filter(request)` takes only the request and resolves the filter from `request.scope[\"endpoint\"]` against `FASTAPI_ENDPOINT_RESPONSE_FILTERS`. There is no HTTP method gate, so GET and POST routes are both filtered when their endpoint function is registered. The lookup is exact on the function, so unregistered routes never pick up a filter. To filter a new collection route, register a function `(username, body, request) -> bytes` keyed on the route's endpoint function.\nSymptom: Non-admin callers received unfiltered rows from a POST search route that was not covered by the response filter, exposing other users' data.\nConstraints: Filters run only for non-admins; admins keep the unfiltered response. Only responses with status below 400 are rewritten. Filters must be a pure function of the JSON body and caller; they assume the handler already returns the full, unpaginated result set. The function was changed in the PR that removed the `method` argument, so callers and tests must use the one-argument form (tests in `tests/server/auth/test_auth.py` were updated accordingly).",
+  "applies": "Response-level authorization for FastAPI routes in the basic-auth app, including adding a per-user filter to a new GET or POST list route.",
+  "tags": [
+    "basic-auth",
+    "fastapi",
+    "response-filter",
+    "authorization"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_find_fastapi_response_filter",
+      "hash": "sha256:cecc1e4e71dd520a8a96cd04",
+      "line": 5957,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:cecc1e4e71dd520a8a96cd04",
+      "fanout": {
+        "files": 3,
+        "sites": 5,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "fastapi_permission_middleware",
+      "hash": "sha256:fd83f87e036003957d02ddaa",
+      "line": 6042,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:fd83f87e036003957d02ddaa",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_find_fastapi_response_filter",
+      "hash": "sha256:cecc1e4e71dd520a8a96cd04",
+      "line": 5957,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:cecc1e4e71dd520a8a96cd04",
+      "fanout": {
+        "files": 3,
+        "sites": 5,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "request",
+      "hash": "sha256:6a6656a08a09cf037edff7c9",
+      "line": 6174,
+      "missing": false
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "method",
+      "hash": "sha256:97e8f7dc70f660f94f53c38e",
+      "line": 3649,
+      "missing": false,
+      "fanout": {
+        "files": 359,
+        "sites": 20,
+        "refs": 1807
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "fastapi_permission_middleware",
+      "hash": "sha256:fd83f87e036003957d02ddaa",
+      "line": 6042,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:fd83f87e036003957d02ddaa",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/server/auth/test_auth.py",
+      "symbol": "request",
+      "hash": "sha256:97c136765ae440e8c3a9bcac",
+      "line": 5218,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25899"
+  },
+  "created": "2026-10-12T05:43:08.843Z",
+  "verified": "2026-10-12T05:43:08.843Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "basic-auth-web-ui-entry-points-get-version-and-ui-telemetry",
+    "basic-auth-route-matching-never-add-a-bare-to-public-route-s",
+    "basic-auth-logmetric-logbatch-metric-routing-a-per-metric-mo",
+    "basic-auth-request-validators-parse-each-endpoint-only-throu"
+  ],
+  "says": [
+    "Standard users can see other accounts' private items in the search results table.",
+    "Non-admin members see rows belonging to other teammates when searching the list.",
+    "Filter search query results so regular accounts only view records they have permission for.",
+    "Search listings are leaking confidential records to users who should not see them."
+  ],
+  "search": "Basic-auth FastAPI response filtering in mlflow/server/auth/__init__.py:fastapi_permission_middleware resolves filters from request.scope['endpoint'] via _find_fastapi_response_filter(request) against FASTAPI_ENDPOINT_RESPONSE_FILTERS without checking HTTP methods, filtering both GET and POST collection routes. To filter a new collection route, register a (username, body, request) -> bytes function keyed on the endpoint function. Filters rewrite successful JSON responses (status < 400) for non-admins assuming an unpaginated result set, while admins bypass filtering. The method argument was removed from _find_fastapi_response_filter, and callers and tests in tests/server/auth/test_auth.py use the one-argument form.",
+  "saysFor": "s2:dc0009687132d995b153d56095aa927ae7ddf937311b2196fd54d6d4b0139528"
+}

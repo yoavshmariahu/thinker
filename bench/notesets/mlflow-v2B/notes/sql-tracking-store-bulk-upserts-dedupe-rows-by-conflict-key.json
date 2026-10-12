@@ -1,0 +1,61 @@
+{
+  "id": "sql-tracking-store-bulk-upserts-dedupe-rows-by-conflict-key",
+  "title": "SQL tracking store bulk upserts: dedupe rows by conflict key before calling _bulk_upsert, because PostgreSQL ON CONFLICT rejects duplicates",
+  "kind": "rule",
+  "answers": [
+    "Adding a bulk write or upsert for many rows in the SQL tracking store fails on PostgreSQL with 'cannot affect row a second time'",
+    "Two different tasks on the same path: a new bulk-upserted entity that receives repeated keys in one request should keep the last value on every backend",
+    "Where is the batched upsert helper used and how does it pick the SQL for each database?"
+  ],
+  "body": "Path: Bulk writes of child rows in the SQL tracking store (for example logged model tags via SqlAlchemyStore.set_logged_model_tags, and span rows) go through the _bulk_upsert helper, which emits one native dialect upsert per batch of 100 rows on SQLite, PostgreSQL and MySQL and a session.merge fallback elsewhere.\nRule: Before passing rows to _bulk_upsert, collapse them to one row per conflict key (for example {tag.key: tag.value for tag in tags}, last occurrence wins). The dedupe is done in the caller, not in the helper. Keeping last-wins matches the old session.merge loop, so every dialect returns the same stored value.\nSymptom: A request that repeated a key within a single bulk write succeeded on SQLite and MySQL but failed on PostgreSQL with CardinalityViolation, because ON CONFLICT DO UPDATE cannot touch the same row twice in one statement.\nConstraints: Needed only when the conflict key can repeat inside one call. Not needed for merge-loop-only dialects, but the dedupe is harmless there. Verify a new caller with a repeated-key test, since the default CI suite runs the store tests against PostgreSQL and MySQL.\nApplies: Any new or changed caller of _bulk_upsert in mlflow/store/tracking/sqlalchemy_store.py.",
+  "applies": "Callers of the SQL tracking store bulk upsert helper; not the file store or artifact paths.",
+  "tags": [
+    "tracking",
+    "sqlalchemy",
+    "upsert",
+    "postgresql",
+    "mysql",
+    "sqlite",
+    "bulk-write"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "SqlAlchemyStore.set_logged_model_tags",
+      "hash": "sha256:0840a545096f37d7c6a283c5",
+      "line": 2826,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0840a545096f37d7c6a283c5",
+      "fanout": {
+        "files": 23,
+        "sites": 35,
+        "refs": 60
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25862"
+  },
+  "created": "2026-10-12T05:37:13.490Z",
+  "verified": "2026-10-12T05:37:13.490Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "logged-model-tags-set-logged-model-tags-writes-through-bulk",
+    "trace-filter-correlation-calculate-trace-filter-correlation",
+    "search-filter-numeric-attributes-searchutils-get-value-retur",
+    "sql-tracking-store-experiment-id-parsing-search-trace-scorer"
+  ],
+  "says": [
+    "Saving multiple model tags with duplicate keys fails when using a Postgres database.",
+    "Updating model tags in bulk should keep the latest value if keys repeat.",
+    "Batch logging traces crashes when identical keys appear multiple times in one request.",
+    "Adding tags with duplicate names works on MySQL but crashes on Postgres."
+  ],
+  "search": "Callers of _bulk_upsert in mlflow/store/tracking/sqlalchemy_store.py must collapse child rows to one row per conflict key, keeping the last occurrence, before calling the helper. This caller-side deduplication prevents CardinalityViolation errors on PostgreSQL when ON CONFLICT DO UPDATE touches the same row twice in one batch, ensuring consistent last-wins behavior across SQLite, MySQL, and PostgreSQL backends. The rule applies to new or modified callers of _bulk_upsert in mlflow/store/tracking/sqlalchemy_store.py where conflict keys can repeat in a single request, such as set_logged_model_tags and span writes, but is not needed for file store, artifact paths, or merge-loop-only dialects.",
+  "saysFor": "s2:69ba48751aff5db3782d25138e607ac031e38ad38603191db4ea17f35b536c99"
+}

@@ -1,0 +1,45 @@
+{
+  "id": "team-review-workflow-concurrency-queue-duplicate-runs-on-a-r",
+  "title": "team-review workflow concurrency: queue duplicate runs on a repo-wide group instead of cancelling them",
+  "kind": "rule",
+  "answers": [
+    "Why did a second team-review run get cancelled when the bot's labels were applied twice?",
+    "How are concurrent runs of the team-review workflow queued or cancelled?",
+    "Where is the concurrency setting for the PR reviewer assignment workflow?",
+    "Can I make a workflow that rewrites a shared stats issue run one at a time without losing queued runs?"
+  ],
+  "body": "Path: .github/workflows/team-review.yml (top-level `concurrency:` block) controls how runs of the team-review workflow, which assigns human reviewers to a PR when the `team-review` label is added, are scheduled when several triggers fire close together.\nRule: Keep the concurrency group repo-wide (`group: ${{ github.workflow }}`) because every run rewrites the shared stats issue, and set `queue: max` with `cancel-in-progress: false` so pending runs are queued rather than dropped. A repo-wide group with the default behaviour keeps only one pending run, which silently cancels the others.\nSymptom: When the bot's labels were applied twice on a PR, one of the queued team-review runs was cancelled, so reviewers were not assigned in that run and the stats were left inconsistent.\nConstraints: Applies to workflows whose runs all write the same shared resource and must not overlap. Do not switch to a per-PR group unless the stats writes are no longer shared.",
+  "applies": "Concurrency settings of .github/workflows/team-review.yml; relevant to any workflow that serialises writes to a shared repo-level issue.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "concurrency",
+    "team-review"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/team-review.yml",
+      "hash": "sha256:675507b1da84bfc822a6ad7f",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26281"
+  },
+  "created": "2026-10-12T05:31:36.582Z",
+  "verified": "2026-10-12T05:31:36.582Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Reviewers were not assigned after the team review label was added multiple times.",
+    "Concurrent pull request review requests get silently cancelled instead of being processed.",
+    "Team review automation should queue duplicate label events instead of dropping them.",
+    "Team reviewer tracking metrics became out of sync after simultaneous pull request updates."
+  ],
+  "search": "In .github/workflows/team-review.yml, configure repo-wide concurrency using group: ${{ github.workflow }}, cancel-in-progress: false, and queue: max. Because every workflow run rewrites a shared repository-level review stats issue, queuing pending runs prevents concurrent executions from cancelling each other, dropping reviewer assignments, and leaving stats inconsistent. This rule applies to workflows serializing writes to a shared repository resource and must not be switched to a per-pull-request group while the stats issue remains shared.",
+  "saysFor": "s2:afdaeba24869d85308e1c68966e0a26b5f0ada1e3b14059f20066cd2306a9d92"
+}

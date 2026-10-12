@@ -1,0 +1,126 @@
+{
+  "id": "ai-gateway-upstream-error-detail-streaming-and-proxy-request",
+  "title": "AI Gateway upstream error detail: streaming and proxy requests read the provider message via _error_detail, falling back to response text then reason phrase",
+  "kind": "rule",
+  "answers": [
+    "Streaming chat through the AI Gateway returns 400: Bad Request instead of the Bedrock error explanation, how do I fix it?",
+    "Where is the upstream provider error body turned into the HTTPException detail for streaming or proxy requests?",
+    "How do I add a new provider error shape (top-level message, plain text body) to the gateway error handling?",
+    "Why does a non-JSON error page from the gateway get dropped and only the status reason shown?"
+  ],
+  "body": "Path: mlflow/gateway/providers/utils.py:send_stream_request and send_proxy_request handle the error branch for streaming (SSE) and proxied gateway calls to providers such as OpenAI-compatible APIs and Amazon Bedrock; when the upstream returns a non-2xx status, the error body is turned into the HTTPException detail here.\nRule: Extract the detail with mlflow/gateway/providers/utils.py:_error_detail, which takes the first of error.message, a top-level message, or the whole body (as str), then fall back to response text and finally aiohttp's e.message (reason phrase). Each step must treat empty results (None from json(), \"\" from text()) as absent, so `or e.message` is applied after each attempt. Add new provider body shapes to _error_detail rather than inlining lookups in the callers.\nSymptom: Streaming requests to Amazon Bedrock (whose error body is top-level {\"message\": ...}) surfaced only \"400: Bad Request\", while the same non-streaming request kept the provider's explanation; non-JSON gateway error pages were discarded entirely.\nConstraints: send_request (non-streaming) is intentionally not changed; it already returns the whole body as detail and its response shape is relied on by callers. Applies only to error responses (raise_for_status path), not successful stream parsing.",
+  "applies": "Gateway provider HTTP helpers in mlflow/gateway/providers/utils.py for streaming and proxy error responses.",
+  "tags": [
+    "gateway",
+    "error-handling",
+    "streaming",
+    "bedrock"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/utils.py",
+      "symbol": "_error_detail",
+      "hash": "sha256:9d5883b16adaed761fc6562f",
+      "line": 104,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9d5883b16adaed761fc6562f",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/utils.py",
+      "symbol": "send_stream_request",
+      "hash": "sha256:7ca0d1b8c43b1278d3d57a78",
+      "line": 179,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7ca0d1b8c43b1278d3d57a78",
+      "fanout": {
+        "files": 13,
+        "sites": 20,
+        "refs": 38
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/utils.py",
+      "symbol": "send_proxy_request",
+      "hash": "sha256:59f9f76197ad818831a3f92d",
+      "line": 241,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:59f9f76197ad818831a3f92d",
+      "fanout": {
+        "files": 6,
+        "sites": 7,
+        "refs": 13
+      }
+    },
+    {
+      "path": "tests/gateway/providers/test_provider_utils.py",
+      "symbol": "test_send_stream_request_falls_back_to_reason_phrase",
+      "hash": "sha256:87da48bdd6d4172d93b46552",
+      "line": 246,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:87da48bdd6d4172d93b46552",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/gateway/providers/test_provider_utils.py",
+      "symbol": "json",
+      "hash": "sha256:334e2b3ee063c2e2b50f9b2b",
+      "line": 171,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:334e2b3ee063c2e2b50f9b2b",
+      "fanout": {
+        "files": 367,
+        "sites": 52,
+        "refs": 1997
+      }
+    },
+    {
+      "path": "tests/gateway/providers/test_provider_utils.py",
+      "symbol": "text",
+      "hash": "sha256:a42e87bd1f5c0f32ab68e0c4",
+      "line": 176,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a42e87bd1f5c0f32ab68e0c4",
+      "fanout": {
+        "files": 382,
+        "sites": 127,
+        "refs": 1997
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26036"
+  },
+  "created": "2026-10-12T05:33:35.815Z",
+  "verified": "2026-10-12T05:33:35.815Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "ai-gateway-amazon-bedrock-anthropic-messages-streaming-aws-e"
+  ],
+  "says": [
+    "Streaming requests return a generic Bad Request error instead of the provider explanation.",
+    "Display detailed provider error messages when streaming chat completions encounter an issue.",
+    "Plain text error pages from upstream model services are being discarded completely.",
+    "Show the actual provider rejection reason instead of a bare HTTP status code."
+  ],
+  "search": "For streaming and proxy requests in mlflow/gateway/providers/utils.py:send_stream_request and send_proxy_request, non-2xx provider error responses extract detail via mlflow/gateway/providers/utils.py:_error_detail. _error_detail checks error.message, a top-level message, or the body string, falling back to response text and aiohttp's e.message reason phrase while treating empty strings and None as absent. Applies to error branches of streaming and proxy requests, while non-streaming send_request is intentionally unchanged.",
+  "saysFor": "s2:8ab90b1bec8f3fea18a4449cf19e34a7f98f4b7a46fa20cc91092917e79dadb0"
+}

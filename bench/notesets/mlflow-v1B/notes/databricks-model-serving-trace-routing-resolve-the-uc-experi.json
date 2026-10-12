@@ -1,0 +1,66 @@
+{
+  "id": "databricks-model-serving-trace-routing-resolve-the-uc-experi",
+  "title": "Databricks Model Serving trace routing: resolve the UC experiment id from MLFLOW_EXPERIMENT_ID directly in serving, never via local-store validation",
+  "kind": "rule",
+  "answers": [
+    "Why do traces from a Databricks Model Serving endpoint with a Unity Catalog-bound experiment go to the inference table instead of the UC experiment tables?",
+    "Where is the Unity Catalog trace location chosen for serving containers?",
+    "How does the serving tracing path pick the experiment id when the container uses its local tracking store?",
+    "Why did an experiment lookup raise 'does not exist' inside a model serving container?"
+  ],
+  "body": "Path: Trace export setup for Databricks Model Serving; `mlflow/tracing/provider.py:_resolve_experiment_uc_location` decides whether serving traces go to a Unity Catalog-backed experiment (UC table destination) or the inference-table path, based on the experiment id and its UC tags.\nRule: In serving (`in_serving` true), read the experiment id with `MLFLOW_EXPERIMENT_ID.get()` instead of calling `_get_experiment_id()`; `_get_experiment_id()` validates the id against the container's local tracking store, where the experiment does not exist, and raises. Only the non-serving branch should go through `_get_experiment_id()`.\nSymptom: UC-bound serving traces were treated as non-UC and fell back to the inference-table path, so they did not reach the Unity Catalog experiment tables.\nConstraints: Applies to the serving branch only; normal local or tracking-server runs still validate via `_get_experiment_id()`. Tests for this path must set `MLFLOW_EXPERIMENT_ID` via monkeypatch and mock `mlflow.tracking._tracking_service.utils._get_store` (the Databricks store), not `mlflow.tracking.fluent._get_experiment_id`, which hides the regression.",
+  "applies": "Serving-container trace destination resolution in mlflow/tracing/provider.py; not for general experiment-id lookup in fluent APIs.",
+  "tags": [
+    "tracing",
+    "databricks",
+    "model-serving",
+    "unity-catalog",
+    "experiment-id"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/tracing/provider.py",
+      "symbol": "_resolve_experiment_uc_location",
+      "hash": "sha256:19006da50fce71a40ff5ec8d",
+      "line": 768,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:19006da50fce71a40ff5ec8d",
+      "fanout": {
+        "files": 2,
+        "sites": 8,
+        "refs": 15
+      }
+    },
+    {
+      "path": "mlflow/environment_variables.py",
+      "symbol": "MLFLOW_EXPERIMENT_ID",
+      "hash": "sha256:4a558839c3a77298b9e96065",
+      "line": 542,
+      "missing": false,
+      "fanout": {
+        "files": 34,
+        "sites": 0,
+        "refs": 112
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25913"
+  },
+  "created": "2026-10-12T05:42:35.490Z",
+  "verified": "2026-10-12T05:42:35.490Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Databricks Model Serving traces go to the inference table instead of my Unity Catalog experiment tables",
+    "Serving endpoint with a Unity Catalog experiment reports 'does not exist' when tracing",
+    "Traces from a model serving container with a UC-bound experiment are not reaching the UC tables"
+  ],
+  "search": "Databricks Model Serving trace destination: in the serving branch, the experiment id must come from the MLFLOW_EXPERIMENT_ID variable directly rather than validating through the local tracking store, which raises 'does not exist'. Wrong resolution sends UC-bound traces to the inference table. Non-serving runs still validate. Tests must mock the Databricks store, not the fluent experiment lookup.",
+  "saysFor": "s2:a669e0271679521c84ec21a6fa27443764ed86ded0940fdd8d39fa6f65f4b333"
+}

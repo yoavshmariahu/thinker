@@ -1,0 +1,85 @@
+{
+  "id": "ai-gateway-bedrock-streaming-passthrough-aws-event-stream-ex",
+  "title": "AI Gateway Bedrock streaming passthrough: AWS event-stream exception frames raise HTTPException with a mapped status, not a plain SSE error",
+  "kind": "rule",
+  "answers": [
+    "Why does a streaming Claude response from Bedrock through the gateway come back as binary garbage instead of SSE?",
+    "Why does a mid-stream throttling error on Bedrock reach the client with a 429 status in the SSE error chunk?",
+    "Where is Bedrock InvokeModelWithResponseStream converted to Anthropic server-sent events?",
+    "What happens when botocore is not installed and a Bedrock Claude stream is requested?"
+  ],
+  "body": "Path: Streaming Anthropic Messages passthrough responses from Bedrock InvokeModelWithResponseStream go through _event_stream_to_anthropic_sse in mlflow/gateway/providers/bedrock.py, which decodes AWS binary event-stream frames and re-emits them as SSE for Anthropic clients and for the gateway's usage and trace parsing.\nRule: Decode each frame with botocore's EventStreamBuffer. For a chunk frame, base64-decode the payload and emit `event: <type>\\ndata: <json>\\n\\n`. For any non-event frame, raise HTTPException with the status from _BEDROCK_STREAM_EXCEPTION_STATUS: throttlingException 429, serviceUnavailableException 503, modelTimeoutException 408, anything else 502. This matches how send_stream_request reports errors before the first frame, so safe_stream writes the status into the SSE error chunk.\nSymptom: Bedrock streams use the AWS event-stream binary framing rather than SSE, so a client reading the passthrough stream could not parse the raw response. A mid-stream throttle or unavailable error had to keep its retryable status, or clients would not back off or retry correctly.\nConstraints: botocore is imported inside the function. If it is missing, an ImportError with a pip install boto3 hint is raised. The exception-status mapping covers only the three listed exception types; others become 502. Confidence is moderate on the exact client-visible effect of the binary stream, since the PR states the format but not a bug report.",
+  "applies": "Bedrock streaming for the Anthropic Messages passthrough in the AI Gateway; does not cover the non-streaming path or the Titan/Jurassic/Converse stream handling.",
+  "tags": [
+    "gateway",
+    "bedrock",
+    "streaming",
+    "sse",
+    "error-handling"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/bedrock.py",
+      "symbol": "_event_stream_to_anthropic_sse",
+      "hash": "sha256:6a914e52d652128a8d052bf9",
+      "line": 47,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6a914e52d652128a8d052bf9",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/bedrock.py",
+      "symbol": "_BEDROCK_STREAM_EXCEPTION_STATUS",
+      "hash": "sha256:3f83bda8db56195a4c8610cd",
+      "line": 40,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/bedrock.py",
+      "symbol": "AmazonBedrockProvider._passthrough",
+      "hash": "sha256:4945f3ee2cd6f9e148d2fe7d",
+      "line": 852,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4945f3ee2cd6f9e148d2fe7d",
+      "fanout": {
+        "files": 3,
+        "sites": 5,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25863"
+  },
+  "created": "2026-10-12T05:44:10.377Z",
+  "verified": "2026-10-12T05:44:10.377Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "bedrock-completions-adapters-top-k-is-deliberately-left-unma",
+    "bedrock-titan-and-ai21-jurassic-completions-request-body-top",
+    "bedrock-titan-completions-top-p-0-is-rejected-with-a-422-bef",
+    "ai-gateway-anthropic-usage-parsing-reuse-the-module-level-an"
+  ],
+  "says": [
+    "Streaming Claude responses from Bedrock through the gateway come back as binary garbage instead of SSE",
+    "Mid-stream throttling error from Bedrock shows a 429 status in the streamed error event",
+    "Bedrock Claude streaming through the gateway fails when botocore is not installed"
+  ],
+  "search": "AI Gateway Bedrock streaming passthrough for Anthropic Messages: decodes AWS binary event-stream frames into Anthropic SSE, and maps mid-stream exception frames to HTTP status codes (throttling 429, unavailable 503, timeout 408, others 502) so retryable errors keep their status. botocore is imported lazily, raising an ImportError with a pip install hint if missing; does not cover the non-streaming path or Titan, Jurassic, or Converse streams.",
+  "saysFor": "s2:5a40f2c3b89fec3f1f5d3ef91be7b6b4ed3971d0548c73223c5336192570fbc7"
+}

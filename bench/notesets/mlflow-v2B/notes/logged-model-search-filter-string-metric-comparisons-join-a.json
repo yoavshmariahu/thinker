@@ -1,0 +1,60 @@
+{
+  "id": "logged-model-search-filter-string-metric-comparisons-join-a",
+  "title": "Logged model search filter_string metric comparisons: join a distinct model_id subquery, never whole metric rows",
+  "kind": "rule",
+  "answers": [
+    "search_logged_models returns fewer models than max_results on the first page when filter_string has metrics.<name> comparisons",
+    "Logged model search pagination stops early and drops matching models when a model logged the same metric at several steps, runs or datasets",
+    "Where is the metric comparison in a logged model filter_string joined to the model query?"
+  ],
+  "body": "Path: Logged model search with a filter_string containing metric comparisons (e.g. metrics.accuracy > 0, plus param, tag and dataset filters) passes through mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore._apply_filter_string_datasets_search_logged_models, which builds one non_attr_filters subquery per comparison before the model query is paginated with OFFSET/LIMIT.\nRule: For a metric comparison, select only SqlLoggedModelMetric.model_id with .distinct() as the subquery (session.query(SqlLoggedModelMetric.model_id).filter(*metric_filters).distinct().subquery()), so the join is one-to-at-most-one per model. Selecting whole metric rows duplicated a model once per matching (metric_step, run_id, dataset) row, and the duplicates were removed only after SQL LIMIT had counted them.\nSymptom: A search_logged_models page with max_results=N came back with fewer than N models even though more matched, and the next_page_token was not issued when it should have been, so later matching models were silently skipped.\nConstraints: Applies to metric comparisons only. Param and tag subqueries are intentionally unchanged because their primary keys (model_id, param_key) and (model_id, tag_key) plus the pinned key match at most one row per model. Dataset-only filters already select distinct model_id. The fix does not change filter semantics, only the row count seen by LIMIT.\nApplies: SQL tracking store search_logged_models filter_string handling for metrics.<name> comparisons, when results are paginated; not the order_by path, which has its own per-model ranking subquery.",
+  "applies": "SQL tracking store filter_string metric comparisons in search_logged_models; any new per-entity filter subquery joined into a paginated query should select only the parent key with distinct.",
+  "tags": [
+    "tracking",
+    "logged-models",
+    "search",
+    "pagination",
+    "sqlalchemy",
+    "filter-string"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "SqlAlchemyStore._apply_filter_string_datasets_search_logged_models",
+      "hash": "sha256:3774dcf9e9eeaaa1c516a492",
+      "line": 3682,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3774dcf9e9eeaaa1c516a492",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26057"
+  },
+  "created": "2026-10-12T05:33:26.324Z",
+  "verified": "2026-10-12T05:33:26.324Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "trace-filter-correlation-calculate-trace-filter-correlation",
+    "search-filter-numeric-attributes-searchutils-get-value-retur",
+    "sql-tracking-store-experiment-id-parsing-search-trace-scorer",
+    "tracking-search-time-filters-numeric-experiment-and-dataset"
+  ],
+  "says": [
+    "Filtering models by metric value shows fewer items per page than requested.",
+    "Model search with a metric filter cuts off without offering a next page.",
+    "Models evaluated across multiple steps disappear from search results when filtering by score.",
+    "First page of model search returns too few results despite matching metric thresholds."
+  ],
+  "search": "In SqlAlchemyStore._apply_filter_string_datasets_search_logged_models, metric comparison subqueries must select only distinct SqlLoggedModelMetric.model_id rather than full metric rows. Selecting full rows caused models with multiple steps, runs, or datasets to duplicate before pagination LIMIT, silently truncating search_logged_models pages and dropping next_page_token. This applies strictly to SQL tracking store metric comparisons in search_logged_models, excluding param and tag subqueries, dataset-only filters, and the order_by path.",
+  "saysFor": "s2:b3bd5a5247aa7dab0bd3281fe75e3c19a8d7550bac32cfd37d904bfa54865c6d"
+}

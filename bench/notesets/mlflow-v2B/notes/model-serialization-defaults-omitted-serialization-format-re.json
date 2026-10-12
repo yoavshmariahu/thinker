@@ -1,0 +1,86 @@
+{
+  "id": "model-serialization-defaults-omitted-serialization-format-re",
+  "title": "Model serialization defaults: omitted serialization_format resolves to a Databricks-dependent default in sklearn, LightGBM and PyTorch save/log",
+  "kind": "rule",
+  "answers": [
+    "Why did my scikit-learn model switch from cloudpickle to skops after upgrading, and why does it differ on Databricks?",
+    "Which serialization format does mlflow.pytorch.log_model use when I don't pass serialization_format?",
+    "Where is the default serialization_format chosen for sklearn, LightGBM and PyTorch models?",
+    "How do I make save_model or log_model use pickle for a PyTorch model when running on Databricks with export_model=True?"
+  ],
+  "body": "Path: Public save_model/log_model in mlflow/sklearn/__init__.py, mlflow/lightgbm/__init__.py and mlflow/pytorch/__init__.py (the entry points for saving or logging scikit-learn, sklearn-style LightGBM and PyTorch models) accept serialization_format. Each one resolves None through its module's _get_default_serialization_format before writing the artifact or calling Model.log.\nRule: When serialization_format is omitted, the default depends on context. It is cloudpickle for sklearn and sklearn-style LightGBM, and pickle for PyTorch, when is_in_databricks_runtime() is true or mlflow.get_tracking_uri() is a Databricks URI (is_databricks_uri). Otherwise it is skops for sklearn and LightGBM and pt2 for PyTorch. In mlflow/pytorch/__init__.py:_get_default_serialization_format, export_model=True always returns pt2. Explicit values override the default. Keep the Databricks check in these helpers and do not hard-code the default in the signature.\nSymptom: Models logged without an explicit format on Databricks were written as skops or pt2 instead of the cloudpickle or pickle format existing Databricks workflows expected, so artifacts, dependencies and telemetry differed from earlier releases.\nConstraints: Applies only when serialization_format is left as None. Passing an explicit format bypasses the helper. The helper runs before the artifact is written, so the resolved value also drives the conda/pip dependencies and the logged-model telemetry.",
+  "applies": "Default-format resolution for sklearn, sklearn-style LightGBM and PyTorch save_model/log_model when serialization_format is omitted.",
+  "tags": [
+    "area/models",
+    "serialization",
+    "databricks",
+    "sklearn",
+    "pytorch",
+    "lightgbm"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/sklearn/__init__.py",
+      "symbol": "_get_default_serialization_format",
+      "hash": "sha256:541841486e944ba32b14f8bd",
+      "line": 110,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:541841486e944ba32b14f8bd",
+      "fanout": {
+        "files": 6,
+        "sites": 13,
+        "refs": 13
+      }
+    },
+    {
+      "path": "mlflow/lightgbm/__init__.py",
+      "symbol": "_get_default_serialization_format",
+      "hash": "sha256:9bd1641dfee8f1bf3c672f14",
+      "line": 104,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9bd1641dfee8f1bf3c672f14",
+      "fanout": {
+        "files": 6,
+        "sites": 13,
+        "refs": 13
+      }
+    },
+    {
+      "path": "mlflow/pytorch/__init__.py",
+      "symbol": "_get_default_serialization_format",
+      "hash": "sha256:e760fb66bb0b93ac69f41d07",
+      "line": 99,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e760fb66bb0b93ac69f41d07",
+      "fanout": {
+        "files": 6,
+        "sites": 13,
+        "refs": 13
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25992"
+  },
+  "created": "2026-10-12T05:34:54.234Z",
+  "verified": "2026-10-12T05:34:54.234Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "lightgbm-save-model-serialization-default-is-resolved-before"
+  ],
+  "says": [
+    "Saved models unexpectedly change their artifact format when running outside Databricks.",
+    "Logging models without choosing a format creates unexpected file formats on Databricks.",
+    "Model dependencies and packaging format changed after upgrading the tracking platform.",
+    "Default model format should match existing Databricks expectations when left unspecified."
+  ],
+  "search": "Default serialization format resolution for sklearn, LightGBM, and PyTorch save_model and log_model uses _get_default_serialization_format to select runtime-dependent formats when serialization_format is None. When is_in_databricks_runtime() is true or mlflow.get_tracking_uri() is a Databricks URI, defaults are cloudpickle for sklearn and LightGBM and pickle for PyTorch; otherwise, defaults are skops or pt2. In mlflow/pytorch/__init__.py:_get_default_serialization_format, setting export_model=True always yields pt2, while explicit serialization formats bypass defaults. This mechanism resolves before artifact writing and drives logged conda/pip dependencies and telemetry in mlflow/sklearn/__init__.py, mlflow/lightgbm/__init__.py, and mlflow/pytorch/__init__.py.",
+  "saysFor": "s2:7a9bc4236c1a4b4cea9db0dd5dcea1f2fd33afdd07ab998fcb0c014b6adb6773"
+}

@@ -1,0 +1,89 @@
+{
+  "id": "search-logged-models-metric-ordering-keep-one-latest-metric",
+  "title": "search_logged_models metric ordering: keep one latest metric row per logged model so paging does not repeat models",
+  "kind": "rule",
+  "answers": [
+    "Why does paging through logged models sorted by a metric return the same model on several pages?",
+    "Why are some logged models missing or duplicated when sorting logged models by a metric like accuracy with a page size?",
+    "Where is the metric-based sort for logged models built in the tracking store?"
+  ],
+  "body": "Path: mlflow/store/tracking/sqlalchemy_store.py:_apply_order_by_search_logged_models handles order_by on search_logged_models (logged model listing, the model-search API and UI sort by metrics.<name>). It builds a per-model subquery over SqlLoggedModelMetric rows for that metric name and outer-joins it onto the model query before pagination.\nRule: Reduce the metric subquery to exactly one row per model_id with row_number() (not rank()), partitioned by model_id and ordered by metric_timestamp_ms desc, metric_step desc, run_id asc, then filter row_num == 1. The run_id tie-breaker makes the choice deterministic when tied metric rows come from different datasets.\nSymptom: When a metric had tied latest values across datasets for the same logged model, rank() returned several rows with rank 1 for that model. The outer join then produced duplicate model rows, so page 1 showed one model and later pages repeated or skipped models, and the page token did not stop at the right place.\nConstraints: Applies to ordering by a metric in logged-model search. Ordering by plain model fields (e.g. creation_timestamp_ms, model_id) does not use this subquery. Other metric-based queries elsewhere in the store were not changed by this PR.",
+  "applies": "Logged model search ordering by metric in the SQLAlchemy tracking store; affects any change to that ordering subquery or its window function.",
+  "tags": [
+    "tracking",
+    "logged-models",
+    "search",
+    "pagination",
+    "sqlalchemy",
+    "metrics"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "SqlAlchemyStore._apply_order_by_search_logged_models",
+      "hash": "sha256:ed81baaabcffd60026132c70",
+      "line": 3523,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ed81baaabcffd60026132c70",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_runs.py",
+      "symbol": "test_search_logged_models_order_by_metric_paginates_tied_dataset_metrics",
+      "hash": "sha256:88844c772c05f1790b7a6719",
+      "line": 4056,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:88844c772c05f1790b7a6719",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "_apply_order_by_search_logged_models",
+      "hash": "sha256:ed81baaabcffd60026132c70",
+      "line": 3523,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ed81baaabcffd60026132c70",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25935"
+  },
+  "created": "2026-10-12T05:39:27.838Z",
+  "verified": "2026-10-12T05:39:27.838Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "search-logged-models-ordering-always-end-with-a-stable-model",
+    "sql-trace-rollup-routing-in-raw-range-points-read-non-groupe",
+    "logged-model-tag-upsert-dedupe-tag-keys-before-bulk-upsert-s",
+    "sqlalchemy-tracking-store-hard-delete-mlflow-gc-bulk-delete"
+  ],
+  "says": [
+    "Paging through models sorted by a metric shows duplicate entries across different pages.",
+    "Some models are skipped or repeated when navigating paginated model search results.",
+    "Sorting the model table by accuracy causes the same model to appear twice.",
+    "Ensure paginated model listings display each model once when sorting by evaluation metrics.",
+    "Model search pagination breaks and repeats items when metric values tie across datasets."
+  ],
+  "search": "In mlflow/store/tracking/sqlalchemy_store.py:_apply_order_by_search_logged_models, metric ordering for search_logged_models must deduplicate SqlLoggedModelMetric subqueries to one row per model_id using row_number() instead of rank(). The window function partitions by model_id and orders by metric_timestamp_ms desc, metric_step desc, and run_id asc as a deterministic tie-breaker across datasets before filtering for row_num == 1. This prevents duplicate model rows from appearing after outer-joins, eliminating repeated or skipped models during search pagination. Applies strictly to metric-based ordering subqueries in SQLAlchemy store logged model searches, without affecting searches sorted by standard model fields.",
+  "saysFor": "s2:cdcea01e4d7f048c40985888baa530fe3b357088921e5237266d574217923ee9"
+}

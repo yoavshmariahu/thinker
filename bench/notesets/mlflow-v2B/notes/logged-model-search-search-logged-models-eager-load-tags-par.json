@@ -1,0 +1,76 @@
+{
+  "id": "logged-model-search-search-logged-models-eager-load-tags-par",
+  "title": "Logged model search (search_logged_models): eager-load tags, params and metrics with selectinload, not per-model lazy loads",
+  "kind": "rule",
+  "answers": [
+    "Why does the logged models search (logged-models/search) take many seconds or hundreds of SQL round trips for one page?",
+    "When I add a new child collection to a logged model, how do I make search_logged_models load it without an N+1 query pattern?",
+    "Why does search_logged_models use selectinload instead of joinedload, and does eager loading change pagination?",
+    "Where are the tags, params and metrics of logged models loaded during a paginated search?"
+  ],
+  "body": "Path: Paginated logged-model search (the UI logged-models/search call and SqlAlchemyStore.search_logged_models with filters, order_by, max_results and page_token) builds the main model query and then turns each row into an entity via SqlLoggedModel.to_mlflow_entity, which reads tags, params and metrics. The chokepoint is mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore.search_logged_models.\nRule: Attach selectinload(SqlLoggedModel.tags), selectinload(SqlLoggedModel.params) and selectinload(SqlLoggedModel.metrics) as .options(...) on the paginated query, before .offset().limit().all(). Do not rely on the default lazy relationship, since each model then triggers its own SELECT and a page costs 3N+1 queries (about 300 for the default 100). selectinload runs as a post-load batch keyed by model_id, so the main statement keeps its filters, ORDER BY, OFFSET and LIMIT. joinedload would wrap LIMIT in a subquery, which is why it was avoided. Use the same pattern for any new child relationship read by to_mlflow_entity.\nSymptom: On a large experiment (936 logged models with about 163k metric rows on PostgreSQL) the logged-models/search call took about 13.7s, while the database work was roughly 100ms. The cause was the round-trip count from per-model lazy loads of the three child relationships.\nConstraints: Covers relationships declared without order_by; the batched and lazy forms return the same entity contents. Empty collections are still falsy, so the if self.tags else None branches in to_mlflow_entity are unchanged. Other read paths (get_logged_model, file store) are not covered by this change. A regression test, test_search_logged_models_eager_loads_tags_params_and_metrics in tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_runs.py, counts SELECTs with a before_cursor_execute listener and expects one per child table.\nApplies: SQL tracking store search_logged_models and any paginated logged-model listing that serializes child collections.",
+  "applies": "Paginated logged model search in the SQL tracking store (SQLite, PostgreSQL, MySQL, MSSQL) when entities include tags, params or metrics.",
+  "tags": [
+    "tracking",
+    "sql-store",
+    "logged-models",
+    "search",
+    "performance",
+    "sqlalchemy",
+    "eager-loading"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "SqlAlchemyStore.search_logged_models",
+      "hash": "sha256:b9fc1e0f0bb96a54b9aa2d78",
+      "line": 3775,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b9fc1e0f0bb96a54b9aa2d78",
+      "fanout": {
+        "files": 30,
+        "sites": 148,
+        "refs": 166
+      }
+    },
+    {
+      "path": "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_runs.py",
+      "symbol": "test_search_logged_models_eager_loads_tags_params_and_metrics",
+      "hash": "sha256:f1620465731017c01bf0813a",
+      "line": 4242,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f1620465731017c01bf0813a",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25983"
+  },
+  "created": "2026-10-12T05:35:05.476Z",
+  "verified": "2026-10-12T05:35:05.476Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "search-filter-numeric-attributes-searchutils-get-value-retur",
+    "sql-tracking-store-experiment-id-parsing-search-trace-scorer",
+    "tracking-search-time-filters-numeric-experiment-and-dataset",
+    "logged-model-tags-set-logged-model-tags-writes-through-bulk"
+  ],
+  "says": [
+    "The logged models search page takes many seconds to load on large experiments.",
+    "Loading a single page of models is very slow due to excessive database calls.",
+    "Improve page loading performance when viewing models with many parameters, tags, and metrics.",
+    "Browsing models in an experiment with hundreds of runs suffers severe loading delays."
+  ],
+  "search": "SqlAlchemyStore.search_logged_models must eagerly load tags, params, and metrics using selectinload options on the paginated query rather than relying on lazy relationships. Lazy loading caused 3N+1 query round trips during to_mlflow_entity conversion, resulting in multi-second page loads on large experiments in PostgreSQL. The pattern avoids joinedload to prevent subquery wrapping of LIMIT and applies to SQL tracking store paginated search, excluding get_logged_model and the file store.",
+  "saysFor": "s2:aa2442d442f60fc0039dfad67a04e0f273379f15a55b2fa1ca6b1e249518d9de"
+}

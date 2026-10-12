@@ -1,0 +1,58 @@
+{
+  "id": "mlflow-assistant-system-prompt-keep-response-length-and-offe",
+  "title": "MLflow Assistant system prompt: keep response-length and offer rules consistent across both prompt variants and the docs-results directive",
+  "kind": "rule",
+  "answers": [
+    "Why does the MLflow Assistant keep offering to do more after answering a simple question?",
+    "How do I change how long or how concise the MLflow Assistant's answers are?",
+    "Where is the Assistant told whether to ask follow-up questions or offer extra help?",
+    "Where are the Assistant's system prompt instructions for presenting documentation results?"
+  ],
+  "body": "Path: The MLflow Assistant system prompts (Claude Code variant `CLAUDE_SYSTEM_PROMPT` in mlflow/assistant/providers/claude_code.py, and the shared variant in mlflow/assistant/providers/prompts.py) govern how the assistant answers how-to, conceptual and documentation-backed questions, including whether it adds follow-up questions or unsolicited offers.\nRule: Keep the length and offer directives identical in both prompt variants. The 'Match Response Length to the Question' section must say to answer then stop, and ask follow-ups only when the request is ambiguous or information is missing. Also search the whole prompt for other 'ALWAYS offer to ...' or 'offer to do it for them' wording (e.g. the 'Presenting Documentation Results' section in claude_code.py) because a later directive overrides the stop rule. Replace it with 'complete the task if the user asked for one; otherwise give the next step without offering more help'.\nSymptom: After answering a question, the MLflow Assistant appended unsolicited offers of further help (e.g. 'Would you like me to do this for you?'), padding responses beyond the user's request.\nConstraints: Applies to prompt text only; the behaviour is verified by tests/assistant/providers/test_prompts.py, which checks the stop rule and the absence of the old offer wording. Changing one variant without the other re-introduces the inconsistency. Does not change the explicit-task path where the user asked the assistant to act.",
+  "applies": "Edits to MLflow Assistant system prompt text in mlflow/assistant/providers; not for the runtime provider code.",
+  "tags": [
+    "assistant",
+    "system-prompt",
+    "uiux",
+    "response-length"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/assistant/providers/claude_code.py",
+      "symbol": "CLAUDE_SYSTEM_PROMPT",
+      "hash": "sha256:d8aa005741eca66d85b5c11a",
+      "line": 106,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/assistant/providers/prompts.py",
+      "hash": "sha256:b57ca060d30e2e10fd089eb8",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25925"
+  },
+  "created": "2026-10-12T05:35:29.350Z",
+  "verified": "2026-10-12T05:35:29.350Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The assistant keeps asking if I want more help after answering simple questions.",
+    "Stop the AI assistant from adding unwanted follow up offers to every response.",
+    "Assistant responses are too verbose and continually prompt to perform additional unrequested tasks.",
+    "Make the documentation assistant answer directly and stop without proposing extra work.",
+    "The chat assistant should only ask follow up questions when information is missing."
+  ],
+  "search": "MLflow Assistant system prompt guidance ensures consistent response length and offer rules across `CLAUDE_SYSTEM_PROMPT` in `mlflow/assistant/providers/claude_code.py` and the shared prompt in `mlflow/assistant/providers/prompts.py`. Both prompts must instruct the assistant to answer then stop, asking follow-ups only when requests are ambiguous or details are missing. Wording such as 'ALWAYS offer to' or 'offer to do it for them' in documentation results sections must be replaced with instructions to complete explicitly requested tasks or provide the next step without offering further help. Applies strictly to assistant system prompt text tested by `tests/assistant/providers/test_prompts.py`, not runtime provider code or explicit task execution paths.",
+  "saysFor": "s2:44ee0bda56b532ed224859d1be7ef6d904ef860fe938e677af43b55117ef9d8a"
+}

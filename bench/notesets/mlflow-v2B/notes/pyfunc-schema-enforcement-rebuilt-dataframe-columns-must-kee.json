@@ -1,0 +1,83 @@
+{
+  "id": "pyfunc-schema-enforcement-rebuilt-dataframe-columns-must-kee",
+  "title": "pyfunc schema enforcement: rebuilt DataFrame columns must keep the input index",
+  "kind": "rule",
+  "answers": [
+    "Pyfunc predict adds extra rows and puts values in the wrong rows when the input DataFrame has a filtered or string index and the signature has Array or Object columns",
+    "How does MLflow schema enforcement handle a DataFrame whose index is not the default RangeIndex?",
+    "Where are named and unnamed signature columns re-cast during pyfunc predict?",
+    "Why do Map or Array columns misalign with scalar columns after predict?"
+  ],
+  "body": "Path: Every pyfunc predict call with a model signature passes the input DataFrame through mlflow/models/utils.py:_enforce_named_col_schema (named ColSpecs) or _enforce_unnamed_col_schema (unnamed ColSpecs), which casts each column and rebuilds the DataFrame. Covers Array, Object, Map and scalar columns, and any input whose index is not 0..n-1 (sliced, filtered, or string-indexed).\nRule: When rebuilding a column as a pd.Series inside these functions, pass index=pf_input.index along with the name. pandas aligns Series by index when building the DataFrame, so a Series built from a list with a default RangeIndex is mismatched against scalar columns that keep the original labels, which adds rows and misplaces values. Both the named and unnamed branches need the same fix; the PR added a comment at both sites.\nSymptom: Calling predict on a model with Array, Object or Map columns using a DataFrame with a non-default index (for example df.iloc[2:] or a string index) returned more rows than were sent, and complex-column values appeared in the wrong rows.\nConstraints: Applies to DataFrame inputs only. Scalar-only signatures were not broken by the misalignment but still go through the same rebuild path; the PR added scalar-only tests for int32 input cast to double with filtered, string-indexed data.",
+  "applies": "mlflow/models/utils.py schema enforcement used by pyfunc predict for DataFrame inputs with a signature; not the Spark UDF or the model server request parser.",
+  "tags": [
+    "pyfunc",
+    "schema-enforcement",
+    "dataframe",
+    "index",
+    "signature"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/models/utils.py",
+      "symbol": "_enforce_named_col_schema",
+      "hash": "sha256:5701c9f9a72468c79d6139a1",
+      "line": 970,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5701c9f9a72468c79d6139a1",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/models/utils.py",
+      "symbol": "_enforce_unnamed_col_schema",
+      "hash": "sha256:ffd2b4676fef9fe3acdef5ac",
+      "line": 950,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ffd2b4676fef9fe3acdef5ac",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "tests/pyfunc/test_pyfunc_schema_enforcement.py",
+      "symbol": "test_pyfunc_model_preserves_nondefault_dataframe_index",
+      "hash": "sha256:c28ae7a40231b6d852245197",
+      "line": 2750,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c28ae7a40231b6d852245197",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26181"
+  },
+  "created": "2026-10-12T05:29:02.891Z",
+  "verified": "2026-10-12T05:29:02.891Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Model predictions return extra rows when passing filtered or sliced data tables.",
+    "Prediction output shifts array and object values into the wrong table rows.",
+    "Inference on tables with string row labels produces duplicate rows and mismatched columns.",
+    "Ensure model prediction preserves the original row index on complex data inputs."
+  ],
+  "search": "During pyfunc predict schema enforcement, _enforce_named_col_schema and _enforce_unnamed_col_schema in mlflow/models/utils.py must pass index=pf_input.index when rebuilding pd.Series columns to preserve non-default DataFrame indices. Without aligning to the input index, pandas rebuilds list-based Array, Object, or Map columns with a default RangeIndex, producing duplicate rows and misplaced values against scalar columns. Applies strictly to DataFrame inputs with model signatures undergoing column schema enforcement, not to Spark UDF execution or model server request parsing.",
+  "saysFor": "s2:2d2bc4afe9c26bd85b84d90709ae75e5a438f9892549464c023a7ac15c5858dc"
+}

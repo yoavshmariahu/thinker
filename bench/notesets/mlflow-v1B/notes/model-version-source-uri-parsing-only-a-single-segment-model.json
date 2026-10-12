@@ -1,0 +1,74 @@
+{
+  "id": "model-version-source-uri-parsing-only-a-single-segment-model",
+  "title": "model version source URI parsing: only a single-segment models:/<model_id> without @ is treated as a logged model source in the UI",
+  "kind": "rule",
+  "answers": [
+    "Which model version sources does the UI treat as a logged model, and why does a models:/name/version source not show Source Model?",
+    "A version was registered with an alias URI like models:/name@alias. Why is there no Source Model row?",
+    "Where does the UI parse the models:/ source string on the model version page?"
+  ],
+  "body": "Path: The model version page reads the source URI of a registered model version (for example models:/<name>/<version>, models:/<name>@<alias>, models:/<model_id> or mlflow-artifacts:/ paths). extractLoggedModelIdFromModelSource in mlflow/server/js/src/model-registry/utils/VersionUtils.ts decides whether the source is a logged model, and ModelVersionViewImpl uses it to choose between the Source Model row and the Copied from link.\nRule: extractLoggedModelIdFromModelSource matches /^models:\\/([^/@]+)$/ and returns the capture, so only a single path segment with no '@' counts as a model ID. This mirrors _parse_model_uri on the Python client. Any change to how the Python client parses models:/ URIs must be reflected in this regex together with the VersionUtils.test.ts cases.\nConstraints: Returns undefined for undefined input, for models:/<name>/<version>, for models:/<name>@<alias>, and for mlflow-artifacts paths; those keep the existing Copied from behavior. Do not widen the regex to accept multi-segment or alias forms without also changing the Copied from branch, or the same source would render two rows.",
+  "applies": "Parsing of model version source URIs for the Model Registry UI in the MLflow OSS frontend; applies when changing which source forms get a logged model link.",
+  "tags": [
+    "model-registry",
+    "ui",
+    "model-source-uri",
+    "logged-models"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/model-registry/utils/VersionUtils.ts",
+      "symbol": "extractLoggedModelIdFromModelSource",
+      "hash": "sha256:4e43a5d62560ddb5f9dd6a9e",
+      "line": 8,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4e43a5d62560ddb5f9dd6a9e",
+      "fanout": {
+        "files": 2,
+        "sites": 6,
+        "refs": 9
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/model-registry/components/ModelVersionView.tsx",
+      "symbol": "ModelVersionViewImpl",
+      "hash": "sha256:b0b46dc4ebd479fd3f10f16d",
+      "line": 81,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2da8ff7e204a7b90eeab0937",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 4
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/model-registry/utils/VersionUtils.test.ts",
+      "hash": "sha256:06774eaae1a3a698a054b081",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25727"
+  },
+  "created": "2026-10-12T05:46:08.458Z",
+  "verified": "2026-10-12T05:46:08.458Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "model-version-page-source-model-link-render-the-logged-model"
+  ],
+  "says": [
+    "The model version page shows Copied from instead of Source Model for aliased versions.",
+    "Versions registered from another model version do not display the source model details row.",
+    "Why does the model details screen show Copied from for versions created with aliases?",
+    "Make the model version view link directly to the source model for alias paths."
+  ],
+  "search": "In the MLflow Model Registry UI, extractLoggedModelIdFromModelSource in mlflow/server/js/src/model-registry/utils/VersionUtils.ts matches /^models:\\/([^/@]+)$/ so only a single path segment without an '@' is treated as a logged model ID for ModelVersionViewImpl. Multi-segment paths like models:/<name>/<version>, alias URIs like models:/<name>@<alias>, and mlflow-artifacts:/ paths return undefined and retain the Copied from behavior. Any change mirroring Python client _parse_model_uri parsing must update this regex, VersionUtils.test.ts, and the Copied from branch to avoid rendering two rows.",
+  "saysFor": "s2:732914683b46def1b5ede3e803db3b1bfd9e01793f61ce10e7184d1d16a2f145"
+}

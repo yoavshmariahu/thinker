@@ -1,0 +1,47 @@
+{
+  "id": "security-issue-auto-close-workflow-filter-issue-titles-in-th",
+  "title": "Security-issue auto-close workflow: filter issue titles in the job-level if so unrelated issues never start a runner",
+  "kind": "rule",
+  "answers": [
+    "Why does the security-vulnerability auto-close workflow start a runner for every new issue on mlflow/mlflow?",
+    "How do I restrict a GitHub Actions workflow triggered by issues so it only runs for matching titles?",
+    "Where is the logic that closes issues reporting security vulnerabilities and posts the private-reporting guidance comment?",
+    "Why does a title like 'vulnerability in security' no longer get auto-closed after the workflow change?"
+  ],
+  "body": "Path: .github/workflows/close-security-issues.yml, job `close`. Runs on newly opened issues in mlflow/mlflow and, when the title matches, comments with the private vulnerability-reporting guidance and closes the issue via `gh issue close`.\nRule: Put event filtering (repository, title keywords) in the job-level `if:` expression, not in a shell step. GitHub evaluates `if:` before provisioning the runner, so non-matching issues skip the job entirely. `contains(github.event.issue.title, ...)` is case-insensitive, so no lowercasing is needed. The shell step now only runs the close command and comment.\nSymptom: Every newly opened issue on mlflow/mlflow started a runner on ubuntu-slim, which then exited after a shell regex check found no security-vulnerability phrase.\nConstraints: The old shell check required the adjacent phrase `security\\s+vulnerability`. The job-level filter requires both words `security` and `vulnerability` anywhere in the title, so match semantics are broader. Applies only to this workflow; other issue workflows should copy the pattern rather than assume the shell step filters.",
+  "applies": "Only the close-security-issues GitHub Actions workflow on mlflow/mlflow; general pattern applies to any event-triggered workflow that needs title filtering.",
+  "tags": [
+    "github-actions",
+    "workflows",
+    "issues",
+    "security",
+    "ci"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/close-security-issues.yml",
+      "hash": "sha256:350d18b54b0d372408c3a836",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25893"
+  },
+  "created": "2026-10-12T05:36:12.139Z",
+  "verified": "2026-10-12T05:36:12.139Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The security issue auto-closing workflow starts a build runner for every new issue filed.",
+    "Stop wasting automation runner minutes when newly opened issues do not report security vulnerabilities.",
+    "Filter ticket titles before provisioning runners in the vulnerability triage automation.",
+    "Regular issue submissions trigger unnecessary workflow runs instead of skipping execution immediately.",
+    "Public issues mentioning security and vulnerability anywhere in the title get automatically closed."
+  ],
+  "search": "In .github/workflows/close-security-issues.yml, the close job must place repository and issue title keyword filtering inside the job-level if condition instead of a shell step. Filtering with contains(github.event.issue.title, ...) at the job level prevents GitHub from provisioning an ubuntu-slim runner for non-matching issues and provides case-insensitive title checks. Unlike the previous shell regex requiring adjacent words, the job condition matches when both 'security' and 'vulnerability' appear anywhere in the title. This rule applies strictly to the close-security-issues workflow on mlflow/mlflow, serving as a pattern for event-triggered workflows needing title filtering.",
+  "saysFor": "s2:8cb1ca937bba4002141984bfccd492e6c8cba0747406ac8a0018650ffbf88b9d"
+}

@@ -1,0 +1,101 @@
+{
+  "id": "artifact-host-policy-tracking-server-refuses-host-addressed",
+  "title": "Artifact host policy: tracking server refuses host-addressed artifact URIs (ftp, sftp, hdfs, viewfs, http/https, mlflow-artifacts, r2, b2, abfss) unless they target the server's default artifact root or artifacts destination host, or the scheme is opted in via MLFLOW_ALLOWED_HOST_ADDRESSED_ARTIFACT_SCHEMES",
+  "kind": "rule",
+  "answers": [
+    "Why does creating an experiment with an ftp or hdfs artifact_location now return a 400 on my tracking server?",
+    "How do I allow experiments or model versions to store artifacts on a second HDFS or SFTP host that is not the default artifact root?",
+    "Where is the check that stops the server from connecting to an arbitrary host named in a stored artifact location?",
+    "Why does a model version source on an http or mlflow-artifacts URI get rejected when registering from a client?"
+  ],
+  "body": "Path: Server-side acceptance and fetch of artifact locations: experiment artifact_location, workspace default_artifact_root and trace archival location (via _validate_storage_location_uri), model version source (_create_model_version), and stored run, model version, logged model and trace locations on fetch. The chokepoint for the decision is mlflow/store/artifact/host_policy.py:rejected_host_addressed_scheme.\nRule: A host-addressed URI is accepted only if its targets (scheme family, lowercased hostname, effective port) match the server's own --default-artifact-root or --artifacts-destination (read from the _MLFLOW_SERVER_ARTIFACT_ROOT / _MLFLOW_SERVER_ARTIFACT_DESTINATION env markers), or its scheme is listed in mlflow/environment_variables.py:MLFLOW_ALLOWED_HOST_ADDRESSED_ARTIFACT_SCHEMES. Ports are normalized to each scheme's well-known port before comparing; viewfs is grouped with hdfs, https and mlflow-artifacts with http; an authority containing a backslash or whitespace is never trusted. Any new code path that resolves a stored location must go through the same policy rather than a bare get_artifact_repository call.\nSymptom: A client could make the tracking server open connections to arbitrary hosts and ports by naming them in an experiment location, model version source, or workspace storage setting (GHSA-mr9f-g8qf-4w4j).\nConstraints: Standard deployments whose artifacts live on the server's own storage host see no change. Multi-server setups keep working when the tracking server's default root points at the artifacts server. Non-host schemes (s3, gs, file, local paths) are not affected. Workspace default roots on a different host than the server's are rejected unless the scheme is opted in. Client processes (no server marker) are not checked by the registry; only the server handlers and server-side jobs are.",
+  "applies": "Tracking server artifact location validation and fetch for host-addressed schemes; not applicable to client-only processes or to cloud-bucket schemes.",
+  "tags": [
+    "security",
+    "artifacts",
+    "tracking-server",
+    "ssrf",
+    "host-policy"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/artifact/host_policy.py",
+      "symbol": "rejected_host_addressed_scheme",
+      "hash": "sha256:545df968444a236f6a28994d",
+      "line": 106,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:545df968444a236f6a28994d",
+      "fanout": {
+        "files": 3,
+        "sites": 10,
+        "refs": 12
+      }
+    },
+    {
+      "path": "mlflow/store/artifact/host_policy.py",
+      "symbol": "host_addressed_uri_targets",
+      "hash": "sha256:2a8af4a9356a6a528993f138",
+      "line": 70,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2a8af4a9356a6a528993f138",
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 5
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_validate_artifact_uri_scheme",
+      "hash": "sha256:b652cb346d90c8387139a20a",
+      "line": 1462,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b652cb346d90c8387139a20a",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/environment_variables.py",
+      "symbol": "MLFLOW_ALLOWED_HOST_ADDRESSED_ARTIFACT_SCHEMES",
+      "hash": "sha256:30fb171bb1ddbf9f8ee0df0e",
+      "line": 1561,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 13
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25891"
+  },
+  "created": "2026-10-12T05:44:12.184Z",
+  "verified": "2026-10-12T05:44:12.184Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "scorer-register-invoke-evaluate-payloads-validate-every-seri",
+    "invoke-endpoints-trace-ids-input-contract-reject-empty-lists",
+    "protobuf-request-parsing-a-json-body-that-spells-one-field-b",
+    "artifact-repository-creation-on-the-server-use-get-artifact"
+  ],
+  "says": [
+    "Creating an experiment pointing to a remote file server fails with a bad request error.",
+    "Registering a model version from an external web address is rejected by the server.",
+    "Allow saving experiment runs and models to a secondary network storage host.",
+    "Workspace storage settings reject custom network storage locations outside the default server host.",
+    "Cannot download or view logged run artifacts stored on remote network servers."
+  ],
+  "search": "Tracking server artifact host policy in mlflow/store/artifact/host_policy.py:rejected_host_addressed_scheme and mlflow/server/handlers.py:_validate_artifact_uri_scheme rejects host-addressed artifact URIs unless they match the server's --default-artifact-root or --artifacts-destination, or the scheme is listed in MLFLOW_ALLOWED_HOST_ADDRESSED_ARTIFACT_SCHEMES. It validates experiment artifact_location, workspace default_artifact_root, trace archival location, model version source, and stored locations on fetch by comparing normalized scheme families, lowercased hostnames, and effective ports. Non-host schemes like s3, gs, and local file paths are unaffected, and client-only processes without server markers are not checked by the registry.",
+  "saysFor": "s2:322cd274b81e282079d3c6a5e774495c9b2c2b3c17013d019348b4191fa0263d"
+}

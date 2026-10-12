@@ -1,0 +1,117 @@
+{
+  "id": "basic-auth-logmetric-logbatch-metric-routing-a-per-metric-mo",
+  "title": "basic-auth LogMetric/LogBatch metric routing: a per-metric model_id needs UPDATE on that logged model, not just on the run",
+  "kind": "rule",
+  "answers": [
+    "Why does log-metric or log-batch return 403 for a user who can update the run when a metric has a model_id?",
+    "A user with UPDATE on their run could write metrics onto another user's LoggedModel; where is that blocked?",
+    "Where is the permission check for the model_id field and its modelId alias on metric logging?",
+    "Batch logging with several metrics targeting different logged models is denied when one model is not writable; why?"
+  ],
+  "body": "Path: Metric logging in the basic-auth app, `POST /api/2.0/mlflow/runs/log-metric` (LogMetric) and `POST /api/2.0/mlflow/runs/log-batch` (LogBatch), where an optional `model_id` on a metric routes the value onto a LoggedModel. The chokepoints are `mlflow/server/auth/__init__.py:validate_can_log_metric` and `validate_can_log_batch`, both feeding `_validate_can_update_run_and_models`.\nRule: The check requires UPDATE on the run (`_get_permission_from_run_id`) and UPDATE on every distinct non-empty `model_id` the request references. Model IDs are read from the proto parse, so the camelCase `modelId` alias is covered. Each id is checked through `_get_model_permission(model_id)`, which `_get_permission_from_model_id` now delegates to. Any single unwritable model denies the whole request.\nSymptom: A user with UPDATE on their own run could attach metric records to any LoggedModel in the instance by passing its id as `model_id` (GHSA-j6gw-m35q-8j63); the endpoints checked only the run.\nConstraints: Only LogMetric and LogBatch are covered; other run-scoped writes that accept a model id still use `validate_can_update_run`. A nonexistent model_id (RESOURCE_DOES_NOT_EXIST) returns the same 403 as a denied one, to avoid an existence oracle; other MlflowExceptions propagate. Requests with no model_id need only run UPDATE. Each distinct model costs a serial model lookup plus permission resolution, and a bulk lookup was deferred as a follow-up.\nApplies: Authorization for log-metric and log-batch in the basic-auth app whenever metrics carry a model_id, including the modelId alias.",
+  "applies": "Basic-auth app metric logging (LogMetric/LogBatch) with a model_id on any metric; not for run-only metric writes.",
+  "tags": [
+    "auth",
+    "basic-auth",
+    "tracking",
+    "logged-model",
+    "metrics",
+    "security"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_log_metric",
+      "hash": "sha256:43c8b13e1d7cccd82fe297a1",
+      "line": 1254,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:43c8b13e1d7cccd82fe297a1",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_log_batch",
+      "hash": "sha256:a053f43883fb6b8bda406d67",
+      "line": 1263,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a053f43883fb6b8bda406d67",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_validate_can_update_run_and_models",
+      "hash": "sha256:869a4caf2e232bbc3225f6b4",
+      "line": 1233,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:869a4caf2e232bbc3225f6b4",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_get_model_permission",
+      "hash": "sha256:98adb73d298a0ba2fe2ed07b",
+      "line": 965,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:98adb73d298a0ba2fe2ed07b",
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 4
+      }
+    },
+    {
+      "path": "tests/server/auth/test_auth.py",
+      "symbol": "test_log_batch_model_id_requires_update",
+      "hash": "sha256:09b56b7b93b724be967611a2",
+      "line": 1994,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:09b56b7b93b724be967611a2",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25664"
+  },
+  "created": "2026-10-12T05:47:05.873Z",
+  "verified": "2026-10-12T05:47:05.873Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "basic-auth-model-version-create-read-on-the-source-run-or-lo",
+    "basic-auth-fastapi-response-filters-lookup-is-keyed-on-the-e",
+    "basic-auth-gateway-secret-model-definition-and-endpoint-vali",
+    "basic-auth-request-validators-parse-each-endpoint-only-throu"
+  ],
+  "says": [
+    "Logging metrics against a run fails with access denied when referencing a model.",
+    "Prevent users from attaching experiment metrics to logged models they do not own.",
+    "Batch metric logging fails completely if even one targeted model cannot be edited.",
+    "Users should not be allowed to record evaluation metrics onto another member's model."
+  ],
+  "search": "In the basic-auth app, POST /api/2.0/mlflow/runs/log-metric (LogMetric) and POST /api/2.0/mlflow/runs/log-batch (LogBatch) route through validate_can_log_metric and validate_can_log_batch into _validate_can_update_run_and_models, requiring UPDATE on the run and UPDATE on each distinct model_id. Model IDs are parsed from protobuf (including the camelCase modelId alias) and checked via _get_model_permission(model_id), where any unwritable or missing (RESOURCE_DOES_NOT_EXIST) model denies the request with a 403 status. Requests without a model_id require only run UPDATE, and other run-scoped write endpoints continue using validate_can_update_run. Covers LogMetric and LogBatch under basic-auth, deferring bulk model lookup as noted in tests/server/auth/test_auth.py:test_log_batch_model_id_requires_update.",
+  "saysFor": "s2:a8056fa0274348f17763a1ae4dd98a6d0df2a4ceabe30036d5fe2b5b4d72ca68"
+}

@@ -1,0 +1,98 @@
+{
+  "id": "basic-auth-route-matching-never-add-a-bare-to-public-route-s",
+  "title": "basic-auth route matching: never add a bare '/' to _PUBLIC_ROUTE_SUFFIXES or _KNOWN_UNGATED_ROUTE_MARKERS; key bare paths with the static prefix",
+  "kind": "rule",
+  "answers": [
+    "Why would adding '/' to the public route suffixes let /api/2.0/ requests skip authorization?",
+    "Under --static-prefix, why does my new bare-path basic-auth route not match its validator?",
+    "Where does basic-auth decide which paths are public or ungated for the fail-closed net?"
+  ],
+  "body": "Path: The path matching the basic-auth fail-closed net uses to recognise public and ungated routes: `mlflow/server/auth/__init__.py:_matches_route_suffix` with the `_PUBLIC_ROUTE_SUFFIXES` list, the `marker in path` branch over `_KNOWN_UNGATED_ROUTE_MARKERS`, and the import-time route keys built with `mlflow/server/handlers.py:_add_static_prefix`.\nRule: Do not add `/` to `_PUBLIC_ROUTE_SUFFIXES`: after stripping the suffix, the remainder for `/api/2.0/` is exactly an API-version prefix and would match. Do not add `/` to `_KNOWN_UNGATED_ROUTE_MARKERS`: the `marker in path` branch matches every path. For a bare (non-ajax) path, key the validator map as `(_add_static_prefix(path), method)`; `_get_ajax_path` constants already carry the static prefix, so applying it again would double it.\nConstraints: Basic-auth app only. Route keys are built at import time from the static prefix, so a test that changes STATIC_PREFIX_ENV_VAR must reload `mlflow.server.auth.routes` and restore it afterwards, as `tests/server/auth/test_fail_closed_flag.py` does.\nApplies: Any change to public or ungated route matching, or to static-prefix route keys in the basic-auth app.",
+  "applies": "Basic-auth public/ungated route matching and static-prefix route keys in mlflow/server/auth/__init__.py.",
+  "tags": [
+    "basic-auth",
+    "fail-closed",
+    "static-prefix",
+    "route-matching"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_matches_route_suffix",
+      "hash": "sha256:9bc109a0f85bd6e300133703",
+      "line": 3627,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9bc109a0f85bd6e300133703",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_add_static_prefix",
+      "hash": "sha256:0d3a6e93569c0195a921469a",
+      "line": 7498,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0d3a6e93569c0195a921469a",
+      "fanout": {
+        "files": 8,
+        "sites": 33,
+        "refs": 40
+      }
+    },
+    {
+      "path": "mlflow/server/auth/routes.py",
+      "symbol": "SERVER_VERSION",
+      "hash": "sha256:5c4996d182a7b1024c9b8974",
+      "line": 5,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 6
+      }
+    },
+    {
+      "path": "tests/server/auth/test_fail_closed_flag.py",
+      "symbol": "__init__",
+      "hash": "sha256:a4fc06218d052dceea5cc51f",
+      "line": 12,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a4fc06218d052dceea5cc51f",
+      "fanout": {
+        "files": 269,
+        "sites": 307,
+        "refs": 431
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25672"
+  },
+  "created": "2026-10-12T05:46:51.347Z",
+  "verified": "2026-10-12T05:46:51.347Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "basic-auth-web-ui-entry-points-get-version-and-ui-telemetry",
+    "basic-auth-fastapi-response-filters-lookup-is-keyed-on-the-e",
+    "basic-auth-gateway-secret-model-definition-and-endpoint-vali",
+    "basic-auth-model-version-create-read-on-the-source-run-or-lo"
+  ],
+  "says": [
+    "The tracking server allows anonymous access to all API endpoints without requiring login.",
+    "Deploying the server under a custom base URL path breaks endpoint access control rules.",
+    "Non-ajax routes configured under a static prefix fail to enforce their security validators.",
+    "Ensure public route exemptions do not accidentally make every protected API path accessible."
+  ],
+  "search": "In basic-auth fail-closed route matching, never add a bare '/' to _PUBLIC_ROUTE_SUFFIXES or _KNOWN_UNGATED_ROUTE_MARKERS in mlflow/server/auth/__init__.py, as doing so inadvertently matches all API routes or every path. When registering bare non-ajax routes in the validator map under --static-prefix, key them using (_add_static_prefix(path), method) while avoiding duplicating prefixes already embedded in _get_ajax_path constants. Because route keys are computed at import time, tests modifying STATIC_PREFIX_ENV_VAR must reload mlflow.server.auth.routes and restore the environment afterward. Applies strictly to public and ungated route matching and static-prefix route key registration within the basic-auth application.",
+  "saysFor": "s2:76c7a4590bcd9ea0e8c024f5a3c46238ea7928232ddabdcd62fd126aa2885b4c"
+}

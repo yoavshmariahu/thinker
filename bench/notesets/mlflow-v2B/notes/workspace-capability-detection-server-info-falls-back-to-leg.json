@@ -1,0 +1,86 @@
+{
+  "id": "workspace-capability-detection-server-info-falls-back-to-leg",
+  "title": "Workspace capability detection: server-info falls back to legacy server-features on 404, and an unresolved probe raises an undetermined-support error rather than reporting no workspace support",
+  "kind": "rule",
+  "answers": [
+    "Why does my workspace-enabled tracking server show 'could not determine whether the server supports workspaces' when I set an MLflow URI?",
+    "Older MLflow servers say workspaces are unsupported; how does the client check the legacy server-features endpoint?",
+    "Where is the workspace support check done for the tracking or model registry REST store?",
+    "I get a 404 on the MLflow URI with a path prefix; what should I verify before enabling workspaces?"
+  ],
+  "body": "Path: Workspace support probing for REST stores (tracking and model registry) goes through mlflow/store/workspace_rest_store_mixin.py:WorkspaceRestStoreMixin._probe_workspace_support, which is reached by the supports_workspaces property and the workspace guard _validate_workspace_support_if_specified whenever a workspace is active or configured.\nRule: Probe /api/3.0/mlflow/server-info first; only on HTTP 404 fall back to /api/3.0/mlflow/server-features via mlflow/utils/server_info.py:_fetch_server_features. Both share mlflow/utils/server_info.py:_fetch_server_info_response, which takes the endpoint as a parameter. If both return 404, raise an INVALID_PARAMETER_VALUE MlflowException with _WORKSPACE_SUPPORT_UNDETERMINED_ERROR (or the variant naming the active workspace) instead of returning False. Keep the message store-neutral: it refers to 'the configured MLflow URI', not the tracking URI, because registry stores can use a different URI.\nSymptom: A user on a correctly configured server saw a workspace error that pointed at the wrong setting, or silently got 'no workspace support' when the URI or path prefix was wrong. The fix made the error name the endpoints that were not found and tell the user to check the MLflow URI and path prefix.\nConstraints: A 200 from server-info or server-features is used directly. A non-404 error from either endpoint raises (TEMPORARILY_UNAVAILABLE for a bad status, INTERNAL_ERROR for a request exception). When the server explicitly reports workspaces_enabled false, the existing FEATURE_DISABLED error with '--enable-workspaces' guidance is kept, including on legacy servers that answer server-info with 404 and server-features with 200.",
+  "applies": "Applies to the REST tracking and model-registry stores' workspace capability probe in mlflow/store; does not cover the server-side workspace enablement flag itself.",
+  "tags": [
+    "workspace",
+    "rest-store",
+    "server-info",
+    "server-features",
+    "tracking",
+    "model-registry",
+    "error-message"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/workspace_rest_store_mixin.py",
+      "symbol": "WorkspaceRestStoreMixin._probe_workspace_support",
+      "hash": "sha256:214b78dec9c1dbb784149906",
+      "line": 72,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:214b78dec9c1dbb784149906",
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/utils/server_info.py",
+      "symbol": "_fetch_server_features",
+      "hash": "sha256:fddba543b3102851dd4eb43f",
+      "line": 118,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:fddba543b3102851dd4eb43f",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/utils/server_info.py",
+      "symbol": "_fetch_server_info_response",
+      "hash": "sha256:e0255355f4ec9a941732e2a1",
+      "line": 85,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e0255355f4ec9a941732e2a1",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25979"
+  },
+  "created": "2026-10-12T05:35:06.767Z",
+  "verified": "2026-10-12T05:35:06.767Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The client says it cannot determine workspace support when connecting to my tracking server.",
+    "Workspaces appear unsupported when connecting to an older server version through the registry.",
+    "Custom server address prefixes trigger false missing workspace errors instead of reporting bad URLs.",
+    "Fall back to legacy capability checks when the server info endpoint returns not found.",
+    "Make workspace error messages prompt users to verify their configured server URL and prefix."
+  ],
+  "search": "In WorkspaceRestStoreMixin._probe_workspace_support for REST tracking and model registry stores, the client probes /api/3.0/mlflow/server-info first and falls back to /api/3.0/mlflow/server-features via _fetch_server_features only on HTTP 404. If both return 404, it raises an INVALID_PARAMETER_VALUE MlflowException with _WORKSPACE_SUPPORT_UNDETERMINED_ERROR naming 'the configured MLflow URI' instead of returning False. A non-404 error raises TEMPORARILY_UNAVAILABLE or INTERNAL_ERROR, while an explicit workspaces_enabled false retains the FEATURE_DISABLED error directing users to --enable-workspaces.",
+  "saysFor": "s2:e79a1167a3bb534a4544efbb543da4e3f23acf9e82fe1feb748f44a543f96506"
+}

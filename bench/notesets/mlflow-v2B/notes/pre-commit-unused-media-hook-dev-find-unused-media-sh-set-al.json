@@ -1,0 +1,52 @@
+{
+  "id": "pre-commit-unused-media-hook-dev-find-unused-media-sh-set-al",
+  "title": "pre-commit unused-media hook (dev/find-unused-media.sh): set always_run so deletion-only commits still run the repo-wide check",
+  "kind": "rule",
+  "answers": [
+    "Why didn't the unused media check fail when I deleted the last doc that referenced an image?",
+    "How do I make a repo-wide pre-commit hook run even when no staged file matches its pattern?",
+    "Where is the unused media check configured now that the separate lint.yml step is gone?",
+    "How do I add a pre-commit hook that ignores filenames (pass_filenames: false)?"
+  ],
+  "body": "Path: .pre-commit-config.yaml (the `unused-media` hook, entry dev/find-unused-media.sh) runs the repo-wide scan for media files that no doc or reference uses; it runs in CI through `pre-commit run --all-files` and locally on commit.\nRule: a hook with `pass_filenames: false` that checks whole-repo state rather than the staged files must set `always_run: true`. pre-commit skips hooks whose matched files are absent and excludes deleted paths from its candidate list, so a commit that only deletes the last reference to a media file would otherwise never trigger the check.\nSymptom: a commit that removed the last document referencing an image could land without the unused-media check flagging the now-orphaned media file.\nConstraints: applies to filename-independent hooks only; file-scoped hooks should keep normal triggering. `always_run` is the fix for this hook; the dedicated lint.yml step it replaced was removed, so the pre-commit config is now the single source for this check.",
+  "applies": "Adding or editing pre-commit hooks in .pre-commit-config.yaml that take no filename arguments, especially repo-wide media/doc consistency checks.",
+  "tags": [
+    "pre-commit",
+    "ci",
+    "lint",
+    "media",
+    "build"
+  ],
+  "deps": [
+    {
+      "path": ".pre-commit-config.yaml",
+      "hash": "sha256:26b4041b502f2c8ce009a05d",
+      "missing": false
+    },
+    {
+      "path": "dev/find-unused-media.sh",
+      "hash": "sha256:063c96ba0ad14df492896eec",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25815"
+  },
+  "created": "2026-10-12T05:38:04.673Z",
+  "verified": "2026-10-12T05:38:04.673Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Removing a document referencing an image did not trigger the unused image check.",
+    "Orphaned screenshots stay in the repository when pull request checks skip image validation.",
+    "Make the unused media check run when someone only deletes documentation pages.",
+    "Deleting the last article linking to a diagram failed to flag unreferenced media.",
+    "Repository media checks should catch leftover pictures even if no files were added."
+  ],
+  "search": "In .pre-commit-config.yaml, repository-wide pre-commit hooks that use pass_filenames: false, such as dev/find-unused-media.sh, must set always_run: true so deletion-only commits trigger the check. Because pre-commit excludes deleted paths and skips hooks when matching files are absent, removing the last doc referencing a media file otherwise lands without flagging the orphaned media. This rule applies only to filename-independent hooks, while file-scoped hooks keep normal triggering. The unused-media pre-commit hook is now the single source for this check following the removal of the separate lint.yml step.",
+  "saysFor": "s2:7e7e2a1754d449aada11d1786d3d078acf1c4244861697644c8baf4415a6fafe"
+}

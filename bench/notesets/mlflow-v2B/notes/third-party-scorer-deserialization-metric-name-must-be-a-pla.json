@@ -1,0 +1,70 @@
+{
+  "id": "third-party-scorer-deserialization-metric-name-must-be-a-pla",
+  "title": "third-party scorer deserialization: metric_name must be a plain identifier and must not appear in kwargs",
+  "kind": "rule",
+  "answers": [
+    "Why does restoring a RAGAS or DeepEval scorer fail with \"metric_name ... must be a plain identifier\"?",
+    "How do I pass extra constructor arguments such as a threshold to a concrete third-party scorer when it is reloaded?",
+    "Where is metric_name validated when a stored third-party scorer is loaded?"
+  ],
+  "body": "Path: Restoring a saved RAGAS, DeepEval or concrete third-party scorer subclass reads the top-level metric_name and the kwargs dict from third_party_scorer_data, in mlflow/genai/scorers/base.py:Scorer.model_validate, before the class is constructed.\nRule: Check `metric_name.isidentifier()` before any import. RagasScorer and DeepEvalScorer splice unknown names into import paths (`ragas.metrics.collections.<name>`, `deepeval.metrics.<name>Metric`), so a dotted or non-identifier name is a second route to a caller-placed module. Also reject any `metric_name` key inside `kwargs` before any import: concrete subclasses pin metric_name as a ClassVar and inherit the wrapper __init__, so the kwarg would override the validated top-level value. Pass other constructor options through kwargs as usual; only the metric_name key is refused.\nSymptom: A crafted metric_name, or a metric_name inside kwargs, steered the wrapper's registry lookup so that import_module loaded a module the caller had placed on the server's filesystem.\nConstraints: Applies only to third-party scorer payloads. Legitimate payloads are unaffected: a concrete subclass with other kwargs still round-trips, and the top-level metric_name carries the name. Both checks run before import_module, so tests can assert the import is never reached.",
+  "applies": "Validation of third_party_scorer_data metric_name and kwargs during scorer deserialization in mlflow/genai/scorers; not the built-in scorers or the client-side scorer construction path.",
+  "tags": [
+    "genai",
+    "scorers",
+    "serialization",
+    "security",
+    "third-party-scorers"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/genai/scorers/base.py",
+      "symbol": "Scorer.model_validate",
+      "hash": "sha256:b8c3aa1b8884209829c59b77",
+      "line": 482,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b8c3aa1b8884209829c59b77",
+      "fanout": {
+        "files": 45,
+        "sites": 118,
+        "refs": 144
+      }
+    },
+    {
+      "path": "tests/genai/scorers/test_serialization.py",
+      "symbol": "test_third_party_scorer_kwargs_cannot_override_metric_name",
+      "hash": "sha256:0fb48c703c62f1fee57c2a81",
+      "line": 898,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0fb48c703c62f1fee57c2a81",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25906"
+  },
+  "created": "2026-10-12T05:35:53.504Z",
+  "verified": "2026-10-12T05:35:53.504Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "third-party-scorer-deserialization-match-the-allow-listed-mo"
+  ],
+  "says": [
+    "Restoring a saved third-party evaluation metric fails because the metric name is invalid.",
+    "Saved evaluation scorers fail to load when metric names contain dots or symbols.",
+    "Loading a saved evaluation judge fails when metric parameters include the metric name.",
+    "Allow custom constructor parameters like score thresholds when reloading saved evaluation judges."
+  ],
+  "search": "During third-party scorer deserialization in mlflow/genai/scorers/base.py:Scorer.model_validate, metric_name must satisfy isidentifier() and must not appear inside kwargs before any import occurs. This prevents crafted dotted metric names or kwargs overrides from steering importlib.import_module toward caller-placed modules in RagasScorer or DeepEvalScorer. Applies strictly to third-party scorer payloads rather than built-in scorers or client-side construction, while other constructor arguments like thresholds in kwargs remain supported.",
+  "saysFor": "s2:1ddcbf353fc2b42de0167a976c1cb049d2b082bb3b5db1cb5f582868eefda731"
+}

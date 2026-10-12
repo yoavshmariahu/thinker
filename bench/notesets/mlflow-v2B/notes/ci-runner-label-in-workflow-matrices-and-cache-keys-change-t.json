@@ -1,0 +1,52 @@
+{
+  "id": "ci-runner-label-in-workflow-matrices-and-cache-keys-change-t",
+  "title": "CI runner label in workflow matrices and cache keys: change the runner string in every if-condition and cache key together",
+  "kind": "rule",
+  "answers": [
+    "After changing the runner, why did lint steps like the pre-commit hook or problem matchers silently stop running?",
+    "How are the mypy, install-bin and pre-commit caches keyed in the copilot setup workflow?",
+    "Which workflow conditions compare against the runner name in the lint matrix?",
+    "What do I need to update when I rename the OS in a CI matrix?"
+  ],
+  "body": "Path: .github/workflows/lint.yml (strategy.matrix.os, job `name` expression, and the `if:` gates on problem matchers, function signature, whitespace and uv.lock checks) and .github/workflows/copilot-setup-steps.yml (actions/cache keys `mypy-`, `install-bin-` and `pre-commit-` prefixes).\nRule: The runner string appears in three places that must change together: the matrix value, the equality comparisons `matrix.os == '<runner>'` used to gate Linux-only steps and the job name, and cache key and restore-key prefixes that embed the runner name (e.g. `mypy-ubuntu-24.04-`). Changing only the `runs-on` line leaves the Linux-only gates false and the caches keyed on the old name.\nSymptom: After the runner was pinned, Linux-only lint steps would be skipped if a comparison still referenced the old label; the PR updated the comparisons and cache prefixes to `ubuntu-24.04` to keep them running.\nConstraints: Keep macOS matrix entries (`macos-latest`) and their `lint-macos` naming as-is. Check each `if:` referencing `matrix.os` after any runner rename.",
+  "applies": "Editing runner labels, matrix OS values or cache keys in MLflow GitHub Actions workflows.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "matrix",
+    "cache",
+    "runners"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/lint.yml",
+      "hash": "sha256:86030cddebefeb6cb6ae79b4",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/copilot-setup-steps.yml",
+      "hash": "sha256:f50649f8a816c0599e01826c",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26183"
+  },
+  "created": "2026-10-12T05:32:16.257Z",
+  "verified": "2026-10-12T05:32:16.257Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Code formatting and lint checks silently stopped executing during automated pull request validation.",
+    "Build caches are missing and causing slower test runs after updating build machine names.",
+    "Make sure conditional verification steps still trigger when updating the build operating system matrix.",
+    "Why were whitespace checks and automated quality gates bypassed on our Linux test jobs?",
+    "Ensure Mac validation jobs remain untouched while adjusting Linux build matrix configurations."
+  ],
+  "search": "CI workflow runner updates require synchronizing the runner string across matrix values, conditional if-comparisons, and cache key prefixes in .github/workflows/lint.yml and .github/workflows/copilot-setup-steps.yml. Updating only runs-on leaves matrix.os equality gates false and caches keyed to the old runner name, silently skipping Linux-only steps such as problem matchers, function signature, whitespace, and uv.lock checks. Applies when modifying runner labels, matrix OS values, or actions/cache prefixes (mypy-, install-bin-, pre-commit-) in MLflow workflows. Requires checking every if-condition referencing matrix.os while preserving macOS matrix entries (macos-latest) and lint-macos job naming.",
+  "saysFor": "s2:5814491269c67a3468194547f83790640b120cb92ddb7496a58a819a361c2fae"
+}

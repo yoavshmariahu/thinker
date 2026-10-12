@@ -1,0 +1,60 @@
+{
+  "id": "tests-agent-setup-sh-pty-helper-run-interactive-return-only",
+  "title": "tests/agent setup.sh PTY helper run_interactive: return only after child is reaped and PTY reaches EOF",
+  "kind": "rule",
+  "answers": [
+    "Why does the setup.sh E2E test sometimes miss the final 'Setup complete' line in its output?",
+    "How do I send scripted responses to an interactive setup script in the agent tests?",
+    "Where is the PTY exit and EOF handling for the setup script tests?",
+    "Why does the interactive setup test fail with 'Interactive process did not finish'?"
+  ],
+  "body": "Path: tests/agent/setup_sh_test_utils.py:run_interactive runs an interactive setup script under a pseudo-terminal in tests, writes scripted responses to the PTY, collects output, and returns (exit code, decoded transcript) for tests/agent/test_setup_sh_e2e.py.\nRule: Track child reaping (os.waitpid with WNOHANG) and PTY read EOF as two independent flags, and return only when both are true. An empty os.read or Linux EIO counts as EOF; other OSError values are re-raised. Once EOF is set, stop selecting on the closed fd and keep polling only for the child.\nSymptom: The transcript was truncated, so the final buffered lines such as 'Setup complete' were missing from the captured output even though the script exited successfully, making output assertions flaky.\nConstraints: Test helper only, not product code. The 10-second deadline still applies and now fails with 'did not finish'. The EIO-as-EOF mapping is the Linux PTY behavior described in the PR; the fd is closed in the finally block and the child is killed if it was not reaped.",
+  "applies": "Applies to the PTY-driven setup.sh test helper in tests/agent; does not cover other subprocess or pipe-based test helpers.",
+  "tags": [
+    "tests",
+    "pty",
+    "setup-sh",
+    "flaky-test",
+    "agent-tests"
+  ],
+  "deps": [
+    {
+      "path": "tests/agent/setup_sh_test_utils.py",
+      "symbol": "run_interactive",
+      "hash": "sha256:6a7cf468d3e0de3fa916828b",
+      "line": 45,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6a7cf468d3e0de3fa916828b",
+      "fanout": {
+        "files": 3,
+        "sites": 11,
+        "refs": 14
+      }
+    },
+    {
+      "path": "tests/agent/test_setup_sh_e2e.py",
+      "hash": "sha256:2828f8c56a641b8eab196b01",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25995"
+  },
+  "created": "2026-10-12T05:39:25.606Z",
+  "verified": "2026-10-12T05:39:25.606Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Setup complete line missing from setup.sh E2E test output",
+    "Interactive setup script test fails with did not finish error",
+    "Scripted responses to an interactive setup script in agent tests",
+    "Interactive setup test transcript truncated after script exits successfully"
+  ],
+  "search": "PTY test helper run_interactive for setup.sh tests returns only when the child is reaped and PTY reads reach EOF, treating empty reads or Linux EIO as EOF and re-raising other OSErrors. Fixes truncated transcripts; the 10-second deadline still applies. Test helper only, not product code; does not cover pipe-based helpers.",
+  "saysFor": "s2:4879a02ea6d4fc78d800884b7d41345f633b5ef1fa0c8a809842148b6f1814a7"
+}

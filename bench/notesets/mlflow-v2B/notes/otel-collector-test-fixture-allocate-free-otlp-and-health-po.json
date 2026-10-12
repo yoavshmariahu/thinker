@@ -1,0 +1,57 @@
+{
+  "id": "otel-collector-test-fixture-allocate-free-otlp-and-health-po",
+  "title": "OTel collector test fixture: allocate free OTLP and health ports and mount the config as a read-only temp file",
+  "kind": "rule",
+  "answers": [
+    "Why do OpenTelemetry collector tests collide on ports or fail to start the container in CI?",
+    "How do I change the collector config used by the OTLP tracing tests, or add an extension to it?",
+    "Where are the Docker port mappings and collector config for the OTLP export tests defined?"
+  ],
+  "body": "Path: tests/tracing/conftest.py:otel_collector builds the `docker run` command for the OTLP test collector: it publishes the OTLP gRPC port (container 4317) and the health_check port (container 13133) on 127.0.0.1, and bind-mounts a YAML config from pytest tmp_path to /etc/otelcol/config.yaml read-only.\nRule: take ports from mlflow.utils:find_free_port (the health port is re-drawn until it differs from the OTLP port) instead of random.randint, and write the config into tmp_path with chmod 0o644 so the container user can read the bind mount. Keep the config file alive for the whole fixture, since the container reads it while running. Add collector extensions by editing the config string and service.extensions in that same fixture.\nSymptom: fixed random port ranges could collide with other listeners and make the collector fail to bind; a config file that was not readable by the container user made the collector exit at startup.\nConstraints: this is for the test collector only; the production export path does not use these ports or config. Do not switch the config back to stdin piping: writes to a container that exits early raise BrokenPipeError and hide the collector logs.",
+  "applies": "Test-only OTel collector container setup in tests/tracing; not production OTLP export.",
+  "tags": [
+    "tracing",
+    "otel",
+    "testing",
+    "docker",
+    "ports"
+  ],
+  "deps": [
+    {
+      "path": "tests/tracing/conftest.py",
+      "symbol": "otel_collector",
+      "hash": "sha256:5e4b149ed93af1411288d44f",
+      "line": 70,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:06a43571f28889a466596033",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26038"
+  },
+  "created": "2026-10-12T05:30:10.017Z",
+  "verified": "2026-10-12T05:30:10.017Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "otel-collector-test-fixture-wait-for-the-health-check-endpoi",
+    "otel-collector-test-fixture-retry-only-the-docker-pull-of-th"
+  ],
+  "says": [
+    "Automated telemetry integration tests fail in continuous integration due to port conflicts.",
+    "Collector test containers fail at startup because configuration files cannot be read.",
+    "Assign free network ports dynamically to prevent test container collision during build runs.",
+    "Trace export test suites crash when starting the local telemetry collection service."
+  ],
+  "search": "The test collector fixture in tests/tracing/conftest.py:otel_collector allocates free OTLP and health ports using mlflow.utils:find_free_port and mounts a temporary YAML configuration file with mode 0o644 to /etc/otelcol/config.yaml. The configuration file remains alive for the fixture duration to avoid startup read failures, avoiding random port collisions without piping config via stdin. This applies only to the test collector container setup in tests/tracing, not production OTLP export.",
+  "saysFor": "s2:1557a3b4c2c2195ab41bac192372b95da86dd65a96b743e4ee58bae2a8968462"
+}

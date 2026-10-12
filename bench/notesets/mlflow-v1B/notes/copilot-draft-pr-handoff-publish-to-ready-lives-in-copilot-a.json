@@ -1,0 +1,53 @@
+{
+  "id": "copilot-draft-pr-handoff-publish-to-ready-lives-in-copilot-a",
+  "title": "Copilot draft PR handoff: publish-to-ready lives in copilot-agent.yml, and copilot-review.yml only reacts to already-ready PRs",
+  "kind": "map",
+  "answers": [
+    "Which workflow marks a Copilot agent draft PR as ready for review?",
+    "Why does the Copilot review workflow skip draft PRs?",
+    "Where is the review_requested event for a Copilot PR handled now?"
+  ],
+  "body": "Path: Two workflows split the Copilot agent PR flow. .github/workflows/copilot-agent.yml:publish-draft reacts to pull_request_target review_requested on a draft PR opened by the Copilot bot and marks it ready. .github/workflows/copilot-review.yml:request-review reacts to opened and ready_for_review on non-draft PRs from OWNER, MEMBER or COLLABORATOR authors or from the Copilot bot, and requests a Copilot review.\nRule: Keep ready-for-review logic out of copilot-review.yml. Its trigger list is opened and ready_for_review, and the handoff between the two workflows is the ready_for_review event emitted by copilot-agent.yml. If the Copilot draft trigger changes, edit the if-condition in copilot-agent.yml:publish-draft and the draft == false guard in copilot-review.yml:request-review together.\nConstraints: copilot-review.yml skips every draft PR, so a draft Copilot PR gets a review only after publish-draft runs. The handoff depends on the app token rule in the other notes for this flow.",
+  "applies": "Applies to the Copilot agent PR workflows in .github/workflows/; not to other review or labeling workflows.",
+  "tags": [
+    "github-actions",
+    "copilot",
+    "workflows",
+    "map"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/copilot-agent.yml",
+      "hash": "sha256:4bf7efc5eb33d9ebfb546068",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/copilot-review.yml",
+      "hash": "sha256:d3b12c032c69d87e4f909e39",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25642"
+  },
+  "created": "2026-10-12T05:47:36.153Z",
+  "verified": "2026-10-12T05:47:36.153Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "copilot-agent-draft-publish-chain-the-review-request-through",
+    "copilot-agent-draft-publish-the-app-token-that-runs-gh-pr-re"
+  ],
+  "says": [
+    "Why does the automated code review skip draft pull requests opened by our bot?",
+    "Draft pull requests from the coding bot are never marked ready for review.",
+    "Requesting review on a bot draft pull request should automatically make it ready.",
+    "Automated reviews fail to run on newly submitted draft pull requests.",
+    "Ensure draft pull requests get published before automated review requests are triggered."
+  ],
+  "search": "Copilot agent draft PR handoff splits between .github/workflows/copilot-agent.yml:publish-draft, which marks draft PRs ready on review_requested, and .github/workflows/copilot-review.yml:request-review, which triggers only on opened and ready_for_review. Ready-for-review logic must stay out of copilot-review.yml, which skips all draft PRs. Changes to draft triggers require updating the if-condition in publish-draft and the draft == false guard in copilot-review.yml together. This applies strictly to Copilot agent workflows in .github/workflows/.",
+  "saysFor": "s2:7b7332448b4a28c7d0d0469621c00662a0f072ff821717b39b83ed6c446aecfd"
+}

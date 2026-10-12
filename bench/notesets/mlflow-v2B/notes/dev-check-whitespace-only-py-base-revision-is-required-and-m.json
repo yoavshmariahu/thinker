@@ -1,0 +1,72 @@
+{
+  "id": "dev-check-whitespace-only-py-base-revision-is-required-and-m",
+  "title": "dev/check_whitespace_only.py: --base-revision is required and must name a ref present in the local clone",
+  "kind": "howto",
+  "answers": [
+    "How do I run the whitespace-only check on my branch locally?",
+    "Why does dev/check_whitespace_only.py fail with a git error when I run it?",
+    "What value should I pass for the base revision of the whitespace check?",
+    "Where is the base revision for the PR whitespace check parsed?"
+  ],
+  "body": "Path: dev/check_whitespace_only.py:parse_args, the command-line entry point for the whitespace-only PR check; it reads --repo owner/name, --pr number and the required --base-revision, then passes the base to get_pr_diff.\nRule: Pass a base ref that exists in your clone, such as upstream/master after fetching it, or HEAD^1 on a CI merge checkout. The script runs `git diff <base>...HEAD`, so HEAD must be the PR head you want to check.\nConstraints: The base ref must be fetched first; the script does not fetch it. Without --base-revision, argparse rejects the call. Labels are still looked up through the GitHub API using --repo and --pr only when whitespace-only changes are found.",
+  "applies": "Developers or agents running dev/check_whitespace_only.py by hand or changing how its base revision is chosen.",
+  "tags": [
+    "ci",
+    "lint",
+    "whitespace",
+    "git-diff",
+    "dev-tooling"
+  ],
+  "deps": [
+    {
+      "path": "dev/check_whitespace_only.py",
+      "symbol": "parse_args",
+      "hash": "sha256:31647357623c36991df77826",
+      "line": 108,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:31647357623c36991df77826",
+      "fanout": {
+        "files": 59,
+        "sites": 75,
+        "refs": 77
+      }
+    },
+    {
+      "path": "dev/check_whitespace_only.py",
+      "symbol": "get_pr_diff",
+      "hash": "sha256:3833aed6df998a65a6fe73ef",
+      "line": 57,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3833aed6df998a65a6fe73ef",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26094"
+  },
+  "created": "2026-10-12T05:33:16.270Z",
+  "verified": "2026-10-12T05:33:16.270Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "pr-whitespace-only-lint-check-build-the-diff-from-local-git"
+  ],
+  "says": [
+    "The pull request whitespace check fails when running locally without a base comparison branch.",
+    "How can I run the pull request whitespace verification against my local target branch?",
+    "Running the pull request formatting inspection locally fails because the comparison reference was not fetched.",
+    "The whitespace validation tool errors immediately because the base revision parameter was omitted.",
+    "Make the automated pull request whitespace audit accept existing local branch references during review."
+  ],
+  "search": "`dev/check_whitespace_only.py:parse_args` requires `--base-revision` specifying an already-fetched local ref (such as `upstream/master` or CI `HEAD^1`) for `dev/check_whitespace_only.py:get_pr_diff` to execute `git diff <base>...HEAD`. The script does not fetch the base reference, and omitting `--base-revision` causes `argparse` to reject the invocation. GitHub API label lookups occur via `--repo` and `--pr` only if whitespace-only changes are detected. Guidance applies to developers or agents executing `dev/check_whitespace_only.py` manually or modifying base revision selection.",
+  "saysFor": "s2:fa7e6079f94937cbb53beca77e8a0579e1756e325eeb1ede5f3dfd500da3ea2f"
+}

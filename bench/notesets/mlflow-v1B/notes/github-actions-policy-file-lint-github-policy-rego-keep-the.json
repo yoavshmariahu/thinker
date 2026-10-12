@@ -1,0 +1,48 @@
+{
+  "id": "github-actions-policy-file-lint-github-policy-rego-keep-the",
+  "title": "GitHub Actions policy file lint (.github/policy.rego): keep the line-1 regal ignore list current, including file-length, because all Actions policy lives in this one file",
+  "kind": "rule",
+  "answers": [
+    "bin/regal lint fails on .github/policy.rego after I added a new deny rule. What is wrong?",
+    "How do I suppress a regal lint rule for the Actions policy file?",
+    "Why are all the GitHub Actions Conftest rules kept in a single policy file?"
+  ],
+  "body": "Path: .github/policy.rego line 1 holds the comment `# regal ignore:directory-package-mismatch,file-length`, which tells regal lint to skip those two rules for the whole Actions policy file that holds every Conftest deny rule for .github/workflows and .github/actions.\nRule: The policy is kept in one file by design, so when a change grows it, add the needed regal rule name to the comma-separated list in that line-1 directive instead of splitting the file. The file-length suppression was added because the file sat only two lines under regal's limit, so any non-trivial addition triggered the lint failure.\nSymptom: Adding a rule to the policy file made `bin/regal lint` report a file-length violation even though the Conftest checks themselves were fine.\nConstraints: The directive only affects regal lint; it does not change what Conftest denies. Verify after editing by running `bin/regal lint` and `bin/conftest test` over .github/workflows and .github/actions.\nApplies: Edits to .github/policy.rego that push the file past a regal limit; does not apply to workflow YAML files.",
+  "applies": "Editing the GitHub Actions Conftest policy file .github/policy.rego and its regal lint directive.",
+  "tags": [
+    "regal",
+    "lint",
+    "rego",
+    "conftest",
+    "github-actions"
+  ],
+  "deps": [
+    {
+      "path": ".github/policy.rego",
+      "hash": "sha256:c9bdfb9326a5b78b8f142b4a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25590"
+  },
+  "created": "2026-10-12T05:48:22.713Z",
+  "verified": "2026-10-12T05:48:22.713Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "github-actions-cache-mode-policy-github-policy-rego-workflow",
+    "github-actions-pull-request-triggers-github-policy-rego-omit"
+  ],
+  "says": [
+    "bin/regal lint fails on the GitHub Actions policy file after I added a new rule",
+    "How do I suppress a regal lint rule for the Actions Conftest policy file?",
+    "Why are all the GitHub Actions Conftest rules kept in one policy file instead of split up?",
+    "Adding a deny rule makes regal report a file-length violation even though Conftest checks pass"
+  ],
+  "search": "Regal lint directive on line 1 of the GitHub Actions Conftest policy file: the comma-separated ignore list covers directory-package-mismatch and file-length, and is extended rather than splitting the file. Affects regal lint only, not what Conftest denies; does not apply to workflow YAML.",
+  "saysFor": "s2:7cf84c41e5b88b6d98acabe78a27917c675494e8f5781bc80409f636d271ca27"
+}

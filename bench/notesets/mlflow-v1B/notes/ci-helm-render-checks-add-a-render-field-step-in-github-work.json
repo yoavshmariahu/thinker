@@ -1,0 +1,52 @@
+{
+  "id": "ci-helm-render-checks-add-a-render-field-step-in-github-work",
+  "title": "CI helm render checks: add a `Render <field>` step in .github/workflows/helm.yml that greps rendered deployment.yaml, scoping sibling-block fields to their own block",
+  "kind": "howto",
+  "answers": [
+    "Why does my CI helm render check still pass when a probe override lands on the wrong probe?",
+    "How do I add a CI assertion for a new optional Helm chart value?",
+    "Where are the helm template render checks in the GitHub workflow?"
+  ],
+  "body": "Path: .github/workflows/helm.yml runs the chart's render checks; each `Render ...` step defines a local `render()` helper that runs `helm template mlflow charts/` with a dummy `mlflow.backendStoreUri` and `-s templates/deployment.yaml`, then greps the output.\nRule: For a new optional field, add a `Render <field>` step that first asserts the key is absent by default (`if render | grep -q '<field>:'; then exit 1`), then sets every nested key via `--set '<list>[0].<key>=...'` and asserts each rendered line with an anchored grep on its exact indentation (for example `grep -q '^      topologySpreadConstraints:$'`). When the field sits inside one of several sibling blocks (e.g. one of the probes), extract that block with an awk helper (`probe_block 'readinessProbe:'`) and grep inside it, and add a negative check that a misrouted override fails.\nSymptom: Not applicable (convention). The PR relied on manual kind-cluster testing alone until a reviewer asked for CI coverage. A whole-manifest grep for `failureThreshold: 9` would pass even when the override was routed to the liveness probe.\nConstraints: The anchored grep patterns depend on the `nindent` levels in charts/templates/deployment.yaml; update them if the template indentation changes. Pass any extra flags as \"$@\" to the render helper so the same helper covers both the default and the set cases. For a `helm template` call that must succeed, capture its output into a variable before grepping it inside an `if`, since bash disables pipefail in `if` conditions and a render failure would look like a correct omission.\nApplies: Changes to Helm chart render behaviour in charts/; applies when adding CI assertions for chart values.",
+  "applies": "Changes to Helm chart render behaviour in charts/; adding CI render assertions in .github/workflows/helm.yml.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "helm",
+    "charts",
+    "testing"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/helm.yml",
+      "hash": "sha256:3456bde8c62fd2e2da58ba23",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25560"
+  },
+  "created": "2026-10-12T05:45:34.580Z",
+  "verified": "2026-10-12T05:48:51.603Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "history": [
+    {
+      "at": "2026-10-12T05:48:51.613Z",
+      "reason": "extended by a new session",
+      "prevBody": "Path: .github/workflows/helm.yml runs the chart's render checks; each `Render ...` step defines a local `render()` helper that runs `helm template mlflow charts/` with a dummy `mlflow.backendStoreUri` and `-s templates/deployment.yaml`, then greps the output.\nRule: For a new optional field, add a `Render <field>` step that first asserts the key is absent by default (`if render | grep -q '<field>:'; then exit 1`), then sets every nested key via `--set '<list>[0].<key>=...'` and asserts each rendered line with an anchored grep on its exact indentation (for example `grep -q '^      topologySpreadConstraints:$'`).\nSymptom: Not applicable (convention). The PR relied on manual kind-cluster testing alone until a reviewer asked for CI coverage.\nConstraints: The anchored grep patterns depend on the `nindent` levels in charts/templates/deployment.yaml; update them if the template indentation changes. Pass any extra flags as `\"$@\"` to the render helper so the same helper covers both the default and the set cases."
+    }
+  ],
+  "says": [
+    "Add automated tests verifying that custom deployment chart settings render in the correct section.",
+    "Chart validation passes in CI even when probe overrides are placed on the wrong container.",
+    "Ensure automated checks fail if deployment probe parameters leak into sibling probe configurations.",
+    "Validate that newly added Helm chart options produce expected template output during continuous integration."
+  ],
+  "search": "In .github/workflows/helm.yml, tests for new optional Helm chart values require a dedicated Render step that invokes helm template against templates/deployment.yaml and checks output with anchored grep patterns. For fields nested inside sibling blocks such as probes, an awk helper must isolate the target block to ensure overrides do not pass when misrouted. Render helpers must accept extra arguments via $@, assert omission by default, and capture helm output before checking conditions to respect shell pipefail behavior.",
+  "saysFor": "s2:3ce2f5d836fb53a182caee4b683c08b04c157a65ea8a654dd19f978f7cdcafab"
+}

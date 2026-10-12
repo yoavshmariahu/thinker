@@ -1,0 +1,127 @@
+{
+  "id": "pytorch-pt2-archive-validation-scan-data-pkl-with-pickletool",
+  "title": "PyTorch pt2 archive validation: scan data.pkl with pickletools for user-registered safe globals instead of changing torch's process-wide safe_globals registry",
+  "kind": "rule",
+  "answers": [
+    "Why do concurrent torch.load(weights_only=True) calls fail while an MLflow pt2 model is being loaded?",
+    "Why does a pt2 model containing a class I registered with add_safe_globals get rejected on load?",
+    "Where does MLflow handle torch safe_globals during pt2 archive validation?"
+  ],
+  "body": "Path: mlflow/pytorch/__init__.py:_validate_pt2_archive_is_pickle_free calls _user_registered_safe_globals (reads torch.serialization.get_safe_globals()) and _pickle_globals (a pickletools.genops scan of each record's data.pkl) for every record it validates.\nRule: When validating untrusted torch pickle data, do not add to or clear torch.serialization safe globals process-wide. Instead, statically scan the data.pkl opcodes (GLOBAL and STACK_GLOBAL, resolved from preceding string operands) and reject any record that references a user-registered global, or whose stream cannot be parsed or resolved (fail closed). Then run torch.load(weights_only=True) unmodified on records that pass.\nSymptom: An earlier validator approach cleared the safe_globals registry during validation. On torch 2.8, a concurrent torch.load(weights_only=True) of a checkpoint that used a registered metadata class succeeded before and after validation but raised UnpicklingError while validation ran.\nConstraints: Only the pt2 validator uses this scan. Registered globals still work for ordinary torch.load calls outside pt2 validation. Built-in torch allowlist entries are not rejected by this scan. Tests: test_load_pt2_model_validation_ignores_ambient_safe_globals and test_load_pt2_model_validation_does_not_disturb_concurrent_weights_only_loads in tests/pytorch/test_pytorch_model_export.py.",
+  "applies": "Any MLflow code that runs torch.load(weights_only=True) or torch.serialization safe-globals checks on attacker-controllable pickle data, mainly the pytorch pt2 validator.",
+  "tags": [
+    "pytorch",
+    "pt2",
+    "safe-globals",
+    "weights-only",
+    "pickle",
+    "concurrency"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/pytorch/__init__.py",
+      "symbol": "_validate_pt2_archive_is_pickle_free",
+      "hash": "sha256:6983fdbc3566725a40e13d1d",
+      "line": 836,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6983fdbc3566725a40e13d1d",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/pytorch/__init__.py",
+      "symbol": "_pickle_globals",
+      "hash": "sha256:6ae281c461223894bdff9bcd",
+      "line": 797,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6ae281c461223894bdff9bcd",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/pytorch/__init__.py",
+      "symbol": "_user_registered_safe_globals",
+      "hash": "sha256:ea3ef83d6e0306a2a7a7f126",
+      "line": 823,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ea3ef83d6e0306a2a7a7f126",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "tests/pytorch/test_pytorch_model_export.py",
+      "symbol": "__init__",
+      "hash": "sha256:4dfbbeea82e51add6458e810",
+      "line": 138,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4dfbbeea82e51add6458e810",
+      "fanout": {
+        "files": 272,
+        "sites": 309,
+        "refs": 434
+      }
+    },
+    {
+      "path": "tests/pytorch/test_pytorch_model_export.py",
+      "symbol": "test_load_pt2_model_validation_ignores_ambient_safe_globals",
+      "hash": "sha256:9c87f7511271de6d39560fec",
+      "line": 1258,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9c87f7511271de6d39560fec",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/pytorch/test_pytorch_model_export.py",
+      "symbol": "test_load_pt2_model_validation_does_not_disturb_concurrent_weights_only_loads",
+      "hash": "sha256:fdb57976861f4c644e5c54f2",
+      "line": 1289,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:fdb57976861f4c644e5c54f2",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25849"
+  },
+  "created": "2026-10-12T05:37:33.494Z",
+  "verified": "2026-10-12T05:37:33.494Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "pytorch-pt2-loading-with-mlflow-allow-pickle-deserialization"
+  ],
+  "says": [
+    "Loading a saved model crashes other concurrent checkpoint loading jobs in the service.",
+    "Exported model validation rejects files containing custom classes registered as safe.",
+    "Simultaneous model loading tasks fail with deserialization errors while archive security checks run.",
+    "Prevent archive verification checks from clearing registered safe types across concurrent tasks."
+  ],
+  "search": "For PyTorch pt2 archive validation, MLflow statically scans data.pkl opcodes with pickletools.genops to detect user-registered safe globals rather than modifying torch.serialization safe globals process-wide. In mlflow/pytorch/__init__.py:_validate_pt2_archive_is_pickle_free, calls to _user_registered_safe_globals and _pickle_globals inspect GLOBAL and STACK_GLOBAL opcodes, rejecting records referencing user-registered globals or unparseable streams. Records that pass are loaded unmodified with torch.load(weights_only=True), avoiding UnpicklingError during concurrent loads on PyTorch 2.8. This scan applies only to the pt2 validator, leaving registered globals intact for normal torch.load calls outside pt2 validation and allowing built-in Torch allowlist entries.",
+  "saysFor": "s2:3944413bd6cc14ceae02a9a83bc6d7dd51aa1309074b66126cf754f75836de01"
+}

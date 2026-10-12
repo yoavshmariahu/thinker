@@ -1,0 +1,60 @@
+{
+  "id": "uv-lock-update-workflow-create-automated-uv-lock-prs-without",
+  "title": "uv lock update workflow: create automated uv.lock PRs without labels, then add team-review and auto-rerun after a 5-second sleep; existing-PR updates also get auto-rerun",
+  "kind": "rule",
+  "answers": [
+    "Why does an automated uv.lock PR not get CI reruns?",
+    "Where are the labels added on the uv.lock update PR, and in what order?",
+    "Why is there a sleep between creating and labeling the uv.lock PR?"
+  ],
+  "body": "Path: .github/workflows/uv.yml, the job step that regenerates uv.lock and opens or updates the automated PR. The new-branch path runs gh pr create, then gh pr edit --add-label, then gh pr merge --auto --squash. The existing-PR path (force-push to the existing branch) runs gh pr edit --body-file, then gh pr edit --add-label auto-rerun, then gh pr merge --auto --squash. Only the new-branch path has the create-then-label delay.\nRule: Create the automated PR with gh pr create without --label, run `sleep 5`, then add team-review and auto-rerun with `gh pr edit \"$PR_URL\" --add-label team-review --add-label auto-rerun`, and keep gh pr merge --auto --squash after the label. Also add `auto-rerun` with gh pr edit on the existing-PR path, so updated PRs keep the rerun opt-in. The delay separates the PR-open and label events so Protect runs triggered by them do not race and cancel each other under the workflow concurrency group.\nSymptom: On automated uv.lock PRs, creation and labeling happened back-to-back, which produced duplicate Protect runs; one run was canceled by concurrency and a successful duplicate appeared on the same PR.\nConstraints: This only reduces the race; it does not guarantee Protect avoids cancellation if scheduling is delayed. Do not move the label back into gh pr create. Do not change protect.yml or the existing-PR update path to apply this pattern without checking them separately. The sleep is a timing workaround, not a synchronization primitive. auto-rerun must exist as a repo label before this step runs (see the label note).",
+  "applies": "Automated uv.lock update PR creation and reuse in .github/workflows/uv.yml; not general PR labeling elsewhere in the repo.",
+  "tags": [
+    "uv",
+    "dependencies",
+    "labels",
+    "concurrency",
+    "ci"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/uv.yml",
+      "symbol": "PR_URL",
+      "hash": "sha256:987343d23045c30a7f1a2012",
+      "line": 101,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26065"
+  },
+  "created": "2026-10-12T05:30:51.271Z",
+  "verified": "2026-10-12T05:34:04.637Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "history": [
+    {
+      "at": "2026-10-12T05:34:04.646Z",
+      "reason": "extended by a new session",
+      "prevBody": "Path: .github/workflows/uv.yml, the job step that regenerates uv.lock and opens the automated PR (gh pr create, then gh pr edit --add-label team-review, then gh pr merge --auto --squash). Only the new-branch path is affected; existing-PR updates go through a different branch of the same shell step.\nRule: Create the automated PR with gh pr create without --label, run `sleep 5`, then add team-review with gh pr edit \"$PR_URL\" --add-label team-review, and keep gh pr merge --auto --squash after the label. The delay separates the PR-open and label events so Protect runs triggered by them do not race and cancel each other under the workflow concurrency group.\nSymptom: On automated uv.lock PRs, creation and labeling happened back-to-back, which produced duplicate Protect runs; one run was canceled by concurrency and a successful duplicate appeared on the same PR.\nConstraints: This only reduces the race; it does not guarantee Protect avoids cancellation if scheduling is delayed. Do not move the label back into gh pr create. Do not change protect.yml or the existing-PR update path to apply this pattern without checking them separately. The sleep is a timing workaround, not a synchronization primitive."
+    }
+  ],
+  "says": [
+    "Automated dependency update pull requests trigger duplicate build runs that cancel each other.",
+    "Automated lockfile pull requests fail to trigger automatic test reruns after updates.",
+    "Prevent concurrency conflicts from canceling check suite runs on automated pull requests.",
+    "Automated dependency pull requests fail continuous integration checks due to conflicting validation runs.",
+    "Ensure automated dependency update pull requests properly qualify for automated test reruns."
+  ],
+  "search": "In .github/workflows/uv.yml, create automated uv.lock PRs using gh pr create without labels, sleep 5 seconds, and then apply team-review and auto-rerun labels via gh pr edit. Existing PR updates via force-push also receive the auto-rerun label using gh pr edit, and both paths keep gh pr merge --auto --squash after labeling. The delay separates creation and labeling events to mitigate duplicate, canceling Protect workflow runs under concurrency limits, though it is a timing workaround rather than a guaranteed synchronization primitive. Do not move labels back into gh pr create, and ensure the auto-rerun label exists in the repository beforehand.",
+  "saysFor": "s2:35054e8b1a042345db5303e218876f10ca48445235ba7fb14da1fd4cc15b27b5"
+}

@@ -1,0 +1,68 @@
+{
+  "id": "failure-labels-discovery-extraction-strip-only-the-bullet-ma",
+  "title": "Failure labels / discovery extraction: strip only the bullet marker plus following whitespace, never a character set, so symptoms starting with '-', '*' or '+' survive",
+  "kind": "rule",
+  "answers": [
+    "Failure label text is missing its leading minus sign, e.g. '-1 returned instead of error' shows up as '1 returned instead of error'",
+    "Why does the discovery failure label drop a leading hyphen or asterisk from the symptom?",
+    "Where are bullet markers removed from LLM-generated failure labels in the discovery/extraction flow?",
+    "How do I change how the LLM response lines are parsed into symptom labels?"
+  ],
+  "body": "Path: mlflow/genai/discovery/extraction.py:_generate_labels takes the LLM's bulleted reply for one analysis (the failure-label generation step of extract_failure_labels) and turns each non-empty line into a '[execution_path] symptom' label.\nRule: Remove list markers with a prefix regex, not str.lstrip(\"- \"). lstrip treats its argument as a character set, so it strips any leading '-' or ' ' and eats the sign of a symptom like '-1' or '-inf'. Use the compiled _BULLET_PREFIX (r\"^\\s*[-*+]\\s+\") and require whitespace after the marker, so only a real bullet is removed.\nSymptom: A failure label such as '-1 returned instead of error' or '-inf score emitted' appeared with its leading hyphen missing, so users read a wrong value.\nConstraints: Applies to parsing of the LLM label reply in extraction.py. It does not change how spans, analyses, or traces are selected. Any other place that uses lstrip with a character set to remove bullets has the same risk and should use a prefix regex instead.",
+  "applies": "Parsing of LLM-generated failure label lines in mlflow/genai/discovery/extraction.py; the bullet regex, not the rest of the discovery pipeline.",
+  "tags": [
+    "genai",
+    "discovery",
+    "evaluation",
+    "parsing",
+    "bug-fix"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/genai/discovery/extraction.py",
+      "symbol": "_BULLET_PREFIX",
+      "hash": "sha256:5613d97f7ac87bcf4f5d3e10",
+      "line": 25,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/genai/discovery/extraction.py",
+      "symbol": "_generate_labels",
+      "hash": "sha256:3f57f7f8d24b2cfcb9d2943e",
+      "line": 203,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3f57f7f8d24b2cfcb9d2943e",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25588"
+  },
+  "created": "2026-10-12T05:41:13.275Z",
+  "verified": "2026-10-12T05:41:13.275Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Failure symptom labels are missing their leading minus sign on the discovery dashboard.",
+    "Negative numerical values in generated error descriptions are losing their negative signs.",
+    "The discovery screen displays positive numbers for failure labels that were actually negative.",
+    "Why is the minus symbol stripped from failure symptoms in discovery insights?",
+    "Preserve leading math symbols like hyphens and pluses in generated issue summaries."
+  ],
+  "search": "In mlflow/genai/discovery/extraction.py:_generate_labels, bullet markers from LLM-generated failure label lines must be stripped using the _BULLET_PREFIX regex (r'^\\s*[-*+]\\s+') with trailing whitespace rather than str.lstrip('- '). This prevents stripping the leading sign from symptoms starting with '-', '*', or '+' such as negative numbers or scores. This applies strictly to parsing LLM label replies in extraction.py without changing how spans, analyses, or traces are selected.",
+  "saysFor": "s2:23dbc6c98c5ab4432a7276b35977cd0a7cdf7a810337a33877776b08f76a0348"
+}

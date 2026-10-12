@@ -1,0 +1,102 @@
+{
+  "id": "gateway-authorization-validators-must-read-resource-ids-from",
+  "title": "gateway authorization: validators must read resource IDs from the parsed protobuf request, not raw request params",
+  "kind": "rule",
+  "answers": [
+    "Why does a gateway secret update or delete with camelCase secretId get checked against the wrong secret?",
+    "Which function authorizes gateway endpoint get/update/delete requests by endpoint_id or name?",
+    "How do I add a new gateway secret or model definition route without breaking snake_case vs camelCase aliases?",
+    "Where is the permission check for gateway model definition get/delete handled?"
+  ],
+  "body": "Path: mlflow/server/auth/__init__.py:validate_can_read_gateway_secret and the sibling validate_can_* gateway validators (secrets, endpoints, model definitions) run as before-request checks on /api/3.0/mlflow/gateway/* routes (get/update/delete/create of secrets, endpoints, model definitions).\nRule: Parse the body with _get_request_message(<ProtoRequest>()) and authorize on msg.<field> (e.g. msg.secret_id, msg.endpoint_id, msg.model_definition_id), then pass that id into the shared helpers _get_gateway_secret_permission, _get_gateway_endpoint_permission or _get_gateway_model_definition_permission. Do not read the id with _get_request_param(\"secret_id\") for gateway JSON bodies: that raw key misses camelCase and mixed-form aliases, so authorization can check a different or missing resource than the handler acts on.\nSymptom: A request that mixed snake_case and camelCase keys (for example secret_id plus secretId) could be authorized against one resource while the handler modified another, so a user with rights on a decoy resource could act on a resource they did not own.\nConstraints: Applies to gateway routes whose request is a protobuf message; protobuf parsing decides which alias wins and the check must follow that choice. validate_can_read_gateway_endpoint also resolves a name to an endpoint_id through the tracking store when endpoint_id is empty. Errors from that lookup are raised as MlflowException and handled by _before_request's catch_mlflow_exception, so no local try/except is needed.",
+  "applies": "Authorization of gateway secret, endpoint and model-definition routes in the auth server; not for non-gateway resources.",
+  "tags": [
+    "gateway",
+    "auth",
+    "protobuf",
+    "aliases"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_read_gateway_secret",
+      "hash": "sha256:dc59a4e9c0d8682e61b937ca",
+      "line": 2009,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:dc59a4e9c0d8682e61b937ca",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_read_gateway_endpoint",
+      "hash": "sha256:64240c8a1db1f2cd0e1bc5ef",
+      "line": 2034,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:64240c8a1db1f2cd0e1bc5ef",
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 5
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_update_gateway_model_definition",
+      "hash": "sha256:f35b0bf8d3217abcee255709",
+      "line": 2101,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f35b0bf8d3217abcee255709",
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_get_gateway_secret_permission",
+      "hash": "sha256:a36e4562788f03785bfba710",
+      "line": 1103,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a36e4562788f03785bfba710",
+      "fanout": {
+        "files": 1,
+        "sites": 7,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25937"
+  },
+  "created": "2026-10-12T05:30:45.729Z",
+  "verified": "2026-10-12T05:30:45.729Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "basic-auth-createmodelversion-source-run-model-read-check-mu",
+    "basic-auth-source-read-check-report-a-nonexistent-run-logged",
+    "gateway-model-definition-endpoint-and-attach-authorization-r",
+    "basic-auth-issue-detection-invoke-experiment-update-is-not-e"
+  ],
+  "says": [
+    "Updating a gateway secret modifies a resource the user does not have permission for.",
+    "API requests with camel case secret identifiers bypass gateway permission checks.",
+    "Unauthorized users can delete gateway model definitions by sending alternate field naming formats.",
+    "Viewing or updating a gateway endpoint verifies access against the wrong resource.",
+    "Ensure permission checks for gateway secrets inspect the exact item being modified."
+  ],
+  "search": "Gateway authorization validators for secrets, endpoints, and model definitions on /api/3.0/mlflow/gateway/* routes must parse the body with _get_request_message(<ProtoRequest>()) and authorize on msg.<field> rather than reading raw request parameters with _get_request_param. Passing raw keys misses camelCase and mixed aliases, allowing requests with mixed keys like secret_id and secretId to check permissions on a decoy resource while modifying another. The parsed id is passed to _get_gateway_secret_permission, _get_gateway_endpoint_permission, or _get_gateway_model_definition_permission, implemented in mlflow/server/auth/__init__.py via validate_can_read_gateway_secret, validate_can_read_gateway_endpoint, and validate_can_update_gateway_model_definition. This applies only to gateway protobuf routes; validate_can_read_gateway_endpoint also resolves names to endpoint_id via the tracking store, with lookup errors raised as MlflowException and handled by catch_mlflow_exception.",
+  "saysFor": "s2:7f3cb462394faea10bc99a2ccbfa6daf59d0fe01494e88a3517c60b8deb8670c"
+}

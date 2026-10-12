@@ -1,0 +1,74 @@
+{
+  "id": "logged-model-tags-set-logged-model-tags-writes-through-bulk",
+  "title": "Logged model tags: set_logged_model_tags writes through _bulk_upsert with last-value-wins dedupe by tag key",
+  "kind": "rule",
+  "answers": [
+    "Setting or updating tags on a logged model is slow or makes many SQL round-trips when a call has many tags",
+    "Why does a logged model tag write fail on PostgreSQL with CardinalityViolation when the same tag key is repeated in one call?",
+    "Where is logged model tag upsert handled, and how does it behave per database dialect?"
+  ],
+  "body": "Path: Logged model tag writes (set_logged_model_tags, a batch of LoggedModelTag key/value pairs for one model_id) pass through mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore.set_logged_model_tags, which resolves the model's experiment_id and then hands the rows to _bulk_upsert on SqlLoggedModelTag.\nRule: Dedupe the incoming tags into a dict keyed by tag.key (last value wins) before building the row dicts, then call _bulk_upsert once. This replaces the per-tag session.merge loop, which issued one SELECT and one INSERT/UPDATE per tag. On SQLite and PostgreSQL _bulk_upsert emits INSERT ... ON CONFLICT (model_id, tag_key) DO UPDATE, on MySQL INSERT ... ON DUPLICATE KEY UPDATE, in batches of 100; other dialects (MSSQL) fall back to a session.merge loop.\nSymptom: On PostgreSQL, a call that repeated a tag key (for example two LoggedModelTag entries with key 'dup') failed with CardinalityViolation ('ON CONFLICT DO UPDATE command cannot affect row a second time'). The old merge loop had silently kept the last value, so the same request succeeded on SQLite and MySQL.\nConstraints: Applies to logged model tags only; the dedupe is needed because one ON CONFLICT statement cannot touch the same (model_id, tag_key) row twice. Empty tag lists pass an empty row list and are a no-op. delete_logged_model_tag is not changed. Regression coverage is test_set_logged_model_tags_bulk_upsert in tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_runs.py, which includes a repeated-key case and a 150-tag batch crossing the 100-row chunk.\nApplies: SQL tracking store logged model tag writes (set_logged_model_tags) on SQLite, PostgreSQL, MySQL and MSSQL.",
+  "applies": "Logged model tag set/update in the SQL tracking store; not the run tag or file store paths.",
+  "tags": [
+    "tracking",
+    "sqlalchemy",
+    "logged-model",
+    "tags",
+    "upsert",
+    "postgresql"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "SqlAlchemyStore.set_logged_model_tags",
+      "hash": "sha256:0840a545096f37d7c6a283c5",
+      "line": 2826,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0840a545096f37d7c6a283c5",
+      "fanout": {
+        "files": 23,
+        "sites": 35,
+        "refs": 60
+      }
+    },
+    {
+      "path": "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_runs.py",
+      "symbol": "test_set_logged_model_tags_bulk_upsert",
+      "hash": "sha256:923d6e11d3b919ec0e260b03",
+      "line": 4568,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:923d6e11d3b919ec0e260b03",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25862"
+  },
+  "created": "2026-10-12T05:37:13.288Z",
+  "verified": "2026-10-12T05:37:13.288Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "logged-model-search-search-logged-models-eager-load-tags-par",
+    "search-filter-numeric-attributes-searchutils-get-value-retur",
+    "sql-tracking-store-experiment-id-parsing-search-trace-scorer",
+    "sql-tracking-store-bulk-upserts-dedupe-rows-by-conflict-key"
+  ],
+  "says": [
+    "Updating model tags fails with a database error when duplicate tag keys are provided.",
+    "Saving tags on a logged model is sluggish when applying a large tag batch.",
+    "Allow updating a model tag value multiple times within the same bulk save operation.",
+    "Applying metadata tags to a model crashes when duplicate keys exist in the request."
+  ],
+  "search": "SqlAlchemyStore.set_logged_model_tags must deduplicate tag keys with last-value-wins before passing rows to _bulk_upsert. Without deduplication, PostgreSQL raised CardinalityViolation on ON CONFLICT DO UPDATE when a batch contained duplicate tag keys, whereas SQLite and MySQL previously hid the issue. This bulk upsert replaces the per-tag session.merge loop across SQLite, PostgreSQL, MySQL, and MSSQL, applying exclusively to logged model tags.",
+  "saysFor": "s2:da51093419132e03fb4fb32ed506543700e6a7f041802bb2d32b02e092cbaa9e"
+}

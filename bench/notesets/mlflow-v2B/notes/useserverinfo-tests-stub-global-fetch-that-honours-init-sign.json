@@ -1,0 +1,61 @@
+{
+  "id": "useserverinfo-tests-stub-global-fetch-that-honours-init-sign",
+  "title": "useServerInfo tests: stub global.fetch that honours init.signal, not fetchAPI, to test request timeouts",
+  "kind": "howto",
+  "answers": [
+    "How do I write a unit test for a request that should time out or be aborted in the MLflow frontend?",
+    "Why do the useServerInfo timeout tests mock global.fetch instead of fetchAPI?",
+    "How do I test that a hook sends an AbortSignal and falls back to defaults?"
+  ],
+  "body": "Path: mlflow/server/js/src/experiment-tracking/hooks/useServerInfo.timeout.test.tsx covers the hang case for the server-info query: the signal is sent, the fallback plus console.warn fires after the deadline, and an early response clears the abort timer.\nRule: stub global.fetch with a jest.fn that rejects with DOMException('Aborted','AbortError') when init.signal aborts, and run with jest.useFakeTimers(). Do not mock fetchAPI for abort tests: fetchAPI builds the RequestInit, so mocking it hides whether signal is forwarded at all. Pin the specific abort timer by finding the setTimeout call whose delay equals SERVER_INFO_TIMEOUT_MS, then assert clearTimeout was called with that handle.\nSymptom: none (test technique). The PR author reports that removing the RequestInit spread in fetchAPI made the patch inert while fetchAPI-mocked tests stayed green.\nConstraints: use this for tests that depend on fetch-level options; ordinary fetchAPI-level tests can still mock fetchAPI. Run with yarn test --testPathPattern useServerInfo.",
+  "applies": "Jest tests of frontend hooks or functions that pass signal or timeout options through fetchAPI.",
+  "tags": [
+    "frontend",
+    "jest",
+    "testing",
+    "abort-controller",
+    "fetch",
+    "fake-timers"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/hooks/useServerInfo.tsx",
+      "symbol": "SERVER_INFO_TIMEOUT_MS",
+      "hash": "sha256:9c060534eea1154bf17e793e",
+      "line": 40,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:89cb217cc433966342b037d0",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 7
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/hooks/useServerInfo.timeout.test.tsx",
+      "hash": "sha256:6e12a6278f56bd9d92c84e95",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26027"
+  },
+  "created": "2026-10-12T05:34:12.192Z",
+  "verified": "2026-10-12T05:34:12.192Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "useserverinfo-mlflowrouter-gate-bound-the-server-info-reques"
+  ],
+  "says": [
+    "Loading screen timeout fallback fails in production despite automated tests passing successfully.",
+    "Frontend automated tests pass even when network request timeout cancellation is broken.",
+    "Ensure automated tests accurately verify that client request timeouts trigger fallback behavior."
+  ],
+  "search": "In mlflow/server/js/src/experiment-tracking/hooks/useServerInfo.timeout.test.tsx, test request aborts and timeouts by stubbing global.fetch with a jest.fn rejecting with DOMException('Aborted', 'AbortError') when init.signal aborts under jest.useFakeTimers(). Do not mock fetchAPI directly because fetchAPI constructs RequestInit and mocking it obscures whether init.signal is forwarded. Verify timer cancellation by matching the setTimeout delay against SERVER_INFO_TIMEOUT_MS and checking clearTimeout handle arguments. Applies to Jest tests of frontend functions passing signal or timeout options, runnable via yarn test --testPathPattern useServerInfo.",
+  "saysFor": "s2:297fb0a30d185e6303253e45f6d92225d0bfa8c5336dee4df7b6d19ccdfdc574"
+}

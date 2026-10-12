@@ -1,0 +1,61 @@
+{
+  "id": "pickle-free-models-docs-shap-explainer-artifacts-stay-pickle",
+  "title": "Pickle-free models docs: SHAP explainer artifacts stay pickle-based and are not pickle-free even when the nested model is",
+  "kind": "rule",
+  "answers": [
+    "Is a SHAP explainer saved with MLflow pickle-free or safe to load from untrusted sources?",
+    "Why does MLFLOW_ALLOW_PICKLE_DESERIALIZATION=false not stop loading a SHAP explainer everywhere?",
+    "Can I use skops trusted types to make a SHAP explainer pickle-free?",
+    "Where is the pickle-free models guide content about SHAP?"
+  ],
+  "body": "Path: the pickle-free models guide (docs/docs/classic-ml/tracking/pickle-free-models/index.mdx) and the SHAP API docstrings for mlflow.shap.log_explainer, save_explainer and load_explainer (mlflow/shap/__init__.py) describe what is and is not pickle-free for SHAP artifacts.\nRule: SHAP explainer state is always pickle-serialized, regardless of serialize_model_using_mlflow. Even with the nested sklearn model in cloudpickle, the complete artifact is not pickle-free. Do not describe it as pickle-free, and do not offer skops trust lists as a way to make it safe. Standalone mlflow.sklearn models still use skops by default and can accept reviewed skops_trusted_types.\nSymptom: Users assumed SHAP artifacts were pickle-free like standalone sklearn models, so they expected skops trust settings or MLFLOW_ALLOW_PICKLE_DESERIALIZATION=false to make them safe to load.\nConstraints: MLFLOW_ALLOW_PICKLE_DESERIALIZATION=false blocks loading SHAP explainers outside Databricks Runtime and Databricks Model Serving. Inside those environments it does not block loading. load_explainer carries a warning to load only trusted sources.",
+  "applies": "Use when documenting, answering questions about, or changing the pickle or safety guarantees of SHAP explainer artifacts versus standalone sklearn models.",
+  "tags": [
+    "shap",
+    "pickle",
+    "security",
+    "docs",
+    "model-serialization"
+  ],
+  "deps": [
+    {
+      "path": "docs/docs/classic-ml/tracking/pickle-free-models/index.mdx",
+      "hash": "sha256:5629abdae899401b044ed76c",
+      "missing": false
+    },
+    {
+      "path": "mlflow/shap/__init__.py",
+      "symbol": "load_explainer",
+      "hash": "sha256:08b63cd2a55e3591dbc000cd",
+      "line": 617,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:08b63cd2a55e3591dbc000cd",
+      "fanout": {
+        "files": 3,
+        "sites": 5,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26138"
+  },
+  "created": "2026-10-12T05:29:29.138Z",
+  "verified": "2026-10-12T05:29:29.138Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The documentation incorrectly implies that model explanation artifacts are safe from untrusted code execution.",
+    "Disabling pickle deserialization does not block loading model explainers in managed serving environments.",
+    "Configuring trusted types does not make saved model explainer artifacts pickle free.",
+    "Warn users that model explainers remain serialized with pickle even when nested models are not.",
+    "Explain why model explanation artifacts cannot guarantee safe deserialization from untrusted sources."
+  ],
+  "search": "Documentation and docstrings in docs/docs/classic-ml/tracking/pickle-free-models/index.mdx and mlflow/shap/__init__.py must not describe SHAP explainer artifacts as pickle-free because explainer state is always pickle-serialized regardless of serialize_model_using_mlflow. Skops trust lists cannot be offered to secure SHAP explainers, even when nested sklearn models use cloudpickle, whereas standalone mlflow.sklearn models continue to use skops by default with skops_trusted_types. Setting MLFLOW_ALLOW_PICKLE_DESERIALIZATION=false blocks loading SHAP explainers outside Databricks Runtime and Databricks Model Serving, but does not block loading inside those environments, and load_explainer warns to load only trusted sources.",
+  "saysFor": "s2:829b46acbb288c952673125115a3cfcc7a9a66def4845cddaffef49b17c00286"
+}

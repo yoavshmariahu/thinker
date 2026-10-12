@@ -1,0 +1,50 @@
+{
+  "id": "github-actions-publish-workflows-concurrency-group-must-be-k",
+  "title": "GitHub Actions publish workflows: concurrency group must be keyed on the shared release resource, never github.run_id",
+  "kind": "rule",
+  "answers": [
+    "Why do two release image pushes for the same MLflow version run at the same time?",
+    "Why did a manual release label update not wait for an earlier run?",
+    "Where is the concurrency key for the push-images or update-release-labels workflow defined?",
+    "How do I make a new publish workflow serialize per release tag?"
+  ],
+  "body": "Path: .github/workflows/push-images.yml (release image pushes on release events) and .github/workflows/update-release-labels.yml (release label updates, manual dispatch with a release tag input) set the top-level `concurrency:` block that decides which runs queue behind each other.\nRule: Key the group on the thing being published, e.g. `${{ github.workflow }}-${{ github.event.release.tag_name }}` for image pushes and `${{ github.workflow }}-${{ github.event.release.tag_name || github.ref }}` for label updates (falls back to ref for manual runs). `github.run_id` is unique per run, so it serializes nothing.\nSymptom: Two runs for the same release could execute concurrently, racing on the same images or labels and leaving partial state.\nConstraints: Keep `cancel-in-progress: false` for publish workflows so an in-flight publish completes. Remember GitHub keeps only one pending run per group, so a third run can displace a queued one; the key only controls ordering, not delivery.",
+  "applies": "Applies to MLflow GitHub Actions workflows that publish release artifacts or labels; does not cover PR test workflows that should cancel superseded runs.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "concurrency",
+    "release"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/push-images.yml",
+      "hash": "sha256:3b5cde2b4cea05bff7192eed",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/update-release-labels.yml",
+      "hash": "sha256:ffc6562ffbec879d68d2d7d1",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25622"
+  },
+  "created": "2026-10-12T05:47:34.664Z",
+  "verified": "2026-10-12T05:47:34.664Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Two release image pushes for the same MLflow version run at the same time and race each other",
+    "A manual release label update did not wait for an earlier label run to finish",
+    "Where is the concurrency group set for the release image push or release label update workflows?",
+    "How should a new publish workflow queue runs per release tag so they do not overlap?"
+  ],
+  "search": "GitHub Actions publish workflows concurrency key: release image push and release label update workflows must group runs by the release tag, not the run id, so same-release publishes serialize. Keep cancel-in-progress false for publishing; grouping only controls ordering and does not guarantee delivery of queued runs.",
+  "saysFor": "s2:56dc82e46f126de255f3f8f9eca290bec8167405cade1ea751b03b6dbcd52270"
+}

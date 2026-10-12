@@ -1,0 +1,129 @@
+{
+  "id": "span-subscript-access-span-key-on-tracing-spans-raise-a-guid",
+  "title": "Span subscript access (span[\"key\"]) on tracing spans: raise a guiding TypeError that names the attribute or span.attributes path, never a generic not-subscriptable error",
+  "kind": "rule",
+  "answers": [
+    "Why does span[\"inputs\"] fail with 'Span' object is not subscriptable on a trace span?",
+    "How do I get the attribute value for a key like mlflow.spanType from a span object?",
+    "Where is the error message for subscripting a LiveSpan or Span handled?",
+    "Why does span[0] or span[\"custom_key\"] raise TypeError in MLflow tracing?"
+  ],
+  "body": "Path: mlflow/entities/span.py:Span.__getitem__ handles subscript access (span[\"inputs\"], span[\"name\"], span[\"mlflow.spanType\"], span[0]) on tracing spans, both LiveSpan and the immutable Span, when user or agent code indexes a span like a dict.\nRule: Span.__getitem__ always raises TypeError (annotated -> NoReturn) and picks the hint in order: (1) if item is an identifier that is not private and `item in dir(self)`, hint to use `span.<item>`; (2) else if `item in self.attributes` (read via getattr, guarded by try/except), hint to use `span.get_attribute(...)` or `span.attributes[...]`; (3) otherwise a fallback naming span.inputs, span.outputs, span.attributes. Use dir() for the existence probe, not hasattr(), because hasattr runs the property getter.\nSymptom: span[\"inputs\"] raised a bare \"TypeError: 'Span' object is not subscriptable\" with no pointer to span.inputs or to span.attributes, so users and coding agents could not tell where the value lives.\nConstraints: Applies to subscript access on tracing span entities. Tested in tests/entities/test_span.py:test_span_subscript_raises_helpful_type_error, which covers properties, custom attributes, dotted keys, private names and non-string indices on both LiveSpan and Span. Does not change normal attribute access.",
+  "applies": "Tracing span entity subscript access in mlflow/entities/span.py, for LiveSpan and immutable Span.",
+  "tags": [
+    "tracing",
+    "span",
+    "error-message",
+    "agent-ux"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "Span.__getitem__",
+      "hash": "sha256:9a8bac9eb6e8bd84712fd4cc",
+      "line": 308,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9a8bac9eb6e8bd84712fd4cc",
+      "fanout": {
+        "files": 5,
+        "sites": 1,
+        "refs": 9
+      }
+    },
+    {
+      "path": "tests/entities/test_span.py",
+      "symbol": "test_span_subscript_raises_helpful_type_error",
+      "hash": "sha256:f4cce2000e2367fb73cee23a",
+      "line": 1507,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f4cce2000e2367fb73cee23a",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "get_attribute",
+      "hash": "sha256:4fa5f39c2774a063ef2b3921",
+      "line": 344,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4fa5f39c2774a063ef2b3921",
+      "fanout": {
+        "files": 36,
+        "sites": 164,
+        "refs": 170
+      }
+    },
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "attributes",
+      "hash": "sha256:840ccb008aacf972454c4747",
+      "line": 252,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c85684310b1b00baf98c4436",
+      "fanout": {
+        "files": 226,
+        "sites": 8,
+        "refs": 1843
+      }
+    },
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "inputs",
+      "hash": "sha256:a24a05730f4b1fe4c0d7832b",
+      "line": 190,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a24a05730f4b1fe4c0d7832b",
+      "fanout": {
+        "files": 305,
+        "sites": 9,
+        "refs": 1994
+      }
+    },
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "outputs",
+      "hash": "sha256:c002f67b67e679a2059127c2",
+      "line": 195,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c002f67b67e679a2059127c2",
+      "fanout": {
+        "files": 274,
+        "sites": 11,
+        "refs": 1995
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26008"
+  },
+  "created": "2026-10-12T05:34:37.578Z",
+  "verified": "2026-10-12T05:34:37.578Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "span-dict-style-get-tracing-span-entity-raise-a-guiding-attr",
+    "livespan-record-exception-normalize-string-input-to-exceptio",
+    "span-class-with-getitem-set-iter-none-so-iter-span-and-x-in"
+  ],
+  "says": [
+    "Indexing a trace span with square brackets raises a generic not subscriptable error message.",
+    "Tell users which property to access when bracket notation is attempted on trace spans.",
+    "Looking up custom trace metadata using bracket indexing offers no guidance on attribute locations.",
+    "Guide users toward direct attributes or inputs when indexing operations fail on trace spans.",
+    "Square bracket key lookups on trace objects should suggest the proper attribute retrieval syntax."
+  ],
+  "search": "For subscript access on tracing spans (LiveSpan and Span), mlflow/entities/span.py:Span.__getitem__ raises a TypeError providing prioritized hints pointing to standard attributes, custom attributes, or general fallback properties. The lookup checks non-private members via dir() rather than hasattr() to avoid running property getters, followed by checking attributes for key containment. This replaces generic not-subscriptable errors for dotted keys, custom metadata, and non-string indices, without altering standard attribute access.",
+  "saysFor": "s2:864b80b18df3f03dac69c65ced0ee04d99992094b7ba2deb0e15090beb09bd2f"
+}

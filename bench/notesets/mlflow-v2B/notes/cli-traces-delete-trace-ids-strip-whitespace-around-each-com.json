@@ -1,0 +1,71 @@
+{
+  "id": "cli-traces-delete-trace-ids-strip-whitespace-around-each-com",
+  "title": "CLI traces delete --trace-ids: strip whitespace around each comma-separated trace ID before deleting",
+  "kind": "rule",
+  "answers": [
+    "Why does mlflow traces delete leave some traces behind when I pass several trace IDs separated by commas and spaces?",
+    "How do I pass multiple trace IDs to traces delete from the command line, and does the space after each comma matter?",
+    "Where is the --trace-ids parsing for the traces delete command handled?",
+    "Does the MCP delete_traces tool accept trace IDs written as 'a, b' with a space after the comma?"
+  ],
+  "body": "Path: `mlflow traces delete` CLI (`mlflow/cli/traces.py:delete_traces`) takes an experiment id plus either a comma-separated `--trace-ids` list or max-timestamp/max-traces filters, and passes the parsed IDs to `TracingClient.delete_traces`. The same command backs the MCP `delete_traces` tool.\nRule: Split comma-separated ID options with a strip per entry, e.g. `[t.strip() for t in trace_ids.split(\",\")] if trace_ids else None`, as `traces search --order-by` and `traces evaluate --trace-ids` already do. Without the strip, `\" tr-2\"` reaches the store, matches no trace, and is silently skipped.\nSymptom: A user ran `mlflow traces delete --trace-ids \"tr-1, tr-2\"`; the command exited 0 and printed a smaller deleted count, and `tr-2` was still present in `traces search` afterward.\nConstraints: Applies to comma-split ID options on trace CLI commands. `mlflow gc --run-ids/--experiment-ids` does not strip, but it fails loudly with a not-found error, so it was left unchanged. Regression test asserts the exact IDs passed to `delete_traces` (`tests/cli/test_traces.py:test_delete_command_strips_spaces_in_trace_ids`), since the exit code alone does not catch this.",
+  "applies": "Any CLI option that takes a comma-separated list of trace IDs and forwards them to the tracing store.",
+  "tags": [
+    "tracing",
+    "cli",
+    "trace-ids",
+    "delete",
+    "bug-fix"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/cli/traces.py",
+      "symbol": "delete_traces",
+      "hash": "sha256:30fe0caaf452b27843b16925",
+      "line": 439,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:30fe0caaf452b27843b16925",
+      "fanout": {
+        "files": 18,
+        "sites": 61,
+        "refs": 68
+      }
+    },
+    {
+      "path": "tests/cli/test_traces.py",
+      "symbol": "test_delete_command_strips_spaces_in_trace_ids",
+      "hash": "sha256:7196c67ecbb8f5d24ec80079",
+      "line": 174,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7196c67ecbb8f5d24ec80079",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26204"
+  },
+  "created": "2026-10-12T05:28:52.408Z",
+  "verified": "2026-10-12T05:28:52.408Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "mlflow-traces-search-cli-comma-separated-order-by-entries-mu"
+  ],
+  "says": [
+    "Deleting multiple traces with spaces after commas leaves some traces behind.",
+    "Batch trace deletion silently skips records if the input list contains spaces.",
+    "Allow spaces after commas when providing multiple record identifiers for removal.",
+    "Command line trace cleanup should ignore whitespace around comma separated identifiers."
+  ],
+  "search": "`mlflow traces delete` in mlflow/cli/traces.py (and the backing MCP delete_traces tool) must strip whitespace around each comma-separated entry parsed from --trace-ids before passing them to TracingClient.delete_traces. Without stripping, leading or trailing whitespace causes IDs to silently miss matches in the trace store. This rule applies to comma-separated trace ID CLI options, matching behavior in traces search --order-by and traces evaluate --trace-ids. In contrast, mlflow gc --run-ids/--experiment-ids does not strip whitespace because it fails loudly on not-found errors.",
+  "saysFor": "s2:284469c7cedd82ba145bace3c673f6a812b2481ecca8a837e546e457344758f0"
+}

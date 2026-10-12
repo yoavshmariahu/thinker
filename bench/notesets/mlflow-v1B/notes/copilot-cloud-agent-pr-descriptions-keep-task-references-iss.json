@@ -1,0 +1,47 @@
+{
+  "id": "copilot-cloud-agent-pr-descriptions-keep-task-references-iss",
+  "title": "Copilot cloud agent PR descriptions: keep task references (issues, PRs, Actions run/job URLs, docs, upstream changes) and the motivation when writing or updating a description",
+  "kind": "rule",
+  "answers": [
+    "Why did the Copilot cloud agent's PR description drop the failed Actions job link we needed for review?",
+    "Where are the path-specific instructions for Copilot cloud agent PR descriptions configured?",
+    "Which instruction file stops the code-review agent from applying the cloud-agent PR description rules?",
+    "When the agent updates an existing PR description, does it keep the linked issues and run URLs?"
+  ],
+  "body": "Path: .github/instructions/cloud-agent.instructions.md governs PR descriptions written or updated by the Copilot cloud agent across the repo (applyTo \"**\"); excludeAgent \"code-review\" keeps it off the code-review agent. Its section \"Pull request descriptions\" is the only place this guidance lives.\nRule: A cloud-agent PR description must state why the change is needed and carry forward the task's references: linked issues, PRs, GitHub Actions run or job URLs (including agent-run and failed-job URLs), documentation, upstream changes, and supporting measurements or logs. When updating an existing description, keep these references unless they are no longer relevant. Implementation summaries alone are not enough.\nSymptom: Reviewers got a description that summarized the implementation but omitted the agent-run and failed-job URLs needed to understand the review context.\nConstraints: Applies to the Copilot cloud agent only; the code-review agent is excluded by the front matter. It is guidance for the agent's output, not enforced by code or CI, so reviewers should still check that references survived edits.",
+  "applies": "Repo-wide instruction for the Copilot cloud agent's PR description writing; not for human-authored descriptions or the code-review agent.",
+  "tags": [
+    "github-copilot",
+    "cloud-agent",
+    "pr-description",
+    "instructions",
+    "review-context"
+  ],
+  "deps": [
+    {
+      "path": ".github/instructions/cloud-agent.instructions.md",
+      "hash": "sha256:1bd16499ff03df9e66f9674a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25812"
+  },
+  "created": "2026-10-12T05:45:02.661Z",
+  "verified": "2026-10-12T05:45:02.661Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The bot pull request description omitted the failed build links needed for review.",
+    "Updating the pull request wiped out the original issue links and context.",
+    "Ensure automated pull request descriptions explain motivation and preserve all task references.",
+    "Why did the agent description summarize code changes but drop the related tickets?",
+    "Require the cloud coding agent to retain upstream links and build logs in summaries."
+  ],
+  "search": "Copilot cloud agent pull request descriptions must explain why the change is needed and retain task references including linked issues, PRs, GitHub Actions run or job URLs, documentation, and upstream changes. Governed by the 'Pull request descriptions' section in .github/instructions/cloud-agent.instructions.md, configured with applyTo '**' and excludeAgent 'code-review'. Applies only to PR descriptions written or updated by the Copilot cloud agent (excluding the code-review agent and human authors), serving as advisory output guidance rather than CI-enforced rules.",
+  "saysFor": "s2:79168064a8b65c52e7f5481d791342f4487d5efdba8c4730ce5f13242a9b31a1"
+}

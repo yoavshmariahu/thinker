@@ -1,0 +1,67 @@
+{
+  "id": "pytorch-pt2-tests-build-a-malicious-payload-pt2-archive-by-s",
+  "title": "pytorch pt2 tests: build a malicious-payload pt2 archive by swapping the sample-inputs record, and gate tests on torch >= 2.10",
+  "kind": "howto",
+  "answers": [
+    "How do I write a test that checks a pytorch pt2 model rejects a pickle payload?",
+    "Which torch version do the pt2 pickle-guard tests need?",
+    "Where is the helper that replaces the example-inputs record in a pt2 archive?"
+  ],
+  "body": "Path: tests/pytorch/test_pytorch_model_export.py covers the pt2 pickle guard: pt2 save via mlflow.pytorch.save_model, load via mlflow.pytorch.load_model and mlflow.pyfunc.load_model, with MLFLOW_ALLOW_PICKLE_DESERIALIZATION toggled by monkeypatch.\nRule: To simulate a crafted pt2 archive, call _replace_pt2_sample_inputs_record on the model's data/model.pt2 with a torch.save'd object whose __reduce__ writes a marker file (e.g. _FileCreatingPayload). It rewrites the zip and returns the record name, which tests match with pytest.raises(match=...). Assert the marker file does not exist, since validation must reject before unpickling. Guard these tests with skipif torch < 2.10, because the validator refuses older torch.\nSymptom: n/a (test convention).\nConstraints: The helper targets the sample-inputs record, which is unpickled by torch.export.load; the record name differs across torch versions, so the helper matches by suffix or '/sample_inputs/'. Payloads that should pass (allowlisted via torch.serialization.safe_globals) need a separate test, because the validator ignores the ambient registry.",
+  "applies": "tests for the pytorch pt2 pickle-free loading guard; reuse only when writing new pt2 guard tests.",
+  "tags": [
+    "pytorch",
+    "pt2",
+    "testing",
+    "security"
+  ],
+  "deps": [
+    {
+      "path": "tests/pytorch/test_pytorch_model_export.py",
+      "symbol": "_replace_pt2_sample_inputs_record",
+      "hash": "sha256:02abade161c7ec05b7b9b9ca",
+      "line": 1168,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:02abade161c7ec05b7b9b9ca",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "tests/pytorch/test_pytorch_model_export.py",
+      "symbol": "_FileCreatingPayload",
+      "hash": "sha256:63d19c20b8eb9303f4b55cef",
+      "line": 1158,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:63d19c20b8eb9303f4b55cef",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25849"
+  },
+  "created": "2026-10-12T05:44:22.828Z",
+  "verified": "2026-10-12T05:44:22.828Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Verify that exported PyTorch models reject malicious archive payloads before loading.",
+    "Add automated tests ensuring untrusted model files cannot run code during import.",
+    "Security regression tests for exported PyTorch models are skipped on older versions.",
+    "Test that model deserialization blocks crafted sample inputs without creating marker files."
+  ],
+  "search": "Tests for the PyTorch pt2 pickle-free load guard in tests/pytorch/test_pytorch_model_export.py simulate malicious archives by using _replace_pt2_sample_inputs_record to inject a _FileCreatingPayload into the sample-inputs record of data/model.pt2. The tests must verify that the marker file does not exist, assert rejection via pytest.raises, and gate execution with skipif on torch < 2.10. The helper matches the sample-inputs record by suffix or /sample_inputs/, and tests for allowlisted safe globals require separate test cases because ambient registries are ignored.",
+  "saysFor": "s2:04438fb682e6dc316ecef6171b6aa0b44ce1d3b9287991ba7ff66cfb4d2007a5"
+}

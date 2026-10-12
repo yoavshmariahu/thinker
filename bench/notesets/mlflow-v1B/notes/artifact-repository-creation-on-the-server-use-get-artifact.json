@@ -1,0 +1,126 @@
+{
+  "id": "artifact-repository-creation-on-the-server-use-get-artifact",
+  "title": "Artifact repository creation on the server: use _get_artifact_repository_for_uri for stored locations and rely on the registry marker check, not bare get_artifact_repository, so server jobs and handlers share one host policy",
+  "kind": "rule",
+  "answers": [
+    "I added a new handler that reads a stored artifact location; how do I make sure it respects the server host restriction?",
+    "Why does a server job that logs artifacts to an ftp location fail with a host-policy error while the same code works on a client?",
+    "Where is the registry-level enforcement that covers runs:/ and models:/ URIs in server processes?"
+  ],
+  "body": "Path: Repository construction for artifact URIs in the tracking server: handlers in mlflow/server/handlers.py (run artifacts via _get_artifact_repo, model version and logged model artifact handlers, presigned upload, trace repo and UI log-artifact paths) and ArtifactRepositoryRegistry.get_artifact_repository in mlflow/store/artifact/artifact_repository_registry.py, which is also used inside huey jobs and job subprocesses.\nRule: Stored locations must be built with mlflow/server/handlers.py:_get_artifact_repository_for_uri, which calls validate_artifact_uri_host before get_artifact_repository. The registry calls enforce_server_artifact_uri_host_policy in ArtifactRepositoryRegistry.get_artifact_repository, which is a no-op unless the _MLFLOW_SERVER_ARTIFACT_ROOT marker is in the environment, so server processes and jobs (which inherit it) are checked while clients are not. The duplicated marker names in host_policy.py must equal mlflow/server/constants.py ARTIFACT_ROOT_ENV_VAR and ARTIFACTS_DESTINATION_ENV_VAR; a test pins them. Also, _get_artifact_repo no longer carries @catch_mlflow_exception: it is an internal helper and every caller is a decorated handler, so its exceptions must propagate rather than becoming a Response.\nSymptom: Server-side jobs (for example one that logs artifacts through the tracking client, or a runs:/ or models:/ URI) could still connect to a foreign host because only the HTTP handler path was guarded.\nConstraints: The registry check only fires when the marker is set, so a WSGI app run without the mlflow server CLI must export the same env vars to get registry-level enforcement; the handler-level check still applies there. Renaming the marker constant without updating host_policy.py silently disables registry enforcement.",
+  "applies": "Any new server-side code that resolves or builds an artifact repository from a stored or client-supplied URI in the tracking server or its jobs.",
+  "tags": [
+    "security",
+    "artifacts",
+    "tracking-server",
+    "jobs",
+    "handlers",
+    "registry"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_get_artifact_repository_for_uri",
+      "hash": "sha256:3caa854a06cab55fafabdc5e",
+      "line": 1470,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3caa854a06cab55fafabdc5e",
+      "fanout": {
+        "files": 1,
+        "sites": 7,
+        "refs": 7
+      }
+    },
+    {
+      "path": "mlflow/store/artifact/artifact_repository_registry.py",
+      "symbol": "ArtifactRepositoryRegistry.get_artifact_repository",
+      "hash": "sha256:4cb1e9b6a4b0b3244f430fb2",
+      "line": 60,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4cb1e9b6a4b0b3244f430fb2",
+      "fanout": {
+        "files": 46,
+        "sites": 111,
+        "refs": 183
+      }
+    },
+    {
+      "path": "mlflow/store/artifact/host_policy.py",
+      "symbol": "enforce_server_artifact_uri_host_policy",
+      "hash": "sha256:d2fa12724f2890450f637c43",
+      "line": 163,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:d2fa12724f2890450f637c43",
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/store/artifact/host_policy.py",
+      "symbol": "is_tracking_server_process",
+      "hash": "sha256:a2d2eaeba36d3361ed7cf2be",
+      "line": 155,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a2d2eaeba36d3361ed7cf2be",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/constants.py",
+      "symbol": "ARTIFACT_ROOT_ENV_VAR",
+      "hash": "sha256:29d0a68d14c5638bdd0a668a",
+      "line": 20,
+      "missing": false,
+      "fanout": {
+        "files": 8,
+        "sites": 0,
+        "refs": 20
+      }
+    },
+    {
+      "path": "mlflow/server/constants.py",
+      "symbol": "ARTIFACTS_DESTINATION_ENV_VAR",
+      "hash": "sha256:c7d5555af6430939674e8898",
+      "line": 23,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 0,
+        "refs": 25
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25891"
+  },
+  "created": "2026-10-12T05:44:12.671Z",
+  "verified": "2026-10-12T05:44:12.671Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "invoke-endpoints-issue-detection-genai-evaluate-scorer-calle",
+    "scorer-register-invoke-evaluate-payloads-validate-every-seri",
+    "artifact-host-policy-tracking-server-refuses-host-addressed",
+    "invoke-endpoints-trace-ids-input-contract-reject-empty-lists"
+  ],
+  "says": [
+    "Background server jobs fail when logging artifacts to an external file server.",
+    "Artifact logging works from the client but fails inside server background tasks.",
+    "Server background jobs bypass host restrictions when resolving run or model artifact locations.",
+    "Enforce consistent remote storage host security across all server handlers and background workers."
+  ],
+  "search": "Server-side artifact repository construction must use mlflow/server/handlers.py:_get_artifact_repository_for_uri and ArtifactRepositoryRegistry.get_artifact_repository to enforce host policies across both handlers and server jobs. The registry calls enforce_server_artifact_uri_host_policy only when the _MLFLOW_SERVER_ARTIFACT_ROOT environment marker is present, ensuring server processes and job subprocesses are restricted while client processes are exempt. Applies to resolving stored or client-supplied URIs in tracking server handlers, Huey jobs, and job subprocesses, but WSGI apps running without the CLI must explicitly export marker environment variables to enable registry-level enforcement.",
+  "saysFor": "s2:eb51b73b3dc55ace9d8d8333df59ffc7adbea5b5ed75b795e5b43834b228102a"
+}

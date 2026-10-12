@@ -1,0 +1,74 @@
+{
+  "id": "useserverinfo-mlflowrouter-gate-bound-the-server-info-reques",
+  "title": "useServerInfo / MlflowRouter gate: bound the server-info request with an abort timeout so a hang takes the 500 fallback path",
+  "kind": "rule",
+  "answers": [
+    "The UI is stuck on a blank skeleton forever and the console shows nothing when the server is slow or unresponsive",
+    "Why does the app fall back to 'workspaces disabled' after a long wait instead of hanging?",
+    "Where is the server-info request timeout or fallback defaults handled?",
+    "How long does the app wait for server-info before rendering?"
+  ],
+  "body": "Path: mlflow/server/js/src/experiment-tracking/hooks/useServerInfo.tsx:fetchServerInfo is the queryFn behind the serverInfo query that MlflowRouter waits on before creating the router. It fetches ajax-api/3.0/mlflow/server-info (store type, workspaces_enabled, trace archival, multipart flags).\nRule: the request is bounded by SERVER_INFO_TIMEOUT_MS (30s) using an AbortController whose timer fires controller.abort(); the signal is passed to fetchAPI, and clearTimeout runs in a finally block. An abort lands in the existing catch and returns DEFAULT_RESPONSE, identical to a 500. Keep any new gating request bounded the same way, because the query has no other escape hatch.\nSymptom: the whole UI stayed on <LegacySkeleton/> with an empty #root, no error and no route, whenever server-info never responded.\nConstraints: 30s is deliberately generous; timing out early wrongly enables the 'workspaces disabled' fallback and clears the persisted workspace, and that fallback is cached for the session. The timeout does not help when React Query pauses the query because navigator.onLine is false, since queryFn never runs in that case (a separate fix).",
+  "applies": "Frontend (mlflow/server/js) startup gating on server-info; does not cover other endpoints or paused offline queries.",
+  "tags": [
+    "frontend",
+    "server-info",
+    "timeout",
+    "abort-controller",
+    "workspaces",
+    "startup"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/hooks/useServerInfo.tsx",
+      "symbol": "fetchServerInfo",
+      "hash": "sha256:458d162e4235d481dbb1f8ea",
+      "line": 56,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:458d162e4235d481dbb1f8ea",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/hooks/useServerInfo.tsx",
+      "symbol": "SERVER_INFO_TIMEOUT_MS",
+      "hash": "sha256:9c060534eea1154bf17e793e",
+      "line": 40,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:89cb217cc433966342b037d0",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26027"
+  },
+  "created": "2026-10-12T05:34:11.982Z",
+  "verified": "2026-10-12T05:34:11.982Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "useserverinfo-tests-stub-global-fetch-that-honours-init-sign",
+    "frontend-request-timeouts-use-abortcontroller-with-settimeou"
+  ],
+  "says": [
+    "The web interface is stuck indefinitely on a blank loading skeleton when opening.",
+    "The screen hangs forever on loading placeholders if the backend server is unresponsive.",
+    "The application should time out and load default settings instead of freezing on launch.",
+    "Users report a blank page with no error message when the server responds slowly.",
+    "The application unexpectedly switches to workspaces disabled mode after a long loading delay."
+  ],
+  "search": "In mlflow/server/js/src/experiment-tracking/hooks/useServerInfo.tsx:fetchServerInfo, the ajax-api/3.0/mlflow/server-info request must be bounded by SERVER_INFO_TIMEOUT_MS (30s) using an AbortController to abort the fetchAPI signal and return DEFAULT_RESPONSE on timeout. This prevents MlflowRouter from staying indefinitely stuck on <LegacySkeleton/> when the server hangs. Any new frontend startup gating query must be bounded similarly, but note that 30s is generous because timing out wrongly activates the cached 'workspaces disabled' fallback. This timeout only covers server-info startup gating and does not resolve offline paused queries when navigator.onLine is false.",
+  "saysFor": "s2:94152396f07a7b222a1565d3df47686cc357e2634f3cba5f8d8392df97e3a034"
+}

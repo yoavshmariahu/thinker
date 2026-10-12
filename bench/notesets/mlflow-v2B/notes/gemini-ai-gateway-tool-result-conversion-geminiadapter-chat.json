@@ -1,0 +1,87 @@
+{
+  "id": "gemini-ai-gateway-tool-result-conversion-geminiadapter-chat",
+  "title": "Gemini AI Gateway tool result conversion (GeminiAdapter.chat_to_model): tool message content that is not a JSON object is sent as functionResponse.response {\"result\": ...}",
+  "kind": "rule",
+  "answers": [
+    "Why does a multi-turn tool-calling chat through the gateway fail with a 500 when a tool returns plain text like 'Status: 200 OK' for Gemini or Vertex AI?",
+    "How does the gateway convert OpenAI tool message content (empty string, null, list of content parts, JSON number or list) into a Gemini functionResponse?",
+    "Where is the tool message content parsed into the Gemini function response for chat and streaming requests?"
+  ],
+  "body": "Path: OpenAI-style chat requests with `role: \"tool\"` messages sent through the AI Gateway to Gemini, streaming chat, and Gemini models on Vertex AI (which calls the same method via super()). The chokepoint is mlflow/gateway/providers/gemini.py:GeminiAdapter.chat_to_model, which turns each tool message into a Gemini functionResponse part.\nRule: Build `response` with mlflow/gateway/providers/gemini.py:_tool_result_to_response, never with a bare `json.loads`. Content that parses to a JSON object is passed through unchanged; anything else (plain text, empty string, null, list of content parts, JSON number/string/list/null, or a parse TypeError) is wrapped as `{\"result\": <content>}`, because Gemini requires `response` to be an object.\nSymptom: A tool result such as plain text ('Status: 200 OK') made the request fail with a JSON decode error and a 500 before reaching Gemini, breaking any multi-turn tool conversation once the first tool result was in history. Non-object JSON such as `42` was sent as-is and rejected because Gemini needs an object.\nConstraints: Applies only to request-side tool message content. The helper does not change the functionCall name/id mapping or grouping of parallel tool results, which are handled in chat_to_model separately. Tested by tests/gateway/providers/test_gemini.py:test_gemini_chat_function_calling_tool_result_content, parametrized over text, empty string, JSON object, JSON number, JSON list and content parts.",
+  "applies": "Gateway Gemini request conversion in mlflow/gateway/providers/gemini.py for tool message content, including Gemini on Vertex AI and streaming chat that share GeminiAdapter.chat_to_model.",
+  "tags": [
+    "gateway",
+    "gemini",
+    "vertex-ai",
+    "tool-calling",
+    "request-conversion"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/gemini.py",
+      "symbol": "_tool_result_to_response",
+      "hash": "sha256:8c5059ed72dfe0cdfcaa5168",
+      "line": 85,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8c5059ed72dfe0cdfcaa5168",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/gemini.py",
+      "symbol": "GeminiAdapter.chat_to_model",
+      "hash": "sha256:df37a4b2cd50c08f0c00369c",
+      "line": 108,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:df37a4b2cd50c08f0c00369c",
+      "fanout": {
+        "files": 21,
+        "sites": 47,
+        "refs": 51
+      }
+    },
+    {
+      "path": "tests/gateway/providers/test_gemini.py",
+      "symbol": "test_gemini_chat_function_calling_tool_result_content",
+      "hash": "sha256:8a67e755593506cf7bbee375",
+      "line": 874,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8a67e755593506cf7bbee375",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25868"
+  },
+  "created": "2026-10-12T05:36:47.535Z",
+  "verified": "2026-10-12T05:36:47.535Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "gemini-ai-gateway-tool-calls-thoughtsignature-is-a-sibling-o",
+    "gemini-ai-gateway-request-conversion-parallel-tool-results-g",
+    "gemini-ai-gateway-chat-responses-geminiadapter-detect-tool-c",
+    "vertex-ai-gateway-tool-calls-assert-thoughtsignature-on-the"
+  ],
+  "says": [
+    "Chat gateway crashes with a 500 error when a tool returns plain text.",
+    "Gateway calls fail when tools provide numbers or lists instead of JSON objects.",
+    "Multi-turn Gemini chat should support text outputs and empty results from external tools.",
+    "Conversations on Vertex AI break after a function returns non-object data."
+  ],
+  "search": "AI Gateway request conversion wraps non-object tool message content in a result field dictionary for Gemini functionResponse parts. Implemented in mlflow/gateway/providers/gemini.py:_tool_result_to_response and called by GeminiAdapter.chat_to_model for Gemini, streaming chat, and Vertex AI models, avoiding 500 JSON decode errors. Content parsing to a JSON object passes through unchanged, whereas plain text, empty strings, nulls, lists of content parts, and JSON numbers or lists are wrapped as an object. Applies only to request-side tool content without altering functionCall mapping or parallel tool result grouping, tested in tests/gateway/providers/test_gemini.py:test_gemini_chat_function_calling_tool_result_content.",
+  "saysFor": "s2:e09ec0c0a9095824c003239e4926489adc8f0ba145d6f4ab2d0bc43a90187ba3"
+}

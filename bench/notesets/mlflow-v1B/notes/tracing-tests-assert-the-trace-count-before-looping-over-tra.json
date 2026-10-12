@@ -1,0 +1,52 @@
+{
+  "id": "tracing-tests-assert-the-trace-count-before-looping-over-tra",
+  "title": "tracing tests: assert the trace count before looping over traces or spans so an empty get_traces() cannot pass vacuously",
+  "kind": "rule",
+  "answers": [
+    "My tracing test passes even though no trace was recorded, why?",
+    "How should I write a test that checks span attributes on every trace returned by get_traces()?",
+    "Which test file has the span description and default-none tests?"
+  ],
+  "body": "Path: tests/tracing/test_fluent.py:test_span_description_default_none and the other span-description tests read traces back with get_traces() and then check span attributes on each trace.\nRule: Assert the expected count (assert len(traces) == N) before any for-loop over traces or spans. If get_traces() returns an empty list the loop body never executes and the test passes without checking anything.\nConstraints: Applies to loop-based assertions over recorded traces in this file. Single-trace tests that index traces[0] already fail on an empty result and need no loop guard.",
+  "applies": "Test code in tests/tracing that iterates over traces returned by get_traces(); not a runtime behavior change.",
+  "tags": [
+    "tests",
+    "tracing",
+    "get_traces"
+  ],
+  "deps": [
+    {
+      "path": "tests/tracing/test_fluent.py",
+      "symbol": "test_span_description_default_none",
+      "hash": "sha256:5fa5064f8f4d40980cff21f5",
+      "line": 3377,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5fa5064f8f4d40980cff21f5",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25548"
+  },
+  "created": "2026-10-12T05:48:57.079Z",
+  "verified": "2026-10-12T05:48:57.079Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Trace verification tests pass in automated checks even when no traces were actually captured.",
+    "Span descriptions are missing from recorded traces but the test suite reports success.",
+    "Automated checks for trace spans pass vacuously when the trace list is completely empty.",
+    "Ensure trace validation fails when expected spans or traces are not logged at all."
+  ],
+  "search": "Tracing tests that iterate over traces or spans returned by get_traces() must assert the expected count (assert len(traces) == N) before looping to prevent empty results from passing vacuously. This applies to test code in tests/tracing/test_fluent.py (such as test_span_description_default_none and other span-description tests) rather than runtime behavior. Single-trace tests that directly index traces[0] already fail on empty results and do not require this count assertion guard.",
+  "saysFor": "s2:db0a0d819efbdf7f25babb6be6ac5019fd8a866baf15acc6b50f51fc478bc136"
+}

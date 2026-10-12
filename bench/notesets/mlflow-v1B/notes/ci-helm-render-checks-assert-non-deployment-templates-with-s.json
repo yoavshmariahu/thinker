@@ -1,0 +1,46 @@
+{
+  "id": "ci-helm-render-checks-assert-non-deployment-templates-with-s",
+  "title": "CI helm render checks: assert non-deployment templates with -s templates/<file>, pairing a default render with a --set override",
+  "kind": "howto",
+  "answers": [
+    "How do I add a CI check that the Service or CronJob in the Helm chart renders the right port?",
+    "How do I test a single Helm template in the GitHub workflow without rendering the whole chart?",
+    "Where are the chart render assertions for service.port defined?"
+  ],
+  "body": "Path: .github/workflows/helm.yml runs the chart render checks; the `Render Service port` and `Render CronJob with a decoupled Service port` steps each define a local `render()` helper that runs `helm template mlflow charts/` with a dummy `mlflow.backendStoreUri` and then `-s templates/<file>.yaml` to select one template.\nRule: To check a value in a template other than deployment.yaml, select it with `-s templates/service.yaml` (or `cronjob.yaml`) in the render helper, and pass the override through \"$@\". Write the default case and the override case as a pair: `render | grep -q '<default line>'` then `render --set <key>=<value> | grep -q '<override line>'`. Use anchored greps on the exact rendered line (for example `'^    - port: 80$'`) or on a full value such as the in-cluster URL `mlflow.default.svc.cluster.local:80`.\nConstraints: Add `--set fullnameOverride=mlflow` when the expected string depends on the release name, as the CronJob step does. The anchored indentation patterns depend on the template's nindent levels; update them if the template changes. Because `grep -q` runs inside a plain `run:` step, a missing line fails the step only if the grep fails, so keep one assertion per line.",
+  "applies": "Changes to Helm chart render behaviour in charts/ for Service, CronJob or other non-deployment templates; adding CI render assertions in .github/workflows/helm.yml.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "helm",
+    "render",
+    "testing"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/helm.yml",
+      "hash": "sha256:3456bde8c62fd2e2da58ba23",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25539"
+  },
+  "created": "2026-10-12T05:49:20.872Z",
+  "verified": "2026-10-12T05:49:20.872Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The deployed service does not expose the custom port configured during installation.",
+    "Scheduled background jobs cannot reach the tracking server cluster address after port changes.",
+    "Allow users to override the network port when installing the Kubernetes package.",
+    "Scheduled tasks fail to communicate with the service under a custom release name.",
+    "The internal cluster service ignores custom port values and uses default settings."
+  ],
+  "search": "CI Helm chart render checks in .github/workflows/helm.yml test non-deployment templates by running helm template with -s templates/<file>.yaml, pairing default renders with --set overrides verified by anchored grep. Steps define a render helper with a dummy mlflow.backendStoreUri and pass overrides through $@, asserting exact rendered lines or in-cluster URLs. Add --set fullnameOverride=mlflow if expected strings depend on release names, update indentation patterns when nindent changes, and keep one assertion per run step. Applies to changes in charts/ for Service, CronJob, or other non-deployment templates and render assertions in .github/workflows/helm.yml.",
+  "saysFor": "s2:ee70e26e4fd657d9b49cde479d4adee5695a40c03506954793006975d8425181"
+}

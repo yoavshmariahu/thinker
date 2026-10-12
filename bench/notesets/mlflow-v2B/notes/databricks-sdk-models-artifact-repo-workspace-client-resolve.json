@@ -1,0 +1,71 @@
+{
+  "id": "databricks-sdk-models-artifact-repo-workspace-client-resolve",
+  "title": "Databricks SDK models artifact repo workspace client: resolve host/token from the registry URI before falling back to default auth, for serverless/SEG executors",
+  "kind": "rule",
+  "answers": [
+    "Loading a UC model on serverless or internet-restricted compute fails with a 'default auth: cannot configure default credentials' error; how is the workspace client built?",
+    "Which registry URI is passed to the Files API client when loading versus registering a UC model?",
+    "Where are Databricks host and token resolved for the Files API model artifact client?"
+  ],
+  "body": "Path: mlflow/store/artifact/databricks_sdk_models_artifact_repo.py:_get_databricks_workspace_client builds the databricks.sdk WorkspaceClient used by DatabricksSDKModelsArtifactRepository for UC model load and register. It takes an optional registry_uri.\nRule: Resolve host and token with mlflow/utils/databricks_utils.py:get_databricks_host_creds(registry_uri) and build WorkspaceClient(host=..., token=...) when both are present. If resolution raises or returns no usable creds, log at debug and fall back to a bare WorkspaceClient() (default auth). The caller must pass registry_uri: UnityCatalogModelsArtifactRepository passes its registry_uri on load, and UcModelRegistryStore passes store_uri on register.\nSymptom: On serverless or SEG compute, Spark executors lack default Databricks credentials, so a bare WorkspaceClient() failed with 'default auth: cannot configure default credentials'.\nConstraints: Classic compute where default auth works still gets the default-auth path. Passing registry_uri is required for the resolved-creds path; without it the repo falls back to default auth.",
+  "applies": "Creating or changing the Databricks client used for UC model file transfers, including when a new code path builds DatabricksSDKModelsArtifactRepository.",
+  "tags": [
+    "unity-catalog",
+    "databricks-sdk",
+    "serverless",
+    "credentials",
+    "auth"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/artifact/databricks_sdk_models_artifact_repo.py",
+      "symbol": "_get_databricks_workspace_client",
+      "hash": "sha256:9d13e5702befd242cd970849",
+      "line": 13,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9d13e5702befd242cd970849",
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/utils/databricks_utils.py",
+      "symbol": "get_databricks_host_creds",
+      "hash": "sha256:b57679061c18bd0d48dc2239",
+      "line": 815,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b57679061c18bd0d48dc2239",
+      "fanout": {
+        "files": 36,
+        "sites": 43,
+        "refs": 117
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25987"
+  },
+  "created": "2026-10-12T05:35:08.607Z",
+  "verified": "2026-10-12T05:35:08.607Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "databrickssdkmodelsartifactrepository-uc-model-files-go-thro"
+  ],
+  "says": [
+    "Loading a catalog model on serverless compute fails with a default credentials error.",
+    "Model loading on secure executor clusters crashes because credentials cannot be found.",
+    "Unable to download model artifacts when running inference on serverless compute.",
+    "Model registration fails on restricted compute environments because workspace authentication was not found.",
+    "Allow serverless compute jobs to load models from the catalog using registry credentials."
+  ],
+  "search": "The Databricks SDK workspace client in mlflow/store/artifact/databricks_sdk_models_artifact_repo.py:_get_databricks_workspace_client resolves host and token from the registry URI before falling back to default auth. Host and credentials resolved via mlflow/utils/databricks_utils.py:get_databricks_host_creds(registry_uri) instantiate WorkspaceClient(host=..., token=...), falling back to bare WorkspaceClient() on error or missing credentials. Callers must supply registry_uri (such as UnityCatalogModelsArtifactRepository passing registry_uri on load and UcModelRegistryStore passing store_uri on register) to prevent 'default auth: cannot configure default credentials' failures on serverless or SEG compute executors lacking default credentials. Classic compute retaining functioning default credentials remains unaffected, but omitting registry_uri always falls back to default auth.",
+  "saysFor": "s2:a9ee1e2446d87976b979588af657bd38e31d6f656839772a83c78b3f1ecd94bc"
+}

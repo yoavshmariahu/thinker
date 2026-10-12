@@ -1,0 +1,58 @@
+{
+  "id": "frontend-request-timeouts-use-abortcontroller-with-settimeou",
+  "title": "Frontend request timeouts: use AbortController with setTimeout and clearTimeout, not AbortSignal.timeout, because browserslist includes Chrome 94-102",
+  "kind": "rule",
+  "answers": [
+    "How should I add a timeout to a fetch call in the MLflow frontend?",
+    "Why not use AbortSignal.timeout for a request timeout?",
+    "Why does the existing fetchEndpointRaw timeoutMs option leak timers?"
+  ],
+  "body": "Path: mlflow/server/js/src/experiment-tracking/hooks/useServerInfo.tsx:fetchServerInfo is a single-call-site timeout that wraps fetchAPI and passes signal into it; fetchEndpointRaw's timeoutMs option is the existing alternative in the same frontend fetch layer.\nRule: for a per-call deadline, create new AbortController(), arm setTimeout(() => controller.abort(), ms), pass controller.signal, and call clearTimeout in finally. Do not use AbortSignal.timeout, which needs Chrome 103+, while browserslist still resolves chrome 94-102, and_uc 15.5 and op_mob 80. Browser APIs are not polyfilled, so the constraint is real.\nSymptom: none recorded for this convention. The PR notes that the existing fetchEndpointRaw timeoutMs path never calls clearTimeout, so copying it duplicates a timer leak.\nConstraints: adding timeout support to the widely used fetchAPI was judged an infrastructure change and left for a separate PR; the timeout is therefore hand-rolled at the call site.",
+  "applies": "Frontend code in mlflow/server/js that needs a per-request timeout on fetch.",
+  "tags": [
+    "frontend",
+    "fetch",
+    "timeout",
+    "browser-compat",
+    "browserslist",
+    "abort-controller"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/hooks/useServerInfo.tsx",
+      "symbol": "fetchServerInfo",
+      "hash": "sha256:458d162e4235d481dbb1f8ea",
+      "line": 56,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:458d162e4235d481dbb1f8ea",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26027"
+  },
+  "created": "2026-10-12T05:34:12.376Z",
+  "verified": "2026-10-12T05:34:12.376Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "useserverinfo-mlflowrouter-gate-bound-the-server-info-reques"
+  ],
+  "says": [
+    "The web interface crashes on older supported browsers when checking server information.",
+    "Why does the server status check fail on older browser or mobile versions?",
+    "The web dashboard leaks memory over time because network request timers are not cleared.",
+    "Network requests should time out cleanly without breaking compatibility on older browser versions.",
+    "Ensure server info requests abort on slow connections without leaking background timers."
+  ],
+  "search": "`mlflow/server/js/src/experiment-tracking/hooks/useServerInfo.tsx:fetchServerInfo` implements per-request timeouts using `AbortController`, `setTimeout`, and `clearTimeout` in a `finally` block when calling `fetchAPI`. `AbortSignal.timeout` must not be used because browserslist includes Chrome 94-102, Android UC 15.5, and Opera Mobile 80, and browser APIs are not polyfilled. The hand-rolled call-site timeout explicitly clears timers to avoid the timer leak present in `fetchEndpointRaw`'s `timeoutMs` implementation. Guidance applies to frontend fetch calls in `mlflow/server/js` requiring request deadlines prior to general timeout support in `fetchAPI`.",
+  "saysFor": "s2:461c3eec11c83cd37b2c0c49d5fb2b1769e4d0b3d51de10beaedc591b4d3f46f"
+}

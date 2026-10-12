@@ -1,0 +1,56 @@
+{
+  "id": "artifact-repository-registry-tests-snapshot-artifact-reposit",
+  "title": "artifact repository registry tests: snapshot _artifact_repository_registry with monkeypatch before any reload so teardown restores plugin schemes",
+  "kind": "rule",
+  "answers": [
+    "Why do artifact store tests like file-plugin or docker plugin fail only on some CI shards after the registry test runs?",
+    "How do I write a test that reloads the artifact registry with mocked entry points without breaking later tests?",
+    "Where is the artifact repository registry global restored after test_standard_artifact_registry reloads it?",
+    "How do I register a mock artifact URI scheme in a test without leaking it into other tests?"
+  ],
+  "body": "Path: tests/store/artifact/test_artifact_repository_registry.py:test_standard_artifact_registry covers the artifact repository registry, which maps URI schemes (file, plugin schemes from entry points) to artifact repository classes. The test reloads the registry module with mocked entry points to add a mock scheme.\nRule: before calling importlib reload on the registry module, snapshot the live `_artifact_repository_registry` global with `monkeypatch.setattr(module, \"_artifact_repository_registry\", module._artifact_repository_registry)`. This is a no-op assignment whose only effect is that pytest records the original and restores it at teardown, including when the test fails. Use the same pattern for any module global a test rebinds.\nSymptom: after the reload, the worker process lost installed plugin registrations such as `file-plugin`, so later tests in the same shard failed with unknown-scheme errors; failures depended on which shard ran the test first.\nConstraints: needed only when a test replaces a module-level registry via reload or direct assignment. Tests that only patch entry points without reloading, or that never touch the global, do not need it.",
+  "applies": "Test code that reloads or rebinds the artifact repository registry global in tests/store/artifact.",
+  "tags": [
+    "testing",
+    "artifact",
+    "registry",
+    "test-isolation",
+    "monkeypatch"
+  ],
+  "deps": [
+    {
+      "path": "tests/store/artifact/test_artifact_repository_registry.py",
+      "symbol": "test_standard_artifact_registry",
+      "hash": "sha256:746d187beefc4465302ca77e",
+      "line": 17,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:746d187beefc4465302ca77e",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26013"
+  },
+  "created": "2026-10-12T05:34:21.155Z",
+  "verified": "2026-10-12T05:34:21.155Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Artifact storage plugin tests fail intermittently on continuous integration depending on test order.",
+    "Docker and file plugin test suites crash with unknown storage scheme errors in build shards.",
+    "Prevent registry test teardowns from dropping installed storage plugin registrations between tests.",
+    "Make automated artifact store tests restore registered storage schemes cleanly after test completion.",
+    "Mock storage schemes leak across unit tests and break subsequent artifact repository checks."
+  ],
+  "search": "In `tests/store/artifact/test_artifact_repository_registry.py:test_standard_artifact_registry`, snapshot the module's `_artifact_repository_registry` global using `monkeypatch.setattr` before reloading the registry module with mocked entry points. This no-op assignment ensures pytest records the original global and restores it during test teardown, preventing the loss of installed plugin schemes such as `file-plugin` in subsequent tests on the same test runner shard. Applies exclusively to tests that rebind or reload module-level registries in `tests/store/artifact`, not to tests that only mock entry points without reloading.",
+  "saysFor": "s2:a0cc58f93daa628d65f37c80f22bf036cd5ae65e64158f8b669a3445a9c9c070"
+}

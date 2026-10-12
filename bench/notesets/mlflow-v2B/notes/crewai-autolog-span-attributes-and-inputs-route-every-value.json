@@ -1,0 +1,114 @@
+{
+  "id": "crewai-autolog-span-attributes-and-inputs-route-every-value",
+  "title": "CrewAI autolog span attributes and inputs: route every value through _set_sanitized_attribute and _sanitize_value so LLM provider keys never reach the trace",
+  "kind": "rule",
+  "answers": [
+    "Why does my CrewAI trace show the OpenAI api_key passed to LLM(api_key=...)?",
+    "How do I add a new CrewAI Agent, Task, Crew or Flow field to the trace without leaking credentials?",
+    "Where are CrewAI span attributes and span inputs sanitized before they are logged?",
+    "Why are Agent and Crew span attributes now dict strings instead of pydantic repr strings?"
+  ],
+  "body": "Path: mlflow/crewai/autolog.py:_set_span_attributes handles span attributes for crewai Crew, Agent, Task, LLM, Flow and Knowledge objects; mlflow/crewai/autolog.py:_construct_full_inputs builds mlflow.spanInputs for Task.execute_sync and Agent.execute_task, and patched_class_call and patched_standalone_call build outputs.\nRule: Every attribute written in _set_span_attributes goes through mlflow/crewai/autolog.py:_set_sanitized_attribute, which calls _sanitize_value before span.set_attribute; span inputs are passed through _sanitize_value as a whole dict. Do not call span.set_attribute with a raw crewai object. A crewai BaseLLM is reduced to its model name, and other pydantic models are walked field by field with a reference-cycle guard (Agent.crew -> Crew.agents -> Agent).\nSymptom: A provider key passed explicitly to crewai LLM(api_key=...) appeared in trace attributes (agent llm, function_calling_llm, crew manager_llm, planning_llm, chat_llm) and in mlflow.spanInputs, because str() and model_dump() of a pydantic LLM include api_key.\nConstraints: Applies to mlflow.crewai.autolog span attributes and inputs. Span outputs are only passed through _sanitize_value, since no CrewAI result type holds an LLM object. Agent and Crew attribute values are now sanitized dict strings rather than pydantic repr strings, a cosmetic change on informational attributes.",
+  "applies": "mlflow.crewai.autolog span attributes and inputs for any CrewAI object (Agent, Task, Crew, LLM, Flow, Knowledge).",
+  "tags": [
+    "crewai",
+    "autolog",
+    "tracing",
+    "security",
+    "credentials"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/crewai/autolog.py",
+      "symbol": "_set_sanitized_attribute",
+      "hash": "sha256:b53085e3e64acfc7313ae680",
+      "line": 367,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b53085e3e64acfc7313ae680",
+      "fanout": {
+        "files": 2,
+        "sites": 7,
+        "refs": 8
+      }
+    },
+    {
+      "path": "mlflow/crewai/autolog.py",
+      "symbol": "_sanitize_value",
+      "hash": "sha256:146957bfaa024d59b079b2f4",
+      "line": 491,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:146957bfaa024d59b079b2f4",
+      "fanout": {
+        "files": 2,
+        "sites": 11,
+        "refs": 13
+      }
+    },
+    {
+      "path": "mlflow/crewai/autolog.py",
+      "symbol": "_construct_full_inputs",
+      "hash": "sha256:df2e266e3c27eb54353de362",
+      "line": 292,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:df2e266e3c27eb54353de362",
+      "fanout": {
+        "files": 6,
+        "sites": 11,
+        "refs": 12
+      }
+    },
+    {
+      "path": "mlflow/crewai/autolog.py",
+      "symbol": "_set_span_attributes",
+      "hash": "sha256:635dbc139cfbf9b97cceb3e0",
+      "line": 310,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:635dbc139cfbf9b97cceb3e0",
+      "fanout": {
+        "files": 4,
+        "sites": 8,
+        "refs": 9
+      }
+    },
+    {
+      "path": "tests/crewai/test_crewai_autolog.py",
+      "symbol": "test_kickoff_trace_does_not_expose_llm_api_key",
+      "hash": "sha256:220f5108866a88c522f81adb",
+      "line": 897,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:220f5108866a88c522f81adb",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25845"
+  },
+  "created": "2026-10-12T05:37:35.172Z",
+  "verified": "2026-10-12T05:37:35.172Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "crewai-autolog-credential-key-filter-drop-keys-matching-sens"
+  ],
+  "says": [
+    "The private model provider key is exposed in the trace inputs viewer.",
+    "Hide language model provider keys from agent and task execution trace attributes.",
+    "Our API secret appeared in the trace details when configuring the model.",
+    "Workflow step inputs in the trace UI are leaking third-party access keys.",
+    "Ensure provider authentication tokens never appear inside logged workflow inputs or attributes."
+  ],
+  "search": "Sanitization of CrewAI span attributes and span inputs in mlflow.crewai.autolog ensures provider keys are removed by routing all values through _set_sanitized_attribute and _sanitize_value. BaseLLM objects are reduced to their model name, other pydantic models are traversed field-by-field with reference-cycle protection, and span inputs are sanitized as full dictionaries before logging. This prevents explicit API keys from leaking into trace attributes or mlflow.spanInputs, while outputs pass only through _sanitize_value and agent/crew attributes serialize as sanitized dict strings instead of pydantic repr strings.",
+  "saysFor": "s2:e4fefaf0495f724b90d9e3068d0eb587bd6a982760f51eeca42e8ecac5ee0c85"
+}

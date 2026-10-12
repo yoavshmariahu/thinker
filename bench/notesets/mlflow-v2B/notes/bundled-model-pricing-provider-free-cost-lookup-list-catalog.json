@@ -1,0 +1,60 @@
+{
+  "id": "bundled-model-pricing-provider-free-cost-lookup-list-catalog",
+  "title": "Bundled model pricing / provider-free cost lookup: list catalog providers in sorted order so the chosen entry is stable across filesystems",
+  "kind": "rule",
+  "answers": [
+    "Model cost shows a different value on macOS vs Linux when no provider is given",
+    "Why does the provider-free cost lookup pick a different catalog entry on different machines?",
+    "Where is the bundled provider catalog listed for cost lookup?",
+    "How do I write a test for 1-hour cache-creation pricing that is not ambiguous across providers?"
+  ],
+  "body": "Path: mlflow/utils/providers.py:_list_provider_names enumerates the bundled provider JSON catalogs (one file per provider, e.g. openai, anthropic, bedrock). Provider-free model cost lookup (calculate_cost_by_model_and_token_usage called without model_provider in tracing) walks these names to find a catalog entry for a model name.\nRule: the names returned by _list_provider_names must be sorted. Directory globs return entries in filesystem-dependent order, so a lookup that takes the first match over an unsorted list can pick a different provider's price on different platforms. The fix was a one-line change: wrap the glob in sorted(...) in _list_provider_names.\nSymptom: the same trace with the same model name got a different computed cost on different machines or OSes, because a similarly named model existed in more than one provider catalog and the first-matched catalog differed by filesystem.\nConstraints: this makes the order deterministic only; it does not choose a 'correct' provider. Callers that pass model_provider explicitly bypass this search. In tests that check pricing for a model name that exists in several catalogs, pass model_provider explicitly (e.g. model_provider=\"anthropic\") instead of relying on lookup order; tests/utils/test_providers.py asserts the sorted order of provider names.",
+  "applies": "Applies to provider-free model cost lookup over the bundled catalogs in mlflow/utils/providers.py; does not cover explicit-provider lookups or user-configured pricing.",
+  "tags": [
+    "tracing",
+    "cost",
+    "providers",
+    "determinism",
+    "tests"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/utils/providers.py",
+      "symbol": "_list_provider_names",
+      "hash": "sha256:dde3885ccd7b1aef67c473c5",
+      "line": 234,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:dde3885ccd7b1aef67c473c5",
+      "fanout": {
+        "files": 2,
+        "sites": 6,
+        "refs": 13
+      }
+    },
+    {
+      "path": "tests/utils/test_providers.py",
+      "hash": "sha256:195de8b263630b61d93dfc46",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26154"
+  },
+  "created": "2026-10-12T05:32:27.982Z",
+  "verified": "2026-10-12T05:32:27.982Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Model cost estimates for the same trace differ between Mac and Linux machines.",
+    "Token usage pricing calculations show inconsistent cost totals across different operating systems.",
+    "Ensure trace cost calculation produces identical results regardless of host operating system.",
+    "Make model token pricing calculations consistent and predictable when no provider is specified."
+  ],
+  "search": "In mlflow/utils/providers.py:_list_provider_names, directory glob results for bundled provider JSON catalogs must be sorted using sorted(...) to prevent platform- and filesystem-dependent catalog ordering. This ensures provider-free cost lookup via calculate_cost_by_model_and_token_usage in tracing yields stable model pricing across machines when a model appears in multiple provider catalogs. The fix establishes deterministic ordering without selecting a preferred provider, does not affect lookups with an explicit model_provider, and is verified in tests/utils/test_providers.py.",
+  "saysFor": "s2:beec5fd0d95618d3283bb22f6d09ea5408606647a8278dfc3be0d76d76384bac"
+}

@@ -1,0 +1,89 @@
+{
+  "id": "ai-gateway-amazon-bedrock-anthropic-messages-passthrough-bui",
+  "title": "AI Gateway Amazon Bedrock Anthropic Messages passthrough: build a new invoke body, Claude models with API key auth only",
+  "kind": "rule",
+  "answers": [
+    "Why does /gateway/anthropic/v1/messages return 501 for a Bedrock-hosted Claude endpoint?",
+    "Does the Anthropic Messages passthrough work on Bedrock with IAM role or access key auth?",
+    "How is the model ID or inference profile ARN sent to Bedrock on the Anthropic passthrough route?",
+    "Where is the Anthropic Messages passthrough for Amazon Bedrock handled?"
+  ],
+  "body": "Path: `POST /gateway/anthropic/v1/messages` on an endpoint whose model is a Claude model on Amazon Bedrock (regular model IDs or inference profile ARNs). Requests with native Messages fields such as `thinking` and `output_config` go through `mlflow/gateway/providers/bedrock.py:AmazonBedrockProvider._passthrough`, which posts to `model/{model}/invoke` on the bearer-token Bedrock runtime host.\nRule: `_passthrough` builds a new body that drops `model` and `stream` and adds `anthropic_version: bedrock-2023-05-31`; it must not mutate the caller's payload, because `FallbackProvider` hands the same payload to the next provider. The model ID is escaped with `quote(name, safe=\":\")` so ARN slashes form a valid path. Client auth headers are removed with `_drop_client_auth_headers` (including a credential agent's own key) and the endpoint's bearer token is added. `PASSTHROUGH_PROVIDER_PATHS` in `AmazonBedrockProvider` is what advertises the `ANTHROPIC_MESSAGES` action.\nSymptom: Bedrock-hosted Claude endpoints returned 501 on the Anthropic Messages route, so provider-native parameters like `thinking` were unreachable, and a Bedrock fallback leg returned 501 whenever it failed over.\nConstraints: Non-Anthropic Bedrock models are rejected with 400. SigV4 auth modes (access keys, IAM role, default credential chain) return 501; only API key (bearer token) auth is implemented. Client `anthropic-beta` headers are not translated to Bedrock's `anthropic_beta` field.",
+  "applies": "AI Gateway Anthropic Messages passthrough for Amazon Bedrock endpoints; not the boto3 invoke_model path used for other Bedrock routes.",
+  "tags": [
+    "ai-gateway",
+    "bedrock",
+    "anthropic",
+    "passthrough",
+    "messages",
+    "fallback"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/bedrock.py",
+      "symbol": "AmazonBedrockProvider._passthrough",
+      "hash": "sha256:4945f3ee2cd6f9e148d2fe7d",
+      "line": 852,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4945f3ee2cd6f9e148d2fe7d",
+      "fanout": {
+        "files": 3,
+        "sites": 5,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/bedrock.py",
+      "symbol": "AmazonBedrockProvider",
+      "hash": "sha256:18f124f49e975868550a2c10",
+      "line": 260,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:18f124f49e975868550a2c10",
+      "fanout": {
+        "files": 3,
+        "sites": 8,
+        "refs": 17
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/base.py",
+      "symbol": "_drop_client_auth_headers",
+      "hash": "sha256:513b52d4af8168f2b04cbaf5",
+      "line": 78,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:513b52d4af8168f2b04cbaf5",
+      "fanout": {
+        "files": 5,
+        "sites": 6,
+        "refs": 11
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25863"
+  },
+  "created": "2026-10-12T05:37:15.308Z",
+  "verified": "2026-10-12T05:37:15.308Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "ai-gateway-amazon-bedrock-anthropic-messages-streaming-aws-e",
+    "ai-gateway-bedrock-passthrough-token-usage-reuse-the-anthrop",
+    "ai-gateway-vertex-ai-auth-headers-always-drop-client-credent"
+  ],
+  "says": [
+    "Sending Anthropic Messages requests to our Bedrock Claude endpoint returns a 501 not implemented.",
+    "Allow Claude parameters like thinking on Bedrock endpoints through the AI Gateway.",
+    "Bedrock fallback endpoints fail with an unimplemented error during gateway provider failover.",
+    "Why does our Bedrock Claude gateway endpoint reject IAM role authentication with error 501?",
+    "Enable API key bearer token authentication for Bedrock Claude endpoints on the gateway."
+  ],
+  "search": "The AI Gateway Anthropic Messages passthrough route POST /gateway/anthropic/v1/messages for Amazon Bedrock Claude endpoints is implemented in mlflow/gateway/providers/bedrock.py:AmazonBedrockProvider._passthrough, posting to model/{model}/invoke. It creates a new body dropping model and stream, setting anthropic_version: bedrock-2023-05-31 without mutating caller payloads used by FallbackProvider, escapes model IDs or inference profile ARNs via quote(name, safe=\":\"), strips client auth headers via _drop_client_auth_headers, and attaches the bearer token. PASSTHROUGH_PROVIDER_PATHS in AmazonBedrockProvider advertises ANTHROPIC_MESSAGES. Non-Anthropic Bedrock models return 400, SigV4 auth returns 501 since only API key auth is supported, and client anthropic-beta headers are not forwarded to Bedrock's anthropic_beta field.",
+  "saysFor": "s2:3d75d89d73a6cb010138de694c354dac3a1e2c9d34fa038444d9ca818408ff74"
+}

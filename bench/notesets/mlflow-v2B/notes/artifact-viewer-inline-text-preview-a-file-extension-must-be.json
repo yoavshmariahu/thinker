@@ -1,0 +1,71 @@
+{
+  "id": "artifact-viewer-inline-text-preview-a-file-extension-must-be",
+  "title": "Artifact viewer inline text preview: a file extension must be added to both the server text-extension list and the client TEXT_EXTENSIONS set",
+  "kind": "rule",
+  "answers": [
+    "Jupyter notebook (.ipynb) artifact downloads instead of previewing inline in the artifact viewer",
+    "How do I make a new text-like file type show inline in the run artifact viewer?",
+    "Where is the list of artifact extensions treated as text for preview handled?",
+    "Why does fixing the served Content-Type on the server not make the artifact preview appear in the UI?"
+  ],
+  "body": "Path: Artifact viewer for run/model artifacts. The server decides the served Content-Type from file extension via mlflow/utils/mime_type_utils.py:get_text_extensions, and the React page ShowArtifactPage.tsx chooses inline text preview versus download from the extension using TEXT_EXTENSIONS in mlflow/server/js/src/common/utils/FileUtils.ts.\nRule: When a text-like extension should preview inline, add it to both get_text_extensions() (server, yields text/plain) and TEXT_EXTENSIONS (client dispatch). The client keys preview on the extension, not on the response Content-Type, so a server-only change leaves the file downloaded.\nSymptom: A .ipynb notebook artifact was served as application/octet-stream and the viewer prompted a download instead of showing the contents inline.\nConstraints: Covers plain-text formats rendered as raw text only. Markdown, HTML and image types use separate sets (MARKDOWN_EXTENSIONS, HTML_EXTENSIONS) and are not affected by TEXT_EXTENSIONS. The notebook is shown as raw JSON text, not rendered as a notebook. Storage and download behaviour are unchanged.",
+  "applies": "Any change that makes a new file extension previewable in the MLflow artifact viewer (server mime mapping plus the frontend preview set).",
+  "tags": [
+    "artifacts",
+    "artifact-viewer",
+    "mime-type",
+    "frontend",
+    "preview",
+    "ipynb"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/utils/mime_type_utils.py",
+      "symbol": "get_text_extensions",
+      "hash": "sha256:838308c7ccf9e19b73a99999",
+      "line": 10,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:838308c7ccf9e19b73a99999",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/common/utils/FileUtils.ts",
+      "symbol": "TEXT_EXTENSIONS",
+      "hash": "sha256:5c01fd77d76150280355e75b",
+      "line": 29,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5c01fd77d76150280355e75b",
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 10
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25829"
+  },
+  "created": "2026-10-12T05:31:11.959Z",
+  "verified": "2026-10-12T05:31:11.959Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Jupyter notebook files download automatically instead of displaying inside the artifact viewer pane.",
+    "Clicking a notebook artifact prompts a browser download rather than showing an inline preview.",
+    "Preview text-based files directly on screen in the run artifact tab instead of downloading.",
+    "Make Jupyter notebooks viewable as raw text inside the web interface artifact viewer.",
+    "Adding server MIME types for text artifacts still forces browser downloads in the web UI."
+  ],
+  "search": "To enable inline text preview for a new file extension in the artifact viewer, the extension must be added to both `mlflow/utils/mime_type_utils.py:get_text_extensions` on the server and `mlflow/server/js/src/common/utils/FileUtils.ts:TEXT_EXTENSIONS` on the frontend. `ShowArtifactPage.tsx` decides whether to render inline text or prompt a download based on the extension via the frontend set rather than the server response Content-Type header. This applies only to plain-text formats rendered as raw text, whereas markdown, HTML, and images use separate sets and notebook rendering or artifact storage remains unchanged.",
+  "saysFor": "s2:6ab065920125192b2b31e83922a86bb2e386f432fbc4c7e32d96616843c20aac"
+}

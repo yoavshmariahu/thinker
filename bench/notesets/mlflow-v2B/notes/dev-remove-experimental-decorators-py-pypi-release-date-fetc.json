@@ -1,0 +1,70 @@
+{
+  "id": "dev-remove-experimental-decorators-py-pypi-release-date-fetc",
+  "title": "dev/remove_experimental_decorators.py: PyPI release-date fetch retries transient failures up to 3 attempts with a 10s timeout, and fails fast on other HTTP errors",
+  "kind": "rule",
+  "answers": [
+    "Why did the experimental decorator removal script fail in CI with a connection reset when fetching MLflow release dates?",
+    "How do I change the timeout or retry count for the PyPI mlflow JSON request in the dev decorator script?",
+    "Where is the retry logic for fetching MLflow release dates from PyPI handled?",
+    "Why does a 404 or invalid JSON from pypi.org fail immediately in the dev script instead of retrying?"
+  ],
+  "body": "Path: dev/remove_experimental_decorators.py:get_mlflow_release_dates fetches https://pypi.org/pypi/mlflow/json to build the release-date map used to decide which experimental decorators to remove; it is the only network call in this dev script.\nRule: Keep transient-failure handling inside the fetch loop: `urlopen(..., timeout=10)` runs up to 3 attempts; retry on HTTPError with code 429 or 5xx and on URLError/TimeoutError/ConnectionError; re-raise any other HTTPError immediately; re-raise on the final attempt; sleep `2**attempt` between attempts. JSON parsing happens once after the loop, so invalid JSON is never retried.\nSymptom: CI intermittently failed the experimental-decorator script when PyPI reset the connection while the release metadata was being fetched.\nConstraints: Applies only to this dev script's PyPI metadata fetch. Other HTTP status codes (e.g. 4xx other than 429) and malformed JSON are deliberately not retried. Retry count and timeout are hard-coded; there is no config option. Tests in tests/dev/test_remove_experimental_decorators.py mock `urlopen` and `sleep` on `module` to cover recovery and exhaustion.",
+  "applies": "Scope: the PyPI release-date fetch in the dev/ experimental-decorator removal script; reuse the same 429/5xx-vs-other classification when adding retries to similar dev-tooling HTTP calls.",
+  "tags": [
+    "dev-tooling",
+    "retry",
+    "pypi",
+    "experimental-decorators",
+    "ci"
+  ],
+  "deps": [
+    {
+      "path": "dev/remove_experimental_decorators.py",
+      "symbol": "get_mlflow_release_dates",
+      "hash": "sha256:8b2af920dcb3ef34853ac7b1",
+      "line": 35,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8b2af920dcb3ef34853ac7b1",
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "tests/dev/test_remove_experimental_decorators.py",
+      "symbol": "test_get_mlflow_release_dates_reraises_after_three_attempts",
+      "hash": "sha256:fc36333b4a2c8870be6ff9d5",
+      "line": 100,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:fc36333b4a2c8870be6ff9d5",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26028"
+  },
+  "created": "2026-10-12T05:33:56.926Z",
+  "verified": "2026-10-12T05:33:56.926Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The experimental cleanup automation intermittently fails in continuous integration when downloading package release metadata.",
+    "Continuous integration failed because the package registry connection reset during experimental decorator cleanup.",
+    "Can the experimental tag removal task retry package index requests on transient connection timeouts?",
+    "The release cleanup script fails immediately instead of retrying when receiving client response errors.",
+    "Automated experimental decorator removal crashes when the package repository returns invalid release data."
+  ],
+  "search": "`dev/remove_experimental_decorators.py:get_mlflow_release_dates` fetches `https://pypi.org/pypi/mlflow/json` using `urlopen(..., timeout=10)` with up to 3 attempts, retrying HTTP 429, 5xx, `URLError`, `TimeoutError`, and `ConnectionError` with exponential backoff (`2**attempt`). Other `HTTPError` codes and malformed JSON fail immediately without retrying, and retry count and timeout remain hard-coded without configuration options. The guidance applies to PyPI release-date metadata retrieval in the experimental-decorator script and serves as a pattern for similar dev-tooling HTTP calls. Unit tests in `tests/dev/test_remove_experimental_decorators.py:test_get_mlflow_release_dates_reraises_after_three_attempts` mock `urlopen` and `sleep` on `module` to verify recovery and failure exhaustion.",
+  "saysFor": "s2:6298f48122e9839146dd7f948e4a0f1a1567cf542890e29958513eac45741aa7"
+}

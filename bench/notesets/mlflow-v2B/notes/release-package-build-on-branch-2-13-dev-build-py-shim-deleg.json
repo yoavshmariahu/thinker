@@ -1,0 +1,65 @@
+{
+  "id": "release-package-build-on-branch-2-13-dev-build-py-shim-deleg",
+  "title": "Release package build on branch-2.13: dev/build.py shim delegates --package-type release|skinny to dev/build.sh",
+  "kind": "map",
+  "answers": [
+    "How does the release workflow build the mlflow and mlflow-skinny packages for the 2.13 branch?",
+    "Where is the --package-type release or skinny option handled for the python release build?",
+    "Why does branch-2.13 use dev/build.sh instead of the newer dev/build.py build flow?",
+    "How do I add a new package variant to the 2.13 release build without changing shipped package contents?"
+  ],
+  "body": "Path: dev/build.py:main and dev/build.py:parse_args handle the CLI invoked by the mlflow/releases python.yml workflow as `python dev/build.py --package-type <release|skinny>`. Release requests run `bash dev/build.sh`; skinny requests run `bash dev/build.sh --skinny`, which builds mlflow-skinny from pyproject.skinny.toml.\nRule: On branch-2.13, the package build is owned by dev/build.sh (pyproject.toml for mlflow, pyproject.skinny.toml for mlflow-skinny). dev/build.py only translates the workflow's --package-type into that shell call so the 2.13 build matches how 2.13.x shipped. Change package-building behaviour in dev/build.sh, not in the shim. The --sha flag is accepted for interface parity with the v3 dev/build.py and is ignored.\nConstraints: Applies only to the branch-2.13 release line. Newer branches use their own dev/build.py implementation. dev/build.py is a dev/CI-only script and is not included in the shipped mlflow or mlflow-skinny wheels, so editing it does not change released package contents.",
+  "applies": "branch-2.13 release tooling: dev/build.py as the workflow entry point and its delegation to dev/build.sh.",
+  "tags": [
+    "build",
+    "release",
+    "packaging",
+    "branch-2.13",
+    "area/build"
+  ],
+  "deps": [
+    {
+      "path": "dev/build.py",
+      "symbol": "main",
+      "hash": "sha256:a1dd8a3ce896ba7c7b8bd6fe",
+      "line": 89,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a1dd8a3ce896ba7c7b8bd6fe"
+    },
+    {
+      "path": "dev/build.py",
+      "symbol": "parse_args",
+      "hash": "sha256:89e6414f32a07d72d81cb280",
+      "line": 37,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:89e6414f32a07d72d81cb280",
+      "fanout": {
+        "files": 59,
+        "sites": 75,
+        "refs": 77
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26096"
+  },
+  "created": "2026-10-12T05:33:05.919Z",
+  "verified": "2026-10-12T05:33:05.919Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "release-package-build-on-branch-2-11-dev-build-py-maps-packa"
+  ],
+  "says": [
+    "Update the release packaging workflow to support building an additional package flavor.",
+    "Maintenance branch release workflow fails when triggering the lightweight package packaging script.",
+    "Modify packaging configuration without altering the contents of published release artifacts."
+  ],
+  "search": "On branch-2.13, dev/build.py acts as a CLI shim that translates --package-type release and --package-type skinny into executions of dev/build.sh or dev/build.sh --skinny. Package building is owned by dev/build.sh using pyproject.toml for standard packages and pyproject.skinny.toml for skinny packages. The --sha flag is accepted and ignored for interface parity, and modifications should be made in dev/build.sh rather than the shim. This script is CI-only, excluded from shipped wheels, and applies exclusively to the branch-2.13 release line.",
+  "saysFor": "s2:eed23176e0ed6069f8d4722a942c346172a5e3f791ed47f8dada32b2ebe9d863"
+}

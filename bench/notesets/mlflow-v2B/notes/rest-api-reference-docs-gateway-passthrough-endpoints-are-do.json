@@ -1,0 +1,45 @@
+{
+  "id": "rest-api-reference-docs-gateway-passthrough-endpoints-are-do",
+  "title": "REST API reference docs: gateway passthrough endpoints are documented by hand in docs/api_reference/source/rest-api.rst with a fastapi<METHOD><path> anchor",
+  "kind": "map",
+  "answers": [
+    "Where do I document a new gateway passthrough endpoint in the REST API reference?",
+    "How are the REST API doc anchors named for POST endpoints under /gateway?",
+    "Where is the typesafe or OpenAI passthrough endpoint section in the API docs?",
+    "Which file lists the gateway endpoint tables and their HTTP methods?"
+  ],
+  "body": "Path: docs/api_reference/source/rest-api.rst is the hand-maintained REST API reference. Gateway passthrough endpoints (for example the OpenAI passthrough responses section and the Typesafe passthrough system-one section) each get their own heading, an endpoint/HTTP method table, and a short description.\nRule: Add a new gateway passthrough endpoint as a section in this file, with a label of the form .. _fastapiPOST<path with slashes removed> (for example fastapiPOSTgatewaytypesafev1systemone for /gateway/typesafe/v1/systemone), a title, a grid table with the endpoint in literal backticks, and a description that says which gateway endpoint's credentials and model are used.\nConstraints: Doc-only location; the route implementation is not in this file. Keep the new section next to the other gateway passthrough sections.",
+  "applies": "Documentation for MLflow gateway passthrough REST endpoints.",
+  "tags": [
+    "docs",
+    "rest-api",
+    "gateway",
+    "passthrough"
+  ],
+  "deps": [
+    {
+      "path": "docs/api_reference/source/rest-api.rst",
+      "hash": "sha256:9c93a0991638734e250fe794",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26131"
+  },
+  "created": "2026-10-12T05:29:31.881Z",
+  "verified": "2026-10-12T05:29:31.881Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Please add the new gateway passthrough route to the REST API reference documentation.",
+    "The REST API reference is missing documentation for our new gateway passthrough endpoint.",
+    "Our public API docs do not show the endpoint table and model credentials description.",
+    "Add an entry for the passthrough endpoint next to the other gateway reference sections."
+  ],
+  "search": "Documenting gateway passthrough endpoints in the REST API reference requires manually adding a section to docs/api_reference/source/rest-api.rst with an anchor label formatted as .. _fastapi<METHOD><path with slashes removed>. Each entry includes a section title, a grid table showing the endpoint in literal backticks, and a description stating the gateway credentials and model used. This guidance applies strictly to documentation in docs/api_reference/source/rest-api.rst beside other gateway passthrough sections, not route implementations.",
+  "saysFor": "s2:598691e1e12c3b0af087ad5b5104c681b218f464b0bbf74c195e3efe415c1932"
+}

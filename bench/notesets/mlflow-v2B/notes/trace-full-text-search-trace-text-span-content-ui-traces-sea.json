@@ -1,0 +1,56 @@
+{
+  "id": "trace-full-text-search-trace-text-span-content-ui-traces-sea",
+  "title": "Trace full-text search (trace.text / span.content, UI Traces search box): span content is stored with ensure_ascii=False except on MSSQL",
+  "kind": "rule",
+  "answers": [
+    "Searching trace.text for 'España' or a Chinese word returns 0 traces on SQLite, PostgreSQL or MySQL, but English terms match",
+    "Why does the Traces search box not find non-ASCII or emoji text in span inputs and outputs?",
+    "Where is span content serialized for trace.text / span.content LIKE and ILIKE filters?"
+  ],
+  "body": "Path: Span logging in SqlAlchemyStore._log_spans_once builds the spans.content JSON that trace.text and span.content LIKE/ILIKE filters match, which also backs the UI Traces search box; search_traces reads this column.\nRule: Serialize spans.content with json.dumps(..., cls=TraceJSONEncoder, ensure_ascii=False) on SQLite, PostgreSQL and MySQL, so non-ASCII text is stored as literal characters. Keep ensure_ascii=True only when self.db_type == MSSQL (mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore._log_spans_once), because MSSQL spans.content is a non-Unicode VARCHAR and would turn characters outside its code page into '?'.\nSymptom: Searching trace.text or span.content for accented, CJK or emoji text (for example 'España', '什么') returned zero matching traces, even though the same text was visible in the trace.\nConstraints: Applies only to spans logged after the change; existing rows keep the \\uXXXX escapes and are not migrated, so they stay unsearchable for non-ASCII text. Read-back via get_trace is unaffected because JSON decoding restores the characters.\nApplies: Trace and span persistence in the SQL tracking store (SQLite, PostgreSQL, MySQL, MSSQL) and full-text trace search built on spans.content.",
+  "applies": "Trace full-text search and span content storage in the SQL tracking store; not the artifact-based trace data path or file store.",
+  "tags": [
+    "tracing",
+    "search",
+    "sql-store",
+    "unicode",
+    "span-content"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "SqlAlchemyStore._log_spans_once",
+      "hash": "sha256:c8a16478bddf4dfbd5543401",
+      "line": 5702,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c8a16478bddf4dfbd5543401",
+      "fanout": {
+        "files": 3,
+        "sites": 1,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26130"
+  },
+  "created": "2026-10-12T05:29:39.224Z",
+  "verified": "2026-10-12T05:29:39.224Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "search-filter-numeric-attributes-searchutils-get-value-retur"
+  ],
+  "says": [
+    "Searching the trace table for accented or foreign language words returns zero results.",
+    "The traces search box fails to find non-English text or emojis in span messages.",
+    "English trace search queries work properly, but international character searches return no matches.",
+    "Find traces containing special characters and non-Latin text from the trace search bar."
+  ],
+  "search": "In mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore._log_spans_once, span content JSON is serialized with ensure_ascii=False on SQLite, PostgreSQL, and MySQL, but retains ensure_ascii=True on MSSQL. This stores non-ASCII text as literal characters for trace.text and span.content LIKE and ILIKE filters backing the UI Traces search box, avoiding non-Unicode VARCHAR corruption on MSSQL. Applies to SQL tracking store span persistence for newly logged spans; historical spans retain escape sequences, and file or artifact store paths are excluded.",
+  "saysFor": "s2:c7692f2f0231de9647ab7fdc044b481546f4d4b13e5dfff871c13ad9d2d141e3"
+}

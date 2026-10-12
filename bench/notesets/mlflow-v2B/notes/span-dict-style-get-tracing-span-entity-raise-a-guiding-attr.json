@@ -1,0 +1,165 @@
+{
+  "id": "span-dict-style-get-tracing-span-entity-raise-a-guiding-attr",
+  "title": "Span dict-style .get (tracing span entity): raise a guiding AttributeError from the __getattr__ hook, never a real get method",
+  "kind": "rule",
+  "answers": [
+    "Why does span.get('name') on a trace span raise AttributeError saying 'a span is not a dict'?",
+    "Why does hasattr(span, 'get') return False on a MLflow trace span even though span.get is rejected?",
+    "How do I make LazySpan or NoOpSpan give the same helpful error for an unsupported dict method?",
+    "Where is the hint for calling .get on a span (use span.name, span.inputs, span.get_attribute) generated?"
+  ],
+  "body": "Path: mlflow/entities/span.py:Span.__getattr__ handles failed attribute lookups on tracing spans (LiveSpan, immutable Span, LazySpan, NoOpSpan) when user or agent code uses dict-style `span.get(...)` instead of `span.name`, `span.inputs`, `span.outputs`, `span.attributes`, or `span.get_attribute(key)`.\nRule: Steer dict-style access on Span through the `__getattr__` hook that raises AttributeError for name == \"get\" with the attribute-access hint; do not define a real `get` method, because that makes hasattr(span, \"get\") True and breaks duck-typing probes. Sibling to the TypeError hint in Span.__getitem__.\nRule: LazySpan.__getattr__ must materialize first, try object.__getattribute__, and on AttributeError fall through to super().__getattr__(name), so the hint reaches lazily loaded spans too.\nSymptom: span.get(\"name\") raised a bare \"'Span' object has no attribute 'get'\" with no pointer to span.name or get_attribute, and coding agents kept reaching for .get about as often as subscript access.\nConstraints: Applies to span attribute lookups in mlflow/entities/span.py. Tested in tests/entities/test_span.py:test_span_get_raises_helpful_attribute_error across LiveSpan, immutable Span, LazySpan and NoOpSpan. The hook only covers name == \"get\"; other names get a plain AttributeError. Do not use this for real Span fields, which resolve normally.",
+  "applies": "Span entity attribute access on tracing spans in mlflow/entities/span.py, including LazySpan and NoOpSpan.",
+  "tags": [
+    "tracing",
+    "span",
+    "entities",
+    "attribute-error",
+    "dict-access"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "Span.__getattr__",
+      "hash": "sha256:26a87c32a60f91143b87ed27",
+      "line": 333,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:26a87c32a60f91143b87ed27",
+      "fanout": {
+        "files": 4,
+        "sites": 1,
+        "refs": 4
+      }
+    },
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "LazySpan.__getattr__",
+      "hash": "sha256:82ea1fc12c0437aa593ec834",
+      "line": 1406,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:82ea1fc12c0437aa593ec834",
+      "fanout": {
+        "files": 4,
+        "sites": 1,
+        "refs": 4
+      }
+    },
+    {
+      "path": "tests/entities/test_span.py",
+      "symbol": "test_span_get_raises_helpful_attribute_error",
+      "hash": "sha256:ffc5e84847a2700b7bec012d",
+      "line": 1540,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ffc5e84847a2700b7bec012d",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "get",
+      "hash": "sha256:e15c3525f04a2978d5666119",
+      "line": 1554,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e15c3525f04a2978d5666119"
+    },
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "name",
+      "hash": "sha256:294fc8af516895f065998131",
+      "line": 163,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:294fc8af516895f065998131"
+    },
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "inputs",
+      "hash": "sha256:a24a05730f4b1fe4c0d7832b",
+      "line": 190,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a24a05730f4b1fe4c0d7832b",
+      "fanout": {
+        "files": 305,
+        "sites": 9,
+        "refs": 1994
+      }
+    },
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "outputs",
+      "hash": "sha256:c002f67b67e679a2059127c2",
+      "line": 195,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c002f67b67e679a2059127c2",
+      "fanout": {
+        "files": 274,
+        "sites": 11,
+        "refs": 1995
+      }
+    },
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "attributes",
+      "hash": "sha256:840ccb008aacf972454c4747",
+      "line": 252,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c85684310b1b00baf98c4436",
+      "fanout": {
+        "files": 226,
+        "sites": 8,
+        "refs": 1843
+      }
+    },
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "get_attribute",
+      "hash": "sha256:4fa5f39c2774a063ef2b3921",
+      "line": 344,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4fa5f39c2774a063ef2b3921"
+    },
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "Span.__getitem__",
+      "hash": "sha256:9a8bac9eb6e8bd84712fd4cc",
+      "line": 308,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9a8bac9eb6e8bd84712fd4cc"
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26165"
+  },
+  "created": "2026-10-12T05:32:26.555Z",
+  "verified": "2026-10-12T05:32:26.555Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "livespan-record-exception-normalize-string-input-to-exceptio",
+    "span-subscript-access-span-key-on-tracing-spans-raise-a-guid",
+    "span-class-with-getitem-set-iter-none-so-iter-span-and-x-in"
+  ],
+  "says": [
+    "Accessing trace span properties using dictionary lookup methods provides no helpful field guidance.",
+    "Suggest the proper attribute names when users query trace span details like a dictionary.",
+    "Calling unsupported dictionary methods on lazy trace spans crashes without directing users to attributes.",
+    "Guide developers toward correct span fields when attempting key-based value extraction on traces."
+  ],
+  "search": "To guide callers attempting dict-style access on tracing spans without breaking duck-typing checks via hasattr, mlflow/entities/span.py:Span.__getattr__ intercepts get and raises an AttributeError directing users to specific fields or get_attribute. In LazySpan.__getattr__, the instance materializes first and attempts object.__getattribute__ before delegating to super().__getattr__ so the guidance applies consistently to lazily loaded spans. The mechanism applies strictly to name == \"get\" across LiveSpan, immutable Span, LazySpan, and NoOpSpan, while regular attributes resolve normally and other missing names raise standard AttributeErrors.",
+  "saysFor": "s2:13e1b7a95671597c7f4c74a2ddb8f2e55e3d4c33e393ec4ab15a86a9a5b47bf1"
+}

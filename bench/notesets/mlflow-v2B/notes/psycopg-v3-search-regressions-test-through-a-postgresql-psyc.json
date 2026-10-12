@@ -1,0 +1,93 @@
+{
+  "id": "psycopg-v3-search-regressions-test-through-a-postgresql-psyc",
+  "title": "psycopg v3 search regressions: test through a postgresql+psycopg store, since the generic DB fixture does not force the driver",
+  "kind": "howto",
+  "answers": [
+    "How do I write a test that catches a PostgreSQL psycopg v3 bind error in tracking or registry search?",
+    "Why did my search test pass on SQLite and psycopg2 but the psycopg v3 bug still shipped?",
+    "How do I build a store that uses the psycopg v3 driver from MLFLOW_TRACKING_URI in tests?",
+    "Why was the sqlalchemy dependency pinned to allow the 2.1 release in CI?"
+  ],
+  "body": "Path: tests/db/test_workspace_tracking_store.py holds the PostgreSQL-only store fixtures. `_psycopg3_uri` converts the MLFLOW_TRACKING_URI into a `postgresql+psycopg://` URL and skips when the URI is not PostgreSQL or `psycopg` is not importable. `psycopg3_store` and `psycopg3_registry_store` build WorkspaceAware tracking and registry stores on that URL.\nRule: To regression-test a numeric or string bind on psycopg v3, use `psycopg3_store` (tracking) or `psycopg3_registry_store` (model registry) instead of the generic `store` fixture. The generic fixture runs on SQLite or psycopg2, which accept an untyped string and hide the VARCHAR bug. Assert a valid filter succeeds, not only that invalid input raises.\nSymptom: The psycopg v3 bind bug could regress without failing CI, because the generic fixtures never exercised psycopg v3.\nConstraints: Runs only when the test database is PostgreSQL and psycopg is installed; otherwise the tests skip. Separately, pyproject.toml's `[tool.uv] exclude-newer-package` sets `sqlalchemy = false` with a TODO, so CI resolves SQLAlchemy 2.1.0 (bare postgresql:// becomes psycopg v3). Remove that override after the cooldown expires.",
+  "applies": "Adding or changing PostgreSQL tests for tracking or model-registry search filters where the driver matters; not for SQLite-only tests.",
+  "tags": [
+    "testing",
+    "postgresql",
+    "psycopg3",
+    "sqlalchemy",
+    "fixtures",
+    "ci",
+    "database"
+  ],
+  "deps": [
+    {
+      "path": "tests/db/test_workspace_tracking_store.py",
+      "symbol": "_psycopg3_uri",
+      "hash": "sha256:a7dde55be2ced1981665f978",
+      "line": 25,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a7dde55be2ced1981665f978",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "tests/db/test_workspace_tracking_store.py",
+      "symbol": "psycopg3_store",
+      "hash": "sha256:5981319a1b8c8d02ea9a9b98",
+      "line": 37,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5981319a1b8c8d02ea9a9b98",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 31
+      }
+    },
+    {
+      "path": "tests/db/test_workspace_tracking_store.py",
+      "symbol": "psycopg3_registry_store",
+      "hash": "sha256:847760230de3b0dfb7fc65fa",
+      "line": 56,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:847760230de3b0dfb7fc65fa",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 5
+      }
+    },
+    {
+      "path": "pyproject.toml",
+      "hash": "sha256:459e93fed0b67fec529ee594",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26170"
+  },
+  "created": "2026-10-12T05:30:17.739Z",
+  "verified": "2026-10-12T05:30:17.739Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "postgresql-psycopg3-search-regressions-add-numeric-filter-te",
+    "trace-filter-correlation-calculate-trace-filter-correlation"
+  ],
+  "says": [
+    "Searching experiment runs crashes when connected to a PostgreSQL database backend.",
+    "Model registry search queries fail with type errors on newer database drivers.",
+    "Filtering models or tracking records by numeric values breaks on PostgreSQL.",
+    "Ensure automated tests catch database driver binding bugs before shipping updates."
+  ],
+  "search": "Testing tracking and model-registry search filters against psycopg v3 requires using psycopg3_store or psycopg3_registry_store fixtures in tests/db/test_workspace_tracking_store.py rather than the generic store fixture. The generic fixture defaults to SQLite or psycopg2 and masks VARCHAR binding bugs, so tests must assert that valid filters succeed against postgresql+psycopg:// URLs converted by _psycopg3_uri from MLFLOW_TRACKING_URI. Applies to PostgreSQL tracking and model-registry search tests where the database is PostgreSQL and psycopg is importable, alongside a pyproject.toml sqlalchemy exclude-newer-package override for SQLAlchemy 2.1.0 in CI.",
+  "saysFor": "s2:d262a57e4d9cf4b635674f9f484bcdfbb362bdfa81e05e51adeb311d71e1eeb4"
+}

@@ -1,0 +1,162 @@
+{
+  "id": "artifact-host-policy-a-tracking-server-connects-only-to-the",
+  "title": "artifact host policy: a tracking server connects only to the host of its default artifact root or artifacts destination for host-addressed URIs, unless the scheme is listed in MLFLOW_ALLOWED_HOST_ADDRESSED_ARTIFACT_SCHEMES",
+  "kind": "rule",
+  "answers": [
+    "Why does creating an experiment with an ftp, sftp or hdfs artifact_location return a 400 on my tracking server?",
+    "How do I allow a second HDFS namenode or SFTP host for experiment or workspace artifact storage?",
+    "Where is the check that stops the server from connecting to arbitrary hosts for model version sources and run artifacts?",
+    "Why does a job or runs:/ download fail with 'does not connect to artifact location'?"
+  ],
+  "body": "Path: Any artifact location a client supplies or the server has stored and then connects to: experiment artifact_location, workspace default_artifact_root and trace archival location, model version source, and stored run, model version, logged model and trace locations on fetch. Host-addressed schemes (ftp, sftp, hdfs, viewfs, http, https, mlflow-artifacts, r2, b2, abfss) go through mlflow/store/artifact/host_policy.py:rejected_host_addressed_scheme. Checked at acceptance in mlflow/server/handlers.py:_validate_artifact_uri_scheme, at fetch in mlflow/server/handlers.py:_get_artifact_repository_for_uri, and in every server-process repository build in mlflow/store/artifact/artifact_repository_registry.py:ArtifactRepositoryRegistry.get_artifact_repository.\nRule: A host-addressed URI is accepted only if its (scheme family, hostname, effective port) matches a target derived from the server's _MLFLOW_SERVER_ARTIFACT_ROOT or _MLFLOW_SERVER_ARTIFACT_DESTINATION env marker (mlflow/store/artifact/host_policy.py:host_addressed_uri_targets), or its scheme is in mlflow/environment_variables.py:MLFLOW_ALLOWED_HOST_ADDRESSED_ARTIFACT_SCHEMES. Ports default to the scheme's well-known port, hostless ftp/sftp/hdfs count as host-addressed, and an authority containing a backslash or whitespace is never trusted. Registry enforcement runs only when host_policy.py:is_tracking_server_process() is true, so client processes are unaffected. Any new server code that builds an artifact repository from a client-supplied or stored URI should go through the registry or _get_artifact_repository_for_uri. The marker strings are duplicated from mlflow/server/constants.py and must stay equal to them.\nSymptom: A client could set an experiment artifact_location or model version source to an arbitrary host, and the server would open a connection to it (SSRF, CWE-918, GHSA-mr9f-g8qf-4w4j). After the fix the same request gets a 400 naming the field, or the stored location fails at fetch time.\nConstraints: Does not cover s3, gs, file or other non-host schemes. Standard deployments see no change when the storage host matches the default root or artifacts destination. Deployments that store on a second host, or use a workspace default root on another host, must set MLFLOW_ALLOWED_HOST_ADDRESSED_ARTIFACT_SCHEMES. Proxied http/https roots under --serve-artifacts are resolved against the local artifacts destination and do not reach this guard. wasbs is not in the host-addressed set.",
+  "applies": "Server-side acceptance and fetch of artifact locations in mlflow/server/handlers.py and the server-process registry path; not client-side SDK behaviour.",
+  "tags": [
+    "security",
+    "artifacts",
+    "ssrf",
+    "tracking-server",
+    "env-var"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/artifact/host_policy.py",
+      "symbol": "host_addressed_uri_targets",
+      "hash": "sha256:2a8af4a9356a6a528993f138",
+      "line": 70,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2a8af4a9356a6a528993f138",
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 5
+      }
+    },
+    {
+      "path": "mlflow/store/artifact/host_policy.py",
+      "symbol": "rejected_host_addressed_scheme",
+      "hash": "sha256:545df968444a236f6a28994d",
+      "line": 106,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:545df968444a236f6a28994d",
+      "fanout": {
+        "files": 3,
+        "sites": 10,
+        "refs": 12
+      }
+    },
+    {
+      "path": "mlflow/store/artifact/host_policy.py",
+      "symbol": "enforce_server_artifact_uri_host_policy",
+      "hash": "sha256:d2fa12724f2890450f637c43",
+      "line": 163,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:d2fa12724f2890450f637c43",
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/store/artifact/artifact_repository_registry.py",
+      "symbol": "ArtifactRepositoryRegistry.get_artifact_repository",
+      "hash": "sha256:4cb1e9b6a4b0b3244f430fb2",
+      "line": 60,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4cb1e9b6a4b0b3244f430fb2",
+      "fanout": {
+        "files": 46,
+        "sites": 111,
+        "refs": 183
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_validate_artifact_uri_scheme",
+      "hash": "sha256:b652cb346d90c8387139a20a",
+      "line": 1467,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b652cb346d90c8387139a20a",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_get_artifact_repository_for_uri",
+      "hash": "sha256:3caa854a06cab55fafabdc5e",
+      "line": 1475,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3caa854a06cab55fafabdc5e",
+      "fanout": {
+        "files": 1,
+        "sites": 7,
+        "refs": 7
+      }
+    },
+    {
+      "path": "mlflow/environment_variables.py",
+      "symbol": "MLFLOW_ALLOWED_HOST_ADDRESSED_ARTIFACT_SCHEMES",
+      "hash": "sha256:30fb171bb1ddbf9f8ee0df0e",
+      "line": 1561,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 13
+      }
+    },
+    {
+      "path": "mlflow/store/artifact/host_policy.py",
+      "symbol": "is_tracking_server_process",
+      "hash": "sha256:a2d2eaeba36d3361ed7cf2be",
+      "line": 155,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a2d2eaeba36d3361ed7cf2be",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/constants.py",
+      "hash": "sha256:baa68da52d1cbb243639d7a9",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25891"
+  },
+  "created": "2026-10-12T05:36:57.038Z",
+  "verified": "2026-10-12T05:36:57.038Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "model-registry-createmodelversion-for-prompts-source-must-be",
+    "model-registry-createmodelversion-prompt-branch-select-promp",
+    "server-side-scorer-registration-and-invoke-decorator-call-so",
+    "protobuf-request-parsing-a-body-that-spells-one-field-both-s"
+  ],
+  "says": [
+    "Creating an experiment with an SFTP or HDFS storage location returns a 400 error.",
+    "Downloading run artifacts fails with an error stating the server cannot connect to location.",
+    "Allow tracking servers to connect to secondary storage hosts for experiment and workspace artifacts.",
+    "Registering a model version from an external network file path is rejected by server.",
+    "Prevent the tracking server from establishing outbound network connections to untrusted remote artifact hosts."
+  ],
+  "search": "The tracking server enforces an artifact host policy in `mlflow/store/artifact/host_policy.py:enforce_server_artifact_uri_host_policy` that restricts host-addressed URIs (such as ftp, sftp, hdfs, http, https, r2, abfss) to the host and port configured in `_MLFLOW_SERVER_ARTIFACT_ROOT` or `_MLFLOW_SERVER_ARTIFACT_DESTINATION`. Host validation occurs during acceptance in `mlflow/server/handlers.py:_validate_artifact_uri_scheme` and during repository retrieval via `mlflow/store/artifact/artifact_repository_registry.py:ArtifactRepositoryRegistry.get_artifact_repository` when `is_tracking_server_process()` is true. URIs on other hosts are rejected with HTTP 400 to prevent server-side request forgery (SSRF), unless their scheme is explicitly allowed via `MLFLOW_ALLOWED_HOST_ADDRESSED_ARTIFACT_SCHEMES`. This check does not apply to client-side processes, non-host schemes like s3 or gs, or proxied storage under `--serve-artifacts`.",
+  "saysFor": "s2:d5d88d9e1c601ffed00351d8a8ba2ca69a770a33030dde2acce1e69e048c34b3"
+}

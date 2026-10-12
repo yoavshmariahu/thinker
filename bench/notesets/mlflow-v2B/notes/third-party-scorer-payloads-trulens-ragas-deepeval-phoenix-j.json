@@ -1,0 +1,101 @@
+{
+  "id": "third-party-scorer-payloads-trulens-ragas-deepeval-phoenix-j",
+  "title": "Third-party scorer payloads (TruLens, Ragas, DeepEval, Phoenix judges): reject api_base and gateway destination keys in kwargs at any depth",
+  "kind": "rule",
+  "answers": [
+    "Why does registering a TruLens or Ragas judge with a custom api_base now return 400?",
+    "Where are third-party scorer kwargs checked for destination hosts or SSRF?",
+    "How do I point a third-party judge at a custom LLM endpoint now that api_base is rejected?",
+    "Is an ensemble or MemAlign scorer that wraps a TruLens judge with api_base still accepted?"
+  ],
+  "body": "Path: Serialized scorer payloads sent to the register-scorer, scorer/invoke and genai evaluate invoke endpoints (inline, or re-fetched from the tracking store) pass through mlflow/server/handlers.py:_validate_serialized_scorer_payload, which calls mlflow/utils/validation.py:_validate_third_party_scorer_data for every `third_party_scorer_data.kwargs` block (TruLens, Ragas, DeepEval, Phoenix judges), including ones nested in ensemble or MemAlign `base_judge` scorers.\nRule: Walk the whole serialized payload with `_iter_third_party_scorer_data`, then for each block require `kwargs` to be a JSON object or null, and reject any key in GATEWAY_DESTINATION_KEYS (`api_base`, `base_url`, `model_list`, `fallbacks`, `custom_llm_provider`) found by `_find_destination_keys` at any depth. That search also counts `[key, value]` two-item lists, because `dict()` turns them into a mapping during deserialization. Root cause: kwargs reach the wrapped library's LLM client unchanged (the TruLens LiteLLM fallback forwards them into litellm.completion), so the caller chose the host the server connects to. The fix is a server-side check before any deserialization or job submission.\nSymptom: A caller could register or invoke a judge with kwargs.api_base pointing at an internal address, and the server would connect there when the scorer ran (SSRF). A top-level-only check let the same key through when it was nested in an ensemble, in completion_kwargs, or in a list of pairs.\nConstraints: Not gated by MLFLOW_SERVER_ENABLE_CUSTOM_SCORERS; relaxing the decorator exec guard must not relax this. Payloads without these keys are untouched. Custom endpoints belong on the server, via a `gateway:/` endpoint or provider environment variables. Applies to server-side handling only.",
+  "applies": "Server-side validation of third-party scorer kwargs in mlflow/utils/validation.py and its callers in mlflow/server/handlers.py; not client-side scorer construction.",
+  "tags": [
+    "security",
+    "scorers",
+    "genai",
+    "ssrf",
+    "validation"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/utils/validation.py",
+      "symbol": "_validate_third_party_scorer_data",
+      "hash": "sha256:eb3ec8c8810c2d45f54ba5eb",
+      "line": 1174,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:eb3ec8c8810c2d45f54ba5eb",
+      "fanout": {
+        "files": 2,
+        "sites": 7,
+        "refs": 9
+      }
+    },
+    {
+      "path": "mlflow/utils/validation.py",
+      "symbol": "_find_destination_keys",
+      "hash": "sha256:3714088a6d18c0c4d4353c07",
+      "line": 1138,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3714088a6d18c0c4d4353c07",
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 5
+      }
+    },
+    {
+      "path": "mlflow/utils/validation.py",
+      "symbol": "_iter_third_party_scorer_data",
+      "hash": "sha256:a0c035d554dcf11c443caa34",
+      "line": 1156,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a0c035d554dcf11c443caa34",
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_validate_serialized_scorer_payload",
+      "hash": "sha256:b21e3fc326dd6d3dbf78047a",
+      "line": 6129,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b21e3fc326dd6d3dbf78047a",
+      "fanout": {
+        "files": 1,
+        "sites": 4,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25890"
+  },
+  "created": "2026-10-12T05:36:34.596Z",
+  "verified": "2026-10-12T05:36:34.596Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "server-side-scorer-registration-and-invoke-decorator-call-so",
+    "trace-invoke-jobs-issue-detection-genai-evaluate-scorer-trac",
+    "sql-tracking-store-experiment-id-parsing-search-trace-scorer"
+  ],
+  "says": [
+    "Registering a third-party evaluation judge with a custom endpoint URL returns an error.",
+    "Running evaluation jobs fails when nested judge configurations specify custom destination hosts.",
+    "Connect registered evaluation judges to custom model endpoints through approved gateway configurations.",
+    "Block server-side request forgery vulnerabilities caused by custom host destinations in evaluation judges."
+  ],
+  "search": "Server-side validation in mlflow/server/handlers.py:_validate_serialized_scorer_payload and mlflow/utils/validation.py:_validate_third_party_scorer_data rejects any GATEWAY_DESTINATION_KEYS (including api_base, base_url, model_list, fallbacks, and custom_llm_provider) found at any depth inside third-party scorer kwargs. Payloads are checked across standalone, ensemble, and MemAlign base_judge configurations using _iter_third_party_scorer_data and _find_destination_keys to prevent SSRF from reaching backend completion clients. Applies solely to server-side endpoints and is not relaxed by MLFLOW_SERVER_ENABLE_CUSTOM_SCORERS, with custom endpoints belonging on the server via gateway endpoints or environment variables.",
+  "saysFor": "s2:004c8e1b7d306c1d618f980e37c7fde76162ab21bcb978c1296a015e2b660b0a"
+}

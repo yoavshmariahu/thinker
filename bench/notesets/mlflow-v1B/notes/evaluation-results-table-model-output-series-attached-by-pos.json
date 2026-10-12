@@ -1,0 +1,96 @@
+{
+  "id": "evaluation-results-table-model-output-series-attached-by-pos",
+  "title": "evaluation results table: model output Series attached by position, not index label",
+  "kind": "rule",
+  "answers": [
+    "Why are my model predictions null or in the wrong rows in the evaluation results table when my input DataFrame has a custom index?",
+    "How does mlflow.models.evaluate attach extra auxiliary output columns to the eval table?",
+    "Why does a nullable Int64 model output lose precision in the evaluation results table?",
+    "Where are prediction Series aligned into eval_results_table in the default evaluator?"
+  ],
+  "body": "Path: Default evaluator builds the eval_results_table from input features, targets, model predictions and other_output_columns; it passes through mlflow/models/evaluation/default_evaluator.py:DefaultEvaluator.log_eval_table, for both single-output and selected multi-output predictions.\nRule: In log_eval_table, a pandas Series prediction is reduced to its values with `.array` (not `.to_numpy()`), and each other_output_columns entry is also assigned via `.array`, so rows attach by returned position like metric computation does; extension dtypes such as Int64 are kept.\nRule: Because assignment is positional, a permuted output index is ignored, and a length mismatch raises instead of being NaN-filled into the table.\nSymptom: With input data that has a non-default index, prediction and auxiliary columns in the eval results table showed nulls or values attached to the wrong rows, while metrics computed on the same outputs were correct.\nConstraints: Applies only to pandas Series/columns coming from model output; numpy arrays and lists are already positional. Metric computation was already positional, so the table is changed to match it, not the reverse. Regression coverage lives in tests/evaluate/test_default_evaluator.py:test_evaluation_table_preserves_nullable_integer_outputs (value 2**63-1 next to pd.NA must survive unchanged).",
+  "applies": "mlflow.models.evaluate with the default evaluator writing eval_results_table from pandas Series predictions or extra output columns; not the metric computation path itself.",
+  "tags": [
+    "evaluation",
+    "default-evaluator",
+    "eval-results-table",
+    "pandas",
+    "alignment"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/models/evaluation/default_evaluator.py",
+      "symbol": "log_eval_table",
+      "hash": "sha256:7422613f1ec745a07978d025",
+      "line": 759,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7422613f1ec745a07978d025",
+      "fanout": {
+        "files": 3,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "tests/evaluate/test_default_evaluator.py",
+      "symbol": "test_evaluation_table_preserves_nullable_integer_outputs",
+      "hash": "sha256:e50b2736d914cba394be874b",
+      "line": 2109,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e50b2736d914cba394be874b",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/models/evaluation/default_evaluator.py",
+      "symbol": "other_output_columns",
+      "hash": "sha256:279a97702bd55414f65c1732",
+      "line": 68,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 10
+      }
+    },
+    {
+      "path": "mlflow/models/evaluation/default_evaluator.py",
+      "symbol": "log_eval_table",
+      "hash": "sha256:7422613f1ec745a07978d025",
+      "line": 759,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7422613f1ec745a07978d025",
+      "fanout": {
+        "files": 3,
+        "sites": 3,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25799"
+  },
+  "created": "2026-10-12T05:40:00.705Z",
+  "verified": "2026-10-12T05:40:00.705Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Model predictions appear in the wrong rows of the evaluation results table.",
+    "Evaluation table shows blank prediction cells when the input data has custom row labels.",
+    "Large integer prediction values lose precision in the model evaluation results view.",
+    "Why do evaluation metrics look accurate while the evaluation table displays mismatched rows?",
+    "Auxiliary model output columns contain nulls when inspecting model evaluation results."
+  ],
+  "search": "In mlflow/models/evaluation/default_evaluator.py:log_eval_table, pandas Series predictions and other_output_columns entries are assigned via .array rather than .to_numpy() to attach rows by position. This applies to mlflow.models.evaluate with the default evaluator writing eval_results_table from pandas Series predictions or extra output columns, preserving extension dtypes like Int64 while ignoring permuted output indices. Length mismatches raise errors instead of NaN-filling, leaving metric computation and already-positional numpy array or list outputs untouched.",
+  "saysFor": "s2:bc5e7674eca5479f617befd6141f3afc0eef0c207adeae6f530e4234dcac0558"
+}

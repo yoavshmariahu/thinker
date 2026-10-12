@@ -1,0 +1,68 @@
+{
+  "id": "copilot-pr-ci-retry-protect-is-rerun-last-gated-on-every-oth",
+  "title": "Copilot PR CI retry: Protect is rerun last, gated on every other rerun request succeeding",
+  "kind": "rule",
+  "answers": [
+    "Why did the Protect check consume a retry attempt while another workflow on the same commit was still failing?",
+    "How does the retry script order reruns across workflows?",
+    "Where is the Protect rerun submitted relative to the other reruns?"
+  ],
+  "body": "Path: .github/workflows/retry.sh:rerun and the loop that dispatches rows from the eligible-runs list; each non-Protect failed run gets a background `gh run rerun --failed`, and Protect is held in protect_id and submitted after `wait`.\nRule: submit the Protect rerun only after all non-Protect rerun requests succeeded, and keep a nonzero exit status when any request failed so the next scheduled run retries it. Protect is never submitted in parallel with the others.\nSymptom: protect.js failed immediately because other workflows were still failed, which burned one Protect attempt and could push the commit's shared retry budget to exhaustion.\nConstraints: the root cause was submitting Protect unconditionally after `wait`; the review-driven fix (commit 0009b8d92e) gates it, but the snippet in this diff submits Protect unconditionally, so verify the gate exists before relying on it. Does not change merge requirements.",
+  "applies": "Any change to rerun ordering or to how Protect (protect.yml) is retried in the Copilot CI retry script.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "protect",
+    "retry"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/retry.sh",
+      "hash": "sha256:e780fbf9790f79245d30bb51",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/retry.sh",
+      "hash": "sha256:e780fbf9790f79245d30bb51",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/protect.js",
+      "symbol": "failed",
+      "hash": "sha256:61cf7423a6537d2d290f09b4",
+      "line": 150,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8ece3ab9017b4a376f1cdf6d",
+      "fanout": {
+        "files": 159,
+        "sites": 12,
+        "refs": 466
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26020"
+  },
+  "created": "2026-10-12T05:42:02.623Z",
+  "verified": "2026-10-12T05:42:02.623Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "protect-workflow-check-status-logging-print-checks-sorted-by",
+    "copilot-pr-ci-auto-retry-selection-and-retry-budget-rules-li",
+    "protect-workflow-rate-limit-logging-read-x-ratelimit-remaini"
+  ],
+  "says": [
+    "Why did the branch protection check rerun while other test workflows were still failing?",
+    "The protection check burned a retry attempt because it ran before other fixes finished.",
+    "Delay running the final branch protection check until every other retried workflow succeeds.",
+    "Pull request retry attempts are exhausted because the protection check retried too early.",
+    "Stop retrying the branch protection check in parallel with other failing build jobs."
+  ],
+  "search": "In .github/workflows/retry.sh, the Protect workflow rerun is dispatched last and executed only after all non-Protect rerun requests succeed. Non-Protect failed runs are triggered asynchronously using gh run rerun --failed, while protect_id is held and submitted after wait. Gating Protect prevents it from failing concurrently against unresolved workflows and prematurely exhausting the shared retry budget. This ordering rule changes rerun execution without modifying pull request merge requirements.",
+  "saysFor": "s2:d0997d6f036b24d0bf420b4299625813b5af4dce70f3475a489676f5fe90bea7"
+}

@@ -1,0 +1,65 @@
+{
+  "id": "genai-evaluation-logged-model-metrics-pass-the-managed-evalu",
+  "title": "GenAI evaluation logged-model metrics: pass the managed EvaluationDataset through to log_metrics so dataset name and digest are recorded",
+  "kind": "rule",
+  "answers": [
+    "Why do my mlflow.genai.evaluate aggregate metrics on the logged model show a null dataset name and digest when I pass model_id?",
+    "How do I get the dataset_name and dataset_digest attached to GenAI evaluation metrics for a managed evaluation dataset?",
+    "Where is the aggregate metric logging for mlflow.genai.evaluate handled, and how does the dataset reach it?",
+    "Does passing a plain list or DataFrame to mlflow.genai.evaluate change how its metrics are tied to a dataset?"
+  ],
+  "body": "Path: mlflow/genai/evaluation/base.py:_run_harness builds the evaluation call for mlflow.genai.evaluate(data=..., model_id=...) and hands the evaluated dataframe, scorers and run_id to mlflow/genai/evaluation/harness.py:run, which computes aggregated scorer metrics and logs them to the run and logged model.\nRule: _run_harness forwards the managed dataset (mlflow_dataset, only when is_managed_dataset is true) as the dataset argument of harness.run, and run calls mlflow.log_metrics(aggregated_metrics, dataset=dataset). Any new aggregate-metric path in the GenAI evaluation flow should forward the same dataset object so logged-model metrics carry dataset_name and dataset_digest.\nSymptom: After evaluating a managed EvaluationDataset with model_id, the logged model's metrics (e.g. <scorer>/mean) showed metric_dataset_name and metric_dataset_digest as null, while an explicit mlflow.log_metrics(..., dataset=dataset) call recorded both.\nConstraints: Applies only when the caller explicitly supplies a managed evaluation dataset; plain list/DataFrame inputs pass dataset=None and keep the previous behavior (no dataset fields). Does not change per-row evaluation results, only the aggregate metric logging call.",
+  "applies": "GenAI evaluation (mlflow.genai.evaluate) aggregate metric logging to a logged model when the data input is a managed EvaluationDataset.",
+  "tags": [
+    "genai",
+    "evaluation",
+    "logged-model",
+    "metrics",
+    "datasets",
+    "area/evaluation"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/genai/evaluation/base.py",
+      "symbol": "_run_harness",
+      "hash": "sha256:8b01f02e9f682bc7038bdece",
+      "line": 302,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8b01f02e9f682bc7038bdece",
+      "fanout": {
+        "files": 3,
+        "sites": 1,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/genai/evaluation/harness.py",
+      "symbol": "run",
+      "hash": "sha256:c82a27a863d05ebbc9d2ab21",
+      "line": 662,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c82a27a863d05ebbc9d2ab21"
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25927"
+  },
+  "created": "2026-10-12T05:35:22.438Z",
+  "verified": "2026-10-12T05:35:22.438Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Logged model metrics display null dataset name and digest after running GenAI evaluation.",
+    "Aggregate evaluation scores on the model are missing their associated dataset details.",
+    "Evaluation dataset name and digest should appear on logged model metrics.",
+    "Model evaluation summaries fail to link the managed dataset to aggregated metrics."
+  ],
+  "search": "GenAI evaluation forwards managed EvaluationDataset instances to aggregate metric logging so logged-model metrics record dataset_name and dataset_digest. In mlflow/genai/evaluation/base.py:_run_harness and mlflow/genai/evaluation/harness.py:run, the managed dataset is passed to mlflow.log_metrics alongside aggregated scorer metrics. This resolves null metric_dataset_name and metric_dataset_digest values on models evaluated with model_id. Applies only when callers explicitly supply a managed dataset, whereas plain list or DataFrame inputs retain dataset=None without affecting per-row results.",
+  "saysFor": "s2:00ad71b2530d1de5108c75938656a747860247d1bc0b1242c646fdf78e5cfd50"
+}

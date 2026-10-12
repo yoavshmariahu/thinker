@@ -1,0 +1,103 @@
+{
+  "id": "uc-trace-export-typescript-session-and-user-must-be-copied-t",
+  "title": "UC trace export (TypeScript): session and user must be copied to root-span session.id/user.id before export",
+  "kind": "rule",
+  "answers": [
+    "Why are my TypeScript traces exported to Unity Catalog missing from session search results?",
+    "How does the UC table exporter decide which session or user value goes onto the root span?",
+    "Where are session.id and user.id set for Unity Catalog traces in the TypeScript SDK?",
+    "Does the Databricks UC table span processor also export user_id or trace tags as span attributes?"
+  ],
+  "body": "Path: Traces exported to a Unity Catalog OTel table go through libs/typescript/core/src/exporters/uc_table.ts:DatabricksUCTableSpanProcessor (the onEnd path for the root span, which also handles updateTraceInfo and token/metadata aggregation before export).\nRule: DatabricksUCTableSpanProcessor.setUserSessionSpanAttributes copies traceInfo.traceMetadata[TraceMetadataKey.TRACE_USER] and [TraceMetadataKey.TRACE_SESSION] onto the root span as SpanAttributeKey.USER_ID ('user.id') and SESSION_ID ('session.id') (libs/typescript/core/src/core/constants.ts:SpanAttributeKey). It runs before updateTraceInfo, and only when the metadata value is non-null. Add any new root-span attribute that UC search depends on in the same place.\nSymptom: UC-backed TypeScript traces showed up in trace lists but were absent from session-filtered search, because UC session filtering reads the root-span attributes and the SDK only wrote the values into trace metadata.\nConstraints: Applies only to the UC table exporter. The V3 MlflowSpanProcessor (libs/typescript/core/src/exporters/mlflow.ts:MlflowSpanProcessor) does not do this; its comment says V3 search reads user and session from TraceInfo metadata. Do not add the promotion there.",
+  "applies": "TypeScript SDK, tracing export to Unity Catalog (UC table / OTLP otel spans); not the V3 MLflow tracking-server export path.",
+  "tags": [
+    "tracing",
+    "typescript",
+    "unity-catalog",
+    "session",
+    "user",
+    "span-attributes"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/core/src/exporters/uc_table.ts",
+      "symbol": "DatabricksUCTableSpanProcessor",
+      "hash": "sha256:2ca10c9b7eb9340f23f82b4a",
+      "line": 29,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2ca10c9b7eb9340f23f82b4a",
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 6
+      }
+    },
+    {
+      "path": "libs/typescript/core/src/core/constants.ts",
+      "symbol": "SpanAttributeKey",
+      "hash": "sha256:8af7083fae630527b6890b8a",
+      "line": 69,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8af7083fae630527b6890b8a",
+      "fanout": {
+        "files": 26,
+        "sites": 0,
+        "refs": 107
+      }
+    },
+    {
+      "path": "libs/typescript/core/src/exporters/mlflow.ts",
+      "symbol": "MlflowSpanProcessor",
+      "hash": "sha256:fce56b1c93758da7e559177c",
+      "line": 37,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:fce56b1c93758da7e559177c",
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 5
+      }
+    },
+    {
+      "path": "libs/typescript/core/src/exporters/uc_table.ts",
+      "symbol": "DatabricksUCTableSpanProcessor.setUserSessionSpanAttributes",
+      "hash": "sha256:ee919130f7e4e7dffdf2e43c",
+      "line": 144,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ee919130f7e4e7dffdf2e43c",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26209"
+  },
+  "created": "2026-10-12T05:31:58.155Z",
+  "verified": "2026-10-12T05:31:58.155Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "typescript-tracing-spans-setting-attributes-on-an-already-en",
+    "typescript-agent-traces-git-source-metadata-is-resolved-fiel",
+    "typescript-span-processor-tests-mock-the-environment-helper"
+  ],
+  "says": [
+    "Client traces show up in catalog trace lists but vanish under session filters.",
+    "Filtering catalog traces by session returns no results for client-side recorded spans.",
+    "Catalog trace searches by user cannot find traces sent from the JavaScript client.",
+    "Make session and user filters in catalog trace search work for web client traces.",
+    "Exported catalog traces are missing from search results when filtering by user or session."
+  ],
+  "search": "In libs/typescript/core/src/exporters/uc_table.ts:DatabricksUCTableSpanProcessor.setUserSessionSpanAttributes, TRACE_USER and TRACE_SESSION from traceInfo.traceMetadata must be copied onto root spans as SpanAttributeKey.USER_ID ('user.id') and SESSION_ID ('session.id') when non-null prior to updateTraceInfo. This promotion enables Unity Catalog session-filtered trace searches to find root-span attributes. It applies solely to the TypeScript Unity Catalog table exporter, and must not be added to the V3 MlflowSpanProcessor in libs/typescript/core/src/exporters/mlflow.ts.",
+  "saysFor": "s2:327427981b48e26b54f770a38456046398e0ef0f7a648f35f47bc814ecd0e320"
+}

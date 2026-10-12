@@ -1,0 +1,136 @@
+{
+  "id": "telemetry-event-parameters-log-model-register-model-env-pack",
+  "title": "telemetry event parameters (log_model, register_model, env_pack): bound every value to a known set, None, or bool, and map anything unrecognised to \"other\"",
+  "kind": "rule",
+  "answers": [
+    "Why does the log_model telemetry event report flavor as \"other\" for my custom flavor?",
+    "How are register_model telemetry source_scheme and env_pack values recorded when the model URI uses an unusual scheme or a plugin-defined scheme?",
+    "I want to add a new telemetry field to an event. Which values are allowed to go into event parameters?",
+    "Where is the telemetry flavor or model URI scheme normalized for log_model and register_model?"
+  ],
+  "body": "Path: mlflow/telemetry/events.py:LogModelEvent.parse and RegisterModelEvent.parse turn Model.log and fluent register_model arguments into telemetry params (flavor, registered, env_pack, source_scheme). Flavor goes through events.py:_bound_flavor; the URI scheme is taken with urlparse.\nRule: Telemetry params must be enums, booleans, or None, never free-form or user-identifying text. Map any value outside an explicit set to \"other\". Use hardcoded sets: mlflow/telemetry/constant.py:KNOWN_FLAVORS for flavors and events.py:_KNOWN_MODEL_URI_SCHEMES for schemes. Do not use the artifact-repository registry for schemes, because plugins can add schemes at runtime and the value would become unbounded. A flavor like \"mlflow.sklearn\" or \"pyfunc.ChatModel\" is reduced to its base name before lookup.\nSymptom: Without bounding, custom or third-party flavor names and plugin URI schemes would be sent as raw strings in telemetry, and reviewers flagged this as unbounded data.\nConstraints: KNOWN_FLAVORS must be edited by hand when a built-in flavor is added or removed. A scheme-less path (for example /tmp/model) maps to \"local\". A single-slash scheme such as dbfs:/ has a real scheme and is not \"local\". Existing per-operation events are not changed by this rule.",
+  "applies": "Any new or changed telemetry event parse() in mlflow/telemetry/events.py that reads user-supplied values such as flavor names, URIs, or registry or plugin names.",
+  "tags": [
+    "telemetry",
+    "model-registry",
+    "models",
+    "privacy"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/telemetry/events.py",
+      "symbol": "LogModelEvent",
+      "hash": "sha256:8d5a74aa013c98f3f31f056c",
+      "line": 280,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8d5a74aa013c98f3f31f056c",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/telemetry/events.py",
+      "symbol": "RegisterModelEvent",
+      "hash": "sha256:e58242433818cc5d6597c4d0",
+      "line": 297,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e58242433818cc5d6597c4d0",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 6
+      }
+    },
+    {
+      "path": "mlflow/telemetry/events.py",
+      "symbol": "_bound_flavor",
+      "hash": "sha256:8e04c5563b4fb5a4d8030128",
+      "line": 29,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8e04c5563b4fb5a4d8030128",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/telemetry/constant.py",
+      "symbol": "KNOWN_FLAVORS",
+      "hash": "sha256:5f3174fe1e9c604a64a39092",
+      "line": 95,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/telemetry/events.py",
+      "symbol": "LogModelEvent.parse",
+      "hash": "sha256:b591c8da6b6037c0b2407d12",
+      "line": 284,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b591c8da6b6037c0b2407d12",
+      "fanout": {
+        "files": 210,
+        "sites": 172,
+        "refs": 566
+      }
+    },
+    {
+      "path": "mlflow/telemetry/events.py",
+      "symbol": "_KNOWN_MODEL_URI_SCHEMES",
+      "hash": "sha256:71699832078a24b49144c1f0",
+      "line": 40,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/telemetry/events.py",
+      "symbol": "RegisterModelEvent.parse",
+      "hash": "sha256:78e080025e58fbe9c124dbaa",
+      "line": 301,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:78e080025e58fbe9c124dbaa",
+      "fanout": {
+        "files": 210,
+        "sites": 172,
+        "refs": 566
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25923"
+  },
+  "created": "2026-10-12T05:35:48.215Z",
+  "verified": "2026-10-12T05:35:48.215Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "telemetry-events-import-env-pack-lazily-inside-parse-and-env"
+  ],
+  "says": [
+    "Usage telemetry records custom model flavors as other instead of their actual name.",
+    "Telemetry logging should restrict model storage schemes to predefined values to protect user privacy.",
+    "Model registration metrics categorize plugin storage schemes under other in usage reports.",
+    "Ensure telemetry events only collect bounded enumerations rather than free-form user strings."
+  ],
+  "search": "In mlflow/telemetry/events.py, LogModelEvent.parse and RegisterModelEvent.parse must constrain all telemetry parameters to booleans, None, or values from hardcoded sets, mapping any unrecognized string to 'other'. Model flavors are validated against mlflow/telemetry/constant.py:KNOWN_FLAVORS after reducing them to base names, and model URI schemes are matched against _KNOWN_MODEL_URI_SCHEMES rather than runtime registries to prevent unbounded plugin values. Scheme-less paths map to 'local' while single-slash schemes like dbfs:/ remain valid schemes. The rule applies to new or modified telemetry parsing in mlflow/telemetry/events.py that handles user-supplied arguments, leaving existing per-operation events unchanged.",
+  "saysFor": "s2:2afe35bef44083264bfea1d0ec584d32022b5cae64d493c782ea778a7d07af77"
+}

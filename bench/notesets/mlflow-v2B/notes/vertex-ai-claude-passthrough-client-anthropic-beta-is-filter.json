@@ -1,0 +1,89 @@
+{
+  "id": "vertex-ai-claude-passthrough-client-anthropic-beta-is-filter",
+  "title": "Vertex AI Claude passthrough: client anthropic-beta is filtered by the endpoint's vertex_anthropic_betas before the request is sent (None forwards, [] drops, list allowlists)",
+  "kind": "rule",
+  "answers": [
+    "Claude Code requests through a Vertex AI gateway endpoint fail with 400 Unexpected value(s) for the anthropic-beta header; how do I stop that?",
+    "How do I allow only specific anthropic-beta values through a Vertex AI Claude endpoint?",
+    "Where is the anthropic-beta header handled for Claude on Vertex AI passthrough requests?",
+    "Does the vertex_anthropic_betas option change how Gemini or MaaS models on Vertex AI forward headers?"
+  ],
+  "body": "Path: Passthrough and raw proxy requests to Claude models on Vertex AI (Anthropic messages routes) pass through mlflow/gateway/providers/vertex_ai.py:_VertexAIClaudeProvider._get_headers, which merges the client's headers into the upstream call. Gemini and MaaS providers on Vertex do not use this override.\nRule: _VertexAIClaudeProvider._get_headers filters the client's `anthropic-beta` with the endpoint's `vertex_anthropic_betas` (mlflow/gateway/config.py:VertexAIConfig) using the helper _filter_anthropic_betas, then calls super(). The shared Anthropic header merge stays untouched. None forwards the header unchanged, [] drops it, and a non-empty list keeps only the listed values, dropping the header if none remain.\nSymptom: Clients that track newer Anthropic features (for example advisor-tool-2026-03-01 from Claude Code) got every request through a Vertex-backed endpoint rejected with 400 Unexpected value(s) ... for the anthropic-beta header, because Vertex validates beta values the Anthropic API ignores.\nConstraints: Applies only to Claude models on Vertex AI. The default (unset) keeps today's behaviour, so an endpoint must set the option to shield its upstream. The option is not shown in the endpoint creation UI; it is set through the model's Vertex AI config or auth_config.",
+  "applies": "Vertex AI Claude passthrough headers in the gateway provider; not Gemini or MaaS routes on Vertex AI.",
+  "tags": [
+    "gateway",
+    "vertex-ai",
+    "anthropic",
+    "passthrough",
+    "headers"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIClaudeProvider._get_headers",
+      "hash": "sha256:2e52c56e62618efe794dba47",
+      "line": 181,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2e52c56e62618efe794dba47",
+      "fanout": {
+        "files": 13,
+        "sites": 38,
+        "refs": 38
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_filter_anthropic_betas",
+      "hash": "sha256:ff72e4360b92d82bfea854d0",
+      "line": 90,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ff72e4360b92d82bfea854d0",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/gateway/config.py",
+      "symbol": "VertexAIConfig",
+      "hash": "sha256:ac2ee9a849ab02f2202dc63e",
+      "line": 332,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ac2ee9a849ab02f2202dc63e",
+      "fanout": {
+        "files": 5,
+        "sites": 8,
+        "refs": 23
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25835"
+  },
+  "created": "2026-10-12T05:37:46.295Z",
+  "verified": "2026-10-12T05:37:46.295Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "ai-gateway-endpoint-config-from-auth-config-list-valued-prov",
+    "ai-gateway-vertex-ai-passthrough-routes-claude-and-maas-mode",
+    "ai-gateway-vertex-ai-auth-headers-always-drop-client-credent",
+    "ai-gateway-vertex-ai-tracing-pass-enable-tracing-into-both-c"
+  ],
+  "says": [
+    "Calls to Claude through our gateway fail with unexpected beta header errors.",
+    "Allow only approved preview features on our Google Cloud Claude gateway endpoint.",
+    "Claude Code assistant requests are getting rejected by the cloud model gateway.",
+    "Strip unsupported experimental options before forwarding calls to the upstream model provider.",
+    "Gateway model endpoints need an option to drop unrecognised beta request tags."
+  ],
+  "search": "For Claude models on Vertex AI passthrough and raw proxy routes, _VertexAIClaudeProvider._get_headers filters the client anthropic-beta header using the endpoint's vertex_anthropic_betas in VertexAIConfig before calling super(). Setting vertex_anthropic_betas to None forwards the header unchanged, an empty list drops it, and a non-empty list keeps only listed values. This applies only to Vertex AI Claude passthrough headers, not Gemini or MaaS routes, and the option is configured in Vertex AI config or auth_config rather than the endpoint creation UI.",
+  "saysFor": "s2:89ea98106af7a250ad300c29df590324aea9891193da35cfdcf3972eb33d9f9f"
+}

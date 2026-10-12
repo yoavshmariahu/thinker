@@ -1,0 +1,70 @@
+{
+  "id": "openinference-structured-llm-spans-with-redacted-inputs-outp",
+  "title": "OpenInference structured LLM spans with redacted inputs/outputs: model, provider, span type and token usage come from span attributes, not the payloads",
+  "kind": "rule",
+  "answers": [
+    "Model badge and provider disappear for a TypeSafe trace when inputs and outputs are redacted",
+    "Token usage shows wrong or missing values when output tokens are zero on an OpenInference LLM span",
+    "Why does a structured TypeSafe answer payload still show the model when the payload is hidden?"
+  ],
+  "body": "Path: mlflow/tracing/otel/translation/open_inference.py:OpenInferenceTranslator, reached through translate_span_when_storing, handles OpenInference LLM spans whose input.value and output.value are structured payloads (for example TypeSafe questions and answers) or redacted to \"__REDACTED__\".\nRule: derive the stored model (SpanAttributeKey.MODEL), provider (llm.provider), span type (openinference.span.kind LLM) and chat usage (llm.token_count.prompt/completion/total) from span attributes, not from the inputs or outputs body. Keep a completion count of 0 as OUTPUT_TOKENS 0 rather than dropping it. Do not set MESSAGE_FORMAT for these non-chat structured payloads.\nSymptom: when inputs and outputs were hidden, the normalized model name was lost from the trace UI.\nConstraints: the redacted and structured cases were verified by tests only in the diff; the translator behavior itself comes from the model-name key list change. Does not apply to chat-message payloads that go through the message-format path.",
+  "applies": "OpenInference LLM spans with structured or redacted input/output payloads in trace storage.",
+  "tags": [
+    "tracing",
+    "openinference",
+    "typesafe",
+    "redaction",
+    "token-usage"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/tracing/otel/translation/open_inference.py",
+      "symbol": "OpenInferenceTranslator",
+      "hash": "sha256:c04fb8aa96f8d43e824e1c50",
+      "line": 11,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c04fb8aa96f8d43e824e1c50",
+      "fanout": {
+        "files": 3,
+        "sites": 1,
+        "refs": 33
+      }
+    },
+    {
+      "path": "tests/tracing/otel/test_span_translation.py",
+      "symbol": "test_translate_openinference_structured_inputs_outputs",
+      "hash": "sha256:b88d42cf30b334614c8dc8bc",
+      "line": 718,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b88d42cf30b334614c8dc8bc",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26047"
+  },
+  "created": "2026-10-12T05:33:48.012Z",
+  "verified": "2026-10-12T05:33:48.012Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "openinference-model-name-translation-llm-response-model-name"
+  ],
+  "says": [
+    "Redacting input and output payloads causes the model and provider tags to disappear.",
+    "Token usage shows missing data in the trace view when completion tokens are zero.",
+    "Trace spans with masked payloads should still display the model name and token metrics.",
+    "Hiding prompt content removes provider information from the span details header."
+  ],
+  "search": "When handling OpenInference LLM spans with structured or redacted payloads in mlflow/tracing/otel/translation/open_inference.py:OpenInferenceTranslator, model, provider, span kind, and token usage are derived from span attributes rather than payload bodies. An output token count of zero is preserved as OUTPUT_TOKENS 0 rather than dropped, and MESSAGE_FORMAT is omitted for non-chat structured payloads. This applies to spans with structured or redacted input.value and output.value attributes, but excludes chat-message payloads.",
+  "saysFor": "s2:8505f2011a6e9836112769cd1f90f65782cc61a112cb232d127da7ac4656a00f"
+}

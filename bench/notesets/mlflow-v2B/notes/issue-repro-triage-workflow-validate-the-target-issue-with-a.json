@@ -1,0 +1,46 @@
+{
+  "id": "issue-repro-triage-workflow-validate-the-target-issue-with-a",
+  "title": "issue repro triage workflow: validate the target issue with a jq boolean check and emit ::error:: before exiting, not jq -e select",
+  "kind": "rule",
+  "answers": [
+    "Why did the issue reproduction triage workflow fail with exit code 4 and no message when a closed issue was passed?",
+    "How does the workflow decide whether a workflow_dispatch target issue_number is eligible for reproduction?",
+    "Where is the Fetch bounded issue context step that builds issue.json for the repro triage job?",
+    "Why does the triage workflow reject pull request numbers as well as closed issues?"
+  ],
+  "body": "Path: .github/workflows/issue-repro-triage.yml, step \"Fetch bounded issue context\" (job for workflow_dispatch with inputs.issue_number). It calls the GitHub REST issues endpoint via `gh api`, writes issue-raw.json, and produces the bounded issue.json used by later build and triage steps.\nRule: Run `gh api --fail-with-body` so non-2xx responses stop the step before validation. Check eligibility with a plain boolean `jq -e '.state == \"open\" and (has(\"pull_request\") | not)'` inside an `if !` block. On rejection, compute the object type (\"pull request\" vs \"issue\") and state with `jq -r` and print `::error::issue_number must identify an open issue; got <state> <type> #<n>` before `exit 1`. Only after that, write issue.json with `jq '{number, state, title, body, labels: [.labels[].name]}'`.\nSymptom: A user who dispatched the workflow for an already-closed issue saw the job fail with exit code 4 from `jq -e select(...)` and no explanation in the log, so they could not tell that the issue was closed or that a PR number was given.\nConstraints: Applies to the workflow_dispatch fetch step only. The eligibility rule itself is unchanged (open issues only, no pull requests); only the failure reporting changed. Keep the same predicate when editing this step, and keep the explicit error message format so the rejected state and type stay visible in the Actions log.",
+  "applies": "Edits to the issue reproduction triage GitHub Actions workflow's issue-fetch and validation step.",
+  "tags": [
+    "github-actions",
+    "issue-repro-triage",
+    "workflow-dispatch",
+    "jq",
+    "error-reporting"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/issue-repro-triage.yml",
+      "hash": "sha256:be4e46082758f94e1538a91f",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26257"
+  },
+  "created": "2026-10-12T05:31:41.202Z",
+  "verified": "2026-10-12T05:31:41.202Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The reproduction triage workflow fails without an explanation when given a closed issue number.",
+    "Manually running issue reproduction on a pull request crashes with an uninformative exit code.",
+    "Show a descriptive error in the action logs when triage targets an ineligible ticket.",
+    "Display whether a rejected triage input was closed or actually a pull request."
+  ],
+  "search": "The issue reproduction triage workflow in .github/workflows/issue-repro-triage.yml validates dispatch target issues using a jq boolean expression rather than jq -e select. The fetch step calls gh api --fail-with-body, verifies the issue is open and not a pull request, and emits a GitHub Actions ::error:: message showing state, type, and number before exiting with 1. Applies to workflow_dispatch inputs in the bounded issue context fetch step so rejected closed issues or pull requests leave descriptive failure logs.",
+  "saysFor": "s2:9e75b873049b47a67c99f8669c2a35938741a7833d2420d2456498f203ca9a6b"
+}

@@ -1,0 +1,70 @@
+{
+  "id": "prompt-versions-promptversion-constructor-must-copy-caller-t",
+  "title": "prompt versions: PromptVersion constructor must copy caller tags before adding internal prompt tags",
+  "kind": "rule",
+  "answers": [
+    "Why did my tags dict pick up mlflow.prompt.text and model_config after creating a prompt?",
+    "Reusing one tags dict for two prompt versions gives the second prompt the first prompt's model config, why?",
+    "Where are internal mlflow.prompt.* tags (template text, type, is_prompt, model config) written onto a prompt version?",
+    "How do I pass custom tags when creating a prompt version without them being changed?"
+  ],
+  "body": "Path: Prompt version creation in the prompt management / model registry entities. `mlflow/entities/model_registry/prompt_version.py:PromptVersion.__init__` takes name, version, template, tags and model_config, and writes internal keys (`mlflow.prompt.text`, `mlflow.prompt.type`, `mlflow.prompt.is_prompt`, serialized model config) into the tags map it stores.\nRule: Copy the caller's tags before writing internal keys into them (`tags = dict(tags or {})` in `PromptVersion.__init__`), never assign into the dict the caller passed. Caller dicts must stay unchanged so they can be reused across prompts.\nSymptom: A tags dict reused for a second prompt version came back containing the first prompt's template and model config keys, and the second prompt reported the first prompt's `model_config` (e.g. `{'temperature': 0.7}`) instead of its own.\nConstraints: Applies to the `tags` argument of `PromptVersion.__init__`. The regression test is `tests/entities/test_prompt.py:test_prompt_does_not_mutate_caller_tags`. Other code paths that mutate tags after construction are not covered by this note.",
+  "applies": "PromptVersion construction in mlflow/entities/model_registry/prompt_version.py; any new entity that merges internal keys into a caller-supplied dict should copy first.",
+  "tags": [
+    "prompts",
+    "model-registry",
+    "entities",
+    "tags",
+    "aliasing"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/entities/model_registry/prompt_version.py",
+      "symbol": "PromptVersion.__init__",
+      "hash": "sha256:62b7c2c06a485239a34e09b0",
+      "line": 190,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:62b7c2c06a485239a34e09b0",
+      "fanout": {
+        "files": 272,
+        "sites": 309,
+        "refs": 434
+      }
+    },
+    {
+      "path": "tests/entities/test_prompt.py",
+      "symbol": "test_prompt_does_not_mutate_caller_tags",
+      "hash": "sha256:d15c082dafcdef216f8858dd",
+      "line": 204,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:d15c082dafcdef216f8858dd",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26245"
+  },
+  "created": "2026-10-12T05:28:35.878Z",
+  "verified": "2026-10-12T05:28:35.878Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Reusing a tag set causes the second prompt to inherit the first prompt settings.",
+    "Creating a prompt version unexpectedly modifies the shared metadata labels dictionary.",
+    "The second prompt displays the first prompt template and temperature configuration.",
+    "Shared prompt tags should not bleed model parameters between different prompt versions.",
+    "Custom metadata tags pick up internal system properties when saving prompts."
+  ],
+  "search": "In mlflow/entities/model_registry/prompt_version.py:PromptVersion.__init__, caller tags must be copied with dict(tags or {}) before injecting internal prompt keys. Without copying, internal keys like mlflow.prompt.text, mlflow.prompt.type, mlflow.prompt.is_prompt, and serialized model config mutate the caller dictionary. This mutation caused reused tag dictionaries to overwrite a subsequent prompt's model_config with settings such as temperature from the previous prompt. Guidance applies to PromptVersion construction tags and any entity merging internal keys into caller dicts, but does not cover tag mutations occurring after construction.",
+  "saysFor": "s2:6d03dcf3e00a0a8de82295d6ea454de1e2f36c98cf4748a91876d81d9f9bbf6a"
+}

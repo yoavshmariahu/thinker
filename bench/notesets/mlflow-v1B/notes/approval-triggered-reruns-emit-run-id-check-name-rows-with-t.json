@@ -1,0 +1,68 @@
+{
+  "id": "approval-triggered-reruns-emit-run-id-check-name-rows-with-t",
+  "title": "Approval-triggered reruns: emit '<run id> <check name>' rows with the name last, guard empty input, and rerun protect after a delay",
+  "kind": "rule",
+  "answers": [
+    "Why did the protect check exit right after a PR approval triggered reruns, before the other failed checks were rerun?",
+    "Why did a workflow with two failed jobs get rerun twice and fail with 403 'already running' on the second call?",
+    "Where are failed check runs turned into rerun targets, and how are check names with spaces like 'python (1)' parsed?",
+    "What happens to the rerun loop when no failed checks qualify?"
+  ],
+  "body": "Path: .github/workflows/rerun-workflow-run.yml, the run step triggered after approval that reads the PR head commit's check-runs via `gh api .../commits/$HEAD_SHA/check-runs`, keeps failed github-actions checks (plus protect), and builds the `rows` value consumed by the `while read -r id name` loop that calls `rerun` (gh run rerun --failed).\nRule: Emit each row as \"<run id> <check name>\" with the name last, since names contain spaces; dedupe with `sort -u -k1,1` so one workflow run is rerun once even when several of its jobs failed. Read with `while read -r id name` so the name takes the rest of the line. Guard with `if [ -n \"$rows\" ]` before the herestring, because `<<< \"\"` still feeds one empty line to read. Hold the protect row in `protect_id`, issue all other reruns first, then `sleep 5` and rerun protect last.\nSymptom: protect was reran in the middle of the batch, so it started before the remaining reruns were issued, read a stale failure and exited immediately; with whole-line `sort -u`, two failed jobs from one workflow run produced two `gh run rerun <id>` calls and the second was rejected with 403 'This workflow is already running'.\nConstraints: Applies only to this approval-triggered rerun workflow. The fixed `sleep 5` is a delay, not a barrier: it does not confirm the earlier reruns have landed. Do not dedupe on the whole row, and do not reorder the name column to the front. Not applicable to the general CI workflows.",
+  "applies": "Approval-triggered rerun of failed GitHub Actions checks in .github/workflows/rerun-workflow-run.yml; not the general CI workflows.",
+  "tags": [
+    "github-actions",
+    "ci",
+    "rerun",
+    "workflow",
+    "protect",
+    "shell"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/rerun-workflow-run.yml",
+      "symbol": "rows",
+      "hash": "sha256:3d19ae1622882750d3673ac6",
+      "line": 69,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 3
+      }
+    },
+    {
+      "path": ".github/workflows/rerun-workflow-run.yml",
+      "symbol": "protect_id",
+      "hash": "sha256:00b65b6d20d2800d700737a2",
+      "line": 93,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25591"
+  },
+  "created": "2026-10-12T05:48:14.067Z",
+  "verified": "2026-10-12T05:48:14.067Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "approval-triggered-reruns-select-failed-checks-from-the-pr-h"
+  ],
+  "says": [
+    "Protect check exits right after a PR approval, before other failed checks are rerun",
+    "Workflow with two failed jobs gets rerun twice and fails with 'already running' error",
+    "Check names with spaces like 'python (1)' break approval-triggered rerun parsing",
+    "Approval rerun does nothing or errors when no failed checks qualify"
+  ],
+  "search": "Approval-triggered rerun loop in the rerun-workflow-run workflow: emit rows as run id then check name, dedupe by run id so each run reruns once, read names with spaces correctly, skip the loop when no rows exist, and rerun the protect check last after a short delay. Applies only to this approval rerun workflow, not general CI; the sleep is a delay, not a barrier.",
+  "saysFor": "s2:42e639fc3c5c16a6d41459f247e0408e1ae87d3dd19f974bb304df9dd550d811"
+}

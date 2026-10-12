@@ -1,0 +1,70 @@
+{
+  "id": "s3-artifact-multipart-upload-forward-only-the-sse-allowlist",
+  "title": "S3 artifact multipart upload: forward only the SSE allowlist of upload extra args to CreateMultipartUpload",
+  "kind": "rule",
+  "answers": [
+    "Large artifact upload to S3 fails when the bucket policy requires SSE-KMS or SSE-S3 encryption",
+    "Why MLFLOW_S3_UPLOAD_EXTRA_ARGS encryption settings are ignored for big files but not small ones",
+    "Where are S3 upload extra args filtered before being sent on multipart initialization?",
+    "Can an SSE-C customer key be passed through to S3 multipart artifact uploads?"
+  ],
+  "body": "Path: Large-file artifact uploads to S3 that go through explicit multipart (log_artifact and friends, which call OptimizedS3ArtifactRepository._multipart_upload in mlflow/store/artifact/optimized_s3_artifact_repo.py) call create_multipart_upload; the repository constructor's s3_upload_extra_args and the MLFLOW_S3_UPLOAD_EXTRA_ARGS environment value both pass through OptimizedS3ArtifactRepository._get_multipart_upload_encryption_args before that call.\nRule: _get_multipart_upload_encryption_args merges the constructor args with the environment args (environment wins on key conflicts) and keeps only BucketKeyEnabled, ServerSideEncryption, SSEKMSKeyId and SSEKMSEncryptionContext. Any new server-side encryption argument needed at multipart initialization must be added to that allowlist, and generic transfer options (e.g. ACL) must stay out.\nSymptom: With a bucket policy requiring SSE-S3 or SSE-KMS, uploads of files above the multipart threshold were rejected at multipart initialization even though encryption was configured through the repository or MLFLOW_S3_UPLOAD_EXTRA_ARGS. Small files succeeded because the plain upload_file path already passed those arguments.\nConstraints: Applies only to CreateMultipartUpload. SSE-C fields are deliberately excluded because they must be repeated on every UploadPart and CompleteMultipartUpload, which this code does not do. Do not add keys to the allowlist unless CreateMultipartUpload accepts them.",
+  "applies": "Any change to how S3 artifact uploads pass encryption or extra args, especially the multipart path versus the regular upload_file path.",
+  "tags": [
+    "s3",
+    "artifact-store",
+    "multipart-upload",
+    "encryption",
+    "sse-kms"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/artifact/optimized_s3_artifact_repo.py",
+      "symbol": "OptimizedS3ArtifactRepository._get_multipart_upload_encryption_args",
+      "hash": "sha256:cff3e4b8204f43b66fe48d88",
+      "line": 168,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:cff3e4b8204f43b66fe48d88",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/store/artifact/optimized_s3_artifact_repo.py",
+      "symbol": "OptimizedS3ArtifactRepository._multipart_upload",
+      "hash": "sha256:cbdc867f2c223234ef923763",
+      "line": 230,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:cbdc867f2c223234ef923763",
+      "fanout": {
+        "files": 5,
+        "sites": 5,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25772"
+  },
+  "created": "2026-10-12T05:40:09.718Z",
+  "verified": "2026-10-12T05:40:09.718Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Large artifact uploads to S3 fail when the bucket requires server-side encryption.",
+    "Upload encryption settings work for small files but are ignored for big files.",
+    "Large file storage uploads are rejected during multipart initialization on encrypted buckets.",
+    "Why does logging big model artifacts fail on buckets enforcing managed key encryption?",
+    "Customer-provided encryption keys are rejected when uploading large artifacts to cloud storage."
+  ],
+  "search": "For large-file S3 artifact uploads in mlflow/store/artifact/optimized_s3_artifact_repo.py, _get_multipart_upload_encryption_args merges constructor s3_upload_extra_args and MLFLOW_S3_UPLOAD_EXTRA_ARGS before passing them to CreateMultipartUpload. Only an allowlist of server-side encryption arguments is forwarded—BucketKeyEnabled, ServerSideEncryption, SSEKMSKeyId, and SSEKMSEncryptionContext—excluding generic transfer parameters such as ACL. Customer-provided encryption keys (SSE-C) are excluded because they require repeating across every part upload and completion call, which multipart upload does not support.",
+  "saysFor": "s2:671733ab279fcabfeadd6178444476075ff870776cd468b9e709dda7ae2b4daf"
+}

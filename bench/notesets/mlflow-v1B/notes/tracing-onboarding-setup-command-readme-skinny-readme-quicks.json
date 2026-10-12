@@ -1,0 +1,77 @@
+{
+  "id": "tracing-onboarding-setup-command-readme-skinny-readme-quicks",
+  "title": "tracing onboarding setup command (README, skinny README, quickstart, AgentActionCard): keep the hosted wizard curl command identical across entry points and regenerate generated copies",
+  "kind": "rule",
+  "answers": [
+    "Why does the tracing empty-state card now show a curl command instead of `uvx mlflow@latest agent setup`?",
+    "Where is the one-line tracing setup command defined for the UI card and the docs quickstart?",
+    "How do I change the 'Fastest start' block in the README so the skinny README and UI translations stay in sync?",
+    "The long setup command in the onboarding card overflows or doesn't wrap; what handles that?"
+  ],
+  "body": "Path: Onboarding entry points that tell users how to start tracing with a coding agent: the 'Fastest start' block at the top of README.md and libs/skinny/README_SKINNY.md, the tracing tip in docs/docs/genai/tracing/quickstart/index.mdx, and the tracing empty-state 'One-line setup' tab in mlflow/server/js/src/experiment-tracking/components/onboarding/AgentActionCard.tsx (constant AGENT_SETUP_COMMAND).\nRule: The command is `curl -LsSf https://mlflow.org/wizard/setup.sh | sh`, which replaces `uvx mlflow@latest agent setup` in every generic OSS entry point. Change it in all of them in the same PR. The UI copy is a FormattedMessage in AgentActionCard; after editing its defaultMessage, regenerate mlflow/server/js/src/lang/default/en.json (keys are content hashes, so old keys are removed and new ones added) instead of hand-editing. Regenerate libs/skinny/README_SKINNY.md from README.md rather than editing it by hand. The command <code> in AgentActionCard uses minWidth: 0 and overflowWrap: 'anywhere' so the longer command wraps inside the card.\nSymptom: The hosted URL returned HTTP 403 until the companion website change was deployed, so copying the command from any onboarding surface would fail in the meantime.\nConstraints: Applies only to generic OSS entry points. The `mlflow agent setup` CLI implementation and historical changelog entries are not changed by this. No Databricks-specific workspace URL, experiment ID or warehouse ID belongs in these generic entry points. Confirm the wizard URL returns HTTP 200 in production before shipping the command.",
+  "applies": "Any edit to the tracing setup command or its companion copy in README, skinny README, the quickstart MDX, or AgentActionCard in the MLflow OSS repo.",
+  "tags": [
+    "tracing",
+    "onboarding",
+    "docs",
+    "readme",
+    "i18n",
+    "agent-setup"
+  ],
+  "deps": [
+    {
+      "path": "README.md",
+      "hash": "sha256:8cc1b534d7673fa5df3f3134",
+      "missing": false
+    },
+    {
+      "path": "libs/skinny/README_SKINNY.md",
+      "hash": "sha256:1b1aa468a6559f18f5a29478",
+      "missing": false
+    },
+    {
+      "path": "docs/docs/genai/tracing/quickstart/index.mdx",
+      "hash": "sha256:5b8787df5df4e471cc9aa96c",
+      "missing": false
+    },
+    {
+      "path": "mlflow/server/js/src/experiment-tracking/components/onboarding/AgentActionCard.tsx",
+      "symbol": "AgentActionCard",
+      "hash": "sha256:a7ce3538a932737577d37ebe",
+      "line": 31,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a7ce3538a932737577d37ebe",
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 12
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/lang/default/en.json",
+      "hash": "sha256:8ef7fb523a1fe42462728e43",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25949"
+  },
+  "created": "2026-10-12T05:39:37.100Z",
+  "verified": "2026-10-12T05:39:37.100Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Update the one-line setup command shown on the tracing onboarding card and documentation.",
+    "The installation command overflows and stretches outside the onboarding card instead of wrapping properly.",
+    "Copying the agent setup script from the empty tracing screen gives a forbidden download error.",
+    "Make sure the setup script in the quickstart docs matches the web interface card.",
+    "The tracing onboarding card displays the old setup tool instead of the new installer."
+  ],
+  "search": "The generic OSS agent tracing setup command must be kept identical across entry points by replacing `uvx mlflow@latest agent setup` with `curl -LsSf https://mlflow.org/wizard/setup.sh | sh` in README.md, docs/docs/genai/tracing/quickstart/index.mdx, and AGENT_SETUP_COMMAND in mlflow/server/js/src/experiment-tracking/components/onboarding/AgentActionCard.tsx. Generated copies must not be edited by hand: regenerate libs/skinny/README_SKINNY.md from README.md and regenerate mlflow/server/js/src/lang/default/en.json when modifying the UI FormattedMessage. AgentActionCard applies minWidth: 0 and overflowWrap: 'anywhere' on the code block to wrap the longer command, and the wizard URL must return HTTP 200 in production before release. This guidance applies only to generic OSS entry points, leaving the CLI implementation unchanged and omitting Databricks workspace URLs, experiment IDs, or warehouse IDs.",
+  "saysFor": "s2:1e213b8b504103ba0427072abbafaa4a55821ad1206e6f84ae9211121bc667a5"
+}

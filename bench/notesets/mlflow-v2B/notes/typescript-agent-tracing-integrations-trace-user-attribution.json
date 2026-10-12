@@ -1,0 +1,168 @@
+{
+  "id": "typescript-agent-tracing-integrations-trace-user-attribution",
+  "title": "TypeScript agent tracing integrations, trace user attribution: read USER, fall back to USERNAME, else empty string",
+  "kind": "rule",
+  "answers": [
+    "Why do traces from my Windows machine have no user recorded?",
+    "Where does the trace user metadata come from in the Codex notify path?",
+    "How does the OpenClaw root span pick the user value?",
+    "Which environment variable is used for mlflow.trace.user in the Claude Code live tracing?"
+  ],
+  "body": "Path: Sets mlflow.trace.user on traces built from agent sessions in the Claude Code transcript and live tracing paths, Codex notify payloads, Qwen Code transcripts, OpenCode sessions and OpenClaw root spans. Chokepoints: claude-code/src/tracing.ts:processTranscript, claude-code/src/liveTracing.ts:LiveTracingContext, codex/src/tracing.ts:processNotify, qwen-code/src/tracing.ts:processTranscript, opencode/src/index.ts:processSession, openclaw/src/service.ts:createMLflowService.\nRule: Resolve the user with getCurrentUser(), i.e. process.env.USER || process.env.USERNAME || ''. Claude Code defines it in claude-code/src/_internal.ts:getCurrentUser; Codex, Qwen Code, OpenCode and OpenClaw each carry a local copy. Do not read process.env.USER directly for trace user metadata.\nSymptom: On Windows hosts, where USERNAME is set but USER is not, traces were recorded with an empty trace user, so user-attributed trace filtering returned nothing for them.\nConstraints: Applies only to the trace user key; session and working-directory metadata are set separately. Returns empty string when neither variable is set, and the metadata key is still written. claude-code/tests/tracing.test.ts sets and restores USER and USERNAME around each case.",
+  "applies": "TypeScript tracing integrations under libs/typescript/integrations/ that set mlflow.trace.user; not the Python tracing path.",
+  "tags": [
+    "tracing",
+    "windows",
+    "user-attribution",
+    "typescript",
+    "integrations"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/integrations/claude-code/src/_internal.ts",
+      "symbol": "getCurrentUser",
+      "hash": "sha256:bb234798fbf9dee04e217a86",
+      "line": 21,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:bb234798fbf9dee04e217a86",
+      "fanout": {
+        "files": 8,
+        "sites": 6,
+        "refs": 28
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/claude-code/src/tracing.ts",
+      "symbol": "processTranscript",
+      "hash": "sha256:4718af474db349227c26be43",
+      "line": 528,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4718af474db349227c26be43",
+      "fanout": {
+        "files": 9,
+        "sites": 55,
+        "refs": 65
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/codex/src/tracing.ts",
+      "symbol": "processNotify",
+      "hash": "sha256:80bea4f39326954f549eb127",
+      "line": 54,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:80bea4f39326954f549eb127",
+      "fanout": {
+        "files": 4,
+        "sites": 10,
+        "refs": 19
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/qwen-code/src/tracing.ts",
+      "symbol": "processTranscript",
+      "hash": "sha256:bbea130d86cc23dfe5f07476",
+      "line": 52,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:bbea130d86cc23dfe5f07476",
+      "fanout": {
+        "files": 9,
+        "sites": 55,
+        "refs": 65
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/opencode/src/index.ts",
+      "symbol": "processSession",
+      "hash": "sha256:2f0a7848e18f52f3904c2875",
+      "line": 450,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2f0a7848e18f52f3904c2875",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/openclaw/src/service.ts",
+      "symbol": "createMLflowService",
+      "hash": "sha256:ec9571a28df366c62c23eabc",
+      "line": 290,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:ec9571a28df366c62c23eabc",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/claude-code/src/liveTracing.ts",
+      "symbol": "LiveTracingContext",
+      "hash": "sha256:4eaeb8d865a245964fdd6c9d",
+      "line": 94,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4eaeb8d865a245964fdd6c9d",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 4
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/claude-code/src/tracing.ts",
+      "symbol": "processTranscript",
+      "hash": "sha256:4718af474db349227c26be43",
+      "line": 528,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4718af474db349227c26be43",
+      "fanout": {
+        "files": 9,
+        "sites": 55,
+        "refs": 65
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/claude-code/src/index.ts",
+      "hash": "sha256:5a7c74b5fd110a548aea143c",
+      "missing": false
+    },
+    {
+      "path": "libs/typescript/integrations/claude-code/tests/tracing.test.ts",
+      "hash": "sha256:384e78d48e1aa0f32a90323d",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26221"
+  },
+  "created": "2026-10-12T05:28:59.576Z",
+  "verified": "2026-10-12T05:28:59.576Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "typescript-tracing-integrations-keep-trace-helpers-local-ins",
+    "claude-code-transcript-tracing-emit-one-llm-span-per-logical",
+    "claude-code-transcript-tracing-llm-span-end-falls-back-to-th",
+    "codex-tracing-the-root-span-identifies-the-agent-with-opente"
+  ],
+  "says": [
+    "Agent execution traces recorded on Windows workstations display an empty user name.",
+    "Filtering trace history by user returns no results for sessions launched on desktop PCs.",
+    "Show the logged in account author on coding assistant traces across all operating systems.",
+    "Populate the user column in trace logs with the active operating system login."
+  ],
+  "search": "TypeScript agent tracing integrations populate mlflow.trace.user by evaluating process.env.USER and falling back to process.env.USERNAME. The getCurrentUser logic prevents missing user attribution on Windows systems where USER is unset, which breaks user-attributed trace filtering. The helper is kept local to integrations including Claude Code, Codex, Qwen Code, OpenCode, and OpenClaw. It applies only to the mlflow.trace.user attribute in TypeScript tracing, writing an empty string when neither variable is set.",
+  "saysFor": "s2:baee3cb0d2743617da84d728b4189739554f353dc927a09fa637b843b0840e03"
+}

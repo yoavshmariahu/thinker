@@ -1,0 +1,53 @@
+{
+  "id": "sqlalchemy-store-tests-bulk-upsert-tests-need-a-repeated-key",
+  "title": "sqlalchemy store tests: bulk upsert tests need a repeated-key case so dialect-specific ON CONFLICT errors surface",
+  "kind": "howto",
+  "answers": [
+    "How do I test that setting logged model tags works for every database backend?",
+    "I changed a bulk upsert in the tracking store; which test cases must I add?",
+    "Where is the logged model tag set test and what does it cover?"
+  ],
+  "body": "Path: tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_runs.py:test_set_logged_model_tags_bulk_upsert covers set_logged_model_tags with new tags, overwrites of existing keys, an empty list, a 150-tag call that crosses the 100-row batch boundary, and a repeated key within one call.\nRule: When adding or changing a bulk upsert in the store, extend this test (or a sibling) with a duplicate key in one call and assert the last value wins. Review noted the suite runs against Postgres, MySQL and MSSQL in CI, so Postgres-only ON CONFLICT errors appear only there, not on a local SQLite run.\nConstraints: Covers the logged-model tags path only. The 100-row boundary assertions track the batch_size used by _bulk_upsert.",
+  "applies": "Tests for SQLAlchemy tracking store bulk upserts, especially logged model tags.",
+  "tags": [
+    "tracking",
+    "sqlalchemy",
+    "testing",
+    "postgres",
+    "logged-model"
+  ],
+  "deps": [
+    {
+      "path": "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_runs.py",
+      "symbol": "test_set_logged_model_tags_bulk_upsert",
+      "hash": "sha256:923d6e11d3b919ec0e260b03",
+      "line": 4405,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:923d6e11d3b919ec0e260b03",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25862"
+  },
+  "created": "2026-10-12T05:44:14.564Z",
+  "verified": "2026-10-12T05:44:14.564Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Saving duplicate tag keys on a logged model causes a database conflict error.",
+    "Setting tags on a logged model should let the last value win for repeated keys.",
+    "Updating model tags fails unexpectedly on Postgres databases when submitting duplicate metadata keys."
+  ],
+  "search": "When adding or changing bulk upserts in the SQLAlchemy tracking store, extend tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_runs.py:test_set_logged_model_tags_bulk_upsert or a sibling test with duplicate keys in one call and assert the last value wins. This ensures backend-specific ON CONFLICT errors on PostgreSQL surface in CI, which do not appear during local SQLite runs or on MySQL and MSSQL. The test covers set_logged_model_tags with new tags, overwrites of existing keys, empty lists, and crossing the 100-row batch boundary. Guidance covers the logged-model tags path only.",
+  "saysFor": "s2:a3daa8a6e74ab044903418f3e2134c28d20345395e7d89f03ee9b0e3dd88a315"
+}

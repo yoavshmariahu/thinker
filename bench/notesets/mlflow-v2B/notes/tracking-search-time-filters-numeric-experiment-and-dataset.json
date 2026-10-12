@@ -1,0 +1,78 @@
+{
+  "id": "tracking-search-time-filters-numeric-experiment-and-dataset",
+  "title": "Tracking search time filters: numeric experiment and dataset time values are coerced to int before SQL binding",
+  "kind": "rule",
+  "answers": [
+    "Why does searching experiments by creation_time fail on PostgreSQL with 'operator does not exist: bigint > character varying'?",
+    "How do I filter evaluation datasets by created_time without a type-mismatch error on psycopg v3?",
+    "Where are creation_time and created_time search filters converted for the tracking store?",
+    "Why does creation_time = 1.5 now return INVALID_PARAMETER_VALUE instead of matching something?"
+  ],
+  "body": "Path: Experiment search (`search_experiments`) and evaluation-dataset search (`search_datasets`) parse filter_string such as `creation_time > ...`, `last_update_time`, `created_time`, and `experiment_id` into SQL comparisons in mlflow/store/tracking/sqlalchemy_store.py:_get_search_experiments_filter_clauses and mlflow/store/tracking/sqlalchemy_store.py:_get_search_datasets_filter_clauses.\nRule: For any numeric search attribute, validate the comparator against the allowed numeric set, then run `int(value)` before building the comparison; if conversion fails, raise INVALID_PARAMETER_VALUE with \"Invalid value for numeric attribute '<key>'\". Do not bind the raw parsed string, because psycopg v3 binds it as VARCHAR and PostgreSQL rejects it against BIGINT columns.\nSymptom: On PostgreSQL under SQLAlchemy 2.1 (bare postgresql:// now means psycopg v3), time-based experiment or dataset searches failed with a ProgrammingError about bigint compared to character varying. SQLite and psycopg2 accepted the same query, so the bug only showed on psycopg v3.\nConstraints: Applies to numeric attributes only; string attributes such as name or tags keep their existing binding. Fractional values such as `created_time > 1.5` are rejected, not truncated. Comparators outside =, !=, <, <=, >, >= are still rejected first.",
+  "applies": "Tracking-store experiment and evaluation-dataset search filters on PostgreSQL with psycopg v3; the same int-coercion pattern applies to any new numeric search attribute.",
+  "tags": [
+    "tracking",
+    "search",
+    "sqlalchemy",
+    "postgresql",
+    "psycopg3",
+    "filter",
+    "experiments",
+    "datasets"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "_get_search_experiments_filter_clauses",
+      "hash": "sha256:89020edabf9dded58bde7923",
+      "line": 10175,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:89020edabf9dded58bde7923",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "_get_search_datasets_filter_clauses",
+      "hash": "sha256:553b894cf7dad27acb23d27f",
+      "line": 10761,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:553b894cf7dad27acb23d27f",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26170"
+  },
+  "created": "2026-10-12T05:30:17.318Z",
+  "verified": "2026-10-12T05:30:17.318Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "logged-model-search-order-by-model-id-asc-is-appended-as-the",
+    "sql-tracking-store-experiment-id-parsing-search-trace-scorer",
+    "logged-model-search-filter-string-metric-comparisons-join-a",
+    "logged-model-search-search-logged-models-eager-load-tags-par"
+  ],
+  "says": [
+    "Filtering experiments by creation time fails on PostgreSQL with a type mismatch error",
+    "Searching evaluation datasets by timestamp crashes when using modern database drivers",
+    "Filtering by fractional timestamps should show an invalid parameter error instead of crashing",
+    "Allow filtering tracking experiments and datasets by last update time on Postgres databases",
+    "Date and time search queries fail against tracking stores connected to Postgres"
+  ],
+  "search": "Tracking search filter clauses for experiments and evaluation datasets in mlflow/store/tracking/sqlalchemy_store.py validate and coerce numeric attributes like creation_time, last_update_time, created_time, and experiment_id to int before SQL binding. This prevents PostgreSQL type comparison failures on psycopg v3 caused by binding strings against BIGINT columns, raising INVALID_PARAMETER_VALUE if integer conversion fails or fractional values like 1.5 are supplied. This rule applies to numeric search attributes in SQLAlchemy store filters, leaving string attributes unchanged and rejecting invalid comparators outside =, !=, <, <=, >, >=.",
+  "saysFor": "s2:111a1c1dfd235e40b4f5d18983b4cf145611b58562ed8f7ec81a5051b0bc1949"
+}

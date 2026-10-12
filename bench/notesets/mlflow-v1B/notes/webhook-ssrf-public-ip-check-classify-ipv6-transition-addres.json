@@ -1,0 +1,102 @@
+{
+  "id": "webhook-ssrf-public-ip-check-classify-ipv6-transition-addres",
+  "title": "webhook SSRF public-IP check: classify IPv6-transition addresses by their embedded IPv4, never by bare ip.is_global",
+  "kind": "rule",
+  "answers": [
+    "Webhook registration rejects a URL whose hostname resolves to an IPv6 address like 64:ff9b::169.254.169.254 or ::ffff:100.64.0.1, but the same IP was accepted before",
+    "Why does my HTTPS icon URL or other public URL validation reject an IPv4-mapped or 6to4 address?",
+    "Where is the webhook private-network / metadata-address blocking done at connection time?",
+    "Which check decides whether a resolved webhook peer IP counts as public?"
+  ],
+  "body": "Path: Webhook destination checks for URLs that must point at public hosts. Pre-flight hostname resolution runs through mlflow/utils/validation.py:_validate_hostname_resolves_to_public_ips (used by webhook URL and public HTTPS URL validation, e.g. icon URLs). Connection-time peer validation runs through mlflow/webhooks/ssrf.py:_assert_public_peer on the socket's getpeername() address.\nRule: Both guards must decide public vs. non-public with mlflow/utils/validation.py:_is_public_ip, not a direct `ip.is_global`. _is_public_ip calls _embedded_ipv4, which unwraps IPv4-mapped (::ffff:0:0/96), 6to4 (`.sixtofour`), and NAT64 (64:ff9b::/96, low 32 bits) IPv6 addresses to the embedded IPv4 before checking is_global. If you add a new IP classification on these paths, route it through the same helper.\nSymptom: A webhook or public URL pointing at cloud metadata (169.254.169.254) or a CGNAT (100.64.0.0/10) host, wrapped as NAT64, IPv4-mapped, or 6to4 IPv6, was accepted as a public destination, bypassing the earlier SSRF fix.\nConstraints: Applies to the public-IP decision only. Plain IPv4 and genuinely public IPv6 (e.g. 2001:4860:4860::8888, ::ffff:8.8.8.8) must still pass. Private IPv4 is blocked as before. The helpers are underscore-named but imported across modules (validation.py -> webhooks/ssrf.py).",
+  "applies": "Any code in MLflow that decides whether a webhook, icon, or other user-supplied URL/IP is a public address, both pre-resolution and at socket connect time.",
+  "tags": [
+    "security",
+    "ssrf",
+    "webhooks",
+    "ipv6",
+    "validation"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/utils/validation.py",
+      "symbol": "_is_public_ip",
+      "hash": "sha256:d9a8d134ccca1d14e95b035f",
+      "line": 922,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:d9a8d134ccca1d14e95b035f",
+      "fanout": {
+        "files": 3,
+        "sites": 3,
+        "refs": 5
+      }
+    },
+    {
+      "path": "mlflow/utils/validation.py",
+      "symbol": "_embedded_ipv4",
+      "hash": "sha256:257efd273e0fca81d87ca465",
+      "line": 904,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:257efd273e0fca81d87ca465",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/webhooks/ssrf.py",
+      "symbol": "_assert_public_peer",
+      "hash": "sha256:4a5e3e77244ef61a670a3470",
+      "line": 41,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4a5e3e77244ef61a670a3470",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/utils/validation.py",
+      "symbol": "_validate_hostname_resolves_to_public_ips",
+      "hash": "sha256:25cdf68e5def2c1135a79d5e",
+      "line": 980,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:25cdf68e5def2c1135a79d5e",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25568"
+  },
+  "created": "2026-10-12T05:41:39.239Z",
+  "verified": "2026-10-12T05:41:39.239Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "ssrf-ipv6-tests-use-a-real-6to4-encoding-2002-ipv4-hex-not-2",
+    "scorer-register-invoke-evaluate-payloads-validate-every-seri",
+    "third-party-scorer-kwargs-destination-keys-are-rejected-at-a",
+    "basic-auth-user-password-change-sqlalchemystore-update-user"
+  ],
+  "says": [
+    "Webhook registration permits destination links that tunnel to internal cloud metadata services.",
+    "Block webhook endpoints that reach private networks or metadata hosts through mapped addresses.",
+    "The custom icon URL field accepts addresses resolving to private cloud infrastructure.",
+    "Outgoing webhook connections must refuse requests directed at cloud metadata through mapped addresses."
+  ],
+  "search": "Webhook SSRF public-IP checks must classify IPv6-transition addresses by their embedded IPv4 using mlflow/utils/validation.py:_is_public_ip rather than direct ip.is_global. In mlflow/utils/validation.py, _is_public_ip invokes _embedded_ipv4 to unwrap IPv4-mapped (::ffff:0:0/96), 6to4, and NAT64 (64:ff9b::/96) IPv6 addresses before checking is_global. The rule applies to pre-flight hostname resolution via mlflow/utils/validation.py:_validate_hostname_resolves_to_public_ips and socket peer checks via mlflow/webhooks/ssrf.py:_assert_public_peer. Guidance applies to webhook URLs and public HTTPS icon URLs, requiring plain IPv4 and genuinely public IPv6 to pass while blocking private, cloud metadata, and CGNAT destinations.",
+  "saysFor": "s2:9c109290119b60fe0bcabfdbdc23a166bdd17b71b35c190b1dc565a80b8254e5"
+}

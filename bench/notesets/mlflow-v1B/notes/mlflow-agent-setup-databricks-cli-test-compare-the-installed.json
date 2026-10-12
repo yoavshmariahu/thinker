@@ -1,0 +1,57 @@
+{
+  "id": "mlflow-agent-setup-databricks-cli-test-compare-the-installed",
+  "title": "mlflow agent setup Databricks CLI test: compare the installed databricks path as a Path object, not as a string",
+  "kind": "rule",
+  "answers": [
+    "Why does the databricks CLI install test fail on Windows with a path mismatch?",
+    "How should tests compare file paths printed by the agent setup script on Windows?",
+    "Where is the databricks CLI installed to in the agent setup test?"
+  ],
+  "body": "Path: tests/agent/test_setup_sh_unit.py:test_databricks_cli_installs_latest_release_in_user_bin checks the location the agent setup script reports after installing the Databricks CLI into the user bin directory.\nRule: When asserting a path printed by a shell script, parse the stdout with Path(result.stdout.strip()) and compare it to the expected Path object, not to str(expected). Git Bash on Windows prints forward slashes or a different separator style than pathlib's str(), so a string comparison fails even when the location is correct.\nSymptom: The Databricks CLI install test failed on Windows because the reported path string used different separators than str(tmp_path / 'bin' / 'databricks'), even though the file was installed in the right place.\nConstraints: Only for assertions on paths returned by script output. Do not loosen the check to a substring match, and keep the existence check on the expected path.",
+  "applies": "Assertions in mlflow agent setup shell tests that compare a path emitted by setup.sh against an expected location, on POSIX and Windows.",
+  "tags": [
+    "agent-setup",
+    "databricks-cli",
+    "tests",
+    "windows",
+    "paths"
+  ],
+  "deps": [
+    {
+      "path": "tests/agent/test_setup_sh_unit.py",
+      "symbol": "test_databricks_cli_installs_latest_release_in_user_bin",
+      "hash": "sha256:c5b10779da6f36530a9a8a5a",
+      "line": 505,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b5d78ad74fb7528c2cb05dbe",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25694"
+  },
+  "created": "2026-10-12T05:40:40.559Z",
+  "verified": "2026-10-12T05:40:40.559Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "mlflow-agent-setup-shell-tests-stub-missing-commands-with-sh"
+  ],
+  "says": [
+    "The setup test suite fails on Windows due to directory separator differences in output paths.",
+    "Fix CLI installation verification errors caused by slash formatting mismatches on Windows test runners.",
+    "Cloud command line tool install checks fail on Windows despite the binary installing properly.",
+    "Ensure automated agent setup verification tests succeed across both Windows and Unix developer environments.",
+    "Setup tests should handle Windows backslashes when checking where command line tools were placed."
+  ],
+  "search": "In mlflow agent setup shell tests, assertions on script-printed paths must parse stdout into a Path object rather than comparing strings. In tests/agent/test_setup_sh_unit.py:test_databricks_cli_installs_latest_release_in_user_bin, comparing strings causes false failures on Windows Git Bash because slash separators differ from str(expected). Checks must not be loosened to substring matches, and file existence assertions on the expected location must be retained.",
+  "saysFor": "s2:9c64e59c01077b29e62cc98e2d51ffc3a67a0e4d5e6ed5510974d15e232d5542"
+}

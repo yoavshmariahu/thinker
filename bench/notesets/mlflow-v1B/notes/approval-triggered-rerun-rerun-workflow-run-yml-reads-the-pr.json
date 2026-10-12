@@ -1,0 +1,51 @@
+{
+  "id": "approval-triggered-rerun-rerun-workflow-run-yml-reads-the-pr",
+  "title": "Approval-triggered rerun: rerun-workflow-run.yml reads the PR head SHA from workflow_run.head_sha instead of an uploaded PR-number artifact or gh pr view",
+  "kind": "rule",
+  "answers": [
+    "Why does the approval rerun no longer upload a pr_number artifact?",
+    "How does the rerun workflow find the PR head commit for fork PRs?",
+    "Where is the PR head SHA used when rerunning failed GitHub Actions checks after approval?"
+  ],
+  "body": "Path: .github/workflows/rerun.yml (job approved, fires on an approved review by an allowed bot or user) hands off via workflow_run to .github/workflows/rerun-workflow-run.yml, whose rerun step lists the github-actions check runs on the PR head commit with `gh api repos/$GH_REPO/commits/$HEAD_SHA/check-runs`.\nRule: Take the head commit from `github.event.workflow_run.head_sha` (passed as env HEAD_SHA in the rerun step). Do not reintroduce a PR-number artifact, `gh run download`, or `gh pr view` lookup; the trigger job in rerun.yml is payload-free and only echoes a message.\nConstraints: `workflow_run.head_sha` is used because `pull_requests` can be empty for fork PRs. This applies to the approval-triggered rerun only, not to general CI workflows. The removed flow cost one artifact upload and two API calls per approval.",
+  "applies": "Approval-triggered rerun of failed github-actions checks on a PR head SHA, including fork PRs.",
+  "tags": [
+    "github-actions",
+    "rerun",
+    "workflow_run",
+    "approval",
+    "fork-prs"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/rerun.yml",
+      "hash": "sha256:f09960f43d841018af6de4bb",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/rerun-workflow-run.yml",
+      "hash": "sha256:1123ab8d5531b5e8f2408d10",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25592"
+  },
+  "created": "2026-10-12T05:48:12.094Z",
+  "verified": "2026-10-12T05:48:12.094Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "approval-triggered-rerun-gate-rerun-workflow-run-yml-relies"
+  ],
+  "says": [
+    "Approval rerun no longer uploads a PR number artifact",
+    "Fork pull requests find the correct head commit for approval-triggered reruns",
+    "Approval rerun reads the PR head commit directly instead of looking up the pull request"
+  ],
+  "search": "Approval-triggered rerun of failed checks takes the PR head SHA from the workflow_run head SHA rather than an uploaded PR-number artifact or a gh pr view lookup, so fork PRs work when pull request data is empty. The trigger job in rerun.yml is payload-free; do not reintroduce artifact download or PR lookups. Applies to the approval rerun only, not general CI.",
+  "saysFor": "s2:01d6b571e966da2a903f15110734e5506b3bfeffb4bfa1668e360d4cd62841b8"
+}

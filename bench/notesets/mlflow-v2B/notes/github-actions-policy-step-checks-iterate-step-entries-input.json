@@ -1,0 +1,55 @@
+{
+  "id": "github-actions-policy-step-checks-iterate-step-entries-input",
+  "title": "GitHub Actions policy step checks: iterate step_entries(input) so composite-action and parallel steps are covered",
+  "kind": "rule",
+  "answers": [
+    "Why didn't the policy flag a dangerous step inside a composite action (actions/checkout with ref, github-script without retries)?",
+    "Where do I add a new policy rule that checks each step's uses, with, env, run or if fields in the workflow linter?",
+    "How are the policy's diagnostic messages made to point at unnamed steps or parallel children?",
+    "Where is parallel step traversal in the GitHub workflow policy handled?"
+  ],
+  "body": "Path: .github/policy.rego:step_entries handles every step-level rule for workflow YAML and composite action.yml files (checkout, create-github-app-token, github-script, github.token shorthand in with/env, run interpolation, step if interpolation). It yields one entry per step from jobs.<id>.steps, from parallel children of those steps, and from runs.steps of a composite action.\nRule: Step-level deny rules must start with `some entry in step_entries(input)` followed by `step := entry.step`, not iterate `input.jobs` or `job_steps(job)` directly. Put `entry.location` in the message via `%s`. The location string (e.g., \"job 'build', step #2, parallel step #1\") is what makes unnamed steps diagnosable. Duplicate workflow-vs-composite rules were merged into one rule per check, so a new check should be written once.\nSymptom: Policy violations inside composite actions, or inside `parallel:` groups, were silently not reported because traversal only visited workflow job steps; messages also named only the job, so unnamed steps were hard to locate.\nConstraints: Applies to rules that look at a single step. Job-level rules (e.g., job `if` interpolation, workflow-level `on` checks) still iterate `input.jobs` directly.",
+  "applies": "Adding or editing step-level rules in .github/policy.rego that run via conftest over workflow and action YAML.",
+  "tags": [
+    "github-actions",
+    "policy",
+    "conftest",
+    "rego",
+    "composite-action"
+  ],
+  "deps": [
+    {
+      "path": ".github/policy.rego",
+      "symbol": "step_entries",
+      "hash": "sha256:bb52cffb992c37dd76c7128e",
+      "line": 103,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 20,
+        "refs": 20
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25900"
+  },
+  "created": "2026-10-12T05:36:05.904Z",
+  "verified": "2026-10-12T05:36:05.904Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "github-actions-policy-npm-lockfile-check-global-npm-installs"
+  ],
+  "says": [
+    "Policy violations in composite actions are silently ignored during workflow security scans.",
+    "Security checks fail to inspect steps running inside parallel task groups.",
+    "Workflow policy warnings should report the exact step number instead of just the job.",
+    "Policy reports leave unnamed workflow steps difficult to locate after validation failures."
+  ],
+  "search": "GitHub Actions step-level policy rules iterate step_entries(input) in .github/policy.rego to cover workflow steps, parallel children, and composite actions. Deny rules bind entry.step from step_entries rather than iterating input.jobs or job_steps, and format entry.location into diagnostic messages. This ensures policy violations inside composite actions or parallel groups are detected and makes unnamed steps diagnosable. Applies to single-step rules over uses, with, env, run, or if fields, while job-level rules continue to iterate input.jobs directly.",
+  "saysFor": "s2:46ef337c530c943d5a277a43e68564a1044f5336ec82eb166b85e89cf90b0353"
+}

@@ -1,0 +1,100 @@
+{
+  "id": "protect-workflow-check-status-logging-print-checks-sorted-by",
+  "title": "protect workflow check-status logging: print checks sorted by STATE key order (failure first) and append ?pr=<number> to run attempt links",
+  "kind": "rule",
+  "answers": [
+    "Why does the protect check log list failing checks before pending or passing ones?",
+    "How do I add a new status to the protect.js check summary, and where does its print order come from?",
+    "Where is the workflow-run link in the PR check log built, and why does it carry a pr query parameter?"
+  ],
+  "body": "Path: .github/workflows/protect.js:module.exports is the GitHub Actions script that polls a PR's check runs, builds the `checks` list (one entry per workflow run attempt, with name, url, status and pendingJobs), and prints one line per check with an icon, name and link.\nRule: Order is defined once by `STATE` (`failure`, `pending`, `success`, `skipped`) and derived as `STATUS_ORDER = Object.values(STATE)`; `checks.sort(...)` by `STATUS_ORDER.indexOf(status)` runs right before the logging `forEach`. Object.values keeps key insertion order, so reorder keys in `STATE` to change print priority, and add new statuses there rather than hard-coding a second list. Run-attempt URLs are built as `${run.html_url}/attempts/${run.run_attempt}?pr=${pullRequest.number}` in both places that push to `checks`; keep the `?pr=` suffix when adding another run link.\nConstraints: The sort mutates `checks` in place and only affects logging order, not the status value that decides pass/fail. A status not present in `STATE` gets indexOf -1 and sorts before `failure`. Applies only to the protect.js check-logging path, not to other workflows.",
+  "applies": "GitHub Actions protect.js check polling and logging in .github/workflows; applies to changes to check ordering or workflow-run link format.",
+  "tags": [
+    "github-actions",
+    "protect",
+    "ci",
+    "logging"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/protect.js",
+      "symbol": "pendingJobs",
+      "hash": "sha256:add7bfda02d63cdca4a52480",
+      "line": 151,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:20f821d87988c50e36727add",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 7
+      }
+    },
+    {
+      "path": ".github/workflows/protect.js",
+      "symbol": "STATE",
+      "hash": "sha256:642f9156a0739ea0b82bb89e",
+      "line": 34,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:642f9156a0739ea0b82bb89e",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 18
+      }
+    },
+    {
+      "path": ".github/workflows/protect.js",
+      "symbol": "STATUS_ORDER",
+      "hash": "sha256:f01a31b0e29bdb972fab234d",
+      "line": 40,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f01a31b0e29bdb972fab234d",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": ".github/workflows/protect.js",
+      "symbol": "pullRequest",
+      "hash": "sha256:ecac78478cefe6d2a511e5be",
+      "line": 19,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6487de17415952dc3b6502d6",
+      "fanout": {
+        "files": 5,
+        "sites": 4,
+        "refs": 14
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26014"
+  },
+  "created": "2026-10-12T05:41:54.762Z",
+  "verified": "2026-10-12T05:41:54.762Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "protect-workflow-rate-limit-logging-read-x-ratelimit-remaini",
+    "copilot-pr-ci-retry-protect-is-rerun-last-gated-on-every-oth",
+    "protect-js-check-status-logging-keep-a-github-skipped-conclu",
+    "protect-js-poll-cadence-the-first-two-sleeps-after-the-immed"
+  ],
+  "says": [
+    "Failed checks are buried beneath passing jobs in the protection status summary log.",
+    "Display failing jobs first in the pull request status check log.",
+    "Why does the pull request check output list failed workflows before passing ones?",
+    "Ensure workflow attempt links in the check summary include the pull request number."
+  ],
+  "search": "In .github/workflows/protect.js:module.exports, check runs logged in the summary are sorted in place by STATUS_ORDER.indexOf(status) right before the logging loop, using STATUS_ORDER = Object.values(STATE) which prioritizes failure first. Run attempt URLs constructed across both push sites must append ?pr=${pullRequest.number} to ${run.html_url}/attempts/${run.run_attempt}. The sorting mutates checks in place for logging order only without affecting merge gating verdicts, and new statuses must be defined directly in STATE.",
+  "saysFor": "s2:c956cb480fd68b9208302b77c622ad3aa1f43639ef67552ab71f7c8b99dc505d"
+}

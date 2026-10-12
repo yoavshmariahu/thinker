@@ -1,0 +1,56 @@
+{
+  "id": "github-issue-workflows-concurrency-group-is-keyed-per-issue",
+  "title": "GitHub issue workflows: concurrency group is keyed per issue or PR number, not run_id, so repeated edits queue instead of running in parallel",
+  "kind": "rule",
+  "answers": [
+    "Why did repeated edits to the same issue start several overlapping issue-warning or labeling runs?",
+    "Why does labeling not cancel an in-flight run when an issue is edited again?",
+    "Where is the concurrency key for the issue-warning, close-security-issues or labeling workflow defined?",
+    "How should a new issue-triggered workflow set its concurrency group so it works for both issues and pull requests?"
+  ],
+  "body": "Path: .github/workflows/close-security-issues.yml, .github/workflows/issue-warning.yml and .github/workflows/labeling.yml are the workflows that run on issue `opened`/`edited` (labeling.yml also on `pull_request_target`). Their top-level `concurrency:` block decides whether a new event for the same issue or PR waits behind an earlier run.\nRule: Key the group as `${{ github.workflow }}-${{ github.event.issue.number }}` for issue-only triggers. For a workflow that also fires on pull requests, use `${{ github.workflow }}-${{ github.event.issue.number || github.event.pull_request.number }}` (labeling.yml). Keep `cancel-in-progress: false`, because job-level `if:` conditions already gate the work and cancelling would drop label or comment steps.\nSymptom: Each event used `${{ github.run_id }}` as the group, which is unique per run, so nothing serialized. Repeated `opened`/`edited` events on one issue ran in parallel and could race on labels or warning comments.\nConstraints: The group is per workflow and per issue or PR number, so different issues still run concurrently. Do not use `run_id` for serialization. Pull request events have no `github.event.issue`, which is why the fallback is needed on dual-trigger workflows. This does not change which jobs run; that is still decided by job-level `if:`.",
+  "applies": "Concurrency settings of issue- and pull-request-triggered workflows in .github/workflows, in mlflow/mlflow.",
+  "tags": [
+    "github-actions",
+    "concurrency",
+    "issues",
+    "labeling",
+    "ci"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/close-security-issues.yml",
+      "hash": "sha256:350d18b54b0d372408c3a836",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/issue-warning.yml",
+      "hash": "sha256:b8c51ce9f74bd9f4e52a9baf",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/labeling.yml",
+      "hash": "sha256:d561f4bcff728b7bbe73f7d4",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25617"
+  },
+  "created": "2026-10-12T05:47:38.106Z",
+  "verified": "2026-10-12T05:47:38.106Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Rapid edits to an issue cause overlapping bot runs that post duplicate warning comments.",
+    "Repeated ticket updates trigger parallel labeling actions that race against each other.",
+    "Queue automated actions per ticket number so subsequent edits wait for in-flight tasks.",
+    "Why does re-editing a pull request description not cancel the currently running tagger?"
+  ],
+  "search": "Issue- and pull-request-triggered workflows serialize repeated events per item by setting the top-level `concurrency:` group to `${{ github.workflow }}-${{ github.event.issue.number }}` or `${{ github.workflow }}-${{ github.event.issue.number || github.event.pull_request.number }}` with `cancel-in-progress: false`. Used in `.github/workflows/close-security-issues.yml`, `.github/workflows/issue-warning.yml`, and `.github/workflows/labeling.yml`, this ensures sequential execution when issues or PRs are opened or edited. Keying on `${{ github.run_id }}` is prohibited because it runs events in parallel and causes races on comments and labels. Different issues still run concurrently, and job-level `if:` conditions control execution.",
+  "saysFor": "s2:1b5eb148b5bc986771f261eea50b5260c98233c593c8154df9fc79e2cb6c00c5"
+}

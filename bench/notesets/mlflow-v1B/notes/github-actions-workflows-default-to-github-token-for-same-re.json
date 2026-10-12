@@ -1,0 +1,51 @@
+{
+  "id": "github-actions-workflows-default-to-github-token-for-same-re",
+  "title": "GitHub Actions workflows: default to GITHUB_TOKEN for same-repo steps; use a GitHub App token only for cross-repo access, separate credential scope, or re-triggering workflows",
+  "kind": "rule",
+  "answers": [
+    "Which token should a workflow step use to comment on an issue or PR with gh?",
+    "Why doesn't a comment or label my workflow creates start another workflow?",
+    "Can a GitHub Actions job use GITHUB_TOKEN to access a different repository?",
+    "Where are the repo rules on when to use actions/create-github-app-token?"
+  ],
+  "body": "Path: GitHub Actions workflow authoring in .github/workflows/ for steps that call the gh CLI, comment on issues/PRs, push, or touch other repositories; the guidance is the \"Prefer GITHUB_TOKEN When Its Scope and Trigger Behavior Are Sufficient\" section of .claude/rules/github-actions.md.\nRule: Use `${{ secrets.GITHUB_TOKEN }}` by default for operations in the current repository when the job's `permissions:` are sufficient. Reach for `actions/create-github-app-token` (consumed as `steps.<id>.outputs.token`) only when the step needs other repositories, separately scoped credentials, or must produce an event that triggers another workflow, because events created with GITHUB_TOKEN generally do not start workflow runs.\nConstraints: Applies to choosing the token per step. Does not apply when the operation needs cross-repo access or step-level privilege isolation; the repo's build-docs.yml (cross-repo steps) and ui-review.yml (step-scoped token) still rely on App tokens. Check what the operation actually needs rather than defaulting to GITHUB_TOKEN; the rule's bad/good YAML pair shows a comment that needs no re-trigger.",
+  "applies": "Repo-wide guidance for choosing the token in GitHub Actions workflows and workflow-authoring rules; not a rule about the runtime behavior of any single workflow file.",
+  "tags": [
+    "github-actions",
+    "ci",
+    "github-token",
+    "github-app",
+    "workflows"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/build-docs.yml",
+      "hash": "sha256:ca96b66e2095c469d17bcc55",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/ui-review.yml",
+      "hash": "sha256:c7eb34acbc34329d81631532",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25651"
+  },
+  "created": "2026-10-12T05:47:15.440Z",
+  "verified": "2026-10-12T05:47:15.440Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Why does an automated label or comment fail to trigger downstream workflows?",
+    "Allow automated repository tasks to trigger secondary workflow runs after posting comments.",
+    "An automated workflow task cannot access external repositories with standard repository credentials.",
+    "Choose between standard repository tokens and custom application credentials for automated tasks."
+  ],
+  "search": "Workflow steps in `.github/workflows/` should default to `${{ secrets.GITHUB_TOKEN }}` for same-repository operations when job `permissions:` suffice, as defined in `.claude/rules/github-actions.md`. Use `actions/create-github-app-token` (`steps.<id>.outputs.token`) only when a step requires cross-repository access, step-level privilege isolation, or must trigger downstream workflows that `GITHUB_TOKEN` events cannot start. Existing workflows like `build-docs.yml` (cross-repo steps) and `ui-review.yml` (step-scoped credentials) retain App tokens based on actual operational needs.",
+  "saysFor": "s2:61a561748adff3b813781d152e317ebd0cb570a02887a99be03fa31100b25331"
+}

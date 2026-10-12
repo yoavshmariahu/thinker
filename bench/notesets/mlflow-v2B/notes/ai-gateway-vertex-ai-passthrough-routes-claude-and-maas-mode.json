@@ -1,0 +1,103 @@
+{
+  "id": "ai-gateway-vertex-ai-passthrough-routes-claude-and-maas-mode",
+  "title": "AI Gateway Vertex AI passthrough routes: Claude and MaaS models must forward passthrough and proxy calls to their delegate, not to Gemini",
+  "kind": "rule",
+  "answers": [
+    "Why does POST /gateway/anthropic/v1/messages return 400 for a Claude model hosted on Vertex AI?",
+    "Where is the raw proxy route for a Claude endpoint on Vertex AI handled?",
+    "Does a Vertex AI MaaS endpoint accept the OpenAI chat completions passthrough at /gateway/openai/v1/chat/completions?",
+    "Why does a raw proxy request to a Vertex AI endpoint reach the Gemini host with a Vertex token?"
+  ],
+  "body": "Path: Passthrough and raw proxy requests (`/gateway/anthropic/v1/messages`, `/gateway/openai/v1/chat/completions`, `/gateway/proxy/{endpoint}/...`) on a Vertex AI endpoint enter `mlflow/gateway/providers/vertex_ai.py:VertexAIProvider._passthrough`, `_proxy` and `_extract_passthrough_token_usage`, which dispatch to the Claude or MaaS delegate by model type and to the Gemini implementation for Gemini models.\nRule: `VertexAIProvider` forwards these three methods to the delegate when one exists. `_VertexAIClaudeProvider._passthrough` must not inherit `AnthropicProvider._passthrough` (it posts to base_url + \"messages\" with the model in the body); it builds `{model}:rawPredict` or `:streamRawPredict` via `_get_passthrough_path` with `anthropic_version` in the body and no `model` field. `_VertexAIClaudeProvider._proxy` maps only `v1/messages` onto those paths and raises 501 for any other path, because Vertex exposes only the Messages API for Claude and `AnthropicProvider._proxy` would strip `/models` from the base URL.\nSymptom: The Anthropic passthrough on a Claude Vertex endpoint was rejected with 400, and the raw proxy route was sent to generativelanguage.googleapis.com with a Vertex OAuth token.\nConstraints: Gemini models keep the unchanged Gemini path. The MaaS raw proxy still runs through `proxy_root_url()`, which strips the `/openapi` segment; that is a separate fix. Changes to Vertex Claude request shape must keep the model out of the body.",
+  "applies": "Applies to AI Gateway passthrough and raw proxy routes for endpoints whose model is a Vertex AI Claude or MaaS model.",
+  "tags": [
+    "ai-gateway",
+    "vertex-ai",
+    "passthrough",
+    "proxy",
+    "anthropic"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "VertexAIProvider",
+      "hash": "sha256:8460f9e2ef789326ca55fa53",
+      "line": 351,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8460f9e2ef789326ca55fa53",
+      "fanout": {
+        "files": 4,
+        "sites": 12,
+        "refs": 21
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIClaudeProvider",
+      "hash": "sha256:6a81877a43e38e9a8739c766",
+      "line": 145,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6a81877a43e38e9a8739c766",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "_VertexAIMaaSProvider",
+      "hash": "sha256:2aefcb4d2df8fff31707df5c",
+      "line": 283,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2aefcb4d2df8fff31707df5c",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/vertex_ai.py",
+      "symbol": "VertexAIProvider._passthrough",
+      "hash": "sha256:c67a80e552bd7b7be34d9ce6",
+      "line": 464,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c67a80e552bd7b7be34d9ce6",
+      "fanout": {
+        "files": 3,
+        "sites": 5,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25833"
+  },
+  "created": "2026-10-12T05:38:01.791Z",
+  "verified": "2026-10-12T05:38:01.791Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "vertex-ai-maas-raw-proxy-gateway-proxy-post-to-the-endpoints",
+    "vertex-ai-claude-passthrough-client-anthropic-beta-is-filter",
+    "ai-gateway-vertex-ai-auth-headers-always-drop-client-credent",
+    "ai-gateway-vertex-ai-tracing-pass-enable-tracing-into-both-c"
+  ],
+  "says": [
+    "Anthropic messages passthrough returns bad request errors for Claude models on Vertex AI.",
+    "Raw proxy requests to Vertex Claude endpoints are incorrectly forwarded to Gemini servers.",
+    "Support standard Anthropic messages API calls for Vertex AI hosted Claude endpoints.",
+    "Proxy calls to unsupported Vertex Claude routes should return a not implemented error.",
+    "Allow OpenAI chat completion passthrough calls to Vertex Model as a Service endpoints."
+  ],
+  "search": "For Vertex AI Claude and MaaS endpoints in AI Gateway, `mlflow/gateway/providers/vertex_ai.py:VertexAIProvider` must dispatch `_passthrough`, `_proxy`, and `_extract_passthrough_token_usage` to delegate providers rather than the Gemini implementation. `_VertexAIClaudeProvider._passthrough` targets `{model}:rawPredict` or `:streamRawPredict` via `_get_passthrough_path` with `anthropic_version` in the payload and excludes the model field, avoiding `AnthropicProvider._passthrough`. `_VertexAIClaudeProvider._proxy` exclusively handles `v1/messages` and raises 501 for other paths, while Gemini models retain their default path and MaaS raw proxy uses `proxy_root_url()`.",
+  "saysFor": "s2:5830c84c20599568cd391e8dca254c926467711779d4c213871eff06e69049fc"
+}

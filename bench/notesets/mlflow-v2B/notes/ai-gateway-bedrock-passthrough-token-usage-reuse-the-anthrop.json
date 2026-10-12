@@ -1,0 +1,101 @@
+{
+  "id": "ai-gateway-bedrock-passthrough-token-usage-reuse-the-anthrop",
+  "title": "AI Gateway Bedrock passthrough token usage: reuse the Anthropic usage helpers so Bedrock traces record tokens and cost",
+  "kind": "rule",
+  "answers": [
+    "Why do Bedrock Claude traces show blank input and output tokens or cost on the gateway?",
+    "How is token usage parsed for Anthropic Messages responses from Bedrock?",
+    "Where is the Anthropic usage parsing shared between the Anthropic and Bedrock providers?",
+    "What must change together if Anthropic streaming usage parsing is modified?"
+  ],
+  "body": "Path: Token usage extraction for passthrough responses and streaming chunks from `AmazonBedrockProvider` when the model is Claude. `AmazonBedrockProvider._extract_passthrough_token_usage` and `_extract_streaming_token_usage` feed the trace span and the usage aggregation.\nRule: Bedrock's InvokeModel returns Anthropic response bodies and stream events unchanged, so both providers delegate to the module-level helpers `_extract_anthropic_passthrough_token_usage` and `_extract_anthropic_streaming_token_usage` in `mlflow/gateway/providers/anthropic.py`. Changes to Anthropic usage parsing (cache read/creation keys, input-token normalization, `message_start`/`message_delta` handling) apply to Bedrock too; keep the two providers' overrides delegating rather than copying the logic.\nSymptom: Without these overrides, the span for a Bedrock passthrough request got no usage, so the trace showed blank tokens and cost.\nConstraints: Applies to Anthropic-format bodies only; non-Claude Bedrock models are rejected before usage is extracted on the Messages passthrough.",
+  "applies": "Token and cost accounting for the Anthropic Messages passthrough on Amazon Bedrock Claude models.",
+  "tags": [
+    "ai-gateway",
+    "bedrock",
+    "anthropic",
+    "token-usage",
+    "tracing",
+    "cost"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/gateway/providers/anthropic.py",
+      "symbol": "_extract_anthropic_passthrough_token_usage",
+      "hash": "sha256:0230e64d648d518c5927fa43",
+      "line": 76,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0230e64d648d518c5927fa43",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/anthropic.py",
+      "symbol": "_extract_anthropic_streaming_token_usage",
+      "hash": "sha256:323c84d4cfcfda5d5f098029",
+      "line": 100,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:323c84d4cfcfda5d5f098029",
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 3
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/bedrock.py",
+      "symbol": "AmazonBedrockProvider._extract_streaming_token_usage",
+      "hash": "sha256:2d5dd39467d3e138a4659b31",
+      "line": 849,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2d5dd39467d3e138a4659b31",
+      "fanout": {
+        "files": 6,
+        "sites": 41,
+        "refs": 41
+      }
+    },
+    {
+      "path": "mlflow/gateway/providers/bedrock.py",
+      "symbol": "AmazonBedrockProvider._extract_passthrough_token_usage",
+      "hash": "sha256:9ca9d47dc1dcb73dd9176318",
+      "line": 844,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9ca9d47dc1dcb73dd9176318",
+      "fanout": {
+        "files": 9,
+        "sites": 26,
+        "refs": 26
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25863"
+  },
+  "created": "2026-10-12T05:37:15.869Z",
+  "verified": "2026-10-12T05:37:15.869Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "ai-gateway-amazon-bedrock-anthropic-messages-passthrough-bui",
+    "ai-gateway-amazon-bedrock-anthropic-messages-streaming-aws-e"
+  ],
+  "says": [
+    "Traces for Bedrock Claude requests show blank token counts and zero cost.",
+    "Display input and output token usage in the trace view for Bedrock models.",
+    "Why is cost calculation missing from gateway traces on our Bedrock endpoints?",
+    "Record streaming token usage and expenses for Claude endpoints hosted on Bedrock."
+  ],
+  "search": "AmazonBedrockProvider._extract_passthrough_token_usage and _extract_streaming_token_usage delegate to mlflow/gateway/providers/anthropic.py:_extract_anthropic_passthrough_token_usage and _extract_anthropic_streaming_token_usage to populate trace spans and usage aggregation for Bedrock Claude endpoints. Both providers share the helper logic for cache keys, input-token normalization, and message_start/message_delta handling because Bedrock InvokeModel returns Anthropic response bodies and events unchanged. Applies to Anthropic-format bodies only, and non-Claude Bedrock models are rejected before usage extraction.",
+  "saysFor": "s2:fecdb334623e44ec9f3bb5ef229fd3b7796449c2a8b118ff6a938d6330f7ba6a"
+}

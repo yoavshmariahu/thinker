@@ -1,0 +1,64 @@
+{
+  "id": "otel-collector-test-fixture-retry-only-the-docker-pull-of-th",
+  "title": "OTel collector test fixture: retry only the docker pull of the collector image (3 attempts, 2s/4s backoff), then re-raise the last error",
+  "kind": "rule",
+  "answers": [
+    "Why did the OpenTelemetry tracing tests fail in CI with a Docker Hub connection reset before any test ran?",
+    "How many times does the test collector image pull retry, and what is the wait between attempts?",
+    "Where is the otel/opentelemetry-collector image pulled in the tracing test setup?",
+    "Should docker run in the test OTel collector fixture also be retried on failure?"
+  ],
+  "body": "Path: tests/tracing/conftest.py:otel_collector is the pytest fixture that starts a Docker OpenTelemetry collector for tracing tests (OTLP export tests in tests/tracing/utils/test_otlp.py). Its first step is pulling the `otel/opentelemetry-collector` image via subprocess.check_call([\"docker\", \"pull\", ...]) before the container is started.\nRule: the pull alone is wrapped in a loop of 3 attempts that catches subprocess.CalledProcessError, sleeps 2**(attempt+1) seconds (2s, then 4s) between failures, and re-raises on the final attempt. Docker's output is not captured, so pull progress and errors still show in the test log. Use this same shape for other transient image pulls in test fixtures; keep the retry scoped to the pull rather than wrapping the container start or the test body.\nSymptom: a transient Docker Hub connection reset made the otel_collector fixture raise during the pull, so the whole tracing test job failed before the tracing tests ran.\nConstraints: retries only a non-zero exit from `docker pull`; it does not retry a failed `docker run`, readiness failures, or test assertions. It does not add a cache or pin a digest, so the image is still fetched from Docker Hub on each attempt.\nApplies: Test-only collector image pull in tests/tracing/conftest.py; not the production OTLP export path.",
+  "applies": "Test fixture in tests/tracing that pulls the OpenTelemetry collector Docker image in CI.",
+  "tags": [
+    "tracing",
+    "ci",
+    "docker",
+    "flaky-test",
+    "opentelemetry",
+    "tests"
+  ],
+  "deps": [
+    {
+      "path": "tests/tracing/conftest.py",
+      "symbol": "otel_collector",
+      "hash": "sha256:5e4b149ed93af1411288d44f",
+      "line": 70,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:06a43571f28889a466596033",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 4
+      }
+    },
+    {
+      "path": "tests/tracing/utils/test_otlp.py",
+      "hash": "sha256:ada4927b690c5bfed06654b0",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26035"
+  },
+  "created": "2026-10-12T05:33:44.949Z",
+  "verified": "2026-10-12T05:33:44.949Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "otel-collector-test-fixture-wait-for-the-health-check-endpoi",
+    "otel-collector-test-fixture-allocate-free-otlp-and-health-po"
+  ],
+  "says": [
+    "Tracing test jobs in continuous integration fail intermittently due to container download connection drops.",
+    "Retry container image downloads automatically to stop temporary network glitches from breaking builds.",
+    "Automated telemetry test runs abort before executing tests because image fetching encounters errors.",
+    "Test suites should reattempt pulling container dependencies instead of immediately failing the run."
+  ],
+  "search": "In tests/tracing/conftest.py:otel_collector, pulling the otel/opentelemetry-collector Docker image retries up to three attempts with backoff (two and four seconds) on subprocess.CalledProcessError before re-raising. Pull output remains uncaptured to preserve progress and failure logs during test runs. Retries are restricted exclusively to the docker pull invocation in test fixtures and do not cover docker run, readiness checks, test assertions, or production export.",
+  "saysFor": "s2:43d567658384ed3482a6ccfba13ecdb5dc15f033aff2e2bbea63c495b82fbcb9"
+}

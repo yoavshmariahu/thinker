@@ -1,0 +1,51 @@
+{
+  "id": "copilot-setup-steps-setup-python-must-pass-pin-micro-version",
+  "title": "Copilot setup steps: setup-python must pass pin-micro-version false to match lint.yml, or pre-commit caches miss in practice",
+  "kind": "rule",
+  "answers": [
+    "Why does pre-commit reinstall its hook environments even though the pre-commit cache restored with a hit?",
+    "Why does the Copilot agent setup download a Python interpreter when a cache is already present?",
+    "What input should I pass to the setup-python composite action in a job that restores lint caches?"
+  ],
+  "body": "Path: the `./.github/actions/setup-python` composite action as invoked from .github/workflows/copilot-setup-steps.yml (and from lint.yml); its `pin-micro-version` input decides whether the job downloads a pinned Python micro-version or uses the runner's preinstalled interpreter, which in turn determines which pre-commit environments can be reused.\nRule: In any job that restores the pre-commit cache written by lint.yml, pass `pin-micro-version: false` to setup-python, matching lint.yml. The cached pre-commit environments were built under the runner's preinstalled interpreter, so a job that downloads a different interpreter gets exact cache key hits and still rebuilds every hook environment.\nSymptom: Cache restores reported full hits, yet `pre-commit setup` still took about 11s in the Copilot setup (versus about 3s when the interpreter matched), and the job also paid roughly 9s for the interpreter download.\nConstraints: Only relevant to jobs that share lint.yml's interpreter-dependent caches. If a job does not restore those caches, the input is not needed for cache reasons.",
+  "applies": "Copilot cloud agent setup steps and any job that restores lint.yml's pre-commit cache; inferred from the PR's measured timings rather than from the setup-python action code.",
+  "tags": [
+    "copilot",
+    "github-actions",
+    "setup-python",
+    "pre-commit",
+    "caching"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/copilot-setup-steps.yml",
+      "hash": "sha256:aeb92149234e2c7264f2ae52",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/lint.yml",
+      "hash": "sha256:18c891d7db9be341f23a3a93",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25542"
+  },
+  "created": "2026-10-12T05:49:01.896Z",
+  "verified": "2026-10-12T05:49:01.896Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "copilot-setup-steps-lint-tool-caches-are-restore-only-and-mu"
+  ],
+  "says": [
+    "Pre-commit hook environments rebuild even though the pre-commit cache shows a hit in Copilot setup",
+    "Copilot agent setup downloads a Python interpreter even when the cache is already there",
+    "Which setup-python input keeps lint caches reusable in the Copilot agent environment?"
+  ],
+  "search": "In any job restoring lint.yml's pre-commit cache, setup-python must get pin-micro-version false so the runner's preinstalled interpreter matches the cached environments. Without it, cache keys hit but hook environments still rebuild and an interpreter download is paid. Only needed for jobs that share the interpreter-dependent lint caches.",
+  "saysFor": "s2:aebe93ecab01945ec0bac15544375a42bfaff07688c70ff952b8c3b26325eed5"
+}

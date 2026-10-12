@@ -1,0 +1,46 @@
+{
+  "id": "python-style-test-guidance-wait-for-async-conditions-by-poll",
+  "title": "python-style test guidance: wait for async conditions by polling with a bounded deadline, not a fixed time.sleep",
+  "kind": "rule",
+  "answers": [
+    "Why does my test sleep a fixed number of seconds before calling the server, and why does it fail intermittently on slow CI machines?",
+    "How should a test wait for a background server or process to become ready before sending requests?",
+    "When is a fixed time.sleep acceptable in a Python test in this repo?",
+    "Where are the testing conventions for waiting on asynchronous state documented?"
+  ],
+  "body": "Path: Python test-writing guidance in .claude/skills/python-style/SKILL.md, section \"Prefer Polling Over Static Sleeps in Tests\". Covers any test that waits for an asynchronous condition, such as a started server accepting requests or background state settling.\nRule: Poll for the condition with a deadline computed from time.monotonic(), a short time.sleep interval (about 0.5s) inside the loop, and a while/else that raises TimeoutError with a clear message when the deadline passes. Do not put a fixed time.sleep(N) before the action and hope the condition is ready.\nConstraints: Applies to waiting on external or asynchronous readiness. A fixed sleep remains appropriate when elapsed time is itself the behavior under test. Keep the timeout generous (the example uses 30s) so slow machines pass, while fast runs return as soon as the condition holds.",
+  "applies": "Writing or reviewing Python tests in the MLflow repo that wait on asynchronous conditions such as server startup.",
+  "tags": [
+    "testing",
+    "python-style",
+    "flaky-tests",
+    "polling",
+    "sleep"
+  ],
+  "deps": [
+    {
+      "path": ".claude/skills/python-style/SKILL.md",
+      "hash": "sha256:8cc106b631c28ccb484f8b68",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26112"
+  },
+  "created": "2026-10-12T05:29:40.746Z",
+  "verified": "2026-10-12T05:29:40.746Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Automated test runs intermittently fail on slow build machines while waiting for server startup.",
+    "Integration test suite takes too long because steps pause for fixed delays.",
+    "Background service readiness checks time out randomly during continuous integration pipeline runs.",
+    "Make automated tests poll for background readiness instead of using hardcoded pause intervals."
+  ],
+  "search": "In .claude/skills/python-style/SKILL.md, guidance for writing or reviewing MLflow Python tests waiting on asynchronous conditions requires polling with a deadline rather than using a fixed time.sleep. Tests must calculate a deadline with time.monotonic(), sleep for short intervals around 0.5s in a loop, and raise TimeoutError via while/else on expiry. Fixed time.sleep remains acceptable only when elapsed time itself is the behavior under test. Timeouts should remain generous, such as 30s, so slow machines pass while fast runs return immediately once ready.",
+  "saysFor": "s2:8782ac15617bd422960184c69a80628d2cad85044f34ef25e98c85d602b1b1ce"
+}

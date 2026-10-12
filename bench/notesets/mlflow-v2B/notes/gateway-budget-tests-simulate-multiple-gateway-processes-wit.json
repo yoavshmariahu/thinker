@@ -1,0 +1,54 @@
+{
+  "id": "gateway-budget-tests-simulate-multiple-gateway-processes-wit",
+  "title": "Gateway budget tests: simulate multiple gateway processes with two RedisBudgetTracker instances on one fakeredis server",
+  "kind": "howto",
+  "answers": [
+    "How do I write a test for two gateway processes sharing budget state in Redis?",
+    "Why does a single budget tracker test not reproduce the cross-process budget window bug?",
+    "Which helper creates shared trackers for the budget tests?",
+    "How do I verify a change to the budget window Lua script?"
+  ],
+  "body": "Path: tests/gateway/test_redis_budget_tracker.py exercises RedisBudgetTracker window state, refresh_policies, record_cost and should_reject_request for gateway budget policies. The shared-state helper _make_shared_trackers builds two trackers on one fakeredis.FakeServer.\nRule: To reproduce behavior that depends on multiple gateway processes, construct two RedisBudgetTracker instances, each with its own fakeredis.FakeRedis(server=server, decode_responses=True), on one shared FakeServer. A single tracker cannot reproduce cross-process window overwrites, because it always sees the window it just wrote.\nSymptom: Not applicable; this is a testing convention.\nConstraints: fakeredis may not exercise the Lua script the way a real server does. For changes to _ENSURE_WINDOW_LUA, also run the scenario against a real Redis server, as the PR author did with Redis 8, before relying on the fakeredis result. Use the same helper to test processes on different policy versions by passing different policies to each tracker's refresh_policies.",
+  "applies": "Writing or changing tests for the gateway Redis budget tracker that involve more than one process or policy version.",
+  "tags": [
+    "gateway",
+    "budget",
+    "redis",
+    "testing",
+    "fakeredis"
+  ],
+  "deps": [
+    {
+      "path": "tests/gateway/test_redis_budget_tracker.py",
+      "symbol": "_make_shared_trackers",
+      "hash": "sha256:2752766a53da1ac6521d4c1f",
+      "line": 49,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2752766a53da1ac6521d4c1f",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26075"
+  },
+  "created": "2026-10-12T05:33:19.837Z",
+  "verified": "2026-10-12T05:33:19.837Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Gateway spending limits get overwritten when multiple server processes handle traffic.",
+    "Budget tracking fails to reject requests when running across multiple gateway instances.",
+    "Ensure budget limits are enforced consistently across concurrent gateway server processes."
+  ],
+  "search": "Testing multiple gateway processes sharing Redis budget state requires constructing two RedisBudgetTracker instances on one fakeredis.FakeServer using _make_shared_trackers. A single tracker always sees its own writes and cannot reproduce cross-process budget window overwrites in tests/gateway/test_redis_budget_tracker.py. The helper also tests different policy versions across processes via refresh_policies, but changes to the _ENSURE_WINDOW_LUA script must also be verified against a real Redis server because fakeredis may not replicate real server Lua execution.",
+  "saysFor": "s2:a2b622dbc09cd853312e84d7afc42d90cd458c7f4785891a17c03d5515e7ee8a"
+}

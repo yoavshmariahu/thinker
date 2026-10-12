@@ -1,0 +1,55 @@
+{
+  "id": "issue-discovery-deduplication-validate-each-merge-group-s-in",
+  "title": "Issue discovery deduplication: validate each merge group's indices and skip the whole malformed group, never partially apply it",
+  "kind": "rule",
+  "answers": [
+    "Issue discovery crashed with IndexError after the model proposed a dedup group with an out-of-range index like [0, 3] for three candidate issues",
+    "Why did a finding's description get overwritten or two unrelated findings merge during issue discovery deduplication?",
+    "Where are the deduplication merge proposals from the LLM validated before merging issues in discovery?",
+    "How should a malformed merge proposal be handled so other valid merges in the same discovery run still apply?"
+  ],
+  "body": "Path: Issue discovery deduplication, the step that takes the LLM's merge proposals (groups of candidate issue indices) and folds the matching issues together; the chokepoint is mlflow/genai/discovery/pipeline.py:_dedup_issues, which builds group_by_root from result.groups before any merge state or issue metadata changes.\nRule: Check every proposed group before mutating anything: at least two indices, no duplicates, no negative values, and every index below len(issues). If any check fails, skip the entire group and log it with _logger.debug; do not drop only the bad indices, because the merged name/description was written for the full proposed set. Keep processing the remaining groups.\nSymptom: Discovery run raised IndexError on an out-of-range index; negative indices silently merged the wrong findings; repeated indices overwrote an issue's description without merging distinct findings.\nConstraints: Applies to the LLM dedup proposal path in _dedup_issues only. Valid overlapping groups still merge transitively via the root/union logic, so a malformed group must not be allowed to overwrite a root already set by a valid group in either order. No prompt or public API change.",
+  "applies": "Use when changing or adding validation for deduplication/merge groups in MLflow GenAI issue discovery; not for other evaluation metrics or non-LLM merges.",
+  "tags": [
+    "genai",
+    "discovery",
+    "dedup",
+    "validation",
+    "area/evaluation"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/genai/discovery/pipeline.py",
+      "symbol": "_dedup_issues",
+      "hash": "sha256:949404fa048c659f34dccbe4",
+      "line": 360,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:949404fa048c659f34dccbe4",
+      "fanout": {
+        "files": 2,
+        "sites": 13,
+        "refs": 14
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26082"
+  },
+  "created": "2026-10-12T05:29:55.930Z",
+  "verified": "2026-10-12T05:29:55.930Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Issue discovery crashes unexpectedly while grouping duplicate findings together.",
+    "Unrelated findings are mistakenly merged together during the automated discovery deduplication step.",
+    "A discovered issue had its description overwritten instead of merging distinct findings.",
+    "Skip invalid duplicate merge suggestions without halting the rest of the discovery run."
+  ],
+  "search": "Deduplication in MLflow GenAI issue discovery validates proposed merge index groups in mlflow/genai/discovery/pipeline.py:_dedup_issues before mutating issue state. Proposed groups with fewer than two indices, duplicates, negative values, or out-of-range indices are skipped entirely and logged via _logger.debug rather than partially applied. Applies to LLM merge proposals in _dedup_issues to prevent IndexErrors, incorrect finding merges, and description overwrites, without modifying prompts or public APIs.",
+  "saysFor": "s2:a0936347a0c5109bd8c1ec79c0b58b7cd19ba695df85ea2454161c14fee090dc"
+}

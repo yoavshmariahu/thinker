@@ -1,0 +1,66 @@
+{
+  "id": "genai-evaluation-logged-model-metrics-pass-the-explicit-mana",
+  "title": "GenAI evaluation logged-model metrics: pass the explicit managed EvaluationDataset into aggregate metric logging so dataset_name and dataset_digest are recorded",
+  "kind": "rule",
+  "answers": [
+    "Why do logged model metrics from mlflow.genai.evaluate with model_id show null dataset_name and dataset_digest?",
+    "How do I make aggregate scorer metrics on a logged model record which evaluation dataset they came from?",
+    "Where is the dataset passed when GenAI evaluation logs aggregated metrics to a run or logged model?",
+    "Does evaluating with a plain list or DataFrame also attach a dataset to logged model metrics?"
+  ],
+  "body": "Path: mlflow/genai/evaluation/base.py:_run_harness builds the evaluation call for mlflow.genai.evaluate(data=..., predict_fn=..., scorers=..., model_id=...) and hands it to mlflow/genai/evaluation/harness.py:run, which computes aggregated scorer metrics (compute_aggregated_metrics) and logs them with mlflow.log_metrics.\nRule: _run_harness forwards the managed EvaluationDataset (mlflow_dataset) as `dataset=` into harness.run only when is_managed_dataset is true, otherwise None; harness.run accepts `dataset` and calls mlflow.log_metrics(aggregated_metrics, dataset=dataset). Any new path that logs aggregate GenAI metrics for an explicitly supplied managed dataset should thread the dataset the same way instead of logging bare metrics.\nSymptom: After evaluating a managed dataset against a logged model, the model's aggregate metrics (e.g. `<scorer>/mean`) had dataset_name and dataset_digest set to null, so they could not be tied to the dataset they were computed on, while a manual mlflow.log_metrics(..., dataset=dataset) call recorded both.\nConstraints: Applies only when the caller explicitly passes a managed evaluation dataset. Plain list/DataFrame inputs keep dataset=None and their logging behavior is unchanged. Per-row results are not affected by this change; only the aggregate metric logging call.",
+  "applies": "Scope: GenAI evaluation (mlflow.genai.evaluate) aggregate metric logging for model_id runs with managed EvaluationDataset inputs.",
+  "tags": [
+    "genai",
+    "evaluation",
+    "evaluation-dataset",
+    "logged-model",
+    "metrics",
+    "dataset-digest"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/genai/evaluation/harness.py",
+      "symbol": "run",
+      "hash": "sha256:c82a27a863d05ebbc9d2ab21",
+      "line": 662,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c82a27a863d05ebbc9d2ab21"
+    },
+    {
+      "path": "mlflow/genai/evaluation/base.py",
+      "symbol": "_run_harness",
+      "hash": "sha256:8b01f02e9f682bc7038bdece",
+      "line": 302,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8b01f02e9f682bc7038bdece",
+      "fanout": {
+        "files": 3,
+        "sites": 1,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25927"
+  },
+  "created": "2026-10-12T05:42:28.498Z",
+  "verified": "2026-10-12T05:42:28.498Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Aggregate metrics on logged models show empty dataset names after running an evaluation.",
+    "Model evaluation summary metrics cannot be traced back to the evaluation dataset used.",
+    "Show the dataset name and digest on evaluation metrics logged to a model.",
+    "Model metric tables display null dataset identifiers for completed evaluation runs.",
+    "Link aggregate evaluation scores directly to the managed dataset in the model view."
+  ],
+  "search": "When evaluating a logged model using `mlflow.genai.evaluate` with a managed `EvaluationDataset`, `mlflow.genai.evaluation.base:_run_harness` must forward the dataset into `harness.run` so `mlflow.log_metrics` records `dataset_name` and `dataset_digest`. Without passing the managed dataset parameter, aggregated model metrics such as mean scores had null `dataset_name` and `dataset_digest`, leaving metrics detached from their source dataset. This applies solely to aggregate metric logging for managed evaluation datasets; inputs provided as plain lists or DataFrames retain `dataset=None`. Per-row evaluation results remain unchanged by this metric logging rule.",
+  "saysFor": "s2:75cab87c0672ac9063396ccc7dc9b8593dc3b8d7b9f38b91d51d44e356d49a64"
+}

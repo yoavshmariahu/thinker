@@ -1,0 +1,73 @@
+{
+  "id": "gateway-endpoint-bindings-unscoped-binding-listing-without-e",
+  "title": "gateway endpoint bindings: unscoped binding listing without endpoint_id is admin-only",
+  "kind": "rule",
+  "answers": [
+    "Why can a non-admin user not list all gateway endpoint bindings?",
+    "Why does bindings/list return 403 when I omit endpoint_id?",
+    "How are gateway endpoint binding routes authorized for regular users?"
+  ],
+  "body": "Path: mlflow/server/auth/__init__.py gateway endpoint binding routes (/api/3.0/mlflow/gateway/endpoints/bindings/create and /bindings/list), which handle scorer or other resource bindings to a gateway endpoint.\nRule: A bindings/list request that has endpoint_id is authorized through the endpoint's READ permission; a request with no endpoint_id (an unscoped listing across endpoints) is restricted to administrators, so non-admins get 403 and admins get the listing. Bindings/create authorizes its target through the endpoint's permission and parses modelConfigs/model_configs as protobuf fields.\nSymptom: Non-admin users could list gateway endpoint bindings without being scoped to an endpoint they can read.\nConstraints: Applies only to the listing without endpoint_id; a scoped listing for an endpoint the user can read remains allowed. The exact validator body was truncated in the diff, so verify the function before relying on its name.",
+  "applies": "Gateway endpoint binding list and create routes in the auth server.",
+  "tags": [
+    "gateway",
+    "auth",
+    "bindings",
+    "admin"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "sender_is_admin",
+      "hash": "sha256:8735c0294284490a0cacc22d",
+      "line": 1545,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8735c0294284490a0cacc22d",
+      "fanout": {
+        "files": 7,
+        "sites": 16,
+        "refs": 69
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "validate_can_read_gateway_endpoint_guardrail_configs",
+      "hash": "sha256:a164356431c4a94330836349",
+      "line": 2064,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a164356431c4a94330836349",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25937"
+  },
+  "created": "2026-10-12T05:30:45.949Z",
+  "verified": "2026-10-12T05:30:45.949Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "gateway-guardrail-routes-each-endpoint-attached-route-has-it",
+    "ai-gateway-model-discovery-get-gateway-mlflow-v1-models-list",
+    "auth-server-list-routes-filter-results-after-the-handler-by",
+    "graphql-authorization-middleware-nested-run-modelversions-is"
+  ],
+  "says": [
+    "Listing all gateway endpoint bindings returns permission denied for users without administrator privileges.",
+    "Regular team members get forbidden errors when viewing endpoint bindings without choosing an endpoint.",
+    "Allow users to view gateway endpoint bindings for specific endpoints they have access to.",
+    "Non-admin users should not see gateway endpoint bindings across endpoints they cannot read.",
+    "Restrict viewing unscoped gateway endpoint bindings to workspace administrators only."
+  ],
+  "search": "Gateway endpoint binding listings on /api/3.0/mlflow/gateway/endpoints/bindings/list require administrator privileges via sender_is_admin when endpoint_id is omitted. When endpoint_id is provided, the listing is authorized through the specific endpoint's READ permission, while non-admins receive a 403 on unscoped requests. Creating bindings via /bindings/create authorizes through endpoint permissions and parses modelConfigs or model_configs as protobuf fields in mlflow/server/auth/__init__.py. This constraint applies only to endpoint binding list and create routes, and does not restrict scoped listings for endpoints a user has permission to read.",
+  "saysFor": "s2:b6dfb5a1dfb9b75d2ce7441ced9f0e3b2d00b5f54174e286dbb6a2d5aab0a737"
+}

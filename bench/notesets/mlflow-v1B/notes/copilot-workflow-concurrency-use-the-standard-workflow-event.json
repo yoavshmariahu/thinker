@@ -1,0 +1,52 @@
+{
+  "id": "copilot-workflow-concurrency-use-the-standard-workflow-event",
+  "title": "Copilot workflow concurrency: use the standard workflow+event+ref group with cancel-in-progress, not github.run_id",
+  "kind": "rule",
+  "answers": [
+    "Why do superseded Copilot code review runs on a PR keep running instead of being cancelled?",
+    "I'm adding a new workflow triggered by pull_request. What concurrency group should it use in this repo?",
+    "Where is the concurrency group for the Copilot setup steps and code review workflows defined?",
+    "Why does a concurrency group set to github.run_id never queue or cancel anything?"
+  ],
+  "body": "Path: .github/workflows/copilot-code-review.yml and .github/workflows/copilot-setup-steps.yml, the top-level `concurrency:` block that governs Copilot code review runs and Copilot cloud agent setup runs for pull_request and workflow_dispatch events.\nRule: Use the repository-standard group `${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}` with `cancel-in-progress: true`. For pull_request runs, github.ref is the PR merge ref, so each PR gets its own group; including github.event_name keeps pull_request and workflow_dispatch runs in separate groups. Do not key the group on `github.run_id`, since every run gets a unique id, so the group never serializes or cancels anything.\nConstraints: Applies to these two Copilot workflows and to new workflows that should match the repo standard. Both files filter `paths` to only themselves, so they run rarely and cancellation will seldom actually fire; the goal is consistency with the standard group, not runner savings.\nApplies: Concurrency settings in the Copilot-related workflow files of the MLflow repo; does not establish concurrency for other workflows, which this PR did not touch.",
+  "applies": "Concurrency settings in the Copilot code review and Copilot setup steps workflows; other workflows are not covered by this PR.",
+  "tags": [
+    "github-actions",
+    "concurrency",
+    "copilot",
+    "ci"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/copilot-code-review.yml",
+      "hash": "sha256:220e516fb4429e99b8cbcf98",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/copilot-setup-steps.yml",
+      "hash": "sha256:aeb92149234e2c7264f2ae52",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25616"
+  },
+  "created": "2026-10-12T05:47:41.140Z",
+  "verified": "2026-10-12T05:47:41.140Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "copilot-cloud-agent-and-code-review-runs-find-recent-ones-wi"
+  ],
+  "says": [
+    "Superseded Copilot code review runs on a pull request keep running instead of being cancelled",
+    "Which concurrency group should a new pull_request workflow use in this repo?",
+    "Copilot code review runs queue up and never cancel when I push new commits",
+    "Concurrency group keyed on run id never cancels or queues anything in the Copilot workflows"
+  ],
+  "search": "Concurrency for the Copilot code review and Copilot setup steps workflows should use the repo-standard workflow, event name and ref group with cancel-in-progress true, not github.run_id. Keying on run id makes the group never serialize or cancel. Applies to these two workflows and new ones matching the standard; not other workflows.",
+  "saysFor": "s2:6fca1274b9960f389e83e2ff30141bb6b5966c22376263eff2741413ace852a3"
+}

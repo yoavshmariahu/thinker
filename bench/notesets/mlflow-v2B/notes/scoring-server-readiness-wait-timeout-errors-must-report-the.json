@@ -1,0 +1,56 @@
+{
+  "id": "scoring-server-readiness-wait-timeout-errors-must-report-the",
+  "title": "Scoring server readiness wait: timeout errors must report the last ping failure and chain it as the cause",
+  "kind": "rule",
+  "answers": [
+    "Why does the scoring server fail to start with only 'Wait scoring server ready timeout' and no reason?",
+    "How do I tell whether the model server refused connections or returned an HTTP error during startup?",
+    "Where is the model serving readiness timeout raised and how is its exception chained?"
+  ],
+  "body": "Path: Startup readiness polling for the pyfunc model scoring server (the local server launched for serve/deployment and tests). Each attempt calls the ping endpoint via mlflow/pyfunc/scoring_server/client.py:ScoringServerClient.wait_server_ready, optionally watching a subprocess handle for early exit.\nRule: Keep the exception from the most recent failed ping in a variable (last_error) instead of discarding it, and on timeout raise RuntimeError with a message containing the server URL (self.url_prefix), elapsed seconds, the configured timeout, the server PID when a process handle is passed, and '<ExceptionType>: <message>' of last_error. Raise with 'from last_error' so the cause is preserved in the traceback. Polling cadence, timeout semantics and the early process-exit RuntimeError are intentionally unchanged.\nSymptom: CI and users saw only a generic 'Wait scoring server ready timeout.' message after the model server did not come up, with no way to distinguish connection refused from an HTTP error from the server.\nConstraints: Applies to readiness waiting in ScoringServerClient. If last_error is None (no ping ever raised), the message omits the ping-error clause and no cause is chained. Do not change timeout or polling values when editing this path.",
+  "applies": "Readiness/startup timeout diagnostics for the pyfunc scoring server client; does not cover request-time invoke errors.",
+  "tags": [
+    "scoring",
+    "pyfunc",
+    "serving",
+    "model-server",
+    "diagnostics",
+    "error-handling"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/pyfunc/scoring_server/client.py",
+      "symbol": "ScoringServerClient.wait_server_ready",
+      "hash": "sha256:bcd260f22f8e9a0a835b87b4",
+      "line": 58,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:bcd260f22f8e9a0a835b87b4",
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25998"
+  },
+  "created": "2026-10-12T05:34:38.917Z",
+  "verified": "2026-10-12T05:34:38.917Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Local model server startup timeout fails to explain why the server did not start.",
+    "Include the underlying HTTP error or connection refusal when model serving startup times out.",
+    "Model deployment health check timeout errors should show the server address and diagnostic details.",
+    "Diagnosing failed model server startup is difficult because readiness polling hides the root cause.",
+    "Show the last health check error message when waiting for model serving to launch."
+  ],
+  "search": "Startup readiness wait timeouts in mlflow/pyfunc/scoring_server/client.py:ScoringServerClient.wait_server_ready must preserve and chain the last ping exception as the cause. On timeout, the client raises RuntimeError including the server URL (self.url_prefix), elapsed seconds, configured timeout, server PID when available, and the exception type and message from the most recent ping failure using 'from last_error'. If no ping ever raised an error, the message omits the ping-error clause and chains no exception. This applies only to scoring server startup diagnostics, leaving polling cadence, timeout values, early process-exit handling, and request-time invocation errors unchanged.",
+  "saysFor": "s2:f1fdaf97db7bc69a33043bfbef7ed1f72b90c48d8b5321c4c9fc32bd8c269993"
+}

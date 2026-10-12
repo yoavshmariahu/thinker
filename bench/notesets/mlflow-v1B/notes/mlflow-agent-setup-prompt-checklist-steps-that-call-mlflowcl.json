@@ -1,0 +1,48 @@
+{
+  "id": "mlflow-agent-setup-prompt-checklist-steps-that-call-mlflowcl",
+  "title": "mlflow agent setup prompt checklist: steps that call MlflowClient must follow the step that configures the tracking URI and experiment",
+  "kind": "rule",
+  "answers": [
+    "Why does the agent fail to tag the experiment or connect to the wrong MLflow store during mlflow agent setup?",
+    "In a fresh repo, why does the agent's experiment documentation step run against the default local store?",
+    "What order should the setup checklist steps be in when they use MlflowClient?",
+    "Where is the experiment description step of the setup prompt?"
+  ],
+  "body": "Path: mlflow/agent/setup/setup.sh:build_agent_prompt emits the checklist; the \"## 2. Document the application\" step tells the agent to call MlflowClient.set_experiment_tag with mlflow.note.content, and \"## 3. Configure MLflow Tracing\" is where the wizard's tracking URI and experiment ID are supplied.\nRule: In the generated checklist, any step that uses MlflowClient or other mlflow APIs must come after the configure-tracing step, because the selected experiment and tracking URI are only applied there. The PR's review flagged that the current order places document-the-application before configure, which can import MLflow before it is installed or hit the default local store instead of the resolved experiment. The fix is to reorder the headings so configuration precedes documentation, and to update the heading-order assertion in the shell test accordingly.\nSymptom: The agent could fail to import MLflow, or write the experiment description to a different store than the one the wizard selected, in a fresh repository.\nConstraints: Confirmed by review comment only; check the reordered prompt before relying on it. Does not apply to steps that only read repository files.\nApplies: Any new or reordered step in the mlflow agent setup tracing checklist that touches MLflow APIs.",
+  "applies": "Ordering of steps in the mlflow agent setup tracing checklist that call MLflow APIs.",
+  "tags": [
+    "area/tracing",
+    "mlflow-agent-setup",
+    "prompt",
+    "ordering"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/agent/setup/setup.sh",
+      "hash": "sha256:3471fa4c4aac193488bdc977",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25547"
+  },
+  "created": "2026-10-12T05:49:00.139Z",
+  "verified": "2026-10-12T05:49:00.139Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "mlflow-agent-setup-warehouse-picker-parse-databricks-warehou"
+  ],
+  "says": [
+    "The setup assistant writes documentation to the default local store instead of the chosen experiment.",
+    "Setup fails on fresh repositories because the agent tries logging tags before configuring tracking.",
+    "Make the setup wizard configure the tracking server and experiment before running documentation commands.",
+    "The automated assistant cannot connect or apply tags because connection settings are provided too late.",
+    "Reorder setup steps so workspace configuration happens prior to updating experiment metadata."
+  ],
+  "search": "In mlflow/agent/setup/setup.sh:build_agent_prompt, any setup checklist step calling MlflowClient or other tracking APIs must be placed after the tracking URI and experiment configuration step. Placing documentation before configuration causes the agent to hit the default local store or fail to import the library in fresh repositories. Reordering the headings requires updating heading-order assertions in setup shell tests, while steps that only read repository files are exempt.",
+  "saysFor": "s2:e8e7f8e11bef65a71117762ab83407c99093502007849cc883f4d12c179c7301"
+}

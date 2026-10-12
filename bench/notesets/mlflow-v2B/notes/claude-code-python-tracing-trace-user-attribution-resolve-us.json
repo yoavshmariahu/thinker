@@ -1,0 +1,74 @@
+{
+  "id": "claude-code-python-tracing-trace-user-attribution-resolve-us",
+  "title": "Claude Code Python tracing, trace user attribution: resolve user from USER then USERNAME via _get_current_user",
+  "kind": "rule",
+  "answers": [
+    "Why is the user empty on Windows for Claude Code traces logged from Python?",
+    "Where is trace_user set when finalizing a Claude Code session?",
+    "How does the Claude Code autolog hook decide the user name?",
+    "Where is the working directory and user metadata written for a Claude Code trace?"
+  ],
+  "body": "Path: Finalizes Claude Code sessions into MLflow traces on the Python side (mlflow autolog claude hook path). mlflow/claude_code/tracing.py:_finalize_trace writes the trace user and working-directory metadata onto each trace it builds.\nRule: Take the user from mlflow/claude_code/tracing.py:_get_current_user, which returns os.environ USER, then USERNAME, then ''. Use this helper rather than reading os.environ USER inline, so Windows hosts that only set USERNAME still get attribution.\nSymptom: On Windows, Claude Code traces logged through the Python path carried an empty user, so attribution by user was missing.\nConstraints: The helper reads environment variables only; it does not call getpass.getuser(). An empty result must not raise, and the trace is still finalized with an empty user value. tests/claude_code/test_tracing.py covers USERNAME fallback, USER precedence, and the empty case.",
+  "applies": "Python Claude Code tracing in mlflow/claude_code/; the TypeScript integrations have their own helper.",
+  "tags": [
+    "tracing",
+    "claude-code",
+    "windows",
+    "user-attribution",
+    "python"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/claude_code/tracing.py",
+      "symbol": "_get_current_user",
+      "hash": "sha256:584899ff7d928ba555edc0ba",
+      "line": 131,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:584899ff7d928ba555edc0ba",
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 5
+      }
+    },
+    {
+      "path": "mlflow/claude_code/tracing.py",
+      "symbol": "_finalize_trace",
+      "hash": "sha256:f8d2ef8886cd8bf6656e27b7",
+      "line": 509,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f8d2ef8886cd8bf6656e27b7",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "tests/claude_code/test_tracing.py",
+      "hash": "sha256:8cd6fb1ba96bbf21a2e7be70",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26221"
+  },
+  "created": "2026-10-12T05:28:59.833Z",
+  "verified": "2026-10-12T05:28:59.833Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "User attribution is blank on activity traces recorded from Windows developer machines.",
+    "The user name field is empty when viewing recorded assistant sessions in the dashboard.",
+    "Ensure automated trace logging correctly identifies the logged in user on Windows workstations.",
+    "Why are working directory and user details missing from captured session traces?"
+  ],
+  "search": "Python Claude Code trace finalization resolves user attribution via mlflow/claude_code/tracing.py:_get_current_user by checking os.environ USER, falling back to USERNAME, and defaulting to an empty string. Used in mlflow/claude_code/tracing.py:_finalize_trace to record trace user and working-directory metadata, ensuring Windows hosts that only define USERNAME receive proper attribution. Applies to Python Claude Code tracing via the autolog hook path, whereas TypeScript integrations use a separate helper. The implementation inspects environment variables without calling getpass.getuser(), must not raise on empty values, and is tested in tests/claude_code/test_tracing.py.",
+  "saysFor": "s2:0839b1c84ba08ab4c14c2c82cdf77dfe27ef9c18531841c02d382b5e5d87f88a"
+}

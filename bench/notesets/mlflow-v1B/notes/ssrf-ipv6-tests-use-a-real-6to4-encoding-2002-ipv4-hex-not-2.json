@@ -1,0 +1,96 @@
+{
+  "id": "ssrf-ipv6-tests-use-a-real-6to4-encoding-2002-ipv4-hex-not-2",
+  "title": "SSRF IPv6 tests: use a real 6to4 encoding (2002:<ipv4 hex>::), not 2001:db8::, when testing embedded-IPv4 decoding",
+  "kind": "howto",
+  "answers": [
+    "How do I add a test for a new webhook SSRF blocking case with an IPv6 address?",
+    "Why does my 6to4 SSRF test pass even when the decoding branch is removed?",
+    "What IPv6 address should I use to test private-IP rejection in the webhook validator?"
+  ],
+  "body": "Path: Tests for the webhook/public-URL guard in tests/utils/test_validation.py (hostname resolution via mocked socket.getaddrinfo) and tests/webhooks/test_ssrf.py (connection-time peer via mocked socket.socket.getpeername), both exercising mlflow/utils/validation.py:_is_public_ip and mlflow/webhooks/ssrf.py:_assert_public_peer.\nRule: To cover the 6to4 branch of _embedded_ipv4, encode the IPv4 into the 2002:XXXX:YYYY:: prefix (169.254.169.254 -> 2002:a9fe:a9fe::, which has .sixtofour == 169.254.169.254 and is_global True). Do not use 2001:db8::/32 — it is the documentation prefix, is already non-public, and has .sixtofour None, so the test passes whether or not the decoding exists. Also capture the mocked resolver or getpeername and assert it was called, so the test proves the expected hostname/peer path ran.\nSymptom: A regression test for the transition-address bypass passed while the bypass was still open, because the chosen address was non-public for an unrelated reason.\nConstraints: For NAT64 use 64:ff9b::<ipv4> and for IPv4-mapped use ::ffff:<ipv4>; check with the ipaddress module that is_global is True for the wrapped public form to confirm the test is load-bearing.",
+  "applies": "Writing or reviewing tests for the webhook/public-URL SSRF guard that involve IPv6 addresses.",
+  "tags": [
+    "testing",
+    "ssrf",
+    "webhooks",
+    "ipv6"
+  ],
+  "deps": [
+    {
+      "path": "tests/utils/test_validation.py",
+      "symbol": "test_validate_public_https_url_rejects_ipv6_transition_addresses_with_private_ipv4",
+      "hash": "sha256:32ea62ff80cd0facb1b23f37",
+      "line": 802,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:32ea62ff80cd0facb1b23f37",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/webhooks/test_ssrf.py",
+      "symbol": "test_ipv6_transition_addresses_embedding_private_ipv4_are_blocked",
+      "hash": "sha256:be8bc515547162c868930e81",
+      "line": 142,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:be8bc515547162c868930e81",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/utils/validation.py",
+      "symbol": "_is_public_ip",
+      "hash": "sha256:d9a8d134ccca1d14e95b035f",
+      "line": 922,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:d9a8d134ccca1d14e95b035f",
+      "fanout": {
+        "files": 3,
+        "sites": 3,
+        "refs": 5
+      }
+    },
+    {
+      "path": "mlflow/webhooks/ssrf.py",
+      "symbol": "_assert_public_peer",
+      "hash": "sha256:4a5e3e77244ef61a670a3470",
+      "line": 41,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4a5e3e77244ef61a670a3470",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25568"
+  },
+  "created": "2026-10-12T05:41:39.740Z",
+  "verified": "2026-10-12T05:41:39.740Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "webhook-ssrf-public-ip-check-classify-ipv6-transition-addres"
+  ],
+  "says": [
+    "Webhooks accept private internal network endpoints when configured with IPv6 transition addresses.",
+    "Webhook URL validation should block requests targeting internal IP addresses hidden inside IPv6.",
+    "The webhook security filter allows connections to local metadata addresses using transition encodings."
+  ],
+  "search": "When testing embedded-IPv4 decoding in the webhook and public-URL SSRF guard, encode private IPv4 addresses using the real 6to4 prefix (2002:XXXX:YYYY::) rather than 2001:db8::/32. In tests/utils/test_validation.py and tests/webhooks/test_ssrf.py exercising mlflow/utils/validation.py:_is_public_ip and mlflow/webhooks/ssrf.py:_assert_public_peer, assert the mocked resolver or getpeername was called to prove the path ran. Using the 2001:db8::/32 documentation prefix causes tests to pass even when decoding branches are removed because it is non-public for unrelated reasons and has a None .sixtofour attribute. For NAT64 use 64:ff9b::<ipv4> and for IPv4-mapped use ::ffff:<ipv4>, ensuring is_global is True for the wrapped public form.",
+  "saysFor": "s2:13028b6d446d5d0180057ddb30efef03a5e2503c903de1009c7879472e833500"
+}

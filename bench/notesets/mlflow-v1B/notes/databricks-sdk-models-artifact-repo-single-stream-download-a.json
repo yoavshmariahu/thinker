@@ -1,0 +1,83 @@
+{
+  "id": "databricks-sdk-models-artifact-repo-single-stream-download-a",
+  "title": "Databricks SDK models artifact repo: single-stream download and /Models/ paths bypass presigned multipart download",
+  "kind": "rule",
+  "answers": [
+    "Downloading a large UC registered model file fails or uses the wrong download path; why does multipart presigned download not apply to SDK-backed models?",
+    "How does mlflow recognize a /Models/ path as a managed Databricks location rather than a local or cloud path?",
+    "Where is the decision to use a single stream versus parallel chunked download for a cloud artifact repo?"
+  ],
+  "body": "Path: Download of individual model artifact files in `mlflow/store/artifact/cloud_artifact_repo.py:CloudArtifactRepository._download_file`, plus the local-path check `mlflow/utils/uri.py:is_fuse_or_uc_volumes_uri`. Used whenever a UC model artifact is fetched and a file is large, or when a local path is a Databricks-managed location.\nRule: `_download_file` chooses the single-stream `_download_from_cloud` path when the class name is `DatabricksSDKModelsArtifactRepository`, because that repo can only fetch through the SDK, not via the presigned URL used by `_parallelized_download_from_cloud`. The check is a class-name string comparison in the guard, so a renamed class silently loses this behavior. `is_fuse_or_uc_volumes_uri` also treats `/Models/` as a Databricks-managed prefix (`_UC_MODELS_URI_PREFIX`) alongside `/Volumes/` and FUSE paths, so such local paths are not treated as ordinary local storage.\nConstraints: The single-stream guard only affects the SDK models repo; other cloud repos keep the parallel presigned path for files above `MLFLOW_MULTIPART_DOWNLOAD_MINIMUM_FILE_SIZE`. The `/Models/` prefix match applies to any path that starts with that segment, not only UC model downloads.",
+  "applies": "Multipart or parallel download decisions for cloud artifact repos and the Databricks-managed path check, when the SDK models repo is in use.",
+  "tags": [
+    "artifacts",
+    "download",
+    "unity-catalog",
+    "databricks-sdk",
+    "multipart"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/artifact/cloud_artifact_repo.py",
+      "symbol": "CloudArtifactRepository._download_file",
+      "hash": "sha256:77526a542c9c1a30e58a2e8d",
+      "line": 273,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:77526a542c9c1a30e58a2e8d",
+      "fanout": {
+        "files": 15,
+        "sites": 31,
+        "refs": 43
+      }
+    },
+    {
+      "path": "mlflow/utils/uri.py",
+      "symbol": "is_fuse_or_uc_volumes_uri",
+      "hash": "sha256:1c89da873bcfd5ef66bc6e2f",
+      "line": 90,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1c89da873bcfd5ef66bc6e2f",
+      "fanout": {
+        "files": 6,
+        "sites": 5,
+        "refs": 11
+      }
+    },
+    {
+      "path": "mlflow/store/artifact/databricks_sdk_models_artifact_repo.py",
+      "symbol": "DatabricksSDKModelsArtifactRepository._download_from_cloud",
+      "hash": "sha256:a6439be64be8fad420a4d1e8",
+      "line": 105,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a6439be64be8fad420a4d1e8",
+      "fanout": {
+        "files": 6,
+        "sites": 7,
+        "refs": 12
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25987"
+  },
+  "created": "2026-10-12T05:42:19.116Z",
+  "verified": "2026-10-12T05:42:19.116Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "uc-model-load-and-register-artifacts-mlflow-use-databricks-s"
+  ],
+  "says": [
+    "Downloading a large Unity Catalog registered model file fails or uses the wrong download method",
+    "Large model artifacts from Databricks SDK-backed models do not use parallel multipart download",
+    "Model files under a Models path are treated as local storage instead of Databricks-managed"
+  ],
+  "search": "Model artifact downloads from the Databricks SDK models repo use a single stream instead of presigned multipart download, chosen by a class-name check in the cloud artifact download path, so renaming the class silently loses it. Local paths starting with the Models segment are treated as Databricks-managed alongside Volumes and FUSE paths. Other cloud repos keep parallel download.",
+  "saysFor": "s2:f04c18bc9f4133f822d2b6156edb7c4688330234941a1ed4c6a0ca802408be67"
+}

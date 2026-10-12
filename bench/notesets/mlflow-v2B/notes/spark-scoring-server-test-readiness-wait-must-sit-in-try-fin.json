@@ -1,0 +1,63 @@
+{
+  "id": "spark-scoring-server-test-readiness-wait-must-sit-in-try-fin",
+  "title": "Spark scoring-server test: readiness wait must sit in try/finally that cancels Spark jobs, joins the job thread, and asserts it stopped before server-port cleanup",
+  "kind": "rule",
+  "answers": [
+    "Spark UDF scoring server test hangs or fails on retry after server readiness timed out",
+    "Why does the test_spark scoring server test call cancelAllJobs and join the job thread in a finally block?",
+    "Where is the cleanup for the background Spark job and the model server port handled in the Spark pyfunc tests?",
+    "How do I make a Spark test that starts a scoring server clean up even when wait_server_ready fails?"
+  ],
+  "body": "Path: tests/pyfunc/test_spark.py (the Spark pyfunc scoring-server test around the job_thread start and ScoringServerClient(\"127.0.0.1\", server_port) setup) runs a Spark job on a background thread that serves a model over a fixed port, then waits for the server via ScoringServerClient.wait_server_ready.\nRule: Put client.wait_server_ready(timeout=20) inside try, and in finally call spark.sparkContext.cancelAllJobs(), job_thread.join(timeout=60), assert not job_thread.is_alive(), then time.sleep(10) for server shutdown and port release. Keep the 20-second readiness timeout; the fix is cleanup, not a longer wait.\nSymptom: When readiness timed out, the active Spark job, background thread, and scoring server were left running, so a retry on the shared Spark session and fixed port was contaminated and failed.\nConstraints: Applies to this test's cleanup path. It does not fix the underlying slow server startup; it only prevents leaked work after a readiness failure. Any new test in this file that starts a background Spark job plus a fixed-port server should follow the same ordering.",
+  "applies": "Test-only cleanup pattern in tests/pyfunc/test_spark.py for Spark-based scoring server tests with a fixed port and background job thread.",
+  "tags": [
+    "spark",
+    "testing",
+    "scoring-server",
+    "pyfunc",
+    "cleanup"
+  ],
+  "deps": [
+    {
+      "path": "tests/pyfunc/test_spark.py",
+      "symbol": "job_thread",
+      "hash": "sha256:c3706aaa7a3b0c08748beaaa",
+      "line": 860,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 4
+      }
+    },
+    {
+      "path": "tests/pyfunc/test_spark.py",
+      "symbol": "server_port",
+      "hash": "sha256:2cef81606c69568d1be6051e",
+      "line": 831,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 16
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25996"
+  },
+  "created": "2026-10-12T05:30:22.150Z",
+  "verified": "2026-10-12T05:30:22.150Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Automated model scoring verification hangs on retry when server readiness times out.",
+    "Retrying model evaluation tests fails because the background server process was not stopped."
+  ],
+  "search": "In tests/pyfunc/test_spark.py, the Spark pyfunc scoring server test must wrap client.wait_server_ready(timeout=20) in try and execute cleanup in finally by calling spark.sparkContext.cancelAllJobs(), job_thread.join(timeout=60), asserting not job_thread.is_alive(), and sleeping 10 seconds for server shutdown and port release. This cleanup prevents leaked Spark jobs, background threads, and scoring servers from contaminating retries on the shared Spark session and fixed server_port when readiness times out. The rule applies to test cleanup paths in tests/pyfunc/test_spark.py starting a background Spark job and fixed-port server, but does not fix slow server startup.",
+  "saysFor": "s2:65a9bb2fbee65167f134ae3bd3629ba1d3b59a0f83ff20f6cd71e80b63eb0902"
+}

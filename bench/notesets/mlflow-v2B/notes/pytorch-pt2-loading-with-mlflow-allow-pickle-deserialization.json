@@ -1,0 +1,105 @@
+{
+  "id": "pytorch-pt2-loading-with-mlflow-allow-pickle-deserialization",
+  "title": "PyTorch pt2 loading: with MLFLOW_ALLOW_PICKLE_DESERIALIZATION=false, validate every archive record before torch.export.load and refuse torch < 2.10",
+  "kind": "rule",
+  "answers": [
+    "Why does loading my pt2 PyTorch model fail with 'record ... is not a pickle-free payload' when MLFLOW_ALLOW_PICKLE_DESERIALIZATION is false?",
+    "Why does mlflow.pytorch.load_model refuse pt2 models on torch 2.4 through 2.9 when pickle deserialization is disabled?",
+    "Where is the pt2 archive check done before torch.export.load runs in MLflow?",
+    "How do I load a serialization_format='pt2' model in a locked-down environment?"
+  ],
+  "body": "Path: Loading a PyTorch-flavor model saved with serialization_format=\"pt2\" (mlflow.pytorch.load_model and pyfunc loads of the same artifact) goes through the pt2 branch of mlflow/pytorch/__init__.py:_load_model, which reads data/model.pt2 and calls torch.export.load. When the flag is false, _validate_pt2_archive_is_pickle_free runs first.\nRule: Under the flag, each archive record must be a short text or JSON metadata record, a raw tensor record that the payload config marks use_pickle false (_pt2_raw_tensor_records), or loadable by torch.load(weights_only=True). Any other record, including raw-pickle custom constants and AOTInductor .so files, raises MlflowException naming the record. The check refuses all pt2 loads when torch < 2.10 (CVE-2025-32434, CVE-2026-24747). Records are validated one at a time so only one payload is in memory. _is_pickle_deserialization_allowed skips the whole check in Databricks Runtime and Model Serving.\nSymptom: A crafted pt2 archive executed code during load even with MLFLOW_ALLOW_PICKLE_DESERIALIZATION=false, because torch.export.load unpickles sample inputs and weights with weights_only=False. After the fix, users on torch < 2.10 get a refusal asking them to upgrade torch or enable the flag.\nConstraints: Applies only when the flag is false outside Databricks; the default (true) is unchanged. The eager torch.load branch is guarded separately by _load_by_pickle_check. The docs in docs/docs/classic-ml/tracking/pickle-free-models/index.mdx state the torch >= 2.10 requirement under the hardened setting.",
+  "applies": "Loading pytorch-flavor pt2 models in mlflow/pytorch/__init__.py when MLFLOW_ALLOW_PICKLE_DESERIALIZATION is false outside Databricks.",
+  "tags": [
+    "pytorch",
+    "pt2",
+    "model-loading",
+    "pickle",
+    "security",
+    "mlflow-models"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/pytorch/__init__.py",
+      "symbol": "_validate_pt2_archive_is_pickle_free",
+      "hash": "sha256:6983fdbc3566725a40e13d1d",
+      "line": 836,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:6983fdbc3566725a40e13d1d",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/pytorch/__init__.py",
+      "symbol": "_is_pickle_deserialization_allowed",
+      "hash": "sha256:d31e8a495a90cc09dae4e202",
+      "line": 704,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:d31e8a495a90cc09dae4e202",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/pytorch/__init__.py",
+      "symbol": "_pt2_raw_tensor_records",
+      "hash": "sha256:b30d8e90c929813b8bb92148",
+      "line": 758,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b30d8e90c929813b8bb92148",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "docs/docs/classic-ml/tracking/pickle-free-models/index.mdx",
+      "hash": "sha256:5629abdae899401b044ed76c",
+      "missing": false
+    },
+    {
+      "path": "mlflow/pytorch/__init__.py",
+      "symbol": "_load_model",
+      "hash": "sha256:fe84fd1299f66ffaffa166db",
+      "line": 926,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:fe84fd1299f66ffaffa166db",
+      "fanout": {
+        "files": 23,
+        "sites": 42,
+        "refs": 45
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25849"
+  },
+  "created": "2026-10-12T05:37:32.802Z",
+  "verified": "2026-10-12T05:37:32.802Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "pytorch-pt2-archive-validation-scan-data-pkl-with-pickletool"
+  ],
+  "says": [
+    "Model loading fails in hardened security mode claiming an archive record is not pickle free.",
+    "Loading exported models is refused until the framework is upgraded to a newer version.",
+    "Exported model deployment errors when unsafe deserialization is disabled in standalone environments.",
+    "Cannot open exported model artifacts containing custom compiled libraries under strict security settings."
+  ],
+  "search": "When MLFLOW_ALLOW_PICKLE_DESERIALIZATION is false outside Databricks, loading PyTorch pt2 models requires validating every archive record before torch.export.load and rejecting PyTorch versions below 2.10. In mlflow/pytorch/__init__.py:_load_model, validation requires archive records to be short text/JSON metadata, raw tensor records marked without pickle, or loadable via torch.load(weights_only=True). Any other record, such as custom raw-pickle constants or compiled .so files, raises MlflowException. The check is skipped entirely in Databricks Runtime and Model Serving, and does not alter the default behavior where deserialization is allowed.",
+  "saysFor": "s2:5829983fa10f4664fe442b164504568bd68546d0cc12c134f86b98ae9d6df859"
+}

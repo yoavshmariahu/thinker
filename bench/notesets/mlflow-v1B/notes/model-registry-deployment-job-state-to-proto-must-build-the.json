@@ -1,0 +1,81 @@
+{
+  "id": "model-registry-deployment-job-state-to-proto-must-build-the",
+  "title": "Model registry deployment job state: to_proto must build the proto class the parent field holds (mlflow.protos.model_registry_pb2), not the Unity Catalog one",
+  "kind": "rule",
+  "answers": [
+    "Why does assigning a ModelVersionDeploymentJobState into a ModelVersion proto raise TypeError or get silently skipped?",
+    "Which protobuf module should ModelVersionDeploymentJobState import for registry (non-UC) serialization?",
+    "Where is the deployment job state proto type chosen for model versions?"
+  ],
+  "body": "Path: mlflow/entities/model_registry/model_version_deployment_job_state.py:ModelVersionDeploymentJobState.to_proto builds the proto message that is embedded in a ModelVersion proto (model_registry_pb2.ModelVersion.deployment_job_state) and is read back by ModelVersionDeploymentJobState.from_proto.\nRule: The embedded message class must match the parent field's message type. Import ModelVersionDeploymentJobState as ProtoModelVersionDeploymentJobState from mlflow.protos.model_registry_pb2, not from mlflow.protos.databricks_uc_registry_messages_pb2. The two messages declare the same five fields and identical enum numbering, so the wrong class fails only at assignment time, and that failure is easy to hide if the result is discarded.\nSymptom: The deployment job state was dropped from every serialized ModelVersion, with no error visible to the caller, because the code converted to the Unity Catalog message type and the result was never assigned.\nConstraints: Only the registry proto matters for ModelVersion.to_proto. The Unity Catalog paths (mlflow/utils/_unity_catalog_utils.py and mlflow/store/_unity_catalog/registry/uc_native_rest_store.py) rely on from_proto being duck-typed, so they keep working with either class. Verify the enum numbering by comparing descriptors before changing the import.",
+  "applies": "Any code that converts ModelVersionDeploymentJobState to a protobuf message for the MLflow model registry; not for Unity Catalog-only message construction.",
+  "tags": [
+    "model-registry",
+    "protobuf",
+    "unity-catalog",
+    "deployment-job-state"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/entities/model_registry/model_version_deployment_job_state.py",
+      "symbol": "ModelVersionDeploymentJobState.to_proto",
+      "hash": "sha256:0f33882391003974fe727001",
+      "line": 58,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0f33882391003974fe727001",
+      "fanout": {
+        "files": 80,
+        "sites": 422,
+        "refs": 429
+      }
+    },
+    {
+      "path": "mlflow/entities/model_registry/model_version_deployment_job_state.py",
+      "symbol": "ModelVersionDeploymentJobState.from_proto",
+      "hash": "sha256:1ea62cb7ac3ac4b0619f66f5",
+      "line": 48,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1ea62cb7ac3ac4b0619f66f5",
+      "fanout": {
+        "files": 78,
+        "sites": 336,
+        "refs": 351
+      }
+    },
+    {
+      "path": "mlflow/utils/_unity_catalog_utils.py",
+      "hash": "sha256:b26db4a4d3f2514ac54406f1",
+      "missing": false
+    },
+    {
+      "path": "mlflow/store/_unity_catalog/registry/uc_native_rest_store.py",
+      "hash": "sha256:c7d3d4327bcb791f3d75d6a4",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25635"
+  },
+  "created": "2026-10-12T05:41:03.602Z",
+  "verified": "2026-10-12T05:41:03.602Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "model-registry-modelversion-proto-round-trip-deployment-job",
+    "unity-catalog-model-version-converters-leave-deployment-job"
+  ],
+  "says": [
+    "Deployment job status is missing from model versions in the model registry.",
+    "The registered model version does not show its deployment job information.",
+    "Deployment state vanishes when saving or retrieving model versions from the registry.",
+    "Why are deployment job details dropped on the model version details screen?",
+    "Need model versions in the registry to retain their deployment job connection state."
+  ],
+  "search": "ModelVersionDeploymentJobState.to_proto must import and construct the protobuf message from mlflow.protos.model_registry_pb2 rather than databricks_uc_registry_messages_pb2 to match the parent ModelVersion proto field. Using the Unity Catalog message type causes silent assignment failures or TypeErrors because the embedded proto classes differ despite sharing identical field layouts. This rule applies to MLflow model registry serialization, while Unity Catalog paths remain duck-typed in ModelVersionDeploymentJobState.from_proto.",
+  "saysFor": "s2:4a7c53b42bb00e35d354228d099862da59bba926f23bdf6f53c52becaabd82b7"
+}

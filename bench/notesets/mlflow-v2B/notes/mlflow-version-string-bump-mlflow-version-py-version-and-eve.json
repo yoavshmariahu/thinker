@@ -1,0 +1,120 @@
+{
+  "id": "mlflow-version-string-bump-mlflow-version-py-version-and-eve",
+  "title": "MLflow version string: bump mlflow/version.py VERSION and every package manifest, JS constant, Java POM and Helm appVersion together, leaving other uv.lock entries alone",
+  "kind": "map",
+  "answers": [
+    "After a release, which files hold the MLflow version and do I need to change all of them?",
+    "Where is the MLflow Python package version defined, and where does the UI or docs version constant come from?",
+    "How do I set the Java SNAPSHOT or R package version for the next development line?",
+    "Why does the Helm chart appVersion differ from the dev version in the other files?"
+  ],
+  "body": "Path: The MLflow version is defined in mlflow/version.py:VERSION (Python dev versions use the \".dev0\" suffix). The same string is duplicated in pyproject.toml, pyproject.release.toml, libs/skinny/pyproject.toml and libs/tracing/pyproject.toml, in the UI constant mlflow/server/js/src/common/constants.tsx:Version, in the docs constant docs/src/constants.ts:Version, in the Java POMs under mlflow/java (with -SNAPSHOT), in mlflow/R/mlflow/DESCRIPTION, and in charts/Chart.yaml appVersion.\nRule: A dev-version bump changes all of these in one change: the Python and JS/docs strings and the Java/R manifests move to the next development line, while charts/Chart.yaml appVersion is set to the last released version. In pyproject.release.toml, the mlflow-skinny and mlflow-tracing dependency pins must equal the new dev version exactly. In uv.lock, only the editable mlflow package entry's version is updated, not the other locked packages.\nConstraints: This covers the version strings only, not the release-branch prod gate in mlflow/releases python.yml or the [tool.mlflow-release] marker. Do not change dependency ranges or extras while bumping the version.\nApplies: Version bumps of the MLflow repo after a release, and anyone searching for where the version number lives across Python, UI, docs, Java, R and Helm.",
+  "applies": "Version bumps of the MLflow repo after a release, and anyone searching for where the version number lives across Python, UI, docs, Java, R and Helm.",
+  "tags": [
+    "version",
+    "release",
+    "packaging",
+    "build"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/version.py",
+      "symbol": "VERSION",
+      "hash": "sha256:849e29800ed9e15383789b67",
+      "line": 5,
+      "missing": false,
+      "fanout": {
+        "files": 48,
+        "sites": 0,
+        "refs": 112
+      }
+    },
+    {
+      "path": "pyproject.toml",
+      "hash": "sha256:459e93fed0b67fec529ee594",
+      "missing": false
+    },
+    {
+      "path": "pyproject.release.toml",
+      "hash": "sha256:facc7de50f65ab42568258f1",
+      "missing": false
+    },
+    {
+      "path": "libs/skinny/pyproject.toml",
+      "hash": "sha256:e64bc1d17c956d700538a236",
+      "missing": false
+    },
+    {
+      "path": "libs/tracing/pyproject.toml",
+      "hash": "sha256:f39ee9ce4da7a30d02493e80",
+      "missing": false
+    },
+    {
+      "path": "mlflow/server/js/src/common/constants.tsx",
+      "symbol": "Version",
+      "hash": "sha256:b46eefb50441cc3ade53c385",
+      "line": 12,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:55c892bd17e9ea65c26217cc",
+      "fanout": {
+        "files": 47,
+        "sites": 0,
+        "refs": 81
+      }
+    },
+    {
+      "path": "docs/src/constants.ts",
+      "symbol": "Version",
+      "hash": "sha256:b46eefb50441cc3ade53c385",
+      "line": 1,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:966434502f243f493ee67fbe",
+      "fanout": {
+        "files": 48,
+        "sites": 0,
+        "refs": 85
+      }
+    },
+    {
+      "path": "mlflow/java/pom.xml",
+      "hash": "sha256:bb01bed7a1e428fc3fb72f83",
+      "missing": false
+    },
+    {
+      "path": "mlflow/R/mlflow/DESCRIPTION",
+      "hash": "sha256:0961c478c43a0afe8ee2c372",
+      "missing": false
+    },
+    {
+      "path": "charts/Chart.yaml",
+      "hash": "sha256:83a65619da333952733b8bc6",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25952"
+  },
+  "created": "2026-10-12T05:35:26.073Z",
+  "verified": "2026-10-12T05:35:26.073Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "db-extra-postgresql-store-and-tracking-uris-ship-psycopg-bin",
+    "build-metadata-edit-extras-in-dev-pyproject-py-regenerate-th",
+    "release-workflow-prod-gate-pyproject-toml-tool-mlflow-releas"
+  ],
+  "says": [
+    "The version number shown in the user interface does not match the latest release.",
+    "Update version numbers across documentation, deployment charts, and language clients for the next development cycle.",
+    "The documentation website displays an outdated application version after the recent release.",
+    "Deployment chart application versions are inconsistent with published package release versions.",
+    "Synchronize all platform version indicators across web screens and client libraries."
+  ],
+  "search": "Post-release development version bumps require synchronized updates to `mlflow/version.py:VERSION`, package manifests in `pyproject.toml`, `pyproject.release.toml`, `libs/skinny/pyproject.toml`, and `libs/tracing/pyproject.toml`, alongside UI and docs constants, Java POMs, R package metadata, and Helm charts. The Python dev versions use `.dev0`, Java POMs take `-SNAPSHOT`, `charts/Chart.yaml` `appVersion` remains pinned to the last released version, and `uv.lock` updates only the editable `mlflow` entry. Covers version strings and dependency pins between internal packages only, without modifying dependency ranges, extras, release branch production gates, or `[tool.mlflow-release]` markers.",
+  "saysFor": "s2:13b02cda61b5d7026c7ff95dc674218ae238171d9b1fa2dbea84750b91d6f289"
+}

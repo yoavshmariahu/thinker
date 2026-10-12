@@ -1,0 +1,52 @@
+{
+  "id": "copilot-code-review-environment-toolchains-are-set-up-in-cop",
+  "title": "Copilot code review environment: toolchains are set up in copilot-code-review.yml, not in the reviewer code",
+  "kind": "map",
+  "answers": [
+    "Where is the Python and Node setup for the Copilot code reviewer configured?",
+    "Why does the Copilot review job check out the repo without credentials?",
+    "Which setup step runs before Copilot reviews a pull request, and how do I change its Python version pinning?",
+    "Where does the instruction file say the review environment is defined?"
+  ],
+  "body": "Path: .github/workflows/copilot-code-review.yml, job steps that prepare the environment the Copilot code reviewer runs in; it covers checkout, shared Python/uv setup and shared Node setup before the review, and keeps the job's triggers, name, permissions, cache policy and timeout.\nRule: Add review-time toolchains (Python, uv, Node) to this workflow's steps using the shared composite actions ./.github/actions/setup-python and ./.github/actions/setup-node, not ad hoc install commands in the reviewer. Checkout uses persist-credentials: false. setup-python is called with pin-micro-version: false.\nConstraints: Applies only to the copilot-code-review workflow job; regular CI workflows are configured separately. The reviewer's verification guidance in .github/instructions/code-review.instructions.md points to this file, so keep the two in sync when the environment changes. Does not change comment wording, which lives in the instruction file.",
+  "applies": "Scope: the Copilot code review setup job in .github/workflows/copilot-code-review.yml and its pointer in .github/instructions/code-review.instructions.md; not runtime library code.",
+  "tags": [
+    "area/build",
+    "copilot",
+    "code-review",
+    "ci",
+    "github-actions"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/copilot-code-review.yml",
+      "hash": "sha256:3fc07478c35c027cda7112e8",
+      "missing": false
+    },
+    {
+      "path": ".github/instructions/code-review.instructions.md",
+      "hash": "sha256:f7bdd41ad61e04825158fbd8",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26110"
+  },
+  "created": "2026-10-12T05:32:53.148Z",
+  "verified": "2026-10-12T05:32:53.148Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Update the automated pull request reviewer to support the newest runtime version.",
+    "The automated code review workflow fails because a required runtime environment is not installed.",
+    "The code review bot crashed during setup while preparing the verification environment.",
+    "Change the language and toolchain versions available to the pull request reviewer.",
+    "The automated reviewer cannot run verification commands due to missing language dependencies."
+  ],
+  "search": "Toolchain environments for Copilot code reviews are configured in .github/workflows/copilot-code-review.yml rather than in reviewer code. Review-time setup for Python, uv, and Node must use composite actions ./.github/actions/setup-python with pin-micro-version: false and ./.github/actions/setup-node, with checkout setting persist-credentials: false. Verification guidance in .github/instructions/code-review.instructions.md points to this workflow file and must be kept in sync. This applies strictly to the copilot-code-review workflow job, not to regular CI workflows, runtime library code, or comment wording.",
+  "saysFor": "s2:109e79021dac8a92a6ddca2614f7503f2115fe3805cd84a3dc4e7929f5604aed"
+}

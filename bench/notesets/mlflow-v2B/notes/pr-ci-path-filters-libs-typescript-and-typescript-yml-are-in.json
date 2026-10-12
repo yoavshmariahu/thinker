@@ -1,0 +1,90 @@
+{
+  "id": "pr-ci-path-filters-libs-typescript-and-typescript-yml-are-in",
+  "title": "PR CI path filters: TypeScript SDK and copilot-*.yml changes are in the pull_request paths-ignore of the Python, R and build workflows",
+  "kind": "rule",
+  "answers": [
+    "Why did a PR that only changes Copilot workflow files start the MLflow Python tests?",
+    "My TypeScript SDK-only PR is still running cross-version, tracing or examples CI. Which path filters control that?",
+    "Where is the pull_request paths-ignore for the R or fs2db workflow defined, and what does it skip?",
+    "Do push or scheduled runs still happen when only libs/typescript or copilot workflow files change?"
+  ],
+  "body": "Path: .github/workflows/master.yml, build-wheel.yml, cross-version-tests.yml, examples.yml, fs2db.yml, r.yml, tracing.yml and typescript.yml. Each `pull_request` `paths-ignore` list decides whether a PR that touches only certain files starts the MLflow tests, cross-version tests, tracing, examples, fs2db, build-wheel, R or TypeScript workflow.\nRule: Each of those lists carries `libs/typescript/**` and `.github/workflows/typescript.yml` directly after `mlflow/server/js/**` and `.github/workflows/js.yml`. It also carries `.github/workflows/copilot-*.yml` immediately before `.github/workflows/docs.yml`, so Copilot workflow-file changes skip them without editing each list. Keep the `copilot-*.yml` glob so new Copilot workflow files are covered automatically. When a new non-Python subtree or workflow family should not start Python CI, add it to the same list in every PR-triggered workflow, not just one.\nSymptom: TypeScript SDK-only pull requests started the unrelated MLflow Python test, cross-version, tracing, examples, fs2db, build-wheel and R workflows. Changes limited to `.github/workflows/copilot-*.yml` likewise started those unrelated workflows.\nConstraints: Applies only to `pull_request` path filters. The `push`, `schedule` and `workflow_dispatch` triggers are unchanged, so those runs still happen. The TypeScript SDK workflow and the always-on lint workflows stay active. Mixed changes that touch any non-ignored path still run the Python workflows.",
+  "applies": "Pull-request path filters (paths-ignore) in .github/workflows for Python, R, build and TypeScript-related CI; not push, schedule or manual triggers.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "path-filters",
+    "paths-ignore",
+    "copilot",
+    "typescript"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/master.yml",
+      "hash": "sha256:b4cbc606274abac24bf05d23",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/build-wheel.yml",
+      "hash": "sha256:2ac595703c0b735c07657ec2",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/cross-version-tests.yml",
+      "hash": "sha256:ba1d823950853fc144581b5d",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/examples.yml",
+      "hash": "sha256:8cb5981070df53de08c718f7",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/fs2db.yml",
+      "hash": "sha256:382b3bafae0b73dd3a8fbfe8",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/r.yml",
+      "hash": "sha256:df57b3cd95bda2ab4151e80f",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/tracing.yml",
+      "hash": "sha256:8721390445eca47e932074dd",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/typescript.yml",
+      "hash": "sha256:68503418a2bf8f405f527739",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25836"
+  },
+  "created": "2026-10-12T05:31:52.795Z",
+  "verified": "2026-10-12T05:37:44.753Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "history": [
+    {
+      "at": "2026-10-12T05:37:44.760Z",
+      "reason": "extended by a new session",
+      "prevBody": "Path: .github/workflows/master.yml, build-wheel.yml, cross-version-tests.yml, examples.yml, fs2db.yml, r.yml and tracing.yml. Each controls, through the `pull_request` `paths-ignore` list, whether a PR that touches only certain files starts the MLflow tests, cross-version tests, tracing, examples, fs2db, build-wheel or R workflow.\nRule: Each of those `pull_request` `paths-ignore` lists carries `libs/typescript/**` and `.github/workflows/typescript.yml` directly after `mlflow/server/js/**` and `.github/workflows/js.yml`. So a TypeScript-SDK-only PR skips them, while a PR that also touches any non-ignored path still runs them. When a new non-Python subtree should not start Python CI, add it to the same list in every PR-triggered workflow, not just one.\nSymptom: TypeScript SDK-only pull requests started the unrelated MLflow Python test, cross-version, tracing, examples, fs2db, build-wheel and R workflows.\nConstraints: Applies only to `pull_request` path filters. The `push`, `schedule` and `workflow_dispatch` triggers are unchanged, so those runs still happen. The TypeScript SDK workflow and the always-on lint workflows stay active. Mixed TypeScript and Python changes still run the Python workflows."
+    }
+  ],
+  "says": [
+    "Pull requests touching only TypeScript code are triggering unnecessary Python automated test suites.",
+    "Modifying Copilot automation workflows unnecessarily triggers the entire Python validation pipeline.",
+    "Prevent TypeScript client pull requests from running packaging and wheel building jobs.",
+    "Pull requests updating only the client library waste build minutes running backend tests.",
+    "Skip execution of R and database test workflows when only client SDKs change."
+  ],
+  "search": "Pull-request path filters in .github/workflows for master.yml, build-wheel.yml, cross-version-tests.yml, examples.yml, fs2db.yml, r.yml, tracing.yml, and typescript.yml must ignore libs/typescript/**, .github/workflows/typescript.yml, and .github/workflows/copilot-*.yml. In each paths-ignore list, the TypeScript entries must follow mlflow/server/js/** and .github/workflows/js.yml, while the copilot-*.yml glob must immediately precede .github/workflows/docs.yml to ensure new Copilot workflows skip Python CI automatically. When adding non-Python subtrees or workflow families that should not trigger Python CI, add them across all PR-triggered workflows rather than just one. This rule applies strictly to pull_request triggers; push, schedule, workflow_dispatch, TypeScript SDK workflows, lint workflows, and PRs touching non-ignored paths continue running.",
+  "saysFor": "s2:8ae97785e65a903857790021728af91af4fb9b03fc4a4fda46791349cc8eccb2"
+}

@@ -1,0 +1,52 @@
+{
+  "id": "copilot-setup-steps-lint-tool-caches-are-restore-only-and-mu",
+  "title": "Copilot setup steps: lint tool caches are restore-only and must use the same paths and keys as lint.yml",
+  "kind": "rule",
+  "answers": [
+    "Why does the Copilot cloud agent setup spend most of its time before the agent starts working?",
+    "How do I add or change a cache (mypy, pre-commit, install-bin, action pins) used by the Copilot agent environment?",
+    "Where are the lint cache keys that the Copilot setup restores defined?"
+  ],
+  "body": "Path: .github/workflows/copilot-setup-steps.yml, the job Copilot cloud agent reads from the default branch to prepare each agent session: checkout, the setup-node/setup-python/setup-java actions, four cache restores (action pins, mypy, install-bin tools, pre-commit hooks), then `uv sync --only-group lint`.\nRule: The four cache steps use `actions/cache/restore` only, never `actions/cache`, so .github/workflows/lint.yml stays the sole writer. Each step's `path`, `key` and `restore-keys` must match the corresponding save in .github/workflows/lint.yml (for example `mypy-ubuntu-latest-` and `pre-commit-ubuntu-latest-` prefixes keyed on uv.lock/pyproject.toml or .pre-commit-config.yaml). When you change a lint cache key or path, change both files in the same PR.\nSymptom: Agent session setup took about 48s of controllable work before the agent started, and on real sessions setup consumed about 38s out of 122s total; a key or path that drifted from lint.yml produces silent misses instead of restores.\nConstraints: Applies to the cache steps of the Copilot setup workflow. The restore-only pattern is deliberate, so do not add save steps here. Does not cover cache writes in lint.yml itself.",
+  "applies": "Edits to cache steps or lint cache keys that the Copilot cloud agent setup workflow depends on; does not cover other workflows' caches.",
+  "tags": [
+    "copilot",
+    "github-actions",
+    "caching",
+    "lint",
+    "cloud-agent"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/copilot-setup-steps.yml",
+      "hash": "sha256:aeb92149234e2c7264f2ae52",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/lint.yml",
+      "hash": "sha256:18c891d7db9be341f23a3a93",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25542"
+  },
+  "created": "2026-10-12T05:49:01.790Z",
+  "verified": "2026-10-12T05:49:01.790Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "copilot-setup-steps-setup-python-must-pass-pin-micro-version"
+  ],
+  "says": [
+    "Why does the Copilot agent setup take so long before it starts working on my task?",
+    "How do I change a cache path or key used in the Copilot agent environment setup?",
+    "Copilot agent session setup spends too long restoring lint caches; how do I fix it?",
+    "Where are the lint cache keys that the Copilot setup restores defined?"
+  ],
+  "search": "Copilot cloud agent setup workflow restores lint caches (action pins, mypy, install-bin tools, pre-commit hooks) restore-only, with paths and keys that must match lint.yml's saves. Changing a lint cache key or path requires editing both files in the same PR. Do not add save steps to the setup workflow.",
+  "saysFor": "s2:de579c11bc0535c680421d8d487a41827034d85676e211860526b82b86c9ce3a"
+}

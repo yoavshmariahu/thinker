@@ -1,0 +1,47 @@
+{
+  "id": "docker-image-publishing-floating-latest-tags-move-only-when",
+  "title": "Docker image publishing: floating latest tags move only when the release is GitHub's canonical Latest",
+  "kind": "rule",
+  "answers": [
+    "Why did a patch release move the Docker latest or latest-full image tag?",
+    "How do I change which image tags get promoted to latest after a release?",
+    "Where is the logic that decides whether mlflow or model-server latest images are updated?",
+    "How are versioned GHCR images published without touching latest?"
+  ],
+  "body": "Path: .github/workflows/push-images.yml (job push-images, then check-latest and promote-latest) runs on release publish. It builds and pushes versioned ghcr.io/mlflow/mlflow, mlflow-full and model-server tags via docker/metadata-action with flavor latest=false, and then copies them to latest, latest-full and model-server:latest.\nRule: The build job must never emit floating tags. Floating tags are written only by promote-latest, using `docker buildx imagetools create` from the versioned tag. It runs only when check-latest finds that `gh api repos/$GITHUB_REPOSITORY/releases/latest` returns github.event.release.tag_name. promote-latest re-checks that same value immediately before its writes.\nSymptom: A maintenance patch release published with `gh release create --latest=false` moved the Docker latest and latest-full tags to a non-canonical version.\nConstraints: Applies to release-triggered runs. A release that is not GitHub's Latest skips promotion by design and writes a step-summary note. A read failure of the Latest pointer fails closed (promote=false and the job fails) rather than promoting. This replaced the old semver comparison over `gh release list`.",
+  "applies": "Any change to Docker/GHCR image tagging, latest-tag promotion, or the push-images release workflow.",
+  "tags": [
+    "docker",
+    "ghcr",
+    "release",
+    "github-actions",
+    "latest-tag"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/push-images.yml",
+      "hash": "sha256:f81e2019e4c7412cfdc9deb4",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26120"
+  },
+  "created": "2026-10-12T05:33:01.964Z",
+  "verified": "2026-10-12T05:33:01.964Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "A maintenance patch release incorrectly updated our public latest container image tags.",
+    "Why did publishing an older maintenance version overwrite the latest container image tag?",
+    "Prevent non-canonical patch releases from updating floating latest tags in the container registry.",
+    "How can we publish a versioned container image without promoting it to latest?",
+    "Only official primary releases should advance the floating latest container image pointers."
+  ],
+  "search": "`.github/workflows/push-images.yml` pushes versioned container images with `latest=false` and restricts floating tag promotion (`latest`, `latest-full`, `model-server:latest`) to the `promote-latest` job using `docker buildx imagetools create`. Promotion runs only when `check-latest` confirms that the GitHub release matches the canonical release returned by `gh api repos/$GITHUB_REPOSITORY/releases/latest`, re-checking before writing. Non-canonical releases skip promotion by design, while read failures of the latest release pointer fail closed by setting `promote=false` and failing the job. Guidance applies to release-triggered workflows for GHCR image tagging, replacing earlier semver comparisons over `gh release list`.",
+  "saysFor": "s2:e703f53e1e65f49ac0641f709fa550626fe60956bebad9759ff319df35029d29"
+}

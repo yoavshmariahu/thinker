@@ -1,0 +1,89 @@
+{
+  "id": "scorer-invoke-trace-lookup-invoke-scorer-handler-resolves-tr",
+  "title": "scorer/invoke trace lookup: _invoke_scorer_handler resolves trace experiments with batch lookup and per-trace fallback, rejecting foreign traces and dropping missing ones",
+  "kind": "rule",
+  "answers": [
+    "Why does scoring a trace from another experiment return 403 on scorer/invoke even though I own the experiment I passed?",
+    "A store does not implement batch trace lookup and scorer invoke fails, what path does it take?",
+    "Why does a missing trace id on scorer/invoke fail in the job as 'Traces not found' instead of a 404?",
+    "Where is the cross-experiment trace check for the scorer invoke endpoint?"
+  ],
+  "body": "Path: mlflow/server/handlers.py:_invoke_scorer_handler handles POST scorer/invoke after the scorer is loaded and before get_trace_batches_for_scorer and job submission; it resolves each requested trace_id to its experiment through tracking_store.batch_get_trace_infos.\nRule: Experiment membership of caller-supplied trace_ids is checked in the handler, because a creator gets MANAGE on their own experiment and the experiment_id gate alone is not enough. Stores without batch_get_trace_infos (MlflowNotImplementedException) fall back to per-trace get_trace_info; RESOURCE_DOES_NOT_EXIST is dropped so the missing trace is absent from the check, while other errors are re-raised. Any trace whose experiment_id (compared as str) differs from the authorized experiment raises MlflowException with PERMISSION_DENIED (403) and the generic message 'Not all requested traces could be accessed.', without naming either experiment.\nSymptom: A user who named their own experiment but supplied trace_ids from another experiment could have those traces scored and assessments written to them.\nConstraints: The check runs before any job is submitted, so a denied request creates no job. Missing traces are not rejected here; they are forwarded and fail in the job as 'Traces not found', which is the existing contract. Duplicate trace_ids are removed first so a repeated id is fetched and scored once.",
+  "applies": "scorer/invoke handler in mlflow/server/handlers.py; for stores that lack batch_get_trace_infos, the per-trace fallback applies.",
+  "tags": [
+    "scorer",
+    "invoke",
+    "trace",
+    "authorization",
+    "experiment",
+    "fallback"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_invoke_scorer_handler",
+      "hash": "sha256:c5b87a0afdd493819e5e41c0",
+      "line": 7401,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c5b87a0afdd493819e5e41c0",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "tests/server/test_handlers.py",
+      "symbol": "test_invoke_scorer_rejects_cross_experiment_traces",
+      "hash": "sha256:81e44bf4074d7d3c39a12a11",
+      "line": 5864,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:81e44bf4074d7d3c39a12a11",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/server/test_handlers.py",
+      "symbol": "test_invoke_scorer_fallback_drops_missing_trace",
+      "hash": "sha256:7afddddbdb6168b20cc6dde1",
+      "line": 5924,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:7afddddbdb6168b20cc6dde1",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25721"
+  },
+  "created": "2026-10-12T05:40:42.308Z",
+  "verified": "2026-10-12T05:40:42.308Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "invoke-endpoints-issue-detection-genai-evaluate-scorer-calle",
+    "invoke-endpoints-trace-ids-input-contract-reject-empty-lists",
+    "scorer-register-invoke-evaluate-payloads-validate-every-seri"
+  ],
+  "says": [
+    "Scoring fails with permission denied because selected traces belong to a different experiment.",
+    "Receiving not all requested traces could be accessed when evaluating traces across experiments.",
+    "Prevent users from attaching evaluation scores to traces that originate outside their experiment.",
+    "A trace scoring job reports traces not found when requested traces are missing.",
+    "Why does evaluating traces from another project get blocked even in my own experiment?"
+  ],
+  "search": "In mlflow/server/handlers.py:_invoke_scorer_handler, requested trace experiments are verified against the authorized experiment_id using tracking_store.batch_get_trace_infos before submitting scoring jobs. If the tracking store lacks batch_get_trace_infos, it falls back to per-trace get_trace_info, ignoring RESOURCE_DOES_NOT_EXIST and re-raising other errors. Any trace whose experiment ID differs from the request raises a PERMISSION_DENIED (403) MlflowException with 'Not all requested traces could be accessed.' without naming experiments. Duplicate trace IDs are deduplicated first, while missing traces pass through to fail in the job with 'Traces not found'.",
+  "saysFor": "s2:0931ad709ec03d9ec236354d25474f52df03a674b7691d8b16dd79fa609a891c"
+}

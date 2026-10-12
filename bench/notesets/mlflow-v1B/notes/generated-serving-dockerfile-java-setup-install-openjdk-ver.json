@@ -1,0 +1,57 @@
+{
+  "id": "generated-serving-dockerfile-java-setup-install-openjdk-ver",
+  "title": "Generated serving Dockerfile Java setup: install openjdk-<ver>-jdk-headless, not the full JDK, and keep JAVA_HOME fixed",
+  "kind": "rule",
+  "answers": [
+    "Why did the generated model serving image shrink or lose AWT/Swing after the Java flavor change?",
+    "Which apt package does the Java setup step install in the generated Dockerfile for MLflow serving images?",
+    "Where is the JAVA_HOME and openjdk install line for the Java flavor built in the Dockerfile generator?",
+    "How do I change the JDK version or package used in the generated serving image without breaking javac, java, or mvn?"
+  ],
+  "body": "Path: mlflow/models/docker_utils.py:generate_dockerfile builds the Dockerfile for generated model-serving images. When Java support is requested (the Java flavor / Maven path), its \"# Setup Java\" block is produced here, and the JDK version comes from MLFLOW_DOCKER_OPENJDK_VERSION.\nRule: the Java setup step installs `openjdk-{jdk_ver}-jdk-headless maven` with `--no-install-recommends` (not `openjdk-{jdk_ver}-jdk`), and still sets `ENV JAVA_HOME=/usr/lib/jvm/java-{jdk_ver}-openjdk-amd64`. The headless package provides the same javac, java and mvn under that path. Change the package name only inside setup_java_steps in generate_dockerfile, and update the matching Java lines in the pinned fixtures under tests/resources/dockerfile/ (Dockerfile_java_flavor, Dockerfile_no_model_uri, Dockerfile_conda, Dockerfile_sagemaker_*), which the tests compare against.\nConstraints: applies to MLflow-generated Ubuntu serving images with Java only. The headless JDK does not ship GUI toolkits, so AWT and Swing classes are absent in these images; a workload that needs them must bring its own base image or install the full JDK. Does not affect custom user base images that the generator does not build.",
+  "applies": "Generated model-serving Dockerfiles produced by mlflow/models/docker_utils.py for Java/Maven content on Ubuntu bases; not custom user-supplied base images.",
+  "tags": [
+    "docker",
+    "java",
+    "serving",
+    "dockerfile",
+    "apt"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/models/docker_utils.py",
+      "symbol": "generate_dockerfile",
+      "hash": "sha256:11eeecec3437c71784a70b14",
+      "line": 92,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:11eeecec3437c71784a70b14",
+      "fanout": {
+        "files": 4,
+        "sites": 6,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25804"
+  },
+  "created": "2026-10-12T05:45:17.953Z",
+  "verified": "2026-10-12T05:45:17.953Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "generated-serving-dockerfile-apt-socket-timeouts-and-retries"
+  ],
+  "says": [
+    "Java model serving containers fail with missing windowing and graphic toolkit errors.",
+    "Reduce the download size of deployment containers generated for Java model serving.",
+    "Deployed Java models crash when attempting to load desktop rendering libraries inside containers.",
+    "Allow deploying Java models that depend on graphical user interface frameworks."
+  ],
+  "search": "Generated model serving Dockerfile creation in mlflow/models/docker_utils.py:generate_dockerfile installs openjdk-{jdk_ver}-jdk-headless and maven without recommended packages while setting JAVA_HOME to /usr/lib/jvm/java-{jdk_ver}-openjdk-amd64. The JDK version is controlled by MLFLOW_DOCKER_OPENJDK_VERSION, and updates require syncing test fixtures in tests/resources/dockerfile/Dockerfile_*. Because the headless package omits GUI toolkits like AWT and Swing, workloads requiring them must supply custom base images or install the full JDK.",
+  "saysFor": "s2:c257d74c886a74ce1e1e993ffe6657b25bcf57d04d1f598c614034cd6d3c95a9"
+}

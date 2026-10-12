@@ -1,0 +1,98 @@
+{
+  "id": "llamaindex-tracer-tests-exercise-deferred-stream-context-by",
+  "title": "LlamaIndex tracer tests: exercise deferred stream context by registering pending spans with StreamResolver directly",
+  "kind": "howto",
+  "answers": [
+    "How do I write a regression test for LlamaIndex streaming traces without calling a real LLM?",
+    "How can I test that a child span stays under its parent while a StreamingResponse is consumed?",
+    "How do I check that the LlamaIndex active span id is restored after a streamed chunk?",
+    "How do I test that a failed span-context attachment does not leak context?"
+  ],
+  "body": "Path: Tests for LlamaIndex streaming live in tests/llama_index/test_llama_index_tracer.py and drive mlflow/llama_index/tracer.py:StreamResolver.register_stream_span directly, without a model call.\nRule: Create parent and child spans with mlflow.start_span_no_context(parent_span=...), wrap a plain generator in llama_index.core.base.response.schema StreamingResponse, then call register_stream_span for the child (with llama_span_id) and for the parent (with the StreamingResponse as result). Advance response.response_gen with next() and assert, inside the generator body, that mlflow.get_current_active_span() and active_span_id.get() point at the child; after each next() assert the caller's original span and active_span_id are back. Guard active_span_id assertions with `if active_span_id:` since the import is optional. For the failure path, monkeypatch mlflow.llama_index.tracer.set_span_in_context to raise and assert active_span_id is unchanged.\nConstraints: Use this pattern for context behavior in a generator; end spans in a finally block. Assertions inside the generator body propagate through the wrapper, so an unconsumed generator body means the test asserts nothing.",
+  "applies": "Writing or changing LlamaIndex stream-context tests in tests/llama_index; not needed for end-to-end autologging tests that already run a real LLM.",
+  "tags": [
+    "tracing",
+    "llama_index",
+    "testing",
+    "streaming"
+  ],
+  "deps": [
+    {
+      "path": "tests/llama_index/test_llama_index_tracer.py",
+      "symbol": "test_stream_resolver_restores_pending_parent_context",
+      "hash": "sha256:8dc0f19d16c05fb9ae03d0ab",
+      "line": 888,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:8dc0f19d16c05fb9ae03d0ab",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/llama_index/test_llama_index_tracer.py",
+      "symbol": "test_stream_resolver_does_not_leak_context_when_attachment_fails",
+      "hash": "sha256:5c8ee33d1732e23b5d94a6f1",
+      "line": 920,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5c8ee33d1732e23b5d94a6f1",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/llama_index/tracer.py",
+      "symbol": "StreamResolver",
+      "hash": "sha256:22535286b917ea74ee9f8af5",
+      "line": 613,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:22535286b917ea74ee9f8af5",
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 5
+      }
+    },
+    {
+      "path": "mlflow/llama_index/tracer.py",
+      "symbol": "StreamResolver.register_stream_span",
+      "hash": "sha256:1ee90df7dabad577b58181b0",
+      "line": 641,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1ee90df7dabad577b58181b0",
+      "fanout": {
+        "files": 2,
+        "sites": 5,
+        "refs": 5
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26293"
+  },
+  "created": "2026-10-12T05:28:40.448Z",
+  "verified": "2026-10-12T05:28:40.448Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "llamaindex-streaming-tracing-restore-pending-mlflow-and-llam"
+  ],
+  "says": [
+    "Add fast unit tests for streaming trace tracking without calling expensive live language models.",
+    "Verify that streaming response chunks restore the original tracing context without leaking state.",
+    "Ensure automated test suites verify parent and child trace relationships during token streaming.",
+    "Test that failed span context attachments during streaming do not corrupt active trace state."
+  ],
+  "search": "In tests/llama_index/test_llama_index_tracer.py, test LlamaIndex streaming trace context without LLM calls by passing generators wrapped in StreamingResponse directly to StreamResolver.register_stream_span. The test creates parent and child spans via mlflow.start_span_no_context, advances response_gen with next(), and asserts active spans and optional active_span_id inside and outside the generator. Context leak resilience on failure is tested by monkeypatching set_span_in_context to raise and checking that active_span_id remains unchanged. Spans must be closed in finally blocks, and generator bodies must be consumed for internal assertions to execute.",
+  "saysFor": "s2:d92ce10e3354e580dc279ccc3e05463252ee390a724733fc9f39d7dad3f61a2c"
+}

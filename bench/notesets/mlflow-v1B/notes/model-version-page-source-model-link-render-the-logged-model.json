@@ -1,0 +1,85 @@
+{
+  "id": "model-version-page-source-model-link-render-the-logged-model",
+  "title": "model version page Source Model link: render the logged model link only for models:/<model_id> sources, with a skeleton while loading and plain-ID fallback",
+  "kind": "rule",
+  "answers": [
+    "Why doesn't the model version page show a link to the logged model it was registered from?",
+    "A model version was registered from a model logged outside a run and has no Source Run row. How do I get to its artifacts from the version page?",
+    "Where is the Source Model row on the model version details page rendered and what does it show while loading or on error?",
+    "How do I add another row or link to the model version details description list without breaking the Copied from or Source Run entries?"
+  ],
+  "body": "Path: The model version details page in the Model Registry UI (the Descriptions list on the version view) decides whether to show a source logged model row. It goes through mlflow/server/js/src/model-registry/components/ModelVersionView.tsx:ModelVersionViewImpl.renderSourceModelDescription, which reads model_version.source and renders ModelVersionSourceModelLink.\nRule: Only a source of the form models:/<model_id> produces the 'Source Model' row. ModelVersionSourceModelLink fetches the logged model via useGetLoggedModelQuery and renders three distinct states. While loading it shows a ParagraphSkeleton (data-testid source-model-loading). On fetch error, or when the logged model has no experiment_id, it shows the bare model ID as Typography.Text (source-model-id). Otherwise it links to Routes.getExperimentLoggedModelDetailsPageRoute(experiment_id, model_id), labelled with the logged model name or the ID if the name is empty.\nSymptom: Versions registered from a model logged outside a run had no path to the model's artifacts, because the page showed no source rows at all. An earlier version collapsed loading, error and missing-experiment into the same bare-ID span, so the raw m-... hash flashed before the name resolved and a failed or deleted source model looked like a slow load.\nConstraints: The row is absent for models:/<name>/<version> and alias sources, which keep the existing Copied from link. When adding a row, keep the Descriptions.Item label and data-testid stable, and in tests select rows by label text rather than by position. Tests should mock the full return shape of useGetLoggedModelQuery (isLoading, error, refetch, data) rather than a partial object cast to any.",
+  "applies": "Model Registry model version details page in the MLflow OSS UI, when deciding how a version's source logged model is shown or changed.",
+  "tags": [
+    "model-registry",
+    "ui",
+    "logged-models",
+    "model-version-page"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/model-registry/components/ModelVersionSourceModelLink.tsx",
+      "symbol": "ModelVersionSourceModelLink",
+      "hash": "sha256:d051c4bb25826067ad8337f3",
+      "line": 7,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:d051c4bb25826067ad8337f3",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 5
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/model-registry/components/ModelVersionView.tsx",
+      "symbol": "ModelVersionViewImpl",
+      "hash": "sha256:b0b46dc4ebd479fd3f10f16d",
+      "line": 81,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2da8ff7e204a7b90eeab0937",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 4
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/model-registry/components/ModelVersionView.tsx",
+      "symbol": "ModelVersionViewImpl.renderSourceModelDescription",
+      "hash": "sha256:4ec2a737d215bcd828241e36",
+      "line": 391,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4ec2a737d215bcd828241e36",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25727"
+  },
+  "created": "2026-10-12T05:46:08.172Z",
+  "verified": "2026-10-12T05:46:08.172Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "model-version-source-uri-parsing-only-a-single-segment-model"
+  ],
+  "says": [
+    "The model version details page does not link to the original logged model.",
+    "Cannot access artifacts from the version view when a model is registered outside a run.",
+    "Raw model identifier numbers flash on screen before the source model name resolves.",
+    "Show a loading skeleton on the version page while retrieving source model details.",
+    "Display a fallback identifier when the source model link cannot be retrieved."
+  ],
+  "search": "On the Model Registry model version details page, ModelVersionSourceModelLink renders a Source Model row only for sources matching models:/<model_id>. The component displays a ParagraphSkeleton while useGetLoggedModelQuery loads, falls back to a plain model ID on error or missing experiment ID, and otherwise links to the logged model details page. This row is omitted for alias or name-and-version sources, which preserve the existing Copied from row instead.",
+  "saysFor": "s2:84646ab0e32142ad8a5cc40ba2f6cd53e982d3535d14e36a97ae030445c5a5f1"
+}

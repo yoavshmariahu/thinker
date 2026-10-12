@@ -1,0 +1,54 @@
+{
+  "id": "ci-auto-retry-sweep-retry-yml-eligibility-is-the-auto-rerun",
+  "title": "CI auto-retry sweep (retry.yml): eligibility is the auto-rerun label, not author or auto-merge; label an open PR to opt it in",
+  "kind": "rule",
+  "answers": [
+    "Why isn't my human-authored PR getting its failed CI runs retried automatically?",
+    "Which PRs does the scheduled CI retry workflow pick up, and when does it run?",
+    "How do I opt a PR into automatic CI reruns without enabling auto-merge?"
+  ],
+  "body": "Path: .github/workflows/retry.yml (the Retry workflow, scheduled and workflow_dispatch) selects open, non-draft PRs created in the last three days for failed-CI reruns, drops merge-conflicting ones, then hands each `number sha` pair to retry.sh. Covers human, Dependabot, copilot-swe-agent, uv.lock and model-catalog PRs.\nRule: Eligibility is the `label:auto-rerun` term in the GraphQL search plus the `mergeable != CONFLICTING` jq filter. The old `author:app/dependabot`, `author:app/copilot-swe-agent` and `autoMergeRequest != null` requirements were removed. To opt a PR in, apply the label; removing it removes eligibility. Pagination, retry limits and DRY_RUN are unchanged.\nSymptom: PRs by humans, or bots not on the author list, never got reruns even when labeled for CI retry, because the sweep only looked at Dependabot and Copilot authors that had auto-merge enabled.\nConstraints: Schedule is `0,20,40 9-17 * * 1-5` in Asia/Tokyo (09:00–17:40 JST, weekdays, every 20 minutes). Auto-merge is not required for eligibility. Conflicting PRs are still skipped. The label must exist in the repo first (see the label note).",
+  "applies": "Automatic re-run of failed CI on open PRs in this repo via retry.yml; does not change auto-merge or merge gating.",
+  "tags": [
+    "ci",
+    "retry",
+    "github-actions",
+    "labels"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/retry.yml",
+      "hash": "sha256:d7b181d8eb96458cd5beacb3",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/retry.sh",
+      "hash": "sha256:fef211e1be0d4b81d0106e16",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26065"
+  },
+  "created": "2026-10-12T05:34:04.469Z",
+  "verified": "2026-10-12T05:34:04.469Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "retry-sh-rerun-notices-link-to-the-failed-run-attempt-attemp",
+    "retry-workflow-log-grouping-title-each-pr-group-with-its-ful",
+    "copilot-pr-scheduled-ci-retry-pr-selection-lives-in-retry-ym"
+  ],
+  "says": [
+    "Failed build checks on my pull request never restarted despite having the retry tag.",
+    "Allow automatic test reruns on pull requests without requiring auto merge to be enabled.",
+    "Scheduled test reruns did not pick up my open pull request during weekday hours.",
+    "Make the recurring check retry sweep run for developer pull requests, not just bots.",
+    "How can I opt my pull request into automatic retries for failed checks?"
+  ],
+  "search": "CI auto-retry workflow (.github/workflows/retry.yml and retry.sh) selects open, non-draft PRs created in the last three days for failed CI reruns based on the label:auto-rerun search term and mergeable != CONFLICTING filter. Eligibility no longer requires author:app/dependabot, author:app/copilot-swe-agent, or autoMergeRequest != null, allowing human, Dependabot, copilot-swe-agent, uv.lock, and model-catalog PRs to opt in by applying the label. Applies to automatic re-runs of failed CI on open PRs without changing auto-merge, merge gating, pagination, retry limits, or DRY_RUN. Runs on schedule 0,20,40 9-17 * * 1-5 in Asia/Tokyo, skips conflicting PRs, and requires the label to exist in the repository.",
+  "saysFor": "s2:277ede7610ef9ad2d43e0c931baa46d39928e7b56925f838d842e30e360907bc"
+}

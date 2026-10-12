@@ -1,0 +1,58 @@
+{
+  "id": "mlflow-assistant-chat-transcript-persistence-key-the-saved-c",
+  "title": "MLflow Assistant chat transcript persistence: key the saved conversation by username and seed it only after identity resolves",
+  "kind": "rule",
+  "answers": [
+    "Why does the MLflow Assistant panel show a previous user's conversation after another user signs in on the same browser?",
+    "Where is the assistant's saved chat history stored in localStorage, and how is it keyed?",
+    "How do I make another assistant setting or persisted field follow the signed-in user instead of being shared across the browser?",
+    "Where does the assistant decide whether to restore or write the conversation when auth is enabled?"
+  ],
+  "body": "Path: mlflow/server/js/src/assistant/AssistantContext.tsx:AssistantProvider reads the signed-in user via useCurrentUserQuery and owns the persisted chat transcript (messages and tokenUsage) for the MLflow Assistant panel, including restore on mount, persist after a turn settles, and clear on reset.\nRule: The storage key is `${CHAT_STORAGE_KEY_BASE}.${username}` when a username exists, else the base key (auth off). Seed messages/tokenUsage from getLocalStorageItem for that key only once isCurrentUserLoading is false, and gate setLocalStorageItem on seededChatKey === chatStorageKey. Do not use useLocalStorage for per-user data, because it reads its key once and cannot follow an identity change.\nSymptom: On an auth-enabled server sharing a browser origin, after user A's session ends and user B signs in, B's assistant panel restored and displayed A's transcript.\nConstraints: Applies to per-user browser-persisted state in the assistant. With auth off there is no username, so the base key is used and local behavior is unchanged. Keep the loading window (empty messages) from writing to any key.",
+  "applies": "Frontend MLflow Assistant chat persistence when the server has auth enabled; not for server-side session storage.",
+  "tags": [
+    "uiux",
+    "assistant",
+    "auth",
+    "localstorage",
+    "privacy"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/assistant/AssistantContext.tsx",
+      "symbol": "AssistantProvider",
+      "hash": "sha256:e53277cf544973312743edd7",
+      "line": 279,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e53277cf544973312743edd7",
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 10
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26009"
+  },
+  "created": "2026-10-12T05:34:31.544Z",
+  "verified": "2026-10-12T05:34:31.544Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "mlflow-assistant-identity-switch-reset-the-backend-session-b"
+  ],
+  "says": [
+    "Signing into the assistant panel shows the previous user's chat history on shared computers.",
+    "Keep assistant conversation history separate for each signed in account in the browser.",
+    "Logging in as a different user restores another person's questions in the assistant.",
+    "Ensure the AI assistant sidebar loads chat transcripts saved only for the current user.",
+    "Saved assistant messages leak across different user accounts on the same workstation."
+  ],
+  "search": "MLflow Assistant chat transcript persistence keys saved localStorage conversations by username using `${CHAT_STORAGE_KEY_BASE}.${username}` or the base key when authentication is disabled. `AssistantProvider` in `mlflow/server/js/src/assistant/AssistantContext.tsx` reads current user info via `useCurrentUserQuery` and seeds messages and `tokenUsage` only once `isCurrentUserLoading` is false, gating `setLocalStorageItem` on matching `seededChatKey`. `useLocalStorage` must not be used for per-user data because it cannot follow identity switches. Applies to frontend browser-persisted assistant state under auth, not server-side session storage, while preventing loading states from overwriting storage.",
+  "saysFor": "s2:f4b3c011539637f7fd5f92306bb663e8137b0a499ddaaaf0082b744d463c496c"
+}

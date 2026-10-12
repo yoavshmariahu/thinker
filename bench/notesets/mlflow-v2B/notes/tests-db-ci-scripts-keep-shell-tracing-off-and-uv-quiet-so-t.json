@@ -1,0 +1,59 @@
+{
+  "id": "tests-db-ci-scripts-keep-shell-tracing-off-and-uv-quiet-so-t",
+  "title": "tests/db CI scripts: keep shell tracing off and uv quiet so the database job log shows only pytest output and errors",
+  "kind": "rule",
+  "answers": [
+    "Why does the database CI job log repeat uv install output and a package list for every test container?",
+    "How do I make the tests/db container setup less noisy without hiding pytest failures?",
+    "Where is the shell command tracing for the database Docker Compose test containers turned on or off?",
+    "When I add a new command to tests/db/entrypoint.sh, should I use set -x or quiet uv flags?"
+  ],
+  "body": "Path: tests/db/entrypoint.sh (container start: uv sync into /opt/venv, optional MSSQL wait, then the test command), tests/db/compose.sh (Compose wrapper that tears down and runs `docker compose --project-directory tests/db`), and tests/db/check_migration.sh (pre-migration/post-migration database upgrade check). These run for every database test container in CI.\nRule: Use `set -e` only, not `set -ex`, in these scripts so commands are not echoed into the CI log. Pass `--quiet` to `uv sync` and to `uv export`/`uv run` in check_migration.sh, and do not add `uv pip list` or similar dependency dumps. Pytest output and error messages must still reach stdout/stderr, so do not redirect them away.\nSymptom: The database CI job log repeated uv dependency resolution output, a full installed-package list, and shell command traces (`+ uv sync ...`) for each test container, burying the actual pytest results.\nConstraints: This applies to the shell scripts under tests/db only. `set -e` must remain so a failing setup step still fails the job. The `> /dev/null` on the `uv export` line and the `docker compose down ... > /dev/null 2>&1` line discard stdout only or stdout+stderr for that teardown step; do not extend that pattern to pytest or to the setup commands that can fail.",
+  "applies": "Shell scripts in tests/db that run inside the database CI containers or wrap docker compose for them; not the mlflow application code or the packaged mlflow[db] extra.",
+  "tags": [
+    "area/build",
+    "tests",
+    "database",
+    "ci",
+    "logging"
+  ],
+  "deps": [
+    {
+      "path": "tests/db/entrypoint.sh",
+      "hash": "sha256:c8272ad3a3b7c4d9410bed19",
+      "missing": false
+    },
+    {
+      "path": "tests/db/compose.sh",
+      "hash": "sha256:7a0ba22e5f9116f89f1ef2cb",
+      "missing": false
+    },
+    {
+      "path": "tests/db/check_migration.sh",
+      "hash": "sha256:6bd7b4e41c3fa587548bd54b",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26304"
+  },
+  "created": "2026-10-12T05:31:17.491Z",
+  "verified": "2026-10-12T05:31:17.491Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "tests-db-check-migration-run-pre-migration-with-latest-pypi",
+    "tests-db-ci-containers-install-db-test-deps-from-uv-lock-at"
+  ],
+  "says": [
+    "Automated test logs for database services are flooded with installation output burying errors.",
+    "Make continuous integration build logs clean so database test failures are visible immediately.",
+    "Verbose dependency installation traces hide actual test failures in database check runs.",
+    "Database test execution screens show excessive package resolution details instead of results."
+  ],
+  "search": "Continuous integration scripts in tests/db disable shell command tracing and suppress uv output so job logs display only test output and errors. Scripts tests/db/entrypoint.sh, tests/db/compose.sh, and tests/db/check_migration.sh must use set -e rather than set -ex, pass --quiet to uv sync, uv export, and uv run, and omit package dumps like uv pip list. This guidance applies only to shell scripts in tests/db, requiring pytest output to remain visible on stdout and stderr while preserving set -e for setup failures.",
+  "saysFor": "s2:76a0d5df5bb73d85a9543061534e164e1395b642d30a9b87048a3c572beab2fa"
+}

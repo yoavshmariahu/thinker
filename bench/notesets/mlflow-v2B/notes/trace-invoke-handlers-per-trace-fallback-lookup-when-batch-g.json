@@ -1,0 +1,56 @@
+{
+  "id": "trace-invoke-handlers-per-trace-fallback-lookup-when-batch-g",
+  "title": "Trace invoke handlers: per-trace fallback lookup when batch_get_trace_infos is unsupported, and fail closed if neither lookup exists",
+  "kind": "rule",
+  "answers": [
+    "Why does the invoke endpoint fail with an error when my custom tracking store does not support batch trace lookup?",
+    "How does the trace ownership check behave for stores that only implement get_trace_info?",
+    "Why is a missing trace accepted by the scorer or issue detection invoke endpoint but a foreign one rejected?"
+  ],
+  "body": "Path: The trace-ownership lookup used by the issues/invoke, genai/evaluate/invoke and scorer/invoke endpoints, in mlflow/server/handlers.py:_validate_trace_ids_in_experiment, which calls tracking_store.batch_get_trace_infos.\nRule: Catch both MlflowNotImplementedException and bare NotImplementedError from batch_get_trace_infos, then fall back to get_trace_info per id. Drop only RESOURCE_DOES_NOT_EXIST (a missing trace is simply absent); re-raise all other MlflowException. If get_trace_info also raises NotImplementedError, let it propagate so the request fails closed rather than skipping the check.\nSymptom: Before the fix, a plugin store raising a bare NotImplementedError bypassed the fallback, and invoke requests could fail or skip the check depending on the store.\nConstraints: Input validation for the same endpoints is separate: trace_ids must be a non-empty list of strings (400 on empty or non-string items), and ids are de-duplicated with dict.fromkeys before lookup; keep these three endpoints aligned.",
+  "applies": "Trace-ownership checks in invoke handlers that run against a pluggable tracking store.",
+  "tags": [
+    "tracking-store",
+    "fallback",
+    "fail-closed",
+    "trace-ids"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/handlers.py",
+      "symbol": "_validate_trace_ids_in_experiment",
+      "hash": "sha256:e0a067d0fa110ff436bd457f",
+      "line": 5500,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e0a067d0fa110ff436bd457f",
+      "fanout": {
+        "files": 2,
+        "sites": 10,
+        "refs": 11
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25873"
+  },
+  "created": "2026-10-12T05:31:02.432Z",
+  "verified": "2026-10-12T05:31:02.432Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "trace-invoke-jobs-issue-detection-genai-evaluate-scorer-trac"
+  ],
+  "says": [
+    "Running evaluation or issue detection on traces fails with an unsupported storage error",
+    "Triggering trace scoring fails unexpectedly when connected to our custom storage backend",
+    "Trace evaluation jobs should check individual traces if batch retrieval is not supported",
+    "Issue detection crashes on custom backends that do not implement bulk trace lookups",
+    "Running scorer requests should fail securely when trace ownership cannot be verified"
+  ],
+  "search": "In mlflow/server/handlers.py:_validate_trace_ids_in_experiment, trace-ownership checks for issues/invoke, genai/evaluate/invoke, and scorer/invoke catch both MlflowNotImplementedException and bare NotImplementedError from tracking_store.batch_get_trace_infos to fall back to per-trace get_trace_info. RESOURCE_DOES_NOT_EXIST is dropped while other MlflowException errors are re-raised, and if get_trace_info raises NotImplementedError it propagates to fail closed. This applies to trace-ownership checks in invoke handlers against pluggable tracking stores, with separate input validation requiring non-empty string trace_ids de-duplicated with dict.fromkeys.",
+  "saysFor": "s2:3f0566e1e5ed2ab7b839307a8ee9626253349dbf3c194ec018634e571e9f3d92"
+}

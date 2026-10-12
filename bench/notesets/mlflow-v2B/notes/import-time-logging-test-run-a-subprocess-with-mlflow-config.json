@@ -1,0 +1,53 @@
+{
+  "id": "import-time-logging-test-run-a-subprocess-with-mlflow-config",
+  "title": "import-time logging test: run a subprocess with MLFLOW_CONFIGURE_LOGGING=0 and host root logging, then count stderr",
+  "kind": "howto",
+  "answers": [
+    "How do I write a test that checks an MLflow module emits no logs when imported under a user's own logging config?",
+    "Why does my subprocess test still get MLflow's logging handlers even after setting a logging env var?",
+    "How do I assert a particular warning text appears exactly once on stderr from a fresh interpreter?"
+  ],
+  "body": "Path: tests/types/test_type_hints.py test for import-time logging of mlflow.types.responses; it launches a fresh interpreter via subprocess.run so module-level code runs once and sees a clean logging setup.\nRule: to test import-time logging, run `sys.executable -c` in a subprocess, configure root logging in the code string with logging.basicConfig before importing the module, copy os.environ, pop MLFLOW_LOGGING_CONFIGURE_LOGGING, and set MLFLOW_CONFIGURE_LOGGING=0 so MLflow does not install its own handlers. Then assert on result.stderr with count() for the expected message and absence checks for the unexpected variant.\nConstraints: an in-process test cannot re-trigger module-level imports reliably, so use a subprocess. The test also checks that an ordinary union warning called after import still appears, so the suppression is not over-broad.",
+  "applies": "Tests that verify warning or log output produced at import time in mlflow modules.",
+  "tags": [
+    "testing",
+    "logging",
+    "subprocess",
+    "mlflow.types.responses"
+  ],
+  "deps": [
+    {
+      "path": "tests/types/test_type_hints.py",
+      "symbol": "test_import_responses_suppresses_expected_schema_inference_warnings",
+      "hash": "sha256:bf82e4398962d0efeefeab37",
+      "line": 31,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:b84652fd9360777e27ca796f",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26033"
+  },
+  "created": "2026-10-12T05:33:52.852Z",
+  "verified": "2026-10-12T05:33:52.852Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Importing the package prints unwanted schema inference warnings to the console output.",
+    "Unwanted log messages appear in the terminal when importing under custom logging configurations.",
+    "Stop emitting unexpected warning messages to standard error during module import.",
+    "Legitimate union type warnings should still be displayed after the initial import."
+  ],
+  "search": "Import-time logging tests in tests/types/test_type_hints.py verify module warning suppression by spawning a subprocess with sys.executable, setting MLFLOW_CONFIGURE_LOGGING=0, and configuring root logging with logging.basicConfig. Applies to tests verifying log or warning output emitted at import time, such as schema inference warnings in mlflow.types.responses. The test pops MLFLOW_LOGGING_CONFIGURE_LOGGING, inspects result.stderr with count() for expected warnings, and asserts that post-import union warnings are not suppressed.",
+  "saysFor": "s2:fd469b5f07af7bf0d90298a61c3d2e817a1f8cdff3fa4315549d907a48ca1c6d"
+}

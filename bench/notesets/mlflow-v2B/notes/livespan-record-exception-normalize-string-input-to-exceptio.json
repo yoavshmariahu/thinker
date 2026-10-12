@@ -1,0 +1,100 @@
+{
+  "id": "livespan-record-exception-normalize-string-input-to-exceptio",
+  "title": "LiveSpan.record_exception: normalize string input to Exception before building the event and status description",
+  "kind": "rule",
+  "answers": [
+    "Why does span.record_exception with a plain string show 'str: <message>' as the span status description?",
+    "How do I record an error message string on a trace span so the status and exception event agree?",
+    "Where is LiveSpan.record_exception handled for string versus Exception arguments?",
+    "What exception type should the span status description and event show when I pass a string to record_exception?"
+  ],
+  "body": "Path: mlflow/entities/span.py:LiveSpan.record_exception handles user calls that record an error on a live trace span, passing either an Exception instance or a plain string; it adds a SpanEvent and sets the span's ERROR status description.\nRule: Convert a string argument to Exception(...) as the first step, before the isinstance dispatch, so the event and the status description are both derived from the same Exception object. Do not branch on the raw argument type after that point; the description must not be built from the original str.\nSymptom: Calling span.record_exception(\"Something went wrong\") set the status description to 'str: Something went wrong' while the recorded event read 'Exception: Something went wrong', so the two disagreed in the trace UI and API.\nConstraints: Applies to LiveSpan.record_exception in the tracing entity. Non-string, non-Exception inputs still raise MlflowException. Test pattern: tests/tracing/test_fluent.py:test_span_record_exception_with_string asserts status.description == 'Exception: Something went wrong'.",
+  "applies": "Tracing span error recording via LiveSpan.record_exception with string or Exception inputs.",
+  "tags": [
+    "tracing",
+    "span",
+    "record_exception",
+    "bug-fix",
+    "status-description"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "LiveSpan.record_exception",
+      "hash": "sha256:2ac4483e09d9a7c17dfdd0d1",
+      "line": 1111,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2ac4483e09d9a7c17dfdd0d1",
+      "fanout": {
+        "files": 14,
+        "sites": 20,
+        "refs": 20
+      }
+    },
+    {
+      "path": "tests/tracing/test_fluent.py",
+      "symbol": "test_span_record_exception_with_string",
+      "hash": "sha256:5f1c6a075f60fd5cd93cf647",
+      "line": 2016,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:5f1c6a075f60fd5cd93cf647",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "mlflow/entities/span.py",
+      "symbol": "record_exception",
+      "hash": "sha256:2ac4483e09d9a7c17dfdd0d1",
+      "line": 1111,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2ac4483e09d9a7c17dfdd0d1",
+      "fanout": {
+        "files": 14,
+        "sites": 20,
+        "refs": 20
+      }
+    },
+    {
+      "path": "libs/typescript/core/src/core/entities/span_status.ts",
+      "symbol": "description",
+      "hash": "sha256:abae76447bc9894851e0459c",
+      "line": 34,
+      "missing": false,
+      "engine": "ast",
+      "fanout": {
+        "files": 367,
+        "sites": 7,
+        "refs": 1994
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26171"
+  },
+  "created": "2026-10-12T05:29:11.202Z",
+  "verified": "2026-10-12T05:29:11.202Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "span-dict-style-get-tracing-span-entity-raise-a-guiding-attr",
+    "span-subscript-access-span-key-on-tracing-spans-raise-a-guid",
+    "span-class-with-getitem-set-iter-none-so-iter-span-and-x-in"
+  ],
+  "says": [
+    "The trace viewer displays mismatched error descriptions between the span status and recorded events.",
+    "Span status text in the trace UI shows a strange string prefix on errors.",
+    "Ensure the error message format is consistent across trace span status and event logs.",
+    "Logging an error string produces conflicting exception descriptions in the trace view."
+  ],
+  "search": "In mlflow/entities/span.py:LiveSpan.record_exception, string inputs must be converted to Exception objects before isinstance dispatch so the SpanEvent and ERROR status description are built consistently. Previously, passing a string set the status description to 'str: <message>' while the event recorded 'Exception: <message>', causing disagreement in trace APIs and the UI. Non-string and non-Exception arguments still raise MlflowException, as verified in tests/tracing/test_fluent.py:test_span_record_exception_with_string.",
+  "saysFor": "s2:1eb9953ad7c6fc52533ced56ceefe26e9cf0a058b3866b329337c388bcc503b3"
+}

@@ -1,0 +1,85 @@
+{
+  "id": "protect-js-check-status-logging-keep-a-github-skipped-conclu",
+  "title": "protect.js check status logging: keep a GitHub 'skipped' conclusion as its own STATE, separate from success, while still passing the gate",
+  "kind": "rule",
+  "answers": [
+    "Why does the protect workflow log show a skipped check as ✅ success?",
+    "Does a skipped optional check still let the PR's protection complete?",
+    "Where are check-run and workflow-run conclusions mapped to the status shown in the protect logs?",
+    "How do I add a new conclusion state to the protect check logs without changing the merge gate?"
+  ],
+  "body": "Path: .github/workflows/protect.js:module.exports polls a PR's check runs and workflow runs, maps each GitHub conclusion to a STATE value in the status mapping for both check runs and workflow runs, prints one line per check with an icon, and decides when protection completes (the \"All checks passed or were skipped\" branch).\nRule: map conclusion \"skipped\" to STATE.skipped, separately from \"success\", in both mapping sites (check-run status and workflow-run status). Render STATE.skipped as ⏭️ in the logging forEach. The completion predicate accepts status === STATE.success || status === STATE.skipped, so a skipped check passes without being reported as success. Keep \"cancelled\" mapped to STATE.failure.\nSymptom: skipped checks were logged as ✅ success because the mapping was `conclusion === \"success\" || conclusion === \"skipped\"` → success, so the log implied the check ran and passed.\nConstraints: the merge-gate outcome is unchanged; skipped was already treated as passing before and still is. Only the label changes. When adding a new conclusion, give it its own STATE key and icon, and make sure it does not fall through to STATE.failure unless it should block protection.",
+  "applies": "GitHub Actions protect.js check polling and logging in .github/workflows; applies to changes to how check-run or workflow-run conclusions are labelled or gated.",
+  "tags": [
+    "github-actions",
+    "protect",
+    "checks",
+    "skipped",
+    "ci"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/protect.js",
+      "symbol": "STATE",
+      "hash": "sha256:642f9156a0739ea0b82bb89e",
+      "line": 34,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:642f9156a0739ea0b82bb89e",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 18
+      }
+    },
+    {
+      "path": ".github/workflows/protect.js",
+      "symbol": "STATE",
+      "hash": "sha256:642f9156a0739ea0b82bb89e",
+      "line": 34,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:642f9156a0739ea0b82bb89e",
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 18
+      }
+    },
+    {
+      "path": ".github/workflows/protect.js",
+      "symbol": "conclusion",
+      "hash": "sha256:853bd55f088328bb02b5419f",
+      "line": 62,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 11
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25737"
+  },
+  "created": "2026-10-12T05:45:49.197Z",
+  "verified": "2026-10-12T05:45:49.197Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "protect-workflow-check-status-logging-print-checks-sorted-by",
+    "protect-workflow-rate-limit-logging-read-x-ratelimit-remaini",
+    "protect-js-poll-cadence-the-first-two-sleeps-after-the-immed"
+  ],
+  "says": [
+    "Skipped workflow runs show up as successful checks with a green mark in logs.",
+    "Show a distinct skip icon for skipped pull request checks instead of reporting success.",
+    "Why does the pull request protection log claim that skipped jobs passed?",
+    "Allow skipped optional checks to pass the merge gate while displaying as skipped."
+  ],
+  "search": "In .github/workflows/protect.js, map GitHub check-run and workflow-run conclusions of 'skipped' to STATE.skipped rendered with ⏭️, separate from STATE.success rendered with ✅. The completion predicate accepts status === STATE.success || status === STATE.skipped, allowing skipped checks to pass the merge gate while keeping 'cancelled' mapped to STATE.failure. The merge-gate outcome remains unchanged, and any new conclusion must receive its own STATE key and icon rather than falling through to failure.",
+  "saysFor": "s2:b87dcde876e1429d17b8bba108152b5fb11ff48423e803716e59cde9e885788f"
+}

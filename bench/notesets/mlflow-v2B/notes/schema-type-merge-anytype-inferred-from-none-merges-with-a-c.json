@@ -1,0 +1,115 @@
+{
+  "id": "schema-type-merge-anytype-inferred-from-none-merges-with-a-c",
+  "title": "schema type merge: AnyType (inferred from None) merges with a concrete type in either order, keeping required as the conjunction",
+  "kind": "rule",
+  "answers": [
+    "infer_signature drops input schema to AnyType when a None field appears after a concrete value in a list of chat messages",
+    "Why does merging a None-valued field into a list of objects give a different signature depending on element order?",
+    "Where is schema merging of Property, Array and Map types handled when one side is AnyType?",
+    "Does a Map or Array of long still raise when merged with a string-typed one during signature inference?"
+  ],
+  "body": "Path: Signature inference for list/dict inputs (e.g. OpenAI-style chat histories, nested objects inside lists) merges the per-element inferred types. The chokepoint is mlflow/types/schema.py:Property._merge, Array._merge and Map._merge, which combine the dtype of each element with the dtype of the next.\nRule: AnyType (the type inferred for a value that is None) must be accepted on the right-hand side of these three _merge methods, mirroring AnyType._merge on the left, so the result does not depend on whether None came first or second. Keep required as the logical AND of both sides, and keep raising MlflowException for incompatible concrete types (e.g. long vs string).\nSymptom: infer_signature succeeded when the None-valued message was first in a list but raised \"Expected all values in the list to be of the same type\" or silently fell back to Schema([ColSpec(AnyType())]) when it came later, so the logged model lost input validation.\nConstraints: Applies to merging inside a list or dict during signature inference. Does not change how None alone is typed or how a concrete-vs-concrete mismatch is reported. Nested values (Array(Array), Array(Object), Map(Object), Object with a nested AnyType property) are covered by the same check because they recurse through the same _merge methods.",
+  "applies": "Schema type merging in mlflow/types/schema.py used by infer_signature for lists and dicts that contain None values; not for dtype inference of single scalars.",
+  "tags": [
+    "models",
+    "signature",
+    "schema",
+    "infer_signature",
+    "anytype",
+    "merge"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/types/schema.py",
+      "symbol": "Property._merge",
+      "hash": "sha256:1bdcaaaf73aa9bd801c132b5",
+      "line": 262,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1bdcaaaf73aa9bd801c132b5",
+      "fanout": {
+        "files": 3,
+        "sites": 16,
+        "refs": 17
+      }
+    },
+    {
+      "path": "mlflow/types/schema.py",
+      "symbol": "Array._merge",
+      "hash": "sha256:dfaeb7e77c436928902eef5a",
+      "line": 552,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:dfaeb7e77c436928902eef5a",
+      "fanout": {
+        "files": 3,
+        "sites": 16,
+        "refs": 17
+      }
+    },
+    {
+      "path": "mlflow/types/schema.py",
+      "symbol": "Map._merge",
+      "hash": "sha256:4bf2335686efb362d82263fd",
+      "line": 666,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:4bf2335686efb362d82263fd",
+      "fanout": {
+        "files": 3,
+        "sites": 16,
+        "refs": 17
+      }
+    },
+    {
+      "path": "mlflow/types/schema.py",
+      "symbol": "AnyType._merge",
+      "hash": "sha256:a60ac04c0bf1f935bc2a775d",
+      "line": 715,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a60ac04c0bf1f935bc2a775d",
+      "fanout": {
+        "files": 3,
+        "sites": 16,
+        "refs": 17
+      }
+    },
+    {
+      "path": "mlflow/types/schema.py",
+      "symbol": "AnyType",
+      "hash": "sha256:0e8da1da79d5d45ebbca3e1c",
+      "line": 685,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0e8da1da79d5d45ebbca3e1c",
+      "fanout": {
+        "files": 14,
+        "sites": 80,
+        "refs": 151
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26260"
+  },
+  "created": "2026-10-12T05:31:35.601Z",
+  "verified": "2026-10-12T05:31:35.601Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "dataclass-signature-schema-nested-dataclass-fields-must-be-r"
+  ],
+  "says": [
+    "Model input signature inference fails when a list contains null values after populated entries.",
+    "Input schema detection produces different types depending on the order of missing values in messages.",
+    "Logged models lose input validation when chat message lists contain empty or missing fields.",
+    "Chat history schema should infer the same type regardless of where null elements appear.",
+    "List inputs with null fields trigger schema mismatch errors during model signature logging."
+  ],
+  "search": "In model signature inference for lists and dicts in mlflow/types/schema.py, Property._merge, Array._merge, and Map._merge must accept AnyType on the right-hand side so type merging is commutative when elements contain None. The merge keeps required as the logical conjunction of both sides and continues raising MlflowException on incompatible concrete types. This applies to list or dict inputs such as chat histories and nested structures, covering recursive cases like Array(Array), Array(Object), Map(Object), and Objects with nested AnyType properties. It does not change type inference for single standalone scalars or alter how concrete type mismatches are reported.",
+  "saysFor": "s2:435cba7c189172f40b665efeadcf7772ae614d34ddc4b806956c982d31df80be"
+}

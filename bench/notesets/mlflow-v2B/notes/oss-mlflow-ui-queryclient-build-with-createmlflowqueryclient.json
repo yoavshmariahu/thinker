@@ -1,0 +1,86 @@
+{
+  "id": "oss-mlflow-ui-queryclient-build-with-createmlflowqueryclient",
+  "title": "OSS MLflow UI QueryClient: build with createMlflowQueryClient so queries run while navigator.onLine is false",
+  "kind": "rule",
+  "answers": [
+    "Why does the MLflow UI show a blank loading skeleton and make no API calls even though the server responds?",
+    "Where is the React Query client for the OSS MLflow UI and the model trace notebook renderer created?",
+    "If I add a new top-level query in the OSS UI, will it still run when the browser reports offline?",
+    "Why does the notebook trace explorer hang on a skeleton when navigator.onLine is false?"
+  ],
+  "body": "Path: shared/web-shared/query-client/createMlflowQueryClient.ts:createMlflowQueryClient builds the QueryClient for both OSS entry points: the main app shell (src/app.tsx:MLFlowRoot) and the standalone model trace notebook renderer (shared/web-shared/model-trace-explorer/oss-notebook-renderer/bootstrap.tsx:AppComponent). Every MLflow UI query, including the serverInfo query that gates router creation, passes through it.\nRule: Create OSS query clients through createMlflowQueryClient, not a bare `new QueryClient()`. It sets defaultOptions.queries.networkMode to 'always'. React Query's default 'online' mode pauses a query before queryFn runs whenever navigator.onLine is false, and that flag can latch false while the server is reachable.\nSymptom: With navigator.onLine reporting false, the UI stayed on a loading skeleton with empty #root and zero API requests. No error or console output, and the same server returned 200 to fetch() from the page console. The notebook trace explorer hung the same way.\nConstraints: Setting networkMode only on the serverInfo query is not enough; other data queries stay paused and the page renders empty tables. The default is applied client-wide on purpose. This is a deliberate exception to the no-singleton-query-client lint rule, which the factory disables inline.",
+  "applies": "OSS MLflow UI and notebook trace renderer under mlflow/server/js/src; does not cover Databricks-internal clients that build their own QueryClient.",
+  "tags": [
+    "react-query",
+    "querycliet",
+    "offline",
+    "navigator.online",
+    "mlflow-ui",
+    "startup-hang"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/js/src/shared/web-shared/query-client/createMlflowQueryClient.ts",
+      "symbol": "createMlflowQueryClient",
+      "hash": "sha256:3ac4327183320a197086367d",
+      "line": 3,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:1d211a1ef7c24f52bbf7a853",
+      "fanout": {
+        "files": 4,
+        "sites": 5,
+        "refs": 11
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/app.tsx",
+      "symbol": "MLFlowRoot",
+      "hash": "sha256:3c6de88e793084df0bd1e627",
+      "line": 27,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:3c6de88e793084df0bd1e627",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/js/src/shared/web-shared/model-trace-explorer/oss-notebook-renderer/bootstrap.tsx",
+      "symbol": "AppComponent",
+      "hash": "sha256:380ce90c95028843299a00aa",
+      "line": 54,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:380ce90c95028843299a00aa",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25961"
+  },
+  "created": "2026-10-12T05:30:38.229Z",
+  "verified": "2026-10-12T05:30:38.229Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "shared-web-shared-query-client-import-the-queryclient-throug"
+  ],
+  "says": [
+    "The tracking web interface hangs indefinitely on a blank loading skeleton without loading data.",
+    "Notebook trace explorer gets stuck on a loading screen when working without internet access.",
+    "The dashboard displays empty tables and stops requesting data when the browser detects offline status.",
+    "Make the web console connect to local servers even when disconnected from the internet."
+  ],
+  "search": "In mlflow/server/js/src, QueryClient instances for the open-source MLflow UI shell (app.tsx:MLFlowRoot) and notebook trace renderer (bootstrap.tsx:AppComponent) must be constructed with createMlflowQueryClient. The factory configures defaultOptions.queries.networkMode to 'always', ensuring queries run even when navigator.onLine latches false. This client-wide default applies across all OSS queries, but does not cover Databricks-internal query clients.",
+  "saysFor": "s2:7fd43c9ab803531b0d94e68318039b717ae10b8b242beea262fd2fb27abb1603"
+}

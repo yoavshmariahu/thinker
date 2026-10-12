@@ -1,0 +1,73 @@
+{
+  "id": "scorer-utils-recreate-function-parse-saved-signature-with-as",
+  "title": "scorer_utils recreate_function: parse saved signature with ast, never regex up to the first ')'",
+  "kind": "rule",
+  "answers": [
+    "Loading a saved custom @scorer fails with 'Failed to recreate function from source code' and invalid syntax when a default value has parentheses",
+    "Why can't my scorer be loaded back after saving when its signature has a tuple or call default?",
+    "Where does MLflow rebuild a custom scorer's function from its saved source and signature?",
+    "How are scorer parameter lists parsed when a default or annotation contains ')' or '('?"
+  ],
+  "body": "Path: mlflow/genai/scorers/scorer_utils.py:recreate_function rebuilds a custom @scorer function from its saved source, `str(inspect.signature(func))` and name when a scorer is loaded back (e.g. deserialized evaluation scorers). Parameter list handling goes through mlflow/genai/scorers/scorer_utils.py:_extract_params_from_signature.\nRule: Extract the parameter list by parsing the signature with `ast.parse(f\"def _f{signature}: pass\")` and returning `ast.unparse(func_def.args)`; nothing is executed. Do not use a regex such as `\\((.*?)\\)`, which stops at the first ')' inside a default or annotation. Invalid input raises MlflowException with INVALID_PARAMETER_VALUE.\nSymptom: A scorer such as `def has_keywords(outputs, keywords=(\"refund\", \"order\")) -> bool` saved without error but could never be loaded; the load failed with an invalid-syntax error on the rebuilt def line.\nConstraints: The return annotation is still dropped on rebuild, as before. The function requires the signature to start with '('; anything else is rejected. Applies to signature parsing only, not to the source body extraction.",
+  "applies": "Loading/recreating saved custom scorer functions in mlflow/genai/scorers; any change to how scorer signatures are parsed on load.",
+  "tags": [
+    "genai",
+    "scorers",
+    "evaluation",
+    "serialization",
+    "bug-fix"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/genai/scorers/scorer_utils.py",
+      "symbol": "recreate_function",
+      "hash": "sha256:9d4dfbb23cd495f54ea42b42",
+      "line": 144,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9d4dfbb23cd495f54ea42b42",
+      "fanout": {
+        "files": 2,
+        "sites": 25,
+        "refs": 27
+      }
+    },
+    {
+      "path": "mlflow/genai/scorers/scorer_utils.py",
+      "symbol": "_extract_params_from_signature",
+      "hash": "sha256:16c12d1f26bc9768e9a9c5e0",
+      "line": 130,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:16c12d1f26bc9768e9a9c5e0",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26172"
+  },
+  "created": "2026-10-12T05:29:12.750Z",
+  "verified": "2026-10-12T05:29:12.750Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "server-side-scorer-registration-and-invoke-decorator-call-so",
+    "third-party-scorer-deserialization-match-the-allow-listed-mo"
+  ],
+  "says": [
+    "Loading a saved custom evaluation scorer fails if default arguments contain tuples or parentheses.",
+    "Custom scorers with tuple defaults save successfully but crash with syntax errors on reload.",
+    "Allow deserializing saved evaluators whose parameter definitions include parentheses in default values.",
+    "Cannot restore saved evaluation metrics that use function calls or tuples as default parameters.",
+    "Evaluation runs fail to reconstruct saved custom scoring functions with complex parameter defaults."
+  ],
+  "search": "Recreating saved custom @scorer functions in mlflow/genai/scorers/scorer_utils.py must parse signatures using ast instead of regex to support default values and annotations containing parentheses. In _extract_params_from_signature, the signature string is parsed into an abstract syntax tree via ast.parse and unpacked with ast.unparse on the function arguments without executing code. Signatures not beginning with '(' raise MlflowException with INVALID_PARAMETER_VALUE, while return annotations are dropped on rebuild as before. This applies only to signature parameter extraction when deserializing evaluation scorers, not to extracting the function source body.",
+  "saysFor": "s2:cbb380c498ee90d43c37179ccfeeb890d8cca66603c82a6afef5353aa3e655be"
+}

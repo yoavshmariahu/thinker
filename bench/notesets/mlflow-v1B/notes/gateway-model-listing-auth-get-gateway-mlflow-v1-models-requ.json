@@ -1,0 +1,143 @@
+{
+  "id": "gateway-model-listing-auth-get-gateway-mlflow-v1-models-requ",
+  "title": "gateway model listing auth: GET /gateway/mlflow/v1/models requires login, then each endpoint is filtered by USE permission in the response filter",
+  "kind": "rule",
+  "answers": [
+    "Users see gateway endpoints in client.models.list() or /gateway/mlflow/v1/models that they have no USE permission on",
+    "Why does an unauthenticated call to the OpenAI-compatible gateway models list return 401 while chat completions behave differently?",
+    "How do I make a new gateway list route filter results by endpoint permission under basic auth?",
+    "Where is the per-endpoint permission filtering for the gateway models response done?"
+  ],
+  "body": "Path: `GET /gateway/mlflow/v1/models`, the OpenAI-compatible model discovery used by `client.models.list()` and by clients that pick a gateway endpoint name for the `model` parameter. Basic-auth gating runs in `mlflow/server/auth/__init__.py:_get_gateway_validator`, and per-result filtering runs in `mlflow/server/auth/__init__.py:_filter_list_gateway_models` through `FASTAPI_ENDPOINT_RESPONSE_FILTERS`.\nRule: For this list route the path validator only requires authentication (`_get_require_authentication_validator`), not a per-request permission check. The response filter then drops each item in `data` whose `id` fails `_validate_gateway_use_permission(model[\"id\"], username)`. The model `id` is the gateway endpoint name, so the filter keys on the name. A new list-style gateway route needs both pieces: a special case in `_get_gateway_validator` and a response-filter entry keyed on the route function in `FASTAPI_ENDPOINT_RESPONSE_FILTERS`.\nConstraints: Applies to the basic-auth app only. Per-item permission checks are accepted because the code comment says discovery is infrequent. The tests show that admins see all named endpoints in the active workspace, and that the listing is isolated by the `X-MLFLOW-WORKSPACE` header. Requests that carry no credentials get 401 from the route validator before any filtering runs.\nApplies: Authentication and permission filtering for the gateway OpenAI-compatible models listing and any similar gateway list route under the basic-auth app.",
+  "applies": "Basic-auth route validation and response filtering for GET /gateway/mlflow/v1/models and similar gateway list routes.",
+  "tags": [
+    "gateway",
+    "auth",
+    "permissions",
+    "openai-compatible",
+    "models-list"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_get_gateway_validator",
+      "hash": "sha256:e002651ad053e29267feee55",
+      "line": 5460,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e002651ad053e29267feee55",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_filter_list_gateway_models",
+      "hash": "sha256:60410ca3d2c81358f6924608",
+      "line": 5935,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:60410ca3d2c81358f6924608",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "model",
+      "hash": "sha256:c6de148882ca808b9a4f542a",
+      "line": 967,
+      "missing": false,
+      "fanout": {
+        "files": 276,
+        "sites": 47,
+        "refs": 1998
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_get_gateway_validator",
+      "hash": "sha256:e002651ad053e29267feee55",
+      "line": 5460,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e002651ad053e29267feee55",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_filter_list_gateway_models",
+      "hash": "sha256:60410ca3d2c81358f6924608",
+      "line": 5935,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:60410ca3d2c81358f6924608",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "symbol": "_get_require_authentication_validator",
+      "hash": "sha256:f4e3a8f0c74c6adf053adc6c",
+      "line": 5708,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:f4e3a8f0c74c6adf053adc6c",
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "mlflow/server/gateway_api.py",
+      "symbol": "list_models",
+      "hash": "sha256:e932f1a2c66a6d5a8ad1f052",
+      "line": 989,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e932f1a2c66a6d5a8ad1f052",
+      "fanout": {
+        "files": 12,
+        "sites": 28,
+        "refs": 39
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25940"
+  },
+  "created": "2026-10-12T05:42:30.826Z",
+  "verified": "2026-10-12T05:42:30.826Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "basic-auth-fail-closed-backstop-only-response-filters-filter",
+    "basic-auth-model-version-create-read-on-the-source-run-or-lo",
+    "basic-auth-request-validators-parse-the-json-body-through-th",
+    "basic-auth-gateway-secret-model-definition-and-endpoint-vali"
+  ],
+  "says": [
+    "Users see AI gateway endpoints in the model catalog that they lack permission to use.",
+    "The model dropdown lists gateway endpoints that fail with permission errors when called.",
+    "Hide restricted gateway models from the available models list for non-admin team members.",
+    "Unauthenticated requests to browse gateway models should be prompted to log in first.",
+    "Filter out gateway endpoints from the model selection list when users lack use access."
+  ],
+  "search": "Under basic auth, `GET /gateway/mlflow/v1/models` requires authentication via `_get_gateway_validator` with `_get_require_authentication_validator`, then filters each returned item in `data` against `_validate_gateway_use_permission(model[\"id\"], username)` using `_filter_list_gateway_models` registered in `FASTAPI_ENDPOINT_RESPONSE_FILTERS`. The model `id` is the gateway endpoint name, so per-item filtering keys on that name. A new list-style gateway route under basic auth requires a validator special case and a response filter entry in `FASTAPI_ENDPOINT_RESPONSE_FILTERS`. This applies only to the basic-auth app, unauthenticated requests return 401 before filtering, admins see all endpoints in the active workspace, and listings isolate by `X-MLFLOW-WORKSPACE`.",
+  "saysFor": "s2:31c67b21fca1d8e415b842cb64138474bc02e9ef8cdfb87475f7b951714dc652"
+}

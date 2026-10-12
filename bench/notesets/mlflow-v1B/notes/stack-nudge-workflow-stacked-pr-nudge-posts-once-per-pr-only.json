@@ -1,0 +1,61 @@
+{
+  "id": "stack-nudge-workflow-stacked-pr-nudge-posts-once-per-pr-only",
+  "title": "Stack Nudge workflow: stacked-PR nudge posts once per PR, only for member/owner/collaborator authors, and skips native stacks",
+  "kind": "rule",
+  "answers": [
+    "Why did the bot post a 'use GitHub native stacks' comment on my PR?",
+    "Why does the stacked PR nudge repeat every time I edit the PR description?",
+    "Which authors trigger the stacked PR nudge, and how do I exclude native stacks or bots?",
+    "Where is the duplicate-suppression marker for the stack nudge checked?"
+  ],
+  "body": "Path: .github/workflows/stack-nudge.yml:nudge job, triggered by pull_request_target opened/edited. It posts the stacked-PR recommendation when the PR body contains the phrase \"🥞 Stacked PR\" and the author is not a Bot and has author_association MEMBER, OWNER, or COLLABORATOR, and the PR is not already a native stack (github.event.pull_request.stack is empty).\nRule: Before commenting, read existing PR comments with `gh pr view --json comments` and skip if a comment by login `github-actions` contains the hidden marker `<!-- mlflow-stack-nudge -->`. Match the login `github-actions` (the GraphQL login gh returns), not `github-actions[bot]` (the REST login); the wrong login makes the marker check never match.\nSymptom: Each qualifying `edited` event posted another nudge comment, because the duplicate check never recognized the bot's earlier comment.\nConstraints: Applies to this workflow only. The job runs under pull_request_target, so it uses inline shell and gh without checking out the repository. Does not cover the advice.js advice comment.",
+  "applies": "Stacked-PR nudge comments on pull requests in the MLflow repo's GitHub Actions workflows.",
+  "tags": [
+    "github-actions",
+    "pull-request",
+    "stacked-prs",
+    "workflow"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/stack-nudge.yml",
+      "hash": "sha256:56ded5799d7874b5e36a99b7",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/advice.js",
+      "symbol": "comments",
+      "hash": "sha256:82ea3eaa42c6e6f03fdf61ab",
+      "line": 108,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:82ea3eaa42c6e6f03fdf61ab",
+      "fanout": {
+        "files": 12,
+        "sites": 0,
+        "refs": 26
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25846"
+  },
+  "created": "2026-10-12T05:44:30.286Z",
+  "verified": "2026-10-12T05:44:30.286Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "stacked-pr-advice-handled-by-the-stack-nudge-workflow-not-th"
+  ],
+  "says": [
+    "The automated bot repeatedly posts stacked pull request advice every time I edit the description.",
+    "Why does the pull request helper keep posting duplicate comments about native stacked changes?",
+    "The stacked pull request nudge should only post once per pull request instead of repeating.",
+    "Stop the pull request bot from spamming stack recommendations when updating the overview text."
+  ],
+  "search": "In .github/workflows/stack-nudge.yml:nudge, suppress duplicate stacked-PR nudge comments on PR open and edit events by reading existing comments with gh pr view --json comments and matching the hidden marker <!-- mlflow-stack-nudge --> under login github-actions. Matching github-actions instead of github-actions[bot] prevents repeated nudge comments on every qualifying PR edit event. The workflow triggers when the PR body contains '🥞 Stacked PR', the author is not a bot, has author_association MEMBER, OWNER, or COLLABORATOR, and github.event.pull_request.stack is empty. The job runs under pull_request_target using inline shell and gh without checking out the repository, and does not cover advice.js.",
+  "saysFor": "s2:9ccf339b04215d70f27e8546da307a9b65363d2a9b2856a089000a132cca5abe"
+}

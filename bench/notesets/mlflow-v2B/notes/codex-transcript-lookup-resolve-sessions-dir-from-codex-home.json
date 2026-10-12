@@ -1,0 +1,60 @@
+{
+  "id": "codex-transcript-lookup-resolve-sessions-dir-from-codex-home",
+  "title": "Codex transcript lookup: resolve sessions dir from CODEX_HOME, treating empty as unset",
+  "kind": "rule",
+  "answers": [
+    "Codex trace enrichment is missing model, tool calls and token usage when Omnigent or another launcher uses a custom Codex home",
+    "Where does the Codex integration find rollout transcript files for a thread ID?",
+    "How do I make the Codex integration read sessions from a non-default CODEX_HOME?",
+    "Why does an empty CODEX_HOME environment variable send transcript lookup to the wrong directory?"
+  ],
+  "body": "Path: Codex integration transcript discovery. Handles finding the rollout JSONL for a thread ID so enrichment can add model, tool calls and results, span timing and token usage to a Codex trace. Chokepoint: libs/typescript/integrations/codex/src/transcript.ts:findTranscriptForThread, which searches the sessions directory under the Codex home.\nRule: Resolve the Codex home as `process.env.CODEX_HOME || join(homedir(), '.codex')` and then look under `<home>/sessions`. Use `||`, not `??`, so an empty CODEX_HOME falls back to ~/.codex, matching how Codex itself treats an empty value as unset. Keep the legacy home-directory path when the variable is unset or empty.\nSymptom: Traces for Codex runs under a custom CODEX_HOME (for example Omnigent-launched Codex) showed only notify-payload data, with no model, tool calls, timing or token usage, because the transcript was never found. When the launcher forwarded an empty CODEX_HOME, the lookup searched the wrong directory and also missed the transcript.\nConstraints: Applies to locating transcripts only. Enrichment is optional; if no file is found, tracing still works from the notify payload. Tests in libs/typescript/integrations/codex/tests/transcript.test.ts mock node:os homedir and save/restore process.env.CODEX_HOME around each case; cover the set, unset and empty cases when changing this lookup.",
+  "applies": "Any change to how the MLflow Codex integration finds Codex session files or reads CODEX_HOME / ~/.codex.",
+  "tags": [
+    "tracing",
+    "codex",
+    "integration",
+    "env-vars",
+    "transcripts"
+  ],
+  "deps": [
+    {
+      "path": "libs/typescript/integrations/codex/src/transcript.ts",
+      "symbol": "findTranscriptForThread",
+      "hash": "sha256:0516893cda27a1221d1d1d59",
+      "line": 195,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:0516893cda27a1221d1d1d59",
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 8
+      }
+    },
+    {
+      "path": "libs/typescript/integrations/codex/tests/transcript.test.ts",
+      "hash": "sha256:0dc4e3a7cb6329f56bbd063d",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25822"
+  },
+  "created": "2026-10-12T05:37:52.468Z",
+  "verified": "2026-10-12T05:37:52.468Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Traces from custom launcher runs are missing token counts and tool call details.",
+    "The trace inspector shows no model timing or tool outputs for custom setups.",
+    "Support custom storage locations when enriching assistant traces with session metrics.",
+    "Assistant traces launched with an empty configuration folder lose detailed activity logs."
+  ],
+  "search": "In libs/typescript/integrations/codex/src/transcript.ts:findTranscriptForThread, session transcript discovery must resolve the home folder using `process.env.CODEX_HOME || join(homedir(), '.codex')` before checking `<home>/sessions`. Using logical OR ensures empty CODEX_HOME values fall back to ~/.codex, preventing custom launchers like Omnigent from missing rollout JSONL transcripts needed to enrich traces with model info, tool calls, timing, and token usage. Transcript enrichment is optional, allowing tracing to continue from notify payloads if no file is found. This applies to any change in how the MLflow Codex integration locates session files.",
+  "saysFor": "s2:7f32c2279cfa0cac96e538fe66752a196ed3fee095006629e0e179dde37e1e7a"
+}

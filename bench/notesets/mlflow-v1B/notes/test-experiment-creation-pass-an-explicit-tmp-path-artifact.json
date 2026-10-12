@@ -1,0 +1,136 @@
+{
+  "id": "test-experiment-creation-pass-an-explicit-tmp-path-artifact",
+  "title": "test experiment creation: pass an explicit tmp_path artifact_location so test runs do not write into the shared repo-root mlruns/ directory",
+  "kind": "rule",
+  "answers": [
+    "Test artifacts appeared in the repo-root mlruns/ folder and parallel test workers failed or lost files during cleanup",
+    "Why do the checkpoint import tests pass a tmp_path artifact_location to mlflow.create_experiment?",
+    "Where is the experiment artifact location set for tests that create an experiment and log a model or run?",
+    "How do I write a new test that creates an experiment without writing to the shared mlruns directory?"
+  ],
+  "body": "Path: tests/tracking/test_client.py:test_log_model_artifact, test_log_model_artifacts, test_log_model_artifact_with_artifact_path, test_log_model_artifacts_with_artifact_path (MlflowClient.create_experiment followed by create_logged_model and log_model_artifact(s)); tests/tracking/fluent/test_fluent.py:test_create_external_model (mlflow.create_experiment followed by start_run), and the checkpoint-import tests test_import_checkpoints_overwrite, test_import_checkpoints_skip_name_with_invalid_char, test_import_checkpoints_without_run (mlflow.create_experiment followed by checkpoint import); tests/test_mlflow_version_comp.py:test_mlflow_2_x_comp (2.x vs 3.x tracking compatibility).\nRule: When a test creates an experiment, pass artifact_location=(tmp_path / \"exp-artifacts\").as_uri() to MlflowClient.create_experiment or mlflow.create_experiment; any subdirectory name under tmp_path works (e.g. \"artifacts\"). Without it, the experiment inherits the default location, which resolves to the shared ./mlruns directory and races with xdist cleanup.\nSymptom: Test artifacts appeared in the repo-root mlruns/ folder, and parallel test workers intermittently failed or lost files when cleanup ran while other tests were writing there.\nConstraints: Applies to tests that create experiments and write artifacts or runs. Not needed for tests that never create an experiment or only read a pre-built fixture location.",
+  "applies": "Test code under tests/ that calls create_experiment (including the checkpoint-import tests in tests/tracking/fluent/test_fluent.py); the fix is per-test, not a change to the tracking library.",
+  "tags": [
+    "tests",
+    "xdist",
+    "mlruns",
+    "tmp_path",
+    "create_experiment",
+    "checkpoint-import"
+  ],
+  "deps": [
+    {
+      "path": "tests/tracking/fluent/test_fluent.py",
+      "symbol": "test_import_checkpoints_overwrite",
+      "hash": "sha256:071918540caacc4de333bd73",
+      "line": 2687,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:071918540caacc4de333bd73",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "tests/tracking/fluent/test_fluent.py",
+      "symbol": "test_import_checkpoints_skip_name_with_invalid_char",
+      "hash": "sha256:2c1824db1cacc290b8818974",
+      "line": 2789,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:2c1824db1cacc290b8818974",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "tests/tracking/fluent/test_fluent.py",
+      "symbol": "test_import_checkpoints_without_run",
+      "hash": "sha256:be9931a315ea3891f58ae5aa",
+      "line": 2823,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:be9931a315ea3891f58ae5aa",
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "tests/tracking/test_client.py",
+      "symbol": "test_log_model_artifact",
+      "hash": "sha256:54981d6fa2923677fc41db80",
+      "line": 3032,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:54981d6fa2923677fc41db80",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/tracking/fluent/test_fluent.py",
+      "symbol": "test_create_external_model",
+      "hash": "sha256:c88f18d63ac5ba3930c802ec",
+      "line": 1915,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c88f18d63ac5ba3930c802ec",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/test_mlflow_version_comp.py",
+      "symbol": "test_mlflow_2_x_comp",
+      "hash": "sha256:2eb4db29b36092ee97a40fed",
+      "line": 107,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:e4abe4b2829b026cd75721d7",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25758"
+  },
+  "created": "2026-10-12T05:40:19.672Z",
+  "verified": "2026-10-12T05:45:46.254Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "test-experiment-selection-resolve-an-existing-experiment-by",
+    "fluent-tracking-api-restore-wrappers-sit-beside-their-delete"
+  ],
+  "history": [
+    {
+      "at": "2026-10-12T05:45:46.261Z",
+      "reason": "extended by a new session",
+      "prevBody": "Path: tests/tracking/test_client.py:test_log_model_artifact, test_log_model_artifacts, test_log_model_artifact_with_artifact_path, test_log_model_artifacts_with_artifact_path (MlflowClient.create_experiment followed by create_logged_model and log_model_artifact(s)); tests/tracking/fluent/test_fluent.py:test_create_external_model (mlflow.create_experiment followed by start_run); tests/test_mlflow_version_comp.py:test_mlflow_2_x_comp (2.x vs 3.x tracking compatibility).\nRule: When a test creates an experiment, pass artifact_location=(tmp_path / \"exp-artifacts\").as_uri() to MlflowClient.create_experiment or mlflow.create_experiment. Without it, the experiment inherits the default location, which resolves to the shared ./mlruns directory and races with xdist cleanup.\nSymptom: Test artifacts appeared in the repo-root mlruns/ folder, and parallel test workers intermittently failed or lost files when cleanup ran while other tests were writing there.\nConstraints: Applies to tests that create experiments and write artifacts or runs. Not needed for tests that never create an experiment or only read a pre-built fixture location."
+    }
+  ],
+  "says": [
+    "Test artifacts appear in the repo root mlruns folder and parallel tests lose files",
+    "Pass a temporary artifact location when a test creates an experiment",
+    "Checkpoint import tests write into the shared mlruns directory",
+    "Parallel test workers fail during cleanup of shared mlruns artifacts"
+  ],
+  "search": "Tests that call create_experiment should pass an explicit artifact_location under the test's tmp_path so artifacts stay out of the shared repo-root mlruns directory. Applies to the listed client and fluent tests, including checkpoint import tests. Per-test fix, not a library change; not needed for tests that never create an experiment.",
+  "saysFor": "s2:3079e3ff134999dff70d6ae2d3ee290a9555efcee8b3bd4b957824f47efbc895"
+}

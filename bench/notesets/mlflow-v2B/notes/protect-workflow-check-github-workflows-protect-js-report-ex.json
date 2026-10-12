@@ -1,0 +1,88 @@
+{
+  "id": "protect-workflow-check-github-workflows-protect-js-report-ex",
+  "title": "Protect workflow check (.github/workflows/protect.js): report expected failures with core.setFailed and return, not throw",
+  "kind": "rule",
+  "answers": [
+    "Why does the Protect job show a failed check as a clear Actions error instead of a stack trace?",
+    "How do I make a new failure case in the Protect gate report cleanly without retrying?",
+    "Where is the missing-workflow-runs and timeout failure handled in the Protect check script?",
+    "Why does the Approval check fail the Protect job when another check has failed?"
+  ],
+  "body": "Path: .github/workflows/protect.js:module.exports is the Protect gate script that polls a PR's check runs and workflow runs until all required checks pass. It handles the missing-workflow-runs lookup, the failed-check gate, and the polling timeout, and it passes unexpected GitHub API errors through.\nRule: For expected gate outcomes (no workflow runs found after 3 attempts, any non-Protect check in failure, overall timeout), call core.setFailed(message) and return; do not throw. Unexpected API errors should still throw so they propagate. Keep polling, the TIMEOUT duration, check filtering, and status reporting unchanged when adding such a case.\nSymptom: The Protect job failed with an unhandled exception and a stack trace, or an expected failure was surfaced as a generic error, instead of a readable Actions error message naming the cause.\nConstraints: Applies to the expected-failure branches in protect.js only. fetchChecks returning falsy now also returns early. The script's own timeout must stay shorter than the job's timeout-minutes in the workflow file, otherwise the runner cancels the job before the script can call core.setFailed(\"Timeout\"); the review raised this and the author lowered the script timeout in a follow-up commit.",
+  "applies": "Edits to the Protect workflow gate script .github/workflows/protect.js and its failure reporting.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "protect",
+    "build"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/protect.js",
+      "symbol": "TIMEOUT",
+      "hash": "sha256:502b904affffefbca3315838",
+      "line": 177,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:d31e3f9af8c5a05020bb419a",
+      "fanout": {
+        "files": 8,
+        "sites": 0,
+        "refs": 14
+      }
+    },
+    {
+      "path": ".github/workflows/protect.js",
+      "symbol": "fetchChecks",
+      "hash": "sha256:c53f120dfbed9078c51e87bc",
+      "line": 55,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c53f120dfbed9078c51e87bc",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": ".github/workflows/protect.js",
+      "symbol": "fetchChecks",
+      "hash": "sha256:c53f120dfbed9078c51e87bc",
+      "line": 55,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:c53f120dfbed9078c51e87bc",
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#26196"
+  },
+  "created": "2026-10-12T05:32:03.219Z",
+  "verified": "2026-10-12T05:32:03.219Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "protect-workflow-gate-github-workflows-protect-js-empty-work",
+    "approval-rerun-workflows-workflow-run-workflows-must-name-th",
+    "protect-check-status-logging-github-workflows-protect-js-log",
+    "retry-sh-rerun-ordering-protect-is-submitted-last-only-after"
+  ],
+  "says": [
+    "The pull request gate check crashes with a stack trace instead of an error message.",
+    "Protection checks should clearly state when required workflow runs timed out.",
+    "A failed build check caused the pull request validator to crash unhandled.",
+    "Surface readable failure explanations when mandatory checks cannot be found.",
+    "The gate job times out without displaying the reason for cancellation."
+  ],
+  "search": "In .github/workflows/protect.js, expected gate failures must call core.setFailed(message) and return rather than throwing exceptions. This applies to missing workflow runs after three attempts, failed non-Protect checks, and overall polling timeouts, while unexpected API errors still throw. Using setFailed avoids unhandled exceptions and stack traces in Actions logs when expected failure conditions occur. The script TIMEOUT must remain shorter than the workflow timeout-minutes so core.setFailed can report the timeout before runner cancellation.",
+  "saysFor": "s2:7d6b5bbbc21a45344cd8189ce40c9493eae81849e140b367f0e16204a0bc545b"
+}

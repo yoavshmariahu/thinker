@@ -1,0 +1,54 @@
+{
+  "id": "copilot-agent-linked-issue-notifications-dedupe-by-a-per-pr",
+  "title": "Copilot agent linked-issue notifications: dedupe by a per-PR marker comment, not by issue",
+  "kind": "rule",
+  "answers": [
+    "Why does the Copilot agent post the same 'Copilot opened #N for this issue' comment again when the PR workflow reruns?",
+    "How do I change the text of the comment the Copilot agent leaves on linked issues?",
+    "Where is the logic that decides which linked issues get a Copilot-opened notification?",
+    "Why does a second PR linked to the same issue still get its own notification?"
+  ],
+  "body": "Path: The Copilot agent workflow in .github/workflows/copilot-agent.yml, step that runs on pull_request events. It reads the PR's closingIssuesReferences through one GraphQL call (gh api graphql), filters out issues that already carry this PR's marker, and posts a comment to each remaining issue with gh issue comment. Chokepoint: .github/workflows/copilot-agent.yml:jobs (the step's run block, marker/body/jq filter).\nRule: The dedupe key is an HTML marker `<!-- copilot-agent-pr:<PR_NUMBER> -->` appended to the notification body. Before posting, the jq select(any(.comments.nodes[]; .body | contains($marker)) | not) drops any issue whose last 100 comments already contain that PR's marker. Because the marker embeds PR_NUMBER, different PRs linked to the same issue each notify it independently, while reruns of the same PR do not repost. Change the comment wording by editing `body`, but keep the marker line in it or dedupe breaks.\nSymptom: On workflow rerun, linked issues received the same 'Copilot opened #N' comment repeatedly.\nConstraints: The check only sees the last 100 comments per issue (comments(last: 100)). If the marker has scrolled past that window (very active issues), a duplicate is still possible; the PR accepted this bounded tradeoff instead of paginating. Does not cover notifications for issues not returned by closingIssuesReferences(first: 10).",
+  "applies": "Applies to the Copilot agent linked-issue notification step in .github/workflows/copilot-agent.yml; not to other workflows that comment on issues.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "copilot-agent",
+    "dedupe",
+    "linked-issues"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/copilot-agent.yml",
+      "symbol": "body",
+      "hash": "sha256:fd0f1e97f25d1ef79478cb1a",
+      "line": 72,
+      "missing": false,
+      "fanout": {
+        "files": 17,
+        "sites": 0,
+        "refs": 64
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25652"
+  },
+  "created": "2026-10-12T05:47:12.553Z",
+  "verified": "2026-10-12T05:47:12.553Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The bot keeps posting duplicate comments on the linked issue whenever the workflow reruns.",
+    "Stop the bot from repeating its opened pull request comment on the tracked issue.",
+    "Update the message text that the bot posts on issues linked to its pull request.",
+    "Why does re-running the pull request add the same issue comment again?",
+    "Ensure each separate pull request notifies the linked issue without duplicate rerun comments."
+  ],
+  "search": "Copilot agent linked-issue notifications deduplicate comments by checking for a per-PR HTML marker <!-- copilot-agent-pr:<PR_NUMBER> --> appended to the notification body. In .github/workflows/copilot-agent.yml, gh api graphql queries closingIssuesReferences and jq filters out issues whose last 100 comments already contain the marker before calling gh issue comment. Preserves independent notifications for different pull requests linked to the same issue, but checks only the last 100 comments per issue and covers only the first 10 linked issues without pagination.",
+  "saysFor": "s2:c07db9b5dd54850cd38ef169b9aa3cafa437a6659fcaf9af052b18b336e7a784"
+}

@@ -1,0 +1,96 @@
+{
+  "id": "basic-auth-auth-tests-run-the-server-auth-test-files-with-uv",
+  "title": "basic-auth auth tests: run the server/auth test files with uv --with 'flask-wtf,httpx2,pyjwt' because the auth extras are not installed by default",
+  "kind": "howto",
+  "answers": [
+    "How do I run the basic-auth authorization tests locally without installing the full dev environment?",
+    "Which pytest command runs the fail-closed and authorization coverage tests?",
+    "The auth tests fail with missing flask-wtf or pyjwt. What do I install?"
+  ],
+  "body": "Path: tests/server/auth/ holds the basic-auth authorization tests (test_fail_closed_flag.py, test_authorization_coverage.py, test_auth_workspace.py, test_auth.py), which import mlflow/server/auth/__init__.py and need its web-form and JWT dependencies.\nRule: Run them with `uv run --with 'flask-wtf,httpx2,pyjwt' pytest tests/server/auth/<file>`; the --with flag adds the three packages to the ephemeral environment without changing the project lockfile. Pass several files on one command line to run the workspace, fail-closed and coverage suites together.\nConstraints: The command is for running the tests from a checkout; it does not change the test code. Keep the packages in the --with list if the import errors come from those modules.",
+  "applies": "Local test runs for the basic-auth server tests under tests/server/auth; not for the rest of the mlflow test suite.",
+  "tags": [
+    "testing",
+    "auth",
+    "uv",
+    "pytest",
+    "howto"
+  ],
+  "deps": [
+    {
+      "path": "tests/server/auth/test_fail_closed_flag.py",
+      "symbol": "test_ownership_grant_after_handler_does_not_authorize_route",
+      "hash": "sha256:674f770ffc418421066d7517",
+      "line": 45,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:674f770ffc418421066d7517",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/server/auth/test_authorization_coverage.py",
+      "symbol": "test_create_gateway_secret_requires_workspace_create_validator",
+      "hash": "sha256:07fdc3d866796767b98bc818",
+      "line": 180,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:07fdc3d866796767b98bc818",
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "tests/server/auth/test_auth_workspace.py",
+      "symbol": "__init__",
+      "hash": "sha256:fadc15ff671445744fee7477",
+      "line": 208,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:fadc15ff671445744fee7477",
+      "fanout": {
+        "files": 272,
+        "sites": 309,
+        "refs": 434
+      }
+    },
+    {
+      "path": "tests/server/auth/test_auth.py",
+      "hash": "sha256:89522db9e004e78eff76be44",
+      "missing": false
+    },
+    {
+      "path": "mlflow/server/auth/__init__.py",
+      "hash": "sha256:0b7a5daa111b65e2ad7e6237",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25895"
+  },
+  "created": "2026-10-12T05:36:18.744Z",
+  "verified": "2026-10-12T05:36:18.744Z",
+  "verifiedCommit": "1bb65f1c63811362e224de885a52aedb00a3fa54",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "basic-auth-fail-closed-backstop-only-response-filters-author",
+    "auth-server-list-routes-filter-results-after-the-handler-by",
+    "gateway-authorization-validators-must-read-resource-ids-from",
+    "gateway-guardrail-routes-each-endpoint-attached-route-has-it"
+  ],
+  "says": [
+    "Local authorization test runs fail because authentication and token packages are missing.",
+    "Run server permission and access control tests without installing full development dependencies.",
+    "Execute basic authentication test suites locally without modifying project lockfiles."
+  ],
+  "search": "Basic-auth authorization test files under `tests/server/auth/` must be run using `uv run --with 'flask-wtf,httpx2,pyjwt' pytest tests/server/auth/<file>` because web-form and JWT dependencies are not installed by default. The `--with` flag adds the packages to an ephemeral environment without altering the project lockfile, and multiple test files can be passed together. This command applies only to local checkout test runs for `tests/server/auth/` and does not modify test code or apply to the rest of the test suite.",
+  "saysFor": "s2:179bea0e389eaf8488f558a77a1909fbeada44593bd5942d342c17928ce73c9b"
+}

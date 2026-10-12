@@ -1,0 +1,129 @@
+{
+  "id": "github-workflows-api-driven-label-size-review-release-note-j",
+  "title": "GitHub workflows: API-driven label/size/review/release-note jobs fetch their script with pinned curl instead of actions/checkout",
+  "kind": "rule",
+  "answers": [
+    "Why do the labeling, PR size, patch, advice, or team review workflows no longer check out the repo?",
+    "How does a workflow get its helper JavaScript file when only the GitHub API is needed?",
+    "Where is the release-note validation script downloaded for the validate-labeled and post-merge jobs?",
+    "Why did the approval workflow download step change to use GITHUB_REPOSITORY and GITHUB_SHA?"
+  ],
+  "body": "Path: .github/workflows/*.yml for lightweight API-driven jobs (labeling.yml, pr-size.yml, patch.yml, advice.yml, team-review.yml, approval.yml, and both jobs in release-note.yml). Each job's first step fetches one `<name>.js` helper from raw.githubusercontent.com and then runs it via actions/github-script.\nRule: Do not use actions/checkout for these jobs. Use a step named `Fetch script` that runs `curl -fsSL --retry 3 --connect-timeout 10 --max-time 30 --write-out 'curl: %{time_total}s\\n'` against `https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/.github/workflows/<name>.js` and writes to `-o <name>.js` in the workspace root. The github-script step then calls `require('./<name>.js')`. The download is pinned to GITHUB_SHA, so it matches the workflow revision that triggered the run.\nSymptom: Jobs that only needed the scripts paid checkout latency, and checkout time occasionally spiked into outliers.\nConstraints: Applies to jobs that only call the GitHub API through github-script. Jobs that need the rest of the repository tree, or that run local tooling, still need a checkout. The fetched file is one script only; add any other needed file to the same curl pattern.",
+  "applies": "GitHub Actions workflows under .github/workflows that drive github-script with a helper file.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "workflows",
+    "checkout",
+    "curl"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/labeling.yml",
+      "symbol": "script",
+      "hash": "sha256:4eb6b1d2ffd1c41465e02bbf",
+      "line": 42,
+      "missing": false,
+      "fanout": {
+        "files": 27,
+        "sites": 14,
+        "refs": 88
+      }
+    },
+    {
+      "path": ".github/workflows/pr-size.yml",
+      "symbol": "script",
+      "hash": "sha256:42510b4af57cc6b0d88f0c55",
+      "line": 43,
+      "missing": false,
+      "fanout": {
+        "files": 27,
+        "sites": 14,
+        "refs": 88
+      }
+    },
+    {
+      "path": ".github/workflows/patch.yml",
+      "symbol": "script",
+      "hash": "sha256:312d1a38592372390e8ca573",
+      "line": 39,
+      "missing": false,
+      "fanout": {
+        "files": 27,
+        "sites": 14,
+        "refs": 88
+      }
+    },
+    {
+      "path": ".github/workflows/advice.yml",
+      "symbol": "script",
+      "hash": "sha256:28f5b82aec055b0cbc603d49",
+      "line": 38,
+      "missing": false,
+      "fanout": {
+        "files": 27,
+        "sites": 14,
+        "refs": 88
+      }
+    },
+    {
+      "path": ".github/workflows/team-review.yml",
+      "symbol": "script",
+      "hash": "sha256:15ca89ef7f01d34e9843111b",
+      "line": 39,
+      "missing": false,
+      "fanout": {
+        "files": 27,
+        "sites": 14,
+        "refs": 88
+      }
+    },
+    {
+      "path": ".github/workflows/approval.yml",
+      "symbol": "script",
+      "hash": "sha256:ccec0cb39e5a7ff4d6dbfb84",
+      "line": 35,
+      "missing": false,
+      "fanout": {
+        "files": 27,
+        "sites": 14,
+        "refs": 88
+      }
+    },
+    {
+      "path": ".github/workflows/release-note.yml",
+      "symbol": "script",
+      "hash": "sha256:90ef3edc56ead32b061ab5d7",
+      "line": 50,
+      "missing": false,
+      "fanout": {
+        "files": 27,
+        "sites": 14,
+        "refs": 88
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25705"
+  },
+  "created": "2026-10-12T05:46:20.333Z",
+  "verified": "2026-10-12T05:46:20.333Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "github-workflows-the-curl-output-filename-must-match-the-rel",
+    "ci-draft-pr-gates-in-github-workflows-a-copilot-authored-dra",
+    "ci-workflows-draft-pr-state-no-longer-gates-any-job-pr-job-s"
+  ],
+  "says": [
+    "Speed up pull request labeling and size checks by avoiding full repository downloads.",
+    "Automated triage and review assignment checks take too long due to repository cloning.",
+    "Why do automated pull request status jobs no longer clone the entire codebase?",
+    "Eliminate latency spikes in automated release note validation and pull request review workflows."
+  ],
+  "search": "Lightweight API-driven workflow jobs fetch helper scripts directly via pinned `curl` instead of using `actions/checkout` to eliminate checkout latency. A `Fetch script` step downloads `https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/.github/workflows/<name>.js` with `--retry 3 --connect-timeout 10 --max-time 30` to `-o <name>.js` before calling `actions/github-script` with `require('./<name>.js')`. This applies to `.github/workflows/` jobs like `labeling.yml`, `pr-size.yml`, `patch.yml`, `advice.yml`, `team-review.yml`, `approval.yml`, and `release-note.yml`. Jobs requiring the full repository tree or local tooling still require a checkout.",
+  "saysFor": "s2:f1a2c438c579948f26c05f0d4a3d57b5117be7480cfa8ba8958ff416494bcfc8"
+}

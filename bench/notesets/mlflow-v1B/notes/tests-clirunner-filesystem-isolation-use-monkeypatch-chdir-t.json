@@ -1,0 +1,87 @@
+{
+  "id": "tests-clirunner-filesystem-isolation-use-monkeypatch-chdir-t",
+  "title": "tests CliRunner filesystem isolation: use monkeypatch.chdir(tmp_path) instead of CliRunner.isolated_filesystem, which pytest now raises as an error",
+  "kind": "rule",
+  "answers": [
+    "Why do my Click CLI tests fail with a DeprecationWarning about isolated_filesystem?",
+    "How do I run a CLI command in a temporary working directory in an MLflow test?",
+    "Where is the pytest warning filter that turns Click deprecations into errors configured?",
+    "Which test helper should I use to isolate files written by a `mlflow` CLI command under test?"
+  ],
+  "body": "Path: Click CLI tests across tests/ (for example tests/claude_code/test_cli.py, tests/assistant/test_cli.py, tests/test_cli.py) that invoke a Click command through CliRunner and may write files to the current directory; the pytest warning filters live in pyproject.toml under [tool.pytest.ini_options] filterwarnings.\nRule: Isolate the working directory with pytest's `monkeypatch.chdir(tmp_path)` (add `monkeypatch` and `tmp_path` fixtures to the test signature), then call `runner.invoke(...)` directly. Do not use `CliRunner.isolated_filesystem()`; Click 8.5.0 deprecated it for removal in Click 9.0, and pyproject.toml now has `error:'isolated_filesystem' is deprecated:DeprecationWarning`, so any remaining use fails the test.\nSymptom: Test run fails with a DeprecationWarning (promoted to an error) that `isolated_filesystem` is deprecated, even though the assertions themselves pass.\nConstraints: Applies to tests that only need a temp cwd. When a test needs a different temp directory location, pass it as `tmp_path` via the fixture rather than reintroducing `isolated_filesystem(temp_dir=...)`. Non-test code that calls Click's CliRunner outside pytest is not covered by this filter.",
+  "applies": "Test code in the MLflow repo that uses click.testing.CliRunner and needs a temporary current directory.",
+  "tags": [
+    "testing",
+    "pytest",
+    "click",
+    "cli",
+    "filterwarnings",
+    "monkeypatch"
+  ],
+  "deps": [
+    {
+      "path": "pyproject.toml",
+      "hash": "sha256:444add10550aa53919c7fc8f",
+      "missing": false
+    },
+    {
+      "path": "tests/claude_code/test_cli.py",
+      "symbol": "runner",
+      "hash": "sha256:9f6f43639f226108ba57fb38",
+      "line": 11,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9f6f43639f226108ba57fb38",
+      "fanout": {
+        "files": 37,
+        "sites": 1,
+        "refs": 392
+      }
+    },
+    {
+      "path": "tests/assistant/test_cli.py",
+      "symbol": "runner",
+      "hash": "sha256:9f6f43639f226108ba57fb38",
+      "line": 11,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:9f6f43639f226108ba57fb38",
+      "fanout": {
+        "files": 37,
+        "sites": 1,
+        "refs": 392
+      }
+    },
+    {
+      "path": "tests/test_cli.py",
+      "symbol": "runner",
+      "hash": "sha256:77851247d6eb853d9a791766",
+      "line": 228,
+      "missing": false,
+      "fanout": {
+        "files": 37,
+        "sites": 1,
+        "refs": 392
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25633"
+  },
+  "created": "2026-10-12T05:47:21.021Z",
+  "verified": "2026-10-12T05:47:21.021Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Click CLI test fails with a deprecation error about isolated filesystem",
+    "Run a CLI command in a temporary working directory in an MLflow test",
+    "CliRunner isolated_filesystem now errors in test suite",
+    "Replace isolated filesystem with a temporary directory fixture in CLI tests"
+  ],
+  "search": "Click CLI tests needing a temporary working directory should use pytest monkeypatch.chdir with tmp_path instead of CliRunner.isolated_filesystem, which is deprecated in Click 8.5.0 and raised as an error by the pytest warning filter in pyproject.toml. Applies only to test code, not non-test CliRunner use.",
+  "saysFor": "s2:88e4e4bd09405f33d821dd286134f76fe9d436b97e148fbc9b010025a61ce843"
+}

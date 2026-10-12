@@ -1,0 +1,72 @@
+{
+  "id": "sqlalchemy-tracking-store-hard-delete-mlflow-gc-bulk-delete",
+  "title": "SQLAlchemy tracking store hard delete (mlflow gc): bulk-delete run child rows, not the session.delete(run) ORM cascade",
+  "kind": "rule",
+  "answers": [
+    "Why does mlflow gc use tens of GiB of memory when deleting runs with large metric histories?",
+    "Why does _hard_delete_run use query().delete() instead of session.delete(run) for runs?",
+    "If I add a new child table linked to runs, will mlflow gc delete its rows too?",
+    "Where is permanent deletion of runs (hard delete) handled in the tracking store?"
+  ],
+  "body": "Path: mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore._hard_delete_run is the permanent-removal path for a deleted run, used by the `mlflow gc` command; it removes the run's metrics, latest metrics, params and tags, then the run row, in one managed session.\nRule: Delete each child model with a set-based query (session.query(model).filter(model.run_uuid == run_id).delete(synchronize_session=False)) for every model in _RUN_DELETE_CASCADE_MODELS, then delete SqlRun the same way. Do not use session.delete(run): the ORM cascade loads every child row into the identity map, which scales memory with history size.\nSymptom: Running `mlflow gc` on runs with large metric histories used over 1 GiB peak RSS at 300k metric rows and about 3 GiB at 1M rows, taking 10-34 seconds; after switching to bulk deletes the benchmark stayed near 250-270 MiB and finished in under 2 seconds.\nConstraints: The tuple _RUN_DELETE_CASCADE_MODELS must match the SqlRun relationships that use cascade delete; test_run_delete_cascade_models_match_orm_relationships fails when they drift, so a new run-child relationship must be added to the tuple. test_hard_delete_run_does_not_load_child_rows checks that no SELECT touches child tables. synchronize_session=False is acceptable only because this maintenance path does not use loaded child objects afterwards; do not copy it into paths that rely on ORM state in the same session.",
+  "applies": "Hard deletion of runs in the SQLAlchemy tracking store (mlflow gc); applies whenever a run child table or cascade relationship is added or removed.",
+  "tags": [
+    "tracking",
+    "gc",
+    "sqlalchemy",
+    "memory",
+    "delete"
+  ],
+  "deps": [
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "SqlAlchemyStore._hard_delete_run",
+      "hash": "sha256:a6066a6ed5f112d7f81a5f37",
+      "line": 1245,
+      "missing": false,
+      "engine": "ast",
+      "hashRegex": "sha256:a6066a6ed5f112d7f81a5f37",
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 5
+      }
+    },
+    {
+      "path": "mlflow/store/tracking/sqlalchemy_store.py",
+      "symbol": "_RUN_DELETE_CASCADE_MODELS",
+      "hash": "sha256:361f1dd660872d789ab0f610",
+      "line": 276,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25773"
+  },
+  "created": "2026-10-12T05:45:33.404Z",
+  "verified": "2026-10-12T05:45:33.404Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "logged-model-tag-upsert-dedupe-tag-keys-before-bulk-upsert-s",
+    "search-logged-models-metric-ordering-keep-one-latest-metric",
+    "search-logged-models-ordering-always-end-with-a-stable-model",
+    "sql-trace-rollup-routing-in-raw-range-points-read-non-groupe"
+  ],
+  "says": [
+    "Running garbage collection on deleted experiment runs consumes excessive memory and runs out of RAM.",
+    "Permanently deleting runs with extensive metric histories should execute quickly without high memory spikes.",
+    "The cleanup command hangs and uses gigabytes of memory when purging old runs.",
+    "Make the run garbage collection utility efficiently delete large volumes of logged metric data."
+  ],
+  "search": "In mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore._hard_delete_run during mlflow gc, delete run child models in _RUN_DELETE_CASCADE_MODELS and SqlRun using set-based queries with synchronize_session=False instead of ORM cascade session.delete(run). Avoiding session.delete(run) prevents loading all child rows into the ORM identity map, eliminating memory spikes that reach gigabytes on runs with large metric histories. Any new child relationship with cascade delete on SqlRun must be added to _RUN_DELETE_CASCADE_MODELS to satisfy test_run_delete_cascade_models_match_orm_relationships. Using synchronize_session=False is restricted to this permanent-removal maintenance path because loaded child objects are not used afterwards.",
+  "saysFor": "s2:31af4471cdce723cf6d8dd94915f577fb5b42d713e0968b22d5caf60be059cd5"
+}

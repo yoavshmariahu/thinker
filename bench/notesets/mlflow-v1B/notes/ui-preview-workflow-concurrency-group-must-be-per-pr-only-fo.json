@@ -1,0 +1,46 @@
+{
+  "id": "ui-preview-workflow-concurrency-group-must-be-per-pr-only-fo",
+  "title": "UI preview workflow: concurrency group must be per-PR only for preview-relevant events, otherwise a unique run_id",
+  "kind": "rule",
+  "answers": [
+    "Why did an unrelated PR event (label change, edit, sync) cancel my running UI preview deployment?",
+    "Why do UI preview runs get cancelled when a PR is pushed to or labelled with something other than ui-preview?",
+    "Where is the concurrency group for the UI Preview workflow chosen?",
+    "How do I make a new PR event type not cancel in-flight preview builds?"
+  ],
+  "body": "Path: .github/workflows/ui-preview.yml, workflow-level `concurrency` block (group expression). Decides which PR events can cancel each other's UI preview runs: pushes to master share one group, and PR events share a per-PR group only when the PR carries the `ui-preview` label.\nRule: The group expression is evaluated before any job `if:` runs, so job conditions cannot protect an in-flight preview. Keep the shared `<workflow>-<pr number>-preview` group only for events that are meaningful to the preview; any other event must fall back to `github.run_id` so it gets its own unique group and cannot cancel. Keep `cancel-in-progress: true` for the shared branch.\nSymptom: A running UI preview build was cancelled, or a redundant preview deployment started, after an unrelated pull_request event (e.g. a label other than ui-preview was added) on the same PR.\nConstraints: Applies to the ui-preview workflow's concurrency only. Adding a new trigger type to `on:` requires deciding which group it lands in. Does not change the job-level gating itself.",
+  "applies": "UI Preview GitHub Actions workflow concurrency selection in .github/workflows/ui-preview.yml.",
+  "tags": [
+    "ci",
+    "github-actions",
+    "ui-preview",
+    "concurrency"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/ui-preview.yml",
+      "hash": "sha256:231aeeccebd617f225528a1a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mlflow/mlflow#25673"
+  },
+  "created": "2026-10-12T05:46:35.515Z",
+  "verified": "2026-10-12T05:46:35.515Z",
+  "verifiedCommit": "c63fb454c7e1f5de879e6186255b0329a50ce0e4",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "An in-progress interface preview deployment gets cancelled when someone adds an unrelated label.",
+    "Editing the pull request description or title aborts the running preview build.",
+    "Keep active preview builds running when non-preview pull request events occur.",
+    "Routine pull request updates cancel the preview before it finishes deploying.",
+    "Ensure running web preview deployments are only cancelled by newer relevant preview commits."
+  ],
+  "search": "In .github/workflows/ui-preview.yml, the workflow-level concurrency group expression must only assign the shared per-PR group (<workflow>-<pr number>-preview with cancel-in-progress: true) to preview-relevant events, falling back to github.run_id for all other PR events. Because concurrency is evaluated before job-level if: conditions execute, assigning a unique run_id prevents unrelated pull request events (like non-preview labels or edits) from cancelling in-flight preview builds. This rule applies strictly to concurrency group selection in the UI preview workflow and does not alter the job-level gating.",
+  "saysFor": "s2:86d8c15d309f372f39e0e8683ed1d1b97d8e3045a21bb3cd6f32766cb4e535c3"
+}
