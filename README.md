@@ -23,12 +23,17 @@ Website, docs and benchmarks: [zerotime.dev](https://zerotime.dev).
 Run this in a terminal, inside your repository:
 
 ```bash
-curl -fsSL https://zerotime.dev/dist/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/yoavshmariahu/thinker/main/install.sh | bash
 ```
 
 Requires git, curl, tar, Node 20+ and a logged-in coding agent. Works with Claude
 Code, Codex CLI, Gemini CLI, Cursor, Pi, Windsurf Cascade, GitHub Copilot CLI and
 OpenCode ([hook coverage and limitations](docs/agent-integrations.md)).
+
+The installer fetches the [latest release](https://github.com/yoavshmariahu/thinker/releases)
+(a tag `vX.Y.Z` with the archive, its `version.json` manifest and the installer attached)
+and checks the archive against the manifest's SHA-256. `thinker update` does the same
+daily in the background; `thinker update v0.1.34` pins a release.
 
 ## Uninstall
 

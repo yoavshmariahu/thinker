@@ -10,19 +10,29 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const DAY_MS = 24 * 60 * 60 * 1000;
+export const DEFAULT_REPO = 'yoavshmariahu/thinker';
 
 export function thinkerHome() {
   return process.env.THINKER_HOME || path.join(os.homedir(), '.thinker');
 }
 
-export function getToken() {
-  if (process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN.trim();
-  if (process.env.GH_TOKEN) return process.env.GH_TOKEN.trim();
-  try {
-    const out = execFileSync('gh', ['auth', 'token'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000 }).trim();
-    if (out) return out;
-  } catch {}
-  return '';
+// Releases are GitHub releases on tags vX.Y.Z (scripts/release.sh), each carrying thinker.tgz,
+// version.json and install.sh as assets. A ref of main or latest means the latest release; a tag
+// names one release. The URLs redirect to GitHub's asset host, so downloads follow redirects.
+export function releaseAssetUrl(ghrepo = DEFAULT_REPO, ref = 'latest', asset = 'thinker.tgz') {
+  const release = !ref || ref === 'main' || ref === 'latest' ? 'latest/download' : `download/${encodeURIComponent(ref)}`;
+  return `https://github.com/${ghrepo}/releases/${release}/${asset}`;
+}
+const isReleaseUrl = dist => /^https:\/\/github\.com\/[^/]+\/[^/]+\/releases\//.test(dist);
+// Installs made before 0.1.35 downloaded from zerotime.dev; they move to GitHub on their next update.
+const isLegacyDist = dist => /^https:\/\/zerotime\.dev\/(?:dist|access\/download\/[a-f0-9]{64})\/thinker\.tgz$/.test(dist);
+// Where an archive install downloads from: an explicit URL, a self-hosted one saved at install
+// time, or the GitHub release for the ref (the saved GitHub URL is recomputed so a ref switch takes).
+function archiveDist({ install, ghrepo, ref, dist }) {
+  if (dist) return dist;
+  const saved = install.dist || '';
+  if (saved && !isReleaseUrl(saved) && !isLegacyDist(saved)) return saved;
+  return releaseAssetUrl(ghrepo, ref);
 }
 
 let _tarSupportsWarning = null;
@@ -100,43 +110,31 @@ export function detectInstall(rootDir = path.resolve(HERE, '..'), home = thinker
     };
   }
 
+  const ghrepo = installJson.ghrepo || process.env.THINKER_GH_REPO || DEFAULT_REPO;
+  const ref = installJson.ref || process.env.THINKER_REF || 'latest';
+  const saved = installJson.dist || process.env.THINKER_DIST_URL || '';
   return {
     type: 'archive',
     path: rootDir,
     binPath,
     version,
     commit: currentCommit,
-    ghrepo: installJson.ghrepo || process.env.THINKER_GH_REPO || 'yoavshmariahu/thinker',
-    ref: installJson.ref || process.env.THINKER_REF || 'main',
-    dist: installJson.dist || process.env.THINKER_DIST_URL || '',
+    ghrepo,
+    ref,
+    dist: isLegacyDist(saved) ? releaseAssetUrl(ghrepo, ref) : saved,
     installJson,
   };
 }
 
-export async function fetchLatestCommit({ ghrepo = 'yoavshmariahu/thinker', ref = 'main', token } = {}) {
-  token = token || getToken();
-  const url = `https://api.github.com/repos/${ghrepo}/commits/${ref}`;
-  const headers = {
-    'User-Agent': 'thinker-cli',
-    'Accept': 'application/vnd.github.v3+json',
-  };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-
-  const res = await fetch(url, { headers, signal: AbortSignal.timeout(15_000) });
-  if (!res.ok) {
-    if (res.status === 404 || res.status === 401 || res.status === 403) {
-      if (!token) {
-        throw new Error(`GitHub API request failed (${res.status}): repository may be private. Export GITHUB_TOKEN or login with \`gh auth login\`.`);
-      }
-    }
-    throw new Error(`GitHub API request failed with HTTP ${res.status}: ${res.statusText}`);
-  }
-  const data = await res.json();
-  return {
-    sha: data.sha,
-    message: data.commit?.message ? data.commit.message.split('\n')[0] : '',
-    date: data.commit?.committer?.date || data.commit?.author?.date || '',
-  };
+// A release file over HTTPS (plain HTTP only on this machine, for tests). GitHub answers with a
+// redirect to its asset host, which is followed as long as it stays on HTTPS.
+async function fetchReleaseFile(url, timeout) {
+  url = new URL(url);
+  const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) throw new Error('Releases must be fetched over HTTPS');
+  const res = await fetch(url, { signal: AbortSignal.timeout(timeout), cache: 'no-store', redirect: 'follow', headers: { 'User-Agent': 'thinker-cli' } });
+  if (!loopback && res.url && !res.url.startsWith('https://')) throw new Error('Release download was redirected off HTTPS');
+  return res;
 }
 
 export async function fetchDistributionRelease(dist) {
@@ -145,11 +143,8 @@ export async function fetchDistributionRelease(dist) {
     const archivePath = dist.startsWith('file://') ? fileURLToPath(dist) : path.resolve(dist);
     release = JSON.parse(fs.readFileSync(path.join(path.dirname(archivePath), 'version.json'), 'utf8'));
   } else {
-    const url = new URL('version.json', dist);
-    const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
-    if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) throw new Error('Release manifests must be fetched over HTTPS');
-    const res = await fetch(url, { signal: AbortSignal.timeout(15_000), cache: 'no-store', redirect: 'error' });
-    if (!res.ok) throw new Error(`Distribution update check failed: HTTP ${res.status}`);
+    const res = await fetchReleaseFile(new URL('version.json', dist), 15_000);
+    if (!res.ok) throw new Error(`Release check failed: HTTP ${res.status} for ${new URL('version.json', dist)}`);
     release = await res.json();
   }
   if (release.schemaVersion !== 1 ||
@@ -247,21 +242,18 @@ export async function checkUpdate(opts = {}) {
     };
   }
 
-  // Archive install
-  const ghrepo = opts.ghrepo || install.ghrepo || 'yoavshmariahu/thinker';
-  const ref = opts.ref || opts.branch || install.ref || 'main';
-  const switchingRef = ref !== (install.ref || 'main');
-  const dist = opts.dist || install.dist;
-  if (dist) {
-    const latest = await fetchDistributionRelease(dist);
-    return {
-      type: 'archive', available: install.version !== latest.version || install.commit !== latest.commit,
-      currentCommit: install.commit, latestCommit: latest.commit,
-      version: install.version, latestVersion: latest.version, ghrepo, ref,
-      currentRef: install.ref || 'main', targetRef: ref, switchingRef,
-    };
-  }
-  return { type: 'archive', error: 'This archive install has no verified release manifest URL. Reinstall from a verified distribution before updating.', version: install.version, ghrepo, ref };
+  // Archive install: the GitHub release for the ref (a tag, or the latest), or the saved self-hosted URL
+  const ghrepo = opts.ghrepo || install.ghrepo || DEFAULT_REPO;
+  const ref = opts.ref || opts.branch || install.ref || 'latest';
+  const switchingRef = ref !== (install.ref || 'latest');
+  const dist = archiveDist({ install, ghrepo, ref, dist: opts.dist });
+  const latest = await fetchDistributionRelease(dist);
+  return {
+    type: 'archive', available: install.version !== latest.version || install.commit !== latest.commit,
+    currentCommit: install.commit, latestCommit: latest.commit,
+    version: install.version, latestVersion: latest.version, ghrepo, ref, dist,
+    currentRef: install.ref || 'latest', targetRef: ref, switchingRef,
+  };
 }
 
 export async function applyUpdate(opts = {}) {
@@ -270,9 +262,9 @@ export async function applyUpdate(opts = {}) {
   const install = opts.install || detectInstall(rootDir, home);
   const quiet = !!opts.quiet;
   const force = !!opts.force;
-  const ghrepo = opts.ghrepo || install.ghrepo || 'yoavshmariahu/thinker';
-  const ref = opts.ref || opts.branch || install.ref || 'main';
-  const dist = opts.dist || install.dist || '';
+  const ghrepo = opts.ghrepo || install.ghrepo || DEFAULT_REPO;
+  const ref = opts.ref || opts.branch || install.ref || 'latest';
+  const dist = install.type === 'git' ? '' : archiveDist({ install, ghrepo, ref, dist: opts.dist });
 
   if (install.type === 'git') {
     const gitDir = install.path;
@@ -335,7 +327,6 @@ export async function applyUpdate(opts = {}) {
   }
 
   // Archive / production install (~/.thinker/app)
-  if (!dist) throw new Error('Refusing to update an archive without a verified release manifest URL. Reinstall from a verified distribution first.');
   const appDir = path.join(home, 'app');
   const binDir = path.join(home, 'bin');
   const tmpBase = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-update-'));
@@ -347,18 +338,14 @@ export async function applyUpdate(opts = {}) {
     const latestCommit = release.commit;
 
     // Download archive
-    if (dist) {
-      if (dist.startsWith('file://')) {
-        const filePath = fileURLToPath(dist);
-        fs.copyFileSync(filePath, tmpTar);
-      } else if (fs.existsSync(dist)) {
-        fs.copyFileSync(dist, tmpTar);
-      } else {
-        const res = await fetch(dist, { signal: AbortSignal.timeout(60_000), redirect: 'error' });
-        if (!res.ok) throw new Error(`Failed to download distribution from ${dist}: HTTP ${res.status}`);
-        const buf = Buffer.from(await res.arrayBuffer());
-        fs.writeFileSync(tmpTar, buf);
-      }
+    if (dist.startsWith('file://')) {
+      fs.copyFileSync(fileURLToPath(dist), tmpTar);
+    } else if (fs.existsSync(dist)) {
+      fs.copyFileSync(dist, tmpTar);
+    } else {
+      const res = await fetchReleaseFile(dist, 120_000);
+      if (!res.ok) throw new Error(`Failed to download the release from ${dist}: HTTP ${res.status}`);
+      fs.writeFileSync(tmpTar, Buffer.from(await res.arrayBuffer()));
     }
 
     if (createHash('sha256').update(fs.readFileSync(tmpTar)).digest('hex') !== release.sha256) {
@@ -446,6 +433,7 @@ export async function applyUpdate(opts = {}) {
       from: fromCommit,
       to: toCommit,
       version: newVersion,
+      ref,
     };
   } finally {
     try { fs.rmSync(tmpBase, { recursive: true, force: true }); } catch {}

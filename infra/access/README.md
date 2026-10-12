@@ -1,9 +1,13 @@
 # Public website
 
-The site, docs and current installer/downloads are public. `production.json` sets
+The site and docs are public. `production.json` sets
 `publicSite: true`; `deploy.mjs` uses `public-deploy.mjs` and `public-gateway.js`.
 The homepage and docs include a GitHub link and the shared message widget.
-Old signed distribution URLs still resolve, so existing clients keep updating.
+Since 0.1.35 the installer and releases live on GitHub (tags `vX.Y.Z` with the
+archive, `version.json` and `install.sh` attached; `scripts/release.sh`). The
+`/dist` paths and the old signed distribution URLs still resolve so that clients
+installed earlier keep updating until they move to GitHub; nothing new is
+uploaded there.
 The S3 origin stays private and the existing CloudFront/WAF configuration is preserved.
 
 From an isolated worktree, run `node infra/access/deploy.mjs prepare`, inspect

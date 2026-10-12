@@ -46,6 +46,23 @@ our repository policy guard or require PRs in their repositories.
 
 Requires Node 20+. Tests: `npm test` (`node --test test/*.test.js`).
 
+**Releases are GitHub releases on tags (since 0.1.35):** a release is the tag
+`vX.Y.Z` on a commit of `main`, with `thinker.tgz`, `version.json` (version,
+commit, sha256 of the archive) and `install.sh` attached. The installer
+(`install.sh`, served raw from `main`) and `thinker update` (`src/update.js`)
+read `releases/latest/download/version.json` and download the archive from the
+same release; `thinker update vX.Y.Z` pins one. To cut a release: bump the
+version through a pull request (`npm version X.Y.Z --no-git-tag-version`,
+commit `package.json` and `package-lock.json`), merge it, then run
+`scripts/release.sh` from any checkout: it builds the three files from
+`origin/main` in a detached worktree (`scripts/pack.sh`), checks the archive,
+tags the commit, pushes the tag, creates the release with notes generated from
+the merged pull requests, and waits until the latest-release URL reports the
+version. Nothing is uploaded to zerotime.dev any more; `scripts/pack.sh <base
+url>` still builds a self-hosted set for anyone who wants one. Installs made
+before 0.1.35 point at `zerotime.dev/dist` and move to GitHub on their first
+update that runs the new code (`install.sh --update` does it by hand).
+
 **No telemetry from tests or benchmarks (MANDATORY RULE):**
 Always set `THINKER_TEST=1` when running tests, benchmarks, evaluation
 harnesses, scratch experiments, or their setup/install steps (`npm test` sets it).
