@@ -232,7 +232,19 @@ The build itself (`thinker setup --build`, or the installer with `--build`):
    `behavior-proposals.js:generateBehaviorProposals`). Both are batched because
    `claude -p` exits 1 when an answer reaches its output cap, and a failed batch
    costs its own notes only; the retries are `thinker phrase` and
-   `thinker system propose --refresh`, never a second build. The agents (`--clients claude,codex,cursor,gemini`, `all`,
+   `thinker system propose --refresh`, never a second build;
+3. last and optional (`--no-docs`), reads the checked-in design documents into
+   system behaviors (`behavior-docs.js`), at most eight a build
+   (`setup/steps.js:DOCS_LIMIT`; maintenance reads the rest), then the skill
+   files. Last since 2026-10-12 because it is the least exercised path of a
+   build, so a problem there costs nothing that came before.
+
+On a terminal the build shows one progress bar on its last line
+(`setup/ui.js:progressBar`, fed by `progress.js:buildProgress`): the share
+done, the time left, and the stage's counts (pull requests mined, documents
+read) with the item in hand; the stage headlines and results print above it.
+The page's bar reads the same model from the mining batch's file
+(`ui/server.js:jobProgress`). The agents (`--clients claude,codex,cursor,gemini`, `all`,
    or `auto`, the default) were connected in step 1.
 
 A build does not explore the code, and no command does: exploration sessions

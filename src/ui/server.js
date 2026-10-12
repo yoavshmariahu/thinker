@@ -110,29 +110,29 @@ const readBody = req => new Promise((resolve, reject) => {
 // file under the repository's .thinker/state); the other two have only a time budget, so during them
 // the bar creeps towards the stage's end and the ETA counts the budget down. `estimateSeconds` is the
 // mining estimate the page showed when the build was queued.
-const DOCS_SECONDS = 45, FINISH_SECONDS = 75;
+const FINISH_SECONDS = 75, DOCS_SECONDS = 48; // progress.js:BUILD_SECONDS: the finish budget, and 8 documents at 6 s
 export function jobProgress(j, { now = Date.now() } = {}) {
   const started = Date.parse(j.started) || now, elapsed = (now - started) / 1000;
   const mineSec = Math.max(30, Number(j.estimateSeconds) || 0);
-  const total = DOCS_SECONDS + mineSec + FINISH_SECONDS;
+  const total = mineSec + FINISH_SECONDS + DOCS_SECONDS;
   const creep = (t, budget) => Math.min(0.95, Math.max(0, t) / budget);
   const batch = latestBatch(path.join(j.checkout, '.thinker'), 'pr-mining', started - 2000);
   let done, left, stage, current = '';
   if (!batch) {
-    stage = 'reading the design documents';
-    done = DOCS_SECONDS * creep(elapsed, DOCS_SECONDS);
-    left = Math.max(5, DOCS_SECONDS - elapsed) + mineSec + FINISH_SECONDS;
+    stage = 'starting';
+    done = Math.min(5, elapsed);
+    left = Math.max(5, total - elapsed);
   } else if (!batch.done) {
     const frac = batch.total ? Math.min(1, batch.completed / batch.total) : 0, inStage = (now - batch.startedMs) / 1000;
     const eta = batchEta(batch, batch.startedMs, now);
     stage = `mining ${batch.completed}/${batch.total} PRs`; current = batch.current;
-    done = DOCS_SECONDS + mineSec * frac;
-    left = (eta ?? Math.max(5, mineSec - inStage)) + FINISH_SECONDS;
+    done = mineSec * frac;
+    left = (eta ?? Math.max(5, mineSec - inStage)) + FINISH_SECONDS + DOCS_SECONDS;
   } else {
-    const inStage = (now - (Date.parse(batch.ended) || batch.startedMs)) / 1000;
-    stage = 'linking notes, search phrasings and behavior drafts';
-    done = DOCS_SECONDS + mineSec + FINISH_SECONDS * creep(inStage, FINISH_SECONDS);
-    left = Math.max(5, FINISH_SECONDS - inStage);
+    const inStage = (now - (Date.parse(batch.ended) || batch.startedMs)) / 1000, rest = FINISH_SECONDS + DOCS_SECONDS;
+    stage = inStage < FINISH_SECONDS ? 'linking notes, search phrasings and behavior drafts' : 'reading the design documents';
+    done = mineSec + rest * creep(inStage, rest);
+    left = Math.max(5, rest - inStage);
   }
   return { fraction: Math.min(0.99, done / total), etaSeconds: Math.round(left), stage, current, saved: batch?.saved || 0 };
 }

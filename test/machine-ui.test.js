@@ -73,9 +73,9 @@ test('a warm-up build reports where it is: the stage, the fraction done and the 
   const store = new Store(dir).init();
   const now = Date.now();
   const job = { checkout: dir, started: new Date(now - 60_000).toISOString(), estimateSeconds: 400 };
-  // before the mining batch: the design documents, with the whole build ahead
+  // before the mining batch: starting, with the whole build ahead (mining 400 s, the finish 75, the documents 48)
   let p = jobProgress(job, { now });
-  assert.match(p.stage, /design documents/); assert.ok(p.fraction > 0 && p.fraction < 0.1, String(p.fraction)); assert.ok(p.etaSeconds > 400 && p.etaSeconds < 520, String(p.etaSeconds));
+  assert.equal(p.stage, 'starting'); assert.ok(p.fraction >= 0 && p.fraction < 0.05, String(p.fraction)); assert.ok(p.etaSeconds > 400 && p.etaSeconds < 525, String(p.etaSeconds));
   // the mining batch at its pace: 2 of 10 in 40s is 160s more, plus the last stage
   const file = path.join(store.dir, 'state', `pr-mining-${now - 40_000}-${process.pid}.jsonl`);
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -87,12 +87,12 @@ test('a warm-up build reports where it is: the stage, the fraction done and the 
   assert.equal(latestBatch(store.dir, 'pr-mining', now), null, 'none started since then');
   p = jobProgress(job, { now });
   assert.equal(p.stage, 'mining 2/10 PRs'); assert.equal(p.current, 'PR #3'); assert.equal(p.saved, 1);
-  assert.ok(p.fraction > 0.1 && p.fraction < 0.4, String(p.fraction)); assert.equal(p.etaSeconds, 160 + 75);
+  assert.ok(p.fraction > 0.1 && p.fraction < 0.4, String(p.fraction)); assert.equal(p.etaSeconds, 160 + 75 + 48);
   assert.equal(activity(store.dir).etaSeconds, 160, 'the live batch carries the same ETA');
   // the batch finished a minute ago: the last stage, nearly over
   fs.appendFileSync(file, rec({ event: 'finish', completed: 10, saved: 7 }).replace(new Date(now).toISOString(), new Date(now - 60_000).toISOString()));
   p = jobProgress(job, { now });
-  assert.match(p.stage, /phrasings/); assert.ok(p.fraction > 0.9 && p.fraction < 1, String(p.fraction)); assert.equal(p.etaSeconds, 15); assert.equal(p.saved, 1, 'notes counted from the items completed');
+  assert.match(p.stage, /phrasings/); assert.ok(p.fraction > 0.85 && p.fraction < 1, String(p.fraction)); assert.equal(p.etaSeconds, 63, 'the finish and the documents, less the minute gone'); assert.equal(p.saved, 1, 'notes counted from the items completed');
   assert.equal(batchEta({ total: 4, completed: 0 }, now, now), null); assert.equal(batchEta({ total: 4, completed: 4 }, now, now), 0);
 });
 

@@ -100,10 +100,54 @@ export function spinner(label, { stream = process.stdout, enabled = spinnerEnabl
   };
 }
 
+// Whether `out` writes to the terminal: console.log, or the CLI's own writer (cli.js tags it with
+// its stream). A test's collecting `out` is neither, and gets no spinner or bar. Before 2026-10-12
+// only console.log counted, and the CLI passed its own writer, so a real `thinker setup --build`
+// never showed a spinner: each stage sat on a static line until it was done.
+export const onTerminal = out => out === console.log || Boolean(out?.stream);
+export const terminalStream = out => out?.stream || process.stdout;
+
 // Run `fn` under a spinner when `out` is the terminal; the result line replaces the spinner.
 export async function withSpinner(out, label, fn, { indent = '  ' } = {}) {
-  const spin = spinner(label, { indent, enabled: out === console.log && spinnerEnabled() });
+  const spin = spinner(label, { indent, stream: terminalStream(out), enabled: onTerminal(out) && spinnerEnabled(terminalStream(out)) });
   try { return await fn(spin); } finally { spin.stop(); }
+}
+
+// A progress bar on the last line, for a build (setup/steps.js): the share done, the time left, and
+// what is being worked on. Like the spinner it takes the stream's `write` so other lines print above
+// it, and redraws itself after them. `set({ fraction, left, text })` updates it; `stop(final)` takes
+// the line away. Off a terminal it draws nothing.
+export function progressBar({ stream = process.stdout, enabled = spinnerEnabled(stream), indent = '  ', width = 24 } = {}) {
+  if (!enabled) return { active: false, set() {}, stop(final) { if (final) stream.write(final + '\n'); } };
+  const own = Object.prototype.hasOwnProperty.call(stream, 'write') ? stream.write : undefined;
+  const write = stream.write.bind(stream);
+  let state = { fraction: 0, left: null, text: '' }, shown = false, stopped = false;
+  const clear = () => { if (shown) { write('\r\x1b[2K'); shown = false; } };
+  const draw = () => {
+    const f = Math.min(1, Math.max(0, Number(state.fraction) || 0)), filled = Math.round(f * width);
+    const bar = c.cyan('█'.repeat(filled)) + c.dim('░'.repeat(width - filled));
+    const eta = state.left == null ? '' : state.left <= 5 ? 'almost done' : `about ${formatDuration(state.left)} left`;
+    const cols = (stream.columns || 80) - 1, head = indent.length + width + 5;
+    let tail = [eta, stripAnsi(state.text || '')].filter(Boolean).join(' · ');
+    const room = cols - head - 3;
+    if (tail.length > room) tail = tail.slice(0, Math.max(0, room - 1)) + '…';
+    write(`\r\x1b[2K${indent}${bar} ${String(Math.round(f * 100)).padStart(3)}%${tail ? c.dim(' · ' + tail) : ''}`);
+    shown = true;
+  };
+  stream.write = (chunk, ...rest) => { clear(); return write(chunk, ...rest); };
+  const timer = setInterval(draw, 250);
+  timer.unref?.();
+  draw();
+  return {
+    active: true,
+    set(next) { state = { ...state, ...next }; if (!stopped) draw(); },
+    stop(final) {
+      if (stopped) return; stopped = true;
+      clearInterval(timer); clear();
+      if (own) stream.write = own; else delete stream.write;
+      if (final) write(final + '\n');
+    },
+  };
 }
 
 export function stepBanner(stepNum, totalSteps, title, subtitle = '') {

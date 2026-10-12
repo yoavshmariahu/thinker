@@ -178,7 +178,7 @@ function check(store, raw, { text, allowed, taken, quotes, discarded }) {
 // Read the design documents not read yet (or changed since) and save the behaviors they state.
 // limit: documents per run, the rest are left for the next one. again: read unchanged documents too.
 // dry: list what would be read, without a model call.
-export async function deriveDocBehaviors(store, { model, limit = 12, again = false, dry = false, directories = null, completeFn = complete, phase = 'init', conc = 4, onDoc } = {}) {
+export async function deriveDocBehaviors(store, { model, limit = 12, again = false, dry = false, directories = null, completeFn = complete, phase = 'init', conc = 4, onDoc, onRead } = {}) {
   const repo = store.repo, all = designDocs(repo, { directories }), state = readState(store);
   const behaviors = store.list().filter(isBehavior);
   const readHashes = new Set(behaviors.filter(docSource).map(n => `${docSource(n).ref}|${docSource(n).hash}`));
@@ -208,7 +208,7 @@ export async function deriveDocBehaviors(store, { model, limit = 12, again = fal
   const taken = new Set(behaviors.filter(n => n.status !== 'invalid').map(n => slugify(n.title)));
   const titles = behaviors.filter(n => n.status !== 'invalid').map(n => n.title);
   const readOne = async d => {
-    onDoc?.(d.path);
+    onDoc?.(d.path, { index: batch.indexOf(d), total: batch.length });
     const defs = nearbyDefinitions(repo, d, d.text);
     const ids = [];
     // what this document produced before: a sentence still there stands, the rest are asked about
@@ -245,6 +245,7 @@ export async function deriveDocBehaviors(store, { model, limit = 12, again = fal
       }
     }
     res.read++;
+    onRead?.(res.read, batch.length);
     const now = readState(store); // read again: other documents are being read beside this one
     now[d.path] = { ...now[d.path], hash: d.hash, at: new Date().toISOString(), behaviors: [...new Set([...mine.map(n => n.id), ...ids])] };
     writeState(store, now);

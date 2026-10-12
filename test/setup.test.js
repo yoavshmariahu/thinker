@@ -36,6 +36,7 @@ import {
   stepBuildCache,
   depthLimits,
   spinner,
+  progressBar,
   finishBox,
 } from '../src/setup.js';
 import { isAuthError, cleanErrorMessage } from '../src/benchmark.js';
@@ -107,7 +108,7 @@ test('behavior proposal stage runs on every cache build', async () => {
   } finally { fs.rmSync(repo, { recursive: true, force: true }); }
 });
 
-test('a build reads the design documents, then the pull requests, and says once that it does not explore the code', async () => {
+test('a build mines the pull requests first and reads the design documents last, and says once that it does not explore the code', async () => {
   const repo = createMockGitRepo();
   try {
     const store = new Store(repo).init(), lines = [];
@@ -118,27 +119,35 @@ test('a build reads the design documents, then the pull requests, and says once 
       proposeFn: async () => ({ proposals: [], sources: 0 }) });
     const text = lines.join('\n');
     assert.match(text, /merged pull requests for the notes; a build does not explore the code/);
-    assert.match(text, /\[1\/3\] Reading design documents for system behaviors/);
-    assert.match(text, /\[2\/3\] Mining/);
-    assert.match(text, /\[3\/3\]/);
+    assert.match(text, /\[1\/3\] Mining/);
+    assert.match(text, /\[2\/3\] Linking notes/);
+    assert.match(text, /\[3\/3\] Reading design documents for system behaviors/);
+    assert.ok(text.indexOf('[1/3]') < text.indexOf('[2/3]') && text.indexOf('[2/3]') < text.indexOf('[3/3]'));
     assert.doesNotMatch(text, /Skipped|--areas|thinker seed|explore \d|\/2\]/);
   } finally { fs.rmSync(repo, { recursive: true, force: true }); }
 });
 
-test('a build reads the design documents into behaviors before it mines, and says what it saved', async () => {
+test('a build reads the design documents into behaviors after it mines, at most 8 of them, and says what it saved; --no-docs skips them', async () => {
   const repo = createMockGitRepo();
   try {
     const store = new Store(repo).init(), lines = [], order = [];
     const estimates = estimateCacheBuild(repo, { prs: 2 });
     estimates.canMine = true;
     const res = await stepBuildCache({ repo, store, estimates, noPhrase: true, agent: 'codex', directories: ['src'], out: line => lines.push(stripAnsi(line)),
-      docsFn: async (st, opts) => { order.push('docs'); assert.equal(st, store); assert.deepEqual(opts.directories, ['src']);
+      docsFn: async (st, opts) => { order.push('docs'); assert.equal(st, store); assert.deepEqual(opts.directories, ['src']); assert.equal(opts.limit, 8, 'the cap');
         return { found: 3, docs: ['README.md', 'src/README.md'], read: 2, saved: [{ id: 'a' }, { id: 'b' }, { id: 'c' }], rejected: [{}], failed: 0, remaining: 1 }; },
       minePrsFn: async () => { order.push('prs'); return { saved: 0, processed: 2, failed: 0 }; },
       proposeFn: async () => ({ proposals: [], sources: 0 }) });
-    assert.deepEqual(order, ['docs', 'prs']);
+    assert.deepEqual(order, ['prs', 'docs']);
     assert.match(lines.join('\n'), /✔ 3 behaviors from 2 design documents; 1 left out[^\n]*; 1 more to read: thinker system docs; see them with thinker system/);
     assert.equal(res.warnings, 0);
+    lines.length = 0;
+    let docsCalls = 0;
+    await stepBuildCache({ repo, store, estimates, noPhrase: true, docs: false, agent: 'codex', out: line => lines.push(stripAnsi(line)),
+      docsFn: async () => { docsCalls++; return { found: 0, docs: [], read: 0, saved: [], rejected: [], failed: 0, remaining: 0 }; },
+      minePrsFn: async () => ({ saved: 0, processed: 2, failed: 0 }), proposeFn: async () => ({ proposals: [], sources: 0 }) });
+    assert.equal(docsCalls, 0, '--no-docs reads no document');
+    assert.match(lines.join('\n'), /\[3\/3\] Design documents skipped \(--no-docs\)/);
     lines.length = 0;
     const failed = await stepBuildCache({ repo, store, estimates, noPhrase: true, agent: 'codex', out: line => lines.push(stripAnsi(line)),
       docsFn: async () => { throw new Error('claude -p exited 1'); },
@@ -433,7 +442,7 @@ test('runSetup mines git history when GitHub origin is unavailable', async () =>
     });
 
     const fullOutput = outLines.join('\n');
-    assert.match(fullOutput, /\[2\/3\] Mining merged changes from git history \(GitHub CLI unavailable\)\.\.\./);
+    assert.match(fullOutput, /\[1\/3\] Mining merged changes from git history \(GitHub CLI unavailable\)/);
     assert.match(fullOutput, /Mined git history changes → 3 notes created/);
     assert.equal(minedPrsArgs.slug, null);
     assert.equal(minedPrsArgs.opts.limit, 10);
@@ -1200,4 +1209,23 @@ test('on a terminal the spinner redraws in place and gives the stream back when 
   assert.match(stripAnsi(text), /Fetching/);
   assert.match(text, /\r\x1b\[2K/, 'the line is cleared before other output');
   assert.ok(text.indexOf('another line') < text.indexOf('✓ Fetched'));
+});
+
+test('the progress bar draws the share done, the time left and the text on one line, and gives the stream back', () => {
+  const written = [];
+  const stream = { isTTY: true, columns: 100, write(s) { written.push(String(s)); return true; } };
+  const original = stream.write;
+  const bar = progressBar({ stream, enabled: true, width: 10 });
+  assert.equal(bar.active, true);
+  bar.set({ fraction: 0.5, left: 125, text: 'Mining merged pull requests 25/50 · #214 Area warming' });
+  stream.write('a line above\n');
+  bar.stop();
+  assert.equal(stream.write, original);
+  const text = stripAnsi(written.join(''));
+  assert.match(text, /█████░░░░░\s+50% · about 2m 5s left · Mining merged pull requests 25\/50 · #214 Area warming/);
+  assert.ok(text.indexOf('a line above') > text.indexOf('%'), 'the bar was drawn before the line, and cleared for it');
+  assert.match(written.join(''), /\r\x1b\[2K/);
+  const off = progressBar({ stream, enabled: false });
+  assert.equal(off.active, false);
+  off.stop('done'); assert.equal(written.at(-1), 'done\n');
 });

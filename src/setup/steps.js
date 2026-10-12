@@ -7,12 +7,12 @@ import { linkNotes, phraseBatches } from '../ops.js';
 import { CLIENTS, USER_SCOPE_CLIENTS, detectClients, installClient, installCursorRule, stripRepoWiring, trustCodex, trustCodexUser } from '../clients.js';
 import { available, provider, findBin } from '../llm.js';
 import { cleanErrorMessage } from '../benchmark.js';
-import { oneLine } from '../progress.js';
+import { oneLine, buildProgress } from '../progress.js';
 import { formatTokens } from '../model-usage.js';
 import { generateBehaviorProposals } from '../behavior-proposals.js';
 import { deriveDocBehaviors, docBehaviorsLine } from '../behavior-docs.js';
 import { scanSkills, skillsLine } from '../skills.js';
-import { c, formatBytes, selectMenu, withSpinner } from './ui.js';
+import { c, formatBytes, selectMenu, withSpinner, progressBar, onTerminal, terminalStream, spinnerEnabled } from './ui.js';
 import { githubSlug } from './agents.js';
 
 // --- Step 1: Connect Harness CLIs --------------------------------------------
@@ -131,7 +131,10 @@ export function ignoreLocalState(dir) {
 
 // --- Step 2: Build Knowledge Cache -------------------------------------------
 
-export async function stepBuildCache({ repo, store, estimates, prs = 60, directories = null, noPrs = false, noPhrase = false, model, agent, out = console.log, minePrsFn, proposeFn = generateBehaviorProposals, docsFn = deriveDocBehaviors, skillsFn = scanSkills, phraseFn = phraseBatches }) {
+// How many design documents one build reads; maintenance reads the rest over time (behavior-docs.js).
+export const DOCS_LIMIT = 8;
+
+export async function stepBuildCache({ repo, store, estimates, prs = 60, directories = null, noPrs = false, noPhrase = false, docs = true, model, agent, out = console.log, minePrsFn, proposeFn = generateBehaviorProposals, docsFn = deriveDocBehaviors, skillsFn = scanSkills, phraseFn = phraseBatches }) {
   let warnings = 0;
   // without pull requests there is nothing to estimate: what is left (linking) is free and local,
   // and the notes come from the sessions to come
@@ -161,39 +164,30 @@ export async function stepBuildCache({ repo, store, estimates, prs = 60, directo
   }
   out('');
 
-  // Stage 1: the system behaviors the checked-in design documents state (behavior-docs.js). First, so
-  // they are there while the pull requests are still being read.
-  out(`  ${c.bold('[1/3] Reading design documents for system behaviors...')}`);
+  // One progress bar for the whole build on the last line of the terminal: the share done, the time
+  // left and the stage's counts (progress.js:buildProgress). The stage headlines and results print
+  // above it. Off a terminal, or from a test's collecting `out`, there is no bar and each stage with a
+  // single model call runs under withSpinner as before.
+  const bar = progressBar({ stream: terminalStream(out), enabled: onTerminal(out) && spinnerEnabled(terminalStream(out)) });
+  const prog = buildProgress({ mineSeconds: estimates.timing?.totalSeconds || 0, docs: docs ? DOCS_LIMIT : 0 });
+  const tick = () => bar.set(prog.now());
+  const ticker = setInterval(tick, 500); ticker.unref?.();
+  const run = (label, fn) => { if (!bar.active) return withSpinner(out, label, fn, { indent: '        ' }); prog.update({ text: label, current: '', done: 0, total: 0 }); tick(); return fn(); };
+  tick();
   try {
-    const result = await withSpinner(out, 'Reading the READMEs and design documents', () => docsFn(store, { model, directories }), { indent: '        ' });
-    if (result.failed) warnings++;
-    out(`        ${result.failed ? c.yellow('⚠') : c.green('✔')} ${docBehaviorsLine(result)}${result.saved.length ? '; see them with thinker system' : ''}`);
-  } catch (e) {
-    warnings++;
-    out(`        ${c.yellow('⚠')} Design documents not read: ${oneLine(cleanErrorMessage(e)).slice(0, 160)}. Retry this step alone: thinker system docs`);
-  }
-
-  // Still stage 1: the skill files of the checkout, one card each (skills.js). Free when there are none.
-  try {
-    const result = await withSpinner(out, 'Reading the skill files (SKILL.md)', () => skillsFn(store, { model, limit: 60, phase: 'init' }), { indent: '        ' });
-    if (result.failed) warnings++;
-    if (result.found) out(`        ${result.failed ? c.yellow('⚠') : c.green('✔')} ${skillsLine(result)}`);
-  } catch (e) {
-    warnings++;
-    out(`        ${c.yellow('⚠')} Skill files not read: ${oneLine(cleanErrorMessage(e)).slice(0, 160)}. Retry this step alone: thinker skills scan`);
-  }
-
-  // Stage 2: Merged PR mining
+  // Stage 1: merged PR mining, the bulk of the build; its batch reports every start and completion
   const slug = githubSlug(repo);
   let minedPrCount = 0;
   if (estimates.canMine && minePrsFn) {
     if (estimates.mineSource === 'github') {
-      out(`  ${c.bold(`[2/3] Mining merged PRs from ${slug}...`)}`);
+      out(`  ${c.bold(`[1/3] Mining merged PRs from ${slug}`)}`);
     } else {
-      out(`  ${c.bold(`[2/3] Mining merged changes from git history (GitHub CLI unavailable)...`)}`);
+      out(`  ${c.bold(`[1/3] Mining merged changes from git history (GitHub CLI unavailable)`)}`);
     }
+    prog.stage('mine', { text: estimates.mineSource === 'github' ? 'Mining merged pull requests' : 'Mining merged changes' });
     try {
-      const res = await minePrsFn(slug, { limit: prs, model, repo, directories });
+      const onProgress = bar.active ? ({ completed, total, current }) => { prog.update({ done: completed, total, current: completed < total ? current : '' }); tick(); } : null;
+      const res = await minePrsFn(slug, { limit: prs, model, repo, directories, ...(onProgress ? { onProgress } : {}) });
       minedPrCount = res.saved || 0;
       const label = estimates.mineSource === 'github' ? 'pull requests' : 'git history changes';
       if (res.failed) warnings++;
@@ -208,18 +202,20 @@ export async function stepBuildCache({ repo, store, estimates, prs = 60, directo
       ? 'not building the cache now'
       : noPrs ? '--no-prs requested'
       : (!estimates.canMine ? 'insufficient git history' : 'requires GitHub repo and gh CLI');
-    out(`  ${c.dim(`[2/3] Merged PR mining · Skipped (${reason})`)}`);
+    out(`  ${c.dim(`[1/3] Merged PR mining · Skipped (${reason})`)}`);
+    prog.skip('mine');
   }
 
-  // Last stage: cross-note linking, phrasings and behavior drafts
-  out(`  ${c.bold('[3/3] Linking notes, search phrasings and behavior drafts...')}`);
+  // Stage 2: cross-note linking, phrasings and behavior drafts
+  out(`  ${c.bold('[2/3] Linking notes, search phrasings and behavior drafts')}`);
+  prog.stage('finish', { text: 'Linking notes' });
   const notes = store.list();
   for (const n of notes) linkNotes(store, n, notes);
   out(`        ${c.green('✔')} Linked ${notes.length} notes across symbol dependencies`);
 
   if (notes.length && !noPhrase && provider()) {
     try {
-      const res = await withSpinner(out, `Generating search phrasings for ${notes.length} notes`, () => phraseFn(store, notes, { model, phase: 'init' }), { indent: '        ' });
+      const res = await run(`Generating search phrasings for ${notes.length} notes`, () => phraseFn(store, notes, { model, phase: 'init' }));
       if (res.failed) {
         warnings++;
         out(`        ${c.yellow('⚠')} Search phrasings generated for ${res.done.length}/${notes.length} notes (${oneLine(cleanErrorMessage(res.lastError)).slice(0, 120)}). Retry the rest: thinker phrase`);
@@ -231,7 +227,7 @@ export async function stepBuildCache({ repo, store, estimates, prs = 60, directo
   }
 
   try {
-    const result = await withSpinner(out, 'Drafting desired behaviors from the strongest rules', () => proposeFn(store, { model }), { indent: '        ' });
+    const result = await run('Drafting desired behaviors from the strongest rules', () => proposeFn(store, { model }));
     if (result.failed) {
       warnings++;
       out(`        ${c.yellow('⚠')} ${result.proposals.length} behavior drafts; ${result.failed} of ${result.sources} source notes not read (${oneLine(cleanErrorMessage(result.lastError)).slice(0, 120)}). Retry: thinker system propose --refresh`);
@@ -241,6 +237,37 @@ export async function stepBuildCache({ repo, store, estimates, prs = 60, directo
     warnings++;
     out(`        ${c.yellow('⚠')} Behavior drafts failed: ${oneLine(cleanErrorMessage(e)).slice(0, 160)}. Retry this step alone: thinker system propose --refresh`);
   }
+
+  // Stage 3, last and optional (--no-docs): the system behaviors the checked-in design documents state
+  // (behavior-docs.js), at most DOCS_LIMIT of them a build, the newest-touched first; the rest wait for
+  // maintenance. Last because it is the least exercised path of a build (2026-10-12), so a problem there
+  // costs nothing that came before. Then the skill files of the checkout, one card each (skills.js), free
+  // when there are none.
+  out(`  ${c.bold(docs ? '[3/3] Reading design documents for system behaviors' : '[3/3] Design documents skipped (--no-docs); reading skill files')}`);
+  if (docs) {
+    prog.stage('docs', { text: 'Reading design documents' });
+    try {
+      const counts = bar.active ? {
+        onDoc: (file, { total }) => { prog.update({ total, current: path.basename(file) }); tick(); },
+        onRead: (read, total) => { prog.update({ done: read, total, current: read < total ? undefined : '' }); tick(); },
+      } : {};
+      const result = await run('Reading the READMEs and design documents', () => docsFn(store, { model, directories, limit: DOCS_LIMIT, ...counts }));
+      if (result.failed) warnings++;
+      out(`        ${result.failed ? c.yellow('⚠') : c.green('✔')} ${docBehaviorsLine(result)}${result.saved.length ? '; see them with thinker system' : ''}`);
+    } catch (e) {
+      warnings++;
+      out(`        ${c.yellow('⚠')} Design documents not read: ${oneLine(cleanErrorMessage(e)).slice(0, 160)}. Retry this step alone: thinker system docs`);
+    }
+  } else prog.skip('docs');
+  try {
+    const result = await run('Reading the skill files (SKILL.md)', () => skillsFn(store, { model, limit: 60, phase: 'init' }));
+    if (result.failed) warnings++;
+    if (result.found) out(`        ${result.failed ? c.yellow('⚠') : c.green('✔')} ${skillsLine(result)}`);
+  } catch (e) {
+    warnings++;
+    out(`        ${c.yellow('⚠')} Skill files not read: ${oneLine(cleanErrorMessage(e)).slice(0, 160)}. Retry this step alone: thinker skills scan`);
+  }
+  } finally { clearInterval(ticker); bar.stop(); }
 
   // Final cache stats
   const finalNotes = store.list();
