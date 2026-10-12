@@ -88,7 +88,7 @@ function registerTools() {
 
   retrieval('lookup', {
     title: 'Look up cached knowledge',
-    description: 'One specific open question, or a note id listed by orient (not every title). If no note answers, search the code. kind "behavior": the desired behaviors of the system a review checks changes against; all of them with an empty query.',
+    description: 'One specific open question, or a note id listed by orient (not every title). If no note answers, search the code. kind "behavior": the desired behaviors of the system; all of them with an empty query.',
     inputSchema: {
       query: z.string().describe('Question, topic, or a note id; empty with kind behavior lists all'),
       kind: z.enum(KINDS).optional().describe('Only this kind'),

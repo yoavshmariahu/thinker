@@ -157,6 +157,9 @@
       color: #000000;
     }
 
+    /* The overview headline stays on one line at every width: sized by the viewport, never wrapped. */
+    h1.headline { font-size: clamp(1.2rem, 3.8vw, 1.95rem); white-space: nowrap; }
+
     p.lead {
       font-size: 1.15rem;
       color: #4b5563;
@@ -609,6 +612,7 @@
           <li class="sidebar-item"><a href="#notes">What a note is</a></li>
           <li class="sidebar-item"><a href="#build">Building the cache</a></li>
           <li class="sidebar-item"><a href="#keeping-current">Keeping it current</a></li>
+          <li class="sidebar-item"><a href="#skills">Skills</a></li>
         </ul>
       </div>
       <div class="sidebar-group">
@@ -643,9 +647,9 @@
 
     <main>
       <section id="overview">
-        <h1>A knowledge cache that makes coding agents more efficient</h1>
+        <h1 class="headline">A knowledge cache for coding agent efficiency</h1>
         <p class="lead">
-          Thinker’s model-agnostic knowledge cache works across coding models and agents. It uses frontier models to build and maintain knowledge from code, sessions, and merged pull requests, and a small local ranking model to choose which notes to serve. Dependency-based invalidation and verification keep the cache fresh, so agents complete tasks with fewer tokens and in less time.
+          Thinker turns your repository's merged pull requests and agent sessions into short notes tied to the code they describe, and hands your coding agent the ones that fit each task as it works. The agent starts at the right code instead of searching for it, so tasks take fewer tokens and less time. A note whose code changed is held back until it is checked again.
         </p>
 
         <div class="outcomes">
@@ -653,7 +657,7 @@
             <div class="outcome-kicker">Tokens</div>
             <div class="outcome-num">18% less tokens</div>
             <div class="outcome-label">per coding task</div>
-            <p class="outcome-body">Each request gets relevant notes with pointers into the code, so the agent starts where it should instead of grepping its way there.</p>
+            <p class="outcome-body">The cache gives the agent the context that fits its task, so it does not have to build up its own picture of the codebase from file reads and searches.</p>
             <div class="outcome-cta">What a session looks like &rarr;</div>
           </a>
           <a class="outcome" href="#usage">
@@ -843,6 +847,21 @@ thinker mine-prs --git --fixes               <span class="code-comment"># no Git
         </div>
       </section>
 
+      <section id="skills">
+        <h2>Skills</h2>
+        <p>
+          A skill is a file (<code>SKILL.md</code>) an agent pulls into its context by name: how to deploy, how to run the tests here, how to add a webhook. Its instructions rest on code that moves, so a skill decays the way a note does. Thinker treats the skill files checked into a repository as cached knowledge; it never edits one.
+        </p>
+        <ul>
+          <li><strong>Each skill gets a card.</strong> A skill file under <code>.claude/skills</code>, <code>.agents/skills</code>, <code>.codex/skills</code>, <code>.cursor/skills</code>, <code>.github/skills</code> or <code>skills/</code> gets a note of kind <code>skill</code>: what it is for, when to invoke it, what it prescribes, with pointers at the code it talks about. A build cards them all; maintenance cards new and changed files as they land. A served card tells the agent to invoke the skill for the full instructions.</li>
+          <li><strong>A card is served like any note.</strong> The hooks and <code>orient</code> rank it with the rest, so a request the skill is about brings the card with its pointer to the file; nothing has to be asked for.</li>
+          <li><strong>Each card is audited against the code.</strong> When code a skill talks about changes, the audit reads the file against the current code and asks one question: does the code contradict something the skill states? A skill the code contradicts is <strong>out of date</strong>: its issues are recorded, it is not served, and no further model call is spent on it until the file changes or a person marks it reviewed (<code>thinker skills review &lt;id&gt;</code>).</li>
+          <li><strong>Sessions grade them.</strong> A session that invoked a skill is read for whether the skill held; a contradiction the session found takes the skill out the same way. Among skills that do the same thing, the one the sessions confirm is the one served (<code>thinker skills prefer &lt;id&gt;</code> picks by hand).</li>
+        </ul>
+        <pre><code>thinker skills                      <span class="code-comment"># every skill with its state, evidence and issues</span>
+thinker skills scan                 <span class="code-comment"># card new or changed skill files now</span></code></pre>
+      </section>
+
       <div class="part-label">Efficient coding</div>
 
       <section id="in-a-session">
@@ -929,7 +948,7 @@ thinker ui --port 4800 --no-open    <span class="code-comment"># a fixed port, w
               <tr><td><code>thinker orient "&lt;task&gt;"</code>, <code>lookup</code></td><td>The MCP tools from the command line</td></tr>
               <tr><td><code>thinker tools [enable | disable] find drilldown</code></td><td>Two code tools for agents (definitions by their words; a definition whole with its callers and callees), off unless enabled</td></tr>
               <tr><td><code>thinker benchmark [pr | run | report]</code></td><td>Paired agent runs with and without the cache, on your repository</td></tr>
-              <tr><td><code>thinker skills</code></td><td>The skill files (<code>SKILL.md</code>) as the cache sees them: out of date, duplicates, evidence</td></tr>
+              <tr><td><code>thinker skills [scan | review | prefer]</code></td><td>The <a href="#skills">skill files</a> as the cache sees them: out of date, duplicates, evidence</td></tr>
               <tr><td><code>thinker system [docs | add | edit | rm | md]</code></td><td>The behaviors read from the design documents, and whether the code upholds each</td></tr>
               <tr><td><code>thinker usage [--here] [--days n]</code></td><td>How the cache has been used, what it cost, and the holdout comparison</td></tr>
               <tr><td><code>thinker impact [--pr n]</code></td><td>Agent work connected to the pull requests it went into</td></tr>
@@ -1017,7 +1036,7 @@ export THINKER_TELEMETRY=off
           <ul>
             <li><strong>On each request</strong> a hook picks the lexical candidates, then a local ranking model reads the request against them and serves up to two notes, only those it scores relevant, with the code behind its pointers and a count of call sites for each symbol named. The agent starts at the code instead of searching for it.</li>
             <li><strong>On each file edit</strong> the rules resting on that file are served, so a trap on that code is in view while it is changed.</li>
-            <li><strong>On demand</strong>, the MCP tools <code>orient</code> and <code>lookup</code> give the agent notes when the hooks served nothing.</li>
+            <li><strong>On demand</strong>, the MCP tools <code>orient</code> and <code>lookup</code> give the agent notes when the hooks served nothing; <a href="#skills">skill cards</a> are among them.</li>
             <li><strong>Never stale.</strong> Every serving re-hashes the dependencies of every note against your working tree. A note whose code changed is held back, re-verified in the background, and served again once it is fresh.</li>
             <li><strong>Once per session.</strong> A note is served once, not for one-word turns, and not at all when nothing fits.</li>
           </ul>

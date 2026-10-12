@@ -57,7 +57,7 @@ thinker but switch it off for one repository with sensitive content, run `thinke
 1. **It learns from your history.** Thinker reads your merged pull requests, fixes first, and your agent sessions. It writes short notes: what broke and why, what a later change must not undo, how the parts connect. Each note points at the exact code it describes.
 2. **It hands your agent what fits.** When you give your agent a task, Thinker passes it the notes that fit, if any do, with pointers to the exact code. When the agent edits a file, it gets the rules that rest on that file.
 3. **It keeps itself current.** When the code under a note changes, the note is checked again in the background; until it passes, it is never handed over as fact.
-4. **It audits your skills.** Each skill file (`SKILL.md`) checked into the repository gets a card that is served like a note and checked against the code it talks about. A skill the code contradicts is listed with its issues and not handed over until it is fixed or reviewed; among skills that do the same thing, the one the sessions confirm is the one served.
+4. **It knows your skills.** Each skill file (`SKILL.md`) checked into the repository gets a card that is served like any other note and checked against the code it talks about. A skill the code contradicts is listed with its issues and not handed over until it is fixed or reviewed; among skills that do the same thing, the one the sessions confirm is the one served.
 
 Everything stays in your repository's `.thinker/` folder. Model calls go through
 the coding agent you already use, on its own login.
