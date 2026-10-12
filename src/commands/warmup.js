@@ -10,6 +10,7 @@ import readlinePromises from 'node:readline/promises';
 import { spawn, spawnSync } from 'node:child_process';
 import { warmupCandidates } from '../machine.js';
 import { selectMenu, c, formatDuration, withSpinner } from '../setup/ui.js';
+import { DEFAULT_DEPTH } from '../setup/estimate.js';
 
 export const PICKED = 5; // as the page: the five most recently active, not yet warmed, are picked
 
@@ -35,7 +36,7 @@ export function parseSelection(answer, items, picked) {
 }
 
 const row = (r, i, picked, width) => {
-  const est = r.estimates.full, mark = picked.includes(r) ? c.cyan('[x]') : c.dim('[ ]');
+  const est = r.estimates[DEFAULT_DEPTH], mark = picked.includes(r) ? c.cyan('[x]') : c.dim('[ ]');
   const what = est.prs ? `~${formatDuration(est.seconds)}, ${est.prs} pull requests` : 'no merged pull requests to read';
   const tags = [r.current ? 'current' : '', r.warmed ? 'warmed before' : r.hasCache ? `${r.notes} notes already` : ''].filter(Boolean).join(', ');
   return `    ${String(i + 1).padStart(2)}) ${mark} ${r.name.padEnd(width)} ${c.dim(what)}${tags ? c.dim(` · ${tags}`) : ''}`;
@@ -98,12 +99,12 @@ export async function warmupCommand(ctx) {
   chosen = chosen.filter(r => r.canMine);
   if (noPrs.length) out(`  ${noPrs.map(r => r.name).join(', ')}: no merged pull requests to read; the cache there grows from your sessions.`);
   if (!chosen.length) { out('  Nothing to warm up.'); later(); return; }
-  const seconds = chosen.reduce((a, r) => a + (r.estimates.full.seconds || 0), 0);
+  const seconds = chosen.reduce((a, r) => a + (r.estimates[DEFAULT_DEPTH].seconds || 0), 0);
   out(`\n  Warming up ${chosen.length === 1 ? chosen[0].name : `${chosen.length} repositories`}, about ${formatDuration(seconds)} in all, one at a time. ${c.dim('Each is thinker setup --build; a cache is used as soon as it has notes.')}\n`);
   let failed = 0;
   for (const r of chosen) {
     // --yes takes the person's areas when there are any (setup/project.js), the whole repository otherwise
-    const args = [cli, 'setup', '--build', '--yes', '--no-ui', '--no-benchmark', '--depth', 'full', '--repo', r.checkout];
+    const args = [cli, 'setup', '--build', '--yes', '--no-ui', '--no-benchmark', '--depth', DEFAULT_DEPTH, '--repo', r.checkout];
     if (flags.dry) { out(`  would run: thinker ${args.slice(1).join(' ')}`); continue; }
     out(`  ${c.bold(r.name)}`);
     const res = spawnSync(process.execPath, args, { cwd: r.checkout, stdio: 'inherit', env: { ...process.env, THINKER_INSTALLER: '1' } });
