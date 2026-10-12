@@ -285,7 +285,8 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
         if (!c) return json(res, 400, { error: `not a repository on this machine: ${b.checkout}` });
         if (b.disabled && jobs.list().some(j => j.checkout === c.checkout && (j.status === 'queued' || j.status === 'running'))) return json(res, 400, { error: 'a warm-up of this repository is queued or running; stop it first' });
         setRepoDisabled(c.checkout, { disabled: !!b.disabled, name: c.name });
-        known = null; candidates = null;
+        // the lists stay: a switch changes one flag, and rebuilding the warm-up list costs seconds per click
+        for (const r of [...(candidates || []), ...(known || [])]) if (r.checkout === c.checkout || r.checkouts?.includes(c.checkout)) r.disabled = !!b.disabled;
         return json(res, 200, { ok: true, checkout: c.checkout, disabled: !!b.disabled, hasCache: fs.existsSync(path.join(c.checkout, '.thinker')) });
       }
       if (url.pathname === '/api/warmup/cancel') { const r = jobs.cancel(String(b.id || '')); return r.error ? json(res, 400, r) : json(res, 200, r); }

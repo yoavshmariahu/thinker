@@ -880,13 +880,15 @@ function renderWarmup() {
     const dirs = el.querySelector('[data-dirs]'); if (dirs) dirs.onclick = () => { DROP = DROP === c ? null : c; dirQuery = ''; renderWarmup(); if (DROP) document.querySelector('.wdrop input')?.focus(); };
     const sw = el.querySelector('[data-switch]'); if (sw) sw.onclick = async () => {
       const disabled = sw.dataset.switch === 'off';
+      // the row flips at once; the server's answer confirms it, or puts it back with the reason
+      const row = W.repos.find(x => x.checkout === c), was = row?.disabled;
+      SEL.delete(c); if (DROP === c) DROP = null; if (row) row.disabled = disabled;
+      renderWarmup();
       try {
         const r = await api('/api/repos/switch', { checkout: c, disabled });
-        SEL.delete(c); if (DROP === c) DROP = null;
-        const row = W.repos.find(x => x.checkout === c); if (row) row.disabled = disabled;
-        renderWarmup(); REPOS = [];
+        REPOS = [];
         toast(disabled ? `thinker is off for ${row?.name || 'this repository'}: no notes, no learning, nothing written into it${r.hasCache ? '; its cache stays until .thinker/ is deleted' : ''}` : `thinker is on again for ${row?.name || 'this repository'}`);
-      } catch (e) { toast(e.message, true); }
+      } catch (e) { if (row) row.disabled = was; renderWarmup(); toast(e.message, true); }
     };
   });
   if (DROP) renderDrop();
