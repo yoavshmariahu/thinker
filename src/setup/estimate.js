@@ -17,14 +17,17 @@ export const TOKENS_PER_PR = 14_000;
 // valuable third of a full one, not a different build.
 export const SHALLOW_SHARE = 0.3;
 export const DEPTHS = ['full', 'shallow'];
-export function depthLimits({ depth = 'full', prs = 60 } = {}) {
+// The build's defaults, read by the command line and the warm-up page alike (test/cli-ui-sync.test.js)
+export const DEFAULT_DEPTH = 'full';
+export const DEFAULT_PRS = 60;
+export function depthLimits({ depth = DEFAULT_DEPTH, prs = DEFAULT_PRS } = {}) {
   if (depth !== 'shallow') return { prs };
   return { prs: prs > 0 ? Math.max(1, Math.ceil(prs * SHALLOW_SHARE)) : prs };
 }
 
 // A build reads merged changes and nothing else, so that is all there is to estimate.
 // `commitCount` and `fileCount` given skip the git calls (a second estimate of the same repository).
-export function estimateCacheBuild(repo, { prs = 60, noPrs = false, slug = null, directories = null, commitCount = null, fileCount = null } = {}) {
+export function estimateCacheBuild(repo, { prs = DEFAULT_PRS, noPrs = false, slug = null, directories = null, commitCount = null, fileCount = null } = {}) {
   if (commitCount == null) {
     commitCount = 0;
     try {

@@ -9,7 +9,7 @@ import { thinkerHome } from './update.js';
 import { maybeSendDailyTelemetryInBackground } from './telemetry.js';
 import { c, banner, stepBanner, finishBox, withSpinner } from './setup/ui.js';
 import { githubSlug, buildAgent, checkAgentAuth, selectAndAuthenticateAgent } from './setup/agents.js';
-import { estimateCacheBuild, depthLimits } from './setup/estimate.js';
+import { estimateCacheBuild, depthLimits, DEFAULT_DEPTH, DEFAULT_PRS } from './setup/estimate.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { stepConnectClis, ignoreLocalState, stepBuildCache, confirmCacheBuild, openDashboard } from './setup/steps.js';
@@ -31,7 +31,7 @@ export async function runSetup({
   clients,
   projectFlags = {},
   chooseProjectFn = chooseProject,
-  prs = 60,
+  prs = DEFAULT_PRS,
   prNumber = null,
   benchmark = false,
   noBenchmark = false,
@@ -109,7 +109,7 @@ export async function runSetup({
   let building = noPrs ? false : build;
   if (building === null) {
     const shallowLimits = depthLimits({ depth: 'shallow', prs });
-    const answer = yes ? (depth || 'full') : await confirmCacheBuild({
+    const answer = yes ? (depth || DEFAULT_DEPTH) : await confirmCacheBuild({
       estimates: estimateCacheBuild(repo, { prs, directories, noPrs, slug, agent: activeAgent }),
       shallow: estimateCacheBuild(repo, { ...shallowLimits, directories, noPrs, slug, agent: activeAgent }),
       agent: activeAgent,

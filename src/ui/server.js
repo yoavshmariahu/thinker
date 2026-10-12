@@ -28,8 +28,8 @@ import { discoverRepos, warmupCandidates, cacheStats, displayName } from '../mac
 import { activity, cancelActivity, alive, latestBatch, batchEta } from '../activity.js';
 import { thinkerHome } from '../update.js';
 import { BUILD_AGENTS, buildAgent, checkAgentAuth, getAgentDisplayName } from '../setup/agents.js';
-import { DEPTHS } from '../setup/estimate.js';
-import { resolveModel, findBin, BINS } from '../llm.js';
+import { DEPTHS, DEFAULT_DEPTH } from '../setup/estimate.js';
+import { resolveModel, findBin, BINS, DEFAULT_DISTILL_MODEL } from '../llm.js';
 import { isDisabledRepo, setRepoDisabled } from '../repo-switch.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -234,13 +234,13 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
       }
       if (req.method === 'GET' && url.pathname === '/api/machine') {
         candidates = warmupCandidates(store, { home: transcriptsHome });
-        return json(res, 200, { repos: candidates, tiers: TIERS, defaultTier: 'sonnet', jobs: jobs.list() });
+        return json(res, 200, { repos: candidates, tiers: TIERS, defaultTier: DEFAULT_DISTILL_MODEL, jobs: jobs.list() });
       }
       // the agent CLIs a build can run through, with whether each is signed in: asking each takes seconds, so
       // once per server
       if (req.method === 'GET' && url.pathname === '/api/agents') {
         agents ||= BUILD_AGENTS.filter(a => findBin(BINS[a])).map(a => { const auth = checkAgentAuth(a); return { agent: a, name: getAgentDisplayName(a, findBin(BINS[a])), authenticated: !!auth.authenticated, details: auth.details || '', loginCmd: auth.loginCmd, models: TIERS.map(t => ({ tier: t, model: resolveModel(a, t) })) }; });
-        return json(res, 200, { agents, defaultAgent: buildAgent(), tiers: TIERS, defaultTier: 'sonnet' });
+        return json(res, 200, { agents, defaultAgent: buildAgent(), tiers: TIERS, defaultTier: DEFAULT_DISTILL_MODEL });
       }
       if (req.method === 'GET' && url.pathname === '/api/usage') {
         const days = Number(url.searchParams.get('days')) || undefined;
@@ -271,7 +271,7 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
         for (const r of Array.isArray(b.repos) ? b.repos : []) {
           const c = candidates.find(x => x.checkout === r.checkout); if (!c) return json(res, 400, { error: `not a repository on this machine: ${r.checkout}` });
           if (isDisabledRepo(c.checkout)) return json(res, 400, { error: `thinker is switched off for ${c.name}; turn it on first` });
-          const depth = DEPTHS.includes(r.depth) ? r.depth : 'full';
+          const depth = DEPTHS.includes(r.depth) ? r.depth : DEFAULT_DEPTH;
           const dirs = Array.isArray(r.directories) ? r.directories.filter(d => c.dirs.includes(d)) : [];
           list.push({ checkout: c.checkout, name: c.name, depth, directories: dirs.length ? dirs : null, agent, model: tier, estimateSeconds: c.estimates[depth]?.seconds || 0 });
         }
