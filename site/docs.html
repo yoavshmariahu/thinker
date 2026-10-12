@@ -914,7 +914,7 @@ thinker ui                          <span class="code-comment"># accept, edit or
           Nothing changes in how you work. The hooks put the right note in front of the agent at the right moment, and the agent starts at the code it needs instead of searching for it.
         </p>
         <ul>
-          <li><strong>Each request</strong> gets the note that fits it, with <code>file:Symbol</code> pointers into the code and a <code>[6 call sites in 3 files]</code> tag on each symbol it names. A local ranking model reads the request with the best lexical candidates and serves one note, only when it scores it relevant; when it is missing, notes are ranked by words alone. A note is served once per session, never while stale, and not at all for a one-word turn of conversation. When nothing fits, nothing is served.</li>
+          <li><strong>Each request</strong> gets the note that fits it, with <code>file:Symbol</code> pointers into the code and a <code>[6 call sites in 3 files]</code> tag on each symbol it names. A local ranking model reads the request with the best lexical candidates and serves up to two notes, only those it scores relevant; when it is missing, notes are ranked by words alone. A note is served once per session, never while stale, and not at all for a one-word turn of conversation. When nothing fits, nothing is served.</li>
           <li><strong>Each file the agent edits</strong> brings the notes resting on it, rules first, so a trap on that code is in front of the agent as it changes it.</li>
           <li><strong>At the end of each turn</strong> one line says what was served: <code>🧠 thinker: 2 notes this turn (pointing at 2 files, ~7k tokens of code)</code>. It does not say "saved": whether the agent acted on a note is known only once the session is assessed.</li>
         </ul>
@@ -1092,7 +1092,7 @@ export THINKER_TELEMETRY=off
             A note is a short rule, map or how-to about one part of the code, with <code>file:Symbol</code> pointers and a hash of the code it rests on. The cache is a set of such notes, and the work is in putting the right one in front of the agent without being asked:
           </p>
           <ul>
-            <li><strong>On each request</strong> a hook picks the lexical candidates, then a local ranking model reads the request against them and serves one note only when it scores it relevant, with the code behind its pointers and a count of call sites for each symbol named. The agent starts at the code instead of searching for it.</li>
+            <li><strong>On each request</strong> a hook picks the lexical candidates, then a local ranking model reads the request against them and serves up to two notes, only those it scores relevant, with the code behind its pointers and a count of call sites for each symbol named. The agent starts at the code instead of searching for it.</li>
             <li><strong>On each file edit</strong> the notes resting on that file are served, rules first, so a trap on that code is in view while it is changed.</li>
             <li><strong>On demand</strong>, the MCP tools <code>orient</code>, <code>lookup</code>, <code>find</code> and <code>drilldown</code> give the agent notes and the code graph when the hooks served nothing.</li>
             <li><strong>Never stale.</strong> Every serving re-hashes the dependencies of every note against your working tree. A note whose code changed is held back, re-verified in the background, and served again once it is fresh.</li>
