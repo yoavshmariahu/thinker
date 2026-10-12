@@ -9,7 +9,9 @@
 // to find the files, and the re-reading of earlier output on every later model
 // call, are left out. It is an estimate of reading avoided, not a measurement.
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+import { isTestMode } from './test-mode.js';
 import { emptySpend, addSpend, formatTokens } from './model-usage.js';
 export { formatTokens };
 import { estTokens } from './rank.js';
@@ -412,6 +414,43 @@ export function renderHoldout(h) {
   for (const [m, g] of models) L.push(`  ${m.padEnd(15)} ${num(g.served.prompts)} vs ${num(g.heldOut.prompts)} prompts; tool calls ${one(g.served.perPrompt.toolCalls)} vs ${one(g.heldOut.perPrompt.toolCalls)}, input tokens ${v(g.served.perPrompt.inputTokens, formatTokens)} vs ${v(g.heldOut.perPrompt.inputTokens, formatTokens)}`);
   L.push('  per prompt: a turn\'s cost by its transcript, summed over the side and divided by its measured prompts; prompts with nothing to serve are on neither side');
   return L;
+}
+
+// Once a week, at the first stop of the week, the stop hook tells the user what the notes saved:
+// the holdout comparison over the last 30 days of the machine's log, every repository (the user
+// is the unit, and a week of one person's work rarely clears the floor). One line, in tokens:
+// the saving, the two costs per prompt and the counts behind it, so it can be checked at a
+// glance; a negative saving reads "more" with the same numbers. Nothing under the floor: a
+// line about not having a number yet is noise every week. The week last reported is a marker
+// under thinker's home, so one line serves every repository and agent on the machine; it is
+// written only when a line was shown, so the first week past the floor is reported as soon as
+// it is reached. Shown where the stop hook can speak to the user (clients.js:stopOutput).
+export const WEEKLY_WINDOW_DAYS = 30;
+export function weeklyLine(h) {
+  if (!h?.enough || h.saved?.inputTokens == null) return '';
+  const s = h.saved.inputTokens, a = h.served.perPrompt, b = h.heldOut.perPrompt, d = h.deltaPct.inputTokens;
+  const calls = a.toolCalls != null && b.toolCalls != null ? `; tool calls ${Math.round(a.toolCalls)} vs ${Math.round(b.toolCalls)}` : '';
+  return `🧠 thinker, last ${WEEKLY_WINDOW_DAYS} days: about ${formatTokens(Math.abs(s))} ${s >= 0 ? 'fewer' : 'more'} input tokens across ${num(h.served.measured.inputTokens)} prompts with notes (${formatTokens(a.inputTokens)} per prompt vs ${formatTokens(b.inputTokens)} on ${num(h.heldOut.measured.inputTokens)} held out${d != null ? `, ${d > 0 ? '+' : ''}${d}%` : ''}${calls}).`;
+}
+// The ISO week of a local date, as 2026-W42.
+export function isoWeek(d) {
+  const x = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  x.setUTCDate(x.getUTCDate() + 4 - (x.getUTCDay() || 7));
+  const y = x.getUTCFullYear();
+  return `${y}-W${String(Math.ceil(((x - Date.UTC(y, 0, 1)) / 86400_000 + 1) / 7)).padStart(2, '0')}`;
+}
+// the suite must not write under the developer's home unless it names a THINKER_HOME of its own
+const weeklyHome = () => isTestMode() && !process.env.THINKER_HOME ? null : process.env.THINKER_HOME || path.join(os.homedir(), '.thinker');
+export function weeklyNotice(store, { now = Date.now(), home = weeklyHome() } = {}) {
+  if (!home) return '';
+  const week = isoWeek(new Date(now)), marker = path.join(home, 'state', 'weekly-notice.json');
+  try { if (JSON.parse(fs.readFileSync(marker, 'utf8')).week === week) return ''; } catch {}
+  const since = new Date(now - WEEKLY_WINDOW_DAYS * 86400_000).toISOString();
+  let line = '';
+  try { line = weeklyLine(holdoutOf(readLog(store, { all: true }).filter(e => e.t >= since))); } catch { return ''; }
+  if (!line) return '';
+  try { fs.mkdirSync(path.dirname(marker), { recursive: true }); fs.writeFileSync(marker, JSON.stringify({ week, t: new Date(now).toISOString() })); } catch {}
+  return line;
 }
 export function renderUsage(u, { days } = {}) {
   const machine = u.scope === 'machine';

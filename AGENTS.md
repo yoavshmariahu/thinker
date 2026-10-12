@@ -820,7 +820,13 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   (`scripts/holdout-dashboard.mjs`). The share is `holdout` in
   `.thinker/config.json` (default 0.15; 0 or false: none), `THINKER_HOLDOUT`
   overrides it (`off`, `0`, or a share; `1` holds out every prompt, for
-  tests). Benchmarks pin their arms and should set it off.
+  tests). Benchmarks pin their arms and should set it off. Once a week the
+  stop hook shows the user one line from this comparison over the last 30
+  days of the machine's log (`usage.js:weeklyNotice`): the saving in input
+  tokens with the two per-prompt costs and counts behind it, nothing under
+  the floor; the week last shown is a marker under thinker's home
+  (`state/weekly-notice.json`), written only when a line was shown. Not on
+  a held-out turn, and off with the other notices (`THINKER_NOTICE=off`).
 - The prompt hooks serve no stale note (`orient`'s `freshOnly`). A stale
   note that would have been served is held back, logged as `held` on the
   `orient` line, and left for the next four-hour maintenance batch

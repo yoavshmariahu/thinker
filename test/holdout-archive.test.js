@@ -11,7 +11,7 @@ import { Store } from '../src/store.js';
 import { rank } from '../src/rank.js';
 import { createNote, orient, lookup, lateNotes, rememberTask, outcome, holdoutDecision, beginTurn, holdoutTurn, holdoutRate, archiveNotes, archiveReason, ARCHIVE_DEFAULTS } from '../src/ops.js';
 import { maintain, pickStale, DEFAULTS, MAINTENANCE_INTERVAL_MS } from '../src/maintain.js';
-import { holdoutSummary, renderHoldout, summarize, renderUsage } from '../src/usage.js';
+import { holdoutSummary, renderHoldout, summarize, renderUsage, weeklyNotice, weeklyLine, isoWeek } from '../src/usage.js';
 import { parseTranscript } from '../src/transcripts.js';
 import { holdoutMetrics, buildTelemetryPayload } from '../src/telemetry.js';
 
@@ -295,4 +295,40 @@ test('the archive command lists, archives, dry-runs and restores', () => withEnv
   assert.match(run('--list'), /map\s+\S+\s+\d{4}-\d\d-\d\d\s+kind map/);
   assert.match(execFileSync('node', [CLI, 'list', '--repo', dir], { encoding: 'utf8', env: process.env }), /archived\s+map/);
   assert.match(run('--restore', n.id), /1 note restored/); assert.ok(!new Store(dir).get(n.id).archived);
+}));
+
+test('once a week the stop hook tells the user what the notes saved over the last 30 days, nothing under the floor', () => withEnv({ THINKER_LOG: 'local', THINKER_HOLDOUT: undefined, THINKER_NO_BG_VERIFY: '1', THINKER_NO_LEARN: '1' }, async () => {
+  const dir = gitRepo(); const store = new Store(dir).init();
+  const home = path.join(dir, 'home');
+  const now = Date.parse('2026-10-14T10:00:00Z');  // a Wednesday of 2026-W42
+  assert.equal(isoWeek(new Date(now)), '2026-W42'); assert.equal(isoWeek(new Date('2026-10-11T12:00:00')), '2026-W41'); assert.equal(isoWeek(new Date('2027-01-01T12:00:00')), '2026-W53');
+  assert.equal(weeklyNotice(store, { now, home }), '', 'no data: nothing');
+  // 25 sessions, each a served turn 1 and a held-out turn 2 twice the cost
+  const t = new Date(now - 86400_000).toISOString();
+  for (let i = 0; i < 25; i++) {
+    store.log({ t, op: 'orient', session: `s${i}`, turn: 1, client: 'claude', served: ['n1'], holdout: undefined });
+    store.log({ t, op: 'session', session: `s${i}`, turn: 1, model: 'm', toolCalls: 5, inputTokens: 1_000_000, turns: 3 });
+    store.log({ t, op: 'orient', session: `s${i}`, turn: 2, client: 'claude', served: [], holdout: true, withheld: ['n1'] });
+    store.log({ t, op: 'session', session: `s${i}`, turn: 2, model: 'm', toolCalls: 12, inputTokens: 3_000_000, turns: 8 });
+  }
+  const line = weeklyNotice(store, { now, home });
+  assert.equal(line, '🧠 thinker, last 30 days: about 25M fewer input tokens across 25 prompts with notes (1M per prompt vs 2M on 25 held out, -50%; tool calls 5 vs 7).');
+  assert.equal(weeklyNotice(store, { now: now + 3 * 86400_000, home }), '', 'shown once a week');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(home, 'state', 'weekly-notice.json'), 'utf8')).week, '2026-W42');
+  assert.match(weeklyNotice(store, { now: now + 7 * 86400_000, home }), /^🧠 thinker, last 30 days: about 25M fewer/, 'and again the next week');
+  assert.equal(weeklyNotice(store, { now: now + 40 * 86400_000, home }), '', 'the turns have left the window');
+  // a negative saving reads "more", with the same numbers
+  const h = summarize(store, {}).holdout; const flipped = { ...h, saved: { inputTokens: -5_000_000 }, deltaPct: { inputTokens: 20 } };
+  assert.match(weeklyLine(flipped), /about 5M more input tokens across 25 prompts with notes \(1M per prompt vs 2M on 25 held out, \+20%/);
+  assert.equal(weeklyLine({ ...h, enough: false }), '');
+  // through the stop hook: the user's message, once, and not on a held-out turn
+  fs.rmSync(path.join(home, 'state'), { recursive: true, force: true });
+  const env = { ...process.env, THINKER_HOME: home };
+  const stop = () => execFileSync('node', [CLI, 'hook', 'stop', '--no-distill', '--repo', dir], { input: JSON.stringify({ session_id: 'w1' }), encoding: 'utf8', env }).trim();
+  const first = stop();
+  assert.match(JSON.parse(first).systemMessage, /^🧠 thinker, last 30 days: about 25M fewer input tokens/);
+  assert.equal(stop(), '', 'the same week: nothing');
+  fs.rmSync(path.join(home, 'state'), { recursive: true, force: true });
+  execFileSync('node', [CLI, 'hook', 'prompt', '--repo', dir], { input: JSON.stringify({ session_id: 'w2', prompt: 'hi' }), encoding: 'utf8', env: { ...env, THINKER_HOLDOUT: '1' } });
+  assert.equal(execFileSync('node', [CLI, 'hook', 'stop', '--no-distill', '--repo', dir], { input: JSON.stringify({ session_id: 'w2' }), encoding: 'utf8', env }).trim(), '', 'a held-out turn shows nothing');
 }));
