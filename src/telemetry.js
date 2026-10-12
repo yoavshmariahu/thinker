@@ -412,38 +412,65 @@ export function getTelemetryLaunchAgentPath(customPath) {
 }
 
 export function isTelemetryScheduled(home = thinkerHome(), opts = {}) {
-  if (process.platform === 'darwin') {
+  const run = opts.run || execFileSync;
+  const platform = opts.platform || process.platform;
+  if (platform === 'darwin') {
     const plist = opts.plistPath || getTelemetryLaunchAgentPath();
     if (!fs.existsSync(plist)) return false;
     if (opts.checkFileOnly) return true;
+    try { return run('launchctl', ['list'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).includes('com.thinker.telemetry'); }
+    catch { return false; }
+  } else if (platform === 'linux') {
     try {
-      const out = execFileSync('launchctl', ['list'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
-      return out.includes('com.thinker.telemetry');
-    } catch {
-      return fs.existsSync(plist);
-    }
-  } else if (process.platform === 'linux') {
+      const crontab = run('crontab', ['-l'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+      if (crontab.split('\n').some(isTelemetryCron)) return true;
+    } catch {}
     try {
-      const crontab = execFileSync('crontab', ['-l'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
-      return crontab.includes('thinker') && crontab.includes('telemetry');
-    } catch {
-      return false;
-    }
+      run('systemctl', ['--user', 'is-active', '--quiet', 'thinker-telemetry.timer'], { stdio: 'pipe', timeout: 5000 });
+      return true;
+    } catch { return false; }
   }
   return false;
+}
+
+const isTelemetryCron = line => !line.trimStart().startsWith('#') &&
+  (line.endsWith('# thinker-telemetry') || (line.includes('thinker') && line.includes('telemetry --send')));
+
+const telemetryUnitDir = () => path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config'), 'systemd', 'user');
+function scheduleSystemdTelemetry({ home, command, run, unitDir = telemetryUnitDir() }) {
+  try {
+    run('systemctl', ['--user', 'show-environment'], { stdio: 'pipe', timeout: 5000 });
+  } catch {
+    throw new Error('crontab is not installed and a systemd user manager is unavailable');
+  }
+  fs.mkdirSync(unitDir, { recursive: true });
+  // systemd expands % specifiers and $ variables even inside ExecStart arguments.
+  const arg = s => '"' + s.replaceAll('\\', '\\\\').replaceAll('"', '\\"').replaceAll('%', '%%').replaceAll('$', '$$') + '"';
+  const service = path.join(unitDir, 'thinker-telemetry.service');
+  const timer = path.join(unitDir, 'thinker-telemetry.timer');
+  fs.writeFileSync(service, `[Unit]\nDescription=Thinker telemetry\n[Service]\nType=oneshot\nExecStart=/bin/sh -c ${arg(command)}\n`);
+  fs.writeFileSync(timer, '[Unit]\nDescription=Hourly Thinker telemetry\n[Timer]\nOnCalendar=hourly\nPersistent=true\n[Install]\nWantedBy=timers.target\n');
+  run('systemctl', ['--user', 'daemon-reload'], { stdio: 'pipe', timeout: 5000 });
+  run('systemctl', ['--user', 'enable', '--now', 'thinker-telemetry.timer'], { stdio: 'pipe', timeout: 5000 });
+  return { type: 'systemd', path: timer };
 }
 
 export function scheduleTelemetry(opts = {}) {
   const home = opts.home || thinkerHome();
   const binPath = opts.binPath || path.join(home, 'bin', 'thinker');
   const nodeBinDir = path.dirname(process.execPath);
+  const run = opts.run || execFileSync;
+  const platform = opts.platform || process.platform;
+  const quote = s => "'" + String(s).replaceAll("'", "'\"'\"'") + "'";
+  const xml = s => s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+  const command = `THINKER_HOME=${quote(home)} PATH=${quote(nodeBinDir)}:$PATH:/usr/local/bin:/opt/homebrew/bin ${opts.cliPath ? `${quote(process.execPath)} ${quote(opts.cliPath)}` : quote(binPath)} telemetry --send --quiet`;
 
-  if (process.platform === 'darwin') {
+  if (platform === 'darwin') {
     const plistPath = opts.plistPath || getTelemetryLaunchAgentPath();
     fs.mkdirSync(path.dirname(plistPath), { recursive: true });
 
     if (!opts.skipLaunchctl) {
-      try { execFileSync('launchctl', ['unload', plistPath], { stdio: 'ignore' }); } catch {}
+      try { run('launchctl', ['unload', plistPath], { stdio: 'ignore' }); } catch {}
     }
 
     const plistContent = `<?xml version="1.0" encoding="UTF-8"?>
@@ -456,14 +483,14 @@ export function scheduleTelemetry(opts = {}) {
     <array>
         <string>/bin/sh</string>
         <string>-c</string>
-        <string>PATH="${nodeBinDir}:$PATH:/usr/local/bin:/opt/homebrew/bin" exec "${binPath}" telemetry --send --quiet</string>
+        <string>${xml(command)}</string>
     </array>
     <key>StartInterval</key>
     <integer>3600</integer>
     <key>StandardErrorPath</key>
-    <string>${path.join(home, 'telemetry.err')}</string>
+    <string>${xml(path.join(home, 'telemetry.err'))}</string>
     <key>StandardOutPath</key>
-    <string>${path.join(home, 'telemetry.out')}</string>
+    <string>${xml(path.join(home, 'telemetry.out'))}</string>
 </dict>
 </plist>
 `;
@@ -472,66 +499,79 @@ export function scheduleTelemetry(opts = {}) {
     if (!opts.skipLaunchctl) {
       try {
         const uid = process.getuid ? process.getuid() : 501;
-        execFileSync('launchctl', ['bootstrap', `gui/${uid}`, plistPath], { stdio: 'ignore' });
+        run('launchctl', ['bootstrap', `gui/${uid}`, plistPath], { stdio: 'ignore' });
       } catch {
         try {
-          execFileSync('launchctl', ['load', plistPath], { stdio: 'ignore' });
+          run('launchctl', ['load', plistPath], { stdio: 'ignore' });
         } catch (e) {
           throw new Error(`Failed to register LaunchAgent: ${e.message}`);
         }
       }
     }
     return { type: 'launchd', path: plistPath };
-  } else if (process.platform === 'linux') {
+  } else if (platform === 'linux') {
     let crontab = '';
     try {
-      crontab = execFileSync('crontab', ['-l'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
-    } catch {}
+      crontab = run('crontab', ['-l'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    } catch (e) {
+      if (e.code === 'ENOENT') return scheduleSystemdTelemetry({ home, command, run, unitDir: opts.unitDir });
+      // `crontab -l` exits 1 when there is no table yet. Do not overwrite a
+      // table we failed to read for any other reason.
+      if (e.status !== 1) throw e;
+    }
 
-    const line = `0 * * * * PATH="${nodeBinDir}:$PATH:/usr/local/bin" "${binPath}" telemetry --send --quiet`;
+    const line = `0 * * * * ${command.replaceAll('%', '\\%')} # thinker-telemetry`;
     if (!crontab.includes(line)) {
-      const newCrontab = (crontab.trim() ? crontab.trim() + '\n' : '') + line + '\n';
-      execFileSync('crontab', ['-'], { input: newCrontab, encoding: 'utf8' });
+      const kept = crontab.split('\n').filter(l => !isTelemetryCron(l)).join('\n').trimEnd();
+      const newCrontab = (kept ? kept + '\n' : '') + line + '\n';
+      run('crontab', ['-'], { input: newCrontab, encoding: 'utf8' });
     }
     return { type: 'cron', line };
   }
 
-  throw new Error(`OS scheduler not supported on platform: ${process.platform}`);
+  throw new Error(`OS scheduler not supported on platform: ${platform}`);
 }
 
 export function unscheduleTelemetry(opts = {}) {
-  const home = opts.home || thinkerHome();
+  const run = opts.run || execFileSync;
+  const platform = opts.platform || process.platform;
 
-  if (process.platform === 'darwin') {
+  if (platform === 'darwin') {
     const plistPath = opts.plistPath || getTelemetryLaunchAgentPath();
     if (fs.existsSync(plistPath)) {
       if (!opts.skipLaunchctl) {
         try {
           const uid = process.getuid ? process.getuid() : 501;
-          execFileSync('launchctl', ['bootout', `gui/${uid}`, plistPath], { stdio: 'ignore' });
+          run('launchctl', ['bootout', `gui/${uid}`, plistPath], { stdio: 'ignore' });
         } catch {
-          try { execFileSync('launchctl', ['unload', plistPath], { stdio: 'ignore' }); } catch {}
+          try { run('launchctl', ['unload', plistPath], { stdio: 'ignore' }); } catch {}
         }
       }
       try { fs.rmSync(plistPath, { force: true }); } catch {}
       return { unscheduled: true, type: 'launchd' };
     }
     return { unscheduled: false, type: 'launchd' };
-  } else if (process.platform === 'linux') {
-    try {
-      const crontab = execFileSync('crontab', ['-l'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
-      const filtered = crontab.split('\n').filter(l => !(l.includes('thinker') && l.includes('telemetry'))).join('\n').trim();
-      if (filtered) {
-        execFileSync('crontab', ['-'], { input: filtered + '\n', encoding: 'utf8' });
-      } else {
-        execFileSync('crontab', ['-r'], { stdio: 'ignore' });
-      }
-      return { unscheduled: true, type: 'cron' };
-    } catch {
-      return { unscheduled: false, type: 'cron' };
+  } else if (platform === 'linux') {
+    let unscheduled = false;
+    const unitDir = opts.unitDir || telemetryUnitDir();
+    const timer = path.join(unitDir, 'thinker-telemetry.timer');
+    if (fs.existsSync(timer)) {
+      run('systemctl', ['--user', 'disable', '--now', 'thinker-telemetry.timer'], { stdio: 'pipe', timeout: 5000 });
+      for (const f of ['thinker-telemetry.timer', 'thinker-telemetry.service']) fs.rmSync(path.join(unitDir, f), { force: true });
+      run('systemctl', ['--user', 'daemon-reload'], { stdio: 'pipe', timeout: 5000 });
+      unscheduled = true;
     }
+    let crontab = '';
+    try { crontab = run('crontab', ['-l'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); }
+    catch (e) { if (e.code !== 'ENOENT' && e.status !== 1) throw e; }
+    const lines = crontab.split('\n');
+    if (lines.some(isTelemetryCron)) {
+      const filtered = lines.filter(l => !isTelemetryCron(l)).join('\n').trim();
+      if (filtered) run('crontab', ['-'], { input: filtered + '\n', encoding: 'utf8' });
+      else run('crontab', ['-r'], { stdio: 'ignore' });
+      unscheduled = true;
+    }
+    return { unscheduled };
   }
-
   return { unscheduled: false };
 }
-

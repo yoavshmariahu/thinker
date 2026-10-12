@@ -173,6 +173,16 @@ function fetchRankerModel(cwd) {
   catch { return false; }
 }
 
+// Run the installed version's migration after replacement, including updates made
+// through the installer's --update path, which calls applyUpdate directly.
+function scheduleTelemetryAfterUpdate(cli, home) {
+  if (!fs.existsSync(cli)) return;
+  const r = spawnSync(process.execPath, [cli, 'telemetry', '--ensure-schedule', '--quiet'], {
+    encoding: 'utf8', timeout: 30_000, env: { ...process.env, THINKER_HOME: home },
+  });
+  if (r.status !== 0) process.stderr.write(`thinker: hourly telemetry scheduling failed after update: ${String(r.stdout || r.stderr || r.error?.message || 'unknown error').trim()}\n`);
+}
+
 export async function checkUpdate(opts = {}) {
   const home = opts.home || thinkerHome();
   const install = opts.install || detectInstall(opts.rootDir || path.resolve(HERE, '..'), home);
@@ -314,6 +324,7 @@ export async function applyUpdate(opts = {}) {
     try { installLockedDependencies(gitDir); }
     catch (e) { throw new Error(`Updated source but could not install locked dependencies: ${e.message}`); }
     const ranker = fetchRankerModel(gitDir);
+    scheduleTelemetryAfterUpdate(path.join(gitDir, 'src', 'cli.js'), home);
 
     return {
       type: 'git',
@@ -426,6 +437,7 @@ export async function applyUpdate(opts = {}) {
       installedAt: install.installJson?.installedAt || new Date().toISOString(),
     };
     fs.writeFileSync(path.join(home, 'install.json'), JSON.stringify(installJson, null, 2) + '\n');
+    scheduleTelemetryAfterUpdate(path.join(appDir, 'src', 'cli.js'), home);
 
     return {
       type: 'archive',

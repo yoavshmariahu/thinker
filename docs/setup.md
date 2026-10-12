@@ -258,17 +258,32 @@ integration tests that intentionally exercise installation or scheduling.
 
 ## Metrics and telemetry
 
-Thinker records pseudonymous installation and daily effectiveness metrics (cache hit rate, notes count, estimated token savings) to track cache performance. Updated clients also send numeric 30-day delivery summaries: merged PR observations, recorded tokens, confirmed fixes, merge timing and measurement coverage. They also send the 30-day holdout comparison as totals: how many prompts got notes and how many had them withheld, how many were followed by a correction, and the summed tool calls, model turns and input and output tokens of each side, overall and per model name. Full PR evidence stays local; refresh PR metadata with `thinker impact sync`. Reports include a persistent installation ID and a Thinker-specific device hash, so separate installations on the same OS instance can be grouped. The hash is derived locally from the OS machine identifier using HMAC-SHA256; the raw identifier is never sent. These telemetry reports contain no prompt text, note bodies, code snippets, file paths, or repository URLs. Learning and verification send what they need to your configured agent or model provider; disabling telemetry does not disable those model calls.
+Thinker records pseudonymous installation and effectiveness metrics (cache hit rate, notes count, estimated token savings) to track cache performance. Updated clients also send numeric 30-day delivery summaries: merged PR observations, recorded tokens, confirmed fixes, merge timing and measurement coverage. They also send the 30-day holdout comparison as totals: how many prompts got notes and how many had them withheld, how many were followed by a correction, and the summed tool calls, model turns and input and output tokens of each side, overall and per model name. Full PR evidence stays local; refresh PR metadata with `thinker impact sync`. Reports include a persistent installation ID and a Thinker-specific device hash, so separate installations on the same OS instance can be grouped. The hash is derived locally from the OS machine identifier using HMAC-SHA256; the raw identifier is never sent. These telemetry reports contain no prompt text, note bodies, code snippets, file paths, or repository URLs. Learning and verification send what they need to your configured agent or model provider; disabling telemetry does not disable those model calls.
 
 The device hash is independent of `THINKER_HOME`. It can change after OS reinstallation, and cloned VMs or containers may share an identifier. If the OS identifier is unavailable, the device remains unknown. Test runs allow telemetry only to local test servers; they do not send it to production.
+
+Hourly uploads are enabled automatically on installation and update, including
+updates from older versions. They run independently of agent hooks and MCP calls:
+LaunchAgent on macOS, cron on Linux, or a systemd user timer when cron is absent.
+The machine and its scheduler must be running; a systemd user timer also needs an
+active user manager. If scheduling fails, Thinker reports the error and retries
+on a later invocation. `thinker telemetry --status` shows the failure.
+Each upload contains the previous 24 hours of activity; hourly uploads do not
+change that reporting window.
 
 ```bash
 thinker telemetry              # inspect current metrics summary, schedule and transmission status
 thinker telemetry --send       # send metrics manually
-thinker telemetry --schedule   # schedule hourly background transmission (LaunchAgent / cron)
+thinker telemetry --schedule   # retry or re-enable hourly background transmission
+thinker telemetry --unschedule # disable the schedule, including across future updates
 ```
 
-To opt out at any time, set `THINKER_TELEMETRY=off` in your environment or set `"telemetry": false` in `.thinker/config.json`.
+`THINKER_TELEMETRY=off` disables telemetry in processes that inherit it, including
+automatic scheduling. OS jobs do not read your shell startup files. To opt out
+machine-wide, including scheduled uploads, set `"telemetry": false` in
+`~/.thinker/install.json` (or `$THINKER_HOME/install.json`); updates preserve it.
+`--unschedule` stops scheduled uploads, while uploads triggered by CLI activity
+remain enabled. Repository configuration also supports `"telemetry": false`.
 
 For the PostgreSQL ingestion service, S3 migration, and SQL queries, see
 [the telemetry operations guide](../infra/metrics/README.md).

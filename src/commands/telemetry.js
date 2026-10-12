@@ -1,8 +1,9 @@
+import { ensureTelemetryScheduled, telemetryScheduleState, setTelemetryScheduleDisabled } from '../telemetry-schedule.js';
 // `thinker telemetry`: the metrics sent to the metrics service, by hand or on a schedule.
 import fs from 'node:fs';
 import path from 'node:path';
-import { isTelemetryEnabled, getTelemetryEndpoint, buildTelemetryPayload, sendTelemetry, scheduleTelemetry, unscheduleTelemetry, isTelemetryScheduled, getTelemetryLaunchAgentPath } from '../telemetry.js';
-import { thinkerHome, detectInstall } from '../update.js';
+import { isTelemetryEnabled, getTelemetryEndpoint, buildTelemetryPayload, sendTelemetry, unscheduleTelemetry, isTelemetryScheduled } from '../telemetry.js';
+import { thinkerHome } from '../update.js';
 
 async function telemetryCommand(ctx) {
   const { flags, store, out, HERE } = ctx;
@@ -10,21 +11,23 @@ async function telemetryCommand(ctx) {
   const endpoint = getTelemetryEndpoint({ home });
   const enabled = isTelemetryEnabled({ home, store });
 
-  if (flags.schedule || flags.hourly) {
-    const install = detectInstall(path.resolve(HERE, '..'), home);
-    try {
-      const res = scheduleTelemetry({ home, binPath: install.binPath });
-      out(`Scheduled hourly telemetry for thinker (${res.type === 'launchd' ? 'LaunchAgent: ' + res.path : 'cron: ' + res.line}).`);
-    } catch (e) {
-      out(`Failed to schedule hourly telemetry: ${e.message}`);
+  if (flags.schedule || flags.hourly || flags['ensure-schedule']) {
+    if (flags.schedule || flags.hourly) setTelemetryScheduleDisabled(false, home);
+    const result = ensureTelemetryScheduled({ home, rootDir: path.resolve(HERE, '..'), force: true });
+    if (result.error) {
+      out(`Failed to schedule hourly telemetry: ${result.error}`);
+      process.exitCode = 1;
+    } else if (!flags.quiet) {
+      out(result.skipped ? `Hourly telemetry scheduling skipped: ${result.skipped}.`
+        : `Scheduled hourly telemetry for thinker (${result.type}).`);
     }
     return;
   }
 
   if (flags.unschedule) {
+    setTelemetryScheduleDisabled(true, home);
     const res = unscheduleTelemetry({ home });
-    if (res.unscheduled) out('Removed scheduled hourly telemetry for thinker.');
-    else out('No scheduled hourly telemetry was found.');
+    out(res.unscheduled ? 'Removed scheduled hourly telemetry for thinker.' : 'Hourly telemetry scheduling disabled.');
     return;
   }
 
@@ -56,7 +59,9 @@ async function telemetryCommand(ctx) {
   out('Thinker telemetry:');
   out(`  Status:       ${enabled ? 'enabled' : 'disabled (THINKER_TELEMETRY=off or config)'}`);
   const sched = isTelemetryScheduled(home);
-  out(`  Schedule:     ${sched ? (process.platform === 'darwin' ? 'active (LaunchAgent: ' + getTelemetryLaunchAgentPath() + ')' : 'active (cron)') : 'inactive'}`);
+  const scheduleState = telemetryScheduleState(home);
+  out(`  Schedule:     ${sched ? 'active (' + (scheduleState.type || (process.platform === 'darwin' ? 'launchd' : 'cron/systemd')) + ')' : 'inactive'}${scheduleState.disabled ? ' (disabled by --unschedule)' : ''}`);
+  if (scheduleState.error) out(`  Schedule error: ${scheduleState.error}`);
   out(`  Endpoint:     ${endpoint}`);
   if (payload.event) out(`  Event:        ${payload.event}`);
   const stamp = path.join(home, 'state', 'telemetry.last');
