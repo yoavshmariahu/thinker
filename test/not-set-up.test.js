@@ -81,10 +81,10 @@ test('the MCP server takes the repository from its working directory: tools in a
 });
 
 // install.sh: the tool is installed, the agents are wired up (`thinker connect`, asking nothing), and the
-// warm-up page is where the caches are chosen; from a pipe with no terminal the page is not opened and the
-// user is told how. A fake tarball and manifest stand in for the release, served from a file URL rewritten
+// warm-up is chosen last by `thinker warmup` (browser or terminal); from a pipe with no terminal nothing is
+// asked and the user is told how to come back. A fake tarball and manifest stand in for the release, served from a file URL rewritten
 // to https by a curl stub.
-test('the installer installs the tool, connects the agents without asking and points at the warm-up page', t => {
+test('the installer installs the tool, connects the agents without asking and ends with the warm-up', t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-install-norepo-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const home = path.join(dir, 'home'), bin = path.join(dir, 'bin'), work = path.join(dir, 'work'), dist = path.join(dir, 'dist');
@@ -104,7 +104,8 @@ test('the installer installs the tool, connects the agents without asking and po
   assert.match(r.stdout, /stub connect --clients auto --yes/, 'the agents are wired up, with nothing asked');
   assert.ok(!/stub setup/.test(r.stdout), 'no per-repository setup');
   assert.match(r.stdout, /every git repository on this machine/);
-  assert.match(r.stdout, /thinker ui/);
+  assert.match(r.stdout, /thinker warmup/); assert.match(r.stdout, /thinker ui/);
+  assert.ok(!/stub ui/.test(r.stdout), 'the page is not launched blind');
   assert.ok(fs.existsSync(path.join(home, 'bin', 'thinker')));
   assert.ok(!fs.existsSync(path.join(work, '.thinker')));
   assert.deepEqual(fs.readdirSync(work), []);
