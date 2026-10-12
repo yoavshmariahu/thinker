@@ -1,0 +1,51 @@
+{
+  "session_id": "01a12e57-5d69-7ff2-8fb4-04c4790a5143",
+  "turns": 1,
+  "in_tokens": 234425,
+  "cached_tokens": 207744,
+  "out_tokens": 2477,
+  "wall_ms": 74771,
+  "result": "I’ll check both streaming adapters, apply the Python style guidance, and add focused tests for tool-call indices across chunks.\nThe causes match your report: Gemini hardcodes index 0, and LiteLLM uses the call’s position within each chunk. I’ll keep Gemini’s counter local to each stream and choice, and make LiteLLM preserve explicit indices, including 0.\nImplemented both fixes:\n\n- Gemini assigns consecutive tool-call indices across chunks, resetting for each new stream.\n- LiteLLM preserves supplied indices and falls back to chunk position only when absent or `None`.\n\nAdded regression tests for parallel calls, interleaved chunks, fallback indices, and stream resets.\n\nAll 128 tests in the two provider files passed; pytest then hit a sandbox permission error in its process-reporting teardown. No dependencies were installed.",
+  "tools": {
+    "calls": 9,
+    "byTool": {
+      "command_execution": 6,
+      "file_change": 3
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 0,
+    "injected": [
+      "gemini-parallel-functionresponse-parts-must-share-one-user-t",
+      "gemini-tool-message-content-must-be-coerced-to-a-json-object"
+    ],
+    "callsBeforeFirstEdit": 3,
+    "testRunsBeforeEdit": 0,
+    "testRunsAfterEdit": 1,
+    "attemptsToGreen": null,
+    "greenReached": false
+  },
+  "model": "gpt-6-astra",
+  "budget": 750,
+  "arm": "hook",
+  "task": "PR26270-hard",
+  "rep": 0,
+  "area": "mlflow/gateway",
+  "id": "PR26270-hard-hook-0",
+  "session": "01a12e57-5d69-7ff2-8fb4-04c4790a5143",
+  "cost": 0.598404,
+  "api_ms": null,
+  "diff": "diff --git a/mlflow/gateway/providers/gemini.py b/mlflow/gateway/providers/gemini.py\nindex 566e14143..6de4f4954 100644\n--- a/mlflow/gateway/providers/gemini.py\n+++ b/mlflow/gateway/providers/gemini.py\n@@ -312,7 +312,7 @@ class GeminiAdapter(ProviderAdapter):\n             if stream:\n                 tool_calls.append(\n                     chat_schema.ToolCallDelta(\n-                        index=0,\n+                        index=len(tool_calls),\n                         id=call_id,\n                         function=Function(\n                             name=func_name,\n@@ -898,6 +898,7 @@ class GeminiProvider(BaseProvider):\n             payload=body,\n         )\n \n+        tool_call_counts = {}\n         async for raw in handle_incomplete_chunks(sse):\n             text = raw.decode(\"utf-8\", errors=\"ignore\").strip()\n             if not text.startswith(\"data:\"):\n@@ -906,7 +907,14 @@ class GeminiProvider(BaseProvider):\n             if data == \"[DONE]\":\n                 break\n             resp = json.loads(data)\n-            yield self.adapter_class.model_to_chat_streaming(resp, self.config)\n+            chunk = self.adapter_class.model_to_chat_streaming(resp, self.config)\n+            for choice in chunk.choices:\n+                tool_calls = choice.delta.tool_calls or []\n+                offset = tool_call_counts.get(choice.index, 0)\n+                for tool_call in tool_calls:\n+                    tool_call.index += offset\n+                tool_call_counts[choice.index] = offset + len(tool_calls)\n+            yield chunk\n \n     def _extract_passthrough_token_usage(\n         self, action: PassthroughAction, result: dict[str, Any]\ndiff --git a/mlflow/gateway/providers/litellm.py b/mlflow/gateway/providers/litellm.py\nindex 35a04c284..ff87fd11f 100644\n--- a/mlflow/gateway/providers/litellm.py\n+++ b/mlflow/gateway/providers/litellm.py\n@@ -255,7 +255,11 @@ class LiteLLMProvider(BaseProvider):\n                             \"tool_calls\": (\n                                 [\n                                     {\n-                                        \"index\": tc_idx,\n+                                        \"index\": (\n+                                            index\n+                                            if (index := getattr(tc, \"index\", None)) is not None\n+                                            else tc_idx\n+                                        ),\n                                         \"id\": getattr(tc, \"id\", None),\n                                         \"type\": getattr(tc, \"type\", None),\n                                         \"function\": {\ndiff --git a/tests/gateway/providers/test_gemini.py b/tests/gateway/providers/test_gemini.py\nindex d61c9ba8c..72380b798 100644\n--- a/tests/gateway/providers/test_gemini.py\n+++ b/tests/gateway/providers/test_gemini.py\n@@ -1384,6 +1384,34 @@ async def test_gemini_chat_function_calling_stream():\n     )\n \n \n+@pytest.mark.parametrize(\"call_counts\", [[2], [1, 1], [2, 0, 1]])\n+@pytest.mark.asyncio\n+async def test_gemini_chat_stream_tool_call_indices(call_counts):\n+    responses = []\n+    for count in call_counts:\n+        parts = [{\"text\": \"Checking the weather.\"}] + [\n+            {\"functionCall\": {\"name\": \"get_weather\", \"args\": {\"location\": \"Singapore\"}}}\n+            for _ in range(count)\n+        ]\n+        data = {\"candidates\": [{\"content\": {\"parts\": parts}}]}\n+        responses.append(f\"data: {json.dumps(data)}\\n\\n\".encode())\n+    responses.append(b\"data: [DONE]\\n\\n\")\n+    provider = GeminiProvider(EndpointConfig(**chat_config()))\n+    payload = chat.RequestPayload(**chat_function_calling_payload(stream=True))\n+\n+    for _ in range(2):\n+        mock_client = mock_http_client(MockAsyncStreamingResponse(responses))\n+        with mock.patch(\"aiohttp.ClientSession\", return_value=mock_client) as mock_build_client:\n+            chunks = [chunk async for chunk in provider.chat_stream(payload)]\n+\n+        mock_build_client.assert_called_once()\n+        mock_client.post.assert_called_once()\n+        assert len(chunks) == len(call_counts)\n+        calls = [call for chunk in chunks for call in chunk.choices[0].delta.tool_calls or []]\n+        assert [call.index for call in calls] == list(range(sum(call_counts)))\n+        assert all(json.loads(call.function.arguments) == {\"location\": \"Singapore\"} for call in calls)\n+\n+\n def completions_stream_response():\n     return [\n         b'data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"a\"}]},\"finishReason\":null}],\"'\ndiff --git a/tests/gateway/providers/test_litellm.py b/tests/gateway/providers/test_litellm.py\nindex 3bb3fe510..71b44e293 100644\n--- a/tests/gateway/providers/test_litellm.py\n+++ b/tests/gateway/providers/test_litellm.py\n@@ -1,3 +1,4 @@\n+from types import SimpleNamespace\n from unittest import mock\n \n import pytest\n@@ -260,6 +261,60 @@ async def test_chat_stream():\n         assert call_kwargs[\"stream_options\"][\"include_usage\"] is True\n \n \n+@pytest.mark.asyncio\n+@pytest.mark.parametrize(\n+    (\"indices\", \"expected\"),\n+    [\n+        ([[0], [1], [0], [1]], [[0], [1], [0], [1]]),\n+        ([[1, 0]], [[1, 0]]),\n+        ([[None, None]], [[0, 1]]),\n+        ([[\"missing\", \"missing\"]], [[0, 1]]),\n+    ],\n+)\n+async def test_chat_stream_tool_call_indices(indices, expected):\n+    async def mock_stream():\n+        for chunk_indices in indices:\n+            tool_calls = []\n+            for index in chunk_indices:\n+                call = SimpleNamespace(\n+                    id=None,\n+                    type=\"function\",\n+                    function=SimpleNamespace(name=None, arguments='{\"location\":'),\n+                )\n+                if index != \"missing\":\n+                    call.index = index\n+                tool_calls.append(call)\n+            yield SimpleNamespace(\n+                id=\"chunk-1\",\n+                object=\"chat.completion.chunk\",\n+                created=1234567890,\n+                model=\"claude-3-5-sonnet-20241022\",\n+                usage=None,\n+                choices=[\n+                    SimpleNamespace(\n+                        index=0,\n+                        finish_reason=None,\n+                        delta=SimpleNamespace(tool_calls=tool_calls),\n+                    )\n+                ],\n+            )\n+\n+    provider = LiteLLMProvider(EndpointConfig(**chat_config()))\n+    payload = chat.RequestPayload(messages=[{\"role\": \"user\", \"content\": \"Weather?\"}])\n+    with mock.patch(\"litellm.acompletion\", return_value=mock_stream()) as mock_completion:\n+        chunks = [chunk async for chunk in provider.chat_stream(payload)]\n+\n+    mock_completion.assert_called_once()\n+    assert [\n+        [call.index for call in chunk.choices[0].delta.tool_calls] for chunk in chunks\n+    ] == expected\n+    assert all(\n+        call.function.arguments == '{\"location\":'\n+        for chunk in chunks\n+        for call in chunk.choices[0].delta.tool_calls\n+    )\n+\n+\n @pytest.mark.asyncio\n async def test_chat_stream_forwards_zero_token_usage():\n     config = chat_config()\n",
+  "grade": {
+    "tests": "fail",
+    "testTail": " 0.934s | 0.025s |\n\n::endgroup::\n\n========================= command to run failed tests ==========================\npytest 'tests/gateway/providers/test_gemini.py::test_gemini_chat_stream_tool_call_indices_use_candidate_api_index'\n\n\u001b[36m\u001b[1m=========================== short test summary info ============================\u001b[0m\n\u001b[31mFAILED | MEM 7.2/16.0 GB | DISK 12.4/460.4 GB\u001b[0m tests/gateway/providers/test_gemini.py::\u001b[1mtest_gemini_chat_stream_tool_call_indices_use_candidate_api_index\u001b[0m - AssertionError: assert {0: [(0, 'get...ime')], 1: []} == {0: [(0, 'get... '...\n\u001b[31m!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!\u001b[0m\n\u001b[31m=================== \u001b[31m\u001b[1m1 failed\u001b[0m, \u001b[32m41 passed\u001b[0m, \u001b[33m1 warning\u001b[0m\u001b[31m in 3.96s\u001b[0m\u001b[31m ====================\u001b[0m\n"
+  },
+  "goldTouched": {
+    "goldSrc": 2,
+    "touched": 2,
+    "missing": []
+  },
+  "leak": [],
+  "fresh_in_tokens": 26681,
+  "costBasis": "list price from token classes"
+}
