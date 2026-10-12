@@ -1,14 +1,19 @@
 # Setting up Thinker
 
 Run the installer anywhere. It wires your agents, asking nothing, and opens
-the warm-up page (`thinker ui`): pick the repositories your agents worked in
-lately to build a cache for, full or shallow, and the builds run one at a
-time with their progress on the Cache page. Every other git repository gets an
-empty cache with its first session. `thinker setup --build` builds one
-repository's cache from the terminal instead.
+the local page (`thinker ui`) on its warm-up view. Setup happens on that page:
+pick the repositories your agents worked in lately to build a cache for, full
+or shallow, whole or by directory, choose the agent and model, and press
+**Start building**. The builds run one at a time with their progress on the
+Cache view. Every other git repository gets an empty cache with its first
+session. [docs/setup.md](docs/setup.md#setting-up-on-the-local-page) walks
+through the page.
+
+The rest of this file is about `thinker setup`, which does the same for one
+repository from the terminal: for a machine without a browser, or a script.
 
 Notes are stored locally and ranked on your machine. Your configured agent
-writes notes and performs review.
+writes the notes.
 Personal backups use `thinker export backup.tgz` and
 `thinker import backup.tgz`. Team sharing and server sync are not supported.
 
@@ -57,7 +62,7 @@ repo when no file exists). `--project other.project.json` chooses another file;
 start at the repository root, including when running from a subdirectory.
 
 The project only chooses what to build. It does not hide existing notes or
-restrict retrieval, review, or ongoing learning. The repository retains one
+restrict retrieval or ongoing learning. The repository retains one
 cache, with notes linked to their source files and symbols. See
 [the project file format](README.md#large-repositories-choose-your-project).
 

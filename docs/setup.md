@@ -5,23 +5,81 @@ The details behind the install line in the [README](../README.md).
 ## Install and start
 
 Run `npx @zerotimedev/thinker`. It runs the installer carried in the npm package of that
-name (published with each release) and passes its options through. It
-installs the [latest GitHub release](https://github.com/yoavshmariahu/thinker/releases)
-of the tool and wires it into the agents on this machine, once, in their
-own settings (hooks and the MCP server, for Claude Code, Codex, Gemini CLI and
-Cursor, their desktop apps included), asking nothing in the terminal. Thinker
-then runs in every git repository on this machine: a cache starts, empty, with
-the first agent session in a repository (kept out of `git status` through
-`.git/info/exclude`) and grows from your sessions. The installer ends by
-opening the **warm-up page** (`thinker ui --tab warmup`, or "Warm up more repositories" on the Cache page): the repositories
-your agents worked in over the last 30 days, found from their own session
-records, each with an estimate. Pick the ones to build a cache for now, at one
-of two depths: **full**, the newest 60 merged pull requests, or **shallow**,
-the most valuable 30% of them (the newest), for a quicker, cheaper start; pick
-directories to read only their history; choose the agent and model; the builds
-then run one at a time, with their progress and a stop button on the Cache
-page. `thinker setup --build [--depth shallow]` does the same for one
-repository from the terminal.
+name (published with each release) and passes its options through. The installer does
+two things in the terminal and asks nothing there:
+
+1. It installs the [latest GitHub release](https://github.com/yoavshmariahu/thinker/releases)
+   of the tool under `~/.thinker`.
+2. It wires thinker into the agents on this machine, once, in their own settings
+   (hooks and the MCP server, for Claude Code, Codex, Gemini CLI and Cursor, their
+   desktop apps included). `thinker connect` does this step alone.
+
+From then on thinker runs in every git repository on this machine: a cache starts,
+empty, with the first agent session in a repository (kept out of `git status` through
+`.git/info/exclude`) and grows from your sessions.
+
+The rest of setup happens in the browser. The installer ends by opening the local
+page on its **warm-up** view, and that is where you choose what to build.
+
+## Setting up on the local page
+
+`thinker ui` serves a page from your own machine (127.0.0.1 only, with a token minted
+for that run) and opens it in the browser. It works from any directory, and the
+installer opens it for you the first time.
+
+**1. Pick repositories.** The warm-up view lists the git repositories your agents
+worked in over the last 30 days, most recent first, found from the agents' own session
+records, along with the ones thinker has seen before. The five you used most recently
+are picked for you. One that already has a cache is marked and left unpicked. Each row
+shows when the repository was last used, how many sessions ran there, and an estimate
+of the build in tokens and minutes.
+
+**2. Choose how much to read, per repository.**
+
+- **Full** reads the newest 60 merged pull requests. **Shallow** reads the newest 30%
+  of them, for a quicker, cheaper start.
+- **Directories** limits the build to the history of the directories you pick, for a
+  large repository where you work in one part. Without a selection the whole
+  repository is read.
+- The **switch** on a row turns thinker off for that repository, in every clone and
+  worktree: for one with sensitive content that no model should read. `thinker disable`
+  and `thinker enable` do the same from the terminal.
+
+**3. Choose the agent and model.** The bar at the top lists the agent CLIs found on the
+machine and says whether each is signed in. A build runs through that agent's own
+login; no other account or key is needed. The bar adds up the tokens and time of
+everything picked.
+
+**4. Press Start building,** or **Skip for now**. Skipping builds nothing: every cache
+still grows from your sessions, and the warm-up view stays one click away ("Warm up
+more repositories" on the Cache view, or `thinker ui --tab warmup`).
+
+**What a build does.** The builds run one at a time, in the background, each as its
+own process. A build reads the repository's merged pull requests, fixes first, and
+distills them into notes; it does not explore the code. It also reads the design documents checked in (READMEs beside the code) for
+the rules they state, then links the notes and writes the search phrasings the
+ranker uses. Closing the browser tab does not stop a
+running build.
+
+**Watching and stopping.** The Cache view shows each repository as a card. A running
+build shows its stage ("mining 12/60 PRs"), the notes saved so far, the time left and
+a **Stop** button; a queued one shows its estimate and a **Remove** button. Stopping keeps
+every note saved so far. If a build does not finish, its card names the log to read,
+`~/.thinker/state/warmup-<repository>.log`.
+
+**After setup.** The same page is where you look at the result: the Usage view (notes
+served, what agents did with them, tokens spent, the holdout comparison) and the Cache
+view (each repository's notes, with the code they point at, to archive or restore).
+The page stops by itself after half an hour unused, once no build is queued;
+`thinker ui` opens it again.
+
+### From the terminal instead
+
+`thinker setup` does for one repository what the page does, with prompts:
+`thinker setup --build [--depth shallow]` builds its cache, `--no-build` only wires
+the repository and lets the cache grow from sessions. Use it on a machine without a
+browser, or in a script (`--yes` skips the prompts). See
+[ONBOARDING.md](../ONBOARDING.md) for the flags.
 
 Then work with your agent as usual. The notes that bear on each request are
 chosen on your machine by a small local ranking model; no extra account or key
@@ -50,10 +108,10 @@ calls are made and Thinker offers questions it does cover.
 Notes:
 
 - **Requirements.** git, curl, tar, Node 20+, and at least one of the agents above, logged in.
-- **What it does.** Installs the tool under `~/.thinker`, wires it into the
+- **What it does.** Installs the tool under `~/.thinker` and wires it into the
   agents found on the machine (their own settings; `thinker uninstall --user`
-  takes it out again), and builds a cache of notes from the repository's git
-  history and merged pull requests.
+  takes it out again). Caches are built from the local page, for the repositories
+  you pick there.
 - **Code parsing.** A note is tied to the functions and classes it describes, and
   goes stale when one of them changes. For Python, JavaScript, TypeScript, Go
   and Rust thinker finds those definitions with a tree-sitter parser, which
@@ -70,7 +128,8 @@ Notes:
 
 ## Large repositories: choose your project
 
-During `thinker setup`, choose **Full repo** or **Specify project directories**.
+On the local page, pick directories on the repository's row. From the terminal,
+during `thinker setup`, choose **Full repo** or **Specify project directories**.
 For a project, enter a name and comma-separated directories such as
 `apps/web, packages/ui`. Thinker saves `thinker.project.json` in the repository
 root and estimates the build using those directories.
@@ -187,7 +246,7 @@ integration tests that intentionally exercise installation or scheduling.
 
 ## Metrics and telemetry
 
-Thinker records pseudonymous installation and daily effectiveness metrics (cache hit rate, notes count, estimated token savings) to track cache performance. Updated clients also send numeric 30-day delivery summaries: merged PR observations, recorded tokens, confirmed fixes, merge timing and measurement coverage. They also send the 30-day holdout comparison as totals: how many sessions got notes and how many had them withheld, and the summed tool calls, model turns and input and output tokens of each side, overall and per model name. Full PR evidence stays local; refresh PR metadata with `thinker impact sync`. Reports include a persistent installation ID and a Thinker-specific device hash, so separate installations on the same OS instance can be grouped. The hash is derived locally from the OS machine identifier using HMAC-SHA256; the raw identifier is never sent. These telemetry reports contain no prompt text, note bodies, code snippets, file paths, or repository URLs. Learning, verification and review send what they need to your configured agent or model provider; disabling telemetry does not disable those model calls.
+Thinker records pseudonymous installation and daily effectiveness metrics (cache hit rate, notes count, estimated token savings) to track cache performance. Updated clients also send numeric 30-day delivery summaries: merged PR observations, recorded tokens, confirmed fixes, merge timing and measurement coverage. They also send the 30-day holdout comparison as totals: how many sessions got notes and how many had them withheld, and the summed tool calls, model turns and input and output tokens of each side, overall and per model name. Full PR evidence stays local; refresh PR metadata with `thinker impact sync`. Reports include a persistent installation ID and a Thinker-specific device hash, so separate installations on the same OS instance can be grouped. The hash is derived locally from the OS machine identifier using HMAC-SHA256; the raw identifier is never sent. These telemetry reports contain no prompt text, note bodies, code snippets, file paths, or repository URLs. Learning and verification send what they need to your configured agent or model provider; disabling telemetry does not disable those model calls.
 
 The device hash is independent of `THINKER_HOME`. It can change after OS reinstallation, and cloned VMs or containers may share an identifier. If the OS identifier is unavailable, the device remains unknown. Test runs allow telemetry only to local test servers; they do not send it to production.
 
