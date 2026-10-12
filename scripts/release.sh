@@ -85,6 +85,7 @@ elif ! command -v npm >/dev/null || ! npm whoami >/dev/null 2>&1; then
   say "npm is not logged in: $npmpkg@$version was not published. Log in (npm login), check out $tag and run:"
   say "  d=\$(mktemp -d) && THINKER_DIST_DIR=\$d bash scripts/pack.sh && npm publish \$d/npm --access public"
 else
-  npm publish "$dist/npm" --access public >/dev/null || die "npm publish failed; the GitHub release is out, publish $npmpkg@$version by hand"
+  # not silenced: with a passkey npm prints a URL to approve in the browser and waits
+  npm publish "$dist/npm" --access public || die "npm publish failed; the GitHub release is out, publish $npmpkg@$version by hand"
   say "Published $npmpkg@$version: npx $npmpkg"
 fi
