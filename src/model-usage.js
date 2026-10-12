@@ -14,7 +14,7 @@ export function normalizeModelUsage(provider, usage) {
   }
   const u = usage && typeof usage === 'object' ? usage : {};
   if (u.models) return normalizeModelUsage(provider, Object.values(u.models).map(m => m.tokens || m.usage || m));
-  const cacheReadTokens = count(u.cache_read_input_tokens, u.cached_input_tokens, u.cachedInputTokens, u.cachedContentTokenCount, u.cached, u.input_tokens_details?.cached_tokens);
+  const cacheReadTokens = count(u.cache_read_input_tokens, u.cached_input_tokens, u.cachedInputTokens, u.cachedContentTokenCount, u.cached, u.input_tokens_details?.cached_tokens, u.prompt_tokens_details?.cached_tokens);
   const cacheWriteTokens = count(u.cache_creation_input_tokens, u.cacheWriteTokens);
   let inputTokens = count(u.input_tokens, u.inputTokens, u.prompt_tokens, u.promptTokenCount, u.prompt, u.input);
   // Anthropic's input_tokens excludes both cache reads and writes. Codex's includes them.

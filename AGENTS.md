@@ -1170,10 +1170,12 @@ path below. Nothing in it is tied to one vendor:
 - **Model.** Distilling, verifying and PR mining run through whichever agent is installed, with the login it already
   has: `claude -p`, `codex exec`, `agent -p` (Cursor) or `gemini -p`. A
   session is distilled by the agent that ran it when possible. `THINKER_LLM`
-  picks one (`claude`, `codex`, `cursor`, `gemini`, `anthropic`);
+  picks one (`claude`, `codex`, `cursor`, `gemini`, `anthropic`, `openai`);
   `THINKER_LLM_MODEL` names a model for the non-Claude ones;
-  `THINKER_LLM_CMD` is any command that reads a prompt on stdin and prints
-  the answer.
+  `THINKER_LLM_BASE_URL` is any OpenAI-compatible `/chat/completions`
+  endpoint (token from the variable `THINKER_LLM_API_KEY_ENV` names), used
+  before the agents; `THINKER_LLM_CMD` is any command that reads a prompt on
+  stdin and prints the answer.
 - **Any other agent.** Pipe events to `thinker record <session>` as JSON lines
   (`{"t":"prompt","text":…}`, `{"t":"tool","name":…,"input":…,"result":…}`,
   `{"t":"say","text":…}`), then run `thinker learn`. Agents that speak MCP can

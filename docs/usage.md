@@ -96,3 +96,27 @@ The report's no-new-note/no-merge counts help identify low-yield runs, though th
 may still assess existing notes. Keep quality and downstream task correctness in the
 comparison, not just note count.
 
+## Your own model endpoint
+
+Where model traffic must go through a gateway (a corporate proxy with its own base URL and
+token, a local server), point thinker at any OpenAI-compatible `/chat/completions` endpoint
+instead of an agent's login:
+
+```sh
+export THINKER_LLM_BASE_URL=https://gateway.example.com/v1
+export THINKER_LLM_API_KEY_ENV=GATEWAY_TOKEN     # the variable that holds the token
+export THINKER_LLM_MODEL=gpt-4.1-mini            # the gateway's name for the model
+```
+
+With the base URL set, this endpoint is used before any installed agent (`THINKER_LLM=openai`
+pins it, and skips the fallback to the agents). The token is read from the variable named in
+`THINKER_LLM_API_KEY_ENV`, else from `THINKER_LLM_API_KEY`, else `OPENAI_API_KEY`. The model
+must be named: either `THINKER_LLM_MODEL` for every call, or `distillModel` and `verifyModel` in
+`.thinker/config.json` to use a cheaper model for verification than for distillation. A schema
+travels in the prompt, not in `response_format`, so gateways that only pass text through work too.
+A failed call reports the status and the endpoint's answer (a 401 names the token variables).
+
+`codex exec` keeps your `~/.codex/config.toml`, so a `model_providers` entry there (a gateway
+base URL and key variable) applies to thinker's calls as well; MCP servers, plugins, hooks and
+project instructions are switched off for them.
+
