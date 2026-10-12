@@ -187,6 +187,10 @@ async function rerank(store, ranked, task, file, model) {
 // Tokens of notes a prompt hook serves. A note that does not fit is cut to its first line and its
 // pointers; on PostHog two long notes need about 1500 to be served in full.
 export const HOOK_BUDGET = 750;
+// Candidates a request re-checks against the working tree (orient, lookup): past the cross-encoder's eight
+// and the titles listed as `more`, so a refresh changes nothing the caller sees; the rest of the cache
+// waits for maintenance or for its turn as a candidate.
+export const REFRESH_CANDIDATES = 24;
 
 // --- code behind the pointers ----------------------------------------------------------------------
 // The definitions the served notes point at, inlined after the notes, so the agent does not open a
@@ -243,13 +247,21 @@ export async function orient(store, { task, file, session, client, budget = HOOK
   const start = Date.now();
   let notes = store.list();
   if (once && session) notes = notes.filter(n => !(n.servedIn || []).includes(session));
-  if (refreshFirst) notes = refresh(store, notes);
   // the agent's own call (more than the hook's two notes) asks with a sentence; a higher body floor keeps
   // the notes that merely share its words out (rank.js:MIN_COVER.agentBody)
   // THINKER_DENSE=minilm (dense.js, experiment): cosine scores of the request against every note, blended in
   let dense = null;
   if (denseEnabled()) { try { dense = await denseScores(notes, task + (file ? ' ' + file : '')); } catch (e) { store.log({ op: 'dense-error', error: String(e.message).slice(0, 200) }); } }
   let ranked = rank(notes, { query: task, file: normPath(store.repo, file), mode: 'orient', minBody: maxNotes > 2 ? MIN_COVER.agentBody : undefined, dense });
+  // Only the candidates are checked against the working tree. Re-hashing every dependency of every note made
+  // a prompt linear in the cache: 6 s on 960 notes with the symbol cache cold, 2.8 s warm (2026-10-12), for
+  // two served notes. The lexical ranking reads no hashes, so it runs first and the top candidates, more than
+  // the cross-encoder reads or the caller can take, are refreshed after it; the rest wait for maintenance or
+  // for their turn as candidates.
+  if (refreshFirst && ranked.length) {
+    const fresh = new Map(refresh(store, ranked.slice(0, REFRESH_CANDIDATES).map(r => r.note)).map(n => [n.id, n]));
+    ranked = ranked.map(r => fresh.has(r.note.id) ? { ...r, note: fresh.get(r.note.id) } : r);
+  }
   let chosen = false;
   // THINKER_CE=on (dense.js, experiment): a cross-encoder reads the request with each of the best candidates and
   // keeps those it scores relevant; its choice is final, as a model's is
@@ -513,14 +525,17 @@ export function linkNotes(store, note, notes = store.list()) {
 const STATUS_ORDER = { violated: 0, broken: 0, stale: 1, fresh: 2 };
 export async function lookup(store, { query, client, budget = 2500, maxNotes = 3, snippets = false, kind } = {}) {
   const start = Date.now();
-  let notes = refresh(store, store.list());
+  let notes = store.list();
   if (kind) notes = notes.filter(n => n.kind === kind);
   // a note id (as listed by orient) returns that note
   const byId = notes.find(n => n.id === String(query).trim());
   // a kind with no query (`lookup(kind: "behavior")`): every note of the kind, the rules first
   const all = kind && !String(query || '').trim() ? notes.filter(n => n.status !== 'invalid' && n.status !== 'broken').sort((a, b) => (STATUS_ORDER[a.status] ?? 1) - (STATUS_ORDER[b.status] ?? 1) || (b.confidence ?? 0.7) - (a.confidence ?? 0.7)).map(n => ({ note: n, score: 1, rel: 1, aff: 0 })) : null;
   let ranked = byId ? [{ note: byId, score: 1, rel: 1, aff: 0 }] : all || rank(notes, { query, mode: 'lookup' });
-  const candidates = byId || all ? ranked : (maxNotes ? ranked.slice(0, maxNotes) : ranked);
+  let candidates = byId || all ? ranked : (maxNotes ? ranked.slice(0, maxNotes) : ranked);
+  // only what may be returned is checked against the working tree (see orient)
+  const fresh = new Map(refresh(store, candidates.slice(0, Math.max(REFRESH_CANDIDATES, maxNotes || 0)).map(r => r.note)).map(n => [n.id, n]));
+  candidates = candidates.map(r => fresh.has(r.note.id) ? { ...r, note: fresh.get(r.note.id) } : r);
   const packed = pack(candidates, budget, { minRel: 0.15 });
   addSnippets(store, packed, budget, snippets, false);
   store.log({ op: 'lookup', client: client || 'cli', query: String(query || '').slice(0, 200), kind, served: packed.included.map(n => n.id), snippets: packed.snippets?.length || undefined, durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
