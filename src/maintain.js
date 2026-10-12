@@ -13,6 +13,7 @@ import { refresh, verifyNote, phraseNotes, phraseKey, archiveNotes } from './ops
 import { readLog } from './usage.js';
 import { formatTokens } from './model-usage.js';
 import { writeSystemMarkdown } from './behavior.js';
+import { areasConfig, saveAreas } from './areas.js';
 
 export const DEFAULTS = {
   enabled: true,    // `maintain: { enabled: false }` in .thinker/config.json switches it off
@@ -184,11 +185,27 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
         else { try { const p = await (fns.phrase || phraseNotes)(store, need, { phase: 'maintenance' }); r.phrased = p.done.length; r.tokens += p.tokens || 0; } catch { r.errors++; } }
       }
     } else r.capped = true;
-    // 4. pull requests merged since maintenance first ran here; further back is `thinker mine-prs`
+    // 4. pull requests merged since maintenance first ran here, inside the person's focus areas when
+    // the cache has them (areas.js); then, with the budget left, the areas' older history, a few
+    // changes a run until each area has had its `walk` (the generic build, source 'all', mines
+    // repository-wide and walks nothing)
+    const areas = areasConfig(store);
+    const focused = areas.source !== 'all' && areas.directories.length > 0;
     if (cfg.prs && fns.minePrs) {
       if (!state.prsAfter) state.prsAfter = new Date().toISOString();
       else if (afford()) {
-        if (!dry) { try { const m = await fns.minePrs({ after: state.prsAfter, limit: cfg.prsPerRun }); r.prs = m?.saved || 0; r.tokens += m?.tokens || 0; } catch { r.errors++; } }
+        if (!dry) { try { const m = await fns.minePrs({ after: state.prsAfter, limit: cfg.prsPerRun, directories: focused ? areas.directories : null }); r.prs = m?.saved || 0; r.tokens += m?.tokens || 0; } catch { r.errors++; } }
+      } else r.capped = true;
+    }
+    if (cfg.prs && focused && fns.mineAreaHistory && areas.walked < areas.walk * areas.directories.length) {
+      if (afford()) {
+        if (!dry) {
+          try {
+            const m = await fns.mineAreaHistory({ paths: areas.directories, limit: cfg.prsPerRun });
+            r.prs += m?.saved || 0; r.tokens += m?.tokens || 0;
+            saveAreas(store, { walked: areas.walked + (m?.processed ?? cfg.prsPerRun) });
+          } catch { r.errors++; }
+        }
       } else r.capped = true;
     }
     // 5. design documents that are new or changed since they were read: their behaviors follow them

@@ -711,9 +711,14 @@ thinker ui --tab warmup             <span class="code-comment"># straight to the
 # A build reads merged pull requests (--prs n, default 60); it does not explore the code</span>
 thinker setup --build</code></pre>
         <p>
-          <strong>Working in a large repository?</strong> Pick directories on the repository's row of the warm-up view. In the terminal, <code>thinker setup</code> offers <strong>Full repo</strong> or <strong>Specify project directories</strong>.
-          Enter a project name and comma-separated directories such as <code>apps/web, packages/ui</code>.
-          Thinker saves <code>thinker.project.json</code> and estimates the build for your selection. The installer offers the same choice.
+          <strong>What a build reads.</strong> By default, <strong>your areas</strong>: the directories your own commits touched in the last six months
+          (your merged pull requests when the commits carry another identity), the top five, so the cache is warm where you work. Setup
+          shows them and offers <strong>Whole repository</strong> (the generic build) and <strong>Specify project directories</strong> instead;
+          the warm-up page starts each repository on your areas too, with the directory picker to change them. The choice is kept as
+          <code>areas</code> in <code>.thinker/config.json</code>, which maintenance reads to keep warming the same places: new merges inside the
+          areas, and their older history a few changes a run until each area has had its <code>walk</code> (100 changes).
+          <code>thinker usage</code> shows the areas and how many notes point into each. A named project saves
+          <code>thinker.project.json</code> and estimates the build for your selection.
         </p>
         <pre><code><span class="code-comment"># Or save a project before onboarding</span>
 thinker project init apps/web packages/ui --name "Web app"

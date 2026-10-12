@@ -98,7 +98,9 @@ export async function runMaintain(ctx, { quiet, dry }) {
   const slug = githubSlug(repo);
   const canMine = provider() && (slug ? hasBin('gh') : true);
   const r = await maintain(store, repo, { dry, fns: {
-    minePrs: canMine ? ({ after, limit }) => minePrs(ctx, slug, { after, before: new Date().toISOString(), limit, repo, phase: 'maintenance' }) : undefined,
+    minePrs: canMine ? ({ after, limit, directories = null }) => minePrs(ctx, slug, { after, before: new Date().toISOString(), limit, repo, phase: 'maintenance', directories }) : undefined,
+    // the focus areas' older history, a few changes a run (maintain.js step 4; areas.js)
+    mineAreaHistory: canMine ? ({ paths, limit }) => minePrs(ctx, slug, { from: 'HEAD', paths, pathsLimit: limit, limit, repo, phase: 'maintenance' }) : undefined,
     docs: provider() ? async ({ limit }) => (await import('../behavior-docs.js')).deriveDocBehaviors(store, { limit, phase: 'maintenance' }) : undefined,
     skills: provider() ? ({ limit }) => scanSkills(store, { limit, phase: 'maintenance' }) : undefined,
   } });
