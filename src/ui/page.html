@@ -815,7 +815,8 @@ async function loadWarmup() {
     W.agents = AGENTS?.agents || [];
     // preselected: the five used most recently (the list is most recently active first) that have history to
     // read and no cache yet (one that was warmed up before, or holds notes, is marked instead); they lead the list
-    if (!SEL.size) for (const r of W.repos.filter(r => r.canMine && !r.warmed && !r.hasCache).slice(0, 5)) SEL.set(r.checkout, { depth: 'full', directories: [] });
+    // each starts on the person's own areas, the directories their commits touch (areas.js); the picker clears to the whole repository
+    if (!SEL.size) for (const r of W.repos.filter(r => r.canMine && !r.warmed && !r.hasCache).slice(0, 5)) SEL.set(r.checkout, { depth: 'full', directories: [...(r.areas || [])] });
     W.repos = [...W.repos.filter(r => SEL.has(r.checkout)), ...W.repos.filter(r => !SEL.has(r.checkout))];
     renderWarmup();
     // the agents are asked whether they are signed in, which takes a moment: the bar fills in when they answer
@@ -844,7 +845,11 @@ function fuzzy(q, s) {
   for (let k = 0; k < s.length && j < q.length; k++) if (s[k] === q[j]) { if (last >= 0 && k !== last + 1) gaps++; last = k; j++; }
   return j === q.length ? 1000 + gaps * 10 + s.length / 1000 : -1;
 }
-function dirLabel(sel) { const n = sel.directories.length; return !n ? 'Whole repository' : `${n} director${n === 1 ? 'y' : 'ies'}`; }
+function dirLabel(sel, r) {
+  const n = sel.directories.length; if (!n) return 'Whole repository';
+  const mine = r?.areas?.length && sel.directories.length === r.areas.length && sel.directories.every(d => r.areas.includes(d));
+  return mine ? `Your areas · ${n}` : `${n} director${n === 1 ? 'y' : 'ies'}`;
+}
 function wrow(r) {
   const sel = SEL.get(r.checkout), on = !!sel, e = est(r, sel || { depth: 'full' });
   const cached = r.warmed || r.hasCache;
@@ -855,7 +860,7 @@ function wrow(r) {
   const off = `<button class="wswitch" data-switch="off" title="For a repository with sensitive content: thinker serves and learns nothing there, sends nothing of it to a model, and writes nothing into it">Turn off</button>`;
   if (!r.canMine) return `<div class="wrow off" data-c="${esc(r.checkout)}">${main}<div class="wctl"><span class="wnote">${r.commits <= 5 ? 'too little history to read' : 'no merged history to read'} · grows from sessions</span>${off}</div><div class="weta"><b class="dim">—</b></div></div>`;
   const ctl = on ? `<div class="seg small"><button data-depth="shallow"${sel.depth === 'shallow' ? ' class="on"' : ''}>Shallow</button><button data-depth="full"${sel.depth === 'full' ? ' class="on"' : ''}>Full</button></div>
-      ${r.dirs.length ? `<div class="wdir${DROP === r.checkout ? ' open' : ''}"><button class="wdir-btn" data-dirs title="Read only the history of some directories">${esc(dirLabel(sel))} ▾</button>${DROP === r.checkout ? '<div class="wdrop" data-drop></div>' : ''}</div>` : ''}` : `<span class="wnote">${esc(e.notes)} · ${dur(r.estimates.shallow.seconds)} shallow</span>`;
+      ${r.dirs.length ? `<div class="wdir${DROP === r.checkout ? ' open' : ''}"><button class="wdir-btn" data-dirs title="Read only the history of some directories">${esc(dirLabel(sel, r))} ▾</button>${DROP === r.checkout ? '<div class="wdrop" data-drop></div>' : ''}</div>` : ''}` : `<span class="wnote">${esc(e.notes)} · ${dur(r.estimates.shallow.seconds)} shallow</span>`;
   return `<div class="wrow${on ? ' on' : ''}" data-c="${esc(r.checkout)}">${main}<div class="wctl">${ctl}${off}</div><div class="weta"><b${on ? '' : ' class="dim"'}>${dur(e.seconds)}</b><span>${on ? `~${fmt(e.tokens)} tokens · ${esc(e.notes)}` : ''}</span></div></div>`;
 }
 function renderWarmup() {

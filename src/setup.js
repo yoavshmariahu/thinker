@@ -98,7 +98,7 @@ export async function runSetup({
 
   out(stepBanner(2, 2, 'Choose how to start'));
 
-  const project = await chooseProjectFn({ repo, flags: { ...projectFlags, yes }, out, interactive: !!process.stdin.isTTY && build !== false && !noPrs });
+  const project = await chooseProjectFn({ repo, store, flags: { ...projectFlags, yes }, out, interactive: !!process.stdin.isTTY && build !== false && !noPrs });
   const directories = project?.directories || null;
 
   let activeAgent = agent || buildAgent();

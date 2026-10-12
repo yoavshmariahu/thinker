@@ -14,6 +14,7 @@ import { isBehavior } from './behavior.js';
 import { activity } from './activity.js';
 import { isTestMode } from './test-mode.js';
 import { isDisabledRepo } from './repo-switch.js';
+import { activityAreas } from './areas.js';
 
 const ls = d => { try { return fs.readdirSync(d); } catch { return []; } };
 const mtime = f => { try { return fs.statSync(f).mtimeMs; } catch { return 0; } };
@@ -143,6 +144,8 @@ export function warmupCandidates(store, opts = {}) {
     return {
       ...r, slug, pushed: at, active: active ? new Date(active).toISOString() : null, warmed: fs.existsSync(path.join(r.checkout, '.thinker', 'prs.json')),
       canMine: full.canMine, source: full.mineSource, commits: full.commitCount, dirs: topDirs(r.checkout), estimates: { full: pick(full), shallow: pick(shallow) },
+      // the person's focus areas from their own commits (areas.js): the page's default selection
+      areas: activityAreas(r.checkout, { noGitHub: true }).directories,
     };
   }).sort((a, b) => (Date.parse(b.active) || 0) - (Date.parse(a.active) || 0) || b.sessions - a.sessions);
 }
