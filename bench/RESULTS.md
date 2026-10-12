@@ -1065,3 +1065,48 @@ run. All three failing runs looked up the same notes on selectable fields
 cache more reads those notes, and they argue for refusing or declaring fields,
 not for scanning storage. One task, three runs: a hypothesis about those notes,
 not a finding about the intro.
+
+## Skills: audit, session grading and serving (2026-10-12, Haiku, offline)
+
+Skill files (SKILL.md) as cached knowledge (docs/skills.md). Two checkouts: PostHog at a3b3c36
+(65 skills under `.agents/skills`, `.claude/skills` a symlink to it) and codervibes (7 skills).
+
+**Audit.** 11 PostHog cards stale from two months of code churn alone (July cards, September code,
+skill text unchanged): 11 holds, every reason concrete and correct on inspection (additive changes).
+6 PostHog skills pinned to their July text against September code: 4 broken, every issue checked by
+hand (removed files, a printer comment stating the opposite of the skill), 2 holds. Codervibes deploy
+skill pinned to its Fly-era text against today's code: broken, the deleted build script named. One
+false issue appeared and was fixed: whole-file deps were shown to the audit cut at 120 lines and a
+README section past the cut was read as missing (now 400 lines, and the prompt says absence from an
+excerpt proves nothing).
+
+**Session grading.** 3 PostHog and 3 codervibes sessions that invoked a skill, distilled dry: every
+verdict names what the agent did (confirmed: followed the gate and the suite ran; unused: invoked
+but not exercised). Two codervibes sessions predated the skill's rewrite and read as contradicting
+it; sessions older than the skill's present text are now skipped.
+
+**Serving.** For every Skill invocation in the transcripts on this machine, the prompt that
+preceded it, run through `orient` as the prompt hook calls it (two slots, cross-encoder on, floor 0):
+
+| set | prompts followed by an invocation | hook served that skill | other prompts | a skill card served there |
+|---|---|---|---|---|
+| codervibes, 7 cards, 399 prompts | 45 | 0 | 354 | 2 |
+| PostHog bench, 70 cards, 129 prompts | 11 | 0 | 118 | 12 |
+
+The lexical gate passes the right card for the short real prompts ("merged. please deploy",
+"please deploy latest main" → the deploy card is the top candidate for 28 of the 45 codervibes
+prompts), and the cross-encoder then rejects it: an imperative prompt scores −7 to −8 against the
+deploy card, the same card scores +9 for "how do I deploy CoderVibes to production?". Rewriting the
+card text (description, triggers, answers) does not move the score; framing the prompt as a question
+does not either. With the cross-encoder off, the hook served the right skill for 22 of 45 codervibes
+prompts and a skill card for 154 of the 354 others: the gate alone is too loose. The PostHog bench
+prompts are long harness wrappers (1–40k chars) and are the wrong material for this question.
+
+A rule that serves a skill card when the words of its name occur in the prompt (repository name and
+generic words left out) would have served the right skill for 23 of the 45 codervibes prompts and
+fired on 48 of the 354 others, many of them deploy requests the agent did not invoke the skill for;
+on the PostHog bench prompts it fires on 89 of 118. Not shipped: a decision for the serving layer,
+to be made on short real prompts.
+
+Cost: 72 cards, 11 + 7 audits, 6 dry distillations, phrasings for 77 cards, all Haiku; about 1.5M
+tokens through the agent login.

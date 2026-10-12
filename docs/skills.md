@@ -44,7 +44,9 @@ thinker skills audit <id>      # audit one skill now
 thinker skills review <id>     # a person looked at it: serve and audit it again
 ```
 
-The same button is on the card in `thinker ui`.
+The same button is on the card in `thinker ui`:
+
+![A skill card found out of date in the local page: the issues, and the button that puts it back](images/skills-out-of-date.png)
 
 ## What the sessions say
 
