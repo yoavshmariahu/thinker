@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# Optional: build files to self-host outside GitHub: dist/thinker.tgz and dist/install.sh.
+# Build the release files: dist/thinker.tgz, dist/version.json (version, commit, sha256 of the
+# archive) and dist/install.sh. scripts/release.sh runs it and attaches the three to the GitHub
+# release of the tag. To self-host instead, pass the base URL the three will be served from:
 #   scripts/pack.sh https://your.host/thinker
-# The base URL is where you will upload the archive, manifest, and installer.
+# and the built install.sh downloads from there instead of the GitHub releases.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 base="${1:-}"
@@ -42,8 +44,9 @@ const release = {
 fs.writeFileSync(manifest, JSON.stringify(release, null, 2) + '\n');
 JS
 if [ -n "$base" ]; then
-  # self-hosted copy: install from the tarball next to it instead of GitHub
+  # self-hosted copy: install from the tarball next to it instead of the GitHub release
   sed -e "s#^  local dist=\"\${THINKER_DIST_URL:-}\"#  local dist=\"\${THINKER_DIST_URL:-${base%/}/thinker.tgz}\"#" install.sh > "$dist/install.sh"
+  grep -q "${base%/}/thinker.tgz" "$dist/install.sh" || { echo "pack.sh: could not point install.sh at $base (its dist line changed?)" >&2; exit 1; }
 else
   cp install.sh "$dist/install.sh"
 fi

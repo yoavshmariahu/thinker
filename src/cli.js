@@ -166,10 +166,10 @@ const HELP = `thinker — knowledge cache for coding agents
                                  run a paired, read-only setup benchmark without and with relevant cached notes;
                                  with no question, offers questions the cache covers (picks the first outside a terminal)
   benchmark report              show the latest comparison (answers are saved for human quality review)
-  update [branch] [--branch b] [--check] [--force] [--quiet] [--schedule] [--unschedule] [--status]
-                                 update thinker CLI or switch to a branch version; --schedule / --unschedule manages daily background updates
-  switch <branch>                switch thinker CLI to a specific branch version
-  branch                         show current branch or ref
+  update [tag] [--check] [--force] [--quiet] [--schedule] [--unschedule] [--status]
+                                 update thinker to the latest GitHub release, or to the release tagged <tag>; --schedule / --unschedule manages daily background updates
+  switch <tag>                   switch thinker to the release tagged <tag> (a git checkout: to that branch); main or latest returns to the latest
+  branch                         show the installed release tag, or the branch of a git checkout
   upgrade                        alias for update
   rewire [--here] [--dry]        rewrite the hooks and MCP entries of your agent settings and of every checkout set up
                                  on this machine for this version, and wire thinker into your settings for the agents

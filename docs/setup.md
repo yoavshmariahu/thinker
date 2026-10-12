@@ -4,8 +4,9 @@ The details behind the install line in the [README](../README.md).
 
 ## Install and start
 
-Run `curl -fsSL https://zerotime.dev/dist/install.sh | bash`. It
-installs the tool and wires it into the agents on this machine, once, in their
+Run `curl -fsSL https://raw.githubusercontent.com/yoavshmariahu/thinker/main/install.sh | bash`. It
+installs the [latest GitHub release](https://github.com/yoavshmariahu/thinker/releases)
+of the tool and wires it into the agents on this machine, once, in their
 own settings (hooks and the MCP server, for Claude Code, Codex, Gemini CLI and
 Cursor, their desktop apps included), asking nothing in the terminal. Thinker
 then runs in every git repository on this machine: a cache starts, empty, with
@@ -117,7 +118,7 @@ Use `thinker export backup.tgz` and `thinker import backup.tgz` for personal
 backup and restore. There is no `share`, `sync`, or `setup --shared` workflow.
 Old sync settings are ignored.
 
-## Updates and testing branches
+## Updates and releases
 
 Thinker auto-updates daily in the background. To check or update manually at any time:
 
@@ -125,10 +126,13 @@ Thinker auto-updates daily in the background. To check or update manually at any
 thinker update
 ```
 
-S3/archive installs check `version.json` beside their saved private download URL
-and verify the release checksum without GitHub credentials. Git checkouts update from their
-Git remote. Daily updates run on invocation and, when installed, through the OS
-scheduler; they are not an immediate push to every client.
+A release is a tag `vX.Y.Z` on GitHub with three files attached: `thinker.tgz`,
+`version.json` (the version, the commit and the SHA-256 of the archive) and
+`install.sh`. An install made by the installer reads the latest release's
+`version.json`, and when it names a newer version downloads the archive, checks it
+against the digest and swaps it in; no GitHub credentials are needed. Git checkouts
+update from their Git remote. Daily updates run on invocation and, when installed,
+through the OS scheduler; they are not an immediate push to every client.
 
 Linux containers without `crontab` use the invocation check automatically.
 Pass `--no-auto-update` to the installer to skip OS scheduling. To also disable
@@ -137,24 +141,26 @@ invocation checks, set `THINKER_NO_AUTO_UPDATE=1` when running thinker;
 rewrites the hooks and MCP entries of every repository it is wired into, so a new hook
 event reaches them without `thinker setup` being rerun (`thinker rewire` does it by hand).
 
-Clients installed before 0.1.1 may be unable to update without GitHub access.
-Refresh the updater once with
-`curl -fsSL https://zerotime.dev/dist/install.sh | bash -s -- --update`. This preserves
-the existing home and telemetry settings and saves the download URL for unattended updates.
+Installs made before 0.1.35 downloaded from zerotime.dev. Their next update from
+a release moves them to GitHub; an install that is stuck on the old host moves with
+`curl -fsSL https://raw.githubusercontent.com/yoavshmariahu/thinker/main/install.sh | bash -s -- --update`,
+which keeps the existing home and settings.
 
-To test a specific branch version:
+To pin a release, or go back to one:
 
 ```bash
-# Switch to a branch version (or tag)
-thinker switch <branch-name>
-# or: thinker update <branch-name>
+# Install the release tagged v0.1.34
+thinker switch v0.1.34
+# or: thinker update v0.1.34
 
-# Check current branch
+# Show the installed release
 thinker branch
 
-# Switch back to main
-thinker switch main
+# Back to the latest release
+thinker switch latest
 ```
+
+A git checkout of the repository switches branches the same way (`thinker switch <branch>`).
 
 See `thinker update --status` for current install and schedule details, or `thinker update --schedule` / `thinker update --unschedule` to manage OS-level background updates.
 

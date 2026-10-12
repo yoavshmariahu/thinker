@@ -12,7 +12,7 @@ function handler(event) {
     if (legacy) { request.uri = '/dist/' + (legacy[1] === 'installer.sh' ? 'install.sh' : legacy[1]); return request; }
     if (uri === '/access/session') return { statusCode: 200, headers: {
         'content-type': { value: 'application/json' }, 'cache-control': { value: 'no-store' }
-    }, body: request.method === 'HEAD' ? '' : JSON.stringify({ installCommand: 'curl -fsSL https://zerotime.dev/dist/install.sh | bash' }) };
+    }, body: request.method === 'HEAD' ? '' : JSON.stringify({ installCommand: 'curl -fsSL https://raw.githubusercontent.com/yoavshmariahu/thinker/main/install.sh | bash' }) };
     if (/^\/docs(?:\.html|\/index\.html|\/)?$/.test(uri)) { request.uri = '/docs.html'; return request; }
     if (/^\/(?:[Tt]hinker101\/)?install.sh$/.test(uri)) { request.uri = '/dist/install.sh'; return request; }
     if (uri === '/' || uri === '/index.html' || /^\/message\.(js|css)$/.test(uri) ||
