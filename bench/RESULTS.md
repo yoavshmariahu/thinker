@@ -3,6 +3,116 @@
 Additional comparisons: [Thinker versus CodeGraph on PostHog](../research/codegraph-posthog/README.md); [Thinker versus codebase-memory-mcp on click, and the `find` tool it led to](../research/cbm-comparison/README.md)
 — two completed task pairs, with raw traces, grades, and excluded attempts.
 
+## Re-analysis of the paired runs by whether a note reached the agent (2026-10-11)
+
+Measurement 2 of [MEASUREMENT.md](MEASUREMENT.md). `bench/reanalysis.js` reads every run under
+`bench/runs`, pairs each cache arm with the `nocache` arm of the same directory, task and rep, and
+splits the pairs by whether the hook put a note in front of the agent (`tools.injected`, or the
+Codex harness's `cache.hookServed`). 549 pairs over nine models and four repositories; 22 pairs
+dropped (18 errors, 4 at the turn cap) and seven directories excluded by name, listed below. No
+model calls. Spend is in dollars per the cost rules: a Claude run's own reported cost; Codex and
+Gemini priced at list from the recorded token classes; three early Codex sets left unpriced
+because their input count double-counted cached tokens. Correctness is the share of essential
+criteria where the calibrated grade exists, else pass/fail, else the old reference score, and the
+judges differ between sets. Intervals are bootstrap 90% over pairs. Rerun with
+`node bench/reanalysis.js --json bench/runs/reanalysis-2026-10-11.json`.
+
+**What it shows.**
+
+1. **In these runs, serving was not the bottleneck.** A note reached the agent in every recorded
+   Fable, Astra, Sol, Opus, grok and Cursor pair and in 87% of Sonnet pairs. All of them ran before
+   the 2026-10-04 precision-first change (cross-encoder floor 0, one note) under the older serving
+   (two notes, low floors). The coverage problem the plan describes, 15 of 54 tasks hit, is not
+   visible here and cannot be measured from these runs. "Reached" means served, not relevant:
+   the label study put 0.69 of top-2 servings on target.
+2. **Effect given served, by model.** Fable: 17% fewer calls, 10% less spend, 15 of 20 pairs
+   cheaper. GPT-6 Astra on Grafana: 18% fewer calls, 15% less spend. Opus: 18% fewer calls on
+   4 pairs, spend interval straddles zero. Cursor auto: 14% fewer calls. grok: 6% fewer calls.
+   Sonnet: 9% fewer calls and no change in spend, since on $0.10 tasks the notes add about as
+   many tokens as they save. GPT-6 Sol: 10% more calls, spend flat, the full-cache arm's known
+   batching loss. Gemini 3.8 Flash, whose harness did not record servings: 12% fewer calls, 10%
+   less spend over 49 pairs.
+3. **On Sonnet the saving is the notes, not the instruction.** Irrelevant notes: +3% calls.
+   Prompt-only guidance: +2%. Relevant notes served: −9% [−13%, −4%] over 151 pairs. The
+   first click study's reading, that the control matched the hook, does not hold on the pooled
+   set.
+4. **Correctness does not move outside its interval for any model** except a small Fable gain
+   (+0.08 [−0.01, +0.19]). The Opus −0.17 is four pairs. Judges differ between sets.
+5. **By repository.** Grafana: −17% calls, −13% spend. mitmproxy: −9%, −2%. PostHog: calls
+   flat (Sol's +10% against Fable's and Astra's savings), spend −6%. click: calls flat, spend
+   +27%, because the tasks cost cents and the served notes cost more than the reads they save.
+
+**Limits.** Served is not relevant. The serving these runs saw is not the one shipped now. The
+Gemini and early Codex harnesses recorded no servings. Five judges and two grading schemes are
+pooled in the correctness column. Spend is unpriced for the three early Codex sets, grok and
+Cursor. The Opus 5.5 five-pair study lives under `research/`, not `bench/runs`, and is not here.
+
+### Coverage
+
+| model | pairs | serving recorded | a note reached the agent | agent called a thinker tool |
+|---|---:|---:|---:|---:|
+| auto (cursor) | 6 | 6 | 6 (100% of recorded) | 0 |
+| fable | 20 | 20 | 20 (100% of recorded) | 0 |
+| gemini-3.8-flash-high | 49 | 0 | 0 | 34 |
+| gpt-5.6-terra | 28 | 4 | 4 (100% of recorded) | 0 |
+| gpt-6-astra | 21 | 21 | 21 (100% of recorded) | 3 |
+| gpt-6-sol | 108 | 107 | 107 (100% of recorded) | 35 |
+| grok-4.7 | 16 | 16 | 16 (100% of recorded) | 0 |
+| opus | 4 | 4 | 4 (100% of recorded) | 1 |
+| sonnet | 182 | 174 | 151 (87% of recorded) | 32 |
+
+### Effect by model, split by whether a note reached the agent
+
+| model | pairs where | n | Δ tool calls (vs baseline mean) [90% CI], pairs lower | Δ spend | Δ wall | Δ correctness |
+|---|---|---:|---|---|---|---|
+| auto (cursor) | note reached the agent | 6 | -24.3 (-14%) [-40.0, -9.5], n=6, lower in 5 |  | -104s [-188s, -50s], n=6, lower in 6 | -0.07 [-0.30, +0.14], n=6, lower in 2 |
+| fable | note reached the agent | 20 | -3.1 (-17%) [-5.2, -0.9], n=20, lower in 13 | $-0.28 (-10%) [$-0.47, $-0.08], n=20, lower in 15 | -22s [-40s, -5s], n=20, lower in 14 | +0.08 [-0.01, +0.19], n=20, lower in 2 |
+| gemini-3.8-flash-high | serving not recorded | 49 | -15.2 (-12%) [-26.4, -5.6], n=49, lower in 30 | $-0.10 (-10%) [$-0.18, $-0.02], n=49, lower in 27 | -29s [-100s, 44s], n=49, lower in 28 | -0.01 [-0.06, +0.04], n=49, lower in 7 |
+| gpt-5.6-terra | note reached the agent | 4 | 1.0 (4%) [-1.5, 4.5], n=4, lower in 1 |  | -26s [-78s, 10s], n=4, lower in 3 |  |
+| gpt-5.6-terra | serving not recorded | 24 |  |  |  |  |
+| gpt-6-astra | note reached the agent | 21 | -2.5 (-18%) [-3.8, -1.2], n=21, lower in 15 | $-0.17 (-15%) [$-0.26, $-0.08], n=21, lower in 15 | -11s [-24s, 2s], n=21, lower in 13 | -0.04 [-0.11, +0.00], n=21, lower in 2 |
+| gpt-6-sol | note reached the agent | 107 | 4.2 (10%) [0.8, 7.6], n=107, lower in 41 | $-0.03 (-3%) [$-0.10, $0.05], n=73, lower in 36 | -7s [-34s, 19s], n=107, lower in 60 | -0.03 [-0.07, +0.02], n=85, lower in 22 |
+| gpt-6-sol | serving not recorded | 1 |  |  |  |  |
+| grok-4.7 | note reached the agent | 16 | -9.4 (-6%) [-16.8, -2.1], n=16, lower in 8 |  | 3s [-36s, 45s], n=15, lower in 8 | -0.04 [-0.12, +0.00], n=5, lower in 1 |
+| opus | note reached the agent | 4 | -5.0 (-18%) [-8.0, -2.5], n=4, lower in 4 | $-0.20 (-11%) [$-0.52, $0.06], n=4, lower in 2 | -49s [-80s, -21s], n=4, lower in 4 | -0.17 [-0.33, +0.00], n=4, lower in 2 |
+| sonnet | control: irrelevant | note reached the agent | 27 | 0.3 (3%) [-1.0, 1.7], n=27, lower in 10 | $0.01 (3%) [$-0.02, $0.05], n=27, lower in 9 | 2s [-3s, 7s], n=27, lower in 15 | -0.01 [-0.11, +0.07], n=27, lower in 6 |
+| sonnet | control: irrelevant | nothing reached | 48 | -0.1 (-1%) [-0.6, 0.5], n=48, lower in 17 | $-0.01 (-7%) [$-0.02, $-0.00], n=48, lower in 30 | -4s [-10s, -1s], n=48, lower in 33 | -0.01 [-0.03, +0.00], n=48, lower in 4 |
+| sonnet | control: prompt | nothing reached | 40 | 0.3 (2%) [-0.9, 1.3], n=40, lower in 17 | $-0.00 (-1%) [$-0.03, $0.03], n=40, lower in 22 | 2s [-4s, 10s], n=40, lower in 19 | -0.04 [-0.11, +0.03], n=40, lower in 9 |
+| sonnet | note reached the agent | 151 | -0.6 (-9%) [-1.0, -0.3], n=151, lower in 78 | $0.00 (0%) [$-0.01, $0.01], n=151, lower in 67 | 3s [-0s, 6s], n=151, lower in 77 | -0.02 [-0.05, +0.01], n=151, lower in 34 |
+| sonnet | nothing reached | 23 | -0.3 (-3%) [-1.5, 1.1], n=23, lower in 10 | $-0.00 (-1%) [$-0.03, $0.03], n=23, lower in 15 | 22s [14s, 33s], n=23, lower in 1 | -0.00 [-0.01, +0.00], n=23, lower in 1 |
+| sonnet | serving not recorded | 8 | 1.3 (45%) [0.4, 2.1], n=8, lower in 1 | $0.01 (8%) [$-0.00, $0.01], n=8, lower in 2 | 2s [0s, 3s], n=8, lower in 3 | -0.01 [-0.06, +0.06], n=8, lower in 5 |
+
+### Effect by repository, all models
+
+| model | pairs where | n | Δ tool calls (vs baseline mean) [90% CI], pairs lower | Δ spend | Δ wall | Δ correctness |
+|---|---|---:|---|---|---|---|
+| click | note reached the agent | 47 | -0.1 (-2%) [-0.5, 0.3], n=47, lower in 21 | $0.01 (27%) [$0.01, $0.02], n=47, lower in 11 | 0s [-1s, 1s], n=47, lower in 25 | -0.02 [-0.05, -0.00], n=47, lower in 15 |
+| click | nothing reached | 1 | 1.0 (25%) [1.0, 1.0], n=1, lower in 0 | $0.00 (9%) [$0.00, $0.00], n=1, lower in 0 | 3s [3s, 3s], n=1, lower in 0 | -0.10 [-0.10, -0.10], n=1, lower in 1 |
+| click | serving not recorded | 12 | 0.4 (5%) [-1.6, 1.9], n=12, lower in 2 | $0.01 (7%) [$-0.00, $0.01], n=12, lower in 3 | -1s [-7s, 4s], n=12, lower in 6 | -0.09 [-0.25, +0.02], n=12, lower in 6 |
+| grafana | note reached the agent | 22 | -2.7 (-17%) [-4.0, -1.3], n=22, lower in 16 | $-0.16 (-13%) [$-0.24, $-0.07], n=22, lower in 15 | -10s [-23s, 1s], n=22, lower in 14 | -0.04 [-0.11, +0.00], n=22, lower in 2 |
+| grafana | serving not recorded | 4 | -10.0 (-8%) [-35.8, 6.3], n=4, lower in 2 | $-0.03 (-9%) [$-0.09, $0.02], n=4, lower in 2 | 133s [48s, 203s], n=4, lower in 0 | +0.04 [+0.00, +0.12], n=4, lower in 0 |
+| mitm | note reached the agent | 59 | -0.6 (-9%) [-1.1, -0.1], n=59, lower in 28 | $-0.00 (-2%) [$-0.01, $0.00], n=59, lower in 32 | -1s [-6s, 2s], n=59, lower in 33 | -0.01 [-0.05, +0.03], n=59, lower in 8 |
+| mitm | nothing reached | 13 | -1.0 (-16%) [-1.9, 0.0], n=13, lower in 8 | $-0.01 (-13%) [$-0.03, $0.00], n=13, lower in 10 | 14s [11s, 16s], n=13, lower in 0 | +0.00 [+0.00, +0.01], n=13, lower in 0 |
+| mitm | serving not recorded | 4 | -0.8 (-1%) [-6.5, 10.3], n=4, lower in 3 | $0.00 (2%) [$-0.02, $0.02], n=4, lower in 2 | 4s [-24s, 35s], n=4, lower in 2 | +0.00 [+0.00, +0.00], n=4, lower in 0 |
+| posthog | note reached the agent | 201 | 0.1 (0%) [-2.2, 2.3], n=201, lower in 100 | $-0.07 (-6%) [$-0.12, $-0.02], n=141, lower in 77 | -8s [-23s, 7s], n=200, lower in 113 | -0.02 [-0.05, +0.01], n=164, lower in 40 |
+| posthog | nothing reached | 9 | 0.7 (5%) [-2.4, 3.4], n=9, lower in 2 | $0.01 (2%) [$-0.06, $0.08], n=9, lower in 5 | 37s [18s, 61s], n=9, lower in 1 | +0.00 [+0.00, +0.00], n=9, lower in 0 |
+| posthog | serving not recorded | 62 | -18.8 (-14%) [-33.3, -6.4], n=37, lower in 24 | $-0.12 (-10%) [$-0.23, $-0.02], n=37, lower in 22 | -53s [-144s, 40s], n=37, lower in 23 | +0.01 [-0.03, +0.07], n=37, lower in 6 |
+
+### Excluded
+
+- `grafana-gemini-3.8-smoke-leaked`: the clone still held the merged fix (grafana-bench-setup)
+- `invalid`: marked invalid when run (shared worktree)
+- `mitm-live`: recall: the task re-run with notes from its own earlier run
+- `sanity-check-live`: live arm sanity check, not a pair
+- `posthog-codex-before-after`: version comparison, no nocache arm
+- `posthog-codex-before-after-2`: version comparison, no nocache arm
+- `cleanup-preserved-2026-10-06`: preserved outputs of stopped runs
+- `click-adv`: adversarial-notes study: the hook arm was served wrong notes on purpose
+- `posthog-codex-gpt6-sol`: calls counted, spend not priced (cached input double-counted in in_tokens)
+- `posthog-codex-gpt6-sol-trace`: calls counted, spend not priced (cached input double-counted in in_tokens)
+- `posthog-codex-gpt56`: calls counted, spend not priced (cached input double-counted in in_tokens)
+- 22 pairs dropped: 4 turn cap, 18 is_error
+
 ## PR-only cache effectiveness canary (2026-10-07)
 
 [Preserved results and coverage diagnosis](../research/cache-effectiveness/README.md): after the PR-mining repair, the first Opus cache mined 20 recent pre-task PRs into 15 notes with no failed model calls, but served none for the actual Click task (highest Jev relevance 0.07). The guard stopped Sol/Gemini builds and all coding before execution. **No efficiency comparison is available; expansion remains paused.** Relevant material was present in a mined PR but was not extracted into notes. A separate post-stop harness fix accounts for the product's local note storage and usage updates without allowing learned content to change.
