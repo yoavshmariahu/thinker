@@ -250,7 +250,7 @@ export async function mineMore(ctx, { slug, ...opts }) {
   return minePrs(ctx, slug, { ...opts, repo });
 }
 
-export async function minePrs(ctx, slug, { from, scan, before, after, again, limit = 20, model, dry, fixes = false, git = false, repo = process.cwd(), phase = 'maintenance', directories = null, concurrency = 4, paths = null, pathsLimit = null } = {}) {
+export async function minePrs(ctx, slug, { from, scan, before, after, again, limit = 20, model, dry, fixes = false, git = false, repo = process.cwd(), phase = 'maintenance', directories = null, concurrency = 4, paths = null, pathsLimit = null, onProgress = null } = {}) {
   const { flags, store, out } = ctx;
   // --git: commits from git history although GitHub is reachable (a repository whose work lands by
   // direct commits has few pull requests to mine; its fix commits are what review wants)
@@ -295,7 +295,7 @@ export async function minePrs(ctx, slug, { from, scan, before, after, again, lim
   if (targeted.length) out(`        ${targeted.length} of them touched ${paths.length === 1 ? paths[0] : `${paths.length} given files`}.`);
   const deferred = new Set(candidates.filter(p => !prs.includes(p)).map(p => p.number)); // candidates beyond this run's limit wait for the next one
   out(`        Reviewing ${prs.length} changes ${useGit ? 'from git history' : `from ${slug}`}. Changes with no reusable notes are normal.`);
-  const progress = batchProgress({ dir: store.dir, name: 'PR mining', total: prs.length, out, verbose: Boolean(flags.verbose) });
+  const progress = batchProgress({ dir: store.dir, name: 'PR mining', total: prs.length, out, verbose: Boolean(flags.verbose), onProgress });
   let tokens = 0, saved = 0;
   // a few changes at once: each is one independent model call, and a setup run mines dozens
   const queue = [...prs];

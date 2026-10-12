@@ -33,6 +33,7 @@ for (let i = 0; i < argv.length; i++) {
 const repo = findRepoRoot(flags.repo || process.env.THINKER_REPO || process.cwd());
 const store = new Store(repo);
 const out = s => process.stdout.write(s + '\n');
+out.stream = process.stdout; // the spinners and the build's progress bar draw on it (setup/ui.js:onTerminal)
 const readStdin = () => fs.readFileSync(0, 'utf8');
 
 // Learning from sessions is on unless switched off, which evals do to keep the cache fixed.
@@ -52,13 +53,14 @@ const userMcpEntry = () => ({ command: 'node', args: [path.join(HERE, 'mcp.js')]
 
 const HELP = `thinker — knowledge cache for coding agents
 
-  setup [--build | --no-build] [--depth full|shallow] [--clients list|all|auto] [--agent a] [--prs n] [--pr <num>]
+  setup [--build | --no-build] [--depth full|shallow] [--clients list|all|auto] [--agent a] [--prs n] [--pr <num>] [--no-docs]
         [--benchmark | --no-benchmark] [--no-learn] [--no-hooks] [--no-late] [--no-mcp] [--no-git-hook]
         [--no-trust] [--yes] [--verbose] [--project file | --directories dir,dir | --full-repo] [--no-ui]
                                  the one command that sets a repository up: connect the agent CLIs (hooks and the MCP
                                  server, clients claude, codex, cursor, gemini, pi, windsurf, copilot, opencode; default auto), then offer to build the
                                  knowledge cache from merged pull requests with pre-flight estimates (a build reads pull requests and does not explore the code), and
-                                 an optional PR change benchmark. --build opts into building; --yes also skips the scope menu. --no-build only wires
+                                 an optional PR change benchmark. --build opts into building; --yes also skips the scope menu; --no-docs skips the last
+                                 stage, the design documents (at most 8 are read). --no-build only wires
                                  things up and lets the cache grow from your sessions; --depth shallow builds 30% of the full
                                  build (the newest pull requests); a build also drafts
                                  system behaviors for human review; --verbose adds per-item details; the first setup of a

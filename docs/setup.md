@@ -66,9 +66,11 @@ more repositories" on the Cache view, or `thinker ui --tab warmup`).
 
 **What a build does.** The builds run one at a time, in the background, each as its
 own process. A build reads the repository's merged pull requests, fixes first, and
-distills them into notes; it does not explore the code. It also reads the design documents checked in (READMEs beside the code) for
-the rules they state, then links the notes and writes the search phrasings the
-ranker uses. Closing the browser tab does not stop a
+distills them into notes; it does not explore the code. Then it links the notes and writes the search phrasings the ranker uses, and last, as
+an optional stage (`--no-docs` skips it), reads the design documents checked in (READMEs
+beside the code) for the rules they state, at most eight a build; maintenance reads the
+rest over time. On a terminal the build shows one progress bar: the share done, the
+time left, and what is being mined or read. Closing the browser tab does not stop a
 running build.
 
 **Watching and stopping.** The Cache view shows each repository as a card. A running

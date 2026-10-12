@@ -350,6 +350,7 @@ export async function setup(ctx) {
     noBenchmark: Boolean(flags['no-benchmark']),
     noPrs: Boolean(flags['no-prs']) || build === false,
     noPhrase: Boolean(flags['no-phrase']),
+    docs: !flags['no-docs'],
     model: flags.model,
     agent,
     yes: Boolean(flags.yes),
