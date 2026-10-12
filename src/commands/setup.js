@@ -1,4 +1,4 @@
-import { DEPTHS } from '../setup/estimate.js';
+import { DEPTHS, DEFAULT_PRS } from '../setup/estimate.js';
 // Setting a repository and this machine up: setup, uninstall, the tree-sitter parser (ast), and
 // updating thinker itself (update, upgrade, switch, branch).
 import fs from 'node:fs';
@@ -326,7 +326,7 @@ export async function setup(ctx) {
   // a build mines merged changes and nothing else: exploring the code cost far more than it gave back and was
   // removed (--areas and --no-seed from old scripts are ignored)
   const slug = flags['no-prs'] ? null : (typeof flags.slug === 'string' ? flags.slug : githubSlug(repo));
-  const prs = flags['no-prs'] ? 0 : num(flags.prs, 60);
+  const prs = flags['no-prs'] ? 0 : num(flags.prs, DEFAULT_PRS);
   const agent = typeof flags.agent === 'string' ? flags.agent : (process.env.THINKER_LLM || null);
   // asking for a size is asking for the build; --no-build (or --no-prs) is a no
   const depth = typeof flags.depth === 'string' ? flags.depth : null;

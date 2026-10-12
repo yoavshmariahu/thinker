@@ -334,7 +334,6 @@
       <button class="back" id="w-back">← Your repositories</button>
       <div class="kicker">Warm up your cache</div>
       <h1>Which repositories should thinker learn first?</h1>
-      <p class="lede">The git repositories your coding agents have worked in over the last 30 days, most recent first, and the ones thinker has seen before. The five you used most recently are picked for you; one that already has a cache is marked and left unpicked. A warm-up reads a repository's merged pull requests into notes, through your own agent login. Every cache also grows from your sessions, so skipping one costs nothing but a slower start. Shallow reads the newest 30%. A repository that must not be read by a model, say one with sensitive content, can be turned off here: thinker then does nothing in it, in any clone or worktree.</p>
       <div class="wbar" id="w-bar" hidden>
         <div class="model">
           <span>Model</span>
@@ -876,7 +875,7 @@ function renderWarmup() {
   $('#w-start').disabled = !SEL.size || !AGENTS || !W.agents.length;
   document.querySelectorAll('#w-grid .wrow').forEach(el => {
     const c = el.dataset.c;
-    const pick = el.querySelector('[data-pick]'); if (pick) pick.onchange = () => { if (pick.checked) SEL.set(c, { depth: 'full', directories: [] }); else SEL.delete(c); if (DROP === c) DROP = null; renderWarmup(); };
+    const pick = el.querySelector('[data-pick]'); if (pick) pick.onchange = () => { if (pick.checked) SEL.set(c, { depth: 'full', directories: [...(W.repos.find(x => x.checkout === c)?.areas || [])] }); else SEL.delete(c); if (DROP === c) DROP = null; renderWarmup(); };
     el.querySelectorAll('[data-depth]').forEach(b => b.onclick = () => { SEL.get(c).depth = b.dataset.depth; renderWarmup(); });
     const dirs = el.querySelector('[data-dirs]'); if (dirs) dirs.onclick = () => { DROP = DROP === c ? null : c; dirQuery = ''; renderWarmup(); if (DROP) document.querySelector('.wdrop input')?.focus(); };
     const sw = el.querySelector('[data-switch]'); if (sw) sw.onclick = async () => {

@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { condense, parseTranscript, exploreCount, batchDue, distillEvents, saveNotes, transcriptsFor, injectedIds, relatedNotes, sessionStakes, QUIET_MIN_EXPLORE } from '../distill.js';
-import { provider } from '../llm.js';
+import { provider, DEFAULT_DISTILL_MODEL } from '../llm.js';
 import { maintain, renderMaintain, withinDailyCap, reportCapped } from '../maintain.js';
 import { formatTokens } from '../model-usage.js';
 import { refresh, attest, outcome, distillKinds } from '../ops.js';
@@ -203,7 +203,7 @@ export async function distillFile(ctx, file, { minExplore, dry, model, quiet, in
   // the notes resting on the files the session touched, and up to four on the topic of its requests
   const existing = relatedNotes(store, events, { max: 12 });
   if (phase !== 'init' && !withinDailyCap(store).ok) throw new Error('daily learning token cap reached; session will retry');
-  const r = await distillEvents(events, { model: model || store.config().distillModel || 'haiku', repoHint: repo, served, existing, kinds, evidence: plan.trace, discover: plan.discover, compact: plan.compact ?? !['audit', 'full'].includes(plan.mode), accounting: { ...accounting, purpose: 'distill', traceEvents: events.length, learningMode: plan.mode, evidenceChars: plan.trace.length } });
+  const r = await distillEvents(events, { model: model || store.config().distillModel || DEFAULT_DISTILL_MODEL, repoHint: repo, served, existing, kinds, evidence: plan.trace, discover: plan.discover, compact: plan.compact ?? !['audit', 'full'].includes(plan.mode), accounting: { ...accounting, purpose: 'distill', traceEvents: events.length, learningMode: plan.mode, evidenceChars: plan.trace.length } });
   if (dry) { failed = false; out(JSON.stringify({ notes: r.notes, assessments: r.assessments }, null, 2)); out(`(${r.notes.length} notes, ${r.tokens == null ? 'tokens not reported' : '~' + formatTokens(r.tokens) + ' tokens'}, trace ${r.traceChars} chars)`); return; }
   const source = { type: 'agent', ref: path.basename(file, '.jsonl') };
   const s = saveNotes(store, r.notes, { source, kinds });
@@ -309,7 +309,7 @@ export async function minePrs(ctx, slug, { from, scan, before, after, again, lim
       // the notes already resting on the files the change touched, shown as context rather than evidence
       const touched = new Set((pr.files || []).map(f => f.path));
       const existing = store.list().filter(n => n.status !== 'invalid' && (n.deps || []).some(d => touched.has(d.path))).slice(0, 12);
-      const r = await distillPr(slug, pr, { model: model || store.config().distillModel || 'haiku', repo, existing, accounting: { ...accounting, purpose: 'mine-prs' } });
+      const r = await distillPr(slug, pr, { model: model || store.config().distillModel || DEFAULT_DISTILL_MODEL, repo, existing, accounting: { ...accounting, purpose: 'mine-prs' } });
       tokens += r.tokens || 0;
       if (dry) { out(`${oneLine(refId)} ${oneLine(pr.title).slice(0, 60)} → ${r.notes.map(n => n.kind).join(',') || 'no reusable notes'}`); progress.complete({ item, proposed: r.notes }); return; }
       const source = { type: 'pr', ref: refId };

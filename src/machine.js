@@ -8,7 +8,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store, findRepoRoot, repoId, isScratchCheckout, isGitCheckout } from './store.js';
 import { readLog } from './usage.js';
-import { estimateCacheBuild, depthLimits } from './setup/estimate.js';
+import { estimateCacheBuild, depthLimits, DEFAULT_PRS } from './setup/estimate.js';
 import { githubSlug, hasBin } from './setup/agents.js';
 import { isBehavior } from './behavior.js';
 import { activity } from './activity.js';
@@ -136,8 +136,8 @@ export function warmupCandidates(store, opts = {}) {
   return discoverRepos(store, opts).map(r => {
     const slug = githubSlug(r.checkout);
     // the file count plays no part in the time or the tokens, and listing a large repository's files is slow
-    const full = estimateCacheBuild(r.checkout, { prs: 60, slug, fileCount: 0 });
-    const shallow = estimateCacheBuild(r.checkout, { ...depthLimits({ depth: 'shallow', prs: 60 }), slug, commitCount: full.commitCount, fileCount: 0 });
+    const full = estimateCacheBuild(r.checkout, { prs: DEFAULT_PRS, slug, fileCount: 0 });
+    const shallow = estimateCacheBuild(r.checkout, { ...depthLimits({ depth: 'shallow', prs: DEFAULT_PRS }), slug, commitCount: full.commitCount, fileCount: 0 });
     const pick = e => ({ seconds: e.timing.totalSeconds, tokens: e.tokenEstimate, notes: e.size.notesRange, prs: e.canMine ? Math.min(60, 50) : 0 });
     const at = slug ? pushed.get(slug.toLowerCase()) || null : null;
     const active = Math.max(Date.parse(r.lastUsed) || 0, Date.parse(at) || 0);

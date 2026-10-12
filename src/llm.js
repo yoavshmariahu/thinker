@@ -10,6 +10,10 @@
 // the first that is available, preferring THINKER_LLM_PREFER (set by the hooks
 // to the agent that is running). All return a parsed JSON object when a
 // schema is given.
+
+// The model distillation and mining fall back to when neither the call nor the repository's config names
+// one; the warm-up page shows the same default (test/cli-ui-sync.test.js).
+export const DEFAULT_DISTILL_MODEL = 'haiku';
 import { spawn } from 'node:child_process';
 import os from 'node:os';
 import fs from 'node:fs';

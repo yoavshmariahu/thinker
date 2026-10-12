@@ -17,7 +17,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { complete } from './llm.js';
+import { complete, DEFAULT_DISTILL_MODEL } from './llm.js';
 import { tokensOf } from './model-usage.js';
 import { createNote, extractDeps, resolveDeps, noteUnreported, gitDiffFor } from './ops.js';
 import { tokenize } from './rank.js';
@@ -131,7 +131,7 @@ export async function skillCard(store, skill, { model, completeFn = complete, ph
 // person updated the skill, and the card goes back into serving and audit.
 export async function scanSkills(store, { model, limit = 3, again = false, dry = false, completeFn = complete, phase = 'maintenance', conc = 3, onSkill } = {}) {
   const repo = store.repo, found = findSkills(repo), notes = skillNotes(store);
-  model = model || store.config().distillModel || 'haiku';
+  model = model || store.config().distillModel || DEFAULT_DISTILL_MODEL;
   const res = { found: found.length, skills: [], read: 0, saved: [], updated: [], removed: [], aliases: [], failed: 0, lastError: null, tokens: 0, remaining: 0, duplicates: [] };
   const pending = [];
   // the same file under two roots (a symlink, or a copy kept for a second agent) is one skill: the

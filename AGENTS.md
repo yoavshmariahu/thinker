@@ -25,6 +25,17 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 
 ## Working on this repository
 
+**The command line and the local page stay in sync (MANDATORY RULE):**
+The page (`src/ui/`) is a second door to the same commands, never a second
+implementation. A default the page shows (the model, the depth, the pull-request
+count, the areas a build reads, the agent) is the constant the command reads:
+`DEFAULT_DISTILL_MODEL` in `src/llm.js`, `DEFAULT_DEPTH` and `DEFAULT_PRS` in
+`src/setup/estimate.js`, `activityAreas` in `src/areas.js`, `buildAgent` in
+`src/setup/agents.js`. A job the page queues runs the command line with the flags
+the person would have typed, so `thinker setup --build --yes` and the warm-up page
+build the same cache. `test/cli-ui-sync.test.js` checks both doors; a new default
+or flag gets a line there before it ships.
+
 **Pull requests in this repository (MANDATORY RULE):**
 We use PRs here to keep every change reviewable in one place. This is
 a contributor workflow for thinker itself, not a product requirement. Teams using
