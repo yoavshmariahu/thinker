@@ -15,10 +15,10 @@
 #      from the merged pull requests since the previous tag
 #   5. waits until https://github.com/<repo>/releases/latest/download/version.json reports the
 #      version, which is what the installer and `thinker update` read
-#   6. publishes the npm package @zerotime/thinker (the installer, for npx) at the same version;
+#   6. publishes the npm package @zerotimedev/thinker (the installer, for npx) at the same version;
 #      THINKER_NPM_PUBLISH=0 skips it, and without an npm login it prints the command instead
 # Needs git, node, tar and the GitHub CLI logged in with write access to the repository; npm
-# logged in as a member of the zerotime org for step 6.
+# logged in as a member of the zerotimedev org for step 6.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 repo="$(pwd)"

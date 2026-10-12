@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build the release files: dist/thinker.tgz, dist/version.json (version, commit, sha256 of the
-# archive) and dist/install.sh, plus dist/npm, the @zerotime/thinker package that carries the
+# archive) and dist/install.sh, plus dist/npm, the @zerotimedev/thinker package that carries the
 # installer. scripts/release.sh runs it, attaches the three files to the GitHub release of the
 # tag and publishes the package. To self-host instead, pass the base URL the three will be served from:
 #   scripts/pack.sh https://your.host/thinker
@@ -52,7 +52,7 @@ else
   cp install.sh "$dist/install.sh"
 fi
 chmod +x "$dist/install.sh"
-# The npm package (npx @zerotime/thinker): the same installer with a launcher, at the release's
+# The npm package (npx @zerotimedev/thinker): the same installer with a launcher, at the release's
 # version. scripts/release.sh publishes the directory.
 rm -rf "$dist/npm" && mkdir -p "$dist/npm"
 cp npm/install.mjs npm/README.md LICENSE "$dist/npm/"

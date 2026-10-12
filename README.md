@@ -27,11 +27,11 @@ curl -fsSL https://raw.githubusercontent.com/yoavshmariahu/thinker/main/install.
 ```
 
 Or, with npm, the same installer carried in the
-[`@zerotime/thinker`](https://www.npmjs.com/package/@zerotime/thinker) package instead of
+[`@zerotimedev/thinker`](https://www.npmjs.com/package/@zerotimedev/thinker) package instead of
 fetched at run time:
 
 ```bash
-npx @zerotime/thinker
+npx @zerotimedev/thinker
 ```
 
 Requires git, curl, tar, Node 20+ and a logged-in coding agent. Works with Claude

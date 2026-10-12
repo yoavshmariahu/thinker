@@ -36,7 +36,7 @@ test('pack.sh builds the npm package with the installer at the release version',
   const dist = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-npx-dist-'));
   execFileSync('bash', ['scripts/pack.sh'], { cwd: ROOT, encoding: 'utf8', env: { ...process.env, THINKER_DIST_DIR: dist } });
   const pkg = JSON.parse(fs.readFileSync(path.join(dist, 'npm/package.json'), 'utf8'));
-  assert.equal(pkg.name, '@zerotime/thinker');
+  assert.equal(pkg.name, '@zerotimedev/thinker');
   assert.equal(pkg.version, JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version);
   assert.deepEqual(fs.readFileSync(path.join(dist, 'npm/install.sh')), fs.readFileSync(path.join(dist, 'install.sh')));
   // npm 11 drops a bin written as ./install.mjs when it publishes, and npx then has nothing to run
