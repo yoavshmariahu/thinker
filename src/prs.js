@@ -269,19 +269,23 @@ const SCHEMA = {
   required: ['notes'],
 };
 
-const SYSTEM = `You turn one merged pull request into 0-3 reusable notes for a knowledge cache that coding agents read before and while working in this repository. The reader is an agent facing a DIFFERENT future task in the same area.
+const SYSTEM = `You turn one merged pull request into 0-3 reusable notes for a knowledge cache that coding agents read before and while working in this repository. The reader is an agent with a DIFFERENT task in the same area, who describes it in product words and does not know which file it lives in. A note earns its place when that reader's request matches it and the note then saves them a search or a mistake.
 
-Allowed kinds and what each must contain:
-- rule (most of what a pull request teaches): a bug that was fixed, as four labelled lines, "Symptom:" as a user would report it in product vocabulary, "Root cause:" with file:symbol, "Fix pattern:" the kind of change that resolved it, general enough to reuse, "Constraints:" when the pattern applies and when it does not; an invariant any change in this area must respect (permission/ownership checks, status or eligibility guards, feature-flag gating, things that must stay in sync, ordering), with where it is enforced (file:symbol) and what breaks if skipped; a local convention visible in the diff or enforced by a reviewer comment (naming, layering, where logic must live, generated files that must not be hand-edited, test placement); or things this PR shows must change together because of a mechanism (a serializer and the type generated from it, a registry and its entries), naming the mechanism.
-- map: where a concern this PR touched is handled, when the diff makes that clearer than the code alone.
-- howto: a way of building, testing or running that the PR introduced or relies on, with its non-obvious flags.
+Each note has:
+- title: the mechanism, then the rule: "<area or code path>: <rule in one clause>". The mechanism half uses the nouns a user would use (the feature, the provider, the setting, the endpoint, the page); the rule half may use symbols.
+- body, 3-8 lines, labelled, in this order:
+  "Path:" what this code path is responsible for and what passes through it, with the chokepoint as file:symbol. True before and after this PR. This is the line a reader with a different task matches on, so name the kinds of requests, fields, inputs, options or changes it handles, in product words plus the symbol.
+  "Rule:" the invariant, convention or fix pattern the PR establishes, general enough to reuse, with file:symbol pointers to code that exists AFTER the PR; for a fixed bug, the root cause and the kind of change that resolved it.
+  "Symptom:" what a user saw when the rule was broken, in product vocabulary (omit for conventions and howtos).
+  "Constraints:" when it applies and when it does not.
+- answers: 3-5 requests this note would serve, in product vocabulary: the original symptom, two different tasks on the same path (another field, option, provider, input or page going through it), and one "where is X handled" question.
+- applies: one line on scope. confidence 0.8 when the diff shows it directly, 0.6 when inferred from description or comments.
+- kind: rule (an invariant, a fixed bug's pattern, a convention, or things that must change together, naming the mechanism); map (the Path line is the whole note: where a concern is handled, when the diff makes that clearer than the code alone); howto (a way of building, testing or running that the PR introduced or relies on, with its non-obvious flags).
 
 Rules:
-- Only claims the diff, description or review comments support. No speculation.
+- Only claims the diff, description or review comments support. No speculation; the Path line describes what the code does, not what it might do.
 - Do not restate the PR. A note that only says what this PR did is useless; extract what stays true afterwards.
-- 3-8 lines per note, with file:symbol pointers to code that exists AFTER the PR. Paths must be exactly as in the diff. A dep on a code file names the definition it rests on (symbol); a dep on a whole file is for configs, scripts and documents only, since a whole code file changes with every unrelated commit.
-- answers: 2-4 phrasings a future agent or user might use, including product-vocabulary phrasings of the symptom or feature.
-- applies: one line on scope. confidence 0.8 when the diff shows it directly, 0.6 when inferred from description or comments.
+- Paths must be exactly as in the diff. A dep on a code file names the definition it rests on (symbol); a dep on a whole file is for configs, scripts and documents only, since a whole code file changes with every unrelated commit.
 - Return an empty list for dependency bumps, pure refactors, generated-file churn, or PRs with nothing reusable.`;
 
 // Files whose diff teaches nothing reusable: lockfiles, snapshots, minified, generated and vendored code.
