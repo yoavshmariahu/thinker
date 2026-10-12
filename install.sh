@@ -10,7 +10,9 @@
 # GitHub release (https://github.com/yoavshmariahu/thinker/releases: a tag vX.Y.Z carrying
 # thinker.tgz, version.json and install.sh), verified against the sha256 in version.json.
 #
-#   curl -fsSL https://raw.githubusercontent.com/yoavshmariahu/thinker/main/install.sh | bash
+#   npx @zerotimedev/thinker
+#
+# The npm package of that name carries this file and runs it with the arguments passed through.
 #
 # --build from inside a repository builds its cache right here, in the terminal,
 # instead of opening the page. If a cache was already built for the repository,

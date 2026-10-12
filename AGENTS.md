@@ -49,7 +49,7 @@ Requires Node 20+. Tests: `npm test` (`node --test test/*.test.js`).
 **Releases are GitHub releases on tags (since 0.1.35):** a release is the tag
 `vX.Y.Z` on a commit of `main`, with `thinker.tgz`, `version.json` (version,
 commit, sha256 of the archive) and `install.sh` attached. The installer
-(`install.sh`, served raw from `main`) and `thinker update` (`src/update.js`)
+(`install.sh`, run through `npx @zerotimedev/thinker`, the npm package that carries it) and `thinker update` (`src/update.js`)
 read `releases/latest/download/version.json` and download the archive from the
 same release; `thinker update vX.Y.Z` pins one. To cut a release: bump the
 version through a pull request (`npm version X.Y.Z --no-git-tag-version`,
