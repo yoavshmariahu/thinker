@@ -43,5 +43,10 @@
     "missing": []
   },
   "fresh_in_tokens": 15358,
-  "costBasis": "list price from token classes"
+  "costBasis": "list price from token classes",
+  "leak": [
+    "test_load_text_and_dict_read_utf8_regardless_of_default_encoding",
+    "test_load_text_and_dict_explain_non_utf8_artifacts",
+    "test_load_json_invalid_json"
+  ]
 }

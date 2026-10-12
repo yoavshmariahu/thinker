@@ -55,5 +55,10 @@
     "missing": []
   },
   "fresh_in_tokens": 25772,
-  "costBasis": "list price from token classes"
+  "costBasis": "list price from token classes",
+  "leak": [
+    "test_gemini_chat_tool_choice",
+    "test_gemini_tool_choice_without_tools",
+    "test_chat_tool_choice"
+  ]
 }

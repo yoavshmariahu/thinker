@@ -7,10 +7,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { codexLoopStats, testGreen, TEST_RUN } from './oracle.js';
+import { codexLoopStats, testGreen, TEST_RUN, goldTestsSeen } from './oracle.js';
 
 const dir = process.argv[2];
-if (!dir) { console.error('usage: recount.js <runs dir>'); process.exit(1); }
+if (!dir) { console.error('usage: recount.js <runs dir> [--tasks <task file>]   (--tasks also backfills `leak`, the gold test names the session saw)'); process.exit(1); }
+const ti = process.argv.indexOf('--tasks');
+const tasks = ti > 0 ? Object.fromEntries(JSON.parse(fs.readFileSync(process.argv[ti + 1], 'utf8')).tasks.map(t => [t.id, t])) : null;
 
 function claudeLoopStats(file) {
   const s = { callsBeforeFirstEdit: null, testRunsBeforeEdit: 0, testRunsAfterEdit: 0, attemptsToGreen: null, greenReached: false };
@@ -55,10 +57,11 @@ for (const f of fs.readdirSync(dir)) {
   const r = JSON.parse(fs.readFileSync(p, 'utf8'));
   if (!r.task || !r.arm || r.error) continue;
   const events = path.join(dir, 'events', f.replace(/\.json$/, '.jsonl'));
-  let stats = null;
-  if (fs.existsSync(events)) stats = codexLoopStats(fs.readFileSync(events, 'utf8').split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean));
-  else if (r.session) { const t = findTranscript(r.session); if (t) stats = claudeLoopStats(t); }
+  let stats = null, text = null;
+  if (fs.existsSync(events)) { text = fs.readFileSync(events, 'utf8'); stats = codexLoopStats(text.split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean)); }
+  else if (r.session) { const t = findTranscript(r.session); if (t) { text = fs.readFileSync(t, 'utf8'); stats = claudeLoopStats(t); } }
   if (!stats) { missing++; continue; }
+  if (tasks && tasks[r.task]) r.leak = goldTestsSeen(tasks[r.task], text);
   const before = JSON.stringify({ a: r.tools?.attemptsToGreen, g: r.tools?.greenReached });
   r.tools = { ...(r.tools || {}), ...stats };
   fs.writeFileSync(p, JSON.stringify(r, null, 2));

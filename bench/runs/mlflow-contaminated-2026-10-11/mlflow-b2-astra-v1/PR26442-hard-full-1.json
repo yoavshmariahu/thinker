@@ -55,5 +55,10 @@
     "missing": []
   },
   "fresh_in_tokens": 36381,
-  "costBasis": "list price from token classes"
+  "costBasis": "list price from token classes",
+  "leak": [
+    "test_typesafe_api_base_config",
+    "test_build_endpoint_config_typesafe_reads_api_base_from_auth_config",
+    "test_create_provider_from_endpoint_name_openai"
+  ]
 }

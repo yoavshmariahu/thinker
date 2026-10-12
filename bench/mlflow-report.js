@@ -20,6 +20,11 @@ for (const f of fs.readdirSync(dir)) {
   if (!j.task || !j.arm) continue;
   runs.push(j);
 }
+// Fail closed on the answer-key leak of 2026-10-11: a session whose transcript names two or more
+// of the task's gold tests saw them; one name can be the agent naming its own test the same way.
+const leaked = runs.filter(r => (r.leak || []).length >= 2), unchecked = runs.filter(r => !Array.isArray(r.leak));
+if (leaked.length && !process.argv.includes('--allow-leak')) { console.error(`${leaked.length} sessions saw gold tests (${leaked.map(r => r.id).join(', ')}); no report (--allow-leak to override)`); process.exit(1); }
+if (unchecked.length) console.error(`warning: ${unchecked.length} records carry no leak check (recorded before 2026-10-11)`);
 const passed = r => r.grade?.tests === 'pass';
 const key = r => `${r.task}|${r.rep}`;
 const base = new Map(runs.filter(r => r.arm === 'nocache').map(r => [key(r), r]));

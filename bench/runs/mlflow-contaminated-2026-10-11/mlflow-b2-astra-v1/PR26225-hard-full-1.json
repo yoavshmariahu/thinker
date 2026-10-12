@@ -56,5 +56,23 @@
     ]
   },
   "fresh_in_tokens": 96127,
-  "costBasis": "list price from token classes"
+  "costBasis": "list price from token classes",
+  "leak": [
+    "test_load_guardrails_fails_request_for_custom_scorer_guardrail",
+    "test_from_entity_rejects_custom_code_scorer",
+    "test_from_entity_rewrites_gateway_model_uri",
+    "test_serialized_scorer_is_custom_code",
+    "test_server_process_returns_non_executing_scorer",
+    "test_job_executor_reconstructs_scorer",
+    "test_client_process_reconstructs_scorer",
+    "test_server_process_detected_for_direct_app_launch",
+    "test_reconstruct_decorator_scorer_blocked_in_server_process",
+    "test_job_executor_scorer_context_sets_and_restores_marker",
+    "test_custom_scorer_registration_allowed_when_flag_enabled",
+    "test_scheduler_skips_disabled_custom_scorer_without_aborting",
+    "test_scheduler_routes_enabled_session_level_custom_scorer_to_session_job",
+    "test_real_db_custom_scorer_guardrail_fails_request",
+    "test_create_gateway_guardrail_rejects_custom_code_scorer",
+    "test_get_gateway_guardrail"
+  ]
 }

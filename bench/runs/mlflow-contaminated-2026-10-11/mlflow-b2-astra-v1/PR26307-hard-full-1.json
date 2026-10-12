@@ -51,5 +51,15 @@
     "missing": []
   },
   "fresh_in_tokens": 36235,
-  "costBasis": "list price from token classes"
+  "costBasis": "list price from token classes",
+  "leak": [
+    "test_span_deepcopy_and_pickle",
+    "test_span_shallow_copy",
+    "test_lazy_span_shallow_copy",
+    "test_lazy_span_deepcopy_and_pickle_unmaterialized",
+    "test_live_span_deepcopy_and_pickle_raises",
+    "test_lazy_span_deepcopy_and_pickle_materialized",
+    "test_noop_span_deepcopy_and_pickle",
+    "test_trace_deepcopy_and_pickle"
+  ]
 }

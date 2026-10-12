@@ -42,5 +42,9 @@
     "missing": []
   },
   "fresh_in_tokens": 55007,
-  "costBasis": "list price from token classes"
+  "costBasis": "list price from token classes",
+  "leak": [
+    "test_emptied_partition_removes_rollups_and_queue_entry",
+    "test_search_traces_is_workspace_scoped"
+  ]
 }

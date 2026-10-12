@@ -43,5 +43,12 @@
     "missing": []
   },
   "fresh_in_tokens": 15232,
-  "costBasis": "list price from token classes"
+  "costBasis": "list price from token classes",
+  "leak": [
+    "test_hash_array_like_obj_as_bytes_with_ragged_nested_arrays",
+    "test_hash_array_like_obj_as_bytes_with_ragged_nested_arrays_and_missing_rows",
+    "test_from_numpy_with_ragged_nested_targets",
+    "test_to_evaluation_dataset_with_nested_variable_length_arrays",
+    "test_from_huggingface_dataset_with_sample_source"
+  ]
 }

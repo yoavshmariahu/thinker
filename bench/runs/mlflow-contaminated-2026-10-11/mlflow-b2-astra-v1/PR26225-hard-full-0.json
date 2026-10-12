@@ -58,5 +58,18 @@
     ]
   },
   "fresh_in_tokens": 61046,
-  "costBasis": "list price from token classes"
+  "costBasis": "list price from token classes",
+  "leak": [
+    "test_from_entity_rejects_custom_code_scorer",
+    "test_serialized_scorer_is_custom_code",
+    "test_server_process_returns_non_executing_scorer",
+    "test_job_executor_reconstructs_scorer",
+    "test_client_process_reconstructs_scorer",
+    "test_server_process_detected_for_direct_app_launch",
+    "test_reconstruct_decorator_scorer_blocked_in_server_process",
+    "test_job_executor_scorer_context_sets_and_restores_marker",
+    "test_custom_scorer_registration_allowed_when_flag_enabled",
+    "test_real_db_custom_scorer_guardrail_fails_request",
+    "test_create_gateway_guardrail_rejects_custom_code_scorer"
+  ]
 }

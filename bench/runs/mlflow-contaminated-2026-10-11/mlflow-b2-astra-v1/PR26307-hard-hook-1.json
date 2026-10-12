@@ -43,5 +43,8 @@
     "missing": []
   },
   "fresh_in_tokens": 43129,
-  "costBasis": "list price from token classes"
+  "costBasis": "list price from token classes",
+  "leak": [
+    "test_span_shallow_copy"
+  ]
 }

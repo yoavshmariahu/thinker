@@ -49,5 +49,12 @@
     ]
   },
   "fresh_in_tokens": 33562,
-  "costBasis": "list price from token classes"
+  "costBasis": "list price from token classes",
+  "leak": [
+    "test_server_info_matches_flask_json",
+    "test_server_info_matches_flask_json_with_static_prefix",
+    "test_server_info_error_body_matches_flask_json",
+    "test_server_info_responds_when_wsgi_pool_is_exhausted",
+    "test_server_info_is_public_when_basic_auth_is_on"
+  ]
 }

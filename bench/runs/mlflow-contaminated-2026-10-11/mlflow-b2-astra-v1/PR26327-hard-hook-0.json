@@ -43,5 +43,9 @@
     "missing": []
   },
   "fresh_in_tokens": 31446,
-  "costBasis": "list price from token classes"
+  "costBasis": "list price from token classes",
+  "leak": [
+    "test_search_mcp_access_endpoints_filter_by_server_name",
+    "test_float_numeric_attribute_value_is_parsed_as_float"
+  ]
 }

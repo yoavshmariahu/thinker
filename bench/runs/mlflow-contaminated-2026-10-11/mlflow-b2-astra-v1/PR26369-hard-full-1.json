@@ -51,5 +51,21 @@
     "missing": []
   },
   "fresh_in_tokens": 74040,
-  "costBasis": "list price from token classes"
+  "costBasis": "list price from token classes",
+  "leak": [
+    "test_partition_eligibility_checks_costless_spans_on_other_days",
+    "test_span_cost_aggregates_match_independent_oracle_with_null_dimensions",
+    "test_day_discovery_seeks_over_duplicates_gaps_and_queued_days",
+    "test_emptied_partition_removes_rollups_and_queue_entry",
+    "test_postgres_span_time_buckets_use_exact_quotient",
+    "test_postgres_span_time_bucket_boundaries",
+    "test_postgres_span_query_materializes_trace_filters_before_span_join",
+    "test_unbucketed_merge_accepts_decimal_sums",
+    "test_unbucketed_merge_preserves_large_integer_counts",
+    "test_min_max_merge_rollup_and_raw_contributions",
+    "test_search_traces_order_by_null_handling",
+    "test_search_traces_order_by_nullable_attribute",
+    "test_search_traces_pagination_tie_breaker",
+    "test_search_traces_is_workspace_scoped"
+  ]
 }

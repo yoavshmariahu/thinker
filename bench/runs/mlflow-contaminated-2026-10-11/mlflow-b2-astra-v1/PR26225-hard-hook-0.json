@@ -47,5 +47,6 @@
     ]
   },
   "fresh_in_tokens": 78090,
-  "costBasis": "list price from token classes"
+  "costBasis": "list price from token classes",
+  "leak": []
 }
