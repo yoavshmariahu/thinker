@@ -123,7 +123,9 @@ function cacheUse(wt) {
 // on four tasks that get a note on the bare request). The agent still receives the whole prompt.
 const requestOf = p => /^Implement the following change/.test(p) ? (p.split('\n\n').slice(1).join('\n\n') || p) : p;
 // hook-bm25: the lexical ranking with two notes, as the hook served before 2026-10-04
-const ARM_ENV = { 'hook-bm25': { THINKER_CE: 'off' } };
+// hook: the cross-encoder at floor 0 with two notes, the default since PR #199 (2026-10-11); this
+// branch's src still carries the one-note default, so the arm pins it
+const ARM_ENV = { hook: { THINKER_CE_MAX: '2' }, 'hook-bm25': { THINKER_CE: 'off' } };
 function contextFor(task, session, arm = 'hook') {
   const env = {
     ...process.env,
