@@ -67,7 +67,7 @@ async function runChecks(ctx) {
   add('node', major >= MIN_NODE ? 'ok' : 'fail', major >= MIN_NODE ? `v${process.versions.node}` : `v${process.versions.node}; thinker needs Node.js ${MIN_NODE} or newer (https://nodejs.org)`);
 
   // This copy of thinker
-  const where = install.type === 'git' ? `git checkout on ${install.branch || 'detached'}` : `${install.ref || 'main'}`;
+  const where = install.type === 'git' ? `git checkout on ${install.branch || 'detached'}` : `${install.ref || 'latest'}`;
   add('thinker', 'ok', `${install.version} (${where}${install.commit ? ` ${install.commit.slice(0, 7)}` : ''}) in ${appDir}`);
 
   // Dependencies: the MCP SDK and zod for the server, the ranking runtime for the hooks

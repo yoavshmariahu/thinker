@@ -6,9 +6,11 @@
 # builds caches for the repositories your agents have worked in, from their merged
 # pull requests. Nothing is asked in the terminal.
 #
-# Thinker is open source; no access code or GitHub token is required.
+# Thinker is open source; no access code or GitHub token is required. It installs the latest
+# GitHub release (https://github.com/yoavshmariahu/thinker/releases: a tag vX.Y.Z carrying
+# thinker.tgz, version.json and install.sh), verified against the sha256 in version.json.
 #
-#   curl -fsSL https://zerotime.dev/dist/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/yoavshmariahu/thinker/main/install.sh | bash
 #
 # --build from inside a repository builds its cache right here, in the terminal,
 # instead of opening the page. If a cache was already built for the repository,
@@ -34,8 +36,8 @@
 #   --late              also serve notes about files as the agent opens them
 #   --mcp               accepted for compatibility: the MCP server is always registered (needs npm)
 #   --no-git-hook       do not install the git post-commit hook (it re-checks and maintains notes after each commit)
-#   --branch <name>     branch or tag to install (default main; --ref also accepted)
-#   --update            update thinker CLI to the latest version and exit
+#   --ref <tag>         release to install, a tag such as v0.1.34 (default latest; --branch also accepted)
+#   --update            update an installed thinker to the latest release and exit
 #   --no-auto-update    do not schedule daily background auto-updates
 #   --no-modify-path    do not add THINKER_HOME/bin to PATH in your shell's startup file
 #   --uninstall         remove hooks and registration from this repo (add --purge to delete notes too); run outside
@@ -43,10 +45,10 @@
 #
 # Environment
 #   THINKER_HOME        where the tool is installed (default ~/.thinker)
-#   THINKER_GH_REPO     GitHub repository to install from (default yoavshmariahu/thinker)
-#   THINKER_REF         branch or tag (default main)
-#   THINKER_DIST_URL    install from this tarball URL instead of GitHub
-#   GITHUB_TOKEN        token with read access to the thinker repository (GH_TOKEN works too;
+#   THINKER_GH_REPO     GitHub repository whose releases to install from (default yoavshmariahu/thinker)
+#   THINKER_REF         release tag (default latest)
+#   THINKER_DIST_URL    install from this tarball URL (with version.json beside it) instead of a GitHub release
+#   GITHUB_TOKEN        only for --cache gh:<path>: a token for the GitHub API (GH_TOKEN works too;
 #                       if neither is set and the GitHub CLI is logged in, its token is used)
 #
 # The script writes to THINKER_HOME, to .thinker/ and the agents' config in this repository, and adds one
@@ -83,7 +85,7 @@ path_hint() {
 }
 
 main() {
-  local cache="" build="" areas="" depth="" prs="" clients="" learn=1 late=0 mcp=0 githook=0 uninstall=0 purge=0 update=0 autoupdate=1 modpath=1 ref="${THINKER_REF:-main}" benchmark="" pr_target="" yes=0 no_seed=0
+  local cache="" build="" areas="" depth="" prs="" clients="" learn=1 late=0 mcp=0 githook=0 uninstall=0 purge=0 update=0 autoupdate=1 modpath=1 ref="${THINKER_REF:-latest}" benchmark="" pr_target="" yes=0 no_seed=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --cache) cache="${2:-}"; build=0; shift 2 ;;
@@ -120,8 +122,15 @@ main() {
 
   local home="${THINKER_HOME:-$HOME/.thinker}"
   local ghrepo="${THINKER_GH_REPO:-yoavshmariahu/thinker}"
-  local ref="${ref:-${THINKER_REF:-main}}"
-  local dist="${THINKER_DIST_URL:-https://zerotime.dev/dist/thinker.tgz}"
+  local ref="${ref:-${THINKER_REF:-latest}}"
+  local dist="${THINKER_DIST_URL:-}"
+  # the GitHub release for the ref: the latest one, or the tag named
+  if [ -z "$dist" ]; then
+    case "$ref" in
+      latest|main) dist="https://github.com/$ghrepo/releases/latest/download/thinker.tgz" ;;
+      *) dist="https://github.com/$ghrepo/releases/download/$ref/thinker.tgz" ;;
+    esac
+  fi
   local token="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
   say() { printf '%s\n' "$*"; }
   die() { printf 'thinker: %s\n' "$*" >&2; exit 1; }
@@ -226,15 +235,15 @@ main() {
     say "A knowledge cache for coding & review agents"
   fi
   say ""
-  if [ -n "$dist" ]; then
-    case "$dist" in https://*) ;; *) die "verified distributions must be downloaded over HTTPS" ;; esac
-    download_release() {
-      curl -fsSL --proto-redir '=https' -o "$tmp/thinker.tgz" "$dist" &&
-        curl -fsSL --proto-redir '=https' -o "$tmp/version.json" "${dist%/*}/version.json"
-    }
-    spin "Downloading the release" download_release || die "could not download $dist or its release manifest"
-    say "  Verifying download…"
-    node --input-type=module - "$tmp/thinker.tgz" "$tmp/version.json" <<'JS'
+  case "$dist" in https://*) ;; *) die "releases must be downloaded over HTTPS" ;; esac
+  # GitHub answers with a redirect to its asset host; curl follows it over HTTPS only
+  download_release() {
+    curl -fsSL --proto-redir '=https' -o "$tmp/thinker.tgz" "$dist" &&
+      curl -fsSL --proto-redir '=https' -o "$tmp/version.json" "${dist%/*}/version.json"
+  }
+  spin "Downloading the release" download_release || die "could not download $dist or its version.json (is there a release for $ref at https://github.com/$ghrepo/releases?)"
+  say "  Verifying download…"
+  node --input-type=module - "$tmp/thinker.tgz" "$tmp/version.json" <<'JS'
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 const [archive, manifest] = process.argv.slice(2);
@@ -246,9 +255,6 @@ if (release.schemaVersion !== 1 || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9
 const actual = crypto.createHash('sha256').update(fs.readFileSync(archive)).digest('hex');
 if (actual !== release.sha256) throw new Error('release checksum mismatch; refusing to extract');
 JS
-  else
-    die "archive installs require THINKER_DIST_URL with a version.json release manifest and SHA-256 digest"
-  fi
   tar_extract() {
     local archive="$1" dest="$2"
     local warn_opt=""
@@ -277,16 +283,14 @@ JS
     [ -n "$inner" ] && [ -f "$inner/src/cli.js" ] || die "downloaded archive does not look like thinker"
     mv "$inner" "$tmp/app.inner" && rm -rf "$tmp/app" && mv "$tmp/app.inner" "$tmp/app"
   fi
-  if [ -n "$dist" ]; then
-    node - "$tmp/app/package.json" "$tmp/version.json" <<'JS'
+  node --input-type=module - "$tmp/app/package.json" "$tmp/version.json" <<'JS'
 import fs from 'node:fs';
 const pkg = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 const release = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
 if (pkg.version !== release.version) throw new Error(`release version ${release.version} does not match archive version ${pkg.version}`);
 JS
-  fi
-  # Use the downloaded updater to repair older clients whose update check still
-  # depends on private GitHub access. Preserve the existing home and settings.
+  # --update: the downloaded copy's updater installs itself, so an older install (one that still
+  # downloads from the old host, say) moves to the releases. The home and its settings are kept.
   if [ "$update" = 1 ]; then
     node --input-type=module - "$tmp/app/src/update.js" "$home" "$dist" "$ref" <<'JS'
 import path from 'node:path';

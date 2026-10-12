@@ -154,6 +154,11 @@
     .wdrop .wfoot button { background: none; border: none; color: #6b7280; font-size: 0.74rem; cursor: pointer; padding: 0; }
     .wdrop .wfoot button:hover { color: #111; }
     .wnote { font-size: 0.76rem; color: #9ca3af; white-space: nowrap; }
+    .wswitch { border: none; background: none; padding: 0; font-size: 0.74rem; color: #9ca3af; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
+    .wswitch:hover { color: #111; }
+    .wrow.disabled { opacity: 1; background: #f4f4f5; border-style: dashed; }
+    .wrow.disabled .rname { color: #6b7280; }
+    .pill.off { background: #f4f4f5; border-color: #d4d4d8; color: #52525b; }
     .wbar { position: sticky; top: 3.9rem; z-index: 5; margin-top: 1.4rem; background: rgba(255,255,255,0.94); backdrop-filter: blur(8px); border-top: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb; padding: 0.9rem 0; display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 1.4rem; align-items: center; }
     .wbar .model { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; font-size: 0.8rem; color: #6b7280; min-width: 0; }
     .wbar .model .auth { font-size: 0.76rem; white-space: nowrap; }
@@ -329,7 +334,7 @@
       <button class="back" id="w-back">← Your repositories</button>
       <div class="kicker">Warm up your cache</div>
       <h1>Which repositories should thinker learn first?</h1>
-      <p class="lede">The git repositories your coding agents have worked in over the last 30 days, most recent first, and the ones thinker has seen before. The five you used most recently are picked for you; one that already has a cache is marked and left unpicked. A warm-up reads a repository's merged pull requests into notes, through your own agent login. Every cache also grows from your sessions, so skipping one costs nothing but a slower start. Shallow reads the newest 30%.</p>
+      <p class="lede">The git repositories your coding agents have worked in over the last 30 days, most recent first, and the ones thinker has seen before. The five you used most recently are picked for you; one that already has a cache is marked and left unpicked. A warm-up reads a repository's merged pull requests into notes, through your own agent login. Every cache also grows from your sessions, so skipping one costs nothing but a slower start. Shallow reads the newest 30%. A repository that must not be read by a model, say one with sensitive content, can be turned off here: thinker then does nothing in it, in any clone or worktree.</p>
       <div class="wbar" id="w-bar" hidden>
         <div class="model">
           <span>Model</span>
@@ -368,6 +373,7 @@
             <li><b>The ranking model is downloaded once at install</b> (about 23 MB) and runs on your machine.</li>
           </ul>
           <p><code>gh</code> reads merged pull requests from GitHub during mining and posts nothing. This page listens on 127.0.0.1 only. Notes reach teammates through git alone.</p>
+          <p><b>A repository with sensitive content can be turned off</b> on the warm-up page, or with <code>thinker disable</code> inside it. Thinker then does nothing there, in any clone or worktree: the hooks and the MCP server serve nothing, no session is distilled, no pull request is read, and nothing is written into it.</p>
         </div>
         <div class="faq-item">
           <h3>How does the cache work? What does it do to make my agents faster?</h3>
@@ -557,7 +563,7 @@ function rcard(r) {
   return `<div class="rcard" data-id="${esc(r.id)}" title="${esc(r.checkout)}">
     <div class="rtop"><div style="min-width:0"><div class="rname">${rname(r.name)}</div><div class="rpath mono">${owner(r.name) ? esc(owner(r.name)) + ' · ' : ''}${esc(home(r.checkout))}</div></div></div>
     <div class="rstats"><span><b>${fmt(s.fresh || 0)}</b> fresh</span>${s.stale ? `<span><b>${fmt(s.stale)}</b> stale</span>` : ''}<span><b>${fmt(s.behaviors || 0)}</b> behaviors${r.pending ? ` <b>+${r.pending}</b> proposed` : ''}</span><span><b>${fmt(s.hits || 0)}</b> hits</span><span>${esc(ago(s.lastUsed))}</span></div>
-    <span class="pill${s.notes ? ' ok' : ''}">${fmt(s.notes || 0)} notes</span>
+    <span class="pill${s.notes ? ' ok' : ''}">${fmt(s.notes || 0)} notes</span>${r.disabled ? '<span class="pill off" title="thinker is switched off for this repository; the warm-up page turns it on">off</span>' : ''}
     ${progress(r)}</div>`;
 }
 async function loadRepos() {
@@ -843,11 +849,14 @@ function wrow(r) {
   const sel = SEL.get(r.checkout), on = !!sel, e = est(r, sel || { depth: 'full' });
   const cached = r.warmed || r.hasCache;
   const sub = [owner(r.name), home(r.checkout), when(r.lastUsed, 'used'), r.sessions ? `${r.sessions} session${r.sessions === 1 ? '' : 's'}` : '', when(r.pushed, 'pushed'), r.checkouts.length > 1 ? `${r.checkouts.length} checkouts` : '', cached ? `${r.warmed ? 'warmed up before' : 'has a cache'}${r.notes ? ` · ${fmt(r.notes)} notes` : ''}` : ''].filter(Boolean).join(' · ');
-  const main = `<label class="wmain"><input type="checkbox" data-pick${on ? ' checked' : ''}${r.canMine ? '' : ' disabled'}><div class="wname"><div class="rname">${rname(r.name)}${cached ? `<span class="pill ok" title="${r.warmed ? 'Its pull requests were read before; a warm-up reads only the newer ones' : 'Notes from sessions already; a warm-up adds the pull requests'}">cache exists</span>` : ''}</div><div class="rpath mono" title="${esc(r.checkout)}">${esc(sub)}</div></div></label>`;
-  if (!r.canMine) return `<div class="wrow off" data-c="${esc(r.checkout)}">${main}<div class="wctl"><span class="wnote">${r.commits <= 5 ? 'too little history to read' : 'no merged history to read'} · grows from sessions</span></div><div class="weta"><b class="dim">—</b></div></div>`;
+  const main = `<label class="wmain"><input type="checkbox" data-pick${on ? ' checked' : ''}${r.canMine && !r.disabled ? '' : ' disabled'}><div class="wname"><div class="rname">${rname(r.name)}${r.disabled ? '<span class="pill off" title="thinker does nothing in this repository: no notes, no learning, nothing written into it">off</span>' : cached ? `<span class="pill ok" title="${r.warmed ? 'Its pull requests were read before; a warm-up reads only the newer ones' : 'Notes from sessions already; a warm-up adds the pull requests'}">cache exists</span>` : ''}</div><div class="rpath mono" title="${esc(r.checkout)}">${esc(sub)}</div></div></label>`;
+  // off (sensitive content): no build, no notes, no learning; the row offers to turn it back on
+  if (r.disabled) return `<div class="wrow off disabled" data-c="${esc(r.checkout)}">${main}<div class="wctl"><span class="wnote">thinker is off here${cached ? ' · its cache stays until .thinker/ is deleted' : ''}</span><button class="wswitch" data-switch="on">Turn on</button></div><div class="weta"><b class="dim">—</b></div></div>`;
+  const off = `<button class="wswitch" data-switch="off" title="For a repository with sensitive content: thinker serves and learns nothing there, sends nothing of it to a model, and writes nothing into it">Turn off</button>`;
+  if (!r.canMine) return `<div class="wrow off" data-c="${esc(r.checkout)}">${main}<div class="wctl"><span class="wnote">${r.commits <= 5 ? 'too little history to read' : 'no merged history to read'} · grows from sessions</span>${off}</div><div class="weta"><b class="dim">—</b></div></div>`;
   const ctl = on ? `<div class="seg small"><button data-depth="shallow"${sel.depth === 'shallow' ? ' class="on"' : ''}>Shallow</button><button data-depth="full"${sel.depth === 'full' ? ' class="on"' : ''}>Full</button></div>
       ${r.dirs.length ? `<div class="wdir${DROP === r.checkout ? ' open' : ''}"><button class="wdir-btn" data-dirs title="Read only the history of some directories">${esc(dirLabel(sel))} ▾</button>${DROP === r.checkout ? '<div class="wdrop" data-drop></div>' : ''}</div>` : ''}` : `<span class="wnote">${esc(e.notes)} · ${dur(r.estimates.shallow.seconds)} shallow</span>`;
-  return `<div class="wrow${on ? ' on' : ''}" data-c="${esc(r.checkout)}">${main}<div class="wctl">${ctl}</div><div class="weta"><b${on ? '' : ' class="dim"'}>${dur(e.seconds)}</b><span>${on ? `~${fmt(e.tokens)} tokens · ${esc(e.notes)}` : ''}</span></div></div>`;
+  return `<div class="wrow${on ? ' on' : ''}" data-c="${esc(r.checkout)}">${main}<div class="wctl">${ctl}${off}</div><div class="weta"><b${on ? '' : ' class="dim"'}>${dur(e.seconds)}</b><span>${on ? `~${fmt(e.tokens)} tokens · ${esc(e.notes)}` : ''}</span></div></div>`;
 }
 function renderWarmup() {
   if (!W.repos.length) { $('#w-grid').innerHTML = `<div class="empty">No git repositories found in your agents' recent work. Run an agent session inside one, or <code>thinker setup --build</code> there.</div>`; $('#w-bar').hidden = true; return; }
@@ -865,6 +874,16 @@ function renderWarmup() {
     const pick = el.querySelector('[data-pick]'); if (pick) pick.onchange = () => { if (pick.checked) SEL.set(c, { depth: 'full', directories: [] }); else SEL.delete(c); if (DROP === c) DROP = null; renderWarmup(); };
     el.querySelectorAll('[data-depth]').forEach(b => b.onclick = () => { SEL.get(c).depth = b.dataset.depth; renderWarmup(); });
     const dirs = el.querySelector('[data-dirs]'); if (dirs) dirs.onclick = () => { DROP = DROP === c ? null : c; dirQuery = ''; renderWarmup(); if (DROP) document.querySelector('.wdrop input')?.focus(); };
+    const sw = el.querySelector('[data-switch]'); if (sw) sw.onclick = async () => {
+      const disabled = sw.dataset.switch === 'off';
+      try {
+        const r = await api('/api/repos/switch', { checkout: c, disabled });
+        SEL.delete(c); if (DROP === c) DROP = null;
+        const row = W.repos.find(x => x.checkout === c); if (row) row.disabled = disabled;
+        renderWarmup(); REPOS = [];
+        toast(disabled ? `thinker is off for ${row?.name || 'this repository'}: no notes, no learning, nothing written into it${r.hasCache ? '; its cache stays until .thinker/ is deleted' : ''}` : `thinker is on again for ${row?.name || 'this repository'}`);
+      } catch (e) { toast(e.message, true); }
+    };
   });
   if (DROP) renderDrop();
 }

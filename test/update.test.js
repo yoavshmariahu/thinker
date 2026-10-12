@@ -16,6 +16,7 @@ import {
   scheduleDaily,
   unscheduleDaily,
   applyUpdate,
+  releaseAssetUrl,
   tarSupportsFlag,
   tarExtractArgs,
   tarListArgs,
@@ -70,6 +71,77 @@ test('archive updates check the public manifest, verify checksum, and stop when 
     assert.equal(result.to, release.commit);
     assert.equal(JSON.parse(fs.readFileSync(path.join(tmp, 'install.json'))).telemetry, false);
     assert.equal((await checkUpdate({ home: tmp, install: detectInstall(app, tmp) })).available, false);
+  } finally {
+    server.closeAllConnections();
+    await new Promise(resolve => server.close(resolve));
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('release URLs name the GitHub release for a ref, and a zerotime.dev install moves to them', () => {
+  assert.equal(releaseAssetUrl(), 'https://github.com/yoavshmariahu/thinker/releases/latest/download/thinker.tgz');
+  assert.equal(releaseAssetUrl('yoavshmariahu/thinker', 'main', 'version.json'), 'https://github.com/yoavshmariahu/thinker/releases/latest/download/version.json');
+  assert.equal(releaseAssetUrl('someone/fork', 'v0.1.34'), 'https://github.com/someone/fork/releases/download/v0.1.34/thinker.tgz');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-legacy-'));
+  try {
+    const app = path.join(tmp, 'app'); fs.mkdirSync(app);
+    fs.writeFileSync(path.join(app, 'package.json'), JSON.stringify({ name: 'thinker', version: '0.1.34' }));
+    fs.writeFileSync(path.join(tmp, 'install.json'), JSON.stringify({ source: 'archive', ghrepo: 'yoavshmariahu/thinker', ref: 'main', dist: 'https://zerotime.dev/dist/thinker.tgz', commit: 'c'.repeat(40) }));
+    assert.equal(detectInstall(app, tmp).dist, 'https://github.com/yoavshmariahu/thinker/releases/latest/download/thinker.tgz');
+    fs.writeFileSync(path.join(tmp, 'install.json'), JSON.stringify({ source: 'archive', dist: 'https://zerotime.dev/access/download/' + 'a'.repeat(64) + '/thinker.tgz' }));
+    assert.equal(detectInstall(app, tmp).dist, 'https://github.com/yoavshmariahu/thinker/releases/latest/download/thinker.tgz');
+    fs.writeFileSync(path.join(tmp, 'install.json'), JSON.stringify({ source: 'archive', dist: 'https://mirror.example/thinker/thinker.tgz' }));
+    assert.equal(detectInstall(app, tmp).dist, 'https://mirror.example/thinker/thinker.tgz', 'a self-hosted URL is kept');
+    fs.writeFileSync(path.join(tmp, 'install.json'), JSON.stringify({ source: 'archive' }));
+    assert.equal(detectInstall(app, tmp).ref, 'latest');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+// GitHub serves release assets behind a redirect to its asset host; the manifest and the
+// archive are fetched through it, and a `thinker update <tag>` reads that tag's release.
+test('archive updates follow the release redirect and a tag selects its release', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-redirect-update-'));
+  const source = path.join(tmp, 'source');
+  fs.mkdirSync(path.join(source, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(source, 'src', 'cli.js'), 'console.log("pinned");');
+  fs.writeFileSync(path.join(source, 'package.json'), JSON.stringify({ name: 'thinker', version: '0.1.30' }));
+  fs.writeFileSync(path.join(source, 'package-lock.json'), JSON.stringify({ name: 'thinker', version: '0.1.30', lockfileVersion: 3, requires: true, packages: { '': { name: 'thinker', version: '0.1.30' } } }));
+  const archive = path.join(tmp, 'release.tgz');
+  execFileSync('tar', ['-czf', archive, '-C', source, '.']);
+  const bytes = fs.readFileSync(archive);
+  const releases = {
+    latest: { schemaVersion: 1, version: '0.1.34', commit: 'a'.repeat(40), sha256: createHash('sha256').update(bytes).digest('hex') },
+    'v0.1.30': { schemaVersion: 1, version: '0.1.30', commit: 'b'.repeat(40), sha256: createHash('sha256').update(bytes).digest('hex') },
+  };
+  const hits = [];
+  const server = http.createServer((req, res) => {
+    hits.push(req.url);
+    const m = req.url.match(/^\/releases\/(latest\/download|download\/([^/]+))\/(version\.json|thinker\.tgz)$/);
+    if (m) { res.writeHead(302, { location: `/objects/${m[2] || 'latest'}/${m[3]}` }); res.end(); return; }
+    const o = req.url.match(/^\/objects\/([^/]+)\/(version\.json|thinker\.tgz)$/);
+    if (o && releases[o[1]]) { o[2] === 'version.json' ? res.end(JSON.stringify(releases[o[1]])) : res.end(bytes); return; }
+    res.writeHead(404); res.end();
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const base = `http://127.0.0.1:${server.address().port}`;
+    const app = path.join(tmp, 'app'); fs.mkdirSync(app);
+    fs.writeFileSync(path.join(app, 'package.json'), JSON.stringify({ name: 'thinker', version: '0.1.33' }));
+    fs.writeFileSync(path.join(tmp, 'install.json'), JSON.stringify({ source: 'archive', ref: 'latest', dist: `${base}/releases/latest/download/thinker.tgz`, commit: 'old' }));
+    const install = detectInstall(app, tmp);
+    const check = await checkUpdate({ home: tmp, install });
+    assert.equal(check.available, true); assert.equal(check.latestVersion, '0.1.34');
+    assert.ok(hits.includes('/releases/latest/download/version.json') && hits.includes('/objects/latest/version.json'));
+    // a tag: the saved URL is a release URL only on github.com, so the tag's URL is passed as dist here
+    const pinned = await checkUpdate({ home: tmp, install, ref: 'v0.1.30', dist: `${base}/releases/download/v0.1.30/thinker.tgz` });
+    assert.equal(pinned.switchingRef, true); assert.equal(pinned.latestVersion, '0.1.30');
+    const result = await applyUpdate({ home: tmp, install, ref: 'v0.1.30', dist: `${base}/releases/download/v0.1.30/thinker.tgz` });
+    assert.equal(result.version, '0.1.30'); assert.equal(result.ref, 'v0.1.30');
+    assert.ok(hits.includes('/objects/v0.1.30/thinker.tgz'), 'the archive came through the redirect');
+    const saved = JSON.parse(fs.readFileSync(path.join(tmp, 'install.json'), 'utf8'));
+    assert.equal(saved.ref, 'v0.1.30'); assert.equal(saved.dist, `${base}/releases/download/v0.1.30/thinker.tgz`);
   } finally {
     server.closeAllConnections();
     await new Promise(resolve => server.close(resolve));

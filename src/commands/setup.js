@@ -173,7 +173,7 @@ async function updateCommand(ctx) {
     if (install.type === 'git') {
       out(`On branch ${install.branch || 'detached'} (${install.commit ? install.commit.slice(0, 7) : 'unknown'})`);
     } else {
-      out(`On ref ${install.ref || 'main'} (${install.commit ? install.commit.slice(0, 7) : 'unknown'})`);
+      out(`On ref ${install.ref || 'latest'} (${install.commit ? install.commit.slice(0, 7) : 'unknown'})`);
     }
     return;
   }
@@ -188,7 +188,7 @@ async function updateCommand(ctx) {
       out(`  Commit:       ${install.commit ? install.commit.slice(0, 7) : 'unknown'}`);
     } else {
       out(`  Repository:   ${install.ghrepo || 'yoavshmariahu/thinker'}`);
-      out(`  Ref:          ${install.ref || 'main'}`);
+      out(`  Ref:          ${install.ref || 'latest'}`);
       out(`  Commit:       ${install.commit ? install.commit.slice(0, 7) : 'unknown'}`);
     }
     const sched = isScheduled(home);
@@ -273,14 +273,14 @@ async function updateCommand(ctx) {
       out(`Update available${target ? ` for ${target}` : ''}: ${chk.currentCommit ? chk.currentCommit.slice(0, 7) : 'v' + chk.version} → ${chk.latestCommit ? chk.latestCommit.slice(0, 7) : 'latest'}`);
       if (chk.commitMessage) out(`  ${chk.commitMessage}`);
     } else {
-      out(`thinker is already up to date on ${chk.branch || chk.ref || 'main'} (${chk.currentCommit ? chk.currentCommit.slice(0, 7) : 'v' + chk.version}).`);
+      out(`thinker is already up to date on ${chk.branch || chk.ref || 'latest'} (${chk.currentCommit ? chk.currentCommit.slice(0, 7) : 'v' + chk.version}).`);
     }
     return;
   }
 
   if (!chk.available && !flags.force) {
     if (!flags.quiet) {
-      out(`thinker is already up to date on ${chk.branch || chk.ref || 'main'} (${chk.currentCommit ? chk.currentCommit.slice(0, 7) : 'v' + chk.version}).`);
+      out(`thinker is already up to date on ${chk.branch || chk.ref || 'latest'} (${chk.currentCommit ? chk.currentCommit.slice(0, 7) : 'v' + chk.version}).`);
       if (!isScheduled(home)) {
         out('Tip: Run `thinker update --schedule` to enable daily automatic background updates.');
       }

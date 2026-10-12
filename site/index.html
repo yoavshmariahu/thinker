@@ -798,7 +798,7 @@
       <div class="command-wrapper" id="command-view">
         <div class="install-instruction">Run anywhere to install, then <code>thinker setup</code> inside your repository</div>
         <div class="cmd-box">
-          <code id="cmd">curl -fsSL https://zerotime.dev/dist/install.sh | bash</code>
+          <code id="cmd">curl -fsSL https://raw.githubusercontent.com/yoavshmariahu/thinker/main/install.sh | bash</code>
           <button class="btn-copy" id="copy-btn" onclick="copyInstall()">Copy</button>
         </div>
       </div>
@@ -807,13 +807,24 @@
     <!-- Benchmark cards -->
     <div class="benchmark-cards">
       <div class="benchmark-card" onclick="openModal('bench-tokens')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openModal('bench-tokens')}">
-        <div class="metric-kicker">Efficiency</div>
+        <div class="metric-kicker">Tokens</div>
         <div class="metric-num gain">18% less tokens</div>
         <div class="metric-label">per coding task</div>
         <ul class="metric-models">
           <li><span>Claude Fable</span><span><span class="before">1.25M &rarr;</span> 1.02M</span></li>
           <li><span>Gemini 3.8 Flash</span><span><span class="before">16.6M &rarr;</span> 13.4M</span></li>
           <li><span>GPT-6 Astra</span><span><span class="before">473k &rarr;</span> 384k</span></li>
+        </ul>
+        <div class="metric-cta">See the results &rarr;</div>
+      </div>
+      <div class="benchmark-card" onclick="openModal('bench-time')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openModal('bench-time')}">
+        <div class="metric-kicker">Wall time</div>
+        <div class="metric-num gain">10% faster</div>
+        <div class="metric-label">per coding task</div>
+        <ul class="metric-models">
+          <li><span>Claude Fable</span><span><span class="before">2.7 &rarr;</span> 2.3 min</span></li>
+          <li><span>Gemini 3.8 Flash</span><span><span class="before">13.1 &rarr;</span> 11.9 min</span></li>
+          <li><span>GPT-6 Astra</span><span><span class="before">152 &rarr;</span> 141 s</span></li>
         </ul>
         <div class="metric-cta">See the results &rarr;</div>
       </div>
@@ -829,14 +840,14 @@
       <div class="modal-header">
         <div>
           <div class="modal-title" id="modal-title">Benchmarks</div>
-          <div class="modal-subtitle">Same model and task in each comparison, with and without thinker. Scoring and limitations are shown below.</div>
+          <div class="modal-subtitle">Same model and task in each comparison, with and without thinker, on real changes from open-source repositories.</div>
         </div>
         <button class="btn-close" onclick="closeModal()" aria-label="Close">&times;</button>
       </div>
       <div class="modal-body">
 
         <section class="bench-section" aria-labelledby="bench-tokens">
-          <div class="bench-kicker">Efficiency</div>
+          <div class="bench-kicker">Tokens</div>
           <h3 class="bench-headline" id="bench-tokens">Every model used <span class="gain">18% fewer tokens</span> per task.</h3>
           <p class="bench-lede">Input tokens per coding task, cached context included:</p>
           <div class="bench-legend" aria-hidden="true">
@@ -871,6 +882,42 @@
           </div>
         </section>
 
+        <section class="bench-section" aria-labelledby="bench-time">
+          <div class="bench-kicker">Wall time</div>
+          <h3 class="bench-headline" id="bench-time">Every model finished sooner: <span class="gain">10% less wall time</span> per task.</h3>
+          <p class="bench-lede">Wall time per coding task, from the request to the finished change:</p>
+          <div class="bench-legend" aria-hidden="true">
+            <span><i class="swatch before"></i> without thinker</span>
+            <span><i class="swatch"></i> with thinker</span>
+          </div>
+          <div class="bench-rows">
+            <div class="bench-row">
+              <div class="bench-model"><div class="bench-model-name">Claude Fable</div><div class="bench-model-sub">20 tasks</div></div>
+              <div class="bench-bars">
+                <div class="bar before"><i style="--w: 100%"></i>2.7 min</div>
+                <div class="bar after"><i style="--w: 85%"></i>2.3 min</div>
+              </div>
+              <div class="bench-delta">&minus;14% time</div>
+            </div>
+            <div class="bench-row">
+              <div class="bench-model"><div class="bench-model-name">Gemini 3.8 Flash</div><div class="bench-model-sub">14 tasks</div></div>
+              <div class="bench-bars">
+                <div class="bar before"><i style="--w: 100%"></i>13.1 min</div>
+                <div class="bar after"><i style="--w: 91%"></i>11.9 min</div>
+              </div>
+              <div class="bench-delta">&minus;8.5% time</div>
+            </div>
+            <div class="bench-row">
+              <div class="bench-model"><div class="bench-model-name">GPT-6 Astra</div><div class="bench-model-sub">21 tasks</div></div>
+              <div class="bench-bars">
+                <div class="bar before"><i style="--w: 100%"></i>152 s</div>
+                <div class="bar after"><i style="--w: 93%"></i>141 s</div>
+              </div>
+              <div class="bench-delta">&minus;7% time</div>
+            </div>
+          </div>
+        </section>
+
       </div>
     </div>
   </div>
@@ -895,7 +942,7 @@
       modal.classList.add('active');
       const body = modal.querySelector('.modal-body');
       body.scrollTop = 0;
-      if (sectionId === 'bench-tokens') {
+      if (sectionId) {
         const section = document.getElementById(sectionId).closest('.bench-section');
         if (section) body.scrollTop = section.offsetTop - body.offsetTop;
       }
