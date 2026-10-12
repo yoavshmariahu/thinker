@@ -155,9 +155,10 @@ export function computeCacheMetrics(store, { home = thinkerHome(), all = true } 
   };
 }
 
-// The holdout comparison (usage.js:holdoutOf) over the last 30 days, as sums and session counts per
-// side, so that averages can be pooled across installations (a mean of sums over counts; medians
-// cannot be combined). Numbers and model names only. A repository that opted out of telemetry is
+// The holdout comparison (usage.js:holdoutOf) over the last 30 days, as sums and prompt counts per
+// side, so that per-prompt averages can be pooled across installations (a mean of sums over counts;
+// medians cannot be combined). Schema 2 (2026-10-12): the unit is the prompt (turn), not the session;
+// `prompts` and `corrected` per side replace `sessions`. Numbers and model names only. A repository that opted out of telemetry is
 // left out even when another repository triggers the upload.
 export const HOLDOUT_WINDOW_DAYS = 30;
 export function holdoutMetrics(store, { all = true, now = Date.now() } = {}) {
@@ -170,10 +171,10 @@ export function holdoutMetrics(store, { all = true, now = Date.now() } = {}) {
     try { if ((e.repo === store.repo ? store : new Store(e.repo, { readonly: true })).config().telemetry === false) off.add(e.origin); } catch {}
   }
   const h = holdoutOf(events.filter(e => !off.has(e.origin)));
-  const side = t => ({ sessions: t.sessions, sums: t.sums, measured: t.measured });
+  const side = t => ({ prompts: t.prompts, sessions: t.sessions, corrected: t.corrected, sums: t.sums, measured: t.measured });
   const pair = g => ({ served: side(g.served), heldOut: side(g.heldOut) });
   return {
-    schemaVersion: 1, windowDays: HOLDOUT_WINDOW_DAYS,
+    schemaVersion: 2, unit: 'prompt', windowDays: HOLDOUT_WINDOW_DAYS,
     ...pair(h), noNotes: h.noNotes, unmeasured: h.unmeasured,
     byModel: Object.fromEntries(Object.entries(h.byModel).map(([m, g]) => [m, pair(g)])),
   };
@@ -215,7 +216,7 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
     // 30-day outcome snapshots, regardless of the usage snapshot periodHours.
     delivery: deliveryMetrics(store, { all }),
 
-    // Sessions served notes against sessions held out, 30 days (holdoutMetrics).
+    // Prompts served notes against prompts held out, 30 days (holdoutMetrics).
     holdout: holdoutMetrics(store, { all }),
 
     // Explicit coverage keeps old logs and unsupported provider costs unknown.

@@ -239,11 +239,11 @@ export function codeSnippets(repo, notes, budget, { perNote = 2, max = 4, maxLin
 // the slot and the tokens of a fresh one, and its ⚠ banner is a claim the agent has to check or
 // ignore. Over three days on this repository 43 of 154 hook servings were stale. The agent's own
 // `orient` and `lookup` still return stale notes, with the banner.
-// holdout: the session is a control (holdoutSession): the notes are ranked and packed as usual,
+// holdout: the turn is a control (beginTurn): the notes are ranked and packed as usual,
 // what would have been served is logged as `withheld`, and nothing is served or marked served.
 // rerankModel (`rerank` in .thinker/config.json): a small model keeps, of the eight best candidates,
 // those that bear on the request; its choice is final. links: pull in one note linked from the best hit.
-export async function orient(store, { task, file, session, client, budget = HOOK_BUDGET, maxNotes = 2, relFloor = 0, refreshFirst = true, recordUsage = true, rerankModel = store.config().rerank, links = true, snippets = false, once = false, freshOnly = false, holdout = false }) {
+export async function orient(store, { task, file, session, client, budget = HOOK_BUDGET, maxNotes = 2, relFloor = 0, refreshFirst = true, recordUsage = true, rerankModel = store.config().rerank, links = true, snippets = false, once = false, freshOnly = false, holdout = false, turn = undefined }) {
   const start = Date.now();
   let notes = store.list();
   if (once && session) notes = notes.filter(n => !(n.servedIn || []).includes(session));
@@ -306,7 +306,7 @@ export async function orient(store, { task, file, session, client, budget = HOOK
   // marked served, so a later turn in the same session is held out the same way
   if (holdout) {
     const withheld = packed.included.map(n => n.id);
-    if (recordUsage) store.log({ op: 'orient', session, client: client || 'cli', dense: dense ? 'minilm' : undefined, ce: ce || undefined, task: String(task).slice(0, 200), file, served: [], holdout: true, withheld, durationMs: Date.now() - start });
+    if (recordUsage) store.log({ op: 'orient', session, turn, client: client || 'cli', dense: dense ? 'minilm' : undefined, ce: ce || undefined, task: String(task).slice(0, 200), file, served: [], holdout: true, withheld, durationMs: Date.now() - start });
     return { text: '', included: [], omitted: [], tokens: 0, holdout: true, withheld: packed.included };
   }
   if (recordUsage) for (const n of packed.included) { n.uses = (n.uses || 0) + 1; n.lastUsed = new Date().toISOString(); if (session) n.servedIn = [...(n.servedIn || []), session].slice(-30); store.put(n); }
@@ -317,7 +317,7 @@ export async function orient(store, { task, file, session, client, budget = HOOK
     try { const g = anchoringGuard(store.repo, String(task), packed.included, { explicitOnly: true, max: 3 }); if (g.text) { packed.text += '\n\n' + g.text; packed.tokens += estTokens(g.text); packed.uncovered = g.uncovered.map(u => u.ident); } } catch {}
   }
   addSnippets(store, packed, budget, snippets);
-  if (recordUsage) store.log({ op: 'orient', session, client: client || 'cli', dense: dense ? 'minilm' : undefined, ce: ce || undefined, task: String(task).slice(0, 200), file, served: packed.included.map(n => n.id), uncovered: packed.uncovered, snippets: packed.snippets?.length || undefined, stale: packed.included.filter(n => n.status === 'stale').map(n => n.id), held: held.length ? held.map(n => n.id) : undefined, durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
+  if (recordUsage) store.log({ op: 'orient', session, turn, client: client || 'cli', dense: dense ? 'minilm' : undefined, ce: ce || undefined, task: String(task).slice(0, 200), file, served: packed.included.map(n => n.id), uncovered: packed.uncovered, snippets: packed.snippets?.length || undefined, stale: packed.included.filter(n => n.status === 'stale').map(n => n.id), held: held.length ? held.map(n => n.id) : undefined, durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
   return packed;
 }
 
@@ -437,14 +437,14 @@ export function rememberTask(store, session, task) {
   if (!session || !String(task || '').trim() || !store.exists()) return;
   locked(store, session, () => { const { st, save } = sessionState(store, session); st.task = String(task).slice(0, 2000); save(); });
 }
-export function lateNotes(store, { session, client, files, edited = false, perEvent = 2, perSession = 3, minRel = 0.35 }) {
+export function lateNotes(store, { session, client, files, edited = false, perEvent = 2, perSession = 3, minRel = 0.35, turn = undefined }) {
   if (!edited) return { text: '', included: [] };
   const on = 'edit';
   const rel = [...new Set((files || []).map(f => normPath(store.repo, f)).filter(Boolean))];
   if (!rel.length) return { text: '', included: [] };
-  return locked(store, session, () => lateLocked(store, { session, client, rel, on, perEvent, perSession, minRel }));
+  return locked(store, session, () => lateLocked(store, { session, client, rel, on, perEvent, perSession, minRel, turn }));
 }
-function lateLocked(store, { session, client, rel, on, perEvent, perSession, minRel }) {
+function lateLocked(store, { session, client, rel, on, perEvent, perSession, minRel, turn }) {
   const { st, save } = sessionState(store, session);
   if (st.late.length >= perSession) return { text: '', included: [] };
   let notes = store.list().filter(n => n.status !== 'invalid' && !n.archived && !st.late.includes(n.id) && !(n.servedIn || []).includes(session) && (n.deps || []).some(d => rel.includes(d.path)));
@@ -462,7 +462,7 @@ function lateLocked(store, { session, client, rel, on, perEvent, perSession, min
     ? `Rules from previous sessions about code you are changing (${rel.join(', ')}). Check the change against them; they do not call for more reading.`
     : `Cached notes about ${rel.join(', ')} from previous sessions. They describe rules and context around this code; they are partial, so keep reading what the change needs.`;
   const text = `<thinker-cache>\n${intro}\n\n${pick.map(n => renderNote(n)).join('\n\n')}\n</thinker-cache>`;
-  store.log({ op: 'late', on, session, client: client || 'cli', files: rel, served: pick.map(n => n.id), ...servedFields(store, pick, text) });
+  store.log({ op: 'late', on, session, turn, client: client || 'cli', files: rel, served: pick.map(n => n.id), ...servedFields(store, pick, text) });
   return { included: pick, text };
 }
 
@@ -483,7 +483,8 @@ export function completenessNudge(store, { session, changed }) {
 // --- outcome signals -----------------------------------------------------
 // Session-level outcome applied to every note served in that session. Weaker
 // than a contradiction (the signal is noisy): -0.1 per negative, +0.03 per positive.
-export function outcome(store, { session, positive, reason }) {
+// turn: the turn the outcome is about (a correction prompt is about the turn before it), for the holdout comparison
+export function outcome(store, { session, positive, reason, turn = undefined }) {
   const hit = store.list().filter(n => (n.servedIn || []).includes(session));
   for (const n of hit) {
     n.outcomes = n.outcomes || { positive: 0, negative: 0 };
@@ -491,7 +492,7 @@ export function outcome(store, { session, positive, reason }) {
     else { n.outcomes.negative++; n.confidence = Math.max(0.05, (n.confidence ?? 0.7) - 0.1); if (n.confidence < 0.3) { n.status = 'invalid'; n.invalidReason = 'repeated negative outcomes'; } }
     store.put(n);
   }
-  store.log({ op: 'outcome', session, positive, reason, notes: hit.map(n => n.id) });
+  store.log({ op: 'outcome', session, turn, positive, reason, notes: hit.map(n => n.id) });
   return hit.map(n => ({ id: n.id, confidence: n.confidence }));
 }
 
@@ -905,12 +906,17 @@ export function feedback(store, { id, useful, correction }) {
 
 export { renderNote, estTokens, Store };
 
-// Holdout: a share of sessions is served nothing by the hooks, so that what the notes do for a
-// session can be measured on this machine's own work rather than estimated (usage.js, "Holdout").
-// The choice is a hash of the session id: every hook of a session agrees on it without state, and
-// a session is held out for its whole length. The agent's own `orient`, `lookup`, `find` and
-// `drilldown` are not held out (it asked). `holdout` in .thinker/config.json is the share (0 or
-// false: none); THINKER_HOLDOUT overrides it (`0`, `off`, or a share).
+// Holdout: a share of prompts is served nothing by the hooks, so that what the notes do can be
+// measured on this machine's own work rather than estimated (usage.js, "Holdout"). The unit is the
+// turn (one prompt and what the agent does until it stops): a session is as long as the user keeps
+// it, so sessions compared whole measured how long the tasks happened to be (2026-10-12: one
+// 790-turn session decided the sign for a model). The choice is made at the prompt hook, once per
+// turn, as a hash of the session id and the turn's number (beginTurn), and kept in the session
+// state so that the tool and stop hooks of the same turn agree on it (holdoutTurn). Notes served
+// on an earlier turn stay in the agent's context, so a held-out turn after a served one is partly
+// treated; that understates the difference, never inflates it. The agent's own `orient`, `lookup`,
+// `find` and `drilldown` are not held out (it asked). `holdout` in .thinker/config.json is the
+// share (0 or false: none); THINKER_HOLDOUT overrides it (`0`, `off`, or a share).
 export const HOLDOUT_DEFAULT = 0.15;
 export function holdoutRate(store) {
   const env = process.env.THINKER_HOLDOUT;
@@ -920,12 +926,30 @@ export function holdoutRate(store) {
   const r = Number(raw);
   return Number.isFinite(r) ? Math.min(1, Math.max(0, r)) : HOLDOUT_DEFAULT;
 }
-export function holdoutSession(store, session) {
-  if (!session || session === 'unknown') return false;
+// The decision for turn `turn` of a session: deterministic, so tests and a re-run agree.
+export function holdoutDecision(store, session, turn) {
+  if (!session || session === 'unknown' || !(turn >= 1)) return false;
   const rate = holdoutRate(store);
   if (rate <= 0) return false;
-  const h = parseInt(createHash('sha1').update(String(session)).digest('hex').slice(0, 8), 16) / 0x100000000;
+  const h = parseInt(createHash('sha1').update(`${session}#${turn}`).digest('hex').slice(0, 8), 16) / 0x100000000;
   return h < rate;
+}
+// The prompt hook opens the session's next turn: its number, and whether the hooks hold their notes back in it.
+export function beginTurn(store, session) {
+  if (!session || session === 'unknown' || !store.exists()) return { turn: 0, holdout: false };
+  return locked(store, session, () => {
+    const { st, save } = sessionState(store, session);
+    st.turnNo = (st.turnNo || 0) + 1;
+    st.heldOut = holdoutDecision(store, session, st.turnNo);
+    save();
+    return { turn: st.turnNo, holdout: st.heldOut };
+  });
+}
+// The turn the tool and stop hooks are in, as the prompt hook left it; turn 0 when no prompt hook ran.
+export function holdoutTurn(store, session) {
+  if (!session || session === 'unknown' || !store.exists()) return { turn: 0, holdout: false };
+  const { st } = sessionState(store, session);
+  return { turn: st.turnNo || 0, holdout: Boolean(st.heldOut) };
 }
 
 // Archive: notes that the sessions showed are not worth serving are kept for `drilldown`, `find`

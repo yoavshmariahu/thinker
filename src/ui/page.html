@@ -402,7 +402,7 @@
           <ul>
             <li><b>At the end of each turn</b> one line says what was served and the code it pointed at. It does not say "saved": whether the agent acted on a note is known only once the session is assessed.</li>
             <li><b>The Usage view here</b>, and <code>thinker usage</code>, show notes served, what the sessions did with them (confirmed, contradicted, unused), what learning and maintenance cost in tokens, and an estimate of the reads avoided.</li>
-            <li><b>The holdout is measured, not estimated.</b> 15% of sessions are served nothing, chosen by session id, and every session's cost is read from its own transcript. Once five sessions stand on each side, the holdout section compares them as medians per model: tool calls and tokens with notes against without, on your repository, by your agent.</li>
+            <li><b>The holdout is measured, not estimated.</b> 15% of prompts are served nothing, chosen by a hash of the session and the turn, and what every turn cost is read from the session's transcript. Once twenty prompts stand on each side, the holdout section compares the cost per prompt: tool calls and tokens with notes against without, on your repository, by your agent.</li>
             <li><b><code>thinker benchmark pr</code></b> runs a recent merged pull request with and without the cache and compares time, turns, tool calls and tokens; both answers are saved under <code>.thinker/benchmarks/</code> so you can judge their quality.</li>
           </ul>
           <p>A note served is not a note used. Read the confirmed and unused counts rather than the hit rate; a cache that serves often and is rarely acted on is costing tokens, and maintenance archives such notes over time.</p>
@@ -511,14 +511,16 @@ function renderUsage(u) {
     ${card('Reading saved', fmt(u.saved.tokens), `tokens of code the agents did not have to read, estimated from servings they acted on`, [], true)}
   </div>`;
   const ho = u.holdout;
-  h += `<div class="section"><div class="section-head"><div><div class="kicker">Measured on your own sessions</div><div class="section-title">With notes, against sessions that had them withheld</div></div></div><div class="panel">`;
-  if (ho && ho.enough && ho.served?.sessions && ho.heldOut?.sessions) {
+  h += `<div class="section"><div class="section-head"><div><div class="kicker">Measured on your own prompts</div><div class="section-title">With notes, against prompts that had them withheld</div></div></div><div class="panel">`;
+  if (ho && ho.enough && ho.served?.prompts && ho.heldOut?.prompts) {
+    const per = (s, f) => Math.round(s.perPrompt?.[f] || 0);
+    const saved = ho.saved?.inputTokens;
     h += `<div class="bench-legend"><span><i class="swatch before"></i>notes withheld</span><span><i class="swatch"></i>with notes</span></div><div class="bench-rows">
-      ${pairRow('Tool calls', 'median per session', ho.heldOut.toolCalls || 0, ho.served.toolCalls || 0, fmt)}
-      ${pairRow('Input tokens', 'median per session', ho.heldOut.inputTokens || 0, ho.served.inputTokens || 0, fmt)}
-    </div><div class="note-line">${ho.served.sessions} sessions with notes, ${ho.heldOut.sessions} held out. A share of sessions is served nothing on purpose so this can be measured; few sessions make for a noisy median.</div>`;
+      ${pairRow('Tool calls', 'per prompt', per(ho.heldOut, 'toolCalls'), per(ho.served, 'toolCalls'), fmt)}
+      ${pairRow('Input tokens', 'per prompt', per(ho.heldOut, 'inputTokens'), per(ho.served, 'inputTokens'), fmt)}
+    </div><div class="note-line">${fmt(ho.served.prompts)} prompts with notes, ${fmt(ho.heldOut.prompts)} held out, in ${fmt(ho.sessions || 0)} sessions.${saved != null ? ` About ${fmt(Math.abs(saved))} input tokens ${saved >= 0 ? 'less' : 'more'} across the served prompts than at the held-out cost per prompt.` : ''} A share of prompts is served nothing on purpose so this can be measured; a turn's cost is what its session's transcript grew by.</div>`;
   } else {
-    h += `<div class="note-line" style="margin-top:0">Not enough sessions yet: the comparison appears once five sessions stand on each side (${ho?.served?.sessions || 0} with notes, ${ho?.heldOut?.sessions || 0} held out so far).</div>`;
+    h += `<div class="note-line" style="margin-top:0">Not enough prompts yet: the comparison appears once twenty prompts stand on each side (${ho?.served?.prompts || 0} with notes, ${ho?.heldOut?.prompts || 0} held out so far).</div>`;
   }
   h += `</div></div>`;
   if (u.top?.length) h += `<div class="section"><div class="section-head"><div><div class="kicker">Most served</div><div class="section-title">The notes your agents saw most</div></div></div><div class="panel"><table><thead><tr><th>Note</th>${ALL() ? '<th>Repository</th>' : ''}<th class="num">Served</th></tr></thead><tbody>${u.top.map(t => `<tr><td>${esc(t.title)}</td>${ALL() ? `<td class="muted">${esc(String(t.repo || '').replace(/^github\.com\//, ''))}</td>` : ''}<td class="num">${t.served}</td></tr>`).join('')}</tbody></table></div></div>`;

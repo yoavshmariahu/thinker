@@ -347,25 +347,28 @@ preserves the existing performance/diagnostics/waitlist layouts. Verification
 executes every saved query, validates filter mappings and checks read-only TLS.
 No test or demo payload is sent to production to populate the charts.
 
-## Holdout: what the notes save (holdout schema 1)
+## Holdout: what the notes save (holdout schema 2)
 
-Every client withholds notes from a share of sessions (15% by default) and records
-what each session cost from its own transcript. Updated clients include
+Every client withholds notes from a share of prompts (15% by default) and records
+what each turn cost from the session's transcript. Updated clients include
 `raw_json.holdout`, a 30-day snapshot of that comparison independent of the outer
-`periodHours`: for sessions served notes and sessions held out, the session count,
-the sums of tool calls, model turns, input and output tokens, and how many sessions
-measured each; the same per model name; and the sessions on neither side (nothing to
-serve, or no transcript). No session, repository or prompt identity is uploaded, and
-a repository that opted out of telemetry is left out. The existing JSONB ingestion
-preserves the block; no Lambda or schema migration is needed. Clients without it
-remain unknown, not zero.
+`periodHours`: for prompts served notes and prompts held out, the prompt count, the
+sessions they came from, how many were followed by a correction prompt, the sums of
+tool calls, model turns, input and output tokens, and how many prompts measured each;
+the same per model name; and the prompts on neither side (nothing to serve, or no
+transcript at the end of the turn). Schema 1 (until 0.1.40) compared whole sessions;
+its blocks are not read, since per-session and per-prompt sums do not pool. No
+session, repository or prompt identity is uploaded, and a repository that opted out
+of telemetry is left out. The existing JSONB ingestion preserves the block; no Lambda
+or schema migration is needed. Clients without it remain unknown, not zero.
 
 The dashboard pools the latest snapshot per known device (installation fallback).
-Every average is the pooled sum / the pooled count of sessions that measured it,
-never an average of per-source averages. "Input tokens saved" is (average held-out −
-average served) × served sessions, and does not subtract the tokens spent building
-and maintaining the cache. Averages move with a few very long sessions, so read them
-beside the session counts; the per-source table shows where the sessions come from.
+Every average is the pooled sum / the pooled count of prompts that measured it,
+never an average of per-source averages. "Input tokens saved" is (average held-out
+per prompt − average served per prompt) × served prompts, and does not subtract the
+tokens spent building and maintaining the cache. Averages move with a few very long
+turns, so read them beside the prompt counts; the per-source table shows where the
+prompts come from.
 The trend chart takes one snapshot per source per day, each covering the 30 days
 before it. Run `refresh` to add the dashboard to an existing setup, then `verify`.
 

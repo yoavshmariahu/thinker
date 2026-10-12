@@ -157,13 +157,13 @@ async function provision() {
   state.cards ||= {};
   for (const question of questions) {
     const existingId = state.cards[question.name];
-    if (existingId && (question.holdout ? state.holdoutCardVersion === 1 : question.delivery ? state.deliveryCardVersion === 2 : state.cardVersion === 4)) continue;
+    if (existingId && (question.holdout ? state.holdoutCardVersion === 2 : question.delivery ? state.deliveryCardVersion === 2 : state.cardVersion === 4)) continue;
     const card = await api(existingId ? `/card/${existingId}` : '/card', existingId ? 'PUT' : 'POST', { name: question.name, display: question.display, description: question.description || null,
       collection_id: state.collectionId, visualization_settings: question.settings || {},
       dataset_query: dataset(question, db.id) });
     state.cards[question.name] = card.id; save();
   }
-  state.cardVersion = 4; state.deliveryCardVersion = 2; state.holdoutCardVersion = 1; save();
+  state.cardVersion = 4; state.deliveryCardVersion = 2; state.holdoutCardVersion = 2; save();
   if (!state.dashboardId) {
     state.dashboardId = (await api('/dashboard', 'POST', { name: 'Thinker telemetry', collection_id: state.collectionId,
       description: 'Live reports, installation activity, and data quality. Installation IDs are not people. Older telemetry may contain test data. Usage fields are rolling snapshots; do not sum all reports.' })).id;
@@ -255,12 +255,12 @@ async function provision() {
   }
   if (!state.holdoutId) {
     state.holdoutId = (await api('/dashboard', 'POST', { name: 'Holdout: what the notes save', collection_id: state.collectionId,
-      description: 'Sessions served notes against sessions with notes withheld, pooled over the latest 30-day snapshot per device. Averages, with session counts.' })).id;
+      description: 'Prompts served notes against prompts with notes withheld, pooled over the latest 30-day snapshot per device. Per-prompt averages, with prompt counts.' })).id;
     save();
   }
-  if (state.holdoutDashboardVersion !== 1) {
+  if (state.holdoutDashboardVersion !== 2) {
     const cards = [{ id: -1, card_id: null, row: 0, col: 0, size_x: 24, size_y: 4,
-      visualization_settings: { virtual_card: { display: 'text' }, text: '## What do the notes save?\nEvery client withholds notes from a share of sessions (15% by default) and records what each session cost from its own transcript. These cards pool that comparison over the latest 30-day snapshot per known device (installation fallback).\n**Read with the session counts:** these are averages, so a few very long sessions move them. Clients older than this block report nothing: unknown, not zero. Cache building and maintenance tokens are not subtracted.' } }];
+      visualization_settings: { virtual_card: { display: 'text' }, text: '## What do the notes save?\nEvery client withholds notes from a share of prompts (15% by default) and records what each turn cost from the session\'s transcript. These cards pool that comparison over the latest 30-day snapshot per known device (installation fallback).\n**Read with the prompt counts:** these are per-prompt averages, so a few very long turns move them. Clients older than holdout schema 2 report nothing: unknown, not zero. Cache building and maintenance tokens are not subtracted.' } }];
     holdoutQuestions.forEach((q, i) => {
       const scalar = i < 4, j = i - 4;
       cards.push({ id: -(i + 2), card_id: state.cards[q.name], row: scalar ? 4 : 8 + Math.floor(j / 2) * 8,
@@ -268,7 +268,7 @@ async function provision() {
         parameter_mappings: mappings(state.cards[q.name]) });
     });
     await api(`/dashboard/${state.holdoutId}`, 'PUT', { parameters, dashcards: cards });
-    state.holdoutDashboardVersion = 1; save();
+    state.holdoutDashboardVersion = 2; save();
   } else {
     const dashboard = await api(`/dashboard/${state.holdoutId}`);
     await api(`/dashboard/${state.holdoutId}`, 'PUT', { parameters: [...parameters,

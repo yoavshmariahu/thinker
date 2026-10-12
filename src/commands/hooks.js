@@ -11,7 +11,7 @@ import { parseTranscript } from '../distill.js';
 import { Store, findRepoRoot } from '../store.js';
 import { isDisabledRepo } from '../repo-switch.js';
 import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '../maintain.js';
-import { orient, HOOK_BUDGET, rememberTask, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn, holdoutSession, sessionIntro } from '../ops.js';
+import { orient, HOOK_BUDGET, rememberTask, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn, beginTurn, holdoutTurn, sessionIntro } from '../ops.js';
 import { recordEvent, traceFile, toolName, toolInput } from '../transcripts.js';
 import { turnNotice } from '../usage.js';
 
@@ -71,9 +71,10 @@ async function hookCommand(ctx) {
     // Once per session, what the code tools are and how to reach them: only with the first bundle that
     // serves a note. A session the cache has nothing for gets nothing at all (2026-10-07: on the Click
     // canary the intro, the workflow text and the schemas were the whole cost of the arm the notes did
-    // not help). A held-out session gets neither the intro nor the nudges: the holdout compares
-    // sessions with thinker's help against sessions without.
-    const introOk = store.exists() && !['windsurf', 'pi', 'copilot'].includes(client) && !holdoutSession(store, session);
+    // not help). A held-out turn gets neither the intro nor the notes (ops.js:beginTurn): the holdout
+    // compares turns with thinker's help against turns without; the intro waits for a served turn.
+    const { turn, holdout } = store.exists() ? beginTurn(store, session) : { turn: 0, holdout: false };
+    const introOk = store.exists() && !['windsurf', 'pi', 'copilot'].includes(client) && !holdout;
     const emit = text => { if (client === 'cursor' || client === 'copilot') parkPending(store.dir, session, text); else out(promptOutput(client, text)); };
     if (!store.exists() || client === 'windsurf') return;
     // Every git repository has a cache, started on first use and empty until it learns. A prompt it has
@@ -82,10 +83,10 @@ async function hookCommand(ctx) {
     // ran on (2026-10-12: seven of eight reporting devices read as idle for exactly this). Nothing is said.
     if (!store.list().length) { store.log({ op: 'orient', session: session === 'unknown' ? undefined : session, client, task: String(ev.prompt || '').slice(0, 200), served: [], empty: true }); return; }
     // outcome signal: a correction-shaped follow-up counts against the notes served earlier in this session
-    if (session !== 'unknown' && looksLikeCorrection(ev.prompt)) outcome(store, { session, positive: false, reason: 'correction prompt: ' + String(ev.prompt).slice(0, 80) });
+    if (session !== 'unknown' && looksLikeCorrection(ev.prompt)) outcome(store, { session, turn: turn > 1 ? turn - 1 : undefined, positive: false, reason: 'correction prompt: ' + String(ev.prompt).slice(0, 80) });
     if (session !== 'unknown') rememberTask(store, session, ev.prompt);
-    // a held-out session is served nothing by the hooks, and what it would have been served is logged (ops.js:holdoutSession)
-    const r = await orient(store, { task: ev.prompt || '', session: session === 'unknown' ? undefined : session, client, budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout: holdoutSession(store, session) });
+    // a held-out turn is served nothing by the hooks, and what it would have been served is logged (ops.js:beginTurn)
+    const r = await orient(store, { task: ev.prompt || '', session: session === 'unknown' ? undefined : session, client, budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout, turn: turn || undefined });
     if (!r.included.length) return;
     const intro = introOk ? sessionIntro(store, { session, client }) : '';
     const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}${n.status === 'stale' ? ' ⚠ STALE' : ''}  (id: ${n.id})`).join('\n')}` : '';
@@ -114,16 +115,17 @@ async function hookCommand(ctx) {
       const turn = path.join(store.dir, 'state', `oriented-${String(ev.generation_id || session).replace(/[^\w.-]/g, '_')}`);
       if (!p && !mcpCall && !fs.existsSync(turn) && ev.transcript_path && fs.existsSync(ev.transcript_path) && store.list().length) {
         const task = parseTranscript(ev.transcript_path).events.filter(e => e.t === 'prompt').pop()?.text;
-        if (task) { const r = await orient(store, { task, session, client: 'cursor', budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout: holdoutSession(store, session) }); if (r.included.length) p = `<thinker-cache>\nNotes about this repo from earlier sessions; their code dependencies were re-hashed just now.\n\n${r.text}\n</thinker-cache>`; }
+        if (task) { const { turn, holdout } = beginTurn(store, session); const r = await orient(store, { task, session, client: 'cursor', budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout, turn: turn || undefined }); if (r.included.length) p = `<thinker-cache>\nNotes about this repo from earlier sessions; their code dependencies were re-hashed just now.\n\n${r.text}\n</thinker-cache>`; }
       }
       fs.mkdirSync(path.dirname(turn), { recursive: true }); fs.writeFileSync(turn, '');
       if (p && !mcpCall) parts.push(p);
     }
-    if ((client === 'claude' || flags.late) && !holdoutSession(store, session)) {
+    const t = holdoutTurn(store, session);
+    if ((client === 'claude' || flags.late) && !t.holdout) {
       const name = toolName(ev.tool_name), command = toolInput(name, ev.tool_input).command || '';
       // an edit tool, or a shell command that writes a file in place
       const edited = name === 'Edit' || name === 'Write' || (name === 'Bash' && /\b(sed|perl)\s+(-\w+\s+)*-\w*i\b|\btee\s|>{1,2}\s*[\w./-]+\.\w+/.test(command));
-      const r = lateNotes(store, { session, client, files: toolFiles(ev, repo), edited });
+      const r = lateNotes(store, { session, client, files: toolFiles(ev, repo), edited, turn: t.turn || undefined });
       if (r.text) parts.push(r.text);
     }
     if (parts.length) out(toolOutput(client, parts.join('\n\n')));
@@ -139,8 +141,9 @@ async function hookCommand(ctx) {
     if (client === 'cursor') out('{}');
     // what the turn's servings saved, for the user; the ids are cleared so the next turn starts from none
     const served = takeTurn(store, session !== 'unknown' ? session : null);
-    // what the session has cost so far, for the holdout comparison (usage.js); the last line per session counts
-    if (session !== 'unknown' && ev.transcript_path && fs.existsSync(ev.transcript_path)) { try { const p = parseTranscript(ev.transcript_path); const record = { op: 'session', session, client, model: p.model || undefined, holdout: holdoutSession(store, session) || undefined, ...gitContext(repo), ...(p.stats || {}) }; store.log(record); tryImpact(store, record); } catch {} }
+    // what the session has cost so far, for the holdout comparison (usage.js:holdoutOf): the turn's cost is the
+    // difference from the line of the turn before, so each line carries the turn number the prompt hook opened
+    if (session !== 'unknown' && ev.transcript_path && fs.existsSync(ev.transcript_path)) { try { const p = parseTranscript(ev.transcript_path); const t = holdoutTurn(store, session); const record = { op: 'session', session, turn: t.turn || undefined, client, model: p.model || undefined, holdout: t.holdout || undefined, ...gitContext(repo), ...(p.stats || {}) }; store.log(record); tryImpact(store, record); } catch {} }
     if (noticeOn(store)) {
       const notice = [served.length ? turnNotice(store.repo, served.map(id => store.get(id)).filter(Boolean)) : '', NO_LEARN ? '' : maintenanceNotice(store)].filter(Boolean).join('\n');
       const o = stopOutput(client, notice); if (o) out(o);

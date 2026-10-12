@@ -320,66 +320,97 @@ export function summarize(store, { days, all = false } = {}) {
 
 const num = n => Math.round(n).toLocaleString('en-US');
 
-// The holdout comparison: sessions the hooks served notes against sessions they held notes back
-// from (ops.js:holdoutSession), on what each cost by its own transcript (the `session` line the
-// stop hook writes: tool calls, model turns, input tokens). Sessions where nothing would have been
-// served are left out of both sides; they tell nothing about the notes. Medians, since a few long
-// sessions dominate a mean. With fewer than MIN_HOLDOUT sessions on a side the numbers are shown
-// as too few to compare. It is a measurement of this machine's own work, not an estimate.
-// Each side also carries its sums and how many sessions measured each (`sums`, `measured`): means
-// can be pooled across machines where medians cannot, so those are what telemetry.js sends.
-export const MIN_HOLDOUT = 5;
+// The holdout comparison: turns the hooks served notes against turns they held notes back from
+// (ops.js:beginTurn), on what each turn cost by the session's transcript. The stop hook writes a
+// `session` line after every turn with the session's cost so far and the turn's number; a turn's
+// cost is its line minus the line of the turn before (turn 1: from nothing). A turn is measured
+// only when both lines exist: a stop hook that did not run (an interrupted turn, no transcript)
+// leaves that turn and the next unmeasured rather than charging two turns to one. Turns where
+// nothing would have been served are on neither side; they tell nothing about the notes.
+// The statistic is the cost per turn as a ratio of sums (the side's summed cost over its measured
+// turns): a median per turn lands on the one-line follow-ups that cost the same either way, and
+// sums pool across machines where medians cannot (telemetry.js:holdoutMetrics sends `sums` and
+// `measured`). `saved` is what the served turns would have cost at the held-out rate, minus what
+// they did: (held-out per turn − served per turn) × served turns. A turn followed by a
+// correction-shaped prompt (ops.js:looksLikeCorrection, the `outcome` line carries its turn) is
+// counted per side, since fewer corrections is a saving per-turn costs cannot see. With fewer
+// than MIN_HOLDOUT turns on a side the numbers are shown as too few to compare. It is a
+// measurement of this machine's own work, not an estimate.
+export const MIN_HOLDOUT = 20;
 const HOLDOUT_FIELDS = ['toolCalls', 'turns', 'inputTokens', 'outputTokens'];
 // The comparison over a set of log events: summarize's window, or telemetry's own 30 days.
 export function holdoutOf(events) {
-  const sessionLines = new Map();  // origin|session → the last `session` line (what the session cost)
-  const servedIn = new Map();      // origin|session → { served, withheld, holdout }
+  const lines = new Map();   // origin|session → turn → the last `session` line written after it
+  const turns = new Map();   // origin|session → turn → { served, withheld, holdout, corrected }
+  const at = (m, k) => { if (!m.has(k)) m.set(k, new Map()); return m.get(k); };
   for (const e of events) {
-    if (!e.session || e.session === 'unknown') continue;
+    if (!e.session || e.session === 'unknown' || !(e.turn >= 1)) continue;
     const k = `${e.origin}|${sessionKey(e.session)}`;
-    if (e.op === 'session') sessionLines.set(k, e);
+    if (e.op === 'session') at(lines, k).set(e.turn, e);
     else if (e.op === 'orient' || e.op === 'late') {
-      const x = servedIn.get(k) || { served: 0, withheld: 0, holdout: false };
+      const t = at(turns, k), x = t.get(e.turn) || { served: 0, withheld: 0, holdout: false, corrected: false };
       if (e.holdout) { x.holdout = true; x.withheld += (e.withheld || []).length; } else x.served += (e.served || []).length;
-      servedIn.set(k, x);
+      t.set(e.turn, x);
+    } else if (e.op === 'outcome' && !e.positive) {
+      const t = at(turns, k), x = t.get(e.turn);
+      if (x) x.corrected = true;
     }
   }
-  return holdoutSummary(sessionLines, servedIn);
+  return holdoutSummary(lines, turns);
 }
-const median = xs => { const a = xs.filter(Number.isFinite).sort((x, y) => x - y); return a.length ? (a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2) : null; };
-export function holdoutSummary(sessionLines, servedIn) {
-  const side = () => ({ sessions: 0, toolCalls: [], inputTokens: [], turns: [], outputTokens: [] });
+export function holdoutSummary(lines, turns) {
+  const side = () => ({ prompts: 0, sessions: new Set(), corrected: 0, toolCalls: [], turns: [], inputTokens: [], outputTokens: [] });
   const groups = { served: side(), heldOut: side() }, byModel = {};
   let noNotes = 0, unmeasured = 0;
-  for (const [k, x] of servedIn) {
-    const g = x.holdout ? (x.withheld ? 'heldOut' : null) : (x.served ? 'served' : null);
-    if (!g) { noNotes++; continue; }
-    const line = sessionLines.get(k);
-    if (!line) { unmeasured++; continue; }
-    const m = byModel[line.model || 'unknown'] ||= { served: side(), heldOut: side() };
-    for (const t of [groups[g], m[g]]) { t.sessions++; for (const f of HOLDOUT_FIELDS) t[f].push(line[f]); }
+  for (const [k, ts] of turns) {
+    const ls = lines.get(k) || new Map();
+    for (const [n, x] of ts) {
+      const g = x.holdout ? (x.withheld ? 'heldOut' : null) : (x.served ? 'served' : null);
+      if (!g) { noNotes++; continue; }
+      const cur = ls.get(n), prev = n === 1 ? {} : ls.get(n - 1);
+      if (!cur || !prev) { unmeasured++; continue; }
+      const m = byModel[cur.model || 'unknown'] ||= { served: side(), heldOut: side() };
+      for (const t of [groups[g], m[g]]) {
+        t.prompts++; t.sessions.add(k); if (x.corrected) t.corrected++;
+        for (const f of HOLDOUT_FIELDS) {
+          const a = cur[f], b = n === 1 ? 0 : prev[f];
+          t[f].push(Number.isFinite(a) && Number.isFinite(b) && a >= b ? a - b : null);
+        }
+      }
+    }
   }
   const total = (t, f) => Object.fromEntries(HOLDOUT_FIELDS.map(k => [k, f(t[k].filter(Number.isFinite))]));
-  const fold = t => ({ sessions: t.sessions, toolCalls: median(t.toolCalls), inputTokens: median(t.inputTokens), turns: median(t.turns), sums: total(t, a => a.reduce((n, x) => n + x, 0)), measured: total(t, a => a.length) });
-  const out = { served: fold(groups.served), heldOut: fold(groups.heldOut), noNotes, unmeasured, byModel: {} };
+  const fold = t => {
+    const sums = total(t, a => a.reduce((n, x) => n + x, 0)), measured = total(t, a => a.length);
+    const perPrompt = Object.fromEntries(HOLDOUT_FIELDS.map(f => [f, measured[f] ? sums[f] / measured[f] : null]));
+    return { prompts: t.prompts, sessions: t.sessions.size, corrected: t.corrected, sums, measured, perPrompt };
+  };
+  const out = { served: fold(groups.served), heldOut: fold(groups.heldOut), sessions: new Set([...groups.served.sessions, ...groups.heldOut.sessions]).size, noNotes, unmeasured, byModel: {} };
   for (const [m, g] of Object.entries(byModel)) out.byModel[m] = { served: fold(g.served), heldOut: fold(g.heldOut) };
-  out.enough = out.served.sessions >= MIN_HOLDOUT && out.heldOut.sessions >= MIN_HOLDOUT;
+  out.enough = out.served.prompts >= MIN_HOLDOUT && out.heldOut.prompts >= MIN_HOLDOUT;
   const delta = (a, b) => a != null && b != null && b > 0 ? Math.round((a - b) / b * 100) : null;
-  out.deltaPct = { toolCalls: delta(out.served.toolCalls, out.heldOut.toolCalls), inputTokens: delta(out.served.inputTokens, out.heldOut.inputTokens) };
+  out.deltaPct = { toolCalls: delta(out.served.perPrompt.toolCalls, out.heldOut.perPrompt.toolCalls), inputTokens: delta(out.served.perPrompt.inputTokens, out.heldOut.perPrompt.inputTokens) };
+  // what the served turns would have cost at the held-out rate, less what they cost
+  const saved = f => out.served.perPrompt[f] != null && out.heldOut.perPrompt[f] != null ? Math.round((out.heldOut.perPrompt[f] - out.served.perPrompt[f]) * out.served.measured[f]) : null;
+  out.saved = { toolCalls: saved('toolCalls'), inputTokens: saved('inputTokens') };
   return out;
 }
 export function renderHoldout(h) {
-  if (!h || (!h.served.sessions && !h.heldOut.sessions)) return [];
-  const L = ['', 'Holdout (sessions the hooks served nothing, to measure what the notes do)'];
-  L.push(`  sessions        ${num(h.served.sessions)} served notes, ${num(h.heldOut.sessions)} held out with notes withheld${h.noNotes ? `; ${num(h.noNotes)} had none to serve either way` : ''}${h.unmeasured ? `; ${num(h.unmeasured)} not measured (no transcript at the end of the turn)` : ''}`);
+  if (!h || (!h.served.prompts && !h.heldOut.prompts)) return [];
+  const L = ['', 'Holdout (prompts the hooks served nothing, to measure what the notes do)'];
+  L.push(`  prompts         ${num(h.served.prompts)} served notes, ${num(h.heldOut.prompts)} held out with notes withheld, in ${num(h.sessions)} sessions${h.noNotes ? `; ${num(h.noNotes)} had none to serve either way` : ''}${h.unmeasured ? `; ${num(h.unmeasured)} not measured (no transcript at the end of the turn)` : ''}`);
   const pct = d => d == null ? '' : ` (${d > 0 ? '+' : ''}${d}% with notes)`;
   const v = (x, f = num) => x == null ? '?' : f(x);
-  if (!h.enough) { L.push(`  too few to compare yet: at least ${MIN_HOLDOUT} sessions on each side; medians so far: tool calls ${v(h.served.toolCalls)} vs ${v(h.heldOut.toolCalls)}, input tokens ${v(h.served.inputTokens, formatTokens)} vs ${v(h.heldOut.inputTokens, formatTokens)}`); return L; }
-  L.push(`  tool calls      median ${v(h.served.toolCalls)} served vs ${v(h.heldOut.toolCalls)} held out${pct(h.deltaPct.toolCalls)}`);
-  L.push(`  input tokens    median ${v(h.served.inputTokens, formatTokens)} served vs ${v(h.heldOut.inputTokens, formatTokens)} held out${pct(h.deltaPct.inputTokens)}`);
-  const models = Object.entries(h.byModel).filter(([, g]) => g.served.sessions && g.heldOut.sessions).sort((a, b) => (b[1].served.sessions + b[1].heldOut.sessions) - (a[1].served.sessions + a[1].heldOut.sessions));
-  for (const [m, g] of models) L.push(`  ${m.padEnd(15)} ${num(g.served.sessions)} vs ${num(g.heldOut.sessions)} sessions; tool calls ${v(g.served.toolCalls)} vs ${v(g.heldOut.toolCalls)}, input tokens ${v(g.served.inputTokens, formatTokens)} vs ${v(g.heldOut.inputTokens, formatTokens)}`);
-  L.push('  medians over whole sessions, by their transcripts; sessions with nothing to serve are on neither side');
+  const one = x => x == null ? '?' : (Math.round(x * 10) / 10).toLocaleString('en-US');
+  if (!h.enough) { L.push(`  too few to compare yet: at least ${MIN_HOLDOUT} prompts on each side; per prompt so far: tool calls ${one(h.served.perPrompt.toolCalls)} vs ${one(h.heldOut.perPrompt.toolCalls)}, input tokens ${v(h.served.perPrompt.inputTokens, formatTokens)} vs ${v(h.heldOut.perPrompt.inputTokens, formatTokens)}`); return L; }
+  L.push(`  tool calls      ${one(h.served.perPrompt.toolCalls)} per prompt served vs ${one(h.heldOut.perPrompt.toolCalls)} held out${pct(h.deltaPct.toolCalls)}`);
+  L.push(`  input tokens    ${v(h.served.perPrompt.inputTokens, formatTokens)} per prompt served vs ${v(h.heldOut.perPrompt.inputTokens, formatTokens)} held out${pct(h.deltaPct.inputTokens)}`);
+  if (h.saved.inputTokens != null) L.push(`  saved           about ${formatTokens(Math.abs(h.saved.inputTokens))} input tokens ${h.saved.inputTokens >= 0 ? 'less' : 'more'} across the ${num(h.served.measured.inputTokens)} served prompts than at the held-out cost per prompt`);
+  const rate = s => s.prompts ? `${Math.round(100 * s.corrected / s.prompts)}%` : '?';
+  L.push(`  corrections     ${rate(h.served)} of served prompts were followed by a correction, ${rate(h.heldOut)} of held-out`);
+  const models = Object.entries(h.byModel).filter(([, g]) => g.served.prompts && g.heldOut.prompts).sort((a, b) => (b[1].served.prompts + b[1].heldOut.prompts) - (a[1].served.prompts + a[1].heldOut.prompts));
+  for (const [m, g] of models) L.push(`  ${m.padEnd(15)} ${num(g.served.prompts)} vs ${num(g.heldOut.prompts)} prompts; tool calls ${one(g.served.perPrompt.toolCalls)} vs ${one(g.heldOut.perPrompt.toolCalls)}, input tokens ${v(g.served.perPrompt.inputTokens, formatTokens)} vs ${v(g.heldOut.perPrompt.inputTokens, formatTokens)}`);
+  L.push('  per prompt: a turn\'s cost by its transcript, summed over the side and divided by its measured prompts; prompts with nothing to serve are on neither side');
   return L;
 }
 export function renderUsage(u, { days } = {}) {
