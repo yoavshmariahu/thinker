@@ -19,18 +19,24 @@ estimated savings, or `thinker usage` for every repository on the machine.
 and repository.
 
 One number in it is measured rather than estimated. The hooks serve nothing in
-15% of sessions (chosen by a hash of the session id, so a session is held out
-for its whole length; `holdout` in `.thinker/config.json` or `THINKER_HOLDOUT`
-changes the share or turns it off), and the stop hook records what each session
-cost by its own transcript: tool calls, model turns, input tokens. The
-"Holdout" section of `thinker usage` compares the sessions that got notes with
-the ones that had notes withheld, as medians per model, once five sessions
-stand on each side. Sessions where nothing would have been served are on
-neither side. Telemetry, unless you opted out, sends the totals behind this
-comparison (session counts and summed tool calls, turns and tokens per side
-and per model, over 30 days), nothing about the sessions themselves. This is what the notes do for your own work, on your own
-repository, by your own agent, and it is the number to hold the cache's
-spending against.
+15% of prompts (chosen by a hash of the session id and the turn's number, so
+every hook of a turn agrees; `holdout` in `.thinker/config.json` or
+`THINKER_HOLDOUT` changes the share or turns it off), and the stop hook records
+after every turn what the session has cost so far by its own transcript: tool
+calls, model turns, input tokens. A turn's cost is what that grew by. The
+"Holdout" section of `thinker usage` compares the prompts that got notes with
+the ones that had notes withheld, as cost per prompt (the side's summed cost
+over its measured prompts) overall and per model, once twenty prompts stand on
+each side; and how often each side's prompt was followed by a correction. The
+unit is the prompt rather than the session because a session is as long as you
+keep it. Notes served on an earlier turn stay in the agent's context, so a
+held-out turn after a served one is partly treated: the difference is
+understated, never inflated. Prompts where nothing would have been served are
+on neither side. Telemetry, unless you opted out, sends the totals behind this
+comparison (prompt counts and summed tool calls, turns and tokens per side and
+per model, over 30 days), nothing about the prompts themselves. This is what
+the notes do for your own work, on your own repository, by your own agent, and
+it is the number to hold the cache's spending against.
 
 The report separates cache initialization (PR mining and phrasings; exploration in logs
 from before it was removed), ongoing session distillation, and maintenance. It records reported

@@ -787,29 +787,40 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   was served on an earlier turn is in the agent's context, and serving it
   again on a follow-up adds tokens and a verdict of `unused`. `orient` called
   by the agent is a fresh question and may return it again.
-- Holdout: the hooks serve nothing in a share of sessions, so that what the
-  notes do can be measured on the machine's own work instead of estimated
-  (`ops.js:holdoutSession`). Which sessions is a hash of the session id, so
-  every hook of a session agrees without state and a session is held out for
-  its whole length; `orient` with `holdout` ranks and packs as usual, logs
-  what it would have served as `withheld` on the `orient` line, marks nothing
-  served, and returns nothing; the edit hook serves nothing either. The agent's
-  own `orient`, `lookup`, `find` and `drilldown` are not held out. At every
-  stop the hook logs the session's cost so far from its transcript
-  (`op: "session"`: tool calls, model turns, input tokens with cache reads and
-  writes, model; `transcripts.js` `stats`, Claude Code, Cursor and Codex);
-  the last line per session counts. `thinker usage` compares the two sides
-  under "Holdout" (`usage.js:holdoutSummary`): medians of tool calls and
-  input tokens over sessions that got notes against sessions that had notes
-  withheld, per model; sessions with nothing to serve are on neither side,
-  and under five sessions a side it says so rather than compare. Telemetry
-  sends the same comparison over 30 days as sums and session counts per side
-  and per model (`telemetry.js:holdoutMetrics`), which pool into averages
-  across installations where medians cannot; the Holdout dashboard reads
-  them (`scripts/holdout-dashboard.mjs`). The share
-  is `holdout` in `.thinker/config.json` (default 0.15; 0 or false: none),
-  `THINKER_HOLDOUT` overrides it (`off`, `0`, or a share; `1` holds out
-  every session, for tests). Benchmarks pin their arms and should set it off.
+- Holdout: the hooks serve nothing in a share of prompts, so that what the
+  notes do can be measured on the machine's own work instead of estimated.
+  The unit is the turn, not the session (2026-10-12): a session is as long as
+  the user keeps it, so whole sessions compared measured how long the tasks
+  happened to be. The prompt hook opens each turn (`ops.js:beginTurn`): a
+  counter in the session state, and the decision as a hash of the session id
+  and the turn number, kept in the state so the tool and stop hooks of the
+  turn agree (`ops.js:holdoutTurn`). `orient` with `holdout` ranks and packs
+  as usual, logs what it would have served as `withheld` on the `orient` line
+  (which carries `turn`), marks nothing served, and returns nothing; the edit
+  hook serves nothing in that turn either, and the intro waits for a served
+  turn. The agent's own `orient`, `lookup`, `find` and `drilldown` are not
+  held out. Notes served on an earlier turn stay in context, so a held-out
+  turn after a served one is partly treated: the difference is understated,
+  never inflated. At every stop the hook logs the session's cost so far from
+  its transcript with the turn number (`op: "session"`: tool calls, model
+  turns, input tokens with cache reads and writes, model; `transcripts.js`
+  `stats`, Claude Code, Cursor and Codex); a turn's cost is its line minus
+  the turn before's, and a turn with either line missing is unmeasured. A
+  correction-shaped prompt logs its `outcome` with the turn it corrects.
+  `thinker usage` compares the two sides under "Holdout"
+  (`usage.js:holdoutSummary`): cost per prompt as a ratio of sums (summed
+  cost over measured prompts: a per-prompt median lands on the one-line
+  follow-ups), overall and per model, the share of each side followed by a
+  correction, and `saved`, (held-out per prompt − served per prompt) × served
+  prompts; prompts with nothing to serve are on neither side, and under
+  twenty prompts a side it says so rather than compare. Telemetry sends the
+  same comparison over 30 days as sums and prompt counts per side and per
+  model (`telemetry.js:holdoutMetrics`, holdout schema 2), which pool into
+  averages across installations; the Holdout dashboard reads them
+  (`scripts/holdout-dashboard.mjs`). The share is `holdout` in
+  `.thinker/config.json` (default 0.15; 0 or false: none), `THINKER_HOLDOUT`
+  overrides it (`off`, `0`, or a share; `1` holds out every prompt, for
+  tests). Benchmarks pin their arms and should set it off.
 - The prompt hooks serve no stale note (`orient`'s `freshOnly`). A stale
   note that would have been served is held back, logged as `held` on the
   `orient` line, and left for the next four-hour maintenance batch
