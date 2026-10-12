@@ -1065,3 +1065,104 @@ run. All three failing runs looked up the same notes on selectable fields
 cache more reads those notes, and they argue for refusing or declaring fields,
 not for scanning storage. One task, three runs: a hypothesis about those notes,
 not a finding about the intro.
+
+## mlflow: executable oracles, loop counters, Opus 5.5 and GPT-6 Astra (2026-10-11)
+
+The first benchmark built to the plan in [MEASUREMENT.md](MEASUREMENT.md): tasks are merged
+pull requests of mlflow/mlflow with their own tests as the oracle, no judge; the counted outcomes
+are attempts to a passing patch, test runs before the first edit, calls before the first edit,
+tool calls, tokens by class, wall time, and the gold source files the patch touched. Harness:
+`bench/mlflow-tasks.js` (build and preflight), `bench/run.js` (Claude), `bench/codex-run.js`
+(Codex), `bench/oracle.js` (shared oracle, counters, worktree reset, leak check),
+`bench/mlflow-report.js`.
+
+**Setup.** Clone scrubbed to the base (later history saved to a bundle, remote and refs removed,
+merge commits verified absent). Python 3.12 venv with mlflow and its test dependencies; tests run
+with `PYTHONPATH=<worktree>` so the worktree's code is imported. Every task preflighted: its
+tests fail at base and pass with the merged patch; conflicts, serving tests, Java and network
+needs dropped. Prompts phrased symptom-only (`bench/symptomize.js`) with the identifier leak
+check. Each prompt's framing names the venv so both arms can run tests; the framing goes to the
+system prompt and the user turn is the request alone, since with the framing in the user turn the
+hook's ranker served nothing. Caches mined from pull requests merged before each base on Haiku
+5.5, then phrased: `mlflow-v1` (312 notes, base 2026-09-20, $0.39), `mlflow-v2` (299 notes, base
+2026-10-01, $0.60). No session, no hand-written note, nothing from a task PR.
+
+**Arms.** `nocache`; `hook`, thinker as shipped (cross-encoder floor 0); `hook-bm25`, the
+serving before 2026-10-04 (lexical, two notes); `late` (Claude), the shipped prompt hook plus
+edit-time serving; `full` (Codex), the installed form: MCP tools and the AGENTS.md block.
+Opus 5.5 at the default effort through Claude Code 2.1.296, isolated settings, no subagents,
+model pinned; Astra through Codex 0.162.0 in the benchmark's Codex home. Learning, holdout and
+telemetry off. Paired by task and run, bootstrap 90% interval over pairs.
+
+### Serving coverage on the 19 first-set requests, before any run (free)
+
+| serving | requests served |
+|---|---:|
+| cross-encoder floor 0, one note (shipped 2026-10-04 to 2026-10-11) | 3 of 19 |
+| cross-encoder floor −1 | 4 of 19 |
+| cross-encoder floor −2 | 7 of 19 |
+| lexical ranking, two notes (`hook-bm25`) | 17 of 19 |
+| edit hook, when a gold source file is edited (simulated) | 5 of 19 |
+
+This is the one result of the day that stands. On it the default went to two notes at floor 0
+(PR #199).
+
+### The runs of 2026-10-11 are void: the answer key leaked between sessions
+
+300 sessions (Opus first set 152, Astra first set 32, Opus harder set 30, Astra harder set 88,
+about $130) are kept under `bench/runs/mlflow-contaminated-2026-10-11/` for diagnosis only.
+The oracle installs a task's gold tests with `git apply --3way`, which stages them; the reset
+between sessions was `git checkout -- .`, which restores the working tree from that index. The
+next sessions in the same worktree found the gold tests in the test files and in
+`git diff --cached`, and wrote to them. Sessions that named at least two gold tests:
+
+| run | nocache | hook | hook-bm25 | late / full |
+|---|---:|---:|---:|---:|
+| Opus first set, counterbalanced order | 16/38 | 20/38 | 18/38 | late 16/38 |
+| Astra first set, 8 tasks | 1/8 | 1/8 | 3/8 | full 5/8 |
+| Opus harder set, partial | 4/7 | 4/7 | 3/8 | late 5/8 |
+| Astra harder set, partial | 4/22 | 6/22 | 17/22 | full 18/22 |
+
+The counterbalanced Opus arms leaked about equally and read as "flat, 89% in every arm". The
+Codex job ran each task's arms in the order nocache, hook, hook-bm25, full on two worktrees, so
+the third and fourth sessions of every task ran right after the first two were graded: the
+"old serving doubles the pass rate" reading of the harder set was this leak. The tell, found
+before any of it was published: sessions that got nothing from the cache (orient returned no
+note) passed 11 of 13 against 9 of 22 for nocache.
+
+Fixed in `bench/oracle.js`: `resetWorktree` hard-resets, cleans ignored files and refuses a
+worktree with anything staged; every record now carries `leak`, the gold test names its
+transcript or event stream shows, and `mlflow-report.js` refuses a run with a leaked session.
+Rule kept from it: when an arm beats the baseline, split its sessions by whether the cache
+reached the agent; the no-reach sessions must look like the baseline.
+
+### Harness defects found and fixed on the way
+
+- The gold tests leaked between sessions (above).
+- The framing paragraph in the user turn made the ranker serve nothing (moved to the system prompt).
+- The Codex harness resolved the noteset path against the repository; its hook arms recorded
+  "served nothing" (16 sessions rerun).
+- Under the Codex sandbox mlflow's pytest exits 1 after every test passed (a plugin teardown
+  hits a PermissionError) and prints no summary; a green run is now read from the summary line or
+  the per-test verdicts, never the exit code (`oracle.js:testGreen`, `bench/recount.js`).
+- mlflow's AGENTS.md is a symlink, which the installer refuses to edit; the Codex `full` arm
+  replaces it with a copy, and an arm setup failure is one errored record, not a dead worker.
+
+### Clean rerun, stopped: Astra on the harder set, nocache vs the two-note hook
+
+After the fix, 13 of 26 sessions (6 complete pairs, $18): pass and fail identical in every pair,
+notes reached 3 of 6 pairs, one of those halved the calls (19 → 9, PR26270) and still failed the
+same assertion. Stopped on the reading that serving reach, not note quality, was the limit:
+two notes at floor 0 reach 5 of the 13 requests. Records in `bench/runs/mlflow-b2-astra-v2`.
+
+### Serving assessment (free): the notes are written for the wrong reader
+
+A Haiku judge rated every plausible candidate note for the 32 requests; a policy simulation then
+scored what each serving policy and phrasing would serve (`bench/serving/README.md`). The
+shipped cache serves a judged-useful note on 3 of 32 requests. Of 36 useful notes, 4 are served;
+the ranker is right to reject the rest, because a PR-mined note describes the bug that produced it
+and nothing about the code path a different task would match on. Re-mining the same 500 pull
+requests with a prompt written for the future caller (a "Path:" line first; PR #204) takes that
+to 7 of 32 with serving untouched, four served notes on the task's own mechanism instead of one,
+fewer unrelated notes, and 480 notes instead of 611. Rewording alone did not do it, and did not
+stack on the new mining. The agent-level test of the new cache is the next paid run.
