@@ -38,6 +38,16 @@ per model, over 30 days), nothing about the prompts themselves. This is what
 the notes do for your own work, on your own repository, by your own agent, and
 it is the number to hold the cache's spending against.
 
+Once a week, at the first turn of the week, the agent shows you that number for
+the last 30 days across every repository on the machine, as one line: about how
+many fewer input tokens the prompts with notes cost than they would have at the
+held-out cost per prompt, with the two costs and the counts behind it. Nothing is
+shown until twenty prompts stand on each side. Claude Code, Codex and Gemini show
+the line as a message to you, outside the model's context; Cursor and Copilot
+have no such channel, so there it lives in `thinker usage` and the UI.
+`THINKER_NOTICE=off` or `"notice": false` in the config turns it off with the
+other end-of-turn notices.
+
 The report separates cache initialization (PR mining and phrasings; exploration in logs
 from before it was removed), ongoing session distillation, and maintenance. It records reported
 input/output tokens, provider prompt-cache reads/writes, and missing usage. Model calls that produce no notes, dry-run distillations, and
