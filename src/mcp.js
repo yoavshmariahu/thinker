@@ -10,9 +10,14 @@ import { Store, findRepoRoot } from './store.js';
 import { orient, lookup, drilldown, find, createNote, feedback, snippetsOn, KINDS } from './ops.js';
 import { listBehaviors, behaviorsSummary, addBehavior } from './behavior.js';
 import { editBehavior, removeBehavior } from './behavior-workbench.js';
+import { ensureTelemetryScheduled, reportTelemetrySchedule } from './telemetry-schedule.js';
 import { initAst } from './ast.js';
 import { cacheInstructions, disabledTools, MORE_NOTES_INTRO } from './cache-guidance.js';
 import { isDisabledRepo } from './repo-switch.js';
+
+// MCP-only installations need the same default OS schedule as CLI/hook users.
+try { reportTelemetrySchedule(ensureTelemetryScheduled({ rootDir: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..') })); }
+catch (e) { reportTelemetrySchedule({ error: e.message }); }
 
 // Which repository: THINKER_REPO when the entry pins one (a checkout's own .mcp.json), else the
 // working directory the client started the server in (the user's machine-wide entry, every

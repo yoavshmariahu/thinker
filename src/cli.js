@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { Store, findRepoRoot, isGitCheckout } from './store.js';
 import { initAst } from './ast.js';
 import { thinkerHome, maybeCheckDailyUpdateInBackground, checkPendingNotice } from './update.js';
+import { ensureTelemetryScheduled, reportTelemetrySchedule } from './telemetry-schedule.js';
 import { maybeSendTelemetryInBackground } from './telemetry.js';
 import { commands as projectCommands } from './commands/project.js';
 import { commands as noteCommands } from './commands/notes.js';
@@ -209,6 +210,12 @@ const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...ski
 const OFF_COMMANDS = ['enable', 'disable', 'ui', 'warmup', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'stats', 'ast', 'ranker', 'hook', 'serve', undefined];
 
 async function main() {
+  // Also runs in the new CLI that an older updater launches (`ranker fetch`).
+  // `telemetry` manages its own schedule; uninstall/dry runs must not recreate it.
+  if (cmd && !['uninstall', 'telemetry'].includes(cmd) && !flags.dry) {
+    try { reportTelemetrySchedule(ensureTelemetryScheduled({ rootDir: path.resolve(HERE, '..') })); }
+    catch (e) { reportTelemetrySchedule({ error: e.message }); }
+  }
   if (!OFF_COMMANDS.includes(cmd) && isGitCheckout(repo) && isDisabledRepo(repo)) { process.stderr.write(`thinker: ${OFF_MESSAGE}\n`); process.exit(1); }
   if (cmd === 'share' || cmd === 'sync' || flags.shared) {
     console.error('thinker: team sharing is no longer supported; notes and learning stay local.');

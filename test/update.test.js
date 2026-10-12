@@ -480,7 +480,10 @@ test('applyUpdate unpacks tarball archive for standalone install', async () => {
     // 1. Prepare dummy package tarball
     const pkgSrc = path.join(tmp, 'pkg-src');
     fs.mkdirSync(path.join(pkgSrc, 'src'), { recursive: true });
-    fs.writeFileSync(path.join(pkgSrc, 'src', 'cli.js'), '#!/usr/bin/env node\nconsole.log("v2");');
+    const launchesFile = path.join(tmp, 'launches.jsonl');
+    fs.writeFileSync(path.join(pkgSrc, 'src', 'cli.js'), `#!/usr/bin/env node
+require('node:fs').appendFileSync(${JSON.stringify(launchesFile)}, JSON.stringify({ cli: __filename, args: process.argv.slice(2), home: process.env.THINKER_HOME, test: process.env.THINKER_TEST }) + '\\n');
+console.log('v2');`);
     fs.writeFileSync(path.join(pkgSrc, 'package.json'), JSON.stringify({ name: 'thinker', version: '0.2.0' }));
     const tarball = path.join(tmp, 'dist.tgz');
     execFileSync('tar', ['-czf', tarball, '-C', tmp, 'pkg-src']);
@@ -524,6 +527,14 @@ test('applyUpdate unpacks tarball archive for standalone install', async () => {
 
     const shim = fs.readFileSync(path.join(tmp, 'bin', 'thinker'), 'utf8');
     assert.ok(shim.includes('app/src/cli.js'));
+    const launches = fs.readFileSync(launchesFile, 'utf8').trim().split('\n').map(line => JSON.parse(line));
+    // Older updaters already launch the staged CLI for ranker fetch: its startup
+    // installs the new default. New updaters also explicitly run the migration
+    // from the final path, with the caller's Thinker home, after replacement.
+    assert.ok(launches.some(l => l.args.join(' ') === 'ranker fetch --quiet' && l.cli !== path.join(appDir, 'src/cli.js')));
+    assert.deepEqual(launches.find(l => l.args[0] === 'telemetry'), {
+      cli: fs.realpathSync(path.join(appDir, 'src/cli.js')), args: ['telemetry', '--ensure-schedule', '--quiet'], home: tmp, test: '1',
+    });
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
