@@ -4,7 +4,9 @@ The details behind the install line in the [README](../README.md).
 
 ## Install and start
 
-Run `curl -fsSL https://raw.githubusercontent.com/yoavshmariahu/thinker/main/install.sh | bash`. It
+Run `curl -fsSL https://raw.githubusercontent.com/yoavshmariahu/thinker/main/install.sh | bash`, or
+`npx @zerotimedev/thinker`, which runs the same installer from the npm package of that name
+(published with each release) and takes the same options. It
 installs the [latest GitHub release](https://github.com/yoavshmariahu/thinker/releases)
 of the tool and wires it into the agents on this machine, once, in their
 own settings (hooks and the MCP server, for Claude Code, Codex, Gemini CLI and

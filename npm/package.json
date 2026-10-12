@@ -1,0 +1,22 @@
+{
+  "name": "@zerotimedev/thinker",
+  "version": "0.0.0",
+  "description": "Installer for thinker, a knowledge cache for coding agents: npx @zerotimedev/thinker",
+  "type": "module",
+  "bin": {
+    "thinker-install": "install.mjs"
+  },
+  "files": [
+    "install.mjs",
+    "install.sh"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yoavshmariahu/thinker.git"
+  },
+  "homepage": "https://github.com/yoavshmariahu/thinker#readme",
+  "license": "MIT"
+}

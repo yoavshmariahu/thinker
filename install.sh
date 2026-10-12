@@ -115,7 +115,7 @@ main() {
       --no-modify-path) modpath=0; shift ;;
       --uninstall) uninstall=1; shift ;;
       --purge) purge=1; shift ;;
-      -h|--help) say "see the header of install.sh or ONBOARDING.md for options"; exit 0 ;;
+      -h|--help) echo "see the header of install.sh or ONBOARDING.md for options"; exit 0 ;;
       *) echo "unknown option: $1" >&2; exit 2 ;;
     esac
   done

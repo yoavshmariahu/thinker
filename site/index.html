@@ -310,6 +310,11 @@
       letter-spacing: -0.01em;
     }
 
+    .install-alt {
+      margin-top: 0.9rem;
+      font-weight: 400;
+    }
+
     .cmd-box {
       display: flex;
       align-items: center;
@@ -798,8 +803,13 @@
       <div class="command-wrapper" id="command-view">
         <div class="install-instruction">Run anywhere to install, then <code>thinker setup</code> inside your repository</div>
         <div class="cmd-box">
-          <code id="cmd">curl -fsSL https://raw.githubusercontent.com/yoavshmariahu/thinker/main/install.sh | bash</code>
-          <button class="btn-copy" id="copy-btn" onclick="copyInstall()">Copy</button>
+          <code id="cmd">npx @zerotimedev/thinker</code>
+          <button class="btn-copy" onclick="copyInstall(this)">Copy</button>
+        </div>
+        <div class="install-instruction install-alt">or, without npm</div>
+        <div class="cmd-box">
+          <code>curl -fsSL https://raw.githubusercontent.com/yoavshmariahu/thinker/main/install.sh | bash</code>
+          <button class="btn-copy" onclick="copyInstall(this)">Copy</button>
         </div>
       </div>
     </div>
@@ -923,11 +933,10 @@
   </div>
 
   <script>
-    function copyInstall() {
-      const code = document.getElementById('cmd').innerText;
+    function copyInstall(btn) {
+      const code = btn.parentElement.querySelector('code').innerText;
       if (!code) return;
       navigator.clipboard.writeText(code).then(() => {
-        const btn = document.getElementById('copy-btn');
         btn.innerText = 'Copied';
         btn.classList.add('copied');
         setTimeout(() => {
