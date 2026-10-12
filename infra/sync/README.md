@@ -4,7 +4,7 @@ The team's central cache (`src/server/`) runs on one Amazon Linux 2023 instance,
 `t4g.small`, behind Caddy, which obtains and renews the TLS certificate for
 `sync.zerotime.dev` (Let's Encrypt). Data is on the instance's encrypted volume
 under `/var/lib/thinker-sync`: one directory per repository with its clone, notes,
-change journal and the pull request reviews CI asked for, plus `tokens.json`.
+change journal, plus `tokens.json`.
 No SSH: the instance is reached through Systems Manager Session Manager.
 
 ```sh
@@ -27,16 +27,13 @@ with `GET https://sync.zerotime.dev/health`.
 - `--secret-only --set-api-key` writes `ANTHROPIC_API_KEY` from the environment into
   the secret; `--set-git-token` does the same for `THINKER_SERVER_GIT_TOKEN` (a
   fine-grained GitHub token with read access to the repositories' contents, so the
-  server can clone private ones), and `--set-github-token` for
-  `THINKER_SERVER_GITHUB_TOKEN` (a token with pull requests: write on the
-  repositories, so the server can post the reviews that `action/review` asks
-  for; the git token is used when it is unset). Rerun without flags afterwards so
-  the instance picks the secret up (bootstrap rewrites the env file and restarts
-  the service).
+  server can clone private ones). Rerun without flags afterwards so the instance
+  picks the secret up (bootstrap rewrites the env file and restarts the service).
 - The server learns nothing itself: sessions are distilled on the checkouts and
-  arrive as notes. The model key is for reviewing pull requests (`action/review`);
-  without it the server stores and serves notes and reviews nothing. Without a
-  clone it stores what clients push and reviews fail saying so.
+  arrive as notes. It stores and serves notes and does nothing else. It posted
+  pull request reviews until `thinker review` was removed on 2026-10-11; the
+  model key and `--set-github-token` (`THINKER_SERVER_GITHUB_TOKEN`) were for
+  those reviews, and nothing reads them now.
 
 ## Running it locally in a container
 

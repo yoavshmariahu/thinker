@@ -304,7 +304,7 @@
         <button class="back" id="back">← All repositories</button>
         <div class="kicker">Cache</div>
         <h1 id="d-title"></h1>
-        <p class="lede">The notes your agents are served: what each says, the code it points at, where it came from and how often it was used. A <b>stale</b> note's code changed and it waits for a re-check; it is never served as fact. <b>Archived</b> notes are not served, but review still reads them. A <b>skill</b> card stands for a SKILL.md file; one found <b>out of date</b> lists what contradicts the code and is neither served nor re-checked until the file changes or you mark it reviewed.</p>
+        <p class="lede">The notes your agents are served: what each says, the code it points at, where it came from and how often it was used. A <b>stale</b> note's code changed and it waits for a re-check; it is never served as fact. <b>Archived</b> notes are not served, and are kept for lookup by id. A <b>skill</b> card stands for a SKILL.md file; one found <b>out of date</b> lists what contradicts the code and is neither served nor re-checked until the file changes or you mark it reviewed.</p>
         <div id="d-activity"></div>
         <div class="controls">
           <div class="chips" id="c-chips"></div>
@@ -319,7 +319,7 @@
 
         <div class="section" id="behaviors">
           <div class="section-head"><div><div class="kicker">System behaviors</div><div class="section-title">The rules every change must keep</div></div></div>
-          <p class="lede" style="margin-top:0">A behavior says what your system must always (or never) do, and where the code upholds it. <b>thinker review</b> warns about a change that breaks one, and stops the change when the behavior is <b>blocking</b>. They come from the design documents checked into the repository, warn only until you make one blocking, and are yours to edit or discard. Proposed behaviors are not requirements until you accept them.</p>
+          <p class="lede" style="margin-top:0">A behavior says what your system must always (or never) do, and where the code upholds it. An agent editing the code a behavior rests on is handed it first. They come from the design documents checked into the repository and are yours to edit or discard. A <b>mutable</b> behavior is revised when merged code changes it; a <b>fixed</b> one never is. Proposed behaviors are not requirements until you accept them.</p>
           <div class="controls">
             <div class="chips" id="chips"></div>
             <input class="search" id="search" placeholder="Search behaviors">
@@ -365,23 +365,23 @@
       <div class="modal-body">
         <div class="faq-item">
           <h3>Where is my data stored? Does anything leave my machine?</h3>
-          <p>The cache lives in the repository it describes: notes built from pull requests and shared with the team under <code>.thinker/notes/</code>, committed like code; what the sessions on this checkout learned under <code>.thinker/local/</code>, which git ignores; the configuration in <code>.thinker/config.json</code>. Per machine, <code>~/.thinker/</code> holds the installed app, the usage log this page reads, and the ranking model.</p>
+          <p>The cache lives in the repository it describes and stays on your machine: notes, from pull requests and sessions alike, under <code>.thinker/local/</code>, which git ignores (notes an older version committed under <code>.thinker/notes/</code> are still read); the configuration in <code>.thinker/config.json</code>. There is no team sharing or sync. Per machine, <code>~/.thinker/</code> holds the installed app, the usage log this page reads, and the ranking model.</p>
           <p>Three things leave the machine, and nothing else:</p>
           <ul>
             <li><b>Model calls go to the provider you already use for your agent</b>, through its own login (claude, codex, gemini, cursor, or an Anthropic API key): a condensed transcript when a session is distilled, a pull request's title, description, review comments and diff when it is mined, a note with the diff of its code when it is re-verified. Thinker runs no model and stores nothing of its own in the cloud.</li>
             <li><b>Telemetry is counts only</b>: an hourly report of notes served, verdicts, token totals and the holdout sums, with an install id and a hashed device id. No code, note bodies, prompt text, file paths or repository URLs. <code>THINKER_TELEMETRY=off</code> or <code>{ "telemetry": false }</code> in the config stops it.</li>
             <li><b>The ranking model is downloaded once at install</b> (about 23 MB) and runs on your machine.</li>
           </ul>
-          <p><code>gh</code> reads merged pull requests from GitHub during mining and posts nothing. This page listens on 127.0.0.1 only. Notes reach teammates through git alone.</p>
+          <p><code>gh</code> reads merged pull requests from GitHub during mining and posts nothing. This page listens on 127.0.0.1 only.</p>
           <p><b>A repository with sensitive content can be turned off</b> on the warm-up page, or with <code>thinker disable</code> inside it. Thinker then does nothing there, in any clone or worktree: the hooks and the MCP server serve nothing, no session is distilled, no pull request is read, and nothing is written into it.</p>
         </div>
         <div class="faq-item">
           <h3>How does the cache work? What does it do to make my agents faster?</h3>
           <p>A note is a short rule, map or how-to about one part of the code, with <code>file:Symbol</code> pointers and a hash of the code it rests on. The work is in putting the right one in front of the agent without being asked:</p>
           <ul>
-            <li><b>On each request</b> a hook picks the lexical candidates, then a local ranking model reads the request against them and serves one note only when it scores it relevant, with the code behind its pointers. The agent starts at the code instead of searching for it.</li>
-            <li><b>On each file edit</b> the notes resting on that file are served, rules first, so a trap on that code is in view while it is changed.</li>
-            <li><b>On demand</b>, the MCP tools <code>orient</code>, <code>lookup</code>, <code>find</code> and <code>drilldown</code> give the agent notes and the code graph when the hooks served nothing.</li>
+            <li><b>On each request</b> a hook picks the lexical candidates, then a local ranking model reads the request against them and serves up to two notes, only those it scores relevant, with the code behind their pointers. The agent starts at the code instead of searching for it.</li>
+            <li><b>On each file edit</b> the rules resting on that file are served, so a trap on that code is in view while it is changed.</li>
+            <li><b>On demand</b>, the MCP tools <code>orient</code> and <code>lookup</code> give the agent notes when the hooks served nothing.</li>
             <li><b>Never stale.</b> Every serving re-hashes the dependencies of every note against your working tree. A note whose code changed is held back, re-verified in the background, and served again once it is fresh.</li>
             <li><b>Once per session</b>, not for one-word turns, and not at all when nothing fits.</li>
           </ul>
@@ -389,14 +389,14 @@
         </div>
         <div class="faq-item">
           <h3>Why does mining take so long? Can I skip it?</h3>
-          <p>Each merged pull request is read by a frontier model through your agent's login: title, description, review comments and the diff, about 14k tokens and 8 seconds per pull request, four at a time. The default build reads up to 60 of them, then reads the design documents, writes search phrasings for every new note and drafts desired behaviors from the strongest rules, each a model call. Rate limits on the login stretch it further. The estimate in tokens and minutes is printed before anything is spent.</p>
+          <p>Each merged pull request is read by a frontier model through your agent's login: title, description, review comments and the diff, about 14k tokens and 8 seconds per pull request, four at a time. The default build reads up to 60 of them, then reads the design documents and writes search phrasings for every new note, each a model call. Rate limits on the login stretch it further. The estimate in tokens and minutes is shown before anything is spent.</p>
           <p>Yes, you can skip it, and nothing stops working:</p>
           <ul>
-            <li>Answer no at setup, or run <code>thinker setup --no-build</code>. Thinker is wired and the cache grows from your own sessions.</li>
+            <li>Press <b>Skip for now</b> on the warm-up view, or run <code>thinker setup --no-build</code>. Thinker is wired and the cache grows from your own sessions.</li>
             <li>Pick <b>Shallow</b>: the newest 30% of the same pull requests.</li>
-            <li>Ctrl-C at any point keeps every note saved so far. <code>thinker mine-prs</code> continues where it stopped, 20 pull requests at a time, and the background maintenance mines a few new ones per run anyway.</li>
+            <li>Stopping a build at any point keeps every note saved so far. <code>thinker mine-prs</code> continues where it stopped, 20 pull requests at a time, and the background maintenance mines a few new ones per run anyway.</li>
           </ul>
-          <p>What a build gives you that sessions cannot is the record of past fixes, which is what a reviewing agent draws on most. A repository with little history loses little by skipping it.</p>
+          <p>What a build gives you that sessions cannot is the record of past fixes. A repository with little history loses little by skipping it.</p>
         </div>
         <div class="faq-item">
           <h3>How can I tell if Thinker is helping my agents?</h3>
@@ -720,8 +720,8 @@ let B = { active: [], pending: [] }, filter = 'waiting', query = '', editing = n
 const FILTERS = [
   ['waiting', 'Proposed', b => b.waiting],
   ['active', 'Active', b => !b.waiting],
-  ['fixed', 'Blocking', b => !b.waiting && b.mutability === 'fixed'],
-  ['mutable', 'Warn only', b => !b.waiting && b.mutability !== 'fixed'],
+  ['fixed', 'Fixed', b => !b.waiting && b.mutability === 'fixed'],
+  ['mutable', 'Mutable', b => !b.waiting && b.mutability !== 'fixed'],
   ['attention', 'Broken or unverified', b => !b.waiting && (b.state === 'violated' || b.state === 'unverified')],
   ['all', 'All', () => true],
 ];
@@ -755,7 +755,7 @@ function renderBehaviors() {
 function pills(b) {
   if (b.waiting) return `<span class="pill wait">Proposed · ${b.origin === 'draft' ? 'build draft' : 'agent proposal'}</span>`;
   const st = b.state === 'violated' ? `<span class="pill bad">Violated</span>` : b.state === 'unverified' ? `<span class="pill wait">Unverified</span>` : `<span class="pill ok">Holds</span>`;
-  return `${st}<span class="pill${b.mutability === 'fixed' ? ' fixed' : ''}">${b.mutability === 'fixed' ? 'Blocking' : 'Warn only'}</span>`;
+  return `${st}<span class="pill${b.mutability === 'fixed' ? ' fixed' : ''}">${b.mutability === 'fixed' ? 'Fixed' : 'Mutable'}</span>`;
 }
 function bcard(b) {
   const key = bkey(b);
@@ -763,7 +763,7 @@ function bcard(b) {
     <div class="kicker">${b.waiting ? 'Edit, then accept' : 'Edit behavior'}</div>
     <div class="field"><label>Title</label><input data-in="title" value="${esc(b.title)}"></div>
     <div class="field"><label>What it requires, and where the code upholds it (path:Symbol)</label><textarea data-in="body">${esc(b.body)}</textarea></div>
-    <div class="field"><label>When a change breaks it</label><select data-in="mutability"><option value="mutable"${b.mutability !== 'fixed' ? ' selected' : ''}>Warn only · review flags the change</option><option value="fixed"${b.mutability === 'fixed' ? ' selected' : ''}>Blocking · review stops the change</option></select></div>
+    <div class="field"><label>When merged code changes it</label><select data-in="mutability"><option value="mutable"${b.mutability !== 'fixed' ? ' selected' : ''}>Mutable · the behavior is revised to match</option><option value="fixed"${b.mutability === 'fixed' ? ' selected' : ''}>Fixed · the behavior is never revised</option></select></div>
     <div class="actions"><button class="btn" data-act="save">${b.waiting ? 'Save and accept' : 'Save'}</button><button class="btn ghost" data-act="cancel">Cancel</button></div></div>`;
   const meta = [
     b.pointers?.length ? `<b>Upheld at</b> ${b.pointers.map(p => `<code>${esc(p)}</code>`).join(' ')}` : '',
@@ -774,8 +774,8 @@ function bcard(b) {
     !b.waiting && b.state === 'unverified' ? `<b>Code changed</b> ${esc(b.reason)} · re-checked on the next maintenance run, or <code>thinker verify</code>` : '',
   ].filter(Boolean).join('<br>');
   const actions = b.waiting
-    ? `<button class="btn" data-act="accept">Accept</button><button class="btn ghost" data-act="fixed">Accept as blocking</button><button class="btn ghost" data-act="edit">Edit</button><button class="btn text" data-act="discard">Discard</button>`
-    : `<button class="btn ghost" data-act="edit">Edit</button><button class="btn ghost" data-act="toggle">${b.mutability === 'fixed' ? 'Make warn only' : 'Make blocking'}</button>${b.fromDoc ? '<button class="btn text" data-act="discard">Discard</button>' : ''}`;
+    ? `<button class="btn" data-act="accept">Accept</button><button class="btn ghost" data-act="fixed">Accept as fixed</button><button class="btn ghost" data-act="edit">Edit</button><button class="btn text" data-act="discard">Discard</button>`
+    : `<button class="btn ghost" data-act="edit">Edit</button><button class="btn ghost" data-act="toggle">${b.mutability === 'fixed' ? 'Make mutable' : 'Make fixed'}</button>${b.fromDoc ? '<button class="btn text" data-act="discard">Discard</button>' : ''}`;
   return `<div class="bcard${b.waiting ? ' waiting' : ''}" data-key="${esc(key)}"><div class="bcard-top"><div class="btitle">${esc(b.title)}</div><div class="pills">${pills(b)}</div></div>
     <div class="bbody">${rich(b.body)}</div><div class="meta">${meta}</div><div class="actions">${actions}</div></div>`;
 }
@@ -788,9 +788,9 @@ function wire() {
       if (act === 'cancel') { editing = null; return renderBehaviors(); }
       btn.disabled = true;
       try {
-        if (act === 'accept' || act === 'fixed') { await api('/api/behaviors/accept', { id: b.id, repo: b.repo, mutability: act === 'fixed' ? 'fixed' : 'mutable' }); toast(act === 'fixed' ? 'Accepted as blocking: review now stops a change that breaks it' : 'Accepted: review now flags a change that breaks it'); }
+        if (act === 'accept' || act === 'fixed') { await api('/api/behaviors/accept', { id: b.id, repo: b.repo, mutability: act === 'fixed' ? 'fixed' : 'mutable' }); toast(act === 'fixed' ? 'Accepted as fixed: never revised by merged code' : 'Accepted: agents editing that code are handed it'); }
         else if (act === 'discard') { await api('/api/behaviors/discard', { id: b.id, repo: b.repo }); toast('Discarded'); }
-        else if (act === 'toggle') { await api('/api/behaviors/edit', { id: b.id, repo: b.repo, mutability: b.mutability === 'fixed' ? 'mutable' : 'fixed' }); toast(b.mutability === 'fixed' ? 'Now warn only' : 'Now blocking'); }
+        else if (act === 'toggle') { await api('/api/behaviors/edit', { id: b.id, repo: b.repo, mutability: b.mutability === 'fixed' ? 'mutable' : 'fixed' }); toast(b.mutability === 'fixed' ? 'Now mutable' : 'Now fixed'); }
         else if (act === 'save') {
           const v = k => el.querySelector(`[data-in="${k}"]`).value;
           if (b.waiting) await api('/api/behaviors/accept', { id: b.id, repo: b.repo, title: v('title'), body: v('body'), mutability: v('mutability') });
