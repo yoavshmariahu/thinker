@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { Store, repoId } from '../src/store.js';
 import { createNote } from '../src/ops.js';
 import { phraseKey } from '../src/note-search.js';
-import { maintain, maintenanceNotice, renderMaintain, spentToday, withinDailyCap, reportCapped, postCommitHook, pickStale, DEFAULTS, MAINTENANCE_INTERVAL_MS } from '../src/maintain.js';
+import { maintain, maintenanceNotice, renderMaintain, spentToday, withinDailyCap, reportCapped, postCommitHook, pickStale, DEFAULTS, DAILY_TOKENS_COSTLY, MAINTENANCE_INTERVAL_MS } from '../src/maintain.js';
 
 // a git repo with one note whose dependency is then changed, so the note is stale
 function staleRepo() {
@@ -167,9 +167,15 @@ test('withinDailyCap closes the day once the cap is spent, and the user is told 
   try {
     const store = new Store(dir).init();
     assert.equal(withinDailyCap(store, { spentFn: () => 400_000 }).ok, true);
-    const over = withinDailyCap(store, { spentFn: () => 2_500_000 });
+    assert.equal(withinDailyCap(store, { spentFn: () => 2_500_000 }).ok, true, 'a Haiku-class distill model gets the 50M default');
+    const over = withinDailyCap(store, { spentFn: () => 60_000_000 });
     assert.equal(over.ok, false);
     assert.equal(over.cap, DEFAULTS.dailyTokens);
+    // a costlier distillation model gets the smaller default
+    fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ distillModel: 'sonnet' }));
+    assert.equal(withinDailyCap(store, { spentFn: () => 2_500_000 }).ok, false);
+    assert.equal(withinDailyCap(store, { spentFn: () => 2_500_000 }).cap, DAILY_TOKENS_COSTLY);
+    fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ distillModel: 'haiku' }));
     // no cap configured: nothing is withheld
     fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ maintain: { dailyTokens: 0 } }));
     assert.equal(withinDailyCap(store, { spentFn: () => 99e6 }).ok, true);

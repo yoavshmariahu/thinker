@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Documentation — thinker</title>
-  <meta name="description" content="Thinker is a model-agnostic knowledge cache that uses frontier models to build knowledge from code and merged pull requests, helping coding agents catch regressions and complete tasks with fewer tokens.">
+  <meta name="description" content="Thinker is a model-agnostic knowledge cache that uses frontier models to build knowledge from code and merged pull requests, helping coding agents complete tasks with fewer tokens and in less time.">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='10' cy='22' r='6' fill='%23000'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%23000' fill-opacity='0.75'/%3E%3Ccircle cx='22' cy='10' r='6' fill='%23000' fill-opacity='0.5'/%3E%3C/svg%3E">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -560,65 +560,6 @@
 
     .gain { color: #15803d; font-weight: 600; }
 
-    /* Evidence report: real HTML keeps the example readable on small screens. */
-    /* Proof of correctness: a pull request review as GitHub renders one */
-    .gh { margin: 1.5rem 0 0.5rem; color: #1f2328; font-size: 0.84rem; line-height: 1.5; }
-    .gh code { font-size: 0.78rem; background: #eff1f3; color: #1f2328; margin: 0; padding: 0.1em 0.35em; white-space: nowrap; }
-    .gh-details code, .gh-fine code { white-space: normal; }
-    .gh-muted { color: #656d76; }
-    .gh-fine { font-size: 0.78rem; color: #656d76; }
-    .gh-pr { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; padding: 0 0 0.85rem; }
-    .gh-pr-title { font-size: 1.15rem; font-weight: 600; letter-spacing: -0.02em; color: #1f2328; }
-    .gh-pr-num { font-weight: 400; color: #656d76; }
-    .gh-pr-state { font-size: 0.76rem; font-weight: 500; color: #fff; background: #1f883d; border-radius: 2em; padding: 0.2rem 0.65rem; line-height: 1.4; }
-    .gh-timeline { position: relative; padding-left: 2.25rem; }
-    .gh-timeline::before { content: ""; position: absolute; left: 0.95rem; top: 0; bottom: 0; width: 2px; background: #d0d7de; }
-    .gh-event { position: relative; display: flex; align-items: center; gap: 0.55rem; flex-wrap: wrap; padding: 0.15rem 0 0.9rem; color: #656d76; }
-    .gh-event strong { color: #1f2328; }
-    .gh-avatar { display: inline-block; width: 1.9rem; height: 1.9rem; border-radius: 50%; background: #1f2328 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='10' cy='22' r='6' fill='%23fff'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%23fff' fill-opacity='0.75'/%3E%3Ccircle cx='22' cy='10' r='6' fill='%23fff' fill-opacity='0.5'/%3E%3C/svg%3E") center / 70% no-repeat; flex: none; }
-    .gh-event .gh-avatar { position: absolute; left: -2.25rem; top: -0.05rem; box-shadow: 0 0 0 3px #fff; }
-    .gh-avatar-sm { width: 1.35rem; height: 1.35rem; }
-    .gh-comment { background: #fff; border: 1px solid #d0d7de; border-radius: 6px; margin-bottom: 1rem; overflow: hidden; }
-    .gh-comment-head { display: flex; align-items: center; gap: 0.45rem; padding: 0.55rem 0.9rem; background: #f6f8fa; border-bottom: 1px solid #d0d7de; font-size: 0.82rem; }
-    .gh-md { padding: 0.9rem 1rem 0.25rem; }
-    .gh-md h1 { font-size: 1.1rem; font-weight: 600; letter-spacing: -0.01em; color: #1f2328; margin: 0 0 0.6rem; padding-bottom: 0.35rem; border-bottom: 1px solid #d8dee4; }
-    .gh-md h2 { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; font-size: 0.92rem; font-weight: 600; letter-spacing: 0; color: #1f2328; margin: 1.15rem 0 0.5rem; padding: 0.65rem 0 0.3rem; border-top: none; border-bottom: 1px solid #d8dee4; }
-    .gh-md p { font-size: 0.84rem; color: #1f2328; margin: 0 0 0.7rem; line-height: 1.5; }
-    .gh-md ul, .gh-md ol { margin: 0 0 0.7rem 1.4rem; font-size: 0.84rem; }
-    .gh-md li { margin-bottom: 0.3rem; }
-    .gh-md li ul { margin: 0.25rem 0 0 1.1rem; }
-    .gh-md li ul li { color: #57606a; }
-    .gh-md table { border-collapse: collapse; width: 100%; margin: 0 0 0.7rem; font-size: 0.8rem; }
-    .gh-md th, .gh-md td { border: 1px solid #d0d7de; padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
-    .gh-md td:first-child { min-width: 9.5rem; }
-    .gh-md th { background: #f6f8fa; font-weight: 600; }
-    .gh-md tr:nth-child(2n) td { background: #f6f8fa; }
-    .gh-md blockquote { margin: 0 0 0.7rem; padding: 0.15rem 0 0.15rem 0.8rem; border-left: 3px solid #d0d7de; color: #57606a; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.76rem; overflow-wrap: anywhere; }
-    .gh-scroll { overflow-x: auto; }
-    .gh-pass { color: #1a7f37; font-weight: 600; white-space: nowrap; }
-    .gh-warn { color: #9a6700; }
-    .gh-fail { color: #cf222e; font-weight: 600; }
-    .gh-details { margin: 0.4rem 0 0.8rem; font-size: 0.82rem; }
-    .gh-details summary { cursor: pointer; color: #0969da; font-weight: 500; }
-    .gh-details ul { margin-top: 0.5rem; color: #57606a; }
-    .gh-tag { display: inline-block; font-size: 0.64rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; border-radius: 2em; padding: 0.12rem 0.5rem; line-height: 1.5; vertical-align: middle; white-space: nowrap; }
-    .tag-agent { color: #0a4a9e; background: #ddf4ff; }
-    .tag-runner { color: #116329; background: #dafbe1; }
-    .tag-cache { color: #5a2fb5; background: #ece6ff; }
-    .tag-model { color: #7d5300; background: #fff4ca; }
-    .tag-reviewer { color: #3f4650; background: #eaeef2; }
-    .gh-caption { font-size: 0.78rem; color: #6b7280; margin-top: 0.25rem; }
-    .gh-legend { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.85rem; margin: 1rem 0 1.5rem; }
-    .gh-legend-item { border: 1px solid #e5e7eb; background: #fafafa; border-radius: 10px; padding: 0.95rem 1.05rem 0.4rem; }
-    .gh-legend-item .gh-tag { margin-bottom: 0.55rem; }
-    .gh-legend-item p { font-size: 0.86rem; line-height: 1.55; margin-bottom: 0.5rem; }
-    @media (max-width: 760px) {
-      .gh-legend { grid-template-columns: 1fr; }
-      .gh-timeline { padding-left: 1.6rem; }
-      .gh-timeline::before { left: 0.6rem; }
-      .gh-event .gh-avatar { left: -1.6rem; width: 1.5rem; height: 1.5rem; }
-    }
-
     /* Responsive */
     @media (max-width: 860px) {
       aside { display: none; }
@@ -671,12 +612,6 @@
         </ul>
       </div>
       <div class="sidebar-group">
-        <div class="sidebar-heading">Code Review</div>
-        <ul class="sidebar-nav">
-          <li class="sidebar-item"><a href="#behaviors">Desired behaviors</a></li>
-        </ul>
-      </div>
-      <div class="sidebar-group">
         <div class="sidebar-heading">Efficient coding</div>
         <ul class="sidebar-nav">
           <li class="sidebar-item"><a href="#in-a-session">In a session</a></li>
@@ -686,7 +621,6 @@
       <div class="sidebar-group">
         <div class="sidebar-heading">Measure it yourself</div>
         <ul class="sidebar-nav">
-          <li class="sidebar-item"><a href="#benchmark">Benchmark in your repo</a></li>
           <li class="sidebar-item"><a href="#usage">Usage and the holdout</a></li>
         </ul>
       </div>
@@ -709,9 +643,9 @@
 
     <main>
       <section id="overview">
-        <h1>A knowledge cache to help you catch regressions and boost coding agent efficiency</h1>
+        <h1>A knowledge cache that makes coding agents more efficient</h1>
         <p class="lead">
-          Thinker’s model-agnostic knowledge cache works across coding models and agents. It uses frontier models to build and maintain knowledge from code, sessions, and merged pull requests, and a small local ranking model to choose which notes to serve. Dependency-based invalidation and verification keep the cache fresh, helping agents catch regressions and complete tasks with fewer tokens.
+          Thinker’s model-agnostic knowledge cache works across coding models and agents. It uses frontier models to build and maintain knowledge from code, sessions, and merged pull requests, and a small local ranking model to choose which notes to serve. Dependency-based invalidation and verification keep the cache fresh, so agents complete tasks with fewer tokens and in less time.
         </p>
 
         <div class="outcomes">
@@ -722,12 +656,12 @@
             <p class="outcome-body">Each request gets relevant notes with pointers into the code, so the agent starts where it should instead of grepping its way there.</p>
             <div class="outcome-cta">What a session looks like &rarr;</div>
           </a>
-          <a class="outcome" href="#benchmark">
+          <a class="outcome" href="#usage">
             <div class="outcome-kicker">Wall time</div>
             <div class="outcome-num">10% faster</div>
             <div class="outcome-label">per coding task</div>
             <p class="outcome-body">Fewer searches mean fewer turns and tool calls, so the same model finishes the same task sooner.</p>
-            <div class="outcome-cta">Measure it in your repo &rarr;</div>
+            <div class="outcome-cta">Measure it on your own sessions &rarr;</div>
           </a>
         </div>
         <p class="outcomes-caption">Same model, same task, with and without thinker, on real changes from open-source repositories. <button type="button" onclick="openModal()">See the benchmarks</button></p>
@@ -737,12 +671,12 @@
           <div class="loop-step">
             <span class="step-badge">1</span>
             <h4>Build</h4>
-            <p><code>thinker setup</code> builds the cache from merged pull requests, fixes first.</p>
+            <p>Pick repositories on the local page; each cache is built from merged pull requests, fixes first.</p>
           </div>
           <div class="loop-step">
             <span class="step-badge">2</span>
             <h4>Use</h4>
-            <p>Hooks hand the agent the note that fits each request.</p>
+            <p>Hooks hand the agent the notes that fit each request, and the rules on each file it edits.</p>
           </div>
           <div class="loop-step">
             <span class="step-badge">3</span>
@@ -758,13 +692,23 @@
       <section id="install">
         <h2>Install and set up</h2>
         <p>
-          The install command from the landing page installs the tool under <code>~/.thinker</code> and wires it into the agents on this machine, once, in their own settings, asking nothing in the terminal. It ends by opening the <a href="#local-page">warm-up page</a> in your browser: the repositories your agents worked in over the last 30 days, each with a build estimate. Pick the ones to build a cache for now; every other git repository gets an empty cache with its first session and grows from there.
+          The install command from the landing page installs the tool under <code>~/.thinker</code> and wires it into the agents on this machine, once, in their own settings, asking nothing in the terminal. Setup itself happens in the browser: the installer ends by opening the <a href="#local-page">local page</a> on its warm-up view.
         </p>
-        <pre><code><span class="code-comment"># Open the warm-up page again any time</span>
-thinker ui --tab warmup
+        <ol>
+          <li><strong>Pick repositories.</strong> The page lists the git repositories your agents worked in over the last 30 days, most recent first, found from the agents' own session records, each with a build estimate in tokens and minutes. The five you used most recently are picked for you; one that already has a cache is marked and left unpicked.</li>
+          <li><strong>Choose how much to read.</strong> Per repository: <strong>Full</strong> (the newest 60 merged pull requests) or <strong>Shallow</strong> (the newest 30% of them), the whole repository or only the directories you pick. A switch on each row turns thinker off for a repository no model should read.</li>
+          <li><strong>Choose the agent and model.</strong> The bar at the top lists the agent CLIs on the machine, says whether each is signed in, and adds up the tokens and time of everything picked. A build runs through that agent's own login.</li>
+          <li><strong>Press Start building</strong>, or Skip for now. The builds run one at a time in the background, and closing the tab does not stop them. The Cache view shows each one's stage ("mining 12/60 PRs"), the notes saved so far, the time left and a Stop button; stopping keeps every note saved so far.</li>
+        </ol>
+        <p>
+          Every other git repository gets an empty cache with its first session and grows from there, so skipping a build costs nothing but a slower start.
+        </p>
+        <pre><code><span class="code-comment"># Open the local page again any time</span>
+thinker ui
+thinker ui --tab warmup             <span class="code-comment"># straight to the warm-up view</span>
 
-<span class="code-comment"># Build one repository's cache from the terminal instead: mine merged PRs (--prs n, default 60);
-# a build reads pull requests only; it does not explore the code</span>
+<span class="code-comment"># No browser, or a script: build one repository's cache from the terminal.
+# A build reads merged pull requests (--prs n, default 60); it does not explore the code</span>
 thinker setup --build</code></pre>
         <p>
           <strong>What a build reads.</strong> By default, <strong>your areas</strong>: the directories your own commits touched in the last six months
@@ -783,10 +727,10 @@ thinker setup --build --yes</code></pre>
           <code>setup</code> and <code>mine-prs</code> reuse the saved project.
           Use <code>--project other.project.json</code> for another selection or <code>--full-repo</code> for one full-repository run.
           Paths are relative to the repository root. History mining focuses on the selected directories;
-          retrieval, review, and ongoing learning still use the whole repository cache.
+          retrieval and ongoing learning still use the whole repository cache.
         </p>
         <p>
-          Building runs through your agent's own login: roughly 700k to 900k tokens and about ten minutes with the defaults (60 merged pull requests). The estimate is printed in tokens and minutes before anything runs, never in dollars, since most agents run on subscriptions.
+          Building runs through your agent's own login: roughly 700k to 900k tokens and about ten minutes with the defaults (60 merged pull requests). The estimate is shown in tokens and minutes before anything runs, never in dollars, since most agents run on subscriptions.
         </p>
         <div class="callout tip">
           <strong>The wiring is machine-wide, the cache is per repository.</strong> Hooks and the MCP server are present in every git checkout, and each checkout keeps its own cache under <code>.thinker/</code>, started on first use and excluded from <code>git status</code> through <code>.git/info/exclude</code>. Outside a git repository your agents are served nothing and learn nothing.
@@ -844,10 +788,10 @@ thinker setup --build --yes</code></pre>
           <table>
             <thead><tr><th>Kind</th><th>What it answers</th></tr></thead>
             <tbody>
-              <tr><td><code>rule</code></td><td>What a change must respect: an invariant, a convention, a trap, a fix not to undo and why. The kind a review draws on most.</td></tr>
+              <tr><td><code>rule</code></td><td>What a change must respect: an invariant, a convention, a trap, a fix not to undo and why.</td></tr>
               <tr><td><code>map</code></td><td>Where a recurring concern is handled, how control or data flows across files, the shape of a module area</td></tr>
               <tr><td><code>howto</code></td><td>How to build, test, run or lint, with the non-obvious flags</td></tr>
-              <tr><td><code>behavior</code></td><td>A desired behavior of the system a person wrote down; the code must uphold it (see <a href="#behaviors">Desired behaviors</a>)</td></tr>
+              <tr><td><code>behavior</code></td><td>A rule a design document checked into the repository states, or one a person wrote down; listed by <code>thinker system</code></td></tr>
             </tbody>
           </table>
         </div>
@@ -859,29 +803,29 @@ thinker setup --build --yes</code></pre>
       <section id="build">
         <h2>Building the cache</h2>
         <p>
-          <code>thinker setup --build</code> fills the cache from merged pull requests, and prints what it will cost in tokens and minutes before spending anything. Ctrl-C stops it at any time and keeps every note saved so far; the cache keeps growing from your sessions and a few merged pull requests per background run.
+          A build, started from the <a href="#install">warm-up view</a> or with <code>thinker setup --build</code>, fills the cache from merged pull requests, and shows what it will cost in tokens and minutes before spending anything. Stopping it (the Stop button, or Ctrl-C in the terminal) keeps every note saved so far; the cache keeps growing from your sessions and a few merged pull requests per background run.
         </p>
         <ul>
-          <li><strong>Merged pull requests, fixes first.</strong> Up to 60 of them are distilled into rules: what the symptom was, what the fix changed, and what a later change must not undo. The record of a fix is what a reviewing agent draws on most. Every pull request looked at is recorded in <code>.thinker/prs.json</code>, so none is distilled twice.</li>
+          <li><strong>Merged pull requests, fixes first.</strong> Up to 60 of them are distilled into rules: what the symptom was, what the fix changed, and what a later change must not undo. Every pull request looked at is recorded in <code>.thinker/prs.json</code>, so none is distilled twice.</li>
         </ul>
         <pre><code>thinker setup --build --prs 100              <span class="code-comment"># more history</span>
 thinker mine-prs                             <span class="code-comment"># later: go further back through merged pull requests, 20 at a time</span>
 thinker mine-prs --git --fixes               <span class="code-comment"># no GitHub: fix commits from git history</span></code></pre>
         <p>
-          A build starts by reading the design documents checked into the repository (READMEs beside the code, design files) and saves the rules they state as desired behaviors (<code>thinker system docs</code> runs that step alone); it ends by drafting more candidates from the strongest rule notes for a person to accept or discard (<code>thinker system propose</code>). Without a build, the cache starts empty and grows from your sessions.
+          A build also reads the design documents checked into the repository (READMEs beside the code, design files) and saves the rules they state as <code>behavior</code> notes, which an agent editing the code they rest on is handed like any other rule. <code>thinker system</code> lists them. Without a build, the cache starts empty and grows from your sessions.
         </p>
       </section>
 
       <section id="keeping-current">
         <h2>Keeping it current</h2>
         <p>
-          A cache that drifts from the code is worse than none. Thinker keeps itself correct in three ways, all in the background, under a cap of 2M tokens a day:
+          A cache that drifts from the code is worse than none. Thinker keeps itself correct in three ways, all in the background, under a daily token cap (<code>maintain.dailyTokens</code> in the <a href="#configuration">configuration</a>):
         </p>
         <h3>It learns from every session</h3>
         <ul>
           <li><strong>Each session is distilled once, when it ends</strong>, through the agent's own login: up to three new notes, and a verdict on every note it was served. <code>confirmed</code> (the agent acted on it) raises confidence; <code>contradicted</code> (the trace shows a claim was wrong) corrects the body and keeps the history; <code>unused</code> lets it decay. Near-duplicates are merged. A quiet session with nothing to learn from is skipped.</li>
-          <li><strong>Newly merged pull requests</strong> are mined as they land, fixes first, so the next review already knows about the last fix.</li>
-          <li><strong>Agents and people</strong> add notes too: the <code>remember</code> tool, <code>thinker add</code>, and <code>thinker system add</code> for a desired behavior.</li>
+          <li><strong>Newly merged pull requests</strong> are mined as they land, fixes first, so the next session already knows about the last fix.</li>
+          <li><strong>Agents and people</strong> add notes too: the <code>remember</code> tool and <code>thinker add</code>.</li>
         </ul>
         <h3>It knows when a note is stale</h3>
         <ul>
@@ -899,25 +843,6 @@ thinker mine-prs --git --fixes               <span class="code-comment"># no Git
         </div>
       </section>
 
-      <div class="part-label">Code Review</div>
-
-      <section id="behaviors">
-        <h2>Desired behaviors</h2>
-        <p>
-          Every other kind of note is a claim about the code, and when they disagree the note yields. A <code>behavior</code> note is the other way round: a person writes down what the system must do and where that is upheld, and from then on a change must conform, or be called out for not conforming.
-        </p>
-        <pre><code>thinker system                      <span class="code-comment"># every behavior, and whether the code upholds it</span>
-thinker system docs                 <span class="code-comment"># the rules the checked-in READMEs and design documents state</span>
-thinker system add file.json --fixed
-thinker system promote &lt;id&gt;         <span class="code-comment"># a rule the cache already holds becomes a behavior</span>
-thinker system propose              <span class="code-comment"># drafts from the build, and rules worth promoting</span>
-thinker system md                   <span class="code-comment"># write them as .thinker/SYSTEM.md</span>
-thinker ui                          <span class="code-comment"># accept, edit or discard them in the browser</span></code></pre>
-        <p>
-          A <code>fixed</code> behavior is never revised by a change; a <code>mutable</code> one is revised when merged code changes it. Either way the agent reviewing a change that touches the code a behavior governs is handed that behavior.
-        </p>
-      </section>
-
       <div class="part-label">Efficient coding</div>
 
       <section id="in-a-session">
@@ -927,7 +852,7 @@ thinker ui                          <span class="code-comment"># accept, edit or
         </p>
         <ul>
           <li><strong>Each request</strong> gets the note that fits it, with <code>file:Symbol</code> pointers into the code and a <code>[6 call sites in 3 files]</code> tag on each symbol it names. A local ranking model reads the request with the best lexical candidates and serves up to two notes, only those it scores relevant; when it is missing, notes are ranked by words alone. A note is served once per session, never while stale, and not at all for a one-word turn of conversation. When nothing fits, nothing is served.</li>
-          <li><strong>Each file the agent edits</strong> brings the notes resting on it, rules first, so a trap on that code is in front of the agent as it changes it.</li>
+          <li><strong>Each file the agent edits</strong> brings the rules resting on it, so a trap on that code is in front of the agent as it changes it.</li>
           <li><strong>At the end of each turn</strong> one line says what was served: <code>🧠 thinker: 2 notes this turn (pointing at 2 files, ~7k tokens of code)</code>. It does not say "saved": whether the agent acted on a note is known only once the session is assessed.</li>
         </ul>
         <p>
@@ -938,44 +863,24 @@ thinker ui                          <span class="code-comment"># accept, edit or
       <section id="tools">
         <h2>Tools the agent can call</h2>
         <p>
-          Beyond what the hooks serve, the MCP server gives the agent the cache and the code graph on demand:
+          Beyond what the hooks serve, the MCP server gives the agent the cache on demand:
         </p>
         <div class="table-scroll">
           <table>
             <thead><tr><th>Tool</th><th>What it does</th></tr></thead>
             <tbody>
               <tr><td><code>orient</code></td><td>Up to five notes for a task, with the code behind the main pointers, and the notes it did not serve listed by title</td></tr>
-              <tr><td><code>lookup</code></td><td>One specific question, or a note by id; <code>kind: "behavior"</code> for the desired behaviors</td></tr>
-              <tr><td><code>find</code></td><td>The definitions whose name or body carry the words of a query, as pointers with their lines, when no note answers it</td></tr>
-              <tr><td><code>drilldown</code></td><td>A definition whole, with one hop of callers and callees and the notes resting on it</td></tr>
+              <tr><td><code>lookup</code></td><td>One specific question, or a note by id</td></tr>
               <tr><td><code>remember</code>, <code>feedback</code></td><td>Save a note the agent worked out; confirm or correct one it was served</td></tr>
             </tbody>
           </table>
         </div>
         <p>
-          The same tools exist on the command line (<code>thinker orient "&lt;task&gt;"</code>, <code>lookup</code>, <code>find</code>, <code>drilldown</code>). The first prompt of a session tells the agent that <code>find</code> and <code>drilldown</code> exist and how to load them.
+          The same tools exist on the command line (<code>thinker orient "&lt;task&gt;"</code>, <code>lookup</code>). Two code tools, <code>find</code> and <code>drilldown</code>, are off by default: agents are neither offered them nor told about them unless <code>thinker tools enable find drilldown</code> turns them on in a repository.
         </p>
       </section>
 
       <div class="part-label">Measure it yourself</div>
-
-      <section id="benchmark">
-        <h2>Benchmark in your repo</h2>
-        <p>
-          You do not need to take the benchmarks on faith. Thinker can run the same paired comparison on your own repository:
-        </p>
-        <pre><code><span class="code-comment"># A recent merged pull request, with and without the cache</span>
-thinker benchmark pr [number]
-
-<span class="code-comment"># A question the cache covers (Enter takes the first), or your own</span>
-thinker benchmark run "how are permissions checked on project exports"
-
-<span class="code-comment"># The latest comparison again</span>
-thinker benchmark report</code></pre>
-        <p>
-          It makes two read-only agent calls, one without thinker and one with the relevant notes, and compares wall time, turns, tool calls and tokens side by side. Both answers are saved under <code>.thinker/benchmarks/</code> so you can judge their quality yourself; speed alone is not a correctness score. If the cache does not cover a question, no agent call is made and questions it does cover are offered instead.
-        </p>
-      </section>
 
       <section id="usage">
         <h2>Usage and the holdout</h2>
@@ -992,7 +897,7 @@ thinker benchmark report</code></pre>
       <section id="local-page">
         <h2>The local page</h2>
         <p>
-          <code>thinker ui</code> opens a page in your browser, from any directory, with two tabs and the warm-up page behind the Cache tab. The installer opens it on the warm-up page (that page stops by itself after half an hour unused, once no build is queued).
+          <code>thinker ui</code> opens a page in your browser, from any directory, with two views and the warm-up view behind the Cache one. It is where <a href="#install">setup happens</a>: the installer opens it on the warm-up view (the page stops by itself after half an hour unused, once no build is queued).
         </p>
         <pre><code>thinker ui                          <span class="code-comment"># opens the page; Ctrl+C stops it</span>
 thinker ui --tab warmup             <span class="code-comment"># straight to the warm-up page</span>
@@ -1002,8 +907,8 @@ thinker ui --port 4800 --no-open    <span class="code-comment"># a fixed port, w
             <thead><tr><th>View</th><th>What it shows</th></tr></thead>
             <tbody>
               <tr><td>Usage</td><td>What <code>thinker usage</code> reports, over 7 days, 30 days or all time, for one repository or all of them: notes served, what agents acted on, what was learned, the tokens it cost, the holdout comparison, and the notes your agents saw most</td></tr>
-              <tr><td>Cache</td><td>Every repository on this machine with a cache, as a card: notes, fresh and stale, behaviors, hits, last use, and what is being mined or distilled right now, as a progress bar ("mining 3/20 PRs", "distilling 1/4 sessions") with a stop button. Open one for its notes, filtered by status and kind, searched and sorted by hits or age, with the code each points at and where it came from (archive a note or restore it to serving), and below them its <a href="#behaviors">system behaviors</a>, filtered by proposed, active, blocking, warn only, or broken or unverified; accept a proposed one as written or as blocking, edit it, or discard it</td></tr>
-              <tr><td>Warm up (from the Cache page, and the first view after install)</td><td>The git repositories your agents worked in over the last 30 days, most recent first, found from their own session records, with a build estimate each (time and tokens, never dollars). Pick repositories, full or shallow, whole or by directory, and the agent and model; the builds run one at a time and show on the Cache page</td></tr>
+              <tr><td>Cache</td><td>Every repository on this machine with a cache, as a card: notes, fresh and stale, behaviors, hits, last use, and what is being mined or distilled right now, as a progress bar ("mining 3/20 PRs", "distilling 1/4 sessions") with a stop button. Open one for its notes, filtered by status and kind, searched and sorted by hits or age, with the code each points at and where it came from (archive a note or restore it to serving), and below them the behaviors read from its design documents, to accept, edit or discard</td></tr>
+              <tr><td>Warm up (from the Cache view, and the first view after install)</td><td>The git repositories your agents worked in over the last 30 days, most recent first, found from their own session records, with a build estimate each (time and tokens, never dollars). Pick repositories, full or shallow, whole or by directory, and the agent and model; the builds run one at a time and show on the Cache page</td></tr>
             </tbody>
           </table>
         </div>
@@ -1018,12 +923,14 @@ thinker ui --port 4800 --no-open    <span class="code-comment"># a fixed port, w
           <table>
             <thead><tr><th>Command</th><th>What it does</th></tr></thead>
             <tbody>
-              <tr><td><code>thinker setup [--build | --no-build]</code></td><td>Set a repository up: connect the agents, then offer to build the cache from merged pull requests</td></tr>
+              <tr><td><code>thinker setup [--build | --no-build]</code></td><td>Set one repository up from the terminal, as the local page does: connect the agents, then offer to build the cache from merged pull requests</td></tr>
               <tr><td><code>thinker connect</code></td><td>Wire the agents on this machine into their own settings, once; setup and the installer run it first</td></tr>
-              <tr><td><code>thinker system [add | promote | accept | propose | md]</code></td><td>The desired behaviors of the system and whether the code upholds each</td></tr>
-              <tr><td><code>thinker orient "&lt;task&gt;"</code>, <code>lookup</code>, <code>find</code>, <code>drilldown</code></td><td>The MCP tools from the command line</td></tr>
+              <tr><td><code>thinker ui [--tab warmup] [--port n] [--no-open]</code></td><td>The <a href="#local-page">local page</a>: set repositories up, usage, and the notes in each cache</td></tr>
+              <tr><td><code>thinker orient "&lt;task&gt;"</code>, <code>lookup</code></td><td>The MCP tools from the command line</td></tr>
+              <tr><td><code>thinker tools [enable | disable] find drilldown</code></td><td>Two code tools for agents (definitions by their words; a definition whole with its callers and callees), off unless enabled</td></tr>
               <tr><td><code>thinker benchmark [pr | run | report]</code></td><td>Paired agent runs with and without the cache, on your repository</td></tr>
-              <tr><td><code>thinker ui [--port n] [--no-open]</code></td><td>The <a href="#local-page">local page</a>: usage, the notes in the cache, and the behaviors waiting to be accepted</td></tr>
+              <tr><td><code>thinker skills</code></td><td>The skill files (<code>SKILL.md</code>) as the cache sees them: out of date, duplicates, evidence</td></tr>
+              <tr><td><code>thinker system [docs | add | edit | rm | md]</code></td><td>The behaviors read from the design documents, and whether the code upholds each</td></tr>
               <tr><td><code>thinker usage [--here] [--days n]</code></td><td>How the cache has been used, what it cost, and the holdout comparison</td></tr>
               <tr><td><code>thinker impact [--pr n]</code></td><td>Agent work connected to the pull requests it went into</td></tr>
               <tr><td><code>thinker mine-prs [--git --fixes]</code></td><td>Distill merged pull requests (or fix commits) into notes; nothing is mined twice</td></tr>
@@ -1051,10 +958,10 @@ thinker ui --port 4800 --no-open    <span class="code-comment"># a fixed port, w
             <thead><tr><th>Key</th><th>Effect</th></tr></thead>
             <tbody>
               <tr><td><code>learn</code></td><td><code>{"sessions": false}</code> stops distilling sessions; pull requests and re-verification go on</td></tr>
-              <tr><td><code>maintain</code></td><td><code>enabled</code>, <code>dailyTokens</code> (2,000,000), <code>verifyPerRun</code> (10), <code>phrasePerRun</code> (8), <code>prsPerRun</code> (3), <code>docs</code> (true), <code>docsPerRun</code> (3: new or changed design documents read into behaviors per run)</td></tr>
+              <tr><td><code>maintain</code></td><td><code>enabled</code>, <code>dailyTokens</code> (50,000,000 with a Haiku-class distillation model, 2,000,000 otherwise), <code>verifyPerRun</code> (10), <code>phrasePerRun</code> (8), <code>prsPerRun</code> (3), <code>docs</code> (true), <code>docsPerRun</code> (3: new or changed design documents read into behaviors per run)</td></tr>
               <tr><td><code>archive</code></td><td><code>kinds</code> and <code>unservedDays</code> (30), or <code>false</code></td></tr>
               <tr><td><code>holdout</code></td><td>The share of sessions served nothing (0.15; 0 or <code>false</code>: none)</td></tr>
-              <tr><td><code>ce</code></td><td>The local ranker the hooks choose notes with: <code>floor</code> (0), <code>maxNotes</code> (1), or <code>false</code> to rank by words alone</td></tr>
+              <tr><td><code>ce</code></td><td>The local ranker the hooks choose notes with: <code>floor</code> (0), <code>maxNotes</code> (2), or <code>false</code> to rank by words alone</td></tr>
               <tr><td><code>snippets</code>, <code>notice</code></td><td><code>false</code>: no code behind the pointers; no end-of-turn line</td></tr>
               <tr><td><code>distillModel</code>, <code>verifyModel</code></td><td>The model for each kind of call</td></tr>
               <tr><td><code>telemetry</code></td><td><code>false</code>: no metrics sent</td></tr>
@@ -1086,7 +993,7 @@ export THINKER_TELEMETRY=off
         <div class="faq-item" id="faq-data">
           <h3>Where is my data stored? Does anything leave my machine?</h3>
           <p>
-            The cache lives in the repository it describes. Notes built from pull requests and notes shared with the team are under <code>.thinker/notes/</code>, committed and reviewed like code. What the sessions on this checkout learned is under <code>.thinker/local/</code>, which git ignores. <code>.thinker/config.json</code> holds the configuration and <code>.thinker/prs.json</code> the list of pull requests already read. Per machine, <code>~/.thinker/</code> holds the installed app, the usage log every serving is recorded in, and the ranking model.
+            The cache lives in the repository it describes, and it stays on your machine. Notes, from pull requests and from sessions alike, are under <code>.thinker/local/</code>, which git ignores; there is no team sharing or sync. Notes that an older version committed under <code>.thinker/notes/</code> are still read. <code>.thinker/config.json</code> holds the configuration and <code>.thinker/prs.json</code> the list of pull requests already read. Per machine, <code>~/.thinker/</code> holds the installed app, the usage log every serving is recorded in, and the ranking model.
           </p>
           <p>Three things leave the machine, and nothing else:</p>
           <ul>
@@ -1095,7 +1002,7 @@ export THINKER_TELEMETRY=off
             <li><strong>The ranking model is downloaded once at install</strong> (about 23 MB) and runs on your machine. Ranking never calls a service.</li>
           </ul>
           <p>
-            <code>gh</code> reads merged pull requests from GitHub during mining; it posts nothing. The local page of <code>thinker ui</code> listens on 127.0.0.1 only. Notes reach teammates through git alone.
+            <code>gh</code> reads merged pull requests from GitHub during mining; it posts nothing. The local page of <code>thinker ui</code> listens on 127.0.0.1 only.
           </p>
           <p>
             <strong>A repository with sensitive content can be turned off</strong> on the warm-up page of <code>thinker ui</code>, or with <code>thinker disable</code> inside it. Thinker then does nothing there, in any clone or worktree: the hooks and the MCP server serve nothing, no session is distilled, no pull request is read, and nothing is written into it. <code>thinker enable</code> turns it back on.
@@ -1109,11 +1016,10 @@ export THINKER_TELEMETRY=off
           </p>
           <ul>
             <li><strong>On each request</strong> a hook picks the lexical candidates, then a local ranking model reads the request against them and serves up to two notes, only those it scores relevant, with the code behind its pointers and a count of call sites for each symbol named. The agent starts at the code instead of searching for it.</li>
-            <li><strong>On each file edit</strong> the notes resting on that file are served, rules first, so a trap on that code is in view while it is changed.</li>
-            <li><strong>On demand</strong>, the MCP tools <code>orient</code>, <code>lookup</code>, <code>find</code> and <code>drilldown</code> give the agent notes and the code graph when the hooks served nothing.</li>
+            <li><strong>On each file edit</strong> the rules resting on that file are served, so a trap on that code is in view while it is changed.</li>
+            <li><strong>On demand</strong>, the MCP tools <code>orient</code> and <code>lookup</code> give the agent notes when the hooks served nothing.</li>
             <li><strong>Never stale.</strong> Every serving re-hashes the dependencies of every note against your working tree. A note whose code changed is held back, re-verified in the background, and served again once it is fresh.</li>
             <li><strong>Once per session.</strong> A note is served once, not for one-word turns, and not at all when nothing fits.</li>
-            <li><strong>Reviews draw on the same notes.</strong> The record of a past fix is what lets an agent reviewing a change say that it undoes one.</li>
           </ul>
           <p>
             The cache keeps itself: each session is distilled once when it ends, newly merged pull requests are mined as they land, and a maintenance run every four hours re-verifies stale notes and archives the ones sessions never acted on. See <a href="#keeping-current">Keeping it current</a>.
@@ -1123,16 +1029,16 @@ export THINKER_TELEMETRY=off
         <div class="faq-item" id="faq-mining">
           <h3>Why does mining take so long? Can I skip it?</h3>
           <p>
-            Each merged pull request is read by a frontier model through your agent's login: title, description, review comments and the diff, about 14k tokens and 8 seconds per pull request, four at a time. The default build reads up to 60 of them, then reads the design documents, writes search phrasings for every new note, and drafts desired behaviors from the strongest rules, each a model call. Rate limits on the login stretch it further. The estimate in tokens and minutes is printed before anything is spent.
+            Each merged pull request is read by a frontier model through your agent's login: title, description, review comments and the diff, about 14k tokens and 8 seconds per pull request, four at a time. The default build reads up to 60 of them, then reads the design documents and writes search phrasings for every new note, each a model call. Rate limits on the login stretch it further. The estimate in tokens and minutes is shown before anything is spent.
           </p>
           <p>Yes, you can skip it, and nothing stops working:</p>
           <ul>
-            <li>Answer no at setup, or run <code>thinker setup --no-build</code>. Thinker is wired and the cache grows from your own sessions.</li>
+            <li>Press <strong>Skip for now</strong> on the warm-up view, or run <code>thinker setup --no-build</code>. Thinker is wired and the cache grows from your own sessions.</li>
             <li>Pick <strong>Shallow</strong>: the newest 30% of the same pull requests.</li>
-            <li>Ctrl-C at any point keeps every note saved so far. <code>thinker mine-prs</code> continues where it stopped, 20 pull requests at a time, and the background maintenance mines a few new ones per run anyway.</li>
+            <li>Stopping a build at any point keeps every note saved so far. <code>thinker mine-prs</code> continues where it stopped, 20 pull requests at a time, and the background maintenance mines a few new ones per run anyway.</li>
           </ul>
           <p>
-            What a build gives you that sessions cannot is the record of past fixes, which is what a reviewing agent draws on most. A repository with little history loses little by skipping it.
+            What a build gives you that sessions cannot is the record of past fixes. A repository with little history loses little by skipping it.
           </p>
         </div>
 
@@ -1142,7 +1048,6 @@ export THINKER_TELEMETRY=off
             <li><strong>At the end of each turn</strong> one line says what was served and the code it pointed at. It does not say "saved": whether the agent acted on a note is known only once the session is assessed.</li>
             <li><strong><code>thinker usage</code></strong>, and the Usage view of <code>thinker ui</code>, show notes served, what the sessions did with them (confirmed, contradicted, unused), what learning and maintenance cost in tokens, and an estimate of the reads avoided.</li>
             <li><strong>The holdout is measured, not estimated.</strong> 15% of sessions are served nothing, chosen by session id, and every session's cost is read from its own transcript. Once five sessions stand on each side, the holdout section compares them as medians per model: tool calls and tokens with notes against without, on your repository, by your agent.</li>
-            <li><strong><code>thinker benchmark pr</code></strong> runs a recent merged pull request with and without the cache and compares time, turns, tool calls and tokens; both answers are saved under <code>.thinker/benchmarks/</code> so you can judge their quality. See <a href="#benchmark">Benchmark in your repo</a>.</li>
           </ul>
           <p>
             A note served is not a note used. Read the confirmed and unused counts rather than the hit rate; a cache that serves often and is rarely acted on is costing tokens, and maintenance archives such notes over time.

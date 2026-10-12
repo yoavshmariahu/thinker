@@ -17,7 +17,10 @@ import { areasConfig, saveAreas } from './areas.js';
 
 export const DEFAULTS = {
   enabled: true,    // `maintain: { enabled: false }` in .thinker/config.json switches it off
-  dailyTokens: 2_000_000, // tokens of reported generative model usage per day, learning and maintenance together (about 80 distillations); 0: no cap
+  // tokens of reported generative model usage per day, learning and maintenance together; 0: no cap.
+  // 50M is about $5 a day at Haiku 5.5 or GPT-6 Luna list prices, the distillation models since
+  // 2026-10-11; a costlier distillModel gets DAILY_TOKENS_COSTLY unless the config says otherwise
+  dailyTokens: 50_000_000,
   verifyPerRun: 10, // stale notes re-verified per run, most served first
   verifyServedDays: 14, // only notes served this recently are re-verified ahead of time (0: all); the rest wait to be served
   verifyChurn: 3,   // a note re-verified this many times in a week is left stale and reported (0: never)
@@ -33,9 +36,14 @@ export const DEFAULTS = {
 export const MAINTENANCE_INTERVAL_MS = 4 * 60 * 60_000;
 const LOCK_MS = 15 * 60_000;
 
+// The daily default for a distillation model that is not in the cheap class (Haiku, Luna, Flash).
+export const DAILY_TOKENS_COSTLY = 2_000_000;
+const CHEAP_MODEL = /haiku|luna|flash/i;
 export function maintainConfig(store) {
-  const c = store.config().maintain;
-  return { ...DEFAULTS, ...(c && typeof c === 'object' ? c : {}) };
+  const cfg = store.config();
+  const c = cfg.maintain;
+  const dailyTokens = CHEAP_MODEL.test(cfg.distillModel || 'haiku') ? DEFAULTS.dailyTokens : DAILY_TOKENS_COSTLY;
+  return { ...DEFAULTS, dailyTokens, ...(c && typeof c === 'object' ? c : {}) };
 }
 
 // Tokens the model calls of learning and maintenance reported since local midnight.
@@ -56,7 +64,8 @@ export function spentToday(store, now = new Date()) {
 // now, except that a `dailyCap` of 0 or false still means no cap.
 export function withinDailyCap(store, { now = new Date(), spentFn = spentToday } = {}) {
   const cfg = maintainConfig(store);
-  const legacyOff = 'dailyCap' in cfg && !cfg.dailyCap && cfg.dailyTokens === DEFAULTS.dailyTokens;
+  const set = store.config().maintain;
+  const legacyOff = 'dailyCap' in cfg && !cfg.dailyCap && !(set && typeof set === 'object' && 'dailyTokens' in set);
   const cap = legacyOff ? 0 : Number(cfg.dailyTokens);
   if (!Number.isFinite(cap) || cap <= 0) return { ok: true, spent: 0, cap: 0 };
   const spent = spentFn(store, now);
