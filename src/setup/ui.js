@@ -355,3 +355,52 @@ export async function selectMenu({
 
   return defaultItem;
 }
+
+// The arrow-key multi-select (`thinker warmup`): ↑/↓ move, Space toggles a row, a picks every row that can be
+// picked, n clears, Enter confirms, Esc confirms nothing. Items: { label, picked, disabled, note }; a disabled
+// row is shown and cannot be toggled. Resolves the picked items, or null for Esc / Ctrl+C. Without a TTY the
+// caller asks a plain question instead (warmup.js).
+export async function multiSelect({ header = '', hint = '↑/↓ move, Space toggles, Enter starts, Esc skips', items = [], out = console.log, stdin = process.stdin, stdout = process.stdout, clearOnSelect = true } = {}) {
+  if (!items.length) return [];
+  const picked = items.map(it => Boolean(it.picked) && !it.disabled);
+  let cursor = Math.max(0, items.findIndex(it => !it.disabled));
+  if (header) out(header);
+  const lines = () => [`  ${c.dim(hint)}`, ...items.map((it, i) => {
+    const mark = it.disabled ? c.dim('[ ]') : picked[i] ? c.cyan('[x]') : '[ ]';
+    const label = i === cursor ? c.bold(it.label) : it.disabled ? c.dim(it.label) : it.label;
+    return `  ${i === cursor ? c.cyan('❯') : ' '} ${mark} ${label}${it.note ? ` ${c.dim(it.note)}` : ''}`;
+  })];
+  const n = 1 + items.length;
+  const draw = () => { for (const l of lines()) stdout.write(l + '\n'); };
+  const erase = () => { try { readline.moveCursor(stdout, 0, -n); readline.cursorTo(stdout, 0); readline.clearScreenDown(stdout); } catch {} };
+  draw();
+  readline.emitKeypressEvents(stdin);
+  const wasRaw = stdin.isRaw;
+  try { stdin.setRawMode?.(true); } catch {}
+  try { stdin.resume(); } catch {}
+  try { stdout.write('\x1b[?25l'); } catch {}
+  return new Promise(resolve => {
+    const finish = result => {
+      stdin.removeListener('keypress', onKey); process.removeListener('SIGINT', onInt);
+      try { stdout.write('\x1b[?25h'); } catch {}
+      try { stdin.setRawMode?.(wasRaw || false); } catch {}
+      try { stdin.pause(); } catch {}
+      if (clearOnSelect) erase();
+      resolve(result);
+    };
+    const onInt = () => { finish(null); process.exit(130); };
+    process.once('SIGINT', onInt);
+    const move = d => { for (let k = 0; k < items.length; k++) { cursor = (cursor + d + items.length) % items.length; if (!items[cursor].disabled) break; } };
+    const onKey = (str, key = {}) => {
+      if (key.ctrl && key.name === 'c') return onInt();
+      if (key.name === 'up' || str === 'k') { move(-1); erase(); draw(); return; }
+      if (key.name === 'down' || str === 'j') { move(1); erase(); draw(); return; }
+      if (key.name === 'space' || str === ' ') { if (!items[cursor].disabled) picked[cursor] = !picked[cursor]; erase(); draw(); return; }
+      if (str === 'a') { items.forEach((it, i) => { picked[i] = !it.disabled; }); erase(); draw(); return; }
+      if (str === 'n') { picked.fill(false); erase(); draw(); return; }
+      if (key.name === 'return' || key.name === 'enter' || str === '\r' || str === '\n') return finish(items.filter((_, i) => picked[i]));
+      if (key.name === 'escape') return finish(null);
+    };
+    stdin.on('keypress', onKey);
+  });
+}

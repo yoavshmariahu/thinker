@@ -378,32 +378,30 @@ EOF
     THINKER_INSTALLER=1 "$thinker" setup $args --repo "$repo"
   fi
 
-  # --- the warm-up page -----------------------------------------------------------
-  # The page lists the repositories your agents have worked in; pick the ones to build a cache for.
-  # Opened detached (the server exits on its own once idle); not from CI or a pipe with no terminal.
-  local opened=0
-  if [ -z "${CI:-}" ] && [ -t 1 ] && [ "$build" != 1 ]; then
-    ( "$thinker" ui --from-setup --tab warmup >/dev/null 2>&1 & ) && opened=1
-  fi
+  # --- the warm-up ------------------------------------------------------------------
+  # Every git repository has a cache from here on. Warming one reads its merged pull requests, and
+  # `thinker warmup` asks where to choose them: the page in the browser, or right here (a machine with
+  # no display, as over ssh, is offered the terminal alone). Not from CI or a pipe with no terminal.
   local version; version="$(node -p "require('$home/app/package.json').version" 2>/dev/null || echo '?')"
   path_hint
   say ""
-  local how="Pick the repositories to warm up on the page that just opened"
-  [ "$opened" = 1 ] || how="Pick the repositories to warm up: ${cyan}thinker ui${reset}"
   if [ "$fancy" = 1 ]; then
     box "$green" "${green}✓${reset} ${bold}Install complete${reset} ${dim}· Thinker v$version${reset}" "" \
       "Installed into ${home/#$HOME/~} and wired into your agents." \
       "Thinker now runs in every git repository on this machine." \
-      "$how" \
-      "${dim}(open it again any time with thinker ui).${reset}" \
+      "Warm up caches any time: ${cyan}thinker warmup${reset} here, or ${cyan}thinker ui${reset} in the browser." \
       "${dim}Notes stay on this machine; Thinker uploads none.${reset}" "" \
       "${yellow}*${reset} ${magenta}~${reset} ${yellow}*${reset}  ${bold}all done · happy shipping${reset}  ${yellow}*${reset} ${magenta}~${reset} ${yellow}*${reset}"
   else
     say "Install complete: Thinker v$version, installed into $home and wired into your agents."
     say "Thinker now runs in every git repository on this machine."
-    if [ "$opened" = 1 ]; then say "Pick the repositories to warm up on the page that just opened (open it again any time with thinker ui)."
-    else say "Pick the repositories to warm up: thinker ui"; fi
+    say "Warm up caches any time: thinker warmup here, or thinker ui in the browser."
     say "Notes stay on this machine; Thinker uploads none."
+  fi
+  if [ -z "${CI:-}" ] && [ "$build" != 1 ]; then
+    if [ -t 0 ]; then "$thinker" warmup
+    elif [ -r /dev/tty ] && (exec < /dev/tty) 2>/dev/null; then "$thinker" warmup < /dev/tty
+    fi
   fi
 }
 

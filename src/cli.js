@@ -18,6 +18,7 @@ import { commands as setupCommands } from './commands/setup.js';
 import { commands as telemetryCommands } from './commands/telemetry.js';
 import { commands as benchmarkCommands } from './commands/benchmark.js';
 import { commands as doctorCommands } from './commands/doctor.js';
+import { commands as warmupCommands } from './commands/warmup.js';
 import { commands as switchCommands } from './commands/repo-switch.js';
 import { isDisabledRepo, OFF_MESSAGE } from './repo-switch.js';
 
@@ -152,6 +153,12 @@ const HELP = `thinker — knowledge cache for coding agents
   impact export | impact import <file.json>   transfer evidence from CI or another machine
   impact finding <id> --pr n --validity confirmed|dismissed|duplicate|pending --evidence reason
          [--resolution fixed|open|accepted-risk|not-applicable] [--fix sha] [--duplicate-of id]
+  warmup [--terminal | --browser | --skip] [--repos name,name] [--yes] [--dry]
+                                 warm up caches from the terminal: open the warm-up page in the browser, or here: the
+                                 ten repositories your agents work in, the top five picked (arrows move, Space toggles,
+                                 Enter starts, Esc skips), each built with thinker setup --build at full depth; the
+                                 installer runs this last. A machine without a display (ssh) is not
+                                 offered the browser. --yes takes the picked ones, --repos names them, --dry only says
   ui [--port n] [--no-open] [--tab usage|cache|warmup]
                                  open the local page, from any directory: usage by repository, the caches on this machine
                                  (each with its notes, to archive or restore, its system behaviors, to accept, edit or
@@ -194,10 +201,10 @@ const HELP = `thinker — knowledge cache for coding agents
 const CACHE_COMMANDS = ['tools', 'orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback', 'skills'];
 
 // One handler per command, in src/commands/; each gets the context below and nothing else of this file.
-const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...skillsCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...switchCommands };
+const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...skillsCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...warmupCommands, ...switchCommands };
 // Commands that still answer in a repository thinker is switched off for (repo-switch.js): the machine-wide
 // ones, the ones about the install itself, and the switch. `hook` keeps quiet by itself.
-const OFF_COMMANDS = ['enable', 'disable', 'ui', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'stats', 'ast', 'ranker', 'hook', 'serve', undefined];
+const OFF_COMMANDS = ['enable', 'disable', 'ui', 'warmup', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'stats', 'ast', 'ranker', 'hook', 'serve', undefined];
 
 async function main() {
   if (!OFF_COMMANDS.includes(cmd) && isGitCheckout(repo) && isDisabledRepo(repo)) { process.stderr.write(`thinker: ${OFF_MESSAGE}\n`); process.exit(1); }
@@ -221,7 +228,7 @@ async function main() {
     if (!store.exists()) store.init();
   }
   // symbol boundaries by tree-sitter where its grammars are installed (`thinker ast install`), else by regex
-  if (!['update', 'upgrade', 'switch', 'branch', 'serve', 'ast', 'usage', 'impact', 'stats', 'telemetry', 'help', undefined].includes(cmd)) await initAst();
+  if (!['update', 'upgrade', 'switch', 'branch', 'serve', 'ast', 'usage', 'impact', 'stats', 'telemetry', 'help', 'warmup', undefined].includes(cmd)) await initAst();
 
   const handler = COMMANDS[cmd];
   if (!handler) { out(HELP); return; }

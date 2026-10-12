@@ -171,7 +171,14 @@ warm-up page. Every git repository on the machine has a cache from then on:
 the first hook, MCP server or cache command in a checkout starts one, empty
 (`store.js:init`, kept out of `git status` through `.git/info/exclude`), and it
 grows from the sessions there. Nothing is opt-in but the warm-up: building a
-cache from merged pull requests, on the page or with `thinker setup --build`.
+cache from merged pull requests. The installer ends with `thinker warmup`
+(`commands/warmup.js`): browser or terminal, then the ten repositories the
+agents work in (`machine.js:warmupCandidates`) with the top five picked (`setup/ui.js:multiSelect`: arrows, Space, Enter;
+Esc skips; a plain Y/n without a TTY), each built
+with `thinker setup --build` at full depth around the person's areas
+(`setup/project.js`, `--yes`). A machine without a display (ssh,
+`headless`) is offered the terminal alone: the page binds 127.0.0.1 of the
+machine it runs on, and until 2026-10-12 the installer launched it blind there.
 Outside a git repository there is nowhere to keep a cache: the CLI's cache
 commands stop with that message (`cli.js:CACHE_COMMANDS`), the MCP server
 offers no tools and says so in its instructions, and the hooks are quiet. A
