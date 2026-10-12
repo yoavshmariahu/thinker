@@ -12,6 +12,7 @@ const PH = process.argv.slice(2).filter(a => a.endsWith('.json'));
 const side = Object.fromEntries(PH.map(f => [f.replace(/\.json$/, ''), JSON.parse(fs.readFileSync(SP + f, 'utf8'))]));
 const SETS = { first: { tasks: 'bench/tasks/mlflow-hard.json', clone: 'bench/repos/mlflow', notes: 'bench/notesets/mlflow-v1/notes' }, harder: { tasks: 'bench/tasks/mlflow-b2-hard.json', clone: 'bench/repos/mlflow-b2', notes: 'bench/notesets/mlflow-v2/notes' } };
 const POLICIES = [
+  { name: 'one note: gate on, k 8, floor 0, max 1', gate: true, k: 8, floor: 0, max: 1 },
   { name: 'shipped: gate on, k 8, floor 0, max 2', gate: true, k: 8, floor: 0, max: 2 },
   { name: 'gate off, k 8, max 2', gate: false, k: 8, floor: 0, max: 2 },
   { name: 'gate off, k 16, max 2', gate: false, k: 16, floor: 0, max: 2 },
