@@ -1,4 +1,4 @@
-# thinker — a knowledge cache for coding agents
+# thinker: a knowledge cache for coding agents
 
 ![Pixel-art blue sky with white clouds](docs/images/sky.png)
 
