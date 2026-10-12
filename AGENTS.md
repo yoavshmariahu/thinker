@@ -155,17 +155,19 @@ into `bench/repos/<name>` first.
 ## What `setup` does
 
 The installer (`install.sh`) installs the tool wherever it is run and wires
-it into the agents on this machine (`thinker connect`, below). Inside a git
-repository it also sets that repository up; anywhere else it says to run
-`thinker setup` inside a repository. `setup` is the only command that sets a
-repository up: `thinker init` was removed and says so. A repository where
-`setup` has not run has no `.thinker/`, and the cache is not used there: the
-CLI's cache commands stop with that message (`cli.js:CACHE_COMMANDS`), the MCP
-server offers no tools and says so in its instructions, and the hooks are
-quiet. Only the commands that build a cache (`setup`, `mine-prs`,
-`import`, `add`, `record`, `distill`) create one. That rule is what makes the
-machine-wide wiring safe: the hooks and the MCP server are present in every
-checkout and act only in one that is set up.
+it into the agents on this machine (`thinker connect`, below), then opens the
+warm-up page. Every git repository on the machine has a cache from then on:
+the first hook, MCP server or cache command in a checkout starts one, empty
+(`store.js:init`, kept out of `git status` through `.git/info/exclude`), and it
+grows from the sessions there. Nothing is opt-in but the warm-up: building a
+cache from merged pull requests, on the page or with `thinker setup --build`.
+Outside a git repository there is nowhere to keep a cache: the CLI's cache
+commands stop with that message (`cli.js:CACHE_COMMANDS`), the MCP server
+offers no tools and says so in its instructions, and the hooks are quiet. A
+prompt an empty cache has nothing for is logged as a request all the same
+(`commands/hooks.js`), so `thinker usage` and the telemetry count the machine
+as active; before 2026-10-12 it was not, and a machine in daily use read as
+idle until its cache had learned something.
 
 The wiring lives in the agents' own settings, once per machine, since
 2026-10-04 (`clients.js:wiringFiles`, scope `user`): `~/.claude/settings.json`

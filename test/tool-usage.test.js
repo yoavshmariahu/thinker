@@ -115,3 +115,25 @@ test('the server neither offers nor mentions a code tool that is off; thinker to
   assert.match(cli('tools', 'disable', 'find'), /find: off\ndrilldown: on/);
   assert.deepEqual(serverSays(dir).tools.map(t => t.name).filter(n => ['find', 'drilldown'].includes(n)), ['drilldown']);
 });
+
+// Every git repository has a cache (cli.js, hooks.js: store.init on first use), empty until it learns.
+// A prompt the empty cache has nothing for says nothing, as before, and is logged as a request all the
+// same: the telemetry's active devices and `thinker usage` read requests, and on 2026-10-12 seven of
+// eight reporting devices read as idle while their agents ran thinker on every prompt.
+test('a prompt in a repository whose cache is empty says nothing and logs the request', () => {
+  const dir = gitRepo();
+  assert.ok(!fs.existsSync(path.join(dir, '.thinker')));
+  const outp = hook(dir, 'prompt', { session_id: 'e1', prompt: 'where does fetchRows read the rows from' });
+  assert.equal(outp.trim(), '', 'an empty cache injects nothing');
+  assert.ok(fs.existsSync(path.join(dir, '.thinker')), 'the cache is started on first use');
+  const orients = fs.readFileSync(path.join(dir, '.thinker/log.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l)).filter(e => e.op === 'orient');
+  assert.equal(orients.length, 1);
+  assert.deepEqual(orients[0].served, []);
+  assert.equal(orients[0].empty, true);
+  assert.equal(orients[0].session, 'e1');
+  assert.equal(orients[0].client, 'claude');
+  // the request counts in the usage summary, unanswered
+  const u = execFileSync('node', [CLI, 'usage', '--json', '--repo', dir], { encoding: 'utf8', env });
+  const j = JSON.parse(u);
+  assert.equal(j.requests, 1); assert.equal(j.answered, 0);
+});

@@ -75,7 +75,12 @@ async function hookCommand(ctx) {
     // sessions with thinker's help against sessions without.
     const introOk = store.exists() && !['windsurf', 'pi', 'copilot'].includes(client) && !holdoutSession(store, session);
     const emit = text => { if (client === 'cursor' || client === 'copilot') parkPending(store.dir, session, text); else out(promptOutput(client, text)); };
-    if (!store.exists() || !store.list().length || client === 'windsurf') return;
+    if (!store.exists() || client === 'windsurf') return;
+    // Every git repository has a cache, started on first use and empty until it learns. A prompt it has
+    // nothing for is still a request: `thinker usage` and the telemetry count a machine as active by its
+    // requests, and a cache in daily use that has not learned yet must not read as a machine thinker never
+    // ran on (2026-10-12: seven of eight reporting devices read as idle for exactly this). Nothing is said.
+    if (!store.list().length) { store.log({ op: 'orient', session: session === 'unknown' ? undefined : session, client, task: String(ev.prompt || '').slice(0, 200), served: [], empty: true }); return; }
     // outcome signal: a correction-shaped follow-up counts against the notes served earlier in this session
     if (session !== 'unknown' && looksLikeCorrection(ev.prompt)) outcome(store, { session, positive: false, reason: 'correction prompt: ' + String(ev.prompt).slice(0, 80) });
     if (session !== 'unknown') rememberTask(store, session, ev.prompt);
