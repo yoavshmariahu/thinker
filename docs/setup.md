@@ -16,7 +16,11 @@ two things in the terminal and asks nothing there:
 
 From then on thinker runs in every git repository on this machine: a cache starts,
 empty, with the first agent session in a repository (kept out of `git status` through
-`.git/info/exclude`) and grows from your sessions.
+`.git/info/exclude`) and grows from your sessions. The hooks start serving from it once
+it holds a few notes (three; `minNotes` in `.thinker/config.json` changes that), so a
+young cache costs a session nothing. The MCP tools are there from the start; a server
+started outside a repository (a container, a desktop app) binds to the repository of the
+first call that names the agent's working directory.
 
 Warming a cache reads the repository's merged pull requests into it, so the first
 session there already finds notes. The installer ends with `thinker warmup`, which asks

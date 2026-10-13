@@ -99,7 +99,7 @@ export async function warmupCommand(ctx, { selectAgentFn = selectAndAuthenticate
   const model = await selectModelFn({ agent: auth.agent, model: flags.model, yes: !!flags.yes || !!flags.dry, out });
   if (model === null) { out('  Warm-up skipped.'); later(); return; }
   const seconds = chosen.reduce((a, r) => a + (r.estimates[DEFAULT_DEPTH].seconds || 0), 0);
-  out(`\n  Warming up ${chosen.length === 1 ? chosen[0].name : `${chosen.length} repositories`}, about ${formatDuration(seconds)} in all, one at a time. ${c.dim('Each is thinker setup --build; a cache is used as soon as it has notes.')}\n`);
+  out(`\n  Warming up ${chosen.length === 1 ? chosen[0].name : `${chosen.length} repositories`}, about ${formatDuration(seconds)} in all, one at a time. ${c.dim('Each is thinker setup --build; the hooks serve a cache once it holds a few notes.')}\n`);
   let failed = 0;
   for (const r of chosen) {
     // --yes takes the person's areas when there are any (setup/project.js), the whole repository otherwise

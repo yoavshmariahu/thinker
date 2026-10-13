@@ -78,6 +78,7 @@ test('a held-out orient serves nothing, marks nothing served, and logs what it w
 
 test('the hooks of a held-out turn serve nothing, and every stop logs the session stats with the turn number', () => withEnv({ THINKER_LOG: 'local', THINKER_HOLDOUT: '1', THINKER_NO_BG_VERIFY: '1', THINKER_NO_LEARN: '1' }, async () => {
   const dir = gitRepo(); const store = new Store(dir).init();
+  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ ...store.config(), minNotes: 1 })); // one note serves here (ops.js:SERVE_MIN_NOTES)
   createNote(store, { title: 'fetchRows reads the rows table', kind: 'gotcha', answers: ['how are rows fetched'], body: 'src/a.js:fetchRows reads the rows table; saveRows must run after it', deps: [{ path: 'src/a.js', symbol: 'fetchRows' }] });
   const env = { ...process.env };
   const transcript = path.join(dir, 'h1.jsonl');

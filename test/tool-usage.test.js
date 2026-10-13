@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { Store } from '../src/store.js';
-import { createNote } from '../src/ops.js';
+import { createNote, SERVE_MIN_NOTES } from '../src/ops.js';
 
 const CLI = new URL('../src/cli.js', import.meta.url).pathname;
 const git = (repo, ...args) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args], { cwd: repo, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
@@ -23,9 +23,11 @@ const logOps = dir => fs.readFileSync(path.join(dir, '.thinker/log.jsonl'), 'utf
 
 // find and drilldown are off unless the repository turned them on (cache-guidance.js:disabledTools).
 const enableCodeTools = store => fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ ...store.config(), disabledTools: [] }));
+// the hooks serve from a cache once it holds SERVE_MIN_NOTES (ops.js); these caches hold one note
+const serveFromOne = store => fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ ...store.config(), minNotes: 1 }));
 
 test('with the code tools off, as shipped, the bundle comes without an intro and names neither tool', () => {
-  const dir = gitRepo(); const store = new Store(dir).init();
+  const dir = gitRepo(); const store = new Store(dir).init(); serveFromOne(store);
   createNote(store, { title: 'fetchRows reads the rows table', kind: 'rule', answers: ['how are rows fetched', 'where does fetchRows read the rows from'], body: 'src/a.js:fetchRows reads the rows table; nothing else may', deps: [{ path: 'src/a.js', symbol: 'fetchRows' }] });
   const first = hook(dir, 'prompt', { session_id: 'off1', prompt: 'where does fetchRows read the rows from' });
   assert.ok(first.startsWith('<thinker-cache>'), 'no tool intro');
@@ -47,7 +49,7 @@ test('with the code tools off, as shipped, the bundle comes without an intro and
 // It does not tell the agent to run a review: that is done when asked for.
 test('the first served bundle of a session introduces find and drilldown, with the ToolSearch that loads them in Claude Code; once; never alone', () => {
   const dir = gitRepo(); const store = new Store(dir).init();
-  enableCodeTools(store);
+  enableCodeTools(store); serveFromOne(store);
   // an empty cache: nothing to orient on, nothing is said
   const empty = hook(dir, 'prompt', { session_id: 's0', prompt: 'where does fetchRows read the rows from' });
   assert.equal(empty.trim(), '', 'an empty cache injects nothing, not even the intro');
@@ -72,7 +74,7 @@ test('the first served bundle of a session introduces find and drilldown, with t
 
 test('with notes served, the intro comes with the bundle; an edit brings late notes and no review nudge', () => {
   const dir = gitRepo(); const store = new Store(dir).init();
-  enableCodeTools(store);
+  enableCodeTools(store); serveFromOne(store);
   createNote(store, { title: 'fetchRows reads the rows table', kind: 'rule', answers: ['how are rows fetched', 'where does fetchRows read the rows from'], body: 'src/a.js:fetchRows reads the rows table; nothing else may', deps: [{ path: 'src/a.js', symbol: 'fetchRows' }] });
   const prompt = hook(dir, 'prompt', { session_id: 'e1', prompt: 'where does fetchRows read the rows from' });
   assert.match(prompt, /<thinker-tools>[\s\S]*<thinker-cache>/);
@@ -136,4 +138,25 @@ test('a prompt in a repository whose cache is empty says nothing and logs the re
   const u = execFileSync('node', [CLI, 'usage', '--json', '--repo', dir], { encoding: 'utf8', env });
   const j = JSON.parse(u);
   assert.equal(j.requests, 1); assert.equal(j.answered, 0);
+});
+
+// The hooks serve from a cache once it holds a few notes (ops.js:SERVE_MIN_NOTES; `minNotes` in the
+// repository's config overrides): one or two are not yet a map of the repository, and a cache that
+// young is treated as the empty one above, by the prompt hook and by the late notes alike.
+test('a cache under the serving threshold is served by neither hook, and the threshold is the repository\'s to set', () => {
+  const dir = gitRepo(); const store = new Store(dir).init();
+  // two notes on other topics first, then the one the prompt asks about
+  createNote(store, { title: 'Exports are written as CSV with a header row', kind: 'rule', answers: ['export format'], body: 'src/a.js:fetchRows feeds the CSV export', deps: [{ path: 'src/a.js' }] });
+  createNote(store, { title: 'Config is read from the environment once', kind: 'rule', answers: ['where config comes from'], body: 'src/a.js: config is read once at start', deps: [{ path: 'src/a.js' }] });
+  const note = () => createNote(store, { title: 'fetchRows reads the rows table', kind: 'rule', answers: ['how are rows fetched', 'where does fetchRows read the rows from'], body: 'src/a.js:fetchRows reads the rows table; nothing else may', deps: [{ path: 'src/a.js', symbol: 'fetchRows' }] });
+  assert.equal(store.list().length, 2);
+  assert.equal(SERVE_MIN_NOTES, 3);
+  assert.equal(hook(dir, 'prompt', { session_id: 'u1', prompt: 'where does fetchRows read the rows from' }).trim(), '', 'two notes: nothing served');
+  assert.equal(hook(dir, 'tool', { session_id: 'u1', tool_name: 'Read', tool_input: { file_path: path.join(dir, 'src/a.js') }, tool_response: 'x' }).trim(), '', 'no late notes either');
+  const orients = fs.readFileSync(path.join(dir, '.thinker/log.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l)).filter(e => e.op === 'orient');
+  assert.equal(orients.length, 1); assert.equal(orients[0].empty, true);
+  note();
+  assert.match(hook(dir, 'prompt', { session_id: 'u2', prompt: 'where does fetchRows read the rows from' }), /<thinker-cache>/, 'three notes: served');
+  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ ...store.config(), minNotes: 10 }));
+  assert.equal(hook(dir, 'prompt', { session_id: 'u3', prompt: 'where does fetchRows read the rows from' }).trim(), '', 'the repository raised the threshold');
 });

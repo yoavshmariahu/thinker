@@ -21,11 +21,21 @@ catch (e) { reportTelemetrySchedule({ error: e.message }); }
 
 // Which repository: THINKER_REPO when the entry pins one (a checkout's own .mcp.json), else the
 // working directory the client started the server in (the user's machine-wide entry, every
-// checkout). Outside a git repository there is none: the server offers nothing, and asks the
-// client for its workspace roots once connected, since a desktop app may start servers elsewhere.
-const inRepo = d => fs.existsSync(path.join(findRepoRoot(d), '.git'));
+// checkout), else the project directory the client's environment names. A container or a desktop
+// app may start the server at / (2026-10-13: Claude Code in a docker container told its user that
+// thinker "isn't serving any tools" while the hooks found the repository from their input), and
+// Claude Code declares no MCP roots, so the server cannot ask. The tools are offered all the same,
+// each taking `cwd`: the first call that names the agent's working directory binds the server to
+// that repository (`bind`), and a client that declares roots is asked for them once connected.
+const checkoutOf = d => {
+  if (!d) return null;
+  let p = String(d); try { if (/^file:/.test(p)) p = fileURLToPath(p); } catch { return null; }
+  if (!path.isAbsolute(p)) return null;
+  try { p = fs.realpathSync(p); } catch { return null; } // as process.cwd() names a directory: the real path
+  const r = findRepoRoot(p); return fs.existsSync(path.join(r, '.git')) ? r : null;
+};
 const pinned = process.env.THINKER_REPO;
-let repo = pinned ? findRepoRoot(pinned) : inRepo(process.cwd()) ? findRepoRoot(process.cwd()) : null;
+let repo = pinned ? findRepoRoot(pinned) : checkoutOf(process.cwd()) || checkoutOf(process.env.CLAUDE_PROJECT_DIR);
 // THINKER_MCP=off: the server starts but offers no tools and no instructions. For control arms of a
 // benchmark when the agent's MCP registration is machine-wide and cannot be left out for one run.
 // A repository switched off machine-wide (repo-switch.js) is served the same way: no tools, no notes.
@@ -35,10 +45,15 @@ const off = process.env.THINKER_MCP === 'off' || switchedOff;
 // so their schemas cost nothing; behavior stays, since it acts only on what the person asks for.
 const noLearn = /^(1|true|yes)$/i.test(process.env.THINKER_NO_LEARN || '');
 // Every git repository has a cache: a machine-wide registration starts one (empty, growing from the
-// sessions) in the checkout the client runs in. Outside a git repository there is nowhere to keep one.
-let store = off || !repo ? null : new Store(repo);
-let setUp = !!store;
-if (setUp) { store.init(); await initAst(); } // tree-sitter grammars when installed (`thinker ast install`); the regex otherwise
+// sessions) in the checkout the client runs in. Started outside one, the server binds late: to the
+// repository of the first call that names a directory in it (its `cwd`, or an absolute `file`).
+let store = null, setUp = false;
+const late = !off && !repo;
+async function bind(r) {
+  repo = r; store = new Store(r); setUp = true;
+  store.init(); await initAst(); // tree-sitter grammars when installed (`thinker ast install`); the regex otherwise
+}
+if (!off && repo) await bind(repo);
 
 const server = new McpServer({ name: 'thinker', version: '0.1.0' }, switchedOff ? {
   instructions: 'thinker is switched off for this repository and serves nothing here.',
@@ -46,8 +61,22 @@ const server = new McpServer({ name: 'thinker', version: '0.1.0' }, switchedOff 
   // Composed under the host's cap, never concatenated here: see cache-guidance.js:INSTRUCTIONS_LIMIT.
   instructions: cacheInstructions({ repo, disabled: disabledTools(store.config()), learn: !noLearn }),
 } : {
-  instructions: `thinker was started outside a git repository (${process.cwd()}) and serves nothing here: it keeps a cache of notes per git repository. If this client names its workspace through MCP roots, the tools appear once it has.`,
+  instructions: cacheInstructions({ intro: `thinker is a cache of notes per git repository from earlier sessions and humans. It was started outside one (${process.cwd()}): on the first call pass cwd, the absolute path of your working directory, and the tools bind to that repository.`, disabled: disabledTools({}), learn: !noLearn }),
 });
+
+// Bound late (see `late`): a call must name the repository first. Until one does, every tool answers
+// with what it needs; the call that binds says so above its answer. Calls are handled concurrently,
+// so one that arrives while the bind is under way waits for it rather than finding a half-made store.
+let binding = null;
+async function ensureBound(args) {
+  if (binding) await binding;
+  if (store) return { bound: false };
+  const r = checkoutOf(args?.cwd) || checkoutOf(args?.file);
+  if (!r) return { reply: text('thinker is not bound to a repository yet: it was started outside a git checkout. Call again with cwd, the absolute path of your working directory.') };
+  if (isDisabledRepo(r)) return { reply: text('thinker is switched off for that repository and serves nothing there.') };
+  binding = bind(r); await binding;
+  return { bound: true };
+}
 
 const text = s => ({ content: [{ type: 'text', text: s }] });
 // An empty cache is said outright, with its location: "nothing matches" reads as a miss and hides a server pointed at the wrong place.
@@ -68,10 +97,17 @@ const codeFallback = q => {
 };
 
 function registerTools() {
-  // a tool that is switched off is not offered at all: nothing can call it and fail
-  const off = disabledTools(store.config());
+  // a tool that is switched off is not offered at all: nothing can call it and fail (bound late, the
+  // repository's own choice of code tools is not known yet: the defaults apply)
+  const off = disabledTools(store ? store.config() : {});
   if (noLearn) for (const t of ['remember', 'feedback']) off.add(t);
-  const retrieval = (name, ...rest) => off.has(name) ? undefined : server.registerTool(name, ...rest);
+  const cwd = { cwd: z.string().optional().describe('Absolute path of your working directory, once: the server binds to its repository (it was started outside one)') };
+  const retrieval = (name, spec, handler) => off.has(name) ? undefined : server.registerTool(name, late ? { ...spec, inputSchema: { ...spec.inputSchema, ...cwd } } : spec, async (args, extra) => {
+    const { reply, bound } = await ensureBound(args); if (reply) return reply;
+    const r = await handler(args, extra);
+    if (bound) r.content.unshift({ type: 'text', text: `thinker is bound to the repository at ${repo} from here on.` });
+    return r;
+  });
 
   retrieval('orient', {
     title: 'Orient in this repo',
@@ -206,23 +242,21 @@ function registerTools() {
   });
 }
 
-if (setUp) registerTools();
+if (setUp || late) registerTools();
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
 
 // Started outside a repository: a client that declares roots (a workspace) is asked for them, and
-// the first root that is a git repository gets the tools, announced through tools/list_changed.
-if (!off && !repo) {
+// the first root that is a git repository binds the server before any call does.
+if (late) {
   try {
     if (server.server.getClientCapabilities()?.roots) {
       const { roots = [] } = await server.server.listRoots();
       for (const root of roots) {
-        let p = root.uri; try { if (/^file:/.test(p)) p = fileURLToPath(p); } catch { continue; }
-        if (!inRepo(p) || isDisabledRepo(findRepoRoot(p))) continue;
-        const s = new Store(findRepoRoot(p));
-        repo = s.repo; store = s; setUp = true; store.init(); await initAst();
-        registerTools();
+        const r = checkoutOf(root.uri);
+        if (!r || isDisabledRepo(r) || store) continue;
+        binding = bind(r); await binding;
         break;
       }
     }
