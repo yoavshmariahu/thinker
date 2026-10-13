@@ -5,6 +5,7 @@ import readlinePromises from 'node:readline/promises';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { available, findBin, BINS } from '../llm.js';
 import { c, selectMenu } from './ui.js';
+import { buildModels } from './models.js';
 
 const bins = new Map();
 export const hasBin = b => {
@@ -283,7 +284,7 @@ export async function selectAndAuthenticateAgent({
           : c.yellow('⚠ Not signed in');
         const recTag = isDefault ? c.dim(' [recommended]') : '';
         return {
-          label: `${s.name.padEnd(20)} (${s.agent}) · ${authTag}${recTag}`,
+          label: `${s.name.padEnd(20)} (${s.agent}) · ${buildModels(s.agent)[0].label} · ${authTag}${recTag}`,
           value: s.agent,
           key: String(idx + 1),
           name: s.name,

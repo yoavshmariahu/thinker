@@ -9,6 +9,7 @@ import { thinkerHome } from './update.js';
 import { maybeSendDailyTelemetryInBackground } from './telemetry.js';
 import { c, banner, stepBanner, finishBox, withSpinner } from './setup/ui.js';
 import { githubSlug, buildAgent, checkAgentAuth, selectAndAuthenticateAgent } from './setup/agents.js';
+import { selectBuildModel } from './setup/models.js';
 import { estimateCacheBuild, depthLimits, DEFAULT_DEPTH, DEFAULT_PRS } from './setup/estimate.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -53,6 +54,7 @@ export async function runSetup({
   out = console.log,
   minePrsFn,
   checkAuthFn = checkAgentAuth,
+  selectModelFn = selectBuildModel,
   dashboard = false,
   openDashboardFn = openDashboard,
 }) {
@@ -146,6 +148,12 @@ export async function runSetup({
     } else {
       activeAgent = authResult.agent;
       agentAuthed = true;
+      model = await selectModelFn({ agent: activeAgent, model, configModel: store.config().distillModel, yes, out });
+      if (model === null) {
+        out('  Cache build skipped. Run thinker setup --build to choose again.');
+        building = false;
+        effectiveNoPrs = true;
+      }
     }
   }
 

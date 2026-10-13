@@ -421,6 +421,7 @@ test('runSetup mines git history when GitHub origin is unavailable', async () =>
   const outLines = [];
   const out = line => outLines.push(stripAnsi(line));
   let minedPrsArgs = null;
+  let selectedModel = false;
 
   try {
     await runSetup({
@@ -439,6 +440,7 @@ test('runSetup mines git history when GitHub origin is unavailable', async () =>
         minedPrsArgs = { slug, opts };
         return { saved: 3 };
       },
+      selectModelFn: async () => { selectedModel = true; return 'sonnet'; },
     });
 
     const fullOutput = outLines.join('\n');
@@ -447,6 +449,8 @@ test('runSetup mines git history when GitHub origin is unavailable', async () =>
     assert.equal(minedPrsArgs.slug, null);
     assert.equal(minedPrsArgs.opts.limit, 10);
     assert.equal(minedPrsArgs.opts.repo, repo);
+    assert.equal(selectedModel, true);
+    assert.equal(minedPrsArgs.opts.model, 'sonnet', 'direct setup passes the chosen model to mining');
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
