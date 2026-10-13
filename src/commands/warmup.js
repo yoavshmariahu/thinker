@@ -3,7 +3,7 @@
 // display (ssh, a container) is not offered the browser: the page binds 127.0.0.1 of this machine, and
 // before 2026-10-12 the installer launched it anyway, said it had opened, and five of seven installs that
 // day never warmed a cache. The terminal path takes the page's defaults: full depth, the whole repository,
-// the agent already logged in. Before building, arrow-key menus let the person change harness and model.
+// the agent already logged in. Before building, an arrow-key menu lets the person change harness.
 import fs from 'node:fs';
 import path from 'node:path';
 import readlinePromises from 'node:readline/promises';
@@ -12,7 +12,7 @@ import { warmupCandidates } from '../machine.js';
 import { selectMenu, multiSelect, c, formatDuration, withSpinner } from '../setup/ui.js';
 import { DEFAULT_DEPTH } from '../setup/estimate.js';
 import { buildAgent, selectAndAuthenticateAgent } from '../setup/agents.js';
-import { selectBuildModel } from '../setup/models.js';
+import { useBuildModel } from '../setup/models.js';
 
 export const SHOWN = 10, PICKED = 5; // as the page: ten rows, the five most recently active with no cache yet picked
 
@@ -29,7 +29,7 @@ const rowNote = r => {
 };
 const row = (r, picked, width) => `    ${picked.includes(r) ? c.cyan('[x]') : c.dim('[ ]')} ${r.name.padEnd(width)} ${c.dim(rowNote(r))}`;
 
-export async function warmupCommand(ctx, { selectAgentFn = selectAndAuthenticateAgent, selectModelFn = selectBuildModel,
+export async function warmupCommand(ctx, { selectAgentFn = selectAndAuthenticateAgent,
   candidatesFn = warmupCandidates, spawnFn = spawnSync } = {}) {
   const { flags, store, out, HERE } = ctx;
   const cli = path.join(HERE, 'cli.js');
@@ -95,9 +95,12 @@ export async function warmupCommand(ctx, { selectAgentFn = selectAndAuthenticate
   const requestedAgent = flags.agent || process.env.THINKER_LLM || null;
   const auth = flags.dry ? { ok: true, agent: requestedAgent || buildAgent() }
     : await selectAgentFn({ requestedAgent, yes: !!flags.yes, out, purpose: 'warm up these repositories', allowSkip: false });
-  if (!auth.ok) { later(); process.exitCode = 1; return; }
-  const model = await selectModelFn({ agent: auth.agent, model: flags.model, yes: !!flags.yes || !!flags.dry, out });
-  if (model === null) { out('  Warm-up skipped.'); later(); return; }
+  if (!auth.ok) {
+    if (auth.error === 'cancelled') out('  Warm-up skipped.');
+    else process.exitCode = 1;
+    later(); return;
+  }
+  const model = useBuildModel({ agent: auth.agent, model: flags.model, out });
   const seconds = chosen.reduce((a, r) => a + (r.estimates[DEFAULT_DEPTH].seconds || 0), 0);
   out(`\n  Warming up ${chosen.length === 1 ? chosen[0].name : `${chosen.length} repositories`}, about ${formatDuration(seconds)} in all, one at a time. ${c.dim('Each is thinker setup --build; a cache is used as soon as it has notes.')}\n`);
   let failed = 0;

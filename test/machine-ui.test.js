@@ -149,12 +149,12 @@ test('the page lists caches with their stats, queues warm-up builds one at a tim
   assert.deepEqual(machineRepos(store, { home: th }).map(r => r.checkout), [dir]);
   const machine = await get('/api/machine');
   assert.deepEqual(machine.repos.map(r => r.checkout).sort(), [dir, other.dir].sort(), 'both checkouts, with or without a cache');
-  assert.ok(Array.isArray(machine.tiers));
+  assert.equal(machine.tiers, undefined);
   const agents = await get('/api/agents');
-  assert.ok(Array.isArray(agents.agents) && agents.agents.every(a => a.models.length > 0));
+  assert.ok(Array.isArray(agents.agents) && agents.agents.every(a => a.model));
   for (const a of agents.agents) {
-    assert.equal(new Set(a.models.map(m => m.model)).size, a.models.length, 'each choice names a distinct model');
-    assert.ok(a.models.some(m => m.tier === agents.defaultTier));
+    assert.equal(a.model.tier, agents.defaultTier);
+    assert.equal(a.models, undefined);
   }
 
   // two builds queued: the first starts at once, the second waits for it

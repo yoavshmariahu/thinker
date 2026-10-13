@@ -5,7 +5,7 @@ import readlinePromises from 'node:readline/promises';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { available, findBin, BINS } from '../llm.js';
 import { c, selectMenu } from './ui.js';
-import { buildModels } from './models.js';
+import { buildModel } from './models.js';
 
 const bins = new Map();
 export const hasBin = b => {
@@ -284,7 +284,7 @@ export async function selectAndAuthenticateAgent({
           : c.yellow('⚠ Not signed in');
         const recTag = isDefault ? c.dim(' [recommended]') : '';
         return {
-          label: `${s.name.padEnd(20)} (${s.agent}) · ${buildModels(s.agent)[0].label} · ${authTag}${recTag}`,
+          label: `${s.name.padEnd(20)} (${s.agent}) · ${buildModel(s.agent).name} · ${authTag}${recTag}`,
           value: s.agent,
           key: String(idx + 1),
           name: s.name,
@@ -302,7 +302,8 @@ export async function selectAndAuthenticateAgent({
         stdout,
       });
 
-      selectedAgent = selectedItem ? selectedItem.value : agentStatuses[defaultIdx].agent;
+      if (!selectedItem) return { ok: false, agent: null, error: 'cancelled', exit: true };
+      selectedAgent = selectedItem.value;
       const chosenStatus = agentStatuses.find(s => s.agent === selectedAgent) || agentStatuses[defaultIdx];
       out(`  ${c.cyan('•')} Selected agent: ${c.bold(chosenStatus.name)} (${selectedAgent})\n`);
     }

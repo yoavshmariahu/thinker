@@ -9,7 +9,7 @@ import { thinkerHome } from './update.js';
 import { maybeSendDailyTelemetryInBackground } from './telemetry.js';
 import { c, banner, stepBanner, finishBox, withSpinner } from './setup/ui.js';
 import { githubSlug, buildAgent, checkAgentAuth, selectAndAuthenticateAgent } from './setup/agents.js';
-import { selectBuildModel } from './setup/models.js';
+import { useBuildModel } from './setup/models.js';
 import { estimateCacheBuild, depthLimits, DEFAULT_DEPTH, DEFAULT_PRS } from './setup/estimate.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -54,7 +54,6 @@ export async function runSetup({
   out = console.log,
   minePrsFn,
   checkAuthFn = checkAgentAuth,
-  selectModelFn = selectBuildModel,
   dashboard = false,
   openDashboardFn = openDashboard,
 }) {
@@ -139,8 +138,11 @@ export async function runSetup({
     });
     if (!authResult.ok) {
       // the repository is already wired up by step 1: say what was not built, and go on
-      out(`\n  ${c.yellow('○')} ${c.bold('Cache not built here:')} reading the merged pull requests needs an authenticated agent.`);
-      out(`    Run '${c.cyan(authResult.loginCmd || 'claude auth login')}', then: ${c.cyan('thinker setup --build')}`);
+      if (authResult.error === 'cancelled') out('  Cache build skipped. Run thinker setup --build to choose again.');
+      else {
+        out(`\n  ${c.yellow('○')} ${c.bold('Cache not built here:')} reading the merged pull requests needs an authenticated agent.`);
+        out(`    Run '${c.cyan(authResult.loginCmd || 'claude auth login')}', then: ${c.cyan('thinker setup --build')}`);
+      }
       out(`    ${c.dim('thinker is set up either way; without a built cache it grows from your own sessions.')}\n`);
       buildError = authResult.error;
       building = false;
@@ -148,12 +150,7 @@ export async function runSetup({
     } else {
       activeAgent = authResult.agent;
       agentAuthed = true;
-      model = await selectModelFn({ agent: activeAgent, model, configModel: store.config().distillModel, yes, out });
-      if (model === null) {
-        out('  Cache build skipped. Run thinker setup --build to choose again.');
-        building = false;
-        effectiveNoPrs = true;
-      }
+      model = useBuildModel({ agent: activeAgent, model, configModel: store.config().distillModel, out });
     }
   }
 
