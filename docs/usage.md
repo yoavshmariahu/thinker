@@ -116,7 +116,18 @@ must be named: either `THINKER_LLM_MODEL` for every call, or `distillModel` and 
 travels in the prompt, not in `response_format`, so gateways that only pass text through work too.
 A failed call reports the status and the endpoint's answer (a 401 names the token variables).
 
-`codex exec` keeps your `~/.codex/config.toml`, so a `model_providers` entry there (a gateway
-base URL and key variable) applies to thinker's calls as well; MCP servers, plugins, hooks and
-project instructions are switched off for them.
+The agents keep their own login in thinker's calls, with the agent's tools, hooks, extensions,
+plugins and project files switched off:
+
+- `claude -p` runs without settings (no hooks, permissions, plugins or skills) and gets the
+  login side of your user settings back: from the `env` block of `~/.claude/settings.json`, the
+  entries that say where the model is and how to authenticate (a gateway's `ANTHROPIC_BASE_URL`
+  and `ANTHROPIC_AUTH_TOKEN`, the Bedrock, Vertex and Foundry switches and their cloud
+  credentials, proxies and certificates), with `apiKeyHelper` and the AWS credential helpers.
+  Telemetry exporters and model aliases from the settings stay out; `THINKER_LLM_MODEL` names
+  the model when the gateway does not know Anthropic's model IDs.
+- `codex exec` keeps `~/.codex/config.toml`, so a `model_providers` entry there (a gateway
+  base URL and key variable) applies; MCP servers, plugins, hooks and project instructions are off.
+- `gemini` keeps its settings and environment (`GEMINI_API_KEY`, a base URL); extensions and
+  MCP servers are off. Cursor's `agent` runs in ask mode with its own login.
 

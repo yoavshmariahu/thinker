@@ -59,6 +59,26 @@ export function resolveModel(provider, model) {
   return model || 'sonnet';
 }
 
+// The login side of the user's Claude Code settings: of the env block, the entries that say where
+// the model is and how to authenticate (a gateway's ANTHROPIC_BASE_URL and ANTHROPIC_AUTH_TOKEN, the
+// Bedrock, Vertex and Foundry switches and their cloud credentials, proxies and certificates), with
+// apiKeyHelper and the AWS credential helpers. A call runs with --setting-sources '' so that hooks,
+// permissions, plugins and skills stay out of it; without this the login configured there was out
+// too, and every call failed to authenticate. Claude Code reads --settings on top of the sources, so
+// the login goes back in that way. Telemetry exporters, model aliases and the per-call limits
+// thinker sets itself are not login and stay out.
+const LOGIN_ENV = /^(ANTHROPIC_(BASE_URL|AUTH_TOKEN|API_KEY|CUSTOM_HEADERS|BEDROCK_|VERTEX_|FOUNDRY_)|CLAUDE_CODE_(USE_|SKIP_|CLIENT_)|AWS_|GOOGLE_|GCLOUD_|CLOUD_ML_REGION$|AZURE_|HTTPS?_PROXY$|NO_PROXY$|NODE_EXTRA_CA_CERTS$|SSL_CERT_|NODE_TLS_)/;
+export function claudeLoginSettings(dir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude')) {
+  let s; try { s = JSON.parse(fs.readFileSync(path.join(dir, 'settings.json'), 'utf8')); } catch { return null; }
+  const out = {};
+  if (s.env && typeof s.env === 'object') {
+    const env = Object.fromEntries(Object.entries(s.env).filter(([k]) => LOGIN_ENV.test(k)));
+    if (Object.keys(env).length) out.env = env;
+  }
+  for (const k of ['apiKeyHelper', 'awsAuthRefresh', 'awsCredentialExport']) if (s[k] !== undefined) out[k] = s[k];
+  return Object.keys(out).length ? out : null;
+}
+
 // Hooks run with a short PATH; also look where these tools install themselves.
 export function findBin(names) {
   const dirs = [...(process.env.PATH || '').split(path.delimiter), path.join(os.homedir(), '.local', 'bin'), '/opt/homebrew/bin', '/usr/local/bin'].filter(Boolean);
@@ -511,13 +531,14 @@ async function viaOther(p, { system, prompt, schema, timeoutMs, model, onUsage }
       const bin = findBin(BINS.gemini);
       const isAgy = path.basename(bin) === 'agy';
       if (isAgy) {
-        const args = ['--output-format', 'json', '--model', resolvedModel || 'gemini-3.8-flash-high', '--mode=plan', '-p', full];
+        const args = ['--output-format', 'json', '--model', resolvedModel || 'gemini-3.8-flash-high', '--mode=plan', '--disable-slash-commands', '-p', full];
         const j = JSON.parse(await run(bin, args, { cwd, timeoutMs }));
         cost = j.total_cost_usd ?? null;
         onUsage({ usage: j.usage, cost, model: j.model || resolvedModel });
         text = j.response || ''; usage = j.usage || null;
       } else {
-        const args = ['--output-format', 'json'];
+        // no extensions and no MCP servers in a call; the login (settings, GEMINI_API_KEY, a base URL) stays
+        const args = ['--output-format', 'json', '-e', 'none', '--allowed-mcp-server-names', 'none'];
         if (resolvedModel) args.push('-m', resolvedModel);
         const j = JSON.parse(await run(bin, args, { input: full, cwd, timeoutMs }));
         onUsage({ usage: j.stats, cost, model: j.model || resolvedModel });
@@ -631,6 +652,8 @@ async function viaCliOnce({ system, prompt, model, schema, maxTokens, thinkingTo
     // tokens of agent instructions, written to the one-hour prompt cache (twice the input price) and
     // never read again. No settings or skills either: neither is used, both add to the prompt.
     '--system-prompt', system || CLI_SYSTEM, '--setting-sources', '', '--disable-slash-commands'];
+  const login = claudeLoginSettings();
+  if (login) args.push('--settings', JSON.stringify(login));
   if (schema) args.push('--json-schema', JSON.stringify(schema));
   try {
     const stdout = await new Promise((resolve, reject) => {
