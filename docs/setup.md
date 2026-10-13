@@ -25,7 +25,8 @@ also writes what `thinker setup` would there (the git hooks that keep the cache 
 commit or merge, Codex's trust in the project, Cursor's rule), and when the repository has
 merged pull requests or enough commits to read, the agent is told once to offer you a
 warm-up; on a yes it runs `thinker warmup --repos <checkout> --yes --terminal` itself. The
-turn's notice says the same once, so nothing needs running by hand.
+offer is made once per repository on this machine, not again in another clone or worktree,
+and nothing else repeats it; `thinker warmup` is there any time.
 
 Warming a cache reads the repository's merged pull requests into it, so the first
 session there already finds notes. The installer ends with `thinker warmup`, which asks

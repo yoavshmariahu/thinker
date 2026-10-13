@@ -1,6 +1,6 @@
 // The first session in a repository: the hooks set it up (what `thinker setup` would write for the
 // repository) and, when there is history to read, tell the agent once to offer a warm-up; the stop
-// notice tells the person once (repo-onboard.js).
+// offer is made once per repository on this machine, and nothing repeats it (repo-onboard.js).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -12,7 +12,8 @@ import { Store } from '../src/store.js';
 import { createNote } from '../src/ops.js';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
-const env = { ...process.env, THINKER_LOG: 'local', THINKER_HOLDOUT: 'off', THINKER_NO_BG_VERIFY: '1', THINKER_NO_LEARN: '1', THINKER_CE: 'off', THINKER_TELEMETRY: 'off' };
+const HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-onboard-home-'));
+const env = { ...process.env, THINKER_HOME: HOME, THINKER_LOG: 'local', THINKER_HOLDOUT: 'off', THINKER_NO_BG_VERIFY: '1', THINKER_NO_LEARN: '1', THINKER_CE: 'off', THINKER_TELEMETRY: 'off' };
 const hook = (dir, kind, input, client = 'claude') => execFileSync('node', [CLI, 'hook', kind, '--client', client, '--repo', dir], { input: JSON.stringify(input), encoding: 'utf8', env });
 const ops = dir => fs.readFileSync(path.join(dir, '.thinker/log.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l));
 function gitRepo(commits) {
@@ -25,8 +26,10 @@ function gitRepo(commits) {
   return dir;
 }
 
-test('the first session in a repository with history sets it up and tells the agent once to offer a warm-up; the person hears it once', () => {
+test('the first session in a repository with history sets it up and tells the agent once to offer a warm-up; nothing repeats it', () => {
   const dir = gitRepo(8);
+  // an origin that is not GitHub: the repository is one across its clones, and the git history is what there is to read
+  execFileSync('git', ['-C', dir, 'remote', 'add', 'origin', 'https://git.example.com/acme/rows.git']);
   const out = hook(dir, 'prompt', { session_id: 'n1', prompt: 'where does fetchRows read the rows from' });
   assert.match(out, /<thinker-new-repository>/);
   assert.match(out, /ask the user whether they would like that/);
@@ -45,10 +48,16 @@ test('the first session in a repository with history sets it up and tells the ag
   assert.equal(hook(dir, 'prompt', { session_id: 'n1', prompt: 'and saveRows?' }).trim(), '');
   assert.equal(hook(dir, 'prompt', { session_id: 'n2', prompt: 'where does fetchRows read the rows from' }).trim(), '');
   assert.equal(ops(dir).filter(e => e.op === 'repo-setup').length, 1);
-  // the person is told at the end of the turn, once
-  const stop = hook(dir, 'stop', { session_id: 'n1' });
-  assert.match(JSON.parse(stop).systemMessage, /cache for this repository is new/);
+  // the stop notice does not say it again
   assert.equal(hook(dir, 'stop', { session_id: 'n1' }).trim(), '');
+  // nor does another clone of the same repository: once is once per repository on this machine
+  const clone = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-onboard-clone-')));
+  execFileSync('git', ['clone', '-q', dir, path.join(clone, 'c')]);
+  execFileSync('git', ['-C', path.join(clone, 'c'), 'remote', 'set-url', 'origin', 'https://git.example.com/acme/rows.git']);
+  assert.equal(hook(path.join(clone, 'c'), 'prompt', { session_id: 'n3', prompt: 'where does fetchRows read the rows from' }).trim(), '');
+  assert.ok(!ops(path.join(clone, 'c')).some(e => e.op === 'warmup-offer'));
+  assert.ok(ops(path.join(clone, 'c')).some(e => e.op === 'repo-setup'), 'the clone is still set up');
+  assert.equal(Object.keys(JSON.parse(fs.readFileSync(path.join(HOME, 'state', 'warmup-offered.json'), 'utf8'))).length, 1);
 });
 
 test('too little history, or a cache that already learned, gets the setup but no offer', () => {
