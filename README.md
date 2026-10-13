@@ -2,11 +2,21 @@
 
 ![Pixel-art blue sky with white clouds](docs/images/sky.png)
 
-Every merged fix leaves knowledge behind that the next change can quietly undo.
-`thinker` learns from your repository's merged pull requests and your agent
-sessions, and keeps what it learns as short notes tied to the code they describe.
-Coding agents get the notes that fit their task while they work, and the notes
-that rest on a file as they edit it.
+Your coding agent rediscovers your codebase on every task: where things live, how the
+parts connect, which change broke what last time. `thinker` remembers it instead.
+
+- **It injects the right context and skills, as the agent works.** Thinker learns from
+  your merged pull requests, your agent sessions and your skill files, and keeps short
+  notes pinned to the exact code they describe. On each request it ranks them and serves
+  only the ones that fit, with pointers into the code, so the agent starts at the right
+  place instead of searching for it.
+- **It keeps the cache fresh on its own.** Every session grades the notes it was served:
+  a note the agent acted on gains confidence, a note the trace contradicts is corrected,
+  an unused one decays. A note whose code changed is held back and re-verified before it
+  is served again. New pull requests become notes as they merge.
+- **Tasks finish faster, on fewer tokens, with fewer pitfalls.** The agent spends less of
+  its budget rebuilding a picture of the repository, and the traps the history already
+  knows about are in front of it before it touches the code.
 
 <p align="center">
   <b>18% fewer tokens per task</b> &nbsp;·&nbsp; <b>10% less wall time per task</b><br>
