@@ -14,6 +14,7 @@ import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '.
 import { orient, HOOK_BUDGET, servesNotes, rememberTask, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn, beginTurn, holdoutTurn, sessionIntro } from '../ops.js';
 import { recordEvent, traceFile, toolName, toolInput } from '../transcripts.js';
 import { turnNotice, weeklyNotice } from '../usage.js';
+import { setupRepo, warmupOffer, warmupNotice } from '../repo-onboard.js';
 
 async function hookCommand(ctx) {
   const { pos, flags, out, readStdin, sessionLearning, HERE, NO_LEARN } = ctx;
@@ -77,23 +78,27 @@ async function hookCommand(ctx) {
     const introOk = store.exists() && !['windsurf', 'pi', 'copilot'].includes(client) && !holdout;
     const emit = text => { if (client === 'cursor' || client === 'copilot') parkPending(store.dir, session, text); else out(promptOutput(client, text)); };
     if (!store.exists() || client === 'windsurf') return;
+    // the first session in a repository: what `thinker setup` would write for it, and the warm-up offer (repo-onboard.js)
+    setupRepo(store, { client, cli, learn: !NO_LEARN && sessionLearning() });
+    const offer = warmupOffer(store, { client });
     // Every git repository has a cache, started on first use and empty until it learns; the hooks serve
     // from it once it holds a few notes (ops.js:SERVE_MIN_NOTES). A prompt served nothing is still a
     // request: `thinker usage` and the telemetry count a machine as active by its requests, and a cache in
     // daily use that has not learned yet must not read as a machine thinker never ran on (2026-10-12: seven
     // of eight reporting devices read as idle for exactly this). Nothing is said.
-    if (!servesNotes(store)) { store.log({ op: 'orient', session: session === 'unknown' ? undefined : session, client, task: String(ev.prompt || '').slice(0, 200), served: [], empty: true }); return; }
+    if (!servesNotes(store)) {
+      if (offer) emit(offer); store.log({ op: 'orient', session: session === 'unknown' ? undefined : session, client, task: String(ev.prompt || '').slice(0, 200), served: [], empty: true }); return; }
     // outcome signal: a correction-shaped follow-up counts against the notes served earlier in this session
     if (session !== 'unknown' && looksLikeCorrection(ev.prompt)) outcome(store, { session, turn: turn > 1 ? turn - 1 : undefined, positive: false, reason: 'correction prompt: ' + String(ev.prompt).slice(0, 80) });
     if (session !== 'unknown') rememberTask(store, session, ev.prompt);
     // a held-out turn is served nothing by the hooks, and what it would have been served is logged (ops.js:beginTurn)
     const r = await orient(store, { task: ev.prompt || '', session: session === 'unknown' ? undefined : session, client, budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout, turn: turn || undefined });
-    if (!r.included.length) return;
+    if (!r.included.length) { if (offer) emit(offer); return; }
     const intro = introOk ? sessionIntro(store, { session, client }) : '';
     const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}${n.status === 'stale' ? ' ⚠ STALE' : ''}  (id: ${n.id})`).join('\n')}` : '';
     const header = cacheBundleIntro({ stale: r.included.some(n => n.status === 'stale'), disabled: disabledTools(store.config()) });
     const text = `<thinker-cache>\n${header}\n\n${r.text}${more}${!NO_LEARN && sessionLearning() && !['windsurf', 'pi', 'copilot'].includes(client) ? '\n\n' + CACHE_LEARNING_GUIDE : ''}\n</thinker-cache>`;
-    emit(intro ? `${intro}\n\n${text}` : text);
+    emit([offer, intro, text].filter(Boolean).join('\n\n'));
   } else if (pos[0] === 'tool') {
     // After a tool call: the agent opened files; serve notes anchored to them, once each.
     if (!store.exists()) return;
@@ -148,7 +153,7 @@ async function hookCommand(ctx) {
     if (session !== 'unknown' && ev.transcript_path && fs.existsSync(ev.transcript_path)) { try { const p = parseTranscript(ev.transcript_path); const record = { op: 'session', session, turn: t.turn || undefined, client, model: p.model || undefined, holdout: t.holdout || undefined, ...gitContext(repo), ...(p.stats || {}) }; store.log(record); tryImpact(store, record); } catch {} }
     if (noticeOn(store)) {
       // once a week, what the notes saved over the last 30 days (usage.js:weeklyNotice); not on a held-out turn
-      const notice = [served.length ? turnNotice(store.repo, served.map(id => store.get(id)).filter(Boolean)) : '', NO_LEARN ? '' : maintenanceNotice(store), t.holdout ? '' : weeklyNotice(store)].filter(Boolean).join('\n');
+      const notice = [warmupNotice(store), served.length ? turnNotice(store.repo, served.map(id => store.get(id)).filter(Boolean)) : '', NO_LEARN ? '' : maintenanceNotice(store), t.holdout ? '' : weeklyNotice(store)].filter(Boolean).join('\n');
       const o = stopOutput(client, notice); if (o) out(o);
     }
     // Claude Code: its transcript. Other agents: the trace the hooks recorded,

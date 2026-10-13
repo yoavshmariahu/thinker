@@ -60,7 +60,7 @@ test('in the terminal the current repository is listed; one with no merged pull 
   // --repos names one that is not on the list
   const named = run(['--repos', 'nope', '--dry']);
   assert.equal(named.status, 1);
-  assert.match(named.stdout, /Not on this machine's list: nope/);
+  assert.match(named.stdout, /Not a git repository on this machine: nope/);
   // the cache is not created by looking
   assert.ok(!fs.existsSync(path.join(repo, '.thinker', 'notes')) || fs.readdirSync(path.join(repo, '.thinker', 'notes')).length === 0);
 });

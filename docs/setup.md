@@ -20,7 +20,12 @@ empty, with the first agent session in a repository (kept out of `git status` th
 it holds a few notes (three; `minNotes` in `.thinker/config.json` changes that), so a
 young cache costs a session nothing. The MCP tools are there from the start; a server
 started outside a repository (a container, a desktop app) binds to the repository of the
-first call that names the agent's working directory.
+first call that names the agent's working directory. The first session in a repository
+also writes what `thinker setup` would there (the git hooks that keep the cache fresh after a
+commit or merge, Codex's trust in the project, Cursor's rule), and when the repository has
+merged pull requests or enough commits to read, the agent is told once to offer you a
+warm-up; on a yes it runs `thinker warmup --repos <checkout> --yes --terminal` itself. The
+turn's notice says the same once, so nothing needs running by hand.
 
 Warming a cache reads the repository's merged pull requests into it, so the first
 session there already finds notes. The installer ends with `thinker warmup`, which asks
@@ -31,7 +36,7 @@ building, choose the harness with ↑/↓ and Enter. Thinker automatically uses 
 Claude Code and Cursor, Luna for Codex, or Gemini Flash for Gemini. One selection applies
 to every repository picked. Over ssh, or
 on a machine with no display, only the terminal is offered: the page serves 127.0.0.1 of
-the machine it runs on. `thinker warmup` runs again any time; `thinker warmup --skip`
+the machine it runs on. `thinker warmup` runs again any time, and inside a repository lists that one first; `thinker warmup --skip`
 and `--yes` answer without asking. Use `--agent codex --model gpt-6-sol`, for example,
 to specify both without the menus. Depth and directories can also be chosen on the page.
 Direct `thinker setup --build` uses the same automatic model after harness selection.

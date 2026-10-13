@@ -10,7 +10,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import { Store } from '../src/store.js';
 import { batchProgress } from '../src/progress.js';
 import { activity, cancelActivity, latestBatch, batchEta } from '../src/activity.js';
-import { agentWorkDirs, discoverRepos, warmupCandidates, cacheStats } from '../src/machine.js';
+import { agentWorkDirs, discoverRepos, warmupCandidates, warmupCandidate, cacheStats } from '../src/machine.js';
 import { createUiServer, machineRepos, jobProgress } from '../src/ui/server.js';
 
 const tmp = p => fs.mkdtempSync(path.join(os.tmpdir(), p));
@@ -66,6 +66,12 @@ test('the agents\' transcripts name the repositories they worked in, with their 
   st.put({ id: 'n1', title: 'a note', kind: 'rule', answers: [], body: 'src/a.js:a is one', deps: [{ path: 'src/a.js', symbol: 'a' }], source: { type: 'session', ref: 's' }, confidence: 0.8, status: 'fresh' });
   const [again] = warmupCandidates(store, { home });
   assert.equal(again.hasCache, true); assert.equal(again.notes, 1); assert.equal(again.warmed, false, 'no pull requests read yet');
+  // any checkout by path, listed or not; the one this runs in leads the list
+  const { dir: fresh } = repo(t, 'thinker-fresh-');
+  const one = warmupCandidate(store, path.join(fresh, 'src'), { ghFn: () => '' });
+  assert.equal(one.checkout, fresh); assert.equal(one.sessions, 0); assert.ok(one.canMine); assert.deepEqual(one.dirs, ['docs', 'src']);
+  assert.equal(warmupCandidate(store, tmp('thinker-plain-')), null, 'not a checkout');
+  assert.equal(warmupCandidates(new Store(dir), { home, ghFn: () => '' })[0].current, true);
 });
 
 test('a warm-up build reports where it is: the stage, the fraction done and the seconds left', async t => {

@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import readlinePromises from 'node:readline/promises';
 import { spawn, spawnSync } from 'node:child_process';
-import { warmupCandidates } from '../machine.js';
+import { warmupCandidates, warmupCandidate } from '../machine.js';
 import { selectMenu, multiSelect, c, formatDuration, withSpinner } from '../setup/ui.js';
 import { DEFAULT_DEPTH } from '../setup/estimate.js';
 import { buildAgent, selectAndAuthenticateAgent } from '../setup/agents.js';
@@ -30,7 +30,7 @@ const rowNote = r => {
 const row = (r, picked, width) => `    ${picked.includes(r) ? c.cyan('[x]') : c.dim('[ ]')} ${r.name.padEnd(width)} ${c.dim(rowNote(r))}`;
 
 export async function warmupCommand(ctx, { selectAgentFn = selectAndAuthenticateAgent,
-  candidatesFn = warmupCandidates, spawnFn = spawnSync } = {}) {
+  candidatesFn = warmupCandidates, candidateFn = warmupCandidate, spawnFn = spawnSync } = {}) {
   const { flags, store, out, HERE } = ctx;
   const cli = path.join(HERE, 'cli.js');
   const ask = async q => { const rl = readlinePromises.createInterface({ input: process.stdin, output: process.stdout }); try { return await rl.question(q); } finally { rl.close(); } };
@@ -61,7 +61,7 @@ export async function warmupCommand(ctx, { selectAgentFn = selectAndAuthenticate
   // the page's list (ui/server.js): the agents' own session records under the user's home, and thinker's log
   const all = await withSpinner(out, 'Looking at the repositories your agents work in', async () => candidatesFn(store, {}));
   const items = all.filter(r => !r.disabled).slice(0, SHOWN);
-  if (!items.length) { out('  No git repository your agents have worked in was found. A cache starts with the first session in one; run thinker warmup again after that.'); later(); return; }
+  if (!items.length) { out('  No git repository your agents have worked in was found. Run thinker warmup inside one to warm it up; a cache also starts by itself with the first session there.'); later(); return; }
   // as the page: the most recently active with pull requests to read and no cache yet
   const picked = items.filter(r => r.canMine && !r.warmed && !r.hasCache).slice(0, PICKED);
   out(`\n  Your agents worked in these repositories, the most recently active first. A warm-up reads merged pull requests into notes, around where you are most active:\n`);
@@ -69,10 +69,17 @@ export async function warmupCommand(ctx, { selectAgentFn = selectAndAuthenticate
   let chosen;
   if (flags.repos) {
     for (const r of items) out(row(r, picked, width));
+    // by name, id or path from the list, or the path of any git checkout the list does not have (machine.js:warmupCandidate):
+    // a fresh clone the agents have not worked in, which the agent's offer on the first session there names this way
     const want = String(flags.repos).split(',').map(s => s.trim()).filter(Boolean);
-    chosen = all.filter(r => !r.disabled && (want.includes(r.name) || want.includes(r.checkout) || want.includes(r.id)));
-    const missing = want.filter(w => !chosen.some(r => [r.name, r.checkout, r.id].includes(w)));
-    if (missing.length) { out(`  Not on this machine's list: ${missing.join(', ')}`); process.exitCode = 1; return; }
+    const real = w => { try { return fs.realpathSync(path.resolve(w)); } catch { return null; } };
+    chosen = []; const missing = [];
+    for (const w of want) {
+      const listed = all.find(r => !r.disabled && (w === r.name || w === r.id || w === r.checkout || real(w) === r.checkout));
+      const c = listed || (/[\/\\]|^[.~]/.test(w) ? candidateFn(store, w) : null);
+      if (!c || c.disabled) missing.push(w); else if (!chosen.some(r => r.checkout === c.checkout)) chosen.push(c);
+    }
+    if (missing.length) { out(`  Not a git repository on this machine: ${missing.join(', ')}`); process.exitCode = 1; return; }
   } else if (flags.yes || !picked.length) { for (const r of items) out(row(r, picked, width)); chosen = picked; }
   else if (process.stdin.isTTY) {
     // arrows move, Space toggles, Enter starts; a row with nothing to read cannot be picked

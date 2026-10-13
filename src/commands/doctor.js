@@ -163,7 +163,7 @@ async function runChecks(ctx) {
     try { notes = store.list(); } catch (e) { add('notes', 'fail', e.message); }
     try { for (const f of fs.readdirSync(store.notesDir)) if (f.endsWith('.json')) { try { JSON.parse(fs.readFileSync(path.join(store.notesDir, f), 'utf8')); } catch { bad++; } } } catch {}
     add('repository', 'ok', `set up in ${repo}`);
-    add('notes', bad ? 'warn' : 'ok', `${notes.length} note${notes.length === 1 ? '' : 's'}${bad ? `; ${bad} file${bad === 1 ? '' : 's'} in ${store.notesDir} unreadable` : notes.length ? '' : ' (the cache grows from your sessions, or build it with `thinker setup --build`)'}`);
+    add('notes', bad ? 'warn' : 'ok', `${notes.length} note${notes.length === 1 ? '' : 's'}${bad ? `; ${bad} file${bad === 1 ? '' : 's'} in ${store.notesDir} unreadable` : notes.length ? '' : ' (the cache grows from your sessions; `thinker warmup` here reads the repository\'s history into it)'}`);
     if (configOk) wiringCheck('checkout wiring', repo, 'repo');
     // The hooks thinker installs (post-commit, post-merge). A hook that is not thinker's (git-lfs, husky,
     // a tracked core.hooksPath directory) is left alone by setup, so the advice is then to chain
