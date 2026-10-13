@@ -6,7 +6,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
 import { createNote, phraseBatches, phraseNotes } from '../src/ops.js';
-import { overCap } from '../src/llm.js';
+import { overCap, cliOutputCap, THINKING_HEADROOM } from '../src/llm.js';
 import { generateBehaviorProposals, listBehaviorProposals, acceptBehaviorProposal } from '../src/behavior-proposals.js';
 
 function fixture(t) {
@@ -132,6 +132,16 @@ test('an answer that reached the output cap is named as the cause of the exit', 
   assert.equal(overCap('not json', 2500), '');
   assert.match(overCap(JSON.stringify({ stop_reason: 'max_tokens' }), 2500), /output cap/);
   assert.equal(overCap(JSON.stringify({ stop_reason: 'stop_sequence' }), 2500), '');
+  // claude 2.1.296: stop_reason stays stop_sequence, iterations is empty, api_error and result say it
+  const current = { stop_reason: 'stop_sequence', is_error: true, api_error: 'max_output_tokens', num_turns: 4,
+    usage: { output_tokens: 6000, output_tokens_details: { thinking_tokens: 6000 }, iterations: [] },
+    result: "API Error: Claude's response exceeded the 1500 output token maximum. To configure this behavior, set the CLAUDE_CODE_MAX_OUTPUT_TOKENS environment variable." };
+  assert.match(overCap(JSON.stringify(current), 1500), /1500-token output cap/);
+  assert.match(overCap(JSON.stringify({ ...current, api_error: undefined }), 1500), /output cap/, 'the result text alone names it');
+  assert.equal(overCap(JSON.stringify({ ...current, api_error: 'rate_limit', result: 'API Error: 429' }), 1500), '');
+  // the CLI counts thinking against its cap and no switch turns thinking off: the cap it gets leaves room
+  assert.equal(cliOutputCap(6000), 6000 + THINKING_HEADROOM);
+  assert.ok(THINKING_HEADROOM >= 12_000, 'eight-note phrasing calls were measured thinking up to 9,300 tokens');
 });
 
 test('phrasing splits output-limited batches, stopping at individual notes', async () => {
