@@ -988,7 +988,7 @@ thinker ui --port 4800 --no-open    <span class="code-comment"># a fixed port, w
           </table>
         </div>
         <p>
-          In the environment, <code>THINKER_NO_LEARN=1</code> turns learning and maintenance off, <code>THINKER_HOOKS=off</code> silences the hooks, <code>THINKER_MCP=off</code> makes the MCP server offer no tools, and <code>THINKER_LLM</code> picks the agent that answers model calls (<code>claude</code>, <code>codex</code>, <code>cursor</code>, <code>gemini</code>, or <code>anthropic</code> with <code>ANTHROPIC_API_KEY</code>).
+          In the environment, <code>THINKER_NO_LEARN=1</code> turns learning and maintenance off, <code>THINKER_HOOKS=off</code> silences the hooks, <code>THINKER_MCP=off</code> makes the MCP server offer no tools, and <code>THINKER_LLM</code> picks the agent that answers model calls (<code>claude</code>, <code>codex</code>, <code>cursor</code>, <code>gemini</code>, <code>anthropic</code> with <code>ANTHROPIC_API_KEY</code>, or <code>openai</code>: any OpenAI-compatible endpoint named by <code>THINKER_LLM_BASE_URL</code>, with the token in the variable <code>THINKER_LLM_API_KEY_ENV</code> names and the model in <code>THINKER_LLM_MODEL</code>).
         </p>
       </section>
 

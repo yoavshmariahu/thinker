@@ -4,9 +4,14 @@
 //   codex      `codex exec`
 //   cursor     `agent -p` (Cursor's CLI)
 //   gemini     `gemini -p`
+//   openai     THINKER_LLM_BASE_URL: any OpenAI-compatible /chat/completions
+//              endpoint (a corporate gateway, a local server); the token comes
+//              from the variable THINKER_LLM_API_KEY_ENV names, else
+//              THINKER_LLM_API_KEY, else OPENAI_API_KEY; THINKER_LLM_MODEL or
+//              the repository's distillModel/verifyModel name the model
 //   command    THINKER_LLM_CMD: any shell command that reads the prompt on
 //              stdin and prints the answer
-// Each uses the login that agent already has. THINKER_LLM picks one; otherwise
+// Each agent uses the login it already has. THINKER_LLM picks one; otherwise
 // the first that is available, preferring THINKER_LLM_PREFER (set by the hooks
 // to the agent that is running). All return a parsed JSON object when a
 // schema is given.
@@ -54,6 +59,26 @@ export function resolveModel(provider, model) {
   return model || 'sonnet';
 }
 
+// The login side of the user's Claude Code settings: of the env block, the entries that say where
+// the model is and how to authenticate (a gateway's ANTHROPIC_BASE_URL and ANTHROPIC_AUTH_TOKEN, the
+// Bedrock, Vertex and Foundry switches and their cloud credentials, proxies and certificates), with
+// apiKeyHelper and the AWS credential helpers. A call runs with --setting-sources '' so that hooks,
+// permissions, plugins and skills stay out of it; without this the login configured there was out
+// too, and every call failed to authenticate. Claude Code reads --settings on top of the sources, so
+// the login goes back in that way. Telemetry exporters, model aliases and the per-call limits
+// thinker sets itself are not login and stay out.
+const LOGIN_ENV = /^(ANTHROPIC_(BASE_URL|AUTH_TOKEN|API_KEY|CUSTOM_HEADERS|BEDROCK_|VERTEX_|FOUNDRY_)|CLAUDE_CODE_(USE_|SKIP_|CLIENT_)|AWS_|GOOGLE_|GCLOUD_|CLOUD_ML_REGION$|AZURE_|HTTPS?_PROXY$|NO_PROXY$|NODE_EXTRA_CA_CERTS$|SSL_CERT_|NODE_TLS_)/;
+export function claudeLoginSettings(dir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude')) {
+  let s; try { s = JSON.parse(fs.readFileSync(path.join(dir, 'settings.json'), 'utf8')); } catch { return null; }
+  const out = {};
+  if (s.env && typeof s.env === 'object') {
+    const env = Object.fromEntries(Object.entries(s.env).filter(([k]) => LOGIN_ENV.test(k)));
+    if (Object.keys(env).length) out.env = env;
+  }
+  for (const k of ['apiKeyHelper', 'awsAuthRefresh', 'awsCredentialExport']) if (s[k] !== undefined) out[k] = s[k];
+  return Object.keys(out).length ? out : null;
+}
+
 // Hooks run with a short PATH; also look where these tools install themselves.
 export function findBin(names) {
   const dirs = [...(process.env.PATH || '').split(path.delimiter), path.join(os.homedir(), '.local', 'bin'), '/opt/homebrew/bin', '/usr/local/bin'].filter(Boolean);
@@ -63,6 +88,7 @@ export function findBin(names) {
 export function available() {
   const out = [];
   if (process.env.THINKER_LLM_CMD) out.push('command');
+  if (process.env.THINKER_LLM_BASE_URL) out.push('openai');
   if (process.env.ANTHROPIC_API_KEY && process.env.THINKER_BACKEND !== 'cli') out.push('anthropic');
   for (const p of ['claude', 'gemini', 'codex', 'cursor']) if (findBin(BINS[p])) out.push(p);
   return out;
@@ -77,7 +103,7 @@ export function resetFallback() {
 export function getFallbackOrder() {
   const want = process.env.THINKER_LLM;
   if (want) {
-    if (want === 'anthropic' || want === 'command' || BINS[want]) return [want];
+    if (want === 'anthropic' || want === 'command' || want === 'openai' || BINS[want]) return [want];
     throw new Error(`unknown THINKER_LLM: ${want}`);
   }
   const have = available();
@@ -85,10 +111,10 @@ export function getFallbackOrder() {
   const prefer = process.env.THINKER_LLM_PREFER;
   if (activeFallback && have.includes(activeFallback)) {
     list.push(activeFallback);
-  } else if (prefer && have.includes(prefer) && !have.includes('command') && !have.includes('anthropic')) {
+  } else if (prefer && have.includes(prefer) && !have.includes('command') && !have.includes('openai') && !have.includes('anthropic')) {
     list.push(prefer);
   }
-  for (const p of ['command', 'anthropic', 'claude', 'gemini', 'codex', 'cursor']) {
+  for (const p of ['command', 'openai', 'anthropic', 'claude', 'gemini', 'codex', 'cursor']) {
     if (have.includes(p) && !list.includes(p)) list.push(p);
   }
   return list;
@@ -112,7 +138,7 @@ async function executeProvider(p, opts) {
     },
   };
   try {
-    const res = await (p === 'anthropic' ? viaSdk(o) : p === 'claude' ? viaCli(o) : viaOther(p, o));
+    const res = await (p === 'anthropic' ? viaSdk(o) : p === 'openai' ? viaOpenai(o) : p === 'claude' ? viaCli(o) : viaOther(p, o));
     if (!reported) response = { ...response, ...res };
     if (opts.accounting) logModelUsage(opts.accounting.store, opts.accounting, response);
     // every answer carries its normalized counters, so a caller can say what the run used in tokens
@@ -126,7 +152,7 @@ async function executeProvider(p, opts) {
 export async function complete(opts) {
   const o = { model: 'sonnet', maxTokens: 8000, timeoutMs: 300_000, ...opts };
   const providers = getFallbackOrder();
-  if (!providers.length) throw new Error('no model available: install one of the claude, gemini, or codex CLIs, or set ANTHROPIC_API_KEY or THINKER_LLM_CMD');
+  if (!providers.length) throw new Error('no model available: install one of the claude, gemini, or codex CLIs, or set ANTHROPIC_API_KEY, THINKER_LLM_BASE_URL (an OpenAI-compatible endpoint) or THINKER_LLM_CMD');
   if (process.env.THINKER_LLM) return executeProvider(providers[0], o);
 
   let lastError = null;
@@ -479,7 +505,10 @@ async function viaOther(p, { system, prompt, schema, timeoutMs, model, onUsage }
     let text, usage = null, cost = null;
     if (p === 'command') text = await run(process.env.THINKER_LLM_CMD, [], { input: full, cwd, timeoutMs, shell: true });
     else if (p === 'codex') {
-      const args = ['exec', '--json', '--ephemeral', '--ignore-user-config', '--ignore-rules', '--skip-git-repo-check', '--sandbox', 'read-only'];
+      // The user's config.toml stays loaded: it holds model_providers (a gateway's base URL and key
+      // variable), without which codex has no model at all. What the call must not inherit is
+      // switched off by name: MCP servers, plugins, hooks and project instructions.
+      const args = ['exec', '--json', '--ephemeral', '-c', 'mcp_servers={}', '-c', 'plugins={}', '-c', 'features.hooks=false', '-c', 'project_doc_max_bytes=0', '--ignore-rules', '--skip-git-repo-check', '--sandbox', 'read-only'];
       if (resolvedModel) args.push('--model', resolvedModel);
       const out = await run(findBin(BINS.codex), [...args, '-'], { input: full, cwd, timeoutMs });
       const evs = out.split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
@@ -502,13 +531,14 @@ async function viaOther(p, { system, prompt, schema, timeoutMs, model, onUsage }
       const bin = findBin(BINS.gemini);
       const isAgy = path.basename(bin) === 'agy';
       if (isAgy) {
-        const args = ['--output-format', 'json', '--model', resolvedModel || 'gemini-3.8-flash-high', '--mode=plan', '-p', full];
+        const args = ['--output-format', 'json', '--model', resolvedModel || 'gemini-3.8-flash-high', '--mode=plan', '--disable-slash-commands', '-p', full];
         const j = JSON.parse(await run(bin, args, { cwd, timeoutMs }));
         cost = j.total_cost_usd ?? null;
         onUsage({ usage: j.usage, cost, model: j.model || resolvedModel });
         text = j.response || ''; usage = j.usage || null;
       } else {
-        const args = ['--output-format', 'json'];
+        // no extensions and no MCP servers in a call; the login (settings, GEMINI_API_KEY, a base URL) stays
+        const args = ['--output-format', 'json', '-e', 'none', '--allowed-mcp-server-names', 'none'];
         if (resolvedModel) args.push('-m', resolvedModel);
         const j = JSON.parse(await run(bin, args, { input: full, cwd, timeoutMs }));
         onUsage({ usage: j.stats, cost, model: j.model || resolvedModel });
@@ -519,6 +549,55 @@ async function viaOther(p, { system, prompt, schema, timeoutMs, model, onUsage }
     onUsage({ usage, cost });
     return { text, json: schema ? extractJson(text, schema) : null, usage, cost, provider: p };
   } finally { if (p !== 'cursor') try { fs.rmSync(cwd, { recursive: true, force: true }); } catch {} }
+}
+
+// An OpenAI-compatible endpoint, reached directly: one POST to /chat/completions. The schema goes
+// in the prompt rather than response_format, which gateways support unevenly; the reply is parsed
+// as the CLI replies are. The model must be named: a gateway has no tier names of its own.
+export function openaiModel(model) {
+  const resolved = resolveModel('openai', model);
+  if (['haiku', 'sonnet', 'opus', 'fable'].includes(resolved)) {
+    throw new Error(`THINKER_LLM_BASE_URL is set but no model is named for it: set THINKER_LLM_MODEL, or distillModel and verifyModel in .thinker/config.json (got the tier "${resolved}")`);
+  }
+  return resolved;
+}
+export function openaiKey() {
+  const named = process.env.THINKER_LLM_API_KEY_ENV;
+  if (named) {
+    if (!process.env[named]) throw new Error(`THINKER_LLM_API_KEY_ENV names ${named}, which is not set`);
+    return process.env[named];
+  }
+  return process.env.THINKER_LLM_API_KEY || process.env.OPENAI_API_KEY || null;
+}
+async function viaOpenai({ system, prompt, model, schema, maxTokens, timeoutMs, onUsage }) {
+  const base = process.env.THINKER_LLM_BASE_URL.replace(/\/+$/, '');
+  const url = /\/chat\/completions$/.test(base) ? base : base + '/chat/completions';
+  const key = openaiKey();
+  const resolved = openaiModel(model);
+  let user = prompt;
+  if (schema) user += `\n\nReply with one JSON object and nothing else: no prose, no code fence. It must match this JSON Schema:\n${JSON.stringify(schema)}`;
+  const messages = [...(system ? [{ role: 'system', content: system }] : []), { role: 'user', content: user }];
+  const body = JSON.stringify({ model: resolved, messages, max_tokens: maxTokens, stream: false });
+  const headers = { 'content-type': 'application/json', ...(key ? { authorization: `Bearer ${key}` } : {}) };
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), timeoutMs);
+  let res, text;
+  try {
+    res = await fetch(url, { method: 'POST', headers, body, signal: ac.signal });
+    text = await res.text();
+  } catch (err) {
+    throw new Error(`openai: ${err.name === 'AbortError' ? `no answer from ${url} in ${Math.round(timeoutMs / 1000)}s` : `${url}: ${err.cause?.message || err.message}`}`);
+  } finally { clearTimeout(timer); }
+  if (!res.ok) throw new Error(`openai: ${url} answered ${res.status}${res.status === 401 || res.status === 403 ? ' (check the token: THINKER_LLM_API_KEY_ENV, THINKER_LLM_API_KEY or OPENAI_API_KEY)' : ''}: ${text.slice(0, 300)}`);
+  let j; try { j = JSON.parse(text); } catch { throw new Error(`openai: ${url} did not answer JSON: ${text.slice(0, 300)}`); }
+  const usage = j.usage || null;
+  onUsage({ usage, cost: null, model: j.model || resolved });
+  if (j.error) throw new Error('openai: ' + JSON.stringify(j.error).slice(0, 400));
+  const choice = j.choices?.[0];
+  if (choice?.message?.refusal) throw new Error('model refused');
+  const c = choice?.message?.content;
+  const reply = Array.isArray(c) ? c.map(x => x.text || '').join('') : (c || '');
+  return { text: reply, json: schema ? extractJson(reply, schema) : null, usage, cost: null, provider: 'openai' };
 }
 
 async function viaSdk({ system, prompt, model, schema, maxTokens, timeoutMs, onUsage }) {
@@ -573,6 +652,8 @@ async function viaCliOnce({ system, prompt, model, schema, maxTokens, thinkingTo
     // tokens of agent instructions, written to the one-hour prompt cache (twice the input price) and
     // never read again. No settings or skills either: neither is used, both add to the prompt.
     '--system-prompt', system || CLI_SYSTEM, '--setting-sources', '', '--disable-slash-commands'];
+  const login = claudeLoginSettings();
+  if (login) args.push('--settings', JSON.stringify(login));
   if (schema) args.push('--json-schema', JSON.stringify(schema));
   try {
     const stdout = await new Promise((resolve, reject) => {
