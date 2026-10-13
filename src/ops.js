@@ -187,6 +187,14 @@ async function rerank(store, ranked, task, file, model) {
 // Tokens of notes a prompt hook serves. A note that does not fit is cut to its first line and its
 // pointers; on PostHog two long notes need about 1500 to be served in full.
 export const HOOK_BUDGET = 750;
+// Notes a cache must hold before the hooks serve from it (`minNotes` in .thinker/config.json overrides).
+// Every git repository has a cache from its first session, and one or two notes are not yet a map of
+// it: until then the prompt and tool hooks say nothing, as on an empty cache. Learning is not gated
+// (the stop hook distills every session, so a cache reaches the threshold on its own), and neither are
+// the MCP tools (the behavior tool acts on what the person asks, whatever the cache holds).
+export const SERVE_MIN_NOTES = 3;
+export const minNotes = store => { const n = Number(store.config().minNotes); return Number.isFinite(n) && n >= 0 ? Math.floor(n) : SERVE_MIN_NOTES; };
+export const servesNotes = store => store.exists() && store.list().length >= minNotes(store);
 // Candidates a request re-checks against the working tree (orient, lookup): past the cross-encoder's eight
 // and the titles listed as `more`, so a refresh changes nothing the caller sees; the rest of the cache
 // waits for maintenance or for its turn as a candidate.

@@ -48,9 +48,9 @@ export const MORE_NOTES_INTRO = 'Other cached titles. Use lookup only if one dir
 // the suite holds the total under the cap for a long repository path.
 export const INSTRUCTIONS_LIMIT = 2048;
 
-export function cacheInstructions({ repo, limit = INSTRUCTIONS_LIMIT, disabled, learn = true } = {}) {
+export function cacheInstructions({ repo, limit = INSTRUCTIONS_LIMIT, disabled, learn = true, intro } = {}) {
   const sections = [
-    `thinker is a cache of notes about this repository (${repo}) from earlier sessions and humans.`,
+    intro || `thinker is a cache of notes about this repository (${repo}) from earlier sessions and humans.`,
     cacheUsageGuide({ disabled }),
     ...(learn ? [CACHE_LEARNING_GUIDE] : []),
   ];

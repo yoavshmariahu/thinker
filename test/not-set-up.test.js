@@ -45,15 +45,18 @@ test('outside a git repository there is no cache, and nothing is created', t => 
   assert.ok(!fs.existsSync(path.join(dir, '.thinker')));
 });
 
-const mcpSession = (cwd, extra = {}) => {
+// `calls`: tool calls after the listing, answered as `replies` (the text of each), in order
+const mcpSession = (cwd, extra = {}, calls = []) => {
   const r = spawnSync(process.execPath, [path.join(ROOT, 'src/mcp.js')], {
-    cwd, env: { ...env, THINKER_HOME: path.join(cwd, 'home'), THINKER_NO_BG_VERIFY: '1', ...extra }, encoding: 'utf8', timeout: 20_000,
+    cwd, env: { ...env, THINKER_HOME: path.join(cwd, 'home'), THINKER_NO_BG_VERIFY: '1', CLAUDE_PROJECT_DIR: '', ...extra }, encoding: 'utf8', timeout: 20_000,
     input: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 't', version: '0' } } }) + '\n'
       + JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n'
-      + JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }) + '\n',
+      + JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }) + '\n'
+      + calls.map((c, i) => JSON.stringify({ jsonrpc: '2.0', id: 10 + i, method: 'tools/call', params: c }) + '\n').join(''),
   });
   const lines = r.stdout.split('\n').filter(Boolean).map(l => JSON.parse(l));
-  return { init: lines.find(l => l.id === 1), tools: lines.find(l => l.id === 2)?.result?.tools ?? [] };
+  const replies = calls.map((_, i) => lines.find(l => l.id === 10 + i)?.result?.content?.map(c => c.text).join('\n') ?? null);
+  return { init: lines.find(l => l.id === 1), tools: lines.find(l => l.id === 2)?.result?.tools ?? [], replies };
 };
 
 test('the MCP server offers its tools in a git repository without .thinker and starts the cache there', t => {
@@ -65,19 +68,37 @@ test('the MCP server offers its tools in a git repository without .thinker and s
 });
 
 // The user's machine-wide MCP entry pins no repository: the server takes it from the directory the
-// client starts it in, and offers nothing outside a git repository.
-test('the MCP server takes the repository from its working directory: tools in a checkout, none elsewhere', t => {
+// client starts it in. Started outside a git repository (a container or a desktop app may start it
+// at /, and Claude Code declares no MCP roots to ask for), it offers its tools all the same and binds
+// to the repository of the first call that names the agent's working directory (mcp.js:bind).
+test('the MCP server takes the repository from its working directory, or from the first call when started outside one', t => {
   const dir = fresh(t);
   fs.mkdirSync(path.join(dir, 'sub'));
   const set = mcpSession(path.join(dir, 'sub'), { THINKER_REPO: '' });
   assert.ok(set.init.result.instructions.includes(`cache of notes about this repository (${fs.realpathSync(dir)})`), set.init.result.instructions.slice(0, 120));
   assert.ok(set.tools.some(x => x.name === 'orient'));
+  assert.ok(!set.tools.find(x => x.name === 'orient').inputSchema.properties.cwd, 'bound at start: no cwd to pass');
   const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-no-repo-'));
   t.after(() => fs.rmSync(bare, { recursive: true, force: true }));
-  const none = mcpSession(bare, { THINKER_REPO: '' });
-  assert.match(none.init.result.instructions, /outside a git repository/);
-  assert.deepEqual(none.tools, []);
-  assert.ok(!fs.existsSync(path.join(bare, '.thinker')));
+  const none = mcpSession(bare, { THINKER_REPO: '' }, [
+    { name: 'orient', arguments: { task: 'how do I run tests' } },
+    { name: 'orient', arguments: { task: 'how do I run tests', cwd: path.join(dir, 'sub') } },
+    { name: 'lookup', arguments: { query: 'tests' } },
+  ]);
+  assert.match(none.init.result.instructions, /started outside one \(.*\): on the first call pass cwd/);
+  assert.ok(none.init.result.instructions.length <= 2048);
+  const orient = none.tools.find(x => x.name === 'orient');
+  assert.ok(orient, 'the tools are offered before a repository is known');
+  assert.ok(orient.inputSchema.properties.cwd, 'each takes the working directory');
+  assert.match(none.replies[0], /not bound to a repository yet.*Call again with cwd/, 'a call naming no directory is asked for one');
+  assert.ok(!fs.existsSync(path.join(bare, '.thinker')), 'nothing is created outside a repository');
+  assert.match(none.replies[1], new RegExp(`bound to the repository at ${fs.realpathSync(dir)} from here on`), 'the first call naming a directory binds the server');
+  assert.match(none.replies[1], /cache is empty/);
+  assert.ok(fs.existsSync(path.join(dir, '.thinker', 'config.json')), 'and starts the cache there');
+  assert.doesNotMatch(none.replies[2], /bound to the repository|not bound/, 'the next call needs no cwd and no announcement');
+  // the project directory the client's environment names binds the server at start
+  const named = mcpSession(bare, { THINKER_REPO: '', CLAUDE_PROJECT_DIR: dir });
+  assert.ok(named.init.result.instructions.includes(`cache of notes about this repository (${fs.realpathSync(dir)})`), named.init.result.instructions.slice(0, 120));
 });
 
 // install.sh: the tool is installed, the agents are wired up (`thinker connect`, asking nothing), and the

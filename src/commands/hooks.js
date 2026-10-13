@@ -11,7 +11,7 @@ import { parseTranscript } from '../distill.js';
 import { Store, findRepoRoot } from '../store.js';
 import { isDisabledRepo } from '../repo-switch.js';
 import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '../maintain.js';
-import { orient, HOOK_BUDGET, rememberTask, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn, beginTurn, holdoutTurn, sessionIntro } from '../ops.js';
+import { orient, HOOK_BUDGET, servesNotes, rememberTask, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn, beginTurn, holdoutTurn, sessionIntro } from '../ops.js';
 import { recordEvent, traceFile, toolName, toolInput } from '../transcripts.js';
 import { turnNotice, weeklyNotice } from '../usage.js';
 
@@ -77,11 +77,12 @@ async function hookCommand(ctx) {
     const introOk = store.exists() && !['windsurf', 'pi', 'copilot'].includes(client) && !holdout;
     const emit = text => { if (client === 'cursor' || client === 'copilot') parkPending(store.dir, session, text); else out(promptOutput(client, text)); };
     if (!store.exists() || client === 'windsurf') return;
-    // Every git repository has a cache, started on first use and empty until it learns. A prompt it has
-    // nothing for is still a request: `thinker usage` and the telemetry count a machine as active by its
-    // requests, and a cache in daily use that has not learned yet must not read as a machine thinker never
-    // ran on (2026-10-12: seven of eight reporting devices read as idle for exactly this). Nothing is said.
-    if (!store.list().length) { store.log({ op: 'orient', session: session === 'unknown' ? undefined : session, client, task: String(ev.prompt || '').slice(0, 200), served: [], empty: true }); return; }
+    // Every git repository has a cache, started on first use and empty until it learns; the hooks serve
+    // from it once it holds a few notes (ops.js:SERVE_MIN_NOTES). A prompt served nothing is still a
+    // request: `thinker usage` and the telemetry count a machine as active by its requests, and a cache in
+    // daily use that has not learned yet must not read as a machine thinker never ran on (2026-10-12: seven
+    // of eight reporting devices read as idle for exactly this). Nothing is said.
+    if (!servesNotes(store)) { store.log({ op: 'orient', session: session === 'unknown' ? undefined : session, client, task: String(ev.prompt || '').slice(0, 200), served: [], empty: true }); return; }
     // outcome signal: a correction-shaped follow-up counts against the notes served earlier in this session
     if (session !== 'unknown' && looksLikeCorrection(ev.prompt)) outcome(store, { session, turn: turn > 1 ? turn - 1 : undefined, positive: false, reason: 'correction prompt: ' + String(ev.prompt).slice(0, 80) });
     if (session !== 'unknown') rememberTask(store, session, ev.prompt);
@@ -113,7 +114,7 @@ async function hookCommand(ctx) {
       let p = takePending(store.dir, session);
       // the prompt hook does not run in every Cursor mode: orient from the transcript's request instead
       const turn = path.join(store.dir, 'state', `oriented-${String(ev.generation_id || session).replace(/[^\w.-]/g, '_')}`);
-      if (!p && !mcpCall && !fs.existsSync(turn) && ev.transcript_path && fs.existsSync(ev.transcript_path) && store.list().length) {
+      if (!p && !mcpCall && !fs.existsSync(turn) && ev.transcript_path && fs.existsSync(ev.transcript_path) && servesNotes(store)) {
         const task = parseTranscript(ev.transcript_path).events.filter(e => e.t === 'prompt').pop()?.text;
         if (task) { const { turn, holdout } = beginTurn(store, session); const r = await orient(store, { task, session, client: 'cursor', budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout, turn: turn || undefined }); if (r.included.length) p = `<thinker-cache>\nNotes about this repo from earlier sessions; their code dependencies were re-hashed just now.\n\n${r.text}\n</thinker-cache>`; }
       }
@@ -121,7 +122,7 @@ async function hookCommand(ctx) {
       if (p && !mcpCall) parts.push(p);
     }
     const t = holdoutTurn(store, session);
-    if ((client === 'claude' || flags.late) && !t.holdout) {
+    if ((client === 'claude' || flags.late) && !t.holdout && servesNotes(store)) {
       const name = toolName(ev.tool_name), command = toolInput(name, ev.tool_input).command || '';
       // an edit tool, or a shell command that writes a file in place
       const edited = name === 'Edit' || name === 'Write' || (name === 'Bash' && /\b(sed|perl)\s+(-\w+\s+)*-\w*i\b|\btee\s|>{1,2}\s*[\w./-]+\.\w+/.test(command));

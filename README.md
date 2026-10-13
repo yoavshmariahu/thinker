@@ -37,7 +37,7 @@ The installer comes in the
 [`@zerotimedev/thinker`](https://www.npmjs.com/package/@zerotimedev/thinker) package on npm.
 
 The installer wires thinker into the coding agents on the machine; from then on every git
-repository has a cache that grows from your sessions. It offers to warm up
+repository has a cache that grows from your sessions and is served once it holds a few notes. It offers to warm up
 caches from merged pull requests on a local page in your browser, right there in the
 terminal (the top five picked; arrows and Space change that, then choose a harness), or later with `thinker warmup`
 ([how setup works](docs/setup.md)).
