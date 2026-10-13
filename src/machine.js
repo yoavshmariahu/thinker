@@ -95,21 +95,24 @@ export function discoverRepos(store, { home, sinceMs, now = Date.now() } = {}) {
   const here = checkoutOf(store.repo); if (here) touch(here, 0, 0);
   const groups = new Map();
   for (const r of by.values()) { const id = repoId(r.checkout); if (!groups.has(id)) groups.set(id, []); groups.get(id).push(r); }
+  return [...groups].map(([id, cs]) => repoRecord(id, cs, here)).sort((a, b) => (Date.parse(b.lastUsed) || 0) - (Date.parse(a.lastUsed) || 0));
+}
+
+// One repository's line from its checkouts ({ checkout, lastUsed, sessions } each).
+function repoRecord(id, cs, here) {
   // a worktree's .git is a file: the main checkout comes first, then the latest used
   const main = c => { try { return fs.statSync(path.join(c.checkout, '.git')).isDirectory() ? 1 : 0; } catch { return 0; } };
-  return [...groups].map(([id, cs]) => {
-    cs.sort((a, b) => main(b) - main(a) || b.lastUsed - a.lastUsed);
-    const lastUsed = Math.max(...cs.map(c => c.lastUsed));
-    // a cache exists when it holds notes: every checkout an agent worked in has a .thinker folder, most of them empty
-    const notes = cs.reduce((a, c) => a + (cacheStats(c.checkout)?.notes || 0), 0);
-    return {
-      id, checkout: cs[0].checkout, checkouts: cs.map(c => c.checkout), name: displayName(id, cs[0].checkout),
-      lastUsed: lastUsed ? new Date(lastUsed).toISOString() : null, sessions: cs.reduce((a, c) => a + c.sessions, 0),
-      current: cs.some(c => c.checkout === here), notes, hasCache: notes > 0,
-      // switched off machine-wide (repo-switch.js): the page offers to turn it on, never a build
-      disabled: isDisabledRepo(cs[0].checkout),
-    };
-  }).sort((a, b) => (Date.parse(b.lastUsed) || 0) - (Date.parse(a.lastUsed) || 0));
+  cs.sort((a, b) => main(b) - main(a) || b.lastUsed - a.lastUsed);
+  const lastUsed = Math.max(...cs.map(c => c.lastUsed));
+  // a cache exists when it holds notes: every checkout an agent worked in has a .thinker folder, most of them empty
+  const notes = cs.reduce((a, c) => a + (cacheStats(c.checkout)?.notes || 0), 0);
+  return {
+    id, checkout: cs[0].checkout, checkouts: cs.map(c => c.checkout), name: displayName(id, cs[0].checkout),
+    lastUsed: lastUsed ? new Date(lastUsed).toISOString() : null, sessions: cs.reduce((a, c) => a + c.sessions, 0),
+    current: cs.some(c => c.checkout === here), notes, hasCache: notes > 0,
+    // switched off machine-wide (repo-switch.js): the page offers to turn it on, never a build
+    disabled: isDisabledRepo(cs[0].checkout),
+  };
 }
 
 // The warm-up page: each repository with what a full and a shallow build would take.
@@ -133,7 +136,23 @@ export function githubPushedAt({ ghFn } = {}) {
 // read its pull requests before.
 export function warmupCandidates(store, opts = {}) {
   const pushed = githubPushedAt(opts);
-  return discoverRepos(store, opts).map(r => {
+  return discoverRepos(store, opts).map(r => candidateOf(r, pushed))
+  // the checkout this runs in leads, whatever its activity: `thinker warmup` or `thinker ui` inside a fresh
+  // clone is how the person reaches it before any session there
+    .sort((a, b) => (b.current - a.current) || (Date.parse(b.active) || 0) - (Date.parse(a.active) || 0) || b.sessions - a.sessions);
+}
+
+// A warm-up entry for any git checkout, listed or not: `thinker warmup --repos <path>` names a fresh
+// clone the agents have not worked in (the first session there would list it). Null outside a checkout.
+export function warmupCandidate(store, p, opts = {}) {
+  let real; try { real = fs.realpathSync(p); } catch { return null; }
+  const root = findRepoRoot(real);
+  if (!isGitCheckout(root)) return null;
+  return candidateOf(repoRecord(repoId(root), [{ checkout: root, lastUsed: 0, sessions: 0 }], checkoutOf(store.repo)), githubPushedAt(opts));
+}
+
+function candidateOf(r, pushed) {
+  {
     const slug = githubSlug(r.checkout);
     // the file count plays no part in the time or the tokens, and listing a large repository's files is slow
     const full = estimateCacheBuild(r.checkout, { prs: DEFAULT_PRS, slug, fileCount: 0 });
@@ -147,7 +166,7 @@ export function warmupCandidates(store, opts = {}) {
       // the person's focus areas from their own commits (areas.js): the page's default selection
       areas: activityAreas(r.checkout, { noGitHub: true }).directories,
     };
-  }).sort((a, b) => (Date.parse(b.active) || 0) - (Date.parse(a.active) || 0) || b.sessions - a.sessions);
+  }
 }
 
 // What a cache holds, for the cache page's repository cards.

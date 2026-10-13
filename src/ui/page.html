@@ -864,7 +864,7 @@ function wrow(r) {
   return `<div class="wrow${on ? ' on' : ''}" data-c="${esc(r.checkout)}">${main}<div class="wctl">${ctl}${off}</div><div class="weta"><b${on ? '' : ' class="dim"'}>${dur(e.seconds)}</b><span>${on ? `~${fmt(e.tokens)} tokens · ${esc(e.notes)}` : ''}</span></div></div>`;
 }
 function renderWarmup() {
-  if (!W.repos.length) { $('#w-grid').innerHTML = `<div class="empty">No git repositories found in your agents' recent work. Run an agent session inside one, or <code>thinker setup --build</code> there.</div>`; $('#w-bar').hidden = true; return; }
+  if (!W.repos.length) { $('#w-grid').innerHTML = `<div class="empty">No git repositories found in your agents' recent work. Run <code>thinker ui</code> or <code>thinker warmup</code> inside one to warm it up; a cache also starts by itself with the first agent session there.</div>`; $('#w-bar').hidden = true; return; }
   const pages = Math.max(1, Math.ceil(W.repos.length / W_PAGE)); wPage = Math.min(wPage, pages - 1);
   $('#w-grid').innerHTML = W.repos.slice(wPage * W_PAGE, (wPage + 1) * W_PAGE).map(wrow).join('');
   $('#w-pager').innerHTML = pages > 1 ? `<span>${wPage * W_PAGE + 1}–${Math.min(W.repos.length, (wPage + 1) * W_PAGE)} of ${W.repos.length} repositories</span><div class="pages"><button data-page="${wPage - 1}"${wPage === 0 ? ' disabled' : ''}>‹</button>${Array.from({ length: pages }, (_, i) => `<button data-page="${i}"${i === wPage ? ' class="on"' : ''}>${i + 1}</button>`).join('')}<button data-page="${wPage + 1}"${wPage === pages - 1 ? ' disabled' : ''}>›</button></div>` : '';

@@ -61,3 +61,29 @@ test('terminal warm-up asks only for the harness and passes its automatic model 
     spawnFn: (cmd, args) => { assert.equal(args[args.indexOf('--model') + 1], 'gpt-6-sol'); return { status: 0 }; },
   });
 });
+
+// `--repos` takes the path of any git checkout, listed or not (machine.js:warmupCandidate): the offer an
+// agent makes on the first session in a fresh clone names the checkout this way, and the clone is on no
+// list until a session there is recorded. A name the list lacks, or a path that is no checkout, is refused.
+test('--repos warms a checkout by path when the list lacks it, and refuses what is no repository', async () => {
+  const rows = [{ name: 'one', checkout: '/repos/one', canMine: true, estimates: { full: { seconds: 1, prs: 1 } } }];
+  const fresh = { name: 'clone', checkout: '/home/me/src/clone', canMine: true, estimates: { full: { seconds: 2, prs: 1 } } };
+  const asked = [], spawned = [], lines = [];
+  await warmupCommand({ flags: { terminal: true, yes: true, repos: 'one,/home/me/src/clone' }, store: {}, out: s => lines.push(s), HERE: '/app' }, {
+    candidatesFn: () => rows,
+    candidateFn: (store, p) => { asked.push(p); return p === '/home/me/src/clone' ? fresh : null; },
+    selectAgentFn: async () => ({ ok: true, agent: 'claude' }),
+    spawnFn: (cmd, args) => { spawned.push(args[args.indexOf('--repo') + 1]); return { status: 0 }; },
+  });
+  assert.deepEqual(asked, ['/home/me/src/clone'], 'only the entry the list lacks is looked up, and only as a path');
+  assert.deepEqual(spawned, ['/repos/one', '/home/me/src/clone']);
+  process.exitCode = 0;
+  const refused = [];
+  await warmupCommand({ flags: { terminal: true, yes: true, repos: 'two,/nowhere' }, store: {}, out: s => refused.push(s), HERE: '/app' }, {
+    candidatesFn: () => rows, candidateFn: () => null,
+    selectAgentFn: async () => ({ ok: true, agent: 'claude' }),
+    spawnFn: () => { throw new Error('nothing to build'); },
+  });
+  assert.match(refused.join('\n'), /Not a git repository on this machine: two, \/nowhere/);
+  assert.equal(process.exitCode, 1); process.exitCode = 0;
+});

@@ -40,15 +40,15 @@ export const isGitCheckout = repo => fs.existsSync(path.join(repo, '.git'));
 // Not the notes: a repository may still commit `.thinker/notes/` (the legacy shared cache), and an
 // excluded path cannot be added. The local tier ignores itself. Nothing when this is not a git checkout.
 export const EXCLUDED = ['.thinker/config.json', '.thinker/.gitignore', '.thinker/state/', '.thinker/log.jsonl', '.thinker/benchmarks/'];
-export function excludeFromGit(repo) {
+export function excludeFromGit(repo, excluded = EXCLUDED) {
   if (!isGitCheckout(repo)) return false;
   try {
-    const r = spawnSync('git', ['check-ignore', '-q', '.thinker'], { cwd: repo, stdio: 'ignore' });
+    const r = spawnSync('git', ['check-ignore', '-q', excluded === EXCLUDED ? '.thinker' : excluded[0]], { cwd: repo, stdio: 'ignore' });
     if (r.status === 0) return false;
     const file = path.resolve(repo, execFileSync('git', ['rev-parse', '--git-path', 'info/exclude'], { cwd: repo, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim());
     const had = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
     const lines = new Set(had.split('\n').map(l => l.trim()));
-    const missing = EXCLUDED.filter(l => !lines.has(l) && !lines.has('.thinker/') && !lines.has('.thinker'));
+    const missing = excluded.filter(l => !lines.has(l) && (excluded !== EXCLUDED || (!lines.has('.thinker/') && !lines.has('.thinker'))));
     if (!missing.length) return false;
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, had + (had && !had.endsWith('\n') ? '\n' : '') + missing.join('\n') + '\n');
