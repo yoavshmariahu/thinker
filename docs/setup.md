@@ -199,6 +199,9 @@ Old sync settings are ignored.
 
 ## Updates and releases
 
+Maintainers: see [Cutting a release](releases.md) for the manual PR, tag,
+GitHub and npm release command.
+
 Thinker auto-updates daily in the background. To check or update manually at any time:
 
 ```bash

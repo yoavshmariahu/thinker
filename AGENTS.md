@@ -62,14 +62,18 @@ Requires Node 20+. Tests: `npm test` (`node --test test/*.test.js`).
 commit, sha256 of the archive) and `install.sh` attached. The installer
 (`install.sh`, run through `npx @zerotimedev/thinker`, the npm package that carries it) and `thinker update` (`src/update.js`)
 read `releases/latest/download/version.json` and download the archive from the
-same release; `thinker update vX.Y.Z` pins one. To cut a release: bump the
-version through a pull request (`npm version X.Y.Z --no-git-tag-version`,
-commit `package.json` and `package-lock.json`), merge it, then run
-`scripts/release.sh` from any checkout: it builds the three files from
-`origin/main` in a detached worktree (`scripts/pack.sh`), checks the archive,
-tags the commit, pushes the tag, creates the release with notes generated from
-the merged pull requests, and waits until the latest-release URL reports the
-version. Nothing is uploaded to zerotime.dev any more; `scripts/pack.sh <base
+same release; `thinker update vX.Y.Z` pins one. To cut a release, manually run
+`bash scripts/release.sh X.Y.Z` from any checkout. The runner
+(`scripts/release.mjs`) fetches `origin/main`, tests a version-only bump in a
+temporary worktree and opens a PR. It waits for the user to review and merge
+the PR; it never merges or pushes main itself. It tests and packages the merged
+commit (`scripts/pack.sh`), tags it, publishes the GitHub release and its three
+assets, verifies the public download, then publishes the npm installer at the
+same version. Rerunning the same command resumes incomplete steps from the
+exact tag; existing public assets and npm versions are never overwritten.
+Without a version it resumes the current `origin/main` version. See
+`docs/releases.md` for prerequisites, authentication and `--no-wait`.
+Nothing is uploaded to zerotime.dev any more; `scripts/pack.sh <base
 url>` still builds a self-hosted set for anyone who wants one. Installs made
 before 0.1.35 point at `zerotime.dev/dist` and move to GitHub on their first
 update that runs the new code (`install.sh --update` does it by hand).
