@@ -650,26 +650,42 @@ async function viaCli(opts) {
 
 const CLI_SYSTEM = 'Answer the request directly. No tools are available.';
 
+// The CLI counts thinking against CLAUDE_CODE_MAX_OUTPUT_TOKENS, and no switch turns thinking off any
+// more: on claude 2.1.296 with Haiku 5.5, MAX_THINKING_TOKENS=0, CLAUDE_CODE_DISABLE_THINKING=1,
+// CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING=1 and CLAUDE_CODE_EFFORT_LEVEL=low each left 6,600-9,300 thinking
+// tokens on an eight-note phrasing call whose answer is under 3,000. A caller's maxTokens is the room its
+// answer needs, so the cap handed to the CLI adds this much for thinking. A cap is a ceiling, not spend;
+// a cap that thinking exhausts is the expensive case: the CLI retries the request up to four times,
+// burning the whole cap in thinking each time, then exits 1 with nothing saved (a third of the week's
+// phrasing and design-document calls on this machine, ~/.thinker/log.jsonl, 2026-10-13).
+export const THINKING_HEADROOM = 16_000;
+export const cliOutputCap = maxTokens => (maxTokens || 0) + THINKING_HEADROOM;
+
 // claude -p exits 1 with nothing on stderr when the answer (its thinking included) reaches the output
-// cap: its JSON still carries the counters, so the error can name the cause. '' when that is not it.
-export function overCap(stdout, maxTokens) {
+// cap. Current versions say so in api_error and result (stop_reason stays "stop_sequence", iterations
+// is empty); older ones only carried the counters. '' when that is not it. `cap` is the cap the CLI
+// enforced (cliOutputCap), the number the message names.
+export function overCap(stdout, cap) {
   try {
     const j = JSON.parse(stdout);
     const last = (j.usage?.iterations || []).at(-1);
-    return j.stop_reason === 'max_tokens' || (maxTokens && last?.output_tokens >= maxTokens) ? `the answer ran past the ${maxTokens}-token output cap (ask for less in one call)` : '';
+    const hit = j.stop_reason === 'max_tokens' || j.api_error === 'max_output_tokens'
+      || /exceeded the \d+ output token maximum/.test(String(j.result || ''))
+      || (cap && last?.output_tokens >= cap);
+    return hit ? `the answer ran past the ${cap}-token output cap (ask for less in one call)` : '';
   } catch { return ''; }
 }
 
-function claudeFailure(stdout, stderr, code, maxTokens) {
+function claudeFailure(stdout, stderr, code, cap) {
   let j; try { j = JSON.parse(stdout); } catch {}
-  const cap = overCap(stdout, maxTokens);
+  const over = overCap(stdout, cap);
   const detail = [j?.result, ...(Array.isArray(j?.errors) ? j.errors : []), j?.error?.message || j?.error]
     .filter(v => typeof v === 'string' && v.trim()).join('; ');
   // Put the reason before metadata: setup only has room for the first 120 characters.
-  const reason = cap || detail || stderr.trim() || j?.subtype || stdout.trim() || 'no error details';
+  const reason = over || detail || stderr.trim() || j?.subtype || stdout.trim() || 'no error details';
   const error = new Error(`claude -p exited ${code}: ${reason.slice(0, 500)}`);
-  if (cap) error.code = 'MODEL_OUTPUT_LIMIT';
-  error.retryable = !cap && !LIMIT_RE.test(reason) && (
+  if (over) error.code = 'MODEL_OUTPUT_LIMIT';
+  error.retryable = !over && !LIMIT_RE.test(reason) && (
     j?.stop_reason === 'tool_use'
     || /overloaded|temporarily unavailable|internal server error|\b50[234]\b|ECONNRESET|ETIMEDOUT|fetch failed|socket hang up/i.test(reason)
     || (!detail && !stderr.trim() && (!j?.subtype || j.subtype === 'error_during_execution'))
@@ -692,7 +708,7 @@ async function viaCliOnce({ system, prompt, model, schema, maxTokens, thinkingTo
   if (schema) args.push('--json-schema', JSON.stringify(schema));
   try {
     const { stdout, stderr, code } = await new Promise((resolve, reject) => {
-      const p = spawn(findBin(BINS.claude) || 'claude', args, { cwd, env: { ...process.env, THINKER_IN_LLM: '1', CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1', CLAUDE_CODE_MAX_OUTPUT_TOKENS: String(maxTokens), ...(thinkingTokens === undefined ? {} : { MAX_THINKING_TOKENS: String(thinkingTokens) }), ...(structuredRetries === undefined ? {} : { MAX_STRUCTURED_OUTPUT_RETRIES: String(structuredRetries) }), ...(cache ? {} : { DISABLE_PROMPT_CACHING: '1' }) } });
+      const p = spawn(findBin(BINS.claude) || 'claude', args, { cwd, env: { ...process.env, THINKER_IN_LLM: '1', CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1', CLAUDE_CODE_MAX_OUTPUT_TOKENS: String(cliOutputCap(maxTokens)), ...(thinkingTokens === undefined ? {} : { MAX_THINKING_TOKENS: String(thinkingTokens) }), ...(structuredRetries === undefined ? {} : { MAX_STRUCTURED_OUTPUT_RETRIES: String(structuredRetries) }), ...(cache ? {} : { DISABLE_PROMPT_CACHING: '1' }) } });
       let o = '', e = '';
       const timer = setTimeout(() => { p.kill('SIGKILL'); reject(Object.assign(new Error('claude -p timed out'), { retryable: true })); }, timeoutMs);
       p.stdout.on('data', d => o += d); p.stderr.on('data', d => e += d);
@@ -702,9 +718,9 @@ async function viaCliOnce({ system, prompt, model, schema, maxTokens, thinkingTo
     });
     let j;
     try { j = JSON.parse(stdout); }
-    catch (e) { if (code !== 0) throw claudeFailure(stdout, stderr, code, maxTokens); throw e; }
+    catch (e) { if (code !== 0) throw claudeFailure(stdout, stderr, code, cliOutputCap(maxTokens)); throw e; }
     onUsage({ usage: j.usage, cost: j.total_cost_usd, model: j.model || ALIASES[resolved] || resolved });
-    if (code !== 0 || j.is_error || (LIMIT_RE.test(String(j.result || '').slice(0, 200)) && (j.num_turns || 0) <= 1)) throw claudeFailure(stdout, stderr, code, maxTokens);
+    if (code !== 0 || j.is_error || (LIMIT_RE.test(String(j.result || '').slice(0, 200)) && (j.num_turns || 0) <= 1)) throw claudeFailure(stdout, stderr, code, cliOutputCap(maxTokens));
     let json = j.structured_output ?? null;
     if (schema && json == null) { try { json = JSON.parse(j.result); } catch { throw new Error('no structured output: ' + String(j.result).slice(0, 300)); } }
     return { text: j.result, json, usage: j.usage, cost: j.total_cost_usd, provider: 'claude' };

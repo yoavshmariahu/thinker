@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { normalizeModelUsage, streamModelUsage, logModelUsage } from '../src/model-usage.js';
 import { Store } from '../src/store.js';
 import { summarize, renderUsage } from '../src/usage.js';
-import { complete } from '../src/llm.js';
+import { complete, cliOutputCap } from '../src/llm.js';
 
 const CLI = fileURLToPath(new URL('../src/cli.js', import.meta.url));
 const tmp = () => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-cost-')));
@@ -140,6 +140,25 @@ test('invalid model answers still retain reported tokens and cost', async () => 
   }
 });
 
+test('the cap handed to claude -p leaves room for the thinking no switch turns off', async t => {
+  const dir = tmp();
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const previous = { ...process.env };
+  Object.assign(process.env, { ...isolatedEnv(dir), PATH: dir + path.delimiter + process.env.PATH, THINKER_LLM: 'claude' });
+  t.after(() => {
+    for (const k of Object.keys(process.env)) if (!(k in previous)) delete process.env[k];
+    Object.assign(process.env, previous);
+  });
+  fs.writeFileSync(path.join(dir, 'claude'), `#!${process.execPath}
+process.stdin.resume(); process.stdin.on('end', () => console.log(JSON.stringify({ stop_reason: 'tool_use', num_turns: 2,
+  result: JSON.stringify({ cap: process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS, thinking: process.env.MAX_THINKING_TOKENS }),
+  usage: { input_tokens: 5, output_tokens: 5 }, total_cost_usd: 0 })));`);
+  fs.chmodSync(path.join(dir, 'claude'), 0o755);
+  const r = await complete({ prompt: 'test', maxTokens: 6000, thinkingTokens: 0, schema: { type: 'object' } });
+  assert.equal(r.json.cap, String(cliOutputCap(6000)), 'the answer room plus the thinking headroom');
+  assert.equal(r.json.thinking, '0', 'thinking is still asked off, for versions that honor it');
+});
+
 test('Claude retries transient failures, exposes the actual cause, and accounts for failed attempts', async t => {
   const dir = tmp();
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
@@ -180,9 +199,18 @@ process.stdin.resume(); process.stdin.on('end', () => {
   });
   assert.equal(calls(), 1, 'authentication failures are not retried');
 
-  fixture([{ code: 1, json: { usage: { iterations: [{ output_tokens: 2500 }] } } }]);
+  fixture([{ code: 1, json: { usage: { iterations: [{ output_tokens: cliOutputCap(2500) }] } } }]);
   await assert.rejects(complete({ prompt: 'test', maxTokens: 2500 }), { code: 'MODEL_OUTPUT_LIMIT' });
   assert.equal(calls(), 1, 'output limits go to the caller for smaller batches');
+
+  fixture([{ code: 1, json: { is_error: true, api_error: 'max_output_tokens', num_turns: 4,
+    result: `API Error: Claude's response exceeded the ${cliOutputCap(2500)} output token maximum.` } }]);
+  await assert.rejects(complete({ prompt: 'test', maxTokens: 2500, thinkingTokens: 0 }), e => {
+    assert.equal(e.code, 'MODEL_OUTPUT_LIMIT');
+    assert.match(e.message, new RegExp(`${cliOutputCap(2500)}-token output cap`));
+    return true;
+  });
+  assert.equal(calls(), 1, 'the current CLI reports the cap in api_error and result, not stop_reason');
 
   fixture([{ code: 1, json: {} }]);
   await assert.rejects(complete({ prompt: 'test' }), /claude -p exited 1/);

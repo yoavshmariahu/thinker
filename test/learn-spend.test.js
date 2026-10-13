@@ -11,7 +11,7 @@ import { Store } from '../src/store.js';
 import { createNote } from '../src/ops.js';
 import { batchDue, BATCH_CHARS, relatedNotes, distillEvents, MAX_NOTES } from '../src/distill.js';
 import { installClient } from '../src/clients.js';
-import { complete, resetFallback } from '../src/llm.js';
+import { complete, resetFallback, cliOutputCap } from '../src/llm.js';
 
 process.env.THINKER_TELEMETRY = 'off';
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
@@ -76,7 +76,7 @@ test('claude -p runs with its system prompt replaced, no settings and no skills'
   fs.chmodSync(path.join(dir, 'claude'), 0o755);
   await withEnv({ PATH: `${dir}${path.delimiter}${process.env.PATH}`, THINKER_LLM: 'claude', THINKER_LLM_CMD: undefined, ANTHROPIC_API_KEY: undefined, THINKER_QUIET: '1' }, async () => {
     await complete({ system: 'You check notes.', prompt: 'hi', model: 'haiku', maxTokens: 1500, thinkingTokens: 0, structuredRetries: 1 });
-    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, 'env.json'), 'utf8')), { max: '1500', thinking: '0', retries: '1' });
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, 'env.json'), 'utf8')), { max: String(cliOutputCap(1500)), thinking: '0', retries: '1' }, 'the answer room plus thinking headroom (llm.js:cliOutputCap)');
     const args = JSON.parse(fs.readFileSync(argsFile, 'utf8'));
     assert.equal(args[args.indexOf('--system-prompt') + 1], 'You check notes.');
     assert.ok(!args.includes('--append-system-prompt'), 'appending kept ~7k tokens of agent instructions in every call');
