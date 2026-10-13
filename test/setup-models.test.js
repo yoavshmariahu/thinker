@@ -3,11 +3,13 @@ import assert from 'node:assert/strict';
 import { buildModel, useBuildModel } from '../src/setup/models.js';
 import { DEFAULT_DISTILL_MODEL, resolveModel } from '../src/llm.js';
 import { warmupCommand } from '../src/commands/warmup.js';
+import { stripAnsi } from '../src/setup/ui.js';
 
 test('each harness gets its inexpensive model automatically, with no model menu', () => {
   for (const [agent, name] of [['claude', 'Haiku'], ['cursor', 'Haiku'], ['codex', 'Luna'], ['gemini', 'Gemini Flash']]) {
     const lines = [];
-    assert.equal(useBuildModel({ agent, out: s => lines.push(s) }), DEFAULT_DISTILL_MODEL);
+    // colors are on when the suite runs on a terminal (the release script does): the words are what is checked
+    assert.equal(useBuildModel({ agent, out: s => lines.push(stripAnsi(s)) }), DEFAULT_DISTILL_MODEL);
     assert.match(lines.join('\n'), new RegExp(`Model: ${name}.*automatic`));
     assert.equal(buildModel(agent).model, resolveModel(agent, DEFAULT_DISTILL_MODEL));
   }

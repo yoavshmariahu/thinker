@@ -8,6 +8,10 @@ import { ensureTelemetryScheduled, setTelemetryScheduleDisabled, telemetrySchedu
 import { scheduleTelemetry, unscheduleTelemetry, isTelemetryScheduled } from '../src/telemetry.js';
 
 const root = path.resolve(import.meta.dirname, '..');
+// The scheduler is gated on telemetry being on (telemetry.js:isTelemetryEnabled reads the environment):
+// these tests drive it with fake schedulers and must see it on whatever the shell says (the release
+// script runs the suite with THINKER_TELEMETRY=off, and on 2026-10-13 two of them skipped and failed there).
+for (const k of ['THINKER_TELEMETRY', 'THINKER_NO_TELEMETRY', 'THINKER_NO_LEARN']) delete process.env[k];
 function temp(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-hourly-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
