@@ -634,6 +634,13 @@ async function viaCli(opts) {
     catch (e) {
       // the model tried to call a tool although none is offered (seen with long code prompts): try again at once, twice
       if (/"stop_reason":"tool_use"/.test(String(e.message)) && attempt < 2) { opts.onRetry(); continue; }
+      // A selected harness stays selected. Retry short-lived process/API failures twice before
+      // handing the failure to the caller (or to the existing provider fallback, when unpinned).
+      if (e.retryable && attempt < 2) {
+        opts.onRetry();
+        await new Promise(r => setTimeout(r, 1000 * 2 ** attempt));
+        continue;
+      }
       if (!LIMIT_RE.test(String(e.message)) || attempt >= maxAttempts || process.env.THINKER_NO_LIMIT_WAIT === '1') throw e;
       opts.onRetry();
       await new Promise(r => setTimeout(r, 10 * 60_000));
@@ -647,9 +654,27 @@ const CLI_SYSTEM = 'Answer the request directly. No tools are available.';
 // cap: its JSON still carries the counters, so the error can name the cause. '' when that is not it.
 export function overCap(stdout, maxTokens) {
   try {
-    const last = (JSON.parse(stdout).usage?.iterations || []).at(-1);
-    return maxTokens && last?.output_tokens >= maxTokens ? `the answer ran past the ${maxTokens}-token output cap (ask for less in one call)` : '';
+    const j = JSON.parse(stdout);
+    const last = (j.usage?.iterations || []).at(-1);
+    return j.stop_reason === 'max_tokens' || (maxTokens && last?.output_tokens >= maxTokens) ? `the answer ran past the ${maxTokens}-token output cap (ask for less in one call)` : '';
   } catch { return ''; }
+}
+
+function claudeFailure(stdout, stderr, code, maxTokens) {
+  let j; try { j = JSON.parse(stdout); } catch {}
+  const cap = overCap(stdout, maxTokens);
+  const detail = [j?.result, ...(Array.isArray(j?.errors) ? j.errors : []), j?.error?.message || j?.error]
+    .filter(v => typeof v === 'string' && v.trim()).join('; ');
+  // Put the reason before metadata: setup only has room for the first 120 characters.
+  const reason = cap || detail || stderr.trim() || j?.subtype || stdout.trim() || 'no error details';
+  const error = new Error(`claude -p exited ${code}: ${reason.slice(0, 500)}`);
+  if (cap) error.code = 'MODEL_OUTPUT_LIMIT';
+  error.retryable = !cap && !LIMIT_RE.test(reason) && (
+    j?.stop_reason === 'tool_use'
+    || /overloaded|temporarily unavailable|internal server error|\b50[234]\b|ECONNRESET|ETIMEDOUT|fetch failed|socket hang up/i.test(reason)
+    || (!detail && !stderr.trim() && (!j?.subtype || j.subtype === 'error_during_execution'))
+  );
+  return error;
 }
 
 async function viaCliOnce({ system, prompt, model, schema, maxTokens, thinkingTokens, structuredRetries, timeoutMs, cache = true, onUsage }) {
@@ -666,18 +691,20 @@ async function viaCliOnce({ system, prompt, model, schema, maxTokens, thinkingTo
   if (login) args.push('--settings', JSON.stringify(login));
   if (schema) args.push('--json-schema', JSON.stringify(schema));
   try {
-    const stdout = await new Promise((resolve, reject) => {
+    const { stdout, stderr, code } = await new Promise((resolve, reject) => {
       const p = spawn(findBin(BINS.claude) || 'claude', args, { cwd, env: { ...process.env, THINKER_IN_LLM: '1', CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1', CLAUDE_CODE_MAX_OUTPUT_TOKENS: String(maxTokens), ...(thinkingTokens === undefined ? {} : { MAX_THINKING_TOKENS: String(thinkingTokens) }), ...(structuredRetries === undefined ? {} : { MAX_STRUCTURED_OUTPUT_RETRIES: String(structuredRetries) }), ...(cache ? {} : { DISABLE_PROMPT_CACHING: '1' }) } });
       let o = '', e = '';
-      const timer = setTimeout(() => { p.kill('SIGKILL'); reject(new Error('claude -p timed out')); }, timeoutMs);
+      const timer = setTimeout(() => { p.kill('SIGKILL'); reject(Object.assign(new Error('claude -p timed out'), { retryable: true })); }, timeoutMs);
       p.stdout.on('data', d => o += d); p.stderr.on('data', d => e += d);
-      p.on('error', reject);
-      p.on('close', code => { clearTimeout(timer); code === 0 ? resolve(o) : reject(new Error(`claude -p exited ${code}: ${overCap(o, maxTokens) || `${e.slice(0, 500)} ${o.slice(0, 500)}`}`)); });
+      p.on('error', err => { clearTimeout(timer); reject(err); });
+      p.on('close', code => { clearTimeout(timer); resolve({ stdout: o, stderr: e, code }); });
       p.stdin.end(prompt);
     });
-    const j = JSON.parse(stdout);
+    let j;
+    try { j = JSON.parse(stdout); }
+    catch (e) { if (code !== 0) throw claudeFailure(stdout, stderr, code, maxTokens); throw e; }
     onUsage({ usage: j.usage, cost: j.total_cost_usd, model: j.model || ALIASES[resolved] || resolved });
-    if (j.is_error || (LIMIT_RE.test(String(j.result || '').slice(0, 200)) && (j.num_turns || 0) <= 1)) throw new Error('claude -p error: ' + (j.result || '').slice(0, 500));
+    if (code !== 0 || j.is_error || (LIMIT_RE.test(String(j.result || '').slice(0, 200)) && (j.num_turns || 0) <= 1)) throw claudeFailure(stdout, stderr, code, maxTokens);
     let json = j.structured_output ?? null;
     if (schema && json == null) { try { json = JSON.parse(j.result); } catch { throw new Error('no structured output: ' + String(j.result).slice(0, 300)); } }
     return { text: j.result, json, usage: j.usage, cost: j.total_cost_usd, provider: 'claude' };

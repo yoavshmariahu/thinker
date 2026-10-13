@@ -139,3 +139,52 @@ test('invalid model answers still retain reported tokens and cost', async () => 
     Object.assign(process.env, previous);
   }
 });
+
+test('Claude retries transient failures, exposes the actual cause, and accounts for failed attempts', async t => {
+  const dir = tmp();
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const previous = { ...process.env };
+  Object.assign(process.env, { ...isolatedEnv(dir), PATH: dir + path.delimiter + process.env.PATH, THINKER_LLM: 'claude' });
+  t.after(() => {
+    for (const k of Object.keys(process.env)) if (!(k in previous)) delete process.env[k];
+    Object.assign(process.env, previous);
+  });
+  const countFile = path.join(dir, 'calls');
+  const fixture = replies => {
+    fs.writeFileSync(countFile, '0');
+    fs.writeFileSync(path.join(dir, 'claude'), `#!${process.execPath}
+const fs = require('fs'), file = ${JSON.stringify(countFile)}, replies = ${JSON.stringify(replies)};
+process.stdin.resume(); process.stdin.on('end', () => {
+ const n = Number(fs.readFileSync(file, 'utf8')); fs.writeFileSync(file, String(n + 1));
+ const r = replies[Math.min(n, replies.length - 1)];
+ console.log(JSON.stringify({duration_api_ms:41414,stop_reason:'stop_sequence',session_id:'session',usage:{input_tokens:50,output_tokens:10},total_cost_usd:0.02,...r.json}));
+ process.exitCode = r.code;
+});`);
+    fs.chmodSync(path.join(dir, 'claude'), 0o755);
+  };
+  const calls = () => Number(fs.readFileSync(countFile, 'utf8'));
+  const store = new Store(dir).init();
+  fixture([{ code: 1, json: { is_error: true, errors: ['API Error: 503 temporarily unavailable'] } },
+    { code: 0, json: { result: 'ok' } }]);
+  assert.equal((await complete({ prompt: 'test', accounting: { store, purpose: 'phrase', phase: 'init' } })).text, 'ok');
+  assert.equal(calls(), 2);
+  const u = summarize(store);
+  assert.equal(u.spending.calls, 2);
+  assert.equal(u.spending.failed, 1);
+  assert.equal(u.spending.totalTokens, 120);
+
+  fixture([{ code: 1, json: { errors: ['Invalid API key: please log in'], is_error: true } }]);
+  await assert.rejects(complete({ prompt: 'test' }), e => {
+    assert.match(e.message.slice(0, 120), /Invalid API key/);
+    return true;
+  });
+  assert.equal(calls(), 1, 'authentication failures are not retried');
+
+  fixture([{ code: 1, json: { usage: { iterations: [{ output_tokens: 2500 }] } } }]);
+  await assert.rejects(complete({ prompt: 'test', maxTokens: 2500 }), { code: 'MODEL_OUTPUT_LIMIT' });
+  assert.equal(calls(), 1, 'output limits go to the caller for smaller batches');
+
+  fixture([{ code: 1, json: {} }]);
+  await assert.rejects(complete({ prompt: 'test' }), /claude -p exited 1/);
+  assert.equal(calls(), 3, 'unexplained exits get at most two retries');
+});

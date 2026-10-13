@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
-import { createNote, phraseBatches } from '../src/ops.js';
+import { createNote, phraseBatches, phraseNotes } from '../src/ops.js';
 import { overCap } from '../src/llm.js';
 import { generateBehaviorProposals, listBehaviorProposals, acceptBehaviorProposal } from '../src/behavior-proposals.js';
 
@@ -130,6 +130,38 @@ test('an answer that reached the output cap is named as the cause of the exit', 
   assert.match(overCap(out(2500), 2500), /2500-token output cap/);
   assert.equal(overCap(out(900), 2500), '');
   assert.equal(overCap('not json', 2500), '');
+  assert.match(overCap(JSON.stringify({ stop_reason: 'max_tokens' }), 2500), /output cap/);
+  assert.equal(overCap(JSON.stringify({ stop_reason: 'stop_sequence' }), 2500), '');
+});
+
+test('phrasing splits output-limited batches, stopping at individual notes', async () => {
+  const notes = Array.from({ length: 8 }, (_, i) => ({ id: `n${i}` }));
+  const seen = [], failures = [];
+  const r = await phraseBatches(null, notes, { phraseFn: async (store, batch) => {
+    seen.push(batch.map(n => n.id));
+    if (batch.length > 2 || batch.some(n => n.id === 'n0')) {
+      throw Object.assign(new Error('output cap'), { code: 'MODEL_OUTPUT_LIMIT' });
+    }
+    return { done: batch.map(n => n.id), tokens: 10 };
+  }, onError: (e, batch) => failures.push(batch.map(n => n.id)) });
+  assert.deepEqual(r.done.sort(), notes.slice(1).map(n => n.id));
+  assert.deepEqual(failures, [['n0']]);
+  assert.equal(r.failed, 1);
+  assert.equal(r.tokens, 40);
+  assert.equal(seen.length, 9, 'bounded splitting, no repeated identical batch');
+});
+
+test('phrasing gives eight notes output room without spending the cap on thinking', async t => {
+  const { store, note } = fixture(t);
+  let budget;
+  await phraseNotes(store, Array(8).fill(note), { completeFn: async opts => {
+    budget = opts.maxTokens;
+    assert.equal(opts.thinkingTokens, 0);
+    return { json: { notes: [{ n: 1, says: ['Only admins can open the administration screen'],
+      search: 'Admin access requires the admin role before access is granted.' }] } };
+  } });
+  assert.equal(budget, 6000);
+  assert.ok(store.get(note.id).saysFor, 'successful phrasings remain saved for subsequent retries');
 });
 
 test('system propose --refresh drafts again without a build', async t => {
