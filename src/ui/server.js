@@ -29,7 +29,8 @@ import { activity, cancelActivity, alive, latestBatch, batchEta } from '../activ
 import { thinkerHome } from '../update.js';
 import { BUILD_AGENTS, buildAgent, checkAgentAuth, getAgentDisplayName } from '../setup/agents.js';
 import { DEPTHS, DEFAULT_DEPTH } from '../setup/estimate.js';
-import { resolveModel, findBin, BINS, DEFAULT_DISTILL_MODEL } from '../llm.js';
+import { findBin, BINS, DEFAULT_DISTILL_MODEL } from '../llm.js';
+import { buildModels, MODEL_GUIDANCE } from '../setup/models.js';
 import { isDisabledRepo, setRepoDisabled } from '../repo-switch.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -239,8 +240,8 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
       // the agent CLIs a build can run through, with whether each is signed in: asking each takes seconds, so
       // once per server
       if (req.method === 'GET' && url.pathname === '/api/agents') {
-        agents ||= BUILD_AGENTS.filter(a => findBin(BINS[a])).map(a => { const auth = checkAgentAuth(a); return { agent: a, name: getAgentDisplayName(a, findBin(BINS[a])), authenticated: !!auth.authenticated, details: auth.details || '', loginCmd: auth.loginCmd, models: TIERS.map(t => ({ tier: t, model: resolveModel(a, t) })) }; });
-        return json(res, 200, { agents, defaultAgent: buildAgent(), tiers: TIERS, defaultTier: DEFAULT_DISTILL_MODEL });
+        agents ||= BUILD_AGENTS.filter(a => findBin(BINS[a])).map(a => { const auth = checkAgentAuth(a); return { agent: a, name: getAgentDisplayName(a, findBin(BINS[a])), authenticated: !!auth.authenticated, details: auth.details || '', loginCmd: auth.loginCmd, models: buildModels(a) }; });
+        return json(res, 200, { agents, defaultAgent: buildAgent(), tiers: TIERS, defaultTier: DEFAULT_DISTILL_MODEL, modelGuidance: MODEL_GUIDANCE });
       }
       if (req.method === 'GET' && url.pathname === '/api/usage') {
         const days = Number(url.searchParams.get('days')) || undefined;
@@ -266,7 +267,7 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
         // only repositories the machine page listed, by checkout, and only the depths a build has
         candidates ||= warmupCandidates(store, { home: transcriptsHome });
         const agent = b.agent && BUILD_AGENTS.includes(b.agent) ? b.agent : null;
-        const tier = TIERS.includes(b.tier) ? b.tier : null;
+        const tier = buildModels(agent || buildAgent()).some(m => m.tier === b.tier) ? b.tier : null;
         const list = [];
         for (const r of Array.isArray(b.repos) ? b.repos : []) {
           const c = candidates.find(x => x.checkout === r.checkout); if (!c) return json(res, 400, { error: `not a repository on this machine: ${r.checkout}` });

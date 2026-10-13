@@ -17,6 +17,7 @@ import { chooseProject } from '../src/setup/project.js';
 import { activityAreas } from '../src/areas.js';
 import { DEFAULT_DISTILL_MODEL } from '../src/llm.js';
 import { DEFAULT_DEPTH, DEFAULT_PRS, DEPTHS } from '../src/setup/estimate.js';
+import { buildModels } from '../src/setup/models.js';
 
 const SRC = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'src');
 const read = f => fs.readFileSync(path.join(SRC, f), 'utf8');
@@ -71,6 +72,8 @@ test('the model the warm-up page offers by default is the one the command line m
   assert.ok(machine.tiers.includes(DEFAULT_DISTILL_MODEL), 'the default is one of the offered tiers');
   const agents = await get('/api/agents');
   assert.equal(agents.defaultTier, DEFAULT_DISTILL_MODEL, 'the agent picker');
+  for (const agent of agents.agents) assert.deepEqual(agent.models, buildModels(agent.agent), 'terminal and page share model choices and recommendations');
+  assert.match(agents.modelGuidance, /Haiku, Luna or Gemini Flash/);
   // the command line: mine-prs, the session distill and the skill reader fall back to the same constant, and
   // nowhere does a literal name a different default
   for (const f of ['commands/learn.js', 'skills.js']) {
@@ -108,6 +111,17 @@ test('a repository the page lists starts on the areas the command line would bui
   assert.ok(!args.includes('--full-repo'), 'not the whole repository');
   assert.ok(!args.includes('--prs'), 'the pull-request count is the command line default (DEFAULT_PRS), not a second number');
   assert.equal(DEFAULT_PRS, 60); assert.equal(DEFAULT_DEPTH, DEPTHS[0]);
+});
+
+test('the page queues the same concrete model that the terminal picker selects', async t => {
+  const dir = repo(t);
+  const p = page(t, dir);
+  const { post } = await p.start();
+  const custom = await post('/api/warmup', { repos: [{ checkout: dir }], agent: 'codex', tier: 'gpt-6-sol' });
+  assert.equal(custom.status, 200);
+  assert.equal(custom.jobs.at(-1).model, 'gpt-6-sol', 'the page preserves the selected concrete model as the terminal does');
+  assert.equal(p.spawned[0].args[p.spawned[0].args.indexOf('--model') + 1], 'gpt-6-sol');
+  assert.equal(p.spawned[0].opts.env.THINKER_LLM, 'codex');
 });
 
 test('the page script builds a pick from the areas, and names the depth the command line takes', () => {

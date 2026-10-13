@@ -3,7 +3,7 @@
 // display (ssh, a container) is not offered the browser: the page binds 127.0.0.1 of this machine, and
 // before 2026-10-12 the installer launched it anyway, said it had opened, and five of seven installs that
 // day never warmed a cache. The terminal path takes the page's defaults: full depth, the whole repository,
-// the agent already logged in. Every other choice stays on the page (thinker ui).
+// the agent already logged in. Before building, arrow-key menus let the person change harness and model.
 import fs from 'node:fs';
 import path from 'node:path';
 import readlinePromises from 'node:readline/promises';
@@ -11,6 +11,8 @@ import { spawn, spawnSync } from 'node:child_process';
 import { warmupCandidates } from '../machine.js';
 import { selectMenu, multiSelect, c, formatDuration, withSpinner } from '../setup/ui.js';
 import { DEFAULT_DEPTH } from '../setup/estimate.js';
+import { buildAgent, selectAndAuthenticateAgent } from '../setup/agents.js';
+import { selectBuildModel } from '../setup/models.js';
 
 export const SHOWN = 10, PICKED = 5; // as the page: ten rows, the five most recently active with no cache yet picked
 
@@ -27,7 +29,8 @@ const rowNote = r => {
 };
 const row = (r, picked, width) => `    ${picked.includes(r) ? c.cyan('[x]') : c.dim('[ ]')} ${r.name.padEnd(width)} ${c.dim(rowNote(r))}`;
 
-export async function warmupCommand(ctx) {
+export async function warmupCommand(ctx, { selectAgentFn = selectAndAuthenticateAgent, selectModelFn = selectBuildModel,
+  candidatesFn = warmupCandidates, spawnFn = spawnSync } = {}) {
   const { flags, store, out, HERE } = ctx;
   const cli = path.join(HERE, 'cli.js');
   const ask = async q => { const rl = readlinePromises.createInterface({ input: process.stdin, output: process.stdout }); try { return await rl.question(q); } finally { rl.close(); } };
@@ -56,7 +59,7 @@ export async function warmupCommand(ctx) {
 
   // the terminal: the page's list, the page's defaults
   // the page's list (ui/server.js): the agents' own session records under the user's home, and thinker's log
-  const all = await withSpinner(out, 'Looking at the repositories your agents work in', async () => warmupCandidates(store, {}));
+  const all = await withSpinner(out, 'Looking at the repositories your agents work in', async () => candidatesFn(store, {}));
   const items = all.filter(r => !r.disabled).slice(0, SHOWN);
   if (!items.length) { out('  No git repository your agents have worked in was found. A cache starts with the first session in one; run thinker warmup again after that.'); later(); return; }
   // as the page: the most recently active with pull requests to read and no cache yet
@@ -89,15 +92,23 @@ export async function warmupCommand(ctx) {
   chosen = chosen.filter(r => r.canMine);
   if (noPrs.length) out(`  ${noPrs.map(r => r.name).join(', ')}: no merged pull requests to read; the cache there grows from your sessions.`);
   if (!chosen.length) { out('  Nothing to warm up.'); later(); return; }
+  const requestedAgent = flags.agent || process.env.THINKER_LLM || null;
+  const auth = flags.dry ? { ok: true, agent: requestedAgent || buildAgent() }
+    : await selectAgentFn({ requestedAgent, yes: !!flags.yes, out, purpose: 'warm up these repositories', allowSkip: false });
+  if (!auth.ok) { later(); process.exitCode = 1; return; }
+  const model = await selectModelFn({ agent: auth.agent, model: flags.model, yes: !!flags.yes || !!flags.dry, out });
+  if (model === null) { out('  Warm-up skipped.'); later(); return; }
   const seconds = chosen.reduce((a, r) => a + (r.estimates[DEFAULT_DEPTH].seconds || 0), 0);
   out(`\n  Warming up ${chosen.length === 1 ? chosen[0].name : `${chosen.length} repositories`}, about ${formatDuration(seconds)} in all, one at a time. ${c.dim('Each is thinker setup --build; a cache is used as soon as it has notes.')}\n`);
   let failed = 0;
   for (const r of chosen) {
     // --yes takes the person's areas when there are any (setup/project.js), the whole repository otherwise
     const args = [cli, 'setup', '--build', '--yes', '--no-ui', '--no-benchmark', '--depth', DEFAULT_DEPTH, '--repo', r.checkout];
+    if (auth.agent) args.push('--agent', auth.agent);
+    args.push('--model', model);
     if (flags.dry) { out(`  would run: thinker ${args.slice(1).join(' ')}`); continue; }
     out(`  ${c.bold(r.name)}`);
-    const res = spawnSync(process.execPath, args, { cwd: r.checkout, stdio: 'inherit', env: { ...process.env, THINKER_INSTALLER: '1' } });
+    const res = spawnFn(process.execPath, args, { cwd: r.checkout, stdio: 'inherit', env: { ...process.env, THINKER_INSTALLER: '1' } });
     if (res.status !== 0) { failed++; out(`  ${r.name}: the build did not finish (exit ${res.status}); run thinker setup --build there to retry.`); }
   }
   if (failed) process.exitCode = 1;

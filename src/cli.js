@@ -156,7 +156,7 @@ const HELP = `thinker — knowledge cache for coding agents
   impact export | impact import <file.json>   transfer evidence from CI or another machine
   impact finding <id> --pr n --validity confirmed|dismissed|duplicate|pending --evidence reason
          [--resolution fixed|open|accepted-risk|not-applicable] [--fix sha] [--duplicate-of id]
-  warmup [--terminal | --browser | --skip] [--repos name,name] [--yes] [--dry]
+  warmup [--terminal | --browser | --skip] [--repos name,name] [--agent name] [--model name] [--yes] [--dry]
                                  warm up caches from the terminal: open the warm-up page in the browser, or here: the
                                  ten repositories your agents work in, the top five picked (arrows move, Space toggles,
                                  Enter starts, Esc skips), each built with thinker setup --build at full depth; the

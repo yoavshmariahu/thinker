@@ -22,11 +22,16 @@ Warming a cache reads the repository's merged pull requests into it, so the firs
 session there already finds notes. The installer ends with `thinker warmup`, which asks
 where to choose the repositories: the local page in your browser, or the terminal, which
 shows the ten most recently used with the top five picked (arrows move, Space toggles a
-row, Enter starts, Esc skips), each at full depth around your areas with `thinker setup --build`. Over ssh, or
+row, Enter continues, Esc skips), each at full depth around your areas with `thinker setup --build`. Before
+building, choose the harness and model with ↑/↓ and Enter. Haiku, Luna and Gemini Flash
+are recommended; the other listed models are a bit more expensive. One selection applies
+to every repository picked. Over ssh, or
 on a machine with no display, only the terminal is offered: the page serves 127.0.0.1 of
 the machine it runs on. `thinker warmup` runs again any time; `thinker warmup --skip`
-and `--yes` answer without asking. Depth, directories and the model are chosen on the
-page.
+and `--yes` answer without asking. Use `--agent codex --model gpt-6-sol`, for example,
+to specify both without the menus. Depth and directories can also be chosen on the page.
+Direct `thinker setup --build` offers the same model menu after harness selection;
+explicit `--model`, `THINKER_LLM_MODEL`, and `--yes` preserve unattended operation.
 
 ## Setting up on the local page
 

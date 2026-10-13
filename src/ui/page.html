@@ -831,7 +831,7 @@ async function loadWarmup() {
 function fillTiers() {
   const a = W.agents.find(x => x.agent === $('#w-agent').value) || W.agents[0];
   const cur = $('#w-tier').value || W.defaultTier;
-  $('#w-tier').innerHTML = (a ? a.models : W.tiers.map(t => ({ tier: t, model: t }))).map(m => `<option value="${esc(m.tier)}"${m.tier === cur ? ' selected' : ''}>${esc(m.model)}</option>`).join('');
+  $('#w-tier').innerHTML = (a ? a.models : W.tiers.map(t => ({ tier: t, model: t }))).map(m => `<option value="${esc(m.tier)}"${m.tier === cur ? ' selected' : ''}>${esc(m.label || m.model)}</option>`).join('');
   $('#w-auth').textContent = a ? (a.authenticated ? `signed in${a.details && /as /.test(a.details) ? ' ' + a.details.replace(/^Signed in /, '') : ''}` : `not signed in · run ${a.loginCmd} first`) : '';
   $('#w-auth').className = 'auth ' + (a && !a.authenticated ? 'loss' : 'muted');
 }
