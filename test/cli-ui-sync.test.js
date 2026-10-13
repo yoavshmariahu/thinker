@@ -17,7 +17,7 @@ import { chooseProject } from '../src/setup/project.js';
 import { activityAreas } from '../src/areas.js';
 import { DEFAULT_DISTILL_MODEL } from '../src/llm.js';
 import { DEFAULT_DEPTH, DEFAULT_PRS, DEPTHS } from '../src/setup/estimate.js';
-import { buildModels } from '../src/setup/models.js';
+import { buildModel } from '../src/setup/models.js';
 
 const SRC = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'src');
 const read = f => fs.readFileSync(path.join(SRC, f), 'utf8');
@@ -69,11 +69,14 @@ test('the model the warm-up page offers by default is the one the command line m
   const { get } = await page(t, dir).start();
   const machine = await get('/api/machine');
   assert.equal(machine.defaultTier, DEFAULT_DISTILL_MODEL, 'the warm-up page');
-  assert.ok(machine.tiers.includes(DEFAULT_DISTILL_MODEL), 'the default is one of the offered tiers');
+  assert.equal(machine.tiers, undefined, 'no model options are offered');
   const agents = await get('/api/agents');
   assert.equal(agents.defaultTier, DEFAULT_DISTILL_MODEL, 'the agent picker');
-  for (const agent of agents.agents) assert.deepEqual(agent.models, buildModels(agent.agent), 'terminal and page share model choices and recommendations');
-  assert.match(agents.modelGuidance, /Haiku, Luna or Gemini Flash/);
+  for (const agent of agents.agents) {
+    assert.deepEqual(agent.model, buildModel(agent.agent), 'terminal and page share the automatic model');
+    assert.equal(agent.models, undefined, 'the page offers only a harness choice');
+  }
+  assert.ok(!read('ui/page.html').includes('w-tier'), 'the model dropdown is removed');
   // the command line: mine-prs, the session distill and the skill reader fall back to the same constant, and
   // nowhere does a literal name a different default
   for (const f of ['commands/learn.js', 'skills.js']) {
@@ -113,14 +116,14 @@ test('a repository the page lists starts on the areas the command line would bui
   assert.equal(DEFAULT_PRS, 60); assert.equal(DEFAULT_DEPTH, DEPTHS[0]);
 });
 
-test('the page queues the same concrete model that the terminal picker selects', async t => {
+test('the page chooses the default model for the harness, ignoring obsolete model selections', async t => {
   const dir = repo(t);
   const p = page(t, dir);
   const { post } = await p.start();
   const custom = await post('/api/warmup', { repos: [{ checkout: dir }], agent: 'codex', tier: 'gpt-6-sol' });
   assert.equal(custom.status, 200);
-  assert.equal(custom.jobs.at(-1).model, 'gpt-6-sol', 'the page preserves the selected concrete model as the terminal does');
-  assert.equal(p.spawned[0].args[p.spawned[0].args.indexOf('--model') + 1], 'gpt-6-sol');
+  assert.equal(custom.jobs.at(-1).model, DEFAULT_DISTILL_MODEL);
+  assert.equal(p.spawned[0].args[p.spawned[0].args.indexOf('--model') + 1], DEFAULT_DISTILL_MODEL);
   assert.equal(p.spawned[0].opts.env.THINKER_LLM, 'codex');
 });
 

@@ -421,7 +421,6 @@ test('runSetup mines git history when GitHub origin is unavailable', async () =>
   const outLines = [];
   const out = line => outLines.push(stripAnsi(line));
   let minedPrsArgs = null;
-  let selectedModel = false;
 
   try {
     await runSetup({
@@ -440,7 +439,7 @@ test('runSetup mines git history when GitHub origin is unavailable', async () =>
         minedPrsArgs = { slug, opts };
         return { saved: 3 };
       },
-      selectModelFn: async () => { selectedModel = true; return 'sonnet'; },
+      model: 'sonnet',
     });
 
     const fullOutput = outLines.join('\n');
@@ -449,8 +448,7 @@ test('runSetup mines git history when GitHub origin is unavailable', async () =>
     assert.equal(minedPrsArgs.slug, null);
     assert.equal(minedPrsArgs.opts.limit, 10);
     assert.equal(minedPrsArgs.opts.repo, repo);
-    assert.equal(selectedModel, true);
-    assert.equal(minedPrsArgs.opts.model, 'sonnet', 'direct setup passes the chosen model to mining');
+    assert.equal(minedPrsArgs.opts.model, 'sonnet', 'direct setup preserves an explicit model override');
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
@@ -1179,6 +1177,16 @@ test('selectAndAuthenticateAgent uses arrow key navigation when stdin is interac
   assert.ok(res.agent);
   assert.match(outLines.join('\n'), /Available agents to build the knowledge cache:/);
   assert.match(outLines.join('\n'), /Selected agent:/);
+});
+
+test('Escape in the harness menu cancels instead of accepting the default agent', async () => {
+  const stdin = new MockTTYStdin(), stdout = new MockTTYStdout();
+  const promise = selectAndAuthenticateAgent({ stdin, stdout, out: () => {},
+    checkAuthFn: () => ({ installed: true, authenticated: true }) });
+  stdin.emit('keypress', null, { name: 'escape' });
+  const result = await promise;
+  assert.equal(result.ok, false);
+  assert.equal(result.error, 'cancelled');
 });
 
 test('a shallow build is 30% of the full one: pull requests, rounded up, at least one', () => {

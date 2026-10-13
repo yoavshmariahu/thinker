@@ -23,15 +23,16 @@ session there already finds notes. The installer ends with `thinker warmup`, whi
 where to choose the repositories: the local page in your browser, or the terminal, which
 shows the ten most recently used with the top five picked (arrows move, Space toggles a
 row, Enter continues, Esc skips), each at full depth around your areas with `thinker setup --build`. Before
-building, choose the harness and model with ↑/↓ and Enter. Haiku, Luna and Gemini Flash
-are recommended; the other listed models are a bit more expensive. One selection applies
+building, choose the harness with ↑/↓ and Enter. Thinker automatically uses Haiku for
+Claude Code and Cursor, Luna for Codex, or Gemini Flash for Gemini. One selection applies
 to every repository picked. Over ssh, or
 on a machine with no display, only the terminal is offered: the page serves 127.0.0.1 of
 the machine it runs on. `thinker warmup` runs again any time; `thinker warmup --skip`
 and `--yes` answer without asking. Use `--agent codex --model gpt-6-sol`, for example,
 to specify both without the menus. Depth and directories can also be chosen on the page.
-Direct `thinker setup --build` offers the same model menu after harness selection;
-explicit `--model`, `THINKER_LLM_MODEL`, and `--yes` preserve unattended operation.
+Direct `thinker setup --build` uses the same automatic model after harness selection.
+Explicit `--model`, `THINKER_LLM_MODEL`, and repository model settings remain available
+for scripts and advanced use; `--yes` skips the harness menu.
 
 ## Setting up on the local page
 
@@ -60,8 +61,9 @@ of the build in tokens and minutes.
   worktree: for one with sensitive content that no model should read. `thinker disable`
   and `thinker enable` do the same from the terminal.
 
-**3. Choose the agent and model.** The bar at the top lists the agent CLIs found on the
-machine and says whether each is signed in. A build runs through that agent's own
+**3. Choose the harness.** The bar at the top lists the agent CLIs found on the
+machine and says whether each is signed in. The model is selected automatically and
+shown beside the harness. A build runs through that agent's own
 login; no other account or key is needed. The bar adds up the tokens and time of
 everything picked.
 
