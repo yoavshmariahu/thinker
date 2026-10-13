@@ -8,7 +8,9 @@ import { spawn, spawnSync } from 'node:child_process';
 import { thinkerHome, detectInstall, isScheduled } from '../update.js';
 import { USER_SCOPE_CLIENTS, detectClients, inferWiring, refreshWiring, pruneInstalls, prunedLines, installClient, trustCodexUser } from '../clients.js';
 import { HOOKS } from '../git-hooks.js';
+import { postCommitHook } from '../maintain.js';
 import { gitHookPath } from '../store.js';
+import { isTestMode } from '../test-mode.js';
 import { hasBin } from './shared.js';
 
 const MIN_NODE = 20;
@@ -163,8 +165,20 @@ async function runChecks(ctx) {
     add('repository', 'ok', `set up in ${repo}`);
     add('notes', bad ? 'warn' : 'ok', `${notes.length} note${notes.length === 1 ? '' : 's'}${bad ? `; ${bad} file${bad === 1 ? '' : 's'} in ${store.notesDir} unreadable` : notes.length ? '' : ' (the cache grows from your sessions, or build it with `thinker setup --build`)'}`);
     if (configOk) wiringCheck('checkout wiring', repo, 'repo');
-    const gitHooks = HOOKS.filter(h => h !== 'pre-push').filter(h => { const f = gitHookPath(repo, h); return f && fs.existsSync(f) && fs.readFileSync(f, 'utf8').includes('# thinker:'); });
-    add('git hooks', gitHooks.length ? 'ok' : 'warn', gitHooks.length ? gitHooks.join(', ') : 'none: the cache is not refreshed on commit and merge (`thinker setup` installs them)');
+    // The hooks thinker installs (post-commit, post-merge). A hook that is not thinker's (git-lfs, husky,
+    // a tracked core.hooksPath directory) is left alone by setup, so the advice is then to chain
+    // thinker's line into it, not to run setup again.
+    const ours = [], foreign = [];
+    for (const h of HOOKS.filter(h => h !== 'pre-push' && h !== 'pre-commit')) {
+      const f = gitHookPath(repo, h);
+      if (f && fs.existsSync(f)) (fs.readFileSync(f, 'utf8').includes('# thinker:') ? ours : foreign).push({ h, f });
+    }
+    if (ours.length) add('git hooks', 'ok', ours.map(x => x.h).join(', '));
+    else if (foreign.length) {
+      const hooksPath = spawnSync('git', ['config', '--get', 'core.hooksPath'], { cwd: repo, encoding: 'utf8' }).stdout.trim();
+      const line = postCommitHook(cli, repo, learnOn()).split('\n').find(l => l.startsWith('nohup'));
+      add('git hooks', 'warn', `the ${foreign.map(x => `${x.h} hook at ${x.f}`).join(' and ')} ${foreign.length === 1 ? 'is' : 'are'} not thinker's${hooksPath ? ` (core.hooksPath=${hooksPath})` : ''}, and setup leaves such hooks alone; to refresh the cache after commits, add this line to the post-commit hook: ${line}`);
+    } else add('git hooks', 'warn', 'none: the cache is not refreshed on commit and merge (`thinker setup` installs them)');
     const mcp = await probeMcp(path.join(HERE, 'mcp.js'), repo);
     add('MCP server', mcp.ok && mcp.tools.length ? 'ok' : 'fail', mcp.ok ? (mcp.tools.length ? `starts; tools: ${mcp.tools.join(', ')}` : 'starts but offers no tools') : `does not start: ${mcp.error}`);
   }
@@ -176,6 +190,33 @@ async function runChecks(ctx) {
     if (!st.runtime) add('ranker', 'warn', `runtime does not load (${st.error}); notes are ranked by words alone`);
     else if (!st.model) add('ranker', 'warn', `model not fetched; notes are ranked by words alone`, { what: `fetch ${st.modelName} (about 23 MB)`, run: () => fetchRanker() });
     else add('ranker', 'ok', st.modelName);
+  }
+
+  // The model behind distilling, verifying, PR mining and skills: which provider answers first, and
+  // whether it does (a short call, with the fallback off so the answer is about that provider). Under
+  // test the call is made only when THINKER_LLM names the provider.
+  const llm = await import('../llm.js');
+  const have = llm.available();
+  if (!have.length) add('model', 'warn', 'none: install the claude, codex, gemini or cursor CLI, or set THINKER_LLM_BASE_URL (an OpenAI-compatible endpoint), ANTHROPIC_API_KEY or THINKER_LLM_CMD; distilling, verifying and PR mining need one');
+  else {
+    let order = [];
+    try { order = llm.getFallbackOrder(); } catch (e) { add('model', 'fail', e.message); }
+    if (order.length) {
+      const p = order[0];
+      const then = order.length > 1 ? `, then ${order.slice(1).join(', ')}` : '';
+      if (isTestMode() && !process.env.THINKER_LLM) add('model', 'ok', `${p}${then} (not probed under test)`);
+      else {
+        const saved = { THINKER_LLM: process.env.THINKER_LLM, THINKER_QUIET: process.env.THINKER_QUIET };
+        process.env.THINKER_LLM = p; process.env.THINKER_QUIET = '1';
+        const t0 = Date.now();
+        try {
+          const r = await llm.complete({ prompt: 'Reply with the single word ok and nothing else.', model: 'haiku', maxTokens: 20, timeoutMs: 90_000 });
+          add('model', 'ok', `${p} answers (${r.model || p}, ${((Date.now() - t0) / 1000).toFixed(1)}s)${then}`);
+        } catch (e) {
+          add('model', 'fail', `${p} does not answer: ${String(e.message || e).replace(/\s+/g, ' ').slice(0, 220)}${then ? `; a model call would then try ${order.slice(1).join(', ')}` : ''}`);
+        } finally { for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } }
+      }
+    }
   }
 
   // The parser comes with the dependencies; scheduled updates are optional

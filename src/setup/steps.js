@@ -104,7 +104,8 @@ export async function stepConnectClis({ repo = null, cliPath, mcpEntry, userMcpE
     }
   }
 
-  if (gitHook && repo) installGitHooks(repo, cliPath, learn, () => {});
+  // a hook that is not thinker's is left alone, and said so: the doctor then names the line to add to it
+  if (gitHook && repo) installGitHooks(repo, cliPath, learn, l => { if (l.startsWith('skipped git')) out(`  ${c.gray('○')} ${c.dim(`git hook · ${l.replace(/^skipped git /, '')}`)}`); });
 
   const connectedCount = results.filter(r => r.status === 'connected').length;
   out(`\n  ${c.cyan('Summary:')} ${c.bold(connectedCount)} of ${targetClients.length} selected agents connected.`);

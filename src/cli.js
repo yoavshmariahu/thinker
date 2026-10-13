@@ -78,7 +78,7 @@ const HELP = `thinker — knowledge cache for coding agents
                                  marks are written without asking (--no-trust leaves them). The installer runs this.
   doctor [--fix] [--json]        check that thinker is installed and wired correctly: Node, dependencies, PATH, the
                                  agents' hooks and MCP server, this checkout's setup and git hooks, the MCP server
-                                 starting, the ranking model; --fix repairs what it can and checks again
+                                 starting, the ranking model, the model that answers thinker's calls; --fix repairs what it can and checks again
   disable | enable [--repo dir]  switch thinker off for this repository, machine-wide, or back on: for a repository with
                                  sensitive content. Off, the hooks and the MCP server do nothing there, no session is
                                  distilled, no pull request is read, nothing is written into it (also on the warm-up page)
@@ -198,6 +198,27 @@ const HELP = `thinker — knowledge cache for coding agents
                                  --schedule / --unschedule manages hourly background telemetry
 `;
 
+// --help on any command prints this before anything runs. A flag the command does not take is refused
+// for the commands that write agent settings, repository files and git hooks (a typo would otherwise
+// run a setup); their flags are the ones HELP lists plus the few every command takes. The other
+// commands keep taking any flag.
+const COMMON_FLAGS = ['repo', 'dry', 'json', 'quiet', 'yes', 'verbose', 'background', 'no-learn', 'serve-only', 'help'];
+const UNLISTED_FLAGS = { setup: ['no-prs', 'slug', 'no-phrase', 'model', 'export'], rewire: ['quiet', 'json'] };
+const STRICT_COMMANDS = ['setup', 'connect', 'uninstall', 'rewire', 'warmup', 'doctor'];
+function helpFlags(c, help = HELP) {
+  const lines = help.split('\n');
+  const start = lines.findIndex(l => new RegExp(`^  ${c}( |$)`).test(l));
+  if (start < 0) return null;
+  const block = [lines[start]];
+  for (let i = start + 1; i < lines.length && !/^  \S/.test(lines[i]); i++) block.push(lines[i]);
+  return [...new Set((block.join('\n').match(/--[a-z][a-z-]*/g) || []).map(f => f.slice(2)))];
+}
+function unknownFlags(c, given, help = HELP) {
+  if (!STRICT_COMMANDS.includes(c)) return [];
+  const known = new Set([...(helpFlags(c, help) || []), ...(UNLISTED_FLAGS[c] || []), ...COMMON_FLAGS]);
+  return Object.keys(given).filter(f => !known.has(f));
+}
+
 // Commands that read or maintain a cache, and so need a git checkout to keep it in. Not `setup`,
 // `mine-prs`, `import`, `add`, `record`, `distill`: those build one. Not `hook` (quiet outside a
 // checkout) and not `ui`, the machine-wide page.
@@ -210,6 +231,17 @@ const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...ski
 const OFF_COMMANDS = ['enable', 'disable', 'ui', 'warmup', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'stats', 'ast', 'ranker', 'hook', 'serve', undefined];
 
 async function main() {
+  if (flags.help || ['help', '--help', '-h'].includes(cmd)) { out(HELP); return; }
+  if (cmd === 'share' || cmd === 'sync' || flags.shared) {
+    console.error('thinker: team sharing is no longer supported; notes and learning stay local.');
+    process.exitCode = cmd === 'share' && (flags['pre-push'] || flags['repair-staged']) ? 0 : 1;
+    return;
+  }
+  const unknown = unknownFlags(cmd, flags);
+  if (unknown.length) {
+    process.stderr.write(`thinker: ${cmd} does not take ${unknown.map(f => '--' + f).join(', ')} (\`thinker help\` lists its flags); nothing was run\n`);
+    process.exit(2);
+  }
   // Also runs in the new CLI that an older updater launches (`ranker fetch`).
   // `telemetry` manages its own schedule; uninstall/dry runs must not recreate it.
   if (cmd && !['uninstall', 'telemetry'].includes(cmd) && !flags.dry) {
@@ -217,11 +249,6 @@ async function main() {
     catch (e) { reportTelemetrySchedule({ error: e.message }); }
   }
   if (!OFF_COMMANDS.includes(cmd) && isGitCheckout(repo) && isDisabledRepo(repo)) { process.stderr.write(`thinker: ${OFF_MESSAGE}\n`); process.exit(1); }
-  if (cmd === 'share' || cmd === 'sync' || flags.shared) {
-    console.error('thinker: team sharing is no longer supported; notes and learning stay local.');
-    process.exitCode = cmd === 'share' && (flags['pre-push'] || flags['repair-staged']) ? 0 : 1;
-    return;
-  }
   if (!isTestMode() && process.stderr.isTTY && !['update', 'upgrade', 'switch', 'branch', 'hook', 'serve'].includes(cmd) && !process.env.THINKER_LOG) {
     const notice = checkPendingNotice(thinkerHome());
     if (notice) process.stderr.write(`[thinker] ${notice}\n`);
