@@ -1,9 +1,9 @@
 // The first session in a repository. Every git repository has a cache from its first session (the
 // hooks start it), and nobody is asked to run `thinker setup` there: what setup would write for the
 // repository is written here instead, once (`setupRepo`), and when the repository has history worth
-// reading, the agent is told once to offer the person a warm-up, with the command to run on a yes
-// (`warmupOffer`). Once means once per repository on this machine, not per clone or worktree, and
-// nothing else repeats it: a second mention is a nag (2026-10-13, the user's call).
+// reading and the cache has not read it yet, the agent is told once to offer the person a warm-up, with
+// the command to run on a yes (`warmupOffer`). Once means once per repository on this machine, not per
+// clone or worktree, and nothing else repeats it: a second mention is a nag (2026-10-13, the user's call).
 import fs from 'node:fs';
 import path from 'node:path';
 import { repoId } from './store.js';
@@ -40,9 +40,12 @@ export function setupRepo(store, { client, cli, learn = true }) {
 }
 
 // The repositories offered a warm-up on this machine, by repository id (the origin, so every clone and
-// worktree of one counts as it): THINKER_HOME/state/warmup-offered.json. Returns true the first time.
+// worktree of one counts as it): THINKER_HOME/state/warmup-suggested.json. Returns true the first time.
+// Until 2026-10-14 the offer went only to an empty cache and was recorded in warmup-offered.json; install
+// problems left many of those caches cold after it (the telemetry: devices in daily use with 2 to 25 notes
+// and no request answered), so a new record asks every cold cache once more.
 function offeredOnce(repo, home = thinkerHome()) {
-  const file = path.join(home, 'state', 'warmup-offered.json');
+  const file = path.join(home, 'state', 'warmup-suggested.json');
   let done = {}; try { done = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
   const id = repoId(repo);
   if (done[id]) return false;
@@ -51,19 +54,36 @@ function offeredOnce(repo, home = thinkerHome()) {
   return true;
 }
 
-// Whether a warm-up is worth offering: a cache that is new (no notes yet, no pull requests read) in a
-// repository with history to read (setup/estimate.js: merged pull requests through gh, or more than a
-// few commits). Said to the agent once per repository on this machine, as an instruction to ask the
-// person at a fitting moment and to run the warm-up itself on a yes: the command names this checkout,
+// A cache is warm once it has read some of its repository's history: a warm-up reads up to 50 merged
+// changes, maintenance a few at a time. Notes from sessions alone do not make it warm.
+export const WARM_MINED = 10;
+// The merged changes a cache has read: the record beside the notes (prs.js:recordMinedPrs, one entry per
+// repository and per area), and the notes that name the change they came from (caches older than the record).
+export function minedCount(store) {
+  let rec = {}; try { rec = JSON.parse(fs.readFileSync(path.join(store.dir, 'prs.json'), 'utf8')); } catch {}
+  const ids = new Set();
+  for (const r of Object.values(rec || {})) for (const id of r?.mined || []) ids.add(String(id));
+  for (const n of store.list()) if (n.source?.type === 'pr' && n.source.ref) ids.add(String(n.source.ref).split('#').pop());
+  return ids.size;
+}
+
+// Whether a warm-up is worth offering: a cold cache (fewer than WARM_MINED merged changes read, whatever its
+// sessions saved) in a repository with history to read (setup/estimate.js: merged pull requests through gh,
+// or more than a few commits). Said to the agent once per repository on this machine, as an instruction to
+// ask the person at a fitting moment and to run the warm-up itself on a yes: the command names this checkout,
 // takes the defaults and asks nothing (warmup.js: --repos, --yes, --terminal), and reads through the
 // agent's own login.
 export function warmupOffer(store, { client, home } = {}) {
   if (['windsurf'].includes(client)) return '';
-  if (fs.existsSync(mark(store, 'warmup-offered')) || fs.existsSync(path.join(store.dir, 'prs.json')) || store.list().length) return '';
+  if (fs.existsSync(mark(store, 'warmup-suggested')) || minedCount(store) >= WARM_MINED) return '';
   let est; try { est = estimateCacheBuild(store.repo, { prs: DEFAULT_PRS, slug: githubSlug(store.repo), fileCount: 0 }); } catch { return ''; }
   if (!est.canMine) return '';
-  if (!once(store, 'warmup-offered') || !offeredOnce(store.repo, home)) return '';
-  store.log({ op: 'warmup-offer', client, source: est.mineSource, seconds: est.timing.totalSeconds });
+  if (!once(store, 'warmup-suggested') || !offeredOnce(store.repo, home)) return '';
+  const notes = store.list().length;
+  store.log({ op: 'warmup-offer', client, source: est.mineSource, seconds: est.timing.totalSeconds, notes });
   const what = est.mineSource === 'github' ? 'merged pull requests' : 'commit history';
-  return `<thinker-new-repository>\nthinker's cache for this repository is new and empty. Every git repository has one; it grows from your sessions, and this repository has ${what} it could be warmed up from, about ${formatDuration(est.timing.totalSeconds)} through your own login. Once, when it fits the conversation, ask the user whether they would like that. If they say yes, run \`thinker warmup --repos "${store.repo}" --yes --terminal\` from this directory in the background and go on with the task; if they say no or do not answer, go on and never ask again.\n</thinker-new-repository>`;
+  const state = notes
+    ? `thinker's cache for this repository is cold: it holds ${notes} note${notes === 1 ? '' : 's'} from sessions and has not read the repository's history yet, so most requests find nothing in it`
+    : `thinker's cache for this repository is new and empty. Every git repository has one; it grows from your sessions`;
+  return `<thinker-new-repository>\n${state}. This repository has ${what} it could be warmed up from, about ${formatDuration(est.timing.totalSeconds)} through your own login. Once, when it fits the conversation, ask the user whether they would like that. If they say yes, run \`thinker warmup --repos "${store.repo}" --yes --terminal\` from this directory in the background and go on with the task; if they say no or do not answer, go on and never ask again.\n</thinker-new-repository>`;
 }

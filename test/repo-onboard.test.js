@@ -1,6 +1,7 @@
 // The first session in a repository: the hooks set it up (what `thinker setup` would write for the
 // repository) and, when there is history to read, tell the agent once to offer a warm-up; the stop
-// offer is made once per repository on this machine, and nothing repeats it (repo-onboard.js).
+// offer is made once per repository on this machine, and nothing repeats it (repo-onboard.js). A cache
+// that has notes from sessions but has not read its history is cold and is offered it too.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -8,7 +9,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { Store } from '../src/store.js';
+import { Store, repoId } from '../src/store.js';
+import { WARM_MINED, minedCount } from '../src/repo-onboard.js';
 import { createNote } from '../src/ops.js';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
@@ -57,20 +59,37 @@ test('the first session in a repository with history sets it up and tells the ag
   assert.equal(hook(path.join(clone, 'c'), 'prompt', { session_id: 'n3', prompt: 'where does fetchRows read the rows from' }).trim(), '');
   assert.ok(!ops(path.join(clone, 'c')).some(e => e.op === 'warmup-offer'));
   assert.ok(ops(path.join(clone, 'c')).some(e => e.op === 'repo-setup'), 'the clone is still set up');
-  assert.equal(Object.keys(JSON.parse(fs.readFileSync(path.join(HOME, 'state', 'warmup-offered.json'), 'utf8'))).length, 1);
+  assert.equal(Object.keys(JSON.parse(fs.readFileSync(path.join(HOME, 'state', 'warmup-suggested.json'), 'utf8'))).length, 1);
 });
 
-test('too little history, or a cache that already learned, gets the setup but no offer', () => {
+test('too little history, or a cache that has read its history, gets the setup but no offer', () => {
   const young = gitRepo(1);
   assert.equal(hook(young, 'prompt', { session_id: 'y1', prompt: 'hello' }).trim(), '');
   assert.ok(fs.existsSync(path.join(young, '.git/hooks/post-commit')), 'set up all the same');
   assert.ok(!ops(young).some(e => e.op === 'warmup-offer'));
-  const learned = gitRepo(8);
-  const store = new Store(learned).init();
+  const warm = gitRepo(12);
+  const store = new Store(warm).init();
+  fs.writeFileSync(path.join(store.dir, 'prs.json'), JSON.stringify({ local: { mined: Array.from({ length: WARM_MINED }, (_, i) => `c${i}`) } }));
   createNote(store, { title: 'fetchRows reads the rows table', kind: 'rule', answers: ['how are rows fetched'], body: 'src/a.js:fetchRows reads the rows table', deps: [{ path: 'src/a.js', symbol: 'fetchRows' }] });
-  assert.equal(hook(learned, 'prompt', { session_id: 'l1', prompt: 'unrelated question about billing' }).trim(), '');
-  assert.ok(!ops(learned).some(e => e.op === 'warmup-offer'), 'a cache with notes is not new');
-  assert.equal(hook(learned, 'stop', { session_id: 'l1' }).trim(), '');
+  assert.equal(minedCount(store), WARM_MINED);
+  assert.equal(hook(warm, 'prompt', { session_id: 'w1', prompt: 'unrelated question about billing' }).trim(), '');
+  assert.ok(!ops(warm).some(e => e.op === 'warmup-offer'), 'a cache that read its history is warm');
+  assert.equal(hook(warm, 'stop', { session_id: 'w1' }).trim(), '');
+});
+
+test('a cold cache, notes from sessions and no history read, is offered a warm-up once, even after the empty-cache offer', () => {
+  const dir = gitRepo(8);
+  const store = new Store(dir).init();
+  for (const [i, f] of ['fetchRows', 'saveRows', 'dropRows'].entries()) createNote(store, { title: `${f} touches the rows table`, kind: 'rule', answers: [`what does ${f} do`], body: `src/a.js:fetchRows ${f} ${i}`, deps: [{ path: 'src/a.js', symbol: 'fetchRows' }], source: { type: 'agent' } });
+  // offered under the old rule, while the cache was empty: that record does not stop the cold-cache offer
+  fs.mkdirSync(path.join(store.dir, 'state'), { recursive: true }); fs.writeFileSync(path.join(store.dir, 'state', 'warmup-offered'), 'x\n');
+  fs.writeFileSync(path.join(HOME, 'state', 'warmup-offered.json'), JSON.stringify({ [repoId(dir)]: 'x' }));
+  const out = hook(dir, 'prompt', { session_id: 'k1', prompt: 'unrelated question about billing' });
+  assert.match(out, /<thinker-new-repository>/);
+  assert.match(out, /is cold: it holds 3 notes from sessions and has not read the repository's history yet/);
+  assert.match(out, new RegExp(`thinker warmup --repos "${dir}" --yes --terminal`));
+  assert.equal(ops(dir).find(e => e.op === 'warmup-offer').notes, 3);
+  assert.equal(hook(dir, 'prompt', { session_id: 'k2', prompt: 'another unrelated question about billing' }).trim(), '', 'once');
 });
 
 test('Cursor gets its always-on rule, kept out of git status', () => {
