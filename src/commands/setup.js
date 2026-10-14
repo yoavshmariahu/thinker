@@ -15,6 +15,7 @@ import { githubSlug } from './shared.js';
 import { minePrs } from './learn.js';
 import { readLog } from '../usage.js';
 import { isTestMode } from '../test-mode.js';
+import { minedCount } from '../repo-onboard.js';
 
 async function initCommand(ctx) {
   // `init` and `setup` were two ways to set a repository up, and the difference was never clear.
@@ -334,7 +335,11 @@ export async function setup(ctx) {
   const askedToBuild = Boolean(flags.build) || Boolean(depth) || flags.prs !== undefined;
   const build = flags['no-build'] || flags['no-prs'] ? false : (askedToBuild ? true : null);
 
-  await runSetup({
+  // a build asked for (the warm-up command and the warm-up page run exactly this) is logged as it starts and
+  // as it ends, for the warm-up telemetry (telemetry.js:warmupMetrics): a start with no end did not finish
+  if (build) store.log({ op: 'warmup-start', depth: depth || undefined, source: slug ? 'github' : 'git' });
+  const ended = ok => { if (build) { let notes = null, mined = null; try { notes = store.list().length; mined = minedCount(store); } catch {} store.log({ op: 'warmup-done', ok, notes, mined }); } };
+  try { await runSetup({
     repo,
     store,
     cliPath: path.join(HERE, 'cli.js'),
@@ -366,7 +371,8 @@ export async function setup(ctx) {
     // the local page opens after a repository's first setup, except under tests (a bare `node --test` sets only
     // NODE_TEST_CONTEXT), thinker's own model runs, CI, and --no-ui
     dashboard: !flags['no-ui'] && !isTestMode() && !process.env.NODE_TEST_CONTEXT && !process.env.THINKER_IN_LLM && !process.env.CI,
-  });
+  }); } catch (e) { ended(false); throw e; }
+  ended(!process.exitCode);
 }
 
 export const commands = {

@@ -14,6 +14,7 @@ import { Store, findRepoRoot } from './store.js';
 import { getDeviceId } from './device.js';
 import { detectClients } from './clients.js';
 import { deliveryMetrics } from './delivery-telemetry.js';
+import { minedCount, WARM_MINED } from './repo-onboard.js';
 
 export const HOUR_MS = 60 * 60 * 1000;
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -174,6 +175,33 @@ export function verificationMetrics(store, { all = true } = {}) {
     passFlaggedLater: u.verifyChecks.flaggedAfterPass, passWhileFlagged: u.verifyChecks.passedWhileFlagged,
   };
 }
+// Warm-ups over the last 30 days: the offers the hooks made (repo-onboard.js:warmupOffer, to an empty cache or to
+// a cold one that holds notes from sessions), the repositories offered whose warm-up then started, and the builds
+// that started, finished or failed (commands/setup.js logs each asked-for build). A start with neither end is a
+// build that was stopped or is still running. And whether the repositories in use in the report's day are warm
+// (WARM_MINED merged changes read) or cold now. Counts only, no repository names.
+export function warmupMetrics(store, { all = true, now = Date.now(), repos = null } = {}) {
+  const since = new Date(now - HOLDOUT_WINDOW_DAYS * DAY_MS).toISOString();
+  const events = readLog(store, { all }).filter(e => e.t >= since);
+  const offered = new Set(), accepted = new Set();
+  const m = { offers: 0, offersToColdCaches: 0, started: 0, finished: 0, failed: 0 };
+  for (const e of events) {
+    if (e.op === 'warmup-offer') { m.offers++; if (e.notes) m.offersToColdCaches++; offered.add(e.origin); }
+    else if (e.op === 'warmup-start') { m.started++; if (offered.has(e.origin)) accepted.add(e.origin); }
+    else if (e.op === 'warmup-done') { if (e.ok) m.finished++; else m.failed++; }
+  }
+  const active = { warm: 0, cold: 0 };
+  for (const r of (repos || summarize(store, { days: 1, all }).repos || []).filter(r => r.requests > 0)) {
+    const checkout = (r.checkouts || []).find(c => { try { return new Store(c, { readonly: true }).exists(); } catch { return false; } });
+    if (!checkout) continue;
+    try { active[minedCount(new Store(checkout, { readonly: true })) >= WARM_MINED ? 'warm' : 'cold']++; } catch {}
+  }
+  return {
+    schemaVersion: 1, windowDays: HOLDOUT_WINDOW_DAYS, warmMined: WARM_MINED,
+    ...m, offeredRepositories: offered.size, offeredThenStarted: accepted.size,
+    activeRepositoriesWarm: active.warm, activeRepositoriesCold: active.cold,
+  };
+}
 export function holdoutMetrics(store, { all = true, now = Date.now() } = {}) {
   const since = new Date(now - HOLDOUT_WINDOW_DAYS * DAY_MS).toISOString();
   const events = readLog(store, { all }).filter(e => e.t >= since);
@@ -234,6 +262,9 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
 
     // Re-verification verdicts and the passes later doubted, 30 days (verificationMetrics).
     verification: verificationMetrics(store, { all }),
+
+    // Warm-up offers, starts and ends, 30 days; the repositories in use today, warm or cold (warmupMetrics).
+    warmup: warmupMetrics(store, { all, repos: u.repos }),
 
     // Explicit coverage keeps old logs and unsupported provider costs unknown.
     // SQL dashboards read this versioned block from reports.raw_json.
