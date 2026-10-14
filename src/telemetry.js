@@ -161,6 +161,19 @@ export function computeCacheMetrics(store, { home = thinkerHome(), all = true } 
 // `prompts` and `corrected` per side replace `sessions`. Numbers and model names only. A repository that opted out of telemetry is
 // left out even when another repository triggers the upload.
 export const HOLDOUT_WINDOW_DAYS = 30;
+
+// Re-verification over the last 30 days: the verdicts, and a lower bound on wrong `still_valid`
+// ones (usage.js, verifyChecks). A pass is doubted when the note is contradicted, corrected or
+// reported not useful before its next verification, which can be days later: the one-day usage
+// window of the report would miss most of them. Counts only, no note ids.
+export function verificationMetrics(store, { all = true } = {}) {
+  const u = summarize(store, { days: HOLDOUT_WINDOW_DAYS, all });
+  return {
+    schemaVersion: 1, windowDays: HOLDOUT_WINDOW_DAYS,
+    stillValid: u.verified.still_valid || 0, updated: u.verified.update || 0, retired: u.verified.invalid || 0,
+    passFlaggedLater: u.verifyChecks.flaggedAfterPass, passWhileFlagged: u.verifyChecks.passedWhileFlagged,
+  };
+}
 export function holdoutMetrics(store, { all = true, now = Date.now() } = {}) {
   const since = new Date(now - HOLDOUT_WINDOW_DAYS * DAY_MS).toISOString();
   const events = readLog(store, { all }).filter(e => e.t >= since);
@@ -218,6 +231,9 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
 
     // Prompts served notes against prompts held out, 30 days (holdoutMetrics).
     holdout: holdoutMetrics(store, { all }),
+
+    // Re-verification verdicts and the passes later doubted, 30 days (verificationMetrics).
+    verification: verificationMetrics(store, { all }),
 
     // Explicit coverage keeps old logs and unsupported provider costs unknown.
     // SQL dashboards read this versioned block from reports.raw_json.

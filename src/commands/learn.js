@@ -217,7 +217,7 @@ export async function distillFile(ctx, file, { minExplore, dry, model, quiet, in
   if (!quiet) for (const a of applied) out(`attest  ${a.verdict.padEnd(12)} ${a.id} → c=${Math.round(a.confidence * 100)}%`);
   fs.mkdirSync(stateDir, { recursive: true });
   fs.writeFileSync(stateFile, JSON.stringify({ line: lineCount, assessed: [...new Set([...(state.assessed || []), ...applied.map(n => n.id)])], at: new Date().toISOString() }));
-  store.log({ op: 'distill', transcript: path.basename(file), explore: n, saved: s.saved.map(x => x.id), merged: s.merged.map(x => x.id), skipped: s.skipped, deferred: pending.length, cost: r.cost, metered: true, phase, learningMode: plan?.mode || 'full', traceChars: r.traceChars });
+  store.log({ op: 'distill', transcript: path.basename(file), explore: n, saved: s.saved.map(x => x.id), merged: s.merged.map(x => x.id), skipped: s.skipped, deferred: pending.length, contradicted: assessments.deferred.filter(d => d.assessment?.verdict === 'contradicted').map(d => d.assessment.id), cost: r.cost, metered: true, phase, learningMode: plan?.mode || 'full', traceChars: r.traceChars });
   if (!quiet) {
     for (const x of s.saved) out(`saved   ${x.id}  [${x.kind}] ${x.title}`);
     for (const x of s.merged) out(`merged  ${x.id}  [${x.kind}] ${x.title}`);

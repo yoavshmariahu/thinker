@@ -257,3 +257,21 @@ test('new host integration files are not counted as code reading avoided', () =>
     assert.deepEqual(savingOf('/missing', { deps: [{ path: file }] }), { calls: 0, tokens: 0 });
   }
 });
+
+test('a still_valid verdict later contradicted, or given while a contradiction stood, is counted', () => {
+  const home = tmp('thinker-home-');
+  withEnv({ THINKER_HOME: home, THINKER_LOG: undefined, THINKER_NOTES_DIR: undefined }, () => {
+    const store = repoWith({ n1: ['a.js'], n2: ['a.js'], n3: ['a.js'] });
+    store.log({ op: 'verify', id: 'n1', verdict: 'still_valid' });
+    store.log({ op: 'distill', transcript: 'x', saved: [], merged: [], deferred: 1, contradicted: ['n1'] });
+    store.log({ op: 'feedback', id: 'n1', useful: false });            // the same pass is counted once
+    store.log({ op: 'verify', id: 'n1', verdict: 'still_valid' });     // passed while the contradiction stood
+    store.log({ op: 'verify', id: 'n2', verdict: 'update' });
+    store.log({ op: 'feedback', id: 'n2', useful: true, corrected: true }); // after an update, not a pass
+    store.log({ op: 'verify', id: 'n3', verdict: 'still_valid' });
+    store.log({ op: 'feedback', id: 'n3', useful: true });             // a useful report flags nothing
+    const u = summarize(store);
+    assert.deepEqual(u.verifyChecks, { flaggedAfterPass: 1, passedWhileFlagged: 1 });
+    assert.match(renderUsage(u), /doubted passes  1 passed notes later contradicted or corrected; 1 passed while a contradiction stood/);
+  });
+});
