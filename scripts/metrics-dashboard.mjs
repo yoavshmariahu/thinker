@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import { deliveryQuestions } from './delivery-dashboard.mjs';
 import { holdoutQuestions } from './holdout-dashboard.mjs';
+import { cacheQuestions } from './cache-dashboard.mjs';
 import path from 'node:path';
 import net from 'node:net';
 import { randomBytes } from 'node:crypto';
@@ -104,7 +105,7 @@ const costQuestions = [
   { name: 'Distillation measurement coverage', display: 'table', sql: `SELECT count(*) FILTER (WHERE raw_json #>> '{distillation,schemaVersion}' = '1') AS installations_with_instrumentation, ${distillSum('attempts')} AS measured_runs, ${distillSum('legacySuccessfulRuns')} AS older_completions_without_outcomes, ${distillSum('durationSamples')} AS timed_runs, ${distillSum('costKnownCalls')} AS model_calls_with_cost, ${distillSum('costUnknownCalls')} AS model_calls_without_cost, ${distillSum('modelFailedCalls')} AS failed_model_attempts FROM v_latest_installs` }
 ];
 performanceQuestions.push(...costQuestions);
-const questions = [...diagnosticQuestions, ...performanceQuestions, ...deliveryQuestions, ...holdoutQuestions];
+const questions = [...diagnosticQuestions, ...performanceQuestions, ...deliveryQuestions, ...holdoutQuestions, ...cacheQuestions];
 const performanceCardNames = [...performanceQuestions.map(q => q.name), 'Note assessments · latest snapshots', 'Savings estimates · latest snapshots'];
 
 const filterDefs = [
@@ -157,13 +158,13 @@ async function provision() {
   state.cards ||= {};
   for (const question of questions) {
     const existingId = state.cards[question.name];
-    if (existingId && (question.holdout ? state.holdoutCardVersion === 2 : question.delivery ? state.deliveryCardVersion === 2 : state.cardVersion === 4)) continue;
+    if (existingId && (question.cache ? state.cacheCardVersion === 2 : question.holdout ? state.holdoutCardVersion === 2 : question.delivery ? state.deliveryCardVersion === 2 : state.cardVersion === 4)) continue;
     const card = await api(existingId ? `/card/${existingId}` : '/card', existingId ? 'PUT' : 'POST', { name: question.name, display: question.display, description: question.description || null,
       collection_id: state.collectionId, visualization_settings: question.settings || {},
       dataset_query: dataset(question, db.id) });
     state.cards[question.name] = card.id; save();
   }
-  state.cardVersion = 4; state.deliveryCardVersion = 2; state.holdoutCardVersion = 2; save();
+  state.cardVersion = 4; state.deliveryCardVersion = 2; state.holdoutCardVersion = 2; state.cacheCardVersion = 2; save();
   if (!state.dashboardId) {
     state.dashboardId = (await api('/dashboard', 'POST', { name: 'Thinker telemetry', collection_id: state.collectionId,
       description: 'Live reports, installation activity, and data quality. Installation IDs are not people. Older telemetry may contain test data. Usage fields are rolling snapshots; do not sum all reports.' })).id;
@@ -274,6 +275,27 @@ async function provision() {
     await api(`/dashboard/${state.holdoutId}`, 'PUT', { parameters: [...parameters,
       ...dashboard.parameters.filter(p => !filterDefs.some(([key]) => key === p.id))] });
   }
+  if (!state.cacheId) {
+    state.cacheId = (await api('/dashboard', 'POST', { name: 'Cache health', collection_id: state.collectionId,
+      description: 'What the cache serves, how fresh its notes are, and how often a re-verification pass was later doubted. Latest snapshot per device; each card names its window.' })).id;
+    save();
+  }
+  if (state.cacheDashboardVersion !== 1) {
+    const cards = [{ id: -1, card_id: null, row: 0, col: 0, size_x: 24, size_y: 4,
+      visualization_settings: { virtual_card: { display: 'text' }, text: '## Is the cache serving current, trustworthy notes?\nEach card reads the latest snapshot per known device (installation fallback). Retrieval and assessment cards cover that snapshot\'s 24 hours; verification cards cover 30 days; note status and confidence are the notes at upload time.\n**Doubted passes are a lower bound:** a wrong verification pass is only seen when a session or a person later contradicts or corrects the note. Clients before the verification block show no value, not zero.' } }];
+    cacheQuestions.forEach((q, i) => {
+      const scalar = i < 4, j = i - 4;
+      cards.push({ id: -(i + 2), card_id: state.cards[q.name], row: scalar ? 4 : 8 + Math.floor(j / 2) * 8,
+        col: scalar ? i * 6 : q.fullWidth ? 0 : j % 2 * 12, size_x: scalar ? 6 : q.fullWidth ? 24 : 12, size_y: scalar ? 4 : 8,
+        parameter_mappings: mappings(state.cards[q.name]) });
+    });
+    await api(`/dashboard/${state.cacheId}`, 'PUT', { parameters, dashcards: cards });
+    state.cacheDashboardVersion = 1; save();
+  } else {
+    const dashboard = await api(`/dashboard/${state.cacheId}`);
+    await api(`/dashboard/${state.cacheId}`, 'PUT', { parameters: [...parameters,
+      ...dashboard.parameters.filter(p => !filterDefs.some(([key]) => key === p.id))] });
+  }
   if (!state.messagesCardId) {
     state.messagesCardId = (await api('/card', 'POST', {
       name: 'Website messages', display: 'table', collection_id: state.collectionId,
@@ -297,6 +319,7 @@ async function provision() {
   console.log(`Messages: http://localhost:3030/dashboard/${state.messagesId}`);
   console.log(`Delivery: http://localhost:3030/dashboard/${state.deliveryId}`);
   console.log(`Holdout: http://localhost:3030/dashboard/${state.holdoutId}`);
+  console.log(`Cache health: http://localhost:3030/dashboard/${state.cacheId}`);
   console.log(`Dashboard: http://localhost:3030/dashboard/${state.dashboardId}`);
   console.log(`Waitlist: http://localhost:3030/dashboard/${state.waitlistId}`);
   console.log(`SQL editor: http://localhost:3030/question#?db=${db.id}&type=native`);
@@ -334,6 +357,12 @@ async function verify() {
     if (holdoutQuestions.some(q => !holdout.dashcards.some(c => c.card_id === state.cards[q.name]))) throw new Error('Holdout dashboard is missing cards');
     if (filterDefs.some(([id]) => !holdout.parameters.some(p => p.id === id) || holdout.dashcards.some(c => c.card_id && !c.parameter_mappings.some(p => p.parameter_id === id)))) throw new Error('Unmapped holdout filter');
     console.log('PASS: holdout layout and filters.');
+  }
+  if (state.cacheId) {
+    const cache = await api(`/dashboard/${state.cacheId}`);
+    if (cacheQuestions.some(q => !cache.dashcards.some(c => c.card_id === state.cards[q.name]))) throw new Error('Cache health dashboard is missing cards');
+    if (filterDefs.some(([id]) => !cache.parameters.some(p => p.id === id) || cache.dashcards.some(c => c.card_id && !c.parameter_mappings.some(p => p.parameter_id === id)))) throw new Error('Unmapped cache health filter');
+    console.log('PASS: cache health layout and filters.');
   }
   if (performanceCardNames.some(name => !dashboard.dashcards.some(card => card.card_id === state.cards[name]))) {
     throw new Error('Starter dashboard is missing cards');

@@ -71,7 +71,7 @@ node scripts/metrics-dashboard.mjs login
 
 Open **http://localhost:3030** and use the printed login. The **Thinker metrics**
 collection contains **Cache & distillation performance**, **Telemetry diagnostics**,
-**PR delivery & review**, **Holdout: what the notes save**, and **Waitlist** dashboards with saved SQL queries. Choose
+**PR delivery & review**, **Holdout: what the notes save**, **Cache health**, and **Waitlist** dashboards with saved SQL queries. Choose
 **New → SQL query → Thinker telemetry (read-only)** to write your own SQL, save
 results, chart them, or export CSV. `start` prints the direct dashboard URLs.
 All dashboards have platform, version, device ID, and report-type filters.
@@ -371,6 +371,24 @@ turns, so read them beside the prompt counts; the per-source table shows where t
 prompts come from.
 The trend chart takes one snapshot per source per day, each covering the 30 days
 before it. Run `refresh` to add the dashboard to an existing setup, then `verify`.
+
+## Cache health (verification schema 1)
+
+**Cache health** reads the latest snapshot per known device (installation fallback):
+hit rate, stale share of served notes, retrieval time and uncovered terms, and what
+session learning saw agents do with served notes, all over the snapshot's 24 hours.
+It also shows note status and confidence as they are at upload time, and a trend with
+one snapshot per source per day.
+
+Updated clients include `raw_json.verification`, a 30-day count of re-verification
+verdicts (`stillValid`, `updated`, `retired`) and of doubted passes: a note passed as
+still valid, then contradicted in a session, corrected, or reported not useful before
+its next verification (`passFlaggedLater`), and passes given while such a report stood
+(`passWhileFlagged`). This is a lower bound on wrong verdicts. A wrong pass nobody reports
+is not seen, and code that changed between the pass and the report also counts. Counts
+only, no note ids. The window is 30 days because the report's 24-hour usage window would
+miss contradictions that arrive days after the pass. Clients without the block show no
+value, not zero. Run `refresh` to add the dashboard, then `verify`.
 
 ## Website messages
 

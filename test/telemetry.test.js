@@ -626,3 +626,22 @@ test('cache topology metrics aggregate statuses, sources, and dependency granula
 });
 
 
+
+test('telemetry payload carries re-verification verdicts and doubted passes as 30-day counts', () => {
+  const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-verification-repo-'));
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-verification-home-'));
+  try {
+    const store = new Store(tmpRepo).init();
+    store.log({ op: 'verify', id: 'n1', verdict: 'still_valid' });
+    store.log({ op: 'distill', transcript: 'x', saved: [], merged: [], deferred: 1, contradicted: ['n1'] });
+    store.log({ op: 'verify', id: 'n1', verdict: 'still_valid' });
+    store.log({ op: 'verify', id: 'n2', verdict: 'update' });
+    store.log({ op: 'verify', id: 'n3', verdict: 'invalid' });
+    const payload = buildTelemetryPayload(store, { home: tmpHome, days: 1, all: false });
+    assert.deepEqual(payload.verification, { schemaVersion: 1, windowDays: 30, stillValid: 2, updated: 1, retired: 1, passFlaggedLater: 1, passWhileFlagged: 1 });
+    assert.doesNotMatch(JSON.stringify(payload.verification), /n1|n2|n3/, 'counts only, no note ids');
+  } finally {
+    fs.rmSync(tmpRepo, { recursive: true, force: true });
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  }
+});
