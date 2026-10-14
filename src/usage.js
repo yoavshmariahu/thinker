@@ -165,6 +165,10 @@ export function summarize(store, { days, all = false } = {}) {
     assessed: { confirmed: 0, contradicted: 0, unused: 0, pending: 0 },
     learned: { sessions: 0, notes: 0, merged: 0, prs: 0, prNotes: 0 },
     verified: { still_valid: 0, update: 0, invalid: 0 },
+    // how often a `still_valid` verdict was wrong, as far as the log can tell: the note was contradicted,
+    // corrected or reported not useful before its next verification (flaggedAfterPass), or it was
+    // passed while such a report stood since its last one (passedWhileFlagged)
+    verifyChecks: { flaggedAfterPass: 0, passedWhileFlagged: 0 },
     feedback: { useful: 0, notUseful: 0 }, corrections: 0,
     spending: { ...emptySpend(), byPurpose: {}, byPhase: {}, byModel: {}, legacyRecords: 0 },
     distillation: { runs: 0, noNewNotes: 0, noChanges: 0 },
@@ -194,6 +198,12 @@ export function summarize(store, { days, all = false } = {}) {
   const sessions = new Map();   // origin|session → { origin, named, client, model, injected, notes: Map(note id → [calls, tokens]) }
   const verdicts = new Map();   // origin|session → Map(note id → verdict)
   const count = new Map();
+  const lastVerify = new Map(); // origin|note id → { verdict, flagged, counted } since its last verification
+  const flag = (origin, id) => {
+    const k = `${origin}|${id}`, v = lastVerify.get(k) || { verdict: null, flagged: false, counted: false };
+    if (v.verdict === 'still_valid' && !v.counted) { u.verifyChecks.flaggedAfterPass++; v.counted = true; }
+    v.flagged = true; lastVerify.set(k, v);
+  };
   let anon = 0;
   for (const e of events) {
     const r = per(e.origin, e.repo), s = storeOf(e.repo);
@@ -267,13 +277,18 @@ export function summarize(store, { days, all = false } = {}) {
     } else if (e.op === 'attest') {
       const key = `${e.origin}|${sessionKey(e.session)}`;
       if (!verdicts.has(key)) verdicts.set(key, new Map());
-      for (const a of e.applied || []) verdicts.get(key).set(a.id, a.verdict);
+      for (const a of e.applied || []) { verdicts.get(key).set(a.id, a.verdict); if (a.verdict === 'contradicted') flag(e.origin, a.id); }
       // the model the session ran on; the servings were logged before the assessment named it
       if (e.model && sessions.has(key)) sessions.get(key).model = e.model;
-    } else if (e.op === 'distill') { u.learned.sessions++; u.learned.notes += (e.saved || []).length; u.learned.merged += (e.merged || []).length; r.learned += (e.saved || []).length; }
+    } else if (e.op === 'distill') { for (const id of e.contradicted || []) flag(e.origin, id); u.learned.sessions++; u.learned.notes += (e.saved || []).length; u.learned.merged += (e.merged || []).length; r.learned += (e.saved || []).length; }
     else if (e.op === 'mine-prs') { u.learned.prs += e.prs || 0; u.learned.prNotes += e.saved || 0; r.learned += e.saved || 0; }
-    else if (e.op === 'verify') { if (e.verdict in u.verified) u.verified[e.verdict]++; }
-    else if (e.op === 'feedback') u.feedback[e.useful ? 'useful' : 'notUseful']++;
+    else if (e.op === 'verify') {
+      if (e.verdict in u.verified) u.verified[e.verdict]++;
+      const k = `${e.origin}|${e.id}`;
+      if (e.verdict === 'still_valid' && lastVerify.get(k)?.flagged) u.verifyChecks.passedWhileFlagged++;
+      lastVerify.set(k, { verdict: e.verdict, flagged: false, counted: false });
+    }
+    else if (e.op === 'feedback') { u.feedback[e.useful ? 'useful' : 'notUseful']++; if (!e.useful || e.corrected) flag(e.origin, e.id); }
     else if (e.op === 'outcome' && !e.positive) u.corrections++;
   }
   u.holdout = holdoutOf(events);
@@ -476,6 +491,7 @@ export function renderUsage(u, { days } = {}) {
   L.push(`  sessions        ${num(u.learned.sessions)} distilled: ${num(u.learned.notes)} new notes, ${num(u.learned.merged)} merged into existing ones`);
   L.push(`  pull requests   ${num(u.learned.prs)} mined: ${num(u.learned.prNotes)} notes`);
   L.push(`  re-verified     ${num(u.verified.still_valid + u.verified.update + u.verified.invalid)} stale notes: ${num(u.verified.still_valid)} still valid, ${num(u.verified.update)} rewritten, ${num(u.verified.invalid)} retired`);
+  if (u.verifyChecks.flaggedAfterPass || u.verifyChecks.passedWhileFlagged) L.push(`  doubted passes  ${num(u.verifyChecks.flaggedAfterPass)} passed notes later contradicted or corrected; ${num(u.verifyChecks.passedWhileFlagged)} passed while a contradiction stood`);
   const spending = u.spending;
   if (spending?.calls) {
     L.push('', 'Cache build and maintenance (reported usage)');

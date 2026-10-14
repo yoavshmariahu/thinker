@@ -294,6 +294,12 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
         notesMerged: u.learned.merged,
         prsMined: u.learned.prs,
         staleVerified: (u.verified.still_valid || 0) + (u.verified.update || 0) + (u.verified.invalid || 0),
+        verifiedStillValid: u.verified.still_valid || 0,
+        verifiedUpdated: u.verified.update || 0,
+        verifiedRetired: u.verified.invalid || 0,
+        // a lower bound on wrong `still_valid` verdicts (usage.js, verifyChecks); counts only, no note ids
+        verifyPassFlaggedLater: u.verifyChecks?.flaggedAfterPass || 0,
+        verifyPassWhileFlagged: u.verifyChecks?.passedWhileFlagged || 0,
       },
     },
   };
