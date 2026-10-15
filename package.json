@@ -1,6 +1,6 @@
 {
   "name": "thinker",
-  "version": "0.1.52",
+  "version": "0.1.53",
   "description": "Knowledge cache for coding agents: injects the context and skills that fit each task, keeps itself fresh as the code changes, so tasks finish faster on fewer tokens",
   "type": "module",
   "bin": {
