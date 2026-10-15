@@ -1,10 +1,20 @@
 // Loaded by the generated project extension. No Pi SDK dependency is required.
-import { hookRunner, guidance } from './runner.js';
-export function piExtension(pi, config, run = hookRunner(config)) {
+import { hookRunner, guidance, warmupAnswer } from './runner.js';
+import { WARMUP_CHOICES, OFFER_BLOCK } from '../warmup-choices.js';
+export function piExtension(pi, config, run = hookRunner(config), answer = choice => warmupAnswer(config, choice)) {
   const event = (ctx, extra = {}) => ({ session_id: ctx.sessionManager.getSessionId(), ...extra });
   if (config.hooks) {
     pi.on('before_agent_start', async (e, ctx) => {
-      const text = await run('prompt', event(ctx, { prompt: e.prompt }));
+      let text = await run('prompt', event(ctx, { prompt: e.prompt }));
+      // the warm-up offer (repo-onboard.js:warmupOffer) as pi's own picker, before the agent starts; without a
+      // UI (print mode) the offer stays for the agent, which asks in chat
+      if (ctx.hasUI && OFFER_BLOCK.test(text)) {
+        text = text.replace(OFFER_BLOCK, '').trim();
+        const options = WARMUP_CHOICES.map(c => `${c.label}: ${c.description}`);
+        const pick = await ctx.ui.select('Warm up thinker\'s cache for this repository?', options);
+        const said = await answer(WARMUP_CHOICES[options.indexOf(pick)]?.value || 'dismissed');
+        if (said) ctx.ui.notify(said, 'info');
+      }
       const content = [config.mcp ? guidance(config) : '', text].filter(Boolean).join('\n\n');
       if (content) return { message: { customType: 'thinker-cache', content, display: false } };
     });
