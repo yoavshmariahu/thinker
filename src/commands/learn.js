@@ -250,7 +250,7 @@ export async function mineMore(ctx, { slug, ...opts }) {
   return minePrs(ctx, slug, { ...opts, repo });
 }
 
-export async function minePrs(ctx, slug, { from, scan, before, after, again, limit = 20, model, dry, fixes = false, git = false, repo = process.cwd(), phase = 'maintenance', directories = null, concurrency = 4, paths = null, pathsLimit = null, pathsScan = null, pathsOnly = false, onProgress = null } = {}) {
+export async function minePrs(ctx, slug, { from, scan, before, after, again, limit = 20, model, dry, fixes = false, git = false, repo = process.cwd(), phase = 'maintenance', directories = null, concurrency = 4, paths = null, pathsLimit = null, pathsScan = null, pathsOnly = false, onProgress = null, distillPrFn = distillPr } = {}) {
   const { flags, store, out } = ctx;
   // --git: commits from git history although GitHub is reachable (a repository whose work lands by
   // direct commits has few pull requests to mine; its fix commits are what review wants)
@@ -273,10 +273,14 @@ export async function minePrs(ctx, slug, { from, scan, before, after, again, lim
   // --paths: the history of those files first (--paths-limit of the --limit, half by default), scanned
   // three times as deep among the changes touching them (pathsScan: another depth), then the newest
   // changes overall fill the rest (pathsOnly: nothing fills it; a focus area's walk, maintain.js)
-  let targeted = [];
+  let targeted = [], history = null;
   if (from && paths?.length) {
     const want = Math.min(Math.max(1, pathsLimit || Math.ceil(limit / 2)), limit);
-    targeted = mineable(listMergedCommits(repo, { from, limit: pathsScan || want * 3, directories, paths }).filter(fresh), { fixes, git: useGit }).slice(0, want);
+    const scanLimit = pathsScan || want * 3;
+    const scanned = listMergedCommits(repo, { from, limit: scanLimit, directories, paths, strict: pathsOnly });
+    const candidates = mineable(scanned.filter(fresh), { fixes, git: useGit });
+    targeted = candidates.slice(0, want);
+    if (pathsOnly) history = { scanned: scanned.length, exhausted: scanned.length < scanLimit && candidates.length <= want };
   }
   const targetedHashes = new Set(targeted.map(p => p.hash));
   const listed = from && pathsOnly ? [] : from ? listMergedCommits(repo, { from, limit: scan || limit * 3, directories }).filter(fresh).filter(p => !targetedHashes.has(p.hash)) : before || after
@@ -284,8 +288,8 @@ export async function minePrs(ctx, slug, { from, scan, before, after, again, lim
     : nextPrs(slug, rec, { limit: fetchLimit, list: listFn, repo });
   if (!listed.length && !targeted.length) {
     const sourceName = useGit ? 'git history' : `merged PRs of ${slug}`;
-    out(`no ${sourceName} left to mine (${rec.mined.size} mined so far)`);
-    return { tokens: 0, saved: 0, processed: 0 };
+    out(`${history && !history.exhausted ? 'no unmined changes in this history window' : `no ${sourceName} left to mine`} (${rec.mined.size} mined so far)`);
+    return { tokens: 0, saved: 0, processed: 0, completed: 0, ...history };
   }
   const failed = new Set();
   const scoped = listed.filter(p => !directories || (p.files || []).some(f => includesPath(directories, typeof f === 'string' ? f : f.path || '')));
@@ -310,7 +314,7 @@ export async function minePrs(ctx, slug, { from, scan, before, after, again, lim
       // the notes already resting on the files the change touched, shown as context rather than evidence
       const touched = new Set((pr.files || []).map(f => f.path));
       const existing = store.list().filter(n => n.status !== 'invalid' && (n.deps || []).some(d => touched.has(d.path))).slice(0, 12);
-      const r = await distillPr(slug, pr, { model: model || store.config().distillModel || DEFAULT_DISTILL_MODEL, repo, existing, accounting: { ...accounting, purpose: 'mine-prs' } });
+      const r = await distillPrFn(slug, pr, { model: model || store.config().distillModel || DEFAULT_DISTILL_MODEL, repo, existing, accounting: { ...accounting, purpose: 'mine-prs' } });
       tokens += r.tokens || 0;
       if (dry) { out(`${oneLine(refId)} ${oneLine(pr.title).slice(0, 60)} → ${r.notes.map(n => n.kind).join(',') || 'no reusable notes'}`); progress.complete({ item, proposed: r.notes }); return; }
       const source = { type: 'pr', ref: refId };
@@ -335,7 +339,8 @@ export async function minePrs(ctx, slug, { from, scan, before, after, again, lim
     store.log({ op: 'mine-prs', slug: recSlug, directories, prs: prs.length - failed.size, passed: listed.length - (prs.length - targeted.length) - deferred.size, deferred: deferred.size, saved, tokens, metered: true, source: useGit ? 'git' : 'github', ...(targeted.length ? { targeted: targeted.length, paths } : {}) });
   }
   progress.finish({ tokens, retry: 'Failed changes remain unmarked. Retry with: thinker mine-prs' });
-  return { tokens, saved, failed: failed.size, processed: prs.length };
+  return { tokens, saved, failed: failed.size, processed: prs.length, completed: prs.length - failed.size,
+    ...(history ? { ...history, exhausted: history.exhausted && !failed.size } : {}) };
 }
 
 export const commands = {

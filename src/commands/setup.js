@@ -342,7 +342,7 @@ async function updateCommand(ctx) {
 // The one command that sets a repository up: wire it into the agents, then offer to build the
 // cache from its merged pull requests. The offer is the only step that spends anything,
 // so it is a question (--build answers yes, --no-build answers no and leaves the wiring alone).
-export async function setup(ctx) {
+export async function setup(ctx, { runSetupFn = runSetup } = {}) {
   const { flags, repo, store, out, learnOn, mcpEntry, HERE } = ctx;
   const clients = parseClients(flags.clients, parseClients('auto'));
   const num = (v, d) => v === undefined || v === true || Number.isNaN(Number(v)) ? d : Number(v);
@@ -357,11 +357,12 @@ export async function setup(ctx) {
   const askedToBuild = Boolean(flags.build) || Boolean(depth) || flags.prs !== undefined;
   const build = flags['no-build'] || flags['no-prs'] ? false : (askedToBuild ? true : null);
 
-  // a build asked for (the warm-up command and the warm-up page run exactly this) is logged as it starts and
-  // as it ends, for the warm-up telemetry (telemetry.js:warmupMetrics): a start with no end did not finish
-  if (build) store.log({ op: 'warmup-start', depth: depth || undefined, source: slug ? 'github' : 'git' });
-  const ended = ok => { if (build) { let notes = null, mined = null; try { notes = store.list().length; mined = minedCount(store); } catch {} store.log({ op: 'warmup-done', ok, notes, mined }); } };
-  try { await runSetup({
+  // The build decision belongs to runSetup, including interactive and --yes choices. A successful
+  // setup can still skip or fail its build, so use its result rather than the process's exit code.
+  let started = false, result;
+  const onBuildStart = () => { started = true; store.log({ op: 'warmup-start', depth: depth || undefined, source: slug ? 'github' : 'git' }); };
+  const ended = (ok, reason) => { if (started) { let notes = null, mined = null; try { notes = store.list().length; mined = minedCount(store); } catch {} store.log({ op: 'warmup-done', ok, notes, mined, ...(reason ? { reason } : {}) }); } };
+  try { result = await runSetupFn({
     repo,
     store,
     cliPath: path.join(HERE, 'cli.js'),
@@ -372,6 +373,7 @@ export async function setup(ctx) {
     prs,
     prNumber: flags.pr ? Number(flags.pr) : null,
     build,
+    onBuildStart,
     depth,
     benchmark: Boolean(flags.benchmark),
     noBenchmark: Boolean(flags['no-benchmark']),
@@ -393,8 +395,11 @@ export async function setup(ctx) {
     // the local page opens after a repository's first setup, except under tests (a bare `node --test` sets only
     // NODE_TEST_CONTEXT), thinker's own model runs, CI, and --no-ui
     dashboard: !flags['no-ui'] && !isTestMode() && !process.env.NODE_TEST_CONTEXT && !process.env.THINKER_IN_LLM && !process.env.CI,
-  }); } catch (e) { ended(false); throw e; }
-  ended(!process.exitCode);
+  }); } catch (e) { ended(false, 'error'); throw e; }
+  const ok = result?.built === true && !result.error && !result.warnings;
+  ended(ok, result?.error || (result?.warnings ? 'incomplete' : !result?.built ? 'not-built' : null));
+  if (started && !ok) process.exitCode = 1;
+  return result;
 }
 
 export const commands = {

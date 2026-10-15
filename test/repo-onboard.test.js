@@ -103,6 +103,27 @@ test('Cursor gets its always-on rule, kept out of git status', () => {
   assert.deepEqual(ops(dir).find(e => e.op === 'repo-setup').done, ['git hooks', 'cursor rule']);
 });
 
+test('Cursor is set up after another agent has already set up the repository, once', t => {
+  const dir = gitRepo(2);
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  hook(dir, 'prompt', { session_id: 'first', prompt: 'hello' });
+  assert.ok(fs.existsSync(path.join(dir, '.thinker/state/repo-setup')));
+  for (let i = 0; i < 2; i++) hook(dir, 'prompt', { conversation_id: `cursor-${i}`, prompt: 'hello' }, 'cursor');
+  assert.ok(fs.existsSync(path.join(dir, '.cursor/rules/thinker.mdc')));
+  assert.deepEqual(ops(dir).filter(e => e.op === 'repo-setup').map(e => e.done), [['git hooks'], ['cursor rule']]);
+});
+
+test('a failed agent-specific setup retries on the next prompt', t => {
+  const dir = gitRepo(2);
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(dir, '.cursor'), 'blocks directory creation');
+  hook(dir, 'prompt', { conversation_id: 'blocked', prompt: 'hello' }, 'cursor');
+  assert.ok(!fs.existsSync(path.join(dir, '.thinker/state/repo-setup-cursor')));
+  fs.unlinkSync(path.join(dir, '.cursor'));
+  hook(dir, 'prompt', { conversation_id: 'retry', prompt: 'hello' }, 'cursor');
+  assert.ok(fs.existsSync(path.join(dir, '.cursor/rules/thinker.mdc')));
+});
+
 test('each agent is told to ask with its own question tool; Codex calls thinker\'s picker; pi without a UI asks in chat', () => {
   const asked = {};
   for (const client of ['gemini', 'cursor', 'copilot', 'opencode', 'codex', 'pi']) {

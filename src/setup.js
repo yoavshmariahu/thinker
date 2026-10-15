@@ -56,6 +56,7 @@ export async function runSetup({
   checkAuthFn = checkAgentAuth,
   dashboard = false,
   openDashboardFn = openDashboard,
+  onBuildStart = () => {},
 }) {
   // Validate explicit/saved selections before setup writes agent settings.
   projectFromFlags(repo, projectFlags);
@@ -124,6 +125,7 @@ export async function runSetup({
   // a shallow build is 30% of the full one: the first pull requests of the same order
   if (building && depth === 'shallow') ({ prs } = depthLimits({ depth, prs }));
   let effectiveNoPrs = noPrs || !building;
+  if (building) onBuildStart();
 
   if (!effectiveNoPrs) {
     const authResult = await selectAndAuthenticateAgent({

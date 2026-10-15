@@ -7,7 +7,8 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { ElicitRequestSchema, ListRootsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { pathToFileURL } from 'node:url';
 import { Store } from '../src/store.js';
 
 // Codex's own question tool is off outside plan mode, so the warm-up offer tells it to call thinker's
@@ -27,8 +28,9 @@ function machine(t) {
   return { repo, env, home: env.THINKER_HOME, store: new Store(repo).init() };
 }
 
-async function connect(t, env, repo, { answer } = {}) {
-  const client = new Client({ name: 'codex-mcp-client', version: '0' }, { capabilities: answer === undefined ? {} : { elicitation: {} } });
+async function connect(t, env, repo, { answer, root } = {}) {
+  const client = new Client({ name: 'codex-mcp-client', version: '0' }, { capabilities: { ...(answer === undefined ? {} : { elicitation: {} }), ...(root ? { roots: {} } : {}) } });
+  if (root) client.setRequestHandler(ListRootsRequestSchema, async () => ({ roots: [{ uri: pathToFileURL(root).href }] }));
   const asked = [];
   if (answer !== undefined) client.setRequestHandler(ElicitRequestSchema, async req => { asked.push(req.params); return answer; });
   await client.connect(new StdioClientTransport({ command: process.execPath, args: [path.join(ROOT, 'src/mcp.js')], env, cwd: repo, stderr: 'ignore' }));
@@ -36,6 +38,23 @@ async function connect(t, env, repo, { answer } = {}) {
   return { client, asked, call: async args => (await client.callTool({ name: 'warmup', arguments: args })).content[0].text };
 }
 const answers = store => (fs.existsSync(path.join(store.dir, 'log.jsonl')) ? fs.readFileSync(path.join(store.dir, 'log.jsonl'), 'utf8') : '').trim().split('\n').filter(Boolean).map(l => JSON.parse(l)).filter(e => e.op === 'warmup-answer');
+
+test('a server started outside a repository registers warmup after binding by a call or roots', async t => {
+  for (const viaRoots of [false, true]) {
+    const { repo, env, store } = machine(t);
+    const { client, call } = await connect(t, { ...env, THINKER_REPO: '', CLAUDE_PROJECT_DIR: '' }, env.HOME, { root: viaRoots ? repo : undefined });
+    if (viaRoots) {
+      // Root discovery completes asynchronously after initialization.
+      for (let i = 0; i < 100 && !(await client.listTools()).tools.some(x => x.name === 'warmup'); i++) await new Promise(r => setTimeout(r, 10));
+    } else {
+      assert.ok(!(await client.listTools()).tools.some(x => x.name === 'warmup'));
+      await client.callTool({ name: 'orient', arguments: { task: 'where is the API', cwd: repo } });
+    }
+    assert.ok((await client.listTools()).tools.some(x => x.name === 'warmup'));
+    assert.match(await call({ choice: 'no' }), /no warm-up for this repository/);
+    assert.equal(answers(store).length, 1);
+  }
+});
 
 test('the picker shows the three choices; the answer is acted on, logged, and the tool goes away', async t => {
   const { repo, env, store } = machine(t);

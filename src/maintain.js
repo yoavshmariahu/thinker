@@ -195,8 +195,14 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
     if (cfg.prs && !dry) {
       try { refreshAreas(store, repo, { now, find: fns.activityAreas, findOpts: isTestMode() ? { noGitHub: true } : {} }); } catch { r.errors++; }
     }
-    const areas = areasConfig(store);
+    let areas = areasConfig(store);
     const focused = areas.source !== 'all' && areas.directories.length > 0;
+    // Old counters counted failures and mistook an empty bounded scan for the end of history.
+    // Recheck those walks once; the mined-PR record still prevents paying for successful changes twice.
+    if (!dry && focused && cfg.prs && fns.mineAreaHistory && areas.walkVersion !== 2) {
+      saveAreas(store, { walkedBy: {}, scannedBy: {}, walkVersion: 2 });
+      areas = areasConfig(store);
+    }
     if (cfg.prs && fns.minePrs) {
       if (!state.prsAfter) state.prsAfter = new Date().toISOString();
       else if (afford()) {
@@ -210,11 +216,17 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
           try {
             // scan past what this area has read already: the changes mined before are skipped, not counted
             const done = areas.walkedBy[walking] || 0;
-            const m = await fns.mineAreaHistory({ paths: [walking], limit: cfg.prsPerRun, scan: done * 2 + cfg.prsPerRun * 3 });
+            const limit = Math.min(cfg.prsPerRun, areas.walk - done);
+            const scan = Math.max(done * 2, areas.scannedBy?.[walking] || 0) + cfg.prsPerRun * 3;
+            const m = await fns.mineAreaHistory({ paths: [walking], limit, scan });
             r.prs += m?.saved || 0; r.tokens += m?.tokens || 0;
-            const processed = m?.processed ?? cfg.prsPerRun;
-            // nothing left to read in the area's history: it is as warm as it gets
-            saveAreas(store, { walkedBy: { ...areas.walkedBy, [walking]: processed ? done + processed : areas.walk } });
+            const completed = m?.completed ?? Math.max(0, (m?.processed || 0) - (m?.failed || 0));
+            // An empty window can contain only already-mined changes. Widen it next run; only an
+            // explicit end-of-history result can finish the area without reading its full allowance.
+            saveAreas(store, {
+              walkedBy: { ...areas.walkedBy, [walking]: m?.exhausted && !m?.failed ? areas.walk : Math.min(areas.walk, done + completed) },
+              scannedBy: { ...areas.scannedBy, [walking]: m?.scanned ?? scan },
+            });
           } catch { r.errors++; }
         }
       } else r.capped = true;

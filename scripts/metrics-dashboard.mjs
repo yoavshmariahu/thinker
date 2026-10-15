@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Local Metabase backed by durable Docker volumes; production access is read-only.
 import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { deliveryQuestions } from './delivery-dashboard.mjs';
 import { holdoutQuestions } from './holdout-dashboard.mjs';
 import { cacheQuestions } from './cache-dashboard.mjs';
@@ -126,7 +127,8 @@ function dataset(question, database) {
 }
 function mappings(cardId) { return filterDefs.map(([id]) => ({ parameter_id: id, card_id: cardId, target: ['variable', ['template-tag', id]] })); }
 
-async function provision() {
+export async function provision({ call = api, config = state, persist = save, reader = null } = {}) {
+  const api = call, state = config, save = persist;
   const properties = await api('/session/properties');
   if (properties['setup-token']) {
     const result = await api('/setup', 'POST', { token: properties['setup-token'],
@@ -135,7 +137,7 @@ async function provision() {
     session = result.id;
   } else session = (await api('/session', 'POST', { username: state.email, password: state.password })).id;
 
-  const secret = JSON.parse(JSON.parse(execFileSync('aws', ['--profile', 'yoav', '--region', 'us-east-1',
+  const secret = reader || JSON.parse(JSON.parse(execFileSync('aws', ['--profile', 'yoav', '--region', 'us-east-1',
     'secretsmanager', 'get-secret-value', '--secret-id', 'thinker/metrics/reader', '--output', 'json'],
   { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })).SecretString);
   const database = { name: 'Thinker telemetry (read-only)', engine: 'postgres', is_full_sync: false,
@@ -159,29 +161,13 @@ async function provision() {
   state.cards ||= {};
   for (const question of questions) {
     const existingId = state.cards[question.name];
-<<<<<<< Updated upstream
-<<<<<<< HEAD
-    if (existingId && (question.cache ? state.cacheCardVersion === 2 : question.holdout ? state.holdoutCardVersion === 2 : question.delivery ? state.deliveryCardVersion === 2 : state.cardVersion === 4)) continue;
-=======
     if (existingId && (question.cache ? state.cacheCardVersion === 2 : question.holdout ? state.holdoutCardVersion === 3 : question.delivery ? state.deliveryCardVersion === 2 : state.cardVersion === 5)) continue;
->>>>>>> origin/main
-=======
-    if (existingId && (question.cache ? state.cacheCardVersion === 2 : question.holdout ? state.holdoutCardVersion === 2 : question.delivery ? state.deliveryCardVersion === 2 : state.cardVersion === 5)) continue;
->>>>>>> Stashed changes
     const card = await api(existingId ? `/card/${existingId}` : '/card', existingId ? 'PUT' : 'POST', { name: question.name, display: question.display, description: question.description || null,
       collection_id: state.collectionId, visualization_settings: question.settings || {},
       dataset_query: dataset(question, db.id) });
     state.cards[question.name] = card.id; save();
   }
-<<<<<<< Updated upstream
-<<<<<<< HEAD
-  state.cardVersion = 4; state.deliveryCardVersion = 2; state.holdoutCardVersion = 2; state.cacheCardVersion = 2; save();
-=======
   state.cardVersion = 5; state.deliveryCardVersion = 2; state.holdoutCardVersion = 3; state.cacheCardVersion = 2; save();
->>>>>>> origin/main
-=======
-  state.cardVersion = 5; state.deliveryCardVersion = 2; state.holdoutCardVersion = 2; state.cacheCardVersion = 2; save();
->>>>>>> Stashed changes
   if (!state.dashboardId) {
     state.dashboardId = (await api('/dashboard', 'POST', { name: 'Thinker telemetry', collection_id: state.collectionId,
       description: 'Live reports, installation activity, and data quality. Installation IDs are not people. Older telemetry may contain test data. Usage fields are rolling snapshots; do not sum all reports.' })).id;
@@ -295,6 +281,29 @@ async function provision() {
     await api(`/dashboard/${state.holdoutId}`, 'PUT', { parameters: [...parameters,
       ...dashboard.parameters.filter(p => !filterDefs.some(([key]) => key === p.id))] });
   }
+  if (!state.cacheId) {
+    state.cacheId = (await api('/dashboard', 'POST', { name: 'Cache health', collection_id: state.collectionId,
+      description: 'What the cache serves, how fresh its notes are, and how often a re-verification pass was later doubted. Latest snapshot per device; each card names its window.' })).id;
+    save();
+  }
+  if (state.cacheDashboardVersion !== 2) {
+    const cards = [{ id: -1, card_id: null, row: 0, col: 0, size_x: 24, size_y: 4,
+      visualization_settings: { virtual_card: { display: 'text' }, text: '## Is the cache serving current, trustworthy notes?\nEach card reads the latest snapshot per known device (installation fallback). Retrieval and assessment cards cover that snapshot\'s 24 hours; verification cards cover 30 days; note status and confidence are the notes at upload time.\n**Doubted passes are a lower bound:** a wrong verification pass is only seen when a session or a person later contradicts or corrects the note. Clients before the verification block show no value, not zero.' } }];
+    let row = 8, col = 0;
+    cacheQuestions.forEach((q, i) => {
+      const id = state.cards[q.name];
+      if (i < 4) return cards.push({ id: -(i + 2), card_id: id, row: 4, col: i * 6, size_x: 6, size_y: 4, parameter_mappings: mappings(id) });
+      if (q.fullWidth && col) { row += 8; col = 0; }
+      cards.push({ id: -(i + 2), card_id: id, row, col, size_x: q.fullWidth ? 24 : 12, size_y: 8, parameter_mappings: mappings(id) });
+      if (q.fullWidth || col) { row += 8; col = 0; } else col = 12;
+    });
+    await api(`/dashboard/${state.cacheId}`, 'PUT', { parameters, dashcards: cards });
+    state.cacheDashboardVersion = 2; save();
+  } else {
+    const dashboard = await api(`/dashboard/${state.cacheId}`);
+    await api(`/dashboard/${state.cacheId}`, 'PUT', { parameters: [...parameters,
+      ...dashboard.parameters.filter(p => !filterDefs.some(([key]) => key === p.id))] });
+  }
   if (!state.messagesCardId) {
     state.messagesCardId = (await api('/card', 'POST', {
       name: 'Website messages', display: 'table', collection_id: state.collectionId,
@@ -325,7 +334,9 @@ async function provision() {
   console.log(`Login: ${state.email}\nPassword: stored in ${stateFile} (password field).`);
 }
 
-async function verify() {
+export async function verify({ call = api, config = state } = {}) {
+  const api = call, state = config;
+  if (!state.cacheId) throw new Error('Cache health dashboard missing; run refresh');
   session = (await api('/session', 'POST', { username: state.email, password: state.password })).id;
   const dashboard = await api(`/dashboard/${state.dashboardId}`);
   for (const [id] of filterDefs) {
@@ -422,7 +433,7 @@ async function main() {
   if (!ready) throw new Error('Metabase did not become healthy; inspect Docker container logs.');
   await provision();
 }
-main().catch(error => {
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main().catch(error => {
   // Child-process errors can include credentials: never echo their argv/output.
   console.error(error.cmd || error.spawnargs ? 'External command failed; check Docker, AWS login, and tunnel status.' : error.message);
   process.exitCode = 1;

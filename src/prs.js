@@ -21,7 +21,7 @@ export function listMergedPrs(slug, { before, after, limit = 100 }) {
 // note). `thinker mine-prs --fixes` keeps only these; a repository developed by direct commits has
 // no pull requests, and its fix commits are what review wants.
 export const FIX_LIKE = /\b(fix(e[sd])?|bug|regression|crash|broke|broken|wrong|incorrect|leak|race|hang|flak\w*|off[- ]by[- ]one|corrupt\w*)\b/i; // not "stale" or "revert": a word of this repository, and a revert is not a fix record
-export function listMergedCommits(repo, { before, after, limit = 100, directories = null, from = null, paths = null } = {}) {
+export function listMergedCommits(repo, { before, after, limit = 100, directories = null, from = null, paths = null, strict = false } = {}) {
   // from: the `limit` commits that end at that commit and no more, so nothing merged after it can be listed
   // paths: only changes that touched these files (the history of the code a change is about)
   const args = ['log', '--first-parent', '-n', String(from ? limit : Math.max(limit * 2, 60)), '--format=%H%x1f%P%x1f%aI%x1f%s%x1f%b%x1e'];
@@ -33,7 +33,8 @@ export function listMergedCommits(repo, { before, after, limit = 100, directorie
   let raw = '';
   try {
     raw = execFileSync('git', args, { cwd: repo, maxBuffer: 32 * 1024 * 1024, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
-  } catch {
+  } catch (e) {
+    if (strict) throw e; // a failed history walk is not evidence that the history ended
     return [];
   }
 
