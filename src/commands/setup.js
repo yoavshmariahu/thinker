@@ -9,7 +9,7 @@ import { initAst, astDirs, GRAMMAR_NAMES } from '../ast.js';
 import { parseClients, uninstallClients, uninstallWiring, refreshWiring, connectFromCheckouts } from '../clients.js';
 import { uninstallGitHooks } from '../git-hooks.js';
 import { runSetup, stepConnectClis } from '../setup.js';
-import { unscheduleTelemetry, sendUninstallFeedback } from '../telemetry.js';
+import { unscheduleTelemetry, sendUninstallFeedback, sendTelemetry } from '../telemetry.js';
 import readlinePromises from 'node:readline/promises';
 import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, unscheduleDaily, isScheduled, getLaunchAgentPath } from '../update.js';
 import { githubSlug } from './shared.js';
@@ -47,6 +47,7 @@ async function connectCommand(ctx) {
 
 async function uninstallCommand(ctx) {
   const { flags, repo, store, out } = ctx;
+  await reportUninstall(ctx);
   // remove hooks, MCP registration and scheduled daily updates; notes stay unless --purge
   unscheduleDaily({ home: thinkerHome() });
   unscheduleTelemetry({ home: thinkerHome() });
@@ -57,6 +58,14 @@ async function uninstallCommand(ctx) {
   if (flags.user) uninstallWiring({ scope: 'user' });
   out(`removed thinker hooks and MCP registration from ${repo}${flags.user ? ' and from your own agent settings' : ''}${flags.purge ? ' and deleted .thinker/' : ' (notes kept in .thinker/)'}`);
   await askUninstallFeedback(ctx);
+}
+
+// One telemetry report tagged `uninstall`, so uninstalls are counted rather than inferred from installs that go
+// quiet. It is the hourly report's usual pseudonymous shape, sent before the store can be purged and only
+// when telemetry is on; a failed send never blocks the uninstall.
+export async function reportUninstall({ flags, store }, { sendFn = sendTelemetry } = {}) {
+  if (flags.dry) return;
+  try { await sendFn({ home: thinkerHome(), store, event: 'uninstall', force: true }); } catch {}
 }
 
 // One optional question after an uninstall in a terminal: why. Enter skips it, and nothing is sent unless

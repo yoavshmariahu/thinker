@@ -137,7 +137,7 @@ is shown with missing-cost counts, rather than claimed as a complete bill.
 
 The **Waitlist** dashboard lists submitted email addresses and first/latest signup
 times, deduplicated by the stored email string. Its table can be exported as CSV.
-The `event` field distinguishes `install`, `daily`, `waitlist`, and missing types
+The `event` field distinguishes `install`, `daily`, `uninstall` (one report per `thinker uninstall` run with telemetry on), `waitlist`, and missing types
 (displayed as **Unknown**). An upload is a snapshot, not a distinct user or action.
 
 ### Command-line access

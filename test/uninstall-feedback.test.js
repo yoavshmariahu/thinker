@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { PassThrough } from 'node:stream';
 import { sendUninstallFeedback, messagesEndpoint } from '../src/telemetry.js';
-import { askUninstallFeedback } from '../src/commands/setup.js';
+import { askUninstallFeedback, reportUninstall } from '../src/commands/setup.js';
 import { normalizeMessage } from '../infra/metrics/messages.mjs';
 
 test('uninstall feedback goes to /messages beside /metrics in a shape the server accepts', async () => {
@@ -42,4 +42,18 @@ test('the uninstall question is asked only in a terminal, and only a typed reaso
   await askUninstallFeedback({ flags: {}, out }, { stdin: tty('missing Zed support'), stdout, sendFn });
   assert.deepEqual(sent, ['missing Zed support']);
   assert.match(lines.at(-1), /Thank you/);
+});
+
+test('uninstall sends one telemetry report tagged uninstall, and none on a dry run', async () => {
+  const calls = [];
+  const sendFn = async opts => { calls.push(opts); return { sent: true }; };
+  const store = { dir: '/nowhere' };
+  await reportUninstall({ flags: { dry: true }, store }, { sendFn });
+  assert.equal(calls.length, 0);
+  await reportUninstall({ flags: {}, store }, { sendFn });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].event, 'uninstall');
+  assert.equal(calls[0].force, true);
+  assert.equal(calls[0].store, store);
+  await reportUninstall({ flags: {}, store }, { sendFn: async () => { throw new Error('offline'); } });
 });
