@@ -18,8 +18,8 @@ import { areasConfig, saveAreas } from './areas.js';
 export const DEFAULTS = {
   enabled: true,    // `maintain: { enabled: false }` in .thinker/config.json switches it off
   // tokens of reported generative model usage per day, learning and maintenance together; 0: no cap.
-  // 50M is about $5 a day at Haiku 5.5 or GPT-6 Luna list prices, the distillation models since
-  // 2026-10-11; a costlier distillModel gets DAILY_TOKENS_COSTLY unless the config says otherwise
+  // 50M is about $5 a day at Haiku 5.5 or GPT-6 Luna list prices; a costlier distillModel, Sonnet
+  // (the default since 2026-10-15) among them, gets DAILY_TOKENS_COSTLY unless the config says otherwise
   dailyTokens: 50_000_000,
   verifyPerRun: 10, // stale notes re-verified per run, most served first
   verifyServedDays: 14, // only notes served this recently are re-verified ahead of time (0: all); the rest wait to be served
@@ -42,7 +42,7 @@ const CHEAP_MODEL = /haiku|luna|flash/i;
 export function maintainConfig(store) {
   const cfg = store.config();
   const c = cfg.maintain;
-  const dailyTokens = CHEAP_MODEL.test(cfg.distillModel || 'haiku') ? DEFAULTS.dailyTokens : DAILY_TOKENS_COSTLY;
+  const dailyTokens = CHEAP_MODEL.test(cfg.distillModel || 'sonnet') ? DEFAULTS.dailyTokens : DAILY_TOKENS_COSTLY;
   return { ...DEFAULTS, dailyTokens, ...(c && typeof c === 'object' ? c : {}) };
 }
 

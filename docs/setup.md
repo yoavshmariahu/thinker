@@ -33,7 +33,7 @@ session there already finds notes. The installer ends with `thinker warmup`, whi
 where to choose the repositories: the local page in your browser, or the terminal, which
 shows the ten most recently used with the top five picked (arrows move, Space toggles a
 row, Enter continues, Esc skips), each at full depth around your areas with `thinker setup --build`. Before
-building, choose the harness with ↑/↓ and Enter. Thinker automatically uses Haiku for
+building, choose the harness with ↑/↓ and Enter. Thinker automatically uses Sonnet for
 Claude Code and Cursor, Luna for Codex, or Gemini Flash for Gemini. One selection applies
 to every repository picked. Over ssh, or
 on a machine with no display, only the terminal is offered: the page serves 127.0.0.1 of

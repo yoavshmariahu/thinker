@@ -68,7 +68,7 @@ test('areasConfig and saveAreas: the generic build by default; a saved list stic
   assert.equal(areasConfig(store).walked, 40);
   assert.deepEqual(areasConfig(store).directories, ['src/api', 'src/db']);
   // the rest of the config is untouched
-  assert.equal(store.config().distillModel, 'haiku');
+  assert.equal(store.config().distillModel, 'sonnet');
 });
 
 test('notesByArea counts the notes whose pointers fall inside each area, once per note', () => {
@@ -78,4 +78,25 @@ test('notesByArea counts the notes whose pointers fall inside each area, once pe
     { id: 'c', deps: [{ path: 'web/ui/app.tsx' }] },
   ];
   assert.deepEqual(notesByArea(notes, ['src/api', 'src/db']), { 'src/api': 2, 'src/db': 1 });
+});
+
+test('a cache with the old haiku default moves to sonnet once; haiku chosen after that stays', () => {
+  const dir = fixtureRepo();
+  const store = new Store(dir).init();
+  const file = path.join(store.dir, 'config.json');
+  fs.writeFileSync(file, JSON.stringify({ version: 1, verifyModel: 'haiku', distillModel: 'haiku', maintain: { prsPerRun: 1 } }));
+  store.init();
+  assert.equal(store.config().distillModel, 'sonnet');
+  assert.equal(store.config().verifyModel, 'haiku');
+  assert.deepEqual(store.config().maintain, { prsPerRun: 1 });
+  fs.writeFileSync(file, JSON.stringify({ ...store.config(), distillModel: 'haiku' }));
+  store.init();
+  assert.equal(store.config().distillModel, 'haiku');
+  fs.writeFileSync(file, JSON.stringify({ version: 1, distillModel: 'haiku', learnTrial: { model: 'haiku' } }));
+  store.init();
+  assert.equal(store.config().distillModel, 'haiku', 'a trial keeps its model');
+  assert.equal(store.config().distillDefault, undefined, 'and moves once the trial is gone');
+  fs.writeFileSync(file, JSON.stringify({ version: 1, distillModel: 'opus' }));
+  store.init();
+  assert.equal(store.config().distillModel, 'opus');
 });

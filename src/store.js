@@ -231,11 +231,24 @@ export class Store {
     this.assertSafeNotesPath();
     if (this.tiered) this.#layout(true);
     const cfg = path.join(this.dir, 'config.json');
-    if (!fs.existsSync(cfg)) fs.writeFileSync(cfg, JSON.stringify({ version: 1, verifyModel: 'haiku', distillModel: 'haiku' }, null, 2) + '\n');
+    if (!fs.existsSync(cfg)) fs.writeFileSync(cfg, JSON.stringify({ version: 1, verifyModel: 'haiku', distillModel: 'sonnet', distillDefault: 'sonnet' }, null, 2) + '\n');
+    else this.#sonnetDistill(cfg);
     // a cache made in a checkout that had none stays out of `git status`: thinker starts one in
     // every git repository it runs in, and that must not dirty the repository
     if (fresh) excludeFromGit(this.repo);
     return this;
+  }
+  // Until 2026-10-15 init wrote distillModel "haiku" into every config, so a cache's "haiku" is the
+  // old default rather than a choice: such caches move to Sonnet once. distillDefault marks the move,
+  // and a "haiku" set by hand after it stays. A cache running a learnTrial chose its model on purpose:
+  // it waits until the trial is taken out.
+  #sonnetDistill(file) {
+    let cfg;
+    try { cfg = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return; }
+    if (!cfg || typeof cfg !== 'object' || cfg.distillDefault || cfg.learnTrial) return;
+    if (cfg.distillModel === 'haiku') cfg.distillModel = 'sonnet';
+    cfg.distillDefault = 'sonnet';
+    try { fs.writeFileSync(file, JSON.stringify(cfg, null, 2) + '\n'); } catch {}
   }
   config() {
     try { return JSON.parse(fs.readFileSync(path.join(this.dir, 'config.json'), 'utf8')); } catch { return {}; }

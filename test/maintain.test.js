@@ -166,6 +166,8 @@ test('withinDailyCap closes the day once the cap is spent, and the user is told 
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-cap-')));
   try {
     const store = new Store(dir).init();
+    assert.equal(withinDailyCap(store, { spentFn: () => 2_500_000 }).cap, DAILY_TOKENS_COSTLY, 'a new cache distills on Sonnet');
+    fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ distillModel: 'haiku' }));
     assert.equal(withinDailyCap(store, { spentFn: () => 400_000 }).ok, true);
     assert.equal(withinDailyCap(store, { spentFn: () => 2_500_000 }).ok, true, 'a Haiku-class distill model gets the 50M default');
     const over = withinDailyCap(store, { spentFn: () => 60_000_000 });
@@ -182,7 +184,7 @@ test('withinDailyCap closes the day once the cap is spent, and the user is told 
     // the old dollar key: switched off stays switched off; any other value is ignored for the default
     fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ maintain: { dailyCap: 0 } }));
     assert.equal(withinDailyCap(store, { spentFn: () => 99e6 }).ok, true);
-    fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ maintain: { dailyCap: 5 } }));
+    fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ distillModel: 'haiku', maintain: { dailyCap: 5 } }));
     assert.equal(withinDailyCap(store, { spentFn: () => 2_500_000 }).cap, DEFAULTS.dailyTokens);
     reportCapped(store, over);
     const notice = maintenanceNotice(store);
