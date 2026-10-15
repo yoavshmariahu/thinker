@@ -3,7 +3,8 @@
 // repository-wide, which left the cache cold for most of what a user then asks about
 // (bench/serving/README.md, 2026-10-11). The areas live in .thinker/config.json under `areas`:
 //   { directories, source: 'activity' | 'manual' | 'all', walk, walked, since }
-// 'all' is the generic build: no focus, the whole repository. A hand-edited list sticks.
+// 'all' is the generic build: no focus, the whole repository. A hand-edited list sticks. A cache
+// nobody built has no `areas` until maintenance finds them from activity (maintain.js, step 4).
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
