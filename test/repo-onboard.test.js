@@ -10,7 +10,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store, repoId } from '../src/store.js';
-import { WARM_MINED, minedCount } from '../src/repo-onboard.js';
+import { WARM_MINED, minedCount, answerWarmup, warmupPending, warmupNever } from '../src/repo-onboard.js';
 import { createNote } from '../src/ops.js';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
@@ -34,8 +34,9 @@ test('the first session in a repository with history sets it up and tells the ag
   execFileSync('git', ['-C', dir, 'remote', 'add', 'origin', 'https://git.example.com/acme/rows.git']);
   const out = hook(dir, 'prompt', { session_id: 'n1', prompt: 'where does fetchRows read the rows from' });
   assert.match(out, /<thinker-new-repository>/);
-  assert.match(out, /ask the user whether they would like that/);
-  assert.match(out, new RegExp(`thinker warmup --repos "${dir}" --yes --terminal`), 'the command names this checkout and asks nothing');
+  assert.match(out, /ask the user with your AskUserQuestion tool, not in prose/);
+  assert.match(out, /1\. "Warm up cache"[^\n]*\n2\. "No"[^\n]*\n3\. "Don't ask again"/, 'three options, in order');
+  assert.ok(out.includes(`thinker warmup --answer <warm|no|never> --via picker --client claude --repos "${dir}"`), 'the answer goes back to thinker, naming this checkout');
   assert.match(out, /commit history/, 'no GitHub remote: the git history is what there is to read');
   assert.doesNotMatch(out, /<thinker-cache>/, 'an empty cache serves no notes');
   // what setup would write for the repository: the git hooks that keep the cache fresh
@@ -87,7 +88,7 @@ test('a cold cache, notes from sessions and no history read, is offered a warm-u
   const out = hook(dir, 'prompt', { session_id: 'k1', prompt: 'unrelated question about billing' });
   assert.match(out, /<thinker-new-repository>/);
   assert.match(out, /is cold: it holds 3 notes from sessions and has not read the repository's history yet/);
-  assert.match(out, new RegExp(`thinker warmup --repos "${dir}" --yes --terminal`));
+  assert.match(out, /thinker warmup --answer/);
   assert.equal(ops(dir).find(e => e.op === 'warmup-offer').notes, 3);
   assert.equal(hook(dir, 'prompt', { session_id: 'k2', prompt: 'another unrelated question about billing' }).trim(), '', 'once');
 });
@@ -99,4 +100,52 @@ test('Cursor gets its always-on rule, kept out of git status', () => {
   const status = execFileSync('git', ['status', '--porcelain', '--untracked-files=all'], { cwd: dir, encoding: 'utf8' });
   assert.ok(!status.includes('.cursor'), status);
   assert.deepEqual(ops(dir).find(e => e.op === 'repo-setup').done, ['git hooks', 'cursor rule']);
+});
+
+test('each agent is told to ask with its own question tool; Codex calls thinker\'s picker; pi asks in chat', () => {
+  const asked = {};
+  for (const client of ['gemini', 'cursor', 'copilot', 'opencode', 'codex', 'pi']) {
+    const dir = gitRepo(8);
+    execFileSync('git', ['-C', dir, 'remote', 'add', 'origin', `https://git.example.com/acme/${client}.git`]);
+    asked[client] = hook(dir, 'prompt', { session_id: `q-${client}`, conversation_id: `q-${client}`, prompt: 'where does fetchRows read the rows from', hook_event_name: 'UserPromptSubmit' }, client);
+    if (['cursor', 'copilot'].includes(client)) asked[client] = hook(dir, 'tool', { session_id: `q-${client}`, conversation_id: `q-${client}`, tool_name: 'Read', tool_input: { file_path: path.join(dir, 'src/a.js') }, hook_event_name: 'postToolUse' }, client);
+  }
+  assert.match(asked.gemini, /your ask_user tool/);
+  assert.match(asked.cursor, /your AskQuestion tool/);
+  assert.match(asked.copilot, /your ask_user tool/);
+  assert.match(asked.opencode, /your question tool/);
+  assert.match(asked.codex, /call thinker's `warmup` tool with no arguments/);
+  assert.match(asked.pi, /ask the user in chat with these three numbered choices/);
+  assert.match(asked.pi, /--via text --client pi/);
+});
+
+test('the answer: no closes this repository, never closes every repository, warm starts the warm-up; each is logged', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-onboard-answer-home-'));
+  const no = new Store(gitRepo(8)).init();
+  assert.ok(warmupPending(no, { home }));
+  // through the command the offer names
+  const said = execFileSync('node', [CLI, 'warmup', '--answer', 'no', '--via', 'picker', '--client', 'claude', '--repos', no.repo], { encoding: 'utf8', env: { ...env, THINKER_HOME: home } });
+  assert.match(said, /no warm-up for this repository/);
+  assert.ok(!warmupPending(no, { home }), 'answered: the picker tool is not offered again here');
+  assert.deepEqual(ops(no.repo).filter(e => e.op === 'warmup-answer').map(e => [e.choice, e.client, e.via]), [['no', 'claude', 'picker']]);
+  assert.ok(!warmupNever(home));
+  // warm: the warm-up is started detached, naming this checkout and asking nothing
+  const warm = new Store(gitRepo(8)).init();
+  let ran;
+  assert.match(answerWarmup(warm, 'warm', { client: 'codex', home, spawnFn: (bin, args, o) => { ran = { args, o }; return { unref() {} }; } }), /started in the background/);
+  assert.deepEqual(ran.args.slice(1), ['warmup', '--repos', warm.repo, '--yes', '--terminal']);
+  assert.equal(ran.o.detached, true);
+  // never: no offer in any repository on this machine, the hook says nothing
+  const never = new Store(gitRepo(8)).init();
+  answerWarmup(never, 'never', { client: 'claude', via: 'text', home });
+  assert.ok(warmupNever(home));
+  const other = gitRepo(8);
+  execFileSync('git', ['-C', other, 'remote', 'add', 'origin', 'https://git.example.com/acme/other.git']);
+  const quiet = execFileSync('node', [CLI, 'hook', 'prompt', '--client', 'claude', '--repo', other], { input: JSON.stringify({ session_id: 'nv', prompt: 'hello' }), encoding: 'utf8', env: { ...env, THINKER_HOME: home } });
+  assert.doesNotMatch(quiet, /thinker-new-repository/);
+  assert.ok(!warmupPending(new Store(other), { home }));
+  // anything that is not a choice is no
+  const odd = new Store(gitRepo(8)).init();
+  answerWarmup(odd, 'maybe later', { client: 'claude', home });
+  assert.equal(ops(odd.repo).find(e => e.op === 'warmup-answer').choice, 'no');
 });

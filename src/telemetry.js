@@ -178,17 +178,23 @@ export function verificationMetrics(store, { all = true } = {}) {
 // Warm-ups over the last 30 days: the offers the hooks made (repo-onboard.js:warmupOffer, to an empty cache or to
 // a cold one that holds notes from sessions), the repositories offered whose warm-up then started, and the builds
 // that started, finished or failed (commands/setup.js logs each asked-for build). A start with neither end is a
-// build that was stopped or is still running. And whether the repositories in use in the report's day are warm
-// (WARM_MINED merged changes read) or cold now. Counts only, no repository names.
+// build that was stopped or is still running. The answers to the offer (repo-onboard.js:answerWarmup): each
+// choice, those given in a picker rather than in chat, and the pickers closed without one. And whether the
+// repositories in use in the report's day are warm (WARM_MINED merged changes read) or cold now. Counts only, no repository names.
 export function warmupMetrics(store, { all = true, now = Date.now(), repos = null } = {}) {
   const since = new Date(now - HOLDOUT_WINDOW_DAYS * DAY_MS).toISOString();
   const events = readLog(store, { all }).filter(e => e.t >= since);
   const offered = new Set(), accepted = new Set();
-  const m = { offers: 0, offersToColdCaches: 0, started: 0, finished: 0, failed: 0 };
+  const m = { offers: 0, offersToColdCaches: 0, started: 0, finished: 0, failed: 0, answeredWarm: 0, answeredNo: 0, answeredNever: 0, answersDismissed: 0, answersInPicker: 0 };
   for (const e of events) {
     if (e.op === 'warmup-offer') { m.offers++; if (e.notes) m.offersToColdCaches++; offered.add(e.origin); }
     else if (e.op === 'warmup-start') { m.started++; if (offered.has(e.origin)) accepted.add(e.origin); }
     else if (e.op === 'warmup-done') { if (e.ok) m.finished++; else m.failed++; }
+    else if (e.op === 'warmup-answer') {
+      const k = { warm: 'answeredWarm', no: 'answeredNo', never: 'answeredNever', dismissed: 'answersDismissed' }[e.choice];
+      if (k) m[k]++;
+      if (e.via === 'picker' && e.choice !== 'dismissed') m.answersInPicker++;
+    }
   }
   const active = { warm: 0, cold: 0 };
   for (const r of (repos || summarize(store, { days: 1, all }).repos || []).filter(r => r.requests > 0)) {

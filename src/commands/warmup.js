@@ -13,6 +13,8 @@ import { selectMenu, multiSelect, c, formatDuration, withSpinner } from '../setu
 import { DEFAULT_DEPTH } from '../setup/estimate.js';
 import { buildAgent, selectAndAuthenticateAgent } from '../setup/agents.js';
 import { useBuildModel } from '../setup/models.js';
+import { answerWarmup } from '../repo-onboard.js';
+import { Store, findRepoRoot } from '../store.js';
 
 export const SHOWN = 10, PICKED = 5; // as the page: ten rows, the five most recently active with no cache yet picked
 
@@ -36,6 +38,14 @@ export async function warmupCommand(ctx, { selectAgentFn = selectAndAuthenticate
   const ask = async q => { const rl = readlinePromises.createInterface({ input: process.stdin, output: process.stdout }); try { return await rl.question(q); } finally { rl.close(); } };
   const later = () => out(`  Warm up caches any time: ${c.cyan('thinker warmup')} here, or ${c.cyan('thinker ui')} in the browser.`);
 
+  // the person's answer to the offer the hooks gave their agent (repo-onboard.js:warmupOffer), from the agent's
+  // own question tool: thinker records it and, on warm, starts the warm-up itself
+  if (flags.answer) {
+    const s = flags.repos ? new Store(findRepoRoot(String(flags.repos))) : store;
+    if (!s.exists()) { out('  No thinker cache here: run this from the repository the offer was about.'); process.exitCode = 1; return; }
+    out(answerWarmup(s, String(flags.answer).toLowerCase(), { client: flags.client ? String(flags.client) : undefined, via: flags.via === 'text' ? 'text' : 'picker' }));
+    return;
+  }
   if (flags.skip) { out('  Skipped: every git repository has a cache that grows from your sessions.'); later(); return; }
   const canBrowse = !headless() && !flags.terminal;
   let where = flags.browser ? 'browser' : flags.terminal || flags.repos || flags.yes ? 'terminal' : null;
