@@ -80,7 +80,7 @@ follow every instruction.
 | Claude Code | Prompt hook | Post-tool hook | Native transcript | MCP |
 | Codex CLI | Prompt hook | Post-tool hook | Hook trace | MCP |
 | Gemini CLI | BeforeAgent | AfterTool | Hook trace | MCP |
-| Cursor | First tool after prompt | Post-tool hook | Hook trace | MCP + rule |
+| Cursor | Prompt hook (`additional_context`; first tool call under `agent -p`) | Post-tool hook | Hook trace | MCP + rule |
 | Pi | before_agent_start extension | tool_result extension | Prompt, tools, final answer; shutdown flush | CLI guidance in extension |
 | Windsurf Cascade | Always-on rule asks agent to orient | Agent-directed CLI lookup | Prompt, reads, edits, commands, MCP results, response | CLI rule |
 | GitHub Copilot CLI | First successful tool after prompt; CLI instruction fallback | postToolUse | Prompt, tools/errors, stop/end | CLI instruction; optional manual MCP |

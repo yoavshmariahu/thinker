@@ -109,10 +109,10 @@ test('each agent is told to ask with its own question tool; Codex calls thinker\
     const dir = gitRepo(8);
     execFileSync('git', ['-C', dir, 'remote', 'add', 'origin', `https://git.example.com/acme/${client}.git`]);
     asked[client] = hook(dir, 'prompt', { session_id: `q-${client}`, conversation_id: `q-${client}`, prompt: 'where does fetchRows read the rows from', hook_event_name: 'UserPromptSubmit' }, client);
-    if (['cursor', 'copilot'].includes(client)) asked[client] = hook(dir, 'tool', { session_id: `q-${client}`, conversation_id: `q-${client}`, tool_name: 'Read', tool_input: { file_path: path.join(dir, 'src/a.js') }, hook_event_name: 'postToolUse' }, client);
+    if (client === 'copilot') asked[client] = hook(dir, 'tool', { session_id: `q-${client}`, conversation_id: `q-${client}`, tool_name: 'Read', tool_input: { file_path: path.join(dir, 'src/a.js') }, hook_event_name: 'postToolUse' }, client);
   }
   assert.match(asked.gemini, /your ask_user tool/);
-  assert.match(asked.cursor, /your AskQuestion tool/);
+  assert.match(JSON.parse(asked.cursor).additional_context, /your AskQuestion tool/); // with the prompt
   assert.match(asked.copilot, /your ask_user tool/);
   assert.match(asked.opencode, /your question tool/);
   assert.match(asked.codex, /call thinker's `warmup` tool with no arguments/);

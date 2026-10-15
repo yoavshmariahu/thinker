@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { MORE_NOTES_INTRO, CACHE_LEARNING_GUIDE, cacheBundleIntro, disabledTools } from '../cache-guidance.js';
-import { pruneInstalls, prunedLines, refreshWiring, stripRepoWiring, repoRunsHooks, normalizeHookEvent, hookClient, sessionOf, toolFiles, promptOutput, toolOutput, stopOutput, parkPending, takePending } from '../clients.js';
+import { pruneInstalls, prunedLines, refreshWiring, stripRepoWiring, repoRunsHooks, normalizeHookEvent, hookClient, sessionOf, toolFiles, promptOutput, toolOutput, stopOutput, parkPending, takePending, orientedFile } from '../clients.js';
 import { parseTranscript } from '../distill.js';
 import { Store, findRepoRoot } from '../store.js';
 import { isDisabledRepo } from '../repo-switch.js';
@@ -60,48 +60,54 @@ async function hookCommand(ctx) {
   // installed hooks carry --record; THINKER_NO_LEARN=1 switches learning off without reinstalling them
   if (NO_LEARN) flags.record = false;
   if (pos[0] === 'prompt') {
-    if (store.exists() && session !== 'unknown') tryImpact(store, { op: 'impact-observation', session, ...gitContext(repo) });
-    if (client === 'copilot' || client === 'cursor') takePending(store.dir, session);
-    if (client === 'cursor') out(JSON.stringify({ continue: true })); // cannot add context here; see clients.js
-    if (flags.record && store.exists()) { recordEvent(store.dir, session, { t: 'prompt', text: ev.prompt }); learnInBackground(ctx, client); }
-    // another, older copy of thinker still wired into this checkout fires on every prompt too: take its entries out
-    if (store.exists()) { try { const pruned = pruneInstalls(repo, { cli, mcpEntry: mcpEntry(), olderOnly: true }); if (pruned.length) { store.log({ op: 'prune', removed: pruned }); reportPruned(store, prunedLines(pruned)); } } catch {} }
-    // and the entries of this copy are rewritten when this version writes them differently (a new event, a changed command):
-    // the checkout's, and, from a hook at user scope, the user's own
-    if (store.exists()) { try { const w = refreshWiring(repo, { cli, mcpEntry: mcpEntry() }); if (w.changed.length) { store.log({ op: 'rewire', repos: 1, files: w.changed }); reportPruned(store, [`rewrote ${w.changed.join(', ')} for this version of thinker`]); } } catch {} }
-    // thinker on PATH for bash too, once per machine, on an install from before the installer wrote it there (shell-path.js)
-    if (store.exists() && !isTestMode()) { try { const d = ensureShellPath(); if (d?.length) store.log({ op: 'shell-path', files: d }); } catch {} }
-    if (store.exists() && userScope) { try { const w = refreshWiring(null, { scope: 'user', cli, mcpEntry: ctx.userMcpEntry() }); if (w.changed.length) { store.log({ op: 'rewire', scope: 'user', files: w.changed }); reportPruned(store, [`rewrote ${w.changed.join(', ')} for this version of thinker`]); } } catch {} }
-    // Once per session, what the code tools are and how to reach them: only with the first bundle that
-    // serves a note. A session the cache has nothing for gets nothing at all (2026-10-07: on the Click
-    // canary the intro, the workflow text and the schemas were the whole cost of the arm the notes did
-    // not help). A held-out turn gets neither the intro nor the notes (ops.js:beginTurn): the holdout
-    // compares turns with thinker's help against turns without; the intro waits for a served turn.
-    const { turn, holdout } = store.exists() ? beginTurn(store, session) : { turn: 0, holdout: false };
-    const introOk = store.exists() && !['windsurf', 'pi', 'copilot'].includes(client) && !holdout;
-    const emit = text => { if (client === 'cursor' || client === 'copilot') parkPending(store.dir, session, text); else out(promptOutput(client, text)); };
-    if (!store.exists() || client === 'windsurf') return;
-    // the first session in a repository: what `thinker setup` would write for it, and the warm-up offer (repo-onboard.js)
-    setupRepo(store, { client, cli, learn: !NO_LEARN && sessionLearning() });
-    const offer = warmupOffer(store, { client });
-    // Every git repository has a cache, started on first use and empty until it learns; the hooks serve
-    // from it once it holds a few notes (ops.js:SERVE_MIN_NOTES). A prompt served nothing is still a
-    // request: `thinker usage` and the telemetry count a machine as active by its requests, and a cache in
-    // daily use that has not learned yet must not read as a machine thinker never ran on (2026-10-12: seven
-    // of eight reporting devices read as idle for exactly this). Nothing is said.
-    if (!servesNotes(store)) {
-      if (offer) emit(offer); store.log({ op: 'orient', session: session === 'unknown' ? undefined : session, client, task: String(ev.prompt || '').slice(0, 200), served: [], empty: true }); return; }
-    // outcome signal: a correction-shaped follow-up counts against the notes served earlier in this session
-    if (session !== 'unknown' && looksLikeCorrection(ev.prompt)) outcome(store, { session, turn: turn > 1 ? turn - 1 : undefined, positive: false, reason: 'correction prompt: ' + String(ev.prompt).slice(0, 80) });
-    if (session !== 'unknown') rememberTask(store, session, ev.prompt);
-    // a held-out turn is served nothing by the hooks, and what it would have been served is logged (ops.js:beginTurn)
-    const r = await orient(store, { task: ev.prompt || '', session: session === 'unknown' ? undefined : session, client, budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout, turn: turn || undefined });
-    if (!r.included.length) { if (offer) emit(offer); return; }
-    const intro = introOk ? sessionIntro(store, { session, client }) : '';
-    const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}${n.status === 'stale' ? ' ⚠ STALE' : ''}  (id: ${n.id})`).join('\n')}` : '';
-    const header = cacheBundleIntro({ stale: r.included.some(n => n.status === 'stale'), disabled: disabledTools(store.config()) });
-    const text = `<thinker-cache>\n${header}\n\n${r.text}${more}${!NO_LEARN && sessionLearning() && !['windsurf', 'pi', 'copilot'].includes(client) ? '\n\n' + CACHE_LEARNING_GUIDE : ''}\n</thinker-cache>`;
-    emit([offer, intro, text].filter(Boolean).join('\n\n'));
+    // Cursor answers once, in JSON: {continue}, with the bundle as additional_context (clients.js:promptOutput)
+    let said = '';
+    await (async () => {
+      if (store.exists() && session !== 'unknown') tryImpact(store, { op: 'impact-observation', session, ...gitContext(repo) });
+      if (client === 'copilot' || client === 'cursor') takePending(store.dir, session);
+      // the turn's prompt hook ran: the tool hook's fallback for Cursor modes without one stays out of it
+      if (client === 'cursor') { const f = orientedFile(store.dir, ev.generation_id || session); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, ''); }
+      if (flags.record && store.exists()) { recordEvent(store.dir, session, { t: 'prompt', text: ev.prompt }); learnInBackground(ctx, client); }
+      // another, older copy of thinker still wired into this checkout fires on every prompt too: take its entries out
+      if (store.exists()) { try { const pruned = pruneInstalls(repo, { cli, mcpEntry: mcpEntry(), olderOnly: true }); if (pruned.length) { store.log({ op: 'prune', removed: pruned }); reportPruned(store, prunedLines(pruned)); } } catch {} }
+      // and the entries of this copy are rewritten when this version writes them differently (a new event, a changed command):
+      // the checkout's, and, from a hook at user scope, the user's own
+      if (store.exists()) { try { const w = refreshWiring(repo, { cli, mcpEntry: mcpEntry() }); if (w.changed.length) { store.log({ op: 'rewire', repos: 1, files: w.changed }); reportPruned(store, [`rewrote ${w.changed.join(', ')} for this version of thinker`]); } } catch {} }
+      // thinker on PATH for bash too, once per machine, on an install from before the installer wrote it there (shell-path.js)
+      if (store.exists() && !isTestMode()) { try { const d = ensureShellPath(); if (d?.length) store.log({ op: 'shell-path', files: d }); } catch {} }
+      if (store.exists() && userScope) { try { const w = refreshWiring(null, { scope: 'user', cli, mcpEntry: ctx.userMcpEntry() }); if (w.changed.length) { store.log({ op: 'rewire', scope: 'user', files: w.changed }); reportPruned(store, [`rewrote ${w.changed.join(', ')} for this version of thinker`]); } } catch {} }
+      // Once per session, what the code tools are and how to reach them: only with the first bundle that
+      // serves a note. A session the cache has nothing for gets nothing at all (2026-10-07: on the Click
+      // canary the intro, the workflow text and the schemas were the whole cost of the arm the notes did
+      // not help). A held-out turn gets neither the intro nor the notes (ops.js:beginTurn): the holdout
+      // compares turns with thinker's help against turns without; the intro waits for a served turn.
+      const { turn, holdout } = store.exists() ? beginTurn(store, session) : { turn: 0, holdout: false };
+      const introOk = store.exists() && !['windsurf', 'pi', 'copilot'].includes(client) && !holdout;
+      const emit = text => { if (client === 'cursor') said = text; else if (client === 'copilot') parkPending(store.dir, session, text); else out(promptOutput(client, text)); };
+      if (!store.exists() || client === 'windsurf') return;
+      // the first session in a repository: what `thinker setup` would write for it, and the warm-up offer (repo-onboard.js)
+      setupRepo(store, { client, cli, learn: !NO_LEARN && sessionLearning() });
+      const offer = warmupOffer(store, { client });
+      // Every git repository has a cache, started on first use and empty until it learns; the hooks serve
+      // from it once it holds a few notes (ops.js:SERVE_MIN_NOTES). A prompt served nothing is still a
+      // request: `thinker usage` and the telemetry count a machine as active by its requests, and a cache in
+      // daily use that has not learned yet must not read as a machine thinker never ran on (2026-10-12: seven
+      // of eight reporting devices read as idle for exactly this). Nothing is said.
+      if (!servesNotes(store)) {
+        if (offer) emit(offer); store.log({ op: 'orient', session: session === 'unknown' ? undefined : session, client, task: String(ev.prompt || '').slice(0, 200), served: [], empty: true }); return; }
+      // outcome signal: a correction-shaped follow-up counts against the notes served earlier in this session
+      if (session !== 'unknown' && looksLikeCorrection(ev.prompt)) outcome(store, { session, turn: turn > 1 ? turn - 1 : undefined, positive: false, reason: 'correction prompt: ' + String(ev.prompt).slice(0, 80) });
+      if (session !== 'unknown') rememberTask(store, session, ev.prompt);
+      // a held-out turn is served nothing by the hooks, and what it would have been served is logged (ops.js:beginTurn)
+      const r = await orient(store, { task: ev.prompt || '', session: session === 'unknown' ? undefined : session, client, budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout, turn: turn || undefined });
+      if (!r.included.length) { if (offer) emit(offer); return; }
+      const intro = introOk ? sessionIntro(store, { session, client }) : '';
+      const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}${n.status === 'stale' ? ' ⚠ STALE' : ''}  (id: ${n.id})`).join('\n')}` : '';
+      const header = cacheBundleIntro({ stale: r.included.some(n => n.status === 'stale'), disabled: disabledTools(store.config()) });
+      const text = `<thinker-cache>\n${header}\n\n${r.text}${more}${!NO_LEARN && sessionLearning() && !['windsurf', 'pi', 'copilot'].includes(client) ? '\n\n' + CACHE_LEARNING_GUIDE : ''}\n</thinker-cache>`;
+      emit([offer, intro, text].filter(Boolean).join('\n\n'));
+    })();
+    if (client === 'cursor') out(promptOutput(client, said));
   } else if (pos[0] === 'tool') {
     // After a tool call: the agent opened files; serve notes anchored to them, once each.
     if (!store.exists()) return;
@@ -120,13 +126,15 @@ async function hookCommand(ctx) {
     if (client === 'cursor' && mcpCall && !/orient|lookup/i.test(ev.tool_name)) { /* keep the bundle for the next call */ }
     else if (client === 'cursor') {
       let p = takePending(store.dir, session);
-      // the prompt hook does not run in every Cursor mode: orient from the transcript's request instead
-      const turn = path.join(store.dir, 'state', `oriented-${String(ev.generation_id || session).replace(/[^\w.-]/g, '_')}`);
-      if (!p && !mcpCall && !fs.existsSync(turn) && ev.transcript_path && fs.existsSync(ev.transcript_path) && servesNotes(store)) {
+      // the prompt hook does not run in every Cursor mode (`agent -p`): orient from the transcript's request
+      // instead, once per turn; the prompt hook marks the turns it ran for, and the first of parallel tool calls
+      // claims the rest (2026-10-15: unmarked, a held-out or empty turn was oriented again on every tool call)
+      const turn = orientedFile(store.dir, ev.generation_id || session);
+      const claim = () => { try { fs.mkdirSync(path.dirname(turn), { recursive: true }); fs.writeFileSync(turn, '', { flag: 'wx' }); return true; } catch { return false; } };
+      if (!p && !mcpCall && ev.transcript_path && fs.existsSync(ev.transcript_path) && servesNotes(store) && claim()) {
         const task = parseTranscript(ev.transcript_path).events.filter(e => e.t === 'prompt').pop()?.text;
         if (task) { const { turn, holdout } = beginTurn(store, session); const r = await orient(store, { task, session, client: 'cursor', budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout, turn: turn || undefined }); if (r.included.length) p = `<thinker-cache>\nNotes about this repo from earlier sessions; their code dependencies were re-hashed just now.\n\n${r.text}\n</thinker-cache>`; }
       }
-      fs.mkdirSync(path.dirname(turn), { recursive: true }); fs.writeFileSync(turn, '');
       if (p && !mcpCall) parts.push(p);
     }
     const t = holdoutTurn(store, session);
