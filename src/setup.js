@@ -197,8 +197,8 @@ export async function runSetup({
     });
   }
 
-  // Telemetry notification
-  maybeSendDailyTelemetryInBackground({ home: thinkerHome(), cliPath, store, force: true, event: 'install' });
+  // Telemetry notification: a run that built the cache is a warm-up (every warm-up path runs setup --build)
+  maybeSendDailyTelemetryInBackground({ home: thinkerHome(), cliPath, store, force: true, event: building ? 'warmup' : 'install' });
 
   // One result and one next action, with recovery guidance beside failures above.
   const connected = connections.filter(result => result.status === 'connected');

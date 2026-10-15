@@ -66,6 +66,7 @@ const diagnosticQuestions = [
   { name: 'Known devices', display: 'scalar', sql: 'SELECT count(*) AS known_devices FROM v_latest_devices' },
   { name: 'Reporting installations · last 24h', display: 'scalar', sql: "SELECT count(DISTINCT install_id) AS installations FROM reports WHERE received_at >= now() - interval '24 hours'" },
   { name: 'Report arrivals · UTC', display: 'bar', sql: "SELECT date_trunc('hour', received_at AT TIME ZONE 'UTC') AS hour_utc, count(*) AS reports FROM reports GROUP BY 1 ORDER BY 1", settings: { 'graph.dimensions': ['hour_utc'], 'graph.metrics': ['reports'] } },
+  { name: 'Installs, warm-ups and uninstalls · per day UTC', display: 'bar', sql: "SELECT date_trunc('day', received_at AT TIME ZONE 'UTC') AS day_utc, event, count(*) AS reports FROM reports WHERE event IN ('install', 'warmup', 'uninstall') GROUP BY 1, 2 ORDER BY 1", description: 'One report per setup (install), cache build (warmup, one per repository) and uninstall. Clients before this change reported warm-ups as installs.', settings: { 'graph.dimensions': ['day_utc', 'event'], 'graph.metrics': ['reports'], 'stackable.stack_type': 'stacked' } },
   { name: 'Platforms · latest installation snapshots', display: 'bar', sql: 'SELECT platform, count(*) AS installations FROM v_latest_installs GROUP BY 1 ORDER BY 2 DESC', settings: { 'graph.dimensions': ['platform'], 'graph.metrics': ['installations'] } },
   { name: 'Usage · latest snapshots', display: 'table', sql: 'SELECT sum(requests_total) AS requests, sum(requests_answered) AS answered, round(100.0 * sum(requests_answered) / nullif(sum(requests_total), 0), 1) AS hit_rate_percent, sum(tokens_served) AS tokens_injected, count(*) FILTER (WHERE requests_total > 0) AS installations_with_requests FROM v_latest_installs' },
   { name: 'Cache inventory · latest snapshots', display: 'table', sql: 'SELECT sum(cache_total_notes) AS notes, round(sum(cache_total_bytes) / 1024.0, 1) AS size_kib, count(*) FILTER (WHERE cache_total_notes > 0) AS installations_with_notes, sum(cache_repositories_count) AS repository_installation_pairs FROM v_latest_installs' },
@@ -158,13 +159,13 @@ async function provision() {
   state.cards ||= {};
   for (const question of questions) {
     const existingId = state.cards[question.name];
-    if (existingId && (question.cache ? state.cacheCardVersion === 2 : question.holdout ? state.holdoutCardVersion === 2 : question.delivery ? state.deliveryCardVersion === 2 : state.cardVersion === 4)) continue;
+    if (existingId && (question.cache ? state.cacheCardVersion === 2 : question.holdout ? state.holdoutCardVersion === 2 : question.delivery ? state.deliveryCardVersion === 2 : state.cardVersion === 5)) continue;
     const card = await api(existingId ? `/card/${existingId}` : '/card', existingId ? 'PUT' : 'POST', { name: question.name, display: question.display, description: question.description || null,
       collection_id: state.collectionId, visualization_settings: question.settings || {},
       dataset_query: dataset(question, db.id) });
     state.cards[question.name] = card.id; save();
   }
-  state.cardVersion = 4; state.deliveryCardVersion = 2; state.holdoutCardVersion = 2; state.cacheCardVersion = 2; save();
+  state.cardVersion = 5; state.deliveryCardVersion = 2; state.holdoutCardVersion = 2; state.cacheCardVersion = 2; save();
   if (!state.dashboardId) {
     state.dashboardId = (await api('/dashboard', 'POST', { name: 'Thinker telemetry', collection_id: state.collectionId,
       description: 'Live reports, installation activity, and data quality. Installation IDs are not people. Older telemetry may contain test data. Usage fields are rolling snapshots; do not sum all reports.' })).id;
@@ -186,7 +187,7 @@ async function provision() {
     const parameters = filterDefs.map(([id, name], index) => ({ id, name, slug: id, type: 'string/=',
       isMultiSelect: false, sectionId: 'string', values_query_type: 'list', values_source_type: 'static-list',
       values_source_config: { values: [...new Set(filterValues.data.rows.map(row => row[index] ?? 'unknown'))].sort().map(value => [value, value]) } }));
-  if (state.dashboardVersion !== 4) {
+  if (state.dashboardVersion !== 5) {
     const cards = [{ id: -1, row: 0, col: 0, size_x: 24, size_y: 3, card_id: null,
       visualization_settings: { virtual_card: { display: 'text' }, text: '## Thinker overview\nLive PostgreSQL data · read-only connection · use the refresh control for the latest reports.\n\n**Read these totals carefully:** Installation IDs are not people. Historical reports may include test data. Usage, cache, learning, and savings cards sum the latest snapshot per installation; they are not lifetime totals and may overlap across installations on the same device. Savings are estimates. Missing device IDs are unknown, not zero users.' } }];
     let row = 7, col = 0;
@@ -218,13 +219,13 @@ async function provision() {
     text(38, 3, '## Distillation cost, duration & reliability\nAvailable from updated clients. Older uploads show no value. Reported cost includes retries and may be partial when a model provider does not return prices. Failure rate covers whole instrumented runs; abrupt process kills cannot report an outcome.');
     costQuestions.slice(0, 4).forEach((q, i) => metric(q.name, 41, i * 6, 6, 4));
     metric('Distillation measurement coverage', 45, 0, 24, 7);
-    text(52, 3, `Filters apply to the latest snapshot per installation for performance cards; they do not select a historical snapshot of a previous version. Device ID **Unknown** means the client did not send an ID.\n\nA **report** is a telemetry upload: install, daily activity update, waitlist signup, or Unknown for older untyped uploads. [View all waitlist emails](/dashboard/${state.waitlistId}) · [Inspect uploads and data quality](/dashboard/${state.diagnosticsId}). Cache response latency and measured end-to-end speedup are not collected.`);
+    text(52, 3, `Filters apply to the latest snapshot per installation for performance cards; they do not select a historical snapshot of a previous version. Device ID **Unknown** means the client did not send an ID.\n\nA **report** is a telemetry upload: install, warm-up, uninstall, daily activity update, waitlist signup, or Unknown for older untyped uploads. [View all waitlist emails](/dashboard/${state.waitlistId}) · [Inspect uploads and data quality](/dashboard/${state.diagnosticsId}). Cache response latency and measured end-to-end speedup are not collected.`);
     await api(`/dashboard/${state.dashboardId}`, 'PUT', { name: 'Cache & distillation performance',
       description: 'Cache hit rate, usefulness, estimated savings, distillation output, cost, duration and failures. Latest installation snapshots; historical telemetry may contain test data. New measurements require updated clients.', dashcards: performanceCards, parameters });
     const waitlistCard = state.cards['Waitlist emails'];
     await api(`/dashboard/${state.waitlistId}`, 'PUT', { parameters, dashcards: [{ id: -1, card_id: waitlistCard,
       row: 0, col: 0, size_x: 24, size_y: 12, parameter_mappings: mappings(waitlistCard) }] });
-    state.dashboardVersion = 4; save();
+    state.dashboardVersion = 5; save();
   } else {
     // Refresh choices for new device IDs/versions without rearranging user cards.
     for (const id of [state.dashboardId, state.diagnosticsId, state.waitlistId]) {
