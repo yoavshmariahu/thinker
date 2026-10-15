@@ -47,8 +47,9 @@ async function connectCommand(ctx) {
 
 async function uninstallCommand(ctx) {
   const { flags, repo, store, out } = ctx;
-  await reportUninstall(ctx);
-  // remove hooks, MCP registration and scheduled daily updates; notes stay unless --purge
+  // remove hooks, MCP registration and scheduled daily updates; notes stay unless --purge. The last report
+  // says so (`uninstall`), sent first while the repository's opt-out can still be read; telemetry off sends nothing.
+  await sendTelemetry({ home: thinkerHome(), store, force: true, event: 'uninstall' });
   unscheduleDaily({ home: thinkerHome() });
   unscheduleTelemetry({ home: thinkerHome() });
   uninstallClients(repo);
@@ -59,15 +60,6 @@ async function uninstallCommand(ctx) {
   out(`removed thinker hooks and MCP registration from ${repo}${flags.user ? ' and from your own agent settings' : ''}${flags.purge ? ' and deleted .thinker/' : ' (notes kept in .thinker/)'}`);
   await askUninstallFeedback(ctx);
 }
-
-// One telemetry report tagged `uninstall`, so uninstalls are counted rather than inferred from installs that go
-// quiet. It is the hourly report's usual pseudonymous shape, sent before the store can be purged and only
-// when telemetry is on; a failed send never blocks the uninstall.
-export async function reportUninstall({ flags, store }, { sendFn = sendTelemetry } = {}) {
-  if (flags.dry) return;
-  try { await sendFn({ home: thinkerHome(), store, event: 'uninstall', force: true }); } catch {}
-}
-
 // One optional question after an uninstall in a terminal: why. Enter skips it, and nothing is sent unless
 // something was typed (telemetry being off does not stop a reason the person chose to send).
 export async function askUninstallFeedback({ flags, out }, { stdin = process.stdin, stdout = process.stdout, sendFn = sendUninstallFeedback } = {}) {

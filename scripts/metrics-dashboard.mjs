@@ -159,21 +159,29 @@ async function provision() {
   state.cards ||= {};
   for (const question of questions) {
     const existingId = state.cards[question.name];
+<<<<<<< Updated upstream
 <<<<<<< HEAD
     if (existingId && (question.cache ? state.cacheCardVersion === 2 : question.holdout ? state.holdoutCardVersion === 2 : question.delivery ? state.deliveryCardVersion === 2 : state.cardVersion === 4)) continue;
 =======
     if (existingId && (question.cache ? state.cacheCardVersion === 2 : question.holdout ? state.holdoutCardVersion === 3 : question.delivery ? state.deliveryCardVersion === 2 : state.cardVersion === 5)) continue;
 >>>>>>> origin/main
+=======
+    if (existingId && (question.cache ? state.cacheCardVersion === 2 : question.holdout ? state.holdoutCardVersion === 2 : question.delivery ? state.deliveryCardVersion === 2 : state.cardVersion === 5)) continue;
+>>>>>>> Stashed changes
     const card = await api(existingId ? `/card/${existingId}` : '/card', existingId ? 'PUT' : 'POST', { name: question.name, display: question.display, description: question.description || null,
       collection_id: state.collectionId, visualization_settings: question.settings || {},
       dataset_query: dataset(question, db.id) });
     state.cards[question.name] = card.id; save();
   }
+<<<<<<< Updated upstream
 <<<<<<< HEAD
   state.cardVersion = 4; state.deliveryCardVersion = 2; state.holdoutCardVersion = 2; state.cacheCardVersion = 2; save();
 =======
   state.cardVersion = 5; state.deliveryCardVersion = 2; state.holdoutCardVersion = 3; state.cacheCardVersion = 2; save();
 >>>>>>> origin/main
+=======
+  state.cardVersion = 5; state.deliveryCardVersion = 2; state.holdoutCardVersion = 2; state.cacheCardVersion = 2; save();
+>>>>>>> Stashed changes
   if (!state.dashboardId) {
     state.dashboardId = (await api('/dashboard', 'POST', { name: 'Thinker telemetry', collection_id: state.collectionId,
       description: 'Live reports, installation activity, and data quality. Installation IDs are not people. Older telemetry may contain test data. Usage fields are rolling snapshots; do not sum all reports.' })).id;
@@ -285,48 +293,6 @@ async function provision() {
   } else {
     const dashboard = await api(`/dashboard/${state.holdoutId}`);
     await api(`/dashboard/${state.holdoutId}`, 'PUT', { parameters: [...parameters,
-      ...dashboard.parameters.filter(p => !filterDefs.some(([key]) => key === p.id))] });
-  }
-  if (!state.cacheId) {
-    state.cacheId = (await api('/dashboard', 'POST', { name: 'Cache health', collection_id: state.collectionId,
-      description: 'What the cache serves, how fresh its notes are, and how often a re-verification pass was later doubted. Latest snapshot per device; each card names its window.' })).id;
-    save();
-  }
-  if (state.cacheDashboardVersion !== 1) {
-    const cards = [{ id: -1, card_id: null, row: 0, col: 0, size_x: 24, size_y: 4,
-      visualization_settings: { virtual_card: { display: 'text' }, text: '## Is the cache serving current, trustworthy notes?\nEach card reads the latest snapshot per known device (installation fallback). Retrieval and assessment cards cover that snapshot\'s 24 hours; verification cards cover 30 days; note status and confidence are the notes at upload time.\n**Doubted passes are a lower bound:** a wrong verification pass is only seen when a session or a person later contradicts or corrects the note. Clients before the verification block show no value, not zero.' } }];
-    cacheQuestions.forEach((q, i) => {
-      const scalar = i < 4, j = i - 4;
-      cards.push({ id: -(i + 2), card_id: state.cards[q.name], row: scalar ? 4 : 8 + Math.floor(j / 2) * 8,
-        col: scalar ? i * 6 : q.fullWidth ? 0 : j % 2 * 12, size_x: scalar ? 6 : q.fullWidth ? 24 : 12, size_y: scalar ? 4 : 8,
-        parameter_mappings: mappings(state.cards[q.name]) });
-    });
-    await api(`/dashboard/${state.cacheId}`, 'PUT', { parameters, dashcards: cards });
-    state.cacheDashboardVersion = 1; save();
-  } else {
-    const dashboard = await api(`/dashboard/${state.cacheId}`);
-    await api(`/dashboard/${state.cacheId}`, 'PUT', { parameters: [...parameters,
-      ...dashboard.parameters.filter(p => !filterDefs.some(([key]) => key === p.id))] });
-  }
-  if (!state.cacheId) {
-    state.cacheId = (await api('/dashboard', 'POST', { name: 'Cache health', collection_id: state.collectionId,
-      description: 'What the cache serves, how fresh its notes are, and how often a re-verification pass was later doubted. Latest snapshot per device; each card names its window.' })).id;
-    save();
-  }
-  if (state.cacheDashboardVersion !== 1) {
-    const cards = [{ id: -1, card_id: null, row: 0, col: 0, size_x: 24, size_y: 4,
-      visualization_settings: { virtual_card: { display: 'text' }, text: '## Is the cache serving current, trustworthy notes?\nEach card reads the latest snapshot per known device (installation fallback). Retrieval and assessment cards cover that snapshot\'s 24 hours; verification cards cover 30 days; note status and confidence are the notes at upload time.\n**Doubted passes are a lower bound:** a wrong verification pass is only seen when a session or a person later contradicts or corrects the note. Clients before the verification block show no value, not zero.' } }];
-    cacheQuestions.forEach((q, i) => {
-      const scalar = i < 4, j = i - 4;
-      cards.push({ id: -(i + 2), card_id: state.cards[q.name], row: scalar ? 4 : 8 + Math.floor(j / 2) * 8,
-        col: scalar ? i * 6 : q.fullWidth ? 0 : j % 2 * 12, size_x: scalar ? 6 : q.fullWidth ? 24 : 12, size_y: scalar ? 4 : 8,
-        parameter_mappings: mappings(state.cards[q.name]) });
-    });
-    await api(`/dashboard/${state.cacheId}`, 'PUT', { parameters, dashcards: cards });
-    state.cacheDashboardVersion = 1; save();
-  } else {
-    const dashboard = await api(`/dashboard/${state.cacheId}`);
-    await api(`/dashboard/${state.cacheId}`, 'PUT', { parameters: [...parameters,
       ...dashboard.parameters.filter(p => !filterDefs.some(([key]) => key === p.id))] });
   }
   if (!state.messagesCardId) {
