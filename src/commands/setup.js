@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { initAst, astDirs, GRAMMAR_NAMES } from '../ast.js';
-import { parseClients, uninstallClients, uninstallWiring, refreshWiring, connectFromCheckouts } from '../clients.js';
+import { parseClients, uninstallClients, uninstallWiring, refreshWiring, connectFromCheckouts, connectDetected } from '../clients.js';
 import { uninstallGitHooks } from '../git-hooks.js';
 import { runSetup, stepConnectClis } from '../setup.js';
 import { unscheduleTelemetry, sendUninstallFeedback, sendTelemetry } from '../telemetry.js';
@@ -169,6 +169,12 @@ async function rewireCommand(ctx) {
       summary.connected = connectFromCheckouts(repos, { cli, mcpEntry: ctx.userMcpEntry(), dry }).map(c => c.client);
       if (summary.connected.length && !dry) store.log({ op: 'connect', clients: summary.connected, from: 'rewire' });
       if (summary.connected.length && !quiet) out(`your settings: ${dry ? 'would wire' : 'wired'} thinker in for ${summary.connected.join(', ')}; the checkouts switch to it on their next prompt`);
+    } catch (e) { if (!quiet) out(`your settings: ${e.message}`); }
+    // pi, OpenCode, Copilot and Windsurf, machine-wide since 2026-10-15: installed here but never set up in a checkout
+    try {
+      const wired = connectDetected({ cli, mcpEntry: ctx.userMcpEntry(), home: thinkerHome(), learn: !ctx.NO_LEARN, dry });
+      if (wired.length) { summary.connected = [...(summary.connected || []), ...wired]; if (!dry) store.log({ op: 'connect', clients: wired, from: 'detected' }); }
+      if (wired.length && !quiet) out(`your settings: ${dry ? 'would wire' : 'wired'} thinker in for ${wired.join(', ')}, in every repository`);
     } catch (e) { if (!quiet) out(`your settings: ${e.message}`); }
   }
   if (flags.json) { out(JSON.stringify(summary)); return; }
