@@ -41,7 +41,7 @@
 #   --ref <tag>         release to install, a tag such as v0.1.34 (default latest; --branch also accepted)
 #   --update            update an installed thinker to the latest release and exit
 #   --no-auto-update    do not schedule daily background auto-updates
-#   --no-modify-path    do not add THINKER_HOME/bin to PATH in your shell's startup file
+#   --no-modify-path    do not add THINKER_HOME/bin to PATH in your shell's and bash's startup files
 #   --uninstall         remove hooks and registration from this repo (add --purge to delete notes too); run outside
 #                       a repository, it removes the wiring from your agents' own settings
 #
@@ -54,26 +54,35 @@
 #                       if neither is set and the GitHub CLI is logged in, its token is used)
 #
 # The script writes to THINKER_HOME, to .thinker/ and the agents' config in this repository, and adds one
-# line putting THINKER_HOME/bin on PATH to your shell's startup file (--no-modify-path leaves it alone). No sudo.
+# line putting THINKER_HOME/bin on PATH to your shell's startup file and bash's (--no-modify-path leaves them alone). No sudo.
 set -euo pipefail
 export COPYFILE_DISABLE=1
 export COPY_EXTENDED_ATTRIBUTES_DISABLE=1
 
-# add_to_path <dir>: put <dir> on PATH in the startup file of the user's shell, once.
-# Prints the file it wrote to, or nothing when it could not tell which one.
+# add_to_path <dir>: put <dir> on PATH in the startup file of the user's shell, and in bash's, where agents
+# may run their commands whatever the login shell is (src/shell-path.js keeps the same list), once each.
+# Prints the login shell's file, or nothing when it could not tell which one.
 add_to_path() {
-  local dir="$1" rc line
+  local dir="$1" line="export PATH=\"$1:\$PATH\"" rc="" f login
   case "$(basename "${SHELL:-}")" in
-    zsh) rc="${ZDOTDIR:-$HOME}/.zshrc"; line="export PATH=\"$dir:\$PATH\"" ;;
-    bash) # macOS terminals start login shells, which read .bash_profile and not .bashrc
-      if [ "$(uname)" = Darwin ]; then rc="$HOME/.bash_profile"; else rc="$HOME/.bashrc"; fi
-      line="export PATH=\"$dir:\$PATH\"" ;;
-    fish) rc="${XDG_CONFIG_HOME:-$HOME/.config}/fish/conf.d/thinker.fish"; line="fish_add_path \"$dir\"" ;;
-    *) return 0 ;;
+    zsh) rc="${ZDOTDIR:-$HOME}/.zshrc" ;;
+    fish) rc="${XDG_CONFIG_HOME:-$HOME/.config}/fish/conf.d/thinker.fish"
+      if ! grep -qsF "fish_add_path \"$dir\"" "$rc"; then mkdir -p "$(dirname "$rc")" && printf '\n# thinker\n%s\n' "fish_add_path \"$dir\"" >> "$rc" || rc=""; fi ;;
   esac
-  if ! grep -qsF "$line" "$rc"; then
-    mkdir -p "$(dirname "$rc")" && printf '\n# thinker\n%s\n' "$line" >> "$rc" || return 0
+  # bash: .bashrc, and on macOS the login file a login bash reads (creating .bash_profile would hide a .profile)
+  local files="$HOME/.bashrc"
+  if [ "$(uname)" = Darwin ]; then
+    login="$HOME/.bash_profile"
+    for f in .bash_profile .bash_login .profile; do if [ -e "$HOME/$f" ]; then login="$HOME/$f"; break; fi; done
+    files="$login $files"
   fi
+  [ "$(basename "${SHELL:-}")" = bash ] && rc="${files%% *}"
+  [ "$(basename "${SHELL:-}")" = zsh ] && files="$rc $files"
+  for f in $files; do
+    if ! grep -qsF "$line" "$f"; then
+      mkdir -p "$(dirname "$f")" && printf '\n# thinker\n%s\n' "$line" >> "$f" || true
+    fi
+  done
   printf '%s' "$rc"
 }
 
