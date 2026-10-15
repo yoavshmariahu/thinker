@@ -390,6 +390,15 @@ only, no note ids. The window is 30 days because the report's 24-hour usage wind
 miss contradictions that arrive days after the pass. Clients without the block show no
 value, not zero. Run `refresh` to add the dashboard, then `verify`.
 
+Updated clients include `raw_json.warmup`, 30-day counts of the warm-up offers the hooks
+made (`offers`; `offersToColdCaches` went to a cache that held notes from sessions but had
+read fewer than `warmMined` merged changes), the repositories offered (`offeredRepositories`)
+and those where a warm-up then started from any path (`offeredThenStarted`), and the asked-for
+builds that `started`, `finished` or `failed`. A start with neither end was stopped or is still
+running. `activeRepositoriesWarm` and `activeRepositoriesCold` classify the repositories with
+a request in the report's 24 hours. Counts only, no repository names. The **Cache health**
+dashboard shows both; run `refresh` to add the cards.
+
 ## Website messages
 
 The bottom-right **Send us a message** button on the homepage and docs opens a
