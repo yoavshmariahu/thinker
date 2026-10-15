@@ -398,7 +398,8 @@ builds that `started`, `finished` or `failed`. A start with neither end was stop
 running. Since the offer became a three-way choice, the answers are counted too: `answeredWarm`,
 `answeredNo`, `answeredNever` (no offers on that machine again), `answersDismissed` (a picker
 closed without a choice) and `answersInPicker` (answers given in the agent's question tool or
-thinker's picker rather than in chat). `activeRepositoriesWarm` and `activeRepositoriesCold` classify the repositories with
+thinker's picker rather than in chat). `answeredWarmNotStarted` counts warm answers whose
+warm-up could not start because no agent was signed in to read through. `activeRepositoriesWarm` and `activeRepositoriesCold` classify the repositories with
 a request in the report's 24 hours. Counts only, no repository names. The **Cache health**
 dashboard shows both; run `refresh` to add the cards.
 
