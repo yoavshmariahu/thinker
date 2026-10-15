@@ -182,20 +182,27 @@ test('stop hook tells the user what the turn saved, once, where the client can s
   assert.equal(off, '');
 });
 
-test('cursor gets the bundle on the first tool call, once', () => {
+test('cursor gets the bundle with the prompt, as additional_context, once', () => {
   const dir = repo();
-  const first = hook(dir, 'prompt', 'cursor', { conversation_id: 'c1', prompt: PROMPT, workspace_roots: [dir], cursor_version: '3.0' });
-  assert.deepEqual(JSON.parse(first), { continue: true });
-  const tool = JSON.parse(hook(dir, 'tool', 'cursor', { conversation_id: 'c1', tool_name: 'Grep', tool_input: { pattern: 'x' } }));
-  assert.ok(tool.additional_context.includes('RateLimiter.allow'));
-  assert.equal(hook(dir, 'tool', 'cursor', { conversation_id: 'c1', tool_name: 'Grep', tool_input: { pattern: 'x' } }), '');
+  const first = JSON.parse(hook(dir, 'prompt', 'cursor', { conversation_id: 'c1', generation_id: 'g1', prompt: PROMPT, workspace_roots: [dir], cursor_version: '3.0' }));
+  assert.equal(first.continue, true);
+  assert.ok(first.additional_context.includes('RateLimiter.allow'));
+  assert.equal(hook(dir, 'tool', 'cursor', { conversation_id: 'c1', generation_id: 'g1', tool_name: 'Grep', tool_input: { pattern: 'x' } }), '');
+  // a prompt the cache has nothing for still answers {continue}
+  assert.deepEqual(JSON.parse(hook(dir, 'prompt', 'cursor', { conversation_id: 'c1', generation_id: 'g2', prompt: 'hello there', workspace_roots: [dir] })), { continue: true });
 });
 
 test('Claude Code hooks imported by Cursor stay silent', () => {
   const dir = repo();
   assert.equal(hookClient(undefined, { cursor_version: '3.0' }), 'cursor-import');
-  const o = execFileSync('node', [CLI, 'hook', 'prompt', '--repo', dir], { input: JSON.stringify({ prompt: PROMPT, cursor_version: '3.0', conversation_id: 'c2' }), encoding: 'utf8' });
-  assert.equal(o.trim(), '');
+  // the machine-wide Claude Code hooks name their client
+  assert.equal(hookClient('claude', { cursor_version: '3.0' }), 'cursor-import');
+  assert.equal(hookClient('cursor', { cursor_version: '3.0' }), 'cursor');
+  assert.equal(hookClient('claude', {}), 'claude');
+  for (const args of [[], ['--client', 'claude']]) {
+    const o = execFileSync('node', [CLI, 'hook', 'prompt', '--repo', dir, ...args], { input: JSON.stringify({ prompt: PROMPT, cursor_version: '3.0', conversation_id: 'c2' }), encoding: 'utf8' });
+    assert.equal(o.trim(), '');
+  }
 });
 
 test('toolFiles reads the different tool input shapes', () => {
@@ -206,14 +213,16 @@ test('toolFiles reads the different tool input shapes', () => {
   assert.deepEqual(toolFiles({ tool_input: { file_path: '/etc/passwd' } }, dir), []);
 });
 
-test('cursor: the bundle waits past MCP calls and is dropped when the agent asked the cache itself', () => {
+test('cursor without a prompt hook (agent -p): the first tool call orients from the transcript, once per turn', () => {
   const dir = repo();
-  hook(dir, 'prompt', 'cursor', { conversation_id: 'c5', prompt: PROMPT });
-  assert.equal(hook(dir, 'tool', 'cursor', { conversation_id: 'c5', tool_name: 'MCP:get_issue', tool_input: {} }), '');
-  assert.ok(JSON.parse(hook(dir, 'tool', 'cursor', { conversation_id: 'c5', tool_name: 'Grep', tool_input: { pattern: 'x' } })).additional_context.includes('RateLimiter.allow'));
-  hook(dir, 'prompt', 'cursor', { conversation_id: 'c6', prompt: PROMPT });
-  assert.equal(hook(dir, 'tool', 'cursor', { conversation_id: 'c6', tool_name: 'MCP:orient', tool_input: { task: PROMPT } }), '');
-  assert.equal(hook(dir, 'tool', 'cursor', { conversation_id: 'c6', tool_name: 'Grep', tool_input: { pattern: 'x' } }), '');
+  const transcript = path.join(dir, '.git', 'cursor-transcript.jsonl');
+  fs.writeFileSync(transcript, JSON.stringify({ role: 'user', message: { content: [{ type: 'text', text: `<user_query>\n${PROMPT}\n</user_query>` }] } }) + '\n');
+  const ev = { conversation_id: 'c5', generation_id: 'g5', tool_name: 'Grep', tool_input: { pattern: 'x' }, transcript_path: transcript };
+  assert.ok(JSON.parse(hook(dir, 'tool', 'cursor', ev)).additional_context.includes('RateLimiter.allow'));
+  assert.equal(hook(dir, 'tool', 'cursor', ev), '', 'a parallel tool call of the same turn');
+  // a turn the prompt hook ran for and served nothing (held out, no match) is not oriented again
+  hook(dir, 'prompt', 'cursor', { conversation_id: 'c6', generation_id: 'g6', prompt: 'hello there' });
+  assert.equal(hook(dir, 'tool', 'cursor', { ...ev, conversation_id: 'c6', generation_id: 'g6' }), '');
 });
 
 // a home of its own for a test that wires the agents' settings: the user's own files are never touched
@@ -562,9 +571,9 @@ test('a hook at user scope takes the checkout from the agent\'s input: notes whe
   const plain = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-nogit-'));
   assert.equal(userHook('prompt', { session_id: 's2b', prompt: PROMPT, cwd: plain }), '');
   assert.ok(!fs.existsSync(path.join(plain, '.thinker')));
-  // Cursor names its workspace differently; its prompt-time bundle is parked in the checkout it names
-  execFileSync('node', [CLI, 'hook', 'prompt', '--client', 'cursor', '--user'], { input: JSON.stringify({ conversation_id: 's3', prompt: PROMPT, workspace_roots: [dir] }), encoding: 'utf8', env, cwd: os.tmpdir() });
-  assert.ok(fs.existsSync(path.join(dir, '.thinker', 'state', 'pending-s3.json')));
+  // Cursor names its workspace differently; its prompt-time bundle comes from the checkout it names
+  const cur = execFileSync('node', [CLI, 'hook', 'prompt', '--client', 'cursor', '--user'], { input: JSON.stringify({ conversation_id: 's3', prompt: PROMPT, workspace_roots: [dir] }), encoding: 'utf8', env, cwd: os.tmpdir() });
+  assert.ok(JSON.parse(cur).additional_context.includes('RateLimiter.allow'));
 
   // the checkout's own files run this copy's hooks (set up before the wiring went machine-wide): the
   // machine-local ones go, and the user is told once

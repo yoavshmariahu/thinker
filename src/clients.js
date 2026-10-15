@@ -5,10 +5,10 @@
 //   claude   UserPromptSubmit, plain stdout   PostToolUse               .mcp.json
 //   codex    UserPromptSubmit, plain stdout   PostToolUse               .codex/config.toml
 //   gemini   BeforeAgent, JSON only           AfterTool                 .gemini/settings.json
-//   cursor   none: beforeSubmitPrompt cannot add context, so the bundle is
-//            parked there and delivered by the first postToolUse; an
-//            always-applied rule points the agent at the MCP tools
-//                                             postToolUse               .cursor/mcp.json
+//   cursor   beforeSubmitPrompt, JSON         postToolUse               .cursor/mcp.json
+//            additional_context (undocumented; the interactive CLI reads it, 2026-10-15);
+//            `agent -p` runs no prompt hook, so the first tool call orients from the
+//            transcript; an always-applied rule points the agent at the MCP tools
 //
 // Pi/OpenCode use native extensions in integrations/; Windsurf records hooks
 // and retrieves through a CLI rule; Copilot parks context until postToolUse.
@@ -73,14 +73,15 @@ export function parseClients(value, fallback = ['claude']) {
   return [...new Set(list)];
 }
 
-// Which client is calling a hook: the explicit flag wins; Cursor also runs
-// Claude Code hooks it imports from .claude/settings*.json, so detect it
-// (from the hook input, not the environment: Claude Code started in Cursor's
-// terminal is still Claude Code).
+// Which client is calling a hook: the explicit flag wins, except that Cursor also runs
+// the Claude Code hooks it imports from the Claude settings files, and those carry
+// --client claude since the wiring went machine-wide: detect Cursor from the hook input
+// (not the environment: Claude Code started in Cursor's terminal is still Claude Code).
+// 2026-10-15: unguarded, every Cursor prompt was oriented twice and its turns counted twice.
 export function hookClient(flag, ev = {}) {
-  if (flag && flag !== true) return String(flag);
-  if (ev.cursor_version) return 'cursor-import';
-  return 'claude';
+  const named = flag && flag !== true ? String(flag) : 'claude';
+  if (named === 'claude' && ev.cursor_version) return 'cursor-import';
+  return named;
 }
 
 export const sessionOf = ev => ev.session_id || ev.conversation_id || ev.conversationId || ev.sessionId || ev.trajectory_id || 'unknown';
@@ -122,6 +123,7 @@ export function toolFiles(ev, repo) {
 export function promptOutput(client, text) {
   if (client === 'windsurf') return '';
   if (client === 'gemini') return JSON.stringify({ hookSpecificOutput: { hookEventName: 'BeforeAgent', additionalContext: text } });
+  if (client === 'cursor') return JSON.stringify(text ? { continue: true, additional_context: text } : { continue: true });
   return text;
 }
 // Notices use each host's display API without requesting another model turn.
@@ -141,13 +143,15 @@ export function toolOutput(client, text) {
   return JSON.stringify({ hookSpecificOutput: { hookEventName: client === 'gemini' ? 'AfterTool' : 'PostToolUse', additionalContext: text } });
 }
 
-// Cursor: park the prompt-time bundle until the first tool call of the turn.
+// Copilot: park the prompt-time bundle until the first tool call of the turn.
 const pendingFile = (storeDir, session) => path.join(storeDir, 'state', `pending-${String(session).replace(/[^\w.-]/g, '_')}.json`);
 export function parkPending(storeDir, session, text) {
   const f = pendingFile(storeDir, session);
   fs.mkdirSync(path.dirname(f), { recursive: true });
   fs.writeFileSync(f, JSON.stringify({ text, at: Date.now() }));
 }
+// Cursor: the turns whose context is settled, by its generation id
+export const orientedFile = (storeDir, turn) => path.join(storeDir, 'state', `oriented-${String(turn).replace(/[^\w.-]/g, '_')}`);
 export function takePending(storeDir, session) {
   const f = pendingFile(storeDir, session);
   try { const j = JSON.parse(fs.readFileSync(f, 'utf8')); fs.unlinkSync(f); return Date.now() - j.at < 30 * 60_000 ? j.text : ''; } catch { return ''; }
@@ -906,7 +910,7 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
       entries.push(['stop', { command: cmd('stop', stopFlags), timeout: 10 }], ['sessionEnd', { command: cmd('stop', stopFlags), timeout: 10 }]);
       if (learn) entries.push(['afterShellExecution', { command: cmd('tool', rec), timeout: 10 }]);
       mergeJson(f.hooks, c => ({ version: 1, ...c, hooks: setHooks(c.hooks, ['beforeSubmitPrompt', 'postToolUse', 'afterShellExecution', 'stop', 'sessionEnd'], entries) }));
-      done.push(`Cursor: hooks in ${rel(f.hooks)}: notes for the request are delivered after the agent's first tool call${late ? ', then file-keyed notes while working' : ''}${learned}`);
+      done.push(`Cursor: hooks in ${rel(f.hooks)}: notes for the request are delivered with the prompt${late ? ', then file-keyed notes while working' : ''}${learned}`);
       generated.push(f.hooks);
     }
     localFiles(generated);
