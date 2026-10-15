@@ -47,16 +47,33 @@ export function addToPath(dir, opts) {
   return done;
 }
 
-// Once per machine (THINKER_HOME/state/shell-path): bring an install from before bash got the line up to
-// date, when thinker's bin directory exists and the installer put it on PATH in some file already.
+// Once per startup file (THINKER_HOME/state/shell-path, the files already seen): bring an install from
+// before up to date, when thinker's bin directory exists and the installer put it on PATH in some file
+// already. A file is seen once, so a line the person took out stays out; a file the list gains later (Linux's
+// .profile, 2026-10-15) is still seen. Until then the mark was a date and stopped every later run: a machine
+// that ran a prompt on 0.1.51 never got the .profile line. Such a mark counts as having seen the files of
+// that version: the login shell's, .bashrc, and the login bash file on macOS only.
 export function ensureShellPath({ thinker = thinkerHome(), ...opts } = {}) {
   const mark = path.join(thinker, 'state', 'shell-path');
-  if (fs.existsSync(mark)) return null;
   const dir = path.join(thinker, 'bin');
-  let done = [];
-  if (fs.existsSync(path.join(dir, 'thinker'))) {
-    if (pathFiles(dir, opts).some(f => has(f.rc, dir, opts.home))) done = addToPath(dir, opts);
+  const files = pathFiles(dir, opts);
+  let seen = null, text = null;
+  try { text = fs.readFileSync(mark, 'utf8'); } catch {}
+  if (text !== null) {
+    try { seen = JSON.parse(text).files; } catch {}
+    if (!Array.isArray(seen)) {
+      const home = opts.home || os.homedir(), login = ['.bash_profile', '.bash_login', '.profile'].map(f => path.join(home, f));
+      seen = files.map(f => f.rc).filter(rc => (opts.platform || process.platform) === 'darwin' || !login.includes(rc));
+    }
   }
-  try { fs.mkdirSync(path.dirname(mark), { recursive: true }); fs.writeFileSync(mark, new Date().toISOString() + '\n'); } catch {}
+  const fresh = seen ? files.filter(f => !seen.includes(f.rc)) : files;
+  if (seen && !fresh.length) return null;
+  let done = [];
+  if (fs.existsSync(path.join(dir, 'thinker')) && files.some(f => has(f.rc, dir, opts.home))) {
+    for (const f of fresh.filter(f => !has(f.rc, dir, opts.home))) {
+      try { fs.mkdirSync(path.dirname(f.rc), { recursive: true }); fs.appendFileSync(f.rc, `\n# thinker\n${f.line}\n`); done.push(f.rc); } catch {}
+    }
+  }
+  try { fs.mkdirSync(path.dirname(mark), { recursive: true }); fs.writeFileSync(mark, JSON.stringify({ files: [...new Set([...(seen || []), ...files.map(f => f.rc)])] }) + '\n'); } catch {}
   return done;
 }
