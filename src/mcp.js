@@ -263,10 +263,13 @@ function registerTools() {
   // again with the choice.
   if (store && warmupPending(store)) server.registerTool('warmup', {
     title: 'Offer a warm-up of this cache',
-    description: 'Only when a thinker-new-repository notice tells you to call it: asks the user whether to warm up this repository\'s cache (warm up, no, or don\'t ask again) and acts on the answer. Pass choice only when the user already answered in chat.',
-    inputSchema: { choice: z.enum(['warm', 'no', 'never']).optional().describe('The user\'s answer, when they gave it in chat') },
-  }, async ({ choice }) => {
-    if (choice) return text(answerWarmup(store, choice, { client: 'mcp', via: 'text' }));
+    description: 'Only when a thinker-new-repository notice tells you to: with choice, records the user\'s answer to the warm-up offer and acts on it (warm starts the warm-up in the background); without, asks the user in a picker first.',
+    inputSchema: {
+      choice: z.string().optional().describe('The user\'s answer: warm, no or never'),
+      asked: z.enum(['picker', 'chat']).optional().describe('Where the user answered: your question tool (picker) or chat'),
+    },
+  }, async ({ choice, asked }) => {
+    if (choice) return text(answerWarmup(store, String(choice).toLowerCase(), { client: clientName(), via: asked === 'picker' ? 'picker' : 'text' }));
     const inChat = `Ask the user in chat with these three numbered choices: ${WARMUP_CHOICES.map((c, i) => `${i + 1}. "${c.label}": ${c.description}`).join('; ')}. Then call warmup again with choice warm, no or never.`;
     if (!server.server.getClientCapabilities()?.elicitation) return text(`This client cannot show thinker's picker. ${inChat}`);
     const r = await askWarmup();
