@@ -56,3 +56,18 @@ test('on Linux an existing login file gets the line too: a distribution .bashrc 
   assert.equal(execFileSync('bash', ['-lc', 'thinker'], { encoding: 'utf8', env }).trim(), 'ok', 'login bash, as Codex runs commands');
   assert.equal(execFileSync('bash', ['-ic', 'thinker'], { encoding: 'utf8', env, stdio: ['ignore', 'pipe', 'ignore'] }).trim(), 'ok', 'interactive bash');
 });
+
+test('a machine that ran the date-stamped version still gets a file the list gained (Linux .profile), and only that', () => {
+  const { home, bin, thinker } = machine();
+  const opts = { home, shell: '', platform: 'linux', env: {}, thinker };
+  fs.writeFileSync(path.join(home, '.bashrc'), `# thinker\nexport PATH="${bin}:$PATH"\n`);
+  fs.writeFileSync(path.join(home, '.profile'), '# mine\n');
+  fs.mkdirSync(path.join(thinker, 'state'), { recursive: true });
+  fs.writeFileSync(path.join(thinker, 'state', 'shell-path'), '2026-10-15T09:31:12.124Z\n');
+  assert.deepEqual(ensureShellPath(opts), [path.join(home, '.profile')]);
+  assert.equal(execFileSync('bash', ['-lc', 'thinker'], { encoding: 'utf8', env: { PATH: '/usr/bin:/bin', HOME: home } }).trim(), 'ok');
+  // seen now: taken out again, it stays out
+  fs.writeFileSync(path.join(home, '.profile'), '# mine\n');
+  assert.equal(ensureShellPath(opts), null);
+  assert.equal(fs.readFileSync(path.join(home, '.profile'), 'utf8'), '# mine\n');
+});
