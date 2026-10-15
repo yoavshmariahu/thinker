@@ -48,7 +48,9 @@ export async function chooseProject({ repo, store = null, flags = {}, out = cons
       source = 'manual';
     }
   }
-  if (store) saveAreas(store, { directories: project?.directories?.filter(d => d !== '.') || [], source: source || (project ? 'manual' : 'all') });
+  // areas from activity are what maintenance's daily look would find (areas.js:refreshAreas); a chosen list is not looked at again
+  const dirs = project?.directories?.filter(d => d !== '.') || [];
+  if (store) saveAreas(store, { directories: dirs, source: source || (project ? 'manual' : 'all'), found: source === 'activity' ? dirs : undefined, refreshedAt: source === 'activity' ? new Date().toISOString() : undefined });
   out(project ? `  Cache build: ${source === 'activity' ? 'your areas' : project.name} (${project.directories.join(', ')})${source === 'activity' ? '; --full-repo for the whole repository' : ''}` : '  Cache build: Full repo');
   return project;
 }

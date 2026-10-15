@@ -119,7 +119,7 @@ export function areasLine(store, { json = false } = {}) {
   const by = notesByArea(store.list(), a.directories);
   const walk = a.walk * a.directories.length;
   if (json) return { ...a, notes: by, walk };
-  return `Focus areas (${a.source === 'activity' ? 'from your commits' : a.source === 'prs' ? 'from your pull requests' : 'chosen'}): ${a.directories.map(d => `${d} (${by[d]} ${by[d] === 1 ? 'note' : 'notes'})`).join(', ')}\n  older history read: ${Math.min(a.walked, walk)} of ${walk} changes${a.walked >= walk ? ' (warm)' : ''}`;
+  return `Focus areas (${a.source === 'activity' ? 'from your commits, refreshed daily' : a.source === 'prs' ? 'from your pull requests, refreshed daily' : 'chosen'}): ${a.directories.map(d => `${d} (${by[d]} ${by[d] === 1 ? 'note' : 'notes'})`).join(', ')}\n  older history read: ${Math.min(a.walked, walk)} of ${walk} changes${a.walked >= walk ? ' (warm)' : ''}`;
 }
 
 // `thinker ui`: the local page (ui/server.js) until Ctrl+C, from any directory: usage, the caches on this machine

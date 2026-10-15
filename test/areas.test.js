@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { activityAreas, areaOf, areasConfig, saveAreas, notesByArea } from '../src/areas.js';
+import { activityAreas, areaOf, areasConfig, saveAreas, notesByArea, refreshAreas, REFRESH_MS } from '../src/areas.js';
 import { Store } from '../src/store.js';
 
 const git = (cwd, ...args) => execFileSync('git', args, { cwd, stdio: 'ignore' });
@@ -60,12 +60,15 @@ test('activityAreas: the directories the user\'s own commits touch, ranked by co
 test('areasConfig and saveAreas: the generic build by default; a saved list sticks and merges', () => {
   const dir = fixtureRepo();
   const store = new Store(dir).init();
-  assert.deepEqual(areasConfig(store), { directories: [], source: 'all', walk: 100, walked: 0 });
+  assert.deepEqual(areasConfig(store), { directories: [], source: 'all', walk: 100, walked: 0, walkedBy: {} });
   saveAreas(store, { directories: ['src/api', 'src/db'], source: 'activity' });
   assert.deepEqual(areasConfig(store).directories, ['src/api', 'src/db']);
   assert.equal(areasConfig(store).source, 'activity');
-  saveAreas(store, { walked: 40 });
+  saveAreas(store, { walked: 40 }); // a cache from before walkedBy: spread over the areas
   assert.equal(areasConfig(store).walked, 40);
+  assert.deepEqual(areasConfig(store).walkedBy, { 'src/api': 20, 'src/db': 20 });
+  saveAreas(store, { walkedBy: { 'src/api': 100, 'src/db': 7, 'web/ui': 50 } });
+  assert.equal(areasConfig(store).walked, 107, 'only the present areas count');
   assert.deepEqual(areasConfig(store).directories, ['src/api', 'src/db']);
   // the rest of the config is untouched
   assert.equal(store.config().distillModel, 'sonnet');
@@ -99,4 +102,45 @@ test('a cache with the old haiku default moves to sonnet once; haiku chosen afte
   fs.writeFileSync(file, JSON.stringify({ version: 1, distillModel: 'opus' }));
   store.init();
   assert.equal(store.config().distillModel, 'opus');
+});
+
+test('activityAreas: recent work outranks more but older work', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-areas-'));
+  git(dir, 'init', '-q');
+  const at = days => { const d = new Date(Date.now() - days * 86_400_000).toISOString(); return { GIT_AUTHOR_DATE: d, GIT_COMMITTER_DATE: d }; };
+  const commit = (f, days) => { fs.mkdirSync(path.join(dir, path.dirname(f)), { recursive: true }); fs.appendFileSync(path.join(dir, f), 'x'); git(dir, 'add', '-A'); execFileSync('git', ['-c', 'user.email=me@example.com', '-c', 'user.name=Me', 'commit', '-q', '-m', f], { cwd: dir, stdio: 'ignore', env: { ...process.env, ...at(days) } }); };
+  for (const d of [150, 140, 130, 120]) commit('old/area/a.py', d);
+  commit('new/area/b.py', 3); commit('new/area/b.py', 1);
+  const a = activityAreas(dir, { noGitHub: true, email: 'me@example.com' });
+  assert.deepEqual(a.directories, ['new/area', 'old/area'], 'two this week beat four in the spring; the spring still counts');
+  assert.equal(a.counts['old/area'], 4);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('refreshAreas: follows activity once a day, keeps the walk per area, leaves chosen and hand-edited lists', () => {
+  const dir = fixtureRepo();
+  const store = new Store(dir).init();
+  let found = { directories: ['src/api'], source: 'activity' };
+  const find = () => found;
+  const t0 = Date.parse('2026-10-15T08:00:00Z');
+  assert.deepEqual(refreshAreas(store, dir, { now: t0, find }).directories, ['src/api'], 'no areas yet: found');
+  saveAreas(store, { walkedBy: { 'src/api': 30 } });
+  found = { directories: ['web/ui', 'src/api'], source: 'activity' };
+  assert.equal(refreshAreas(store, dir, { now: t0 + 3_600_000, find }), null, 'within the day: not looked at');
+  refreshAreas(store, dir, { now: t0 + REFRESH_MS + 1, find });
+  const a = areasConfig(store);
+  assert.deepEqual(a.directories, ['web/ui', 'src/api']);
+  assert.deepEqual(a.walkedBy, { 'src/api': 30 }, 'the walk so far is kept');
+  // nothing found keeps the areas
+  found = { directories: [], source: null };
+  assert.equal(refreshAreas(store, dir, { now: t0 + 3 * REFRESH_MS, find }), null);
+  assert.deepEqual(areasConfig(store).directories, ['web/ui', 'src/api']);
+  // a hand edit sticks; so does a chosen list
+  found = { directories: ['src/db'], source: 'activity' };
+  saveAreas(store, { directories: ['lib'] });
+  assert.equal(refreshAreas(store, dir, { now: t0 + 5 * REFRESH_MS, find }), null);
+  saveAreas(store, { directories: ['lib'], found: ['lib'], source: 'manual' });
+  assert.equal(refreshAreas(store, dir, { now: t0 + 6 * REFRESH_MS, find }), null);
+  assert.deepEqual(areasConfig(store).directories, ['lib']);
+  fs.rmSync(dir, { recursive: true, force: true });
 });

@@ -100,7 +100,7 @@ export async function runMaintain(ctx, { quiet, dry }) {
   const r = await maintain(store, repo, { dry, fns: {
     minePrs: canMine ? ({ after, limit, directories = null }) => minePrs(ctx, slug, { after, before: new Date().toISOString(), limit, repo, phase: 'maintenance', directories }) : undefined,
     // the focus areas' older history, a few changes a run (maintain.js step 4; areas.js)
-    mineAreaHistory: canMine ? ({ paths, limit }) => minePrs(ctx, slug, { from: 'HEAD', paths, pathsLimit: limit, limit, repo, phase: 'maintenance' }) : undefined,
+    mineAreaHistory: canMine ? ({ paths, limit, scan }) => minePrs(ctx, slug, { from: 'HEAD', paths, pathsLimit: limit, pathsScan: scan, pathsOnly: true, limit, repo, phase: 'maintenance' }) : undefined,
     docs: provider() ? async ({ limit }) => (await import('../behavior-docs.js')).deriveDocBehaviors(store, { limit, phase: 'maintenance' }) : undefined,
     skills: provider() ? ({ limit }) => scanSkills(store, { limit, phase: 'maintenance' }) : undefined,
   } });
@@ -250,7 +250,7 @@ export async function mineMore(ctx, { slug, ...opts }) {
   return minePrs(ctx, slug, { ...opts, repo });
 }
 
-export async function minePrs(ctx, slug, { from, scan, before, after, again, limit = 20, model, dry, fixes = false, git = false, repo = process.cwd(), phase = 'maintenance', directories = null, concurrency = 4, paths = null, pathsLimit = null, onProgress = null } = {}) {
+export async function minePrs(ctx, slug, { from, scan, before, after, again, limit = 20, model, dry, fixes = false, git = false, repo = process.cwd(), phase = 'maintenance', directories = null, concurrency = 4, paths = null, pathsLimit = null, pathsScan = null, pathsOnly = false, onProgress = null } = {}) {
   const { flags, store, out } = ctx;
   // --git: commits from git history although GitHub is reachable (a repository whose work lands by
   // direct commits has few pull requests to mine; its fix commits are what review wants)
@@ -271,20 +271,21 @@ export async function minePrs(ctx, slug, { from, scan, before, after, again, lim
   // --from scans three times the limit and no further (--scan n: another depth): a recent cache as of
   // that commit, not a search for older fixes
   // --paths: the history of those files first (--paths-limit of the --limit, half by default), scanned
-  // three times as deep among the changes touching them, then the newest changes overall fill the rest
+  // three times as deep among the changes touching them (pathsScan: another depth), then the newest
+  // changes overall fill the rest (pathsOnly: nothing fills it; a focus area's walk, maintain.js)
   let targeted = [];
   if (from && paths?.length) {
     const want = Math.min(Math.max(1, pathsLimit || Math.ceil(limit / 2)), limit);
-    targeted = mineable(listMergedCommits(repo, { from, limit: want * 3, directories, paths }).filter(fresh), { fixes, git: useGit }).slice(0, want);
+    targeted = mineable(listMergedCommits(repo, { from, limit: pathsScan || want * 3, directories, paths }).filter(fresh), { fixes, git: useGit }).slice(0, want);
   }
   const targetedHashes = new Set(targeted.map(p => p.hash));
-  const listed = from ? listMergedCommits(repo, { from, limit: scan || limit * 3, directories }).filter(fresh).filter(p => !targetedHashes.has(p.hash)) : before || after
+  const listed = from && pathsOnly ? [] : from ? listMergedCommits(repo, { from, limit: scan || limit * 3, directories }).filter(fresh).filter(p => !targetedHashes.has(p.hash)) : before || after
     ? listFn(slug, { before: before || new Date().toISOString(), after, limit: fetchLimit }).filter(p => again || (!rec.mined.has(p.number) && (!p.hash || !rec.mined.has(p.hash.slice(0, 8)))))
     : nextPrs(slug, rec, { limit: fetchLimit, list: listFn, repo });
-  if (!listed.length) {
+  if (!listed.length && !targeted.length) {
     const sourceName = useGit ? 'git history' : `merged PRs of ${slug}`;
     out(`no ${sourceName} left to mine (${rec.mined.size} mined so far)`);
-    return { tokens: 0, saved: 0 };
+    return { tokens: 0, saved: 0, processed: 0 };
   }
   const failed = new Set();
   const scoped = listed.filter(p => !directories || (p.files || []).some(f => includesPath(directories, typeof f === 'string' ? f : f.path || '')));
@@ -331,7 +332,7 @@ export async function minePrs(ctx, slug, { from, scan, before, after, again, lim
     const completed = listed.filter(p => !failed.has(p.number) && !deferred.has(p.number));
     recordMinedPrs(store, scopeKey, completed, { failed: prs.filter(p => failed.has(p.number)) });
     if (directories) recordMinedPrs(store, recSlug, prs.filter(p => !failed.has(p.number)), { failed: prs.filter(p => failed.has(p.number)) });
-    store.log({ op: 'mine-prs', slug: recSlug, directories, prs: prs.length - failed.size, passed: listed.length - prs.length - deferred.size, deferred: deferred.size, saved, tokens, metered: true, source: useGit ? 'git' : 'github', ...(targeted.length ? { targeted: targeted.length, paths } : {}) });
+    store.log({ op: 'mine-prs', slug: recSlug, directories, prs: prs.length - failed.size, passed: listed.length - (prs.length - targeted.length) - deferred.size, deferred: deferred.size, saved, tokens, metered: true, source: useGit ? 'git' : 'github', ...(targeted.length ? { targeted: targeted.length, paths } : {}) });
   }
   progress.finish({ tokens, retry: 'Failed changes remain unmarked. Retry with: thinker mine-prs' });
   return { tokens, saved, failed: failed.size, processed: prs.length };

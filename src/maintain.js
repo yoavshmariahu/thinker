@@ -13,7 +13,7 @@ import { refresh, verifyNote, phraseNotes, phraseKey, archiveNotes } from './ops
 import { readLog } from './usage.js';
 import { formatTokens } from './model-usage.js';
 import { writeSystemMarkdown } from './behavior.js';
-import { areasConfig, saveAreas, activityAreas } from './areas.js';
+import { areasConfig, saveAreas, refreshAreas } from './areas.js';
 import { isTestMode } from './test-mode.js';
 
 export const DEFAULTS = {
@@ -187,17 +187,13 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
       }
     } else r.capped = true;
     // 4. pull requests merged since maintenance first ran here, inside the person's focus areas when
-    // the cache has them (areas.js); then, with the budget left, the areas' older history, a few
-    // changes a run until each area has had its `walk` (the generic build, source 'all', mines
-    // repository-wide and walks nothing). A cache nobody warmed has no areas: they are found here,
-    // offline, from the person's own commits (or merged PRs), and saved, so learning follows where
-    // they work whether or not they took the warm-up (2026-10-15, the user's call). Until their
-    // activity names an area, nothing is saved and the next run looks again.
-    if (cfg.prs && !store.config().areas) {
-      try {
-        const found = (fns.activityAreas || activityAreas)(repo, isTestMode() ? { noGitHub: true } : {});
-        if (found?.directories?.length && !dry) saveAreas(store, { directories: found.directories, source: found.source, walked: 0 });
-      } catch { r.errors++; }
+    // the cache has them (areas.js); then, with the budget left, the older history of one area a
+    // run, the first in rank not yet read to its `walk` (the generic build, source 'all', mines
+    // repository-wide and walks nothing). The areas are found again once a day from the person's
+    // activity (areas.js:refreshAreas), and a cache nobody warmed gets its first ones there, so
+    // learning follows where they work now (2026-10-15, the user's call).
+    if (cfg.prs && !dry) {
+      try { refreshAreas(store, repo, { now, find: fns.activityAreas, findOpts: isTestMode() ? { noGitHub: true } : {} }); } catch { r.errors++; }
     }
     const areas = areasConfig(store);
     const focused = areas.source !== 'all' && areas.directories.length > 0;
@@ -207,13 +203,18 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
         if (!dry) { try { const m = await fns.minePrs({ after: state.prsAfter, limit: cfg.prsPerRun, directories: focused ? areas.directories : null }); r.prs = m?.saved || 0; r.tokens += m?.tokens || 0; } catch { r.errors++; } }
       } else r.capped = true;
     }
-    if (cfg.prs && focused && fns.mineAreaHistory && areas.walked < areas.walk * areas.directories.length) {
+    const walking = focused ? areas.directories.find(d => (areas.walkedBy[d] || 0) < areas.walk) : null;
+    if (cfg.prs && walking && fns.mineAreaHistory) {
       if (afford()) {
         if (!dry) {
           try {
-            const m = await fns.mineAreaHistory({ paths: areas.directories, limit: cfg.prsPerRun });
+            // scan past what this area has read already: the changes mined before are skipped, not counted
+            const done = areas.walkedBy[walking] || 0;
+            const m = await fns.mineAreaHistory({ paths: [walking], limit: cfg.prsPerRun, scan: done * 2 + cfg.prsPerRun * 3 });
             r.prs += m?.saved || 0; r.tokens += m?.tokens || 0;
-            saveAreas(store, { walked: areas.walked + (m?.processed ?? cfg.prsPerRun) });
+            const processed = m?.processed ?? cfg.prsPerRun;
+            // nothing left to read in the area's history: it is as warm as it gets
+            saveAreas(store, { walkedBy: { ...areas.walkedBy, [walking]: processed ? done + processed : areas.walk } });
           } catch { r.errors++; }
         }
       } else r.capped = true;
