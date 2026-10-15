@@ -59,6 +59,13 @@ test('a bash agent finds thinker on a zsh machine', () => {
   assert.equal(execFileSync('bash', ['-lc', 'thinker'], { encoding: 'utf8', env }).trim(), 'ok', 'login bash');
 });
 
+test('on Linux the installer writes an existing .profile, which a login bash reads past the .bashrc guard', { skip: process.platform === 'darwin' }, () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-path-linux-'));
+  fs.writeFileSync(path.join(home, '.profile'), '# mine\n');
+  addToPath('bash', home);
+  assert.match(fs.readFileSync(path.join(home, '.profile'), 'utf8'), /\/opt\/thinker\/bin/);
+});
+
 test('the zsh line makes thinker resolvable in a new shell', { skip: !fs.existsSync('/bin/zsh') }, () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-path-new-'));
   const bin = path.join(home, '.thinker/bin');

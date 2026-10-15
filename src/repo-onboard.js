@@ -121,10 +121,18 @@ export const WARMUP_CHOICES = [
 // plan mode it is behind a feature that is off (default_mode_request_user_input), so Codex gets thinker's
 // MCP tool, which asks through elicitation. pi has none: it asks in chat.
 export const QUESTION_TOOLS = { claude: 'AskUserQuestion', gemini: 'ask_user', copilot: 'ask_user', cursor: 'AskQuestion', opencode: 'question' };
-const answerCommand = (repo, via, client) => `thinker warmup --answer <warm|no|never> --via ${via}${client ? ` --client ${client}` : ''} --repos "${repo}"`;
+// The answer goes back through thinker's `warmup` MCP tool where the agent has thinker's server (it took
+// the answer where the shell did not find `thinker`, 2026-10-15), else through the command line, named by
+// path: `thinker` is on the PATH of the person's own shells, not always of the agent's.
+const MCP_CLIENTS = new Set(['claude', 'codex', 'gemini', 'cursor', 'opencode']);
+const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), 'cli.js');
+const answerCommand = (repo, via, client) => `"${process.execPath}" "${CLI}" warmup --answer <warm|no|never> --via ${via}${client ? ` --client ${client}` : ''} --repos "${repo}"`;
 function askText(client, repo, duration) {
   const options = WARMUP_CHOICES.map((c, i) => `${i + 1}. "${c.label}"${c.value === 'warm' ? ` (about ${duration} in the background)` : ''}: ${c.description}`).join('\n');
-  const after = via => `Then run \`${answerCommand(repo, via, client)}\` from this directory with the answer (warm, no or never; anything else is no): thinker records it and, on warm, starts the warm-up in the background itself. Then go on with the task.`;
+  const command = via => `run \`${answerCommand(repo, via, client)}\` from this directory with the answer (warm, no or never; anything else is no)`;
+  const after = via => MCP_CLIENTS.has(client)
+    ? `Then call thinker's \`warmup\` tool with choice warm, no or never (anything else is no) and asked "${via === 'picker' ? 'picker' : 'chat'}"; if that tool is not available, ${command(via)}. thinker records the answer and, on warm, starts the warm-up in the background itself. Then go on with the task.`
+    : `Then ${command(via)}: thinker records it and, on warm, starts the warm-up in the background itself. Then go on with the task.`;
   if (client === 'codex') return `Before you start on the request, call thinker's \`warmup\` tool with no arguments: it shows the user a picker with three choices and acts on the answer. Then go on with the task. If the tool is not available, ask the user in chat with these three numbered choices:\n${options}\n${after('text')}`;
   const tool = QUESTION_TOOLS[client];
   if (tool) return `Before you start on the request, ask the user with your ${tool} tool, not in prose: one question, "Warm up thinker's cache for this repository?" (header "Warm-up"), with exactly these three options in this order:\n${options}\n${after('picker')}`;
@@ -142,7 +150,6 @@ export function warmupPending(store, { home } = {}) {
   try { return minedCount(store) < WARM_MINED; } catch { return false; }
 }
 
-const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), 'cli.js');
 // The person's answer to the offer, from their agent's question tool (`thinker warmup --answer`) or
 // thinker's picker (mcp.js:warmup): warm starts the warm-up detached, through the agent's own login, with
 // its output in the cache's state directory; no leaves the offer made once, as it is; never stops every

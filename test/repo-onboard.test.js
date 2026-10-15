@@ -36,7 +36,8 @@ test('the first session in a repository with history sets it up and tells the ag
   assert.match(out, /<thinker-new-repository>/);
   assert.match(out, /ask the user with your AskUserQuestion tool, not in prose/);
   assert.match(out, /1\. "Warm up cache"[^\n]*\n2\. "No"[^\n]*\n3\. "Don't ask again"/, 'three options, in order');
-  assert.ok(out.includes(`thinker warmup --answer <warm|no|never> --via picker --client claude --repos "${dir}"`), 'the answer goes back to thinker, naming this checkout');
+  assert.match(out, /Then call thinker's `warmup` tool with choice warm, no or never \(anything else is no\) and asked "picker"/, 'the answer goes back through the MCP tool');
+  assert.ok(out.includes(`"${process.execPath}" "${path.join(path.dirname(CLI), 'cli.js')}" warmup --answer <warm|no|never> --via picker --client claude --repos "${dir}"`), 'the fallback names thinker by path: the agent\'s shell may not have it on PATH');
   assert.match(out, /commit history/, 'no GitHub remote: the git history is what there is to read');
   assert.doesNotMatch(out, /<thinker-cache>/, 'an empty cache serves no notes');
   // what setup would write for the repository: the git hooks that keep the cache fresh
@@ -88,7 +89,7 @@ test('a cold cache, notes from sessions and no history read, is offered a warm-u
   const out = hook(dir, 'prompt', { session_id: 'k1', prompt: 'unrelated question about billing' });
   assert.match(out, /<thinker-new-repository>/);
   assert.match(out, /is cold: it holds 3 notes from sessions and has not read the repository's history yet/);
-  assert.match(out, /thinker warmup --answer/);
+  assert.match(out, /`warmup` tool with choice/);
   assert.equal(ops(dir).find(e => e.op === 'warmup-offer').notes, 3);
   assert.equal(hook(dir, 'prompt', { session_id: 'k2', prompt: 'another unrelated question about billing' }).trim(), '', 'once');
 });
@@ -117,6 +118,9 @@ test('each agent is told to ask with its own question tool; Codex calls thinker\
   assert.match(asked.codex, /call thinker's `warmup` tool with no arguments/);
   assert.match(asked.pi, /ask the user in chat with these three numbered choices/);
   assert.match(asked.pi, /--via text --client pi/);
+  assert.doesNotMatch(asked.pi, /`warmup` tool/, 'pi has no MCP: the command line only');
+  assert.doesNotMatch(asked.copilot, /`warmup` tool/, 'nor Copilot');
+  assert.match(asked.gemini, /`warmup` tool with choice/);
 });
 
 test('the answer: no closes this repository, never closes every repository, warm starts the warm-up; each is logged', () => {

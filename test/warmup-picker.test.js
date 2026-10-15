@@ -69,3 +69,10 @@ test('a client without elicitation is told to ask in chat and call again with th
   assert.match(await call({ choice: 'no' }), /no warm-up for this repository/);
   assert.deepEqual(answers(store).map(e => [e.choice, e.via]), [['no', 'text']]);
 });
+
+test('an answer from the agent\'s own question tool comes through the tool as a picker answer', async t => {
+  const { repo, env, store } = machine(t);
+  const { call } = await connect(t, env, repo);
+  assert.match(await call({ choice: 'Never', asked: 'picker' }), /will not offer a warm-up again in any repository/);
+  assert.deepEqual(answers(store).map(e => [e.choice, e.via, e.client]), [['never', 'picker', 'codex-mcp-client']]);
+});

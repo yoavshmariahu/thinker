@@ -2,7 +2,7 @@
 // THINKER_HOME/bin on PATH in the startup file of the login shell (install.sh:add_to_path); until
 // 2026-10-15 that was the only file, so on a zsh machine an agent running commands in bash said
 // "thinker: command not found". Bash gets the line too now: .bashrc, which interactive bash and Claude
-// Code's shell snapshot read, and on macOS the login file (`bash -l`, Terminal), .bash_profile or .profile.
+// Code's shell snapshot read, and the login file (`bash -l`), .bash_profile or .profile (created on macOS only).
 // The installer writes them on a new install; an install from before gets them once, from the first prompt
 // hook after the update (commands/hooks.js), and only when the installer had changed PATH there already:
 // a machine installed with --no-modify-path has thinker's line in no file and is left alone.
@@ -18,11 +18,12 @@ export function pathFiles(dir, { shell = path.basename(process.env.SHELL || ''),
   const files = [];
   if (shell === 'zsh') files.push({ rc: path.join(env.ZDOTDIR || home, '.zshrc'), line: exportLine(dir) });
   if (shell === 'fish') files.push({ rc: path.join(env.XDG_CONFIG_HOME || path.join(home, '.config'), 'fish', 'conf.d', 'thinker.fish'), line: `fish_add_path "${dir}"` });
-  if (platform === 'darwin') {
-    // a login bash reads the first of these it finds; creating .bash_profile would hide an existing .profile
-    const login = ['.bash_profile', '.bash_login', '.profile'].map(f => path.join(home, f)).find(f => fs.existsSync(f)) || path.join(home, '.bash_profile');
-    files.push({ rc: login, line: exportLine(dir) });
-  }
+  // a login bash (`bash -l`, what Codex and macOS terminals start) reads the first of these it finds, and
+  // creating .bash_profile would hide an existing .profile. On Linux the end of .bashrc is not enough: the
+  // distributions' .bashrc returns early when not interactive (2026-10-15, a Debian container: `bash -ic`
+  // found thinker, `bash -lc` did not), so the login file gets the line too, where there is one.
+  const login = ['.bash_profile', '.bash_login', '.profile'].map(f => path.join(home, f)).find(f => fs.existsSync(f));
+  if (login || platform === 'darwin') files.push({ rc: login || path.join(home, '.bash_profile'), line: exportLine(dir) });
   files.push({ rc: path.join(home, '.bashrc'), line: exportLine(dir) });
   return files.filter((f, i, all) => all.findIndex(g => g.rc === f.rc) === i);
 }

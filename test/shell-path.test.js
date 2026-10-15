@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { ensureShellPath, pathFiles } from '../src/shell-path.js';
+import { execFileSync } from 'node:child_process';
+import { ensureShellPath, pathFiles, addToPath } from '../src/shell-path.js';
 
 // An install from before bash got thinker's PATH line gets it once, after the update, from the prompt hook;
 // only where the installer had changed PATH already (not after --no-modify-path).
@@ -44,4 +45,14 @@ test('the files: the login shell\'s first, bash\'s on Linux only .bashrc', () =>
   const home = '/h';
   assert.deepEqual(pathFiles('/h/.thinker/bin', { home, shell: 'zsh', platform: 'linux', env: {} }).map(f => f.rc), ['/h/.zshrc', '/h/.bashrc']);
   assert.deepEqual(pathFiles('/h/.thinker/bin', { home, shell: 'bash', platform: 'linux', env: {} }).map(f => f.rc), ['/h/.bashrc']);
+});
+
+test('on Linux an existing login file gets the line too: a distribution .bashrc returns early when not interactive', () => {
+  const { home, bin } = machine();
+  fs.writeFileSync(path.join(home, '.profile'), '# mine\n');
+  fs.writeFileSync(path.join(home, '.bashrc'), 'case $- in\n    *i*) ;;\n      *) return;;\nesac\n');
+  addToPath(bin, { home, shell: '', platform: 'linux', env: {} });
+  const env = { PATH: '/usr/bin:/bin', HOME: home };
+  assert.equal(execFileSync('bash', ['-lc', 'thinker'], { encoding: 'utf8', env }).trim(), 'ok', 'login bash, as Codex runs commands');
+  assert.equal(execFileSync('bash', ['-ic', 'thinker'], { encoding: 'utf8', env, stdio: ['ignore', 'pipe', 'ignore'] }).trim(), 'ok', 'interactive bash');
 });
