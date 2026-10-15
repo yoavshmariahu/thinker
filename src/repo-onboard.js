@@ -10,11 +10,11 @@
 // Either way the answer comes back to `answerWarmup`, which acts on it and logs it.
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { repoId } from './store.js';
+import { Store, repoId } from './store.js';
 import { thinkerHome } from './update.js';
-import { installGitHooks } from './git-hooks.js';
+import { installGitHooks, mainCheckout } from './git-hooks.js';
 import { trustCodex, installCursorRule } from './clients.js';
 import { excludeFromGit } from './store.js';
 import { estimateCacheBuild, DEFAULT_PRS } from './setup/estimate.js';
@@ -71,6 +71,22 @@ function offeredOnce(repo, home = thinkerHome(), { peek = false } = {}) {
   return true;
 }
 
+// The cache a warm-up offer is about: a checkout's own, but for a linked worktree (`git worktree add`) the
+// main checkout's. A worktree has a cache of its own, which starts cold however warm the repository's is
+// (2026-10-15: a detached worktree of a warm checkout was offered a warm-up as a new repository), so the
+// offer, the judgement that the cache is cold and the warm-up follow the repository the worktree belongs to.
+// null when that has no cache (a worktree of a bare repository, or of a checkout no session ran in): no offer.
+export function offerStore(store) {
+  try { if (!fs.statSync(path.join(store.repo, '.git')).isFile()) return store; } catch { return store; }
+  // .git is a file in a linked worktree and in a submodule; only a worktree's git directory is not its common one
+  let dirs; try { dirs = execFileSync('git', ['rev-parse', '--git-dir', '--git-common-dir'], { cwd: store.repo, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim().split('\n').map(d => path.resolve(store.repo, d)); } catch { return store; }
+  if (dirs[0] === dirs[1]) return store;
+  const main = mainCheckout(store.repo);
+  if (main === store.repo) return null;
+  const s = new Store(main);
+  return s.exists() ? s : null;
+}
+
 // A cache is warm once it has read some of its repository's history: a warm-up reads up to 50 merged
 // changes, maintenance a few at a time. Notes from sessions alone do not make it warm.
 export const WARM_MINED = 10;
@@ -93,6 +109,8 @@ export function minedCount(store) {
 // offered on a machine where the person chose "Don't ask again".
 export function warmupOffer(store, { client, home } = {}) {
   if (['windsurf'].includes(client)) return '';
+  store = offerStore(store);
+  if (!store) return '';
   const est = warmupDue(store, { home });
   if (!est || !markOffered(store, est, { client, home })) return '';
   const notes = store.list().length;
@@ -151,7 +169,8 @@ export const warmupNever = home => fs.existsSync(neverFile(home));
 // Whether thinker's `warmup` MCP tool is worth offering in a session (mcp.js): an offer may be waiting for
 // its answer in this repository. A cache that answered, a warm one, or a machine that said never has none.
 export function warmupPending(store, { home } = {}) {
-  if (warmupNever(home) || fs.existsSync(mark(store, 'warmup-answered'))) return false;
+  store = offerStore(store);
+  if (!store || warmupNever(home) || fs.existsSync(mark(store, 'warmup-answered'))) return false;
   try { return minedCount(store) < WARM_MINED; } catch { return false; }
 }
 
@@ -162,6 +181,7 @@ export function warmupPending(store, { home } = {}) {
 // answered in chat) for the telemetry (telemetry.js:warmupMetrics). Returns the line to tell the agent.
 export async function answerWarmup(store, choice, { client, via = 'picker', home, spawnFn = spawn, selectAgentFn = selectAndAuthenticateAgent } = {}) {
   const value = ['warm', 'no', 'never', 'dismissed'].includes(choice) ? choice : 'no';
+  store = offerStore(store) || store;   // asked in a worktree: the answer is about its repository's cache
   once(store, 'warmup-answered');
   if (value === 'never') {
     store.log({ op: 'warmup-answer', choice: value, client, via });

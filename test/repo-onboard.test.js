@@ -183,3 +183,28 @@ test('the answer: no closes this repository, never closes every repository, warm
   await answerWarmup(odd, 'maybe later', { client: 'claude', home });
   assert.equal(ops(odd.repo).find(e => e.op === 'warmup-answer').choice, 'no');
 });
+
+test('a linked worktree is its repository: no offer when the main checkout is warm, and an offer about the main checkout when it is cold', () => {
+  const worktree = (main, name) => { const wt = path.join(main, '.worktrees', name); execFileSync('git', ['-C', main, 'worktree', 'add', '-q', '--detach', wt]); return wt; };
+  // 2026-10-15: a detached worktree of a warm checkout was offered a warm-up as a new repository
+  const warm = gitRepo(8);
+  const store = new Store(warm).init();
+  fs.writeFileSync(path.join(store.dir, 'prs.json'), JSON.stringify({ local: { mined: Array.from({ length: WARM_MINED }, (_, i) => `c${i}`) } }));
+  const wt = worktree(warm, 'bench');
+  assert.doesNotMatch(hook(wt, 'prompt', { session_id: 't1', prompt: 'where does fetchRows read the rows from' }), /thinker-new-repository/);
+  assert.ok(!ops(wt).some(e => e.op === 'warmup-offer'));
+  assert.ok(!warmupPending(new Store(wt), { home: HOME }), 'no picker tool in the worktree either');
+  // a cold repository: the worktree is offered the main checkout's warm-up, once for both
+  const cold = gitRepo(8);
+  new Store(cold).init();
+  const cwt = worktree(cold, 'feature');
+  const out = hook(cwt, 'prompt', { session_id: 't2', prompt: 'where does fetchRows read the rows from' });
+  assert.match(out, /<thinker-new-repository>/);
+  assert.ok(out.includes(`--repos "${cold}"`), 'the warm-up named is the main checkout\'s');
+  assert.ok(ops(cold).some(e => e.op === 'warmup-offer'), 'logged in the main checkout\'s cache');
+  assert.doesNotMatch(hook(cold, 'prompt', { session_id: 't3', prompt: 'where does fetchRows read the rows from' }), /thinker-new-repository/);
+  // the main checkout has no cache: nothing is offered from its worktree, and nothing is written there
+  const bare = gitRepo(8);
+  assert.doesNotMatch(hook(worktree(bare, 'x'), 'prompt', { session_id: 't4', prompt: 'hello' }), /thinker-new-repository/);
+  assert.ok(!fs.existsSync(path.join(bare, '.thinker')));
+});
