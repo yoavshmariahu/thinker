@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store } from '../src/store.js';
 import { createNote } from '../src/ops.js';
-import { parseClients, installClient, uninstallClients, uninstallWiring, connectFromCheckouts, pruneInstalls, prunedLines, compareVersions, trustCodex, trustCodexUser, codexHookHash, toolFiles, hookClient, stopOutput, refreshWiring, inferWiring } from '../src/clients.js';
+import { parseClients, installClient, uninstallClients, uninstallWiring, connectFromCheckouts, pruneInstalls, prunedLines, compareVersions, trustCodex, trustCodexUser, codexHookHash, toolFiles, hookClient, stopOutput, refreshWiring, inferWiring, stripRepoWiring, connectDetected } from '../src/clients.js';
 import { installGitHooks, mainCheckout } from '../src/git-hooks.js';
 import { knownRepos } from '../src/commands/setup.js';
 
@@ -182,20 +182,27 @@ test('stop hook tells the user what the turn saved, once, where the client can s
   assert.equal(off, '');
 });
 
-test('cursor gets the bundle on the first tool call, once', () => {
+test('cursor gets the bundle with the prompt, as additional_context, once', () => {
   const dir = repo();
-  const first = hook(dir, 'prompt', 'cursor', { conversation_id: 'c1', prompt: PROMPT, workspace_roots: [dir], cursor_version: '3.0' });
-  assert.deepEqual(JSON.parse(first), { continue: true });
-  const tool = JSON.parse(hook(dir, 'tool', 'cursor', { conversation_id: 'c1', tool_name: 'Grep', tool_input: { pattern: 'x' } }));
-  assert.ok(tool.additional_context.includes('RateLimiter.allow'));
-  assert.equal(hook(dir, 'tool', 'cursor', { conversation_id: 'c1', tool_name: 'Grep', tool_input: { pattern: 'x' } }), '');
+  const first = JSON.parse(hook(dir, 'prompt', 'cursor', { conversation_id: 'c1', generation_id: 'g1', prompt: PROMPT, workspace_roots: [dir], cursor_version: '3.0' }));
+  assert.equal(first.continue, true);
+  assert.ok(first.additional_context.includes('RateLimiter.allow'));
+  assert.equal(hook(dir, 'tool', 'cursor', { conversation_id: 'c1', generation_id: 'g1', tool_name: 'Grep', tool_input: { pattern: 'x' } }), '');
+  // a prompt the cache has nothing for still answers {continue}
+  assert.deepEqual(JSON.parse(hook(dir, 'prompt', 'cursor', { conversation_id: 'c1', generation_id: 'g2', prompt: 'hello there', workspace_roots: [dir] })), { continue: true });
 });
 
 test('Claude Code hooks imported by Cursor stay silent', () => {
   const dir = repo();
   assert.equal(hookClient(undefined, { cursor_version: '3.0' }), 'cursor-import');
-  const o = execFileSync('node', [CLI, 'hook', 'prompt', '--repo', dir], { input: JSON.stringify({ prompt: PROMPT, cursor_version: '3.0', conversation_id: 'c2' }), encoding: 'utf8' });
-  assert.equal(o.trim(), '');
+  // the machine-wide Claude Code hooks name their client
+  assert.equal(hookClient('claude', { cursor_version: '3.0' }), 'cursor-import');
+  assert.equal(hookClient('cursor', { cursor_version: '3.0' }), 'cursor');
+  assert.equal(hookClient('claude', {}), 'claude');
+  for (const args of [[], ['--client', 'claude']]) {
+    const o = execFileSync('node', [CLI, 'hook', 'prompt', '--repo', dir, ...args], { input: JSON.stringify({ prompt: PROMPT, cursor_version: '3.0', conversation_id: 'c2' }), encoding: 'utf8' });
+    assert.equal(o.trim(), '');
+  }
 });
 
 test('toolFiles reads the different tool input shapes', () => {
@@ -206,14 +213,16 @@ test('toolFiles reads the different tool input shapes', () => {
   assert.deepEqual(toolFiles({ tool_input: { file_path: '/etc/passwd' } }, dir), []);
 });
 
-test('cursor: the bundle waits past MCP calls and is dropped when the agent asked the cache itself', () => {
+test('cursor without a prompt hook (agent -p): the first tool call orients from the transcript, once per turn', () => {
   const dir = repo();
-  hook(dir, 'prompt', 'cursor', { conversation_id: 'c5', prompt: PROMPT });
-  assert.equal(hook(dir, 'tool', 'cursor', { conversation_id: 'c5', tool_name: 'MCP:get_issue', tool_input: {} }), '');
-  assert.ok(JSON.parse(hook(dir, 'tool', 'cursor', { conversation_id: 'c5', tool_name: 'Grep', tool_input: { pattern: 'x' } })).additional_context.includes('RateLimiter.allow'));
-  hook(dir, 'prompt', 'cursor', { conversation_id: 'c6', prompt: PROMPT });
-  assert.equal(hook(dir, 'tool', 'cursor', { conversation_id: 'c6', tool_name: 'MCP:orient', tool_input: { task: PROMPT } }), '');
-  assert.equal(hook(dir, 'tool', 'cursor', { conversation_id: 'c6', tool_name: 'Grep', tool_input: { pattern: 'x' } }), '');
+  const transcript = path.join(dir, '.git', 'cursor-transcript.jsonl');
+  fs.writeFileSync(transcript, JSON.stringify({ role: 'user', message: { content: [{ type: 'text', text: `<user_query>\n${PROMPT}\n</user_query>` }] } }) + '\n');
+  const ev = { conversation_id: 'c5', generation_id: 'g5', tool_name: 'Grep', tool_input: { pattern: 'x' }, transcript_path: transcript };
+  assert.ok(JSON.parse(hook(dir, 'tool', 'cursor', ev)).additional_context.includes('RateLimiter.allow'));
+  assert.equal(hook(dir, 'tool', 'cursor', ev), '', 'a parallel tool call of the same turn');
+  // a turn the prompt hook ran for and served nothing (held out, no match) is not oriented again
+  hook(dir, 'prompt', 'cursor', { conversation_id: 'c6', generation_id: 'g6', prompt: 'hello there' });
+  assert.equal(hook(dir, 'tool', 'cursor', { ...ev, conversation_id: 'c6', generation_id: 'g6' }), '');
 });
 
 // a home of its own for a test that wires the agents' settings: the user's own files are never touched
@@ -389,15 +398,17 @@ test('new clients install idempotently, refresh and uninstall only their entries
   fs.mkdirSync(path.join(dir, '.windsurf'), { recursive: true });
   fs.writeFileSync(path.join(dir, '.windsurf/hooks.json'), JSON.stringify({ hooks: { pre_user_prompt: [{ command: 'other' }] } }));
   const files = { pi: '.pi/extensions/thinker.js', opencode: '.opencode/plugins/thinker.js', windsurf: '.windsurf/hooks.json', copilot: '.github/hooks/thinker.json' };
+  // the MCP entry of this copy, as a real install writes it (Copilot's is read back from .github/mcp.json)
+  const same = { ...opts(dir), learn: true, mcpEntry: { command: 'node', args: [path.join(path.dirname(CLI), 'mcp.js')], env: { THINKER_REPO: dir } } };
   for (const client of Object.keys(files)) {
-    installClient(client, { ...opts(dir), learn: true });
+    installClient(client, same);
     const before = fs.readFileSync(path.join(dir, files[client]), 'utf8');
-    installClient(client, { ...opts(dir), learn: true });
+    installClient(client, same);
     assert.equal(fs.readFileSync(path.join(dir, files[client]), 'utf8'), before);
     const wiring = inferWiring(dir, client);
     assert.equal(wiring.hooks, true); assert.equal(wiring.learn, true);
     assert.deepEqual(wiring.custom, []);
-    const refreshed = refreshWiring(dir, { cli: CLI, mcpEntry: opts(dir).mcpEntry, clients: [client] });
+    const refreshed = refreshWiring(dir, { cli: CLI, mcpEntry: same.mcpEntry, clients: [client] });
     assert.deepEqual(refreshed.changed, []);
     assert.deepEqual(refreshed.skipped, []);
     assert.ok(fs.readFileSync(path.join(dir, '.git/info/exclude'), 'utf8').includes(files[client]));
@@ -406,6 +417,24 @@ test('new clients install idempotently, refresh and uninstall only their entries
   assert.deepEqual(read(dir, files.windsurf).hooks.pre_user_prompt, [{ command: 'other' }]);
   for (const c of ['pi', 'opencode', 'copilot']) assert.equal(fs.existsSync(path.join(dir, files[c])), false);
   assert.equal(fs.existsSync(path.join(dir, '.windsurf/rules/thinker.md')), false);
+});
+
+test('Copilot gets thinker\'s MCP server in .github/mcp.json, kept out of git, read back and removed', () => {
+  const dir = repo();
+  fs.mkdirSync(path.join(dir, '.github'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.github/mcp.json'), JSON.stringify({ mcpServers: { other: { type: 'local', command: 'x', args: [], tools: ['*'] } } }));
+  const o = { ...opts(dir), mcpEntry: { command: 'node', args: [path.join(path.dirname(CLI), 'mcp.js')], env: { THINKER_REPO: dir } } };
+  installClient('copilot', o);
+  const servers = read(dir, '.github/mcp.json').mcpServers;
+  assert.deepEqual(servers.thinker, { type: 'local', command: 'node', args: o.mcpEntry.args, env: { THINKER_REPO: dir }, tools: ['*'] });
+  assert.ok(servers.other, 'another server stays');
+  assert.ok(fs.readFileSync(path.join(dir, '.git/info/exclude'), 'utf8').includes('.github/mcp.json'));
+  const w = inferWiring(dir, 'copilot');
+  assert.equal(w.mcp, true); assert.deepEqual(w.custom, []);
+  const refreshed = refreshWiring(dir, { cli: CLI, mcpEntry: o.mcpEntry, clients: ['copilot'] });
+  assert.deepEqual([refreshed.changed, refreshed.skipped], [[], []]);
+  uninstallClients(dir);
+  assert.deepEqual(Object.keys(read(dir, '.github/mcp.json').mcpServers), ['other']);
 });
 
 test('Windsurf records documented nested events without claiming to inject context', () => {
@@ -542,9 +571,9 @@ test('a hook at user scope takes the checkout from the agent\'s input: notes whe
   const plain = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-nogit-'));
   assert.equal(userHook('prompt', { session_id: 's2b', prompt: PROMPT, cwd: plain }), '');
   assert.ok(!fs.existsSync(path.join(plain, '.thinker')));
-  // Cursor names its workspace differently; its prompt-time bundle is parked in the checkout it names
-  execFileSync('node', [CLI, 'hook', 'prompt', '--client', 'cursor', '--user'], { input: JSON.stringify({ conversation_id: 's3', prompt: PROMPT, workspace_roots: [dir] }), encoding: 'utf8', env, cwd: os.tmpdir() });
-  assert.ok(fs.existsSync(path.join(dir, '.thinker', 'state', 'pending-s3.json')));
+  // Cursor names its workspace differently; its prompt-time bundle comes from the checkout it names
+  const cur = execFileSync('node', [CLI, 'hook', 'prompt', '--client', 'cursor', '--user'], { input: JSON.stringify({ conversation_id: 's3', prompt: PROMPT, workspace_roots: [dir] }), encoding: 'utf8', env, cwd: os.tmpdir() });
+  assert.ok(JSON.parse(cur).additional_context.includes('RateLimiter.allow'));
 
   // the checkout's own files run this copy's hooks (set up before the wiring went machine-wide): the
   // machine-local ones go, and the user is told once
@@ -683,4 +712,71 @@ test('a Codex MCP table whose thinker markers Codex dropped still counts as wire
   const toml = fs.readFileSync(file, 'utf8');
   assert.equal(toml.match(/\[mcp_servers\.thinker\]/g).length, 1, 'not added a second time');
   assert.ok(toml.includes('[features]'));
+});
+
+test('pi, OpenCode, Copilot and Windsurf are wired machine-wide: in the agents\' own files, read back, refreshed without change, removed', () => {
+  const home = { ...fakeHome(), XDG_CONFIG_HOME: '', COPILOT_HOME: '', PI_CODING_AGENT_DIR: '' };
+  inHome(home, () => {
+    const entry = { command: 'node', args: [path.join(path.dirname(CLI), 'mcp.js')] };
+    const o = { scope: 'user', cli: CLI, mcpEntry: entry, hooks: true, learn: true, late: false, mcp: true };
+    const at = (...p) => path.join(home.HOME, ...p);
+    fs.mkdirSync(at('.copilot'), { recursive: true });
+    fs.writeFileSync(at('.copilot', 'mcp-config.json'), JSON.stringify({ mcpServers: { other: { type: 'local', command: 'x', args: [], tools: ['*'] } } }));
+    for (const c of ['pi', 'opencode', 'copilot', 'windsurf']) installClient(c, o);
+    const pi = fs.readFileSync(at('.pi', 'agent', 'extensions', 'thinker.js'), 'utf8');
+    assert.match(pi, /"repo":null/, 'no checkout pinned: the session\'s directory at run time');
+    assert.match(fs.readFileSync(at('.config', 'opencode', 'plugins', 'thinker.js'), 'utf8'), /opencodePlugin/);
+    assert.match(fs.readFileSync(at('.config', 'opencode', 'AGENTS.md'), 'utf8'), /thinker:workflow:start/);
+    const copilot = JSON.parse(fs.readFileSync(at('.copilot', 'hooks', 'thinker.json'), 'utf8'));
+    assert.equal(copilot.version, 1);
+    assert.match(copilot.hooks.userPromptSubmitted[0].command, / hook prompt --client copilot --user --record$/);
+    const servers = JSON.parse(fs.readFileSync(at('.copilot', 'mcp-config.json'), 'utf8')).mcpServers;
+    assert.deepEqual(servers.thinker, { type: 'local', command: 'node', args: entry.args, env: {}, tools: ['*'] });
+    assert.ok(servers.other);
+    assert.match(fs.readFileSync(at('.copilot', 'copilot-instructions.md'), 'utf8'), /thinker:workflow:start/);
+    assert.match(JSON.parse(fs.readFileSync(at('.codeium', 'windsurf', 'hooks.json'), 'utf8')).hooks.pre_user_prompt[0].command, / --client windsurf --user/);
+    assert.match(fs.readFileSync(at('.codeium', 'windsurf', 'memories', 'global_rules.md'), 'utf8'), /thinker:workflow:start/);
+    for (const c of ['pi', 'opencode', 'copilot', 'windsurf']) {
+      const w = inferWiring(null, c, { scope: 'user' });
+      assert.ok(w && w.hooks && w.mcp && w.learn, c); assert.deepEqual(w.custom, [], c);
+      const r = refreshWiring(null, { scope: 'user', cli: CLI, mcpEntry: entry, clients: [c] });
+      assert.deepEqual([r.changed, r.skipped], [[], []], c);
+    }
+    uninstallWiring({ scope: 'user' });
+    for (const f of [['.pi', 'agent', 'extensions', 'thinker.js'], ['.config', 'opencode', 'plugins', 'thinker.js'], ['.copilot', 'hooks', 'thinker.json'], ['.codeium', 'windsurf', 'hooks.json']]) assert.ok(!fs.existsSync(at(...f)), f.join('/'));
+    assert.deepEqual(Object.keys(JSON.parse(fs.readFileSync(at('.copilot', 'mcp-config.json'), 'utf8')).mcpServers), ['other']);
+    for (const f of [['.copilot', 'copilot-instructions.md'], ['.config', 'opencode', 'AGENTS.md'], ['.codeium', 'windsurf', 'memories', 'global_rules.md']]) assert.doesNotMatch(fs.existsSync(at(...f)) ? fs.readFileSync(at(...f), 'utf8') : '', /thinker:workflow/, f.join('/'));
+  });
+});
+
+test('a checkout set up for pi or Copilot before goes over to the machine-wide wiring; a shared one stays', () => {
+  const dir = repo();
+  const same = { ...opts(dir), learn: true, mcpEntry: { command: 'node', args: [path.join(path.dirname(CLI), 'mcp.js')], env: { THINKER_REPO: dir } } };
+  for (const c of ['pi', 'copilot']) installClient(c, same);
+  assert.ok(fs.existsSync(path.join(dir, '.pi/extensions/thinker.js')) && fs.existsSync(path.join(dir, '.github/hooks/thinker.json')));
+  const moved = stripRepoWiring(dir, { cli: CLI, clients: ['pi', 'copilot'] });
+  assert.ok(moved.includes('.pi/extensions/thinker.js') && moved.includes('.github/hooks/thinker.json') && moved.includes('.github/mcp.json'), moved.join(', '));
+  assert.equal(inferWiring(dir, 'pi'), null); assert.equal(inferWiring(dir, 'copilot'), null);
+  const shared = repo();
+  installClient('pi', { ...same, repo: shared, shared: true });
+  assert.deepEqual(stripRepoWiring(shared, { cli: CLI, clients: ['pi'] }), []);
+  assert.ok(fs.existsSync(path.join(shared, '.pi/extensions/thinker.js')), 'a committed extension is the team\'s');
+});
+
+test('an update wires a detected pi, OpenCode, Copilot or Windsurf once, with the options of the other agents', () => {
+  const home = { ...fakeHome(), XDG_CONFIG_HOME: '', COPILOT_HOME: '', PI_CODING_AGENT_DIR: '' };
+  inHome(home, () => {
+    const thinker = path.join(home.HOME, '.thinker');
+    const entry = { command: 'node', args: [path.join(path.dirname(CLI), 'mcp.js')] };
+    installClient('claude', { scope: 'user', cli: CLI, mcpEntry: entry, hooks: true, learn: false, late: true, mcp: true });
+    assert.deepEqual(connectDetected({ cli: CLI, mcpEntry: entry, home: thinker, detected: ['claude', 'pi', 'copilot'] }), ['pi', 'copilot']);
+    const w = inferWiring(null, 'pi', { scope: 'user' });
+    assert.deepEqual([w.hooks, w.learn, w.late, w.mcp], [true, false, true, true], 'learning off and late notes on, as for Claude Code');
+    assert.ok(inferWiring(null, 'copilot', { scope: 'user' }));
+    assert.equal(inferWiring(null, 'opencode', { scope: 'user' }), null, 'not installed: not wired');
+    // taken out by the person: the next update leaves it out
+    uninstallWiring({ scope: 'user' });
+    assert.deepEqual(connectDetected({ cli: CLI, mcpEntry: entry, home: thinker, detected: ['claude', 'pi', 'copilot', 'opencode'] }), ['opencode']);
+    assert.equal(inferWiring(null, 'pi', { scope: 'user' }), null);
+  });
 });

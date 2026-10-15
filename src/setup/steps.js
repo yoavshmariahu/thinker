@@ -52,7 +52,7 @@ export async function stepConnectClis({ repo = null, cliPath, mcpEntry, userMcpE
       continue;
     }
 
-    // Pi, Windsurf, Copilot and OpenCode are wired into the checkout alone (an extension or rule file there)
+    // every client is machine-wide since 2026-10-15 (clients.js:USER_SCOPE_CLIENTS); kept for one added later
     if (!USER_SCOPE_CLIENTS.includes(client) && !repo) { results.push({ client, status: 'skipped', detail: 'wired per repository: run thinker setup inside one' }); continue; }
     try {
       const logs = USER_SCOPE_CLIENTS.includes(client)

@@ -24,8 +24,10 @@ export function ensureTelemetryScheduled({
   home = thinkerHome(), rootDir, force = false,
   schedule = scheduleTelemetry, testMode = isTestMode(), now = Date.now(),
 } = {}) {
-  // Tests may exercise the migration only with a fake scheduler; no OS jobs.
-  if ((testMode || isTestMode()) && schedule === scheduleTelemetry) return { skipped: 'test' };
+  // Tests may exercise the migration only with a fake scheduler; no OS jobs. A CLI a test spawns with
+  // THINKER_TEST=0 (to reach its loopback server) still inherits NODE_TEST_CONTEXT: a real job from it
+  // would outlive the test and send its temporary home's reports to the production endpoint every hour.
+  if ((testMode || isTestMode() || process.env.NODE_TEST_CONTEXT) && schedule === scheduleTelemetry) return { skipped: 'test' };
   if (testMode || process.env.THINKER_IN_LLM || !isTelemetryEnabled({ home })) return { skipped: 'disabled' };
   const state = telemetryScheduleState(home);
   if (state.disabled) return { skipped: 'unscheduled' };

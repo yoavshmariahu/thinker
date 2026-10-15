@@ -14,6 +14,7 @@ import { Store, findRepoRoot } from './store.js';
 import { getDeviceId } from './device.js';
 import { detectClients } from './clients.js';
 import { deliveryMetrics } from './delivery-telemetry.js';
+import { minedCount, WARM_MINED } from './repo-onboard.js';
 
 export const HOUR_MS = 60 * 60 * 1000;
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -174,6 +175,41 @@ export function verificationMetrics(store, { all = true } = {}) {
     passFlaggedLater: u.verifyChecks.flaggedAfterPass, passWhileFlagged: u.verifyChecks.passedWhileFlagged,
   };
 }
+// Warm-ups over the last 30 days: the offers the hooks made (repo-onboard.js:warmupOffer, to an empty cache or to
+// a cold one that holds notes from sessions), the repositories offered whose warm-up then started, and the builds
+// that started, finished or failed (commands/setup.js logs each asked-for build). A start with neither end is a
+// build that was stopped or is still running. The answers to the offer (repo-onboard.js:answerWarmup): each
+// choice, those given in a picker rather than in chat, the pickers closed without one, and the warm answers
+// whose warm-up could not start (no signed-in agent). And whether the
+// repositories in use in the report's day are warm (WARM_MINED merged changes read) or cold now. Counts only, no repository names.
+export function warmupMetrics(store, { all = true, now = Date.now(), repos = null } = {}) {
+  const since = new Date(now - HOLDOUT_WINDOW_DAYS * DAY_MS).toISOString();
+  const events = readLog(store, { all }).filter(e => e.t >= since);
+  const offered = new Set(), accepted = new Set();
+  const m = { offers: 0, offersToColdCaches: 0, started: 0, finished: 0, failed: 0, answeredWarm: 0, answeredNo: 0, answeredNever: 0, answersDismissed: 0, answersInPicker: 0, answeredWarmNotStarted: 0 };
+  for (const e of events) {
+    if (e.op === 'warmup-offer') { m.offers++; if (e.notes) m.offersToColdCaches++; offered.add(e.origin); }
+    else if (e.op === 'warmup-start') { m.started++; if (offered.has(e.origin)) accepted.add(e.origin); }
+    else if (e.op === 'warmup-done') { if (e.ok) m.finished++; else m.failed++; }
+    else if (e.op === 'warmup-answer') {
+      const k = { warm: 'answeredWarm', no: 'answeredNo', never: 'answeredNever', dismissed: 'answersDismissed' }[e.choice];
+      if (k) m[k]++;
+      if (e.via === 'picker' && e.choice !== 'dismissed') m.answersInPicker++;
+      if (e.choice === 'warm' && e.started === false) m.answeredWarmNotStarted++;
+    }
+  }
+  const active = { warm: 0, cold: 0 };
+  for (const r of (repos || summarize(store, { days: 1, all }).repos || []).filter(r => r.requests > 0)) {
+    const checkout = (r.checkouts || []).find(c => { try { return new Store(c, { readonly: true }).exists(); } catch { return false; } });
+    if (!checkout) continue;
+    try { active[minedCount(new Store(checkout, { readonly: true })) >= WARM_MINED ? 'warm' : 'cold']++; } catch {}
+  }
+  return {
+    schemaVersion: 1, windowDays: HOLDOUT_WINDOW_DAYS, warmMined: WARM_MINED,
+    ...m, offeredRepositories: offered.size, offeredThenStarted: accepted.size,
+    activeRepositoriesWarm: active.warm, activeRepositoriesCold: active.cold,
+  };
+}
 export function holdoutMetrics(store, { all = true, now = Date.now() } = {}) {
   const since = new Date(now - HOLDOUT_WINDOW_DAYS * DAY_MS).toISOString();
   const events = readLog(store, { all }).filter(e => e.t >= since);
@@ -190,6 +226,8 @@ export function holdoutMetrics(store, { all = true, now = Date.now() } = {}) {
     schemaVersion: 2, unit: 'prompt', windowDays: HOLDOUT_WINDOW_DAYS,
     ...pair(h), noNotes: h.noNotes, unmeasured: h.unmeasured,
     byModel: Object.fromEntries(Object.entries(h.byModel).map(([m, g]) => [m, pair(g)])),
+    // keyed `client|model` (usage.js:normalizeClient), the dashboard splits it into harness and model
+    byClientModel: Object.fromEntries(Object.entries(h.byClientModel).map(([m, g]) => [m, pair(g)])),
   };
 }
 
@@ -234,6 +272,9 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
 
     // Re-verification verdicts and the passes later doubted, 30 days (verificationMetrics).
     verification: verificationMetrics(store, { all }),
+
+    // Warm-up offers, starts and ends, 30 days; the repositories in use today, warm or cold (warmupMetrics).
+    warmup: warmupMetrics(store, { all, repos: u.repos }),
 
     // Explicit coverage keeps old logs and unsupported provider costs unknown.
     // SQL dashboards read this versioned block from reports.raw_json.
@@ -378,6 +419,37 @@ export async function sendTelemetry({
     } catch {}
 
     return { sent: true, status: res.status, key: result.key, payload };
+  } catch (err) {
+    return { sent: false, error: err.message };
+  }
+}
+
+// The reason someone gives when uninstalling, sent only when they typed one. It goes to the endpoint the
+// website's contact form uses (`/messages`, next to `/metrics`) with the version, platform and install id, nothing else.
+export function messagesEndpoint(endpoint) {
+  const url = new URL(endpoint);
+  url.pathname = url.pathname.replace(/[^/]*$/, 'messages');
+  return url.toString();
+}
+
+export async function sendUninstallFeedback(message, {
+  home = thinkerHome(),
+  endpoint = messagesEndpoint(getTelemetryEndpoint({ home })),
+  fetchFn = globalThis.fetch,
+} = {}) {
+  const text = String(message || '').trim().slice(0, 4000);
+  if (!text) return { sent: false, reason: 'empty' };
+  if (fetchFn === globalThis.fetch && isTestTelemetryBlocked(endpoint)) return { sent: false, reason: 'test_environment' };
+  let version = 'unknown';
+  try { version = JSON.parse(fs.readFileSync(path.resolve(HERE, '..', 'package.json'), 'utf8')).version || 'unknown'; } catch {}
+  const body = { id: crypto.randomUUID(), message: `${text}\n\n(thinker ${version}, install ${getInstallId(home)}, ${process.platform})`, page: '/cli/uninstall' };
+  try {
+    const res = await fetchFn(endpoint, {
+      method: 'POST', redirect: 'error',
+      headers: { 'Content-Type': 'application/json', 'User-Agent': 'thinker-cli' },
+      body: JSON.stringify(body), signal: AbortSignal.timeout(10_000),
+    });
+    return res.ok ? { sent: true, status: res.status } : { sent: false, status: res.status, error: `HTTP ${res.status}` };
   } catch (err) {
     return { sent: false, error: err.message };
   }

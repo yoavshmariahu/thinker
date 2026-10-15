@@ -6,6 +6,7 @@ import os from 'node:os';
 import http from 'node:http';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
+import { telemetryScheduleState } from '../src/telemetry-schedule.js';
 import {
   isTelemetryEnabled,
   isTestTelemetryBlocked,
@@ -343,6 +344,8 @@ test('cli setup sends installation telemetry in background', async () => {
     assert.equal(received[0].event, 'install');
     assert.equal(received[0].cacheSize.totalNotes, 1);
     assert.equal(received[0].cacheSize.repositoriesCount, 1);
+    // a CLI spawned by a test never leaves a real hourly job behind (it would report to production)
+    assert.equal(telemetryScheduleState(tmpHome).type, undefined);
     assert.ok(received[0].installId);
   } finally {
     server.close();
@@ -640,6 +643,34 @@ test('telemetry payload carries re-verification verdicts and doubted passes as 3
     const payload = buildTelemetryPayload(store, { home: tmpHome, days: 1, all: false });
     assert.deepEqual(payload.verification, { schemaVersion: 1, windowDays: 30, stillValid: 2, updated: 1, retired: 1, passFlaggedLater: 1, passWhileFlagged: 1 });
     assert.doesNotMatch(JSON.stringify(payload.verification), /n1|n2|n3/, 'counts only, no note ids');
+  } finally {
+    fs.rmSync(tmpRepo, { recursive: true, force: true });
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  }
+});
+
+test('telemetry payload carries warm-up offers, the builds they led to, and whether the repositories in use are warm', () => {
+  const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-warmup-repo-'));
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-warmup-home-'));
+  try {
+    const store = new Store(tmpRepo).init();
+    store.log({ op: 'orient', session: 's1', client: 'claude', task: 'where are rows read', served: [] });
+    store.log({ op: 'warmup-offer', client: 'claude', source: 'git', seconds: 60, notes: 3 });
+    store.log({ op: 'warmup-answer', choice: 'warm', client: 'claude', via: 'picker' });
+    store.log({ op: 'warmup-answer', choice: 'never', client: 'pi', via: 'text' });
+    store.log({ op: 'warmup-answer', choice: 'dismissed', client: 'codex', via: 'picker' });
+    store.log({ op: 'warmup-start', source: 'git' });
+    store.log({ op: 'warmup-done', ok: false, notes: 3, mined: 0 });
+    store.log({ op: 'warmup-start', source: 'git' });
+    let payload = buildTelemetryPayload(store, { home: tmpHome, days: 1, all: false });
+    assert.deepEqual(payload.warmup, { schemaVersion: 1, windowDays: 30, warmMined: 10, offers: 1, offersToColdCaches: 1, started: 2, finished: 0, failed: 1, answeredWarm: 1, answeredNo: 0, answeredNever: 1, answersDismissed: 1, answersInPicker: 1, answeredWarmNotStarted: 0, offeredRepositories: 1, offeredThenStarted: 1, activeRepositoriesWarm: 0, activeRepositoriesCold: 1 });
+    // the second build finishes, having read its history: the repository in use is warm now
+    fs.writeFileSync(path.join(store.dir, 'prs.json'), JSON.stringify({ local: { mined: Array.from({ length: 10 }, (_, i) => `c${i}`) } }));
+    store.log({ op: 'warmup-done', ok: true, notes: 40, mined: 10 });
+    payload = buildTelemetryPayload(store, { home: tmpHome, days: 1, all: false });
+    assert.equal(payload.warmup.finished, 1);
+    assert.deepEqual([payload.warmup.activeRepositoriesWarm, payload.warmup.activeRepositoriesCold], [1, 0]);
+    assert.doesNotMatch(JSON.stringify(payload.warmup), new RegExp(path.basename(tmpRepo)), 'counts only, no repository names');
   } finally {
     fs.rmSync(tmpRepo, { recursive: true, force: true });
     fs.rmSync(tmpHome, { recursive: true, force: true });

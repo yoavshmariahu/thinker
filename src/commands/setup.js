@@ -6,15 +6,17 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { initAst, astDirs, GRAMMAR_NAMES } from '../ast.js';
-import { parseClients, uninstallClients, uninstallWiring, refreshWiring, connectFromCheckouts } from '../clients.js';
+import { parseClients, uninstallClients, uninstallWiring, refreshWiring, connectFromCheckouts, connectDetected } from '../clients.js';
 import { uninstallGitHooks } from '../git-hooks.js';
 import { runSetup, stepConnectClis } from '../setup.js';
-import { unscheduleTelemetry } from '../telemetry.js';
+import { unscheduleTelemetry, sendUninstallFeedback, sendTelemetry } from '../telemetry.js';
+import readlinePromises from 'node:readline/promises';
 import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, unscheduleDaily, isScheduled, getLaunchAgentPath } from '../update.js';
 import { githubSlug } from './shared.js';
 import { minePrs } from './learn.js';
 import { readLog } from '../usage.js';
 import { isTestMode } from '../test-mode.js';
+import { minedCount } from '../repo-onboard.js';
 
 async function initCommand(ctx) {
   // `init` and `setup` were two ways to set a repository up, and the difference was never clear.
@@ -45,6 +47,7 @@ async function connectCommand(ctx) {
 
 async function uninstallCommand(ctx) {
   const { flags, repo, store, out } = ctx;
+  await reportUninstall(ctx);
   // remove hooks, MCP registration and scheduled daily updates; notes stay unless --purge
   unscheduleDaily({ home: thinkerHome() });
   unscheduleTelemetry({ home: thinkerHome() });
@@ -54,7 +57,29 @@ async function uninstallCommand(ctx) {
   // --user: the machine-wide wiring in the agents' own settings goes too
   if (flags.user) uninstallWiring({ scope: 'user' });
   out(`removed thinker hooks and MCP registration from ${repo}${flags.user ? ' and from your own agent settings' : ''}${flags.purge ? ' and deleted .thinker/' : ' (notes kept in .thinker/)'}`);
-  return;
+  await askUninstallFeedback(ctx);
+}
+
+// One telemetry report tagged `uninstall`, so uninstalls are counted rather than inferred from installs that go
+// quiet. It is the hourly report's usual pseudonymous shape, sent before the store can be purged and only
+// when telemetry is on; a failed send never blocks the uninstall.
+export async function reportUninstall({ flags, store }, { sendFn = sendTelemetry } = {}) {
+  if (flags.dry) return;
+  try { await sendFn({ home: thinkerHome(), store, event: 'uninstall', force: true }); } catch {}
+}
+
+// One optional question after an uninstall in a terminal: why. Enter skips it, and nothing is sent unless
+// something was typed (telemetry being off does not stop a reason the person chose to send).
+export async function askUninstallFeedback({ flags, out }, { stdin = process.stdin, stdout = process.stdout, sendFn = sendUninstallFeedback } = {}) {
+  if (flags.yes || flags.quiet || flags.json || flags.dry || !stdin.isTTY) return;
+  const rl = readlinePromises.createInterface({ input: stdin, output: stdout });
+  let reason = '';
+  try { reason = (await rl.question('\n  Why are you uninstalling thinker? Optional, sent to its developer with the version, platform and install id; Enter skips.\n  > ')).trim(); }
+  catch { return; }
+  finally { rl.close(); }
+  if (!reason) return;
+  const r = await sendFn(reason);
+  out(r.sent ? '  Thank you, that was sent.' : `  It could not be sent${r.error ? ` (${r.error})` : ''}; you can open an issue at https://github.com/yoavshmariahu/thinker/issues instead.`);
 }
 
 // thinker ranker [status|fetch]: the cross-encoder the hooks rank with (dense.js). The installer, `thinker update`
@@ -144,6 +169,12 @@ async function rewireCommand(ctx) {
       summary.connected = connectFromCheckouts(repos, { cli, mcpEntry: ctx.userMcpEntry(), dry }).map(c => c.client);
       if (summary.connected.length && !dry) store.log({ op: 'connect', clients: summary.connected, from: 'rewire' });
       if (summary.connected.length && !quiet) out(`your settings: ${dry ? 'would wire' : 'wired'} thinker in for ${summary.connected.join(', ')}; the checkouts switch to it on their next prompt`);
+    } catch (e) { if (!quiet) out(`your settings: ${e.message}`); }
+    // pi, OpenCode, Copilot and Windsurf, machine-wide since 2026-10-15: installed here but never set up in a checkout
+    try {
+      const wired = connectDetected({ cli, mcpEntry: ctx.userMcpEntry(), home: thinkerHome(), learn: !ctx.NO_LEARN, dry });
+      if (wired.length) { summary.connected = [...(summary.connected || []), ...wired]; if (!dry) store.log({ op: 'connect', clients: wired, from: 'detected' }); }
+      if (wired.length && !quiet) out(`your settings: ${dry ? 'would wire' : 'wired'} thinker in for ${wired.join(', ')}, in every repository`);
     } catch (e) { if (!quiet) out(`your settings: ${e.message}`); }
   }
   if (flags.json) { out(JSON.stringify(summary)); return; }
@@ -334,7 +365,11 @@ export async function setup(ctx) {
   const askedToBuild = Boolean(flags.build) || Boolean(depth) || flags.prs !== undefined;
   const build = flags['no-build'] || flags['no-prs'] ? false : (askedToBuild ? true : null);
 
-  await runSetup({
+  // a build asked for (the warm-up command and the warm-up page run exactly this) is logged as it starts and
+  // as it ends, for the warm-up telemetry (telemetry.js:warmupMetrics): a start with no end did not finish
+  if (build) store.log({ op: 'warmup-start', depth: depth || undefined, source: slug ? 'github' : 'git' });
+  const ended = ok => { if (build) { let notes = null, mined = null; try { notes = store.list().length; mined = minedCount(store); } catch {} store.log({ op: 'warmup-done', ok, notes, mined }); } };
+  try { await runSetup({
     repo,
     store,
     cliPath: path.join(HERE, 'cli.js'),
@@ -366,7 +401,8 @@ export async function setup(ctx) {
     // the local page opens after a repository's first setup, except under tests (a bare `node --test` sets only
     // NODE_TEST_CONTEXT), thinker's own model runs, CI, and --no-ui
     dashboard: !flags['no-ui'] && !isTestMode() && !process.env.NODE_TEST_CONTEXT && !process.env.THINKER_IN_LLM && !process.env.CI,
-  });
+  }); } catch (e) { ended(false); throw e; }
+  ended(!process.exitCode);
 }
 
 export const commands = {

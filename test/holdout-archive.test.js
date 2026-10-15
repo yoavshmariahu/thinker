@@ -182,15 +182,17 @@ test('telemetry carries the holdout as sums and prompt counts per side over 30 d
   const store = new Store(gitRepo()).init();
   createNote(store, { title: 'fetchRows reads the rows table', kind: 'callpath', answers: ['how are rows fetched'], body: 'src/a.js:fetchRows reads the rows table', deps: [{ path: 'src/a.js', symbol: 'fetchRows' }] });
   for (const [session, holdout] of [['a', false], ['b', true], ['c', false]]) await orient(store, { task: 'how are rows fetched by fetchRows', session, client: 'claude', holdout, turn: 1 });
-  store.log({ op: 'session', session: 'a', turn: 1, model: 'm', toolCalls: 3, inputTokens: 1000, outputTokens: 10, turns: 2 });
-  store.log({ op: 'session', session: 'b', turn: 1, model: 'm', toolCalls: 6, inputTokens: 3000, outputTokens: 30, turns: 4 });
-  store.log({ op: 'session', session: 'c', turn: 1, model: 'n', toolCalls: 5, inputTokens: null, outputTokens: null, turns: 1 }); // a transcript without usage
+  store.log({ op: 'session', session: 'a', turn: 1, client: 'claude', model: 'm', toolCalls: 3, inputTokens: 1000, outputTokens: 10, turns: 2 });
+  store.log({ op: 'session', session: 'b', turn: 1, client: 'claude', model: 'm', toolCalls: 6, inputTokens: 3000, outputTokens: 30, turns: 4 });
+  store.log({ op: 'session', session: 'c', turn: 1, client: 'copilot', model: 'n', toolCalls: 5, inputTokens: null, outputTokens: null, turns: 1 }); // a transcript without usage
   const h = holdoutMetrics(store, { all: false });
   assert.equal(h.schemaVersion, 2); assert.equal(h.unit, 'prompt'); assert.equal(h.windowDays, 30);
   assert.deepEqual(h.served, { prompts: 2, sessions: 2, corrected: 0, sums: { toolCalls: 8, turns: 3, inputTokens: 1000, outputTokens: 10 }, measured: { toolCalls: 2, turns: 2, inputTokens: 1, outputTokens: 1 } });
   assert.deepEqual(h.heldOut, { prompts: 1, sessions: 1, corrected: 0, sums: { toolCalls: 6, turns: 4, inputTokens: 3000, outputTokens: 30 }, measured: { toolCalls: 1, turns: 1, inputTokens: 1, outputTokens: 1 } });
   assert.deepEqual(Object.keys(h.byModel).sort(), ['m', 'n']);
   assert.equal(h.byModel.m.heldOut.sums.inputTokens, 3000); assert.equal(h.byModel.n.served.measured.inputTokens, 0);
+  assert.deepEqual(Object.keys(h.byClientModel).sort(), ['claude|m', 'copilot|n'], 'harness and model together');
+  assert.equal(h.byClientModel['claude|m'].served.prompts, 1); assert.equal(h.byClientModel['claude|m'].heldOut.prompts, 1);
   // numbers and model names only
   assert.doesNotMatch(JSON.stringify(h), /fetchRows|thinker-holdout-|"a"|"b"/);
   assert.deepEqual(buildTelemetryPayload(store, { all: false, home: path.join(store.repo, 'home') }).holdout, h);

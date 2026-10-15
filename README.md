@@ -60,7 +60,9 @@ thinker uninstall --user --purge   # inside a repository: its hooks, MCP registr
 rm -rf ~/.thinker                  # the app, the ranking model and the usage log
 ```
 
-Then drop the `PATH` line the installer added to your shell startup file. To keep
+In a terminal, `thinker uninstall` then asks, optionally, why you are uninstalling; Enter skips it
+(`--yes` does too), and nothing is sent unless you type a reason. Then drop the `PATH` line the
+installer added to your shell startup file. To keep
 thinker but switch it off for one repository with sensitive content, run `thinker disable` there.
 
 ## How it works
