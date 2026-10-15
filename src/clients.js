@@ -216,6 +216,10 @@ const GENERATED_MARK = '// thinker integration: ';
 // file): nothing of theirs is machine-wide, so they take no part in scope `user` below.
 const HOOK_FILES = { windsurf: ['.windsurf/hooks.json', '.devin/hooks.json'], copilot: ['.github/hooks/thinker.json'] };
 const RULE_FILES = { windsurf: ['.windsurf/rules/thinker.md', '.devin/rules/thinker.md'], copilot: ['.github/instructions/thinker.instructions.md'] };
+// Copilot CLI reads an MCP server from the checkout's .github/mcp.json (once the folder is trusted), as
+// it reads its hooks from .github/hooks: thinker's server goes there, pinned to the checkout, kept out
+// of git status as the hooks are. Until 2026-10-15 setup only said "/mcp add" and Copilot had no tools.
+const MCP_FILES = { copilot: '.github/mcp.json' };
 export const USER_SCOPE_CLIENTS = ['claude', 'codex', 'cursor', 'gemini'];
 
 // --- where each client reads its wiring ----------------------------------------------------------
@@ -269,7 +273,7 @@ function jsonWiring(client, o) {
 }
 const allWiring = (o, clients = CLIENTS) => [...new Set(clients.flatMap(c => {
   const f = wiringFiles(c, o);
-  const extra = o.scope === 'repo' ? [...(EXTENSIONS[c] ? [EXTENSIONS[c]] : []), ...(HOOK_FILES[c] || []), ...(RULE_FILES[c] || [])].map(x => path.join(o.repo, x)) : [];
+  const extra = o.scope === 'repo' ? [...(EXTENSIONS[c] ? [EXTENSIONS[c]] : []), ...(HOOK_FILES[c] || []), ...(RULE_FILES[c] || []), ...(MCP_FILES[c] ? [MCP_FILES[c]] : [])].map(x => path.join(o.repo, x)) : [];
   return [...instructionFiles(c, o), ...jsonWiring(c, o).map(e => e.file), ...(c === 'codex' ? [f.toml] : []), ...(c === 'cursor' && f.rule ? [f.rule] : []), ...extra];
 }))];
 // how a file is named to the user: relative to the checkout, or under ~
@@ -387,6 +391,8 @@ export function inferWiring(repo, client, { scope = 'repo' } = {}) {
     w.shared = HOOK_FILES[client].every(f => !excludedLocally(repo, f));
     // Windsurf's always-on CLI rule is the retrieval route (no global MCP mutation).
     w.mcp = RULE_FILES[client].some(f => readText(path.join(repo, f)).includes('<!-- thinker -->'));
+    const server = MCP_FILES[client] && readJsonOr(path.join(repo, MCP_FILES[client]), {}).mcpServers?.thinker;
+    if (server) { w.mcp = true; const sc = mcpScript(server); if (sc) scripts.add(sc); }
     if (w.mcp && !scripts.size) custom.push('rule-only integration; rerun setup to refresh');
   }
   if (!w.hooks && !w.mcp) return null;
@@ -716,7 +722,12 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
       generated.push(file);
       done.push(`${client}: CLI retrieval guidance in ${file}; no global MCP configuration changed`);
     }
-    if (client === 'copilot' && mcp) done.push('Copilot: automatic context via hooks; optional MCP can be added with /mcp add (user-level configuration)');
+    if (client === 'copilot' && mcp) {
+      const file = MCP_FILES.copilot;
+      mergeJson(path.join(repo, file), c => ({ ...c, mcpServers: { ...(c.mcpServers || {}), thinker: { type: 'local', command: mcpEntry.command, args: mcpEntry.args, env: mcpEntry.env || {}, tools: ['*'] } } }));
+      generated.push(file);
+      done.push(`Copilot: registered MCP server in ${file} (Copilot loads it once the folder is trusted)`);
+    }
     if (!shared) excludeLocally(repo, generated);
   }
 
@@ -869,7 +880,7 @@ export function uninstallWiring({ scope = 'repo', repo } = {}) {
   const stripHooks = (file, keepVersion) => file && stripThinkerHooks(file, { keepVersion, mcp: true });
   for (const f of [claude.local, claude.shared, codex.hooks, gemini.settings]) stripHooks(f);
   stripHooks(cursor.hooks, true);
-  for (const file of [claude.mcp, cursor.mcp]) {
+  for (const file of [claude.mcp, cursor.mcp, ...(scope === 'repo' ? [path.join(repo, MCP_FILES.copilot)] : [])]) {
     if (!fs.existsSync(file)) continue;
     mergeJson(file, c => { const m = { ...(c.mcpServers || {}) }; delete m.thinker; return { ...c, mcpServers: m }; });
     const left = JSON.parse(fs.readFileSync(file, 'utf8'));

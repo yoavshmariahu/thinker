@@ -29,6 +29,26 @@ test('Pi native handlers preserve results and capture prompt, tools, answer and 
   assert.equal(calls[3].event.hook_event_name, 'SessionEnd');
 });
 
+test('pi shows the warm-up offer in its own picker before the agent starts, and hands the answer to thinker', async () => {
+  const offer = '<thinker-new-repository>\ncold cache; ask the user\n</thinker-new-repository>';
+  const run = async what => what === 'prompt' ? `${offer}\n\n<thinker-cache>notes</thinker-cache>` : '';
+  for (const [pick, want] of [[0, 'warm'], [2, 'never'], [undefined, 'dismissed']]) {
+    const handlers = {}, answered = [], shown = [];
+    piExtension({ on: (event, handler) => { handlers[event] = handler; } }, config, run, async choice => { answered.push(choice); return 'Recorded.'; });
+    const ctx = { hasUI: true, sessionManager: { getSessionId: () => 's' }, ui: { select: async (title, options) => { shown.push({ title, options }); return pick === undefined ? undefined : options[pick]; }, notify: () => {} } };
+    const r = await handlers.before_agent_start({ prompt: 'task' }, ctx);
+    assert.equal(shown[0].options.length, 3); assert.match(shown[0].options[0], /^Warm up cache/); assert.match(shown[0].options[2], /^Don't ask again/);
+    assert.deepEqual(answered, [want]);
+    assert.doesNotMatch(r.message.content, /thinker-new-repository/, 'the agent is not asked as well');
+    assert.match(r.message.content, /notes/);
+  }
+  // print mode: no UI, the offer stays for the agent
+  const handlers = {};
+  piExtension({ on: (event, handler) => { handlers[event] = handler; } }, config, run, async () => { throw new Error('not asked'); });
+  const r = await handlers.before_agent_start({ prompt: 'task' }, { hasUI: false, sessionManager: { getSessionId: () => 's' } });
+  assert.match(r.message.content, /thinker-new-repository/);
+});
+
 test('OpenCode plugin handles concurrent session IDs and augments native context/MCP', async () => {
   const calls = [];
   const handlers = await opencodePlugin({ ...config, client: 'opencode' }, async (what, event) => { calls.push({ what, event }); return 'notes'; })();

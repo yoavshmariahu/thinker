@@ -18,3 +18,12 @@ export function hookRunner(config) {
 export function guidance(config) {
   return agentWorkflow({ ...config, mcp: false });
 }
+
+// The person's answer to the warm-up offer, from the extension's own picker (pi.js): thinker records it
+// and, on warm, starts the warm-up. Resolves to what thinker says, or '' when it could not run.
+export function warmupAnswer(config, choice) {
+  return new Promise(resolve => {
+    const args = [config.cli, 'warmup', '--answer', choice, '--via', 'picker', '--client', config.client, '--repos', config.repo];
+    execFile('node', args, { cwd: config.repo, timeout: 15000, env: process.env }, (err, stdout) => resolve(err ? '' : stdout.trim()));
+  });
+}

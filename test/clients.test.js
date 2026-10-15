@@ -389,15 +389,17 @@ test('new clients install idempotently, refresh and uninstall only their entries
   fs.mkdirSync(path.join(dir, '.windsurf'), { recursive: true });
   fs.writeFileSync(path.join(dir, '.windsurf/hooks.json'), JSON.stringify({ hooks: { pre_user_prompt: [{ command: 'other' }] } }));
   const files = { pi: '.pi/extensions/thinker.js', opencode: '.opencode/plugins/thinker.js', windsurf: '.windsurf/hooks.json', copilot: '.github/hooks/thinker.json' };
+  // the MCP entry of this copy, as a real install writes it (Copilot's is read back from .github/mcp.json)
+  const same = { ...opts(dir), learn: true, mcpEntry: { command: 'node', args: [path.join(path.dirname(CLI), 'mcp.js')], env: { THINKER_REPO: dir } } };
   for (const client of Object.keys(files)) {
-    installClient(client, { ...opts(dir), learn: true });
+    installClient(client, same);
     const before = fs.readFileSync(path.join(dir, files[client]), 'utf8');
-    installClient(client, { ...opts(dir), learn: true });
+    installClient(client, same);
     assert.equal(fs.readFileSync(path.join(dir, files[client]), 'utf8'), before);
     const wiring = inferWiring(dir, client);
     assert.equal(wiring.hooks, true); assert.equal(wiring.learn, true);
     assert.deepEqual(wiring.custom, []);
-    const refreshed = refreshWiring(dir, { cli: CLI, mcpEntry: opts(dir).mcpEntry, clients: [client] });
+    const refreshed = refreshWiring(dir, { cli: CLI, mcpEntry: same.mcpEntry, clients: [client] });
     assert.deepEqual(refreshed.changed, []);
     assert.deepEqual(refreshed.skipped, []);
     assert.ok(fs.readFileSync(path.join(dir, '.git/info/exclude'), 'utf8').includes(files[client]));
@@ -406,6 +408,24 @@ test('new clients install idempotently, refresh and uninstall only their entries
   assert.deepEqual(read(dir, files.windsurf).hooks.pre_user_prompt, [{ command: 'other' }]);
   for (const c of ['pi', 'opencode', 'copilot']) assert.equal(fs.existsSync(path.join(dir, files[c])), false);
   assert.equal(fs.existsSync(path.join(dir, '.windsurf/rules/thinker.md')), false);
+});
+
+test('Copilot gets thinker\'s MCP server in .github/mcp.json, kept out of git, read back and removed', () => {
+  const dir = repo();
+  fs.mkdirSync(path.join(dir, '.github'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.github/mcp.json'), JSON.stringify({ mcpServers: { other: { type: 'local', command: 'x', args: [], tools: ['*'] } } }));
+  const o = { ...opts(dir), mcpEntry: { command: 'node', args: [path.join(path.dirname(CLI), 'mcp.js')], env: { THINKER_REPO: dir } } };
+  installClient('copilot', o);
+  const servers = read(dir, '.github/mcp.json').mcpServers;
+  assert.deepEqual(servers.thinker, { type: 'local', command: 'node', args: o.mcpEntry.args, env: { THINKER_REPO: dir }, tools: ['*'] });
+  assert.ok(servers.other, 'another server stays');
+  assert.ok(fs.readFileSync(path.join(dir, '.git/info/exclude'), 'utf8').includes('.github/mcp.json'));
+  const w = inferWiring(dir, 'copilot');
+  assert.equal(w.mcp, true); assert.deepEqual(w.custom, []);
+  const refreshed = refreshWiring(dir, { cli: CLI, mcpEntry: o.mcpEntry, clients: ['copilot'] });
+  assert.deepEqual([refreshed.changed, refreshed.skipped], [[], []]);
+  uninstallClients(dir);
+  assert.deepEqual(Object.keys(read(dir, '.github/mcp.json').mcpServers), ['other']);
 });
 
 test('Windsurf records documented nested events without claiming to inject context', () => {

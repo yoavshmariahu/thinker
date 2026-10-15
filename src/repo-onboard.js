@@ -21,6 +21,8 @@ import { estimateCacheBuild, DEFAULT_PRS } from './setup/estimate.js';
 import { githubSlug } from './setup/agents.js';
 import { formatDuration } from './setup/ui.js';
 import { isTestMode } from './test-mode.js';
+import { WARMUP_CHOICES } from './warmup-choices.js';
+export { WARMUP_CHOICES };
 
 const mark = (store, name) => path.join(store.dir, 'state', name);
 // true the first time a mark is set
@@ -110,21 +112,16 @@ function markOffered(store, est, { client, home } = {}) {
   return true;
 }
 
-// The three answers, as the person sees them and as `answerWarmup` takes them.
-export const WARMUP_CHOICES = [
-  { value: 'warm', label: 'Warm up cache', description: 'read the repository\'s history into the cache in the background' },
-  { value: 'no', label: 'No', description: 'not for this repository' },
-  { value: 'never', label: 'Don\'t ask again', description: 'no warm-up offers in any repository' },
-];
 // Each agent's own multiple-choice tool (2026-10-15: AskUserQuestion in Claude Code, ask_user in the Gemini
 // and Copilot CLIs, AskQuestion in Cursor, question in opencode). Codex has request_user_input, but outside
 // plan mode it is behind a feature that is off (default_mode_request_user_input), so Codex gets thinker's
-// MCP tool, which asks through elicitation. pi has none: it asks in chat.
+// MCP tool, which asks through elicitation. pi has none: its extension shows the choices itself
+// (integrations/pi.js), and without a UI the agent asks in chat.
 export const QUESTION_TOOLS = { claude: 'AskUserQuestion', gemini: 'ask_user', copilot: 'ask_user', cursor: 'AskQuestion', opencode: 'question' };
 // The answer goes back through thinker's `warmup` MCP tool where the agent has thinker's server (it took
 // the answer where the shell did not find `thinker`, 2026-10-15), else through the command line, named by
 // path: `thinker` is on the PATH of the person's own shells, not always of the agent's.
-const MCP_CLIENTS = new Set(['claude', 'codex', 'gemini', 'cursor', 'opencode']);
+const MCP_CLIENTS = new Set(['claude', 'codex', 'gemini', 'cursor', 'opencode', 'copilot']); // Copilot's in .github/mcp.json (clients.js:MCP_FILES)
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), 'cli.js');
 const answerCommand = (repo, via, client) => `"${process.execPath}" "${CLI}" warmup --answer <warm|no|never> --via ${via}${client ? ` --client ${client}` : ''} --repos "${repo}"`;
 function askText(client, repo, duration) {

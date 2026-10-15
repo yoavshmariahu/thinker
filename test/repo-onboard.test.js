@@ -103,7 +103,7 @@ test('Cursor gets its always-on rule, kept out of git status', () => {
   assert.deepEqual(ops(dir).find(e => e.op === 'repo-setup').done, ['git hooks', 'cursor rule']);
 });
 
-test('each agent is told to ask with its own question tool; Codex calls thinker\'s picker; pi asks in chat', () => {
+test('each agent is told to ask with its own question tool; Codex calls thinker\'s picker; pi without a UI asks in chat', () => {
   const asked = {};
   for (const client of ['gemini', 'cursor', 'copilot', 'opencode', 'codex', 'pi']) {
     const dir = gitRepo(8);
@@ -119,7 +119,7 @@ test('each agent is told to ask with its own question tool; Codex calls thinker\
   assert.match(asked.pi, /ask the user in chat with these three numbered choices/);
   assert.match(asked.pi, /--via text --client pi/);
   assert.doesNotMatch(asked.pi, /`warmup` tool/, 'pi has no MCP: the command line only');
-  assert.doesNotMatch(asked.copilot, /`warmup` tool/, 'nor Copilot');
+  assert.match(asked.copilot, /`warmup` tool with choice/, 'Copilot has thinker\'s server in .github/mcp.json');
   assert.match(asked.gemini, /`warmup` tool with choice/);
 });
 
