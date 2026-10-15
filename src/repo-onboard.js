@@ -4,8 +4,14 @@
 // reading and the cache has not read it yet, the agent is told once to offer the person a warm-up, with
 // the command to run on a yes (`warmupOffer`). Once means once per repository on this machine, not per
 // clone or worktree, and nothing else repeats it: a second mention is a nag (2026-10-13, the user's call).
+// Since 2026-10-15 the offer is a choice the person makes, not a sentence the agent may soften or skip:
+// the agent's own question tool shows three options (warm up, no, don't ask again), and in Codex, whose
+// question tool is off outside plan mode, thinker's MCP tool shows them through elicitation (mcp.js:warmup).
+// Either way the answer comes back to `answerWarmup`, which acts on it and logs it.
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { repoId } from './store.js';
 import { thinkerHome } from './update.js';
 import { installGitHooks } from './git-hooks.js';
@@ -44,11 +50,12 @@ export function setupRepo(store, { client, cli, learn = true }) {
 // Until 2026-10-14 the offer went only to an empty cache and was recorded in warmup-offered.json; install
 // problems left many of those caches cold after it (the telemetry: devices in daily use with 2 to 25 notes
 // and no request answered), so a new record asks every cold cache once more.
-function offeredOnce(repo, home = thinkerHome()) {
+function offeredOnce(repo, home = thinkerHome(), { peek = false } = {}) {
   const file = path.join(home, 'state', 'warmup-suggested.json');
   let done = {}; try { done = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
   const id = repoId(repo);
   if (done[id]) return false;
+  if (peek) return true;
   done[id] = new Date().toISOString();
   fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, JSON.stringify(done, null, 2) + '\n');
   return true;
@@ -70,20 +77,92 @@ export function minedCount(store) {
 // Whether a warm-up is worth offering: a cold cache (fewer than WARM_MINED merged changes read, whatever its
 // sessions saved) in a repository with history to read (setup/estimate.js: merged pull requests through gh,
 // or more than a few commits). Said to the agent once per repository on this machine, as an instruction to
-// ask the person at a fitting moment and to run the warm-up itself on a yes: the command names this checkout,
-// takes the defaults and asks nothing (warmup.js: --repos, --yes, --terminal), and reads through the
-// agent's own login.
+// put three choices to the person before the request (`askText`) and hand the answer to thinker
+// (`answerWarmup`), which runs the warm-up on a yes: it names this checkout, takes the defaults and asks
+// nothing (warmup.js: --repos, --yes, --terminal), and reads through the agent's own login. Nothing is
+// offered on a machine where the person chose "Don't ask again".
 export function warmupOffer(store, { client, home } = {}) {
   if (['windsurf'].includes(client)) return '';
-  if (fs.existsSync(mark(store, 'warmup-suggested')) || minedCount(store) >= WARM_MINED) return '';
-  let est; try { est = estimateCacheBuild(store.repo, { prs: DEFAULT_PRS, slug: githubSlug(store.repo), fileCount: 0 }); } catch { return ''; }
-  if (!est.canMine) return '';
-  if (!once(store, 'warmup-suggested') || !offeredOnce(store.repo, home)) return '';
+  const est = warmupDue(store, { home });
+  if (!est || !markOffered(store, est, { client, home })) return '';
   const notes = store.list().length;
-  store.log({ op: 'warmup-offer', client, source: est.mineSource, seconds: est.timing.totalSeconds, notes });
   const what = est.mineSource === 'github' ? 'merged pull requests' : 'commit history';
   const state = notes
     ? `thinker's cache for this repository is cold: it holds ${notes} note${notes === 1 ? '' : 's'} from sessions and has not read the repository's history yet, so most requests find nothing in it`
     : `thinker's cache for this repository is new and empty. Every git repository has one; it grows from your sessions`;
-  return `<thinker-new-repository>\n${state}. This repository has ${what} it could be warmed up from, about ${formatDuration(est.timing.totalSeconds)} through your own login. Once, when it fits the conversation, ask the user whether they would like that. If they say yes, run \`thinker warmup --repos "${store.repo}" --yes --terminal\` from this directory in the background and go on with the task; if they say no or do not answer, go on and never ask again.\n</thinker-new-repository>`;
+  const lead = `${state}. This repository has ${what} it could be warmed up from, about ${formatDuration(est.timing.totalSeconds)} through the user's own login.`;
+  return `<thinker-new-repository>\n${lead}\n${askText(client, store.repo, formatDuration(est.timing.totalSeconds))}\n</thinker-new-repository>`;
+}
+
+// Whether an offer is due here, marking nothing: the build estimate when it is, else null. An answered
+// offer counts as made.
+function warmupDue(store, { home } = {}) {
+  if (warmupNever(home) || fs.existsSync(mark(store, 'warmup-answered'))) return null;
+  if (fs.existsSync(mark(store, 'warmup-suggested')) || minedCount(store) >= WARM_MINED) return null;
+  if (!offeredOnce(store.repo, home, { peek: true })) return null;
+  let est; try { est = estimateCacheBuild(store.repo, { prs: DEFAULT_PRS, slug: githubSlug(store.repo), fileCount: 0 }); } catch { return null; }
+  return est.canMine ? est : null;
+}
+// The offer made: once per cache and once per repository on this machine, logged for the telemetry.
+function markOffered(store, est, { client, home } = {}) {
+  if (!once(store, 'warmup-suggested') || !offeredOnce(store.repo, home)) return false;
+  store.log({ op: 'warmup-offer', client, source: est.mineSource, seconds: est.timing.totalSeconds, notes: store.list().length });
+  return true;
+}
+
+// The three answers, as the person sees them and as `answerWarmup` takes them.
+export const WARMUP_CHOICES = [
+  { value: 'warm', label: 'Warm up cache', description: 'read the repository\'s history into the cache in the background' },
+  { value: 'no', label: 'No', description: 'not for this repository' },
+  { value: 'never', label: 'Don\'t ask again', description: 'no warm-up offers in any repository' },
+];
+// Each agent's own multiple-choice tool (2026-10-15: AskUserQuestion in Claude Code, ask_user in the Gemini
+// and Copilot CLIs, AskQuestion in Cursor, question in opencode). Codex has request_user_input, but outside
+// plan mode it is behind a feature that is off (default_mode_request_user_input), so Codex gets thinker's
+// MCP tool, which asks through elicitation. pi has none: it asks in chat.
+export const QUESTION_TOOLS = { claude: 'AskUserQuestion', gemini: 'ask_user', copilot: 'ask_user', cursor: 'AskQuestion', opencode: 'question' };
+const answerCommand = (repo, via, client) => `thinker warmup --answer <warm|no|never> --via ${via}${client ? ` --client ${client}` : ''} --repos "${repo}"`;
+function askText(client, repo, duration) {
+  const options = WARMUP_CHOICES.map((c, i) => `${i + 1}. "${c.label}"${c.value === 'warm' ? ` (about ${duration} in the background)` : ''}: ${c.description}`).join('\n');
+  const after = via => `Then run \`${answerCommand(repo, via, client)}\` from this directory with the answer (warm, no or never; anything else is no): thinker records it and, on warm, starts the warm-up in the background itself. Then go on with the task.`;
+  if (client === 'codex') return `Before you start on the request, call thinker's \`warmup\` tool with no arguments: it shows the user a picker with three choices and acts on the answer. Then go on with the task. If the tool is not available, ask the user in chat with these three numbered choices:\n${options}\n${after('text')}`;
+  const tool = QUESTION_TOOLS[client];
+  if (tool) return `Before you start on the request, ask the user with your ${tool} tool, not in prose: one question, "Warm up thinker's cache for this repository?" (header "Warm-up"), with exactly these three options in this order:\n${options}\n${after('picker')}`;
+  return `Before you start on the request, ask the user in chat with these three numbered choices:\n${options}\n${after('text')}`;
+}
+
+// "Don't ask again": no warm-up offer in any repository on this machine, THINKER_HOME/state/warmup-never.
+const neverFile = (home = thinkerHome()) => path.join(home, 'state', 'warmup-never');
+export const warmupNever = home => fs.existsSync(neverFile(home));
+
+// Whether thinker's `warmup` MCP tool is worth offering in a session (mcp.js): an offer may be waiting for
+// its answer in this repository. A cache that answered, a warm one, or a machine that said never has none.
+export function warmupPending(store, { home } = {}) {
+  if (warmupNever(home) || fs.existsSync(mark(store, 'warmup-answered'))) return false;
+  try { return minedCount(store) < WARM_MINED; } catch { return false; }
+}
+
+const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), 'cli.js');
+// The person's answer to the offer, from their agent's question tool (`thinker warmup --answer`) or
+// thinker's picker (mcp.js:warmup): warm starts the warm-up detached, through the agent's own login, with
+// its output in the cache's state directory; no leaves the offer made once, as it is; never stops every
+// offer on this machine. Logged as warmup-answer (choice, client, via: picker, or text when the person
+// answered in chat) for the telemetry (telemetry.js:warmupMetrics). Returns the line to tell the agent.
+export function answerWarmup(store, choice, { client, via = 'picker', home, spawnFn = spawn } = {}) {
+  const value = ['warm', 'no', 'never', 'dismissed'].includes(choice) ? choice : 'no';
+  once(store, 'warmup-answered');
+  store.log({ op: 'warmup-answer', choice: value, client, via });
+  if (value === 'never') {
+    const f = neverFile(home); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, new Date().toISOString() + '\n');
+    return 'Recorded: thinker will not offer a warm-up again in any repository on this machine (thinker warmup still warms one up). Go on with the task.';
+  }
+  if (value !== 'warm') return 'Recorded: no warm-up for this repository; thinker will not ask again here. Go on with the task.';
+  const logFile = path.join(store.dir, 'state', 'warmup.log');
+  try {
+    fs.mkdirSync(path.dirname(logFile), { recursive: true });
+    const fd = fs.openSync(logFile, 'a');
+    const p = spawnFn(process.execPath, [CLI, 'warmup', '--repos', store.repo, '--yes', '--terminal'], { cwd: store.repo, detached: true, stdio: ['ignore', fd, fd] });
+    p.unref?.(); fs.closeSync(fd);
+  } catch (e) { return `The warm-up did not start (${e.message}). The user can run \`thinker warmup\` in this repository. Go on with the task.`; }
+  return `The warm-up started in the background (output in ${path.relative(store.repo, logFile)}); notes reach the cache as it reads. Go on with the task.`;
 }

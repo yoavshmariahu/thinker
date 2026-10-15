@@ -14,6 +14,7 @@ import { ensureTelemetryScheduled, reportTelemetrySchedule } from './telemetry-s
 import { initAst } from './ast.js';
 import { cacheInstructions, disabledTools, MORE_NOTES_INTRO } from './cache-guidance.js';
 import { isDisabledRepo } from './repo-switch.js';
+import { warmupPending, answerWarmup, WARMUP_CHOICES } from './repo-onboard.js';
 
 // MCP-only installations need the same default OS schedule as CLI/hook users.
 try { reportTelemetrySchedule(ensureTelemetryScheduled({ rootDir: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..') })); }
@@ -95,6 +96,20 @@ const codeFallback = q => {
     return `By text search instead (not notes; find takes the words the code would use${off.has('drilldown') ? '' : ', drilldown the pointers that fit'}):\n${r.text}\n\n`;
   } catch { return ''; }
 };
+
+// The warm-up picker (repo-onboard.js:WARMUP_CHOICES), through MCP elicitation: { choice } with
+// warm, no, never, or dismissed when the person closed it, or { error }.
+const clientName = () => server.server.getClientVersion()?.name || 'mcp';
+async function askWarmup() {
+  try {
+    const r = await server.server.elicitInput({
+      message: `thinker's cache for this repository has not read its history yet. Warm it up? It reads merged changes into notes in the background, through your own login. ${WARMUP_CHOICES.map(c => `${c.label}: ${c.description}.`).join(' ')}`,
+      requestedSchema: { type: 'object', properties: { choice: { type: 'string', title: 'Warm up thinker\'s cache?', enum: WARMUP_CHOICES.map(c => c.label) } }, required: ['choice'] },
+    });
+    if (r.action !== 'accept') return { choice: 'dismissed' };
+    return { choice: WARMUP_CHOICES.find(c => c.label === r.content?.choice)?.value || 'no' };
+  } catch (e) { return { error: e.message }; }
+}
 
 function registerTools() {
   // a tool that is switched off is not offered at all: nothing can call it and fail (bound late, the
@@ -239,6 +254,24 @@ function registerTools() {
     const r = feedback(store, input);
     if (r.error) return text(r.error);
     return text(`Recorded. ${r.note.id} confidence now ${Math.round(r.note.confidence * 100)}%${input.correction ? ', body updated' : ''}.`);
+  });
+
+  // The warm-up offer as a picker (repo-onboard.js:warmupOffer): the hooks tell Codex, whose own question
+  // tool is off outside plan mode, to call this, and the server asks the person through MCP elicitation.
+  // Offered only while an offer may be waiting for its answer here (`warmupPending`), so it costs nothing
+  // once the repository is warm or answered. A client without elicitation is told to ask in chat and call
+  // again with the choice.
+  if (store && warmupPending(store)) server.registerTool('warmup', {
+    title: 'Offer a warm-up of this cache',
+    description: 'Only when a thinker-new-repository notice tells you to call it: asks the user whether to warm up this repository\'s cache (warm up, no, or don\'t ask again) and acts on the answer. Pass choice only when the user already answered in chat.',
+    inputSchema: { choice: z.enum(['warm', 'no', 'never']).optional().describe('The user\'s answer, when they gave it in chat') },
+  }, async ({ choice }) => {
+    if (choice) return text(answerWarmup(store, choice, { client: 'mcp', via: 'text' }));
+    const inChat = `Ask the user in chat with these three numbered choices: ${WARMUP_CHOICES.map((c, i) => `${i + 1}. "${c.label}": ${c.description}`).join('; ')}. Then call warmup again with choice warm, no or never.`;
+    if (!server.server.getClientCapabilities()?.elicitation) return text(`This client cannot show thinker's picker. ${inChat}`);
+    const r = await askWarmup();
+    if (r.error) return text(`The picker could not be shown (${r.error}). ${inChat}`);
+    return text(answerWarmup(store, r.choice, { client: clientName(), via: 'picker' }).replace(/^Recorded: no warm-up/, r.choice === 'dismissed' ? 'Dismissed: no warm-up' : '$&'));
   });
 }
 

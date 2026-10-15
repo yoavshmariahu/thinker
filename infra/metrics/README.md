@@ -395,7 +395,10 @@ made (`offers`; `offersToColdCaches` went to a cache that held notes from sessio
 read fewer than `warmMined` merged changes), the repositories offered (`offeredRepositories`)
 and those where a warm-up then started from any path (`offeredThenStarted`), and the asked-for
 builds that `started`, `finished` or `failed`. A start with neither end was stopped or is still
-running. `activeRepositoriesWarm` and `activeRepositoriesCold` classify the repositories with
+running. Since the offer became a three-way choice, the answers are counted too: `answeredWarm`,
+`answeredNo`, `answeredNever` (no offers on that machine again), `answersDismissed` (a picker
+closed without a choice) and `answersInPicker` (answers given in the agent's question tool or
+thinker's picker rather than in chat). `activeRepositoriesWarm` and `activeRepositoriesCold` classify the repositories with
 a request in the report's 24 hours. Counts only, no repository names. The **Cache health**
 dashboard shows both; run `refresh` to add the cards.
 

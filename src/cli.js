@@ -203,7 +203,7 @@ const HELP = `thinker — knowledge cache for coding agents
 // run a setup); their flags are the ones HELP lists plus the few every command takes. The other
 // commands keep taking any flag.
 const COMMON_FLAGS = ['repo', 'dry', 'json', 'quiet', 'yes', 'verbose', 'background', 'no-learn', 'serve-only', 'help'];
-const UNLISTED_FLAGS = { setup: ['no-prs', 'slug', 'no-phrase', 'model', 'export'], rewire: ['quiet', 'json'] };
+const UNLISTED_FLAGS = { setup: ['no-prs', 'slug', 'no-phrase', 'model', 'export'], rewire: ['quiet', 'json'], warmup: ['answer', 'via', 'client'] };
 const STRICT_COMMANDS = ['setup', 'connect', 'uninstall', 'rewire', 'warmup', 'doctor'];
 function helpFlags(c, help = HELP) {
   const lines = help.split('\n');
