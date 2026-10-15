@@ -226,6 +226,8 @@ export function holdoutMetrics(store, { all = true, now = Date.now() } = {}) {
     schemaVersion: 2, unit: 'prompt', windowDays: HOLDOUT_WINDOW_DAYS,
     ...pair(h), noNotes: h.noNotes, unmeasured: h.unmeasured,
     byModel: Object.fromEntries(Object.entries(h.byModel).map(([m, g]) => [m, pair(g)])),
+    // keyed `client|model` (usage.js:normalizeClient), the dashboard splits it into harness and model
+    byClientModel: Object.fromEntries(Object.entries(h.byClientModel).map(([m, g]) => [m, pair(g)])),
   };
 }
 
