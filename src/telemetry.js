@@ -414,6 +414,37 @@ export async function sendTelemetry({
   }
 }
 
+// The reason someone gives when uninstalling, sent only when they typed one. It goes to the endpoint the
+// website's contact form uses (`/messages`, next to `/metrics`) with the version, platform and install id, nothing else.
+export function messagesEndpoint(endpoint) {
+  const url = new URL(endpoint);
+  url.pathname = url.pathname.replace(/[^/]*$/, 'messages');
+  return url.toString();
+}
+
+export async function sendUninstallFeedback(message, {
+  home = thinkerHome(),
+  endpoint = messagesEndpoint(getTelemetryEndpoint({ home })),
+  fetchFn = globalThis.fetch,
+} = {}) {
+  const text = String(message || '').trim().slice(0, 4000);
+  if (!text) return { sent: false, reason: 'empty' };
+  if (fetchFn === globalThis.fetch && isTestTelemetryBlocked(endpoint)) return { sent: false, reason: 'test_environment' };
+  let version = 'unknown';
+  try { version = JSON.parse(fs.readFileSync(path.resolve(HERE, '..', 'package.json'), 'utf8')).version || 'unknown'; } catch {}
+  const body = { id: crypto.randomUUID(), message: `${text}\n\n(thinker ${version}, install ${getInstallId(home)}, ${process.platform})`, page: '/cli/uninstall' };
+  try {
+    const res = await fetchFn(endpoint, {
+      method: 'POST', redirect: 'error',
+      headers: { 'Content-Type': 'application/json', 'User-Agent': 'thinker-cli' },
+      body: JSON.stringify(body), signal: AbortSignal.timeout(10_000),
+    });
+    return res.ok ? { sent: true, status: res.status } : { sent: false, status: res.status, error: `HTTP ${res.status}` };
+  } catch (err) {
+    return { sent: false, error: err.message };
+  }
+}
+
 export function maybeSendTelemetryInBackground({
   home = thinkerHome(),
   cliPath = path.join(HERE, 'cli.js'),
