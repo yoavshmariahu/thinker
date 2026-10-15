@@ -105,3 +105,30 @@ test('maintain: the generic build mines repository-wide and walks nothing', asyn
   assert.equal(walks.length, 0);
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('maintain: a cache nobody warmed finds its areas offline, then mines and walks them; no activity, no areas yet', async () => {
+  const { dir, store } = staleRepo();
+  const prs = [], walks = [];
+  let found = { directories: [], source: null };
+  const fns = { spentToday: () => 0, verify: async () => ({ verdict: 'still_valid', cost: 0 }), phrase: async (s, n) => ({ done: n, cost: 0 }),
+    activityAreas: () => found,
+    minePrs: async o => { prs.push(o); return { saved: 0, tokens: 0 }; }, mineAreaHistory: async o => { walks.push(o); return { saved: 0, tokens: 0, processed: 3 }; } };
+  await maintain(store, dir, { fns });
+  assert.equal(store.config().areas, undefined, 'nothing found, nothing saved');
+  assert.equal(walks.length, 0);
+  found = { directories: ['src/api'], source: 'activity' };
+  fs.rmSync(path.join(dir, '.thinker', 'state', 'maintain.lock'), { force: true });
+  await maintain(store, dir, { fns, now: Date.now() + MAINTENANCE_INTERVAL_MS });
+  assert.deepEqual(store.config().areas.directories, ['src/api']);
+  assert.equal(store.config().areas.source, 'activity');
+  assert.deepEqual(prs.at(-1).directories, ['src/api']);
+  assert.deepEqual(walks[0].paths, ['src/api']);
+  // a saved choice, the generic build among them, is never replaced
+  saveAreas(store, { directories: [], source: 'all' });
+  found = { directories: ['web/ui'], source: 'activity' };
+  fs.rmSync(path.join(dir, '.thinker', 'state', 'maintain.lock'), { force: true });
+  await maintain(store, dir, { fns, now: Date.now() + 2 * MAINTENANCE_INTERVAL_MS });
+  assert.equal(store.config().areas.source, 'all');
+  assert.equal(prs.at(-1).directories, null);
+  fs.rmSync(dir, { recursive: true, force: true });
+});

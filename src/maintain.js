@@ -13,7 +13,8 @@ import { refresh, verifyNote, phraseNotes, phraseKey, archiveNotes } from './ops
 import { readLog } from './usage.js';
 import { formatTokens } from './model-usage.js';
 import { writeSystemMarkdown } from './behavior.js';
-import { areasConfig, saveAreas } from './areas.js';
+import { areasConfig, saveAreas, activityAreas } from './areas.js';
+import { isTestMode } from './test-mode.js';
 
 export const DEFAULTS = {
   enabled: true,    // `maintain: { enabled: false }` in .thinker/config.json switches it off
@@ -188,7 +189,16 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
     // 4. pull requests merged since maintenance first ran here, inside the person's focus areas when
     // the cache has them (areas.js); then, with the budget left, the areas' older history, a few
     // changes a run until each area has had its `walk` (the generic build, source 'all', mines
-    // repository-wide and walks nothing)
+    // repository-wide and walks nothing). A cache nobody warmed has no areas: they are found here,
+    // offline, from the person's own commits (or merged PRs), and saved, so learning follows where
+    // they work whether or not they took the warm-up (2026-10-15, the user's call). Until their
+    // activity names an area, nothing is saved and the next run looks again.
+    if (cfg.prs && !store.config().areas) {
+      try {
+        const found = (fns.activityAreas || activityAreas)(repo, isTestMode() ? { noGitHub: true } : {});
+        if (found?.directories?.length && !dry) saveAreas(store, { directories: found.directories, source: found.source, walked: 0 });
+      } catch { r.errors++; }
+    }
     const areas = areasConfig(store);
     const focused = areas.source !== 'all' && areas.directories.length > 0;
     if (cfg.prs && fns.minePrs) {
