@@ -6,6 +6,7 @@ import os from 'node:os';
 import http from 'node:http';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
+import { telemetryScheduleState } from '../src/telemetry-schedule.js';
 import {
   isTelemetryEnabled,
   isTestTelemetryBlocked,
@@ -343,6 +344,8 @@ test('cli setup sends installation telemetry in background', async () => {
     assert.equal(received[0].event, 'install');
     assert.equal(received[0].cacheSize.totalNotes, 1);
     assert.equal(received[0].cacheSize.repositoriesCount, 1);
+    // a CLI spawned by a test never leaves a real hourly job behind (it would report to production)
+    assert.equal(telemetryScheduleState(tmpHome).type, undefined);
     assert.ok(received[0].installId);
   } finally {
     server.close();
