@@ -67,9 +67,9 @@ function staleRepo() {
   return { dir, store };
 }
 
-test('maintain: focused on areas, the merged-PR step is scoped and the older history is walked up to the depth', async () => {
+test('maintain: focused on areas, the merged-PR step is scoped and each area\'s older history is walked in turn up to the depth', async () => {
   const { dir, store } = staleRepo();
-  saveAreas(store, { directories: ['src/api', 'src/db'], source: 'activity', walked: 0 });
+  saveAreas(store, { directories: ['src/api', 'src/db'], source: 'manual', walkedBy: {} });
   const prs = [], walks = [];
   const fns = { spentToday: () => 0, verify: async () => ({ verdict: 'still_valid', cost: 0 }), phrase: async (s, n) => ({ done: n, cost: 0 }),
     minePrs: async o => { prs.push(o); return { saved: 1, tokens: 10 }; }, mineAreaHistory: async o => { walks.push(o); return { saved: 2, tokens: 20, processed: 3 }; } };
@@ -79,15 +79,21 @@ test('maintain: focused on areas, the merged-PR step is scoped and the older his
   assert.equal(prs.length, 1);
   assert.deepEqual(prs[0].directories, ['src/api', 'src/db']);
   assert.equal(walks.length, 2, 'one walk per run, including the first');
-  assert.deepEqual(walks[1], { paths: ['src/api', 'src/db'], limit: DEFAULTS.prsPerRun });
+  assert.deepEqual(walks[1], { paths: ['src/api'], limit: DEFAULTS.prsPerRun, scan: 3 * 2 + DEFAULTS.prsPerRun * 3 });
   assert.equal(r.prs, 3, 'merged PRs plus the walk');
-  assert.equal(areasConfig(store).walked, 6);
-  // warm: past the depth the walk stops, the merged-PR step goes on
-  saveAreas(store, { walked: AREAS_DEFAULTS.walk * 2 });
+  assert.deepEqual(areasConfig(store).walkedBy, { 'src/api': 6 });
+  // the first area warm, the walk moves to the next; an area with nothing left is warm
+  saveAreas(store, { walkedBy: { 'src/api': AREAS_DEFAULTS.walk } });
+  const empty = { ...fns, mineAreaHistory: async o => { walks.push(o); return { saved: 0, tokens: 0, processed: 0 }; } };
   fs.rmSync(path.join(dir, '.thinker', 'state', 'maintain.lock'), { force: true });
-  await maintain(store, dir, { fns, now: Date.now() + 2 * MAINTENANCE_INTERVAL_MS });
-  assert.equal(walks.length, 2);
-  assert.equal(prs.length, 2);
+  await maintain(store, dir, { fns: empty, now: Date.now() + 2 * MAINTENANCE_INTERVAL_MS });
+  assert.deepEqual(walks[2].paths, ['src/db']);
+  assert.equal(areasConfig(store).walkedBy['src/db'], AREAS_DEFAULTS.walk);
+  // warm: past the depth the walk stops, the merged-PR step goes on
+  fs.rmSync(path.join(dir, '.thinker', 'state', 'maintain.lock'), { force: true });
+  await maintain(store, dir, { fns, now: Date.now() + 3 * MAINTENANCE_INTERVAL_MS });
+  assert.equal(walks.length, 3);
+  assert.equal(prs.length, 3);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
