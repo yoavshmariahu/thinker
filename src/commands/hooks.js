@@ -15,6 +15,7 @@ import { orient, HOOK_BUDGET, servesNotes, rememberTask, outcome, looksLikeCorre
 import { recordEvent, traceFile, toolName, toolInput } from '../transcripts.js';
 import { turnNotice, weeklyNotice } from '../usage.js';
 import { setupRepo, warmupOffer } from '../repo-onboard.js';
+import { ensureShellPath } from '../shell-path.js';
 
 async function hookCommand(ctx) {
   const { pos, flags, out, readStdin, sessionLearning, HERE, NO_LEARN } = ctx;
@@ -68,6 +69,8 @@ async function hookCommand(ctx) {
     // and the entries of this copy are rewritten when this version writes them differently (a new event, a changed command):
     // the checkout's, and, from a hook at user scope, the user's own
     if (store.exists()) { try { const w = refreshWiring(repo, { cli, mcpEntry: mcpEntry() }); if (w.changed.length) { store.log({ op: 'rewire', repos: 1, files: w.changed }); reportPruned(store, [`rewrote ${w.changed.join(', ')} for this version of thinker`]); } } catch {} }
+    // thinker on PATH for bash too, once per machine, on an install from before the installer wrote it there (shell-path.js)
+    if (store.exists() && !isTestMode()) { try { const d = ensureShellPath(); if (d?.length) store.log({ op: 'shell-path', files: d }); } catch {} }
     if (store.exists() && userScope) { try { const w = refreshWiring(null, { scope: 'user', cli, mcpEntry: ctx.userMcpEntry() }); if (w.changed.length) { store.log({ op: 'rewire', scope: 'user', files: w.changed }); reportPruned(store, [`rewrote ${w.changed.join(', ')} for this version of thinker`]); } } catch {} }
     // Once per session, what the code tools are and how to reach them: only with the first bundle that
     // serves a note. A session the cache has nothing for gets nothing at all (2026-10-07: on the Click

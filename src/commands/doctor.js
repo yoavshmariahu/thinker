@@ -12,20 +12,11 @@ import { postCommitHook } from '../maintain.js';
 import { gitHookPath } from '../store.js';
 import { isTestMode } from '../test-mode.js';
 import { hasBin } from './shared.js';
+import { addToPath } from '../shell-path.js';
 
 const MIN_NODE = 20;
 const MARK = { ok: '✓', warn: '!', fail: '✗' };
 const realpath = f => { try { return fs.realpathSync(f); } catch { return f; } };
-
-// The line the installer (install.sh:add_to_path) puts in the user's shell startup file.
-function pathLine(dir) {
-  const shell = path.basename(process.env.SHELL || '');
-  const home = os.homedir();
-  if (shell === 'zsh') return { rc: path.join(process.env.ZDOTDIR || home, '.zshrc'), line: `export PATH="${dir}:$PATH"` };
-  if (shell === 'bash') return { rc: path.join(home, process.platform === 'darwin' ? '.bash_profile' : '.bashrc'), line: `export PATH="${dir}:$PATH"` };
-  if (shell === 'fish') return { rc: path.join(process.env.XDG_CONFIG_HOME || path.join(home, '.config'), 'fish', 'conf.d', 'thinker.fish'), line: `fish_add_path "${dir}"` };
-  return null;
-}
 
 // Start the MCP server the way an agent does, ask for its tools, and stop it.
 function probeMcp(mcpJs, repo, timeoutMs = 20_000) {
@@ -88,15 +79,16 @@ async function runChecks(ctx) {
   // `thinker` on PATH, and which copy it runs
   const binDir = path.dirname(install.binPath);
   const found = spawnSync('sh', ['-c', 'command -v thinker'], { encoding: 'utf8' }).stdout.trim();
+  // the files the installer writes (shell-path.js): the login shell's, and bash's, where agents run commands;
+  // a missing line is added, not reported
+  const added = fs.existsSync(install.binPath) ? addToPath(binDir) : [];
+  const addedNote = added.length ? `; added to PATH in ${added.join(', ')}` : '';
   if (!found) {
-    const pl = fs.existsSync(install.binPath) ? pathLine(binDir) : null;
-    const already = pl && fs.existsSync(pl.rc) && fs.readFileSync(pl.rc, 'utf8').includes(pl.line);
-    add('PATH', 'warn', already ? `${binDir} is added in ${pl.rc}; open a new terminal` : `\`thinker\` is not on your PATH${fs.existsSync(install.binPath) ? ` (it is in ${binDir})` : ''}`,
-      pl && !already ? { what: `add ${binDir} to PATH in ${pl.rc}`, run: () => { fs.mkdirSync(path.dirname(pl.rc), { recursive: true }); fs.appendFileSync(pl.rc, `\n# thinker\n${pl.line}\n`); } } : null);
+    add('PATH', 'warn', fs.existsSync(install.binPath) ? `${binDir} is on PATH in your shell's startup files${addedNote}; open a new terminal` : '`thinker` is not on your PATH');
   } else {
     let text = ''; try { text = fs.readFileSync(found, 'utf8').slice(0, 4000); } catch {}
     const same = realpath(found) === realpath(cli) || text.includes(cli);
-    add('PATH', same ? 'ok' : 'warn', same ? found : `\`thinker\` on your PATH (${found}) is another copy than this one (${cli})`);
+    add('PATH', same ? 'ok' : 'warn', same ? `${found}${addedNote}` : `\`thinker\` on your PATH (${found}) is another copy than this one (${cli})`);
   }
 
   // The agents on this machine: thinker's hooks and MCP server in their own settings
