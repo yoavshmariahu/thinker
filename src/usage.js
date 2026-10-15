@@ -105,7 +105,7 @@ export function sessionKey(s) {
 export function normalizeClient(client, session = '') {
   if (client) {
     const c = String(client).toLowerCase();
-    if (['claude', 'codex', 'cursor', 'gemini', 'mcp', 'cli'].includes(c)) return c;
+    if (['claude', 'codex', 'cursor', 'gemini', 'copilot', 'windsurf', 'opencode', 'pi', 'mcp', 'cli'].includes(c)) return c;
     if (c.startsWith('cursor')) return 'cursor';
     if (c.startsWith('claude')) return 'claude';
     if (c.startsWith('codex')) return 'codex';
@@ -377,7 +377,7 @@ export function holdoutOf(events) {
 }
 export function holdoutSummary(lines, turns) {
   const side = () => ({ prompts: 0, sessions: new Set(), corrected: 0, toolCalls: [], turns: [], inputTokens: [], outputTokens: [] });
-  const groups = { served: side(), heldOut: side() }, byModel = {};
+  const groups = { served: side(), heldOut: side() }, byModel = {}, byClientModel = {};
   let noNotes = 0, unmeasured = 0;
   for (const [k, ts] of turns) {
     const ls = lines.get(k) || new Map();
@@ -387,7 +387,9 @@ export function holdoutSummary(lines, turns) {
       const cur = ls.get(n), prev = n === 1 ? {} : ls.get(n - 1);
       if (!cur || !prev) { unmeasured++; continue; }
       const m = byModel[cur.model || 'unknown'] ||= { served: side(), heldOut: side() };
-      for (const t of [groups[g], m[g]]) {
+      // harness and model together: the cache can help one agent on a model and not another
+      const cm = byClientModel[`${normalizeClient(cur.client, cur.session)}|${cur.model || 'unknown'}`] ||= { served: side(), heldOut: side() };
+      for (const t of [groups[g], m[g], cm[g]]) {
         t.prompts++; t.sessions.add(k); if (x.corrected) t.corrected++;
         for (const f of HOLDOUT_FIELDS) {
           const a = cur[f], b = n === 1 ? 0 : prev[f];
@@ -402,8 +404,9 @@ export function holdoutSummary(lines, turns) {
     const perPrompt = Object.fromEntries(HOLDOUT_FIELDS.map(f => [f, measured[f] ? sums[f] / measured[f] : null]));
     return { prompts: t.prompts, sessions: t.sessions.size, corrected: t.corrected, sums, measured, perPrompt };
   };
-  const out = { served: fold(groups.served), heldOut: fold(groups.heldOut), sessions: new Set([...groups.served.sessions, ...groups.heldOut.sessions]).size, noNotes, unmeasured, byModel: {} };
+  const out = { served: fold(groups.served), heldOut: fold(groups.heldOut), sessions: new Set([...groups.served.sessions, ...groups.heldOut.sessions]).size, noNotes, unmeasured, byModel: {}, byClientModel: {} };
   for (const [m, g] of Object.entries(byModel)) out.byModel[m] = { served: fold(g.served), heldOut: fold(g.heldOut) };
+  for (const [m, g] of Object.entries(byClientModel)) out.byClientModel[m] = { served: fold(g.served), heldOut: fold(g.heldOut) };
   out.enough = out.served.prompts >= MIN_HOLDOUT && out.heldOut.prompts >= MIN_HOLDOUT;
   const delta = (a, b) => a != null && b != null && b > 0 ? Math.round((a - b) / b * 100) : null;
   out.deltaPct = { toolCalls: delta(out.served.perPrompt.toolCalls, out.heldOut.perPrompt.toolCalls), inputTokens: delta(out.served.perPrompt.inputTokens, out.heldOut.perPrompt.inputTokens) };
