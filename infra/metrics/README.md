@@ -402,7 +402,6 @@ thinker's picker rather than in chat). `answeredWarmNotStarted` counts warm answ
 warm-up could not start because no agent was signed in to read through. `activeRepositoriesWarm` and `activeRepositoriesCold` classify the repositories with
 a request in the report's 24 hours. Counts only, no repository names. The **Cache health**
 dashboard shows both; run `refresh` to add the cards.
-
 ## Website messages
 
 The bottom-right **Send us a message** button on the homepage and docs opens a
