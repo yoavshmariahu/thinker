@@ -205,6 +205,8 @@ export function compareVersions(a, b) {
   for (let i = 0; i < Math.max(A.length, B.length); i++) { const d = (A[i] || 0) - (B[i] || 0); if (d) return d < 0 ? -1 : 1; }
   return 0;
 }
+// An MCP entry as each client's file takes it: Copilot's names its type and the tools it may call
+const mcpServerEntry = (client, e) => client === 'copilot' ? { type: 'local', command: e.command, args: e.args, env: e.env || {}, tools: ['*'] } : e;
 function codexTomlBlock(mcpEntry) {
   const env = Object.entries(mcpEntry.env || {});
   return [TOML_START, '[mcp_servers.thinker]', `command = ${tomlStr(mcpEntry.command)}`, `args = [${mcpEntry.args.map(tomlStr).join(', ')}]`, 'default_tools_approval_mode = "approve"',
@@ -212,15 +214,18 @@ function codexTomlBlock(mcpEntry) {
 }
 const EXTENSIONS = { pi: '.pi/extensions/thinker.js', opencode: '.opencode/plugins/thinker.js' };
 const GENERATED_MARK = '// thinker integration: ';
-// Pi, Windsurf, Copilot and OpenCode are wired into the checkout alone (an extension file, a rule
-// file): nothing of theirs is machine-wide, so they take no part in scope `user` below.
+// Pi, Windsurf, Copilot and OpenCode were wired into each checkout alone (an extension file, a rule
+// file) until 2026-10-15, when they joined scope `user` below: with caches started on first use and no
+// `thinker setup` per repository, a checkout nobody set up had no thinker at all for them. The checkout
+// files stay for checkouts set up before (they move to the user's files on the next prompt, as the
+// others' did) and for --shared.
 const HOOK_FILES = { windsurf: ['.windsurf/hooks.json', '.devin/hooks.json'], copilot: ['.github/hooks/thinker.json'] };
 const RULE_FILES = { windsurf: ['.windsurf/rules/thinker.md', '.devin/rules/thinker.md'], copilot: ['.github/instructions/thinker.instructions.md'] };
 // Copilot CLI reads an MCP server from the checkout's .github/mcp.json (once the folder is trusted), as
 // it reads its hooks from .github/hooks: thinker's server goes there, pinned to the checkout, kept out
 // of git status as the hooks are. Until 2026-10-15 setup only said "/mcp add" and Copilot had no tools.
 const MCP_FILES = { copilot: '.github/mcp.json' };
-export const USER_SCOPE_CLIENTS = ['claude', 'codex', 'cursor', 'gemini'];
+export const USER_SCOPE_CLIENTS = ['claude', 'codex', 'cursor', 'gemini', 'pi', 'opencode', 'copilot', 'windsurf'];
 
 // --- where each client reads its wiring ----------------------------------------------------------
 // Two scopes. `user` is the agent's own files, read in every checkout: ~/.claude/settings.json and
@@ -235,6 +240,13 @@ export const USER_SCOPE_CLIENTS = ['claude', 'codex', 'cursor', 'gemini'];
 export const SCOPES = ['repo', 'user'];
 const codexHome = () => process.env.CODEX_HOME || home('.codex');
 const claudeDir = () => process.env.CLAUDE_CONFIG_DIR || home('.claude');
+// pi's global extensions (~/.pi/agent/extensions), OpenCode's global plugins and rules
+// (~/.config/opencode), Copilot CLI's user hooks, MCP servers and instructions (~/.copilot, or
+// COPILOT_HOME), Windsurf's (Devin Desktop's) user hooks and global rules (~/.codeium/windsurf)
+const piDir = () => process.env.PI_CODING_AGENT_DIR || home('.pi', 'agent');
+const opencodeDir = () => path.join(process.env.XDG_CONFIG_HOME || home('.config'), 'opencode');
+const copilotHome = () => process.env.COPILOT_HOME || home('.copilot');
+const windsurfDir = () => home('.codeium', 'windsurf');
 export function wiringFiles(client, { scope = 'repo', repo } = {}) {
   const user = scope === 'user';
   const at = (...p) => path.join(repo, ...p);
@@ -248,6 +260,11 @@ export function wiringFiles(client, { scope = 'repo', repo } = {}) {
     case 'cursor': return user
       ? { hooks: home('.cursor', 'hooks.json'), mcp: home('.cursor', 'mcp.json'), rule: null }
       : { hooks: at('.cursor', 'hooks.json'), mcp: at('.cursor', 'mcp.json'), rule: at('.cursor', 'rules', 'thinker.mdc') };
+    // the checkout files of these four are EXTENSIONS, HOOK_FILES, RULE_FILES and MCP_FILES
+    case 'pi': return user ? { ext: path.join(piDir(), 'extensions', 'thinker.js') } : {};
+    case 'opencode': return user ? { ext: path.join(opencodeDir(), 'plugins', 'thinker.js') } : {};
+    case 'copilot': return user ? { hooks: path.join(copilotHome(), 'hooks', 'thinker.json'), mcp: path.join(copilotHome(), 'mcp-config.json') } : {};
+    case 'windsurf': return user ? { hooks: path.join(windsurfDir(), 'hooks.json') } : {};
     default: return {};
   }
 }
@@ -258,7 +275,9 @@ function instructionFiles(client, { scope = 'repo', repo } = {}) {
   if (client === 'claude') return [user ? path.join(claudeDir(), 'CLAUDE.md') : path.join(repo, 'CLAUDE.local.md')];
   if (client === 'codex') return ['AGENTS.override.md', 'AGENTS.md'].map(f => path.join(user ? codexHome() : repo, f));
   if (client === 'gemini') return [user ? home('.gemini', 'GEMINI.md') : path.join(repo, 'GEMINI.md')];
-  if (client === 'opencode' && !user) return [path.join(repo, '.opencode/thinker.md')];
+  if (client === 'opencode') return [user ? path.join(opencodeDir(), 'AGENTS.md') : path.join(repo, '.opencode/thinker.md')];
+  if (client === 'copilot' && user) return [path.join(copilotHome(), 'copilot-instructions.md')];
+  if (client === 'windsurf' && user) return [path.join(windsurfDir(), 'memories', 'global_rules.md')];
   return [];
 }
 
@@ -269,12 +288,14 @@ function jsonWiring(client, o) {
   if (client === 'codex') return [{ file: f.hooks, hooks: true }];
   if (client === 'gemini') return [{ file: f.settings, hooks: true, mcp: true }];
   if (client === 'cursor') return [{ file: f.hooks, hooks: true, keepVersion: true }, { file: f.mcp, mcp: true }];
+  if (client === 'copilot' && f.hooks) return [{ file: f.hooks, hooks: true, keepVersion: true }, { file: f.mcp, mcp: true }];
+  if (client === 'windsurf' && f.hooks) return [{ file: f.hooks, hooks: true }];
   return [];
 }
 const allWiring = (o, clients = CLIENTS) => [...new Set(clients.flatMap(c => {
   const f = wiringFiles(c, o);
   const extra = o.scope === 'repo' ? [...(EXTENSIONS[c] ? [EXTENSIONS[c]] : []), ...(HOOK_FILES[c] || []), ...(RULE_FILES[c] || []), ...(MCP_FILES[c] ? [MCP_FILES[c]] : [])].map(x => path.join(o.repo, x)) : [];
-  return [...instructionFiles(c, o), ...jsonWiring(c, o).map(e => e.file), ...(c === 'codex' ? [f.toml] : []), ...(c === 'cursor' && f.rule ? [f.rule] : []), ...extra];
+  return [...instructionFiles(c, o), ...jsonWiring(c, o).map(e => e.file), ...(c === 'codex' ? [f.toml] : []), ...(c === 'cursor' && f.rule ? [f.rule] : []), ...(f.ext ? [f.ext] : []), ...extra];
 }))];
 // how a file is named to the user: relative to the checkout, or under ~
 const label = (file, { scope, repo }) => scope === 'user' ? file.replace(os.homedir(), '~') : path.relative(repo, file);
@@ -370,8 +391,7 @@ export function inferWiring(repo, client, { scope = 'repo' } = {}) {
     w.shared = scope === 'repo' && !local(f.hooks) && !local(f.mcp);
   }
   if (EXTENSIONS[client]) {
-    if (scope !== 'repo') return null;
-    const text = readText(path.join(repo, EXTENSIONS[client]));
+    const text = readText(scope === 'repo' ? path.join(repo, EXTENSIONS[client]) : f.ext);
     if (!text.startsWith(GENERATED_MARK)) return null;
     try {
       const cfg = JSON.parse(text.split('\n')[0].slice(GENERATED_MARK.length));
@@ -379,8 +399,18 @@ export function inferWiring(repo, client, { scope = 'repo' } = {}) {
       if (text !== extensionText(cfg)) custom.push('modified thinker extension');
     } catch { return null; }
   }
-  if (client === 'windsurf' || client === 'copilot') {
-    if (scope !== 'repo') return null;
+  if ((client === 'windsurf' || client === 'copilot') && scope !== 'repo') {
+    const h = readJsonOr(f.hooks, {}).hooks || {};
+    for (const groups of Object.values(h)) for (const g of (Array.isArray(groups) ? groups : []).filter(isOurs)) {
+      see(g); const cmd = commandOf(g) || '';
+      w.hooks = true; w.learn ||= cmd.includes(' --record'); w.late ||= cmd.includes(' --late');
+    }
+    const server = f.mcp && readJsonOr(f.mcp, {}).mcpServers?.thinker;
+    if (server) { w.mcp = true; const sc = mcpScript(server); if (sc) scripts.add(sc); }
+    // Windsurf has no MCP route from thinker: its global rules carry the command-line workflow
+    if (client === 'windsurf') w.mcp = instructionFiles(client, { scope }).some(x => readText(x).includes('<!-- thinker:'));
+  }
+  if ((client === 'windsurf' || client === 'copilot') && scope === 'repo') {
     for (const f of HOOK_FILES[client]) {
       const h = readJsonOr(path.join(repo, f), {}).hooks || {};
       for (const groups of Object.values(h)) for (const g of groups.filter(isOurs)) {
@@ -437,6 +467,27 @@ export function connectFromCheckouts(repos, { cli, mcpEntry, dry = false } = {})
     if (!dry) { installClient(client, { scope: 'user', cli, mcpEntry, ...options }); if (client === 'codex') trustCodexUser(); }
     done.push({ client, from, options });
   }
+  return done;
+}
+
+// The four agents that became machine-wide on 2026-10-15 (pi, OpenCode, Copilot, Windsurf), for a machine
+// that has one installed and never set a checkout up for it (`connectFromCheckouts` covers the ones that
+// did): wired into the user's files once, by `rewire` after an update, with the options of this copy's
+// machine-wide wiring for another agent (learning, late notes), else the installer's defaults. Once per
+// agent (`home`/state/connected.json), so a wiring the person took out stays out. Returns the clients wired.
+export function connectDetected({ cli, mcpEntry, home: thinker, learn = true, dry = false, detected = detectClients() } = {}) {
+  const mark = path.join(thinker, 'state', 'connected.json');
+  const seen = readJsonOr(mark, {});
+  const done = [];
+  const others = USER_SCOPE_CLIENTS.map(c => { try { return inferWiring(null, c, { scope: 'user' }); } catch { return null; } }).filter(w => w?.hooks && w.hookScripts.every(sc => sameCopy(sc, cli)));
+  const options = others.length ? { hooks: true, learn: others.some(w => w.learn), late: others.some(w => w.late), mcp: true } : { hooks: true, learn, late: false, mcp: true };
+  for (const client of ['pi', 'opencode', 'copilot', 'windsurf']) {
+    if (seen[client] || !detected.includes(client)) continue;
+    if (!inferWiring(null, client, { scope: 'user' }) && !dry) installClient(client, { scope: 'user', cli, mcpEntry, ...options });
+    if (!dry) seen[client] = new Date().toISOString();
+    done.push(client);
+  }
+  if (done.length && !dry) { fs.mkdirSync(path.dirname(mark), { recursive: true }); fs.writeFileSync(mark, JSON.stringify(seen, null, 2) + '\n'); }
   return done;
 }
 
@@ -517,7 +568,7 @@ function pruneEntries(repo, { scope = 'repo', clients = CLIENTS, mcpEntry, take,
       if (t) {
         record(e.file, t, 'mcp'); changed = true;
         const m = { ...next.mcpServers };
-        if (mcpEntry) m.thinker = mcpEntry; else delete m.thinker;
+        if (mcpEntry) m.thinker = mcpServerEntry(client, mcpEntry); else delete m.thinker;
         next = { ...next, mcpServers: m }; if (!Object.keys(m).length) delete next.mcpServers;
       }
     }
@@ -574,7 +625,34 @@ export function prunedLines(done) {
 export function stripRepoWiring(repo, { cli, clients = CLIENTS } = {}) {
   const done = pruneEntries(repo, { scope: 'repo', clients, localOnly: true, take: script => script && sameCopy(script, cli) ? installInfo(script) : null });
   if (clients.includes('codex') && !fs.existsSync(wiringFiles('codex', { repo }).hooks)) untrustCodexHooks(wiringFiles('codex', { repo }).hooks);
-  return [...new Set(done.map(d => d.file))];
+  const files = done.map(d => d.file);
+  // pi, OpenCode, Copilot and Windsurf keep theirs in files of their own (an extension, a hooks file, a
+  // rule, Copilot's MCP file): the lot goes when it is this copy's and the checkout keeps it for itself
+  for (const client of clients.filter(c => ['pi', 'opencode', 'copilot', 'windsurf'].includes(c))) {
+    const w = inferWiring(repo, client);
+    if (!w || w.shared || !w.scripts.length || !w.scripts.every(sc => sameCopy(sc, cli))) continue;
+    files.push(...uninstallRepoClient(repo, client));
+  }
+  return [...new Set(files)];
+}
+
+// Take one of the four's checkout files out (the ones thinker wrote): returns them, relative to the checkout.
+function uninstallRepoClient(repo, client) {
+  const gone = [];
+  const ext = EXTENSIONS[client] && path.join(repo, EXTENSIONS[client]);
+  if (ext && readText(ext).startsWith(GENERATED_MARK)) { fs.unlinkSync(ext); gone.push(EXTENSIONS[client]); }
+  for (const f of HOOK_FILES[client] || []) if (stripThinkerHooks(path.join(repo, f), { keepVersion: true })) gone.push(f);
+  for (const f of RULE_FILES[client] || []) if (readText(path.join(repo, f)).includes('<!-- thinker -->')) { fs.unlinkSync(path.join(repo, f)); gone.push(f); }
+  if (MCP_FILES[client] && dropMcpEntry(path.join(repo, MCP_FILES[client]))) gone.push(MCP_FILES[client]);
+  return gone;
+}
+// Take thinker's server out of an mcpServers file; the file goes when nothing else is left in it
+function dropMcpEntry(file) {
+  if (!readJsonOr(file, {}).mcpServers?.thinker) return false;
+  mergeJson(file, c => { const m = { ...(c.mcpServers || {}) }; delete m.thinker; return { ...c, mcpServers: m }; });
+  const left = JSON.parse(fs.readFileSync(file, 'utf8'));
+  if (Object.keys(left).length === 1 && !Object.keys(left.mcpServers).length) fs.unlinkSync(file);
+  return true;
 }
 
 // Codex keeps what the user has trusted in its own config.toml (CODEX_HOME, ~/.codex): a project,
@@ -684,17 +762,36 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
 
   if (!USER_SCOPE_CLIENTS.includes(client) && scope !== 'repo') return done;
   if (EXTENSIONS[client] && (hooks || mcp)) {
-    const file = path.join(repo, EXTENSIONS[client]);
+    // at scope user the extension serves every checkout: no repo in its config, the session's directory at run time
+    const file = scope === 'user' ? f.ext : path.join(repo, EXTENSIONS[client]);
     const before = readText(file);
-    if (before && !before.startsWith(GENERATED_MARK)) throw new Error(`Refusing to overwrite ${EXTENSIONS[client]}: not a generated thinker extension`);
-    const config = { client, repo, cli, hooks: !!hooks, learn: !!learn, late: !!late, shared: !!shared, mcp: !!mcp, mcpEntry };
+    if (before && !before.startsWith(GENERATED_MARK)) throw new Error(`Refusing to overwrite ${rel(file)}: not a generated thinker extension`);
+    const config = { client, repo: scope === 'user' ? null : repo, cli, hooks: !!hooks, learn: !!learn, late: !!late, shared: !!shared, mcp: !!mcp, mcpEntry };
     const text = extensionText(config);
     fs.mkdirSync(path.dirname(file), { recursive: true });
     if (before !== text) fs.writeFileSync(file, text);
-    if (!shared) excludeLocally(repo, [EXTENSIONS[client]]);
-    done.push(`${client}: installed ${EXTENSIONS[client]}${client === 'pi' && mcp ? '; follow-up retrieval uses the CLI (no MCP dependency)' : ''}`);
+    if (scope === 'repo' && !shared) excludeLocally(repo, [EXTENSIONS[client]]);
+    done.push(`${client}: installed ${rel(file)}${client === 'pi' && mcp ? '; follow-up retrieval uses the CLI (no MCP dependency)' : ''}`);
   }
-  if (client === 'windsurf' || client === 'copilot') {
+  if ((client === 'windsurf' || client === 'copilot') && scope === 'user') {
+    if (hooks) {
+      const wind = client === 'windsurf';
+      const prompt = wind ? 'pre_user_prompt' : 'userPromptSubmitted';
+      const tools = wind ? ['post_read_code', 'post_write_code', 'post_run_command', 'post_mcp_tool_use'] : ['postToolUse', 'postToolUseFailure'];
+      const stops = wind ? ['post_cascade_response'] : ['agentStop', 'sessionEnd'];
+      const entry = (what, extra) => wind ? { command: cmd(what, extra), show_output: what === 'stop' } : { type: 'command', command: cmd(what, extra), timeoutSec: 15 };
+      const entries = [[prompt, entry('prompt', rec)]];
+      if (learn || (!wind && (hooks || late))) for (const ev of tools) entries.push([ev, entry('tool', (!wind && late ? ' --late' : '') + rec)]);
+      for (const ev of stops) entries.push([ev, entry('stop', stopFlags)]);
+      mergeJson(f.hooks, c => ({ ...(!wind ? { version: 1 } : {}), ...c, hooks: setHooks(c.hooks, [prompt, ...tools, ...stops], entries) }));
+      done.push(`${client}: hooks in ${rel(f.hooks)}${wind ? '; Windsurf runs them in the workspace, where they find the repository' : '; prompt notes delivered after the first tool result'}`);
+    }
+    if (client === 'copilot' && mcp) {
+      mergeJson(f.mcp, c => ({ ...c, mcpServers: { ...(c.mcpServers || {}), thinker: mcpServerEntry('copilot', mcpEntry) } }));
+      done.push(`Copilot: registered MCP server in ${rel(f.mcp)}`);
+    }
+  }
+  if ((client === 'windsurf' || client === 'copilot') && scope === 'repo') {
     const generated = [];
     if (hooks) {
       const wind = client === 'windsurf';
@@ -724,7 +821,7 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
     }
     if (client === 'copilot' && mcp) {
       const file = MCP_FILES.copilot;
-      mergeJson(path.join(repo, file), c => ({ ...c, mcpServers: { ...(c.mcpServers || {}), thinker: { type: 'local', command: mcpEntry.command, args: mcpEntry.args, env: mcpEntry.env || {}, tools: ['*'] } } }));
+      mergeJson(path.join(repo, file), c => ({ ...c, mcpServers: { ...(c.mcpServers || {}), thinker: mcpServerEntry('copilot', mcpEntry) } }));
       generated.push(file);
       done.push(`Copilot: registered MCP server in ${file} (Copilot loads it once the folder is trusted)`);
     }
@@ -819,7 +916,7 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
     const file = candidates.find(f => fs.existsSync(f)) || candidates.at(-1);
     if (file) {
       const existed = fs.existsSync(file);
-      if (updateInstructions(file, agentWorkflow({ cli, repo: scope === 'repo' ? repo : undefined, mcp: !!mcp, learn: !!learn, disabled: scope === 'repo' ? repoDisabledTools(repo) : undefined }))) done.push(`${client}: Thinker workflow in ${rel(file)}`);
+      if (updateInstructions(file, agentWorkflow({ cli, repo: scope === 'repo' ? repo : undefined, mcp: !!mcp && client !== 'windsurf', learn: !!learn, disabled: scope === 'repo' ? repoDisabledTools(repo) : undefined }))) done.push(`${client}: Thinker workflow in ${rel(file)}`);
       // Do not hide an existing user instruction file from version control.
       if (!existed) localFiles([file]);
     }
@@ -869,18 +966,16 @@ export function uninstallWiring({ scope = 'repo', repo } = {}) {
   const claude = wiringFiles('claude', o), codex = wiringFiles('codex', o), gemini = wiringFiles('gemini', o), cursor = wiringFiles('cursor', o);
   for (const file of new Set(CLIENTS.flatMap(c => instructionFiles(c, o)))) updateInstructions(file, null);
   untrustCodexHooks(codex.hooks);
-  if (scope === 'repo') {
-    for (const f of [...HOOK_FILES.windsurf, ...HOOK_FILES.copilot]) stripThinkerHooks(path.join(repo, f), { keepVersion: true });
-    for (const f of Object.values(EXTENSIONS)) if (readText(path.join(repo, f)).startsWith(GENERATED_MARK)) fs.unlinkSync(path.join(repo, f));
-    for (const f of [...RULE_FILES.windsurf, ...RULE_FILES.copilot]) {
-      const rule = path.join(repo, f);
-      if (readText(rule).includes('<!-- thinker -->')) fs.unlinkSync(rule);
-    }
+  if (scope === 'repo') for (const client of ['pi', 'opencode', 'copilot', 'windsurf']) uninstallRepoClient(repo, client);
+  else {
+    for (const client of ['pi', 'opencode']) { const ext = wiringFiles(client, o).ext; if (readText(ext).startsWith(GENERATED_MARK)) fs.unlinkSync(ext); }
+    stripThinkerHooks(wiringFiles('copilot', o).hooks, { keepVersion: true }); stripThinkerHooks(wiringFiles('windsurf', o).hooks);
+    dropMcpEntry(wiringFiles('copilot', o).mcp);
   }
   const stripHooks = (file, keepVersion) => file && stripThinkerHooks(file, { keepVersion, mcp: true });
   for (const f of [claude.local, claude.shared, codex.hooks, gemini.settings]) stripHooks(f);
   stripHooks(cursor.hooks, true);
-  for (const file of [claude.mcp, cursor.mcp, ...(scope === 'repo' ? [path.join(repo, MCP_FILES.copilot)] : [])]) {
+  for (const file of [claude.mcp, cursor.mcp]) {
     if (!fs.existsSync(file)) continue;
     mergeJson(file, c => { const m = { ...(c.mcpServers || {}) }; delete m.thinker; return { ...c, mcpServers: m }; });
     const left = JSON.parse(fs.readFileSync(file, 'utf8'));

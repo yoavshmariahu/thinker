@@ -139,6 +139,18 @@ as tested automatic integrations by this change. MCP-capable hosts can use
 
 ## Contracts and limitations
 
+All eight agents are wired machine-wide (`thinker connect`, the installer, and an
+update for an agent installed later), so every git checkout gets thinker without
+`thinker setup` there. For pi, OpenCode, Copilot CLI and Windsurf the files are
+`~/.pi/agent/extensions/thinker.js`; `~/.config/opencode/plugins/thinker.js` and
+`~/.config/opencode/AGENTS.md`; `~/.copilot/hooks/thinker.json`,
+`~/.copilot/mcp-config.json` and `~/.copilot/copilot-instructions.md`; and
+`~/.codeium/windsurf/hooks.json` and `~/.codeium/windsurf/memories/global_rules.md`.
+The hooks take the checkout from the session (pi's `ctx.cwd`, OpenCode's worktree,
+Copilot's `cwd`, Windsurf's workspace working directory). The checkout files named
+below are what `thinker setup --shared` and checkouts set up before 2026-10-15 use;
+a checkout's own copy moves to the machine-wide one on its next prompt.
+
 - **Pi:** `.pi/extensions/thinker.js` loads Thinker's extension module. It adds a
   custom context message and appends late notes to tool results without replacing
   the original result. Uses the [extension event contracts](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/src/core/extensions/types.ts).
@@ -159,8 +171,8 @@ as tested automatic integrations by this change. MCP-capable hosts can use
   instruction file `.github/instructions/thinker.instructions.md` provides CLI
   retrieval guidance. Hook payloads without a session ID are ignored rather than
   mixing different conversations. The final assistant answer is not supplied by
-  the native stop event and is not fabricated. MCP can be configured manually
-  with `/mcp add`; setup does not change user-wide MCP settings. Some headless
+  the native stop event and is not fabricated. Thinker's MCP server is registered
+  in `~/.copilot/mcp-config.json` (a checkout set up for itself: `.github/mcp.json`). Some headless
   modes require explicitly enabling repository hooks. This is a CLI adapter,
   not a claim about every VS Code/cloud Copilot hook runtime.
 - **OpenCode:** `.opencode/plugins/thinker.js` uses the documented

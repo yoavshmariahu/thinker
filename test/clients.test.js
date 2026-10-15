@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store } from '../src/store.js';
 import { createNote } from '../src/ops.js';
-import { parseClients, installClient, uninstallClients, uninstallWiring, connectFromCheckouts, pruneInstalls, prunedLines, compareVersions, trustCodex, trustCodexUser, codexHookHash, toolFiles, hookClient, stopOutput, refreshWiring, inferWiring } from '../src/clients.js';
+import { parseClients, installClient, uninstallClients, uninstallWiring, connectFromCheckouts, pruneInstalls, prunedLines, compareVersions, trustCodex, trustCodexUser, codexHookHash, toolFiles, hookClient, stopOutput, refreshWiring, inferWiring, stripRepoWiring, connectDetected } from '../src/clients.js';
 import { installGitHooks, mainCheckout } from '../src/git-hooks.js';
 import { knownRepos } from '../src/commands/setup.js';
 
@@ -703,4 +703,71 @@ test('a Codex MCP table whose thinker markers Codex dropped still counts as wire
   const toml = fs.readFileSync(file, 'utf8');
   assert.equal(toml.match(/\[mcp_servers\.thinker\]/g).length, 1, 'not added a second time');
   assert.ok(toml.includes('[features]'));
+});
+
+test('pi, OpenCode, Copilot and Windsurf are wired machine-wide: in the agents\' own files, read back, refreshed without change, removed', () => {
+  const home = { ...fakeHome(), XDG_CONFIG_HOME: '', COPILOT_HOME: '', PI_CODING_AGENT_DIR: '' };
+  inHome(home, () => {
+    const entry = { command: 'node', args: [path.join(path.dirname(CLI), 'mcp.js')] };
+    const o = { scope: 'user', cli: CLI, mcpEntry: entry, hooks: true, learn: true, late: false, mcp: true };
+    const at = (...p) => path.join(home.HOME, ...p);
+    fs.mkdirSync(at('.copilot'), { recursive: true });
+    fs.writeFileSync(at('.copilot', 'mcp-config.json'), JSON.stringify({ mcpServers: { other: { type: 'local', command: 'x', args: [], tools: ['*'] } } }));
+    for (const c of ['pi', 'opencode', 'copilot', 'windsurf']) installClient(c, o);
+    const pi = fs.readFileSync(at('.pi', 'agent', 'extensions', 'thinker.js'), 'utf8');
+    assert.match(pi, /"repo":null/, 'no checkout pinned: the session\'s directory at run time');
+    assert.match(fs.readFileSync(at('.config', 'opencode', 'plugins', 'thinker.js'), 'utf8'), /opencodePlugin/);
+    assert.match(fs.readFileSync(at('.config', 'opencode', 'AGENTS.md'), 'utf8'), /thinker:workflow:start/);
+    const copilot = JSON.parse(fs.readFileSync(at('.copilot', 'hooks', 'thinker.json'), 'utf8'));
+    assert.equal(copilot.version, 1);
+    assert.match(copilot.hooks.userPromptSubmitted[0].command, / hook prompt --client copilot --user --record$/);
+    const servers = JSON.parse(fs.readFileSync(at('.copilot', 'mcp-config.json'), 'utf8')).mcpServers;
+    assert.deepEqual(servers.thinker, { type: 'local', command: 'node', args: entry.args, env: {}, tools: ['*'] });
+    assert.ok(servers.other);
+    assert.match(fs.readFileSync(at('.copilot', 'copilot-instructions.md'), 'utf8'), /thinker:workflow:start/);
+    assert.match(JSON.parse(fs.readFileSync(at('.codeium', 'windsurf', 'hooks.json'), 'utf8')).hooks.pre_user_prompt[0].command, / --client windsurf --user/);
+    assert.match(fs.readFileSync(at('.codeium', 'windsurf', 'memories', 'global_rules.md'), 'utf8'), /thinker:workflow:start/);
+    for (const c of ['pi', 'opencode', 'copilot', 'windsurf']) {
+      const w = inferWiring(null, c, { scope: 'user' });
+      assert.ok(w && w.hooks && w.mcp && w.learn, c); assert.deepEqual(w.custom, [], c);
+      const r = refreshWiring(null, { scope: 'user', cli: CLI, mcpEntry: entry, clients: [c] });
+      assert.deepEqual([r.changed, r.skipped], [[], []], c);
+    }
+    uninstallWiring({ scope: 'user' });
+    for (const f of [['.pi', 'agent', 'extensions', 'thinker.js'], ['.config', 'opencode', 'plugins', 'thinker.js'], ['.copilot', 'hooks', 'thinker.json'], ['.codeium', 'windsurf', 'hooks.json']]) assert.ok(!fs.existsSync(at(...f)), f.join('/'));
+    assert.deepEqual(Object.keys(JSON.parse(fs.readFileSync(at('.copilot', 'mcp-config.json'), 'utf8')).mcpServers), ['other']);
+    for (const f of [['.copilot', 'copilot-instructions.md'], ['.config', 'opencode', 'AGENTS.md'], ['.codeium', 'windsurf', 'memories', 'global_rules.md']]) assert.doesNotMatch(fs.existsSync(at(...f)) ? fs.readFileSync(at(...f), 'utf8') : '', /thinker:workflow/, f.join('/'));
+  });
+});
+
+test('a checkout set up for pi or Copilot before goes over to the machine-wide wiring; a shared one stays', () => {
+  const dir = repo();
+  const same = { ...opts(dir), learn: true, mcpEntry: { command: 'node', args: [path.join(path.dirname(CLI), 'mcp.js')], env: { THINKER_REPO: dir } } };
+  for (const c of ['pi', 'copilot']) installClient(c, same);
+  assert.ok(fs.existsSync(path.join(dir, '.pi/extensions/thinker.js')) && fs.existsSync(path.join(dir, '.github/hooks/thinker.json')));
+  const moved = stripRepoWiring(dir, { cli: CLI, clients: ['pi', 'copilot'] });
+  assert.ok(moved.includes('.pi/extensions/thinker.js') && moved.includes('.github/hooks/thinker.json') && moved.includes('.github/mcp.json'), moved.join(', '));
+  assert.equal(inferWiring(dir, 'pi'), null); assert.equal(inferWiring(dir, 'copilot'), null);
+  const shared = repo();
+  installClient('pi', { ...same, repo: shared, shared: true });
+  assert.deepEqual(stripRepoWiring(shared, { cli: CLI, clients: ['pi'] }), []);
+  assert.ok(fs.existsSync(path.join(shared, '.pi/extensions/thinker.js')), 'a committed extension is the team\'s');
+});
+
+test('an update wires a detected pi, OpenCode, Copilot or Windsurf once, with the options of the other agents', () => {
+  const home = { ...fakeHome(), XDG_CONFIG_HOME: '', COPILOT_HOME: '', PI_CODING_AGENT_DIR: '' };
+  inHome(home, () => {
+    const thinker = path.join(home.HOME, '.thinker');
+    const entry = { command: 'node', args: [path.join(path.dirname(CLI), 'mcp.js')] };
+    installClient('claude', { scope: 'user', cli: CLI, mcpEntry: entry, hooks: true, learn: false, late: true, mcp: true });
+    assert.deepEqual(connectDetected({ cli: CLI, mcpEntry: entry, home: thinker, detected: ['claude', 'pi', 'copilot'] }), ['pi', 'copilot']);
+    const w = inferWiring(null, 'pi', { scope: 'user' });
+    assert.deepEqual([w.hooks, w.learn, w.late, w.mcp], [true, false, true, true], 'learning off and late notes on, as for Claude Code');
+    assert.ok(inferWiring(null, 'copilot', { scope: 'user' }));
+    assert.equal(inferWiring(null, 'opencode', { scope: 'user' }), null, 'not installed: not wired');
+    // taken out by the person: the next update leaves it out
+    uninstallWiring({ scope: 'user' });
+    assert.deepEqual(connectDetected({ cli: CLI, mcpEntry: entry, home: thinker, detected: ['claude', 'pi', 'copilot', 'opencode'] }), ['opencode']);
+    assert.equal(inferWiring(null, 'pi', { scope: 'user' }), null);
+  });
 });
