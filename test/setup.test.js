@@ -466,6 +466,7 @@ test('runSetup wires the repository up and leaves the cache unbuilt when no agen
   const store = new Store(repo);
   const outLines = [];
   const out = line => outLines.push(stripAnsi(line));
+  let builds = 0;
 
   try {
     const res = await runSetup({
@@ -478,10 +479,12 @@ test('runSetup wires the repository up and leaves the cache unbuilt when no agen
       noBenchmark: true,
       agent: 'nonexistent-agent',
       yes: true,
+      onBuildStart: () => builds++,
       out,
     });
 
     assert.equal(res.built, false);
+    assert.equal(builds, 1, '--yes starts the attempt even when authentication prevents building');
     assert.ok(res.error);
     const fullOut = outLines.join('\n');
     assert.match(fullOut, /Requested agent "nonexistent-agent" is not installed/);
@@ -512,6 +515,7 @@ test('setup offers the cache build and takes no for an answer outside a terminal
       // no `build` and no `yes`: the question is asked, and tests are not a terminal
       minePrsFn: async () => { throw new Error('must not mine without an answer'); },
       checkAuthFn: () => { throw new Error('must not ask for a login for a build nobody asked for'); },
+      onBuildStart: () => { throw new Error('declining setup must not start a warm-up'); },
     });
     const fullOut = outLines.join('\n');
     assert.equal(res.built, false);

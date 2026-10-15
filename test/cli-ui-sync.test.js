@@ -18,6 +18,7 @@ import { activityAreas } from '../src/areas.js';
 import { DEFAULT_DISTILL_MODEL } from '../src/llm.js';
 import { DEFAULT_DEPTH, DEFAULT_PRS, DEPTHS } from '../src/setup/estimate.js';
 import { buildModel } from '../src/setup/models.js';
+import { areasConfig, refreshAreas } from '../src/areas.js';
 
 const SRC = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'src');
 const read = f => fs.readFileSync(path.join(SRC, f), 'utf8');
@@ -102,7 +103,7 @@ test('a repository the page lists starts on the areas the command line would bui
   assert.deepEqual(row.areas, project.directories, 'the page shows the areas the command line picks');
   assert.deepEqual(row.areas, activityAreas(dir, { noGitHub: true }).directories);
   // a warm-up queued as the page sends it: the areas as directories, no depth named
-  const queued = await post('/api/warmup', { repos: [{ checkout: dir, directories: row.areas }] });
+  const queued = await post('/api/warmup', { repos: [{ checkout: dir, directories: row.areas, automatic: true }] });
   assert.equal(queued.status, 200, JSON.stringify(queued));
   assert.equal(queued.jobs[0].depth, DEFAULT_DEPTH, 'the depth the page falls back to is the command line default');
   assert.deepEqual(queued.jobs[0].directories, ['src/api']);
@@ -110,10 +111,32 @@ test('a repository the page lists starts on the areas the command line would bui
   const args = p.spawned[0].args;
   assert.deepEqual(args.slice(0, 6), ['/x/cli.js', 'setup', '--build', '--yes', '--no-ui', '--no-benchmark'], 'the job is the setup command, answered yes');
   assert.deepEqual(args.slice(args.indexOf('--depth'), args.indexOf('--depth') + 2), ['--depth', DEFAULT_DEPTH]);
-  assert.deepEqual(args.slice(args.indexOf('--directories'), args.indexOf('--directories') + 2), ['--directories', 'src/api'], 'the build reads the areas');
+  assert.equal(queued.jobs[0].automatic, true);
+  assert.ok(!args.includes('--directories'), 'automatic areas use the command default, not a manual scope');
   assert.ok(!args.includes('--full-repo'), 'not the whole repository');
   assert.ok(!args.includes('--prs'), 'the pull-request count is the command line default (DEFAULT_PRS), not a second number');
   assert.equal(DEFAULT_PRS, 60); assert.equal(DEFAULT_DEPTH, DEPTHS[0]);
+  // Execute the scope selection the queued command uses, then check maintenance follows activity.
+  const store = new Store(dir).init();
+  await chooseProject({ repo: dir, store, flags: { yes: true }, interactive: false, out: () => {} });
+  assert.equal(areasConfig(store).source, 'activity');
+  refreshAreas(store, dir, { now: Date.now() + 2 * 86400_000, find: () => ({ source: 'activity', directories: ['src/db'] }) });
+  assert.deepEqual(areasConfig(store).directories, ['src/db']);
+});
+
+test('a manual page selection stays manual even when it equals the suggested areas; Clear means the whole repo', async t => {
+  for (const directories of [['src/api'], []]) {
+    const dir = repo(t), p = page(t, dir);
+    const { post } = await p.start();
+    const result = await post('/api/warmup', { repos: [{ checkout: dir, directories, automatic: false }] });
+    assert.equal(result.status, 200);
+    const args = p.spawned[0].args;
+    const flags = directories.length ? { directories: args[args.indexOf('--directories') + 1] } : { 'full-repo': args.includes('--full-repo') };
+    const store = new Store(dir).init();
+    await chooseProject({ repo: dir, store, flags: { yes: true, ...flags }, interactive: false, out: () => {} });
+    assert.equal(areasConfig(store).source, directories.length ? 'manual' : 'all');
+    assert.equal(refreshAreas(store, dir, { now: Date.now() + 2 * 86400_000, find: () => ({ source: 'activity', directories: ['src/db'] }) }), null);
+  }
 });
 
 test('the page chooses the default model for the harness, ignoring obsolete model selections', async t => {
@@ -131,8 +154,10 @@ test('the page script builds a pick from the areas, and names the depth the comm
   const html = read('ui/page.html');
   // every selection the page creates on its own starts from r.areas; only the picker's Clear empties it
   assert.equal((html.match(/directories: \[\]/g) || []).length, 0, 'no selection starts as the whole repository');
-  assert.ok((html.match(/directories: \[\.\.\.\((W\.repos\.find\([^)]*\)\?|r)\.areas \|\| \[\]\)\]/g) || []).length >= 2, 'the default pick and a hand pick both start from the areas');
+  assert.ok((html.match(/directories: \[\.\.\.\((W\.repos\.find\([^)]*\)\?|r)\.areas \|\| \[\]\)\], automatic: true/g) || []).length >= 2, 'the default pick and a hand pick both start from automatic areas');
   assert.ok(html.includes("sel.directories = []"), 'Clear is the one way to the whole repository');
+  assert.equal((html.match(/sel\.automatic = false/g) || []).length, 2, 'Clear and directory edits both opt out of automatic areas');
+  assert.ok(html.includes('automatic: s.automatic'), 'the page sends the scope choice to the command queue');
   assert.ok(html.includes(`depth: '${DEFAULT_DEPTH}'`), 'a pick starts at the command line depth');
   // the command line answered yes takes the same depth
   assert.ok(read('setup.js').includes('yes ? (depth || DEFAULT_DEPTH)'), 'setup --yes takes DEFAULT_DEPTH');

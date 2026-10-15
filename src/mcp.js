@@ -76,6 +76,7 @@ async function ensureBound(args) {
   if (!r) return { reply: text('thinker is not bound to a repository yet: it was started outside a git checkout. Call again with cwd, the absolute path of your working directory.') };
   if (isDisabledRepo(r)) return { reply: text('thinker is switched off for that repository and serves nothing there.') };
   binding = bind(r); await binding;
+  registerWarmupTool();
   return { bound: true };
 }
 
@@ -256,12 +257,17 @@ function registerTools() {
     return text(`Recorded. ${r.note.id} confidence now ${Math.round(r.note.confidence * 100)}%${input.correction ? ', body updated' : ''}.`);
   });
 
+  registerWarmupTool();
+}
+
+let warmupTool;
+function registerWarmupTool() {
   // The warm-up offer as a picker (repo-onboard.js:warmupOffer): the hooks tell Codex, whose own question
   // tool is off outside plan mode, to call this, and the server asks the person through MCP elicitation.
   // Offered only while an offer may be waiting for its answer here (`warmupPending`), so it costs nothing
   // once the repository is warm or answered. A client without elicitation is told to ask in chat and call
   // again with the choice.
-  if (store && warmupPending(store)) server.registerTool('warmup', {
+  if (!warmupTool && store && warmupPending(store)) warmupTool = server.registerTool('warmup', {
     title: 'Offer a warm-up of this cache',
     description: 'Only when a thinker-new-repository notice tells you to: with choice, records the user\'s answer to the warm-up offer and acts on it (warm starts the warm-up in the background); without, asks the user in a picker first.',
     inputSchema: {
@@ -280,12 +286,10 @@ function registerTools() {
 
 if (setUp || late) registerTools();
 
-const transport = new StdioServerTransport();
-await server.connect(transport);
-
 // Started outside a repository: a client that declares roots (a workspace) is asked for them, and
-// the first root that is a git repository binds the server before any call does.
-if (late) {
+// the first root that is a git repository binds the server. connect() only starts the transport;
+// capabilities are available after the client completes initialization.
+if (late) server.server.oninitialized = async () => {
   try {
     if (server.server.getClientCapabilities()?.roots) {
       const { roots = [] } = await server.server.listRoots();
@@ -293,8 +297,12 @@ if (late) {
         const r = checkoutOf(root.uri);
         if (!r || isDisabledRepo(r) || store) continue;
         binding = bind(r); await binding;
+        registerWarmupTool();
         break;
       }
     }
   } catch {}
-}
+};
+
+const transport = new StdioServerTransport();
+await server.connect(transport);

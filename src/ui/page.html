@@ -817,7 +817,7 @@ async function loadWarmup() {
     // preselected: the five used most recently (the list is most recently active first) that have history to
     // read and no cache yet (one that was warmed up before, or holds notes, is marked instead); they lead the list
     // each starts on the person's own areas, the directories their commits touch (areas.js); the picker clears to the whole repository
-    if (!SEL.size) for (const r of W.repos.filter(r => r.canMine && !r.warmed && !r.hasCache).slice(0, 5)) SEL.set(r.checkout, { depth: 'full', directories: [...(r.areas || [])] });
+    if (!SEL.size) for (const r of W.repos.filter(r => r.canMine && !r.warmed && !r.hasCache).slice(0, 5)) SEL.set(r.checkout, { depth: 'full', directories: [...(r.areas || [])], automatic: true });
     W.repos = [...W.repos.filter(r => SEL.has(r.checkout)), ...W.repos.filter(r => !SEL.has(r.checkout))];
     renderWarmup();
     // the agents are asked whether they are signed in, which takes a moment: the bar fills in when they answer
@@ -876,7 +876,7 @@ function renderWarmup() {
   $('#w-start').disabled = !SEL.size || !AGENTS || !W.agents.length;
   document.querySelectorAll('#w-grid .wrow').forEach(el => {
     const c = el.dataset.c;
-    const pick = el.querySelector('[data-pick]'); if (pick) pick.onchange = () => { if (pick.checked) SEL.set(c, { depth: 'full', directories: [...(W.repos.find(x => x.checkout === c)?.areas || [])] }); else SEL.delete(c); if (DROP === c) DROP = null; renderWarmup(); };
+    const pick = el.querySelector('[data-pick]'); if (pick) pick.onchange = () => { if (pick.checked) SEL.set(c, { depth: 'full', directories: [...(W.repos.find(x => x.checkout === c)?.areas || [])], automatic: true }); else SEL.delete(c); if (DROP === c) DROP = null; renderWarmup(); };
     el.querySelectorAll('[data-depth]').forEach(b => b.onclick = () => { SEL.get(c).depth = b.dataset.depth; renderWarmup(); });
     const dirs = el.querySelector('[data-dirs]'); if (dirs) dirs.onclick = () => { DROP = DROP === c ? null : c; dirQuery = ''; renderWarmup(); if (DROP) document.querySelector('.wdrop input')?.focus(); };
     const sw = el.querySelector('[data-switch]'); if (sw) sw.onclick = async () => {
@@ -902,7 +902,7 @@ function renderDrop() {
     box.innerHTML = `<input placeholder="Search ${r.dirs.length} directories…" value="${esc(dirQuery)}"><ul class="wopts"></ul><div class="wfoot"><span data-n></span><button data-clear>Clear</button></div>`;
     box.querySelector('input').oninput = e => { dirQuery = e.target.value; renderDrop(); };
     box.querySelector('input').onkeydown = e => { if (e.key === 'Escape') { DROP = null; renderWarmup(); } };
-    box.querySelector('[data-clear]').onclick = () => { sel.directories = []; renderWarmup(); };
+    box.querySelector('[data-clear]').onclick = () => { sel.directories = []; sel.automatic = false; renderWarmup(); };
   }
   const q = dirQuery.trim().toLowerCase();
   const scored = r.dirs.map(d => [d, fuzzy(q, d.toLowerCase())]).filter(([, s]) => s >= 0).sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]));
@@ -911,7 +911,7 @@ function renderDrop() {
   box.querySelector('.wopts').innerHTML = shown.length ? shown.map(([d]) => `<li class="${sel.directories.includes(d) ? 'on' : ''}" data-dir="${esc(d)}"><span>${esc(d)}</span>${sel.directories.includes(d) ? '<span class="tick">✓</span>' : ''}</li>`).join('') : '<li class="muted" style="cursor:default">No directory matches</li>';
   box.querySelector('[data-n]').textContent = sel.directories.length ? `${sel.directories.length} picked · their history only` : 'none picked · the whole repository';
   box.querySelectorAll('[data-dir]').forEach(li => li.onclick = () => {
-    const d = li.dataset.dir; sel.directories = sel.directories.includes(d) ? sel.directories.filter(x => x !== d) : [...sel.directories, d];
+    const d = li.dataset.dir; sel.automatic = false; sel.directories = sel.directories.includes(d) ? sel.directories.filter(x => x !== d) : [...sel.directories, d];
     renderDrop(); box.querySelector('input').focus(); const btn = document.querySelector(`.wrow[data-c="${CSS.escape(DROP)}"] [data-dirs]`); if (btn) btn.textContent = dirLabel(sel) + ' ▾';
   });
 }
@@ -923,7 +923,7 @@ $('#w-skip').onclick = () => { try { localStorage.setItem('thinker.warmupSkipped
 $('#w-start').onclick = async () => {
   const btn = $('#w-start'); btn.disabled = true;
   try {
-    const repos = [...SEL].map(([checkout, s]) => ({ checkout, depth: s.depth, directories: s.directories }));
+    const repos = [...SEL].map(([checkout, s]) => ({ checkout, depth: s.depth, directories: s.directories, automatic: s.automatic }));
     const r = await api('/api/warmup', { repos, agent: $('#w-agent').value || null });
     toast(`Building ${r.jobs.length} ${r.jobs.length === 1 ? 'cache' : 'caches'}, one at a time`);
     SEL = new Map(); W = null; prevJobs = ''; DROP = null;

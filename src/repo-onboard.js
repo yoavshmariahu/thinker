@@ -38,11 +38,19 @@ const once = (store, name) => {
 // (its hooks run nowhere else; never from the test suite, whose home is the real one), and Cursor's
 // always-on rule, kept out of git status as the cache is. Returns what was done, or null when done before.
 export function setupRepo(store, { client, cli, learn = true }) {
-  if (!once(store, 'repo-setup')) return null;
   const done = [];
-  try { installGitHooks(store.repo, cli, learn); done.push('git hooks'); } catch {}
-  if (client === 'codex' && !isTestMode()) { try { trustCodex(store.repo); done.push('codex trust'); } catch {} }
-  if (client === 'cursor') { try { installCursorRule(store.repo, { learn }); excludeFromGit(store.repo, ['.cursor/rules/thinker.mdc']); done.push('cursor rule'); } catch {} }
+  // The old repo-setup marker covers the shared git hooks only. Each agent still needs its own
+  // first-use setup, including in caches that another agent already visited. Failed writes retry.
+  const step = (name, label, fn) => {
+    if (fs.existsSync(mark(store, name))) return;
+    try { fn(); once(store, name); done.push(label); } catch {}
+  };
+  step('repo-setup', 'git hooks', () => installGitHooks(store.repo, cli, learn));
+  if (client === 'codex' && !isTestMode()) step('repo-setup-codex', 'codex trust', () => trustCodex(store.repo));
+  if (client === 'cursor') step('repo-setup-cursor', 'cursor rule', () => {
+    installCursorRule(store.repo, { learn }); excludeFromGit(store.repo, ['.cursor/rules/thinker.mdc']);
+  });
+  if (!done.length) return null;
   store.log({ op: 'repo-setup', client, done });
   return done;
 }

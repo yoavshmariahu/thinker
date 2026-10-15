@@ -152,7 +152,8 @@ export function warmupJobs({ home, cliPath, spawnFn = spawn, onChange = () => {}
     if (jobs.some(j => j.status === 'running')) return;
     const next = jobs.find(j => j.status === 'queued'); if (!next) return;
     const args = [cliPath, 'setup', '--build', '--yes', '--no-ui', '--no-benchmark', '--depth', next.depth, '--repo', next.checkout];
-    args.push(...(next.directories?.length ? ['--directories', next.directories.join(',')] : ['--full-repo']));
+    // Automatic areas use setup's default, so their source stays activity and follows daily refresh.
+    if (!next.automatic) args.push(...(next.directories?.length ? ['--directories', next.directories.join(',')] : ['--full-repo']));
     if (next.model) args.push('--model', next.model);
     let child;
     try {
@@ -172,7 +173,7 @@ export function warmupJobs({ home, cliPath, spawnFn = spawn, onChange = () => {}
       const added = [];
       for (const r of list) {
         if (jobs.some(j => j.checkout === r.checkout && (j.status === 'queued' || j.status === 'running'))) continue;
-        const j = { id: crypto.randomBytes(6).toString('hex'), checkout: r.checkout, name: r.name, depth: r.depth, directories: r.directories || null, agent: r.agent || null, model: r.model || null, estimateSeconds: r.estimateSeconds || 0, status: 'queued', queued: new Date().toISOString() };
+        const j = { id: crypto.randomBytes(6).toString('hex'), checkout: r.checkout, name: r.name, depth: r.depth, directories: r.directories || null, automatic: r.automatic === true, agent: r.agent || null, model: r.model || null, estimateSeconds: r.estimateSeconds || 0, status: 'queued', queued: new Date().toISOString() };
         jobs.push(j); added.push(j);
       }
       save(); pump();
@@ -272,8 +273,9 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
           const c = candidates.find(x => x.checkout === r.checkout); if (!c) return json(res, 400, { error: `not a repository on this machine: ${r.checkout}` });
           if (isDisabledRepo(c.checkout)) return json(res, 400, { error: `thinker is switched off for ${c.name}; turn it on first` });
           const depth = DEPTHS.includes(r.depth) ? r.depth : DEFAULT_DEPTH;
-          const dirs = Array.isArray(r.directories) ? r.directories.filter(d => c.dirs.includes(d)) : [];
-          list.push({ checkout: c.checkout, name: c.name, depth, directories: dirs.length ? dirs : null, agent, model: tier, estimateSeconds: c.estimates[depth]?.seconds || 0 });
+          const automatic = r.automatic === true || r.directories === undefined;
+          const dirs = automatic ? c.areas : Array.isArray(r.directories) ? r.directories.filter(d => c.dirs.includes(d)) : [];
+          list.push({ checkout: c.checkout, name: c.name, depth, directories: dirs?.length ? dirs : null, automatic, agent, model: tier, estimateSeconds: c.estimates[depth]?.seconds || 0 });
         }
         if (!list.length) return json(res, 400, { error: 'no repositories selected' });
         return json(res, 200, { ok: true, jobs: jobs.add(list) });

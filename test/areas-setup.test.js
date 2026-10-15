@@ -69,7 +69,7 @@ function staleRepo() {
 
 test('maintain: focused on areas, the merged-PR step is scoped and each area\'s older history is walked in turn up to the depth', async () => {
   const { dir, store } = staleRepo();
-  saveAreas(store, { directories: ['src/api', 'src/db'], source: 'manual', walkedBy: {} });
+  saveAreas(store, { directories: ['src/api', 'src/db'], source: 'manual', walkedBy: {}, walkVersion: 2 });
   const prs = [], walks = [];
   const fns = { spentToday: () => 0, verify: async () => ({ verdict: 'still_valid', cost: 0 }), phrase: async (s, n) => ({ done: n, cost: 0 }),
     minePrs: async o => { prs.push(o); return { saved: 1, tokens: 10 }; }, mineAreaHistory: async o => { walks.push(o); return { saved: 2, tokens: 20, processed: 3 }; } };
@@ -79,12 +79,12 @@ test('maintain: focused on areas, the merged-PR step is scoped and each area\'s 
   assert.equal(prs.length, 1);
   assert.deepEqual(prs[0].directories, ['src/api', 'src/db']);
   assert.equal(walks.length, 2, 'one walk per run, including the first');
-  assert.deepEqual(walks[1], { paths: ['src/api'], limit: DEFAULTS.prsPerRun, scan: 3 * 2 + DEFAULTS.prsPerRun * 3 });
+  assert.deepEqual(walks[1], { paths: ['src/api'], limit: DEFAULTS.prsPerRun, scan: DEFAULTS.prsPerRun * 6 });
   assert.equal(r.prs, 3, 'merged PRs plus the walk');
   assert.deepEqual(areasConfig(store).walkedBy, { 'src/api': 6 });
   // the first area warm, the walk moves to the next; an area with nothing left is warm
   saveAreas(store, { walkedBy: { 'src/api': AREAS_DEFAULTS.walk } });
-  const empty = { ...fns, mineAreaHistory: async o => { walks.push(o); return { saved: 0, tokens: 0, processed: 0 }; } };
+  const empty = { ...fns, mineAreaHistory: async o => { walks.push(o); return { saved: 0, tokens: 0, processed: 0, exhausted: true }; } };
   fs.rmSync(path.join(dir, '.thinker', 'state', 'maintain.lock'), { force: true });
   await maintain(store, dir, { fns: empty, now: Date.now() + 2 * MAINTENANCE_INTERVAL_MS });
   assert.deepEqual(walks[2].paths, ['src/db']);

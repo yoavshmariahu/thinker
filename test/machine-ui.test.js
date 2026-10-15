@@ -193,7 +193,7 @@ test('the page lists caches with their stats, queues warm-up builds one at a tim
   assert.equal(after.jobs.find(j => j.checkout === dir).status, 'running');
   assert.equal(spawned.length, 2);
   assert.deepEqual(spawned[1].args.slice(6, 8), ['--depth', 'full']);
-  assert.ok(spawned[1].args.includes('--full-repo'));
+  assert.ok(!spawned[1].args.includes('--full-repo') && !spawned[1].args.includes('--directories'), 'an omitted area selection follows the CLI default');
   // a mining batch of that build is the repository's activity, and stopping it from the card stops the build
   const file = path.join(store.dir, 'state', `pr-mining-${Date.now()}-${spawned[1].pid}.jsonl`);
   fs.mkdirSync(path.dirname(file), { recursive: true });
