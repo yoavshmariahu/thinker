@@ -9,7 +9,8 @@ import { initAst, astDirs, GRAMMAR_NAMES } from '../ast.js';
 import { parseClients, uninstallClients, uninstallWiring, refreshWiring, connectFromCheckouts } from '../clients.js';
 import { uninstallGitHooks } from '../git-hooks.js';
 import { runSetup, stepConnectClis } from '../setup.js';
-import { unscheduleTelemetry } from '../telemetry.js';
+import { unscheduleTelemetry, sendUninstallFeedback } from '../telemetry.js';
+import readlinePromises from 'node:readline/promises';
 import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, unscheduleDaily, isScheduled, getLaunchAgentPath } from '../update.js';
 import { githubSlug } from './shared.js';
 import { minePrs } from './learn.js';
@@ -55,7 +56,21 @@ async function uninstallCommand(ctx) {
   // --user: the machine-wide wiring in the agents' own settings goes too
   if (flags.user) uninstallWiring({ scope: 'user' });
   out(`removed thinker hooks and MCP registration from ${repo}${flags.user ? ' and from your own agent settings' : ''}${flags.purge ? ' and deleted .thinker/' : ' (notes kept in .thinker/)'}`);
-  return;
+  await askUninstallFeedback(ctx);
+}
+
+// One optional question after an uninstall in a terminal: why. Enter skips it, and nothing is sent unless
+// something was typed (telemetry being off does not stop a reason the person chose to send).
+export async function askUninstallFeedback({ flags, out }, { stdin = process.stdin, stdout = process.stdout, sendFn = sendUninstallFeedback } = {}) {
+  if (flags.yes || flags.quiet || flags.json || flags.dry || !stdin.isTTY) return;
+  const rl = readlinePromises.createInterface({ input: stdin, output: stdout });
+  let reason = '';
+  try { reason = (await rl.question('\n  Why are you uninstalling thinker? Optional, sent to its developer with the version, platform and install id; Enter skips.\n  > ')).trim(); }
+  catch { return; }
+  finally { rl.close(); }
+  if (!reason) return;
+  const r = await sendFn(reason);
+  out(r.sent ? '  Thank you, that was sent.' : `  It could not be sent${r.error ? ` (${r.error})` : ''}; you can open an issue at https://github.com/yoavshmariahu/thinker/issues instead.`);
 }
 
 // thinker ranker [status|fetch]: the cross-encoder the hooks rank with (dense.js). The installer, `thinker update`

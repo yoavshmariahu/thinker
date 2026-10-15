@@ -210,8 +210,13 @@ main() {
 
   if [ "$uninstall" = 1 ]; then
     [ -x "$thinker" ] || die "thinker is not installed in $home"
-    if [ -z "$repo" ]; then "$thinker" uninstall --user
-    elif [ "$purge" = 1 ]; then "$thinker" uninstall --purge --repo "$repo"; else "$thinker" uninstall --repo "$repo"; fi
+    local uargs=(uninstall)
+    if [ -z "$repo" ]; then uargs+=(--user)
+    else [ "$purge" = 1 ] && uargs+=(--purge); uargs+=(--repo "$repo"); fi
+    [ "$yes" = 1 ] && uargs+=(--yes)
+    # the terminal, not the piped script, answers the optional question why
+    if [ "$yes" != 1 ] && [ -r /dev/tty ] && (exec < /dev/tty) 2>/dev/null; then "$thinker" "${uargs[@]}" < /dev/tty
+    else "$thinker" "${uargs[@]}"; fi
     say "To remove the tool itself: rm -rf \"$home\", and delete the '# thinker' PATH line from your shell's startup file"
     exit 0
   fi
