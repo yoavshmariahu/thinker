@@ -165,14 +165,14 @@ test('the page lists caches with their stats, queues warm-up builds one at a tim
 
   // two builds queued: the first starts at once, the second waits for it
   assert.equal((await post('/api/warmup', { repos: [{ checkout: '/nope', depth: 'full' }] })).status, 400, 'only a listed repository');
-  const started = await post('/api/warmup', { repos: [{ checkout: other.dir, depth: 'shallow', directories: ['src', 'nope'] }, { checkout: dir, depth: 'full' }], agent: 'claude', tier: 'haiku' });
+  const started = await post('/api/warmup', { repos: [{ checkout: other.dir, depth: 'shallow', directories: ['src', 'nope'] }, { checkout: dir, depth: 'full' }], agent: 'claude' });
   assert.equal(started.status, 200, started.body);
   const jobs = JSON.parse(started.body).jobs;
   assert.equal(jobs.length, 2);
   assert.equal(spawned.length, 1, 'one at a time');
   assert.deepEqual(spawned[0].args.slice(0, 8), ['/x/cli.js', 'setup', '--build', '--yes', '--no-ui', '--no-benchmark', '--depth', 'shallow']);
   assert.ok(spawned[0].args.includes('--directories') && spawned[0].args.includes('src') && !spawned[0].args.join(' ').includes('nope'));
-  assert.ok(spawned[0].args.includes('--model') && spawned[0].args.includes('haiku'));
+  assert.ok(spawned[0].args.includes('--model') && spawned[0].args.includes('sonnet'));
   assert.equal(spawned[0].opts.env.THINKER_LLM, 'claude');
   assert.equal(spawned[0].opts.cwd, other.dir);
   const act = await get('/api/activity');
