@@ -660,7 +660,7 @@ test('telemetry payload carries warm-up offers, the builds they led to, and whet
     store.log({ op: 'warmup-done', ok: false, notes: 3, mined: 0 });
     store.log({ op: 'warmup-start', source: 'git' });
     let payload = buildTelemetryPayload(store, { home: tmpHome, days: 1, all: false });
-    assert.deepEqual(payload.warmup, { schemaVersion: 1, windowDays: 30, warmMined: 10, offers: 1, offersToColdCaches: 1, started: 2, finished: 0, failed: 1, answeredWarm: 1, answeredNo: 0, answeredNever: 1, answersDismissed: 1, answersInPicker: 1, offeredRepositories: 1, offeredThenStarted: 1, activeRepositoriesWarm: 0, activeRepositoriesCold: 1 });
+    assert.deepEqual(payload.warmup, { schemaVersion: 1, windowDays: 30, warmMined: 10, offers: 1, offersToColdCaches: 1, started: 2, finished: 0, failed: 1, answeredWarm: 1, answeredNo: 0, answeredNever: 1, answersDismissed: 1, answersInPicker: 1, answeredWarmNotStarted: 0, offeredRepositories: 1, offeredThenStarted: 1, activeRepositoriesWarm: 0, activeRepositoriesCold: 1 });
     // the second build finishes, having read its history: the repository in use is warm now
     fs.writeFileSync(path.join(store.dir, 'prs.json'), JSON.stringify({ local: { mined: Array.from({ length: 10 }, (_, i) => `c${i}`) } }));
     store.log({ op: 'warmup-done', ok: true, notes: 40, mined: 10 });

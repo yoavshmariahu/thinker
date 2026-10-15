@@ -269,12 +269,12 @@ function registerTools() {
       asked: z.enum(['picker', 'chat']).optional().describe('Where the user answered: your question tool (picker) or chat'),
     },
   }, async ({ choice, asked }) => {
-    if (choice) return text(answerWarmup(store, String(choice).toLowerCase(), { client: clientName(), via: asked === 'picker' ? 'picker' : 'text' }));
+    if (choice) return text(await answerWarmup(store, String(choice).toLowerCase(), { client: clientName(), via: asked === 'picker' ? 'picker' : 'text' }));
     const inChat = `Ask the user in chat with these three numbered choices: ${WARMUP_CHOICES.map((c, i) => `${i + 1}. "${c.label}": ${c.description}`).join('; ')}. Then call warmup again with choice warm, no or never.`;
     if (!server.server.getClientCapabilities()?.elicitation) return text(`This client cannot show thinker's picker. ${inChat}`);
     const r = await askWarmup();
     if (r.error) return text(`The picker could not be shown (${r.error}). ${inChat}`);
-    return text(answerWarmup(store, r.choice, { client: clientName(), via: 'picker' }).replace(/^Recorded: no warm-up/, r.choice === 'dismissed' ? 'Dismissed: no warm-up' : '$&'));
+    return text((await answerWarmup(store, r.choice, { client: clientName(), via: 'picker' })).replace(/^Recorded: no warm-up/, r.choice === 'dismissed' ? 'Dismissed: no warm-up' : '$&'));
   });
 }
 

@@ -18,7 +18,7 @@ import { installGitHooks } from './git-hooks.js';
 import { trustCodex, installCursorRule } from './clients.js';
 import { excludeFromGit } from './store.js';
 import { estimateCacheBuild, DEFAULT_PRS } from './setup/estimate.js';
-import { githubSlug } from './setup/agents.js';
+import { githubSlug, selectAndAuthenticateAgent, getAgentLoginCommand } from './setup/agents.js';
 import { formatDuration } from './setup/ui.js';
 import { isTestMode } from './test-mode.js';
 import { WARMUP_CHOICES } from './warmup-choices.js';
@@ -152,21 +152,37 @@ export function warmupPending(store, { home } = {}) {
 // its output in the cache's state directory; no leaves the offer made once, as it is; never stops every
 // offer on this machine. Logged as warmup-answer (choice, client, via: picker, or text when the person
 // answered in chat) for the telemetry (telemetry.js:warmupMetrics). Returns the line to tell the agent.
-export function answerWarmup(store, choice, { client, via = 'picker', home, spawnFn = spawn } = {}) {
+export async function answerWarmup(store, choice, { client, via = 'picker', home, spawnFn = spawn, selectAgentFn = selectAndAuthenticateAgent } = {}) {
   const value = ['warm', 'no', 'never', 'dismissed'].includes(choice) ? choice : 'no';
   once(store, 'warmup-answered');
-  store.log({ op: 'warmup-answer', choice: value, client, via });
   if (value === 'never') {
+    store.log({ op: 'warmup-answer', choice: value, client, via });
     const f = neverFile(home); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, new Date().toISOString() + '\n');
     return 'Recorded: thinker will not offer a warm-up again in any repository on this machine (thinker warmup still warms one up). Go on with the task.';
   }
-  if (value !== 'warm') return 'Recorded: no warm-up for this repository; thinker will not ask again here. Go on with the task.';
+  if (value !== 'warm') { store.log({ op: 'warmup-answer', choice: value, client, via }); return 'Recorded: no warm-up for this repository; thinker will not ask again here. Go on with the task.'; }
+  // the agent the warm-up reads through, chosen as the warm-up chooses it, and signed in: checked here, since
+  // the background run fails where nobody sees it (2026-10-15: in a container with Claude Code signed out the
+  // answer said "started" and the log said "Authentication required")
+  let auth;
+  try { auth = await selectAgentFn({ requestedAgent: process.env.THINKER_LLM || null, yes: true, out: () => {}, purpose: 'warm up this repository', allowSkip: false }); }
+  catch (e) { auth = { ok: false, error: e.message }; }
+  if (!auth?.ok) {
+    store.log({ op: 'warmup-answer', choice: value, client, via, started: false, reason: auth?.error || 'no agent' });
+    const why = auth?.error === 'no_agent' ? 'no agent CLI that thinker reads through is installed (Claude Code, Gemini, Codex or Cursor)'
+      : auth?.agent ? `${auth.agent} is not signed in` : 'no signed-in agent was found';
+    return `The warm-up did not start: ${why}. Tell the user, and that once ${auth?.agent ? `they sign in (\`${getAgentLoginCommand(auth.agent)}\`)` : 'one is set up'}, \`thinker warmup\` in this repository warms it up. Go on with the task.`;
+  }
   const logFile = path.join(store.dir, 'state', 'warmup.log');
   try {
     fs.mkdirSync(path.dirname(logFile), { recursive: true });
     const fd = fs.openSync(logFile, 'a');
-    const p = spawnFn(process.execPath, [CLI, 'warmup', '--repos', store.repo, '--yes', '--terminal'], { cwd: store.repo, detached: true, stdio: ['ignore', fd, fd] });
+    const p = spawnFn(process.execPath, [CLI, 'warmup', '--repos', store.repo, '--yes', '--terminal', '--agent', auth.agent], { cwd: store.repo, detached: true, stdio: ['ignore', fd, fd] });
     p.unref?.(); fs.closeSync(fd);
-  } catch (e) { return `The warm-up did not start (${e.message}). The user can run \`thinker warmup\` in this repository. Go on with the task.`; }
-  return `The warm-up started in the background (output in ${path.relative(store.repo, logFile)}); notes reach the cache as it reads. Go on with the task.`;
+  } catch (e) {
+    store.log({ op: 'warmup-answer', choice: value, client, via, started: false, reason: e.message.slice(0, 120) });
+    return `The warm-up did not start (${e.message}). The user can run \`thinker warmup\` in this repository. Go on with the task.`;
+  }
+  store.log({ op: 'warmup-answer', choice: value, client, via, started: true, agent: auth.agent });
+  return `The warm-up started in the background through ${auth.agent} (output in ${path.relative(store.repo, logFile)}); notes reach the cache as it reads. Go on with the task.`;
 }

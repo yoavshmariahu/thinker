@@ -123,7 +123,7 @@ test('each agent is told to ask with its own question tool; Codex calls thinker\
   assert.match(asked.gemini, /`warmup` tool with choice/);
 });
 
-test('the answer: no closes this repository, never closes every repository, warm starts the warm-up; each is logged', () => {
+test('the answer: no closes this repository, never closes every repository, warm starts the warm-up; each is logged', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-onboard-answer-home-'));
   const no = new Store(gitRepo(8)).init();
   assert.ok(warmupPending(no, { home }));
@@ -136,12 +136,21 @@ test('the answer: no closes this repository, never closes every repository, warm
   // warm: the warm-up is started detached, naming this checkout and asking nothing
   const warm = new Store(gitRepo(8)).init();
   let ran;
-  assert.match(answerWarmup(warm, 'warm', { client: 'codex', home, spawnFn: (bin, args, o) => { ran = { args, o }; return { unref() {} }; } }), /started in the background/);
-  assert.deepEqual(ran.args.slice(1), ['warmup', '--repos', warm.repo, '--yes', '--terminal']);
+  const signedIn = async () => ({ ok: true, agent: 'claude' });
+  assert.match(await answerWarmup(warm, 'warm', { client: 'codex', home, selectAgentFn: signedIn, spawnFn: (bin, args, o) => { ran = { args, o }; return { unref() {} }; } }), /started in the background through claude/);
+  assert.deepEqual(ran.args.slice(1), ['warmup', '--repos', warm.repo, '--yes', '--terminal', '--agent', 'claude']);
+  assert.equal(ops(warm.repo).find(e => e.op === 'warmup-answer').started, true);
+  // no agent signed in: nothing is started, and the agent is told so, with the sign-in command
+  const out = new Store(gitRepo(8)).init();
+  let spawned = false;
+  const refused = await answerWarmup(out, 'warm', { client: 'claude', home, selectAgentFn: async () => ({ ok: false, agent: 'claude', error: 'auth' }), spawnFn: () => { spawned = true; } });
+  assert.match(refused, /did not start: claude is not signed in/); assert.match(refused, /claude auth login/);
+  assert.equal(spawned, false);
+  assert.deepEqual(['choice', 'started', 'reason'].map(k => ops(out.repo).find(e => e.op === 'warmup-answer')[k]), ['warm', false, 'auth']);
   assert.equal(ran.o.detached, true);
   // never: no offer in any repository on this machine, the hook says nothing
   const never = new Store(gitRepo(8)).init();
-  answerWarmup(never, 'never', { client: 'claude', via: 'text', home });
+  await answerWarmup(never, 'never', { client: 'claude', via: 'text', home });
   assert.ok(warmupNever(home));
   const other = gitRepo(8);
   execFileSync('git', ['-C', other, 'remote', 'add', 'origin', 'https://git.example.com/acme/other.git']);
@@ -150,6 +159,6 @@ test('the answer: no closes this repository, never closes every repository, warm
   assert.ok(!warmupPending(new Store(other), { home }));
   // anything that is not a choice is no
   const odd = new Store(gitRepo(8)).init();
-  answerWarmup(odd, 'maybe later', { client: 'claude', home });
+  await answerWarmup(odd, 'maybe later', { client: 'claude', home });
   assert.equal(ops(odd.repo).find(e => e.op === 'warmup-answer').choice, 'no');
 });

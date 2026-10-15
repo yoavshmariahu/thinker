@@ -43,7 +43,7 @@ export async function warmupCommand(ctx, { selectAgentFn = selectAndAuthenticate
   if (flags.answer) {
     const s = flags.repos ? new Store(findRepoRoot(String(flags.repos))) : store;
     if (!s.exists()) { out('  No thinker cache here: run this from the repository the offer was about.'); process.exitCode = 1; return; }
-    out(answerWarmup(s, String(flags.answer).toLowerCase(), { client: flags.client ? String(flags.client) : undefined, via: flags.via === 'text' ? 'text' : 'picker' }));
+    out(await answerWarmup(s, String(flags.answer).toLowerCase(), { client: flags.client ? String(flags.client) : undefined, via: flags.via === 'text' ? 'text' : 'picker' }));
     return;
   }
   if (flags.skip) { out('  Skipped: every git repository has a cache that grows from your sessions.'); later(); return; }
