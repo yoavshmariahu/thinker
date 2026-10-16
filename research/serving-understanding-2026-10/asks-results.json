@@ -1,0 +1,936 @@
+[
+ {
+  "form": "full",
+  "variant": "today",
+  "target": 4,
+  "of": 8,
+  "useful": 5,
+  "precision": 0.7142857142857143,
+  "noise": 0,
+  "served": {
+   "PR26225-hard": [
+    "adding-a-persisted-decorator-scorer-option-follows-the-timeo(0)"
+   ],
+   "PR26270-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ],
+   "PR26267-hard": [],
+   "PR26291-hard": [
+    "search-pagination-and-latest-version-loading-have-separate-p(2)"
+   ],
+   "PR26269-hard": [],
+   "PR26307-hard": [],
+   "PR26369-hard": [
+    "aggregate-composition-and-database-collation-constrain-mergi(2)"
+   ],
+   "PR26442-hard": [
+    "gateway-endpoint-resolution-and-provider-composition(1)"
+   ],
+   "PR26252-hard": [],
+   "PR26327-hard": [
+    "endpoint-reads-resolve-targets-before-returning-rows(0)"
+   ],
+   "PR26265-hard": [],
+   "PR26311-hard": [],
+   "PR26300-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ]
+  }
+ },
+ {
+  "form": "full",
+  "variant": "pool",
+  "target": 7,
+  "of": 8,
+  "useful": 8,
+  "precision": 0.6666666666666666,
+  "noise": 2,
+  "served": {
+   "PR26225-hard": [
+    "deserialization-preserves-variant-and-code-execution-boundar(2)"
+   ],
+   "PR26270-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ],
+   "PR26267-hard": [
+    "server-selection-native-routing-and-flask-fallback(2)"
+   ],
+   "PR26291-hard": [
+    "search-pagination-and-latest-version-loading-have-separate-p(2)"
+   ],
+   "PR26269-hard": [
+    "anthropic-usage-changes-must-cover-normalized-and-passthroug(1)"
+   ],
+   "PR26307-hard": [
+    "span-construction-and-finalization-follow-distinct-live-and(2)"
+   ],
+   "PR26369-hard": [
+    "aggregate-composition-and-database-collation-constrain-mergi(2)"
+   ],
+   "PR26442-hard": [
+    "provider-entry-points-separate-normalized-apis-from-native-p(0)"
+   ],
+   "PR26252-hard": [],
+   "PR26327-hard": [
+    "endpoint-reads-resolve-targets-before-returning-rows(0)"
+   ],
+   "PR26265-hard": [
+    "artifact-responses-preserve-attachment-headers-and-streaming(0)"
+   ],
+   "PR26311-hard": [
+    "dataset-conversion-and-its-three-autologging-consumers(0)"
+   ],
+   "PR26300-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ]
+  }
+ },
+ {
+  "form": "full",
+  "variant": "asks indexed · today",
+  "target": 4,
+  "of": 8,
+  "useful": 5,
+  "precision": 0.7142857142857143,
+  "noise": 0,
+  "served": {
+   "PR26225-hard": [
+    "adding-a-persisted-decorator-scorer-option-follows-the-timeo(0)"
+   ],
+   "PR26270-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ],
+   "PR26267-hard": [],
+   "PR26291-hard": [
+    "search-pagination-and-latest-version-loading-have-separate-p(2)"
+   ],
+   "PR26269-hard": [],
+   "PR26307-hard": [],
+   "PR26369-hard": [
+    "aggregate-composition-and-database-collation-constrain-mergi(2)"
+   ],
+   "PR26442-hard": [
+    "gateway-endpoint-resolution-and-provider-composition(1)"
+   ],
+   "PR26252-hard": [],
+   "PR26327-hard": [
+    "endpoint-reads-resolve-targets-before-returning-rows(0)"
+   ],
+   "PR26265-hard": [],
+   "PR26311-hard": [],
+   "PR26300-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ]
+  }
+ },
+ {
+  "form": "full",
+  "variant": "asks indexed · pool",
+  "target": 7,
+  "of": 8,
+  "useful": 8,
+  "precision": 0.6666666666666666,
+  "noise": 2,
+  "served": {
+   "PR26225-hard": [
+    "deserialization-preserves-variant-and-code-execution-boundar(2)"
+   ],
+   "PR26270-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ],
+   "PR26267-hard": [
+    "server-selection-native-routing-and-flask-fallback(2)"
+   ],
+   "PR26291-hard": [
+    "search-pagination-and-latest-version-loading-have-separate-p(2)"
+   ],
+   "PR26269-hard": [
+    "anthropic-usage-changes-must-cover-normalized-and-passthroug(1)"
+   ],
+   "PR26307-hard": [
+    "span-construction-and-finalization-follow-distinct-live-and(2)"
+   ],
+   "PR26369-hard": [
+    "aggregate-composition-and-database-collation-constrain-mergi(2)"
+   ],
+   "PR26442-hard": [
+    "provider-entry-points-separate-normalized-apis-from-native-p(0)"
+   ],
+   "PR26252-hard": [],
+   "PR26327-hard": [
+    "endpoint-reads-resolve-targets-before-returning-rows(0)"
+   ],
+   "PR26265-hard": [
+    "artifact-responses-preserve-attachment-headers-and-streaming(0)"
+   ],
+   "PR26311-hard": [
+    "dataset-conversion-and-its-three-autologging-consumers(0)"
+   ],
+   "PR26300-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ]
+  }
+ },
+ {
+  "form": "full",
+  "variant": "asks indexed+scored · floor 0",
+  "target": 5,
+  "of": 8,
+  "useful": 6,
+  "precision": 0.75,
+  "noise": 0,
+  "served": {
+   "PR26225-hard": [
+    "deserialization-preserves-variant-and-code-execution-boundar(2)"
+   ],
+   "PR26270-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ],
+   "PR26267-hard": [],
+   "PR26291-hard": [
+    "search-pagination-and-latest-version-loading-have-separate-p(2)"
+   ],
+   "PR26269-hard": [
+    "anthropic-usage-changes-must-cover-normalized-and-passthroug(1)"
+   ],
+   "PR26307-hard": [],
+   "PR26369-hard": [
+    "aggregate-composition-and-database-collation-constrain-mergi(2)"
+   ],
+   "PR26442-hard": [
+    "provider-entry-points-separate-normalized-apis-from-native-p(0)"
+   ],
+   "PR26252-hard": [],
+   "PR26327-hard": [
+    "mcp-registry-preserves-field-presence-and-orders-greedy-rout(0)"
+   ],
+   "PR26265-hard": [],
+   "PR26311-hard": [],
+   "PR26300-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ]
+  }
+ },
+ {
+  "form": "full",
+  "variant": "asks indexed+scored · pool",
+  "target": 7,
+  "of": 8,
+  "useful": 8,
+  "precision": 0.6666666666666666,
+  "noise": 2,
+  "served": {
+   "PR26225-hard": [
+    "deserialization-preserves-variant-and-code-execution-boundar(2)"
+   ],
+   "PR26270-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ],
+   "PR26267-hard": [
+    "server-selection-native-routing-and-flask-fallback(2)"
+   ],
+   "PR26291-hard": [
+    "search-pagination-and-latest-version-loading-have-separate-p(2)"
+   ],
+   "PR26269-hard": [
+    "anthropic-usage-changes-must-cover-normalized-and-passthroug(1)"
+   ],
+   "PR26307-hard": [
+    "span-construction-and-finalization-follow-distinct-live-and(2)"
+   ],
+   "PR26369-hard": [
+    "aggregate-composition-and-database-collation-constrain-mergi(2)"
+   ],
+   "PR26442-hard": [
+    "provider-entry-points-separate-normalized-apis-from-native-p(0)"
+   ],
+   "PR26252-hard": [],
+   "PR26327-hard": [
+    "mcp-registry-preserves-field-presence-and-orders-greedy-rout(0)"
+   ],
+   "PR26265-hard": [
+    "artifact-responses-preserve-attachment-headers-and-streaming(0)"
+   ],
+   "PR26311-hard": [
+    "dataset-conversion-and-its-three-autologging-consumers(0)"
+   ],
+   "PR26300-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ]
+  }
+ },
+ {
+  "form": "full",
+  "variant": "asks scored only · pool",
+  "target": 7,
+  "of": 8,
+  "useful": 8,
+  "precision": 0.6666666666666666,
+  "noise": 2,
+  "served": {
+   "PR26225-hard": [
+    "deserialization-preserves-variant-and-code-execution-boundar(2)"
+   ],
+   "PR26270-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ],
+   "PR26267-hard": [
+    "server-selection-native-routing-and-flask-fallback(2)"
+   ],
+   "PR26291-hard": [
+    "search-pagination-and-latest-version-loading-have-separate-p(2)"
+   ],
+   "PR26269-hard": [
+    "anthropic-usage-changes-must-cover-normalized-and-passthroug(1)"
+   ],
+   "PR26307-hard": [
+    "span-construction-and-finalization-follow-distinct-live-and(2)"
+   ],
+   "PR26369-hard": [
+    "aggregate-composition-and-database-collation-constrain-mergi(2)"
+   ],
+   "PR26442-hard": [
+    "provider-entry-points-separate-normalized-apis-from-native-p(0)"
+   ],
+   "PR26252-hard": [],
+   "PR26327-hard": [
+    "mcp-registry-preserves-field-presence-and-orders-greedy-rout(0)"
+   ],
+   "PR26265-hard": [
+    "artifact-responses-preserve-attachment-headers-and-streaming(0)"
+   ],
+   "PR26311-hard": [
+    "dataset-conversion-and-its-three-autologging-consumers(0)"
+   ],
+   "PR26300-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ]
+  }
+ },
+ {
+  "form": "first sentence",
+  "variant": "today",
+  "target": 4,
+  "of": 8,
+  "useful": 4,
+  "precision": 0.4444444444444444,
+  "noise": 1,
+  "served": {
+   "PR26225-hard": [
+    "adding-a-persisted-decorator-scorer-option-follows-the-timeo(0)"
+   ],
+   "PR26270-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ],
+   "PR26267-hard": [],
+   "PR26291-hard": [
+    "search-pagination-and-latest-version-loading-have-separate-p(2)"
+   ],
+   "PR26269-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(0)"
+   ],
+   "PR26307-hard": [],
+   "PR26369-hard": [
+    "aggregate-composition-and-database-collation-constrain-mergi(2)"
+   ],
+   "PR26442-hard": [
+    "save-gating-and-validation-message-precedence(0)"
+   ],
+   "PR26252-hard": [],
+   "PR26327-hard": [
+    "endpoint-reads-resolve-targets-before-returning-rows(0)"
+   ],
+   "PR26265-hard": [],
+   "PR26311-hard": [
+    "evaluation-dataset-conversion-preserves-unloaded-records-and(0)"
+   ],
+   "PR26300-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ]
+  }
+ },
+ {
+  "form": "first sentence",
+  "variant": "pool",
+  "target": 5,
+  "of": 8,
+  "useful": 5,
+  "precision": 0.4166666666666667,
+  "noise": 2,
+  "served": {
+   "PR26225-hard": [
+    "deserialization-preserves-variant-and-code-execution-boundar(2)"
+   ],
+   "PR26270-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ],
+   "PR26267-hard": [
+    "server-info-requests-share-successful-responses-and-in-fligh(0)"
+   ],
+   "PR26291-hard": [
+    "search-pagination-and-latest-version-loading-have-separate-p(2)"
+   ],
+   "PR26269-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(0)"
+   ],
+   "PR26307-hard": [
+    "prompt-construction-keeps-trace-access-separate-from-seriali(0)"
+   ],
+   "PR26369-hard": [
+    "aggregate-composition-and-database-collation-constrain-mergi(2)"
+   ],
+   "PR26442-hard": [
+    "save-gating-and-validation-message-precedence(0)"
+   ],
+   "PR26252-hard": [],
+   "PR26327-hard": [
+    "endpoint-reads-resolve-targets-before-returning-rows(0)"
+   ],
+   "PR26265-hard": [
+    "artifact-paths-and-image-representations-are-explicit-storag(0)"
+   ],
+   "PR26311-hard": [
+    "evaluation-dataset-conversion-preserves-unloaded-records-and(0)"
+   ],
+   "PR26300-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ]
+  }
+ },
+ {
+  "form": "first sentence",
+  "variant": "asks indexed · today",
+  "target": 4,
+  "of": 8,
+  "useful": 4,
+  "precision": 0.4444444444444444,
+  "noise": 1,
+  "served": {
+   "PR26225-hard": [
+    "adding-a-persisted-decorator-scorer-option-follows-the-timeo(0)"
+   ],
+   "PR26270-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ],
+   "PR26267-hard": [],
+   "PR26291-hard": [
+    "search-pagination-and-latest-version-loading-have-separate-p(2)"
+   ],
+   "PR26269-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(0)"
+   ],
+   "PR26307-hard": [],
+   "PR26369-hard": [
+    "aggregate-composition-and-database-collation-constrain-mergi(2)"
+   ],
+   "PR26442-hard": [
+    "save-gating-and-validation-message-precedence(0)"
+   ],
+   "PR26252-hard": [],
+   "PR26327-hard": [
+    "endpoint-reads-resolve-targets-before-returning-rows(0)"
+   ],
+   "PR26265-hard": [],
+   "PR26311-hard": [
+    "evaluation-dataset-conversion-preserves-unloaded-records-and(0)"
+   ],
+   "PR26300-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ]
+  }
+ },
+ {
+  "form": "first sentence",
+  "variant": "asks indexed · pool",
+  "target": 5,
+  "of": 8,
+  "useful": 5,
+  "precision": 0.4166666666666667,
+  "noise": 2,
+  "served": {
+   "PR26225-hard": [
+    "deserialization-preserves-variant-and-code-execution-boundar(2)"
+   ],
+   "PR26270-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ],
+   "PR26267-hard": [
+    "server-info-requests-share-successful-responses-and-in-fligh(0)"
+   ],
+   "PR26291-hard": [
+    "search-pagination-and-latest-version-loading-have-separate-p(2)"
+   ],
+   "PR26269-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(0)"
+   ],
+   "PR26307-hard": [
+    "prompt-construction-keeps-trace-access-separate-from-seriali(0)"
+   ],
+   "PR26369-hard": [
+    "aggregate-composition-and-database-collation-constrain-mergi(2)"
+   ],
+   "PR26442-hard": [
+    "save-gating-and-validation-message-precedence(0)"
+   ],
+   "PR26252-hard": [],
+   "PR26327-hard": [
+    "endpoint-reads-resolve-targets-before-returning-rows(0)"
+   ],
+   "PR26265-hard": [
+    "artifact-paths-and-image-representations-are-explicit-storag(0)"
+   ],
+   "PR26311-hard": [
+    "evaluation-dataset-conversion-preserves-unloaded-records-and(0)"
+   ],
+   "PR26300-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ]
+  }
+ },
+ {
+  "form": "first sentence",
+  "variant": "asks indexed+scored · floor 0",
+  "target": 5,
+  "of": 8,
+  "useful": 5,
+  "precision": 0.5,
+  "noise": 1,
+  "served": {
+   "PR26225-hard": [
+    "deserialization-preserves-variant-and-code-execution-boundar(2)"
+   ],
+   "PR26270-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ],
+   "PR26267-hard": [],
+   "PR26291-hard": [
+    "search-pagination-and-latest-version-loading-have-separate-p(2)"
+   ],
+   "PR26269-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(0)"
+   ],
+   "PR26307-hard": [
+    "trace-retrieval-separates-metadata-serialization-from-span-d(0)"
+   ],
+   "PR26369-hard": [
+    "aggregate-composition-and-database-collation-constrain-mergi(2)"
+   ],
+   "PR26442-hard": [
+    "provider-entry-points-separate-normalized-apis-from-native-p(0)"
+   ],
+   "PR26252-hard": [],
+   "PR26327-hard": [
+    "endpoint-reads-resolve-targets-before-returning-rows(0)"
+   ],
+   "PR26265-hard": [],
+   "PR26311-hard": [
+    "evaluation-dataset-conversion-preserves-unloaded-records-and(0)"
+   ],
+   "PR26300-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ]
+  }
+ },
+ {
+  "form": "first sentence",
+  "variant": "asks indexed+scored · pool",
+  "target": 5,
+  "of": 8,
+  "useful": 5,
+  "precision": 0.4166666666666667,
+  "noise": 2,
+  "served": {
+   "PR26225-hard": [
+    "deserialization-preserves-variant-and-code-execution-boundar(2)"
+   ],
+   "PR26270-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ],
+   "PR26267-hard": [
+    "server-info-requests-share-successful-responses-and-in-fligh(0)"
+   ],
+   "PR26291-hard": [
+    "search-pagination-and-latest-version-loading-have-separate-p(2)"
+   ],
+   "PR26269-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(0)"
+   ],
+   "PR26307-hard": [
+    "trace-retrieval-separates-metadata-serialization-from-span-d(0)"
+   ],
+   "PR26369-hard": [
+    "aggregate-composition-and-database-collation-constrain-mergi(2)"
+   ],
+   "PR26442-hard": [
+    "provider-entry-points-separate-normalized-apis-from-native-p(0)"
+   ],
+   "PR26252-hard": [],
+   "PR26327-hard": [
+    "endpoint-reads-resolve-targets-before-returning-rows(0)"
+   ],
+   "PR26265-hard": [
+    "artifact-paths-and-image-representations-are-explicit-storag(0)"
+   ],
+   "PR26311-hard": [
+    "evaluation-dataset-conversion-preserves-unloaded-records-and(0)"
+   ],
+   "PR26300-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ]
+  }
+ },
+ {
+  "form": "first sentence",
+  "variant": "asks scored only · pool",
+  "target": 5,
+  "of": 8,
+  "useful": 5,
+  "precision": 0.4166666666666667,
+  "noise": 2,
+  "served": {
+   "PR26225-hard": [
+    "deserialization-preserves-variant-and-code-execution-boundar(2)"
+   ],
+   "PR26270-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ],
+   "PR26267-hard": [
+    "server-info-requests-share-successful-responses-and-in-fligh(0)"
+   ],
+   "PR26291-hard": [
+    "search-pagination-and-latest-version-loading-have-separate-p(2)"
+   ],
+   "PR26269-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(0)"
+   ],
+   "PR26307-hard": [
+    "trace-retrieval-separates-metadata-serialization-from-span-d(0)"
+   ],
+   "PR26369-hard": [
+    "aggregate-composition-and-database-collation-constrain-mergi(2)"
+   ],
+   "PR26442-hard": [
+    "provider-entry-points-separate-normalized-apis-from-native-p(0)"
+   ],
+   "PR26252-hard": [],
+   "PR26327-hard": [
+    "endpoint-reads-resolve-targets-before-returning-rows(0)"
+   ],
+   "PR26265-hard": [
+    "artifact-paths-and-image-representations-are-explicit-storag(0)"
+   ],
+   "PR26311-hard": [
+    "evaluation-dataset-conversion-preserves-unloaded-records-and(0)"
+   ],
+   "PR26300-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ]
+  }
+ },
+ {
+  "form": "one line",
+  "variant": "today",
+  "target": 5,
+  "of": 8,
+  "useful": 6,
+  "precision": 0.75,
+  "noise": 1,
+  "served": {
+   "PR26225-hard": [
+    "deserialization-preserves-variant-and-code-execution-boundar(2)"
+   ],
+   "PR26270-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ],
+   "PR26267-hard": [],
+   "PR26291-hard": [
+    "search-pagination-and-latest-version-loading-have-separate-p(2)"
+   ],
+   "PR26269-hard": [],
+   "PR26307-hard": [],
+   "PR26369-hard": [
+    "aggregate-composition-and-database-collation-constrain-mergi(2)"
+   ],
+   "PR26442-hard": [
+    "gateway-endpoint-resolution-and-provider-composition(1)"
+   ],
+   "PR26252-hard": [],
+   "PR26327-hard": [
+    "change-endpoint-url-validation-through-the-shared-write-path(0)"
+   ],
+   "PR26265-hard": [],
+   "PR26311-hard": [
+    "evaluation-dataset-conversion-preserves-unloaded-records-and(0)"
+   ],
+   "PR26300-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ]
+  }
+ },
+ {
+  "form": "one line",
+  "variant": "pool",
+  "target": 5,
+  "of": 8,
+  "useful": 5,
+  "precision": 0.45454545454545453,
+  "noise": 2,
+  "served": {
+   "PR26225-hard": [
+    "deserialization-preserves-variant-and-code-execution-boundar(2)"
+   ],
+   "PR26270-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ],
+   "PR26267-hard": [],
+   "PR26291-hard": [
+    "search-pagination-and-latest-version-loading-have-separate-p(2)"
+   ],
+   "PR26269-hard": [
+    "converse-streaming-and-anthropic-passthrough-decode-differen(0)"
+   ],
+   "PR26307-hard": [
+    "span-attribute-serialization-uses-json-strings-and-avoids-co(0)"
+   ],
+   "PR26369-hard": [
+    "aggregate-composition-and-database-collation-constrain-mergi(2)"
+   ],
+   "PR26442-hard": [
+    "outbound-destination-validation-has-distinct-url-and-payload(0)"
+   ],
+   "PR26252-hard": [],
+   "PR26327-hard": [
+    "version-lifecycle-controls-visibility-and-endpoint-cleanup(0)"
+   ],
+   "PR26265-hard": [
+    "changing-a-server-file-tool-requires-schema-policy-and-execu(0)"
+   ],
+   "PR26311-hard": [
+    "evaluation-dataset-conversion-preserves-unloaded-records-and(0)"
+   ],
+   "PR26300-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ]
+  }
+ },
+ {
+  "form": "one line",
+  "variant": "asks indexed · today",
+  "target": 5,
+  "of": 8,
+  "useful": 6,
+  "precision": 0.75,
+  "noise": 1,
+  "served": {
+   "PR26225-hard": [
+    "deserialization-preserves-variant-and-code-execution-boundar(2)"
+   ],
+   "PR26270-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ],
+   "PR26267-hard": [],
+   "PR26291-hard": [
+    "search-pagination-and-latest-version-loading-have-separate-p(2)"
+   ],
+   "PR26269-hard": [],
+   "PR26307-hard": [],
+   "PR26369-hard": [
+    "aggregate-composition-and-database-collation-constrain-mergi(2)"
+   ],
+   "PR26442-hard": [
+    "gateway-endpoint-resolution-and-provider-composition(1)"
+   ],
+   "PR26252-hard": [],
+   "PR26327-hard": [
+    "change-endpoint-url-validation-through-the-shared-write-path(0)"
+   ],
+   "PR26265-hard": [],
+   "PR26311-hard": [
+    "evaluation-dataset-conversion-preserves-unloaded-records-and(0)"
+   ],
+   "PR26300-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ]
+  }
+ },
+ {
+  "form": "one line",
+  "variant": "asks indexed · pool",
+  "target": 5,
+  "of": 8,
+  "useful": 5,
+  "precision": 0.45454545454545453,
+  "noise": 2,
+  "served": {
+   "PR26225-hard": [
+    "deserialization-preserves-variant-and-code-execution-boundar(2)"
+   ],
+   "PR26270-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ],
+   "PR26267-hard": [],
+   "PR26291-hard": [
+    "search-pagination-and-latest-version-loading-have-separate-p(2)"
+   ],
+   "PR26269-hard": [
+    "converse-streaming-and-anthropic-passthrough-decode-differen(0)"
+   ],
+   "PR26307-hard": [
+    "span-attribute-serialization-uses-json-strings-and-avoids-co(0)"
+   ],
+   "PR26369-hard": [
+    "aggregate-composition-and-database-collation-constrain-mergi(2)"
+   ],
+   "PR26442-hard": [
+    "outbound-destination-validation-has-distinct-url-and-payload(0)"
+   ],
+   "PR26252-hard": [],
+   "PR26327-hard": [
+    "version-lifecycle-controls-visibility-and-endpoint-cleanup(0)"
+   ],
+   "PR26265-hard": [
+    "changing-a-server-file-tool-requires-schema-policy-and-execu(0)"
+   ],
+   "PR26311-hard": [
+    "evaluation-dataset-conversion-preserves-unloaded-records-and(0)"
+   ],
+   "PR26300-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ]
+  }
+ },
+ {
+  "form": "one line",
+  "variant": "asks indexed+scored · floor 0",
+  "target": 5,
+  "of": 8,
+  "useful": 5,
+  "precision": 0.5555555555555556,
+  "noise": 2,
+  "served": {
+   "PR26225-hard": [
+    "deserialization-preserves-variant-and-code-execution-boundar(2)"
+   ],
+   "PR26270-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ],
+   "PR26267-hard": [],
+   "PR26291-hard": [
+    "search-pagination-and-latest-version-loading-have-separate-p(2)"
+   ],
+   "PR26269-hard": [],
+   "PR26307-hard": [],
+   "PR26369-hard": [
+    "aggregate-composition-and-database-collation-constrain-mergi(2)"
+   ],
+   "PR26442-hard": [
+    "outbound-destination-validation-has-distinct-url-and-payload(0)"
+   ],
+   "PR26252-hard": [],
+   "PR26327-hard": [
+    "version-lifecycle-controls-visibility-and-endpoint-cleanup(0)"
+   ],
+   "PR26265-hard": [
+    "changing-a-server-file-tool-requires-schema-policy-and-execu(0)"
+   ],
+   "PR26311-hard": [
+    "evaluation-dataset-conversion-preserves-unloaded-records-and(0)"
+   ],
+   "PR26300-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ]
+  }
+ },
+ {
+  "form": "one line",
+  "variant": "asks indexed+scored · pool",
+  "target": 5,
+  "of": 8,
+  "useful": 5,
+  "precision": 0.45454545454545453,
+  "noise": 2,
+  "served": {
+   "PR26225-hard": [
+    "deserialization-preserves-variant-and-code-execution-boundar(2)"
+   ],
+   "PR26270-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ],
+   "PR26267-hard": [],
+   "PR26291-hard": [
+    "search-pagination-and-latest-version-loading-have-separate-p(2)"
+   ],
+   "PR26269-hard": [
+    "converse-streaming-and-anthropic-passthrough-decode-differen(0)"
+   ],
+   "PR26307-hard": [
+    "span-attribute-serialization-uses-json-strings-and-avoids-co(0)"
+   ],
+   "PR26369-hard": [
+    "aggregate-composition-and-database-collation-constrain-mergi(2)"
+   ],
+   "PR26442-hard": [
+    "outbound-destination-validation-has-distinct-url-and-payload(0)"
+   ],
+   "PR26252-hard": [],
+   "PR26327-hard": [
+    "version-lifecycle-controls-visibility-and-endpoint-cleanup(0)"
+   ],
+   "PR26265-hard": [
+    "changing-a-server-file-tool-requires-schema-policy-and-execu(0)"
+   ],
+   "PR26311-hard": [
+    "evaluation-dataset-conversion-preserves-unloaded-records-and(0)"
+   ],
+   "PR26300-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ]
+  }
+ },
+ {
+  "form": "one line",
+  "variant": "asks scored only · pool",
+  "target": 5,
+  "of": 8,
+  "useful": 5,
+  "precision": 0.45454545454545453,
+  "noise": 2,
+  "served": {
+   "PR26225-hard": [
+    "deserialization-preserves-variant-and-code-execution-boundar(2)"
+   ],
+   "PR26270-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ],
+   "PR26267-hard": [],
+   "PR26291-hard": [
+    "search-pagination-and-latest-version-loading-have-separate-p(2)"
+   ],
+   "PR26269-hard": [
+    "converse-streaming-and-anthropic-passthrough-decode-differen(0)"
+   ],
+   "PR26307-hard": [
+    "span-attribute-serialization-uses-json-strings-and-avoids-co(0)"
+   ],
+   "PR26369-hard": [
+    "aggregate-composition-and-database-collation-constrain-mergi(2)"
+   ],
+   "PR26442-hard": [
+    "outbound-destination-validation-has-distinct-url-and-payload(0)"
+   ],
+   "PR26252-hard": [],
+   "PR26327-hard": [
+    "version-lifecycle-controls-visibility-and-endpoint-cleanup(0)"
+   ],
+   "PR26265-hard": [
+    "changing-a-server-file-tool-requires-schema-policy-and-execu(0)"
+   ],
+   "PR26311-hard": [
+    "evaluation-dataset-conversion-preserves-unloaded-records-and(0)"
+   ],
+   "PR26300-hard": [
+    "changing-gemini-tool-call-round-trips-requires-request-respo(2)"
+   ]
+  }
+ }
+]

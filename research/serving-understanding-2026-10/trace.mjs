@@ -52,13 +52,14 @@ async function score(query, n, view, queryTokens, model = null) {
   if (!memo.has(key)) {
     const text = view === 'search' ? n : view === 'inst' ? (n.searchInstances ? { ...n, search: n.searchInstances } : n)
       : view === 'answers' ? { ...n, search: (n.answers || []).join(' ') } : view === 'applies' ? { ...n, search: String(n.applies || '') }
-      : view === 'title' ? { ...n, search: ' ' } : { ...n, search: String(n.body || '').slice(0, 900) };
+      : view === 'title' ? { ...n, search: ' ' } : view === 'asks' ? { ...n, search: (n.asks || []).join(' ') || ' ' } : { ...n, search: String(n.body || '').slice(0, 900) };
     memo.set(key, model ? await otherScore(model, query, text, queryTokens) : (await ceScores(query, [text], { queryTokens }))[0]);
   }
   return memo.get(key);
 }
 const VIEWS = { search: ['search'], multi: ['search', 'inst', 'body'], inst: ['inst'], body: ['body'], 'search+inst': ['search', 'inst'],
-  answers: ['answers'], applies: ['applies'], title: ['title'], 'multi+answers': ['search', 'inst', 'body', 'answers'], 'answers+applies': ['answers', 'applies'] };
+  answers: ['answers'], applies: ['applies'], title: ['title'], 'multi+answers': ['search', 'inst', 'body', 'answers'], 'answers+applies': ['answers', 'applies'],
+  asks: ['asks'], 'multi+asks': ['search', 'inst', 'body', 'asks'], 'search+asks': ['search', 'asks'] };
 
 export async function trace(task, cfg = BASE) {
   const request = requestOf(task.prompt);

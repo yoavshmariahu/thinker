@@ -80,3 +80,19 @@ word) and indexing `applies` / `searchInstances` change nothing: the notes descr
 "immutable", "finalization") and a short prompt names a symptom ("deepcopy", "pickle", "hangs"). No serving knob
 reaches more than 5 of 8 on short prompts. What is left is on the note side: phrasings in the words a request
 uses, written at build time.
+
+## Request-style phrasings (asks), 2026-10-16
+
+`asks.mjs`: five one-line requests per note, in a user's words (symptoms, wanted changes, questions), written by
+Haiku from each note alone (582 notes, 834k tokens, `asks.json`). `asks-eval.mjs`, `asks-loose.mjs`: the asks on
+the lexical index (beside `says`), as a fourth text for the cross-encoder, with the gate loosened and up to 32
+candidates. No variant serves more targets on any prompt form; on short prompts it stays at 5 of 8.
+
+The three short-prompt targets left are not reachable by wording: the notes are not about what the prompt asks.
+PR26307 ("deepcopy and pickle of spans and traces fail"): the span-construction note says nothing of copying or
+pickling (cross-encoder −9 on every text). PR26267 ("server-info endpoint hangs when the worker pool is busy"): the
+routing notes are about route registration and server choice, not worker threads (−6). PR26327: the run-search
+parsing note (−3.0) is outranked by notes that name MCP endpoints. They were labelled 2 for sitting on the fix's
+files; a full request gives the cross-encoder enough to connect them, a one-line prompt does not. The limit is
+what the notes cover, not how they are found: a mechanism no note describes (span serialization, request
+concurrency) is not served by any knob.
