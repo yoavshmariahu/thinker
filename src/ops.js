@@ -7,11 +7,11 @@ import { Store, slugify, uniqueId, gitHead, KINDS, KIND_ALIAS, kindOf, MUTABILIT
 import { auditSkill, markSkillBroken } from './skills.js';
 import { hashDep, checkNote, symbolText, symbolBlock, repoFile, narrowAtCreation, TRANSIENT } from './deps.js';
 import { rank, pack, renderNote, estTokens, MIN_COVER, tokenize } from './rank.js';
-import { annotateFanout, fanout, callees, references, findDefinitions, findSymbols, outline, renderFanout } from './codegraph.js';
+import { annotateFanout, fanout, callees, references, findDefinitions, findSymbols, outline, renderFanout, definitionOf } from './codegraph.js';
 import { servedFields } from './usage.js';
 import { complete } from './llm.js';
 import { tokensOf } from './model-usage.js';
-import { anchoringGuard } from './guard.js';
+import { anchoringGuard, explicitIdents } from './guard.js';
 import { denseEnabled, denseScores, ceConfig, ceRerank } from './dense.js';
 import { phraseKey } from './note-search.js';
 import { disabledTools } from './cache-guidance.js';
@@ -675,6 +675,32 @@ export function drilldown(store, { pointer, pointers, client, budget = 2500 } = 
   const text = parts.join('\n\n');
   store.log({ op: 'drilldown', client: client || 'cli', pointer: raws.join(' ').slice(0, 200), file: first?.file, symbol: first?.symbol, notes: shown.map(n => n.id), durationMs: Date.now() - start, tokens: estTokens(text) });
   return { text, file: first?.file, symbol: first?.symbol, notes: shown, tokens: estTokens(text) };
+}
+
+// --- code for a request: what the prompt hook hands over without a tool call -------------------
+// The definitions a request names by identifier (`echo_via_pager`, CliRunner.invoke, click.option), each
+// when it is one definition in the checkout, as line-numbered code within `room` lines; a long class as its
+// head and the outline of its members. In Claude Code the code tools are deferred and were never loaded
+// (0 calls in 12 Sonnet sessions, 0 in 24 Opus ones, 2026-10-16), so code reaches the agent here or not at
+// all. Identifiers a served note already rests on are left to the note. Offered with `find` (disabledTools).
+export function codeForRequest(store, task, { notes = [], max = 2, room = 60 } = {}) {
+  const repo = store.repo, items = [];
+  const covered = new Set(notes.flatMap(n => (n.deps || []).filter(d => d.symbol).map(d => `${d.path}|${d.symbol.split('.').pop()}`)));
+  for (const id of explicitIdents(String(task || ''))) {
+    if (items.length >= max) break;
+    const { def } = definitionOf(repo, id);
+    if (!def) continue;
+    const bare = id.split('.').pop();
+    const o = (outline(repo, def.path, { limit: 5000 }) || []).find(x => x.line === def.line && x.name === bare);
+    const symbol = o?.parent ? `${o.parent}.${bare}` : bare;
+    if (covered.has(`${def.path}|${bare}`) || items.some(i => i.path === def.path && i.symbol === symbol)) continue;
+    const block = symbolBlock(repo, { path: def.path, symbol }, 2000);
+    if (!block) continue;
+    items.push({ ident: id, path: def.path, symbol, text: definitionText(repo, def.path, symbol, block, room) });
+  }
+  if (!items.length) return { text: '', items };
+  const text = `<thinker-code>\nCode the request names, read from this checkout just now (lines numbered):\n\n${items.map(i => i.text).join('\n\n')}\n</thinker-code>`;
+  return { text, items, tokens: estTokens(text) };
 }
 
 // --- find: where something is defined, by the words of the request -----------------------------

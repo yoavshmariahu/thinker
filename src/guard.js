@@ -3,7 +3,7 @@
 // name what the notes do NOT cover, with where it is defined: named bare, the
 // identifier became the agent's first `find` query in 9 of 9 sessions (2026-10-07).
 import { execFileSync } from 'node:child_process';
-import { findDefinitions } from './codegraph.js';
+import { definitionOf } from './codegraph.js';
 
 const TRIGGER = /\b(option|options|setting|settings|flag|flags|config|command|field|property|hook|event|env(?:ironment)? var(?:iable)?|parameter|param|endpoint|route|cookie|header|metric|action|reducer|model|table|column)\b/i;
 const STOP = new Set(['the', 'and', 'for', 'with', 'that', 'this', 'when', 'from', 'into', 'not', 'are', 'was', 'were', 'its', 'has', 'have', 'been', 'should', 'would', 'could', 'make', 'sure', 'like', 'also', 'them', 'then', 'than', 'only', 'each', 'both', 'does', 'did', 'new', 'old']);
@@ -14,6 +14,9 @@ export function explicitIdents(text) {
   for (const m of text.matchAll(/`([^`\n]{2,60})`/g)) out.add(m[1].trim());
   for (const m of text.matchAll(/\b([a-z]+_[a-z0-9_]+|[a-z]+[A-Z][A-Za-z0-9]+|[A-Z][A-Z0-9]+_[A-Z0-9_]+|[\w-]+\.(?:py|ts|tsx|js|jsx|go|rs|rb|java|yaml|yml|json|toml))\b/g)) out.add(m[1]);
   for (const m of text.matchAll(/\b([a-z_]\w*\.[a-z_]\w*(?:\.[a-z_]\w*)*)\b/g)) if (!/^\d|\.(com|org|io|net)$/.test(m[1])) out.add(m[1]);
+  // PascalCase with an inner capital (CliRunner, SqlAlchemyStore), alone or with a member (CliRunner.invoke);
+  // a capitalized word of prose has no inner capital
+  for (const m of text.matchAll(/\b([A-Z][a-z0-9]+[A-Z]\w*(?:\.[a-z_]\w*)?)\b/g)) out.add(m[1]);
   for (const m of text.matchAll(/(--[a-z][\w-]+)/g)) out.add(m[1]);
   return [...out].filter(s => s.length >= 3 && !/^(e\.g|i\.e)/.test(s));
 }
@@ -38,14 +41,10 @@ export function phraseCandidates(text) {
 }
 function perms(a) { if (a.length <= 1) return [a]; const out = []; for (let i = 0; i < a.length; i++) for (const p of perms([...a.slice(0, i), ...a.slice(i + 1)])) out.push([a[i], ...p]); return out; }
 
-// Where an identifier is defined, only when that is one place: `Class.method` needs the class in the
-// same file, so CliRunner.invoke is not answered with Context.invoke. Several places are counted, not listed.
+// Where an identifier is defined, only when that is one place (codegraph.js:definitionOf); several are counted.
 function definedAt(repo, id) {
-  if (!/^[A-Za-z_][\w.]*$/.test(id)) return {};
-  const parts = id.split('.'), bare = parts.pop(), owner = parts.pop();
-  let defs = findDefinitions(repo, bare, { limit: 10 }) || [];
-  if (owner) { const files = new Set((findDefinitions(repo, owner, { limit: 10 }) || []).map(d => d.path)); defs = defs.filter(d => files.has(d.path)); }
-  return defs.length === 1 ? { at: `${defs[0].path}:L${defs[0].line}` } : defs.length > 1 ? { places: defs.length } : {};
+  const { def, count } = definitionOf(repo, id);
+  return def ? { at: `${def.path}:L${def.line}` } : count > 1 ? { places: count } : {};
 }
 
 export function existsInRepo(repo, ident) {

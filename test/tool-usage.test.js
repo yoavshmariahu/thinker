@@ -50,9 +50,11 @@ test('with the code tools off, as shipped, the bundle comes without an intro and
 test('the first served bundle of a session introduces find and drilldown, with the ToolSearch that loads them in Claude Code; once; never alone', () => {
   const dir = gitRepo(); const store = new Store(dir).init();
   enableCodeTools(store); serveFromOne(store);
-  // an empty cache: nothing to orient on, nothing is said
+  // an empty cache: nothing to orient on, so no notes and no intro; with find on, only the code the request names
   const empty = hook(dir, 'prompt', { session_id: 's0', prompt: 'where does fetchRows read the rows from' });
-  assert.equal(empty.trim(), '', 'an empty cache injects nothing, not even the intro');
+  assert.doesNotMatch(empty, /thinker-cache|thinker-tools/, 'an empty cache injects no notes and no intro');
+  assert.match(empty, /^<thinker-code>[\s\S]*src\/a\.js:fetchRows/);
+  assert.equal(hook(dir, 'prompt', { session_id: 's0b', prompt: 'where are the rows read from' }).trim(), '', 'naming no definition, it injects nothing');
   createNote(store, { title: 'fetchRows reads the rows table', kind: 'rule', answers: ['how are rows fetched', 'where does fetchRows read the rows from'], body: 'src/a.js:fetchRows reads the rows table; nothing else may', deps: [{ path: 'src/a.js', symbol: 'fetchRows' }] });
   // a note for the request: the intro opens the bundle
   const first = hook(dir, 'prompt', { session_id: 's1', prompt: 'where does fetchRows read the rows from' });
@@ -161,4 +163,21 @@ test('a cache under the serving threshold is served by neither hook, and the thr
   assert.match(hook(dir, 'prompt', { session_id: 'u2', prompt: 'where does fetchRows read the rows from' }), /<thinker-cache>/, 'three notes: served');
   fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ ...store.config(), minNotes: 10 }));
   assert.equal(hook(dir, 'prompt', { session_id: 'u3', prompt: 'where does fetchRows read the rows from' }).trim(), '', 'the repository raised the threshold');
+});
+
+test('with find on, the prompt hook hands over the definitions the request names, notes or none; off, as shipped, nothing', () => {
+  const dir = gitRepo();
+  // a Python class: the regex definition search finds `def` members (a JS method has no keyword to find it by)
+  fs.writeFileSync(path.join(dir, 'src/b.py'), 'class RowStore:\n    def row_count(self):\n        return 2\n');
+  git(dir, 'add', '.'); git(dir, 'commit', '-q', '-m', 'b');
+  const store = new Store(dir).init();
+  const ask = prompt => hook(dir, 'prompt', { prompt, session_id: 's-' + Math.random(), hook_event_name: 'UserPromptSubmit' }, '--client', 'claude');
+  // off by default: an empty cache says nothing, as before
+  assert.doesNotMatch(ask('why does fetchRows return 1?'), /thinker-code/);
+  enableCodeTools(store);
+  const out = ask('why does fetchRows return 1, and what does RowStore.row_count count?');
+  assert.match(out, /<thinker-code>[\s\S]*src\/a\.js:fetchRows \(L1–L3[\s\S]*1  export function fetchRows\(\) \{/, 'an empty cache still hands over the code');
+  assert.match(out, /src\/b\.py:RowStore\.row_count \(L2–L3/, 'Class.member resolves to the member');
+  assert.doesNotMatch(ask('make the rows load faster'), /thinker-code/, 'no identifier named: nothing');
+  assert.ok(logOps(dir).includes('code'), 'what was handed over is logged');
 });
