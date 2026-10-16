@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thinker Evals</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="#/">Thinker Evals</a>
+  <nav>
+    <a href="#/" data-nav="experiments">Experiments</a>
+    <a href="#/prsets" data-nav="prsets">PR sets</a>
+    <a href="#/caches" data-nav="caches">Caches</a>
+    <a href="#/prs" data-nav="prs">PRs</a>
+    <a href="#/progress" data-nav="progress">Progress <span id="active-count" class="pill" hidden></span></a>
+    <a href="#/new" data-nav="new" class="cta">New experiment</a>
+  </nav>
+  <span class="scan" id="scan"></span>
+</header>
+<main id="app"><p class="muted">Loading…</p></main>
+<div id="tip" class="tip" role="tooltip" hidden></div>
+<dialog id="drawer"><div id="drawer-body"></div></dialog>
+<script type="module" src="/app.js"></script>
+</body>
+</html>

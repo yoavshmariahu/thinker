@@ -1,3 +1,13 @@
+# Running evals: the evals platform only
+
+Benchmark experiments are planned, started, followed and read only through the evals platform
+(`bench/evals`, web app and MCP server), as the `run-evals` skill describes
+(`.agents/skills/run-evals/SKILL.md`). The runners below it (`run.js`, `codex-run.js`,
+`gemini-run.js`) are started by the platform, not by hand. The cache-source requirement that follows
+applies to every experiment it starts: the platform's cache module builds caches only by `mine-prs`
+at an anchor before the PR set's base, by the agent's model, and blocks a plan whose cache fails
+those checks.
+
 # Benchmark cache source: hard requirement
 
 Every benchmark cache must be built by mining recent merged PRs through Thinker's

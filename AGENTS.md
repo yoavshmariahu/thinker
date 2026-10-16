@@ -115,6 +115,16 @@ model mismatch as an invalid comparison. Prefer executable tests for correctness
 keep correctness, tokens and latency separate. Results from different models or
 reasoning settings belong in separate cohorts, not one ranking.
 
+**Evals run only through the evals platform (MANDATORY RULE):**
+Run, follow and read benchmark experiments only through the evals platform (`bench/evals`, its web
+app and its MCP server), following the `run-evals` skill (`.agents/skills/run-evals/SKILL.md`):
+freeze the PRs with `create_pr_set`, build the cache through `plan_cache`/`build_cache`, plan the
+experiment with `plan_experiment`, get the user's approval of each plan, start with
+`start_experiment`, read with `get_experiment` and `get_session`. Do not start `bench/run.js`,
+`bench/codex-run.js`, `bench/gemini-run.js` or a benchmark `mine-prs` by hand, and do not report
+numbers hand-computed from `bench/runs` files. The cache-source and
+matched-model rules above still apply to every experiment the platform starts.
+
 **Agent concurrency and worktrees (MANDATORY RULE):**
 All agents working on this repository MUST perform code changes, scratch experiments, and benchmark runs in isolated git worktrees to avoid collisions with other active agents or running benchmark jobs. Never edit directly in the primary working tree.
 - **Create a worktree:** `git worktree add -b agent/<task-name> .worktrees/<task-name> HEAD` (or in `bench/worktrees/`; both are gitignored).
@@ -160,6 +170,7 @@ cache at twice the input price and never read again.
 | `src/change.js` | the change under review with no model call: scope, parsed diff, the definitions the hunks touched, the notes resting on them (`selectNotes`), what the changed definitions use one hop down (`usedContext`); the model-free half of the `thinker review` command removed on 2026-10-11 |
 | `test/` | unit tests (`node --test`) |
 | `bench/` | benchmark harness, task sets, PR data, and `RESULTS.md` |
+| `bench/evals/` | the evals platform: experiments built from modules — PR sets (`prsets.js`, saved in `bench/prsets/`), mined caches (`caches.js`, `build-cache.js`, receipts in `bench/caches/`) — indexed from `bench/runs` into SQLite, compared cache off against cache on (`experiment.js`), launched and followed (`jobs.js`), transcripts archived and parsed (`transcripts.js`), served as a local web app (`server.js`, `public/`) and an MCP server (`mcp.js`); see its README and the `run-evals` skill |
 | `bench/retrieval.js` | what is served for each task's request and how much of it rests on a changed file; no agent runs, seconds per task set |
 | `.thinker/` | thinker's own notes about this repo |
 
