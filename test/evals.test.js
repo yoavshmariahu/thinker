@@ -613,3 +613,25 @@ test('task sets live in Artemis: imported with their gold diffs, versioned, and 
   assert.equal(fromGit.from.kind, 'git'); assert.equal(getTaskSet(db, 'proj-git').tasks[0].goldDiffText, diff);
   assert.deepEqual(listTaskSets(db).map(s => s.name), ['proj-git', 'proj-hard']);
 });
+
+test('every PR Artemis holds is listed, a PR set opens to its PRs, and a PR shows its task before it has run', async () => {
+  const { bench } = ready();
+  const app = createApp({ bench, dbFile: ':memory:', snapshots: false });
+  await new Promise(r => app.server.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${app.server.address().port}`;
+  try {
+    // the fixture's task set has T1 and T2; one experiment ran T1 only
+    const { rows } = await (await fetch(base + '/api/prs')).json();
+    const t2 = rows.find(r => r.task === 'T2');
+    assert.ok(t2, 'a PR no experiment ran is still listed');
+    assert.equal(t2.experiments, 0); assert.deepEqual(t2.tasksets, ['click']); assert.deepEqual(t2.prsets, ['ps']);
+    assert.ok(rows.find(r => r.task === 'T1').experiments >= 1);
+    const ps = await (await fetch(base + '/api/prset?name=ps')).json();
+    assert.deepEqual(ps.prset.prs.map(p => [p.id, p.in_taskset]), [['T1', true], ['T2', true]]);
+    assert.equal(ps.taskset.name, 'click'); assert.ok(ps.checks.length);
+    assert.equal((await fetch(base + '/api/prset?name=nope')).status, 404);
+    const pr = await (await fetch(base + '/api/pr?id=T2')).json();
+    assert.deepEqual(pr.spec.tasksets, [{ name: 'click', version: 1 }]); assert.deepEqual(pr.spec.prsets, ['ps']);
+    assert.equal(pr.experiments.length, 0);
+  } finally { app.close(); }
+});

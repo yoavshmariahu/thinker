@@ -67,7 +67,7 @@ function sortable(table) {
 let pollTimer = null;
 const routes = [
   [/^#?\/?$/, pageExperiments], [/^#\/exp\/(.+)$/, pageExperiment], [/^#\/prs$/, pagePRs], [/^#\/pr\/(.+)$/, pagePR],
-  [/^#\/new$/, pageNew], [/^#\/prsets$/, pagePrsets], [/^#\/caches$/, pageCaches], [/^#\/cache\/(.+)$/, pageCache],
+  [/^#\/new$/, pageNew], [/^#\/prsets$/, pagePrsets], [/^#\/prset\/(.+)$/, pagePrset], [/^#\/caches$/, pageCaches], [/^#\/cache\/(.+)$/, pageCache],
   [/^#\/session\/(.+)$/, pageSession],
 ];
 async function route() {
@@ -76,7 +76,7 @@ async function route() {
   for (const [re, fn] of routes) {
     const m = h.match(re);
     if (!m) continue;
-    const section = h.startsWith('#/prsets') ? 'prsets' : h.startsWith('#/cache') ? 'caches' : h.startsWith('#/pr') ? 'prs' : h.startsWith('#/new') ? 'new' : 'experiments';
+    const section = h.startsWith('#/prset') ? 'prsets' : h.startsWith('#/cache') ? 'caches' : h.startsWith('#/pr') ? 'prs' : h.startsWith('#/new') ? 'new' : 'experiments';
     document.querySelectorAll('nav a').forEach(a => a.classList.toggle('on', a.dataset.nav === section));
     try { await fn(...m.slice(1).map(x => (x == null ? x : decodeURIComponent(x)))); } catch (e) { if (e.message !== 'moved') $app.innerHTML = `<p class="err">${esc(e.message)}</p>`; }
     return;
@@ -225,7 +225,7 @@ function modulesCard(meta) {
   const last = (meta.launched || []).slice(-1)[0];
   const failed = (last?.checks || []).filter(c => !c.ok);
   return `<div class="modules">
-    <div class="card mod"><div class="mtitle">PR set</div><a href="#/prsets">${esc(m.prset.name)}</a> · ${m.prset.prs} PRs<div class="muted small">${esc(m.prset.rule)}</div><div class="muted small">${esc(m.prset.tasks)} at ${esc((m.prset.base || '?').slice(0, 10))} · hash ${esc(m.prset.hash)}</div></div>
+    <div class="card mod"><div class="mtitle">PR set</div><a href="#/prset/${enc(m.prset.name)}">${esc(m.prset.name)}</a> · ${m.prset.prs} PRs<div class="muted small">${esc(m.prset.rule)}</div><div class="muted small">${esc(m.prset.tasks)} at ${esc((m.prset.base || '?').slice(0, 10))} · hash ${esc(m.prset.hash)}</div></div>
     <div class="card mod"><div class="mtitle">Cache</div>${!m.cache ? '<span class="muted">none: no arm is served notes</span>' : `<a href="#/cache/${enc(m.cache.name)}">${esc(m.cache.name)}</a> · ${m.cache.notes} notes<div class="muted small">${esc(cacheWhat(m.cache))} by ${esc(m.cache.model)} at ${esc(m.cache.anchor.slice(0, 10))}</div><div class="muted small">notes hash ${esc(m.cache.notes_hash)}</div>`}</div>
     <div class="card mod"><div class="mtitle">Arms</div><b>${esc(m.arms.off)}</b> (off) vs <b>${esc(m.arms.on)}</b> (on)${m.arms.extra?.length ? `<div class="muted small">also ${m.arms.extra.map(esc).join(', ')}</div>` : ''}</div>
     <div class="card mod"><div class="mtitle">Agent</div>${esc(m.agent.model)} via ${esc(m.agent.runner)}<div class="muted small">${m.agent.reps} reps · ${m.agent.conc} at a time${m.agent.flags.length ? ' · ' + m.agent.flags.map(f => '--' + esc(f)).join(' ') : ''}</div></div>
@@ -380,14 +380,14 @@ document.addEventListener('click', e => { const c = e.target.closest('.c[data-id
 // ---------- PRs ----------
 async function pagePRs() {
   const { rows } = await api('/api/prs');
-  $app.innerHTML = `<h1>PRs</h1><p class="sub">Every PR that has been run with the cache off and on, pooled over the experiments that ran it.</p>
+  $app.innerHTML = `<h1>PRs</h1><p class="sub">Every PR Artemis holds, from its task sets; where experiments ran it with the cache off and on, their results pooled.</p>
     <div class="filters"><input id="q" placeholder="Search PRs…" aria-label="Search PRs"></div>
-    <div class="card wrap"><table id="prt"><thead><tr><th class="sort">PR</th><th class="sort">Repo</th><th class="sort num">Experiments</th><th class="sort num">Pass off</th><th class="sort num">Pass on</th><th class="sort num">Gained</th><th class="sort num">Lost</th><th class="sort num">Input tokens</th></tr></thead><tbody></tbody></table></div>
+    <div class="card wrap"><table id="prt"><thead><tr><th class="sort">PR</th><th class="sort">Repo</th><th class="sort">Task sets · PR sets</th><th class="sort num">Experiments</th><th class="sort num">Pass off</th><th class="sort num">Pass on</th><th class="sort num">Gained</th><th class="sort num">Lost</th><th class="sort num">Input tokens</th></tr></thead><tbody></tbody></table></div>
     <p class="muted small">Input tokens: the paired difference as a share of the cache-off median, averaged over experiments.</p>`;
   const draw = () => {
     const q = document.getElementById('q').value.toLowerCase();
-    document.querySelector('#prt tbody').innerHTML = rows.filter(r => !q || (r.task + ' ' + (r.title || '')).toLowerCase().includes(q)).map(r => `<tr class="click" data-href="#/pr/${enc(r.task)}">
-      <td style="white-space:normal;min-width:280px"><a href="#/pr/${enc(r.task)}">${esc(r.pr ? '#' + r.pr : r.task)}</a>${r.pr && r.task.endsWith('-hard') ? ' <span class="pill">hard</span>' : ''} <span class="muted small">${esc(r.title || '')}</span></td><td>${esc(r.repo || '–')}</td><td class="num">${r.experiments}</td>
+    document.querySelector('#prt tbody').innerHTML = rows.filter(r => !q || (r.task + ' ' + (r.title || '') + ' ' + (r.repo || '') + ' ' + (r.tasksets || []).join(' ')).toLowerCase().includes(q)).map(r => `<tr class="click" data-href="#/pr/${enc(r.task)}">
+      <td style="white-space:normal;min-width:280px"><a href="#/pr/${enc(r.task)}">${esc(r.pr ? '#' + r.pr : r.task)}</a>${r.pr && r.task.endsWith('-hard') ? ' <span class="pill">hard</span>' : ''} <span class="muted small">${esc(r.title || '')}</span></td><td>${esc(r.repo || '–')}</td><td class="small">${(r.tasksets || []).map(esc).join(', ') || '–'}${r.prsets?.length ? `<div class="muted">${r.prsets.map(n => `<a href="#/prset/${enc(n)}">${esc(n)}</a>`).join(', ')}</div>` : ''}</td><td class="num" data-v="${r.experiments}">${r.experiments || '<span class="muted">not run</span>'}</td>
       <td class="num" data-v="${r.off[1] ? r.off[0] / r.off[1] : ''}">${r.off[1] ? `${fmt.pct(r.off[0] / r.off[1])} <span class="muted">${r.off[0]}/${r.off[1]}</span>` : '–'}</td>
       <td class="num" data-v="${r.on[1] ? r.on[0] / r.on[1] : ''}">${r.on[1] ? `${fmt.pct(r.on[0] / r.on[1])} <span class="muted">${r.on[0]}/${r.on[1]}</span>` : '–'}</td>
       <td class="num">${r.gained || ''}</td><td class="num">${r.lost || ''}</td><td class="num" data-v="${r.d_in_share ?? ''}">${r.d_in_share == null ? '–' : `${sign(r.d_in_share)}${Math.abs(r.d_in_share * 100).toFixed(0)}%`}</td></tr>`).join('');
@@ -400,13 +400,26 @@ async function pagePR(id) {
   const x = await api('/api/pr?id=' + enc(id));
   $app.innerHTML = `<p class="muted"><a href="#/prs">PRs</a> / ${esc(id)}</p>
     <h1>${esc(x.info?.pr ? 'PR #' + x.info.pr : id)}</h1><p class="sub">${esc(x.info?.title || '')} · ${esc(x.info?.repo || '')}</p>
-    <div class="card wrap"><table><thead><tr><th>Experiment</th><th>Model</th><th>Cache off</th><th>Cache on</th><th class="num">Tokens off → on</th><th class="num">Δ tool calls</th><th>Change</th></tr></thead><tbody>
+    ${x.spec ? taskCard(x.spec) : ''}
+    <h2>Experiments</h2>${x.experiments.length ? '' : '<p class="muted">Not run in any experiment yet.</p>'}
+    <div class="card wrap" ${x.experiments.length ? '' : 'hidden'}><table><thead><tr><th>Experiment</th><th>Model</th><th>Cache off</th><th>Cache on</th><th class="num">Tokens off → on</th><th class="num">Δ tool calls</th><th>Change</th></tr></thead><tbody>
     ${x.experiments.map(e => { const p = e.pr;
       return `<tr><td style="white-space:normal"><a href="#/exp/${enc(e.dir)}">${esc(e.meta.name || e.dir)}</a> ${kindChip(e.meta.kind)}<div class="muted small">${esc(e.meta.off || '–')} vs ${esc(e.meta.on || '–')} · ${fmt.date(e.first_at)}</div></td><td>${esc(e.models || '–')}</td>
         <td>${p ? `<div class="cells">${p.off.results.map(cell).join('')}</div>` : ''}</td><td>${p ? `<div class="cells">${p.on.results.map(cell).join('')}</div>` : ''}</td>
         <td class="num">${p ? `${fmt.tok(p.off.in_tokens)} → ${fmt.tok(p.on.in_tokens)}` : '–'}</td><td class="num">${p ? fmtDelta.count(p.d_tool_calls) : '–'}</td>
         <td>${p ? changeCell(CHANGE[p.change] || ['', '–']) : '<span class="muted">no cache comparison</span>'}</td></tr>`; }).join('')}</tbody></table></div>`;
   bindTips($app);
+}
+
+// the task as its task set holds it: the request, how it is graded, the loop criteria, where it is used
+function taskCard(t) {
+  return `<div class="card"><dl class="kv">
+    <dt>Task sets</dt><dd>${t.tasksets.map(x => `${esc(x.name)} v${x.version}`).join(', ')}</dd>
+    <dt>PR sets</dt><dd>${t.prsets.map(n => `<a href="#/prset/${enc(n)}">${esc(n)}</a>`).join(', ') || '–'}</dd>
+    <dt>Graded by</dt><dd>${t.testCmd ? `the PR's tests: <code>${esc(t.testCmd)}</code>` : 'a judge (no tests)'}${t.gold_diff_bytes ? ` <span class="muted small">· gold diff ${fmt.n(t.gold_diff_bytes)} bytes</span>` : ''}</dd>
+    ${t.mergedAt ? `<dt>Merged</dt><dd>${esc(String(t.mergedAt).slice(0, 10))}${t.mergeCommit ? ` · <code>${esc(t.mergeCommit.slice(0, 10))}</code>` : ''}</dd>` : ''}
+    <dt>Acceptance criteria</dt><dd>${t.acceptance.length ? `<ol class="small">${t.acceptance.map(c => `<li>${esc(c.criterion)}${c.essential === false ? ' <span class="muted">(optional)</span>' : ''}${c.command ? `<div class="muted"><code>${esc(c.command)}</code></div>` : ''}</li>`).join('')}</ol>` : '<span class="muted">none (needed for loop experiments)</span>'}</dd>
+  </dl><details><summary class="muted small">Request</summary><pre style="white-space:pre-wrap">${esc(t.request)}</pre></details></div>`;
 }
 
 // ---------- what is in progress: shown on the entity itself ----------
@@ -471,7 +484,7 @@ async function pagePrsets() {
   $app.innerHTML = `<div class="head"><div><h1>PR sets</h1>
     <p class="sub">The PRs an experiment runs, chosen by a stated rule. A PR set is composed as a draft — its PRs and rule can still change — and frozen before any session is spent; only a frozen set can be run, and every experiment that uses it runs the same PRs at the same base.</p></div></div>
     <div class="card wrap"><table><thead><tr><th>PR set</th><th>Status</th><th>Repo</th><th class="num">PRs</th><th>Selection rule</th><th>Graded by</th><th>Checks</th><th>Created</th></tr></thead><tbody>
-    ${prsets.map(p => `<tr><td><b>${esc(p.name)}</b><div class="muted small">${esc(p.tasks)} · hash ${esc(p.hash)}</div></td>
+    ${prsets.map(p => `<tr><td><a href="#/prset/${enc(p.name)}"><b>${esc(p.name)}</b></a><div class="muted small">${esc(p.tasks)}${p.taskset_version ? ` v${p.taskset_version}` : ''} · hash ${esc(p.hash)}</div></td>
       <td>${(p.status || 'frozen') === 'draft' ? `<span class="status warning">draft</span><div><a href="#" data-edit="${esc(p.name)}">edit</a> · <a href="#" data-freeze="${esc(p.name)}">freeze</a></div>` : `<span class="status good">frozen</span><div class="muted small">${fmt.date(p.frozen_at || p.created_at)}</div>`}</td><td>${esc(p.repo)}<div class="muted small">base ${esc((p.base || '?').slice(0, 10))}</div></td><td class="num">${p.prs.length}</td>
       <td style="white-space:normal;max-width:340px">${esc(p.rule)}</td><td class="small">${[...new Set(p.prs.map(x => x.oracle))].map(esc).join(', ')}</td>
       <td>${allOk(p.checks) ? '<span class="status good">pass</span>' : `<span class="status critical" ${tipAttr(p.checks.filter(c => !c.ok).map(c => esc(c.check + ': ' + c.detail)).join('<br>'))}>${p.checks.filter(c => !c.ok).length} failing</span>`}</td><td>${fmt.date(p.created_at)}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">No PR sets yet.</td></tr>'}
@@ -524,6 +537,28 @@ async function pagePrsets() {
       route();
     } catch (err) { document.getElementById('perr').textContent = err.message; }
   });
+}
+
+// one PR set: its rule, the task set version it froze, its checks, and each PR (click through to it)
+async function pagePrset(name) {
+  const x = await api('/api/prset?name=' + enc(name)), p = x.prset;
+  $app.innerHTML = `<p class="muted"><a href="#/prsets">PR sets</a> / ${esc(p.name)}</p>
+    <div class="head"><div><h1>${esc(p.name)}</h1><p class="sub">${esc(p.rule)}</p>${p.description ? `<p class="muted">${esc(p.description)}</p>` : ''}</div></div>
+    <div class="card"><dl class="kv">
+      <dt>Status</dt><dd>${(p.status || 'frozen') === 'draft' ? '<span class="status warning">draft</span>' : `<span class="status good">frozen</span> <span class="muted small">${fmt.date(p.frozen_at || p.created_at)}</span>`}</dd>
+      <dt>Task set</dt><dd>${x.taskset ? `${esc(x.taskset.name)} v${x.taskset.version} <span class="muted small">· ${esc(x.taskset.from?.kind === 'git' ? x.taskset.from.ref + ':' + x.taskset.from.file : x.taskset.from?.file || '')} · ${esc(x.taskset.hash)}</span>` : `<span class="status critical">${esc(p.tasks)}${p.taskset_hash ? ' at ' + esc(p.taskset_hash) : ''} is not in Artemis</span>`}</dd>
+      <dt>Repository</dt><dd>${esc(p.repo)} at <code>${esc((p.base || '?').slice(0, 12))}</code></dd>
+      <dt>Checks</dt><dd>${x.checks.map(c => `<div><span class="status ${c.ok ? 'good' : 'critical'}">${c.ok ? 'pass' : 'fail'}</span> ${esc(c.check)} <span class="muted small">${esc(c.detail)}</span></div>`).join('')}</dd>
+      <dt>Experiments</dt><dd>${x.used_by.map(d => `<a href="#/exp/${enc(d)}">${esc(d)}</a>`).join(', ') || '<span class="muted">none yet</span>'}</dd>
+    </dl></div>
+    <h2>${p.prs.length} PRs</h2>
+    <div class="card wrap"><table id="pst"><thead><tr><th class="sort">PR</th><th class="sort">Area</th><th class="sort">Graded by</th><th class="sort num">Acceptance criteria</th><th class="sort num">Gold diff</th><th class="sort num">Experiments</th></tr></thead><tbody>
+    ${p.prs.map(r => `<tr class="click" data-href="#/pr/${enc(r.id)}"><td style="white-space:normal;min-width:280px"><a href="#/pr/${enc(r.id)}">${esc(r.pr ? '#' + r.pr : r.id)}</a> <span class="muted small">${esc(r.title || '')}</span>${r.in_taskset ? '' : ' <span class="status critical">not in the task set</span>'}</td>
+      <td class="small">${esc(r.area || '–')}</td><td class="small">${esc(r.oracle)}${r.testNeedsGoldSymbols ? ' <span class="status critical">needs the patch\'s own API</span>' : ''}</td>
+      <td class="num" data-v="${r.acceptance}">${r.acceptance || '–'}</td><td class="num" data-v="${r.gold_diff_bytes ?? ''}">${r.gold_diff_bytes ? fmt.n(r.gold_diff_bytes) + ' B' : '–'}</td><td class="num" data-v="${r.experiments}">${r.experiments || '<span class="muted">not run</span>'}</td></tr>`).join('')}
+    </tbody></table></div>`;
+  document.querySelectorAll('#pst tr.click').forEach(tr => tr.addEventListener('click', e => { if (e.target.tagName !== 'A') location.hash = tr.dataset.href; }));
+  sortable(document.getElementById('pst'));
 }
 
 // ---------- caches ----------
