@@ -20,6 +20,7 @@ import { commands as telemetryCommands } from './commands/telemetry.js';
 import { commands as benchmarkCommands } from './commands/benchmark.js';
 import { commands as doctorCommands } from './commands/doctor.js';
 import { commands as warmupCommands } from './commands/warmup.js';
+import { commands as coverageCommands } from './commands/coverage.js';
 import { commands as switchCommands } from './commands/repo-switch.js';
 import { commands as externalCommands } from './commands/external.js';
 import { isDisabledRepo, OFF_MESSAGE } from './repo-switch.js';
@@ -145,9 +146,13 @@ const HELP = `thinker — knowledge cache for coding agents
                                  --prs also mines merged pull requests that were not mined before (default 20)
   record <session>               append events (JSON lines on stdin: {t:prompt|say|tool, ...}) to a session trace, for agents without hooks
   outcome <session> good|bad [reason]           apply an outcome signal to the notes served in a session
-  understand [--top n] [--areas a,b | --all] [--model m] [--dry]
+  understand [--top n] [--areas a,b | --all] [--whole] [--model m] [--dry]
                                  notes on how the most changed code works now (maps, change recipes, invariants), read from
-                                 the top n files by recent commits (default 200), in the focus areas when set (--all: whole repository)
+                                 the top n files by recent commits (default 200), in the focus areas when set (--all: whole repository);
+                                 --whole: every code file of the --areas directories, whatever its age, except files already read
+  coverage [--answer <dirs|none|never>] [--via picker|text] [--client c]
+                                 the directories your sessions work in and how much of each the cache covers; --answer takes
+                                 the reply to a coverage suggestion (directories, comma-separated) and builds the chosen ones
   mine-prs [owner/repo] [--project file | --full-repo] [--limit n] [--dry] [--git] [--fixes] [--from commit [--scan n] [--paths a,b [--paths-limit n]]]
                                  distill merged PRs into fix / invariant / convention notes: those merged since the last run,
                                  then older ones; mined PRs are recorded in .thinker/prs.json and never distilled twice;
@@ -238,7 +243,7 @@ function unknownFlags(c, given, help = HELP) {
 const CACHE_COMMANDS = ['tools', 'orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'session-work', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback', 'skills'];
 
 // One handler per command, in src/commands/; each gets the context below and nothing else of this file.
-const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...skillsCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...warmupCommands, ...switchCommands, ...externalCommands };
+const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...skillsCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...warmupCommands, ...coverageCommands, ...switchCommands, ...externalCommands };
 // Commands that still answer in a repository thinker is switched off for (repo-switch.js): the machine-wide
 // ones, the ones about the install itself, and the switch. `hook` keeps quiet by itself.
 const OFF_COMMANDS = ['version', 'enable', 'disable', 'ui', 'warmup', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'stats', 'ast', 'ranker', 'hook', 'serve', undefined];

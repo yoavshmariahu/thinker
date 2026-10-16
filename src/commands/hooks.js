@@ -15,6 +15,7 @@ import { codeForRequest, orient, HOOK_BUDGET, servesNotes, rememberTask, outcome
 import { recordEvent, traceFile, toolName, toolInput } from '../transcripts.js';
 import { turnNotice, weeklyNotice } from '../usage.js';
 import { setupRepo, warmupOffer } from '../repo-onboard.js';
+import { coverageOffer, recordAccess } from '../coverage.js';
 import { desktopApp, subagentHarness } from '../app-host.js';
 import { enqueueJob, markAppSession, pendingJobs, startSessionWork } from '../session-work.js';
 import { ensureShellPath } from '../shell-path.js';
@@ -92,7 +93,8 @@ async function hookCommand(ctx) {
       // queued learning of an app session (session-work.js): the runner starts and the agent is told to start
       // its subagent; the ancestry is walked only when jobs wait
       const work = !NO_LEARN && pendingJobs(store).length && desktopApp(subagentHarness(client)) ? startSessionWork(store, { cli, harness: subagentHarness(client) }) : '';
-      const offer = [warmupOffer(store, { client }), work].filter(Boolean).join('\n\n');
+      // a weekly suggestion of directories to cover (coverage.js), never on the turn of a warm-up offer
+      const offer = [warmupOffer(store, { client }) || coverageOffer(store, { client }), work].filter(Boolean).join('\n\n');
       // Every git repository has a cache, started on first use and empty until it learns; the hooks serve
       // from it once it holds a few notes (ops.js:SERVE_MIN_NOTES). A prompt served nothing is still a
       // request: `thinker usage` and the telemetry count a machine as active by its requests, and a cache in
@@ -126,6 +128,8 @@ async function hookCommand(ctx) {
     // Cursor reports a shell command's output in afterShellExecution, not in postToolUse
     if (ev.hook_event_name === 'afterShellExecution') { if (flags.record) recordEvent(store.dir, session, { t: 'tool', name: 'Bash', input: { command: ev.command }, result: ev.output }); out('{}'); return; }
     if (flags.record && !(client === 'cursor' && toolName(ev.tool_name) === 'Bash')) { const name = toolName(ev.tool_name); recordEvent(store.dir, session, { t: 'tool', name, input: toolInput(name, ev.tool_input), result: ev.tool_response ?? ev.tool_output ?? ev.output }); }
+    // which directories the session works in, counted for the weekly coverage suggestion (coverage.js)
+    try { recordAccess(store, session, toolFiles(ev, repo)); } catch {}
     // Copilot failure hooks require a different output/exit protocol. Record the
     // failure but keep prompt context for the next successful tool result.
     if (client === 'copilot' && ev.error) { if (flags.record) learnInBackground(ctx, client); return; }

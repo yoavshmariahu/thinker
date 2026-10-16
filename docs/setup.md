@@ -33,6 +33,18 @@ the agent starts a background subagent that answers them through thinker's `warm
 The offer is made once per repository on this machine, not again in another clone or worktree,
 and nothing else repeats it; `thinker warmup` is there any time.
 
+**Coverage suggestions.** The agent hooks count which directories your sessions read and edit
+(locally, in `.thinker/state/access.json`, four weeks kept). About once a week, once there are at least five
+sessions on three days, background maintenance picks up to five of the most worked-in directories that the
+cache covers little (fewer than half their code files have a note), and on your next prompt your agent asks
+you once which of them to build notes for, each with its estimated tokens. The ones you pick are read in the
+background through your own agent's login: every code file in the directory, into notes on how the code there
+works now (`thinker understand --areas <dir> --whole`). No directory chosen means not now (those wait a
+month); "never" stops the suggestions on this machine. `thinker coverage` shows the activity and coverage
+behind them; `maintain: { coverage: false }` in `.thinker/config.json` turns them off for a repository. A
+build needs a signed-in agent CLI: inside a desktop app with none signed in, it says so instead of reading
+through the session.
+
 Warming a cache reads the repository's merged pull requests into it, so the first
 session there already finds notes. The installer ends with `thinker warmup`, which asks
 where to choose the repositories: the local page in your browser, or the terminal, which

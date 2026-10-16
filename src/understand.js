@@ -34,6 +34,23 @@ export function rankFiles(repo, { top = UNDERSTAND_DEFAULTS.top, since = UNDERST
   }
   return Object.keys(w).filter(f => fs.existsSync(path.join(repo, f)) && !generated(path.join(repo, f))).sort((a, b) => w[b] - w[a] || a.localeCompare(b)).slice(0, top);
 }
+// Every code file in `areas`, whatever its age (`whole`: a directory the person asked to cover, coverage.js):
+// recency would skip the files nobody touched lately, which are what such a request is about. Ordered by
+// recent commits first, then the rest by path; files earlier understanding notes already read are left out.
+export function codeFiles(repo, areas, { skip = new Set(), now = null } = {}) {
+  let listed = [];
+  try { listed = git(repo, ['ls-files', '--', ...areas]).split('\n').filter(Boolean); } catch { return []; }
+  const files = listed.filter(f => CODE.test(f) && !NOT_CODE.test(f) && !skip.has(f) && fs.existsSync(path.join(repo, f)) && !generated(path.join(repo, f)));
+  let recent = []; try { recent = rankFiles(repo, { top: files.length, areas, now }); } catch {}
+  const order = new Map(recent.map((f, i) => [f, i]));
+  return files.sort((a, b) => (order.get(a) ?? Infinity) - (order.get(b) ?? Infinity) || a.localeCompare(b));
+}
+// The files the cache's understanding notes were read from (source.ref: the batch's files, comma-joined).
+export function filesRead(store) {
+  const read = new Set();
+  for (const n of store.list()) if (n.source?.type === 'understanding') for (const f of String(n.source.ref || '').split(',')) if (f) read.add(f);
+  return read;
+}
 // Generated code (protobuf stubs, lockfile-like modules) churns with its source and is not worth a note:
 // on mlflow a generated Service.java alone took 69 of 183 calls.
 function generated(file) {
@@ -102,9 +119,10 @@ export async function instanceViews(store, notes, { model = 'haiku', concurrency
 
 // Build the notes: one model call per batch, each note through createNote (pointers resolved and hashed
 // against this checkout), then the instance views. Returns what was read, made and spent.
-export async function understand(store, { top, since, halfLife, areas = [], batch, model, concurrency = UNDERSTAND_DEFAULTS.concurrency, dry = false, now = null, completeFn = complete, onProgress = null } = {}) {
+export async function understand(store, { top, since, halfLife, areas = [], whole = false, batch, model, concurrency = UNDERSTAND_DEFAULTS.concurrency, dry = false, now = null, completeFn = complete, onProgress = null } = {}) {
   const repo = store.repo;
-  const files = rankFiles(repo, { top, since, halfLife, areas, now });
+  if (whole && !areas.length) throw new Error('a whole-directory build names its directories');
+  const files = whole ? codeFiles(repo, areas, { skip: filesRead(store), now }) : rankFiles(repo, { top, since, halfLife, areas, now });
   const batches = batchFiles(repo, files, batch);
   const plan = { files: files.length, calls: batches.length, codeTokens: batches.reduce((s, b) => s + b.t, 0), areas };
   if (dry) return { ...plan, files: files, notes: 0 };
@@ -126,6 +144,6 @@ export async function understand(store, { top, since, halfLife, areas = [], batc
   }));
   // one call per note, often more calls than the reading itself (582 against 112 on mlflow): its own progress
   const views = await instanceViews(store, store.list().filter(n => n.source?.type === 'understanding' && !n.searchInstances), { concurrency, completeFn, onProgress: (d, n) => onProgress?.(d, n, 'instance views') });
-  store.log({ op: 'understand', files: files.length, calls: batches.length, failed, saved: made, views, tokens, metered: true, areas });
+  store.log({ op: 'understand', files: files.length, calls: batches.length, failed, saved: made, views, tokens, metered: true, areas, ...(whole ? { whole: true } : {}) });
   return { ...plan, notes: made, failed, views, tokens };
 }
