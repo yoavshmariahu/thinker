@@ -55,6 +55,28 @@ our repository policy guard or require PRs in their repositories.
   guard and this policy enforce the workflow on this checkout, not on every client.
 
 
+**Every model-backed feature works in the desktop apps (MANDATORY RULE, 2026-10-16):**
+Anything thinker starts that calls a model for the person (a warm-up, learning, a
+coverage build, verification, a new kind of build) must also run inside a desktop
+app (Claude Desktop, the Codex app, Cursor) and wherever no agent CLI is signed in.
+Those sessions have no CLI login to read through: the work goes through the
+session itself, as the warm-up does (`repo-onboard.js:startSessionWarmup`,
+`session-llm.js`: model calls queued in `.thinker/state`, a background subagent
+answering them through `warmup_next` / `warmup_answer`). A feature that only says
+"sign in a CLI" in a desktop app is not done. Tests cover the desktop-app path
+(`appFn`, a missing CLI login) beside the CLI one.
+
+**No new cache-building or serving strategy ships without an experiment (MANDATORY RULE, 2026-10-16):**
+A change to what the cache is built from (a new source, a new selection of code or
+history, a new note kind) or to how notes reach the agent (ranking, the
+cross-encoder, floors, slots, budgets, a new serving pool) lands off by default,
+behind a config switch, until an experiment shows it helps. The experiment runs
+through Artemis (plan, the owner's approval, then the run), compares the strategy
+with what ships on the same tasks, and is written up with its numbers and caveats.
+Offline replays of retrieval against labelled targets are a first step, not the
+evidence: the outcome is measured in agent sessions. Turning the switch on by
+default is its own pull request that cites the experiment.
+
 Requires Node 20+. Tests: `npm test` (`node --test test/*.test.js`).
 
 **Releases are GitHub releases on tags (since 0.1.35):** a release is the tag
