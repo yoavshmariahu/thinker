@@ -5,13 +5,14 @@ platform (`bench/evals`, web app and MCP server, started with `artemis-up`), as 
 (`.agents/skills/run-evals/SKILL.md`). The runners below it (`run.js`, `codex-run.js`,
 `gemini-run.js`) are started by the platform, not by hand. The cache-source requirement that follows
 applies to every experiment it starts: the platform's cache module builds caches only by `mine-prs`
-at an anchor before the PR set's base, by the agent's model, and blocks a plan whose cache fails
-those checks.
+(a mined cache) or `understand` (an understanding cache, read from the code), at an anchor before
+the PR set's base, by the agent's model, and blocks a plan whose cache fails those checks.
 
 # Benchmark cache source: hard requirement
 
-Every benchmark cache must be built by mining recent merged PRs through Thinker's
-PR-mining path. This applies to canaries and full suites. Do not create exploration
+Every benchmark cache must be built through one of Thinker's own build paths: mining recent merged
+PRs (`mine-prs`), or reading the most changed code at the anchor (`understand`). This applies to
+canaries and full suites. Do not create exploration
 sessions, synthesize sessions, distill sessions, or substitute handwritten notes.
 There are no prior benchmark sessions to distill.
 

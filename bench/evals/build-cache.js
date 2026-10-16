@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { cacheDir, notesDir, countNotes, hashNotes, noteSources } from './caches.js';
+import { cacheDir, notesDir, countNotes, hashNotes, noteSources, kindOf, KINDS } from './caches.js';
 import { openDb } from './db.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -23,6 +23,7 @@ if (plan.resume && !prev) { console.error(`no receipt of ${plan.name} to resume`
 const receipt = prev ? { ...prev, status: 'building', error: undefined, resumed_at: [...(prev.resumed_at || []), Date.now()] } : { ...plan, status: 'building', created_at: Date.now(), steps_done: [] };
 delete receipt.resume; delete receipt.done;
 const done = step => receipt.steps_done.includes(step);
+const kind = kindOf(plan);
 const save = () => db.putCache(receipt);
 const log = m => console.log(`[${new Date().toISOString()}] ${m}`);
 const fail = m => { receipt.status = 'failed'; receipt.error = m; receipt.finished_at = Date.now(); save(); log('FAILED ' + m); process.exit(1); };
@@ -37,9 +38,11 @@ const branch = `evals-anchor-${plan.name}`;
 if (!done('snapshot')) {
   try {
     execFileSync('git', ['-C', src, 'branch', '-f', branch, plan.anchor], { stdio: 'ignore' });
-    // shallow, but deep enough for mining to choose its changes: a 4.8 GB history is not copied whole
-    const depth = String(Math.max(500, plan.limit * 10));
-    execFileSync('git', ['clone', '--quiet', '--single-branch', '--depth', depth, '--branch', branch, `file://${src}`, repo], { stdio: 'ignore' });
+    // shallow, but deep enough for mining to choose its changes (a 4.8 GB history is not copied whole), and
+    // for an understanding build to rank files by the commits of its window (src/understand.js, 180 days)
+    const shallow = kind === 'mined' ? ['--depth', String(Math.max(500, plan.limit * 10))]
+      : [`--shallow-since=${new Date(Date.parse(plan.anchor_date) - 200 * 86_400_000).toISOString()}`];
+    execFileSync('git', ['clone', '--quiet', '--single-branch', ...shallow, '--branch', branch, `file://${src}`, repo], { stdio: 'ignore' });
     execFileSync('git', ['-C', repo, 'remote', 'remove', 'origin'], { stdio: 'ignore' });
   } catch (e) { fail('snapshot: ' + e.message); }
   finally { try { execFileSync('git', ['-C', src, 'branch', '-D', branch], { stdio: 'ignore' }); } catch {} }
@@ -75,7 +78,9 @@ function runStep(label, args) {
   });
 }
 
-for (const [label, args] of [['mine-prs', ['mine-prs', '--git', '--limit', String(plan.limit)]], ['phrase', ['phrase']], ['relink', ['relink']]]) {
+const build = kind === 'mined' ? ['mine-prs', ['mine-prs', '--git', '--limit', String(plan.limit)]]
+  : ['understand', ['understand', '--top', String(plan.top), ...(plan.areas?.length ? ['--areas', plan.areas.join(',')] : ['--all'])]];
+for (const [label, args] of [build, ['phrase', ['phrase']], ['relink', ['relink']]]) {
   if (done(label)) continue;
   log(`thinker ${args.join(' ')}`);
   receipt.progress = { step: label }; save();
@@ -90,6 +95,13 @@ for (const [label, args] of [['mine-prs', ['mine-prs', '--git', '--limit', Strin
     if (processed == null) fail('mine-prs printed no summary: cannot tell what it mined');
     if (!saved) fail(`mine-prs saved no notes (${failed} of ${processed} changes failed${receipt.mining.warning ? '; ' + receipt.mining.warning : ''})`);
     if (failed / processed > 0.2) fail(`mine-prs failed on ${failed} of ${processed} changes${receipt.mining.warning ? '; ' + receipt.mining.warning : ''}`);
+  }
+  if (label === 'understand') {
+    // understand exits 1 when more than a fifth of its calls failed; its summary line says what it read and saved
+    const m = (r.stdout || '').match(/(\d+) files .*? · (\d+) calls · (\d+) notes saved(?: · (\d+) failed)?/);
+    receipt.understanding = m ? { files: Number(m[1]), calls: Number(m[2]), saved: Number(m[3]), failed: Number(m[4] || 0) } : null;
+    if (!receipt.understanding) fail('understand printed no summary: cannot tell what it read');
+    if (!receipt.understanding.saved) fail(`understand saved no notes (${receipt.understanding.failed} of ${receipt.understanding.calls} calls failed)`);
   }
   receipt.steps_done.push(label); save();
 }
@@ -123,14 +135,16 @@ for (const file of ['log.jsonl', path.join('state', 'log.jsonl')]) {
   for (const line of fs.readFileSync(p, 'utf8').split('\n')) {
     let e; try { e = JSON.parse(line); } catch { continue; }
     if (e.op === 'mine-prs') { usage.mined += e.prs || 0; usage.saved += e.saved || 0; usage.tokens += Number(e.tokens?.total ?? e.tokens) || 0; }
+    else if (e.op === 'understand') { usage.files = (usage.files || 0) + (e.files || 0); usage.saved += e.saved || 0; usage.tokens += Number(e.tokens) || 0; }
     else if (e.op === 'phrase' && e.cost) usage.tokens += Number(e.cost.tokens ?? e.cost.total ?? 0) || 0;
   }
 }
 receipt.usage = usage;
 receipt.finished_at = Date.now();
 if (!receipt.notes) fail('the build saved no notes: an empty cache measures nothing');
-if (receipt.sources.other) fail(`${receipt.sources.other} notes are not sourced from a mined PR`);
+{ const want = KINDS[kind].source, other = Object.entries(receipt.sources).filter(([k]) => k !== want).reduce((s, [, v]) => s + v, 0);
+  if (other) fail(`${other} notes are not ${kind === 'mined' ? 'sourced from a mined PR' : 'read from the code'}`); }
 receipt.status = 'ok';
 delete receipt.progress;
 save();
-log(`done: ${receipt.notes} notes (${described} described), ${usage.mined} changes mined, hash ${receipt.notes_hash}`);
+log(`done: ${receipt.notes} notes (${described} described), ${kind === 'mined' ? `${usage.mined} changes mined` : `${usage.files || 0} files read`}, hash ${receipt.notes_hash}`);

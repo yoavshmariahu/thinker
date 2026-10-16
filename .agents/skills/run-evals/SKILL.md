@@ -20,9 +20,9 @@ is put together from **modules**, each made and checked on its own:
 | Module | What it fixes | Made with |
 |---|---|---|
 | **PR set** | which PRs, at which base commit, chosen by which rule | `create_pr_set` (`draft: true` to compose it with `update_pr_set`), then `freeze_pr_set`; only a frozen set runs, and it never changes |
-| **Cache** | what the cache-on arm is served: mined from merged PRs at an anchor commit, by a named model | `plan_cache` → user approval → `build_cache` |
+| **Cache** | what the cache-on arm is served: mined from merged PRs, or read from the most changed code (understanding), at an anchor commit, by a named model | `plan_cache` → user approval → `build_cache` |
 | **Arms** | cache off, cache on, and any extra arm | part of the experiment |
-| **Agent** | runner, model (= the cache's mining model), reps, concurrency | part of the experiment |
+| **Agent** | runner, model (= the cache's building model), reps, concurrency | part of the experiment |
 | **Grading** | the PRs' own tests, or a named judge | part of the experiment |
 
 Artemis plans, prices, starts, tracks, archives and compares experiments. It is the exclusive path:
@@ -84,11 +84,16 @@ Otherwise `create_pr_set` from a task set (`list_task_sets`):
   models: AGENTS.md);
 - **limit**: changes to mine (60 by default; 20 was too shallow to cover tasks).
 
-Show the user the plan (repository, anchor and its date, model, limit, steps) and wait for a yes, then
+- **kind**: `mined` (default) or `understanding`: notes on how the code works, read from the `top` files
+  (200 by default) with the most recent commits before the anchor, optionally only in `areas` (a
+  developer's focus directories). Understanding notes serve best with `values["ce-views"]: "multi"` and a
+  hook `budget` of about 1500 (they run about 400 tokens each).
+
+Show the user the plan (repository, anchor and its date, kind, model, limit or top, steps) and wait for a yes, then
 `build_cache` and follow it with `get_progress` / `get_cache`. The build is the product's own path —
-`mine-prs --git`, `phrase`, `relink` in a checkout whose history stops at the anchor — and it fails
-closed: mining that saved nothing or failed on more than a fifth of the changes, an empty cache, or a
-note not sourced from a PR marks it failed. Never serve exploration, synthetic sessions, distilled
+`mine-prs --git` or `understand`, then `phrase`, `relink`, in a checkout whose history stops at the
+anchor — and it fails closed: a build that saved nothing or failed on more than a fifth of its work,
+an empty cache, or a note not from the kind's own source marks it failed. Never serve exploration, synthetic sessions, distilled
 eval traces, hand-written notes or an old noteset of unknown provenance.
 
 ## 4. Design the experiment
@@ -98,7 +103,7 @@ eval traces, hand-written notes or an old noteset of unknown provenance.
 | **Question** | One question the result can answer yes or no: "Does the prompt hook cut tool calls for Sonnet on PostHog PRs?" |
 | **Kind** | `behavior` or `model`. |
 | **Arms** | `off` (`nocache`) always; `on` the product as it ships (`cache`/`hook` for Claude Code, `full` for Codex) unless the question is about a variant; an extra arm (e.g. `irrelevant`, placebo notes) only when the question needs it — each costs a full arm of sessions. |
-| **Agent** | The cache's mining model (the plan blocks otherwise). `flags["strict-model"]: true` where the runner has it. At least 2 reps per PR × arm. |
+| **Agent** | The cache's building model (the plan blocks otherwise). `flags["strict-model"]: true` where the runner has it. At least 2 reps per PR × arm. |
 | **Grading** | The PRs' tests when every PR has them. Otherwise a judge must be named (`judge`) and approved; judged numbers compare only with the same judge. |
 | **Loop** (optional, Codex) | `flags.loop` with `values.checker` (a named model) and limits (`iterations`, `iteration-min`, `session-min`, `token-cap`): each session iterates, resumed with a checker's feedback, until every PR's `acceptance` criteria are met or a limit is hit. Every PR needs `acceptance` written from the request and base code, never the gold. The headline leads with done within limits; report false done beside it. See bench/evals/README.md, "Loop experiments". |
 | **Tag** | `<repo>-<model>-<what>-<date>`, new for a new experiment. Reusing a tag resumes it. |

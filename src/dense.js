@@ -96,7 +96,12 @@ export const CE_MODEL = 'Xenova/ms-marco-MiniLM-L-6-v2';
 // posthog PR106936 it would have served the note that carried the criterion the agent missed (scored −0.93).
 // Off by default since 2026-10-08: serving is held to what the cross-encoder is confident of, since no measured
 // efficiency gain pays for a note below the floor (the Click canary of 2026-10-07 was costlier with the cache).
-export const CE_DEFAULTS = { enabled: true, floor: 0, maxNotes: 2, k: 8, queryTokens: 120, fallbackFloor: null };
+// views: 'search' scores a note by its search text; 'multi' by the best of three texts (the search text, the
+// instance-naming `searchInstances` of an understanding note (src/understand.js), the head of its body), so a
+// general note whose words differ from a specific request can still clear the floor (2026-10-15, mlflow:
+// rated-2 understanding notes scored −0.3 to −5.5 on search text alone; multi served on-target notes on 5 of 13
+// requests against 4).
+export const CE_DEFAULTS = { enabled: true, floor: 0, maxNotes: 2, k: 8, queryTokens: 120, fallbackFloor: null, views: 'search' };
 export function ceConfig(store) {
   const c = store?.config?.().ce; const cfg = { ...CE_DEFAULTS, ...(c === false ? { enabled: false } : c && typeof c === 'object' ? c : {}) };
   const e = process.env;
@@ -106,6 +111,7 @@ export function ceConfig(store) {
   if (e.THINKER_CE_K) cfg.k = Number(e.THINKER_CE_K);
   if (e.THINKER_CE_QUERY_TOKENS) cfg.queryTokens = Number(e.THINKER_CE_QUERY_TOKENS);
   if (e.THINKER_CE_FALLBACK !== undefined && e.THINKER_CE_FALLBACK !== '') cfg.fallbackFloor = /^(off|none|false)$/i.test(e.THINKER_CE_FALLBACK) ? null : Number(e.THINKER_CE_FALLBACK);
+  if (e.THINKER_CE_VIEWS) cfg.views = e.THINKER_CE_VIEWS;
   if (cfg.fallbackFloor === false) cfg.fallbackFloor = null;
   return cfg;
 }
@@ -149,10 +155,16 @@ export async function ceScores(query, notes, { queryTokens = CE_DEFAULTS.queryTo
   return out;
 }
 // ranked: rank.js rows. Returns the rows the cross-encoder keeps, best first, each with `ce`.
-export async function ceRerank(ranked, query, { k = CE_DEFAULTS.k, floor = CE_DEFAULTS.floor, maxNotes = CE_DEFAULTS.maxNotes, queryTokens = CE_DEFAULTS.queryTokens, fallbackFloor = CE_DEFAULTS.fallbackFloor } = {}) {
+export async function ceRerank(ranked, query, { k = CE_DEFAULTS.k, floor = CE_DEFAULTS.floor, maxNotes = CE_DEFAULTS.maxNotes, queryTokens = CE_DEFAULTS.queryTokens, fallbackFloor = CE_DEFAULTS.fallbackFloor, views = CE_DEFAULTS.views } = {}) {
   const cands = ranked.slice(0, k);
   if (!cands.length) return cands;
-  const sc = await ceScores(query, cands.map(r => r.note), { queryTokens });
+  const notes = cands.map(r => r.note);
+  let sc = await ceScores(query, notes, { queryTokens });
+  if (views === 'multi') {
+    const inst = await ceScores(query, notes.map(n => (n.searchInstances ? { ...n, search: n.searchInstances } : n)), { queryTokens });
+    const body = await ceScores(query, notes.map(n => ({ ...n, search: String(n.body || '').slice(0, 900) })), { queryTokens });
+    sc = sc.map((s, i) => Math.max(s, inst[i], body[i]));
+  }
   return selectByScore(cands.map((r, i) => ({ ...r, ce: sc[i] })), { floor, maxNotes, fallbackFloor });
 }
 // The selection alone (testable without the model): those at or above the floor, best first, at most maxNotes;

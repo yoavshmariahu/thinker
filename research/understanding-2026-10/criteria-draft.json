@@ -1,0 +1,429 @@
+{
+  "PR26269-hard": {
+    "acceptance": [
+      {
+        "id": "a1",
+        "criterion": "When the Anthropic provider streams a response containing two or more parallel tool_use content blocks, the emitted StreamResponsePayload chunks assign ToolCallDelta.index sequentially (0 for the first tool call's chunks, 1 for the second, etc.) instead of hardcoding index=0 for every tool call, so downstream index-based merging (e.g. OpenAI client, LangChain) reconstructs each tool call separately rather than concatenating their arguments into one.",
+        "essential": true
+      },
+      {
+        "id": "a2",
+        "criterion": "The sequential tool-call numbering from a1 is based on the order tool_use blocks appear in the message, not on Anthropic's raw content_block index: if a text content block precedes the first tool_use block (so the tool_use block's Anthropic content_block index is 1 or higher), that first tool call's ToolCallDelta.index is still 0.",
+        "essential": true
+      },
+      {
+        "id": "a3",
+        "criterion": "Every chat.StreamChoice yielded from Anthropic chat streaming (via model_to_chat_streaming/_chat_stream) has index=0, regardless of which Anthropic content_block index (text or tool_use) the chunk originated from, so all chunks of a streamed response land in the first (and only) choice.",
+        "essential": true
+      },
+      {
+        "id": "a4",
+        "criterion": "For a streamed response whose message_delta carries a non-null stop_reason over multiple tracked content-block indices (e.g. a text block plus one or more tool_use blocks), exactly one chunk in the resulting stream has a non-null finish_reason, emitted once for the whole response rather than once per content block index.",
+        "essential": true
+      },
+      {
+        "id": "a5",
+        "criterion": "Non-streaming Anthropic chat behavior (AnthropicAdapter.model_to_response / chat_to_model and the /_chat code path) is unchanged by this fix.",
+        "essential": true
+      },
+      {
+        "id": "a6",
+        "criterion": "Existing Anthropic provider tests continue to pass, including streaming and function-calling streaming tests (adjusted as needed for the new per-tool-call index and single finish event, per the request's description of the fix), and non-streaming tests pass unmodified.",
+        "essential": true,
+        "command": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest tests/gateway/providers/test_anthropic.py"
+      }
+    ],
+    "model": "sonnet",
+    "usage": {
+      "input_tokens": 14,
+      "cache_creation_input_tokens": 30179,
+      "cache_read_input_tokens": 145986,
+      "output_tokens": 3899,
+      "output_tokens_details": {
+        "thinking_tokens": 1813
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 30179,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "global",
+      "iterations": [
+        {
+          "input_tokens": 2,
+          "output_tokens": 974,
+          "cache_read_input_tokens": 28125,
+          "cache_creation_input_tokens": 2054,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 2054
+          },
+          "type": "message"
+        }
+      ],
+      "speed": "standard",
+      "fallback_credit": null
+    },
+    "cost": 0.18893120000000002,
+    "turns": 9
+  },
+  "PR26300-hard": {
+    "acceptance": [
+      {
+        "id": "a1",
+        "criterion": "For a Gemini or Vertex AI (Gemini-model) chat request with tools declared and tool_choice=\"required\", the request sent to the provider's generateContent/streamGenerateContent endpoint includes a tool-calling configuration that forces the model to call some tool (Gemini's ANY function-calling mode), for both non-streaming and streaming chat.",
+        "essential": true
+      },
+      {
+        "id": "a2",
+        "criterion": "For a Gemini or Vertex AI (Gemini-model) chat request with tools declared and tool_choice=\"none\", the request sent to the provider includes a tool-calling configuration that prevents any tool call (Gemini's NONE function-calling mode), for both non-streaming and streaming chat.",
+        "essential": true
+      },
+      {
+        "id": "a3",
+        "criterion": "For a chat request with multiple tools declared and tool_choice naming a specific function (OpenAI's {\"type\": \"function\", \"function\": {\"name\": ...}} form), the request sent to Gemini restricts tool calling to only that named function, not the other declared tools, for both non-streaming and streaming chat.",
+        "essential": true
+      },
+      {
+        "id": "a4",
+        "criterion": "When tool_choice is omitted or set to \"auto\", the generated request preserves today's behavior (no forced/restricting tool-calling configuration is added), leaving Gemini's default automatic tool selection in effect.",
+        "essential": true
+      },
+      {
+        "id": "a5",
+        "criterion": "When no tools are declared in the request payload, no tool-calling configuration is added to the Gemini request regardless of any tool_choice value supplied.",
+        "essential": true
+      },
+      {
+        "id": "a6",
+        "criterion": "Existing Gemini and Vertex AI provider unit tests continue to pass.",
+        "command": "uv run pytest tests/gateway/providers/test_gemini.py tests/gateway/providers/test_vertex_ai.py",
+        "essential": true
+      }
+    ],
+    "model": "sonnet",
+    "usage": {
+      "input_tokens": 20,
+      "cache_creation_input_tokens": 52408,
+      "cache_read_input_tokens": 378669,
+      "output_tokens": 5158,
+      "output_tokens_details": {
+        "thinking_tokens": 1512
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 52408,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "global",
+      "iterations": [
+        {
+          "input_tokens": 2,
+          "output_tokens": 1507,
+          "cache_read_input_tokens": 51084,
+          "cache_creation_input_tokens": 1324,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 1324
+          },
+          "type": "message"
+        }
+      ],
+      "speed": "standard",
+      "fallback_credit": null
+    },
+    "cost": 0.3369858,
+    "turns": 19
+  },
+  "PR26270-hard": {
+    "acceptance": [
+      {
+        "id": "a1",
+        "criterion": "For the Gemini provider's streaming chat path (GeminiAdapter.model_to_chat_streaming / _convert_function_call_to_openai_choice, used by GeminiProvider._chat_stream in mlflow/gateway/providers/gemini.py), when multiple parallel tool calls appear within a single streamed chunk, each ToolCallDelta in that chunk gets a distinct, consecutive index (0, 1, 2, ...) instead of every call being index 0.",
+        "essential": true
+      },
+      {
+        "id": "a2",
+        "criterion": "For the Gemini provider's streaming chat path, when tool calls arrive across multiple separate streamed chunks, the index numbering continues increasing from where the previous chunk left off (e.g. a call in a later chunk gets index 2 after two calls already seen at indices 0 and 1), rather than every chunk restarting its tool call indices at 0.",
+        "essential": true
+      },
+      {
+        "id": "a3",
+        "criterion": "For the LiteLLM provider's streaming chat path (LiteLLMProvider._chat_stream converting choice.delta.tool_calls in mlflow/gateway/providers/litellm.py), the index reported on the underlying litellm tool-call chunk object (e.g. tc.index) is preserved in the emitted index field when litellm provides one, even when calls for different indices are interleaved across chunks, instead of being overwritten with the call's position within that chunk's tool_calls list.",
+        "essential": true
+      },
+      {
+        "id": "a4",
+        "criterion": "For the LiteLLM provider's streaming chat path, when a streamed tool-call chunk from litellm does not supply an index (e.g. it's absent or None), the emitted index still falls back to that call's position within the current chunk's tool_calls list, matching today's behavior for that case.",
+        "essential": true
+      },
+      {
+        "id": "a5",
+        "criterion": "The change does not alter Gemini's finish_reason handling for tool calls or Bedrock's streaming tool-call index offset after a text block, since both are explicitly out of scope.",
+        "essential": true
+      },
+      {
+        "id": "a6",
+        "criterion": "Existing Gemini and LiteLLM gateway provider tests continue to pass.",
+        "command": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest tests/gateway/providers/test_gemini.py tests/gateway/providers/test_litellm.py",
+        "essential": true
+      }
+    ],
+    "model": "sonnet",
+    "usage": {
+      "input_tokens": 22,
+      "cache_creation_input_tokens": 45426,
+      "cache_read_input_tokens": 316202,
+      "output_tokens": 6714,
+      "output_tokens_details": {
+        "thinking_tokens": 1947
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 45426,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "global",
+      "iterations": [
+        {
+          "input_tokens": 2,
+          "output_tokens": 894,
+          "cache_read_input_tokens": 44156,
+          "cache_creation_input_tokens": 1270,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 1270
+          },
+          "type": "message"
+        }
+      ],
+      "speed": "standard",
+      "fallback_credit": null
+    },
+    "cost": 0.3121284,
+    "turns": 18
+  },
+  "PR26311-hard": {
+    "acceptance": [
+      {
+        "id": "a1",
+        "criterion": "Constructing an EvaluationDataset (mlflow.data.evaluation_dataset.EvaluationDataset / mlflow.models.evaluate's dataset conversion) from data whose rows contain nested arrays/lists of dictionaries with differing lengths across rows (e.g. a Hugging Face dataset column where each row is a list of dicts of varying length) succeeds and does not raise ValueError during digest/hash computation.",
+        "essential": true
+      },
+      {
+        "id": "a2",
+        "criterion": "When the nested data cannot be converted into a uniform (rectangular) numpy array and contains dictionary elements, the hashing logic falls back to a general, item-by-item traversal of the nested structure instead of letting the numpy conversion error propagate.",
+        "essential": true
+      },
+      {
+        "id": "a3",
+        "criterion": "Hashing remains deterministic: constructing an EvaluationDataset twice from the same irregular (ragged) dict-containing data yields the same hash/digest both times.",
+        "essential": true
+      },
+      {
+        "id": "a4",
+        "criterion": "Existing behavior for regular/uniform-shaped data (plain numeric/list data, fixed-length lists of dicts such as chat message payloads, pandas/spark DataFrames) is unchanged, and hashing of actually malformed/invalid shapes (e.g. differing per-row feature counts for plain numeric lists) still raises the existing MlflowException as before.",
+        "essential": true
+      },
+      {
+        "id": "a5",
+        "criterion": "Existing tests for the touched area still pass.",
+        "essential": true,
+        "command": "uv run pytest tests/data/test_evaluation_dataset.py tests/evaluate/test_evaluation.py"
+      }
+    ],
+    "model": "sonnet",
+    "usage": {
+      "input_tokens": 34,
+      "cache_creation_input_tokens": 63235,
+      "cache_read_input_tokens": 689522,
+      "output_tokens": 13673,
+      "output_tokens_details": {
+        "thinking_tokens": 9619
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 63235,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "global",
+      "iterations": [
+        {
+          "input_tokens": 2,
+          "output_tokens": 619,
+          "cache_read_input_tokens": 62467,
+          "cache_creation_input_tokens": 768,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 768
+          },
+          "type": "message"
+        }
+      ],
+      "speed": "standard",
+      "fallback_credit": null
+    },
+    "cost": 0.5276424000000001,
+    "turns": 18
+  },
+  "PR26225-hard": {
+    "acceptance": [
+      {
+        "id": "a1",
+        "criterion": "Inside the tracking server process, reconstructing a custom (@scorer decorator) scorer (e.g. via Scorer.model_validate / the server's scorer-rebuild path used for invocation, online-scoring validation, and guardrail loading) must not execute the scorer's function body: either the rebuild itself raises, or it returns an inert object that still exposes the scorer's metadata (name, description, aggregations, serialized call_source/signature) and whose invocation (call/run) raises an MlflowException instead of exec'ing the stored source. This must hold even when MLFLOW_SERVER_ENABLE_CUSTOM_SCORERS is set to true in the server process's own environment.",
+        "essential": true
+      },
+      {
+        "id": "a2",
+        "criterion": "The refusal in a1 is enforced at the single scorer-rebuild entry point used to turn a serialized decorator scorer back into a runnable Scorer (e.g. Scorer._reconstruct_decorator_scorer), not duplicated/patched at each caller, so any server code path that goes through it (scorer invocation, online-scoring config validation, gateway guardrail loading) is covered without further changes there.",
+        "essential": true
+      },
+      {
+        "id": "a3",
+        "criterion": "The job executor (e.g. the local job executor subprocess that runs a submitted custom-scorer job) can still fully rebuild and execute a custom (@scorer decorator) scorer end-to-end, unaffected by the new server-side refusal; existing tests covering custom scorer job execution still pass.",
+        "essential": true
+      },
+      {
+        "id": "a4",
+        "criterion": "A regular (non-server) client process loading, registering, or running a custom scorer locally behaves exactly as before this change: existing custom-scorer client-side tests keep passing unmodified in behavior, e.g. `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest tests/genai/scorers/test_scorer.py -k custom_scorer`.",
+        "essential": true
+      },
+      {
+        "id": "a5",
+        "criterion": "Creating a gateway guardrail (CreateGatewayGuardrail / store.create_gateway_guardrail) backed by a custom decorator scorer, or by an ensemble containing one, is rejected with an error at creation time; loading guardrails for an endpoint (load_guardrails) likewise rejects a custom-scorer-backed guardrail (or ensemble containing one) rather than treating it as usable, while built-in scorers and make_judge()-created judges continue to work as guardrails.",
+        "essential": true
+      },
+      {
+        "id": "a6",
+        "criterion": "When an endpoint has a guardrail backed by a custom scorer that fails to load for that reason, a request routed to that endpoint fails with a server error identifying the guardrail by name, instead of the guardrail being silently skipped; other guardrail-loading failures (unrelated to custom scorers) are still skipped and logged as they are today, so unrelated guardrails on the same endpoint keep working.",
+        "essential": true
+      }
+    ],
+    "model": "sonnet",
+    "usage": {
+      "input_tokens": 40,
+      "cache_creation_input_tokens": 136978,
+      "cache_read_input_tokens": 1941337,
+      "output_tokens": 15714,
+      "output_tokens_details": {
+        "thinking_tokens": 8711
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 136978,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "global",
+      "iterations": [
+        {
+          "input_tokens": 2,
+          "output_tokens": 1091,
+          "cache_read_input_tokens": 135822,
+          "cache_creation_input_tokens": 1156,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 1156
+          },
+          "type": "message"
+        }
+      ],
+      "speed": "standard",
+      "fallback_credit": null
+    },
+    "cost": 1.0933994,
+    "turns": 30
+  },
+  "PR26442-hard": {
+    "acceptance": [
+      {
+        "id": "a1",
+        "criterion": "TypeSafeConfig (mlflow/gateway/config.py) accepts an optional custom API base URL field that defaults to unset/None, and TypeSafeProvider.base_url (mlflow/gateway/providers/typesafe.py) uses that value for passthrough requests when it is set.",
+        "essential": true
+      },
+      {
+        "id": "a2",
+        "criterion": "When no custom base URL is configured on a TypeSafe endpoint, TypeSafeProvider.base_url still resolves to the existing public hosted address (TYPESAFE_API_BASE_URL, \"https://api.typesafe.ai/v1\" in mlflow/gateway/constants.py), so existing TypeSafe endpoints are unaffected.",
+        "essential": true,
+        "command": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest tests/gateway/providers/test_typesafe.py"
+      },
+      {
+        "id": "a3",
+        "criterion": "When building a TypeSafe provider from a saved endpoint/connection (the TypeSafe branch of provider-config construction in mlflow/server/gateway_api.py, analogous to the Anthropic branch's handling of auth_config's api_base), a saved API Base URL value is read from the connection's config and passed through into TypeSafeConfig so it reaches TypeSafeProvider.",
+        "essential": true
+      },
+      {
+        "id": "a4",
+        "criterion": "The TypeSafe provider's configuration-options listing in mlflow/utils/providers.py includes an additional, non-required field for the API base URL (mirroring the existing optional api_base field on other providers such as Portkey), so it is surfaced to the endpoint/connection form that renders fields from this listing.",
+        "essential": true
+      },
+      {
+        "id": "a5",
+        "criterion": "docs/docs/genai/governance/ai-gateway/endpoints/model-providers.mdx's TypeSafe section documents the new optional API Base URL setting and explains when to use it (e.g. routing through a proxy or a self-hosted System One server).",
+        "essential": true
+      },
+      {
+        "id": "a6",
+        "criterion": "Existing TypeSafe-related tests continue to pass.",
+        "essential": true,
+        "command": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/.worktrees/mlflow-bench/bench/repos/mlflow-venv/bin/python -m pytest tests/gateway/providers/test_typesafe.py tests/utils/test_providers.py"
+      }
+    ],
+    "model": "sonnet",
+    "usage": {
+      "input_tokens": 68,
+      "cache_creation_input_tokens": 85824,
+      "cache_read_input_tokens": 1777160,
+      "output_tokens": 15526,
+      "output_tokens_details": {
+        "thinking_tokens": 4693
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 85824,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "global",
+      "iterations": [
+        {
+          "input_tokens": 2,
+          "output_tokens": 919,
+          "cache_read_input_tokens": 84810,
+          "cache_creation_input_tokens": 1014,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 1014
+          },
+          "type": "message"
+        }
+      ],
+      "speed": "standard",
+      "fallback_credit": null
+    },
+    "cost": 0.854124,
+    "turns": 46
+  }
+}

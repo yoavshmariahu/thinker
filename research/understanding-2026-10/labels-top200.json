@@ -1,0 +1,1819 @@
+{
+  "PR26252-hard": {
+    "candidates": 20,
+    "ratings": {
+      "fail-soft-validation-convention": {
+        "rating": 0,
+        "why": "Covers metric functions logging a warning and returning None on bad input. It says nothing about the baseline/candidate threshold or relative-change math in validation.py."
+      },
+      "retrieval-metrics-precision-recall-ndcg-at-k-semantics": {
+        "rating": 0,
+        "why": "Edge-case scoring for precision, recall and NDCG at k. Unrelated to model validation thresholds or baseline comparison."
+      },
+      "adding-a-new-built-in-metric-eval-function": {
+        "rating": 0,
+        "why": "Guide for adding metric eval functions in metric_definitions.py. It is a different module and does not touch the validation comparison logic."
+      },
+      "judge-conventions-names-models-return-values": {
+        "rating": 0,
+        "why": "Conventions for built-in GenAI judges (names, models, sanitizing). Unrelated to the min relative change check."
+      },
+      "metric-param-and-tag-write-paths-dedup-locking-retry": {
+        "rating": 0,
+        "why": "SQL tracking store write paths for metrics, params and tags. Not the validation threshold code path."
+      },
+      "workspace-aware-store-setup-and-validation": {
+        "rating": 0,
+        "why": "Workspace-aware store setup and workspace create/update validation. Unrelated to model evaluation validation."
+      },
+      "dirty-state-comparison-rules": {
+        "rating": 0,
+        "why": "Frontend dirty-state rules for saved trace views. Unrelated to the validation threshold."
+      },
+      "assessments-handling-in-the-trace-tree": {
+        "rating": 0,
+        "why": "Trace explorer assessment attachment in the JS UI. Unrelated to model validation."
+      },
+      "trace-analytics-online-prepopulation-flow": {
+        "rating": 0,
+        "why": "Online DB prepopulation for trace analytics before a migration. Unrelated to validation.py."
+      },
+      "conventions-ids-workspaces-nan-metrics-evaluation-dataset-re": {
+        "rating": 0,
+        "why": "Database model rules for ids, NaN metric storage and dataset records. Does not cover the relative change computation or baseline handling."
+      },
+      "adding-a-new-job-store-operation-or-status-transition": {
+        "rating": 0,
+        "why": "Job store status transitions. Unrelated to model validation."
+      },
+      "retry-backoff-and-lease-behaviour": {
+        "rating": 0,
+        "why": "Job retry backoff and lease behaviour. Unrelated to model validation."
+      },
+      "search-logged-models-filtering-ordering-pagination": {
+        "rating": 0,
+        "why": "Logged model search pagination and filtering. Unrelated to the validation threshold."
+      },
+      "path-uri-safety-validation-must-be-preserved": {
+        "rating": 0,
+        "why": "Artifact path and URI safety validation. Shares only the word 'validation' with the request; not the comparison logic."
+      },
+      "pyfunc-prediction-wrapper-and-device-handling-conventions": {
+        "rating": 0,
+        "why": "PyTorch pyfunc wrapper and device handling. Unrelated to validation.py."
+      },
+      "sql-daily-rollup-read-routing": {
+        "rating": 0,
+        "why": "SQL trace rollup read routing for query_metrics. Unrelated to model validation."
+      },
+      "add-a-new-trace-span-assessment-metric-or-dimension": {
+        "rating": 0,
+        "why": "Adding trace/span metric dimensions and aggregations for trace metrics. Unrelated to the validation threshold."
+      },
+      "delivery-modes-tool-vs-structured-output": {
+        "rating": 0,
+        "why": "Output authoring for the custom view assistant in the UI. Unrelated to model validation."
+      },
+      "built-in-scorers-map": {
+        "rating": 0,
+        "why": "Map of built-in GenAI scorers and field validation. Not the baseline-versus-candidate validation path."
+      },
+      "add-or-change-a-supported-input-example-type": {
+        "rating": 0,
+        "why": "Adding model input example types in models/utils.py. Same package family but no bearing on the min relative change threshold."
+      }
+    }
+  },
+  "PR26311-hard": {
+    "candidates": 20,
+    "ratings": {
+      "add-a-new-schema-data-type-or-nested-type-to-enforcement": {
+        "rating": 0,
+        "why": "Covers schema enforcement for model inputs in mlflow/models/utils.py. It does not touch dataset hashing or evaluation_dataset.py, and reading it would not change how the hashing fallback is written."
+      },
+      "how-to-add-a-new-composite-schema-type": {
+        "rating": 0,
+        "why": "About adding composite types to mlflow/types/schema.py, including JSON deserialization and Spark conversion. Unrelated to fingerprinting irregular nested arrays."
+      },
+      "mlflow-models-utils-py-map-input-examples-schema-enforcement": {
+        "rating": 0,
+        "why": "Map of input example saving and predict-time schema enforcement. Does not cover dataset hashing or the evaluation dataset conversion path."
+      },
+      "loading-huggingface-evaluate-modules": {
+        "rating": 0,
+        "why": "Covers loading HuggingFace evaluate metrics. Shares the 'HuggingFace' word with the request but has nothing to do with hashing dataset content."
+      },
+      "threading-and-import-conventions-in-the-harness": {
+        "rating": 0,
+        "why": "Threading and import rules for the genai evaluation harness workers. Not related to dataset fingerprinting or conversion."
+      },
+      "add-or-change-a-supported-input-example-type": {
+        "rating": 0,
+        "why": "Adding input example types in models/utils.py. Schema inference and enforcement are explicitly separate from this, and nothing here concerns hashing dataset content."
+      },
+      "entity-conventions-job-enums-proto-conversion-workspace": {
+        "rating": 0,
+        "why": "Job entity and proto conventions. Unrelated to the evaluation dataset hashing path."
+      },
+      "fail-soft-validation-convention": {
+        "rating": 0,
+        "why": "Metric functions log warnings and return None on bad input. This is a different validation layer from the hashing fallback, so it does not inform the fix."
+      },
+      "conventions-ids-workspaces-nan-metrics-evaluation-dataset-re": {
+        "rating": 1,
+        "why": "Mentions evaluation dataset records being deduplicated by input hash, which is the closest area. But it concerns SQL record merge and dedup in the store, not the content fingerprinting in evaluation_dataset.py, so it only saves a little searching."
+      },
+      "trace-archival-and-db-payload-generation-guard": {
+        "rating": 0,
+        "why": "Trace archival and payload generation guards in the SQL store. Unrelated to dataset hashing."
+      },
+      "concurrency-conventions-savepoints-integrityerror-translatio": {
+        "rating": 0,
+        "why": "SQL store concurrency and IntegrityError translation. Unrelated to hashing dataset content."
+      },
+      "evaluation-harness-pipeline-overview": {
+        "rating": 0,
+        "why": "Overview of the genai evaluate pipeline (predict and score pools). It does not cover dataset conversion or hashing."
+      },
+      "every-item-must-pass-through-scoring-even-without-scorers": {
+        "rating": 0,
+        "why": "Scoring-pool rule for evaluation items. Not related to dataset fingerprinting."
+      },
+      "executor-engine-invariants-workspaces-locks-leases-state-tra": {
+        "rating": 0,
+        "why": "Job executor scheduler invariants. Unrelated to the evaluation dataset hashing fix."
+      },
+      "pt2-serialization-requirements-in-save-model": {
+        "rating": 0,
+        "why": "PyTorch pt2 serialization requirements. Unrelated to dataset hashing."
+      },
+      "insert-races-and-error-handling-via-guard-insert-race": {
+        "rating": 0,
+        "why": "Insert race handling in JobLockManager. Unrelated to hashing dataset content."
+      },
+      "transcript-handling-invariants": {
+        "rating": 0,
+        "why": "Claude Code transcript parsing in TypeScript. Unrelated to the Python dataset hashing path."
+      },
+      "store-method-conventions-errors-uniqueness-pagination-worksp": {
+        "rating": 0,
+        "why": "Gateway store method conventions. Unrelated to dataset hashing."
+      },
+      "pyfunc-prediction-wrapper-and-device-handling-conventions": {
+        "rating": 0,
+        "why": "PyTorch pyfunc wrapper and device handling. Unrelated to dataset hashing."
+      },
+      "conventions-to-respect-when-editing-model-py-and-docker-util": {
+        "rating": 0,
+        "why": "Model metadata serialization and Docker build rules. Unrelated to dataset fingerprinting."
+      }
+    }
+  },
+  "PR26265-hard": {
+    "candidates": 20,
+    "ratings": {
+      "artifactrepository-base-class-download-flow-and-template-met": {
+        "rating": 1,
+        "why": "Describes ArtifactRepository.download_artifacts, which load_text and load_dict reach through download. It is a useful map of the upstream download path, but says nothing about text decoding, so the fix in mlflow/artifacts/__init__.py doesn't depend on it."
+      },
+      "path-safety-and-prefix-matching-rules-in-artifact-repos": {
+        "rating": 0,
+        "why": "Covers local download path containment and remote key handling. Not about how file content is decoded, so reading it wouldn't change the UTF-8 fix."
+      },
+      "never-post-a-local-path-unresolved-citations-must-be-strippe": {
+        "rating": 0,
+        "why": "Concerns media embedding in the review command. Unrelated to artifact loading."
+      },
+      "optimizeds3artifactrepository-credentials-upload-and-downloa": {
+        "rating": 0,
+        "why": "S3 credentials, upload and multipart behavior. Unrelated to text decoding on load."
+      },
+      "path-uri-safety-validation-must-be-preserved": {
+        "rating": 0,
+        "why": "Validation of user-supplied artifact paths and URIs and search SQL. Doesn't touch how artifact content is read or decoded."
+      },
+      "span-attribute-serialization-rule": {
+        "rating": 0,
+        "why": "Span attribute storage in tracing. Unrelated."
+      },
+      "mlflowartifactsrepository-uri-resolution-and-multipart-capab": {
+        "rating": 0,
+        "why": "URI resolution and multipart detection for the MLflow artifacts repo. Doesn't concern decoding of downloaded text."
+      },
+      "artifact-access-uri-safety-and-proxied-artifacts": {
+        "rating": 0,
+        "why": "Server handler path validation, repository lookup and attachment headers. Not about client-side text loading or encoding."
+      },
+      "mlflow-models-utils-py-map-input-examples-schema-enforcement": {
+        "rating": 0,
+        "why": "Input examples and schema enforcement in models utils. Unrelated to artifact text loading."
+      },
+      "conventions-to-respect-when-editing-model-py-and-docker-util": {
+        "rating": 0,
+        "why": "Model metadata serialization and Docker build rules. Unrelated."
+      },
+      "url-state-reset-page-and-keep-identities-stable": {
+        "rating": 0,
+        "why": "Frontend traces page URL state. Unrelated."
+      },
+      "proxied-artifact-serving-and-workspace-path-scoping": {
+        "rating": 0,
+        "why": "Server-side proxied artifact endpoints, workspace scoping and presigned URLs. Not about client-side decoding of artifact content."
+      },
+      "add-an-endpoint-or-paginated-method-to-githubclient": {
+        "rating": 0,
+        "why": "GitHub API client in the skills tooling. Unrelated."
+      },
+      "mlflow-pytorch-flavor-map-save-load-pyfunc-autolog": {
+        "rating": 0,
+        "why": "PyTorch flavor save and load. Unrelated to text artifacts."
+      },
+      "adding-a-new-s3-call-or-upload-option-to-optimizeds3artifact": {
+        "rating": 0,
+        "why": "Rules for boto3 calls in the S3 repo. Unrelated to decoding."
+      },
+      "add-a-client-method-that-delegates-to-the-tracking-store": {
+        "rating": 1,
+        "why": "Covers MlflowClient.log_text, the write side of the text round-trip the user describes, and the temp-path wrapper it uses. It is a useful map to the writer, but it is about adding client methods, not the read-side encoding fix, so the engineer wouldn't change anything from it."
+      },
+      "useserverinfo-cached-server-info-query-and-accessors": {
+        "rating": 0,
+        "why": "Frontend server-info hook. Unrelated."
+      },
+      "pt2-serialization-requirements-in-save-model": {
+        "rating": 0,
+        "why": "PyTorch pt2 export preconditions. Unrelated."
+      },
+      "mlflow-sklearn-flavor-save-log-load-flow": {
+        "rating": 0,
+        "why": "scikit-learn flavor serialization defaults. Unrelated."
+      },
+      "uc-model-dependency-extraction-and-name-normalization": {
+        "rating": 0,
+        "why": "Unity Catalog model dependency extraction and name normalization. Unrelated."
+      }
+    }
+  },
+  "PR26291-hard": {
+    "candidates": 22,
+    "ratings": {
+      "how-to-add-or-extend-a-search-filter-or-order-by-key": {
+        "rating": 0,
+        "why": "Covers search filter and order-by keys for registered models and versions. The bug is in how the reserved 'latest' alias resolves, not in search filtering or sorting."
+      },
+      "model-version-lifecycle-soft-delete-stages-creation-retries": {
+        "rating": 1,
+        "why": "Points at SqlAlchemyStore.get_latest_versions, which computes the per-stage latest versions the alias logic depends on, so it is a useful map to the chokepoint. It does not say that 'latest' must mean the highest version number, so it is not about the mechanism itself."
+      },
+      "sqlalchemystore-map-model-registry-sql-backend": {
+        "rating": 0,
+        "why": "Covers store construction, engine caching, table verification and workspace startup checks. Nothing about alias or latest-version resolution."
+      },
+      "workspace-scoping-rule-for-registry-queries": {
+        "rating": 1,
+        "why": "Any new or changed registry query must carry the workspace filter, so an engineer editing the latest-version query should respect it. It is a general store-wide rule, not specific to the alias resolution path."
+      },
+      "mcp-server-latest-version-resolution": {
+        "rating": 0,
+        "why": "Describes latest-version resolution for MCP servers, which is a separate subsystem. It shares the word 'latest' but does not touch the model registry code path."
+      },
+      "prompt-registry-on-top-of-registered-models": {
+        "rating": 0,
+        "why": "Client-side prompt storage and loading. The task says prompts already behave correctly and are out of scope."
+      },
+      "prompt-experiment-id-tag-format-and-cache-invalidation-rules": {
+        "rating": 0,
+        "why": "Prompt experiment tagging and cache invalidation in the client. Not related to alias resolution in the store."
+      },
+      "prompt-api-wrapper-conventions": {
+        "rating": 0,
+        "why": "Fluent prompt API wrappers and load_prompt side effects. Not related to the store-level 'latest' alias resolution."
+      },
+      "mlflow-genai-prompts-facade-overview": {
+        "rating": 0,
+        "why": "Public genai prompts facade delegation. Not related to model version alias resolution."
+      },
+      "webhook-delivery-convention-for-registry-mutations": {
+        "rating": 0,
+        "why": "Webhook firing conventions in server handlers. Unrelated to how the latest alias resolves."
+      },
+      "ucmodelregistrystore-overview-and-request-flow": {
+        "rating": 0,
+        "why": "Unity Catalog REST store. It rejects latest-version lookups but is a different store, and the fix does not touch it."
+      },
+      "pickle-deserialization-gating-and-pt2-archive-validation": {
+        "rating": 0,
+        "why": "Pickle loading gate and pt2 archive validation. Unrelated to registry alias resolution."
+      },
+      "version-lifecycle-latest-and-alias-semantics": {
+        "rating": 0,
+        "why": "Shares the 'latest reserved alias' concept, but the code is the MCP server registry mixin, not the model registry store. It would not change what the engineer does for the model registry fix."
+      },
+      "span-search-filtering-and-log-level-semantics": {
+        "rating": 0,
+        "why": "Trace explorer span search in the frontend. Unrelated."
+      },
+      "model-registry-fluent-module-map": {
+        "rating": 0,
+        "why": "Maps where register_model and load_prompt live in the fluent module. Does not cover store-side alias or latest resolution."
+      },
+      "trace-apis-v3-first-with-v2-fallback": {
+        "rating": 0,
+        "why": "RestStore trace API routing. Unrelated."
+      },
+      "defensive-parsing-of-untrusted-trace-data": {
+        "rating": 0,
+        "why": "Frontend parsing of trace data. Unrelated."
+      },
+      "register-model-flow-and-source-resolution": {
+        "rating": 0,
+        "why": "Registering a model from a runs URI. Does not involve version resolution or the latest alias."
+      },
+      "model-version-source-validation-and-lineage-in-create-model": {
+        "rating": 0,
+        "why": "Source validation during model version creation in handlers. Does not touch latest or alias resolution."
+      },
+      "review-queue-page-structure-and-data-flow": {
+        "rating": 0,
+        "why": "Frontend review queue page. Unrelated."
+      },
+      "judge-conventions-names-models-return-values": {
+        "rating": 0,
+        "why": "Covers built-in judge naming, model resolution, and sanitizer conventions in builtin.py. It says nothing about resolving the 'latest' alias or version ordering in the model registry stores, so reading it would not change the fix."
+      },
+      "how-to-add-or-change-a-search-filter-or-order-by-key": {
+        "rating": 0,
+        "why": "Describes adding filter and order_by keys for MCP server and version search in the tracking MCP registry mixin. The task concerns how the 'latest' alias resolves to the highest model version in the file and SQLAlchemy model registry stores, a different code path, so this note is not relevant."
+      }
+    }
+  },
+  "PR26307-hard": {
+    "candidates": 23,
+    "ratings": {
+      "adding-a-new-job-store-operation-or-status-transition": {
+        "rating": 0,
+        "why": "Job store status transitions are unrelated to span copying or pickling."
+      },
+      "entity-conventions-job-enums-proto-conversion-workspace": {
+        "rating": 0,
+        "why": "Job, JobStatus and proto conversion conventions have nothing to do with span deep copy or pickle."
+      },
+      "livespan-end-lifecycle-and-attachment-extraction": {
+        "rating": 1,
+        "why": "Same span.py file and touches attachments, which the restored copies must keep. But it covers end-of-span lifecycle and attachment extraction, not copy or pickle behavior, so it is only a map."
+      },
+      "span-attribute-serialization-rule": {
+        "rating": 1,
+        "why": "Describes the attribute registry in span.py that a copy must preserve. It concerns JSON-string attribute storage, not copy or pickle, so it points at the area without changing the fix."
+      },
+      "span-class-hierarchy-and-creation": {
+        "rating": 2,
+        "why": "Covers the Span, LiveSpan, LazySpan and no-op class hierarchy and the fact that live spans use different construction and storage. The fix must branch on live versus immutable versus lazy versus no-op spans, so reading this changes the implementation."
+      },
+      "span-serialization-formats-and-how-to-add-a-field": {
+        "rating": 1,
+        "why": "Covers to_dict/from_dict and OTLP span serialization in span.py. It is a useful map, but it is about adding fields to serialized forms, not about pickle or deep copy state."
+      },
+      "manual-trace-and-span-api-constraints": {
+        "rating": 0,
+        "why": "MlflowClient manual trace API constraints are unrelated to copying or pickling spans."
+      },
+      "pickle-deserialization-gating-and-pt2-archive-validation": {
+        "rating": 0,
+        "why": "This is the PyTorch model-load unpickle gate. It shares the word pickle but governs a different load path, not span pickling."
+      },
+      "trace-span-storage-location-and-archival-read-write-consiste": {
+        "rating": 1,
+        "why": "Explains that spans move between the tracking store and the archive, which affects where lazy spans load from. It does not address copy or pickle semantics, so it is only a map."
+      },
+      "conventions-attribute-serialization-fail-safe-helpers-lazy-i": {
+        "rating": 0,
+        "why": "Covers attribute serialization helpers in tracing utils, not span copy or pickle. Nothing here would change the fix."
+      },
+      "chat-field-filtering-and-search-match-conventions": {
+        "rating": 0,
+        "why": "Frontend chat field filtering and search highlighting are unrelated."
+      },
+      "trace-review-queue-and-job-submitting-handlers-ownership-and": {
+        "rating": 0,
+        "why": "Server handler identity and ownership rules are unrelated to span copying."
+      },
+      "enable-disable-reset-state-and-trace-disabled-invariants": {
+        "rating": 0,
+        "why": "Tracing provider enable, disable and reset state is unrelated to span copy or pickle."
+      },
+      "auth-caching-bootstrap-and-user-management-invariants": {
+        "rating": 0,
+        "why": "Auth caching and user management are unrelated."
+      },
+      "deferred-root-span-export-and-locking": {
+        "rating": 0,
+        "why": "Locking in the MLflow v3 exporter is a different lock in a different component. It does not address the thread lock that breaks span pickling."
+      },
+      "trace-archival-and-db-payload-generation-guard": {
+        "rating": 0,
+        "why": "Archival payload generation and deletion rules are unrelated to span copy or pickle."
+      },
+      "model-registry-fluent-module-map": {
+        "rating": 0,
+        "why": "Model registry fluent APIs are unrelated."
+      },
+      "threading-and-import-conventions-in-the-harness": {
+        "rating": 0,
+        "why": "Evaluation harness threading and imports are unrelated to span copying."
+      },
+      "trace-analytics-online-prepopulation-flow": {
+        "rating": 0,
+        "why": "Trace analytics DB prepopulation is unrelated."
+      },
+      "command-module-contract-register-and-func": {
+        "rating": 0,
+        "why": "CLI command module contract is unrelated."
+      },
+      "pickle-deserialization-gate-and-trust-boundary-for-shap-expl": {
+        "rating": 0,
+        "why": "Covers the pickle load gate for SHAP explainers in mlflow/shap. It is about deserialization trust policy in a different module, not the Span/Trace copy and pickle path, and reading it would not change how the span fix is made."
+      },
+      "custom-view-must-stay-lazy-and-keyed-per-experiment": {
+        "rating": 0,
+        "why": "Concerns lazy loading and keying of a React Custom View provider in the traces V4 UI. It shares the word 'traces' with the request but is a frontend component unrelated to span serialization or the span entity code."
+      },
+      "add-an-endpoint-or-paginated-method-to-githubclient": {
+        "rating": 0,
+        "why": "Describes adding methods to a GitHub API client in the .claude skills directory. Nothing about span entities, copy/pickle, or trace data; it does not even point at the chokepoint for this change."
+      }
+    }
+  },
+  "PR26300-hard": {
+    "candidates": 24,
+    "ratings": {
+      "add-or-change-a-bedrock-underlying-model-adapter-completions": {
+        "rating": 0,
+        "why": "Bedrock completions adapters are a different provider. The request concerns Gemini/Vertex tool_choice, and the note says chat uses Converse rather than these adapters."
+      },
+      "adding-a-vertex-ai-model-family-or-changing-vertex-routing": {
+        "rating": 1,
+        "why": "Points at the Vertex classes and the Gemini delegation route, which is a useful map to where Vertex requests reach the Gemini path. It covers model classification and prefixes, not tool configuration, so it does not change the fix."
+      },
+      "amazon-bedrock-provider-overview-and-request-routing": {
+        "rating": 0,
+        "why": "Describes Bedrock routing and Converse kwargs. Nothing here applies to Gemini tool_choice."
+      },
+      "anthropic-messages-passthrough-on-bedrock": {
+        "rating": 0,
+        "why": "Bedrock Anthropic passthrough and streaming SSE conversion. Unrelated to the Gemini request."
+      },
+      "auth-header-handling-invariants-for-passthrough-and-proxy": {
+        "rating": 0,
+        "why": "Covers auth header forwarding on passthrough and proxy routes. It mentions GeminiProvider._get_headers, but the header behavior is not part of the tool_choice fix."
+      },
+      "bedrock-rules-auth-mode-gating-and-payload-handling": {
+        "rating": 0,
+        "why": "Bedrock auth-mode gating and tool-call JSON handling. Different provider and different mechanism."
+      },
+      "gateway-provider-layering-baseprovider-provideradapter-and-t": {
+        "rating": 1,
+        "why": "Maps the GeminiAdapter and GeminiProvider split and the BaseProvider wrappers. That tells the engineer where the Gemini chat and stream paths live, but it says nothing about tool configuration."
+      },
+      "how-to-add-a-new-gateway-passthrough-route-or-provider": {
+        "rating": 0,
+        "why": "Covers adding new passthrough routes and providers, including budget and guardrail steps. Not related to changing tool choice on an existing Gemini chat path."
+      },
+      "how-to-add-or-change-a-request-response-field-in-the-gemini": {
+        "rating": 2,
+        "why": "This is the mechanism the fix touches. It says to edit the request mapping in GeminiAdapter.chat_to_model and keep the streaming and non-streaming response converters symmetric. Vertex inherits that translation, so the tool_choice mapping belongs in the same place."
+      },
+      "token-usage-extraction-for-tracing-and-passthrough": {
+        "rating": 0,
+        "why": "Covers token usage extraction for spans. It is in the Gemini file but is not related to tool configuration."
+      },
+      "openai-compatible-streaming-quirks-to-preserve": {
+        "rating": 0,
+        "why": "Assistant OpenAI-compatible streaming, not the gateway Gemini provider."
+      },
+      "tool-permission-model-for-openai-compatible-providers": {
+        "rating": 0,
+        "why": "Permission policy for assistant tool calls. It shares the word tool but is a different subsystem."
+      },
+      "stale-send-guarding-request-tokens-and-withguard": {
+        "rating": 0,
+        "why": "Frontend stale-request guarding in the assistant chat. Unrelated."
+      },
+      "how-to-add-or-change-a-gateway-endpoint-field-or-model-confi": {
+        "rating": 0,
+        "why": "Covers endpoint create and update storage logic. Does not involve provider request translation or tool choice."
+      },
+      "assistant-server-api-map": {
+        "rating": 0,
+        "why": "Assistant HTTP endpoints. Unrelated to the gateway Gemini request path."
+      },
+      "validation-conventions-for-endpoint-config": {
+        "rating": 0,
+        "why": "Endpoint config validation for OpenAI and Azure. Unrelated to Gemini tool choice."
+      },
+      "judge-conventions-names-models-return-values": {
+        "rating": 0,
+        "why": "Built-in judge conventions. Unrelated."
+      },
+      "assistant-frontend-architecture-and-streaming-data-flow": {
+        "rating": 0,
+        "why": "Assistant frontend state and SSE flow. Unrelated."
+      },
+      "how-to-add-a-new-tool-for-the-openai-compatible-loop": {
+        "rating": 0,
+        "why": "Adds tools to the assistant's own loop. It is not about declaring or configuring tools for a gateway Gemini request."
+      },
+      "gateway-request-pipeline-in-gateway-api-py": {
+        "rating": 0,
+        "why": "Route-level pipeline in gateway_api.py with budget and guardrails. The fix lives in the provider layer, not this pipeline, so it would not change what the engineer does."
+      },
+      "mlflow-types-responses-py-map-responsesagent-types-and-strea": {
+        "rating": 0,
+        "why": "Covers ResponsesAgent types and chat-completion-to-Responses stream conversion. It does not touch Gemini or Vertex provider code, and nothing about tool_choice being dropped or translated to a tool-calling config."
+      },
+      "add-autologging-for-a-new-openai-api-method": {
+        "rating": 0,
+        "why": "About adding OpenAI autologging spans for new SDK methods. Unrelated to gateway provider request construction or tool choice handling for Gemini."
+      },
+      "how-to-add-or-change-an-mlflow-rest-api-endpoint-in-the-prot": {
+        "rating": 0,
+        "why": "Explains editing protobuf service definitions for tracking REST endpoints. The gateway chat request path and Gemini tool configuration are not involved."
+      },
+      "message-parts-model-and-streaming-text-buffering": {
+        "rating": 0,
+        "why": "Frontend assistant UI message model and streaming buffering in the JS app. Shares the word 'streaming' but has no bearing on the backend Gemini provider or tool_choice mapping."
+      }
+    }
+  },
+  "PR26270-hard": {
+    "candidates": 21,
+    "ratings": {
+      "add-or-change-a-bedrock-underlying-model-adapter-completions": {
+        "rating": 0,
+        "why": "Bedrock completions adapter registration for new model families. Different provider and no tool-call streaming or index handling."
+      },
+      "adding-a-vertex-ai-model-family-or-changing-vertex-routing": {
+        "rating": 0,
+        "why": "Vertex model-name classification and routing. Does not touch Gemini streaming tool-call indices."
+      },
+      "amazon-bedrock-provider-overview-and-request-routing": {
+        "rating": 0,
+        "why": "Bedrock operation routing and auth modes. Unrelated to Gemini or LiteLLM tool-call indices."
+      },
+      "anthropic-messages-passthrough-on-bedrock": {
+        "rating": 0,
+        "why": "Bedrock Anthropic passthrough streaming and token usage. Different provider and different stream conversion."
+      },
+      "auth-header-handling-invariants-for-passthrough-and-proxy": {
+        "rating": 0,
+        "why": "Client auth header forwarding on passthrough and proxy routes. Not about streamed tool-call positions."
+      },
+      "bedrock-rules-auth-mode-gating-and-payload-handling": {
+        "rating": 0,
+        "why": "Bedrock auth-mode gating and payload rules. The 422 mention concerns invalid tool-call JSON, not index assignment."
+      },
+      "gateway-provider-layering-baseprovider-provideradapter-and-t": {
+        "rating": 1,
+        "why": "Points at GeminiAdapter and GeminiProvider as the right files and explains the provider layering. It is a map only and says nothing about tool-call indices."
+      },
+      "how-to-add-a-new-gateway-passthrough-route-or-provider": {
+        "rating": 0,
+        "why": "Steps for adding passthrough routes and providers in gateway_api. Not about streamed tool-call numbering."
+      },
+      "how-to-add-or-change-a-request-response-field-in-the-gemini": {
+        "rating": 2,
+        "why": "Covers the Gemini streaming converter (model_to_chat_streaming) and function-call conversion. It requires keeping streaming and non-streaming converters symmetric, which the index fix must respect. It does not mention indices directly."
+      },
+      "token-usage-extraction-for-tracing-and-passthrough": {
+        "rating": 0,
+        "why": "Token usage normalization for spans. Same Gemini file in one pointer, but nothing about tool calls."
+      },
+      "openai-compatible-streaming-quirks-to-preserve": {
+        "rating": 0,
+        "why": "Client-side tool-call merging by index in the assistant. It describes the consumer that breaks, not the gateway provider that the fix changes."
+      },
+      "message-parts-model-and-streaming-text-buffering": {
+        "rating": 0,
+        "why": "Frontend assistant message parts and buffering. Unrelated to gateway tool-call indices."
+      },
+      "gateway-invariants-secrets-ssrf-telemetry-timing": {
+        "rating": 0,
+        "why": "Gateway secret, SSRF, and timing rules in gateway_api. Does not touch the Gemini or LiteLLM streaming path."
+      },
+      "add-handling-for-a-new-llamaindex-event-or-instance-type": {
+        "rating": 0,
+        "why": "LlamaIndex tracing handlers. Unrelated to the gateway."
+      },
+      "openai-autolog-overview-and-data-flow": {
+        "rating": 0,
+        "why": "OpenAI autologging patches for tracing. Unrelated to gateway provider tool-call indices."
+      },
+      "mlflow-types-responses-py-map-responsesagent-types-and-strea": {
+        "rating": 0,
+        "why": "ResponsesAgent type validation and chat-to-Responses stream conversion. Different module; does not handle gateway tool-call indices."
+      },
+      "streaming-span-lifecycle-and-reconstruction": {
+        "rating": 0,
+        "why": "OpenAI tracing span lifecycle and final reconstruction. Unrelated to gateway tool-call indices."
+      },
+      "how-to-add-a-new-tool-for-the-openai-compatible-loop": {
+        "rating": 0,
+        "why": "Adding server-run tools to the assistant loop. Unrelated to streamed tool-call indexing."
+      },
+      "transcript-handling-invariants": {
+        "rating": 0,
+        "why": "Claude Code transcript parsing for tracing. Unrelated to gateway providers."
+      },
+      "streaming-span-lifecycle-and-streamresolver": {
+        "rating": 0,
+        "why": "LlamaIndex StreamResolver span closing. Unrelated to the gateway."
+      },
+      "assistant-server-api-map": {
+        "rating": 0,
+        "why": "Describes the assistant chat HTTP endpoints (send, stream, permission resolution, cancel, session patching) and provider selection/config redaction in mlflow/server/assistant/api.py. It says nothing about streamed tool-call indices in the Gemini or LiteLLM gateway providers, so reading it would not change how the engineer fixes the index assignment."
+      }
+    }
+  },
+  "PR26269-hard": {
+    "candidates": 23,
+    "ratings": {
+      "add-or-change-a-bedrock-underlying-model-adapter-completions": {
+        "rating": 0,
+        "why": "Covers Bedrock completions adapters and enum registration. Different provider and code path from the Anthropic gateway streaming tool-call numbering."
+      },
+      "adding-a-vertex-ai-model-family-or-changing-vertex-routing": {
+        "rating": 0,
+        "why": "Vertex AI model classification and routing. Not the Anthropic provider's streaming logic."
+      },
+      "amazon-bedrock-provider-overview-and-request-routing": {
+        "rating": 0,
+        "why": "Bedrock provider routing and auth modes. Unrelated to the Anthropic provider's streamed tool-call indexing."
+      },
+      "anthropic-messages-passthrough-on-bedrock": {
+        "rating": 0,
+        "why": "Bedrock Anthropic Messages passthrough and its SSE conversion. This is the Bedrock passthrough path, not mlflow/gateway/providers/anthropic.py chat streaming."
+      },
+      "auth-header-handling-invariants-for-passthrough-and-proxy": {
+        "rating": 0,
+        "why": "Names AnthropicProvider._get_headers in the same file, but it is about forwarding auth headers. Nothing here affects tool-call streaming."
+      },
+      "bedrock-rules-auth-mode-gating-and-payload-handling": {
+        "rating": 0,
+        "why": "Bedrock auth-mode gating and payload rules. Unrelated to the Anthropic streaming fix."
+      },
+      "gateway-provider-layering-baseprovider-provideradapter-and-t": {
+        "rating": 0,
+        "why": "General BaseProvider/ProviderAdapter layering centered on Gemini and Vertex. It does not describe the Anthropic streaming adapter's choice or index handling."
+      },
+      "how-to-add-a-new-gateway-passthrough-route-or-provider": {
+        "rating": 0,
+        "why": "Adding passthrough routes and providers, including budget and guardrail steps. Not about streamed chat tool-call output."
+      },
+      "how-to-add-or-change-a-request-response-field-in-the-gemini": {
+        "rating": 0,
+        "why": "Gemini chat translation with symmetric streaming converters. A different provider and file; the pattern is analogous but the note does not touch Anthropic tool-call indexing."
+      },
+      "token-usage-extraction-for-tracing-and-passthrough": {
+        "rating": 1,
+        "why": "Points to AnthropicAdapter._build_chat_usage in the same file, so it helps locate the module. It is about usage totals and cache tokens, not tool-call index, choice, or finish-event behavior."
+      },
+      "openai-compatible-streaming-quirks-to-preserve": {
+        "rating": 0,
+        "why": "Describes the assistant's client-side merging of tool calls by index in a different package. It is the consumer side of the bug, not the gateway fix location."
+      },
+      "message-parts-model-and-streaming-text-buffering": {
+        "rating": 0,
+        "why": "Frontend assistant message model and text buffering. Unrelated."
+      },
+      "openai-autolog-overview-and-data-flow": {
+        "rating": 0,
+        "why": "OpenAI autologging spans and patching. Unrelated to the gateway Anthropic provider."
+      },
+      "streaming-span-lifecycle-and-reconstruction": {
+        "rating": 0,
+        "why": "OpenAI autolog span lifecycle and stream reconstruction. Different subsystem with no bearing on the gateway's streamed tool-call output."
+      },
+      "streaming-span-lifecycle-and-streamresolver": {
+        "rating": 0,
+        "why": "LlamaIndex StreamResolver span closing. Unrelated."
+      },
+      "add-handling-for-a-new-llamaindex-event-or-instance-type": {
+        "rating": 0,
+        "why": "LlamaIndex tracer event handling. Unrelated."
+      },
+      "how-to-add-a-new-tool-for-the-openai-compatible-loop": {
+        "rating": 0,
+        "why": "Adding server-run or client tools to the assistant's loop. Unrelated to gateway tool-call streaming."
+      },
+      "how-to-support-a-new-responses-item-or-event-type": {
+        "rating": 0,
+        "why": "Responses API item and event types. Different API and file; unrelated to Anthropic streamed tool calls."
+      },
+      "livespan-end-lifecycle-and-attachment-extraction": {
+        "rating": 0,
+        "why": "LiveSpan end and attachment extraction. Unrelated."
+      },
+      "avoid-duplicate-mlflowlangchaintracer-injection": {
+        "rating": 0,
+        "why": "LangChain callback-manager tracer injection. Unrelated."
+      },
+      "add-autologging-for-a-new-openai-api-method": {
+        "rating": 0,
+        "why": "Covers adding OpenAI SDK autologging, span type mapping, and stream chunk reconstruction for the OpenAI autolog module. It does not touch the Anthropic gateway provider or its streaming tool-call indexing, so reading it would not change how the engineer fixes parallel tool-call streaming."
+      },
+      "assistant-frontend-architecture-and-streaming-data-flow": {
+        "rating": 0,
+        "why": "Describes the assistant chat panel's React state and SSE listeners in the frontend. Nothing about the Python Anthropic provider, tool-call indices, or finish-event emission, so it shares only general streaming vocabulary with the request."
+      },
+      "stale-send-guarding-request-tokens-and-withguard": {
+        "rating": 0,
+        "why": "Explains stale-response guarding in the assistant chat React provider. This is an unrelated frontend mechanism and does not involve the gateway's streamed tool-call numbering or the single finish event."
+      }
+    }
+  },
+  "PR26327-hard": {
+    "candidates": 36,
+    "ratings": {
+      "adding-a-filter-or-order-by-key-to-a-search-api": {
+        "rating": 0,
+        "why": "Covers run, trace, experiment, dataset and issue search clause builders in sqlalchemy_store.py. Nothing about MCP access endpoints or the search_utils parser."
+      },
+      "databricks-credential-resolution-flow-get-databricks-host-cr": {
+        "rating": 0,
+        "why": "Databricks host and token resolution is unrelated to search filter parsing."
+      },
+      "databricks-environment-detection-and-repl-context-shortcut": {
+        "rating": 0,
+        "why": "Databricks runtime detection is unrelated to search."
+      },
+      "default-experiment-and-artifact-root-invariants-in-workspace": {
+        "rating": 0,
+        "why": "Workspace default-experiment bootstrap is unrelated to search filters."
+      },
+      "how-to-add-a-new-mlflowhostcreds-field-or-auth-mode": {
+        "rating": 0,
+        "why": "MlflowHostCreds fields and auth modes are unrelated to search."
+      },
+      "how-to-add-a-new-searchable-entity-parser-or-a-new-key-compa": {
+        "rating": 2,
+        "why": "Covers adding an IN-list key or comparator in search_utils.py, including comparator sets, the in-memory comparison and the _join_in_comparison_tokens path. The fix must touch the same mechanism to allow IN and NOT IN on a new key."
+      },
+      "how-to-add-or-change-a-provider-s-auth-modes": {
+        "rating": 0,
+        "why": "Gateway provider auth modes are unrelated to search."
+      },
+      "how-to-add-or-change-a-search-filter-or-order-by-key": {
+        "rating": 2,
+        "why": "Directly covers MCP access endpoint filtering via _apply_mcp_access_endpoint_filter. It states that comparators must be allowed and that keys are added to a parser and a filter branch. It also notes backtick-quoting keys for the version filter, which is the reserved-word fix this task needs."
+      },
+      "how-to-add-or-extend-a-search-filter-or-order-by-key": {
+        "rating": 0,
+        "why": "Covers model registry and model version search, a different search type and store."
+      },
+      "http-request-pipeline-and-databricks-sdk-retry-path": {
+        "rating": 0,
+        "why": "HTTP request pipeline is unrelated to search filter parsing."
+      },
+      "immutable-gateway-secret-fields-aad-binding": {
+        "rating": 0,
+        "why": "Gateway secret encryption is unrelated to search."
+      },
+      "path-uri-safety-validation-must-be-preserved": {
+        "rating": 1,
+        "why": "Points at SearchUtils.get_sql_comparison_func as a chokepoint and says filter values must reach SQL only as bound parameters. That is a constraint on the fix, but the note is mainly about artifact path safety."
+      },
+      "providers-py-map-model-catalog-pricing-auth-modes": {
+        "rating": 0,
+        "why": "Model catalog and pricing are unrelated to search."
+      },
+      "proxied-artifact-serving-and-workspace-path-scoping": {
+        "rating": 0,
+        "why": "Artifact serving is unrelated to search."
+      },
+      "register-model-flow-and-source-resolution": {
+        "rating": 0,
+        "why": "Model registration flow is unrelated to search."
+      },
+      "search-logged-models-filtering-ordering-pagination": {
+        "rating": 0,
+        "why": "Logged-model search uses a separate parser and store path, not the MCP access endpoint search."
+      },
+      "search-utils-py-map-filter-string-parsing-pipeline": {
+        "rating": 2,
+        "why": "Maps the shared filter-string pipeline in search_utils.py: parse_search_filter, IN and NOT IN token merging via _join_in_comparison_tokens, and the _get_identifier and _get_value hooks. The fix for reserved-word keys and list comparisons sits in this exact path."
+      },
+      "server-info-py-cached-de-duplicated-server-info-fetch": {
+        "rating": 0,
+        "why": "Server info fetch caching is unrelated to search."
+      },
+      "ssrf-safe-url-validation-rules": {
+        "rating": 0,
+        "why": "SSRF URL validation is unrelated to search."
+      },
+      "uc-model-dependency-extraction-and-name-normalization": {
+        "rating": 0,
+        "why": "Unity Catalog dependency extraction is unrelated to search."
+      },
+      "ucmodelregistrystore-overview-and-request-flow": {
+        "rating": 0,
+        "why": "Covers the Unity Catalog model registry REST store. Nothing about MCP access endpoint search or filter parsing."
+      },
+      "uri-py-map-and-path-safety-helpers": {
+        "rating": 0,
+        "why": "URI classification and path helpers. Unrelated to search filter parsing."
+      },
+      "validation-py-map-input-validators-and-ssrf-url-checks": {
+        "rating": 0,
+        "why": "Input validators and SSRF URL checks for runs, registry, experiments and MCP icon URLs. It does not cover search filter validation or the parser that rejects the attribute."
+      },
+      "workspace-scoping-in-the-auth-store": {
+        "rating": 0,
+        "why": "Auth store workspace scoping. The task's fix is in search parsing and must behave the same with or without workspaces, so this does not change the work."
+      },
+      "mcp-server-registry-sqlalchemy-mixin-overview-and-data-flow": {
+        "rating": 1,
+        "why": "Points at the SQL store that serves MCP access endpoint reads and searches, which is the right area for the search path. It says nothing about the filter parser, the reserved-word problem, or the in/not-in handling the fix needs."
+      },
+      "permission-resolution-and-response-filtering": {
+        "rating": 0,
+        "why": "Role-based permission lookup and response filtering. Not about search filter parsing."
+      },
+      "save-bar-and-validation-rules": {
+        "rating": 0,
+        "why": "Endpoint editor Save bar and form rules in the frontend. Unrelated to backend search."
+      },
+      "gateway-budget-guardrail-handler-invariants": {
+        "rating": 0,
+        "why": "Gateway budget, secret and guardrail handler invariants. Unrelated to MCP access endpoint search."
+      },
+      "auth-sqlalchemystore-role-based-storage-with-synthetic-per-u": {
+        "rating": 0,
+        "why": "Auth store role model with synthetic per-user roles. Not related to search filters."
+      },
+      "reserved-synthetic-role-namespace-user-id": {
+        "rating": 0,
+        "why": "Reserved synthetic role naming for the auth store. Unrelated to the search filter fix."
+      },
+      "conventions-in-mcpregistrypage": {
+        "rating": 0,
+        "why": "Frontend list view conventions for the MCP registry page. The fix is in backend search parsing, so these UI conventions do not matter."
+      },
+      "add-a-new-filter-to-the-mcp-registry-list": {
+        "rating": 0,
+        "why": "How to add a UI filter to the MCP registry list (page state, query hook, debounce). The task is backend filter parsing, so this is a different change."
+      },
+      "workspace-aware-store-setup-and-validation": {
+        "rating": 0,
+        "why": "Workspace-aware store selection and startup checks. The fix must not depend on workspace mode, so this does not change the work."
+      },
+      "boolean-env-var-parsing-rules": {
+        "rating": 0,
+        "why": "Boolean environment variable parsing. Unrelated."
+      },
+      "validation-conventions-for-endpoint-config": {
+        "rating": 0,
+        "why": "Gateway endpoint config validation for providers. Unrelated to search filters."
+      },
+      "span-search-filtering-and-log-level-semantics": {
+        "rating": 0,
+        "why": "Trace explorer span search in the frontend. Unrelated to the backend MCP search filter."
+      }
+    }
+  },
+  "PR26267-hard": {
+    "candidates": 54,
+    "ratings": {
+      "add-a-new-rest-api-handler": {
+        "rating": 0,
+        "why": "Covers adding proto-backed REST handlers and HANDLERS registration. It says nothing about thread pool capacity or the server-info endpoint, so it would not change the fix."
+      },
+      "add-a-permission-controlled-resource-type-to-the-auth-store": {
+        "rating": 0,
+        "why": "Per-resource permission grants in the auth store. Unrelated to server-info availability or worker pool isolation."
+      },
+      "add-an-authorization-validator-for-a-flask-endpoint": {
+        "rating": 0,
+        "why": "Flask validator registration for authorization levels. The server-info endpoint is meant to be public and not go through these validators, and the note does not cover that."
+      },
+      "anatomy-of-a-handler-in-mlflow-server-handlers-py": {
+        "rating": 0,
+        "why": "Decorator order and request validation for handlers.py. Not about the endpoint's concurrency or public routing."
+      },
+      "artifact-access-uri-safety-and-proxied-artifacts": {
+        "rating": 0,
+        "why": "Artifact download, upload and URI safety. Unrelated to the server-info endpoint."
+      },
+      "auth-caching-bootstrap-and-user-management-invariants": {
+        "rating": 0,
+        "why": "Credential caching and user mutation invalidation. Unrelated to the server-info endpoint or the worker pool."
+      },
+      "auth-request-flow-flask-hooks-and-fastapi-middleware": {
+        "rating": 1,
+        "why": "Points at the FastAPI auth middleware, which is where the public exemption for server-info would have to be respected. It does not mention server-info, the dedicated capacity, or the static prefix, so it is only a map to the area."
+      },
+      "auth-sqlalchemystore-role-based-storage-with-synthetic-per-u": {
+        "rating": 0,
+        "why": "Role-based permission storage in the SQLAlchemy store. Unrelated to the fix."
+      },
+      "basic-auth-flask-validator-architecture": {
+        "rating": 0,
+        "why": "Flask before-request validator lookup. The fix concerns FastAPI routing and a separate thread pool, not these validators."
+      },
+      "credential-cache-and-user-mutation-invariants": {
+        "rating": 0,
+        "why": "Basic-auth credential cache invalidation. Unrelated to server-info."
+      },
+      "custom-view-tag-cap-on-experiments": {
+        "rating": 0,
+        "why": "Custom view tag limits on experiments. Unrelated."
+      },
+      "fail-closed-rule-every-route-needs-an-authorization-decision": {
+        "rating": 2,
+        "why": "Governs how public or ungated routes are exempted, and how static prefixes are stripped before matching. A new or relocated server-info route has to satisfy this, or it would be denied when strict access is on, so reading it changes the fix."
+      },
+      "gateway-budget-guardrail-handler-invariants": {
+        "rating": 0,
+        "why": "Gateway budget and guardrail handler rules. Unrelated."
+      },
+      "gateway-invariants-secrets-ssrf-telemetry-timing": {
+        "rating": 0,
+        "why": "Gateway secrets, SSRF and telemetry timing. The timing middleware sits in fastapi_app.py, but the note is about gateway behavior, not the server-info endpoint."
+      },
+      "gateway-request-pipeline-in-gateway-api-py": {
+        "rating": 0,
+        "why": "Gateway request pipeline. Unrelated."
+      },
+      "handlers-py-request-pipeline-and-handler-shape": {
+        "rating": 0,
+        "why": "Request parsing and schema validation in handlers.py. Not about the endpoint's concurrency or routing."
+      },
+      "how-rest-handlers-are-wired-protos-handlers-get-endpoints": {
+        "rating": 1,
+        "why": "Shows how REST routes are registered under both the /api and /ajax-api prefixes, and how static prefixes are added. The fix must cover both paths, so this points at the right wiring. It does not address dedicated worker capacity, so it is a map only."
+      },
+      "how-to-add-a-new-gateway-passthrough-route-or-provider": {
+        "rating": 0,
+        "why": "Gateway passthrough routes and providers. Unrelated."
+      },
+      "how-to-add-a-new-rest-handler": {
+        "rating": 0,
+        "why": "Steps for a new REST handler, including decorators and registration. It does not cover the server-info endpoint's concurrency or public access."
+      },
+      "how-to-add-authorization-for-a-new-endpoint-resource": {
+        "rating": 0,
+        "why": "Gating a new endpoint under basic auth with validators and grants. Not about a public, unauthenticated endpoint or worker pool isolation."
+      },
+      "how-to-change-allowed-host-origin-defaults-or-add-exempt-pat": {
+        "rating": 0,
+        "why": "Covers changing default allowed hosts, CORS origins and health-path host exemptions. Nothing about thread pools, dedicated capacity, or the server-info route."
+      },
+      "matching-semantics-of-allowed-host-origin-lists": {
+        "rating": 0,
+        "why": "Host and origin matching rules (wildcards, IPv6 escaping, empty Host). Not related to the server-info endpoint or worker capacity."
+      },
+      "mcp-registry-and-otlp-ingestion-api-conventions": {
+        "rating": 0,
+        "why": "MCP route ordering and OTLP ingestion conventions. It names fastapi_app.py but for MCP exception handlers, not server-info or capacity isolation."
+      },
+      "mlflow-prompt-constants-py-map-prompt-tags-and-patterns": {
+        "rating": 0,
+        "why": "Prompt tag keys and name patterns. Unrelated to the server-info endpoint."
+      },
+      "model-version-source-validation-and-lineage-in-create-model": {
+        "rating": 0,
+        "why": "Model version source validation in registry handlers. Unrelated to the task."
+      },
+      "permission-resolution-and-response-filtering": {
+        "rating": 0,
+        "why": "Role permission lookup and search filtering. Unrelated to the server-info endpoint or request concurrency."
+      },
+      "permission-resolution-and-workspace-boundary-rules": {
+        "rating": 0,
+        "why": "Permission and workspace boundary rules. Not about public endpoints or worker pool isolation."
+      },
+      "prompt-optimization-and-job-backed-handlers": {
+        "rating": 0,
+        "why": "Background job handlers for prompt optimization. Unrelated to the server-info route."
+      },
+      "proxied-artifact-serving-and-workspace-path-scoping": {
+        "rating": 0,
+        "why": "Artifact path scoping and presigned URLs. Unrelated to server-info or thread pool capacity."
+      },
+      "request-param-helpers-rbac-and-review-queue-gating-quirks": {
+        "rating": 0,
+        "why": "Request param helpers and RBAC validators. Unrelated to the server-info endpoint."
+      },
+      "reserved-synthetic-role-namespace-user-id": {
+        "rating": 0,
+        "why": "Reserved synthetic role names in the auth store. Unrelated to the task."
+      },
+      "rule-prompt-source-placeholders-must-stay-in-sync-across-cli": {
+        "rating": 0,
+        "why": "Prompt source placeholder sync across client and server. Unrelated to the task."
+      },
+      "security-utils-overview-shared-helpers-for-host-validation-a": {
+        "rating": 0,
+        "why": "Host validation and CORS helpers. It mentions health-endpoint host exemptions, but server-info is not a health endpoint and the fix does not touch host checks."
+      },
+      "server-app-composition-fastapi-wraps-flask": {
+        "rating": 2,
+        "why": "Describes how FastAPI routers are registered before the Flask catch-all mount, that new native routers need a static prefix to honor it, and that under gunicorn/waitress only Flask runs. These are exactly the constraints a dedicated-capacity server-info route must respect."
+      },
+      "server-info-timeout-and-failure-fallback-is-deliberately-sti": {
+        "rating": 1,
+        "why": "Frontend consumer of the server-info endpoint. It maps the client side of the endpoint and saves searching, but the fix is server-side and does not change the timeout or fallback behavior."
+      },
+      "static-prefix-awareness-in-path-checks": {
+        "rating": 1,
+        "why": "Shows that health and API exemption checks in security_utils are prefix-aware. This is the chokepoint for keeping server-info public under a static prefix, though the note is about a different change."
+      },
+      "webhook-delivery-convention-for-registry-mutations": {
+        "rating": 0,
+        "why": "Webhook firing conventions for registry mutations. Unrelated to the task."
+      },
+      "workspace-aware-store-setup-and-validation": {
+        "rating": 0,
+        "why": "Workspace-aware store setup and validation. Unrelated to server-info or worker capacity."
+      },
+      "workspace-scoping-in-the-auth-store": {
+        "rating": 0,
+        "why": "Auth store workspace scoping for per-user methods. Unrelated to the task."
+      },
+      "trace-review-queue-and-job-submitting-handlers-ownership-and": {
+        "rating": 0,
+        "why": "Trace and review-queue ownership rules. Unrelated to the server-info endpoint."
+      },
+      "useserverinfo-cached-server-info-query-and-accessors": {
+        "rating": 0,
+        "why": "Client-side React hook that consumes the server-info endpoint. The fix is server-side (dedicated capacity for the endpoint's route), so this note doesn't change what the engineer does. Its timeout-to-defaults behavior is a consumer detail, not the mechanism."
+      },
+      "add-an-endpoint-or-paginated-method-to-githubclient": {
+        "rating": 0,
+        "why": "About the GitHub skill's API client in .claude/skills, which is unrelated to the tracking server's request handling."
+      },
+      "assistant-frontend-architecture-and-streaming-data-flow": {
+        "rating": 0,
+        "why": "Assistant chat UI state and SSE streaming. Unrelated to server-info routing or worker-pool capacity."
+      },
+      "assistant-server-api-map": {
+        "rating": 0,
+        "why": "Assistant chat HTTP endpoints. Shares the server but not the server-info route, the worker pool, or the static-prefix handling the fix touches."
+      },
+      "client-executed-tools-and-custom-view-repair-loop": {
+        "rating": 0,
+        "why": "Browser-executed assistant tools and Custom View repair. Unrelated to the server-info endpoint or request threading."
+      },
+      "tool-permission-model-for-openai-compatible-providers": {
+        "rating": 0,
+        "why": "Permission policy for assistant tool calls. Unrelated to the server-info endpoint or the server's worker pool."
+      },
+      "http-request-pipeline-and-databricks-sdk-retry-path": {
+        "rating": 0,
+        "why": "Client-side REST request path (http_request, retries, Databricks SDK). It runs on the caller, not the server handling the endpoint, so it does not touch the fix."
+      },
+      "mlflowartifactsrepository-uri-resolution-and-multipart-capab": {
+        "rating": 0,
+        "why": "Artifact repo client that reads capabilities from server info for multipart decisions. It is a client consumer, and the fix doesn't change how capabilities are fetched or served."
+      },
+      "validation-conventions-for-endpoint-config": {
+        "rating": 0,
+        "why": "Gateway endpoint config validation. Unrelated to server-info serving or request concurrency."
+      },
+      "workspace-support-probe-invariants": {
+        "rating": 0,
+        "why": "Client-side workspace probe that calls server-info with a 404 fallback. It consumes the endpoint rather than serving it, so the fix does not touch its invariants."
+      },
+      "executor-engine-invariants-workspaces-locks-leases-state-tra": {
+        "rating": 0,
+        "why": "Job executor scheduler invariants (locks, leases, workspace context). Unrelated to the HTTP worker pool or the server-info endpoint."
+      },
+      "how-to-add-or-change-an-mlflow-rest-api-endpoint-in-the-prot": {
+        "rating": 0,
+        "why": "Protobuf-based REST endpoint definition. The server-info endpoint is served by a separate FastAPI route in server_info_api.py, not through the protos, so this doesn't guide the fix."
+      },
+      "rule-validate-before-committing-global-state-keep-thread-loc": {
+        "rating": 0,
+        "why": "Fluent run-state and experiment-global rules in the client tracking API. Unrelated to server-side request handling."
+      },
+      "resolving-which-view-an-assistant-spec-applies-to": {
+        "rating": 0,
+        "why": "Model trace explorer custom-view targeting. Unrelated to the server-info endpoint or server concurrency."
+      }
+    }
+  },
+  "PR26369-hard": {
+    "candidates": 44,
+    "ratings": {
+      "add-a-new-movable-resource-type-to-workspace-move": {
+        "rating": 0,
+        "why": "Covers adding resource types to the workspace move command. Nothing about rollups, metric queries, search ordering, or time bucketing."
+      },
+      "add-a-new-trace-span-assessment-metric-or-dimension": {
+        "rating": 1,
+        "why": "Same file (sql_trace_metrics_utils.py) and the right area for metric aggregation and dimension logic. But it is about adding a new metric, not about merging rollup and raw sums or fixing bucketing, so it is a map, not the mechanism."
+      },
+      "add-workspace-scoping-for-a-new-sql-model": {
+        "rating": 0,
+        "why": "Workspace-aware query builder for new models. The task only requires workspace isolation to stay unchanged, and it does not touch these chokepoints."
+      },
+      "adding-a-filter-or-order-by-key-to-a-search-api": {
+        "rating": 2,
+        "why": "Describes _get_orderby_clauses_for_search_traces and its NULL-ordering convention. The fix changes how sort clauses handle empty values (no extra null handling for never-empty fields, NULLS LAST kept for optional ones), so reading this changes what the engineer does."
+      },
+      "concurrency-conventions-savepoints-integrityerror-translatio": {
+        "rating": 0,
+        "why": "Covers savepoints, IntegrityError translation and deadlock retry on write paths. Not the rollup query or sort mechanism being changed."
+      },
+      "db-utils-init-session-engine-conventions": {
+        "rating": 0,
+        "why": "Database init, session and engine setup. Unrelated to the metric merge, sort or bucketing changes."
+      },
+      "default-experiment-and-artifact-root-invariants-in-workspace": {
+        "rating": 0,
+        "why": "Default experiment bootstrap and artifact root rules. Unrelated to the task."
+      },
+      "evaluation-dataset-records-digest-schema-and-profile-mainten": {
+        "rating": 0,
+        "why": "Evaluation dataset records and digests. Unrelated to the task."
+      },
+      "frozen-schema-modules-are-immutable-and-shared": {
+        "rating": 0,
+        "why": "Frozen trace analytics schema and backfill modules. The task does not edit these files or the analytics columns."
+      },
+      "how-move-resources-works-workspace-move": {
+        "rating": 0,
+        "why": "Workspace move transaction steps. Unrelated to rollups, metrics or search."
+      },
+      "how-to-add-a-new-rest-backed-store-method": {
+        "rating": 0,
+        "why": "RestStore method construction. The task is in SQL store and utils code, not the REST client."
+      },
+      "how-to-add-a-new-sqlalchemystore-method-for-an-experiment-sc": {
+        "rating": 0,
+        "why": "Adding experiment-scoped SQL store methods. Not the metric or rollup path."
+      },
+      "how-to-add-a-trace-search-filter-or-query-dimension": {
+        "rating": 2,
+        "why": "States that metric queries may use rollups but fall back to raw tables, and that raw results must match rollup results. Also says sort joins are outer so rows missing the value are kept. That is the contract the rollup-plus-raw merge fix must preserve."
+      },
+      "how-to-add-or-change-an-analytics-column-in-this-migration": {
+        "rating": 0,
+        "why": "Migration steps for analytics columns. Not related to the task changes."
+      },
+      "metric-param-and-tag-write-paths-dedup-locking-retry": {
+        "rating": 0,
+        "why": "Metric and param write paths (dedup, locking, retry). The task concerns read-side metric queries and rollup maintenance, not these writes."
+      },
+      "promoted-trace-metadata-columns-trace-analytics": {
+        "rating": 0,
+        "why": "Promoted session, token and cost columns in trace_analytics utils. Not the rollup or metric query code the task changes."
+      },
+      "reststore-request-flow-and-endpoint-routing": {
+        "rating": 0,
+        "why": "REST endpoint routing. Unrelated to the SQL-side changes."
+      },
+      "rollup-invalidation-writers-must-enqueue-rebuilds-queue-firs": {
+        "rating": 2,
+        "why": "Same file (sql_trace_rollups.py) and the same mechanisms the task changes: eligibility lag for recent timestamps, rollup_read_is_current, enqueue and partition locking helpers. The fix must respect these invariants, so reading it changes the work."
+      },
+      "rule-lock-ordering-and-deterministic-write-order-in-trace-wr": {
+        "rating": 1,
+        "why": "Lock ordering for rollup queue keys versus trace and span rows. Relevant to the partition locking that must stay the same, but it describes trace write paths in sqlalchemy_store rather than the rollup rebuild and eligibility code the fix touches."
+      },
+      "search-logged-models-filtering-ordering-pagination": {
+        "rating": 0,
+        "why": "Logged model search pagination and ordering. Different entity and code path from trace search and rollups."
+      },
+      "search-pagination-and-metric-history-sampling-conventions": {
+        "rating": 0,
+        "why": "Covers pagination and metric-history sampling conventions. Nothing about rollup/raw sum types, span cost counts, or time buckets."
+      },
+      "sql-daily-rollup-read-routing": {
+        "rating": 2,
+        "why": "Directly on the mechanism. It covers how rollup and raw data are merged in one read path (merge_unbucketed_data_points, read_rollup_data_points) and the grouped span cost union. The decimal-vs-float merge and the span-cost grouping consolidation both live here, and the note says results must never change."
+      },
+      "sqlalchemystore-layout-and-session-workspace-scoping": {
+        "rating": 0,
+        "why": "General layout of sessions, workspace scoping and search pagination. Does not touch rollup sums, time buckets or cost queries."
+      },
+      "sqlalchemystore-overview-and-session-workspace-hooks": {
+        "rating": 0,
+        "why": "Covers store construction, engines, startup and default experiment creation. Unrelated to the metric or rollup changes."
+      },
+      "trace-analytics-migration-75868b020152-flow-of-upgrade-and-d": {
+        "rating": 0,
+        "why": "Describes migration upgrade and downgrade flow for analytics columns. The task does not involve migrations."
+      },
+      "trace-analytics-online-prepopulation-flow": {
+        "rating": 0,
+        "why": "Online prepopulation batching before the migration. Not about rollup aggregation or metric queries."
+      },
+      "trace-apis-v3-first-with-v2-fallback": {
+        "rating": 0,
+        "why": "REST trace API version routing. Unrelated to rollups, metric sums or SQL query shape."
+      },
+      "trace-archival-and-db-payload-generation-guard": {
+        "rating": 0,
+        "why": "Trace archival and payload generation guard. No overlap with the rollup or metric query fix."
+      },
+      "trace-metrics-query-pipeline-raw-path": {
+        "rating": 1,
+        "why": "Right area: sql_trace_metrics_utils.py, including get_time_bucket_expression and the raw aggregation path, which the PostgreSQL bucketing change touches. It does not describe the PostgreSQL bucket math, the decimal/float issue, or the rollup merge, so it is a map only."
+      },
+      "trace-queries-use-an-in-subquery-not-a-join-so-row-locks-lan": {
+        "rating": 0,
+        "why": "Explains IN-subquery versus join for workspace-aware trace queries and row locks. Not about metric aggregation or rollup eligibility."
+      },
+      "trace-span-storage-location-and-archival-read-write-consiste": {
+        "rating": 0,
+        "why": "Span storage location and archival transition. Unrelated to the rollup or metric change."
+      },
+      "trace-span-write-path-start-trace-vs-log-spans": {
+        "rating": 0,
+        "why": "Ingestion race and token/cost aggregation on write. Does not cover read-side rollup or span cost queries."
+      },
+      "trace-writes-locking-rollups-and-archival-invariants": {
+        "rating": 1,
+        "why": "Points at the rollup-rebuild enqueue invariant and locking on trace writes, which is adjacent to rollup maintenance and partition locking. It is about write paths, not the rollup eligibility or merge logic, so it is only a loose map."
+      },
+      "workspaceawaresqlalchemystore-map-of-workspace-scoping": {
+        "rating": 0,
+        "why": "Workspace scoping map per model. The task requires isolation to be preserved, but this note does not describe rollup or metric query changes."
+      },
+      "schema-merge-semantics-for-inferred-signatures": {
+        "rating": 0,
+        "why": "Schema _merge semantics for inferred types. Shares the word 'merge' but is unrelated to SQL sum types."
+      },
+      "conventions-ids-workspaces-nan-metrics-evaluation-dataset-re": {
+        "rating": 0,
+        "why": "Model conventions for ids, NaN metrics and dataset records. Not about rollup sums or time bucket logic."
+      },
+      "how-to-add-or-extend-a-search-filter-or-order-by-key": {
+        "rating": 0,
+        "why": "Adding search filters and order-by keys for registry models. Not the trace order-by or metric path."
+      },
+      "customizing-metric-column-display": {
+        "rating": 0,
+        "why": "Frontend column header and formatting overrides. Unrelated to backend metric sums."
+      },
+      "traces-v4-hooks-data-flow": {
+        "rating": 0,
+        "why": "Frontend traces-v4 controller hook. Unrelated to the backend query fix."
+      },
+      "modeltraceexplorer-utils-trace-to-span-node-tree-pipeline": {
+        "rating": 0,
+        "why": "Frontend trace explorer tree parsing. Unrelated to the backend change."
+      },
+      "insert-races-and-error-handling-via-guard-insert-race": {
+        "rating": 0,
+        "why": "Covers JobLockManager insert-race handling for scheduler leases and exclusive locks in the jobs subsystem. The task concerns trace rollup sums, span time bucketing, and sort handling, so this note doesn't touch the same code path or invariant."
+      },
+      "path-uri-safety-validation-must-be-preserved": {
+        "rating": 0,
+        "why": "Covers artifact path and URI traversal validation. Nothing in the task involves user-supplied paths, URIs, or their containment checks."
+      },
+      "how-to-add-a-new-composite-schema-type": {
+        "rating": 0,
+        "why": "Covers adding composite types to the model schema module (mlflow/types/schema.py). This has no connection to trace metrics, rollups, or SQL store queries."
+      },
+      "search-utils-py-map-filter-string-parsing-pipeline": {
+        "rating": 0,
+        "why": "Describes filter-string tokenization and parsing in search_utils.py. The task's trace-search change is about ORDER BY null handling in the SQL store, and the rollup and bucketing fixes are not in the filter parser, so the note neither shares the mechanism nor points at the files the fix touches."
+      }
+    }
+  },
+  "PR26442-hard": {
+    "candidates": 64,
+    "ratings": {
+      "add-a-new-provider-config": {
+        "rating": 1,
+        "why": "Points at mlflow/gateway/config.py provider config classes and the Provider enum, which is where a TypeSafe api_base field would live. But it is a how-to for adding a brand-new provider (enum member, registry entry, model checks), not for adding an optional base URL to an existing one, so it doesn't change the fix."
+      },
+      "add-a-new-rest-api-handler": {
+        "rating": 0,
+        "why": "Covers adding proto-backed REST handlers in mlflow/server/handlers.py. The TypeSafe base URL change does not involve a new REST endpoint."
+      },
+      "add-or-change-a-bedrock-underlying-model-adapter-completions": {
+        "rating": 0,
+        "why": "Bedrock completions adapter registration. Unrelated to TypeSafe."
+      },
+      "adding-a-filter-or-order-by-key-to-a-search-api": {
+        "rating": 0,
+        "why": "Search filter and order-by clause builders in the SQLAlchemy tracking store. Unrelated."
+      },
+      "adding-a-vertex-ai-model-family-or-changing-vertex-routing": {
+        "rating": 0,
+        "why": "Vertex AI model classification and routing. Unrelated to TypeSafe."
+      },
+      "amazon-bedrock-provider-overview-and-request-routing": {
+        "rating": 0,
+        "why": "Bedrock provider routing and Converse usage. Unrelated to TypeSafe."
+      },
+      "anatomy-of-a-handler-in-mlflow-server-handlers-py": {
+        "rating": 0,
+        "why": "Decorator and validation conventions for server handlers. Does not touch gateway provider construction or TypeSafe."
+      },
+      "anthropic-messages-passthrough-on-bedrock": {
+        "rating": 0,
+        "why": "Bedrock Anthropic passthrough streaming and token usage. Unrelated."
+      },
+      "api-key-resolution-rule": {
+        "rating": 0,
+        "why": "Resolution of $-prefixed API keys from env vars or files. The requested field is a plain URL, not a secret, so this resolution path is not what the fix changes."
+      },
+      "artifact-access-uri-safety-and-proxied-artifacts": {
+        "rating": 0,
+        "why": "Artifact handler path safety and proxied roots. Unrelated."
+      },
+      "auth-header-handling-invariants-for-passthrough-and-proxy": {
+        "rating": 0,
+        "why": "Client auth header forwarding on passthrough routes. Different from choosing the upstream base address."
+      },
+      "bedrock-rules-auth-mode-gating-and-payload-handling": {
+        "rating": 0,
+        "why": "Bedrock auth-mode gating and payload rules. Unrelated to TypeSafe."
+      },
+      "custom-view-tag-cap-on-experiments": {
+        "rating": 0,
+        "why": "Custom view tag caps on experiments. Unrelated."
+      },
+      "databricks-credential-resolution-flow-get-databricks-host-cr": {
+        "rating": 0,
+        "why": "Databricks host and token resolution. Unrelated."
+      },
+      "databricks-environment-detection-and-repl-context-shortcut": {
+        "rating": 0,
+        "why": "Databricks environment detection and runtime version parsing. Unrelated."
+      },
+      "default-experiment-and-artifact-root-invariants-in-workspace": {
+        "rating": 0,
+        "why": "Default experiment bootstrap in workspace mode. Unrelated."
+      },
+      "gateway-budget-guardrail-handler-invariants": {
+        "rating": 0,
+        "why": "Budget, secret and guardrail handler invariants. Mentions secret updates, but nothing about provider base URLs or TypeSafe."
+      },
+      "gateway-config-module-map": {
+        "rating": 1,
+        "why": "Maps mlflow/gateway/config.py, including the Model and EndpointConfig pydantic classes that carry provider config from YAML into the provider. That is the path an endpoint api_base would travel. It is a map only and does not describe the TypeSafe change itself."
+      },
+      "gateway-invariants-secrets-ssrf-telemetry-timing": {
+        "rating": 1,
+        "why": "Lives in mlflow/server/gateway_api.py, which the fix touches. It notes that api_base is handled specially in the LiteLLM branch and that SSRF protection applies to some proxy routes. Those are different changes, but a custom upstream address raises the same SSRF and api_base concerns, so it is a useful pointer."
+      },
+      "gateway-provider-layering-baseprovider-provideradapter-and-t": {
+        "rating": 0,
+        "why": "Describes BaseProvider, Gemini and Vertex layering. It says nothing about TypeSafe or base URL handling, so it does not change the fix."
+      },
+      "gateway-request-pipeline-in-gateway-api-py": {
+        "rating": 1,
+        "why": "Maps gateway_api.py and points at _create_provider and _build_endpoint_config, which is where an endpoint's stored config becomes a provider and where a base URL would need to flow through. It is a map of the area, though, and does not describe the base URL change itself."
+      },
+      "handlers-py-request-pipeline-and-handler-shape": {
+        "rating": 0,
+        "why": "Describes the shape of REST handlers in handlers.py. The TypeSafe base URL change does not touch request parsing or handler decorators."
+      },
+      "how-rest-handlers-are-wired-protos-handlers-get-endpoints": {
+        "rating": 0,
+        "why": "Covers proto route registration and the /api and /ajax-api prefixes. Unrelated to provider configuration."
+      },
+      "how-to-add-a-new-gateway-passthrough-route-or-provider": {
+        "rating": 2,
+        "why": "Says user-supplied destination keys belong in GATEWAY_DESTINATION_KEYS to trigger SSRF protection. A custom TypeSafe base URL is exactly a user-supplied destination, so the fix must respect that protection. It also covers the config class and the elif in _build_endpoint_config that the change touches."
+      },
+      "how-to-add-a-new-mlflowhostcreds-field-or-auth-mode": {
+        "rating": 0,
+        "why": "Concerns MlflowHostCreds fields and Databricks host credentials. Not related to gateway provider base URLs."
+      },
+      "how-to-add-a-new-rest-handler": {
+        "rating": 0,
+        "why": "Generic guidance for adding REST handlers. The base URL change does not add a handler."
+      },
+      "how-to-add-a-new-searchable-entity-parser-or-a-new-key-compa": {
+        "rating": 0,
+        "why": "Search filter parsing and comparators. Unrelated to the gateway."
+      },
+      "how-to-add-or-change-a-provider-s-auth-modes": {
+        "rating": 2,
+        "why": "Covers the provider auth-mode table in mlflow/utils/providers.py, which the gold change touches. It states that fields named base_url are rejected there, so the optional base URL has to be exposed through the provider's config options in a way that respects that rule. Reading it changes the implementation approach."
+      },
+      "how-to-add-or-change-a-request-response-field-in-the-gemini": {
+        "rating": 0,
+        "why": "Gemini chat request and response translation. Unrelated to TypeSafe or base URLs."
+      },
+      "how-to-add-or-change-a-search-filter-or-order-by-key": {
+        "rating": 0,
+        "why": "MCP server, version and endpoint search filters. Unrelated."
+      },
+      "how-to-add-or-extend-a-search-filter-or-order-by-key": {
+        "rating": 0,
+        "why": "Model registry search filters and order-by keys. Unrelated."
+      },
+      "how-to-change-allowed-host-origin-defaults-or-add-exempt-pat": {
+        "rating": 0,
+        "why": "Allowed Host and CORS origin defaults for the server. Unrelated to outbound provider URLs."
+      },
+      "matching-semantics-of-allowed-host-origin-lists": {
+        "rating": 0,
+        "why": "Matching rules for Host and CORS allowlists. Unrelated."
+      },
+      "mcp-registry-and-otlp-ingestion-api-conventions": {
+        "rating": 0,
+        "why": "MCP registry routes and OTLP ingestion conventions. Unrelated."
+      },
+      "mlflow-prompt-constants-py-map-prompt-tags-and-patterns": {
+        "rating": 0,
+        "why": "Prompt registry tag keys and name patterns. Unrelated."
+      },
+      "model-version-source-validation-and-lineage-in-create-model": {
+        "rating": 0,
+        "why": "Model version source validation in registry handlers. Unrelated."
+      },
+      "path-uri-safety-validation-must-be-preserved": {
+        "rating": 0,
+        "why": "Artifact path and URI traversal checks. These concern artifact paths, not the HTTP base URL a provider calls, so they do not apply to this change."
+      },
+      "prompt-optimization-and-job-backed-handlers": {
+        "rating": 0,
+        "why": "Background job handlers for prompt optimization. Unrelated."
+      },
+      "immutable-gateway-secret-fields-aad-binding": {
+        "rating": 0,
+        "why": "Covers secret encryption and AAD binding for gateway secrets. The base URL is not a secret field and this note does not affect the change."
+      },
+      "providers-py-map-model-catalog-pricing-auth-modes": {
+        "rating": 0,
+        "why": "Same file as the gold change (mlflow/utils/providers.py), but it covers model catalog loading, cost calculation and listing filters. Nothing about TypeSafe provider configuration options or base URL handling."
+      },
+      "proxied-artifact-serving-and-workspace-path-scoping": {
+        "rating": 0,
+        "why": "Artifact serving and presigned URL rules under mlflow-artifacts. Unrelated to gateway provider endpoints or base URLs."
+      },
+      "register-model-flow-and-source-resolution": {
+        "rating": 0,
+        "why": "Model registry source resolution from runs. Unrelated to the gateway TypeSafe provider."
+      },
+      "rule-prompt-source-placeholders-must-stay-in-sync-across-cli": {
+        "rating": 0,
+        "why": "Prompt source placeholder synchronization. Unrelated to the task."
+      },
+      "search-logged-models-filtering-ordering-pagination": {
+        "rating": 0,
+        "why": "Logged model search pagination and filtering. Unrelated to the task."
+      },
+      "search-utils-py-map-filter-string-parsing-pipeline": {
+        "rating": 0,
+        "why": "Search filter-string parsing. Unrelated to the task."
+      },
+      "security-utils-overview-shared-helpers-for-host-validation-a": {
+        "rating": 0,
+        "why": "Inbound Host header and CORS middleware helpers. These do not govern outbound egress to a provider base URL."
+      },
+      "server-app-composition-fastapi-wraps-flask": {
+        "rating": 0,
+        "why": "Covers FastAPI/Flask app composition and router registration order. It mentions gateway_api.gateway_router, but the task does not involve router registration."
+      },
+      "server-info-py-cached-de-duplicated-server-info-fetch": {
+        "rating": 0,
+        "why": "Server info caching and de-duplication. Unrelated to the task."
+      },
+      "ssrf-safe-url-validation-rules": {
+        "rating": 2,
+        "why": "Any custom TypeSafe base URL becomes a user-supplied outbound URL. The fix must respect these rules: public HTTPS only, no embedded credentials, and every resolved address must be public. This note also covers the gateway API base as an egress destination."
+      },
+      "static-prefix-awareness-in-path-checks": {
+        "rating": 0,
+        "why": "Static-prefix handling in security path checks. Unrelated to the task."
+      },
+      "token-usage-extraction-for-tracing-and-passthrough": {
+        "rating": 0,
+        "why": "Token usage extraction for tracing. Unrelated to the base URL change."
+      },
+      "trace-review-queue-and-job-submitting-handlers-ownership-and": {
+        "rating": 0,
+        "why": "Trace and review-queue handler identity rules. Unrelated to the task."
+      },
+      "uc-model-dependency-extraction-and-name-normalization": {
+        "rating": 0,
+        "why": "Unity Catalog model dependency extraction. Unrelated to the task."
+      },
+      "ucmodelregistrystore-overview-and-request-flow": {
+        "rating": 0,
+        "why": "Unity Catalog registry REST store request mapping. Unrelated to the task."
+      },
+      "uri-py-map-and-path-safety-helpers": {
+        "rating": 0,
+        "why": "URI classification and path helpers. Unrelated to a gateway provider base URL."
+      },
+      "validation-conventions-for-endpoint-config": {
+        "rating": 2,
+        "why": "Covers gateway endpoint config validation in mlflow/gateway/config.py, the file the gold change touches. It describes how api_base is defaulted and required per provider (OpenAI defaults it, Azure requires it), which is the convention a new optional TypeSafe base URL must follow."
+      },
+      "validation-py-map-input-validators-and-ssrf-url-checks": {
+        "rating": 1,
+        "why": "Map of validation.py. It names the shared public-HTTPS check that guards gateway API base URLs, so it points at the right chokepoint. Most of the note covers run, registry and experiment validators, not the change itself."
+      },
+      "webhook-delivery-convention-for-registry-mutations": {
+        "rating": 0,
+        "why": "Webhook firing rules for registry mutations. Unrelated to the task."
+      },
+      "workspace-aware-store-setup-and-validation": {
+        "rating": 0,
+        "why": "Workspace-aware store setup and validation. Unrelated to the task."
+      },
+      "workspace-scoping-in-the-auth-store": {
+        "rating": 0,
+        "why": "Covers auth store workspace scoping and permission grants. Nothing about TypeSafe, provider configuration, or base URLs, so it would not change how the engineer approaches the fix."
+      },
+      "wire-compatibility-rules-for-service-proto-messages": {
+        "rating": 0,
+        "why": "Covers protobuf wire-compatibility rules for service.proto messages. The task touches gateway provider config and the endpoint form, not tracking service protos, so this is unrelated."
+      },
+      "how-to-add-or-change-an-mlflow-rest-api-endpoint-in-the-prot": {
+        "rating": 0,
+        "why": "Explains adding or changing tracking REST endpoints via the protobuf service definition. The task adds a config option to the existing gateway TypeSafe provider and does not add a REST endpoint, so this is unrelated."
+      },
+      "save-bar-and-validation-rules": {
+        "rating": 1,
+        "why": "Points at the endpoint edit form component and a TypeSafe-specific validation helper, which are the same UI area the new API Base URL field would live in. It is about Save-bar enablement and traffic-split rules, not about the base URL field or how it carries through to the provider, so it is a map at best."
+      }
+    }
+  },
+  "PR26225-hard": {
+    "candidates": 68,
+    "ratings": {
+      "add-a-new-constructor-option-to-instructionsjudge": {
+        "rating": 0,
+        "why": "Covers adding a constructor option to InstructionsJudge (serialization, repr, call dispatch). Nothing about refusing custom scorer execution or rebuilding scorers."
+      },
+      "add-a-new-provider-config": {
+        "rating": 0,
+        "why": "Gateway provider config and API key validators. The task concerns guardrail scorer loading, not provider configs."
+      },
+      "add-a-new-rest-api-handler": {
+        "rating": 0,
+        "why": "Generic guidance for adding proto-backed REST handlers. Does not touch scorer loading or guardrail validation."
+      },
+      "add-a-new-scorer-kind-to-serialization": {
+        "rating": 1,
+        "why": "Points at SerializedScorer, Scorer.model_dump/model_validate and _create_copy in base.py, the same serialization area the fix must keep intact. It is about adding a new scorer kind, though, not refusing to execute custom code, so it saves searching but does not shape the fix."
+      },
+      "adding-a-new-flavor-top-level-module-or-public-api-to-mlflow": {
+        "rating": 0,
+        "why": "About registering flavors and public APIs in mlflow/__init__.py and the version file. Unrelated to the scorer execution change."
+      },
+      "adding-a-new-sandbox-consumer-or-option": {
+        "rating": 0,
+        "why": "Sandbox runner consumers and options. Not about the scorer rebuild or executor permission."
+      },
+      "adding-or-changing-an-mlflow-environment-variable": {
+        "rating": 1,
+        "why": "The fix will likely add an executor-permission flag in environment_variables.py, so this note's declaration conventions apply. It is generic guidance on declaring variables, not the security mechanism itself."
+      },
+      "anatomy-of-a-handler-in-mlflow-server-handlers-py": {
+        "rating": 0,
+        "why": "Decorator and gate order for server handlers. Nothing about scorer code execution."
+      },
+      "api-key-resolution-rule": {
+        "rating": 0,
+        "why": "Gateway API key resolution from env vars and files. Unrelated to scorer loading or guardrails."
+      },
+      "artifact-access-uri-safety-and-proxied-artifacts": {
+        "rating": 0,
+        "why": "Artifact handler path safety and repository selection. Unrelated to scorers."
+      },
+      "boolean-env-var-parsing-rules": {
+        "rating": 1,
+        "why": "If the executor permission is a boolean env var, its parsing rules and the unset-returns-default behavior matter for the server-must-not-inherit-permission requirement. It is a generic parsing rule, so it saves a lookup rather than describing the fix."
+      },
+      "budget-policy-target-scope-target-value-invariant": {
+        "rating": 0,
+        "why": "Budget policy invariants in the gateway store. Unrelated."
+      },
+      "built-in-scorer-serialization-and-discovery-invariants": {
+        "rating": 0,
+        "why": "Serialization and discovery rules for built-in scorers in builtin_scorers.py. The task only requires built-ins to keep working, so this does not change the fix."
+      },
+      "built-in-scorers-map": {
+        "rating": 0,
+        "why": "Map of built-in scorer definitions and trace input resolution. Not about custom scorer execution."
+      },
+      "custom-scorer-code-execution-security-rules": {
+        "rating": 2,
+        "why": "This is the exact mechanism the task changes. It covers the decorator-scorer rebuild path (_reconstruct_decorator_scorer, recreate_function), the execution gate (custom_scorer_execution_blocked), and registration checks. Reading it changes how the engineer adds the server-side refusal and the executor-only bypass."
+      },
+      "custom-view-tag-cap-on-experiments": {
+        "rating": 0,
+        "why": "Cap on custom views per experiment. Unrelated."
+      },
+      "ensemble-scorer-behavior-and-invariants": {
+        "rating": 1,
+        "why": "Covers make_scorer_ensemble and EnsembleScorer in base.py, which the guardrail rejection of ensembles containing custom scorers touches. It is about ensemble construction and runtime errors, not the custom-code gate."
+      },
+      "evaluation-harness-pipeline-overview": {
+        "rating": 0,
+        "why": "Describes the evaluation harness pipeline. It mentions the server-side job only in passing and does not cover scorer rebuild or refusal."
+      },
+      "every-item-must-pass-through-scoring-even-without-scorers": {
+        "rating": 0,
+        "why": "Harness scoring-pool rules and backpressure slots. Unrelated to the fix."
+      },
+      "feedback-and-column-conventions-for-scorers": {
+        "rating": 0,
+        "why": "Built-in scorer feedback normalization and column checks. Unrelated to custom scorer execution."
+      },
+      "gateway-budget-guardrail-handler-invariants": {
+        "rating": 1,
+        "why": "Points at the server guardrail-config handlers where the fix's creation-time rejection would live, and notes that decorator scorers are gated by a setting. It is about an enable flag, not the refusal to execute or rebuild custom scorer code, so it is a map rather than the mechanism."
+      },
+      "gateway-config-module-map": {
+        "rating": 0,
+        "why": "Covers gateway YAML config parsing, deprecated-field checks and endpoint URL building. Nothing about scorers or guardrail loading."
+      },
+      "gateway-invariants-secrets-ssrf-telemetry-timing": {
+        "rating": 0,
+        "why": "Lists secrets, SSRF and timing rules. It names _get_guardrails_and_auth but says nothing about guardrail loading or failure handling that the fix changes."
+      },
+      "gateway-request-pipeline-in-gateway-api-py": {
+        "rating": 0,
+        "why": "Gateway routing, budget checks and HTTP 400 mapping for guardrail violations. It does not cover how guardrails are loaded or what happens when a load fails."
+      },
+      "gateway-sqlalchemy-store-mixin-overview": {
+        "rating": 1,
+        "why": "Covers the store mixin that the gold change touches and lists guardrail CRUD among its areas, so it is a rough map to the file. It does not describe guardrail validation or scorer handling."
+      },
+      "handlers-py-request-pipeline-and-handler-shape": {
+        "rating": 0,
+        "why": "Generic REST handler shape and request parsing. Nothing about scorers, guardrails or the executor."
+      },
+      "how-rest-handlers-are-wired-protos-handlers-get-endpoints": {
+        "rating": 0,
+        "why": "Route registration under /api and /ajax-api. Unrelated to scorer execution or guardrails."
+      },
+      "how-to-add-a-new-built-in-scorer": {
+        "rating": 1,
+        "why": "Mentions that scorer serialization looks classes up by name, which touches the rebuild path. It is about adding built-in scorers, not refusing custom decorator scorers, so it only points at the area."
+      },
+      "how-to-add-a-new-fluent-log-function": {
+        "rating": 0,
+        "why": "Fluent logging wrappers. Unrelated."
+      },
+      "how-to-add-a-new-gateway-passthrough-route-or-provider": {
+        "rating": 0,
+        "why": "Passthrough routes and providers. Nothing about custom scorers or guardrail loading."
+      },
+      "how-to-add-a-new-rest-handler": {
+        "rating": 0,
+        "why": "Decorator and handler-mapping conventions for new REST handlers. Not related to the scorer or guardrail change."
+      },
+      "how-to-add-or-change-a-gateway-endpoint-field-or-model-confi": {
+        "rating": 0,
+        "why": "Endpoint field and model-config changes. Unrelated to scorers or guardrails."
+      },
+      "how-to-change-allowed-host-origin-defaults-or-add-exempt-pat": {
+        "rating": 0,
+        "why": "Allowed host and CORS defaults. Unrelated."
+      },
+      "how-trace-inputs-are-handled-when-no-predict-fn-is-given": {
+        "rating": 0,
+        "why": "Trace input linking and cleanup in the evaluation harness. It names invoke_genai_evaluate_job but covers trace handling, not how the job rebuilds scorers."
+      },
+      "matching-semantics-of-allowed-host-origin-lists": {
+        "rating": 0,
+        "why": "Host and origin wildcard matching. Unrelated."
+      },
+      "mcp-registry-and-otlp-ingestion-api-conventions": {
+        "rating": 0,
+        "why": "MCP registry routes and OTLP ingestion. Unrelated."
+      },
+      "mlflow-db-cli-commands": {
+        "rating": 0,
+        "why": "The mlflow db CLI. Unrelated."
+      },
+      "mlflow-package-import-flow-and-tracing-sdk-split": {
+        "rating": 0,
+        "why": "Top-level package imports and tracing-only SDK detection. Unrelated."
+      },
+      "mlflow-prompt-constants-py-map-prompt-tags-and-patterns": {
+        "rating": 0,
+        "why": "Prompt tag keys and name patterns. Unrelated."
+      },
+      "model-version-source-validation-and-lineage-in-create-model": {
+        "rating": 0,
+        "why": "Model version source validation in registry handlers. Unrelated to scorers or guardrails."
+      },
+      "prompt-optimization-and-job-backed-handlers": {
+        "rating": 0,
+        "why": "Covers prompt optimization job handlers and params keys in handlers.py. Nothing about scorer code loading or refusing execution in the server."
+      },
+      "proxied-artifact-serving-and-workspace-path-scoping": {
+        "rating": 0,
+        "why": "Artifact endpoint path validation and presigned URLs. Unrelated to custom scorer execution."
+      },
+      "rate-limits-pool-sizing-and-backpressure-config": {
+        "rating": 0,
+        "why": "Evaluation harness rate limits and pool sizes from env settings. Unrelated to the scorer loading or refusal change."
+      },
+      "rule-prompt-source-placeholders-must-stay-in-sync-across-cli": {
+        "rating": 0,
+        "why": "Prompt source placeholder sync across client, store, and UI. Unrelated to scorers."
+      },
+      "scorer-base-module-map": {
+        "rating": 1,
+        "why": "Points at mlflow/genai/scorers/base.py, the file where rebuild and refusal logic would land (Scorer.run, _create_copy, ensemble expansion). It is a useful map but does not describe the rebuild or execution-refusal mechanism itself."
+      },
+      "scorer-decorator-contract": {
+        "rating": 2,
+        "why": "Describes how decorator scorers serialize function source and get reconstructed via _reconstruct_decorator_scorer, plus Scorer.run and SerializedScorer. The fix must keep the serialized form and enforce refusal at this reconstruction point, so reading it changes what the engineer does."
+      },
+      "secret-cache-invalidation-on-gateway-mutations": {
+        "rating": 0,
+        "why": "Gateway endpoint config cache invalidation after secret and endpoint mutations. Not related to scorer code or guardrail validation."
+      },
+      "security-utils-overview-shared-helpers-for-host-validation-a": {
+        "rating": 0,
+        "why": "Host header and CORS helpers. Security-adjacent, but about network middleware, not executing user scorer code."
+      },
+      "server-app-composition-fastapi-wraps-flask": {
+        "rating": 0,
+        "why": "Shares mlflow/server/__init__.py:_run_server, but describes FastAPI/Flask route composition, which the fix does not touch."
+      },
+      "server-side-scorer-jobs-job-py": {
+        "rating": 1,
+        "why": "Maps mlflow/genai/scorers/job.py:invoke_scorer_job, the server-side invocation path the task names. It is a useful map to the right area, but its content is about batching and scheduling, not the refusal."
+      },
+      "static-prefix-awareness-in-path-checks": {
+        "rating": 0,
+        "why": "Static-prefix handling in security path checks. Unrelated to scorer loading."
+      },
+      "store-method-conventions-errors-uniqueness-pagination-worksp": {
+        "rating": 0,
+        "why": "General gateway store conventions for errors, pagination, and workspaces. Does not address guardrail scorer validation or execution."
+      },
+      "threading-and-import-conventions-in-the-harness": {
+        "rating": 0,
+        "why": "Harness worker thread and import rules. Unrelated to the server-side scorer refusal."
+      },
+      "trace-review-queue-and-job-submitting-handlers-ownership-and": {
+        "rating": 0,
+        "why": "Identity and ownership rules for trace and review-queue handlers. Unrelated to scorer code execution."
+      },
+      "validation-conventions-for-endpoint-config": {
+        "rating": 0,
+        "why": "Gateway endpoint config validation for providers. Not about guardrails or custom scorers."
+      },
+      "webhook-delivery-convention-for-registry-mutations": {
+        "rating": 0,
+        "why": "Webhook firing after registry mutations. Unrelated."
+      },
+      "workspace-aware-store-setup-and-validation": {
+        "rating": 0,
+        "why": "Workspace-aware store setup and workspace validation. Unrelated to scorer loading or guardrails."
+      },
+      "scoring-execution-rate-limiting-and-lazy-imports": {
+        "rating": 0,
+        "why": "Online trace scoring rate limits and lazy imports in trace_processor.py. It is about scoring throughput, not refusing custom scorer code in the server."
+      },
+      "checkpoint-advancement-invariants-in-process-traces": {
+        "rating": 0,
+        "why": "Checkpoint advancement in online trace processing. Unrelated to the scorer execution change."
+      },
+      "model-log-flow-logged-model-based": {
+        "rating": 0,
+        "why": "Model.log validation and flow. Unrelated to scorers or guardrails."
+      },
+      "register-model-flow-and-source-resolution": {
+        "rating": 0,
+        "why": "Covers registering a model from a runs URI and source resolution. Nothing about scorers, scorer loading, or code execution in the server."
+      },
+      "how-to-change-which-traces-scorers-get-scored-online": {
+        "rating": 1,
+        "why": "Points at the online scoring pipeline (task building, sampling, trace loading) that sits near the online-scoring settings validation the task mentions. It is about trace selection and sampling, not refusing to execute scorer code, so it only saves searching."
+      },
+      "how-to-implement-or-modify-a-job-executor-backend": {
+        "rating": 1,
+        "why": "Maps the executor abstraction and registry, which the fix must leave working so the job executor can still rebuild and run custom scorers. It is about writing new backends, not about gating code execution in the server, so the fix's mechanism is not described."
+      },
+      "online-trace-scoring-processor-flow-of-one-tick": {
+        "rating": 1,
+        "why": "Describes one tick of the online scoring processor, including where scorer failures become error feedback. A refused custom scorer would surface there, but the note is about checkpointing and flow rather than scorer loading or refusal."
+      },
+      "request-param-helpers-rbac-and-review-queue-gating-quirks": {
+        "rating": 0,
+        "why": "Covers RBAC validators for roles, review queues and gateway requests. Unrelated to refusing custom scorer execution."
+      },
+      "how-to-add-a-new-job-function": {
+        "rating": 1,
+        "why": "Explains registering server job functions and their allow-lists. The scorer and evaluation job modules are job functions, so this is a map to that area, but it does not describe the rebuild-and-run or refusal mechanism."
+      },
+      "pickle-deserialization-gating-and-pt2-archive-validation": {
+        "rating": 1,
+        "why": "Shows a similar pattern: refusing code-executing loads unless an environment setting or a Databricks/serving context allows it. It is about PyTorch model loading, not scorer source execution, so it is an analogous chokepoint rather than the mechanism the fix changes."
+      },
+      "logged-model-lifecycle-in-fluent-py": {
+        "rating": 0,
+        "why": "Covers LoggedModel creation and finalization in the fluent API. Nothing about scorers, decorator source code, or server-side execution."
+      }
+    }
+  }
+}

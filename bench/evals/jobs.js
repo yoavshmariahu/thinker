@@ -8,7 +8,7 @@ import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { median } from './stats.js';
 import { readPrset, checkPrset, listPrsets, isFrozen } from './prsets.js';
-import { readReceipt, checkCache, notesDir, listCaches, planCache, cacheDir, STEPS } from './caches.js';
+import { readReceipt, checkCache, notesDir, listCaches, planCache, cacheDir, STEPS, kindOf } from './caches.js';
 import { acceptanceOf, loopLimits } from '../loop.js';
 
 export const RUNNERS = {
@@ -16,10 +16,10 @@ export const RUNNERS = {
   // installed thinker's user-scope hooks reach every arm — the cache-off arm too (2026-10-15 smoke run:
   // the warm-up offer appeared in a nocache session)
   claude: { script: 'run.js', label: 'Claude Code (bench/run.js)', defaultModel: 'sonnet', defaultArms: 'nocache,cache', always: ['isolated-settings'],
-    booleans: ['strict-model', 'isolated-settings', 'counterbalance', 'no-judge', 'no-subagents'], values: ['effort', 'max-turns', 'judge-samples'] },
+    booleans: ['strict-model', 'isolated-settings', 'counterbalance', 'no-judge', 'no-subagents'], values: ['effort', 'max-turns', 'judge-samples', 'ce-views'] },
   codex: { script: 'codex-run.js', label: 'Codex (bench/codex-run.js)', defaultModel: 'gpt-5.6-terra', defaultArms: 'nocache,full',
     // loop: iterate to each task's acceptance criteria with a named checker (bench/loop.js)
-    booleans: ['no-judge', 'loop'], values: ['budget', 'checker', 'iterations', 'iteration-min', 'session-min', 'token-cap'] },
+    booleans: ['no-judge', 'loop'], values: ['budget', 'ce-views', 'checker', 'iterations', 'iteration-min', 'session-min', 'token-cap'] },
   gemini: { script: 'gemini-run.js', label: 'Gemini (bench/gemini-run.js)', defaultModel: 'gemini-3.8-flash-high', defaultArms: 'nocache,cache',
     booleans: ['strict-model', 'counterbalance', 'no-judge', 'no-tests'], values: ['effort', 'max-min'] },
 };
@@ -130,7 +130,7 @@ export function plan(req, { benchDir, db }) {
     experiment: { name, question, kind: req.kind, off, on },
     modules: {
       prset: { name: prset.name, hash: prset.hash, rule: prset.rule, base: prset.base, prs: prset.ids.length, tasks: prset.tasks },
-      cache: { name: receipt.name, anchor: receipt.anchor, model: receipt.model, llm: receipt.llm, limit: receipt.limit, notes: receipt.notes, notes_hash: receipt.notes_hash, source: 'mine-prs --git' },
+      cache: { name: receipt.name, anchor: receipt.anchor, model: receipt.model, llm: receipt.llm, limit: receipt.limit, notes: receipt.notes, notes_hash: receipt.notes_hash, kind: kindOf(receipt), top: receipt.top ?? null, areas: receipt.areas ?? null, source: kindOf(receipt) === 'mined' ? 'mine-prs --git' : 'understand' },
       arms: { off, on, extra },
       agent: { runner: req.runner, model, reps, conc, flags: [...new Set([...Object.keys(req.flags || {}).filter(k => req.flags[k]), ...(runner.always || [])])], values: req.values || {} },
       grading: { oracle: allTests ? 'tests' : 'judge', judge: req.judge || null, summary: graded },

@@ -190,7 +190,8 @@ function runClaude(prompt, { arm, allowEdit, cwd, notesDir: staged, system }) {
   }
   if (cfg) {
     const nd = cfg.notes || notesDir;
-    const hookEnv = `THINKER_NOTES_DIR=${nd} THINKER_NO_BG_VERIFY=1 ${Object.entries(cfg.env || {}).map(([k, v]) => `${k}=${v}`).join(' ')} `.replace(/\s+/g, ' ');
+    // holdout off: the product holds notes back on a share of turns (src/ops.js:holdoutRate), an arm must not
+    const hookEnv = `THINKER_NOTES_DIR=${nd} THINKER_NO_BG_VERIFY=1 THINKER_HOLDOUT=0 ${flags['ce-views'] ? `THINKER_CE_VIEWS=${flags['ce-views']} ` : ''}${Object.entries(cfg.env || {}).map(([k, v]) => `${k}=${v}`).join(' ')} `.replace(/\s+/g, ' ');
     const budget = flags.budget ? ` --budget ${Number(flags.budget)}` : '';
     const hooks = { UserPromptSubmit: [{ matcher: '', hooks: [{ type: 'command', command: `${hookEnv}node ${CLI} hook prompt --repo ${cwd}${budget}`, timeout: 60 }] }] };
     if (cfg.late) hooks.PostToolUse = [{ matcher: 'Read|Bash|Grep|Edit|Write', hooks: [{ type: 'command', command: `${hookEnv}node ${CLI} hook tool --repo ${cwd}`, timeout: 15 }] }];

@@ -107,11 +107,11 @@ function fixture() {
 }
 
 // A built cache, as build-cache.js leaves it: notes in the snapshot, a receipt with their hash.
-function fakeCache(bench, name, { anchor, model = 'sonnet', source = 'pr', db = null }) {
+function fakeCache(bench, name, { anchor, model = 'sonnet', source = 'pr', kind, db = null }) {
   const notes = notesDir(bench, name);
   fs.mkdirSync(notes, { recursive: true });
   fs.writeFileSync(path.join(notes, 'n1.json'), JSON.stringify({ id: 'n1', title: 'A note', source: { type: source, ref: 'pr-1' }, search: 'x' }));
-  const receipt = { name, repo: 'click', anchor, llm: 'claude', model, limit: 60, status: 'ok', notes: 1, described: 1, notes_hash: hashNotes(notes), created_at: 1 };
+  const receipt = { name, repo: 'click', anchor, llm: 'claude', model, limit: 60, status: 'ok', notes: 1, described: 1, notes_hash: hashNotes(notes), created_at: 1, ...(kind ? { kind } : {}) };
   // a receipt from before the database held them, imported on the next scan; or straight into a database
   if (db) db.putCache(receipt); else fs.writeFileSync(path.join(cacheDir(bench, name), 'receipt.json'), JSON.stringify(receipt));
   return receipt;
@@ -223,6 +223,24 @@ test('a PR set is composed as a draft, changed, frozen, and only then run', () =
   assert.equal(readPrset(db, 'ps').status, 'frozen', 'a set from before drafts is frozen');
 });
 
+test('an understanding cache is planned from the most changed files and holds only notes read from the code', () => {
+  const { bench, c1 } = fixture();
+  const db = openDb(':memory:');
+  const prset = createPrset(bench, db, { name: 'ps', tasks: 'click.json', rule: 'r' });
+  const u = fakeCache(bench, 'u', { anchor: c1, source: 'understanding', kind: 'understanding', db });
+  assert.ok(checkCache(bench, u, prset, 'sonnet').every(c => c.ok), JSON.stringify(checkCache(bench, u, prset, 'sonnet')));
+  const mixed = fakeCache(bench, 'u-pr', { anchor: c1, source: 'pr', kind: 'understanding', db });
+  assert.deepEqual(checkCache(bench, mixed, prset, 'sonnet').filter(c => !c.ok).map(c => c.check), ['every note read from the code at the anchor'], 'a PR note in an understanding cache is from elsewhere');
+  const p = planCache({ name: 'u2', repo: 'click', anchor: c1, llm: 'claude', model: 'sonnet', kind: 'understanding', areas: 'src,lib' }, bench, db);
+  assert.equal(p.kind, 'understanding'); assert.equal(p.top, 200); assert.equal(p.limit, null); assert.deepEqual(p.areas, ['src', 'lib']);
+  assert.ok(p.steps.some(x => /thinker understand --top 200 --areas src,lib/.test(x)) && !p.steps.some(x => /mine-prs/.test(x)));
+  assert.equal(planCache({ name: 'u3', repo: 'click', anchor: c1, llm: 'claude', model: 'sonnet', kind: 'understanding', top: 5 }, bench, db).top, 10, 'top is clamped');
+  assert.throws(() => planCache({ name: 'u4', repo: 'click', anchor: c1, model: 'sonnet', kind: 'understanding', areas: '../etc' }, bench, db), /areas/);
+  assert.throws(() => planCache({ name: 'u5', repo: 'click', anchor: c1, model: 'sonnet', kind: 'explored' }, bench, db), /mined or understanding/);
+  db.putCache({ ...u, name: 'uhalf', status: 'failed', top: 200, effort: null, steps_done: ['snapshot'] });
+  assert.throws(() => planCache({ name: 'uhalf', repo: 'click', anchor: c1, llm: 'claude', model: 'sonnet', resume: true }, bench, db), /kind/, 'resuming an understanding build as a mined one is refused');
+});
+
 test('a cache passes only if mined from PRs, unchanged, before the base, without the PRs\' fixes, by the agent\'s model', () => {
   const { bench, c1, fix } = fixture();
   const db = openDb(':memory:');
@@ -230,7 +248,7 @@ test('a cache passes only if mined from PRs, unchanged, before the base, without
   const ok = fakeCache(bench, 'good', { anchor: c1, db });
   assert.ok(checkCache(bench, ok, prset, 'sonnet').every(c => c.ok), JSON.stringify(checkCache(bench, ok, prset, 'sonnet')));
   const failing = (r, model = 'sonnet') => checkCache(bench, r, prset, model).filter(c => !c.ok).map(c => c.check);
-  assert.deepEqual(failing(ok, 'opus'), ["mined by the agent's model"]);
+  assert.deepEqual(failing(ok, 'opus'), ["built by the agent's model"]);
   assert.ok(failing(fakeCache(bench, 'late', { anchor: fix, db })).includes("no PR fix in the cache's history"));
   assert.deepEqual(failing(fakeCache(bench, 'hand', { anchor: c1, source: 'agent', db })), ['every note mined from a PR']);
   fs.writeFileSync(path.join(notesDir(bench, 'good'), 'n2.json'), '{}');
