@@ -175,10 +175,11 @@ async function pageExperiment(dir) {
   $app.innerHTML = `
     <p class="muted"><a href="#/">Experiments</a> / ${esc(dir)}</p>
     <h1>${esc(meta.name || dir)} ${kindChip(meta.kind)}</h1>
-    <p class="question">${meta.question ? esc(meta.question) : '<span class="muted">What this experiment tests is not recorded.</span>'} <a href="#" id="edit">${meta.defined ? 'Edit' : 'Define it'}</a></p>
+    <p class="question">${meta.question ? esc(meta.question) : '<span class="muted">What this experiment tests is not recorded.</span>'} <a href="#" id="edit">${meta.defined ? 'Edit' : 'Define it'}</a>${meta.off ? ' · <a href="#" id="addarms">Add arms</a>' : ''}</p>
     <p class="sub">${esc(run.repo || 'unknown repo')} · ${esc(run.models || 'model unrecorded')} via ${esc(run.runner)} · ${cmp ? cmp.prs.length : '?'} PRs · ${run.results} results${run.invalid ? ` (${run.invalid} invalid)` : ''} · ${fmt.dt(run.first_at)} · <code>bench/runs/${esc(dir)}</code></p>
     <div id="editor"></div><div id="live"></div>
     ${modulesCard(meta)}
+    ${addedCard(meta)}
     ${refPicker}
     ${!meta.off ? `<div class="card confirm"><b>No cache-off arm.</b> This experiment ran ${arms.map(esc).join(', ') || 'nothing yet'}. ${arms.length > 1 ? '<a href="#" id="edit2">Pick the arm to compare against</a>.' : ''}</div>`
       : !x.all.some(c => c.pairs) ? `<div class="card">No valid pairs yet between <b>${esc(meta.off)}</b> (cache off) and ${x.all.map(c => `<b>${esc(c.on)}</b>`).join(', ') || 'another arm'}.</div>`
@@ -199,6 +200,7 @@ async function pageExperiment(dir) {
   const openEditor = ev => { ev.preventDefault(); editor(dir, { ...meta, off: meta.cacheOff || meta.off }, arms); };
   document.getElementById('edit').addEventListener('click', openEditor);
   document.getElementById('edit2')?.addEventListener('click', openEditor);
+  document.getElementById('addarms')?.addEventListener('click', ev => { ev.preventDefault(); addArms(dir, { ...meta, off: meta.cacheOff || meta.off }, run); });
   // a running experiment shows its progress here; the page redraws as sessions finish
   const showRun = j => { const el = document.getElementById('live'); if (!el) return; el.innerHTML = j ? runPanel(j) : ''; if (j) { bindTips(el); bindCancel(el, () => route()); } };
   showRun(x.job && (x.job.status === 'running' || x.job.status !== 'done' && !x.run.results) ? x.job : null);
@@ -338,6 +340,73 @@ function armsTable(arms) {
   return `<table><thead><tr><th>Arm</th><th class="num">Valid / n</th><th class="num">Pass</th><th class="num">Score</th><th class="num">Input tok</th><th class="num">Output tok</th><th class="num">Tool calls</th><th class="num">Wall</th><th class="num">Spend</th><th class="num">Served</th><th>Graded by</th></tr></thead><tbody>
     ${arms.map(a => `<tr><td>${esc(a.arm)}</td><td class="num">${a.valid} / ${a.n}</td><td class="num">${a.graded ? `${fmt.pct(a.pass_rate)} <span class="muted">${a.passed}/${a.graded}</span>` : '–'}</td><td class="num">${a.score == null ? '–' : a.score.toFixed(2)}</td>
       <td class="num">${fmt.tok(a.in_tokens)}</td><td class="num">${fmt.tok(a.out_tokens)}</td><td class="num">${a.tool_calls ?? '–'}</td><td class="num">${fmt.ms(a.wall_ms)}</td><td class="num">${fmt.usd(a.cost_total)}</td><td class="num">${fmt.pct(a.served_share)}</td><td>${a.graders.map(esc).join('<br>')}</td></tr>`).join('')}</tbody></table>`;
+}
+
+// Arms added after the experiment ran (jobs.js:planAddArms): each with the cache, options and thinker it ran with.
+function addedCard(meta) {
+  if (!meta.added?.length) return '';
+  return `<div class="card" style="margin-top:12px"><div class="mtitle">Added arms</div>${meta.added.map(a => { const m = a.modules || {};
+    return `<div style="margin-top:6px"><b>${a.arms.map(esc).join(', ')}</b>${Object.keys(a.like || {}).length ? ` <span class="muted small">(run as ${Object.entries(a.like).map(([x, b]) => `${esc(x)} → ${esc(b)}`).join(', ')})</span>` : ''} · ${fmt.dt(a.at)}
+      <div class="muted small">${m.cache ? `cache <a href="#/cache/${enc(m.cache.name)}">${esc(m.cache.name)}</a> · ${m.cache.notes} notes, ${esc(cacheWhat(m.cache))} by ${esc(m.cache.model)}` : 'no cache'}${m.agent?.options?.length ? ' · ' + m.agent.options.map(esc).join(' · ') : ''}${m.agent?.thinker ? ` · thinker ${esc(m.agent.thinker)}` : ''}</div></div>`; }).join('')}
+    <div class="muted small" style="margin-top:6px">Paired with the sessions the experiment ran before, by PR and rep. They ran later, with the thinker checkout of their own launch.</div></div>`;
+}
+
+// Add arms to an experiment that ran: only the new arms run, paired with its sessions (POST /api/plan with add_to).
+async function addArms(dir, meta, run) {
+  const cat = await api('/api/catalog');
+  const r = cat.runners[run.runner] || null;
+  const el = document.getElementById('editor');
+  const setting = o => `<label class="opt"><span>${esc(o.label)}</span><input name="v:${o.key}" placeholder="${esc(o.placeholder || 'default')}"><span class="muted small">${esc(o.help)}</span></label>`;
+  el.innerHTML = `<form class="card launch" id="af" style="margin-bottom:16px">
+    <h3 class="full" style="margin-top:0">Add arms to ${esc(meta.name || dir)}</h3>
+    <div class="full muted small">Only the new arms run, on this experiment's PRs, reps and model; each session is paired with the ones already recorded, so <b>${esc(meta.off)}</b>${meta.on ? ` and <b>${esc(meta.on)}</b>` : ''} are not run again.</div>
+    <label>Arms to add<input name="arms" required placeholder="e.g. understanding"></label>
+    ${run.runner === 'codex' ? `<label>Runs as<select name="like"><option value="">its own (a defined arm)</option><option value="hook" selected>hook (notes above the request)</option><option value="full">full (hooks and tools, as installed)</option></select></label>` : ''}
+    <label style="grid-column:span 2">PR set (the experiment's PRs)<select name="prset">${cat.prsets.filter(p => (p.status || 'frozen') === 'frozen' && p.repo === run.repo).map(p => `<option value="${esc(p.name)}">${esc(p.name)} · ${p.prs.length} PRs</option>`).join('') || '<option value="">no frozen PR set for this repository</option>'}</select></label>
+    <label style="grid-column:span 2">Cache served to the added arms<select name="cache"><option value="">none</option>${cat.caches.filter(c => c.repo === run.repo).map(c => `<option value="${esc(c.name)}">${esc(c.name)} · ${esc(c.model)} · ${c.notes ?? 0} notes</option>`).join('')}</select></label>
+    <label>Concurrent sessions<input name="conc" type="number" min="1" max="8" value="2"></label>
+    <div class="full options">${r ? `<div class="muted small">Settings for the added arms only (empty: the default)</div>` + r.options.filter(o => o.type !== 'switch' && !o.loop).map(setting).join('') : ''}</div>
+    <div class="full"><button class="primary" type="submit">Review plan</button> <button type="button" id="acancel">Cancel</button> <span class="err" id="aerr"></span></div></form><div id="aplan"></div>`;
+  const f = document.getElementById('af');
+  document.getElementById('acancel').onclick = () => { el.innerHTML = ''; };
+  const request = () => {
+    const arms = f.arms.value.trim();
+    return { add_to: dir, arms, prset: f.prset.value, cache: f.cache.value || undefined, conc: Number(f.conc.value),
+      like: f.like?.value ? Object.fromEntries(arms.split(',').map(a => a.trim()).filter(Boolean).map(a => [a, f.like.value])) : undefined,
+      values: Object.fromEntries([...f.querySelectorAll('input[name^="v:"]')].map(c => [c.name.slice(2), c.value.trim()])) };
+  };
+  f.addEventListener('submit', async e => {
+    e.preventDefault();
+    const aerr = document.getElementById('aerr'); aerr.textContent = '';
+    const req = request();
+    let p;
+    try { p = await api('/api/plan', req); } catch (err) { aerr.textContent = err.message; return; }
+    const est = p.estimate, m = p.modules, on = p.add.onto;
+    document.getElementById('aplan').innerHTML = `<div class="card confirm" style="margin-top:12px">
+      <h2 style="margin-top:0">${p.add.arms.map(esc).join(', ')}: ${p.sessions} agent session${p.sessions === 1 ? '' : 's'} ${p.blocked ? '<span class="status critical">blocked</span>' : ''}</h2>
+      <dl class="kv">
+        <dt>Paired with</dt><dd>${on.sessions} sessions already recorded: ${on.arms.map(esc).join(', ')} · ${on.tasks} PRs × ${on.reps} reps · ${esc(on.model)}</dd>
+        <dt>Cache</dt><dd>${!m.cache ? 'none' : `${esc(m.cache.name)} · ${m.cache.notes} notes, ${esc(cacheWhat(m.cache))}, by ${esc(m.cache.model)} at ${esc(m.cache.anchor.slice(0, 10))}`}</dd>
+        <dt>Agent</dt><dd>${esc(p.model)} via ${esc(p.runner)} · ${p.conc} at a time${m.agent.options.length ? ' · ' + m.agent.options.map(esc).join(' · ') : ''} · thinker ${esc(m.agent.thinker || '?')}</dd>
+        <dt>Sessions</dt><dd>${p.expected.length}${p.resumed ? ` · <b>${p.resumed} already on disk, skipped</b>` : ''}</dd>
+        <dt>Grading</dt><dd>${esc(p.graded)}</dd>
+        <dt>Estimate</dt><dd>${est ? `${fmt.tok(est.in_tokens)} input + ${fmt.tok(est.out_tokens)} output tokens${est.cost != null ? ` · about ${fmt.usd(est.cost)} at list price` : ''} · about ${fmt.ms(est.wall_ms)}` : '<span class="err">no past results for this model, so no estimate</span>'}</dd>
+        <dt>Command</dt><dd><code style="word-break:break-all">${esc(p.command)}</code></dd>
+      </dl>
+      <h3>Checks</h3>${checkList(p.checks)}
+      ${p.blocked ? '<p class="err">A check failed: fix what it names and review again.</p>' : `
+      <p style="margin:14px 0 8px"><label class="check"><input type="checkbox" id="aok"> I have checked the pairing, cache, settings and estimate above.</label></p>
+      <button class="primary" id="ago" disabled>Start ${p.sessions} session${p.sessions === 1 ? '' : 's'}</button> <span id="agerr" class="err"></span>`}</div>`;
+    const ok = document.getElementById('aok'), go = document.getElementById('ago');
+    if (ok) {
+      ok.addEventListener('change', () => { go.disabled = !ok.checked || !p.sessions; });
+      go.addEventListener('click', async () => {
+        go.disabled = true;
+        try { await api('/api/launch', { ...req, confirm: true, sessions: p.sessions }); route(); }
+        catch (err) { document.getElementById('agerr').textContent = err.message; go.disabled = false; }
+      });
+    }
+  });
 }
 
 function editor(dir, meta, arms) {

@@ -14,7 +14,7 @@ import { takeSnapshot, listLocal, s3Uri } from './snapshot.js';
 import { ingest, taskInfo } from './ingest.js';
 import { armSummary, METRICS } from './stats.js';
 import { readMeta, resolveMeta, writeMeta, compare } from './experiment.js';
-import { catalog, plan, launch, launchCache, cancel, jobsView, planRegrade, launchRegrade } from './jobs.js';
+import { catalog, plan, planAddArms, launch, launchCache, cancel, jobsView, planRegrade, launchRegrade } from './jobs.js';
 import { listPrsets, createPrset, updatePrset, freezePrset, readPrset, checkPrset } from './prsets.js';
 import { importTaskFiles, importTaskSet, setAcceptance, getTaskSet, listTaskSets, taskSetVersions, tasksetName } from './tasksets.js';
 const summary = s => ({ name: s.name, repo: s.repo, base: s.base, version: s.version, hash: s.hash, tasks: s.tasks.length, unchanged: Boolean(s.unchanged), change: s.change });
@@ -237,7 +237,8 @@ export function createApp({ bench = BENCH, dbFile = DB_FILE, snapshots = true } 
     'POST /api/tasksets/import': body => ({ taskset: summary(importTaskSet(bench, db, { name: body.name, file: body.file, ref: body.ref, repo: body.repo })) }),
     'POST /api/taskset/acceptance': body => ({ taskset: summary(setAcceptance(db, String(body.name || ''), String(body.task || ''), body.acceptance)) }),
     'GET /api/jobs': () => ({ jobs: jobsView(db, bench) }),
-    'POST /api/plan': body => plan(body, { benchDir: bench, db }),
+    // add_to names an experiment that ran: only the arms added to it run (jobs.js:planAddArms)
+    'POST /api/plan': body => (body.add_to ? planAddArms : plan)(body, { benchDir: bench, db }),
     // regrade an experiment's recorded answers with a named judge: planned first, started only when confirmed
     // with the planned count; the run is reimported when the job ends
     'POST /api/regrade': body => {
@@ -249,7 +250,7 @@ export function createApp({ bench = BENCH, dbFile = DB_FILE, snapshots = true } 
     },
     'POST /api/launch': body => {
       if (body.confirm !== true) throw httpError(400, 'a launch must be confirmed');
-      const p = plan(body, { benchDir: bench, db });
+      const p = (body.add_to ? planAddArms : plan)(body, { benchDir: bench, db });
       if (p.blocked) throw httpError(409, 'the plan fails its checks: ' + p.checks.filter(c => !c.ok).map(c => `${c.module}: ${c.check} (${c.detail})`).join('; '));
       if (!p.sessions) throw httpError(400, 'nothing to run: every result for this tag is already on disk');
       // the confirmed plan must be the one priced: refuse when the request changed underneath it

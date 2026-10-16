@@ -8,6 +8,7 @@ import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { median } from './stats.js';
 import { BASELINE_ARMS } from './normalize.js';
+import { resolveMeta } from './experiment.js';
 import { readArm, writeArmDefs, armDefsFile } from './arms.js';
 import { readPrset, checkPrset, listPrsets, isFrozen } from './prsets.js';
 import { readReceipt, checkCache, notesDir, listCaches, planCache, cacheDir, kindOf, stepsOf } from './caches.js';
@@ -106,16 +107,19 @@ export function plan(req, { benchDir, db }) {
   if (![off, on, ...extra].every(a => NAME.test(a))) throw new Error('arms are not valid');
   if (off === on) throw new Error('cache off and cache on must be different arms');
   const arms = [...new Set([off, on, ...extra])];
+  // the arms this launch runs: all of them, or only those added to an experiment that ran the others (planAddArms)
+  const runArms = req.only?.length ? req.only : arms;
+  const like = req.like && Object.keys(req.like).length ? req.like : null;
   // arms defined as data (evals/arms.js): handed to the runner whole, and recorded with the experiment
-  const defined = Object.fromEntries(arms.map(a => [a, readArm(db, a)]).filter(([, d]) => d));
+  const defined = Object.fromEntries(runArms.map(a => [a, readArm(db, a)]).filter(([, d]) => d));
   for (const [a, d] of Object.entries(defined)) if (d.runner !== req.runner) throw new Error(`arm ${a} is defined for ${d.runner}, not ${req.runner}`);
 
   // module: cache — only when an arm is served thinker's notes. An experiment of another tool against
   // the cache off has none, and is given none so that no arm is served one by accident.
-  const servesNotes = arms.some(a => !BASELINE_ARMS.includes(a) && defined[a]?.def.notes !== false);
+  const servesNotes = runArms.some(a => !BASELINE_ARMS.includes(like?.[a] || a) && defined[a]?.def.notes !== false);
   const receipt = servesNotes ? readReceipt(db, req.cache) : null;
   if (servesNotes && !receipt) throw new Error(req.cache ? `no cache ${req.cache}` : 'pick a cache (build one for this PR set first)');
-  if (!servesNotes && req.cache) throw new Error(`no arm of ${arms.join(', ')} is served notes: leave the cache out`);
+  if (!servesNotes && req.cache) throw new Error(`no arm of ${runArms.join(', ')} is served notes: leave the cache out`);
 
   // module: grading — the PRs' own tests where every PR has them, else a judge that is named, not defaulted
   const allTests = tasks.length && tasks.every(t => t.testCmd);
@@ -138,7 +142,7 @@ export function plan(req, { benchDir, db }) {
   const notes = receipt ? notesDir(benchDir, receipt.name) : null;
   // the runner reads the task set as the launch writes it into the run (tasksets.js:writeRunTasks)
   const argv = [path.join(benchDir, runner.script), '--repo', repo, '--tasks', path.join(benchDir, 'runs', tag, 'tasks.json'), '--only', prset.ids.join(','),
-    '--arm', arms.join(','), '--model', model, '--reps', String(reps), '--conc', String(conc), '--tag', tag, ...(notes ? ['--notes-dir', notes] : []), ...(Object.keys(defined).length ? ['--arm-defs', armDefsFile(benchDir, tag)] : [])];
+    '--arm', runArms.join(','), ...(like ? ['--arm-like', Object.entries(like).map(([a, b]) => `${a}=${b}`).join(',')] : []), '--model', model, '--reps', String(reps), '--conc', String(conc), '--tag', tag, ...(notes ? ['--notes-dir', notes] : []), ...(Object.keys(defined).length ? ['--arm-defs', armDefsFile(benchDir, tag)] : [])];
   if (req.judge) argv.push('--judge', String(req.judge));
   // the PRs' tests grade every session: a judge would only spend
   else if (allTests && runner.booleans.includes('no-judge') && !req.flags?.['no-judge']) argv.push('--no-judge');
@@ -152,8 +156,9 @@ export function plan(req, { benchDir, db }) {
     ...checkPrset(benchDir, prset, db).map(c => ({ module: 'PR set', ...c })),
     ...(receipt ? checkCache(benchDir, receipt, prset, model).map(c => ({ module: 'cache', ...c })) : []),
     ...(loop ? [checkAcceptance(tasks)] : []),
+    ...(req.extraChecks || []),
   ];
-  const expected = expectedIds(prset.ids, arms, reps);
+  const expected = expectedIds(prset.ids, runArms, reps);
   const todo = expected.filter(id => !existing.includes(id));
   // the runners skip a result already on disk, so a tag that has some is a resume
   const history = estimate(db, model, repo);
@@ -164,8 +169,8 @@ export function plan(req, { benchDir, db }) {
     modules: {
       prset: { name: prset.name, hash: prset.hash, rule: prset.rule, base: prset.base, prs: prset.ids.length, tasks: prset.tasks, taskset_version: spec.version, taskset_hash: spec.hash },
       cache: receipt && { name: receipt.name, anchor: receipt.anchor, model: receipt.model, llm: receipt.llm, limit: receipt.limit, notes: receipt.notes, notes_hash: receipt.notes_hash, kind: kindOf(receipt), top: receipt.top ?? null, areas: receipt.areas ?? null, source: kindOf(receipt) === 'mined' ? 'mine-prs --git' : 'understand' },
-      arms: { off, on, extra, ...(Object.keys(defined).length ? { defined: Object.fromEntries(Object.entries(defined).map(([a, d]) => [a, { hash: d.hash, ...d.def }])) } : {}) },
-      agent: { runner: req.runner, model, reps, conc, flags: [...new Set([...Object.keys(req.flags || {}).filter(k => req.flags[k]), ...(runner.always || [])])], values: req.values || {} , options: [...Object.keys(req.flags || {}).filter(k => req.flags[k]).map(k => OPTIONS[k]?.label || k), ...Object.entries(req.values || {}).filter(([, v]) => v != null && v !== '').map(([k, v]) => `${OPTIONS[k]?.label || k}: ${v}`)] },
+      arms: { off, on, extra, ...(req.only?.length ? { run: runArms } : {}), ...(like ? { like } : {}), ...(Object.keys(defined).length ? { defined: Object.fromEntries(Object.entries(defined).map(([a, d]) => [a, { hash: d.hash, ...d.def }])) } : {}) },
+      agent: { runner: req.runner, model, reps, conc, thinker: thinkerRev(benchDir), flags: [...new Set([...Object.keys(req.flags || {}).filter(k => req.flags[k]), ...(runner.always || [])])], values: req.values || {} , options: [...Object.keys(req.flags || {}).filter(k => req.flags[k]).map(k => OPTIONS[k]?.label || k), ...Object.entries(req.values || {}).filter(([, v]) => v != null && v !== '').map(([k, v]) => `${OPTIONS[k]?.label || k}: ${v}`)] },
       grading: { oracle: allTests ? 'tests' : 'judge', judge: req.judge || null, summary: graded },
       ...(loop ? { loop: { checker, ...limits } } : {}),
     },
@@ -180,6 +185,60 @@ export function plan(req, { benchDir, db }) {
       wall_ms: history.wall_ms * Math.ceil(n / conc) * f,
     } : null,
   };
+}
+
+// The thinker the runner serves the cache arms from: the checkout Artemis runs in (bench/codex-run.js:THINKER_REV).
+function thinkerRev(benchDir) {
+  try {
+    const root = path.dirname(benchDir), rev = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+    return execFileSync('git', ['status', '--porcelain', '--', 'src'], { cwd: root, encoding: 'utf8' }).trim() ? `${rev}+dirty` : rev;
+  } catch { return null; }
+}
+
+// Arms added to an experiment that already ran: only the new arms run, on the experiment's own PRs, reps
+// and model, each paired with the sessions already recorded (the cache-off and cache-on arms are not run
+// again). The new arms take this launch's cache and runner options, which apply to them alone; `like`
+// runs an arm under its own name as a built-in one (codex-run.js --arm-like: `understanding` as `hook`).
+// What the experiment ran before is kept as it was; the added arms are recorded beside it (launch).
+export const LIKE_ARMS = ['hook', 'full', 'nocache', 'hook-bm25'];
+export function planAddArms(req, { benchDir, db }) {
+  const tag = String(req.add_to || '');
+  const run = db.get('SELECT * FROM runs WHERE dir = ?', tag);
+  if (!run) throw new Error(`no experiment ${tag}`);
+  const rows = db.all('SELECT task, arm, rep, model FROM results WHERE run = ?', tag);
+  const stored = db.definition(tag) || {};
+  const added = new Set((stored.added || []).flatMap(a => a.arms));
+  const have = [...new Set(rows.map(r => r.arm))].filter(a => !added.has(a));
+  const meta = resolveMeta(stored, have);
+  if (!meta.off) throw new Error(`${tag} has no cache-off arm: name it with define_experiment first`);
+  const runner = String(req.runner || run.runner || '');
+  if (!RUNNERS[runner]) throw new Error(`${tag} records no runner this app can start${run.runner ? ` (${run.runner})` : ''}: name it`);
+  const add = [...new Set(String(req.arms || '').split(',').map(s => s.trim()).filter(Boolean))];
+  if (!add.length) throw new Error('name the arms to add');
+  if (!add.every(a => NAME.test(a))) throw new Error('arms are not valid');
+  const clash = add.filter(a => have.includes(a));
+  if (clash.length) throw new Error(`${clash.join(', ')} already ran in ${tag}: an added arm needs a name of its own`);
+  const like = Object.fromEntries(add.filter(a => req.like?.[a]).map(a => [a, String(req.like[a])]));
+  if (Object.values(like).some(b => !LIKE_ARMS.includes(b))) throw new Error(`an arm runs like one of ${LIKE_ARMS.join(', ')}`);
+  if (Object.keys(like).length && runner !== 'codex') throw new Error('only the codex runner runs an arm like a built-in one');
+  // the experiment as it ran: its PRs, reps and model, from its recorded sessions
+  const ran = rows.filter(r => r.arm === meta.off || r.arm === meta.on);
+  const tasks = [...new Set(ran.map(r => r.task))].sort();
+  const reps = Math.max(...ran.map(r => r.rep)) + 1;
+  const models = [...new Set(ran.map(r => r.model).filter(Boolean))];
+  if (models.length !== 1) throw new Error(`${tag} ran ${models.join(', ') || 'no recorded model'}: arms can be added to an experiment of one model`);
+  const model = models[0];
+  const prset = readPrset(db, req.prset);
+  const ids = prset ? [...prset.ids].sort() : [];
+  const before = stored.modules?.prset?.taskset_hash;
+  const checks = [
+    { module: 'experiment', ok: Boolean(prset) && ids.length === tasks.length && ids.every((t, i) => t === tasks[i]), check: 'the PR set is the experiment\'s PRs', detail: prset ? `${tasks.length} PRs ran, the set has ${ids.length}${ids.length === tasks.length && ids.some((t, i) => t !== tasks[i]) ? ' (different ones)' : ''}` : 'no PR set' },
+    { module: 'experiment', ok: !req.model || String(req.model) === model, check: 'the agent model is the experiment\'s', detail: `experiment ${model}${req.model ? `, asked ${req.model}` : ''}` },
+    ...(before && prset ? [{ module: 'experiment', ok: before === prset.taskset_hash, check: 'the task set version the experiment ran', detail: `ran ${before}, set ${prset.taskset_hash || '?'}` }] : []),
+  ];
+  const p = plan({ ...req, runner, model, reps, tag, off: meta.off, on: meta.on, extra: add.join(','), only: add, like, extraChecks: checks,
+    name: stored.name || tag, question: stored.question || `How do ${add.join(', ')} compare with ${meta.off} and ${meta.on} in ${tag}?`, kind: stored.kind || 'behavior' }, { benchDir, db });
+  return { ...p, arms: [...new Set([meta.off, meta.on, ...meta.others, ...add].filter(Boolean))], add: { arms: add, like, onto: { off: meta.off, on: meta.on, arms: [meta.off, meta.on, ...meta.others].filter(Boolean), tasks: tasks.length, reps, model, sessions: rows.length } } };
 }
 
 // A loop experiment needs acceptance criteria on every PR: written from the request and the base code,
@@ -215,9 +274,15 @@ export function launch(p, { benchDir, db }) {
   writeRunTasks(benchDir, db, { name: p.taskset.name, hash: p.taskset.hash, outDir });
   // the experiment's definition is recorded before the first session exists
   const prev = db.definition(p.tag) || {};
-  db.setDefinition(p.tag, { ...prev, ...p.experiment, modules: p.modules, created_at: prev.created_at || Date.now(),
-    launched: [...(prev.launched || []), { at: Date.now(), runner: p.runner, model: p.model, tasks: p.tasks, reps: p.reps, arms: p.arms, command: p.command, checks: p.checks }] });
-  db.run('UPDATE runs SET repo = coalesce(repo, ?), runner = coalesce(runner, ?), arms = ?, models = coalesce(nullif(models, \'\'), ?) WHERE dir = ?', p.repo, p.runner, p.arms.join(','), p.model, p.tag);
+  const entry = { at: Date.now(), runner: p.runner, model: p.model, tasks: p.tasks, reps: p.reps, arms: p.add ? p.add.arms : p.arms, command: p.command, checks: p.checks };
+  // added arms keep what the experiment ran as it was, and are recorded beside it with their own modules
+  db.setDefinition(p.tag, p.add
+    ? { ...prev, name: prev.name || p.experiment.name, question: prev.question || p.experiment.question, kind: prev.kind || p.experiment.kind, off: prev.off || p.experiment.off, on: prev.on || p.experiment.on,
+      created_at: prev.created_at || Date.now(), added: [...(prev.added || []).filter(a => !a.arms.every(x => p.add.arms.includes(x))), { at: entry.at, arms: p.add.arms, like: p.add.like, modules: p.modules }],
+      launched: [...(prev.launched || []), entry] }
+    : { ...prev, ...p.experiment, modules: p.modules, created_at: prev.created_at || Date.now(), launched: [...(prev.launched || []), entry] });
+  const had = String(db.get('SELECT arms FROM runs WHERE dir = ?', p.tag)?.arms || '').split(',').filter(Boolean);
+  db.run('UPDATE runs SET repo = coalesce(repo, ?), runner = coalesce(runner, ?), arms = ?, models = coalesce(nullif(models, \'\'), ?) WHERE dir = ?', p.repo, p.runner, [...new Set([...had, ...p.arms])].join(','), p.model, p.tag);
   // the defined arms, as planned, where the runner reads them (--arm-defs)
   if (p.modules.arms.defined) writeArmDefs(benchDir, p.tag, Object.fromEntries(Object.entries(p.modules.arms.defined).map(([a, { hash, ...def }]) => [a, def])));
   const log = path.join(outDir, 'harness.log');

@@ -20,7 +20,7 @@ export function resolveMeta(stored, arms) {
     name: stored?.name || null, question: stored?.question || null,
     kind: KINDS.includes(stored?.kind) ? stored.kind : null,
     off, on, others: arms.filter(a => a !== off && a !== on),
-    created_at: stored?.created_at || null, launched: stored?.launched || null, modules: stored?.modules || null,
+    created_at: stored?.created_at || null, launched: stored?.launched || null, modules: stored?.modules || null, added: stored?.added || null,
   };
 }
 
