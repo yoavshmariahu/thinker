@@ -49,8 +49,9 @@ export function mergeJson(file, patch) {
 const onPath = bin => (process.env.PATH || '').split(path.delimiter).some(d => d && fs.existsSync(path.join(d, bin)));
 const home = (...p) => path.join(os.homedir(), ...p);
 
-// Clients that look installed on this machine (binary on PATH or a config directory).
-export function detectClients() {
+// Clients that look installed on this machine (binary on PATH or a config directory); with `fallback`,
+// Claude Code when none does, as the default to set up.
+export function detectClients({ fallback = true } = {}) {
   const found = [];
   if (onPath('claude') || fs.existsSync(home('.claude'))) found.push('claude');
   if (onPath('codex') || fs.existsSync(home('.codex'))) found.push('codex');
@@ -59,7 +60,7 @@ export function detectClients() {
   for (const [client, dir] of [['pi', '.pi'], ['windsurf', '.codeium/windsurf'], ['copilot', '.copilot'], ['opencode', '.config/opencode']]) {
     if (onPath(client) || fs.existsSync(home(dir))) found.push(client);
   }
-  return found.length ? found : ['claude'];
+  return found.length || !fallback ? found : ['claude'];
 }
 
 export function parseClients(value, fallback = ['claude']) {
@@ -478,24 +479,35 @@ export function connectFromCheckouts(repos, { cli, mcpEntry, dry = false } = {})
   return done;
 }
 
-// The four agents that became machine-wide on 2026-10-15 (pi, OpenCode, Copilot, Windsurf), for a machine
-// that has one installed and never set a checkout up for it (`connectFromCheckouts` covers the ones that
-// did): wired into the user's files once, by `rewire` after an update, with the options of this copy's
-// machine-wide wiring for another agent (learning, late notes), else the installer's defaults. Once per
-// agent (`home`/state/connected.json), so a wiring the person took out stays out. Returns the clients wired.
-export function connectDetected({ cli, mcpEntry, home: thinker, learn = true, dry = false, detected = detectClients() } = {}) {
-  const mark = path.join(thinker, 'state', 'connected.json');
-  const seen = readJsonOr(mark, {});
-  const done = [];
+// The agents thinker has offered itself to on this machine (`home`/state/connected.json): each once, so a
+// wiring the person took out, or an agent they left unticked in the installer, stays out.
+const connectedFile = thinker => path.join(thinker, 'state', 'connected.json');
+export function markConnected(thinker, clients) {
+  const f = connectedFile(thinker), seen = readJsonOr(f, {});
+  const add = clients.filter(c => !seen[c]); if (!add.length) return;
+  for (const c of add) seen[c] = new Date().toISOString();
+  fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify(seen, null, 2) + '\n');
+}
+
+// An agent installed on this machine that thinker was never offered to: one installed after thinker was
+// (2026-10-16: devices with caches and no cache request ever, and no wiring check ran without an update),
+// or one of the four that became machine-wide on 2026-10-15. Wired into the user's files once, by `rewire`
+// (after an update and on the daily run), with the options of this copy's machine-wide wiring for another
+// agent (learning, late notes), else the installer's defaults; one already wired is only marked. Returns
+// the clients wired.
+export function connectDetected({ cli, mcpEntry, home: thinker, learn = true, dry = false, detected = detectClients({ fallback: false }) } = {}) {
+  const seen = readJsonOr(connectedFile(thinker), {});
+  const done = [], marked = [];
   const others = USER_SCOPE_CLIENTS.map(c => { try { return inferWiring(null, c, { scope: 'user' }); } catch { return null; } }).filter(w => w?.hooks && w.hookScripts.every(sc => sameCopy(sc, cli)));
   const options = others.length ? { hooks: true, learn: others.some(w => w.learn), late: others.some(w => w.late), mcp: true } : { hooks: true, learn, late: false, mcp: true };
-  for (const client of ['pi', 'opencode', 'copilot', 'windsurf']) {
+  for (const client of USER_SCOPE_CLIENTS) {
     if (seen[client] || !detected.includes(client)) continue;
-    if (!inferWiring(null, client, { scope: 'user' }) && !dry) installClient(client, { scope: 'user', cli, mcpEntry, ...options });
-    if (!dry) seen[client] = new Date().toISOString();
+    marked.push(client);
+    if (inferWiring(null, client, { scope: 'user' })) continue;
+    if (!dry) { installClient(client, { scope: 'user', cli, mcpEntry, ...options }); if (client === 'codex') trustCodexUser(); }
     done.push(client);
   }
-  if (done.length && !dry) { fs.mkdirSync(path.dirname(mark), { recursive: true }); fs.writeFileSync(mark, JSON.stringify(seen, null, 2) + '\n'); }
+  if (!dry) markConnected(thinker, marked);
   return done;
 }
 

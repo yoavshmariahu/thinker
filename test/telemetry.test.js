@@ -5,6 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import http from 'node:http';
 import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { Store } from '../src/store.js';
 import { telemetryScheduleState } from '../src/telemetry-schedule.js';
 import {
@@ -675,10 +676,11 @@ test('telemetry payload carries warm-up offers, the builds they led to, and whet
     assert.deepEqual([failed.outcome, failed.reason, running.outcome, running.endedAt], ['failed', 'unauthenticated', 'unfinished', null]);
     assert.ok(failed.startedAt <= failed.endedAt, 'a failed build says when it started and when it failed');
     delete payload.warmup.requests;
-    assert.deepEqual(payload.warmup, { schemaVersion: 1, windowDays: 30, warmMined: 10, warmUnderstood: 10, offers: 2, offersToColdCaches: 2, started: 2, finished: 0, failed: 1, answeredWarm: 1, answeredNo: 0, answeredNever: 1, answersDismissed: 1, answersInPicker: 1, answeredWarmNotStarted: 0, offeredRepositories: 1, offeredThenStarted: 1, activeRepositoriesWarm: 0, activeRepositoriesCold: 1 });
+    assert.deepEqual(payload.warmup, { schemaVersion: 1, windowDays: 30, warmMined: 40, warmUnderstood: 10, offers: 2, offersToColdCaches: 2, started: 2, finished: 0, failed: 1, answeredWarm: 1, answeredNo: 0, answeredNever: 1, answersDismissed: 1, answersInPicker: 1, answeredWarmNotStarted: 0, offeredRepositories: 1, offeredThenStarted: 1, activeRepositoriesWarm: 0, activeRepositoriesCold: 1 });
     // the second build finishes, having read its history: the repository in use is warm now
     fs.writeFileSync(path.join(store.dir, 'prs.json'), JSON.stringify({ local: { mined: Array.from({ length: 10 }, (_, i) => `c${i}`) } }));
     store.log({ op: 'warmup-done', ok: true, notes: 40, mined: 10 });
+    fs.mkdirSync(path.join(store.dir, 'state'), { recursive: true }); fs.writeFileSync(path.join(store.dir, 'state', 'warmed'), new Date().toISOString()); // as setup marks a finished warm-up
     payload = buildTelemetryPayload(store, { home: tmpHome, days: 1, all: false });
     assert.equal(payload.warmup.finished, 1);
     assert.deepEqual(payload.warmup.requests.map(r => r.outcome), ['failed', 'finished']);
@@ -688,4 +690,24 @@ test('telemetry payload carries warm-up offers, the builds they led to, and whet
     fs.rmSync(tmpRepo, { recursive: true, force: true });
     fs.rmSync(tmpHome, { recursive: true, force: true });
   }
+});
+
+test('telemetry says whether each installed agent runs thinker and how much it was used', async () => {
+  const { wiringHealth } = await import('../src/telemetry.js');
+  const { installClient } = await import('../src/clients.js');
+  const h = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-wiring-home-'));
+  const saved = { HOME: process.env.HOME, CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR, CODEX_HOME: process.env.CODEX_HOME };
+  process.env.HOME = h; delete process.env.CLAUDE_CONFIG_DIR; process.env.CODEX_HOME = path.join(h, '.codex');
+  try {
+    const cli = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
+    installClient('claude', { scope: 'user', cli, mcpEntry: { command: 'node', args: [path.join(path.dirname(cli), 'mcp.js')] }, hooks: true, learn: false, late: false, mcp: true });
+    const proj = path.join(h, '.claude', 'projects', '-r'); fs.mkdirSync(proj, { recursive: true });
+    fs.writeFileSync(path.join(proj, 'a.jsonl'), '{}'); fs.writeFileSync(path.join(proj, 'b.jsonl'), '{}');
+    const old = path.join(proj, 'c.jsonl'); fs.writeFileSync(old, '{}'); fs.utimesSync(old, new Date(Date.now() - 9 * 864e5), new Date(Date.now() - 9 * 864e5));
+    const day = path.join(h, '.codex', 'sessions', '2026', '10', '16'); fs.mkdirSync(day, { recursive: true }); fs.writeFileSync(path.join(day, 'rollout.jsonl'), '{}');
+    assert.deepEqual(wiringHealth({ home: h, detected: ['claude', 'codex'] }), {
+      claude: { hooks: true, mcp: true, live: true, sessions7d: 2 },
+      codex: { hooks: false, mcp: false, live: false, sessions7d: 1 },
+    });
+  } finally { for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } }
 });

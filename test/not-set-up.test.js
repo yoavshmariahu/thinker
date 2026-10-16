@@ -151,3 +151,14 @@ test('the installer installs the tool, connects the agents without asking and en
   assert.ok(!fs.existsSync(path.join(work, '.thinker')));
   assert.deepEqual(fs.readdirSync(work), []);
 });
+
+// An agent wired with thinker's server and no hooks gets the warm-up offer from orient (2026-10-16: a device
+// whose requests all came through MCP had two cold caches and no offer), once per repository.
+test('orient makes the warm-up offer to a cold cache, once', t => {
+  const dir = fresh(t);
+  for (let i = 0; i < 8; i++) { fs.writeFileSync(path.join(dir, `f${i}.js`), `export const f${i} = ${i};\n`); execFileSync('git', ['-C', dir, 'add', '.']); execFileSync('git', ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', `fix ${i}`]); }
+  const call = { name: 'orient', arguments: { task: 'where is f3 defined' } };
+  const s = mcpSession(dir, { THINKER_REPO: dir }, [call, call]);
+  assert.match(s.replies[0], /<thinker-new-repository>/);
+  assert.doesNotMatch(s.replies[1], /<thinker-new-repository>/);
+});
