@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS transcripts (
 );
 CREATE TABLE IF NOT EXISTS prsets (name TEXT PRIMARY KEY, repo TEXT, hash TEXT, created_at INTEGER, data TEXT);
 CREATE TABLE IF NOT EXISTS caches (name TEXT PRIMARY KEY, repo TEXT, status TEXT, created_at INTEGER, data TEXT);
+CREATE TABLE IF NOT EXISTS arms (name TEXT PRIMARY KEY, runner TEXT, hash TEXT, created_at INTEGER, data TEXT);
 CREATE TABLE IF NOT EXISTS jobs (
   id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT DEFAULT 'experiment', tag TEXT, runner TEXT, args TEXT, plan TEXT,
   status TEXT, pid INTEGER, expected INTEGER, started_at INTEGER, ended_at INTEGER, exit_code INTEGER, log TEXT
@@ -106,6 +107,9 @@ export function openDb(file = DEFAULT_DB) {
     getCache(name) { const r = db.prepare('SELECT data FROM caches WHERE name = ?').get(name); return r ? JSON.parse(r.data) : null; },
     putCache(c) { db.prepare('INSERT OR REPLACE INTO caches (name, repo, status, created_at, data) VALUES (?,?,?,?,?)').run(c.name, c.repo, c.status, c.created_at || Date.now(), JSON.stringify(c)); },
     listCaches() { return db.prepare('SELECT data FROM caches ORDER BY created_at DESC').all().map(r => JSON.parse(r.data)); },
+    getArm(name) { const r = db.prepare('SELECT data FROM arms WHERE name = ?').get(name); return r ? JSON.parse(r.data) : null; },
+    putArm(a) { db.prepare('INSERT OR REPLACE INTO arms (name, runner, hash, created_at, data) VALUES (?,?,?,?,?)').run(a.name, a.runner, a.hash, a.created_at, JSON.stringify(a)); },
+    listArms() { return db.prepare('SELECT data FROM arms ORDER BY name').all().map(r => JSON.parse(r.data)); },
     dropRun(dir) { db.prepare('DELETE FROM results WHERE run = ?').run(dir); db.prepare('DELETE FROM runs WHERE dir = ?').run(dir); },
   };
   return api;

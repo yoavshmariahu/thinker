@@ -226,7 +226,7 @@ function modulesCard(meta) {
   const failed = (last?.checks || []).filter(c => !c.ok);
   return `<div class="modules">
     <div class="card mod"><div class="mtitle">PR set</div><a href="#/prsets">${esc(m.prset.name)}</a> · ${m.prset.prs} PRs<div class="muted small">${esc(m.prset.rule)}</div><div class="muted small">${esc(m.prset.tasks)} at ${esc((m.prset.base || '?').slice(0, 10))} · hash ${esc(m.prset.hash)}</div></div>
-    <div class="card mod"><div class="mtitle">Cache</div><a href="#/cache/${enc(m.cache.name)}">${esc(m.cache.name)}</a> · ${m.cache.notes} notes<div class="muted small">${esc(cacheWhat(m.cache))} by ${esc(m.cache.model)} at ${esc(m.cache.anchor.slice(0, 10))}</div><div class="muted small">notes hash ${esc(m.cache.notes_hash)}</div></div>
+    <div class="card mod"><div class="mtitle">Cache</div>${!m.cache ? '<span class="muted">none: no arm is served notes</span>' : `<a href="#/cache/${enc(m.cache.name)}">${esc(m.cache.name)}</a> · ${m.cache.notes} notes<div class="muted small">${esc(cacheWhat(m.cache))} by ${esc(m.cache.model)} at ${esc(m.cache.anchor.slice(0, 10))}</div><div class="muted small">notes hash ${esc(m.cache.notes_hash)}</div>`}</div>
     <div class="card mod"><div class="mtitle">Arms</div><b>${esc(m.arms.off)}</b> (off) vs <b>${esc(m.arms.on)}</b> (on)${m.arms.extra?.length ? `<div class="muted small">also ${m.arms.extra.map(esc).join(', ')}</div>` : ''}</div>
     <div class="card mod"><div class="mtitle">Agent</div>${esc(m.agent.model)} via ${esc(m.agent.runner)}<div class="muted small">${m.agent.reps} reps · ${m.agent.conc} at a time${m.agent.flags.length ? ' · ' + m.agent.flags.map(f => '--' + esc(f)).join(' ') : ''}</div></div>
     <div class="card mod"><div class="mtitle">Grading</div>${esc(m.grading.summary)}</div>
@@ -751,7 +751,7 @@ async function pageNew() {
       <dl class="kv">
         <dt>Question</dt><dd>${esc(req.question)} <span class="pill kind">${esc(req.kind)}</span></dd>
         <dt>PR set</dt><dd>${esc(m.prset.name)} · ${m.prset.prs} PRs from ${esc(m.prset.tasks)} at ${esc((m.prset.base || '?').slice(0, 10))} — ${esc(m.prset.rule)}</dd>
-        <dt>Cache</dt><dd>${esc(m.cache.name)} · ${m.cache.notes} notes, ${esc(cacheWhat(m.cache))}, by ${esc(m.cache.model)} at ${esc(m.cache.anchor.slice(0, 10))}</dd>
+        <dt>Cache</dt><dd>${!m.cache ? 'none: no arm is served notes' : `${esc(m.cache.name)} · ${m.cache.notes} notes, ${esc(cacheWhat(m.cache))}, by ${esc(m.cache.model)} at ${esc(m.cache.anchor.slice(0, 10))}`}</dd>
         <dt>Arms</dt><dd><b>${esc(m.arms.off)}</b> (cache off) against <b>${esc(m.arms.on)}</b> (cache on)${m.arms.extra.length ? `, plus ${m.arms.extra.map(esc).join(', ')}` : ''}</dd>
         <dt>Agent</dt><dd>${esc(p.model)} via ${esc(p.runner)} · ${p.reps} reps · ${p.conc} at a time</dd>
         <dt>Sessions</dt><dd>${m.prset.prs} PRs × ${p.arms.length} arms × ${p.reps} reps = ${p.expected.length}${p.resumed ? ` · <b>${p.resumed} already on disk, skipped</b>` : ''}</dd>

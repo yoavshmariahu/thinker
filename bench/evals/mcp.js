@@ -86,7 +86,7 @@ const launchShape = {
   question: z.string().describe('What the experiment tests, as a question'),
   kind: z.enum(['behavior', 'model']).describe('behavior: a cache feature, prompt or wiring; model: how one model does with the cache'),
   prset: z.string().describe('PR set module: which PRs, at which base (list_pr_sets; create_pr_set to make one)'),
-  cache: z.string().describe('Cache module: the cache the cache-on arm is served, mined or understanding (list_caches; plan_cache/build_cache to build one). It must be built by the agent\'s model at or before the PR set\'s base.'),
+  cache: z.string().optional().describe('Cache module: the cache the cache-on arm is served, mined or understanding (list_caches; plan_cache/build_cache to build one). It must be built by the agent\'s model at or before the PR set\'s base. Left out only when no arm is served notes (the cache off against a defined arm such as another tool).'),
   runner: z.enum(['claude', 'codex', 'gemini']).describe('Agent module: which harness runs the agent (bench/run.js, codex-run.js or gemini-run.js)'),
   model: z.string().describe('Agent model, e.g. sonnet, opus, gpt-6-sol; must be the cache\'s mining model'),
   off: z.string().optional().describe('Cache-off arm; default nocache'),
@@ -170,6 +170,26 @@ export function buildServer() {
     description: 'Freeze a draft PR set so experiments can run it. From then on it never changes.',
     inputSchema: { name: z.string() },
   }, guard(async a => text(await call('/api/prsets/freeze', a))));
+
+  server.registerTool('list_arms', {
+    description: 'Arms defined as data (define_arm): another tool run as an arm against the cache off — its MCP servers, hooks, system-prompt text, env, the command run before and after each session — with the hash a plan records.',
+    inputSchema: {}, annotations: { readOnlyHint: true },
+  }, guard(async () => text(await call('/api/arms'))));
+
+  server.registerTool('define_arm', {
+    description: 'Define (or redefine) an arm as data, kept in the evals database, for the Claude Code runner. `{cwd}` in any string is the session\'s worktree. Name it in an experiment\'s on/extra arms; a plan records its whole definition. A tool that is not thinker sets notes: false, and an experiment with no arm served notes takes no cache.',
+    inputSchema: {
+      name: z.string().describe('Arm name, e.g. vexp; never one of the runners\' own arms'), description: z.string(),
+      notes: z.boolean().describe("true when the arm is served thinker's notes"),
+      mcpServers: z.record(z.string(), z.any()).optional().describe('Claude Code --mcp-config mcpServers'),
+      hooks: z.record(z.string(), z.any()).optional().describe('Claude Code settings hooks'),
+      system: z.string().optional().describe('Text appended to the system prompt (the tool\'s own agent instructions)'),
+      env: z.record(z.string(), z.string()).optional().describe('Env for the agent and the before/after commands'),
+      before: z.object({ command: z.array(z.string()), failIf: z.string().optional(), timeoutMs: z.number().optional() }).optional().describe('Run in the worktree before each session (e.g. an index build); failIf: a pattern over its output that fails the session'),
+      after: z.object({ command: z.array(z.string()), timeoutMs: z.number().optional() }).optional().describe('Run in the worktree after each session'),
+      exclude: z.array(z.string()).optional().describe('Paths kept out of the graded diff (the tool\'s index directory)'),
+    },
+  }, guard(async a => text(await call('/api/arms', a))));
 
   server.registerTool('list_caches', {
     description: 'Cache modules: caches built by mining (anchor commit, mining model, notes, status) and which PR sets each passes the checks for.',

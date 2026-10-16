@@ -28,6 +28,8 @@ cache off and with it on, to test one **behavior** (a cache feature, prompt, wir
 | **PR set** (`prsets.js`): PRs from one task set, the rule they were chosen by, frozen with a hash | database | the checkout is at the task set's base; no PR's fix is merged in it; no PR's tests need functions only its merged patch defines (`testNeedsGoldSymbols`) |
 | **Cache** (`caches.js`, `build-cache.js`): built by the product, mined (`mine-prs --git`) or read from the most changed code (`understand`), then `phrase`, `relink`, in a shallow checkout cut at an anchor commit, by a named model, then every note exported whole (`export`) | receipt in the database; `bench/caches/<name>/repo/` (the snapshot), `notes/` (what arms are served) and `build.log` on disk, not checked in | built; not empty; every note `source.type: pr`; notes unchanged since the build (hash); same repository; anchor at or before the base; no PR's fix reachable from the anchor; mined by the agent's model |
 | **Arms** | experiment | cache off and cache on differ |
+
+An arm can also be **defined as data** (`arms.js`, the `arms` table; `define_arm`): another tool's MCP servers, hooks, system-prompt text and env, a command run in the worktree before and after each session, and paths kept out of the graded diff, for the Claude Code runner (`run.js --arm-defs`). The plan records each definition whole. When no arm is served thinker's notes the experiment has no cache module.
 | **Agent**: runner, model, reps, concurrency, switches | experiment | the model is the cache's building model |
 | **Grading**: the PRs' tests, or a named judge | experiment | a judge is named when any PR lacks tests |
 
