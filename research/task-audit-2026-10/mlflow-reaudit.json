@@ -1,0 +1,79 @@
+[
+  {
+    "task": "PR26267-hard",
+    "class": "inferable",
+    "hidden": [],
+    "inferable": [
+      {
+        "test": "tests/server/test_server_info_api.py::test_server_info_is_public_when_basic_auth_is_on: `assert auth.is_unprotected_route(path)` and `assert auth.is_unprotected_route(f\"{prefix}{path}\")` for both server-info paths",
+        "precedent": "The request says the endpoint must be public without authentication, including under a static prefix, but never names is_unprotected_route. At base, server-info is only exempt from authorization (_PUBLIC_ROUTE_SUFFIXES), not from authentication, and is_unprotected_route / _UNPROTECTED_PATH_PREFIXES (mlflow/server/auth/__init__.py) is the one mechanism that skips authentication in both _before_request and fastapi_permission_middleware. It already handles /health with and without the static prefix through _add_static_prefix. A different design, such as skipping auth in the FastAPI middleware with a _PUBLIC_ROUTE_SUFFIXES check, would pass the HTTP assertions but fail these direct helper assertions."
+      },
+      {
+        "test": "tests/server/auth/test_authorization_coverage.py::test_no_ungated_fastapi_native_routes (server_info_router added to the iterated routers, plus a new _PUBLIC_ROUTE_SUFFIXES exemption)",
+        "precedent": "server_info_router is named in the request details. The helpers the test uses (_matches_route_suffix, _strip_static_prefix, _PUBLIC_ROUTE_SUFFIXES) exist at base. Routes pass if they are public suffixes or unprotected (/health)."
+      }
+    ],
+    "notes": "STATED: the FastAPI JSON equals the Flask JSON on both paths, with and without the /mlflow prefix; /health and /mlflow/health return 'OK'; on MlflowException the response uses get_http_status_code() and response.text == serialize_as_json(), as stated in the details; server-info and /health respond within 2s while the default anyio limiter is held (the request asks for dedicated capacity, and the details cover health); server_info_router lives in mlflow.server.fastapi_app; build_server_info_payload() lives in mlflow.server.server_info_api. Because the test monkeypatches the function at module path, the route must look it up through that module's global, which the details state ('tests replace that function'). The edit to test_fastapi_app.py (/health -> /version) only loosens an existing test; /version is still served by the Flask mount. Check whether the borderline item should count as hidden: the direct is_unprotected_route assertion pins a helper the request never names."
+  },
+  {
+    "task": "PR26270-hard",
+    "class": "clean",
+    "hidden": [],
+    "inferable": [],
+    "notes": "Gemini parallel test (one chunk, then split across chunks): indices 0,1 continuing across chunks, which the request states. Per-candidate test: {0:[0,1],1:[0,1,2]}, stated in the details (numbering per candidate, choice index is list position when there is no index field). API-index test: the choice index comes from the candidate's 'index' field, stated in the details. Arguments are json.dumps of the args, as at base. LiteLLM test: indices [0,1,1,0] preserved from the chunk's tc.index, and arguments merge per index, both stated. A chunk with name/id None is already handled by the base code (getattr with None)."
+  },
+  {
+    "task": "PR26307-hard",
+    "class": "inferable",
+    "hidden": [],
+    "inferable": [
+      {
+        "test": "test_lazy_span_shallow_copy: `copied_lazy.__dict__[\"_materialized\"] is False` after copy.copy, then True after `.inputs`",
+        "precedent": "The request covers shallow copy only for immutable spans and live spans; it does not mention shallow copy of a lazy span. The lazy-until-access design of LazySpan (__init__ sets _materialized False; _ensure_materialized) makes keeping it unmaterialized the only sensible reading. The _materialized key already exists at base."
+      },
+      {
+        "test": "test_lazy_span_deepcopy_and_pickle_unmaterialized: `lazy_span.__dict__[\"_materialized\"] is False` (the ORIGINAL span after cloning)",
+        "precedent": "The request says the restored span stays unloaded; it says nothing about the original. Materializing the source would undo LazySpan's purpose, and the request's 'no duplicate raw data' points to working from _span_dict."
+      }
+    ],
+    "notes": "STATED: deepcopy and pickle of immutable spans keep to_dict, name, inputs, outputs, ids and attributes; attachments are preserved, copied rather than shared, with the same bytes and content type; a shallow copy shares _span for both immutable and live spans; LiveSpan raises TypeError with the exact deepcopy and pickle messages from the details; NoOpSpan clones keep trace_id; a trace from mlflow.get_trace (lazy spans) clones with its name, inputs and outputs intact. A materialized lazy span clones correctly. Implementers should note that copy.copy goes through __reduce_ex__, so a LiveSpan that refuses pickling needs its own __copy__ for shallow copy to keep working, which the request states. The internals the tests read (_attachments, __dict__['_materialized'], _span) exist at base."
+  },
+  {
+    "task": "PR26311-hard",
+    "class": "hidden",
+    "hidden": [
+      {
+        "test": "tests/data/test_evaluation_dataset.py::test_hash_array_like_obj_as_bytes_with_ragged_nested_arrays_and_missing_rows[None-0] and [nan-0]",
+        "what": "Hashes an object array whose FIRST row is None or NaN and whose other row is a ragged array of dicts. The call must not raise and must equal the hash of data.copy().",
+        "why_not_stated": "The request and details never mention missing (None/NaN) rows. At base this case fails on a different path from the one the request describes. data[0] is None, so the `isinstance(data[0], np.ndarray)` branch is skipped and pd.util.hash_array raises TypeError ('unhashable type: numpy.ndarray'), not the ValueError from the uniform-array conversion. Probing base confirms it: [None-0] and [nan-0] raise TypeError; [*-1] raises ValueError. The most literal fix (catch the ValueError from np.array(data.tolist()) in the ndarray-of-ndarrays branch and fall back to walking items) passes every other test but fails these two."
+      }
+    ],
+    "inferable": [
+      {
+        "test": "test_hash_array_like_obj_as_bytes_with_ragged_nested_arrays[rows_a0-rows_b0] (dict rows split differently must hash differently) and test_from_numpy_with_ragged_nested_targets (eval dataset hashes differ)",
+        "precedent": "The details state split-sensitivity only for the non-dict example, but say the 'same fallback' covers both. Reusing the existing walker _hash_array_of_dict_as_bytes as is would concatenate element hashes and lose row boundaries, so it fails. A careful reader who applies the stated split-sensitivity to the one shared fallback gets this right."
+      },
+      {
+        "test": "test_hash_array_like_obj_as_bytes_with_ragged_nested_arrays_and_missing_rows[None-1] and [nan-1]",
+        "precedent": "The ragged ValueError path is the one the request describes. The existing walker handles a None or NaN element through _hash_data_as_bytes (it returns b'' or a scalar hash), so a natural fallback is deterministic."
+      }
+    ],
+    "notes": "STATED: the HF dataset with variable-length lists of dicts converts, and its hash is consistent; ragged [[1,2],[3]] hashes without error and differs from [[1],[2,3]] (details); repeated hashing is deterministic. The _hash_array_like_obj_as_bytes import is a function that exists at base."
+  },
+  {
+    "task": "PR26442-hard",
+    "class": "inferable",
+    "hidden": [],
+    "inferable": [
+      {
+        "test": "tests/gateway/providers/test_typesafe.py::test_typesafe_api_base_config: model config key `typesafe_api_base` and `custom_provider.base_url == ...`",
+        "precedent": "The request never names the config field. The repository convention is <provider>_api_base: OpenAIConfig.openai_api_base, AnthropicConfig.anthropic_api_base and mosaicml_api_base in mlflow/gateway/config.py. TypeSafeProvider.base_url and TYPESAFE_API_BASE_URL already exist at base, and passthrough already sends base_url=self.base_url to send_request."
+      },
+      {
+        "test": "tests/server/test_gateway_api.py::test_build_endpoint_config_typesafe_reads_api_base_from_auth_config: auth_config={'api_base': ...} -> config.model.config.typesafe_api_base",
+        "precedent": "_build_endpoint_config maps _AuthConfigKey.API_BASE ('api_base') to openai_api_base and anthropic_api_base the same way. The details name the catalog field api_base."
+      }
+    ],
+    "notes": "STATED: the catalog config_fields list is exactly one entry {name: api_base, type: string, description: 'TypeSafe API Base URL (defaults to https://api.typesafe.ai/v1)', required: False}, given verbatim in the details; the default base URL is unchanged; requests forward to the custom base. The UI and docs changes are not tested."
+  }
+]
