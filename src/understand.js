@@ -119,13 +119,16 @@ export async function instanceViews(store, notes, { model = 'haiku', concurrency
 
 // Build the notes: one model call per batch, each note through createNote (pointers resolved and hashed
 // against this checkout), then the instance views. Returns what was read, made and spent.
-export async function understand(store, { top, since, halfLife, areas = [], whole = false, batch, model, concurrency = UNDERSTAND_DEFAULTS.concurrency, dry = false, now = null, completeFn = complete, onProgress = null } = {}) {
+export async function understand(store, { top, since, halfLife, areas = [], whole = false, maxCode = 0, batch, model, concurrency = UNDERSTAND_DEFAULTS.concurrency, dry = false, now = null, completeFn = complete, onProgress = null } = {}) {
   const repo = store.repo;
   if (whole && !areas.length) throw new Error('a whole-directory build names its directories');
   const files = whole ? codeFiles(repo, areas, { skip: filesRead(store), now }) : rankFiles(repo, { top, since, halfLife, areas, now });
-  const batches = batchFiles(repo, files, batch);
-  const plan = { files: files.length, calls: batches.length, codeTokens: batches.reduce((s, b) => s + b.t, 0), areas };
-  if (dry) return { ...plan, files: files, notes: 0 };
+  let batches = batchFiles(repo, files, batch);
+  // a cap on the code read (a build through the session: one subagent's context), the first batches in rank order
+  if (maxCode > 0) { const kept = []; let t = 0; for (const b of batches) { if (kept.length && t + b.t > maxCode) break; kept.push(b); t += b.t; } batches = kept; }
+  const read = [...new Set(batches.flatMap(b => b.files))];
+  const plan = { files: read.length, calls: batches.length, codeTokens: batches.reduce((s, b) => s + b.t, 0), areas };
+  if (dry) return { ...plan, files: read, notes: 0 };
   model ||= store.config().distillModel || DEFAULT_DISTILL_MODEL;
   let next = 0, made = 0, failed = 0, tokens = 0, finished = 0;
   await Promise.all(Array.from({ length: concurrency }, async () => {
@@ -144,6 +147,6 @@ export async function understand(store, { top, since, halfLife, areas = [], whol
   }));
   // one call per note, often more calls than the reading itself (582 against 112 on mlflow): its own progress
   const views = await instanceViews(store, store.list().filter(n => n.source?.type === 'understanding' && !n.searchInstances), { concurrency, completeFn, onProgress: (d, n) => onProgress?.(d, n, 'instance views') });
-  store.log({ op: 'understand', files: files.length, calls: batches.length, failed, saved: made, views, tokens, metered: true, areas, ...(whole ? { whole: true } : {}) });
+  store.log({ op: 'understand', files: read.length, calls: batches.length, failed, saved: made, views, tokens, metered: true, areas, ...(whole ? { whole: true } : {}) });
   return { ...plan, notes: made, failed, views, tokens };
 }

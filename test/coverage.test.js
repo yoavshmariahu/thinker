@@ -146,3 +146,70 @@ test('the tool hook records access for the weekly suggestion', () => {
   const act = directoryActivity(new Store(dir), { now: Date.now() });
   assert.deepEqual(act.dirs.map(d => d.dir), ['src/api']);
 });
+
+test('inside a desktop app, or with no agent CLI signed in, the build reads through the session, capped to one subagent', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-coverage-home-'));
+  const queued = async (client, opts) => {
+    const store = new Store(repo()).init(); activity(store, ['src/api/a.js']); scheduleSuggestion(store, { now: T0, home });
+    let ran = null;
+    const said = await answerCoverage(store, 'src/api', { client, home, now: T0, spawnFn: (bin, args, o) => { ran = { args, o }; return { pid: 999999, unref() {} }; }, ...opts });
+    return { store, said, ran };
+  };
+  // in Claude Desktop: the app's session, even with a CLI signed in (its login is not even checked)
+  let checked = false;
+  const app = await queued('claude-code', { appFn: h => h === 'claude' ? 'Claude Desktop' : null, selectAgentFn: async () => { checked = true; return { ok: true, agent: 'claude' }; } });
+  assert.equal(checked, false);
+  assert.match(app.said, /runs in Claude Desktop, so the build reads through it/);
+  assert.match(app.said, /run_in_background/, 'the agent is told to start a background subagent');
+  assert.match(app.said, /warmup_next/, 'and given the prompt that works the queue');
+  const a = app.ran.args;
+  assert.deepEqual(a.slice(1, 5), ['understand', '--areas', 'src/api', '--whole']);
+  assert.equal(a[a.indexOf('--max-code') + 1], String(COVERAGE.sessionCode));
+  assert.equal(a[a.indexOf('--batch') + 1], String(COVERAGE.sessionBatch));
+  assert.equal(app.ran.o.env.THINKER_LLM, 'session');
+  assert.equal(app.ran.o.env.THINKER_SESSION_QUEUE, path.join(app.store.dir, 'state', 'session-llm'));
+  // no CLI signed in, in a client that starts subagents: the session too
+  const nologin = await queued('codex-mcp-client', { appFn: () => null, selectAgentFn: async () => ({ ok: false, agent: 'codex', error: 'unauthenticated' }) });
+  assert.match(nologin.said, /No agent CLI is signed in on this machine, so the build reads through this session/);
+  assert.match(nologin.said, /spawn_agent/);
+  assert.equal(nologin.ran.o.env.THINKER_LLM, 'session');
+  // a session build already running (a warm-up): nothing more is queued over it
+  const busy = new Store(repo()).init(); activity(busy, ['src/api/a.js']); scheduleSuggestion(busy, { now: T0, home });
+  fs.mkdirSync(path.join(busy.dir, 'state', 'session-llm'), { recursive: true });
+  fs.writeFileSync(path.join(busy.dir, 'state', 'session-llm', 'build.json'), JSON.stringify({ pid: process.pid }));
+  const refused = await answerCoverage(busy, 'src/api', { client: 'claude-code', home, now: T0, appFn: () => 'Claude Desktop', spawnFn: () => { throw new Error('must not spawn'); } });
+  assert.match(refused, /another build already reads through this session/);
+});
+
+test('coverage suggestions are off until a repository turns them on (a new strategy waits for its experiment)', async () => {
+  const { maintainConfig, maintain } = await import('../src/maintain.js');
+  const store = new Store(repo()).init();
+  assert.equal(maintainConfig(store).coverage, false);
+  let asked = 0;
+  await maintain(store, store.repo, { fns: { coverage: () => { asked++; return null; } } });
+  assert.equal(asked, 0, 'off by default');
+  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ ...store.config(), maintain: { coverage: true } }));
+  fs.rmSync(path.join(store.dir, 'state', 'maintain.json'), { force: true });
+  await maintain(store, store.repo, { fns: { coverage: () => { asked++; return null; } } });
+  assert.equal(asked, 1, 'on when the config says so');
+});
+
+test('a cache of understanding notes is warm: no warm-up offer', async () => {
+  const { isWarm, warmupPending, WARM_UNDERSTOOD } = await import('../src/repo-onboard.js');
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-coverage-home-'));
+  const store = new Store(repo()).init();
+  assert.equal(isWarm(store), false);
+  for (let i = 0; i < WARM_UNDERSTOOD; i++) createNote(store, { title: `how part ${i} of the api works`, kind: 'map', answers: [`how does part ${i} work`], body: `src/api/a.js:a part ${i} of ${'x'.repeat(i)}`, deps: [{ path: 'src/api/a.js', symbol: 'a' }] }, { source: { type: 'understanding', ref: 'src/api/a.js' } });
+  assert.equal(isWarm(store), true);
+  assert.equal(warmupPending(store, { home }), false);
+});
+
+test('a capped build reads the first batches in rank order and reports only what it read', async () => {
+  const { understand } = await import('../src/understand.js');
+  const store = new Store(repo()).init();
+  const all = await understand(store, { areas: ['src/api'], whole: true, dry: true, batch: 1 });
+  const capped = await understand(store, { areas: ['src/api'], whole: true, dry: true, batch: 1, maxCode: 1 });
+  assert.equal(all.files.length, 4);
+  assert.deepEqual(capped.files, [all.files[0]], 'at least one batch, then the cap');
+  assert.equal(capped.calls, 1);
+});
