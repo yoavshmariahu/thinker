@@ -10,7 +10,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store, repoId } from '../src/store.js';
-import { WARM_MINED, minedCount, answerWarmup, warmupPending, warmupNever, desktopApp } from '../src/repo-onboard.js';
+import { WARM_MINED, WARMUP_STALL_MS, minedCount, answerWarmup, warmupPending, warmupNever, warmupRetryDue, desktopApp } from '../src/repo-onboard.js';
 import { createNote } from '../src/ops.js';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
@@ -92,6 +92,53 @@ test('a cold cache, notes from sessions and no history read, is offered a warm-u
   assert.match(out, /`warmup` tool with choice/);
   assert.equal(ops(dir).find(e => e.op === 'warmup-offer').notes, 3);
   assert.equal(hook(dir, 'prompt', { session_id: 'k2', prompt: 'another unrelated question about billing' }).trim(), '', 'once');
+});
+
+test('a warm-up the person asked for that did not work is offered once more; a second failure, a no, or a running one is not', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-onboard-retry-home-'));
+  const ask = (dir, session) => execFileSync('node', [CLI, 'hook', 'prompt', '--client', 'claude', '--repo', dir], { input: JSON.stringify({ session_id: session, prompt: 'where does fetchRows read the rows from' }), encoding: 'utf8', env: { ...env, THINKER_HOME: home } });
+  const attempted = st => { fs.mkdirSync(path.join(st.dir, 'state'), { recursive: true }); fs.writeFileSync(path.join(st.dir, 'state', 'warmup.log'), 'x\n'); };
+  const notSignedIn = { client: 'claude-ai', home, appFn: () => null, selectAgentFn: async () => ({ ok: false, agent: 'claude', error: 'unauthenticated' }), spawnFn: () => {} };
+  // offered, said warm, and the warm-up could not start: the next prompt asks again, saying why
+  const dir = gitRepo(8);
+  assert.match(ask(dir, 'r1'), /<thinker-new-repository>/);
+  const store = new Store(dir);
+  await answerWarmup(store, 'warm', notSignedIn);
+  assert.ok(!warmupPending(store, { home }));
+  assert.deepEqual(ops(dir).filter(e => e.op === 'warmup-issue').map(e => [e.stage, e.reason, e.client]), [['start', 'unauthenticated', 'claude-ai']], 'the issue is recorded on the machine');
+  const again = ask(dir, 'r2');
+  assert.match(again, /<thinker-new-repository>/);
+  assert.match(again, /asked for earlier did not finish \(it could not start: unauthenticated\)/);
+  assert.match(again, /AskUserQuestion/);
+  assert.deepEqual(ops(dir).filter(e => e.op === 'warmup-offer').map(e => Boolean(e.retry)), [false, true]);
+  assert.ok(warmupPending(store, { home }), 'the earlier answer is cleared: the picker tool is offered again');
+  // it fails again: not asked a third time
+  await answerWarmup(store, 'warm', notSignedIn);
+  assert.equal(ask(dir, 'r3').trim(), '');
+  // a build that failed is asked about; one that answered no after it is not
+  const failed = new Store(gitRepo(8)).init();
+  failed.log({ op: 'warmup-start', source: 'git' }); failed.log({ op: 'warmup-done', ok: false, notes: 0, mined: 0, reason: 'incomplete' });
+  attempted(failed);
+  assert.equal(warmupRetryDue(failed, { home }), 'it failed: incomplete');
+  await answerWarmup(failed, 'no', { client: 'claude', home });
+  assert.equal(warmupRetryDue(failed, { home }), null);
+  // a build still running is left alone; one that started hours ago and never ended was stopped
+  const running = new Store(gitRepo(8)).init();
+  running.log({ op: 'warmup-start', source: 'git' });
+  attempted(running);
+  assert.equal(warmupRetryDue(running, { home }), null);
+  assert.match(warmupRetryDue(running, { home, now: Date.now() + WARMUP_STALL_MS + 60_000 }), /stopped/);
+  assert.match(warmupRetryDue(running, { home, now: Date.now() + WARMUP_STALL_MS + 60_000 }), /stopped/);
+  assert.deepEqual(ops(running.repo).filter(e => e.op === 'warmup-issue').map(e => [e.stage, e.reason]), [['stalled', 'no-end']], 'a stall is recorded once');
+  // finished: settled, and the log is not read again until a newer attempt
+  const done = new Store(gitRepo(8)).init();
+  done.log({ op: 'warmup-start', source: 'git' }); done.log({ op: 'warmup-done', ok: true, notes: 4, mined: 3 });
+  attempted(done);
+  assert.equal(warmupRetryDue(done, { home }), null);
+  assert.ok(fs.existsSync(path.join(done.dir, 'state', 'warmup-retry-checked')));
+  // never on this machine: nothing
+  fs.writeFileSync(path.join(home, 'state', 'warmup-never'), 'x\n');
+  assert.equal(warmupRetryDue(running, { home, now: Date.now() + WARMUP_STALL_MS + 60_000 }), null);
 });
 
 test('Cursor gets its always-on rule, kept out of git status', () => {

@@ -13,6 +13,7 @@ import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store, repoId } from './store.js';
+import { readLog } from './usage.js';
 import { thinkerHome } from './update.js';
 import { installGitHooks, mainCheckout } from './git-hooks.js';
 import { trustCodex, installCursorRule } from './clients.js';
@@ -114,11 +115,18 @@ export function warmupOffer(store, { client, home } = {}) {
   if (['windsurf'].includes(client)) return '';
   store = offerStore(store);
   if (!store) return '';
-  const est = warmupDue(store, { home });
-  if (!est || !markOffered(store, est, { client, home })) return '';
+  let est = warmupDue(store, { home }), failed = null;
+  if (est) { if (!markOffered(store, est, { client, home })) return ''; }
+  else {
+    failed = warmupRetryDue(store, { home });
+    est = failed && warmupEstimate(store);
+    if (!est || !markRetried(store, est, failed, { client, home })) return '';
+  }
   const notes = store.list().length;
   const what = est.mineSource === 'github' ? 'merged pull requests' : 'commit history';
-  const state = notes
+  const state = failed
+    ? `The warm-up of thinker's cache for this repository that the user asked for earlier did not finish (${failed}), so the cache is still cold${notes ? `: it holds ${notes} note${notes === 1 ? '' : 's'} from sessions and has not read the repository's history` : ' and empty'}. Say so in the question, and that it can be tried again now`
+    : notes
     ? `thinker's cache for this repository is cold: it holds ${notes} note${notes === 1 ? '' : 's'} from sessions and has not read the repository's history yet, so most requests find nothing in it`
     : `thinker's cache for this repository is new and empty. Every git repository has one; it grows from your sessions`;
   const lead = `${state}. This repository has ${what} it could be warmed up from, about ${formatDuration(est.timing.totalSeconds)} through the user's own login.`;
@@ -131,8 +139,61 @@ function warmupDue(store, { home } = {}) {
   if (warmupNever(home) || fs.existsSync(mark(store, 'warmup-answered'))) return null;
   if (fs.existsSync(mark(store, 'warmup-suggested')) || minedCount(store) >= WARM_MINED) return null;
   if (!offeredOnce(store.repo, home, { peek: true })) return null;
+  return warmupEstimate(store);
+}
+function warmupEstimate(store) {
   let est; try { est = estimateCacheBuild(store.repo, { prs: DEFAULT_PRS, slug: githubSlug(store.repo), fileCount: 0 }); } catch { return null; }
   return est.canMine ? est : null;
+}
+
+// A warm-up the person asked for that did not work: the cache's last warm-up attempt said warm but could not
+// start, failed (commands/setup.js logs warmup-done with ok false), or started and never ended within
+// WARMUP_STALL_MS (stopped, or its process died). 2026-10-16: offers made since 2026-10-14 left such caches
+// cold (sign-in, PATH and session-warm-up problems since fixed), so each is asked once more, once per
+// repository on this machine (THINKER_HOME/state/warmup-retried.json): a second failure is not asked about
+// again. A later no or never, a warm cache, or a machine that said never has none. Returns what went wrong.
+export const WARMUP_STALL_MS = 6 * 3600_000;
+// The machine's log is read only for a cache with an answered offer or a warm-up's output, and not again
+// after a check that settled on nothing until a newer answer or warm-up (warmup-retry-checked): the hooks
+// ask on every prompt and the log runs to megabytes.
+export function warmupRetryDue(store, { home, now = Date.now() } = {}) {
+  if (warmupNever(home) || retried(store.repo, home)) return null;
+  const since = f => { try { return fs.statSync(mark(store, f)).mtimeMs; } catch { return 0; } };
+  const attempt = Math.max(since('warmup-answered'), since('warmup.log'));
+  if (!attempt || since('warmup-retry-checked') >= attempt) return null;
+  if (minedCount(store) >= WARM_MINED) return null;
+  let last = null;
+  for (const e of readLog(store)) {
+    if (e.op === 'warmup-answer') last = e.choice === 'warm' ? (e.started === false ? { failed: `it could not start: ${e.reason || 'no agent'}` } : { t: e.t }) : e.choice === 'dismissed' ? last : null;
+    else if (e.op === 'warmup-start') last = { t: e.t };
+    else if (e.op === 'warmup-done') last = e.ok ? null : { failed: `it failed: ${e.reason || 'error'}` };
+  }
+  if (last?.failed) return last.failed;
+  if (last && now - Date.parse(last.t) > WARMUP_STALL_MS) {
+    const seen = mark(store, 'warmup-stalled');
+    let at = ''; try { at = fs.readFileSync(seen, 'utf8').trim(); } catch {}
+    if (at !== last.t) { logWarmupIssue(store, 'stalled', 'no-end', { detail: `started ${last.t}` }); fs.mkdirSync(path.dirname(seen), { recursive: true }); fs.writeFileSync(seen, last.t + '\n'); }
+    return 'it was stopped or its process ended before it finished';
+  }
+  if (!last) once(store, 'warmup-retry-checked') || fs.utimesSync(mark(store, 'warmup-retry-checked'), new Date(now), new Date(now));
+  return null;   // a warm-up still within WARMUP_STALL_MS is checked again on a later prompt
+}
+const retriedFile = (home = thinkerHome()) => path.join(home, 'state', 'warmup-retried.json');
+function retried(repo, home) {
+  try { return Boolean(JSON.parse(fs.readFileSync(retriedFile(home), 'utf8'))[repoId(repo)]); } catch { return false; }
+}
+// The second offer made: the earlier answer is cleared so the new one is taken (and thinker's picker tool is
+// offered again, warmupPending), and the repository is recorded so it is not asked a third time.
+function markRetried(store, est, failed, { client, home } = {}) {
+  const file = retriedFile(home);
+  let done = {}; try { done = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
+  const id = repoId(store.repo);
+  if (done[id]) return false;
+  done[id] = new Date().toISOString();
+  fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, JSON.stringify(done, null, 2) + '\n');
+  fs.rmSync(mark(store, 'warmup-answered'), { force: true });
+  store.log({ op: 'warmup-offer', client, source: est.mineSource, seconds: est.timing.totalSeconds, notes: store.list().length, retry: true });
+  return true;
 }
 // The offer made: once per cache and once per repository on this machine, logged for the telemetry.
 function markOffered(store, est, { client, home } = {}) {
@@ -168,6 +229,17 @@ function askText(client, repo, duration) {
 // "Don't ask again": no warm-up offer in any repository on this machine, THINKER_HOME/state/warmup-never.
 const neverFile = (home = thinkerHome()) => path.join(home, 'state', 'warmup-never');
 export const warmupNever = home => fs.existsSync(neverFile(home));
+
+// A warm-up that went wrong, recorded where it happened, in the machine's log: `start` (asked for, could not
+// start), `build` (started and failed, commands/setup.js), `stalled` (started and never ended, found by
+// warmupRetryDue). `reason` is a short code and goes into the telemetry (telemetry.js:warmupMetrics);
+// `detail`, an error's own words, stays on this machine.
+export const warmupIssueReason = reason => typeof reason === 'string' && /^[a-z_-]{1,32}$/.test(reason) ? reason : (reason ? 'other' : 'unknown');
+export function logWarmupIssue(store, stage, reason, { detail, client } = {}) {
+  const code = warmupIssueReason(reason);
+  const said = detail || (code !== reason ? reason : null);
+  store.log({ op: 'warmup-issue', stage, reason: code, ...(said ? { detail: String(said).slice(0, 300) } : {}), ...(client ? { client } : {}) });
+}
 
 // Whether thinker's `warmup` MCP tool is worth offering in a session (mcp.js): an offer may be waiting for
 // its answer in this repository. A cache that answered, a warm one, or a machine that said never has none.
@@ -224,12 +296,14 @@ export async function answerWarmup(store, choice, { client, via = 'picker', home
   if (app || (!auth?.ok && harness)) {
     const r = startSessionWarmup(store, { spawnFn });
     store.log({ op: 'warmup-answer', choice: value, client, via, started: !r.error, agent: 'session', ...(app ? { app } : {}), ...(r.error ? { reason: r.error } : {}) });
+    if (r.error) logWarmupIssue(store, 'start', 'session-spawn', { detail: r.error, client });
     if (r.error) return `The warm-up did not start (${r.error}). The user can run \`thinker warmup\` in this repository. Go on with the task.`;
     const why = app ? `This session runs in ${app}, so the warm-up reads through it` : `No agent CLI is signed in on this machine${auth?.agent ? ` (${auth.agent})` : ''}, so the warm-up reads through this session`;
     return `${why}: it started in the background and waits for a subagent to answer its model calls (about ${SESSION_PRS} merged pull requests; output in ${path.relative(store.repo, r.logFile)}). Start one now with ${SUBAGENT_TOOLS[harness]}, and do not wait for it: give it exactly the prompt below. Tell the user in one line that the warm-up runs in a background subagent of this session, then go on with the task.\n\n${subagentPrompt(store.repo)}`;
   }
   if (!auth?.ok) {
     store.log({ op: 'warmup-answer', choice: value, client, via, started: false, reason: auth?.error || 'no agent' });
+    logWarmupIssue(store, 'start', auth?.error || 'no_agent', { client });
     const why = auth?.error === 'no_agent' ? 'no agent CLI that thinker reads through is installed (Claude Code, Gemini, Codex or Cursor)'
       : auth?.agent ? `${auth.agent} is not signed in` : 'no signed-in agent was found';
     return `The warm-up did not start: ${why}. Tell the user, and that once ${auth?.agent ? `they sign in (\`${getAgentLoginCommand(auth.agent)}\`)` : 'one is set up'}, \`thinker warmup\` in this repository warms it up. Go on with the task.`;
@@ -242,6 +316,7 @@ export async function answerWarmup(store, choice, { client, via = 'picker', home
     p.unref?.(); fs.closeSync(fd);
   } catch (e) {
     store.log({ op: 'warmup-answer', choice: value, client, via, started: false, reason: e.message.slice(0, 120) });
+    logWarmupIssue(store, 'start', 'spawn', { detail: e.message, client });
     return `The warm-up did not start (${e.message}). The user can run \`thinker warmup\` in this repository. Go on with the task.`;
   }
   store.log({ op: 'warmup-answer', choice: value, client, via, started: true, agent: auth.agent });

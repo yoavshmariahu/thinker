@@ -16,7 +16,7 @@ import { githubSlug } from './shared.js';
 import { minePrs } from './learn.js';
 import { readLog } from '../usage.js';
 import { isTestMode } from '../test-mode.js';
-import { minedCount } from '../repo-onboard.js';
+import { minedCount, logWarmupIssue } from '../repo-onboard.js';
 
 async function initCommand(ctx) {
   // `init` and `setup` were two ways to set a repository up, and the difference was never clear.
@@ -361,7 +361,7 @@ export async function setup(ctx, { runSetupFn = runSetup } = {}) {
   // setup can still skip or fail its build, so use its result rather than the process's exit code.
   let started = false, result;
   const onBuildStart = () => { started = true; store.log({ op: 'warmup-start', depth: depth || undefined, source: slug ? 'github' : 'git' }); };
-  const ended = (ok, reason) => { if (started) { let notes = null, mined = null; try { notes = store.list().length; mined = minedCount(store); } catch {} store.log({ op: 'warmup-done', ok, notes, mined, ...(reason ? { reason } : {}) }); } };
+  const ended = (ok, reason, detail) => { if (started) { let notes = null, mined = null; try { notes = store.list().length; mined = minedCount(store); } catch {} store.log({ op: 'warmup-done', ok, notes, mined, ...(reason ? { reason } : {}) }); if (!ok) logWarmupIssue(store, 'build', reason, { detail }); } };
   try { result = await runSetupFn({
     repo,
     store,
@@ -395,9 +395,11 @@ export async function setup(ctx, { runSetupFn = runSetup } = {}) {
     // the local page opens after a repository's first setup, except under tests (a bare `node --test` sets only
     // NODE_TEST_CONTEXT), thinker's own model runs, CI, and --no-ui
     dashboard: !flags['no-ui'] && !isTestMode() && !process.env.NODE_TEST_CONTEXT && !process.env.THINKER_IN_LLM && !process.env.CI,
-  }); } catch (e) { ended(false, 'error'); throw e; }
+  }); } catch (e) { ended(false, 'error', e?.message); throw e; }
   const ok = result?.built === true && !result.error && !result.warnings;
-  ended(ok, result?.error || (result?.warnings ? 'incomplete' : !result?.built ? 'not-built' : null));
+  ended(ok, result?.error || (result?.warnings ? 'incomplete' : !result?.built ? 'not-built' : null), result?.warnings ? `${result.warnings} warning${result.warnings === 1 ? '' : 's'}` : null);
+  // asked to build, and the build never began: no agent signed in to read through (src/setup.js:runSetup)
+  if (!started && build !== false && result?.error && result.error !== 'cancelled') logWarmupIssue(store, 'start', result.error);
   if (started && !ok) process.exitCode = 1;
   return result;
 }
