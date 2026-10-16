@@ -487,3 +487,19 @@ test('a running experiment shows each session live, read from the transcript its
     assert.deepEqual(liveSessions(bench, { runner: 'codex', repo: 'click', tag: 't' }), [], 'Codex writes its sessions at the end');
   } finally { process.env.HOME = was; }
 });
+
+test('snapshots go to the S3 location in the evals config, the environment overriding it', async () => {
+  const { s3Uri } = await import('../bench/evals/snapshot.js');
+  const cfg = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'evals-cfg-')), 'config.json');
+  const was = process.env.EVALS_S3_URI;
+  delete process.env.EVALS_S3_URI;
+  try {
+    assert.equal(s3Uri(cfg), null, 'no config: local snapshots only');
+    fs.writeFileSync(cfg, JSON.stringify({ s3: 's3://bucket-x/evals' }));
+    assert.equal(s3Uri(cfg), 's3://bucket-x/evals');
+    fs.writeFileSync(cfg, JSON.stringify({ s3: 'http://not-s3' }));
+    assert.equal(s3Uri(cfg), null, 'anything but an s3:// location is ignored');
+    process.env.EVALS_S3_URI = 's3://from-env/p';
+    assert.equal(s3Uri(cfg), 's3://from-env/p');
+  } finally { if (was) process.env.EVALS_S3_URI = was; else delete process.env.EVALS_S3_URI; }
+});
