@@ -260,7 +260,14 @@ export async function orient(store, { task, file, session, client, budget = HOOK
   // THINKER_DENSE=minilm (dense.js, experiment): cosine scores of the request against every note, blended in
   let dense = null;
   if (denseEnabled()) { try { dense = await denseScores(notes, task + (file ? ' ' + file : '')); } catch (e) { store.log({ op: 'dense-error', error: String(e.message).slice(0, 200) }); } }
-  let ranked = rank(notes, { query: task, file: normPath(store.repo, file), mode: 'orient', minBody: maxNotes > 2 ? MIN_COVER.agentBody : undefined, dense });
+  // the understanding pool (dense.js:UNDERSTANDING_POOL), when on, is ranked on its own: the lexical gate weighs a
+  // word by how many notes hold it, so ranked together the understanding notes would change which other notes pass
+  const ceCfg = ceConfig(store);
+  const pooled = ceCfg.enabled && ceCfg.understanding?.enabled && maxNotes <= 2;
+  const isUnderstanding = n => n.source?.type === 'understanding';
+  const rankOf = list => rank(list, { query: task, file: normPath(store.repo, file), mode: 'orient', minBody: maxNotes > 2 ? MIN_COVER.agentBody : undefined, dense });
+  let ranked = rankOf(pooled ? notes.filter(n => !isUnderstanding(n)) : notes);
+  let poolRanked = pooled ? rankOf(notes.filter(isUnderstanding)) : [];
   // Only the candidates are checked against the working tree. Re-hashing every dependency of every note made
   // a prompt linear in the cache: 6 s on 960 notes with the symbol cache cold, 2.8 s warm (2026-10-12), for
   // two served notes. The lexical ranking reads no hashes, so it runs first and the top candidates, more than
@@ -270,17 +277,26 @@ export async function orient(store, { task, file, session, client, budget = HOOK
     const fresh = new Map(refresh(store, ranked.slice(0, REFRESH_CANDIDATES).map(r => r.note)).map(n => [n.id, n]));
     ranked = ranked.map(r => fresh.has(r.note.id) ? { ...r, note: fresh.get(r.note.id) } : r);
   }
+  if (refreshFirst && poolRanked.length) {
+    const fresh = new Map(refresh(store, poolRanked.slice(0, REFRESH_CANDIDATES).map(r => r.note)).map(n => [n.id, n]));
+    poolRanked = poolRanked.map(r => fresh.has(r.note.id) ? { ...r, note: fresh.get(r.note.id) } : r);
+  }
   let chosen = false;
   // THINKER_CE=on (dense.js, experiment): a cross-encoder reads the request with each of the best candidates and
   // keeps those it scores relevant; its choice is final, as a model's is
   let ce = null;
   // the cross-encoder chooses among the hooks' two slots; the agent's own orient keeps the lexical ranking
-  const ceCfg = ceConfig(store);
   let lexical = ranked; // what the lexical ranking held before the cross-encoder: the dropped candidates are still listed by title (`more`)
   // the hooks serve no stale note (freshOnly): the cross-encoder chooses among the fresh candidates, or its one
   // pick could be a stale note and nothing would be served; the stale notes the lexical top would have served
   // are still held below until scheduled maintenance
   const heldByLexical = freshOnly ? ranked.slice(0, maxNotes).filter(r => r.note.status === 'stale').map(r => r.note) : [];
+  // the understanding pool's pick (dense.js:UNDERSTANDING_POOL), when it is on: whatever the other notes hold
+  let understood = [];
+  const pool = (freshOnly ? poolRanked.filter(r => r.note.status !== 'stale') : poolRanked).filter(r => r.score > 0 && (r.rel > 0 || r.aff > 0));
+  if (pooled && pool.length) {
+    try { understood = await ceRerank(pool, task, { ...ceCfg, ...ceCfg.understanding }); } catch (e) { store.log({ op: 'ce-error', error: String(e.message).slice(0, 200) }); }
+  }
   if (ceCfg.enabled && ranked.length && maxNotes <= 2) {
     if (freshOnly) ranked = ranked.filter(r => r.note.status !== 'stale');
     try { ranked = await ceRerank(ranked, task, ceCfg); chosen = true; ce = ranked.map(r => Number(r.ce.toFixed(2))); if (ranked.some(r => r.fallback)) ce.push('fallback'); maxNotes = Math.min(maxNotes, ceCfg.maxNotes || maxNotes); }
@@ -306,7 +322,8 @@ export async function orient(store, { task, file, session, client, budget = HOOK
       }
     }
   }
-  const packed = pack(top, budget, { minRel: 0.35 });
+  if (understood.length) top = [...top, ...understood.slice(0, ceCfg.understanding.maxNotes || 1)];
+  const packed = pack(top, budget + (understood.length ? ceCfg.understanding.budget || 0 : 0), { minRel: 0.35 });
   // relevant notes that were not served, so the caller can name them and the agent can ask for one
   const moreCandidates = lexical.length > ranked.length ? lexical : ranked;
   packed.more = moreCandidates.filter(r => !packed.included.includes(r.note) && r.rel >= 0.35).slice(0, lexical.length > ranked.length ? 3 : 6).map(r => r.note);
@@ -314,7 +331,7 @@ export async function orient(store, { task, file, session, client, budget = HOOK
   // marked served, so a later turn in the same session is held out the same way
   if (holdout) {
     const withheld = packed.included.map(n => n.id);
-    if (recordUsage) store.log({ op: 'orient', session, turn, client: client || 'cli', dense: dense ? 'minilm' : undefined, ce: ce || undefined, task: String(task).slice(0, 200), file, served: [], holdout: true, withheld, durationMs: Date.now() - start });
+    if (recordUsage) store.log({ op: 'orient', session, turn, client: client || 'cli', dense: dense ? 'minilm' : undefined, ce: ce || undefined, understood: understood.length ? understood.map(r => Number(r.ce.toFixed(2))) : undefined, task: String(task).slice(0, 200), file, served: [], holdout: true, withheld, durationMs: Date.now() - start });
     return { text: '', included: [], omitted: [], tokens: 0, holdout: true, withheld: packed.included };
   }
   if (recordUsage) for (const n of packed.included) { n.uses = (n.uses || 0) + 1; n.lastUsed = new Date().toISOString(); if (session) n.servedIn = [...(n.servedIn || []), session].slice(-30); store.put(n); }
@@ -325,7 +342,7 @@ export async function orient(store, { task, file, session, client, budget = HOOK
     try { const g = anchoringGuard(store.repo, String(task), packed.included, { explicitOnly: true, max: 3 }); if (g.text) { packed.text += '\n\n' + g.text; packed.tokens += estTokens(g.text); packed.uncovered = g.uncovered.map(u => u.ident); } } catch {}
   }
   addSnippets(store, packed, budget, snippets);
-  if (recordUsage) store.log({ op: 'orient', session, turn, client: client || 'cli', dense: dense ? 'minilm' : undefined, ce: ce || undefined, task: String(task).slice(0, 200), file, served: packed.included.map(n => n.id), uncovered: packed.uncovered, snippets: packed.snippets?.length || undefined, stale: packed.included.filter(n => n.status === 'stale').map(n => n.id), held: held.length ? held.map(n => n.id) : undefined, durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
+  if (recordUsage) store.log({ op: 'orient', session, turn, client: client || 'cli', dense: dense ? 'minilm' : undefined, ce: ce || undefined, understood: understood.length ? understood.map(r => Number(r.ce.toFixed(2))) : undefined, task: String(task).slice(0, 200), file, served: packed.included.map(n => n.id), uncovered: packed.uncovered, snippets: packed.snippets?.length || undefined, stale: packed.included.filter(n => n.status === 'stale').map(n => n.id), held: held.length ? held.map(n => n.id) : undefined, durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
   return packed;
 }
 
