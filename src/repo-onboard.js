@@ -266,6 +266,9 @@ export function startSessionWarmup(store, { spawnFn = spawn } = {}) {
   } catch (e) { return { error: e.message.slice(0, 120) }; }
 }
 
+// Once started, a warm-up needs nothing from the agent; naming its log invited agents to tail it (2026-10-16).
+const HANDS_OFF = 'It needs nothing more from you. Go on with the task.';
+
 // The person's answer to the offer, from their agent's question tool (`thinker warmup --answer`) or
 // thinker's picker (mcp.js:warmup): warm starts the warm-up detached, through the agent's own login, with
 // its output in the cache's state directory; no leaves the offer made once, as it is; never stops every
@@ -299,7 +302,7 @@ export async function answerWarmup(store, choice, { client, via = 'picker', home
     if (r.error) logWarmupIssue(store, 'start', 'session-spawn', { detail: r.error, client });
     if (r.error) return `The warm-up did not start (${r.error}). The user can run \`thinker warmup\` in this repository. Go on with the task.`;
     const why = app ? `This session runs in ${app}, so the warm-up reads through it` : `No agent CLI is signed in on this machine${auth?.agent ? ` (${auth.agent})` : ''}, so the warm-up reads through this session`;
-    return `${why}: it started in the background and waits for a subagent to answer its model calls (about ${SESSION_PRS} merged pull requests; output in ${path.relative(store.repo, r.logFile)}). Start one now with ${SUBAGENT_TOOLS[harness]}, and do not wait for it: give it exactly the prompt below. If thinker's warmup_next tool is not among this session's tools, start no subagent: tell the user thinker's tools did not load in this session (\`thinker doctor\` shows why) and that the warm-up gives up by itself. Tell the user in one line that the warm-up runs in a background subagent of this session, then go on with the task.\n\n${subagentPrompt(store.repo)}`;
+    return `${why}: it started in the background and waits for a subagent to answer its model calls (about ${SESSION_PRS} merged pull requests). Start one now with ${SUBAGENT_TOOLS[harness]}, in the background, and give it exactly the prompt below. If thinker's warmup_next tool is not among this session's tools, start no subagent and look into nothing: tell the user in one line that thinker's tools did not load in this session (\`thinker doctor\` shows why); the warm-up gives up by itself. ${HANDS_OFF}\n\n${subagentPrompt(store.repo)}`;
   }
   if (!auth?.ok) {
     store.log({ op: 'warmup-answer', choice: value, client, via, started: false, reason: auth?.error || 'no agent' });
@@ -320,5 +323,5 @@ export async function answerWarmup(store, choice, { client, via = 'picker', home
     return `The warm-up did not start (${e.message}). The user can run \`thinker warmup\` in this repository. Go on with the task.`;
   }
   store.log({ op: 'warmup-answer', choice: value, client, via, started: true, agent: auth.agent });
-  return `The warm-up started in the background through ${auth.agent} (output in ${path.relative(store.repo, logFile)}); notes reach the cache as it reads. Go on with the task.`;
+  return `The warm-up started in the background through ${auth.agent}; notes reach the cache as it reads. ${HANDS_OFF}`;
 }
