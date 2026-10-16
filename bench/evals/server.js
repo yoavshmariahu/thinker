@@ -16,6 +16,8 @@ import { armSummary, METRICS } from './stats.js';
 import { readMeta, resolveMeta, writeMeta, compare } from './experiment.js';
 import { catalog, plan, launch, launchCache, cancel, jobsView } from './jobs.js';
 import { listPrsets, createPrset, updatePrset, freezePrset, readPrset, checkPrset } from './prsets.js';
+import { importTaskFiles, importTaskSet, setAcceptance, getTaskSet, listTaskSets, taskSetVersions, tasksetName } from './tasksets.js';
+const summary = s => ({ name: s.name, repo: s.repo, base: s.base, version: s.version, hash: s.hash, tasks: s.tasks.length, unchanged: Boolean(s.unchanged), change: s.change });
 import { listCaches, readReceipt, planCache, checkCache } from './caches.js';
 import { archiveAll, readTranscript, stepStats } from './transcripts.js';
 
@@ -43,6 +45,8 @@ export function createApp({ bench = BENCH, dbFile = DB_FILE, snapshots = true } 
     } catch (e) { console.error('transcript archive failed', e.message); } finally { archiving = false; }
   };
   const scan = (force = false) => { if (scanning) return; scanning = true; try { ingest(db, bench, { force }); lastScan = Date.now(); } finally { scanning = false; } archive(); };
+  // task set files the database does not hold yet are imported once (tasksets.js); the database is read from then on
+  { const t = importTaskFiles(bench, db); if (t.done.length) console.log(`imported task sets: ${t.done.join(', ')}`); for (const f of t.failed) console.error(`task set not imported: ${f}`); }
   scan();
   const timer = setInterval(() => { try { scan(); } catch (e) { console.error('scan failed', e.message); } }, SCAN_MS);
   timer.unref();
@@ -59,7 +63,7 @@ export function createApp({ bench = BENCH, dbFile = DB_FILE, snapshots = true } 
   setTimeout(snapshotDue, 5000).unref();
 
   const rowsOf = (sql, ...p) => db.all(sql, ...p);
-  const info = () => taskInfo(bench);
+  const info = () => taskInfo(bench, db);
   const armsOf = dir => rowsOf('SELECT DISTINCT arm FROM results WHERE run = ?', dir).map(r => r.arm);
   // the comparison of one experiment, cached until its results or its definition change
   const cache = new Map();
@@ -143,7 +147,7 @@ export function createApp({ bench = BENCH, dbFile = DB_FILE, snapshots = true } 
       return { row: r, raw: rest, diff: diff || null, result: result || null, task: info().get(r.task) || null, meta: { name: meta.name, off: meta.off, on: meta.on },
         transcript: t ? { format: t.format, archived: t.archived, bytes: t.bytes, steps: t.steps, flags: t.flags } : null, stats: t ? stepStats(t.steps) : null, partners };
     },
-    'GET /api/prsets': () => ({ prsets: listPrsets(db).map(s => ({ ...s, checks: checkPrset(bench, s) })) }),
+    'GET /api/prsets': () => ({ prsets: listPrsets(db).map(s => ({ ...s, checks: checkPrset(bench, s, db) })) }),
     'POST /api/prsets': body => ({ prset: createPrset(bench, db, body) }),
     'POST /api/prsets/update': body => ({ prset: updatePrset(bench, db, String(body.name || ''), body) }),
     'POST /api/prsets/freeze': body => ({ prset: freezePrset(bench, db, String(body.name || '')) }),
@@ -189,6 +193,16 @@ export function createApp({ bench = BENCH, dbFile = DB_FILE, snapshots = true } 
       return { rows: [...by.values()].map(({ d_in, ...a }) => ({ ...a, d_in_share: d_in.length ? d_in.reduce((x, y) => x + y, 0) / d_in.length : null })) };
     },
     'GET /api/catalog': () => catalog(bench, db),
+    // task sets (tasksets.js): imported from a file or a git ref, versioned; acceptance criteria per task
+    'GET /api/tasksets': () => ({ tasksets: listTaskSets(db).map(s => ({ name: s.name, repo: s.repo, base: s.base, version: s.version, hash: s.hash, from: s.from, change: s.change, tasks: s.tasks.length,
+      with_acceptance: s.tasks.filter(t => t.acceptance?.length).length, prsets: listPrsets(db).filter(p => tasksetName(p.tasks) === s.name).map(p => p.name) })) }),
+    'GET /api/taskset': q => {
+      const s = getTaskSet(db, q.get('name'), { version: q.get('version') || null });
+      if (!s) throw httpError(404, 'no such task set');
+      return { taskset: { ...s, tasks: s.tasks.map(({ goldDiffText, ...t }) => ({ ...t, gold_diff_bytes: goldDiffText?.length ?? null })) }, versions: taskSetVersions(db, s.name) };
+    },
+    'POST /api/tasksets/import': body => ({ taskset: summary(importTaskSet(bench, db, { name: body.name, file: body.file, ref: body.ref, repo: body.repo })) }),
+    'POST /api/taskset/acceptance': body => ({ taskset: summary(setAcceptance(db, String(body.name || ''), String(body.task || ''), body.acceptance)) }),
     'GET /api/jobs': () => ({ jobs: jobsView(db, bench) }),
     'POST /api/plan': body => plan(body, { benchDir: bench, db }),
     'POST /api/launch': body => {
