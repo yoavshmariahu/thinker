@@ -286,7 +286,7 @@ export async function provision({ call = api, config = state, persist = save, re
       description: 'What the cache serves, how fresh its notes are, and how often a re-verification pass was later doubted. Latest snapshot per device; each card names its window.' })).id;
     save();
   }
-  if (state.cacheDashboardVersion !== 2) {
+  if (state.cacheDashboardVersion !== 3) {
     const cards = [{ id: -1, card_id: null, row: 0, col: 0, size_x: 24, size_y: 4,
       visualization_settings: { virtual_card: { display: 'text' }, text: '## Is the cache serving current, trustworthy notes?\nEach card reads the latest snapshot per known device (installation fallback). Retrieval and assessment cards cover that snapshot\'s 24 hours; verification cards cover 30 days; note status and confidence are the notes at upload time.\n**Doubted passes are a lower bound:** a wrong verification pass is only seen when a session or a person later contradicts or corrects the note. Clients before the verification block show no value, not zero.' } }];
     let row = 8, col = 0;
@@ -298,7 +298,7 @@ export async function provision({ call = api, config = state, persist = save, re
       if (q.fullWidth || col) { row += 8; col = 0; } else col = 12;
     });
     await api(`/dashboard/${state.cacheId}`, 'PUT', { parameters, dashcards: cards });
-    state.cacheDashboardVersion = 2; save();
+    state.cacheDashboardVersion = 3; save();
   } else {
     const dashboard = await api(`/dashboard/${state.cacheId}`);
     await api(`/dashboard/${state.cacheId}`, 'PUT', { parameters: [...parameters,

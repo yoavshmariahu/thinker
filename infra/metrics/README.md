@@ -400,8 +400,13 @@ running. Since the offer became a three-way choice, the answers are counted too:
 closed without a choice) and `answersInPicker` (answers given in the agent's question tool or
 thinker's picker rather than in chat). `answeredWarmNotStarted` counts warm answers whose
 warm-up could not start because no agent was signed in to read through. `activeRepositoriesWarm` and `activeRepositoriesCold` classify the repositories with
-a request in the report's 24 hours. Counts only, no repository names. The **Cache health**
-dashboard shows both; run `refresh` to add the cards.
+a request in the report's 24 hours. `requests` lists the newest 50 asked-for builds in the window,
+each with `startedAt`, `endedAt` (null while running or after a stop), `outcome` (`finished`, `failed`,
+`unfinished`), a failed build's `reason` code (an agent sign-in error such as `unauthenticated`, `incomplete`,
+`not-built`, `error`, or `other`; never free text) and the history `source` (`git` or `github`).
+Counts and times only, no repository names. The **Cache health** dashboard shows the counts, warm-up
+requests per day by outcome, and a table of every request newest first with when it failed and why;
+run `refresh` to add the cards (the layout is redrawn once).
 ## Website messages
 
 The bottom-right **Send us a message** button on the homepage and docs opens a
