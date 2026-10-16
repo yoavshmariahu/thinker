@@ -13,11 +13,13 @@ function runDirs(runsDir) {
     if (!isDir(p)) continue;
     const files = safeList(p);
     if (files.some(f => f.endsWith('.json'))) out.push(d);
-    for (const sub of files) if (sub !== 'notes-staged' && isDir(path.join(p, sub)) && safeList(path.join(p, sub)).some(f => f.endsWith('.json'))) out.push(d + '/' + sub);
+    // a nested run (bench/runs/invalid/<run>), never a run's own helper folders
+    for (const sub of files) if (!HELPERS.has(sub) && isDir(path.join(p, sub)) && safeList(path.join(p, sub)).some(f => f.endsWith('.json'))) out.push(d + '/' + sub);
   }
   return out;
 }
 
+const HELPERS = new Set(['notes-staged', 'transcripts', 'events', 'raw']);
 function safeList(p) { try { return fs.readdirSync(p); } catch { return []; } }
 function isDir(p) { try { return fs.statSync(p).isDirectory(); } catch { return false; } }
 function readJson(p) { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return null; } }
@@ -47,11 +49,11 @@ export function taskInfo(benchDir) {
 
 const PREFIX_REPO = [[/^mitm/, 'mitmproxy'], [/^click/, 'click'], [/^posthog/, 'posthog'], [/^grafana/, 'grafana'], [/^mlflow/, 'mlflow'], [/^thinker/, 'thinker']];
 
+// The sessions on disk in one run folder, normalized, each with its full record.
 export function scanRun(runsDir, dir, repos) {
   const p = path.join(runsDir, dir);
-  const files = safeList(p).filter(f => f.endsWith('.json'));
+  const files = safeList(p).filter(f => f.endsWith('.json') && f !== 'experiment.json');
   const byId = new Map();
-  let first = Infinity, last = 0;
   const sidecars = new Map();
   for (const f of files) if (f.endsWith('.judge.json')) sidecars.set(f.replace(/\.judge\.json$/, ''), readJson(path.join(p, f)));
   const add = (rec, file, mtime) => {
@@ -60,30 +62,20 @@ export function scanRun(runsDir, dir, repos) {
     if (byId.has(key) && file === 'summary.json') return;  // the per-result file wins over the summary copy
     const prefix = PREFIX_REPO.find(([r]) => r.test(dir.split('/').pop()));
     const repo = repos.get(String(rec.task))?.repo || (prefix && prefix[1]) || null;
-    byId.set(key, normalize(rec, { dir, file, mtime, sidecar: sidecars.get(key) || null, repo }));
-    first = Math.min(first, mtime); last = Math.max(last, mtime);
+    const sidecar = sidecars.get(key) || null;
+    const record = sidecar ? { ...rec, judge_sidecar: sidecar } : rec;
+    byId.set(key, { ...normalize(rec, { dir, file, mtime, sidecar, repo }), record: JSON.stringify(record) });
   };
   for (const f of files) {
     if (f.endsWith('.judge.json') || f === 'summary.json') continue;
-    const mtime = Math.round(fs.statSync(path.join(p, f)).mtimeMs);
-    add(readJson(path.join(p, f)), f, mtime);
+    add(readJson(path.join(p, f)), f, Math.round(fs.statSync(path.join(p, f)).mtimeMs));
   }
   if (files.includes('summary.json')) {
-    const s = readJson(path.join(p, 'summary.json'));
+    const sum = readJson(path.join(p, 'summary.json'));
     const mtime = Math.round(fs.statSync(path.join(p, 'summary.json')).mtimeMs);
-    if (Array.isArray(s)) for (const r of s) add(r, 'summary.json', mtime);
+    if (Array.isArray(sum)) for (const r of sum) add(r, 'summary.json', mtime);
   }
-  const rows = [...byId.values()];
-  const models = [...new Set(rows.map(r => r.model).filter(Boolean))];
-  return {
-    rows,
-    meta: {
-      repo: [...new Set(rows.map(r => r.repo).filter(Boolean))].join(',') || null,
-      runner: runnerOf(models), models: models.join(','), arms: [...new Set(rows.map(r => r.arm))].join(','),
-      first_at: rows.length ? first : null, last_at: rows.length ? last : null,
-      results: rows.length, invalid: rows.filter(r => r.invalid).length,
-    },
-  };
+  return [...byId.values()];
 }
 
 function dirMtime(p) {
@@ -92,25 +84,44 @@ function dirMtime(p) {
   return Math.round(m);
 }
 
-export function ingest(db, benchDir, { force = false } = {}) {
+// Import what the runners handed off: a session's file is read into the database once, and the
+// database is the record from then on (a later scan does not overwrite it; `force` re-imports a run,
+// e.g. after it was regraded). A run folder removed from disk stays in the database.
+export function ingest(db, benchDir, { force = false, only = null } = {}) {
   const runsDir = path.join(benchDir, 'runs');
   const repos = taskInfo(benchDir);
-  const seen = new Set(), changed = [];
+  const changed = [];
   for (const dir of runDirs(runsDir)) {
-    seen.add(dir);
+    if (only && dir !== only) continue;
     const m = dirMtime(path.join(runsDir, dir));
     const prev = db.get('SELECT scanned_mtime FROM runs WHERE dir = ?', dir);
     if (!force && prev && prev.scanned_mtime === m) continue;
-    const { rows, meta } = scanRun(runsDir, dir, repos);
-    // criteria.js rewrites records when it regrades, so a file's mtime can be the regrade's; the
-    // commit that first added the run bounds its start from above
+    const have = new Set(db.all('SELECT id FROM results WHERE run = ?', dir).map(r => r.id));
+    const rows = scanRun(runsDir, dir, repos).filter(r => force || !have.has(r.id));
+    const now = Date.now();
+    db.tx(() => { for (const r of rows) db.putResult({ ...r, imported_at: now }); });
+    // an experiment defined before the database (experiment.json beside the results) is imported once
+    const def = db.definition(dir) || readJson(path.join(runsDir, dir, 'experiment.json'));
+    const models = (db.get('SELECT group_concat(DISTINCT model) m FROM results WHERE run = ?', dir)?.m || '').split(',').filter(Boolean);
     const added = gitAdded(benchDir, dir);
-    if (added && meta.first_at) meta.first_at = Math.min(meta.first_at, added);
-    db.replaceRun(dir, { ...meta, scanned_mtime: m }, rows);
-    changed.push(dir);
+    db.refreshRun(dir, { runner: runnerOf(models), scanned_mtime: m, definition: def ? JSON.stringify(def) : null, ...(added ? { first_at: added } : {}) });
+    if (rows.length) changed.push(dir);
   }
-  for (const { dir } of db.all('SELECT dir FROM runs')) if (!seen.has(dir)) db.dropRun(dir);
+  importModules(db, benchDir);
   return changed;
+}
+
+// PR sets and cache receipts written as files before the database held them, imported once
+export function importModules(db, benchDir) {
+  for (const f of safeList(path.join(benchDir, 'prsets'))) {
+    if (!f.endsWith('.json')) continue;
+    const s = readJson(path.join(benchDir, 'prsets', f));
+    if (s?.name && !db.getPrset(s.name)) db.putPrset(s);
+  }
+  for (const n of safeList(path.join(benchDir, 'caches'))) {
+    const r = readJson(path.join(benchDir, 'caches', n, 'receipt.json'));
+    if (r?.name && !db.getCache(r.name)) db.putCache(r);
+  }
 }
 
 function gitAdded(benchDir, dir) {

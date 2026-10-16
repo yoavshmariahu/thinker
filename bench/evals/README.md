@@ -1,7 +1,8 @@
 # Evals app
 
-Benchmark experiments, compared cache off against cache on. A local web app, and an MCP server so
-an agent can read results and start experiments through it.
+Benchmark experiments, compared cache off against cache on. A local web app, an MCP server so an
+agent can read results and start experiments through it, and a SQLite database on this machine that
+is the system of record.
 
 ```bash
 PORT=$(~/.claude/bin/claude-port reserve thinker evals) npm run evals
@@ -21,8 +22,8 @@ cache off and with it on, to test one **behavior** (a cache feature, prompt, wir
 
 | Module | Stored | Checks before an experiment may start |
 |---|---|---|
-| **PR set** (`prsets.js`): PRs from one task set, the rule they were chosen by, frozen with a hash | `bench/prsets/<name>.json` | the checkout is at the task set's base; no PR's fix is merged in it |
-| **Cache** (`caches.js`, `build-cache.js`): mined by the product (`mine-prs --git`, `phrase`, `relink`) in a checkout cut at an anchor commit, by a named model | `bench/caches/<name>/receipt.json` (checked in), `repo/` and `build.log` (not) | built; not empty; every note `source.type: pr`; notes unchanged since the build (hash); same repository; anchor at or before the base; no PR's fix reachable from the anchor; mined by the agent's model |
+| **PR set** (`prsets.js`): PRs from one task set, the rule they were chosen by, frozen with a hash | database | the checkout is at the task set's base; no PR's fix is merged in it; no PR's tests need functions only its merged patch defines (`testNeedsGoldSymbols`) |
+| **Cache** (`caches.js`, `build-cache.js`): mined by the product (`mine-prs --git`, `phrase`, `relink`) in a shallow checkout cut at an anchor commit, by a named model, then every note exported whole (`export`) | receipt in the database; `bench/caches/<name>/repo/` (the snapshot), `notes/` (what arms are served) and `build.log` on disk, not checked in | built; not empty; every note `source.type: pr`; notes unchanged since the build (hash); same repository; anchor at or before the base; no PR's fix reachable from the anchor; mined by the agent's model |
 | **Arms** | experiment | cache off and cache on differ |
 | **Agent**: runner, model, reps, concurrency, switches | experiment | the model is the cache's mining model |
 | **Grading**: the PRs' tests, or a named judge | experiment | a judge is named when any PR lacks tests |
@@ -31,8 +32,8 @@ A plan with a failing check comes back `blocked` and cannot be started. A cache 
 mining that saved nothing or failed on more than a fifth of its changes, an empty cache, or a note
 from anywhere but a PR marks the receipt failed.
 
-The experiment's definition is `bench/runs/<tag>/experiment.json`, beside the results and versioned
-with them; a launched experiment records its modules and the checks it passed:
+The experiment's definition is kept in the database with its sessions; a launched experiment records
+its modules and the checks it passed:
 
 ```json
 { "name": "Prompt hook · Sonnet · PostHog", "question": "Does the prompt hook help Sonnet on PostHog PRs?",
@@ -71,18 +72,33 @@ turns, wall time, tokens by class, spend, tool calls by tool, calls before the f
 notes served and their ids, the judge's reason and criteria, the test tail) and links to the same PR
 and rep in the other arms.
 
-Transcripts are archived by the app into `bench/runs/<tag>/transcripts/<id>.jsonl.gz` as results
-appear, from where each CLI writes them (Claude Code `~/.claude/projects/<cwd>/<session>.jsonl`,
-deleted after its cleanup period; Codex `bench/runs/<tag>/events/<id>.jsonl`; Gemini
-`~/.gemini/antigravity-cli/brain/<session>/…/transcript.jsonl`). They are not checked in (about 80 kB
-a session compressed); a session whose transcript was cleaned up before the app ran says so.
+Transcripts are stored gzipped in the database as sessions appear, from where each CLI writes them
+(Claude Code `~/.claude/projects/<cwd>/<session>.jsonl`, deleted after its cleanup period; Codex
+`bench/runs/<tag>/events/<id>.jsonl`; Gemini `~/.gemini/antigravity-cli/brain/<session>/…/transcript.jsonl`);
+about 80 kB a session. A session whose transcript was cleaned up before the app ran says so. A
+transcript that shows the product's warm-up offer (`<thinker-new-repository>`, text for a person, not
+an arm) marks its session invalid.
 
-## Data
+## Data: the database is the record
 
-`bench/runs/<tag>/<task>-<arm>-<rep>.json` stays the source of truth. The app indexes it into
-SQLite (`bench/evals/evals.db`, ignored, rebuilt on start, rescanned every 15 s; a directory is
-re-read only when a file in it changed). `normalize.js` maps every record variant the three
-runners have written onto one row:
+`~/.thinker-evals/evals.db` (SQLite; `EVALS_DB` or `--db` to move it) holds experiments and their
+definitions, PR sets, cache receipts, every session with its full record, transcripts, and jobs.
+It lives outside every checkout, so worktrees share it, and outside `~/.thinker`, so uninstalling
+thinker leaves it.
+
+The runners still write `bench/runs/<tag>/<task>-<arm>-<rep>.json`: that is their hand-off. The
+app imports each new file once (a folder is re-read when a file in it changes, every 15 s); after
+that the database is the record. A rewritten file does not overwrite its session, a removed folder
+does not remove it, and `POST /api/reimport {dir}` re-imports a run on purpose (after a regrade).
+`bench/runs`, PR sets and receipts written as files before the database were imported once.
+
+**Snapshots** (`snapshot.js`): the app takes one a day — a consistent copy (`VACUUM INTO`), gzipped,
+the newest 14 kept in `~/.thinker-evals/snapshots/`, and copied to S3 when `EVALS_S3_URI` is set
+(`s3://bucket/prefix`, through the aws CLI's own credentials). `node bench/evals/snapshot.js take |
+list | restore <file|s3://…> --force` (stop the app before restoring; the replaced database is kept
+beside it).
+
+`normalize.js` maps every record variant the three runners have written onto one row:
 
 | Field | From |
 |---|---|
@@ -129,9 +145,13 @@ The command (`bench/run.js`, `codex-run.js` or `gemini-run.js`) runs detached in
 group with output in `bench/runs/<tag>/harness.log`, so it survives the app restarting; Cancel
 signals that group only. A tag that already holds results resumes: the runners skip them.
 
-**Progress** follows experiments started here and any `bench/*run.js` started from a terminal (found
-in the process table, its checkout read from its working directory), counting result files against
-the planned PR × arm × rep sessions. A running experiment's page shows its progress too.
+**In progress** shows on the entity itself, not on a page of its own. An experiment in the list
+and on its page shows sessions finished of planned and, for Claude Code runs, each running session
+as it works (steps, tool calls, context, the tool it is in, read from the transcript it is writing),
+with Cancel. A cache shows its build step by step with mining's own "n of m changes processed". A
+PR set shows draft (being composed: its PRs and rule can change) or frozen (only a frozen set runs).
+Runs started from a terminal (`bench/*run.js`, found in the process table) show on their experiment
+the same way.
 
 ## MCP tools
 

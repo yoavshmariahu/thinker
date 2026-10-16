@@ -6,9 +6,15 @@ const $drawer = document.getElementById('drawer');
 // ---------- helpers ----------
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const enc = encodeURIComponent;
+let pageVersion = null;
 const api = async (path, body) => {
   const r = await fetch(path, body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : {});
+  // the app was updated since this page loaded: its code here is stale
+  const v = r.headers.get('x-evals-version');
+  if (v && pageVersion && v !== pageVersion) document.getElementById('stale').hidden = false;
+  pageVersion ||= v;
   const j = await r.json().catch(() => ({ error: r.statusText }));
+  if (j.redirect) { location.hash = j.redirect; throw new Error('moved'); }
   if (!r.ok) throw new Error(j.error || r.statusText);
   return j;
 };
@@ -61,7 +67,7 @@ function sortable(table) {
 let pollTimer = null;
 const routes = [
   [/^#?\/?$/, pageExperiments], [/^#\/exp\/(.+)$/, pageExperiment], [/^#\/prs$/, pagePRs], [/^#\/pr\/(.+)$/, pagePR],
-  [/^#\/progress$/, pageProgress], [/^#\/new$/, pageNew], [/^#\/prsets$/, pagePrsets], [/^#\/caches$/, pageCaches], [/^#\/cache\/(.+)$/, pageCache],
+  [/^#\/new$/, pageNew], [/^#\/prsets$/, pagePrsets], [/^#\/caches$/, pageCaches], [/^#\/cache\/(.+)$/, pageCache],
   [/^#\/session\/(.+)$/, pageSession],
 ];
 async function route() {
@@ -70,23 +76,16 @@ async function route() {
   for (const [re, fn] of routes) {
     const m = h.match(re);
     if (!m) continue;
-    const section = h.startsWith('#/prsets') ? 'prsets' : h.startsWith('#/cache') ? 'caches' : h.startsWith('#/pr') ? 'prs' : h.startsWith('#/progress') ? 'progress' : h.startsWith('#/new') ? 'new' : 'experiments';
+    const section = h.startsWith('#/prsets') ? 'prsets' : h.startsWith('#/cache') ? 'caches' : h.startsWith('#/pr') ? 'prs' : h.startsWith('#/new') ? 'new' : 'experiments';
     document.querySelectorAll('nav a').forEach(a => a.classList.toggle('on', a.dataset.nav === section));
-    try { await fn(...m.slice(1).map(x => (x == null ? x : decodeURIComponent(x)))); } catch (e) { $app.innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+    try { await fn(...m.slice(1).map(x => (x == null ? x : decodeURIComponent(x)))); } catch (e) { if (e.message !== 'moved') $app.innerHTML = `<p class="err">${esc(e.message)}</p>`; }
     return;
   }
   $app.innerHTML = '<p>Not found.</p>';
 }
 addEventListener('hashchange', route);
 
-async function refreshActive() {
-  try {
-    const { jobs } = await api('/api/jobs');
-    const n = jobs.filter(j => j.status === 'running').length;
-    const el = document.getElementById('active-count'); el.hidden = !n; el.textContent = n;
-  } catch {}
-}
-setInterval(refreshActive, 5000); refreshActive();
+
 
 // ---------- experiments ----------
 const expName = e => e.meta.name || e.dir;
@@ -115,8 +114,9 @@ async function pageExperiments() {
       <th class="sort">Experiment</th><th class="sort">Repo · model</th><th class="sort num">PRs</th>
       <th class="sort num" title="Pass rate, cache off → cache on">Pass rate off → on</th>
       <th class="sort num" title="Paired mean difference in input tokens, as a share of the cache-off median">Input tokens</th>
-      <th class="sort num">Tool calls</th><th class="sort num">Wall time</th><th class="sort num">Served</th><th class="sort">Date</th>
+      <th class="sort num">Tool calls</th><th class="sort num">Wall time</th><th class="sort num">Served</th><th class="sort">Date</th><th>Status</th>
     </tr></thead><tbody></tbody></table></div>
+    <p class="muted small">Database <code>${esc(s.store.db)}</code> · last snapshot ${s.store.snapshot ? fmt.ago(s.store.snapshot.at) : 'none yet'}${s.store.s3 ? ` · copied to <code>${esc(s.store.s3)}</code>` : ' · <b>no S3 bucket set (EVALS_S3_URI): snapshots are local only</b>'}${s.store.last?.uploadError ? ` · <span class="err">last upload failed: ${esc(s.store.last.uploadError)}</span>` : ''}</p>
     <p class="muted small">Differences are cache on − cache off, as a share of the cache-off median. Colored where the 90% interval excludes zero: <span class="status good">cache better</span> <span class="status critical">cache worse</span>. Hover a number for its interval and pair count.</p>`;
   const [q, repo, model, kind, onlycmp] = ['q', 'repo', 'model', 'kind', 'onlycmp'].map(id => document.getElementById(id));
   const draw = () => {
@@ -124,12 +124,14 @@ async function pageExperiments() {
     sessionSet('expFilter', JSON.stringify(f));
     const rows = s.experiments.filter(e => (!f.q || (expName(e) + ' ' + e.dir + ' ' + (e.meta.question || '')).toLowerCase().includes(f.q)) && (!f.repo || (e.repo || '').split(',').includes(f.repo))
       && (!f.model || (e.models || '').split(',').includes(f.model)) && (!f.kind || e.meta.kind === f.kind) && (!f.onlycmp || e.meta.off));
-    document.querySelector('#exps tbody').innerHTML = rows.map(e => expRow(e, s.metrics)).join('') || '<tr><td colspan="9" class="muted">No experiments match.</td></tr>';
+    document.querySelector('#exps tbody').innerHTML = rows.map(e => expRow(e, s.metrics)).join('') || '<tr><td colspan="10" class="muted">No experiments match.</td></tr>';
     document.querySelectorAll('#exps tr.click').forEach(tr => tr.addEventListener('click', ev => { if (ev.target.tagName !== 'A') location.hash = tr.dataset.href; }));
     bindTips($app);
   };
   [q, repo, model, kind, onlycmp].forEach(el => el.addEventListener('input', draw));
   draw(); sortable(document.getElementById('exps'));
+  // while an experiment runs, the list redraws itself
+  if (s.experiments.some(e => e.job?.status === 'running')) pollTimer = setInterval(() => { if (!document.querySelector('#exps th[data-dir]')) route(); }, 5000);
 }
 
 function expRow(e, metrics) {
@@ -156,7 +158,7 @@ function expRow(e, metrics) {
     <td>${esc(e.repo || '–')}<div class="muted small">${esc(e.models || 'model unrecorded')}</div></td>
     <td class="num">${e.prs}</td>${pass()}${rel('in_tokens')}${rel('tool_calls')}${rel('wall_ms')}
     <td class="num" data-v="${c?.pairs ? c.served / c.pairs : ''}">${c?.pairs ? fmt.pct(c.served / c.pairs) : '–'}</td>
-    <td data-v="${e.first_at || 0}">${fmt.date(e.first_at)}</td></tr>`;
+    <td data-v="${e.first_at || 0}">${fmt.date(e.first_at)}</td><td>${statusCell(e.job)}</td></tr>`;
 }
 
 // ---------- one experiment ----------
@@ -189,21 +191,18 @@ async function pageExperiment(dir) {
   const openEditor = ev => { ev.preventDefault(); editor(dir, meta, arms); };
   document.getElementById('edit').addEventListener('click', openEditor);
   document.getElementById('edit2')?.addEventListener('click', openEditor);
-  // a running experiment shows its progress here, and the page reloads when it finishes
-  const live = async () => {
-    const { jobs } = await api('/api/jobs');
-    const j = jobs.find(k => k.tag === dir && k.status === 'running');
-    const el = document.getElementById('live');
-    if (!el) return null;
-    el.innerHTML = j ? jobCard(j, false) : '';
-    if (j) bindTips(el);
-    return j;
-  };
-  let seen = (await live().catch(() => null))?.done;
-  if (seen != null) pollTimer = setInterval(async () => {
-    const j = await live().catch(() => null);
-    if (!j || j.done !== seen) { clearInterval(pollTimer); route(); }
-  }, 4000);
+  // a running experiment shows its progress here; the page redraws as sessions finish
+  const showRun = j => { const el = document.getElementById('live'); if (!el) return; el.innerHTML = j ? runPanel(j) : ''; if (j) { bindTips(el); bindCancel(el, () => route()); } };
+  showRun(x.job && (x.job.status === 'running' || x.job.status !== 'done' && !x.run.results) ? x.job : null);
+  if (x.job?.status === 'running') {
+    let seen = x.job.done;
+    pollTimer = setInterval(async () => {
+      const y = await api(`/api/experiment?dir=${enc(dir)}`).catch(() => null);
+      if (!y) return;
+      if (!y.job || y.job.status !== 'running' || y.job.done !== seen) { clearInterval(pollTimer); route(); return; }
+      showRun(y.job);
+    }, 3000);
+  }
 }
 
 // Arm colors: cache off is the neutral reference, the cache-on arm takes the first hue and any
@@ -342,7 +341,7 @@ function editor(dir, meta, arms) {
     <label>Tests a<select name="kind"><option value="behavior" ${meta.kind === 'behavior' ? 'selected' : ''}>behavior</option><option value="model" ${meta.kind === 'model' ? 'selected' : ''}>model</option></select></label>
     <label>Cache off arm<select name="off">${arms.map(a => opt(meta.off, a)).join('')}</select></label>
     <label>Cache on arm<select name="on">${arms.map(a => opt(meta.on, a)).join('')}</select></label>
-    <div class="full"><button class="primary" type="submit">Save</button> <button type="button" id="ecancel">Cancel</button> <span class="muted small">Saved to <code>bench/runs/${esc(dir)}/experiment.json</code>, beside the results.</span> <span class="err" id="eerr"></span></div></form>`;
+    <div class="full"><button class="primary" type="submit">Save</button> <button type="button" id="ecancel">Cancel</button> <span class="muted small">Saved in the evals database with the experiment's sessions.</span> <span class="err" id="eerr"></span></div></form>`;
   const f = document.getElementById('ef');
   document.getElementById('ecancel').onclick = () => { el.innerHTML = ''; };
   f.addEventListener('submit', async e => {
@@ -406,36 +405,54 @@ async function pagePR(id) {
   bindTips($app);
 }
 
-// ---------- progress ----------
-async function pageProgress() {
-  const draw = async () => {
-    const { jobs } = await api('/api/jobs');
-    const open = new Set([...document.querySelectorAll('details[open]')].map(d => d.dataset.id));
-    $app.innerHTML = `<h1>Progress</h1><p class="sub">Experiments running now — started here or with <code>bench/*run.js</code> from a terminal — and the ones started here before. Progress counts result files against the planned PR × arm × rep sessions.</p>
-      ${jobs.length ? jobs.map(j => jobCard(j, open.has(String(j.id)))).join('') : '<p class="card">Nothing running. <a href="#/new">Start an experiment</a>.</p>'}`;
-    $app.querySelectorAll('[data-cancel]').forEach(b => b.addEventListener('click', async () => { b.disabled = true; try { await api('/api/cancel', { id: Number(b.dataset.cancel) }); } catch (e) { b.insertAdjacentHTML('afterend', `<span class="err"> ${esc(e.message)}</span>`); } draw(); }));
-    bindTips($app);
-  };
-  await draw();
-  pollTimer = setInterval(() => draw().catch(() => {}), 3000);
+// ---------- what is in progress: shown on the entity itself ----------
+const STATUS = { running: ['good', 'running'], done: ['good', 'finished'], failed: ['critical', 'failed'], cancelled: ['serious', 'cancelled'], exited: ['serious', 'stopped'] };
+// a compact status for a list row: a running job's bar, else nothing (the row's numbers say the rest)
+function statusCell(j, unit = 'sessions') {
+  if (!j || j.status !== 'running') return j && j.status !== 'done' ? `<span class="status ${(STATUS[j.status] || [''])[0]}">${esc((STATUS[j.status] || ['', j.status])[1])}</span>` : '';
+  const share = j.expected ? j.done / j.expected : 0;
+  const label = j.kind === 'cache' ? (j.progress?.total ? `${esc(j.step)} ${j.progress.done}/${j.progress.total}` : esc(j.step)) : `${j.done}/${j.expected} ${unit}${j.live?.filter(l => l.state === 'working').length ? ` · ${j.live.filter(l => l.state === 'working').length} working` : ''}`;
+  const frac = j.kind === 'cache' && j.progress?.total ? (j.done + j.progress.done / j.progress.total) / j.expected : share;
+  return `<div class="mini"><span class="status ${j.limit_wait ? 'warning' : 'good'}">${j.limit_wait ? 'waiting on a usage limit' : 'running'}</span><div class="bar"><span style="width:${Math.max(2, frac * 100)}%"></span></div><span class="muted small">${label}</span></div>`;
 }
-function jobCard(j, open) {
-  const exp = j.expected, done = j.done, share = exp ? done / exp : null;
-  const st = { running: j.limit_wait ? ['warning', 'waiting on a usage limit'] : ['good', 'running'], done: ['good', 'finished'], failed: ['critical', `failed (exit ${j.exit_code})`], cancelled: ['serious', 'cancelled'], exited: ['serious', 'exited'] }[j.status] || ['', j.status];
-  const href = j.kind === 'cache' ? `#/cache/${enc(j.tag)}` : `#/exp/${enc(j.tag)}`;
-  return `<div class="card" style="margin-bottom:12px">
-    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-      <b><a href="${href}">${esc(j.name || j.tag)}</a></b><span class="status ${st[0]}">${esc(st[1])}</span>${j.kind === 'cache' ? ` <span class="muted">step: ${esc(j.step)}</span>` : ''}
-      <span class="muted">${esc(j.model)} · ${esc(j.repo)} · ${(j.arms || []).map(esc).join(' vs ')} · ${j.source === 'terminal' ? 'from a terminal' : 'started here'}</span>
-      ${j.status === 'running' && j.source === 'app' ? `<button class="danger" data-cancel="${j.id}" style="margin-left:auto">Cancel</button>` : ''}
-    </div>
-    <div style="display:flex;gap:12px;align-items:center;margin:10px 0 4px">
-      <div class="bar" style="flex:1" ${tipAttr(`${done} of ${exp ?? '?'} sessions finished${j.errors ? `, ${j.errors} with errors` : ''}`)}>${share != null ? `<span style="width:${Math.max(0, share - (j.errors / exp)) * 100}%"></span>${j.errors ? `<span class="err" style="width:${(j.errors / exp) * 100}%"></span>` : ''}` : ''}</div>
-      <span class="num">${done}${exp ? ' / ' + exp : ''} ${j.kind === 'cache' ? 'steps' : 'sessions'}</span>
-    </div>
-    <div class="muted small">started ${fmt.dt(j.started_at)} · elapsed ${fmt.ms(j.elapsed)}${j.eta != null && j.status === 'running' ? ` · about ${fmt.ms(j.eta)} left` : ''}${j.last_at ? ` · last result ${fmt.ago(j.last_at)}` : ''}${j.errors ? ` · <span class="err">${j.errors} errored</span>` : ''}</div>
-    <details data-id="${esc(j.id)}" ${open ? 'open' : ''}><summary class="muted small" style="cursor:pointer;margin-top:6px">Command and log</summary><pre>${esc(j.command)}</pre>${j.log ? `<pre>${esc(j.log)}</pre>` : ''}</details>
+
+// the running experiment on its own page: sessions done, each running session as it works, cancel
+function runPanel(j) {
+  const st = j.limit_wait ? ['warning', 'waiting on a usage limit'] : STATUS[j.status] || ['', j.status];
+  const share = j.expected ? j.done / j.expected : 0;
+  const workers = (j.live || []).map(l => l.state !== 'working' ? `<div class="worker muted small">worker ${l.worker + 1}: starting a session…</div>`
+    : `<div class="worker"><div class="small"><b>worker ${l.worker + 1}</b> <span class="muted">· ${l.steps} steps · ${l.tools} tool calls · context ${fmt.tok(l.context_tokens)} · last activity ${fmt.ago(l.last_at)}</span></div>
+       <div class="small">${esc(l.request || '')}</div>${l.last_tool ? `<div class="small muted">now: <code>${esc(l.last_tool.name)}</code> ${esc(l.last_tool.input)}</div>` : ''}</div>`).join('');
+  return `<div class="card runpanel">
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span class="status ${st[0]}">${esc(st[1])}</span>
+      <span class="muted small">started ${fmt.dt(j.started_at)} · ${fmt.ms(j.elapsed)} so far${j.eta != null && j.status === 'running' ? ` · about ${fmt.ms(j.eta)} left` : ''}${j.source === 'terminal' ? ' · started from a terminal' : ''}</span>
+      ${j.status === 'running' && j.source === 'app' ? `<button class="danger" data-cancel="${j.id}" style="margin-left:auto">Cancel</button>` : ''}</div>
+    <div style="display:flex;gap:12px;align-items:center;margin:10px 0 6px"><div class="bar" style="flex:1"><span style="width:${Math.max(0, share - (j.errors / (j.expected || 1))) * 100}%"></span>${j.errors ? `<span class="err" style="width:${(j.errors / j.expected) * 100}%"></span>` : ''}</div>
+      <span class="num">${j.done} / ${j.expected ?? '?'} sessions finished${j.errors ? ` · <span class="err">${j.errors} errored</span>` : ''}</span></div>
+    ${workers ? `<div class="workers">${workers}</div>` : j.runner && j.runner !== 'claude' && j.status === 'running' ? '<div class="muted small">This runner writes its sessions when they end, so they show here as they finish.</div>' : ''}
+    <details><summary class="muted small">Command and log</summary><pre>${esc(j.command)}</pre>${j.log ? `<pre>${esc(j.log)}</pre>` : ''}</details>
   </div>`;
+}
+
+// a cache being built, on its own page: the step, mining's own progress, the log
+function buildPanel(j) {
+  const st = STATUS[j.status] || ['', j.status];
+  const steps = ['snapshot', 'mine-prs', 'phrase', 'relink', 'export'];
+  return `<div class="card runpanel">
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span class="status ${st[0]}">${esc(st[1])}</span>
+      <span class="muted small">started ${fmt.dt(j.started_at)} · ${fmt.ms(j.elapsed)} so far</span>
+      ${j.status === 'running' ? `<button class="danger" data-cancel="${j.id}" style="margin-left:auto">Cancel</button>` : ''}</div>
+    <ol class="steps">${steps.map((x, i) => `<li class="${i < j.done ? 'done' : x === j.step ? 'now' : ''}">${esc(x)}${x === j.step && j.progress?.total ? ` <span class="muted small">${j.progress.done} / ${j.progress.total} changes</span><div class="bar"><span style="width:${(j.progress.done / j.progress.total) * 100}%"></span></div>` : ''}</li>`).join('')}</ol>
+    <details ${j.status === 'running' ? 'open' : ''}><summary class="muted small">Log</summary><pre>${esc(j.log || '')}</pre></details>
+  </div>`;
+}
+
+function bindCancel(root, after) {
+  root.querySelectorAll('[data-cancel]').forEach(b => b.addEventListener('click', async () => {
+    b.disabled = true;
+    try { await api('/api/cancel', { id: Number(b.dataset.cancel) }); } catch (e) { b.insertAdjacentHTML('afterend', `<span class="err"> ${esc(e.message)}</span>`); }
+    after();
+  }));
 }
 
 const tile = (k, v, d) => `<div class="card tile"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div></div>`;
@@ -448,20 +465,21 @@ const allOk = checks => checks.every(c => c.ok);
 async function pagePrsets() {
   const [{ prsets }, cat] = await Promise.all([api('/api/prsets'), api('/api/catalog')]);
   $app.innerHTML = `<div class="head"><div><h1>PR sets</h1>
-    <p class="sub">The PRs an experiment runs, chosen by a stated rule and frozen before any session is spent. A PR set comes from one task set and runs at its base commit; every experiment that uses it runs the same PRs.</p></div></div>
-    <div class="card wrap"><table><thead><tr><th>PR set</th><th>Repo</th><th class="num">PRs</th><th>Selection rule</th><th>Graded by</th><th>Checks</th><th>Created</th></tr></thead><tbody>
-    ${prsets.map(p => `<tr><td><b>${esc(p.name)}</b><div class="muted small">${esc(p.tasks)} · hash ${esc(p.hash)}</div></td><td>${esc(p.repo)}<div class="muted small">base ${esc((p.base || '?').slice(0, 10))}</div></td><td class="num">${p.prs.length}</td>
+    <p class="sub">The PRs an experiment runs, chosen by a stated rule. A PR set is composed as a draft — its PRs and rule can still change — and frozen before any session is spent; only a frozen set can be run, and every experiment that uses it runs the same PRs at the same base.</p></div></div>
+    <div class="card wrap"><table><thead><tr><th>PR set</th><th>Status</th><th>Repo</th><th class="num">PRs</th><th>Selection rule</th><th>Graded by</th><th>Checks</th><th>Created</th></tr></thead><tbody>
+    ${prsets.map(p => `<tr><td><b>${esc(p.name)}</b><div class="muted small">${esc(p.tasks)} · hash ${esc(p.hash)}</div></td>
+      <td>${(p.status || 'frozen') === 'draft' ? `<span class="status warning">draft</span><div><a href="#" data-edit="${esc(p.name)}">edit</a> · <a href="#" data-freeze="${esc(p.name)}">freeze</a></div>` : `<span class="status good">frozen</span><div class="muted small">${fmt.date(p.frozen_at || p.created_at)}</div>`}</td><td>${esc(p.repo)}<div class="muted small">base ${esc((p.base || '?').slice(0, 10))}</div></td><td class="num">${p.prs.length}</td>
       <td style="white-space:normal;max-width:340px">${esc(p.rule)}</td><td class="small">${[...new Set(p.prs.map(x => x.oracle))].map(esc).join(', ')}</td>
-      <td>${allOk(p.checks) ? '<span class="status good">pass</span>' : `<span class="status critical" ${tipAttr(p.checks.filter(c => !c.ok).map(c => esc(c.check + ': ' + c.detail)).join('<br>'))}>${p.checks.filter(c => !c.ok).length} failing</span>`}</td><td>${fmt.date(p.created_at)}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">No PR sets yet.</td></tr>'}
+      <td>${allOk(p.checks) ? '<span class="status good">pass</span>' : `<span class="status critical" ${tipAttr(p.checks.filter(c => !c.ok).map(c => esc(c.check + ': ' + c.detail)).join('<br>'))}>${p.checks.filter(c => !c.ok).length} failing</span>`}</td><td>${fmt.date(p.created_at)}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">No PR sets yet.</td></tr>'}
     </tbody></table></div>
-    <h2>New PR set</h2>
+    <h2 id="pfh">New PR set</h2>
     <form class="launch card" id="pf">
       <label>Name<input name="name" required placeholder="posthog-hard-oct"></label>
       <label>From task set<select name="tasks">${cat.taskSets.map(t => `<option value="${esc(t.file)}">${esc(t.file)} · ${t.tasks.length}</option>`).join('')}</select></label>
       <label style="grid-column:span 2">Selection rule<input name="rule" required placeholder="every PR in the set merged after 2026-09-20 that changes posthog/ and has tests"></label>
       <label class="full">Description (optional)<input name="description"></label>
       <div class="full"><div class="muted small" style="margin-bottom:4px"><a href="#" id="all">all</a> · <a href="#" id="none">none</a> <span id="tcount"></span></div><div class="tasklist" id="tl"></div></div>
-      <div class="full"><button class="primary" type="submit">Freeze PR set</button> <span class="muted small">Frozen once saved: a changed selection is a new PR set.</span> <span class="err" id="perr"></span></div>
+      <div class="full"><button type="submit" name="draft" value="1">Save draft</button> <button class="primary" type="submit" name="freeze" value="1">Freeze</button> <span class="muted small">A draft can be changed; a frozen set never changes — a different selection is a new PR set.</span> <span class="err" id="perr"></span></div>
     </form>`;
   bindTips($app);
   const f = document.getElementById('pf');
@@ -475,12 +493,32 @@ async function pagePrsets() {
   document.getElementById('all').onclick = e => { e.preventDefault(); f.querySelectorAll('input[name=t]').forEach(c => { c.checked = true; }); count(); };
   document.getElementById('none').onclick = e => { e.preventDefault(); f.querySelectorAll('input[name=t]').forEach(c => { c.checked = false; }); count(); };
   sync();
+  let editing = null;  // the draft being composed, when one was opened
+  document.querySelectorAll('[data-edit]').forEach(a => a.addEventListener('click', e => {
+    e.preventDefault();
+    const p = prsets.find(x => x.name === a.dataset.edit);
+    editing = p.name;
+    document.getElementById('pfh').textContent = `Draft ${p.name}`;
+    f.name.value = p.name; f.name.readOnly = true; f.tasks.value = p.tasks; sync();
+    f.querySelectorAll('input[name=t]').forEach(c => { c.checked = p.ids.includes(c.value); }); count();
+    f.rule.value = p.rule || ''; f.description.value = p.description || '';
+    f.scrollIntoView({ behavior: 'smooth' });
+  }));
+  document.querySelectorAll('[data-freeze]').forEach(a => a.addEventListener('click', async e => {
+    e.preventDefault();
+    try { await api('/api/prsets/freeze', { name: a.dataset.freeze }); route(); } catch (err) { a.insertAdjacentHTML('afterend', `<span class="err"> ${esc(err.message)}</span>`); }
+  }));
   f.addEventListener('submit', async e => {
     e.preventDefault();
+    const freeze = e.submitter?.name === 'freeze';
     const ids = [...f.querySelectorAll('input[name=t]:checked')].map(c => c.value);
     if (!ids.length) { document.getElementById('perr').textContent = 'Select at least one PR.'; return; }
-    try { await api('/api/prsets', { name: f.name.value.trim(), tasks: f.tasks.value, rule: f.rule.value.trim(), description: f.description.value.trim(), ids }); route(); }
-    catch (err) { document.getElementById('perr').textContent = err.message; }
+    const body = { name: f.name.value.trim(), tasks: f.tasks.value, rule: f.rule.value.trim(), description: f.description.value.trim(), ids };
+    try {
+      if (editing) { await api('/api/prsets/update', body); if (freeze) await api('/api/prsets/freeze', { name: editing }); }
+      else await api('/api/prsets', { ...body, draft: !freeze });
+      route();
+    } catch (err) { document.getElementById('perr').textContent = err.message; }
   });
 }
 
@@ -492,7 +530,7 @@ async function pageCaches() {
     <div class="card wrap"><table><thead><tr><th>Cache</th><th>Repo</th><th>Anchor</th><th>Mined by</th><th class="num">Notes</th><th>Status</th><th>Fits PR sets</th><th>Built</th></tr></thead><tbody>
     ${caches.map(c => `<tr class="click" data-href="#/cache/${enc(c.name)}"><td><a href="#/cache/${enc(c.name)}"><b>${esc(c.name)}</b></a></td><td>${esc(c.repo)}</td><td>${esc(c.anchor.slice(0, 10))}<div class="muted small">${fmt.date(Date.parse(c.anchor_date))}</div></td>
       <td>${esc(c.model)}<div class="muted small">${esc(c.llm)} · ${c.limit} changes</div></td><td class="num">${c.notes ?? '–'}</td>
-      <td>${c.status === 'ok' ? '<span class="status good">built</span>' : c.status === 'building' ? '<span class="status warning">building</span>' : `<span class="status critical">${esc(c.status)}</span>`}</td>
+      <td>${c.job?.status === 'running' ? statusCell(c.job) : c.status === 'ok' ? '<span class="status good">built</span>' : c.status === 'building' ? '<span class="status serious">stopped</span>' : `<span class="status critical">${esc(c.status)}</span>`}</td>
       <td class="small">${c.fits.map(f => `${f.ok ? '✓' : '✗'} ${esc(f.prset)}`).join('<br>') || '<span class="muted">no PR set for this repo</span>'}</td><td>${fmt.date(c.created_at)}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">No caches built yet.</td></tr>'}
     </tbody></table></div>
     <h2>Build a cache</h2>
@@ -508,6 +546,7 @@ async function pageCaches() {
       <div class="full"><button class="primary" type="submit">Review build</button> <span class="err" id="cerr"></span></div>
     </form><div id="cplan"></div>`;
   document.querySelectorAll('tr.click').forEach(tr => tr.addEventListener('click', e => { if (e.target.tagName !== 'A') location.hash = tr.dataset.href; }));
+  if (caches.some(c => c.job?.status === 'running')) pollTimer = setInterval(() => { if (!document.activeElement?.closest('form')) route(); }, 4000);
   const f = document.getElementById('cf');
   f.prset.addEventListener('change', () => { const o = f.prset.selectedOptions[0]; if (o.dataset.repo) { f.repo.value = o.dataset.repo; f.anchor.value = o.dataset.base; } });
   const req = () => ({ name: f.name.value.trim(), repo: f.repo.value, anchor: f.anchor.value.trim() || 'HEAD', llm: f.llm.value, model: f.model.value.trim(), effort: f.effort.value.trim() || undefined, limit: Number(f.limit.value) });
@@ -532,18 +571,29 @@ async function pageCache(name) {
   $app.innerHTML = `<p class="muted"><a href="#/caches">Caches</a> / ${esc(name)}</p><h1>${esc(name)}</h1>
     <p class="sub">${esc(c.repo)} · anchor <code>${esc(c.anchor.slice(0, 12))}</code> ${esc(c.anchor_subject || '')} · mined by ${esc(c.model)} (${esc(c.llm)}) · ${c.limit} changes</p>
     <div id="live"></div>
+    ${c.status !== 'ok' ? `<div class="card confirm" id="resume" hidden>This build did not finish (${esc(c.error || c.status)}). Resuming continues after ${(c.steps_done || []).map(esc).join(', ') || 'nothing'} with the same parameters; the steps already done are not repeated. <button class="primary" id="resumego">Resume the build</button> <span class="err" id="rerr"></span></div>` : ''}
     <div class="tiles">${tile('Status', esc(c.status), c.error ? esc(c.error) : `steps: ${(c.steps_done || []).map(esc).join(', ') || '–'}`)}${tile('Notes', fmt.n(c.notes), `${c.described ?? '–'} described · ${c.sources ? `${c.sources.pr} from PRs` : ''}`)}${tile('Mined', fmt.n(c.usage?.mined), `${fmt.n(c.usage?.saved)} saved`)}${tile('Tokens', fmt.tok(c.usage?.tokens), 'as the product logged them')}</div>
     <h2>Checks</h2><div class="card">${checkList(x.checks)}</div>
     ${x.against.map(a => `<h2>Against PR set ${esc(a.prset)}</h2><div class="card">${checkList(a.checks)}</div>`).join('')}
     <h2>Used by</h2><p>${x.used_by.map(d => `<a href="#/exp/${enc(d)}">${esc(d)}</a>`).join(', ') || '<span class="muted">no experiment yet</span>'}</p>
     <details class="card"><summary>Receipt</summary><pre>${esc(JSON.stringify(c, null, 2))}</pre></details>`;
-  const live = async () => {
-    const { jobs } = await api('/api/jobs');
-    const j = jobs.find(k => k.kind === 'cache' && k.tag === name && k.status === 'running');
-    const el = document.getElementById('live'); if (!el) return null;
-    el.innerHTML = j ? jobCard(j, true) : ''; return j;
-  };
-  if (await live().catch(() => null)) pollTimer = setInterval(async () => { const j = await live().catch(() => null); if (!j) { clearInterval(pollTimer); route(); } }, 4000);
+  const showBuild = j => { const el = document.getElementById('live'); if (!el) return; el.innerHTML = j ? buildPanel(j) : ''; if (j) bindCancel(el, () => route()); };
+  const running = x.job?.status === 'running' ? x.job : null;
+  showBuild(running);
+  if (running) pollTimer = setInterval(async () => {
+    const y = await api('/api/cache?name=' + enc(name)).catch(() => null);
+    if (!y) return;
+    if (y.job?.status !== 'running') { clearInterval(pollTimer); route(); return; }
+    showBuild(y.job);
+  }, 2000);
+  else if (document.getElementById('resume')) {
+    document.getElementById('resume').hidden = false;
+    document.getElementById('resumego').onclick = async e => {
+      e.target.disabled = true;
+      try { await api('/api/cache/build', { name: c.name, repo: c.repo, anchor: c.anchor, llm: c.llm, model: c.model, effort: c.effort || undefined, limit: c.limit, resume: true, confirm: true }); route(); }
+      catch (err) { document.getElementById('rerr').textContent = err.message; e.target.disabled = false; }
+    };
+  }
 }
 
 // ---------- one session: transcript, with its figures in a sidebar ----------
@@ -595,7 +645,7 @@ async function pageSession(id) {
         ${g.reason ? `<div class="sblock"><div class="k">Judge</div><div class="small">${esc(g.reason)}</div></div>` : ''}
         ${crit.length ? `<div class="sblock"><div class="k">Criteria</div>${crit.map(c => `<div class="small">${c.verdict === 'met' ? '✓' : '✗'} ${esc(c.id)} <span class="muted">${esc(String(c.evidence || '').slice(0, 120))}</span></div>`).join('')}</div>` : ''}
         ${g.testTail ? `<div class="sblock"><div class="k">Tests: ${esc(g.tests)}</div><pre class="small">${esc(g.testTail.slice(-600))}</pre></div>` : ''}
-        <div class="sblock muted small">${raw.session ? `session <code>${esc(raw.session)}</code><br>` : ''}<code>bench/runs/${esc(r.run)}/${esc(r.file)}</code></div>
+        <div class="sblock muted small">${raw.session ? `session <code>${esc(raw.session)}</code><br>` : ''}imported from <code>bench/runs/${esc(r.run)}/${esc(r.file)}</code></div>
       </aside>
     </div>`;
   document.querySelectorAll('[data-f]').forEach(b => b.addEventListener('click', () => {
@@ -620,7 +670,7 @@ async function pageNew() {
       <label>Tests a<select name="kind"><option value="behavior">behavior (a cache feature, prompt, wiring)</option><option value="model">model (how one model does with the cache)</option></select></label>
       <label>Name<input name="name" required maxlength="120" placeholder="Prompt hook · Sonnet · PostHog"></label>
       <h3 class="full">2 · PR set</h3>
-      <label style="grid-column:span 2">PR set<select name="prset">${cat.prsets.map(p => `<option value="${esc(p.name)}" data-repo="${esc(p.repo)}">${esc(p.name)} · ${esc(p.repo)} · ${p.prs.length} PRs</option>`).join('') || '<option value="">no PR sets yet</option>'}</select></label>
+      <label style="grid-column:span 2">PR set<select name="prset">${cat.prsets.filter(p => (p.status || 'frozen') === 'frozen').map(p => `<option value="${esc(p.name)}" data-repo="${esc(p.repo)}">${esc(p.name)} · ${esc(p.repo)} · ${p.prs.length} PRs</option>`).join('') || '<option value="">no PR sets yet</option>'}</select></label>
       <div class="full muted small" id="prsetinfo"></div>
       <h3 class="full">3 · Cache</h3>
       <label style="grid-column:span 2">Cache served to the cache-on arm<select name="cache"></select></label>
@@ -647,6 +697,7 @@ async function pageNew() {
   const f = document.getElementById('f');
   let tagTouched = false;
   const prsetOf = () => cat.prsets.find(p => p.name === f.prset.value);
+  if (cat.prsets.some(p => p.status === 'draft')) document.getElementById('prsetinfo').insertAdjacentHTML('afterend', '<div class="full muted small">Drafts are not listed: <a href="#/prsets">freeze a PR set</a> to run it.</div>');
   const autoTag = () => { if (!tagTouched) f.tag.value = `${prsetOf()?.repo || 'x'}-${f.model.value.replace(/[^A-Za-z0-9.]+/g, '-')}-${today}`; };
   const syncPrset = () => {
     const p = prsetOf();

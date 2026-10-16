@@ -10,9 +10,10 @@ import { bootstrap } from '../bench/evals/stats.js';
 import { compare, resolveMeta, writeMeta, readMeta } from '../bench/evals/experiment.js';
 import { openDb } from '../bench/evals/db.js';
 import { ingest } from '../bench/evals/ingest.js';
-import { plan, launch, cancel, alive, jobsView } from '../bench/evals/jobs.js';
-import { createPrset, readPrset } from '../bench/evals/prsets.js';
+import { plan, launch, cancel, alive, jobsView, liveSessions } from '../bench/evals/jobs.js';
+import { createPrset, readPrset, updatePrset, freezePrset } from '../bench/evals/prsets.js';
 import { checkCache, planCache, readReceipt, notesDir, cacheDir, hashNotes } from '../bench/evals/caches.js';
+import { takeSnapshot, restoreSnapshot } from '../bench/evals/snapshot.js';
 import { parseClaude, parseCodex, stepStats } from '../bench/evals/transcripts.js';
 import { createApp } from '../bench/evals/server.js';
 
@@ -106,20 +107,24 @@ function fixture() {
 }
 
 // A built cache, as build-cache.js leaves it: notes in the snapshot, a receipt with their hash.
-function fakeCache(bench, name, { anchor, model = 'sonnet', source = 'pr' }) {
+function fakeCache(bench, name, { anchor, model = 'sonnet', source = 'pr', db = null }) {
   const notes = notesDir(bench, name);
   fs.mkdirSync(notes, { recursive: true });
   fs.writeFileSync(path.join(notes, 'n1.json'), JSON.stringify({ id: 'n1', title: 'A note', source: { type: source, ref: 'pr-1' }, search: 'x' }));
   const receipt = { name, repo: 'click', anchor, llm: 'claude', model, limit: 60, status: 'ok', notes: 1, described: 1, notes_hash: hashNotes(notes), created_at: 1 };
-  fs.writeFileSync(path.join(cacheDir(bench, name), 'receipt.json'), JSON.stringify(receipt));
+  // a receipt from before the database held them, imported on the next scan; or straight into a database
+  if (db) db.putCache(receipt); else fs.writeFileSync(path.join(cacheDir(bench, name), 'receipt.json'), JSON.stringify(receipt));
   return receipt;
 }
 
 const exp = { name: 'Hook', question: 'Does the hook help?', kind: 'behavior' };
 // a bench with a PR set and a cache that pass every check
+// (as files from before the database, so every app and database made from it imports them)
 function ready() {
   const f = fixture();
-  createPrset(f.bench, { name: 'ps', tasks: 'click.json', rule: 'both PRs' });
+  const ps = createPrset(f.bench, openDb(':memory:'), { name: 'ps', tasks: 'click.json', rule: 'both PRs' });
+  fs.mkdirSync(path.join(f.bench, 'prsets'), { recursive: true });
+  fs.writeFileSync(path.join(f.bench, 'prsets', 'ps.json'), JSON.stringify(ps));
   fakeCache(f.bench, 'c-sonnet', { anchor: f.c1 });
   return f;
 }
@@ -135,49 +140,118 @@ test('ingest indexes run directories, lets the per-result file win over summary.
   assert.deepEqual(ingest(db, bench), [], 'an unchanged directory is not rescanned');
 });
 
-test('an experiment definition is written beside its results and validated', () => {
+test('an experiment definition is kept in the database and validated; an old experiment.json is imported', () => {
   const { bench } = fixture();
-  writeMeta(bench, 'click-v9', { name: 'Hook on click', question: 'Does it help?', kind: 'behavior', off: 'nocache', on: 'cache' }, ['nocache', 'cache']);
-  assert.equal(readMeta(bench, 'click-v9').name, 'Hook on click');
-  assert.throws(() => writeMeta(bench, 'click-v9', { on: 'nocache' }, ['nocache', 'cache']), /different arms/);
-  assert.throws(() => writeMeta(bench, 'click-v9', { off: 'hook' }, ['nocache', 'cache']), /not an arm/);
-  assert.throws(() => writeMeta(bench, '../../etc', { name: 'x' }, []), /no such experiment/);
+  fs.writeFileSync(path.join(bench, 'runs', 'click-v9', 'experiment.json'), JSON.stringify({ name: 'From a file', off: 'nocache', on: 'cache' }));
   const db = openDb(':memory:');
   ingest(db, bench);
   assert.equal(db.get('SELECT count(*) n FROM results').n, 2, 'experiment.json is not a result');
+  assert.equal(readMeta(db, 'click-v9').name, 'From a file');
+  writeMeta(db, 'click-v9', { name: 'Hook on click', question: 'Does it help?', kind: 'behavior', off: 'nocache', on: 'cache' }, ['nocache', 'cache']);
+  assert.equal(readMeta(db, 'click-v9').name, 'Hook on click');
+  fs.rmSync(path.join(bench, 'runs', 'click-v9', 'experiment.json'));
+  ingest(db, bench, { force: true });
+  assert.equal(readMeta(db, 'click-v9').name, 'Hook on click', 'the database is the record: a scan does not undo an edit');
+  assert.throws(() => writeMeta(db, 'click-v9', { on: 'nocache' }, ['nocache', 'cache']), /different arms/);
+  assert.throws(() => writeMeta(db, 'click-v9', { off: 'hook' }, ['nocache', 'cache']), /not an arm/);
+  assert.throws(() => writeMeta(db, 'nope', { name: 'x' }, []), /no such experiment/);
+});
+
+test('sessions are imported once with their full record and stay when their files go', () => {
+  const { bench } = fixture();
+  const db = openDb(':memory:');
+  ingest(db, bench);
+  assert.equal(db.record('click-v9/T1-cache-0').arm, 'cache');
+  const f = path.join(bench, 'runs', 'click-v9', 'T1-cache-0.json');
+  fs.writeFileSync(f, JSON.stringify(rec({ arm: 'cache', id: 'T1-cache-0', grade: { tests: 'fail' } })));
+  ingest(db, bench);
+  assert.equal(db.get("SELECT pass FROM results WHERE id = 'click-v9/T1-cache-0'").pass, 1, 'a rewritten file does not overwrite the record');
+  ingest(db, bench, { force: true, only: 'click-v9' });
+  assert.equal(db.get("SELECT pass FROM results WHERE id = 'click-v9/T1-cache-0'").pass, 0, 'an explicit re-import does');
+  fs.rmSync(path.join(bench, 'runs', 'click-v9'), { recursive: true });
+  ingest(db, bench);
+  assert.equal(db.get("SELECT count(*) n FROM results WHERE run = 'click-v9'").n, 2, 'a removed folder stays in the database');
+});
+
+test('a snapshot is a consistent, restorable copy of the database', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'evals-snap-'));
+  const dbFile = path.join(dir, 'evals.db');
+  const { bench } = fixture();
+  const db = openDb(dbFile);
+  ingest(db, bench);
+  const snap = takeSnapshot(dbFile, { dir: path.join(dir, 'snaps'), s3: null });
+  assert.equal(snap.counts.results, 2);
+  db.run('DELETE FROM results');
+  db.raw.close();
+  const r = restoreSnapshot(snap.file, dbFile);
+  assert.equal(r.results, 2);
+  assert.equal(openDb(dbFile).get('SELECT count(*) n FROM results').n, 2);
+  assert.ok(fs.readdirSync(dir).some(f => f.startsWith('evals.db.replaced-')), 'the replaced database is kept');
 });
 
 test('a PR set is frozen with its rule and checked against the checkout', () => {
   const { bench, c2 } = fixture();
-  assert.throws(() => createPrset(bench, { name: 'p', tasks: 'click.json' }), /selection rule/);
-  assert.throws(() => createPrset(bench, { name: 'p', tasks: 'click.json', rule: 'r', ids: ['T9'] }), /not in the task set/);
-  const s = createPrset(bench, { name: 'p', tasks: 'click.json', rule: 'all', ids: ['T1'] });
+  const db = openDb(':memory:');
+  assert.throws(() => createPrset(bench, db, { name: 'p', tasks: 'click.json' }), /selection rule/);
+  assert.throws(() => createPrset(bench, db, { name: 'p', tasks: 'click.json', rule: 'r', ids: ['T9'] }), /not in the task set/);
+  const s = createPrset(bench, db, { name: 'p', tasks: 'click.json', rule: 'all', ids: ['T1'] });
   assert.equal(s.repo, 'click'); assert.equal(s.base, c2); assert.deepEqual(s.ids, ['T1']); assert.ok(s.hash);
   assert.ok(s.checks.every(c => c.ok), JSON.stringify(s.checks));
-  assert.throws(() => createPrset(bench, { name: 'p', tasks: 'click.json', rule: 'again' }), /frozen/);
-  assert.equal(readPrset(bench, 'p').prs[0].oracle, 'tests');
+  assert.throws(() => createPrset(bench, db, { name: 'p', tasks: 'click.json', rule: 'again' }), /exists/);
+  assert.equal(readPrset(db, 'p').prs[0].oracle, 'tests');
+  // tests that call the merged patch's own functions fail the set
+  const spec = JSON.parse(fs.readFileSync(path.join(bench, 'tasks', 'click.json'), 'utf8'));
+  spec.tasks[0].testNeedsGoldSymbols = true;
+  fs.writeFileSync(path.join(bench, 'tasks', 'click.json'), JSON.stringify(spec));
+  const g = createPrset(bench, db, { name: 'g', tasks: 'click.json', rule: 'all' });
+  assert.deepEqual(g.checks.filter(c => !c.ok).map(c => c.check), ["tests passable without the merged patch's own API"]);
+});
+
+test('a PR set is composed as a draft, changed, frozen, and only then run', () => {
+  const { bench } = ready();
+  const db = openDb(':memory:');
+  ingest(db, bench);
+  const d = createPrset(bench, db, { name: 'd', tasks: 'click.json', ids: ['T1'], draft: true });
+  assert.equal(d.status, 'draft');
+  const u = updatePrset(bench, db, 'd', { ids: ['T1', 'T2'], rule: 'both' });
+  assert.deepEqual(u.ids, ['T1', 'T2']);
+  assert.throws(() => plan({ ...exp, prset: 'd', cache: 'c-sonnet', runner: 'claude', model: 'sonnet', tag: 't' }, { benchDir: bench, db }), /draft/);
+  const f = freezePrset(bench, db, 'd');
+  assert.equal(f.status, 'frozen'); assert.ok(f.frozen_at);
+  assert.throws(() => updatePrset(bench, db, 'd', { ids: ['T1'] }), /frozen/);
+  assert.equal(plan({ ...exp, prset: 'd', cache: 'c-sonnet', runner: 'claude', model: 'sonnet', tag: 't' }, { benchDir: bench, db }).sessions, 4);
+  assert.equal(readPrset(db, 'ps').status, 'frozen', 'a set from before drafts is frozen');
 });
 
 test('a cache passes only if mined from PRs, unchanged, before the base, without the PRs\' fixes, by the agent\'s model', () => {
   const { bench, c1, fix } = fixture();
-  const prset = createPrset(bench, { name: 'ps', tasks: 'click.json', rule: 'r' });
-  const ok = fakeCache(bench, 'good', { anchor: c1 });
+  const db = openDb(':memory:');
+  const prset = createPrset(bench, db, { name: 'ps', tasks: 'click.json', rule: 'r' });
+  const ok = fakeCache(bench, 'good', { anchor: c1, db });
   assert.ok(checkCache(bench, ok, prset, 'sonnet').every(c => c.ok), JSON.stringify(checkCache(bench, ok, prset, 'sonnet')));
   const failing = (r, model = 'sonnet') => checkCache(bench, r, prset, model).filter(c => !c.ok).map(c => c.check);
   assert.deepEqual(failing(ok, 'opus'), ["mined by the agent's model"]);
-  assert.ok(failing(fakeCache(bench, 'late', { anchor: fix })).includes("no PR fix in the cache's history"));
-  assert.deepEqual(failing(fakeCache(bench, 'hand', { anchor: c1, source: 'agent' })), ['every note mined from a PR']);
+  assert.ok(failing(fakeCache(bench, 'late', { anchor: fix, db })).includes("no PR fix in the cache's history"));
+  assert.deepEqual(failing(fakeCache(bench, 'hand', { anchor: c1, source: 'agent', db })), ['every note mined from a PR']);
   fs.writeFileSync(path.join(notesDir(bench, 'good'), 'n2.json'), '{}');
   assert.ok(failing(ok).includes('unchanged since built'));
-  assert.throws(() => planCache({ name: 'good', repo: 'click', model: 'sonnet' }, bench), /exists/);
-  const pc = planCache({ name: 'new', repo: 'click', anchor: c1, llm: 'claude', model: 'sonnet' }, bench);
+  assert.throws(() => planCache({ name: 'good', repo: 'click', model: 'sonnet' }, bench, db), /exists/);
+  const pc = planCache({ name: 'new', repo: 'click', anchor: c1, llm: 'claude', model: 'sonnet' }, bench, db);
   assert.equal(pc.anchor, c1); assert.equal(pc.limit, 60);
-  assert.throws(() => planCache({ name: 'x', repo: 'click', anchor: 'nope', model: 'sonnet' }, bench), /not a commit/);
+  assert.throws(() => planCache({ name: 'x', repo: 'click', anchor: 'nope', model: 'sonnet' }, bench, db), /not a commit/);
+  // an unfinished build resumes only as the same build
+  assert.throws(() => planCache({ name: 'good', repo: 'click', anchor: c1, llm: 'claude', model: 'sonnet', resume: true }, bench, db), /already built/);
+  const half = fakeCache(bench, 'half', { anchor: c1, db });
+  db.putCache({ ...half, status: 'failed', effort: null, steps_done: ['snapshot', 'mine-prs'] });
+  const rp = planCache({ name: 'half', repo: 'click', anchor: c1, llm: 'claude', model: 'sonnet', limit: 60, resume: true }, bench, db);
+  assert.deepEqual(rp.done, ['snapshot', 'mine-prs']); assert.equal(rp.steps.length, 3);
+  assert.throws(() => planCache({ name: 'half', repo: 'click', anchor: c1, llm: 'claude', model: 'opus', limit: 60, resume: true }, bench, db), /differs in model/);
 });
 
 test('a cache build snapshots the checkout at the anchor and fails closed when mining cannot run', () => {
   const { bench, c1 } = fixture();
-  const p = planCache({ name: 'nomine', repo: 'click', anchor: c1, llm: 'claude', model: 'sonnet', limit: 5 }, bench);
+  const dbFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'evals-db-')), 'evals.db');
+  const p = planCache({ name: 'nomine', repo: 'click', anchor: c1, llm: 'claude', model: 'sonnet', limit: 5 }, bench, openDb(dbFile));
   fs.mkdirSync(cacheDir(bench, 'nomine'), { recursive: true });
   const planFile = path.join(cacheDir(bench, 'nomine'), 'plan.json');
   fs.writeFileSync(planFile, JSON.stringify(p));
@@ -185,8 +259,8 @@ test('a cache build snapshots the checkout at the anchor and fails closed when m
   const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'evals-bin-'));
   fs.symlinkSync(process.execPath, path.join(bin, 'node'));
   const env = { PATH: `${bin}:/usr/bin:/bin`, HOME: fs.mkdtempSync(path.join(os.tmpdir(), 'evals-home-')), THINKER_TEST: '1' };
-  spawnSync(process.execPath, [path.resolve('bench/evals/build-cache.js'), bench, planFile], { env, encoding: 'utf8' });
-  const r = readReceipt(bench, 'nomine');
+  spawnSync(process.execPath, [path.resolve('bench/evals/build-cache.js'), bench, planFile, dbFile], { env, encoding: 'utf8' });
+  const r = readReceipt(openDb(dbFile), 'nomine');
   assert.equal(r.status, 'failed');
   assert.deepEqual(r.steps_done, ['snapshot'], r.error);
   assert.match(r.error, /mine-prs|agent CLI|no notes/);
@@ -198,15 +272,19 @@ test('plan builds the experiment from its modules and blocks a failing check', (
   const { bench, fix } = ready();
   const db = openDb(':memory:');
   ingest(db, bench);
+  assert.ok(db.getPrset('ps') && db.getCache('c-sonnet'), 'PR sets and receipts from files are imported');
   const p = plan({ ...exp, prset: 'ps', cache: 'c-sonnet', runner: 'claude', off: 'nocache', on: 'cache', model: 'sonnet', reps: 1, tag: 'click-v9' }, { benchDir: bench, db });
   assert.equal(p.expected.length, 4); assert.equal(p.sessions, 2); assert.equal(p.resumed, 2);
   assert.equal(p.blocked, false, JSON.stringify(p.checks.filter(c => !c.ok)));
   assert.equal(p.modules.grading.oracle, 'tests');
+  assert.ok(p.argv.includes('--no-judge'), 'tests grade every session: no judge is called');
+  assert.ok(p.argv.includes('--isolated-settings'), "a session never loads this machine's own settings and hooks");
+  assert.throws(() => plan({ ...exp, prset: 'ps', cache: 'c-sonnet', runner: 'claude', model: 'sonnet', tag: 't', flags: { 'strict-model': true } }, { benchDir: bench, db }), /exact model id/);
   assert.equal(p.modules.prset.prs, 2); assert.equal(p.modules.cache.name, 'c-sonnet');
   assert.ok(p.argv.includes('--notes-dir') && p.argv[p.argv.indexOf('--notes-dir') + 1] === notesDir(bench, 'c-sonnet'));
   assert.equal(p.argv[p.argv.indexOf('--only') + 1], 'T1,T2');
   assert.equal(plan({ ...exp, prset: 'ps', cache: 'c-sonnet', runner: 'claude', model: 'opus', tag: 't' }, { benchDir: bench, db }).blocked, true, 'an agent model other than the mining model blocks');
-  fakeCache(bench, 'late', { anchor: fix });
+  fakeCache(bench, 'late', { anchor: fix, db });
   assert.equal(plan({ ...exp, prset: 'ps', cache: 'late', runner: 'claude', model: 'sonnet', tag: 't' }, { benchDir: bench, db }).blocked, true);
   const base = { ...exp, prset: 'ps', cache: 'c-sonnet', runner: 'claude', model: 'sonnet' };
   assert.throws(() => plan({ ...base, tag: 'x; rm -rf /' }, { benchDir: bench, db }), /tag/);
@@ -219,7 +297,7 @@ test('plan builds the experiment from its modules and blocks a failing check', (
   const spec = JSON.parse(fs.readFileSync(path.join(bench, 'tasks', 'click.json'), 'utf8'));
   spec.tasks.forEach(t => delete t.testCmd);
   fs.writeFileSync(path.join(bench, 'tasks', 'click2.json'), JSON.stringify(spec));
-  createPrset(bench, { name: 'ps2', tasks: 'click2.json', rule: 'r' });
+  createPrset(bench, db, { name: 'ps2', tasks: 'click2.json', rule: 'r' });
   assert.throws(() => plan({ ...base, prset: 'ps2', tag: 't' }, { benchDir: bench, db }), /name the judge/);
 });
 
@@ -295,11 +373,11 @@ test('transcripts parse into steps from Claude Code and Codex, are archived into
   const run = path.join(bench, 'runs', 'click-v9');
   fs.mkdirSync(path.join(run, 'events'));
   fs.writeFileSync(path.join(run, 'events', 'T1-cache-0.jsonl'), JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', text: 'done' } }));
-  const app = createApp({ bench, dbFile: ':memory:' });
+  const app = createApp({ bench, dbFile: ':memory:', snapshots: false });
   await new Promise(r => app.server.listen(0, '127.0.0.1', r));
   try {
-    for (let i = 0; i < 50 && !fs.existsSync(path.join(run, 'transcripts', 'T1-cache-0.jsonl.gz')); i++) await new Promise(r => setTimeout(r, 50));
-    assert.ok(fs.existsSync(path.join(run, 'transcripts', 'T1-cache-0.jsonl.gz')), 'the transcript is archived into the run folder');
+    for (let i = 0; i < 50 && !app.db.get("SELECT 1 FROM transcripts WHERE id = 'click-v9/T1-cache-0'"); i++) await new Promise(r => setTimeout(r, 50));
+    assert.ok(app.db.get("SELECT 1 FROM transcripts WHERE id = 'click-v9/T1-cache-0'"), 'the transcript is stored in the database');
     const x = await (await fetch(`http://127.0.0.1:${app.server.address().port}/api/session?id=${encodeURIComponent('click-v9/T1-cache-0')}`)).json();
     assert.equal(x.transcript.archived, true); assert.equal(x.transcript.steps[0].text, 'done');
     assert.equal(x.partners[0].arm, 'nocache');
@@ -309,7 +387,7 @@ test('transcripts parse into steps from Claude Code and Codex, are archived into
 
 test('the server refuses an unconfirmed launch, a cross-origin one, and a foreign Host', async () => {
   const { bench } = ready();
-  const app = createApp({ bench, dbFile: ':memory:' });
+  const app = createApp({ bench, dbFile: ':memory:', snapshots: false });
   await new Promise(r => app.server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${app.server.address().port}`;
   try {
@@ -337,6 +415,7 @@ test('a launched run reports progress from its result files and can be cancelled
     fs.writeFileSync(path.join(out, 'T1-nocache-0.json'), JSON.stringify({ id: 'T1-nocache-0', task: 'T1', arm: 'nocache', rep: 0, turns: 3, env: process.env.THINKER_TEST }));
     console.log('T1-nocache-0: turns=3'); setInterval(() => {}, 1000);`);
   const db = openDb(':memory:');
+  ingest(db, bench);
   const p = plan({ name: 'Stub', question: 'q', kind: 'behavior', prset: 'ps', cache: 'c-sonnet', runner: 'claude', off: 'nocache', on: 'cache', model: 'sonnet', tag: 'stub' }, { benchDir: bench, db });
   const id = launch(p, { benchDir: bench, db });
   let job;
@@ -348,8 +427,8 @@ test('a launched run reports progress from its result files and can be cancelled
   assert.equal(job.status, 'running'); assert.equal(job.done, 1); assert.equal(job.expected, 4);
   assert.equal(job.name, 'Stub');
   assert.equal(JSON.parse(fs.readFileSync(path.join(bench, 'runs', 'stub', 'T1-nocache-0.json'), 'utf8')).env, '1', 'a launched run is in test mode: no telemetry');
-  assert.equal(readMeta(bench, 'stub').on, 'cache', 'the launch writes the definition before the first result');
-  assert.equal(readMeta(bench, 'stub').modules.cache.name, 'c-sonnet', 'and the modules it was built from');
+  assert.equal(readMeta(db, 'stub').on, 'cache', 'the launch records the definition before the first result');
+  assert.equal(readMeta(db, 'stub').modules.cache.name, 'c-sonnet', 'and the modules it was built from');
   cancel(db, id);
   for (let i = 0; i < 50 && alive(job.pid ?? db.get('SELECT pid FROM jobs WHERE id = ?', id).pid); i++) await new Promise(r => setTimeout(r, 100));
   assert.equal(alive(db.get('SELECT pid FROM jobs WHERE id = ?', id).pid), false);
@@ -361,7 +440,7 @@ test('the MCP tools read experiments and plan through the app, and start only wi
   const { InMemoryTransport } = await import('@modelcontextprotocol/sdk/inMemory.js');
   const { buildServer } = await import('../bench/evals/mcp.js');
   const { bench } = ready();
-  const app = createApp({ bench, dbFile: ':memory:' });
+  const app = createApp({ bench, dbFile: ':memory:', snapshots: false });
   await new Promise(r => app.server.listen(0, '127.0.0.1', r));
   process.env.EVALS_URL = `http://127.0.0.1:${app.server.address().port}`;
   const [a, b] = InMemoryTransport.createLinkedPair();
@@ -386,4 +465,25 @@ test('the MCP tools read experiments and plan through the app, and start only wi
     assert.equal(fs.existsSync(path.join(bench, 'runs', 'mcp-new')), false, 'a refused start writes nothing');
     assert.ok(JSON.parse((await call('define_experiment', { tag: 'click-v9', name: 'Named' })).body).meta.name === 'Named');
   } finally { delete process.env.EVALS_URL; await client.close(); app.close(); }
+});
+
+test('a running experiment shows each session live, read from the transcript its agent is writing', () => {
+  const bench = fs.mkdtempSync(path.join(os.tmpdir(), 'evals-live-'));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'evals-home-'));
+  const wt = path.join(bench, 'worktrees', 'click-t-0');
+  fs.mkdirSync(wt, { recursive: true });
+  const proj = path.join(home, '.claude', 'projects', fs.realpathSync(wt).replace(/[/.]/g, '-'));
+  fs.mkdirSync(proj, { recursive: true });
+  fs.writeFileSync(path.join(proj, 's1.jsonl'), [
+    { type: 'user', message: { role: 'user', content: 'Fix the flag parser\nmore' } },
+    { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'a', name: 'Bash', input: { command: 'rg flag' } }], usage: { input_tokens: 5, cache_read_input_tokens: 1000 } } },
+  ].map(j => JSON.stringify(j)).join('\n'));
+  const was = process.env.HOME;
+  process.env.HOME = home;
+  try {
+    const [l] = liveSessions(bench, { runner: 'claude', repo: 'click', tag: 't', conc: 1 });
+    assert.equal(l.state, 'working'); assert.equal(l.request, 'Fix the flag parser');
+    assert.equal(l.tools, 1); assert.equal(l.last_tool.name, 'Bash'); assert.equal(l.last_tool.input, 'rg flag'); assert.equal(l.context_tokens, 1005);
+    assert.deepEqual(liveSessions(bench, { runner: 'codex', repo: 'click', tag: 't' }), [], 'Codex writes its sessions at the end');
+  } finally { process.env.HOME = was; }
 });

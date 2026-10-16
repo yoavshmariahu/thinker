@@ -3,15 +3,19 @@
 // past results, and only a plan the person confirmed is started (bench/MEASUREMENT.md: confirmed
 // before any run).
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { median } from './stats.js';
-import { readPrset, checkPrset, listPrsets } from './prsets.js';
-import { readReceipt, checkCache, notesDir, listCaches, planCache, cacheDir } from './caches.js';
+import { readPrset, checkPrset, listPrsets, isFrozen } from './prsets.js';
+import { readReceipt, checkCache, notesDir, listCaches, planCache, cacheDir, STEPS } from './caches.js';
 import { acceptanceOf, loopLimits } from '../loop.js';
 
 export const RUNNERS = {
-  claude: { script: 'run.js', label: 'Claude Code (bench/run.js)', defaultModel: 'sonnet', defaultArms: 'nocache,cache',
+  // isolated-settings, always: without it a session loads this machine's own Claude Code settings, and the
+  // installed thinker's user-scope hooks reach every arm — the cache-off arm too (2026-10-15 smoke run:
+  // the warm-up offer appeared in a nocache session)
+  claude: { script: 'run.js', label: 'Claude Code (bench/run.js)', defaultModel: 'sonnet', defaultArms: 'nocache,cache', always: ['isolated-settings'],
     booleans: ['strict-model', 'isolated-settings', 'counterbalance', 'no-judge', 'no-subagents'], values: ['effort', 'max-turns', 'judge-samples'] },
   codex: { script: 'codex-run.js', label: 'Codex (bench/codex-run.js)', defaultModel: 'gpt-5.6-terra', defaultArms: 'nocache,full',
     // loop: iterate to each task's acceptance criteria with a named checker (bench/loop.js)
@@ -25,14 +29,14 @@ const MODEL = /^[A-Za-z0-9][A-Za-z0-9._:\-[\]]{0,80}$/;
 
 function readJson(p) { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return null; } }
 
-export function catalog(benchDir) {
+export function catalog(benchDir, db) {
   const tasksDir = path.join(benchDir, 'tasks');
   const repos = fs.existsSync(path.join(benchDir, 'repos')) ? fs.readdirSync(path.join(benchDir, 'repos')).filter(d => fs.existsSync(path.join(benchDir, 'repos', d, '.git'))) : [];
   const taskSets = (fs.existsSync(tasksDir) ? fs.readdirSync(tasksDir) : []).filter(f => f.endsWith('.json')).map(f => {
     const spec = readJson(path.join(tasksDir, f)) || {};
     return { file: f, repo: f.replace(/(-hard|-adv)?\.json$/, ''), tasks: (spec.tasks || []).map(t => ({ id: t.id, pr: String(t.id).match(/^PR(\d+)/)?.[1] || null, title: t.goldTitle || null, area: t.area || null, type: t.type || 'question', tests: Boolean(t.testCmd) })) };
   });
-  return { prsets: listPrsets(benchDir), caches: listCaches(benchDir), runners: Object.fromEntries(Object.entries(RUNNERS).map(([k, r]) => [k, { label: r.label, defaultModel: r.defaultModel, defaultArms: r.defaultArms, booleans: r.booleans, values: r.values }])), repos, taskSets };
+  return { prsets: listPrsets(db), caches: listCaches(db), runners: Object.fromEntries(Object.entries(RUNNERS).map(([k, r]) => [k, { label: r.label, defaultModel: r.defaultModel, defaultArms: r.defaultArms, booleans: r.booleans, values: r.values }])), repos, taskSets };
 }
 
 // Validate an experiment and price it from past valid results of the same model (and repo when
@@ -50,8 +54,9 @@ export function plan(req, { benchDir, db }) {
   if (!['behavior', 'model'].includes(req.kind)) throw new Error('an experiment tests a behavior or a model');
 
   // module: PR set
-  const prset = readPrset(benchDir, req.prset);
+  const prset = readPrset(db, req.prset);
   if (!prset) throw new Error(req.prset ? `no PR set ${req.prset}` : 'pick a PR set (create one from a task set first)');
+  if (!isFrozen(prset)) throw new Error(`PR set ${prset.name} is a draft: freeze it before running it`);
   const repo = prset.repo;
   if (!fs.existsSync(path.join(benchDir, 'repos', repo, '.git'))) throw new Error(`bench/repos/${repo} is not a cloned repository`);
   const spec = readJson(path.join(benchDir, 'tasks', prset.tasks));
@@ -61,11 +66,14 @@ export function plan(req, { benchDir, db }) {
   // module: agent
   const model = String(req.model || runner.defaultModel);
   if (!MODEL.test(model)) throw new Error('model is not valid');
+  // run.js --strict-model compares the model that ran with the one asked for: an alias such as
+  // `sonnet` never equals the id it resolves to, and the first session would stop the whole run
+  if (req.flags?.['strict-model'] && !/\d/.test(model)) throw new Error(`--strict-model needs the exact model id (e.g. claude-sonnet-5-5), not the alias ${model}`);
   const reps = Math.max(1, Math.min(10, Number(req.reps) || 1));
   const conc = Math.max(1, Math.min(8, Number(req.conc) || 1));
 
   // module: cache
-  const receipt = readReceipt(benchDir, req.cache);
+  const receipt = readReceipt(db, req.cache);
   if (!receipt) throw new Error(req.cache ? `no cache ${req.cache}` : 'pick a cache (build one for this PR set first)');
 
   // module: arms — every experiment compares the cache off with it on; further arms ride along
@@ -99,7 +107,9 @@ export function plan(req, { benchDir, db }) {
   const argv = [path.join(benchDir, runner.script), '--repo', repo, '--tasks', path.join(benchDir, 'tasks', prset.tasks), '--only', prset.ids.join(','),
     '--arm', arms.join(','), '--model', model, '--reps', String(reps), '--conc', String(conc), '--tag', tag, '--notes-dir', notes];
   if (req.judge) argv.push('--judge', String(req.judge));
-  for (const b of runner.booleans) if (req.flags?.[b]) argv.push('--' + b);
+  // the PRs' tests grade every session: a judge would only spend
+  else if (allTests && runner.booleans.includes('no-judge') && !req.flags?.['no-judge']) argv.push('--no-judge');
+  for (const b of runner.booleans) if (req.flags?.[b] || runner.always?.includes(b)) argv.push('--' + b);
   for (const v of runner.values) if (req.values?.[v] != null && req.values[v] !== '') {
     if (!/^[A-Za-z0-9._/-]{1,200}$/.test(String(req.values[v]))) throw new Error(`--${v} is not valid`);
     argv.push('--' + v, String(req.values[v]));
@@ -122,7 +132,7 @@ export function plan(req, { benchDir, db }) {
       prset: { name: prset.name, hash: prset.hash, rule: prset.rule, base: prset.base, prs: prset.ids.length, tasks: prset.tasks },
       cache: { name: receipt.name, anchor: receipt.anchor, model: receipt.model, llm: receipt.llm, limit: receipt.limit, notes: receipt.notes, notes_hash: receipt.notes_hash, source: 'mine-prs --git' },
       arms: { off, on, extra },
-      agent: { runner: req.runner, model, reps, conc, flags: Object.keys(req.flags || {}).filter(k => req.flags[k]), values: req.values || {} },
+      agent: { runner: req.runner, model, reps, conc, flags: [...new Set([...Object.keys(req.flags || {}).filter(k => req.flags[k]), ...(runner.always || [])])], values: req.values || {} },
       grading: { oracle: allTests ? 'tests' : 'judge', judge: req.judge || null, summary: graded },
       ...(loop ? { loop: { checker, ...limits } } : {}),
     },
@@ -154,9 +164,13 @@ export function expectedIds(taskIds, arms, reps) {
 }
 
 function estimate(db, model, repo) {
-  const q = where => db.all(`SELECT in_tokens, out_tokens, cost, wall_ms FROM results WHERE invalid IS NULL AND model = ? ${where}`, model, ...(where ? [repo] : []));
-  let rows = q('AND repo = ?'), basis = `${model} on ${repo}`;
-  if (rows.length < 4) { rows = q(''); basis = `${model}, all repositories`; }
+  const q = (m, where) => db.all(`SELECT in_tokens, out_tokens, cost, wall_ms FROM results WHERE invalid IS NULL AND model = ? ${where}`, m, ...(where ? [repo] : []));
+  // results are recorded under the alias that was asked for; an exact id falls back to its family's
+  const family = (model.match(/haiku|sonnet|opus|fable|gemini|gpt/) || [null])[0];
+  let rows = q(model, 'AND repo = ?'), basis = `${model} on ${repo}`;
+  if (rows.length < 4) { rows = q(model, ''); basis = `${model}, all repositories`; }
+  if (rows.length < 4 && family && family !== model) { rows = q(family, 'AND repo = ?'); basis = `${family} on ${repo} (same family)`; }
+  if (rows.length < 4 && family && family !== model) { rows = q(family, ''); basis = `${family}, all repositories (same family)`; }
   return { n: rows.length, basis, in_tokens: median(rows.map(r => r.in_tokens)) || 0, out_tokens: median(rows.map(r => r.out_tokens)) || 0, cost: median(rows.map(r => r.cost)), wall_ms: median(rows.map(r => r.wall_ms)) || 0 };
 }
 
@@ -165,11 +179,11 @@ export function alive(pid) { if (!pid) return false; try { process.kill(pid, 0);
 export function launch(p, { benchDir, db }) {
   const outDir = path.join(benchDir, 'runs', p.tag);
   fs.mkdirSync(outDir, { recursive: true });
-  // the experiment's definition goes beside its results, before the first result exists
-  const metaFile = path.join(outDir, 'experiment.json');
-  const prev = readJson(metaFile) || {};
-  fs.writeFileSync(metaFile, JSON.stringify({ ...prev, ...p.experiment, modules: p.modules, created_at: prev.created_at || Date.now(),
-    launched: [...(prev.launched || []), { at: Date.now(), runner: p.runner, model: p.model, tasks: p.tasks, reps: p.reps, arms: p.arms, command: p.command, checks: p.checks }] }, null, 2) + '\n');
+  // the experiment's definition is recorded before the first session exists
+  const prev = db.definition(p.tag) || {};
+  db.setDefinition(p.tag, { ...prev, ...p.experiment, modules: p.modules, created_at: prev.created_at || Date.now(),
+    launched: [...(prev.launched || []), { at: Date.now(), runner: p.runner, model: p.model, tasks: p.tasks, reps: p.reps, arms: p.arms, command: p.command, checks: p.checks }] });
+  db.run('UPDATE runs SET repo = coalesce(repo, ?), runner = coalesce(runner, ?), arms = ?, models = coalesce(nullif(models, \'\'), ?) WHERE dir = ?', p.repo, p.runner, p.arms.join(','), p.model, p.tag);
   const log = path.join(outDir, 'harness.log');
   const fd = fs.openSync(log, 'a');
   fs.writeSync(fd, `\n# ${new Date().toISOString()} launched from the evals app\n# ${p.command}\n`);
@@ -187,18 +201,19 @@ export function launch(p, { benchDir, db }) {
 // A cache build: bench/evals/build-cache.js, detached like an experiment, its log beside the cache.
 export function launchCache(p, { benchDir, db }) {
   const out = cacheDir(benchDir, p.name);
-  if (fs.existsSync(out)) throw new Error(`cache ${p.name} exists`);
+  if (fs.existsSync(out) && !p.resume) throw new Error(`cache ${p.name} exists`);
+  if (p.resume && db.get(`SELECT 1 FROM jobs WHERE kind = 'cache' AND tag = ? AND status = 'running'`, p.name)) throw new Error(`a build of ${p.name} is running`);
   fs.mkdirSync(out, { recursive: true });
-  const planFile = path.join(out, 'plan.json');
+  const planFile = path.join(out, p.resume ? `plan-resume-${Date.now()}.json` : 'plan.json');
   fs.writeFileSync(planFile, JSON.stringify(p, null, 2) + '\n');
   const log = path.join(out, 'build.log');
   const fd = fs.openSync(log, 'a');
   const script = path.join(path.dirname(new URL(import.meta.url).pathname), 'build-cache.js');
-  const child = spawn(process.execPath, [script, benchDir, planFile], { cwd: path.dirname(benchDir), detached: true, stdio: ['ignore', fd, fd], env: { ...process.env, THINKER_TEST: '1' } });
+  const child = spawn(process.execPath, [script, benchDir, planFile, db.file], { cwd: path.dirname(benchDir), detached: true, stdio: ['ignore', fd, fd], env: { ...process.env, THINKER_TEST: '1' } });
   fs.closeSync(fd);
   const command = `node bench/evals/build-cache.js (${p.steps.join('; ')})`;
   const { lastInsertRowid } = db.run(`INSERT INTO jobs (kind, tag, runner, args, plan, status, pid, expected, started_at, log) VALUES ('cache',?,?,?,?,?,?,?,?,?)`,
-    p.name, p.llm, JSON.stringify([script, planFile]), JSON.stringify({ ...p, command }), 'running', child.pid, 4, Date.now(), log);
+    p.name, p.llm, JSON.stringify([script, planFile]), JSON.stringify({ ...p, command }), 'running', child.pid, STEPS.length, Date.now(), log);
   const id = Number(lastInsertRowid);
   child.on('exit', code => db.run(`UPDATE jobs SET status = ?, exit_code = ?, ended_at = ? WHERE id = ? AND status = 'running'`, code === 0 ? 'done' : 'failed', code, Date.now(), id));
   child.unref();
@@ -244,12 +259,12 @@ export function jobsView(db, benchDir) {
   const jobs = db.all('SELECT * FROM jobs ORDER BY id DESC LIMIT 50').map(j => {
     const p = JSON.parse(j.plan);
     if (j.kind === 'cache') {
-      // progress is the build's steps: snapshot, mine-prs, phrase, relink
-      const r = readJson(path.join(cacheDir(benchDir, j.tag), 'receipt.json')) || {};
+      // progress is the build's steps: snapshot, mine-prs, phrase, relink, export
+      const r = db.getCache(j.tag) || {};
       return { id: j.id, kind: 'cache', source: 'app', tag: j.tag, name: `cache ${j.tag}`, runner: j.runner, model: p.model, repo: p.repo, arms: [],
         status: j.status === 'running' ? 'running' : r.status === 'ok' ? 'done' : j.status, exit_code: j.exit_code, started_at: j.started_at, ended_at: j.ended_at,
-        elapsed: (j.ended_at || Date.now()) - j.started_at, eta: null, command: p.command, done: (r.steps_done || []).length, expected: 4, errors: r.status === 'failed' ? 1 : 0,
-        last_at: null, step: r.status === 'failed' ? `failed: ${r.error}` : ['snapshot', 'mine-prs', 'phrase', 'relink'][(r.steps_done || []).length] || 'finished', log: tail(j.log).split('\n').slice(-40).join('\n') };
+        elapsed: (j.ended_at || Date.now()) - j.started_at, eta: null, command: p.command, done: (r.steps_done || []).length, expected: STEPS.length, errors: r.status === 'failed' ? 1 : 0,
+        last_at: null, step: r.status === 'failed' ? `failed: ${r.error}` : STEPS.find(x => !(r.steps_done || []).includes(x)) || 'finished', progress: r.progress || null, log: tail(j.log).split('\n').slice(-40).join('\n') };
     }
     const prog = progressOf(benchDir, j.tag, p.expected, j.started_at);
     const end = j.ended_at || Date.now(), elapsed = end - j.started_at;
@@ -260,6 +275,7 @@ export function jobsView(db, benchDir) {
       id: j.id, kind: 'experiment', source: 'app', tag: j.tag, name: p.experiment?.name || null, runner: j.runner, model: p.model, repo: p.repo, arms: p.arms, status: j.status, exit_code: j.exit_code,
       started_at: j.started_at, ended_at: j.ended_at, elapsed, eta, command: p.command, ...prog,
       limit_wait: /LIMIT hit[^\n]*\n?$/.test(logTail.trimEnd() + '\n') && j.status === 'running',
+      live: j.status === 'running' ? liveSessions(benchDir, { runner: j.runner, repo: p.repo, tag: j.tag, conc: p.conc }) : [],
       log: logTail.split('\n').slice(-40).join('\n'),
     };
   });
@@ -297,9 +313,10 @@ function external(benchDir, own) {
     const prog = progressOf(bench, tag, expected, Date.now() - elapsed);
     const remaining = prog.expected != null ? prog.expected - prog.done : null;
     rows.push({
-      id: 'pid-' + pid, source: 'terminal', tag, name: readJson(path.join(bench, 'runs', tag, 'experiment.json'))?.name || null, runner, model: flags.model || RUNNERS[runner].defaultModel, repo, arms: String(flags.arm || RUNNERS[runner].defaultArms).split(','),
+      id: 'pid-' + pid, source: 'terminal', tag, name: null, runner, model: flags.model || RUNNERS[runner].defaultModel, repo, arms: String(flags.arm || RUNNERS[runner].defaultArms).split(','),
       status: 'running', started_at: Date.now() - elapsed, elapsed, eta: prog.finished_this_launch && remaining != null ? (elapsed / prog.finished_this_launch) * remaining : null,
       command: `${m[5].replace(/^.*?(bench\/)/, '$1')} ${m[7].trim()}`, ...prog, log: '',
+      live: liveSessions(bench, { runner, repo, tag, conc: Number(flags.conc) || 1 }),
     });
   }
   return rows;
@@ -307,6 +324,35 @@ function external(benchDir, own) {
 
 function cwdOf(pid) {
   try { return execFileSync('lsof', ['-a', '-p', String(pid), '-d', 'cwd', '-Fn'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\n').find(l => l.startsWith('n'))?.slice(1) || null; } catch { return null; }
+}
+
+// The sessions of a running experiment, read live from the transcripts their agents are writing. A
+// worker's worktree is bench/worktrees/<repo>-<tag>-<i> (run.js:makeWorktree) and Claude Code writes the
+// session under ~/.claude/projects/<that path, / and . as ->/. Codex and Gemini write theirs at the end.
+export function liveSessions(benchDir, { runner, repo, tag, conc = 8 }) {
+  if (runner !== 'claude') return [];
+  const out = [];
+  for (let i = 0; i < Math.max(1, conc); i++) {
+    let wt = path.join(benchDir, 'worktrees', `${repo}-${tag}-${i}`);
+    if (!fs.existsSync(wt)) continue;
+    try { wt = fs.realpathSync(wt); } catch {}
+    const proj = path.join(os.homedir(), '.claude', 'projects', wt.replace(/[\/.]/g, '-'));
+    let newest = null;
+    try { for (const f of fs.readdirSync(proj)) { if (!f.endsWith('.jsonl')) continue; const m = fs.statSync(path.join(proj, f)).mtimeMs; if (!newest || m > newest.m) newest = { f, m }; } } catch { continue; }
+    if (!newest || Date.now() - newest.m > 15 * 60e3) { out.push({ worker: i, state: 'starting' }); continue; }
+    const text = fs.readFileSync(path.join(proj, newest.f), 'utf8');
+    let steps = 0, tools = 0, lastTool = null, request = null, tokens = 0;
+    for (const line of text.split('\n')) {
+      let j; try { j = JSON.parse(line); } catch { continue; }
+      if (j.type === 'user' && !request && typeof j.message?.content === 'string') request = j.message.content.split('\n')[0].slice(0, 140);
+      if (j.type !== 'assistant' || !Array.isArray(j.message?.content)) continue;
+      steps++;
+      const u = j.message.usage; if (u) tokens = (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0);
+      for (const b of j.message.content) if (b.type === 'tool_use') { tools++; lastTool = { name: b.name, input: String(b.input?.command || b.input?.file_path || b.input?.pattern || b.input?.task || '').slice(0, 120) }; }
+    }
+    out.push({ worker: i, state: 'working', session: newest.f.replace(/\.jsonl$/, ''), request, steps, tools, last_tool: lastTool, context_tokens: tokens, last_at: newest.m });
+  }
+  return out;
 }
 
 function etimeMs(s) {

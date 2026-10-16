@@ -19,7 +19,7 @@ is put together from **modules**, each made and checked on its own:
 
 | Module | What it fixes | Made with |
 |---|---|---|
-| **PR set** | which PRs, at which base commit, chosen by which rule | `create_pr_set` (frozen; a new selection is a new PR set) |
+| **PR set** | which PRs, at which base commit, chosen by which rule | `create_pr_set` (`draft: true` to compose it with `update_pr_set`), then `freeze_pr_set`; only a frozen set runs, and it never changes |
 | **Cache** | what the cache-on arm is served: mined from merged PRs at an anchor commit, by a named model | `plan_cache` → user approval → `build_cache` |
 | **Arms** | cache off, cache on, and any extra arm | part of the experiment |
 | **Agent** | runner, model (= the cache's mining model), reps, concurrency | part of the experiment |
@@ -34,8 +34,10 @@ The platform plans, prices, starts, tracks, archives and compares experiments. I
 - **Read** results only with `get_experiment`, `list_experiments`, `get_pr` and `get_session` (or the
   pages). Their numbers are paired, interval-bounded, fail closed on invalid sessions and name their
   grader; a figure computed by hand from `bench/runs/*.json` is none of those.
-- **Never** edit or delete files under `bench/runs/<tag>/`, `bench/prsets/` or `bench/caches/` except
-  through the platform.
+- **The evals database is the system of record** (`~/.thinker-evals/evals.db`, snapshotted daily):
+  experiments, PR sets, cache receipts, every session's record and transcript, jobs. The runners'
+  files under `bench/runs/<tag>/` are only their hand-off, imported once. Never edit the database or
+  those files by hand, and never treat a file as the result.
 
 ## 0. Connect
 
@@ -115,11 +117,12 @@ plan that answers the question. A changed plan needs a new approval.
 ## 6. Start and follow
 
 `start_experiment` with the **same arguments** and `sessions` from the plan (the app refuses a plan that
-changed or is blocked). It writes `bench/runs/<tag>/experiment.json` with the modules and checks, and
+changed or is blocked). It records the experiment, its modules and the checks in the database, and
 returns a `job_id`.
 
 Follow with `get_progress` (`tag`, `log: true` when something looks wrong) every several minutes — not in
-a tight loop; a session takes minutes. Watch for:
+a tight loop; a session takes minutes. For Claude Code runs `live` shows each running session's steps
+and the tool it is in. A person follows the same on the experiment's own page. Watch for:
 
 - `waiting_on_limit`: the runner hit a usage limit and waits; tell the user rather than retrying.
 - `errors` > 0: read the failing sessions (`get_experiment` → `invalid_sessions`, then `get_session`).
@@ -148,7 +151,8 @@ Before believing a difference, check:
 5. **Per PR.** Is the effect one PR or many (`per_pr`, `prs.gained` / `prs.lost`)?
 6. **What happened.** For the PRs that flipped, read the sessions: `get_session` with `filter:
    "thinker"` shows what the cache served and what the agent did with it; `other_arms` steps to the
-   same PR and rep with the cache off. Transcripts are archived in `bench/runs/<tag>/transcripts/`.
+   same PR and rep with the cache off. Transcripts are stored in the database; a session whose transcript shows the product's warm-up
+   offer is marked invalid, since that text is meant for a person, not a benchmark arm.
 
 ## 8. Report
 
