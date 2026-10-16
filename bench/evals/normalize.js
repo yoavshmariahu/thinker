@@ -28,9 +28,10 @@ export function outcome(rec, sidecar) {
     return { pass: crit.pass, source: 'criteria', judge, essential: crit.essential ?? null, all: crit.all ?? null };
   }
   if (typeof g.score === 'number') {
-    // orientation tasks (click) are scored on a continuous scale; only change tasks have a pass
+    // a patch or an answer passes at the judge's full score: 1.0, every key fact and nothing wrong (0.5 is the
+    // main point with specifics missing). Answers had no pass until 2026-10-16, so question experiments showed none.
     const change = rec.diff != null || g.mustTotal != null && Array.isArray(g.touched);
-    return { pass: change ? g.score >= 1 : null, source: change ? 'patch-judge' : 'answer-judge', judge: g.judge || 'sonnet (default)' };
+    return { pass: g.score >= 1, source: change ? 'patch-judge' : 'answer-judge', judge: g.judge || 'sonnet (default)' };
   }
   return { pass: null, source: null, judge: null };
 }

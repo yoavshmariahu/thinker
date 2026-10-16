@@ -27,7 +27,9 @@ test('outcome prefers the PR tests, then a criteria judge, then the patch score,
   assert.equal(c.pass, true); assert.equal(c.source, 'criteria'); assert.equal(c.judge, 'opus');
   assert.equal(outcome({ grade: { criteria: { pass: false } } }).judge, 'sonnet (default)');
   assert.equal(outcome({ grade: { score: 0.5 }, diff: '' }).pass, false);
-  assert.equal(outcome({ grade: { score: 0.85 } }).pass, null, 'an orientation answer has a score, not a pass');
+  assert.equal(outcome({ grade: { score: 0.85 } }).pass, false, 'an answer passes only at the full score');
+  assert.equal(outcome({ grade: { score: 1, judge: 'gpt-6-luna' } }).pass, true);
+  assert.equal(outcome({ grade: { score: 1, judge: 'gpt-6-luna' } }).judge, 'gpt-6-luna', 'the grade names its judge');
   assert.equal(outcome({}, { pass: true, model: 'claude-sonnet-5' }).judge, 'claude-sonnet-5', 'a .judge.json sidecar grades its record');
 });
 

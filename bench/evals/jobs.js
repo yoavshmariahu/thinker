@@ -256,6 +256,40 @@ export function launchCache(p, { benchDir, db }) {
   return id;
 }
 
+// Regrading an experiment's answers with a named judge, from what is recorded (bench/regrade.js): no agent
+// session runs again. Answers to questions only (a task with a reference answer); patches and PR tests are
+// graded where they ran. The plan says how many answers it would grade and by which judges they were graded.
+export function planRegrade(req, { benchDir, db }) {
+  const tag = String(req.dir || req.tag || '');
+  if (!NAME.test(tag) || !db.get('SELECT 1 FROM runs WHERE dir = ?', tag)) throw new Error(`no experiment ${tag}`);
+  const judge = String(req.judge || '');
+  if (!MODEL.test(judge)) throw new Error('name the judge model');
+  const dir = path.join(benchDir, 'runs', tag), tasksFile = path.join(dir, 'tasks.json');
+  if (!fs.existsSync(tasksFile)) throw new Error(`${tag} has no tasks.json: it was not launched from Artemis`);
+  const tasks = new Map((readJson(tasksFile)?.tasks || []).map(t => [t.id, t]));
+  const recs = fs.readdirSync(dir).filter(f => f.endsWith('.json') && !['summary.json', 'tasks.json', 'arm-defs.json'].includes(f)).map(f => readJson(path.join(dir, f))).filter(r => r?.id);
+  const answers = recs.filter(r => tasks.get(r.task)?.gold && !r.error && typeof r.result === 'string' && r.result.trim());
+  const by = {}; for (const r of answers) { const j = r.grade?.judge || (r.grade?.error ? 'failed' : 'unrecorded'); by[j] = (by[j] || 0) + 1; }
+  const todo = answers.filter(r => r.grade?.judge !== judge);
+  return { tag, judge, answers: answers.length, sessions: todo.length, graded_by: by, skipped: recs.length - answers.length,
+    argv: [path.join(benchDir, 'regrade.js'), dir, tasksFile, judge, String(Math.max(1, Math.min(8, Number(req.conc) || 4)))] };
+}
+export function launchRegrade(p, { benchDir, db, onDone }) {
+  if (db.get(`SELECT 1 FROM jobs WHERE kind = 'regrade' AND tag = ? AND status = 'running'`, p.tag)) throw new Error(`a regrade of ${p.tag} is running`);
+  const log = path.join(benchDir, 'runs', p.tag, 'regrade.log');
+  const fd = fs.openSync(log, 'a');
+  fs.writeSync(fd, `\n# ${new Date().toISOString()} regrade with ${p.judge}: ${p.sessions} answers\n`);
+  const child = spawn(process.execPath, p.argv, { cwd: path.dirname(benchDir), detached: true, stdio: ['ignore', fd, fd], env: { ...process.env, THINKER_TEST: '1' } });
+  fs.closeSync(fd);
+  const command = `node bench/regrade.js ${p.tag} --judge ${p.judge}`;
+  const { lastInsertRowid } = db.run(`INSERT INTO jobs (kind, tag, runner, args, plan, status, pid, expected, started_at, log) VALUES ('regrade',?,?,?,?,?,?,?,?,?)`,
+    p.tag, 'judge', JSON.stringify(p.argv), JSON.stringify({ ...p, command }), 'running', child.pid, p.sessions, Date.now(), log);
+  const id = Number(lastInsertRowid);
+  child.on('exit', code => { db.run(`UPDATE jobs SET status = ?, exit_code = ?, ended_at = ? WHERE id = ? AND status = 'running'`, code === 0 ? 'done' : 'failed', code, Date.now(), id); try { onDone?.(); } catch {} });
+  child.unref();
+  return id;
+}
+
 export function cancel(db, id) {
   const j = db.get('SELECT * FROM jobs WHERE id = ?', id);
   if (!j || j.status !== 'running') throw new Error('job is not running');
@@ -301,6 +335,12 @@ export function jobsView(db, benchDir) {
         status: j.status === 'running' ? 'running' : r.status === 'ok' ? 'done' : j.status, exit_code: j.exit_code, started_at: j.started_at, ended_at: j.ended_at,
         elapsed: (j.ended_at || Date.now()) - j.started_at, eta: null, command: p.command, done: (r.steps_done || []).length, expected: stepsOf(r).length, errors: r.status === 'failed' ? 1 : 0,
         last_at: null, step: r.status === 'failed' ? `failed: ${r.error}` : stepsOf(r).find(x => !(r.steps_done || []).includes(x)) || 'finished', progress: r.progress || null, log: tail(j.log).split('\n').slice(-40).join('\n') };
+    }
+    if (j.kind === 'regrade') {
+      const lines = tail(j.log).split('\n'), done = lines.filter(l => /: [\d.]+ \(/.test(l) || / ERROR /.test(l)).length;
+      return { id: j.id, kind: 'regrade', source: 'app', tag: j.tag, name: `regrade ${j.tag} with ${p.judge}`, runner: 'judge', model: p.judge, repo: null, arms: [], status: j.status, exit_code: j.exit_code,
+        started_at: j.started_at, ended_at: j.ended_at, elapsed: (j.ended_at || Date.now()) - j.started_at, eta: null, command: p.command, done, expected: p.sessions,
+        errors: lines.filter(l => / ERROR /.test(l)).length, last_at: null, log: lines.slice(-40).join('\n') };
     }
     const prog = progressOf(benchDir, j.tag, p.expected, j.started_at);
     const end = j.ended_at || Date.now(), elapsed = end - j.started_at;

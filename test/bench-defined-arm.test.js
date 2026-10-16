@@ -13,7 +13,7 @@ test('run.js gives a defined arm its MCP servers, system text, env, before/after
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-defined-arm-')));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   fs.mkdirSync(path.join(root, 'bench'));
-  for (const f of ['run.js', 'worktrees.js', 'oracle.js']) fs.copyFileSync(path.join(ROOT, 'bench', f), path.join(root, 'bench', f));
+  for (const f of ['run.js', 'worktrees.js', 'oracle.js', 'judge-protocol.js']) fs.copyFileSync(path.join(ROOT, 'bench', f), path.join(root, 'bench', f));
   fs.cpSync(path.join(ROOT, 'src'), path.join(root, 'src'), { recursive: true });
   fs.copyFileSync(path.join(ROOT, 'package.json'), path.join(root, 'package.json'));
   const repo = path.join(root, 'bench', 'repos', 'r');
