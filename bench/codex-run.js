@@ -3,6 +3,7 @@
 // task prompts, cache notes, paired arms, and output schema used by bench/run.js.
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { createWorktree, removeWorktree, spawn } from './worktrees.js';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -33,6 +34,20 @@ const TASKS = flags.tasks || path.join(HERE, 'tasks', `${repoName}-hard.json`);
 // (mlflow-astra-v1, 2026-10-11: the hook arms were served nothing and recorded it as such)
 const NOTESET = path.resolve(flags.noteset || path.join(HERE, 'notesets', `${repoName}-v2`));
 const NOTES = path.resolve(flags['notes-dir'] || path.join(NOTESET, 'notes'));
+// The hook writes use counters (uses, lastUsed, servedIn) into the notes it serves, and a note already served
+// in a session is not served again there: pointed at the cache itself, a run changed the cache's notes (the
+// receipt's hash check then blocked the next plan) and a later arm, whose sessions reuse the same names, was
+// held back the notes an earlier run served (2026-10-16, mlflow-b2-astra-served5). Hook arms serve from a
+// copy made for this run, removed at exit.
+let HOOK_NOTES = null;
+const hookNotes = () => {
+  if (!HOOK_NOTES) {
+    HOOK_NOTES = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-run-notes-'));
+    fs.cpSync(NOTES, HOOK_NOTES, { recursive: true });
+    process.on('exit', () => { try { fs.rmSync(HOOK_NOTES, { recursive: true, force: true }); } catch {} });
+  }
+  return HOOK_NOTES;
+};
 const TAG = flags.tag || (args[0] && !args[0].startsWith('--') ? args[0] : `${repoName}-codex-gpt56`);
 const REPS = Number(flags.reps || (args[1] && !args[1].startsWith('--') ? args[1] : 2));
 const CONC = Number(flags.conc || (args[2] && !args[2].startsWith('--') ? args[2] : 3));
@@ -180,7 +195,7 @@ const ARM_ENV = { hook: { THINKER_CE_MAX: '2' }, 'hook-bm25': { THINKER_CE: 'off
 function contextFor(task, session, arm = 'hook') {
   const env = {
     ...process.env,
-    THINKER_NOTES_DIR: NOTES,
+    THINKER_NOTES_DIR: hookNotes(),
     THINKER_NO_BG_VERIFY: '1',
     ...HOOK_ENV,
     ...(ARM_ENV[arm] || {}),
@@ -367,7 +382,8 @@ async function runWorker(cwd, checkCwd) {
     // a run that ended in an error is run again
     if (fs.existsSync(file) && !JSON.parse(fs.readFileSync(file, 'utf8')).error) { console.log(`skip ${id}`); continue; }
     resetWorktree(cwd);
-    const session = `codex-${TAG}-${task.id}-${rep}`;
+    // the arm in the name: two hook arms of one run never share a session's served notes
+    const session = `codex-${TAG}-${task.id}-${arm}-${rep}`;
     let prompt = task.prompt;
     let injected = '';
     if (like(arm) === 'hook' || like(arm) === 'hook-bm25') {
