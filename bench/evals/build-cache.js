@@ -129,17 +129,22 @@ for (const f of fs.existsSync(notes) ? fs.readdirSync(notes) : []) {
 }
 receipt.described = described;
 receipt.sources = noteSources(notes);
-const usage = { tokens: 0, mined: 0, saved: 0 };
+// what the build spent: every model call the product logged (op 'model', src/model-usage.js), by class; the
+// steps' own totals are only counts (understand's lost its tokens under Codex, 2026-10-16: 0 for 15.1M read)
+const usage = { tokens: 0, input: 0, cached: 0, output: 0, calls: 0, mined: 0, saved: 0 };
 for (const file of ['log.jsonl', path.join('state', 'log.jsonl')]) {
   const p = path.join(repo, '.thinker', file);
   if (!fs.existsSync(p)) continue;
   for (const line of fs.readFileSync(p, 'utf8').split('\n')) {
     let e; try { e = JSON.parse(line); } catch { continue; }
-    if (e.op === 'mine-prs') { usage.mined += e.prs || 0; usage.saved += e.saved || 0; usage.tokens += Number(e.tokens?.total ?? e.tokens) || 0; }
-    else if (e.op === 'understand') { usage.files = (usage.files || 0) + (e.files || 0); usage.saved += e.saved || 0; usage.tokens += Number(e.tokens) || 0; }
-    else if (e.op === 'phrase' && e.cost) usage.tokens += Number(e.cost.tokens ?? e.cost.total ?? 0) || 0;
+    if (e.op === 'model') {
+      const t = e.tokens || {};
+      usage.calls++; usage.input += Number(t.inputTokens) || 0; usage.cached += Number(t.cacheReadTokens) || 0; usage.output += Number(t.outputTokens) || 0;
+    } else if (e.op === 'mine-prs') { usage.mined += e.prs || 0; usage.saved += e.saved || 0; }
+    else if (e.op === 'understand') { usage.files = (usage.files || 0) + (e.files || 0); usage.saved += e.saved || 0; }
   }
 }
+usage.tokens = usage.input + usage.output;
 receipt.usage = usage;
 receipt.finished_at = Date.now();
 if (!receipt.notes) fail('the build saved no notes: an empty cache measures nothing');

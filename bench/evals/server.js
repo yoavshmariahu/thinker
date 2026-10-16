@@ -117,8 +117,14 @@ export function createApp({ bench = BENCH, dbFile = DB_FILE, snapshots = true } 
       const run = db.get('SELECT * FROM runs WHERE dir = ?', q.get('dir'));
       if (!run && readReceipt(db, q.get('dir'))) throw Object.assign(httpError(404, 'that is a cache, not an experiment'), { redirect: `#/cache/${encodeURIComponent(q.get('dir'))}` });
       if (!run) throw httpError(404, 'no such experiment');
-      const { meta, rows, cmp } = experiment(run, q.get('on'));
-      // every other arm against the cache-off arm, the cache-on arm first
+      const ex = experiment(run, q.get('on')), { rows, cmp } = ex;
+      // the reference every other arm is compared against: the cache-off arm, or any arm named by `ref`, so two
+      // arms that are neither (another tool against thinker) can be compared head to head on the same pairs
+      const arms = [ex.meta.off, ex.meta.on, ...ex.meta.others].filter(Boolean);
+      const ref = q.get('ref') && arms.includes(q.get('ref')) ? q.get('ref') : ex.meta.off;
+      const meta = ref === ex.meta.off ? { ...ex.meta, ref: ex.meta.off }
+        : { ...ex.meta, ref, off: ref, on: ex.meta.on === ref ? arms.find(a => a !== ref) : ex.meta.on, others: arms.filter(a => a !== ref && a !== (ex.meta.on === ref ? arms.find(b => b !== ref) : ex.meta.on)), cacheOff: ex.meta.off };
+      // every other arm against the reference, the cache-on arm first
       const all = meta.off ? [meta.on, ...meta.others].filter(Boolean).map(a => compare(rows, meta.off, a, info())) : [];
       return {
         run, meta, cmp, all, metrics: METRICS, arms: armSummary(rows), job: jobsByTag('experiment').get(run.dir) || null,

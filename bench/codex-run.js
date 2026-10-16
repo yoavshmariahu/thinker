@@ -191,12 +191,14 @@ function contextFor(task, session, arm = 'hook') {
   }
 }
 // One `codex exec` (or, with `resume`, `codex exec resume <thread>`) call: its events, exit and timing.
-// `ephemeral: false` keeps the session on disk so a loop can resume it; resume takes no --cd or
-// --sandbox, so it runs with the worktree as cwd and the sandbox set through -c.
+// `ephemeral: false` keeps the session on disk so a loop can resume it; resume takes no --cd, so it runs
+// with the worktree as cwd. No sandbox (2026-10-12, the user's call): Codex's seatbelt forbade the sysctl
+// mlflow's conftest makes in its terminal summary, so every green pytest run exited 1 and the agent read its
+// passing tests as failing; the benchmark worktree is disposable and the agent gets a local user's access.
 function codexCall(prompt, cwd, { model = MODEL, resume = null, ephemeral = true, timeoutMin = Number(process.env.BENCH_TIMEOUT_MIN) || 20, schemaFile = null, env: armEnv = {} } = {}) {
   const args = resume
-    ? ['exec', 'resume', '--json', '--ignore-rules', '--model', model, '-c', 'sandbox_mode="workspace-write"', resume, '-']
-    : ['exec', '--json', ...(ephemeral ? ['--ephemeral'] : []), '--ignore-rules', '--model', model, '--sandbox', 'workspace-write', '--cd', cwd,
+    ? ['exec', 'resume', '--json', '--ignore-rules', '--model', model, '--dangerously-bypass-approvals-and-sandbox', resume, '-']
+    : ['exec', '--json', ...(ephemeral ? ['--ephemeral'] : []), '--ignore-rules', '--model', model, '--dangerously-bypass-approvals-and-sandbox', '--cd', cwd,
       ...(schemaFile ? ['--output-schema', schemaFile] : []), '-'];
   const started = Date.now();
   return new Promise((resolve, reject) => {

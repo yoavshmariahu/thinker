@@ -24,8 +24,13 @@ first call that names the agent's working directory. The first session in a repo
 also writes what `thinker setup` would there (the git hooks that keep the cache fresh after a
 commit or merge, Codex's trust in the project, Cursor's rule), and when the repository has
 merged pull requests or enough commits to read, the agent is told once to offer you a
-warm-up; on a yes it runs `thinker warmup --repos <checkout> --yes --terminal` itself. The
-offer is made once per repository on this machine, not again in another clone or worktree,
+warm-up; on a yes it runs `thinker warmup --repos <checkout> --yes --terminal` itself. Inside a
+desktop app (Claude Desktop, the Codex app, Cursor), and wherever no agent CLI is signed in (a
+desktop app's login does not sign in its CLI), Claude Code, Codex and Cursor read through the
+session instead, on the app's own login and model: the build starts in the background with its model calls queued in `.thinker/state`, and
+the agent starts a background subagent that answers them through thinker's `warmup_next` and
+`warmup_answer` tools, about twelve merged pull requests, the share one subagent's context holds.
+The offer is made once per repository on this machine, not again in another clone or worktree,
 and nothing else repeats it; `thinker warmup` is there any time.
 
 Warming a cache reads the repository's merged pull requests into it, so the first

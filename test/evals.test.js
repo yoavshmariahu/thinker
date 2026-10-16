@@ -10,7 +10,7 @@ import { bootstrap } from '../bench/evals/stats.js';
 import { compare, resolveMeta, writeMeta, readMeta } from '../bench/evals/experiment.js';
 import { openDb, lockServer, runningServer, lockFile } from '../bench/evals/db.js';
 import { ingest } from '../bench/evals/ingest.js';
-import { plan, launch, cancel, alive, jobsView, liveSessions } from '../bench/evals/jobs.js';
+import { plan, launch, cancel, alive, jobsView, liveSessions, RUNNERS, OPTIONS } from '../bench/evals/jobs.js';
 import { createPrset, readPrset, updatePrset, freezePrset } from '../bench/evals/prsets.js';
 import { importTaskSet, setAcceptance, getTaskSet, writeRunTasks, listTaskSets } from '../bench/evals/tasksets.js';
 import { checkCache, planCache, readReceipt, notesDir, cacheDir, hashNotes, stepsOf } from '../bench/evals/caches.js';
@@ -447,6 +447,27 @@ test('transcripts parse into steps from Claude Code and Codex, are archived into
   } finally { app.close(); }
 });
 
+test('any arm can be the reference: two arms that are neither cache off nor on are compared head to head', async () => {
+  const { bench } = ready();
+  // a third arm, another tool, beside cache off and cache on
+  fs.writeFileSync(path.join(bench, 'runs', 'click-v9', 'T1-tool-0.json'), JSON.stringify(rec({ arm: 'tool', id: 'T1-tool-0', grade: { tests: 'fail' } })));
+  const app = createApp({ bench, dbFile: ':memory:', snapshots: false });
+  await new Promise(r => app.server.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${app.server.address().port}`;
+  try {
+    const plain = await (await fetch(base + '/api/experiment?dir=click-v9')).json();
+    assert.equal(plain.meta.ref, 'nocache');
+    assert.deepEqual(plain.all.map(c => [c.off, c.on]).sort(), [['nocache', 'cache'], ['nocache', 'tool']]);
+    const x = await (await fetch(base + '/api/experiment?dir=click-v9&ref=tool')).json();
+    assert.equal(x.meta.ref, 'tool'); assert.equal(x.meta.cacheOff, 'nocache');
+    assert.deepEqual(x.all.map(c => [c.off, c.on]).sort(), [['tool', 'cache'], ['tool', 'nocache']], 'every other arm against the reference');
+    assert.equal(x.all.find(c => c.on === 'cache').pairs, 1);
+    assert.equal(x.all.find(c => c.on === 'cache').onSide.passed, 1, 'cache passes where the tool failed, on the same pair');
+    const bogus = await (await fetch(base + '/api/experiment?dir=click-v9&ref=nope')).json();
+    assert.equal(bogus.meta.ref, 'nocache', 'an arm the experiment did not run falls back to cache off');
+  } finally { app.server.close(); app.stop?.(); }
+});
+
 test('the server refuses an unconfirmed launch, a cross-origin one, and a foreign Host', async () => {
   const { bench } = ready();
   const app = createApp({ bench, dbFile: ':memory:', snapshots: false });
@@ -651,4 +672,12 @@ test('one Artemis per database: a live lock refuses a second server, a dead one 
   fs.writeFileSync(lockFile(db), JSON.stringify(holder));
   assert.deepEqual(lockServer(4444, db).held, holder);
   fs.rmSync(lockFile(db));
+});
+
+test('every runner option the experiment form shows has a name and says what it does', () => {
+  for (const [runner, r] of Object.entries(RUNNERS)) for (const key of [...r.booleans, ...r.values]) {
+    const o = OPTIONS[key];
+    assert.ok(o && o.label && o.help && !o.label.startsWith('--'), `${runner}: ${key} needs a label and help in jobs.js OPTIONS`);
+    assert.equal(o.type, r.booleans.includes(key) ? 'switch' : 'setting', `${runner}: ${key}`);
+  }
 });

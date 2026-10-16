@@ -15,6 +15,8 @@ import { initAst } from './ast.js';
 import { cacheInstructions, disabledTools, MORE_NOTES_INTRO } from './cache-guidance.js';
 import { isDisabledRepo } from './repo-switch.js';
 import { warmupPending, answerWarmup, WARMUP_CHOICES } from './repo-onboard.js';
+import { queueDir, buildRunning, nextRequest, answerRequest, requestText } from './session-llm.js';
+import { anyDesktopApp } from './app-host.js';
 
 // MCP-only installations need the same default OS schedule as CLI/hook users.
 try { reportTelemetrySchedule(ensureTelemetryScheduled({ rootDir: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..') })); }
@@ -76,7 +78,7 @@ async function ensureBound(args) {
   if (!r) return { reply: text('thinker is not bound to a repository yet: it was started outside a git checkout. Call again with cwd, the absolute path of your working directory.') };
   if (isDisabledRepo(r)) return { reply: text('thinker is switched off for that repository and serves nothing there.') };
   binding = bind(r); await binding;
-  registerWarmupTool();
+  registerWarmupTool(); registerQueueTools();
   return { bound: true };
 }
 
@@ -139,7 +141,7 @@ function registerTools() {
     const r = await orient(store, { task, file, client: 'mcp', budget: budget || 1000, snippets: snippetsOn(store), ...(budget ? { maxNotes: 5, relFloor: 0.7 } : {}) });
     // no text search over the whole task on a miss: a sentence's words list unrelated code (mitmproxy, 2026-10-07:
     // ValueEditor.tsx and SaveHar for a binary-detection fix) that the agent then opens
-    if (!r.included.length) return text(`${emptyCache() || `No cached notes match this task (${store.list().length} notes in cache). `}Work from the code, then call remember with what you learn.`);
+    if (!r.included.length) return text(`${emptyCache() || `No cached notes match this task (${store.list().length} notes in cache). `}Work from the code${noLearn ? '' : ', then call remember with what you learn'}.`);
     const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n')}` : '';
     const notes = `Cached knowledge for this task (${r.included.length} notes, ~${r.tokens} tokens):\n\n${r.text}${more}`;
     return text(notes);
@@ -261,6 +263,7 @@ function registerTools() {
   });
 
   registerWarmupTool();
+  registerQueueTools();
 }
 
 let warmupTool;
@@ -287,6 +290,35 @@ function registerWarmupTool() {
   });
 }
 
+// Work read through this session (session-llm.js), a warm-up or, in a desktop app, learning (session-work.js):
+// its subagent takes the model calls with warmup_next and answers with warmup_answer. Offered in a desktop
+// app, while a warm-up offer may still be answered here, or while such work runs, so a subagent with its own
+// server process finds them too.
+let queueTools, inApp;
+function registerQueueTools() {
+  if (queueTools || !store) return;
+  inApp ??= anyDesktopApp();
+  if (!(inApp || warmupPending(store) || buildRunning(queueDir(store)))) return;
+  queueTools = [server.registerTool('warmup_next', {
+    title: 'Take the warm-up\'s next model request',
+    description: 'Only for a subagent told to work thinker\'s queue: returns the next model request of thinker\'s background work (a warm-up or learning) that reads through this session.',
+    inputSchema: { cwd: z.string().optional().describe('Absolute path of the repository') },
+  }, async () => {
+    // under the clients' tool timeouts (Codex: 60s), so an empty wait returns and is called again
+    const r = await nextRequest(queueDir(store), { waitMs: 25_000 });
+    if (r.request) return text(requestText(r.request));
+    if (r.waiting) return text('Nothing has come yet: the warm-up is still reading. Call warmup_next again.');
+    return text(`The work is done: the cache holds ${store.list().length} notes. Stop.`);
+  }), server.registerTool('warmup_answer', {
+    title: 'Answer a warm-up model request',
+    description: 'Only for a subagent working thinker\'s queue: the answer to the request warmup_next returned.',
+    inputSchema: { id: z.string().describe('The request id'), answer: z.string().describe('The answer: one JSON object when the request gave a schema'), cwd: z.string().optional() },
+  }, async ({ id, answer }) => {
+    const r = answerRequest(queueDir(store), id, answer);
+    return text(r.error ? `Refused: ${r.error}. Answer request ${id} again.` : 'Saved. Call warmup_next for the next request.');
+  })];
+}
+
 if (setUp || late) registerTools();
 
 // Started outside a repository: a client that declares roots (a workspace) is asked for them, and
@@ -300,7 +332,7 @@ if (late) server.server.oninitialized = async () => {
         const r = checkoutOf(root.uri);
         if (!r || isDisabledRepo(r) || store) continue;
         binding = bind(r); await binding;
-        registerWarmupTool();
+        registerWarmupTool(); registerQueueTools();
         break;
       }
     }

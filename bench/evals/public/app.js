@@ -167,9 +167,11 @@ function expRow(e, metrics) {
 
 // ---------- one experiment ----------
 async function pageExperiment(dir) {
-  const x = await api(`/api/experiment?dir=${enc(dir)}`);
+  const refKey = `ref:${dir}`, x = await api(`/api/experiment?dir=${enc(dir)}${sessionGet(refKey) ? `&ref=${enc(sessionGet(refKey))}` : ''}`);
   const { run, meta, cmp, metrics } = x;
   const arms = x.arms.map(a => a.arm);
+  // with three arms or more, any of them can be the reference the others are measured against
+  const refPicker = meta.off && arms.length > 2 ? `<p class="sub">Compare against <select id="ref">${[meta.cacheOff || meta.off, ...arms.filter(a => a !== (meta.cacheOff || meta.off))].map(a => `<option value="${esc(a)}"${a === meta.off ? ' selected' : ''}>${esc(a)}${a === (meta.cacheOff || meta.off) ? ' (cache off)' : ''}</option>`).join('')}</select></p>` : '';
   $app.innerHTML = `
     <p class="muted"><a href="#/">Experiments</a> / ${esc(dir)}</p>
     <h1>${esc(meta.name || dir)} ${kindChip(meta.kind)}</h1>
@@ -177,6 +179,7 @@ async function pageExperiment(dir) {
     <p class="sub">${esc(run.repo || 'unknown repo')} · ${esc(run.models || 'model unrecorded')} via ${esc(run.runner)} · ${cmp ? cmp.prs.length : '?'} PRs · ${run.results} results${run.invalid ? ` (${run.invalid} invalid)` : ''} · ${fmt.dt(run.first_at)} · <code>bench/runs/${esc(dir)}</code></p>
     <div id="editor"></div><div id="live"></div>
     ${modulesCard(meta)}
+    ${refPicker}
     ${!meta.off ? `<div class="card confirm"><b>No cache-off arm.</b> This experiment ran ${arms.map(esc).join(', ') || 'nothing yet'}. ${arms.length > 1 ? '<a href="#" id="edit2">Pick the arm to compare against</a>.' : ''}</div>`
       : !x.all.some(c => c.pairs) ? `<div class="card">No valid pairs yet between <b>${esc(meta.off)}</b> (cache off) and ${x.all.map(c => `<b>${esc(c.on)}</b>`).join(', ') || 'another arm'}.</div>`
       : `<div id="cmp"></div>`}
@@ -192,7 +195,8 @@ async function pageExperiment(dir) {
       document.querySelectorAll('[data-scope]').forEach(b => b.addEventListener('click', () => { sessionSet('scope', b.dataset.scope); draw(b.dataset.scope); })); };
     draw(sessionGet('scope') || 'all');
   }
-  const openEditor = ev => { ev.preventDefault(); editor(dir, meta, arms); };
+  document.getElementById('ref')?.addEventListener('change', ev => { sessionSet(refKey, ev.target.value === (meta.cacheOff || meta.off) ? '' : ev.target.value); route(); });
+  const openEditor = ev => { ev.preventDefault(); editor(dir, { ...meta, off: meta.cacheOff || meta.off }, arms); };
   document.getElementById('edit').addEventListener('click', openEditor);
   document.getElementById('edit2')?.addEventListener('click', openEditor);
   // a running experiment shows its progress here; the page redraws as sessions finish
@@ -212,7 +216,7 @@ async function pageExperiment(dir) {
 // Arm colors: cache off is the neutral reference, the cache-on arm takes the first hue and any
 // further arm the next ones, in the experiment's own order, so a color always means the same arm.
 const armHue = (arm, meta, comps) => arm === meta.off ? 'var(--baseline)' : `var(--series-${Math.min(8, comps.findIndex(c => c.on === arm) + 1)})`;
-const armRole = (arm, meta) => arm === meta.off ? 'cache off' : arm === meta.on ? 'cache on' : '';
+const armRole = (arm, meta) => arm === meta.off ? (meta.cacheOff && meta.cacheOff !== meta.off ? 'reference' : 'cache off') : arm === meta.on ? 'cache on' : '';
 const HEADLINE = ['pass', 'in_tokens', 'tool_calls', 'wall_ms', 'out_tokens', 'cost'];
 
 // The comparison of every arm against cache off. `scope` is 'all' pairs or only the pairs where the
@@ -228,7 +232,7 @@ function modulesCard(meta) {
     <div class="card mod"><div class="mtitle">PR set</div><a href="#/prset/${enc(m.prset.name)}">${esc(m.prset.name)}</a> · ${m.prset.prs} PRs<div class="muted small">${esc(m.prset.rule)}</div><div class="muted small">${esc(m.prset.tasks)} at ${esc((m.prset.base || '?').slice(0, 10))} · hash ${esc(m.prset.hash)}</div></div>
     <div class="card mod"><div class="mtitle">Cache</div>${!m.cache ? '<span class="muted">none: no arm is served notes</span>' : `<a href="#/cache/${enc(m.cache.name)}">${esc(m.cache.name)}</a> · ${m.cache.notes} notes<div class="muted small">${esc(cacheWhat(m.cache))} by ${esc(m.cache.model)} at ${esc(m.cache.anchor.slice(0, 10))}</div><div class="muted small">notes hash ${esc(m.cache.notes_hash)}</div>`}</div>
     <div class="card mod"><div class="mtitle">Arms</div><b>${esc(m.arms.off)}</b> (off) vs <b>${esc(m.arms.on)}</b> (on)${m.arms.extra?.length ? `<div class="muted small">also ${m.arms.extra.map(esc).join(', ')}</div>` : ''}</div>
-    <div class="card mod"><div class="mtitle">Agent</div>${esc(m.agent.model)} via ${esc(m.agent.runner)}<div class="muted small">${m.agent.reps} reps · ${m.agent.conc} at a time${m.agent.flags.length ? ' · ' + m.agent.flags.map(f => '--' + esc(f)).join(' ') : ''}</div></div>
+    <div class="card mod"><div class="mtitle">Agent</div>${esc(m.agent.model)} via ${esc(m.agent.runner)}<div class="muted small">${m.agent.reps} reps · ${m.agent.conc} at a time${m.agent.options?.length ? ' · ' + m.agent.options.map(esc).join(' · ') : m.agent.flags.length ? ' · ' + m.agent.flags.map(esc).join(' · ') : ''}</div></div>
     <div class="card mod"><div class="mtitle">Grading</div>${esc(m.grading.summary)}</div>
     ${last?.checks ? `<div class="card mod"><div class="mtitle">Checks at launch</div>${failed.length ? `<span class="status critical">${failed.length} failed</span>` : `<span class="status good">all ${last.checks.length} passed</span>`}</div>` : ''}
   </div>`;
@@ -242,7 +246,7 @@ function comparison(comps, metrics, meta, scope) {
   // a loop experiment (bench/loop.js) leads with whether the sessions got to done
   const loop = comps.some(c => c.offSide.done != null || c.onSide.done != null);
   const keys = [...(loop ? ['done'] : []), ...HEADLINE.filter(k => k !== 'pass' || graded)];
-  const legend = `<div class="legend"><span><i style="background:var(--baseline)"></i>${esc(meta.off)} · cache off</span>${comps.map(c => `<span><i style="background:${armHue(c.on, meta, comps)}"></i>${esc(c.on)}${armRole(c.on, meta) ? ' · ' + armRole(c.on, meta) : ''}</span>`).join('')}</div>`;
+  const legend = `<div class="legend"><span><i style="background:var(--baseline)"></i>${esc(meta.off)} · ${meta.cacheOff && meta.cacheOff !== meta.off ? 'reference' : 'cache off'}</span>${comps.map(c => `<span><i style="background:${armHue(c.on, meta, comps)}"></i>${esc(c.on)}${armRole(c.on, meta) ? ' · ' + armRole(c.on, meta) : ''}</span>`).join('')}</div>`;
 
   const card = k => {
     const m = M[k], vk = k === 'pass' ? 'pass_rate' : k;  // a side stores the pass rate as pass_rate
@@ -261,7 +265,7 @@ function comparison(comps, metrics, meta, scope) {
       ${bar(meta.off, base)}${rows}</div>`;
   };
 
-  const head = comps.map(c => `<th class="num" colspan="3" style="border-left:3px solid ${armHue(c.on, meta, comps)}">${esc(c.on)}<div class="armname">${armRole(c.on, meta) || 'vs cache off'} · ${sides(c).n} pairs</div></th>`).join('');
+  const head = comps.map(c => `<th class="num" colspan="3" style="border-left:3px solid ${armHue(c.on, meta, comps)}">${esc(c.on)}<div class="armname">${armRole(c.on, meta) || `vs ${meta.cacheOff && meta.cacheOff !== meta.off ? esc(meta.off) : 'cache off'}`} · ${sides(c).n} pairs</div></th>`).join('');
   const rows = metrics.filter(m => (m.key !== 'pass' || graded) && (!m.loop || loop)).map(m => {
     const base = sides(comps[0]).off;
     return `<tr><th scope="row">${esc(m.label)}</th><td class="num">${m.key === 'pass' ? `${fmt.pct(base.pass_rate)} <span class="muted">${base.passed}/${base.graded}</span>` : fmtValue[m.unit](base[m.key])}</td>
@@ -726,8 +730,9 @@ async function pageNew() {
       <label>Model<input name="model" required></label>
       <label>Reps per PR × arm<input name="reps" type="number" min="1" max="10" value="2"></label>
       <label>Concurrent sessions<input name="conc" type="number" min="1" max="8" value="2"></label>
-      <div class="full checks" id="bools"></div>
-      <div class="full checks" id="vals"></div>
+      <div class="full options" id="bools"></div>
+      <div class="full options" id="vals"></div>
+      <div class="full options" id="loopvals" hidden></div>
       <h3 class="full">6 · Grading</h3>
       <label>Judge model<input name="judge" placeholder="required unless every PR has tests"></label>
       <div class="full muted small" id="gradeinfo"></div>
@@ -760,8 +765,14 @@ async function pageNew() {
     const r = cat.runners[f.runner.value];
     [f.off.value, f.on.value] = r.defaultArms.split(',');
     if (!f.model.value) f.model.value = r.defaultModel;
-    document.getElementById('bools').innerHTML = r.booleans.map(b => `<label class="check"><input type="checkbox" name="b:${b}" ${b === 'strict-model' ? 'checked' : ''}> --${b}</label>`).join('');
-    document.getElementById('vals').innerHTML = r.values.map(v => `<label style="display:grid;gap:3px">--${v}<input name="v:${v}" style="width:160px"></label>`).join('');
+    // each option by what it does (jobs.js OPTIONS), the runner's own name only as a hint
+    const sw = r.options.filter(o => o.type === 'switch'), set = r.options.filter(o => o.type !== 'switch');
+    const setting = o => `<label class="opt"><span>${esc(o.label)}</span><input name="v:${o.key}" placeholder="${esc(o.placeholder || 'default')}"><span class="muted small">${esc(o.help)}</span></label>`;
+    document.getElementById('bools').innerHTML = sw.length ? `<div class="muted small">Options</div>` + sw.map(o => `<label class="opt check"><span><input type="checkbox" name="b:${o.key}" ${o.key === 'strict-model' || r.always.includes(o.key) ? 'checked' : ''} ${r.always.includes(o.key) ? 'disabled' : ''}> ${esc(o.label)}</span><span class="muted small">${esc(o.help)}</span></label>`).join('') : '';
+    document.getElementById('vals').innerHTML = set.filter(o => !o.loop).length ? `<div class="muted small">Settings (leave empty for the default shown)</div>` + set.filter(o => !o.loop).map(setting).join('') : '';
+    document.getElementById('loopvals').innerHTML = set.filter(o => o.loop).length ? `<div class="muted small">Loop settings</div>` + set.filter(o => o.loop).map(setting).join('') : '';
+    const loopBox = f.querySelector('input[name="b:loop"]'), showLoop = () => { document.getElementById('loopvals').hidden = !loopBox?.checked; };
+    loopBox?.addEventListener('change', showLoop); showLoop();
   };
   f.prset.addEventListener('change', syncPrset); f.cache.addEventListener('change', syncCache); f.runner.addEventListener('change', syncRunner);
   f.model.addEventListener('input', () => { f.model.dataset.touched = '1'; autoTag(); }); f.tag.addEventListener('input', () => { tagTouched = true; });
