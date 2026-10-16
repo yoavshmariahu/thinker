@@ -94,6 +94,12 @@ export function offerStore(store) {
 // A cache is warm once it has read some of its repository's history: a warm-up reads up to 50 merged
 // changes, maintenance a few at a time. Notes from sessions alone do not make it warm.
 export const WARM_MINED = 10;
+// Notes read from the code (understand.js: a coverage build, thinker understand) make a cache warm too: one that
+// holds this many is not offered a warm-up, whatever its merged-change count (2026-10-16: a session served from
+// an understanding cache was stopped by the warm-up offer, its cache counted cold).
+export const WARM_UNDERSTOOD = 10;
+export const understoodCount = store => store.list().filter(n => n.source?.type === 'understanding' && n.status !== 'invalid' && !n.archived).length;
+export const isWarm = store => minedCount(store) >= WARM_MINED || understoodCount(store) >= WARM_UNDERSTOOD;
 // The merged changes a cache has read: the record beside the notes (prs.js:recordMinedPrs, one entry per
 // repository and per area), and the notes that name the change they came from (caches older than the record).
 export function minedCount(store) {
@@ -137,7 +143,7 @@ export function warmupOffer(store, { client, home } = {}) {
 // offer counts as made.
 function warmupDue(store, { home } = {}) {
   if (warmupNever(home) || fs.existsSync(mark(store, 'warmup-answered'))) return null;
-  if (fs.existsSync(mark(store, 'warmup-suggested')) || minedCount(store) >= WARM_MINED) return null;
+  if (fs.existsSync(mark(store, 'warmup-suggested')) || isWarm(store)) return null;
   if (!offeredOnce(store.repo, home, { peek: true })) return null;
   return warmupEstimate(store);
 }
@@ -161,7 +167,7 @@ export function warmupRetryDue(store, { home, now = Date.now() } = {}) {
   const since = f => { try { return fs.statSync(mark(store, f)).mtimeMs; } catch { return 0; } };
   const attempt = Math.max(since('warmup-answered'), since('warmup.log'));
   if (!attempt || since('warmup-retry-checked') >= attempt) return null;
-  if (minedCount(store) >= WARM_MINED) return null;
+  if (isWarm(store)) return null;
   let last = null;
   for (const e of readLog(store)) {
     if (e.op === 'warmup-answer') last = e.choice === 'warm' ? (e.started === false ? { failed: `it could not start: ${e.reason || 'no agent'}` } : { t: e.t }) : e.choice === 'dismissed' ? last : null;
@@ -246,7 +252,7 @@ export function logWarmupIssue(store, stage, reason, { detail, client } = {}) {
 export function warmupPending(store, { home } = {}) {
   store = offerStore(store);
   if (!store || warmupNever(home) || fs.existsSync(mark(store, 'warmup-answered'))) return false;
-  try { return minedCount(store) < WARM_MINED; } catch { return false; }
+  try { return !isWarm(store); } catch { return false; }
 }
 
 // A session warm-up is sized to one subagent's context: a merged change's evidence is up to ~10k tokens.

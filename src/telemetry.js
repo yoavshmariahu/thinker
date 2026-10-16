@@ -14,7 +14,7 @@ import { Store, findRepoRoot } from './store.js';
 import { getDeviceId } from './device.js';
 import { detectClients } from './clients.js';
 import { deliveryMetrics } from './delivery-telemetry.js';
-import { minedCount, WARM_MINED, warmupIssueReason } from './repo-onboard.js';
+import { isWarm, WARM_MINED, WARM_UNDERSTOOD, warmupIssueReason } from './repo-onboard.js';
 
 export const HOUR_MS = 60 * 60 * 1000;
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -220,10 +220,10 @@ export function warmupMetrics(store, { all = true, now = Date.now(), repos = nul
   for (const r of (repos || summarize(store, { days: 1, all }).repos || []).filter(r => r.requests > 0)) {
     const checkout = (r.checkouts || []).find(c => { try { return new Store(c, { readonly: true }).exists(); } catch { return false; } });
     if (!checkout) continue;
-    try { active[minedCount(new Store(checkout, { readonly: true })) >= WARM_MINED ? 'warm' : 'cold']++; } catch {}
+    try { active[isWarm(new Store(checkout, { readonly: true })) ? 'warm' : 'cold']++; } catch {}
   }
   return {
-    schemaVersion: 1, windowDays: HOLDOUT_WINDOW_DAYS, warmMined: WARM_MINED,
+    schemaVersion: 1, windowDays: HOLDOUT_WINDOW_DAYS, warmMined: WARM_MINED, warmUnderstood: WARM_UNDERSTOOD,
     ...m, offeredRepositories: offered.size, offeredThenStarted: accepted.size,
     activeRepositoriesWarm: active.warm, activeRepositoriesCold: active.cold,
     requests: requests.slice(-WARMUP_REQUESTS_MAX),

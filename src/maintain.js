@@ -32,7 +32,9 @@ export const DEFAULTS = {
   docsPerRun: 3,
   skills: true,     // card the skill files (SKILL.md) that are new or changed, and settle duplicates (skills.js)
   skillsPerRun: 3,
-  coverage: true,   // the weekly suggestion of directories to cover (coverage.js); `maintain: { coverage: false }` stops it here
+  // the weekly suggestion of directories to cover (coverage.js): a new cache-building strategy, off until an experiment
+  // shows it helps (AGENTS.md); `maintain: { coverage: true }` in .thinker/config.json turns it on for a repository
+  coverage: false,
   archive: true,    // take notes the sessions showed are not worth serving out of serving and upkeep (ops.js:archiveNotes; `archive` in the config sets the rules)
 };
 export const MAINTENANCE_INTERVAL_MS = 4 * 60 * 60_000;
@@ -246,7 +248,7 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
     }
     // 7. at most weekly, a question for the person: the directories their sessions work in that the cache covers
     // little (coverage.js). No model call; the prompt hook asks it, and a build starts only on their answer.
-    if (cfg.coverage !== false && !dry) {
+    if (cfg.coverage === true && !dry) {
       try { const { scheduleSuggestion } = await (fns.coverage ? { scheduleSuggestion: fns.coverage } : import('./coverage.js')); const picks = scheduleSuggestion(store, { now }); if (picks) r.coverageSuggested = picks.length; } catch { r.errors++; }
     }
     const u = state.unreported || {};

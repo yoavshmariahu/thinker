@@ -20,7 +20,8 @@ import { createHash } from 'node:crypto';
 import { areaOf } from './areas.js';
 import { thinkerHome } from './update.js';
 import { codeFiles, batchFiles, filesRead } from './understand.js';
-import { QUESTION_TOOLS, MCP_CLIENTS } from './repo-onboard.js';
+import { QUESTION_TOOLS, MCP_CLIENTS, SUBAGENT_TOOLS, subagentHarness, desktopApp } from './repo-onboard.js';
+import { QUEUE_ENV, queueDir, markBuild, buildRunning, subagentPrompt } from './session-llm.js';
 import { selectAndAuthenticateAgent, getAgentLoginCommand } from './setup/agents.js';
 import { formatTokens } from './model-usage.js';
 
@@ -38,6 +39,10 @@ export const COVERAGE = {
   // what a build spends beyond the code it reads, per model call: the instructions, the notes it writes and a search
   // text per note (mlflow top 200: 3.4M tokens of code over 112 calls spent about 5.8M, 3.4M + 112 × 20k ≈ 5.6M)
   perCall: 20_000,
+  // a build read through the session (a desktop app, or no agent CLI signed in) goes through one subagent's context:
+  // the most changed code first, in smaller calls, up to this much; what is left is built on a later suggestion
+  sessionCode: 100_000,
+  sessionBatch: 20_000,
 };
 const DAY = 86_400_000;
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), 'cli.js');
@@ -176,7 +181,7 @@ export function coverageOffer(store, { client, home, now = Date.now() } = {}) {
 // The answer: never stops suggestions on this machine; none (or nothing that names a pending directory) passes
 // on them for a month; directories start one whole-directory build of them, through the agent the person signed
 // in with. Logged as coverage-answer and coverage-build. Returns the line to tell the agent.
-export async function answerCoverage(store, choice, { client, via = 'picker', home, now = Date.now(), spawnFn = spawn, selectAgentFn = selectAndAuthenticateAgent } = {}) {
+export async function answerCoverage(store, choice, { client, via = 'picker', home, now = Date.now(), spawnFn = spawn, selectAgentFn = selectAndAuthenticateAgent, appFn = desktopApp } = {}) {
   const st = readCoverageState(store), pending = st.pending?.dirs || [];
   const raw = String(choice || '').trim();
   if (/^never$/i.test(raw)) {
@@ -193,9 +198,41 @@ export async function answerCoverage(store, choice, { client, via = 'picker', ho
   delete st.pending;
   if (!chosen.length) { saveState(store, st); store.log({ op: 'coverage-answer', choice: 'none', client, via, dirs: pending.length }); return 'Recorded: no directories built now; thinker will not suggest these again for a month. Go on with the task.'; }
   store.log({ op: 'coverage-answer', choice: 'build', client, via, dirs: pending.length, chosen: chosen.length });
+  const names2 = chosen.map(c => c.dir).join(', '), tokens = chosen.reduce((t, c) => t + c.tokens, 0);
+  // Inside a desktop app (Claude Desktop, the Codex app, Cursor) the build reads through the app's own session,
+  // whatever CLIs are signed in; elsewhere through the agent CLI the person signed in with, and through the
+  // session when none is and the client can start a subagent (AGENTS.md: every model-backed feature works there).
+  const harness = subagentHarness(client), app = harness && appFn(harness);
   let auth = null;
-  try { auth = await selectAgentFn({ requestedAgent: process.env.THINKER_LLM || null, yes: true, out: () => {}, purpose: 'build cache notes for directories', allowSkip: false }); }
-  catch (e) { auth = { ok: false, error: e.message }; }
+  if (!app) {
+    try { auth = await selectAgentFn({ requestedAgent: process.env.THINKER_LLM || null, yes: true, out: () => {}, purpose: 'build cache notes for directories', allowSkip: false }); }
+    catch (e) { auth = { ok: false, error: e.message }; }
+  }
+  if (app || (!auth?.ok && harness)) {
+    const dir = queueDir(store);
+    if (buildRunning(dir)) {
+      saveState(store, st);
+      store.log({ op: 'coverage-build', started: false, dirs: chosen.length, reason: 'session-busy', agent: 'session' });
+      return `The build did not start: another build already reads through this session (a warm-up or learning). Tell the user that thinker suggests these directories again next week, or that \`thinker understand --areas ${chosen.map(p => p.dir).join(',')} --whole\` builds them. Go on with the task.`;
+    }
+    try {
+      fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true });
+      const fd = fs.openSync(path.join(stateDir(store), 'coverage-build.log'), 'a');
+      const p = spawnFn(process.execPath, [CLI, 'understand', '--areas', chosen.map(c => c.dir).join(','), '--whole', '--max-code', String(COVERAGE.sessionCode), '--batch', String(COVERAGE.sessionBatch), '--repo', store.repo],
+        { cwd: store.repo, detached: true, stdio: ['ignore', fd, fd], env: { ...process.env, THINKER_LLM: 'session', [QUEUE_ENV]: dir } });
+      p.unref?.(); fs.closeSync(fd);
+      markBuild(dir, p.pid);
+    } catch (e) {
+      saveState(store, st);
+      store.log({ op: 'coverage-build', started: false, dirs: chosen.length, reason: 'spawn', agent: 'session' });
+      return `The build did not start (${e.message}). The user can run \`thinker understand --areas ${chosen.map(p => p.dir).join(',')} --whole\`. Go on with the task.`;
+    }
+    st.built ||= {}; for (const c of chosen) st.built[c.dir] = at;
+    saveState(store, st);
+    store.log({ op: 'coverage-build', started: true, dirs: chosen.length, tokens: Math.min(tokens, COVERAGE.sessionCode * 2), agent: 'session', ...(app ? { app } : {}) });
+    const why = app ? `This session runs in ${app}, so the build reads through it` : 'No agent CLI is signed in on this machine, so the build reads through this session';
+    return `${why}: notes on how ${names2} work${chosen.length === 1 ? 's' : ''} started in the background, the most changed code first, as much as one subagent's context holds (later suggestions continue it). It waits for a subagent to answer its model calls. Start one now with ${SUBAGENT_TOOLS[harness]}, and do not wait for it: give it exactly the prompt below. Tell the user in one line that the build runs in a background subagent of this session, then go on with the task.\n\n${subagentPrompt(store.repo)}`;
+  }
   if (!auth?.ok) {
     saveState(store, st);
     store.log({ op: 'coverage-build', started: false, dirs: chosen.length, reason: auth?.error || 'no_agent' });
@@ -216,7 +253,7 @@ export async function answerCoverage(store, choice, { client, via = 'picker', ho
   for (const c of chosen) st.built[c.dir] = at;
   saveState(store, st);
   store.log({ op: 'coverage-build', started: true, dirs: chosen.length, tokens: chosen.reduce((t, c) => t + c.tokens, 0), agent: auth.agent });
-  return `Started in the background through ${auth.agent}: notes on how ${chosen.map(c => c.dir).join(', ')} work${chosen.length === 1 ? 's' : ''}, about ${formatTokens(chosen.reduce((t, c) => t + c.tokens, 0))} tokens (output in ${path.relative(store.repo, logFile)}). Tell the user in one line, then go on with the task.`;
+  return `Started in the background through ${auth.agent}: notes on how ${names2} work${chosen.length === 1 ? 's' : ''}, about ${formatTokens(tokens)} tokens. It needs nothing more from you: tell the user in one line, then go on with the task.`;
 }
 
 // `thinker coverage`: the table behind the suggestions, or an answer to one
