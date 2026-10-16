@@ -1,4 +1,4 @@
-// Thinker Evals: experiments compared cache off against cache on. Hash-routed over the evals API.
+// Artemis: experiments compared cache off against cache on. Hash-routed over the evals API.
 const $app = document.getElementById('app');
 const $tip = document.getElementById('tip');
 const $drawer = document.getElementById('drawer');
@@ -116,7 +116,7 @@ async function pageExperiments() {
       <th class="sort num" title="Paired mean difference in input tokens, as a share of the cache-off median">Input tokens</th>
       <th class="sort num">Tool calls</th><th class="sort num">Wall time</th><th class="sort num">Served</th><th class="sort">Date</th><th>Status</th>
     </tr></thead><tbody></tbody></table></div>
-    <p class="muted small">Database <code>${esc(s.store.db)}</code> · last snapshot ${s.store.snapshot ? fmt.ago(s.store.snapshot.at) : 'none yet'}${s.store.s3 ? ` · copied to <code>${esc(s.store.s3)}</code>` : ' · <b>no S3 location set (~/.thinker-evals/config.json "s3", or EVALS_S3_URI): snapshots are local only</b>'}${s.store.last?.uploadError ? ` · <span class="err">last upload failed: ${esc(s.store.last.uploadError)}</span>` : ''}</p>
+    <p class="muted small">Database <code>${esc(s.store.db)}</code> · last snapshot ${s.store.snapshot ? fmt.ago(s.store.snapshot.at) : 'none yet'}${s.store.s3 ? ` · copied to <code>${esc(s.store.s3)}</code>` : ' · <b>no S3 location set (~/.artemis/config.json "s3", or ARTEMIS_S3_URI): snapshots are local only</b>'}${s.store.last?.uploadError ? ` · <span class="err">last upload failed: ${esc(s.store.last.uploadError)}</span>` : ''}</p>
     <p class="muted small">Differences are cache on − cache off, as a share of the cache-off median. Colored where the 90% interval excludes zero: <span class="status good">cache better</span> <span class="status critical">cache worse</span>. Hover a number for its interval and pair count.</p>`;
   const [q, repo, model, kind, onlycmp] = ['q', 'repo', 'model', 'kind', 'onlycmp'].map(id => document.getElementById(id));
   const draw = () => {

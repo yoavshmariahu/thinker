@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// MCP server for the evals app: an agent lists and reads experiments (cache off against cache on,
+// MCP server for Artemis, the evals platform: an agent lists and reads experiments (cache off against cache on,
 // every arm, per PR), follows progress, and plans and starts experiments. It is a client of the
 // running app's HTTP API, so a run an agent starts goes through the same validation, plan and job
 // tracking as one started from the page.
 //
-//   claude mcp add evals -- node bench/evals/mcp.js        (EVALS_URL=http://127.0.0.1:<port> to pin it)
+//   claude mcp add artemis -- node bench/evals/mcp.js        (ARTEMIS_URL=http://127.0.0.1:<port> to pin it)
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
@@ -12,22 +12,25 @@ import { execFileSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 
-// The app's address: EVALS_URL, else the port the reservation tool holds for it.
+// The app's address: ARTEMIS_URL, else the port the reservation tool holds for it.
 function baseUrl() {
-  if (process.env.EVALS_URL) return process.env.EVALS_URL.replace(/\/$/, '');
+  const pinned = process.env.ARTEMIS_URL ?? process.env.EVALS_URL;
+  if (pinned) return pinned.replace(/\/$/, '');
   try {
     const out = execFileSync(path.join(os.homedir(), '.claude', 'bin', 'claude-port'), ['list', 'thinker'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
-    const row = out.split('\n').map(l => l.trim().split(/\s+/)).find(c => c[2] === 'evals');
+    // the live reservation (it was labelled evals before the platform had a name)
+    const rows = out.split('\n').map(l => l.trim().split(/\s+/)).filter(c => c[2] === 'artemis' || c[2] === 'evals');
+    const row = rows.find(c => c[4] === 'yes') || rows[0];
     if (row) return `http://127.0.0.1:${row[0]}`;
   } catch {}
   return null;
 }
 
 export async function call(pathname, body, base = baseUrl()) {
-  if (!base) throw new Error('The evals app is not running. Start it with: PORT=$(~/.claude/bin/claude-port reserve thinker evals) npm run evals — or set EVALS_URL.');
+  if (!base) throw new Error('Artemis is not running. Start it with: artemis-up (or set ARTEMIS_URL).');
   let r;
   try { r = await fetch(base + pathname, body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : {}); }
-  catch (e) { throw new Error(`The evals app at ${base} did not answer (${e.cause?.code || e.message}). Is it running?`); }
+  catch (e) { throw new Error(`Artemis at ${base} did not answer (${e.cause?.code || e.message}). Is it running?`); }
   const j = await r.json().catch(() => ({ error: r.statusText }));
   if (!r.ok) throw new Error(j.error || r.statusText);
   return j;
@@ -97,8 +100,8 @@ const launchShape = {
 };
 
 export function buildServer() {
-  const server = new McpServer({ name: 'thinker-evals', version: '0.1.0' }, {
-    instructions: 'Benchmark experiments for the thinker cache, following the run-evals skill. An experiment is built from modules: a PR set (create_pr_set), a mined cache (plan_cache, build_cache), the arms, the agent, and the grader; it runs the PRs with the cache off and with it on. Results are paired by PR and rep, with 90% bootstrap intervals, invalid sessions excluded. Read with list_experiments, get_experiment, get_pr, get_session (transcripts); follow runs and builds with get_progress. Building a cache and starting an experiment spend model tokens: plan, show the user the plan, and build or start only after the user approves it.',
+  const server = new McpServer({ name: 'artemis', version: '0.1.0' }, {
+    instructions: 'Artemis: benchmark experiments for the thinker cache, following the run-evals skill. An experiment is built from modules: a PR set (create_pr_set), a mined cache (plan_cache, build_cache), the arms, the agent, and the grader; it runs the PRs with the cache off and with it on. Results are paired by PR and rep, with 90% bootstrap intervals, invalid sessions excluded. Read with list_experiments, get_experiment, get_pr, get_session (transcripts); follow runs and builds with get_progress. Building a cache and starting an experiment spend model tokens: plan, show the user the plan, and build or start only after the user approves it.',
   });
 
   server.registerTool('list_experiments', {

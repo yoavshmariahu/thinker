@@ -1,15 +1,15 @@
 #!/usr/bin/env node
-// The evals app: every benchmark experiment under bench/runs, each compared cache off against cache
+// Artemis, the evals platform: every benchmark experiment, each compared cache off against cache
 // on, per-PR history across experiments, live progress, and launching new experiments. Local only: it binds 127.0.0.1 and starts agent
 // sessions, so it is never exposed.
 //
-//   PORT=$(~/.claude/bin/claude-port reserve thinker evals) npm run evals
+//   artemis-up    (scripts/artemis-up; by hand: PORT=$(~/.claude/bin/claude-port reserve thinker artemis) npm run artemis)
 //   node bench/evals/server.js [--port N] [--bench <dir with runs/ tasks/ repos/>] [--db <file>]
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { openDb, DEFAULT_DB } from './db.js';
+import { openDb, DEFAULT_DB, env } from './db.js';
 import { takeSnapshot, listLocal, s3Uri } from './snapshot.js';
 import { ingest, taskInfo } from './ingest.js';
 import { armSummary, METRICS } from './stats.js';
@@ -22,8 +22,8 @@ import { archiveAll, readTranscript, stepStats } from './transcripts.js';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
 const flag = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? args[i + 1] : d; };
-const BENCH = path.resolve(flag('bench', process.env.EVALS_BENCH || path.join(HERE, '..')));
-const DB_FILE = path.resolve(flag('db', process.env.EVALS_DB || DEFAULT_DB));
+const BENCH = path.resolve(flag('bench', env('BENCH') || path.join(HERE, '..')));
+const DB_FILE = path.resolve(flag('db', env('DB') || DEFAULT_DB));
 const PORT = Number(flag('port', process.env.PORT));
 const SCAN_MS = 15_000;
 
@@ -263,7 +263,7 @@ function serveStatic(res, p) {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  if (!PORT) { console.error('Set a port: PORT=$(~/.claude/bin/claude-port reserve thinker evals) npm run evals'); process.exit(2); }
+  if (!PORT) { console.error('Set a port: artemis-up, or PORT=$(~/.claude/bin/claude-port reserve thinker artemis) npm run artemis'); process.exit(2); }
   const { server } = createApp();
-  server.listen(PORT, '127.0.0.1', () => console.log(`evals: http://127.0.0.1:${PORT}  (database ${DB_FILE}; runner hand-off ${path.join(BENCH, 'runs')})`));
+  server.listen(PORT, '127.0.0.1', () => console.log(`Artemis: http://127.0.0.1:${PORT}  (database ${DB_FILE}; runner hand-off ${path.join(BENCH, 'runs')})`));
 }

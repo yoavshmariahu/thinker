@@ -1,15 +1,18 @@
-# Evals app
+# Artemis
 
-Benchmark experiments, compared cache off against cache on. A local web app, an MCP server so an
-agent can read results and start experiments through it, and a SQLite database on this machine that
-is the system of record.
+Artemis is the evals platform: benchmark experiments, compared cache off against cache on. A local
+web app, an MCP server so an agent can read results and start experiments through it, and a SQLite
+database on this machine that is the system of record. Its code is `bench/evals`.
 
 ```bash
-PORT=$(~/.claude/bin/claude-port reserve thinker evals) npm run evals
-# options: --bench <dir with runs/ tasks/ repos/> (default: this checkout's bench/), --db <file>
-
-claude mcp add evals -- node bench/evals/mcp.js   # finds the app through claude-port, or set EVALS_URL
+artemis-up                                         # scripts/artemis-up: start it, or open it if it runs
+claude mcp add artemis -- node bench/evals/mcp.js  # agents; finds the app through claude-port, or set ARTEMIS_URL
 ```
+
+`artemis-up` reserves a port (claude-port, label `artemis`), runs the app in the foreground (Ctrl-C
+stops it) and opens it; when Artemis already runs on this machine it only says where. The alias is
+`alias artemis-up=~/src/thinker/scripts/artemis-up`. By hand: `PORT=$(~/.claude/bin/claude-port
+reserve thinker artemis) npm run artemis` (options: `--bench <dir>`, `--db <file>`).
 
 The app binds 127.0.0.1 only and refuses cross-origin POSTs and foreign `Host` headers, because it
 starts agent sessions. Release the port with `claude-port release thinker evals` when done.
@@ -81,7 +84,7 @@ an arm) marks its session invalid.
 
 ## Data: the database is the record
 
-`~/.thinker-evals/evals.db` (SQLite; `EVALS_DB` or `--db` to move it) holds experiments and their
+`~/.artemis/artemis.db` (SQLite; `ARTEMIS_DB` or `--db` to move it; `~/.thinker-evals` from before the name moves there once) holds experiments and their
 definitions, PR sets, cache receipts, every session with its full record, transcripts, and jobs.
 It lives outside every checkout, so worktrees share it, and outside `~/.thinker`, so uninstalling
 thinker leaves it.
@@ -93,8 +96,8 @@ does not remove it, and `POST /api/reimport {dir}` re-imports a run on purpose (
 `bench/runs`, PR sets and receipts written as files before the database were imported once.
 
 **Snapshots** (`snapshot.js`): the app takes one a day — a consistent copy (`VACUUM INTO`), gzipped,
-the newest 14 kept in `~/.thinker-evals/snapshots/`, and copied to the S3 location in
-`~/.thinker-evals/config.json` (`{"s3": "s3://bucket/prefix"}`; `EVALS_S3_URI` overrides it), through the
+the newest 14 kept in `~/.artemis/snapshots/`, and copied to the S3 location in
+`~/.artemis/config.json` (`{"s3": "s3://bucket/prefix"}`; `ARTEMIS_S3_URI` overrides it), through the
 aws CLI's own credentials. This machine's bucket is `thinker-evals-snapshots-442899048927` (us-west-1:
 private, encrypted, versioned, old versions kept 30 days). `node bench/evals/snapshot.js take |
 list | restore <file|s3://…> --force` (stop the app before restoring; the replaced database is kept

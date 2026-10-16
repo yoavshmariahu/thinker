@@ -9,7 +9,7 @@
   },
   "scripts": {
     "test": "THINKER_TEST=1 node --test test/*.test.js",
-    "evals": "node bench/evals/server.js"
+    "artemis": "node bench/evals/server.js"
   },
   "license": "MIT",
   "dependencies": {
