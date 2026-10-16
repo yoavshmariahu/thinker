@@ -10,7 +10,7 @@ import { bootstrap } from '../bench/evals/stats.js';
 import { compare, resolveMeta, writeMeta, readMeta } from '../bench/evals/experiment.js';
 import { openDb, lockServer, runningServer, lockFile } from '../bench/evals/db.js';
 import { ingest } from '../bench/evals/ingest.js';
-import { plan, launch, cancel, alive, jobsView, liveSessions, RUNNERS, OPTIONS } from '../bench/evals/jobs.js';
+import { plan, planAddArms, launch, cancel, alive, jobsView, liveSessions, RUNNERS, OPTIONS } from '../bench/evals/jobs.js';
 import { createPrset, readPrset, updatePrset, freezePrset } from '../bench/evals/prsets.js';
 import { importTaskSet, setAcceptance, getTaskSet, writeRunTasks, listTaskSets } from '../bench/evals/tasksets.js';
 import { checkCache, planCache, readReceipt, notesDir, cacheDir, hashNotes, stepsOf } from '../bench/evals/caches.js';
@@ -362,6 +362,51 @@ test('an arm defined as data runs against the cache off with no cache, and its d
   fs.writeFileSync(path.join(bench, 'run.js'), 'setTimeout(() => {}, 10)');
   launch(p, { benchDir: bench, db });
   assert.equal(JSON.parse(fs.readFileSync(armDefsFile(bench, 'click-tool'), 'utf8')).tool.system, 'use the tool');
+});
+
+test('arms added to an experiment that ran run alone, paired with its sessions, and are recorded beside what it ran', () => {
+  const { bench, c1 } = ready();
+  const run = path.join(bench, 'runs', 'click-v9');
+  for (const arm of ['nocache', 'cache']) fs.writeFileSync(path.join(run, `T2-${arm}-0.json`), JSON.stringify(rec({ task: 'T2', arm, id: `T2-${arm}-0`, grade: { tests: 'fail' } })));
+  const db = openDb(':memory:');
+  ingest(db, bench);
+  db.setDefinition('click-v9', { name: 'Hook on click', question: 'Does it help?', kind: 'behavior', off: 'nocache', on: 'cache', modules: { cache: { name: 'c-sonnet' } } });
+  fakeCache(bench, 'u-sonnet', { anchor: c1, source: 'understanding', kind: 'understanding', db });
+  const req = { add_to: 'click-v9', arms: 'understanding', like: { understanding: 'hook' }, prset: 'ps', cache: 'u-sonnet', runner: 'codex', values: { 'ce-views': 'multi', budget: '1500' } };
+  const p = planAddArms(req, { benchDir: bench, db });
+  assert.equal(p.blocked, false, JSON.stringify(p.checks.filter(c => !c.ok)));
+  assert.deepEqual(p.expected, ['T1-understanding-0', 'T2-understanding-0'], 'only the new arm runs, on the experiment\'s PRs and reps');
+  const arg = f => p.argv[p.argv.indexOf(f) + 1];
+  assert.equal(arg('--arm'), 'understanding'); assert.equal(arg('--arm-like'), 'understanding=hook');
+  assert.equal(arg('--notes-dir'), notesDir(bench, 'u-sonnet')); assert.equal(arg('--ce-views'), 'multi'); assert.equal(arg('--budget'), '1500');
+  assert.equal(arg('--model'), 'sonnet', 'the experiment\'s model');
+  assert.deepEqual(p.add.onto, { off: 'nocache', on: 'cache', arms: ['nocache', 'cache'], tasks: 2, reps: 1, model: 'sonnet', sessions: 4 });
+  assert.equal(p.modules.cache.name, 'u-sonnet');
+  // what does not pair is refused or blocked
+  assert.throws(() => planAddArms({ ...req, arms: 'cache' }, { benchDir: bench, db }), /already ran/);
+  assert.throws(() => planAddArms({ ...req, runner: 'claude' }, { benchDir: bench, db }), /only the codex runner/);
+  assert.throws(() => planAddArms({ ...req, like: { understanding: 'rm' } }, { benchDir: bench, db }), /runs like one of/);
+  assert.throws(() => planAddArms({ ...req, add_to: 'nope' }, { benchDir: bench, db }), /no experiment/);
+  assert.equal(planAddArms({ ...req, model: 'opus' }, { benchDir: bench, db }).blocked, true, 'another model does not pair');
+  createPrset(bench, db, { name: 'one', tasks: 'click.json', rule: 'one PR', ids: ['T1'] });
+  assert.equal(planAddArms({ ...req, prset: 'one' }, { benchDir: bench, db }).checks.find(c => c.check === 'the PR set is the experiment\'s PRs').ok, false);
+  // the launch keeps what the experiment ran and records the added arm beside it
+  fs.writeFileSync(path.join(bench, 'codex-run.js'), 'setTimeout(() => {}, 10)');
+  launch(p, { benchDir: bench, db });
+  const m = readMeta(db, 'click-v9');
+  assert.equal(m.modules.cache.name, 'c-sonnet', 'the original modules are not overwritten');
+  assert.deepEqual([m.name, m.off, m.on], ['Hook on click', 'nocache', 'cache']);
+  assert.deepEqual(m.added.map(a => [a.arms, a.like, a.modules.cache.name]), [[['understanding'], { understanding: 'hook' }, 'u-sonnet']]);
+  assert.deepEqual(db.get('SELECT arms FROM runs WHERE dir = ?', 'click-v9').arms.split(',').sort(), ['cache', 'nocache', 'understanding']);
+  // its results arrive: the comparison stays nocache against cache, the added arm beside it; planning it again resumes
+  fs.writeFileSync(path.join(run, 'T1-understanding-0.json'), JSON.stringify(rec({ arm: 'understanding', id: 'T1-understanding-0', grade: { tests: 'pass' } })));
+  ingest(db, bench, { force: true });
+  const meta = resolveMeta(readMeta(db, 'click-v9'), ['nocache', 'cache', 'understanding']);
+  assert.deepEqual([meta.off, meta.on, meta.others], ['nocache', 'cache', ['understanding']]);
+  const again = planAddArms(req, { benchDir: bench, db });
+  assert.deepEqual([again.sessions, again.resumed], [1, 1]);
+  launch(again, { benchDir: bench, db });
+  assert.equal(readMeta(db, 'click-v9').added.length, 1, 'a resumed arm is recorded once');
 });
 
 test('a loop experiment names its checker, needs acceptance criteria on every PR, and says its estimate is a guess', () => {

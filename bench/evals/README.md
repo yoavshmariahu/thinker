@@ -42,6 +42,16 @@ cache, or a note from anywhere but the kind's own source (a PR for a mined cache
 understanding cache) marks the receipt failed. An understanding cache serves best with the runner's
 `ce-views: multi` (src/dense.js scores a note by its best of three texts) and a hook `budget` near 1500.
 
+**Adding arms to an experiment that ran** (`planAddArms`, `plan_add_arms`/`add_arms`, **Add arms** on its
+page): only the new arms run, on the experiment's own PRs, reps and model, and each session pairs with the
+ones recorded, so its cache-off and cache-on arms are not repeated. The plan checks the PR set is exactly
+the experiment's PRs, the model and task set version are the ones it ran, and the new arm's cache as for
+any experiment. The cache and runner options of the launch apply to the new arms alone; on Codex `like`
+runs an arm under its own name as a built-in one (`codex-run.js --arm-like understanding=hook`). The
+definition keeps the modules the experiment ran with and lists each added arm beside them (`added`: arms,
+cache, options, the thinker commit the runner served from; every Codex record carries `thinker` too). The
+added arms ran later than the rest, with that day's thinker and agent CLI: compare with that in mind.
+
 The experiment's definition is kept in the database with its sessions; a launched experiment records
 its modules and the checks it passed:
 

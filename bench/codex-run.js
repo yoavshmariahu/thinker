@@ -39,6 +39,8 @@ const CONC = Number(flags.conc || (args[2] && !args[2].startsWith('--') ? args[2
 const MODEL = flags.model || (args[3] && !args[3].startsWith('--') ? args[3] : 'gpt-5.6-terra');
 const OUT = path.join(HERE, 'runs', TAG);
 const CLI = path.join(ROOT, 'src', 'cli.js');
+// the thinker the hooks and tools ran from, on every record: an arm added later runs today's checkout
+const THINKER_REV = (() => { try { const rev = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).trim(); const dirty = execFileSync('git', ['status', '--porcelain', '--', 'src'], { cwd: ROOT, encoding: 'utf8' }).trim(); return dirty ? `${rev}+dirty` : rev; } catch { return null; } })();
 // Worktrees are cut from a clone that ends at the base commit, so the merged fixes are not in its history
 const baseClone = path.join(HERE, 'repos', `${repoName}-base`);
 const WT_REPO = fs.existsSync(baseClone) ? baseClone : REPO;
@@ -49,6 +51,11 @@ const BUDGET = Number(flags.budget || process.env.BENCH_BUDGET) || 750;
 const HOOK_ENV = { THINKER_HOLDOUT: '0', ...(flags['ce-views'] ? { THINKER_CE_VIEWS: String(flags['ce-views']) } : {}) };
 // Arms: nocache | full (hooks, MCP tools and the AGENTS.md instruction, as installed) | hook (notes pasted above the request)
 const ARMS = (flags.arm || process.env.BENCH_ARMS || 'nocache,full').split(',').map(a => a === 'cache' ? 'full' : a);
+// An arm under its own name that runs as a built-in one (`--arm-like understanding=hook`): an arm added to an
+// experiment whose `hook` arm already ran (Artemis: jobs.js, add_to) is served another cache the same way,
+// and its results are recorded under its own name beside the experiment's.
+const LIKE = Object.fromEntries(String(flags['arm-like'] || '').split(',').filter(Boolean).map(p => p.split('=')));
+const like = arm => LIKE[arm] || arm;
 // A Codex home for the benchmark: the login, the hooks (reviewed and trusted there once) and the
 // worktrees marked trusted. The hooks say nothing in a worktree that has no notes.
 const CODEX_HOME = path.join(HERE, 'codex-home');
@@ -358,23 +365,25 @@ async function runWorker(cwd, checkCwd) {
     const session = `codex-${TAG}-${task.id}-${rep}`;
     let prompt = task.prompt;
     let injected = '';
-    if (arm === 'hook' || arm === 'hook-bm25') {
-      injected = contextFor(task, session, arm);
+    if (like(arm) === 'hook' || like(arm) === 'hook-bm25') {
+      injected = contextFor(task, session, like(arm));
       // the notes carry their own preamble; no second instruction around them
       prompt = `${injected}\n\n${task.prompt}`;
     }
     let armBefore = null, armAfter = null, def = null;
     try {
-      if (arm === 'full') armCache(cwd);  // inside the try: a failure here is one errored record, not a dead worker
+      if (like(arm) === 'full') armCache(cwd);  // inside the try: a failure here is one errored record, not a dead worker
       if (ARM_DEFS[arm]) { if (LOOP) throw new Error('a defined arm does not run in --loop yet'); armBefore = armStep(arm, 'before', cwd); def = armDefined(cwd, arm); }
       let run;
       try { run = LOOP ? await runLoop(task, prompt, cwd, checkCwd) : await runCodex(prompt, cwd, { env: def?.env || {} }); }
       finally { if (ARM_DEFS[arm]) armAfter = armStep(arm, 'after', cwd); }
       if (ARM_DEFS[arm]) run.armSteps = { before: armBefore, after: armAfter };  // a defined arm's own steps, not in wall_ms
       run.tools.injected = [...new Set([...injected.matchAll(/\(id: ([\w-]+), confidence/g)].map(m => m[1]))];
-      if (arm === 'full') { const use = cacheUse(cwd); run.tools.injected = use.injected; run.tools.cache = use; run.tools.thinkerCalls = use.orientCalls + use.lookupCalls; }
+      if (like(arm) === 'full') { const use = cacheUse(cwd); run.tools.injected = use.injected; run.tools.cache = use; run.tools.thinkerCalls = use.orientCalls + use.lookupCalls; }
       run.model = MODEL;
-      run.budget = arm === 'nocache' ? null : BUDGET;
+      run.budget = like(arm) === 'nocache' ? null : BUDGET;
+      if (LIKE[arm]) run.armLike = LIKE[arm];
+      run.thinker = THINKER_REV;
       run.arm = arm;
       run.task = task.id;
       run.rep = rep;

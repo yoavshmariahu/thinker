@@ -304,6 +304,36 @@ export function buildServer() {
     return text({ started: true, job_id: r.id, tag: r.tag, follow: 'get_progress with this tag; results appear in get_experiment as sessions finish.' });
   }));
 
+  const addShape = {
+    add_to: z.string().describe('The experiment (its tag) whose sessions the new arms are paired with; its cache-off and cache-on arms are not run again'),
+    arms: z.string().describe('The arms to add, comma-separated, each a name the experiment has not used, e.g. understanding'),
+    like: z.record(z.string(), z.enum(['hook', 'full', 'nocache', 'hook-bm25'])).optional().describe('Run an added arm as a built-in one under its own name (codex runner), e.g. {"understanding": "hook"}'),
+    prset: z.string().describe('A PR set holding exactly the experiment\'s PRs (list_pr_sets; create_pr_set and freeze_pr_set to make one)'),
+    cache: z.string().optional().describe('The cache the added arms are served (list_caches); its checks are those of any experiment'),
+    runner: z.enum(['claude', 'codex', 'gemini']).optional().describe('Only when the experiment records no runner'),
+    conc: z.number().int().min(1).max(8).optional().describe('Concurrent sessions; default 1'),
+    judge: z.string().optional().describe('Grading module, as for plan_experiment'),
+    flags: z.record(z.string(), z.boolean()).optional().describe('Runner switches; they apply to the added arms only'),
+    values: z.record(z.string(), z.string()).optional().describe('Runner options with a value, e.g. {"ce-views": "multi", "budget": "1500"}; they apply to the added arms only'),
+  };
+  server.registerTool('plan_add_arms', {
+    description: 'Plan new arms for an experiment that already ran, without starting anything: only the new arms run, on the experiment\'s own PRs, reps and model, and each session is paired with the ones already recorded, so the cache-off and cache-on arms are not repeated. Returns the checks (same PRs, same model, task set version, the cache\'s own checks), the command, the session count and an estimate. Show it to the user before add_arms.',
+    inputSchema: addShape, annotations: { readOnlyHint: true },
+  }, guard(async a => {
+    const p = await call('/api/plan', a);
+    return text({ sessions: p.sessions, already_on_disk: p.resumed, adds: p.add, modules: p.modules, checks: p.checks, blocked: p.blocked, estimate: p.estimate, command: p.command,
+      next: p.blocked ? 'Blocked: a check failed. Fix what it names and plan again.'
+        : p.sessions ? `To start, call add_arms with the same arguments and sessions: ${p.sessions}, after the user approves.` : 'Nothing to run: every result of these arms is already on disk.' });
+  }));
+  server.registerTool('add_arms', {
+    description: 'Start the arms planned with plan_add_arms. It starts real agent sessions that spend model tokens. Only call it after the user has seen the plan and approved it, with the same arguments and its session count.',
+    inputSchema: { ...addShape, sessions: z.number().int().min(1).describe('The session count plan_add_arms returned') },
+    annotations: { destructiveHint: false, openWorldHint: true },
+  }, guard(async a => {
+    const r = await call('/api/launch', { ...a, confirm: true });
+    return text({ started: true, job_id: r.id, tag: r.tag, follow: 'get_progress with this tag; get_experiment compares each added arm with the cache-off arm, and ref names another arm to compare against.' });
+  }));
+
   server.registerTool('get_progress', {
     description: 'What is in progress: running and recent experiments (sessions finished out of planned, each running session\'s live activity, errors, time left) and cache builds (step, mining progress), with the log tail. Includes runs started from a terminal.',
     inputSchema: { tag: z.string().optional().describe('One experiment; all when omitted'), log: z.boolean().optional().describe('Include the last lines of the log') },
