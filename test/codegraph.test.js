@@ -133,7 +133,7 @@ test('drilldown returns the definition with its lines, callers and callees, and 
   const repo = gitRepo();
   const { store, a } = storeWithNotes(repo);
   const r = drilldown(store, { pointer: 'src/core.py:run_callback' });
-  assert.match(r.text, /^src\/core\.py:run_callback \(L10–L11, 2 lines; 4 call sites in 3 files\)\n```\ndef run_callback\(ctx\):\n    return ctx\n```/);
+  assert.match(r.text, /^src\/core\.py:run_callback \(L10–L11, 2 lines; 4 call sites in 3 files\)\n```\n10  def run_callback\(ctx\):\n11      return ctx\n```/, 'lines carry their numbers');
   assert.match(r.text, /Callers and other references \(6 in 3 files\):\n- src\/cli\.py:L6  return run_callback\(ctx\)\n- src\/cli\.py:L9/); // calls first, tests last, imports after
   assert.ok(r.text.indexOf('tests/test_core.py') > r.text.indexOf('src/cli.py:L6'));
   assert.ok(!r.text.includes('Calls into this repository')); // run_callback calls nothing of the repository
@@ -144,7 +144,8 @@ test('drilldown returns the definition with its lines, callers and callees, and 
   const bare = drilldown(store, { pointer: 'other' });
   assert.equal(bare.file, 'src/cli.py');
   assert.match(bare.text, /Callers and other references: none\n\nCalls into this repository: run_callback \(src\/core\.py:L10\)/);
-  assert.match(bare.text, /Cached notes about this code \(lookup takes an id\):\n### \[map\] CLI entry point/); // a note on the file
+  // a note on the file, not on the symbol: listed by title, never printed whole
+  assert.match(bare.text, /Cached notes about this code \(lookup takes an id\):\n- \[map\] CLI entry point  \(id: cli-entry-point\)/);
   assert.match(drilldown(store, { pointer: 'tests/test_core.py:test_run_callback' }).text, /No cached notes rest on this code\./);
   // callees of a caller; a path alone is an outline
   assert.match(drilldown(store, { pointer: 'src/cli.py:entry' }).text, /Calls into this repository: Command \(src\/core\.py:L3\), invoke \(src\/core\.py:L4\), run_callback \(src\/core\.py:L10\)/);
@@ -157,7 +158,7 @@ test('drilldown returns the definition with its lines, callers and callees, and 
   assert.match(drilldown(store, { pointer: '' }).error, /needs a pointer/);
   // a budget cuts the code, not the rest
   const small = drilldown(store, { pointer: 'src/long.py:long_one', budget: 300 });
-  assert.match(small.text, /^src\/long\.py:long_one \(L1–L42, 42 lines; no references\)\n```\ndef long_one\(x\):\n(    x = x \+ \d+\n){17}… \(24 more lines; drilldown with a larger budget for all of it\)\n```/);
+  assert.match(small.text, /^src\/long\.py:long_one \(L1–L42, 42 lines; no references\)\n```\n 1  def long_one\(x\):\n( ?\d\d? {6}x = x \+ \d+\n){17}… \(24 more lines; drilldown with a larger budget for all of it\)\n```/);
   assert.match(small.text, /No cached notes rest on this code/);
   assert.ok(small.tokens <= 320, String(small.tokens));
   assert.ok(!drilldown(store, { pointer: 'src/long.py:long_one', budget: 3000 }).text.includes('more lines'));
@@ -190,11 +191,17 @@ test('find renders pointers drilldown takes, with the notes on them; drilldown r
     assert.match(f.text, /- src\/core\.py:run_callback:L10  \(function, 2 lines; 4 call sites in 3 files\)/);
     assert.match(f.text, /Cached notes on this code.*\n- \[map\] Callbacks run through run_callback/);
     assert.match(find(store, { query: 'zzzz_nothing_here' }).text, /No definition carries/);
+    // one identifier: the code of its definition comes with the list, so no second call is needed; words: pointers only
+    assert.match(find(store, { query: 'run_callback' }).text, /\n\nsrc\/core\.py:run_callback \(L10–L11[^\n]*\n```\n10  def run_callback\(ctx\):/);
+    assert.doesNotMatch(f.text, /```/);
+    assert.doesNotMatch(f.text + find(store, { query: 'run_callback' }).text, /Next: drilldown/);
+    // drilldown takes a list of pointers as well
+    assert.match(drilldown(store, { pointers: ['src/core.py:Command.invoke', 'src/core.py:run_callback'] }).text, /Command\.invoke \(L4–L5[\s\S]*run_callback \(L10–L11/);
     assert.deepEqual(parsePointers('src/core.py:Command.invoke:L4 (method, 2 lines; 1 call site), src/core.py:run_callback and `src/cli.py`'), ['src/core.py:Command.invoke:L4', 'src/core.py:run_callback', 'src/cli.py']);
     assert.deepEqual(parsePointers('invoke'), ['invoke']);
     const d = drilldown(store, { pointer: 'src/core.py:Command.invoke, src/core.py:run_callback' });
     assert.match(d.text, /src\/core\.py:Command\.invoke \(L4–L5, 2 lines/); assert.match(d.text, /src\/core\.py:run_callback \(L10–L11, 2 lines/);
-    assert.doesNotMatch(d.text, /Callers \(/); assert.match(d.text, /Callers and callees: drilldown with one pointer/);
+    assert.doesNotMatch(d.text, /Callers \(/); assert.doesNotMatch(d.text, /drilldown with one pointer/, 'no invitation to another call');
     assert.match(d.text, /Callbacks run through run_callback/);
     // a class longer than the room is shown as its head and its members
     fs.writeFileSync(path.join(repo, 'src/big.py'), 'class Big:\n    """doc"""\n' + Array.from({ length: 6 }, (_, i) => `    def m${i}(self):\n` + Array.from({ length: 12 }, (_, j) => `        x${j} = ${j}\n`).join('') + '        return x0\n').join(''));
@@ -220,4 +227,24 @@ test('find and references leave a checkout nested under the repository alone', (
   assert.ok(hits.some(h => h.path === 'bench/runs/x/plain.py'), 'an untracked file outside a nested checkout still counts');
   const refs = references(repo, 'run_callback');
   assert.ok(refs.lines.every(l => !l.path.includes('wt/clone')));
+});
+
+test('drilldown lists no callers for a name defined in many places: by name they cannot be told apart', () => {
+  const repo = gitRepo();
+  process.env.THINKER_LOG = 'off';
+  for (let i = 0; i < 5; i++) fs.writeFileSync(path.join(repo, `src/m${i}.py`), `class M${i}:\n    def load(self):\n        return ${i}\n\ndef use${i}(x):\n    return x.load()\n`);
+  execFileSync('git', ['add', '-A'], { cwd: repo }); execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'loads'], { cwd: repo });
+  const d = drilldown(new Store(repo).init(), { pointer: 'src/m0.py:M0.load' });
+  assert.match(d.text, /Callers not listed: load is defined in 5 places/);
+  assert.doesNotMatch(d.text, /Callers and other references/);
+});
+
+test('the guard line says where an uncovered identifier is defined, only when that is one place', async () => {
+  const { anchoringGuard } = await import('../src/guard.js');
+  const repo = gitRepo();
+  for (let i = 0; i < 2; i++) fs.writeFileSync(path.join(repo, `src/h${i}.py`), 'def helper_twice(x):\n    return x\n');
+  execFileSync('git', ['add', '-A'], { cwd: repo }); execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'helpers'], { cwd: repo });
+  const g = anchoringGuard(repo, 'make `run_callback` and `helper_twice` faster', [], { explicitOnly: true, max: 5 });
+  assert.match(g.text, /`run_callback` \(\d files?; defined at src\/core\.py:L10\)/);
+  assert.match(g.text, /`helper_twice` \(2 files; defined in 2 places\)/, 'several definitions are counted, not one picked');
 });

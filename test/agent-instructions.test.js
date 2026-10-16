@@ -179,11 +179,12 @@ test('MCP instructions fit the host cap whole, and the bundle header carries the
     for (const name of ['orient', 'lookup', 'remember', 'feedback']) assert.ok(text.includes(name), name);
     assert.doesNotMatch(text, /\bfind\b|\bdrilldown\b|before the first grep/, 'the code tools are off: not named');
     assert.match(text, /bears on the task/);
-    // a repository that turned the code tools on is told to reach code through them, still under the cap
+    // a repository that turned the code tools on is offered them beside its own search, never ahead of it, still under the cap
     const on = cacheInstructions({ repo, disabled: [] });
     assert.ok(on.length <= INSTRUCTIONS_LIMIT && on.endsWith(CACHE_LEARNING_GUIDE), `${repo}: ${on.length} with the code tools on`);
     for (const name of ['find', 'drilldown', 'mcp__thinker__find,mcp__thinker__drilldown']) assert.ok(on.includes(name), name);
-    assert.match(on, /before the first grep or file read/);
+    assert.match(on, /neither replaces one batched search or reading the file you will edit/);
+    assert.doesNotMatch(on, /before the first grep|instead of grepping|fallback/, 'the tools are not put ahead of search');
     const one = cacheInstructions({ repo, disabled: ['find'] });
     assert.ok(one.includes('drilldown') && !/\bfind\b/.test(one), 'only the tool that is on is named');
   }
@@ -196,13 +197,15 @@ test('MCP instructions fit the host cap whole, and the bundle header carries the
     assert.match(t, /If none of them bears on the task/);
     assert.doesNotMatch(t, /\bfind\b|\bdrilldown\b|before the first grep/);
   }
-  assert.match(cacheBundleIntro({ disabled: [] }), /find lists the definitions.*drilldown reads them, before the first grep/);
-  assert.match(cacheBundleIntro({ disabled: ['drilldown'] }), /find lists the definitions[^.]*, before the first grep/);
+  assert.match(cacheBundleIntro({ disabled: [] }), /find locates code no note maps/);
+  assert.doesNotMatch(cacheBundleIntro({ disabled: [] }), /before the first grep|drilldown/);
+  assert.doesNotMatch(cacheBundleIntro({ disabled: ['find'] }), /\bfind\b/);
 });
 
 test('the workflow names the code tools only for a repository that turned them on', () => {
   const on = agentWorkflow({ disabled: [] });
-  assert.match(on, /before the first grep or file read: `drilldown` for a note's file:symbol pointers, `find` for code no note maps\. Ordinary search and reads are the fallback/);
+  assert.match(on, /Beside them: `find` when you do not know where the code is; `drilldown` when you need a definition whole; neither replaces one batched search/);
+  assert.match(agentWorkflow({ disabled: [], mcp: false }), /`thinker find "<code terms or identifier>"` when you do not know where the code is/);
   assert.ok(on.split('\n').filter(l => l.startsWith('- ')).length <= 4, 'four lines of decisions');
   assert.equal(agentWorkflow(), agentWorkflow({ disabled: disabledTools({}) }), 'off is the default');
   assert.deepEqual([...disabledTools({ disabledTools: [] })], []);

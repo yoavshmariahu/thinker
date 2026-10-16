@@ -1,7 +1,9 @@
 // Anchoring guard: identifiers the request mentions that none of the served
 // notes cover. The agent tends to stop exploring once it has a pointer, so we
-// name what the notes do NOT cover and ask it to search for those.
+// name what the notes do NOT cover, with where it is defined: named bare, the
+// identifier became the agent's first `find` query in 9 of 9 sessions (2026-10-07).
 import { execFileSync } from 'node:child_process';
+import { findDefinitions } from './codegraph.js';
 
 const TRIGGER = /\b(option|options|setting|settings|flag|flags|config|command|field|property|hook|event|env(?:ironment)? var(?:iable)?|parameter|param|endpoint|route|cookie|header|metric|action|reducer|model|table|column)\b/i;
 const STOP = new Set(['the', 'and', 'for', 'with', 'that', 'this', 'when', 'from', 'into', 'not', 'are', 'was', 'were', 'its', 'has', 'have', 'been', 'should', 'would', 'could', 'make', 'sure', 'like', 'also', 'them', 'then', 'than', 'only', 'each', 'both', 'does', 'did', 'new', 'old']);
@@ -36,6 +38,16 @@ export function phraseCandidates(text) {
 }
 function perms(a) { if (a.length <= 1) return [a]; const out = []; for (let i = 0; i < a.length; i++) for (const p of perms([...a.slice(0, i), ...a.slice(i + 1)])) out.push([a[i], ...p]); return out; }
 
+// Where an identifier is defined, only when that is one place: `Class.method` needs the class in the
+// same file, so CliRunner.invoke is not answered with Context.invoke. Several places are counted, not listed.
+function definedAt(repo, id) {
+  if (!/^[A-Za-z_][\w.]*$/.test(id)) return {};
+  const parts = id.split('.'), bare = parts.pop(), owner = parts.pop();
+  let defs = findDefinitions(repo, bare, { limit: 10 }) || [];
+  if (owner) { const files = new Set((findDefinitions(repo, owner, { limit: 10 }) || []).map(d => d.path)); defs = defs.filter(d => files.has(d.path)); }
+  return defs.length === 1 ? { at: `${defs[0].path}:L${defs[0].line}` } : defs.length > 1 ? { places: defs.length } : {};
+}
+
 export function existsInRepo(repo, ident) {
   try {
     const r = execFileSync('git', ['grep', '-I', '-l', '--fixed-strings', '--', ident], { cwd: repo, stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 1 << 20 }).toString().trim();
@@ -55,9 +67,11 @@ export function anchoringGuard(repo, task, servedNotes, { maxGreps = 40, explici
     seen.add(id);
     if (greps++ >= maxGreps) break;
     const files = existsInRepo(repo, id);
-    if (files > 0) uncovered.push({ ident: id, files });
+    if (files > 0) {
+      uncovered.push({ ident: id, files, ...definedAt(repo, id) });
+    }
     if (uncovered.length >= max) break;
   }
-  const text = uncovered.length ? `Not covered by these notes, present in the repo: ${uncovered.map(u => `\`${u.ident}\` (${u.files} file${u.files > 1 ? 's' : ''})`).join(', ')}` : '';
+  const text = uncovered.length ? `Not covered by these notes, present in the repo: ${uncovered.map(u => `\`${u.ident}\` (${u.files} file${u.files > 1 ? 's' : ''}${u.at ? `; defined at ${u.at}` : u.places ? `; defined in ${u.places >= 10 ? '10+' : u.places} places` : ''})`).join(', ')}` : '';
   return { uncovered, text };
 }

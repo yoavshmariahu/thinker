@@ -84,7 +84,7 @@ const text = s => ({ content: [{ type: 'text', text: s }] });
 // An empty cache is said outright, with its location: "nothing matches" reads as a miss and hides a server pointed at the wrong place.
 const emptyCache = () => store.list().length ? '' : `The cache is empty: no notes in ${store.notesDir}. `;
 
-// When no note answers, the definitions whose code carries the words of the request, from `find`:
+// When no note answers a lookup, the definitions whose code carries its words, from `find`:
 // in a week of real sessions `find` was never called (Claude Code defers MCP tools; agents grep
 // instead), so a miss hands its first results over rather than naming the tool.
 // It is `find`'s output, so it goes with `find`: off unless the repository turned that tool on.
@@ -137,7 +137,9 @@ function registerTools() {
     if (!task.trim() && !file) return text('orient needs the task. Call it again with {"task": "<the user request, in one or two sentences>"}.');
     // the agent named a budget: let it decide how many notes are served, not the two-note default of the hooks
     const r = await orient(store, { task, file, client: 'mcp', budget: budget || 1000, snippets: snippetsOn(store), ...(budget ? { maxNotes: 5, relFloor: 0.7 } : {}) });
-    if (!r.included.length) return text(`${emptyCache() || `No cached notes match this task (${store.list().length} notes in cache). `}${codeFallback(task)}Explore from there, then call remember with what you learn.`);
+    // no text search over the whole task on a miss: a sentence's words list unrelated code (mitmproxy, 2026-10-07:
+    // ValueEditor.tsx and SaveHar for a binary-detection fix) that the agent then opens
+    if (!r.included.length) return text(`${emptyCache() || `No cached notes match this task (${store.list().length} notes in cache). `}Work from the code, then call remember with what you learn.`);
     const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n')}` : '';
     const notes = `Cached knowledge for this task (${r.included.length} notes, ~${r.tokens} tokens):\n\n${r.text}${more}`;
     return text(notes);
@@ -165,7 +167,7 @@ function registerTools() {
 
   retrieval('find', {
     title: 'Find where something is defined',
-    description: 'Lists the definitions whose name or body carry the words you give (an identifier, or what the code would call the thing), as path:Symbol:L12 pointers with their size and blast radius, plus the cached notes on them. Use it instead of grepping for a word and reading around each hit; then drilldown the pointers you need. For what the notes say, use lookup.',
+    description: 'Lists the definitions whose name or body carry the words you give (an identifier, or what the code would call the thing), as path:Symbol:L12 pointers with their size and blast radius, plus the cached notes on them. Use it when you do not know where the code is; for one identifier the code of its top definition comes with the list. For what the notes say, use lookup.',
     inputSchema: {
       query: z.string().describe('Words the code would use (e.g. "flag default parser", "invite existing member"), or one identifier.'),
       path: z.string().optional().describe('Keep only paths containing this (e.g. "src/click", "api/"), or a glob (e.g. "**/*.py").'),
@@ -178,13 +180,14 @@ function registerTools() {
 
   retrieval('drilldown', {
     title: 'Read one or more definitions by pointer',
-    description: 'Takes pointers as orient, lookup and find print them (path:Symbol, path:Symbol:L12), a path, or a bare symbol name; several at once, separated by commas. Returns each definition whole with its exact lines (a long class as its head and the outline of its members), for a single pointer also one hop of callers and callees, and the cached notes resting on the code. Use it instead of reading the file and grepping for the name; a path alone lists what the file defines.',
+    description: 'Takes pointers as orient, lookup and find print them (path:Symbol, path:Symbol:L12), a path, or a bare symbol name; several at once, separated by commas. Returns each definition whole with its exact lines (a long class as its head and the outline of its members), for a single pointer also one hop of callers and callees, and the cached notes resting on the code. Lines are numbered. Use it when you need a definition whole; a path alone lists what the file defines.',
     inputSchema: {
-      pointer: z.string().describe('path:Symbol, path, or Symbol; several separated by commas or spaces'),
+      pointer: z.string().optional().describe('path:Symbol, path, or Symbol; several separated by commas or spaces'),
+      pointers: z.array(z.string()).optional().describe('The same, as a list'),
       budget: z.number().int().min(300).max(12000).optional().describe('Max tokens to return (default 2500); the code gets most of it. Raise it for a long definition.'),
     },
-  }, async ({ pointer, budget }) => {
-    const r = drilldown(store, { pointer, client: 'mcp', budget: budget || 2500 });
+  }, async ({ pointer, pointers, budget }) => {
+    const r = drilldown(store, { pointer, pointers, client: 'mcp', budget: budget || 2500 });
     return text(r.error ? r.error : r.text);
   });
 
