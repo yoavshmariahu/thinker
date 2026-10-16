@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { references, fanout, callees, annotateFanout, findDefinitions, findSymbols, outline, familyOf } from '../src/codegraph.js';
+import { references, fanout, callees, annotateFanout, findDefinitions, findSymbols, outline, familyOf, oversized, MAX_GREP_BYTES } from '../src/codegraph.js';
 import { codeSnippets, drilldown, find, parsePointer, parsePointers, createNote, orient, lookup } from '../src/ops.js';
 import { renderNote, renderPointer } from '../src/rank.js';
 import { Store } from '../src/store.js';
@@ -292,4 +292,19 @@ test('git grep reaches a file the agent just wrote without walking the tree, and
   execFileSync('git', ['init', '-q'], { cwd: nested }); fs.writeFileSync(path.join(nested, 'x.py'), 'def brand_new_helper():\n    return 2\n');
   assert.deepEqual((findDefinitions(repo, 'brand_new_helper') || []).map(d => d.path), ['src/fresh.py']);
   assert.equal(find(new Store(repo).init(), { query: 'brand_new_helper' }).hits[0].path, 'src/fresh.py');
+});
+
+test('a generated source file over the size cap is left out of every search, and a hand-written file under it is not', () => {
+  const repo = gitRepo();
+  // a protobuf-style stub past the cap that defines and mentions the name, like mlflow's Service.java
+  const stub = 'public final class Service {\n' + Array.from({ length: 6000 }, (_, i) => `  public static void runCallback${i}() { /* run_callback ${'x'.repeat(80)} */ }\n`).join('') + '  class run_callback {}\n}\n';
+  fs.writeFileSync(path.join(repo, 'src/Service.java'), stub);
+  execFileSync('git', ['add', '-A'], { cwd: repo }); execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'stub'], { cwd: repo });
+  assert.ok(fs.statSync(path.join(repo, 'src/Service.java')).size > MAX_GREP_BYTES);
+  assert.deepEqual(oversized(repo), ['src/Service.java']);
+  assert.ok(!(findDefinitions(repo, 'run_callback') || []).some(d => d.path === 'src/Service.java'), 'not where a definition is looked for');
+  assert.ok((findDefinitions(repo, 'run_callback') || []).some(d => d.path === 'src/core.py'), 'the real definition is still found');
+  const r = findSymbols(repo, 'run callback');
+  assert.ok(r && r.hits.length && !r.hits.some(h => h.path === 'src/Service.java'));
+  assert.ok(!references(repo, 'run_callback').lines.some(l => l.path === 'src/Service.java'), 'nor where its callers are looked for');
 });
