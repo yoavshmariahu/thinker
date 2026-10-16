@@ -11,7 +11,7 @@ import { parseTranscript } from '../distill.js';
 import { Store, findRepoRoot } from '../store.js';
 import { isDisabledRepo } from '../repo-switch.js';
 import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '../maintain.js';
-import { orient, HOOK_BUDGET, servesNotes, rememberTask, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn, beginTurn, holdoutTurn, sessionIntro } from '../ops.js';
+import { codeForRequest, orient, HOOK_BUDGET, servesNotes, rememberTask, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn, beginTurn, holdoutTurn, sessionIntro } from '../ops.js';
 import { recordEvent, traceFile, toolName, toolInput } from '../transcripts.js';
 import { turnNotice, weeklyNotice } from '../usage.js';
 import { setupRepo, warmupOffer } from '../repo-onboard.js';
@@ -98,19 +98,26 @@ async function hookCommand(ctx) {
       // request: `thinker usage` and the telemetry count a machine as active by its requests, and a cache in
       // daily use that has not learned yet must not read as a machine thinker never ran on (2026-10-12: seven
       // of eight reporting devices read as idle for exactly this). Nothing is said.
+      // with `find` on, the definitions the request names come with the prompt, notes or not (ops.js:codeForRequest);
+      // a held-out turn gets none, like the notes
+      const codeFor = notes => {
+        if (holdout || disabledTools(store.config()).has('find')) return '';
+        try { const c = codeForRequest(store, ev.prompt || '', { notes }); if (c.items.length) store.log({ op: 'code', session: session === 'unknown' ? undefined : session, client, served: c.items.map(i => `${i.path}:${i.symbol}`), tokens: c.tokens }); return c.text; } catch { return ''; }
+      };
       if (!servesNotes(store)) {
-        if (offer) emit(offer); store.log({ op: 'orient', session: session === 'unknown' ? undefined : session, client, task: String(ev.prompt || '').slice(0, 200), served: [], empty: true }); return; }
+        store.log({ op: 'orient', session: session === 'unknown' ? undefined : session, client, task: String(ev.prompt || '').slice(0, 200), served: [], empty: true });
+        const code = codeFor([]); if (offer || code) emit([offer, code].filter(Boolean).join('\n\n')); return; }
       // outcome signal: a correction-shaped follow-up counts against the notes served earlier in this session
       if (session !== 'unknown' && looksLikeCorrection(ev.prompt)) outcome(store, { session, turn: turn > 1 ? turn - 1 : undefined, positive: false, reason: 'correction prompt: ' + String(ev.prompt).slice(0, 80) });
       if (session !== 'unknown') rememberTask(store, session, ev.prompt);
       // a held-out turn is served nothing by the hooks, and what it would have been served is logged (ops.js:beginTurn)
       const r = await orient(store, { task: ev.prompt || '', session: session === 'unknown' ? undefined : session, client, budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout, turn: turn || undefined });
-      if (!r.included.length) { if (offer) emit(offer); return; }
+      if (!r.included.length) { const code = codeFor([]); if (offer || code) emit([offer, code].filter(Boolean).join('\n\n')); return; }
       const intro = introOk ? sessionIntro(store, { session, client }) : '';
       const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}${n.status === 'stale' ? ' ⚠ STALE' : ''}  (id: ${n.id})`).join('\n')}` : '';
       const header = cacheBundleIntro({ stale: r.included.some(n => n.status === 'stale'), disabled: disabledTools(store.config()) });
       const text = `<thinker-cache>\n${header}\n\n${r.text}${more}${!NO_LEARN && sessionLearning() && !['windsurf', 'pi', 'copilot'].includes(client) ? '\n\n' + CACHE_LEARNING_GUIDE : ''}\n</thinker-cache>`;
-      emit([offer, intro, text].filter(Boolean).join('\n\n'));
+      emit([offer, intro, text, codeFor(r.included)].filter(Boolean).join('\n\n'));
     })();
     if (client === 'cursor') out(promptOutput(client, said));
   } else if (pos[0] === 'tool') {

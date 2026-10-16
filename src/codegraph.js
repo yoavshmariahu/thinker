@@ -140,6 +140,17 @@ export function callees(repo, dep, { limit = 12 } = {}) {
 }
 
 // Definitions of a bare name anywhere in the repository: [{path, line, text}], for a pointer without a file.
+// The one definition an identifier from a request names, or how many there are when it names several.
+// `Class.method` needs the class in the same file (CliRunner.invoke is not Context.invoke); a dotted owner
+// that is no definition at all is a module (click.option), and the name alone decides. Tests never count.
+export function definitionOf(repo, ident) {
+  if (!/^[A-Za-z_][\w.]*$/.test(String(ident || ''))) return { def: null, count: 0 };
+  const parts = ident.split('.'), bare = parts.pop(), owner = parts.pop();
+  let defs = (findDefinitions(repo, bare, { limit: 10 }) || []).filter(d => !isTestPath(d.path));
+  if (owner) { const files = new Set((findDefinitions(repo, owner, { limit: 10 }) || []).map(d => d.path)); if (files.size) defs = defs.filter(d => files.has(d.path)); }
+  return { def: defs.length === 1 ? defs[0] : null, count: defs.length };
+}
+
 export function findDefinitions(repo, name, { limit = 10 } = {}) {
   const sp = '[[:space:]]';
   const raw = gitGrep(repo, ['-E', '-e', `(def|class|function|fn|func|type|interface|struct|trait|enum|impl)${sp}+${esc(name)}[^[:alnum:]_]`, '-e', `(const|let|var)${sp}+${esc(name)}${sp}*[=:]`, '-e', `func${sp}*\\([^)]*\\)${sp}*${esc(name)}${sp}*\\(`, '--', '.', ':(exclude).thinker', ':(exclude)*.md', ':(exclude)*.json']);
