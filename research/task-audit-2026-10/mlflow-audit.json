@@ -1,0 +1,78 @@
+[
+  {"task": "PR26225", "class": "unpassable",
+   "hidden": [
+     {"test": "tests/genai/scorers/test_scorer.py imports", "what": "imports _is_tracking_server_process, _job_executor_scorer_context, _serialized_scorer_is_custom_code, _UnexecutedDecoratorScorer from mlflow.genai.scorers.base and _MLFLOW_IN_JOB_EXECUTOR from mlflow.environment_variables", "why_not_stated": "None of these exist at base (checked mlflow-b2 @ #26315) and the request names only UnsupportedGuardrailScorerError; the whole module fails to import otherwise."},
+     {"test": "test_run_server_with_uvicorn", "what": "extra_env['_MLFLOW_IN_JOB_EXECUTOR'] == 'false'", "why_not_stated": "Request says the server must not inherit executor permission, but never names the env var or that it is forced to the string 'false'."},
+     {"test": "test_server_process_returns_non_executing_scorer / test_reconstruct_decorator_scorer_blocked_in_server_process", "what": "messages 'runs only inside the job executor' and 'cannot be reconstructed in the MLflow'", "why_not_stated": "Request says running must raise an error; the message text is not given."},
+     {"test": "test_load_guardrails_fails_request_for_custom_scorer_guardrail / test_from_entity_rejects_custom_code_scorer / test_create_gateway_guardrail_rejects_custom_code_scorer / test_real_db_custom_scorer_guardrail_fails_request", "what": "messages \"Guardrail 'safety' uses a custom\", 'gateway guardrails do not support', 'do not support custom scorers', detail['message'] containing 'uses a custom scorer'", "why_not_stated": "Request only says the error names the guardrail; the wording is unspecified."},
+     {"test": "test_server_process_detected_for_direct_app_launch", "what": "server detection via mlflow.server.is_running_as_server when _MLFLOW_SERVER_BOOT_ID is absent", "why_not_stated": "Request does not say how a server process is detected."},
+     {"test": "test_serialized_scorer_is_custom_code", "what": "'Malformed serialized scorer' MlflowException on invalid JSON", "why_not_stated": "Not in request."}
+   ],
+   "inferable": [],
+   "notes": "UnsupportedGuardrailScorerError is named in the request, so that import is fine; the scorer-base private helpers and env var are not, so test_scorer.py cannot import. Many message strings are also pinned."},
+  {"task": "PR26252", "class": "clean", "hidden": [], "inferable": [],
+   "notes": "All parametrized cases follow from 'measure against the magnitude of the baseline' with positive baselines unchanged; the 'minimum relative change check failed' match is the existing message in mlflow/models/evaluation/validation.py."},
+  {"task": "PR26265", "class": "inferable", "hidden": [],
+   "inferable": [{"test": "test_load_text_and_dict_explain_non_utf8_artifacts", "precedent": "load_text already raises MlflowException('Unable to form a str object ...') for content errors, so the new error is an MlflowException; 'is not valid UTF-8' and __cause__ are stated in the request"}],
+   "notes": "UTF-8 round-trip and error/cause are stated; only the exception class comes from the existing load_text convention."},
+  {"task": "PR26267", "class": "unpassable",
+   "hidden": [
+     {"test": "test_server_info_error_body_matches_flask_json", "what": "monkeypatch.setattr('mlflow.server.server_info_api.build_server_info_payload', ...)", "why_not_stated": "New module and function never named; setattr by string raises if the attribute does not exist."},
+     {"test": "_fastapi_native_routes (test_authorization_coverage.py)", "what": "from mlflow.server.fastapi_app import server_info_router", "why_not_stated": "Router name not in the request (the <x>_router naming convention makes it guessable but not determined)."},
+     {"test": "test_server_info_responds_when_wsgi_pool_is_exhausted / test_server_info_matches_flask_json", "what": "/health (and /mlflow/health) must also respond with 'OK' while the WSGI pool is exhausted", "why_not_stated": "Request covers only the server-info endpoint; /health is a Flask route at base (mlflow/server/__init__.py) and is never mentioned."},
+     {"test": "test_server_info_error_body_matches_flask_json", "what": "error body equals exc.serialize_as_json() with exc.get_http_status_code()", "why_not_stated": "Request says response content is unchanged but says nothing about error paths."}
+   ],
+   "inferable": [{"test": "test_no_ungated_fastapi_native_routes", "precedent": "_PUBLIC_ROUTE_SUFFIXES/_matches_route_suffix/_strip_static_prefix already exist in mlflow/server/auth and list /mlflow/server-info"}],
+   "notes": "The patched symbol mlflow.server.server_info_api.build_server_info_payload cannot be guessed, and /health is also required to move off the WSGI pool."},
+  {"task": "PR26269", "class": "clean", "hidden": [], "inferable": [],
+   "notes": "Sequential tool-call indices from 0 ignoring text blocks, every chunk with only choice 0, and exactly one finish chunk are all stated."},
+  {"task": "PR26270", "class": "hidden",
+   "hidden": [
+     {"test": "test_gemini_chat_stream_tool_call_indices_use_candidate_api_index", "what": "choice.index taken from the candidate's API 'index' field (not list position), with tool-call counters kept per candidate", "why_not_stated": "Request asks for consecutive indices across the stream and never mentions candidate indices; base code uses enumerate() position for choice index."},
+     {"test": "test_gemini_chat_stream_tool_call_indices_are_per_candidate", "what": "separate tool-call counters per candidate ({0: [0,1], 1: [0,1,2]})", "why_not_stated": "Request says 'consecutive indices across the whole stream'; a single stream-wide counter is a valid reading and fails this."}
+   ],
+   "inferable": [],
+   "notes": "Correction to the calibration note: the _use_candidate_api_index test pins the candidate (choice) index from the API field, not an API tool-call index. LiteLLM test is stated."},
+  {"task": "PR26291", "class": "clean", "hidden": [], "inferable": [],
+   "notes": "Both tests assert @latest resolves to the highest version across stages, as stated."},
+  {"task": "PR26300", "class": "inferable", "hidden": [],
+   "inferable": [
+     {"test": "test_gemini_chat_tool_choice", "precedent": "Gemini API functionCallingConfig modes (NONE/ANY, allowedFunctionNames) in the payload's camelCase style; 'auto'/None send no toolConfig because the base adapter sends none today ('keep today's default behavior')"},
+     {"test": "test_gemini_tool_choice_without_tools", "precedent": "base chat_to_model omits 'tools' when tools is falsy; no toolConfig is stated"}
+   ],
+   "notes": "The required/none/named mappings are the only API-correct ones; omitting toolConfig for 'auto' rather than sending mode AUTO follows from current behavior."},
+  {"task": "PR26307", "class": "hidden",
+   "hidden": [{"test": "test_live_span_deepcopy_and_pickle_raises", "what": "TypeError with message \"'LiveSpan' cannot be deepcopied while active. Call `span.to_immutable_span()`\" (and 'cannot be pickled while active')", "why_not_stated": "Request asks for 'a clear error telling the user to convert it to an immutable span'; exception class and exact wording are not given."}],
+   "inferable": [{"test": "test_lazy_span_* (__dict__['_materialized'])", "precedent": "LazySpan already tracks __dict__['_materialized'] at base"}],
+   "notes": "Clone and lazy-span behavior is stated; the live-span error pins the class and an exact message."},
+  {"task": "PR26311", "class": "hidden",
+   "hidden": [{"test": "test_hash_array_like_obj_as_bytes_with_ragged_nested_arrays[rows [[1,2],[3]]]", "what": "ragged numeric arrays with no dictionaries must also hash, and distinctly", "why_not_stated": "Request limits the fallback to data that 'contains dictionaries'; an implementation that falls back only when dicts are present fails this case (base np.array(data.tolist()) raises)."}],
+   "inferable": [
+     {"test": "hash_a != hash_b and missing-row (None/NaN) cases", "precedent": "the existing str()/element-wise hashing in _hash_array_like_obj_as_bytes keeps structure; determinism is stated"}
+   ],
+   "notes": "No exact hash bytes are asserted, contrary to the calibration note: only equality and inequality. The real risk is the dict-free ragged case."},
+  {"task": "PR26327", "class": "inferable", "hidden": [],
+   "inferable": [
+     {"test": "test_mcp_access_endpoint_server_name_filter", "precedent": "SearchUtils parse returns comparator 'IN'/'NOT IN' with tuple values, as for SearchMCPServerUtils name IN"},
+     {"test": "test_mcp_access_endpoint_server_name_rejects_or", "precedent": "existing _process_statement rejects non-AND clauses with 'Invalid clause(s) in filter string'"}
+   ],
+   "notes": "Equality, IN, NOT IN and case preservation are stated; the parsed shape follows the sibling utils."},
+  {"task": "PR26369", "class": "hidden",
+   "hidden": [
+     {"test": "test_postgres_span_time_buckets_use_exact_quotient", "what": "compiled SQL contains div(...,86400000000000) and mod(...,86400000000000) and no ' / '", "why_not_stated": "Request asks for exact bucketing that handles negative values, not for specific PostgreSQL functions; it runs without a Postgres DB."},
+     {"test": "existing day-discovery statement-capture test", "what": "len(statements) == 3 (was 2) and 'GROUP BY' not in any statement", "why_not_stated": "Request says 'use efficient timestamp lookups' but not how many queries or that GROUP BY is dropped."},
+     {"test": "test_search_traces_order_by_null_handling", "what": "exact 'ORDER BY trace_info.timestamp_ms DESC, trace_info.request_id' text and 'CASE WHEN' present or absent per attribute", "why_not_stated": "Which attributes count as never-empty follows from column nullability (inferable), but the exact SQL text pins the implementation."}
+   ],
+   "inferable": [
+     {"test": "test_unbucketed_merge_preserves_large_integer_counts", "precedent": "request scopes the conversion to sums; counts stay int as in the base merge"},
+     {"test": "test_partition_eligibility_*/oracle/day_discovery (Postgres params skip without MLFLOW_ROLLUP_TEST_POSTGRES_URI)", "precedent": "existing _partition_state/_aggregate_span_cost/_new_candidates_for_experiment signatures and semantics at base"}
+   ],
+   "notes": "The Decimal merge fix is stated, but the performance half is graded by SQL-text and query-count assertions the request does not determine."},
+  {"task": "PR26442", "class": "hidden",
+   "hidden": [{"test": "test_typesafe_models_and_credentials", "what": "config_fields == [{'name':'api_base','type':'string','description':'TypeSafe API Base URL (defaults to https://api.typesafe.ai/v1)','required':False}]", "why_not_stated": "Request only says to show the base URL as an optional setting; the exact description string is open, and the two precedents disagree (Portkey's '(defaults to ...)' form vs the generic f'{provider.title()} API Base URL')."}],
+   "inferable": [
+     {"test": "test_typesafe_api_base_config", "precedent": "<provider>_api_base config naming (openai_api_base, anthropic_api_base); TypeSafeProvider.base_url and send_request(base_url=...) already exist"},
+     {"test": "test_build_endpoint_config_typesafe_reads_api_base_from_auth_config", "precedent": "other providers read auth_config[_AuthConfigKey.API_BASE] in _build_endpoint_config"}
+   ],
+   "notes": "Everything except the exact field description follows from the request and the sibling providers; Portkey's precedent makes the string guessable but not certain."}
+]

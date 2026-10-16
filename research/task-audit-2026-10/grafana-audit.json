@@ -1,0 +1,123 @@
+[
+ {"task":"PR132983-hard","class":"hidden",
+  "hidden":[
+   {"test":"TestTemplates (deleteAuthInfoTemplate / delete_auth_info)","what":"Template var deleteAuthInfoTemplate, query struct deleteAuthInfoQuery{SQLTemplate,UserAuthTable,UserID,AuthModule}, template file name delete_auth_info (drives golden filename) and exact golden SQL bytes 'DELETE FROM ...\\nWHERE user_id = 42\\n  AND auth_module = 'ldap''","why_not_stated":"The request only asks that a single AuthInfo delete work; it names no SQL template, file name or text, and a missing/differently named symbol breaks compilation of the whole authinfoimpl test package."}],
+  "inferable":[
+   {"test":"TestStore_DeleteAuthInfo / store_test 'should delete only the targeted auth module'","precedent":"login.DeleteAuthInfoCommand already exists in pkg/services/login/model.go; sibling Set/UpdateAuthInfo methods and DeleteUserAuthInfo in authinfoimpl and authinfok8s; deleteUserAuthQuery{UserAuthTable,UserID} + delete_user_auth.sql show the template pattern"},
+   {"test":"TestStore_DeleteAuthInfo 'user not found is a no-op' / 'object not found is a no-op'","precedent":"authinfok8s Store.DeleteUserAuthInfo returns nil on user.ErrUserNotFound and ignores apierrors.IsNotFound on delete"},
+   {"test":"TestLegacyStore_Delete (GetAuthInfo mock expected first, NotFound mapping, deleteValidation propagated, immediate=true, returned AuthInfo)","precedent":"LegacyStore.Get/resolveName map ErrUserNotFound to resourceInfo.NewNotFound; k8s rest.GracefulDeleter get-validate-delete convention; mock DeleteAuthInfo arg UserAuth{UserId,AuthModule} matches 'identified by the user and the auth method'"}],
+  "notes":"Behavior is stated, but the sqltemplate golden test pins a template name, struct name/fields and exact SQL formatting; the strong deleteUserAuth precedent makes a match plausible but not certain. testNeedsGoldSymbols=false misses that deleteAuthInfoTemplate/deleteAuthInfoQuery are new."},
+ {"task":"PR133112-hard","class":"hidden",
+  "hidden":[
+   {"test":"TestFinalizer_process, TestProcess_* , TestRepositoryController_handleDelete* (MockFinalizerProcessor.On(\"process\", Anything, Anything))","what":"finalizerProcessor.process changes to process(ctx, *provisioning.Repository) reading cfg.Finalizers, and finalizer gets a repoFactory field that builds the repo inside the clean-finalizer step","why_not_stated":"The request says non-webhook cleanup should run from stored configuration but does not fix the method signature or where the factory lives; other designs (e.g. keep process(ctx, repo, finalizers) with a lazily built repo) satisfy it but fail to compile against these tests."}],
+  "inferable":[
+   {"test":"TestWebhookOnDelete 401/403 cases expecting fmt.Errorf(\"delete webhook: %w\", ...)","precedent":"Stated: provider-dependent step failure must block deletion; 'delete webhook:' wrap already used in existing expectedErr strings"},
+   {"test":"TestProcess_CleanFinalizer_BuildFailureBlocks 'create repository from configuration'","precedent":"existing build-error wrap text in RepositoryController handleDelete"},
+   {"test":"TestRepositoryController_process_DeleteDecryptFailureFastRetries / DecryptFailureRetriesUpToMaxAttempts","precedent":"Stated (decrypt failures retried quickly like health checks); repository.ErrSecretDecryptFailed already classified as ServiceUnavailable for health"},
+   {"test":"finalizer.repoFactory field name","precedent":"RepositoryController.repoFactory"}],
+  "notes":"Behavior is well stated; the risk is the refactored internal signature process(ctx, cfg) and the factory moving into finalizer, which the tests compile against."},
+ {"task":"PR133146-hard","class":"unpassable",
+  "hidden":[
+   {"test":"TestLegacyStatusValues_onlyIncludesKindSearchFields","what":"new method legacyClient.addStatusValues(rule, map) and constants fieldHealth/fieldState/fieldStateReason/fieldEvaluationDuration","why_not_stated":"Request names none of these symbols."},
+   {"test":"per_kind_search_test/query_test ruleCells(ruleColumnValues(r))","what":"ruleCells signature changed from (*AlertRule) to (map[string]any)","why_not_stated":"Internal signature choice not implied by the request."},
+   {"test":"TestPerKindSearch_statusFieldsRejectFilteringAndSorting","what":"filter/sort on status fields, or projecting state/stateReason on recording rules, returns 422 mentioning the field","why_not_stated":"Request only says fields are optionally returned; it never says they are unfilterable/unsortable or how errors look."},
+   {"test":"TestPerKindSearch_legacyStatusProjection","what":"exact field set incl. lastEvaluationTime/lastError, warn log 'omitting status' with ctx orgID/ruleUID on malformed status, wrong-type handling","why_not_stated":"Request lists health, state, state reason only; log text and extra fields are unstated."},
+   {"test":"TestRuleSearchFields_status_fields_are_retrieve_only","what":"field types string/double and Capabilities == [SearchCapabilityRetrieve]","why_not_stated":"Request does not specify index field declarations."}],
+  "inferable":[],
+  "notes":"Tests depend on new unexported symbols and a changed ruleCells signature, plus several unstated fields and a 422 rule."},
+ {"task":"PR133148-hard","class":"unpassable",
+  "hidden":[
+   {"test":"TestShouldUseSearchForList","what":"server field s.manifestSearchFields of type *SearchFieldsRegistry","why_not_stated":"No such field exists in base (search server uses searchFields; options use SearchFields) and the request never names it, so the test package will not compile."},
+   {"test":"'false when no declarations are available'","what":"nil registry means fall back to store scan","why_not_stated":"Reasonable, but tied to the unnamed field."}],
+  "inferable":[
+   {"test":"'false when one of several fields is undeclared' / 'false when the kind declares no such field'","precedent":"Stated: check every field, fall back if any is not known indexed"},
+   {"test":"NewSearchFieldsRegistry / NewLowerGroupResource usage","precedent":"Both exist in base (search_field.go, keys.go)"}],
+  "notes":"Behavior is stated, but the test injects the registry through a new server field name the agent cannot know."},
+ {"task":"PR133175-hard","class":"unpassable",
+  "hidden":[
+   {"test":"newTestDashboardFolderResolver","what":"dashboardFolderResolver fields metrics, fetchTimeout, cache (*localcache.CacheService), cacheTTL; const defaultFolderFetchTimeout; ProvideMetrics(...).FolderCacheHits/FolderCacheMisses","why_not_stated":"None of these names exist in base or appear in the request."},
+   {"test":"FolderCacheTTL settings subtest","what":"ini keys folder_cache_enabled / folder_cache_ttl in [annotations.app_platform], AnnotationAppPlatformSettings.FolderCacheTTL, default 30s, zero/negative rejected with error","why_not_stated":"Request says 'on the order of 30 seconds' but no config keys, enable flag, or validation."},
+   {"test":"concurrent calls / cancelling one caller / shared fetch times out","what":"singleflight deduplication with detached context and a fetch timeout","why_not_stated":"Request asks for TTL reuse only, not in-flight coalescing or cancellation isolation."}],
+  "inferable":[
+   {"test":"'missing dashboard returns empty folder'","precedent":"existing ResolveFolder behavior in dashboard_folder_lookup.go"}],
+  "notes":"Tests construct the resolver by new private field names and pin config keys and singleflight semantics the request never mentions."},
+ {"task":"PR133191-hard","class":"unpassable",
+  "hidden":[
+   {"test":"TestReceiverService_GetReceiverStatuses","what":"new method ReceiverService.GetReceiverStatuses(ctx, orgID, user), field amStatusFetcher, interface with GetReceiverStatuses(ctx, orgID)","why_not_stated":"Request says logic should live in 'a single, reusable place' without naming it."},
+   {"test":"createReceiverServiceSut / createProvisioningSrvSutFromEnv / contactpoints_test","what":"NewReceiverService gains a trailing status-fetcher parameter; notifier.NoopReceiverStatusFetcher{} type","why_not_stated":"New constructor parameter and type are not named in the request."},
+   {"test":"TestRouteGetReceivers_FiltersByReceiverReadPermission","what":"AlertmanagerSrv.receiverService field used by RouteGetReceivers","why_not_stated":"Wiring field is not named."}],
+  "inferable":[
+   {"test":"permission filtering outcomes","precedent":"Stated: filter to receivers the user may read; omit AM names with no matching receiver"}],
+  "notes":"Outcomes are stated, but the tests compile only against new symbol names and a changed constructor signature."},
+ {"task":"PR133206-hard","class":"hidden",
+  "hidden":[
+   {"test":"all newAggregateTarget calls; TestAggregateTarget_PollUsesDedicatedProxyTransportNotDiscoveryClient","what":"newAggregateTarget(cfg, discoveryClient *http.Client, proxyTransport http.RoundTripper) with the third arg used verbatim as aggregateBackend.proxy.Transport (require.Same)","why_not_stated":"Request asks for a dedicated proxy transport but does not say it is injected as a third positional constructor argument; building it internally is equally valid and fails to compile here."}],
+  "inferable":[
+   {"test":"ab.proxy.Transport","precedent":"aggregateBackend.proxy *httputil.ReverseProxy and newAggregateBackend(..., transport) exist in base"}],
+  "notes":"Header forwarding is not tested at all; the only new assertion pins a constructor signature."},
+ {"task":"PR133220-hard","class":"unpassable",
+  "hidden":[
+   {"test":"TestReadOnlyDBService_*","what":"new type readOnlyDBService{store ssosettings.Store} in ssosettingsimpl","why_not_stated":"Request never names the type or its field."},
+   {"test":"TestReadOnlyDBService_WritesUnsupported","what":"writes return apierrors MethodNotSupported (405) and GetForProvider (decrypted read) also returns 405","why_not_stated":"Request says writes 'fail with an error' without a type, and does not say the decrypted getter is unsupported."},
+   {"test":"TestNewAPIService_AuthorizesSSOSettings","what":"standalone authorizer allows any authenticated identity and denies anonymous for ssosettings","why_not_stated":"Request defers 'who' to the normal authorization system and gives no rule."}],
+  "inferable":[
+   {"test":"redaction to setting.RedactedPassword; ErrNotFound propagated; b.ssoLegacyStore non-nil","precedent":"Service.GetForProviderWithRedactedSecrets uses setting.RedactedPassword; ssoLegacyStore field exists in base IdentityAccessManagementAPIBuilder"}],
+  "notes":"testNeedsGoldSymbols=false, but readOnlyDBService is new and unnamed."},
+ {"task":"PR133233-hard","class":"unpassable",
+  "hidden":[
+   {"test":"TestStatusErrorFromResponse_*","what":"new exported func StatusErrorFromResponse(*resourcepb.ErrorResult, error) error","why_not_stated":"Request asks for 'the ability to convert a response into the correct, prioritized error' without naming it (base has ErrorFromResponse)."},
+   {"test":"TestStatusErrorFromResponse_TransportErrorTakesPrecedenceOverResponseError","what":"plain gRPC transport error wins over the response ErrorResult (503)","why_not_stated":"Contradicts the request, which says specific response errors take precedence over transport errors."},
+   {"test":"MapsGRPCCodesWithoutDetails / MapsContextErrors","what":"Canceled->499, DeadlineExceeded->504, Aborted->409 etc.","why_not_stated":"Code mapping is not in the request."},
+   {"test":"TestWriteAPIStatus","what":"errhttp.Write unwraps wrapped APIStatus via errors.As and writes metav1.Status JSON","why_not_stated":"Request only says the writer 'needs a related adjustment'."}],
+  "inferable":[],
+  "notes":"New unnamed symbol plus a precedence assertion that contradicts the request text."},
+ {"task":"PR133238-hard","class":"unpassable",
+  "hidden":[
+   {"test":"TestRegisterAppManifest","what":"RegisterAppManifest, registeredManifestsMu, registeredManifests, manifestsRead, generatedAppManifests and panic messages 'nil or has no group', 'already registered', 'registered after AppManifests was read'","why_not_stated":"One-line request names none of these; none exist in base."},
+   {"test":"TestSearchFieldsRegistryReplaceWarnsOnRemovedKinds","what":"Replace drops removed kinds (warning unobservable)","why_not_stated":"Only a warning is requested; assertion is on removal."}],
+  "inferable":[],
+  "notes":"Request is one sentence; tests are built entirely on new registration API symbols."},
+ {"task":"PR133251-hard","class":"hidden",
+  "hidden":[
+   {"test":"TestRunQueryE2E 'authentication error response', 'not implemented response', 'server error response'","what":"resp.Status set to backend.StatusUnauthorized / StatusNotImplemented / StatusInternal","why_not_stated":"Base sets no Status (ErrorResponseWithErrorSource); the request says only the error source should change, so a correct source-only fix leaves Status 0 and fails."}],
+  "inferable":[
+   {"test":"expectSource for 500 downstream, 501 plugin, HTML 500 downstream, malformed JSON plugin, invalid query plugin","precedent":"existing ErrorSourceFromHTTPStatus branch and PluginError/DownstreamError calls in query.go; 401 downstream is stated"}],
+  "notes":"Error source is stated; the added Status assertions pin a status-propagation change the request rules out."},
+ {"task":"PR133253-hard","class":"unpassable",
+  "hidden":[
+   {"test":"TestPluginInstaller_RemoveUnloadsNestedChildrenBeforeParent","what":"pluginfakes.FakeAuthService.Removed field recording RemoveExternalService calls","why_not_stated":"Field does not exist in base fakes.go (non-test file); test will not compile without it."},
+   {"test":"same","what":"RBAC cleanup and external-service removal also run for children, with orders cleaned==[parent, child] and auth.Removed==[child, parent]","why_not_stated":"Request only asks to unload (shut down) children before deleting files."},
+   {"test":"same","what":"Children entry with matching ID but different version (unrelated) and nil entries are skipped via registry lookup","why_not_stated":"Not in request."}],
+  "inferable":[
+   {"test":"unloaded == [child-panel, parent-app], parentRemoved==1, childRemoved==0","precedent":"Stated: unload deepest children first, then remove parent files"}],
+  "notes":"Needs a new fake field and pins child RBAC/external-service cleanup order that the request never mentions."},
+ {"task":"PR133300-hard","class":"unpassable",
+  "hidden":[
+   {"test":"TestIntegrationMigrations (migration_test.go)","what":"new helper newMigrationProvider(pool) returning (provider, db, err); backfill must be goose version 00009","why_not_stated":"Helper is not in base (provider is built inline in postgres_schema.go) and not named; package fails to compile without it even though the test skips in -short."}],
+  "inferable":[
+   {"test":"TestAnnotationArgs_PointTimeEndDefaultsToTime; backfill 'edit cleared the region end' TimeEnd==time; Get returns current under duplicate","precedent":"Stated: point time_end = time; Get ordered by time desc"},
+   {"test":"migration number 9","precedent":"latest existing migration is 00008_add_partition_indexes.sql"}],
+  "notes":"Behavior assertions are stated; a new unexported test helper symbol makes the package uncompilable for a non-gold patch."},
+ {"task":"PR133311-hard","class":"unpassable",
+  "hidden":[
+   {"test":"TestOboTokenExchanger_Exchange","what":"type oboTokenExchanger{delegate}; error texts 'denied request', 'no requester in context'; wildcard namespace preserved when requester namespace empty or '*'","why_not_stated":"Type, field and messages are not named in the request."},
+   {"test":"TestRemoteResourceClient*","what":"NewRemoteResourceClient(cfg, tracer, registry) in pkg/router; config keys grpc_client_authentication token/token_exchange_url/token_namespace; errors 'missing required token', 'missing required token exchange url'; gating on FlagUnifiedStorageClientRequireCallerIdentity","why_not_stated":"Constructor does not exist in base pkg/router and none of these are in the request."},
+   {"test":"cloud_router_test","what":"authnlib.NewStaticTokenExchanger","why_not_stated":"Library helper replacement of the local stub; not mentioned."}],
+  "inferable":[
+   {"test":"audience resourceStore, x-access-token header, TLS1.3 in dev, cert verification in prod","precedent":"Stated in request"}],
+  "notes":"Core behaviors are stated but tests call a new constructor and type with pinned messages."},
+ {"task":"PR133364-hard","class":"unpassable",
+  "hidden":[
+   {"test":"TestSelectorResolve / TestSelectorResolveError / TestSelectorResolveCanceledContext","what":"generic dualwrite.NewSelector[T](reader, gr, legacy, unified) with Resolve(ctx) (T, error), zero value on error, no resolution at construction","why_not_stated":"Request asks for a general-purpose selector but names no API; selector.go does not exist in base."}],
+  "inferable":[
+   {"test":"TestSearchWrapper_SearchModeChanges / SearchModeError / SearchDoesNotFallback","precedent":"existing searchWrapper behavior via NewSearchClient; stated 'no externally observable behavior change'"}],
+  "notes":"Exported generic API must match exactly; unknowable from the request."},
+ {"task":"PR133495-hard","class":"unpassable",
+  "hidden":[
+   {"test":"notifications/smtp/setting tests","what":"ProvideService(bus, cfg, cfgProvider, mailer, store) and NewSmtpClient(cfg, cfgProvider) signatures; setting.ReadSmtpSettings(raw, instanceName); readGrafanaSmtpStaticHeaders(section); buildEmail(ctx, smtpSettings, msg); Message.ContentTypes field; errInvalidFromAddress","why_not_stated":"None exist in base (base has cfg.readSmtpSettings(), NewSmtpClient(SmtpSettings), buildEmail(ctx,msg)) and the request names none."},
+   {"test":"TestSmtpSendLiveSettings 'rejects an invalid static header without sending'","what":"error text 'must follow canonical MIME form'","why_not_stated":"Message string not in request."},
+   {"test":"TestSignUpCompletedFollowsLiveWelcomeSetting 'does not fail sign-up when the SMTP settings cannot be read'","what":"provider error swallowed in signup handler","why_not_stated":"Request is silent on error handling there."}],
+  "inferable":[
+   {"test":"live enable/disable, sender, content types, static headers, EHLO from instance name","precedent":"Stated in request; configprovider.ProvideService/GetSections exist in base"}],
+  "notes":"Live-settings behavior is stated, but tests compile only against several new or re-signatured symbols."}
+]
