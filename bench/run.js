@@ -9,6 +9,7 @@ import { createWorktree, removeWorktree, spawn } from './worktrees.js';
 import { fileURLToPath } from 'node:url';
 import { complete } from '../src/llm.js';
 import { testGreen, resetWorktree, goldTestsSeen } from './oracle.js';
+import { ANSWER_JUDGE_SCHEMA, judgeAnswer } from './judge-protocol.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
@@ -238,19 +239,10 @@ function runClaude(prompt, { arm, allowEdit, cwd, notesDir: staged, system }) {
   });
 }
 
-const JUDGE_SCHEMA = { type: 'object', properties: { score: { type: 'number' }, missing: { type: 'array', items: { type: 'string' } }, wrong: { type: 'array', items: { type: 'string' } }, reason: { type: 'string' } }, required: ['score', 'missing', 'wrong', 'reason'] };
+const JUDGE_SCHEMA = ANSWER_JUDGE_SCHEMA;
 
-async function judge(task, answer) {
-  const must = (task.must || []);
-  const mustHit = must.filter(m => new RegExp(m.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(answer));
-  const res = await complete({
-    model: flags.judge || 'sonnet',
-    system: 'You grade a coding agent\'s answer about a codebase against a reference answer written by an expert. Score 1.0 if every key fact in the reference is present and nothing in the answer contradicts the reference or the code; 0.5 if the main point is right but important specifics are missing or one detail is wrong; 0 if the answer is wrong, evasive, or contradicts the reference on the main point. List missing key facts and wrong claims. Extra correct detail is fine and not penalized. Do not penalize wording, ordering, or formatting.',
-    prompt: `TASK:\n${task.prompt}\n\nREFERENCE ANSWER:\n${task.gold}\n\nAGENT ANSWER:\n${answer}`,
-    schema: JUDGE_SCHEMA,
-  });
-  return { ...res.json, mustHit: mustHit.length, mustTotal: must.length };
-}
+// a question's answer, graded against the expert reference by the named judge (judge-protocol.js)
+const judge = (task, answer) => judgeAnswer(task, answer, { model: flags.judge || 'sonnet' });
 
 function touchedFiles(diff) {
   return [...new Set([...(diff || '').matchAll(/^diff --git a\/(.+?) b\//gm)].map(m => m[1]))];
@@ -268,7 +260,7 @@ async function judgeChange(task, diff, summary) {
   await Promise.all(Array.from({ length: samplesN }, async () => { try { const r = await complete({ model: flags.judge || 'sonnet', system, prompt, schema: JUDGE_SCHEMA }); samples.push(Number(r.json.score)); reasons.push(r.json.reason); } catch (e) { reasons.push('ERR ' + e.message); } }));
   if (!samples.length) throw new Error('judge failed: ' + reasons.join(' | '));
   const sorted = [...samples].sort((a, b) => a - b);
-  return { score: sorted[Math.floor(sorted.length / 2)], samples, reasons, reason: reasons[0], mustHit: hit.length, mustTotal: goldSrc.length, touched };
+  return { score: sorted[Math.floor(sorted.length / 2)], samples, reasons, reason: reasons[0], mustHit: hit.length, mustTotal: goldSrc.length, touched, judge: flags.judge || 'sonnet' };
 }
 
 async function main() {

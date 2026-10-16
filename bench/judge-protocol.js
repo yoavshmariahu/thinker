@@ -43,3 +43,17 @@ export function computeGradeScores(criteria, results) {
     results
   };
 }
+
+// The answer to a question about a codebase (bench/tasks/click.json), graded against the expert reference.
+// One call: 1.0 every key fact and nothing contradicting, 0.5 main point right with specifics missing or one
+// detail wrong, 0 otherwise. The grade names the model that graded it, so numbers only compare across the same
+// judge (bench/run.js at the run, bench/regrade.js after it).
+export const ANSWER_JUDGE_SCHEMA = { type: 'object', properties: { score: { type: 'number' }, missing: { type: 'array', items: { type: 'string' } }, wrong: { type: 'array', items: { type: 'string' } }, reason: { type: 'string' } }, required: ['score', 'missing', 'wrong', 'reason'] };
+export const ANSWER_JUDGE_SYSTEM = 'You grade a coding agent\'s answer about a codebase against a reference answer written by an expert. Score 1.0 if every key fact in the reference is present and nothing in the answer contradicts the reference or the code; 0.5 if the main point is right but important specifics are missing or one detail is wrong; 0 if the answer is wrong, evasive, or contradicts the reference on the main point. List missing key facts and wrong claims. Extra correct detail is fine and not penalized. Do not penalize wording, ordering, or formatting.';
+export async function judgeAnswer(task, answer, { model = 'sonnet', completeFn } = {}) {
+  const complete = completeFn || (await import('../src/llm.js')).complete;
+  const must = task.must || [];
+  const mustHit = must.filter(m => new RegExp(m.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(answer || ''));
+  const res = await complete({ model, system: ANSWER_JUDGE_SYSTEM, prompt: `TASK:\n${task.prompt}\n\nREFERENCE ANSWER:\n${task.gold}\n\nAGENT ANSWER:\n${answer || ''}`, schema: ANSWER_JUDGE_SCHEMA });
+  return { ...res.json, mustHit: mustHit.length, mustTotal: must.length, judge: model };
+}

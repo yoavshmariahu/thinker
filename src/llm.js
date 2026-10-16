@@ -105,6 +105,15 @@ export function resetFallback() {
   activeFallback = null;
 }
 
+// The provider a model id belongs to, when the id names one; null for a tier name or anything else.
+export function providerOfModel(model) {
+  const m = String(model || '');
+  if (/^(gpt-|o\d|codex)/i.test(m)) return 'codex';
+  if (/^gemini-/i.test(m)) return 'gemini';
+  if (/^claude-/i.test(m)) return 'claude';
+  return null;
+}
+
 export function getFallbackOrder() {
   const want = process.env.THINKER_LLM;
   if (want) {
@@ -158,7 +167,14 @@ async function executeProvider(p, opts) {
 
 export async function complete(opts) {
   const o = { model: 'sonnet', maxTokens: 8000, timeoutMs: 300_000, ...opts };
-  const providers = getFallbackOrder();
+  // a model id that names its provider is answered by that provider or not at all: falling back hands
+  // the id to a CLI that does not have it, or answers with another model under its name (a benchmark
+  // judge named gpt-6-luna was mostly graded through the Claude CLI, 2026-10-16). Tier names (sonnet,
+  // haiku, …) keep the fallback order.
+  const pinned = process.env.THINKER_LLM ? null : providerOfModel(o.model);
+  const serves = p => p === pinned || p === 'command' || (pinned === 'claude' && p === 'anthropic') || (pinned === 'codex' && p === 'openai');
+  const providers = pinned ? getFallbackOrder().filter(serves) : getFallbackOrder();
+  if (pinned && !providers.length) throw new Error(`model ${o.model} is answered by ${pinned}, which is not available here`);
   if (!providers.length) throw new Error('no model available: install one of the claude, gemini, or codex CLIs, or set ANTHROPIC_API_KEY, THINKER_LLM_BASE_URL (an OpenAI-compatible endpoint) or THINKER_LLM_CMD');
   if (process.env.THINKER_LLM) return executeProvider(providers[0], o);
 

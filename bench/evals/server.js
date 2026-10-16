@@ -14,7 +14,7 @@ import { takeSnapshot, listLocal, s3Uri } from './snapshot.js';
 import { ingest, taskInfo } from './ingest.js';
 import { armSummary, METRICS } from './stats.js';
 import { readMeta, resolveMeta, writeMeta, compare } from './experiment.js';
-import { catalog, plan, launch, launchCache, cancel, jobsView } from './jobs.js';
+import { catalog, plan, launch, launchCache, cancel, jobsView, planRegrade, launchRegrade } from './jobs.js';
 import { listPrsets, createPrset, updatePrset, freezePrset, readPrset, checkPrset } from './prsets.js';
 import { importTaskFiles, importTaskSet, setAcceptance, getTaskSet, listTaskSets, taskSetVersions, tasksetName } from './tasksets.js';
 const summary = s => ({ name: s.name, repo: s.repo, base: s.base, version: s.version, hash: s.hash, tasks: s.tasks.length, unchanged: Boolean(s.unchanged), change: s.change });
@@ -238,6 +238,15 @@ export function createApp({ bench = BENCH, dbFile = DB_FILE, snapshots = true } 
     'POST /api/taskset/acceptance': body => ({ taskset: summary(setAcceptance(db, String(body.name || ''), String(body.task || ''), body.acceptance)) }),
     'GET /api/jobs': () => ({ jobs: jobsView(db, bench) }),
     'POST /api/plan': body => plan(body, { benchDir: bench, db }),
+    // regrade an experiment's recorded answers with a named judge: planned first, started only when confirmed
+    // with the planned count; the run is reimported when the job ends
+    'POST /api/regrade': body => {
+      const p = planRegrade(body, { benchDir: bench, db });
+      if (body.confirm !== true) return p;
+      if (body.sessions !== p.sessions) throw httpError(409, 'the plan changed since it was shown; review it again');
+      if (!p.sessions) throw httpError(400, `every answer is already graded by ${p.judge}`);
+      return { id: launchRegrade(p, { benchDir: bench, db, onDone: () => ingest(db, bench, { force: true, only: p.tag }) }), tag: p.tag };
+    },
     'POST /api/launch': body => {
       if (body.confirm !== true) throw httpError(400, 'a launch must be confirmed');
       const p = plan(body, { benchDir: bench, db });

@@ -317,6 +317,11 @@ export function buildServer() {
       log: a.log ? j.log : undefined })));
   }));
 
+  server.registerTool('regrade_experiment', {
+    description: 'Regrade an experiment\'s recorded answers to questions with a named judge, without running any agent session again; the earlier grades are kept. Without sessions it only plans: how many answers, and which judges graded them. Calling the judge spends tokens: show the user the plan, then call again with sessions from the plan once they approve. The run is reimported when the job ends; follow it with get_progress.',
+    inputSchema: { tag: z.string(), judge: z.string().describe('The judge model, e.g. gpt-6-luna; its provider answers, with no fallback to another'), conc: z.number().int().min(1).max(8).optional(), sessions: z.number().int().optional().describe('The planned count, to start it') },
+  }, guard(async a => text(await call('/api/regrade', { dir: a.tag, judge: a.judge, conc: a.conc, ...(a.sessions != null ? { confirm: true, sessions: a.sessions } : {}) }))));
+
   server.registerTool('cancel_experiment', {
     description: 'Stop an experiment started from the app (its whole process group). Results already written stay; starting it again with the same tag resumes.',
     inputSchema: { job_id: z.number().int().describe('job_id from get_progress (runs started from a terminal cannot be cancelled here)') },
