@@ -43,6 +43,7 @@ function metricRows(c, metrics, served = false) {
   return Object.fromEntries(metrics.map(m => {
     const k = m.key === 'pass' ? 'pass_rate' : m.key;
     if (m.key === 'pass' && !off.graded) return [m.key, null];
+    if (m.loop && off[k] == null && on[k] == null) return [m.key, null];  // not a loop experiment
     const x = d[m.key];
     return [m.key, { off: r2(off[k]), on: r2(on[k]), delta: r2(x.mean), ci90: x.lo == null ? null : [r2(x.lo), r2(x.hi)], pairs: x.n, verdict: VERDICT(x, m.better) }];
   }).filter(([, v]) => v));

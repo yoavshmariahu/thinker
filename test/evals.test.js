@@ -223,6 +223,59 @@ test('plan builds the experiment from its modules and blocks a failing check', (
   assert.throws(() => plan({ ...base, prset: 'ps2', tag: 't' }, { benchDir: bench, db }), /name the judge/);
 });
 
+test('a loop experiment names its checker, needs acceptance criteria on every PR, and says its estimate is a guess', () => {
+  const { bench } = ready();
+  const db = openDb(':memory:');
+  ingest(db, bench);
+  const base = { ...exp, prset: 'ps', cache: 'c-sonnet', runner: 'codex', off: 'nocache', on: 'full', model: 'sonnet', reps: 1, tag: 'click-loop', flags: { loop: true } };
+  assert.throws(() => plan(base, { benchDir: bench, db }), /checker/);
+  assert.throws(() => plan({ ...base, runner: 'claude', on: 'cache', values: { checker: 'sonnet' } }, { benchDir: bench, db }), /no loop mode/);
+  assert.throws(() => plan({ ...base, values: { checker: 'sonnet', iterations: '0' } }, { benchDir: bench, db }), /iterations/);
+  const missing = plan({ ...base, values: { checker: 'sonnet' } }, { benchDir: bench, db });
+  assert.equal(missing.blocked, true);
+  assert.match(missing.checks.find(c => c.module === 'loop').detail, /missing on T1, T2/);
+  const spec = JSON.parse(fs.readFileSync(path.join(bench, 'tasks', 'click.json'), 'utf8'));
+  spec.tasks.forEach(t => { t.acceptance = [{ id: 'a1', criterion: 'it works' }]; });
+  fs.writeFileSync(path.join(bench, 'tasks', 'click.json'), JSON.stringify(spec));
+  const p = plan({ ...base, values: { checker: 'sonnet', iterations: '3' } }, { benchDir: bench, db });
+  assert.equal(p.blocked, false, JSON.stringify(p.checks.filter(c => !c.ok)));
+  assert.deepEqual(p.modules.loop, { checker: 'sonnet', iterations: 3, iterationMin: 10, sessionMin: 30, tokenCap: null });
+  for (const a of ['--loop', '--checker', '--iterations']) assert.ok(p.argv.includes(a), a);
+  if (p.estimate) assert.match(p.estimate.basis, /guess/);
+});
+
+test('loop sessions normalize to done, iterations and false done, and a checker failure is invalid', () => {
+  const loop = (stop, n, extra = {}) => ({ limits: {}, checker: 'gpt-x', iterations: Array.from({ length: n }, (_, i) => ({ n: i + 1 })), stop, checker_in_tokens: 500, ...extra });
+  const row = (o, l) => normalize(rec({ ...o, loop: l }), { dir: 'r', file: 'x.json', mtime: 1 });
+  const done = row({ grade: { tests: 'pass' } }, loop('done', 2));
+  assert.equal(done.done, 1); assert.equal(done.iterations, 2); assert.equal(done.false_done, 0); assert.equal(done.checker, 'gpt-x'); assert.equal(done.checker_tokens, 500);
+  assert.equal(row({ grade: { tests: 'fail' } }, loop('done', 1)).false_done, 1, 'the checker said done, the PR tests fail');
+  const capped = row({ grade: { tests: 'fail' } }, loop('max_iterations', 4));
+  assert.equal(capped.done, 0); assert.equal(capped.false_done, null); assert.equal(capped.invalid, null, 'a limit hit is an outcome, not an invalid session');
+  assert.match(row({}, loop('checker_error', 1, { checkerError: 'checker timed out' })).invalid, /checker failed/);
+  const plain = normalize(rec(), { dir: 'r', file: 'x.json', mtime: 1 });
+  assert.equal(plain.done, null); assert.equal(plain.iterations, null);
+  // an index made before loop sessions gains the columns on open
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'evals-db-')), 'old.db');
+  const { DatabaseSync } = process.getBuiltinModule('node:sqlite');
+  const old = new DatabaseSync(file);
+  old.exec(`CREATE TABLE results (id TEXT PRIMARY KEY, run TEXT NOT NULL, task TEXT, area TEXT, arm TEXT, rep INTEGER, repo TEXT,
+    model TEXT, effort TEXT, actual_models TEXT, turns INTEGER, wall_ms REAL, cost REAL, in_tokens REAL, fresh_in REAL, cache_read REAL,
+    cache_write REAL, out_tokens REAL, tool_calls INTEGER, files_read INTEGER, calls_before_edit INTEGER, thinker_calls INTEGER,
+    injected INTEGER, served INTEGER, pass INTEGER, score REAL, outcome_source TEXT, judge TEXT, invalid TEXT, mtime INTEGER, file TEXT)`);
+  old.close();
+  const db = openDb(file);
+  assert.ok(db.all('PRAGMA table_info(results)').some(c => c.name === 'false_done'));
+});
+
+test('a loop comparison reports done and false done per arm over the pairs', () => {
+  const r = (arm, rep, done, pass) => ({ ...normalize(rec({ arm, rep, grade: { tests: pass ? 'pass' : 'fail' }, loop: { stop: done ? 'done' : 'max_iterations', iterations: [{}, {}], checker: 'c' } }), { dir: 'r', file: `${arm}${rep}.json`, mtime: 1 }) });
+  const c = compare([r('nocache', 0, false, false), r('nocache', 1, true, true), r('full', 0, true, true), r('full', 1, true, false)], 'nocache', 'full');
+  assert.equal(c.offSide.done, 0.5); assert.equal(c.onSide.done, 1);
+  assert.equal(c.onSide.false_done, 0.5);
+  assert.equal(c.delta.done.mean, 0.5);
+});
+
 test('transcripts parse into steps from Claude Code and Codex, are archived into the run, and serve the session page', async () => {
   const steps = parseClaude([
     { type: 'user', message: { role: 'user', content: 'Fix it' }, timestamp: '2026-10-01T00:00:00Z' },

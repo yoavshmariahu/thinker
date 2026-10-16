@@ -55,6 +55,7 @@ function side(rs) {
     out_tokens: median(ok.map(r => r.out_tokens)), tool_calls: median(ok.map(r => r.tool_calls)), wall_ms: median(ok.map(r => r.wall_ms)),
     cost: median(ok.map(r => r.cost)), cost_total: ok.reduce((s, r) => s + (r.cost || 0), 0),
     served: ok.filter(r => r.served).length,
+    done: mean(ok.map(r => r.done)), iterations: median(ok.map(r => r.iterations)), false_done: mean(ok.map(r => r.false_done)),
   };
 }
 

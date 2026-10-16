@@ -11,6 +11,7 @@ import { CACHE_USAGE_GUIDE } from '../src/cache-guidance.js';
 import { complete } from '../src/llm.js';
 import { GRADE_SCHEMA, JUDGE_SYSTEM_PROMPT, srcOnly, computeGradeScores } from './judge-protocol.js';
 import { runOracle, goldTouched, codexLoopStats, listCost, resetWorktree as resetBase, goldTestsSeen } from './oracle.js';
+import { loopLimits, acceptanceOf, criteriaBlock, CHECKER_SCHEMA, checkerPrompt, verdict, feedback, usageDelta, stopReason } from './loop.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -72,6 +73,13 @@ const ONLY = (flags.only ? flags.only.split(',') : (process.env.BENCH_ONLY || ''
 const spec = JSON.parse(fs.readFileSync(TASKS, 'utf8'));
 const tasks = (spec.tasks || spec).filter(t => !ONLY.length || ONLY.includes(t.id));
 fs.mkdirSync(path.join(OUT, 'events'), { recursive: true });
+// --loop (bench/loop.js): iterate to the task's acceptance criteria, judged by a named --checker model
+const LOOP = Boolean(flags.loop);
+const LIMITS = LOOP ? loopLimits(flags) : null;
+const CHECKER = LOOP ? flags.checker : null;
+if (LOOP && (!CHECKER || CHECKER === true)) throw new Error('--loop needs --checker <model>: the checker is a judge and is named');
+const noCriteria = LOOP ? tasks.filter(t => !acceptanceOf(t).length).map(t => t.id) : [];
+if (noCriteria.length) throw new Error(`--loop needs acceptance criteria on every task; missing: ${noCriteria.join(', ')}`);
 
 function makeWorktree(i) {
   // BENCH_WT keeps the path stable for Codex trust; existing work is never removed.
@@ -148,49 +156,126 @@ function contextFor(task, session, arm = 'hook') {
     throw new Error(`cache orientation failed: ${e.message}`);
   }
 }
-function runCodex(prompt, cwd) {
-  const args = [
-    'exec', '--json', '--ephemeral', '--ignore-rules',
-    '--model', MODEL, '--sandbox', 'workspace-write', '--cd', cwd,
-  ];
+// One `codex exec` (or, with `resume`, `codex exec resume <thread>`) call: its events, exit and timing.
+// `ephemeral: false` keeps the session on disk so a loop can resume it; resume takes no --cd or
+// --sandbox, so it runs with the worktree as cwd and the sandbox set through -c.
+function codexCall(prompt, cwd, { model = MODEL, resume = null, ephemeral = true, timeoutMin = Number(process.env.BENCH_TIMEOUT_MIN) || 20, schemaFile = null } = {}) {
+  const args = resume
+    ? ['exec', 'resume', '--json', '--ignore-rules', '--model', model, '-c', 'sandbox_mode="workspace-write"', resume, '-']
+    : ['exec', '--json', ...(ephemeral ? ['--ephemeral'] : []), '--ignore-rules', '--model', model, '--sandbox', 'workspace-write', '--cd', cwd,
+      ...(schemaFile ? ['--output-schema', schemaFile] : []), '-'];
   const started = Date.now();
   return new Promise((resolve, reject) => {
     const child = spawn('codex', args, { cwd, env: { ...process.env, CODEX_HOME, CODEX_DISABLE_PROJECT_DOCS: '0' } });
     let stdout = '', stderr = '', timedOut = false;
     // a session that stalls would hold its worker for the rest of the run
-    const timer = setTimeout(() => { timedOut = true; child.kill(); }, (Number(process.env.BENCH_TIMEOUT_MIN) || 20) * 60_000);
+    const timer = setTimeout(() => { timedOut = true; child.kill(); }, timeoutMin * 60_000);
     child.stdout.on('data', b => stdout += b);
     child.stderr.on('data', b => stderr += b);
     child.on('error', reject);
     child.on('close', code => {
       clearTimeout(timer);
-      if (timedOut) return reject(new Error('timed out'));
       const events = [];
       for (const line of stdout.split('\n')) {
         try { events.push(JSON.parse(line)); } catch {}
       }
-      const failure = events.find(e => e.type === 'turn.failed' || e.type === 'error');
-      if (code !== 0 || failure) return reject(new Error(`Codex exited ${code}: ${JSON.stringify(failure || stderr).slice(0, 900)}`));
-      const usage = events.filter(e => e.type === 'turn.completed').map(e => e.usage || {});
-      const msg = events.filter(e => e.type === 'item.completed' && e.item?.type === 'agent_message').map(e => e.item.text || '').join('\n');
-      const calls = events.filter(e => e.type === 'item.started' && e.item && !['agent_message', 'reasoning'].includes(e.item.type));
-      const byTool = {};
-      for (const e of calls) byTool[e.item.type] = (byTool[e.item.type] || 0) + 1;
-      return resolve({
-        session_id: events.find(e => e.type === 'thread.started')?.thread_id,
-        turns: usage.length,
-        // Codex counts cached tokens inside input_tokens
-        in_tokens: usage.reduce((s, u) => s + (u.input_tokens || 0), 0),
-        cached_tokens: usage.reduce((s, u) => s + (u.cached_input_tokens || 0), 0),
-        out_tokens: usage.reduce((s, u) => s + (u.output_tokens || 0), 0),
-        wall_ms: Date.now() - started,
-        result: msg,
-        tools: { calls: calls.length, byTool, thinkerCalls: 0, filesRead: 0, greps: 0, injected: [] },
-        raw_events: events,
-      });
+      resolve({ code, stderr, timedOut, events, failure: events.find(e => e.type === 'turn.failed' || e.type === 'error'), wall_ms: Date.now() - started });
     });
     child.stdin.end(prompt);
   });
+}
+// The record fields a call's events give (usage summed over its turns).
+function summarize(events, wall_ms) {
+  const usage = events.filter(e => e.type === 'turn.completed').map(e => e.usage || {});
+  const msg = events.filter(e => e.type === 'item.completed' && e.item?.type === 'agent_message').map(e => e.item.text || '').join('\n');
+  const calls = events.filter(e => e.type === 'item.started' && e.item && !['agent_message', 'reasoning'].includes(e.item.type));
+  const byTool = {};
+  for (const e of calls) byTool[e.item.type] = (byTool[e.item.type] || 0) + 1;
+  return {
+    session_id: events.find(e => e.type === 'thread.started')?.thread_id,
+    turns: usage.length,
+    // Codex counts cached tokens inside input_tokens
+    in_tokens: usage.reduce((s, u) => s + (u.input_tokens || 0), 0),
+    cached_tokens: usage.reduce((s, u) => s + (u.cached_input_tokens || 0), 0),
+    out_tokens: usage.reduce((s, u) => s + (u.output_tokens || 0), 0),
+    wall_ms,
+    result: msg,
+    tools: { calls: calls.length, byTool, thinkerCalls: 0, filesRead: 0, greps: 0, injected: [] },
+    raw_events: events,
+  };
+}
+async function runCodex(prompt, cwd) {
+  const c = await codexCall(prompt, cwd);
+  if (c.timedOut) throw new Error('timed out');
+  if (c.code !== 0 || c.failure) throw new Error(`Codex exited ${c.code}: ${JSON.stringify(c.failure || c.stderr).slice(0, 900)}`);
+  return summarize(c.events, c.wall_ms);
+}
+
+// --loop: the solver works, a checker in a copy of the worktree judges the acceptance criteria, the
+// unmet ones go back to the same (resumed) solver session, until done or a limit (bench/loop.js).
+async function runLoop(task, prompt, cwd, checkCwd) {
+  const acceptance = acceptanceOf(task);
+  const started = Date.now();
+  const iterations = [], solverEvents = [];
+  let thread = null, prevTotal = null, stop = null, doneAt = null, checkerError = null;
+  let message = prompt + criteriaBlock(acceptance);
+  for (let n = 1; !stop; n++) {
+    const left = LIMITS.sessionMin - (Date.now() - started) / 60_000;
+    const c = await codexCall(message, cwd, { resume: thread, ephemeral: false, timeoutMin: Math.max(1, Math.min(LIMITS.iterationMin, left)) });
+    if (!c.timedOut && (c.code !== 0 || c.failure)) throw new Error(`Codex exited ${c.code} in iteration ${n}: ${JSON.stringify(c.failure || c.stderr).slice(0, 900)}`);
+    solverEvents.push(...c.events);
+    thread ||= c.events.find(e => e.type === 'thread.started')?.thread_id;
+    if (!thread) throw new Error(`no thread id in iteration ${n}`);
+    const total = c.events.filter(e => e.type === 'turn.completed').map(e => e.usage).pop();
+    const u = total ? (n === 1 ? usageDelta(null, total) : usageDelta(prevTotal, total)) : { input_tokens: 0, cached_input_tokens: 0, output_tokens: 0 };
+    if (total) prevTotal = total;
+    const it = { n, in_tokens: u.input_tokens, cached_tokens: u.cached_input_tokens, out_tokens: u.output_tokens, usage_missing: !total || undefined,
+      calls: summarize(c.events, 0).tools.calls, wall_ms: c.wall_ms, timed_out: c.timedOut || undefined };
+    iterations.push(it);
+    let done = false;
+    if (!c.timedOut) {
+      const chk = await runChecker(task, acceptance, cwd, checkCwd, n);
+      it.checker = chk;
+      if (chk.error) { checkerError = chk.error; break; }
+      done = chk.done;
+    }
+    stop = stopReason({ done, n, limits: LIMITS, elapsedMs: Date.now() - started, solverInTokens: iterations.reduce((s, x) => s + x.in_tokens, 0), timedOut: c.timedOut });
+    if (stop === 'done') doneAt = n;
+    if (!stop) message = feedback(acceptance, it.checker);
+  }
+  const run = summarize(solverEvents, iterations.reduce((s, x) => s + x.wall_ms, 0));
+  // resumed turns report cumulative usage, so the per-iteration differences are the session's own
+  Object.assign(run, { session_id: thread, turns: iterations.length,
+    in_tokens: iterations.reduce((s, x) => s + x.in_tokens, 0), cached_tokens: iterations.reduce((s, x) => s + x.cached_tokens, 0),
+    out_tokens: iterations.reduce((s, x) => s + x.out_tokens, 0) });
+  run.loop = { limits: LIMITS, checker: CHECKER, acceptance: acceptance.map(c => c.id), iterations, stop: checkerError ? 'checker_error' : stop, doneAt,
+    checkerError, wall_ms: Date.now() - started, checker_in_tokens: iterations.reduce((s, x) => s + (x.checker?.in_tokens || 0), 0) };
+  return run;
+}
+// The checker: a fresh, ephemeral session in a copy of the solver's tree (base + the solver's change,
+// without the cache files), so it can run tests and the app without touching the solver's work.
+async function runChecker(task, acceptance, cwd, checkCwd, n) {
+  syncCopy(cwd, checkCwd);
+  // beside the checker's events, not in the run directory, where every .json is read as a result
+  fs.mkdirSync(path.join(OUT, 'events', 'checker'), { recursive: true });
+  const schemaFile = path.join(OUT, 'events', 'checker', 'schema.json');
+  if (!fs.existsSync(schemaFile)) fs.writeFileSync(schemaFile, JSON.stringify(CHECKER_SCHEMA));
+  const c = await codexCall(checkerPrompt(task.prompt, acceptance), checkCwd, { model: CHECKER, schemaFile, timeoutMin: LIMITS.iterationMin });
+  fs.writeFileSync(path.join(OUT, 'events', 'checker', `${task.id}-${n}-${Date.now()}.jsonl`), c.events.map(e => JSON.stringify(e)).join('\n'));
+  const s = summarize(c.events, c.wall_ms);
+  const base = { model: CHECKER, in_tokens: s.in_tokens, cached_tokens: s.cached_tokens, out_tokens: s.out_tokens, wall_ms: c.wall_ms };
+  if (c.timedOut || c.code !== 0 || c.failure) return { ...base, error: c.timedOut ? 'checker timed out' : `checker exited ${c.code}: ${JSON.stringify(c.failure || c.stderr).slice(0, 300)}` };
+  let parsed = null; try { parsed = JSON.parse(s.result.split('\n').filter(Boolean).pop()); } catch {}
+  if (!parsed || !Array.isArray(parsed.results)) return { ...base, error: 'checker returned no results' };
+  resetBase(checkCwd);
+  return { ...base, ...verdict(acceptance, parsed.results) };
+}
+function syncCopy(src, dst) {
+  resetBase(dst);
+  execFileSync('git', ['add', '-A', '--', '.', ':!.thinker', ':!.codex', ':!AGENTS.md'], { cwd: src });
+  const diff = execFileSync('git', ['diff', '--cached', '--binary', '--no-color'], { cwd: src, maxBuffer: 1 << 26 });
+  execFileSync('git', ['reset', '-q'], { cwd: src });
+  if (diff.length) execFileSync('git', ['apply', '--whitespace=nowarn', '-'], { cwd: dst, input: diff });
 }
 function getDiff(cwd) {
   execFileSync('git', ['add', '-A', '--', '.', ':!.thinker', ':!.codex', ':!AGENTS.md'], { cwd });
@@ -219,10 +304,11 @@ const jobs = [];
 for (let rep = 0; rep < REPS; rep++) for (const task of tasks) for (const arm of ARMS) jobs.push({ task, arm, rep });
 async function worker(wi) {
   const cwd = makeWorktree(wi);
-  try { await runWorker(cwd); }
-  finally { removeWorktree(cwd); }
+  const checkCwd = LOOP ? makeWorktree(`${wi}-check`) : null;
+  try { await runWorker(cwd, checkCwd); }
+  finally { removeWorktree(cwd); if (checkCwd) removeWorktree(checkCwd); }
 }
-async function runWorker(cwd) {
+async function runWorker(cwd, checkCwd) {
   while (jobs.length) {
     const { task, arm, rep } = jobs.shift();
     const id = `${task.id}-${arm}-${rep}`;
@@ -240,7 +326,7 @@ async function runWorker(cwd) {
     }
     try {
       if (arm === 'full') armCache(cwd);  // inside the try: a failure here is one errored record, not a dead worker
-      const run = await runCodex(prompt, cwd);
+      const run = LOOP ? await runLoop(task, prompt, cwd, checkCwd) : await runCodex(prompt, cwd);
       run.tools.injected = [...new Set([...injected.matchAll(/\(id: ([\w-]+), confidence/g)].map(m => m[1]))];
       if (arm === 'full') { const use = cacheUse(cwd); run.tools.injected = use.injected; run.tools.cache = use; run.tools.thinkerCalls = use.orientCalls + use.lookupCalls; }
       run.model = MODEL;
@@ -268,7 +354,7 @@ async function runWorker(cwd) {
       fs.writeFileSync(path.join(OUT, 'events', `${id}.jsonl`), run.raw_events.map(e => JSON.stringify(e)).join('\n'));
       delete run.raw_events;
       fs.writeFileSync(file, JSON.stringify(run, null, 2));
-      console.log(`${id}: turns=${run.turns} tools=${run.tools.calls} injected=${run.tools.injected.length} ${(run.wall_ms / 1000).toFixed(0)}s in=${run.in_tokens} out=${run.out_tokens}${run.grade ? ' pass=' + run.grade.pass + ' ess=' + run.grade.essential : ''}`);
+      console.log(`${id}: turns=${run.turns} tools=${run.tools.calls} injected=${run.tools.injected.length} ${(run.wall_ms / 1000).toFixed(0)}s in=${run.in_tokens} out=${run.out_tokens}${run.grade ? ' pass=' + run.grade.pass + ' ess=' + run.grade.essential : ''}${run.loop ? ` loop=${run.loop.stop}@${run.loop.iterations.length}` : ''}`);
     } catch (e) {
       console.error(`${id} ERROR ${e.message}`);
       fs.writeFileSync(file, JSON.stringify({ id, task: task.id, arm, rep, model: MODEL, turns: 0, error: e.message }, null, 2));

@@ -92,6 +92,33 @@ runners have written onto one row:
 | invalid | runner error, usage limit, answer-key leak, session error, 60-turn cap, timeout, failed grading, or a diagnosis-only directory (`invalid/`, `empty-notes`, contaminated runs). Left out of every number and listed on the experiment. |
 | started | the earlier of the record files' mtime and the commit that first added the run (regrading rewrites the files) |
 
+## Loop experiments
+
+A one-shot session stops when the agent believes it is done and is graded once; on hard PR sets the
+same PRs then pass or fail in every arm and pass rate says nothing. A loop experiment (`codex-run.js
+--loop`, rules in `bench/loop.js`) keeps one solver session going until it is done:
+
+1. The solver gets the request plus the PR's **acceptance criteria** (the task's `acceptance` list:
+   `{ id, criterion, command?, essential? }`, essential unless `false`). They are written from the
+   request and the code at the base, never from the gold diff or tests, because the solver is told
+   which ones fail. Every PR in a loop experiment needs them (the plan blocks otherwise).
+2. When it stops, a **checker** (`--checker <model>`, named on every number like any judge) judges each
+   criterion in a fresh session, in a copy of the worktree holding the base plus the solver's change
+   and not the cache files, where it may run tests and the app. Done means every essential criterion met.
+3. Not done: the unmet criteria and the checker's evidence (no fix) go back to the **same** solver
+   session (`codex exec resume`), the worktree as it was.
+4. It ends at done or the first limit: `--iterations` (4), `--iteration-min` (10), `--session-min` (30),
+   `--token-cap` (none). A limit hit is an outcome, not an invalid session; a checker that fails is invalid.
+5. The PR's own tests grade the end, as in every experiment, and are never shown to the solver or the checker.
+
+The record keeps today's fields (the solver's tokens, calls and wall time summed over iterations;
+`codex exec resume` reports the thread's cumulative usage, so each iteration is its difference from
+the last) and adds `loop`: limits, checker, every iteration with its usage and the checker's verdicts,
+the stop reason, and `doneAt`. Checker transcripts are in `events/checker/`. Metrics added:
+**done within limits** (headline card for loop experiments), **iterations**, and **false done**
+(the checker said done, the PR's tests fail). The plan's estimate for a loop experiment is the one-shot
+history × 2 iterations, labelled as a guess, without the checker, until loop results exist.
+
 ## Starting an experiment
 
 **New experiment** takes the question, a PR set, a cache, the arms, the agent and the grader. The

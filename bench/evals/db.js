@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS results (
   in_tokens REAL, fresh_in REAL, cache_read REAL, cache_write REAL, out_tokens REAL,
   tool_calls INTEGER, files_read INTEGER, calls_before_edit INTEGER, thinker_calls INTEGER, injected INTEGER,
   served INTEGER, pass INTEGER, score REAL, outcome_source TEXT, judge TEXT, invalid TEXT,
-  mtime INTEGER, file TEXT
+  mtime INTEGER, file TEXT,
+  done INTEGER, iterations INTEGER, false_done INTEGER, loop_stop TEXT, checker TEXT, checker_tokens REAL
 );
 CREATE INDEX IF NOT EXISTS results_run ON results(run);
 CREATE INDEX IF NOT EXISTS results_task ON results(task);
@@ -27,7 +28,10 @@ CREATE TABLE IF NOT EXISTS jobs (
 
 const COLS = ['id', 'run', 'task', 'area', 'arm', 'rep', 'repo', 'model', 'effort', 'actual_models', 'turns', 'wall_ms', 'cost',
   'in_tokens', 'fresh_in', 'cache_read', 'cache_write', 'out_tokens', 'tool_calls', 'files_read', 'calls_before_edit',
-  'thinker_calls', 'injected', 'served', 'pass', 'score', 'outcome_source', 'judge', 'invalid', 'mtime', 'file'];
+  'thinker_calls', 'injected', 'served', 'pass', 'score', 'outcome_source', 'judge', 'invalid', 'mtime', 'file',
+  'done', 'iterations', 'false_done', 'loop_stop', 'checker', 'checker_tokens'];
+// columns added after the first index was made, with their types: an older index gains them on open
+const LATER = { done: 'INTEGER', iterations: 'INTEGER', false_done: 'INTEGER', loop_stop: 'TEXT', checker: 'TEXT', checker_tokens: 'REAL' };
 
 export function openDb(file) {
   if (file !== ':memory:') fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -36,6 +40,8 @@ export function openDb(file) {
   db.exec(SCHEMA);
   // an index made before cache builds were jobs has no kind column
   if (!db.prepare('PRAGMA table_info(jobs)').all().some(c => c.name === 'kind')) db.exec("ALTER TABLE jobs ADD COLUMN kind TEXT DEFAULT 'experiment'");
+  const have = new Set(db.prepare('PRAGMA table_info(results)').all().map(c => c.name));
+  for (const [c, t] of Object.entries(LATER)) if (!have.has(c)) db.exec(`ALTER TABLE results ADD COLUMN ${c} ${t}`);
   const insert = db.prepare(`INSERT OR REPLACE INTO results (${COLS.join(',')}) VALUES (${COLS.map(c => '@' + c).join(',')})`);
   return {
     raw: db,

@@ -97,6 +97,7 @@ eval traces, hand-written notes or an old noteset of unknown provenance.
 | **Arms** | `off` (`nocache`) always; `on` the product as it ships (`cache`/`hook` for Claude Code, `full` for Codex) unless the question is about a variant; an extra arm (e.g. `irrelevant`, placebo notes) only when the question needs it — each costs a full arm of sessions. |
 | **Agent** | The cache's mining model (the plan blocks otherwise). `flags["strict-model"]: true` where the runner has it. At least 2 reps per PR × arm. |
 | **Grading** | The PRs' tests when every PR has them. Otherwise a judge must be named (`judge`) and approved; judged numbers compare only with the same judge. |
+| **Loop** (optional, Codex) | `flags.loop` with `values.checker` (a named model) and limits (`iterations`, `iteration-min`, `session-min`, `token-cap`): each session iterates, resumed with a checker's feedback, until every PR's `acceptance` criteria are met or a limit is hit. Every PR needs `acceptance` written from the request and base code, never the gold. The headline leads with done within limits; report false done beside it. See bench/evals/README.md, "Loop experiments". |
 | **Tag** | `<repo>-<model>-<what>-<date>`, new for a new experiment. Reusing a tag resumes it. |
 
 ## 5. Plan, then get approval — mandatory
