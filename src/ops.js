@@ -697,7 +697,8 @@ export function find(store, { query, path: scope, limit = 12, client } = {}) {
   // One identifier whose definition tops the list: its code comes with the list. The agent drilled
   // the top one or two hits and almost nothing else (26 of 289 pointers, 2026-10-07), each a turn.
   const q = String(query).trim(), top = r.hits[0];
-  const named = /^[A-Za-z_][\w.]*$/.test(q) && (top.name === q.split('.').pop() || top.symbol === q);
+  // only when the name is one definition: four SqlAlchemyStore classes on mlflow, and any one of them shown is a guess
+  const named = /^[A-Za-z_][\w.]*$/.test(q) && (top.name === q.split('.').pop() || top.symbol === q) && r.hits.filter(h => h.name === top.name).length === 1;
   const block = named ? symbolBlock(repo, { path: top.path, symbol: top.symbol }, 2000) : null;
   const code = block ? `\n\n${definitionText(repo, top.path, top.symbol, block, 80)}` : '';
   const text = `Definitions carrying "${q}"${scope ? ` under ${scope}` : ''} (${r.hits.length}${r.more ? '+' : ''}, by git grep; words: ${r.toks.join(', ')}):\n${lines.join('\n')}${code}${rel.length ? `\n\nCached notes on this code (lookup takes an id):\n${rel.map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n')}` : ''}`;

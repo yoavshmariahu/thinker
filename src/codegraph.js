@@ -237,6 +237,21 @@ export function findSymbols(repo, query, { scope, limit = 12, files: maxFiles = 
     scored.push({ ...c, score: Math.round(s * 100) / 100 });
   }
   scored.sort((a, b) => b.score - a.score || a.path.localeCompare(b.path) || a.line - b.line);
+  // One identifier: the definitions carrying exactly that name come first, whatever their size. The word
+  // search above skips files over 400 kB and bodies over 1,500 lines, so `find SqlAlchemyStore` on mlflow
+  // (an 11,000-line file) listed functions mentioning "sql" and never the class (2026-10-15).
+  if (ident) {
+    const exact = (findDefinitions(repo, ident, { limit: 8 }) || []).filter(d => CODE_EXT.has(extOf(d.path)) && inScope(d.path) && !isTestPath(d.path));
+    const top = (scored[0]?.score || 0) + 10;
+    for (const d of exact.reverse()) {
+      const o = (outline(repo, d.path, { limit: 5000 }) || []).find(x => x.line === d.line && x.name === ident);
+      const symbol = o?.parent ? `${o.parent}.${ident}` : ident;
+      const i = scored.findIndex(c => c.path === d.path && c.symbol === symbol);
+      if (i >= 0) scored.splice(i, 1);
+      const kind = o?.kind || (/\b(class|struct|interface|trait|enum)\b/.test(d.text) ? 'class' : 'definition');
+      scored.unshift({ path: d.path, name: ident, parent: o?.parent || null, symbol, kind, line: d.line, end: o?.end || null, score: top, mentions: 0 });
+    }
+  }
   const hits = scored.slice(0, limit).map(h => { const o = { ...h }; delete o.body; return o; });
   for (const h of hits) { const b = symbolBlock(repo, { path: h.path, symbol: h.symbol }, 1); if (b) { h.line = b.start; h.end = b.start + b.total - 1; } else if (h.end === Infinity) h.end = null; } // exact spans for what is shown
   return { hits, toks, more: scored.length > hits.length };
