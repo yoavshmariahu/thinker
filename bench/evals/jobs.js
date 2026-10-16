@@ -27,6 +27,29 @@ export const RUNNERS = {
     booleans: ['strict-model', 'counterbalance', 'no-judge', 'no-tests'], values: ['effort', 'max-min'] },
 };
 
+// What each runner option does, as the experiment form and the plan show it (the runner's flag is the key).
+// switch: on or off; setting: a value, empty for the default; loop: shown only for a loop experiment.
+export const OPTIONS = {
+  'strict-model': { label: 'Require the exact model', type: 'switch', help: 'Fail a session whose transcript shows any model other than the one asked for: an alias can resolve to a different model.' },
+  'isolated-settings': { label: 'Ignore this machine\'s Claude Code settings', type: 'switch', help: 'Sessions do not load your user settings or installed hooks, so nothing from this machine reaches the cache-off arm. Always on.' },
+  counterbalance: { label: 'Alternate the arm order', type: 'switch', help: 'Run the cache-on arm first on every other PR and rep, so that running second (warm files, rate limits) favors neither arm.' },
+  'no-judge': { label: 'Skip the judge', type: 'switch', help: 'Leave PRs without tests ungraded instead of calling a judge model.' },
+  'no-subagents': { label: 'No subagents', type: 'switch', help: 'The agent cannot start subagents, so every step of a session is in its one transcript.' },
+  'no-tests': { label: 'Do not run the PRs\' tests', type: 'switch', help: 'Grade by the judge only, without running each PR\'s test command.' },
+  loop: { label: 'Loop until done', type: 'switch', help: 'Each session iterates: when the agent stops, a checker judges the PR\'s acceptance criteria and sends the unmet ones back to the same session, until all are met or a limit is hit. Every PR needs acceptance criteria.' },
+  effort: { label: 'Reasoning effort', type: 'setting', placeholder: 'the CLI\'s default', help: 'How hard the model thinks per turn, e.g. low, medium or high.' },
+  'max-turns': { label: 'Turn limit per session', type: 'setting', placeholder: '60', help: 'Agent turns before a session is cut off; a cut-off session is invalid.' },
+  'max-min': { label: 'Minutes per session', type: 'setting', placeholder: '20', help: 'Wall-clock limit for one session.' },
+  'judge-samples': { label: 'Judge samples', type: 'setting', placeholder: '3', help: 'How many times the judge grades each session; the majority counts.' },
+  budget: { label: 'Note budget (tokens)', type: 'setting', placeholder: '750', help: 'Most tokens of notes the hook puts in front of the request. Understanding notes run about 400 tokens each: about 1500 serves two.' },
+  'ce-views': { label: 'Note scoring', type: 'setting', placeholder: 'search', help: 'How the ranker scores a note against the request: "search" by its search text; "multi" by the best of its search text, instance text and opening, which understanding notes need.' },
+  checker: { label: 'Checker model', type: 'setting', loop: true, placeholder: 'required', help: 'The model that judges the acceptance criteria after each iteration; the same for every arm, and named on every result.' },
+  iterations: { label: 'Most iterations', type: 'setting', loop: true, placeholder: '4', help: 'Iterations before a session stops without reaching done.' },
+  'iteration-min': { label: 'Minutes per iteration', type: 'setting', loop: true, placeholder: '10', help: 'Wall-clock limit for one iteration of the agent.' },
+  'session-min': { label: 'Minutes per session', type: 'setting', loop: true, placeholder: '30', help: 'Wall-clock limit for the whole session, agent and checker.' },
+  'token-cap': { label: 'Input token cap per session', type: 'setting', loop: true, placeholder: 'none', help: 'Stop a session once the agent has read this many input tokens.' },
+};
+
 const NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/;
 const MODEL = /^[A-Za-z0-9][A-Za-z0-9._:\-[\]]{0,80}$/;
 
@@ -37,7 +60,8 @@ export function catalog(benchDir, db) {
   // the task sets Artemis holds (tasksets.js); `file` is the name a PR set is drawn from
   const taskSets = listTaskSets(db).map(spec => ({ file: spec.name, name: spec.name, version: spec.version, hash: spec.hash, repo: spec.repo, base: spec.base,
     tasks: spec.tasks.map(t => ({ id: t.id, pr: String(t.id).match(/^PR(\d+)/)?.[1] || null, title: t.goldTitle || null, area: t.area || null, type: t.type || 'question', tests: Boolean(t.testCmd), acceptance: acceptanceOf(t).length })) }));
-  return { prsets: listPrsets(db), caches: listCaches(db), runners: Object.fromEntries(Object.entries(RUNNERS).map(([k, r]) => [k, { label: r.label, defaultModel: r.defaultModel, defaultArms: r.defaultArms, booleans: r.booleans, values: r.values }])), repos, taskSets };
+  return { prsets: listPrsets(db), caches: listCaches(db), runners: Object.fromEntries(Object.entries(RUNNERS).map(([k, r]) => [k, { label: r.label, defaultModel: r.defaultModel, defaultArms: r.defaultArms, booleans: r.booleans, values: r.values, always: r.always || [],
+    options: [...r.booleans, ...r.values].map(key => ({ key, ...(OPTIONS[key] || { label: key, type: r.booleans.includes(key) ? 'switch' : 'setting', help: '' }) })) }])), repos, taskSets };
 }
 
 // Validate an experiment and price it from past valid results of the same model (and repo when
@@ -141,7 +165,7 @@ export function plan(req, { benchDir, db }) {
       prset: { name: prset.name, hash: prset.hash, rule: prset.rule, base: prset.base, prs: prset.ids.length, tasks: prset.tasks, taskset_version: spec.version, taskset_hash: spec.hash },
       cache: receipt && { name: receipt.name, anchor: receipt.anchor, model: receipt.model, llm: receipt.llm, limit: receipt.limit, notes: receipt.notes, notes_hash: receipt.notes_hash, kind: kindOf(receipt), top: receipt.top ?? null, areas: receipt.areas ?? null, source: kindOf(receipt) === 'mined' ? 'mine-prs --git' : 'understand' },
       arms: { off, on, extra, ...(Object.keys(defined).length ? { defined: Object.fromEntries(Object.entries(defined).map(([a, d]) => [a, { hash: d.hash, ...d.def }])) } : {}) },
-      agent: { runner: req.runner, model, reps, conc, flags: [...new Set([...Object.keys(req.flags || {}).filter(k => req.flags[k]), ...(runner.always || [])])], values: req.values || {} },
+      agent: { runner: req.runner, model, reps, conc, flags: [...new Set([...Object.keys(req.flags || {}).filter(k => req.flags[k]), ...(runner.always || [])])], values: req.values || {} , options: [...Object.keys(req.flags || {}).filter(k => req.flags[k]).map(k => OPTIONS[k]?.label || k), ...Object.entries(req.values || {}).filter(([, v]) => v != null && v !== '').map(([k, v]) => `${OPTIONS[k]?.label || k}: ${v}`)] },
       grading: { oracle: allTests ? 'tests' : 'judge', judge: req.judge || null, summary: graded },
       ...(loop ? { loop: { checker, ...limits } } : {}),
     },

@@ -179,3 +179,10 @@ pre.sin { background: transparent; border: 1px solid var(--grid); }
 ol.steps { margin: 10px 0; padding-left: 22px; display: grid; gap: 6px; font-size: 13px; }
 ol.steps li { color: var(--text-muted); } ol.steps li.done { color: var(--text-primary); } ol.steps li.done::marker { content: '✓  '; color: var(--good); }
 ol.steps li.now { color: var(--text-primary); font-weight: 600; } ol.steps li .bar { height: 6px; margin-top: 4px; max-width: 360px; }
+/* runner options on the experiment form: a name, the input, and what the option does */
+.options { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px 18px; }
+.options > .muted { grid-column: 1 / -1; margin-top: 4px; }
+.opt { display: grid; gap: 3px; font-size: 13px; align-content: start; }
+.opt.check { display: grid; }
+.opt.check > span:first-child { display: inline-flex; gap: 6px; align-items: center; }
+.opt input:not([type=checkbox]) { width: 100%; max-width: 220px; }

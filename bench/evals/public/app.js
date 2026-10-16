@@ -228,7 +228,7 @@ function modulesCard(meta) {
     <div class="card mod"><div class="mtitle">PR set</div><a href="#/prset/${enc(m.prset.name)}">${esc(m.prset.name)}</a> · ${m.prset.prs} PRs<div class="muted small">${esc(m.prset.rule)}</div><div class="muted small">${esc(m.prset.tasks)} at ${esc((m.prset.base || '?').slice(0, 10))} · hash ${esc(m.prset.hash)}</div></div>
     <div class="card mod"><div class="mtitle">Cache</div>${!m.cache ? '<span class="muted">none: no arm is served notes</span>' : `<a href="#/cache/${enc(m.cache.name)}">${esc(m.cache.name)}</a> · ${m.cache.notes} notes<div class="muted small">${esc(cacheWhat(m.cache))} by ${esc(m.cache.model)} at ${esc(m.cache.anchor.slice(0, 10))}</div><div class="muted small">notes hash ${esc(m.cache.notes_hash)}</div>`}</div>
     <div class="card mod"><div class="mtitle">Arms</div><b>${esc(m.arms.off)}</b> (off) vs <b>${esc(m.arms.on)}</b> (on)${m.arms.extra?.length ? `<div class="muted small">also ${m.arms.extra.map(esc).join(', ')}</div>` : ''}</div>
-    <div class="card mod"><div class="mtitle">Agent</div>${esc(m.agent.model)} via ${esc(m.agent.runner)}<div class="muted small">${m.agent.reps} reps · ${m.agent.conc} at a time${m.agent.flags.length ? ' · ' + m.agent.flags.map(f => '--' + esc(f)).join(' ') : ''}</div></div>
+    <div class="card mod"><div class="mtitle">Agent</div>${esc(m.agent.model)} via ${esc(m.agent.runner)}<div class="muted small">${m.agent.reps} reps · ${m.agent.conc} at a time${m.agent.options?.length ? ' · ' + m.agent.options.map(esc).join(' · ') : m.agent.flags.length ? ' · ' + m.agent.flags.map(esc).join(' · ') : ''}</div></div>
     <div class="card mod"><div class="mtitle">Grading</div>${esc(m.grading.summary)}</div>
     ${last?.checks ? `<div class="card mod"><div class="mtitle">Checks at launch</div>${failed.length ? `<span class="status critical">${failed.length} failed</span>` : `<span class="status good">all ${last.checks.length} passed</span>`}</div>` : ''}
   </div>`;
@@ -726,8 +726,9 @@ async function pageNew() {
       <label>Model<input name="model" required></label>
       <label>Reps per PR × arm<input name="reps" type="number" min="1" max="10" value="2"></label>
       <label>Concurrent sessions<input name="conc" type="number" min="1" max="8" value="2"></label>
-      <div class="full checks" id="bools"></div>
-      <div class="full checks" id="vals"></div>
+      <div class="full options" id="bools"></div>
+      <div class="full options" id="vals"></div>
+      <div class="full options" id="loopvals" hidden></div>
       <h3 class="full">6 · Grading</h3>
       <label>Judge model<input name="judge" placeholder="required unless every PR has tests"></label>
       <div class="full muted small" id="gradeinfo"></div>
@@ -760,8 +761,14 @@ async function pageNew() {
     const r = cat.runners[f.runner.value];
     [f.off.value, f.on.value] = r.defaultArms.split(',');
     if (!f.model.value) f.model.value = r.defaultModel;
-    document.getElementById('bools').innerHTML = r.booleans.map(b => `<label class="check"><input type="checkbox" name="b:${b}" ${b === 'strict-model' ? 'checked' : ''}> --${b}</label>`).join('');
-    document.getElementById('vals').innerHTML = r.values.map(v => `<label style="display:grid;gap:3px">--${v}<input name="v:${v}" style="width:160px"></label>`).join('');
+    // each option by what it does (jobs.js OPTIONS), the runner's own name only as a hint
+    const sw = r.options.filter(o => o.type === 'switch'), set = r.options.filter(o => o.type !== 'switch');
+    const setting = o => `<label class="opt"><span>${esc(o.label)}</span><input name="v:${o.key}" placeholder="${esc(o.placeholder || 'default')}"><span class="muted small">${esc(o.help)}</span></label>`;
+    document.getElementById('bools').innerHTML = sw.length ? `<div class="muted small">Options</div>` + sw.map(o => `<label class="opt check"><span><input type="checkbox" name="b:${o.key}" ${o.key === 'strict-model' || r.always.includes(o.key) ? 'checked' : ''} ${r.always.includes(o.key) ? 'disabled' : ''}> ${esc(o.label)}</span><span class="muted small">${esc(o.help)}</span></label>`).join('') : '';
+    document.getElementById('vals').innerHTML = set.filter(o => !o.loop).length ? `<div class="muted small">Settings (leave empty for the default shown)</div>` + set.filter(o => !o.loop).map(setting).join('') : '';
+    document.getElementById('loopvals').innerHTML = set.filter(o => o.loop).length ? `<div class="muted small">Loop settings</div>` + set.filter(o => o.loop).map(setting).join('') : '';
+    const loopBox = f.querySelector('input[name="b:loop"]'), showLoop = () => { document.getElementById('loopvals').hidden = !loopBox?.checked; };
+    loopBox?.addEventListener('change', showLoop); showLoop();
   };
   f.prset.addEventListener('change', syncPrset); f.cache.addEventListener('change', syncCache); f.runner.addEventListener('change', syncRunner);
   f.model.addEventListener('input', () => { f.model.dataset.touched = '1'; autoTag(); }); f.tag.addEventListener('input', () => { tagTouched = true; });
