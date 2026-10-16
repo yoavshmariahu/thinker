@@ -84,8 +84,8 @@ function identifiers(repo, deps) {
   }
   return [...names].slice(0, 150);
 }
-export async function instanceViews(store, notes, { model = 'haiku', concurrency = UNDERSTAND_DEFAULTS.concurrency, completeFn = complete } = {}) {
-  let next = 0, done = 0;
+export async function instanceViews(store, notes, { model = 'haiku', concurrency = UNDERSTAND_DEFAULTS.concurrency, completeFn = complete, onProgress = null } = {}) {
+  let next = 0, done = 0, finished = 0;
   await Promise.all(Array.from({ length: concurrency }, async () => {
     while (next < notes.length) {
       const n = notes[next++];
@@ -94,6 +94,7 @@ export async function instanceViews(store, notes, { model = 'haiku', concurrency
       const s = String(r?.json?.search || '').trim();
       const cur = store.get(n.id);
       if (s.length >= 40 && cur) { store.put({ ...cur, searchInstances: s }); done++; }
+      onProgress?.(++finished, notes.length);
     }
   }));
   return done;
@@ -119,10 +120,11 @@ export async function understand(store, { top, since, halfLife, areas = [], batc
       tokens += (u.input_tokens ?? u.inputTokens ?? 0) + (u.output_tokens ?? u.outputTokens ?? 0);
       for (const n of r?.json?.notes || []) { const res = createNote(store, { ...n, tags: [b.dir] }, { source: { type: 'understanding', ref: b.files.join(',') } }); if (!res.error) made++; }
       finished++;
-      onProgress?.(finished, batches.length);
+      onProgress?.(finished, batches.length, 'reading code');
     }
   }));
-  const views = await instanceViews(store, store.list().filter(n => n.source?.type === 'understanding' && !n.searchInstances), { concurrency, completeFn });
+  // one call per note, often more calls than the reading itself (582 against 112 on mlflow): its own progress
+  const views = await instanceViews(store, store.list().filter(n => n.source?.type === 'understanding' && !n.searchInstances), { concurrency, completeFn, onProgress: (d, n) => onProgress?.(d, n, 'instance views') });
   store.log({ op: 'understand', files: files.length, calls: batches.length, failed, saved: made, views, tokens, metered: true, areas });
   return { ...plan, notes: made, failed, views, tokens };
 }

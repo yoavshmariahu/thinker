@@ -10,7 +10,7 @@ import { median } from './stats.js';
 import { BASELINE_ARMS } from './normalize.js';
 import { readArm, writeArmDefs, armDefsFile } from './arms.js';
 import { readPrset, checkPrset, listPrsets, isFrozen } from './prsets.js';
-import { readReceipt, checkCache, notesDir, listCaches, planCache, cacheDir, STEPS, kindOf } from './caches.js';
+import { readReceipt, checkCache, notesDir, listCaches, planCache, cacheDir, kindOf, stepsOf } from './caches.js';
 import { acceptanceOf, loopLimits } from '../loop.js';
 import { ensureTaskSet, listTaskSets, writeRunTasks } from './tasksets.js';
 
@@ -225,7 +225,7 @@ export function launchCache(p, { benchDir, db }) {
   fs.closeSync(fd);
   const command = `node bench/evals/build-cache.js (${p.steps.join('; ')})`;
   const { lastInsertRowid } = db.run(`INSERT INTO jobs (kind, tag, runner, args, plan, status, pid, expected, started_at, log) VALUES ('cache',?,?,?,?,?,?,?,?,?)`,
-    p.name, p.llm, JSON.stringify([script, planFile]), JSON.stringify({ ...p, command }), 'running', child.pid, STEPS.length, Date.now(), log);
+    p.name, p.llm, JSON.stringify([script, planFile]), JSON.stringify({ ...p, command }), 'running', child.pid, stepsOf(p).length, Date.now(), log);
   const id = Number(lastInsertRowid);
   child.on('exit', code => db.run(`UPDATE jobs SET status = ?, exit_code = ?, ended_at = ? WHERE id = ? AND status = 'running'`, code === 0 ? 'done' : 'failed', code, Date.now(), id));
   child.unref();
@@ -275,8 +275,8 @@ export function jobsView(db, benchDir) {
       const r = db.getCache(j.tag) || {};
       return { id: j.id, kind: 'cache', source: 'app', tag: j.tag, name: `cache ${j.tag}`, runner: j.runner, model: p.model, repo: p.repo, arms: [],
         status: j.status === 'running' ? 'running' : r.status === 'ok' ? 'done' : j.status, exit_code: j.exit_code, started_at: j.started_at, ended_at: j.ended_at,
-        elapsed: (j.ended_at || Date.now()) - j.started_at, eta: null, command: p.command, done: (r.steps_done || []).length, expected: STEPS.length, errors: r.status === 'failed' ? 1 : 0,
-        last_at: null, step: r.status === 'failed' ? `failed: ${r.error}` : STEPS.find(x => !(r.steps_done || []).includes(x)) || 'finished', progress: r.progress || null, log: tail(j.log).split('\n').slice(-40).join('\n') };
+        elapsed: (j.ended_at || Date.now()) - j.started_at, eta: null, command: p.command, done: (r.steps_done || []).length, expected: stepsOf(r).length, errors: r.status === 'failed' ? 1 : 0,
+        last_at: null, step: r.status === 'failed' ? `failed: ${r.error}` : stepsOf(r).find(x => !(r.steps_done || []).includes(x)) || 'finished', progress: r.progress || null, log: tail(j.log).split('\n').slice(-40).join('\n') };
     }
     const prog = progressOf(benchDir, j.tag, p.expected, j.started_at);
     const end = j.ended_at || Date.now(), elapsed = end - j.started_at;

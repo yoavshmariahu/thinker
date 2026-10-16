@@ -57,7 +57,9 @@ test('understand writes notes read from the code, with instance views, and logs 
     return { json: { search: 'How Hot runs: Hot.run returns the iteration; covers the Hot runner and warm path.' }, usage: {} };
   };
   try {
-    const res = await understand(store, { top: 10, areas: ['pkg'], model: 'm', completeFn });
+    const seen = [];
+    const res = await understand(store, { top: 10, areas: ['pkg'], model: 'm', completeFn, onProgress: (d, n, part) => seen.push(`${part} ${d}/${n}`) });
+    assert.deepEqual(seen, ['reading code 1/1', 'instance views 1/1'], 'both passes report their progress, by name');
     assert.equal(res.files, 2); assert.equal(res.notes, 1); assert.equal(res.views, 1); assert.equal(res.tokens, 1100);
     const n = store.list()[0];
     assert.equal(n.source.type, 'understanding');
