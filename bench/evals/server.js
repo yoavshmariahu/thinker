@@ -148,6 +148,17 @@ export function createApp({ bench = BENCH, dbFile = DB_FILE, snapshots = true } 
       return { row: r, raw: rest, diff: diff || null, result: result || null, task: info().get(r.task) || null, meta: { name: meta.name, off: meta.off, on: meta.on },
         transcript: t ? { format: t.format, archived: t.archived, bytes: t.bytes, steps: t.steps, flags: t.flags } : null, stats: t ? stepStats(t.steps) : null, partners };
     },
+    // one PR set: its PRs as the task set version it froze has them, and how often each has run
+    'GET /api/prset': q => {
+      const p = readPrset(db, q.get('name'));
+      if (!p) throw httpError(404, 'no such PR set');
+      const ts = getTaskSet(db, p.tasks, { hash: p.taskset_hash || null }) || (!p.taskset_hash ? getTaskSet(db, p.tasks) : null);
+      const runs = new Map(db.all('SELECT task, count(DISTINCT run) n FROM results WHERE invalid IS NULL GROUP BY task').map(r => [r.task, r.n]));
+      const used = db.all('SELECT dir, definition FROM runs WHERE definition IS NOT NULL').filter(r => { try { return JSON.parse(r.definition)?.modules?.prset?.name === p.name; } catch { return false; } }).map(r => r.dir);
+      const prs = p.prs.map(x => { const t = ts?.tasks.find(y => y.id === x.id);
+        return { ...x, title: x.title || t?.goldTitle || null, tests: Boolean(t?.testCmd), acceptance: (t?.acceptance || []).length, gold_diff_bytes: t?.goldDiffText?.length ?? null, in_taskset: Boolean(t), experiments: runs.get(x.id) || 0 }; });
+      return { prset: { ...p, prs }, checks: checkPrset(bench, p, db), taskset: ts && { name: ts.name, version: ts.version, hash: ts.hash, from: ts.from }, used_by: used };
+    },
     'GET /api/prsets': () => ({ prsets: listPrsets(db).map(s => ({ ...s, checks: checkPrset(bench, s, db) })) }),
     'POST /api/prsets': body => ({ prset: createPrset(bench, db, body) }),
     'POST /api/prsets/update': body => ({ prset: updatePrset(bench, db, String(body.name || ''), body) }),
@@ -176,15 +187,28 @@ export function createApp({ bench = BENCH, dbFile = DB_FILE, snapshots = true } 
         const { meta, cmp } = experiment(run, null, tasks);
         return { dir: run.dir, models: run.models, first_at: run.first_at, meta, pr: cmp?.prs.find(p => p.task === id) || null };
       });
-      return { task: id, info: tasks.get(id) || null, experiments: exps };
+      // the task itself, as each task set that holds it has it now (the request, how it is graded, its criteria)
+      const holders = listTaskSets(db).filter(ts => ts.tasks.some(t => t.id === id));
+      const t = holders[0]?.tasks.find(x => x.id === id) || null;
+      const task = t && { request: String(t.prompt || '').replace(/^Implement the following change[^\n]*\n\n/, ''), testCmd: t.testCmd || null, testFiles: t.testFiles || [], area: t.area || null,
+        mergeCommit: t.mergeCommit || null, mergedAt: t.mergedAt || null, acceptance: t.acceptance || [], gold_diff_bytes: t.goldDiffText?.length ?? null,
+        tasksets: holders.map(ts => ({ name: ts.name, version: ts.version })), prsets: listPrsets(db).filter(p => (p.ids || []).includes(id)).map(p => p.name) };
+      return { task: id, info: tasks.get(id) || null, spec: task, experiments: exps };
     },
+    // every PR Artemis holds: each task of each task set, with the experiments that ran it (none yet is a row too)
     'GET /api/prs': () => {
       const tasks = info(), by = new Map();
+      const sets = listTaskSets(db), inPrsets = new Map();
+      for (const p of listPrsets(db)) for (const id of p.ids || []) inPrsets.set(id, [...(inPrsets.get(id) || []), p.name]);
+      for (const ts of sets) for (const t of ts.tasks) {
+        const a = by.get(t.id) || { task: t.id, repo: ts.repo, title: tasks.get(t.id)?.title || t.goldTitle || null, pr: String(t.id).match(/^PR(\d+)/)?.[1] || null, experiments: 0, off: [0, 0], on: [0, 0], gained: 0, lost: 0, d_in: [], tasksets: [], prsets: inPrsets.get(t.id) || [] };
+        a.tasksets.push(ts.name); by.set(t.id, a);
+      }
       for (const run of runs()) {
         const { meta, cmp } = experiment(run, null, tasks);
         if (!cmp) continue;
         for (const p of cmp.prs) {
-          const a = by.get(p.task) || { task: p.task, repo: tasks.get(p.task)?.repo || run.repo, title: p.title, pr: p.pr, experiments: 0, off: [0, 0], on: [0, 0], gained: 0, lost: 0, d_in: [] };
+          const a = by.get(p.task) || { task: p.task, repo: tasks.get(p.task)?.repo || run.repo, title: p.title, pr: p.pr, experiments: 0, off: [0, 0], on: [0, 0], gained: 0, lost: 0, d_in: [], tasksets: [], prsets: inPrsets.get(p.task) || [] };
           a.experiments++; a.off[0] += p.off.passed; a.off[1] += p.off.graded; a.on[0] += p.on.passed; a.on[1] += p.on.graded;
           if (p.change === 'gained') a.gained++; if (p.change === 'lost') a.lost++;
           if (p.d_in_tokens != null && p.off.in_tokens) a.d_in.push(p.d_in_tokens / p.off.in_tokens);
