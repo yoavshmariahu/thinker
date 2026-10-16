@@ -37,7 +37,7 @@ test('with the code tools off, as shipped, the bundle comes without an intro and
   // one tool on: it alone is introduced
   fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ ...store.config(), disabledTools: ['find'] }));
   const one = hook(dir, 'prompt', { session_id: 'off2', prompt: 'where does fetchRows read the rows from' });
-  assert.match(one, /<thinker-tools>[\s\S]*drilldown \(a definition whole/);
+  assert.match(one, /<thinker-tools>[\s\S]*drilldown \(definitions whole, line-numbered/);
   assert.doesNotMatch(one, /\bfind\b/);
   assert.match(one, /ToolSearch `select:mcp__thinker__drilldown`/);
 });
@@ -57,7 +57,9 @@ test('the first served bundle of a session introduces find and drilldown, with t
   // a note for the request: the intro opens the bundle
   const first = hook(dir, 'prompt', { session_id: 's1', prompt: 'where does fetchRows read the rows from' });
   assert.match(first, /<thinker-tools>[\s\S]*<thinker-cache>/);
-  assert.match(first, /find \(the definitions carrying the words the code would use/);
+  assert.match(first, /find \(where code is defined, by the words it would use/);
+  assert.match(first, /they do not replace one batched search/);
+  assert.doesNotMatch(first, /before the first grep|instead of grepping/);
   assert.match(first, /ToolSearch `select:mcp__thinker__find,mcp__thinker__drilldown`/);
   assert.ok(!/review/i.test(first), 'review is not named: it is run when asked for');
   // nothing for the follow-up: nothing is said, the intro included
@@ -113,7 +115,7 @@ test('the server neither offers nor mentions a code tool that is off; thinker to
   assert.deepEqual(store.config().disabledTools, []);
   const on = serverSays(dir);
   assert.ok(['find', 'drilldown'].every(n => on.tools.some(t => t.name === n)));
-  assert.match(on.instructions, /drilldown for a note's file:symbol pointers, find for code no note maps/);
+  assert.match(on.instructions, /find when you do not know where the code is; drilldown when you need a definition whole/);
   assert.match(cli('tools', 'disable', 'find'), /find: off\ndrilldown: on/);
   assert.deepEqual(serverSays(dir).tools.map(t => t.name).filter(n => ['find', 'drilldown'].includes(n)), ['drilldown']);
 });

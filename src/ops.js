@@ -415,9 +415,10 @@ export function sessionIntro(store, { session, client }) {
   if (st.introduced) return '';
   st.introduced = true; save();
   store.log({ op: 'intro', session, client });
-  const load = client === 'claude' ? ` In Claude Code ${on.length > 1 ? 'they are' : 'it is'} deferred until searched for: load ${on.length > 1 ? 'them' : 'it'} once with ToolSearch \`select:${on.map(t => `mcp__thinker__${t}`).join(',')}\`, before the first grep or file read.` : '';
-  const what = { find: 'find (the definitions carrying the words the code would use, as path:Symbol:L12 pointers with their blast radius; use it instead of grepping for a word and reading around each hit)', drilldown: 'drilldown (a definition whole, with its callers and callees)' };
-  return `<thinker-tools>\nthinker's tools for this checkout, over MCP: ${on.map(t => what[t]).join(' and ')}.${load}\n</thinker-tools>`;
+  // beside the agent's own search, not ahead of it (cache-guidance.js:SWITCHABLE_TOOLS, 2026-10-07 sessions)
+  const load = client === 'claude' ? ` In Claude Code ${on.length > 1 ? 'they are' : 'it is'} deferred: load ${on.length > 1 ? 'them' : 'it'} with ToolSearch \`select:${on.map(t => `mcp__thinker__${t}`).join(',')}\` when you first need ${on.length > 1 ? 'one' : 'it'}.` : '';
+  const what = { find: 'find (where code is defined, by the words it would use, as path:Symbol:L12 pointers; for one identifier, with its code)', drilldown: 'drilldown (definitions whole, line-numbered, with callers and callees)' };
+  return `<thinker-tools>\nthinker's tools for this checkout, over MCP: ${on.map(t => what[t]).join(' and ')}. For code you cannot place or a definition you need whole; they do not replace one batched search or reading the file you will edit.${load}\n</thinker-tools>`;
 }
 // The notes served since the turn's stop hook last ran, for the summary it shows the user.
 export function trackTurn(store, session, ids) {
@@ -590,8 +591,11 @@ function resolvePointer(store, raw) {
 // The code of one definition within `room` lines. A container (class, impl, interface) that does
 // not fit is shown as its head and the outline of its members, as a reader would skim it, instead
 // of its first `room` lines.
+// Lines carry their numbers, so a patch can be written from the drilldown without reading the file
+// again for positions (in the 2026-10-07 sessions all six mitmproxy agents re-read drilled code to edit).
 function definitionText(repo, file, symbol, block, room, fo) {
-  const code = block.text.split('\n');
+  const width = String(block.start + block.total - 1).length;
+  const code = block.text.split('\n').map((l, i) => `${String(block.start + i).padStart(width)}  ${l}`);
   const head = `${file}:${symbol} (L${block.start}–L${block.start + block.total - 1}, ${block.total} lines${fo ? `; ${renderFanout(fo)}` : ''})`;
   if (block.total <= room) return `${head}\n\`\`\`\n${code.join('\n')}\n\`\`\``;
   const name = symbol.split('.').pop();
@@ -609,7 +613,7 @@ export function drilldown(store, { pointer, pointers, client, budget = 2500 } = 
   const raws = [...(Array.isArray(pointers) ? pointers.flatMap(p => parsePointers(p)) : []), ...parsePointers(pointer)].slice(0, 6);
   if (!raws.length) { const one = String(pointer || '').trim().replace(/^[`'"]|[`'"]$/g, ''); if (!one) return { error: 'drilldown needs a pointer: path:Symbol, a path, or a symbol name' }; raws.push(one); }
   const notes = store.list().filter(n => n.status !== 'invalid');
-  const parts = [], errors = [], seenKeys = new Set(), rel = [];
+  const parts = [], errors = [], seenKeys = new Set(), rel = [], symNotes = new Set();
   let used = 0; const add = s => { parts.push(s); used += estTokens(s); };
   const several = raws.length > 1;
   const room = Math.max(12, Math.floor((budget * (several ? 0.85 : 0.7) * 3.6 / 40) / raws.length)); // ~40 chars a line
@@ -630,7 +634,11 @@ export function drilldown(store, { pointer, pointers, client, budget = 2500 } = 
       }
       add(definitionText(repo, file, symbol, block, room, fanout(repo, dep)));
       if (!several) {
-        const refs = references(repo, symbol.split('.').pop(), { file, limit: 400 });
+        // a name defined in many places (load, get, run) has callers only by name: a list of them is noise
+        // (WebAddon.load listed 87 references, all json.load and the like, 2026-10-07)
+        const bare = symbol.split('.').pop(), homonyms = (findDefinitions(repo, bare, { limit: 10 }) || []).length;
+        const refs = homonyms > 3 ? null : references(repo, bare, { file, limit: 400 });
+        if (homonyms > 3) add(`Callers not listed: ${bare} is defined in ${homonyms >= 10 ? '10+' : homonyms} places, so a search by name cannot tell its callers apart.`);
         if (refs) {
           const callers = refs.lines.filter(l => !l.def && !(l.path === file && l.line >= block.start && l.line < block.start + block.total)).sort((a, b) => (b.call - a.call) || (a.test - b.test));
           const show = callers.slice(0, 10).map(l => `- ${l.path}:L${l.line}  ${l.text.trim().slice(0, 100)}`);
@@ -649,15 +657,17 @@ export function drilldown(store, { pointer, pointers, client, budget = 2500 } = 
     const onSym = symbol ? notes.filter(n => (n.deps || []).some(d => d.path === file && d.symbol && d.symbol.split('.').pop() === name)) : [];
     const onFile = notes.filter(n => !onSym.includes(n) && (n.deps || []).some(d => d.path === file));
     for (const n of [...onSym, ...onFile]) if (!rel.includes(n)) rel.push(n);
+    for (const n of onSym) symNotes.add(n.id);
     if (others) add(`Also defined in: ${others.join(', ')} (pass path:Symbol to pick one).`);
   }
   if (!parts.length) return { error: errors.join('; ') || 'nothing found' };
-  if (several) add('Callers and callees: drilldown with one pointer.');
-  const shown = rel.sort((a, b) => (b.confidence ?? 0.7) - (a.confidence ?? 0.7)).slice(0, 6);
+  // notes on the drilled symbol first; a note that only shares its (often large) file is listed by title, never
+  // printed whole (Option.to_info_dict brought an unrelated arity rule resting elsewhere in core.py)
+  const shown = rel.sort((a, b) => (symNotes.has(b.id) - symNotes.has(a.id)) || (b.confidence ?? 0.7) - (a.confidence ?? 0.7)).slice(0, 6);
   if (shown.length) {
     const firstNote = renderNote(shown[0]);
     const list = shown.slice(1).map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n');
-    const full = !several && used + estTokens(firstNote) + estTokens(list) <= budget;
+    const full = !several && symNotes.has(shown[0].id) && used + estTokens(firstNote) + estTokens(list) <= budget;
     add(`Cached notes about this code (lookup takes an id):\n${full ? firstNote : `- [${shown[0].kind}] ${shown[0].title}  (id: ${shown[0].id})`}${list ? '\n' + list : ''}`);
     if (full) { shown[0].uses = (shown[0].uses || 0) + 1; shown[0].lastUsed = new Date().toISOString(); store.put(shown[0]); }
   } else add('No cached notes rest on this code.');
@@ -684,7 +694,13 @@ export function find(store, { query, path: scope, limit = 12, client } = {}) {
   const lines = r.hits.map((h, i) => `- ${h.path}:${h.symbol}:L${h.line}  (${h.kind}${h.end ? `, ${h.end - h.line + 1} lines` : ''}${fo[i]?.fanout ? `; ${renderFanout(fo[i].fanout)}` : ''})`);
   const notes = store.list().filter(n => n.status !== 'invalid');
   const rel = notes.filter(n => (n.deps || []).some(d => d.symbol && r.hits.some(h => d.path === h.path && d.symbol.split('.').pop() === h.name))).sort((a, b) => (b.confidence ?? 0.7) - (a.confidence ?? 0.7)).slice(0, 4);
-  const text = `Definitions carrying "${String(query).trim()}"${scope ? ` under ${scope}` : ''} (${r.hits.length}${r.more ? '+' : ''}, by git grep; words: ${r.toks.join(', ')}):\n${lines.join('\n')}${rel.length ? `\n\nCached notes on this code (lookup takes an id):\n${rel.map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n')}` : ''}${disabledTools(store.config()).has('drilldown') ? '' : `\n\nNext: drilldown with the pointers you need (several at once), for their code, callers and callees.`}`;
+  // One identifier whose definition tops the list: its code comes with the list. The agent drilled
+  // the top one or two hits and almost nothing else (26 of 289 pointers, 2026-10-07), each a turn.
+  const q = String(query).trim(), top = r.hits[0];
+  const named = /^[A-Za-z_][\w.]*$/.test(q) && (top.name === q.split('.').pop() || top.symbol === q);
+  const block = named ? symbolBlock(repo, { path: top.path, symbol: top.symbol }, 2000) : null;
+  const code = block ? `\n\n${definitionText(repo, top.path, top.symbol, block, 80)}` : '';
+  const text = `Definitions carrying "${q}"${scope ? ` under ${scope}` : ''} (${r.hits.length}${r.more ? '+' : ''}, by git grep; words: ${r.toks.join(', ')}):\n${lines.join('\n')}${code}${rel.length ? `\n\nCached notes on this code (lookup takes an id):\n${rel.map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n')}` : ''}`;
   store.log({ op: 'find', client: client || 'cli', query: String(query).slice(0, 200), scope, hits: r.hits.length, durationMs: Date.now() - start, tokens: estTokens(text) });
   return { text, hits: r.hits, tokens: estTokens(text) };
 }
