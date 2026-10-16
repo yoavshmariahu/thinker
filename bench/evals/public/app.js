@@ -167,9 +167,11 @@ function expRow(e, metrics) {
 
 // ---------- one experiment ----------
 async function pageExperiment(dir) {
-  const x = await api(`/api/experiment?dir=${enc(dir)}`);
+  const refKey = `ref:${dir}`, x = await api(`/api/experiment?dir=${enc(dir)}${sessionGet(refKey) ? `&ref=${enc(sessionGet(refKey))}` : ''}`);
   const { run, meta, cmp, metrics } = x;
   const arms = x.arms.map(a => a.arm);
+  // with three arms or more, any of them can be the reference the others are measured against
+  const refPicker = meta.off && arms.length > 2 ? `<p class="sub">Compare against <select id="ref">${[meta.cacheOff || meta.off, ...arms.filter(a => a !== (meta.cacheOff || meta.off))].map(a => `<option value="${esc(a)}"${a === meta.off ? ' selected' : ''}>${esc(a)}${a === (meta.cacheOff || meta.off) ? ' (cache off)' : ''}</option>`).join('')}</select></p>` : '';
   $app.innerHTML = `
     <p class="muted"><a href="#/">Experiments</a> / ${esc(dir)}</p>
     <h1>${esc(meta.name || dir)} ${kindChip(meta.kind)}</h1>
@@ -177,6 +179,7 @@ async function pageExperiment(dir) {
     <p class="sub">${esc(run.repo || 'unknown repo')} · ${esc(run.models || 'model unrecorded')} via ${esc(run.runner)} · ${cmp ? cmp.prs.length : '?'} PRs · ${run.results} results${run.invalid ? ` (${run.invalid} invalid)` : ''} · ${fmt.dt(run.first_at)} · <code>bench/runs/${esc(dir)}</code></p>
     <div id="editor"></div><div id="live"></div>
     ${modulesCard(meta)}
+    ${refPicker}
     ${!meta.off ? `<div class="card confirm"><b>No cache-off arm.</b> This experiment ran ${arms.map(esc).join(', ') || 'nothing yet'}. ${arms.length > 1 ? '<a href="#" id="edit2">Pick the arm to compare against</a>.' : ''}</div>`
       : !x.all.some(c => c.pairs) ? `<div class="card">No valid pairs yet between <b>${esc(meta.off)}</b> (cache off) and ${x.all.map(c => `<b>${esc(c.on)}</b>`).join(', ') || 'another arm'}.</div>`
       : `<div id="cmp"></div>`}
@@ -192,7 +195,8 @@ async function pageExperiment(dir) {
       document.querySelectorAll('[data-scope]').forEach(b => b.addEventListener('click', () => { sessionSet('scope', b.dataset.scope); draw(b.dataset.scope); })); };
     draw(sessionGet('scope') || 'all');
   }
-  const openEditor = ev => { ev.preventDefault(); editor(dir, meta, arms); };
+  document.getElementById('ref')?.addEventListener('change', ev => { sessionSet(refKey, ev.target.value === (meta.cacheOff || meta.off) ? '' : ev.target.value); route(); });
+  const openEditor = ev => { ev.preventDefault(); editor(dir, { ...meta, off: meta.cacheOff || meta.off }, arms); };
   document.getElementById('edit').addEventListener('click', openEditor);
   document.getElementById('edit2')?.addEventListener('click', openEditor);
   // a running experiment shows its progress here; the page redraws as sessions finish
@@ -212,7 +216,7 @@ async function pageExperiment(dir) {
 // Arm colors: cache off is the neutral reference, the cache-on arm takes the first hue and any
 // further arm the next ones, in the experiment's own order, so a color always means the same arm.
 const armHue = (arm, meta, comps) => arm === meta.off ? 'var(--baseline)' : `var(--series-${Math.min(8, comps.findIndex(c => c.on === arm) + 1)})`;
-const armRole = (arm, meta) => arm === meta.off ? 'cache off' : arm === meta.on ? 'cache on' : '';
+const armRole = (arm, meta) => arm === meta.off ? (meta.cacheOff && meta.cacheOff !== meta.off ? 'reference' : 'cache off') : arm === meta.on ? 'cache on' : '';
 const HEADLINE = ['pass', 'in_tokens', 'tool_calls', 'wall_ms', 'out_tokens', 'cost'];
 
 // The comparison of every arm against cache off. `scope` is 'all' pairs or only the pairs where the
@@ -242,7 +246,7 @@ function comparison(comps, metrics, meta, scope) {
   // a loop experiment (bench/loop.js) leads with whether the sessions got to done
   const loop = comps.some(c => c.offSide.done != null || c.onSide.done != null);
   const keys = [...(loop ? ['done'] : []), ...HEADLINE.filter(k => k !== 'pass' || graded)];
-  const legend = `<div class="legend"><span><i style="background:var(--baseline)"></i>${esc(meta.off)} · cache off</span>${comps.map(c => `<span><i style="background:${armHue(c.on, meta, comps)}"></i>${esc(c.on)}${armRole(c.on, meta) ? ' · ' + armRole(c.on, meta) : ''}</span>`).join('')}</div>`;
+  const legend = `<div class="legend"><span><i style="background:var(--baseline)"></i>${esc(meta.off)} · ${meta.cacheOff && meta.cacheOff !== meta.off ? 'reference' : 'cache off'}</span>${comps.map(c => `<span><i style="background:${armHue(c.on, meta, comps)}"></i>${esc(c.on)}${armRole(c.on, meta) ? ' · ' + armRole(c.on, meta) : ''}</span>`).join('')}</div>`;
 
   const card = k => {
     const m = M[k], vk = k === 'pass' ? 'pass_rate' : k;  // a side stores the pass rate as pass_rate
@@ -261,7 +265,7 @@ function comparison(comps, metrics, meta, scope) {
       ${bar(meta.off, base)}${rows}</div>`;
   };
 
-  const head = comps.map(c => `<th class="num" colspan="3" style="border-left:3px solid ${armHue(c.on, meta, comps)}">${esc(c.on)}<div class="armname">${armRole(c.on, meta) || 'vs cache off'} · ${sides(c).n} pairs</div></th>`).join('');
+  const head = comps.map(c => `<th class="num" colspan="3" style="border-left:3px solid ${armHue(c.on, meta, comps)}">${esc(c.on)}<div class="armname">${armRole(c.on, meta) || `vs ${meta.cacheOff && meta.cacheOff !== meta.off ? esc(meta.off) : 'cache off'}`} · ${sides(c).n} pairs</div></th>`).join('');
   const rows = metrics.filter(m => (m.key !== 'pass' || graded) && (!m.loop || loop)).map(m => {
     const base = sides(comps[0]).off;
     return `<tr><th scope="row">${esc(m.label)}</th><td class="num">${m.key === 'pass' ? `${fmt.pct(base.pass_rate)} <span class="muted">${base.passed}/${base.graded}</span>` : fmtValue[m.unit](base[m.key])}</td>

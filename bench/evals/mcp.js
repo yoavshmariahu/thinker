@@ -123,13 +123,14 @@ export function buildServer() {
   }));
 
   server.registerTool('get_experiment', {
-    description: 'One experiment in full: its definition, every arm compared against the cache-off arm (all metrics with paired differences, 90% intervals, verdicts, and the same over only the pairs where the cache served a note), PR outcome counts, a per-PR table across arms, and the invalid sessions with reasons.',
-    inputSchema: { tag: z.string().describe('The experiment tag (its folder under bench/runs)'), per_pr: z.boolean().optional().describe('Include the per-PR table (default true)') },
+    description: 'One experiment in full: its definition, every arm compared against the cache-off arm, or against the arm named by ref (head to head, e.g. thinker against another tool), with all metrics as paired differences, 90% intervals, verdicts, and the same over only the pairs where the cache served a note; PR outcome counts, a per-PR table across arms, and the invalid sessions with reasons.',
+    inputSchema: { tag: z.string().describe('The experiment tag (its folder under bench/runs)'), ref: z.string().optional().describe('Compare every other arm against this arm instead of the cache-off arm'), per_pr: z.boolean().optional().describe('Include the per-PR table (default true)') },
     annotations: { readOnlyHint: true },
   }, guard(async a => {
-    const x = await call('/api/experiment?dir=' + encodeURIComponent(a.tag));
+    const x = await call('/api/experiment?dir=' + encodeURIComponent(a.tag) + (a.ref ? '&ref=' + encodeURIComponent(a.ref) : ''));
     return text({
-      tag: x.run.dir, definition: { name: x.meta.name, question: x.meta.question, kind: x.meta.kind, off: x.meta.off, on: x.meta.on, other_arms: x.meta.others, recorded: x.meta.defined },
+      tag: x.run.dir, definition: { name: x.meta.name, question: x.meta.question, kind: x.meta.kind, off: x.meta.cacheOff || x.meta.off, on: x.meta.on, other_arms: x.meta.others, recorded: x.meta.defined },
+      compared_against: x.meta.ref,
       repo: x.run.repo, model: x.run.models, runner: x.run.runner, results: x.run.results, invalid: x.run.invalid,
       comparisons: x.all.filter(c => c.pairs).map(c => comparisonOut(c, x.metrics, x.meta)),
       per_pr: a.per_pr === false ? undefined : prsOut(x.all, x.meta),

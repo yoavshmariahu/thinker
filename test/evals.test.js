@@ -447,6 +447,27 @@ test('transcripts parse into steps from Claude Code and Codex, are archived into
   } finally { app.close(); }
 });
 
+test('any arm can be the reference: two arms that are neither cache off nor on are compared head to head', async () => {
+  const { bench } = ready();
+  // a third arm, another tool, beside cache off and cache on
+  fs.writeFileSync(path.join(bench, 'runs', 'click-v9', 'T1-tool-0.json'), JSON.stringify(rec({ arm: 'tool', id: 'T1-tool-0', grade: { tests: 'fail' } })));
+  const app = createApp({ bench, dbFile: ':memory:', snapshots: false });
+  await new Promise(r => app.server.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${app.server.address().port}`;
+  try {
+    const plain = await (await fetch(base + '/api/experiment?dir=click-v9')).json();
+    assert.equal(plain.meta.ref, 'nocache');
+    assert.deepEqual(plain.all.map(c => [c.off, c.on]).sort(), [['nocache', 'cache'], ['nocache', 'tool']]);
+    const x = await (await fetch(base + '/api/experiment?dir=click-v9&ref=tool')).json();
+    assert.equal(x.meta.ref, 'tool'); assert.equal(x.meta.cacheOff, 'nocache');
+    assert.deepEqual(x.all.map(c => [c.off, c.on]).sort(), [['tool', 'cache'], ['tool', 'nocache']], 'every other arm against the reference');
+    assert.equal(x.all.find(c => c.on === 'cache').pairs, 1);
+    assert.equal(x.all.find(c => c.on === 'cache').onSide.passed, 1, 'cache passes where the tool failed, on the same pair');
+    const bogus = await (await fetch(base + '/api/experiment?dir=click-v9&ref=nope')).json();
+    assert.equal(bogus.meta.ref, 'nocache', 'an arm the experiment did not run falls back to cache off');
+  } finally { app.server.close(); app.stop?.(); }
+});
+
 test('the server refuses an unconfirmed launch, a cross-origin one, and a foreign Host', async () => {
   const { bench } = ready();
   const app = createApp({ bench, dbFile: ':memory:', snapshots: false });
