@@ -23,7 +23,7 @@ export const RUNNERS = {
     booleans: ['strict-model', 'isolated-settings', 'counterbalance', 'no-judge', 'no-subagents'], values: ['effort', 'max-turns', 'judge-samples', 'ce-views'] },
   codex: { script: 'codex-run.js', label: 'Codex (bench/codex-run.js)', defaultModel: 'gpt-5.6-terra', defaultArms: 'nocache,full',
     // loop: iterate to each task's acceptance criteria with a named checker (bench/loop.js)
-    booleans: ['no-judge', 'loop'], values: ['budget', 'ce-views', 'checker', 'iterations', 'iteration-min', 'session-min', 'token-cap'] },
+    booleans: ['no-judge', 'loop'], values: ['budget', 'ce-views', 'ce-max', 'ce-fallback', 'checker', 'iterations', 'iteration-min', 'session-min', 'token-cap'] },
   gemini: { script: 'gemini-run.js', label: 'Gemini (bench/gemini-run.js)', defaultModel: 'gemini-3.8-flash-high', defaultArms: 'nocache,cache',
     booleans: ['strict-model', 'counterbalance', 'no-judge', 'no-tests'], values: ['effort', 'max-min'] },
 };
@@ -43,6 +43,8 @@ export const OPTIONS = {
   'max-min': { label: 'Minutes per session', type: 'setting', placeholder: '20', help: 'Wall-clock limit for one session.' },
   'judge-samples': { label: 'Judge samples', type: 'setting', placeholder: '3', help: 'How many times the judge grades each session; the majority counts.' },
   budget: { label: 'Note budget (tokens)', type: 'setting', placeholder: '750', help: 'Most tokens of notes the hook puts in front of the request. Understanding notes run about 400 tokens each: about 1500 serves two.' },
+  'ce-max': { label: 'Notes served', type: 'setting', placeholder: '2', help: 'Most notes the hook serves after the cross-encoder. One suits understanding notes (research/serving-understanding-2026-10).' },
+  'ce-fallback': { label: 'Fallback score', type: 'setting', placeholder: 'none', help: 'When no note reaches the floor, serve the best one if it scores at least this (e.g. -4); empty serves nothing then.' },
   'ce-views': { label: 'Note scoring', type: 'setting', placeholder: 'search', help: 'How the ranker scores a note against the request: "search" by its search text; "multi" by the best of its search text, instance text and opening, which understanding notes need.' },
   checker: { label: 'Checker model', type: 'setting', loop: true, placeholder: 'required', help: 'The model that judges the acceptance criteria after each iteration; the same for every arm, and named on every result.' },
   iterations: { label: 'Most iterations', type: 'setting', loop: true, placeholder: '4', help: 'Iterations before a session stops without reaching done.' },
@@ -224,7 +226,9 @@ export function planAddArms(req, { benchDir, db }) {
   // the experiment as it ran: its PRs, reps and model, from its recorded sessions
   const ran = rows.filter(r => r.arm === meta.off || r.arm === meta.on);
   const tasks = [...new Set(ran.map(r => r.task))].sort();
-  const reps = Math.max(...ran.map(r => r.rep)) + 1;
+  // fewer reps than the experiment ran (a small batch first) pair with its first ones
+  const ranReps = Math.max(...ran.map(r => r.rep)) + 1;
+  const reps = req.reps ? Math.max(1, Math.min(ranReps, Number(req.reps) || ranReps)) : ranReps;
   const models = [...new Set(ran.map(r => r.model).filter(Boolean))];
   if (models.length !== 1) throw new Error(`${tag} ran ${models.join(', ') || 'no recorded model'}: arms can be added to an experiment of one model`);
   const model = models[0];
@@ -238,7 +242,7 @@ export function planAddArms(req, { benchDir, db }) {
   ];
   const p = plan({ ...req, runner, model, reps, tag, off: meta.off, on: meta.on, extra: add.join(','), only: add, like, extraChecks: checks,
     name: stored.name || tag, question: stored.question || `How do ${add.join(', ')} compare with ${meta.off} and ${meta.on} in ${tag}?`, kind: stored.kind || 'behavior' }, { benchDir, db });
-  return { ...p, arms: [...new Set([meta.off, meta.on, ...meta.others, ...add].filter(Boolean))], add: { arms: add, like, onto: { off: meta.off, on: meta.on, arms: [meta.off, meta.on, ...meta.others].filter(Boolean), tasks: tasks.length, reps, model, sessions: rows.length } } };
+  return { ...p, arms: [...new Set([meta.off, meta.on, ...meta.others, ...add].filter(Boolean))], add: { arms: add, like, onto: { off: meta.off, on: meta.on, arms: [meta.off, meta.on, ...meta.others].filter(Boolean), tasks: tasks.length, reps, ranReps, model, sessions: rows.length } } };
 }
 
 // A loop experiment needs acceptance criteria on every PR: written from the request and the base code,

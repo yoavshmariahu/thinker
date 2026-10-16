@@ -49,6 +49,9 @@ const BUDGET = Number(flags.budget || process.env.BENCH_BUDGET) || 750;
 // (src/ops.js:holdoutRate, 15% since 2026-10-14) to measure itself, which in a benchmark arm would serve
 // nothing on about one session in seven; --ce-views multi scores notes by their best text (src/dense.js)
 const HOOK_ENV = { THINKER_HOLDOUT: '0', ...(flags['ce-views'] ? { THINKER_CE_VIEWS: String(flags['ce-views']) } : {}) };
+// --ce-max (notes the cross-encoder keeps) and --ce-fallback (serve the best candidate when none reaches the
+// floor, if it scores at least this): src/dense.js:ceConfig, set over the arm's own pins (ARM_ENV)
+const HOOK_PINS = { ...(flags['ce-max'] ? { THINKER_CE_MAX: String(flags['ce-max']) } : {}), ...(flags['ce-fallback'] != null && flags['ce-fallback'] !== true ? { THINKER_CE_FALLBACK: String(flags['ce-fallback']) } : {}) };
 // Arms: nocache | full (hooks, MCP tools and the AGENTS.md instruction, as installed) | hook (notes pasted above the request)
 const ARMS = (flags.arm || process.env.BENCH_ARMS || 'nocache,full').split(',').map(a => a === 'cache' ? 'full' : a);
 // An arm under its own name that runs as a built-in one (`--arm-like understanding=hook`): an arm added to an
@@ -181,6 +184,8 @@ function contextFor(task, session, arm = 'hook') {
     THINKER_NO_BG_VERIFY: '1',
     ...HOOK_ENV,
     ...(ARM_ENV[arm] || {}),
+    // the run's own hook settings come last, over the built-in arm's pins: an arm added to test a serving rule
+    ...HOOK_PINS,
   };
   try {
     const text = execFileSync('node', [CLI, 'hook', 'prompt', '--client', 'codex', '--repo', REPO, '--budget', String(BUDGET)], {

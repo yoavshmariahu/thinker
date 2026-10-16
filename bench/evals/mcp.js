@@ -312,6 +312,7 @@ export function buildServer() {
     cache: z.string().optional().describe('The cache the added arms are served (list_caches); its checks are those of any experiment'),
     runner: z.enum(['claude', 'codex', 'gemini']).optional().describe('Only when the experiment records no runner'),
     conc: z.number().int().min(1).max(8).optional().describe('Concurrent sessions; default 1'),
+    reps: z.number().int().min(1).max(10).optional().describe('Fewer reps than the experiment ran, for a small batch first; they pair with its first reps. Default: all of them'),
     judge: z.string().optional().describe('Grading module, as for plan_experiment'),
     flags: z.record(z.string(), z.boolean()).optional().describe('Runner switches; they apply to the added arms only'),
     values: z.record(z.string(), z.string()).optional().describe('Runner options with a value, e.g. {"ce-views": "multi", "budget": "1500"}; they apply to the added arms only'),

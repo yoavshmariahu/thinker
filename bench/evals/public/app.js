@@ -365,13 +365,14 @@ async function addArms(dir, meta, run) {
     <label style="grid-column:span 2">PR set (the experiment's PRs)<select name="prset">${cat.prsets.filter(p => (p.status || 'frozen') === 'frozen' && p.repo === run.repo).map(p => `<option value="${esc(p.name)}">${esc(p.name)} · ${p.prs.length} PRs</option>`).join('') || '<option value="">no frozen PR set for this repository</option>'}</select></label>
     <label style="grid-column:span 2">Cache served to the added arms<select name="cache"><option value="">none</option>${cat.caches.filter(c => c.repo === run.repo).map(c => `<option value="${esc(c.name)}">${esc(c.name)} · ${esc(c.model)} · ${c.notes ?? 0} notes</option>`).join('')}</select></label>
     <label>Concurrent sessions<input name="conc" type="number" min="1" max="8" value="2"></label>
+    <label>Reps (empty: all the experiment ran)<input name="reps" type="number" min="1" max="10"></label>
     <div class="full options">${r ? `<div class="muted small">Settings for the added arms only (empty: the default)</div>` + r.options.filter(o => o.type !== 'switch' && !o.loop).map(setting).join('') : ''}</div>
     <div class="full"><button class="primary" type="submit">Review plan</button> <button type="button" id="acancel">Cancel</button> <span class="err" id="aerr"></span></div></form><div id="aplan"></div>`;
   const f = document.getElementById('af');
   document.getElementById('acancel').onclick = () => { el.innerHTML = ''; };
   const request = () => {
     const arms = f.arms.value.trim();
-    return { add_to: dir, arms, prset: f.prset.value, cache: f.cache.value || undefined, conc: Number(f.conc.value),
+    return { add_to: dir, arms, prset: f.prset.value, cache: f.cache.value || undefined, conc: Number(f.conc.value), reps: Number(f.reps.value) || undefined,
       like: f.like?.value ? Object.fromEntries(arms.split(',').map(a => a.trim()).filter(Boolean).map(a => [a, f.like.value])) : undefined,
       values: Object.fromEntries([...f.querySelectorAll('input[name^="v:"]')].map(c => [c.name.slice(2), c.value.trim()])) };
   };
@@ -385,7 +386,7 @@ async function addArms(dir, meta, run) {
     document.getElementById('aplan').innerHTML = `<div class="card confirm" style="margin-top:12px">
       <h2 style="margin-top:0">${p.add.arms.map(esc).join(', ')}: ${p.sessions} agent session${p.sessions === 1 ? '' : 's'} ${p.blocked ? '<span class="status critical">blocked</span>' : ''}</h2>
       <dl class="kv">
-        <dt>Paired with</dt><dd>${on.sessions} sessions already recorded: ${on.arms.map(esc).join(', ')} · ${on.tasks} PRs × ${on.reps} reps · ${esc(on.model)}</dd>
+        <dt>Paired with</dt><dd>${on.sessions} sessions already recorded: ${on.arms.map(esc).join(', ')} · ${on.tasks} PRs × ${on.ranReps} reps · ${esc(on.model)}${on.reps < on.ranReps ? ` · this batch runs reps 0–${on.reps - 1}` : ''}</dd>
         <dt>Cache</dt><dd>${!m.cache ? 'none' : `${esc(m.cache.name)} · ${m.cache.notes} notes, ${esc(cacheWhat(m.cache))}, by ${esc(m.cache.model)} at ${esc(m.cache.anchor.slice(0, 10))}`}</dd>
         <dt>Agent</dt><dd>${esc(p.model)} via ${esc(p.runner)} · ${p.conc} at a time${m.agent.options.length ? ' · ' + m.agent.options.map(esc).join(' · ') : ''} · thinker ${esc(m.agent.thinker || '?')}</dd>
         <dt>Sessions</dt><dd>${p.expected.length}${p.resumed ? ` · <b>${p.resumed} already on disk, skipped</b>` : ''}</dd>

@@ -380,7 +380,10 @@ test('arms added to an experiment that ran run alone, paired with its sessions, 
   assert.equal(arg('--arm'), 'understanding'); assert.equal(arg('--arm-like'), 'understanding=hook');
   assert.equal(arg('--notes-dir'), notesDir(bench, 'u-sonnet')); assert.equal(arg('--ce-views'), 'multi'); assert.equal(arg('--budget'), '1500');
   assert.equal(arg('--model'), 'sonnet', 'the experiment\'s model');
-  assert.deepEqual(p.add.onto, { off: 'nocache', on: 'cache', arms: ['nocache', 'cache'], tasks: 2, reps: 1, model: 'sonnet', sessions: 4 });
+  assert.deepEqual(p.add.onto, { off: 'nocache', on: 'cache', arms: ['nocache', 'cache'], tasks: 2, reps: 1, ranReps: 1, model: 'sonnet', sessions: 4 });
+  assert.equal(planAddArms({ ...req, reps: 5 }, { benchDir: bench, db }).reps, 1, 'never more reps than the experiment ran: nothing to pair with');
+  const pinned = planAddArms({ ...req, values: { ...req.values, 'ce-max': '1', 'ce-fallback': '-4' } }, { benchDir: bench, db });
+  assert.ok(pinned.argv.join(' ').includes('--ce-max 1') && pinned.argv.join(' ').includes('--ce-fallback -4'), 'the serving rule reaches the runner');
   assert.equal(p.modules.cache.name, 'u-sonnet');
   // what does not pair is refused or blocked
   assert.throws(() => planAddArms({ ...req, arms: 'cache' }, { benchDir: bench, db }), /already ran/);
