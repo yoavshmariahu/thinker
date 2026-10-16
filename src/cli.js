@@ -50,8 +50,11 @@ const sessionLearning = () => store.config().learn?.sessions !== false;
 
 // The MCP entry for a checkout's own files pins the repository; the user's machine-wide entry
 // pins none, and the server takes the repository from the directory the client starts it in.
-const mcpEntry = (r = repo) => ({ command: 'node', args: [path.join(HERE, 'mcp.js')], env: { THINKER_REPO: r } });
-const userMcpEntry = () => ({ command: 'node', args: [path.join(HERE, 'mcp.js')] });
+// THINKER_MCP_LAUNCHER marks an entry written since mcp.js became the launcher that carries updates to a running
+// server. Its arrival changes the entry once, and an app that watches its MCP file (Cursor: a server restarted
+// within seconds of an edit, 2026-10-16) replaces a server started before then; the entry stays the same after.
+const mcpEntry = (r = repo) => ({ command: 'node', args: [path.join(HERE, 'mcp.js')], env: { THINKER_REPO: r, THINKER_MCP_LAUNCHER: '1' } });
+const userMcpEntry = () => ({ command: 'node', args: [path.join(HERE, 'mcp.js')], env: { THINKER_MCP_LAUNCHER: '1' } });
 
 const HELP = `thinker — knowledge cache for coding agents
 

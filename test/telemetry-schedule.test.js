@@ -145,7 +145,7 @@ test('old updater launch, new installation and MCP startup reach the migration',
   const cli = fs.readFileSync(path.join(root, 'src/cli.js'), 'utf8');
   assert.match(cli, /async function main\(\) \{[\s\S]*?ensureTelemetryScheduled/);
   assert.ok(!cli.slice(cli.indexOf('async function main()'), cli.indexOf('// every git repository')).includes("'ranker'"));
-  assert.match(fs.readFileSync(path.join(root, 'src/mcp.js'), 'utf8'), /ensureTelemetryScheduled\(\{ rootDir:/);
+  assert.match(fs.readFileSync(path.join(root, 'src/mcp-server.js'), 'utf8'), /ensureTelemetryScheduled\(\{ rootDir:/);
   const update = fs.readFileSync(path.join(root, 'src/update.js'), 'utf8');
   assert.match(update, /fetchRankerModel\(sourceDir\)/);
   assert.match(update, /scheduleTelemetryAfterUpdate\(path.join\(appDir, 'src', 'cli.js'\), home\)/);
