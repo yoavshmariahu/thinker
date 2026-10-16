@@ -143,7 +143,7 @@ someone else appear in progress too; leave them alone.
 
 ## 7. Read the result
 
-`get_experiment` returns, per arm, the comparison against cache off over **pairs** (same PR and rep,
+`get_experiment` returns, per arm, the comparison against cache off (or, with `ref`, against any arm: two tools head to head, e.g. `ref: "vexp"` to read thinker against vexp) over **pairs** (same PR and rep,
 both valid): each metric's off and on value, the mean paired difference, its 90% bootstrap interval and
 a verdict; the same over only the pairs where the cache served a note; PR outcome counts; a per-PR
 table; the invalid sessions with reasons.
