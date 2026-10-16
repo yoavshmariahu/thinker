@@ -150,13 +150,23 @@ export function buildServer() {
     inputSchema: { repo: z.string().optional() }, annotations: { readOnlyHint: true },
   }, guard(async a => {
     const { prsets } = await call('/api/prsets');
-    return text(prsets.filter(p => !a.repo || p.repo === a.repo).map(p => ({ name: p.name, repo: p.repo, tasks: p.tasks, base: p.base, hash: p.hash, rule: p.rule, prs: p.prs.map(x => ({ id: x.id, pr: x.pr, title: x.title, oracle: x.oracle })), checks: p.checks })));
+    return text(prsets.filter(p => !a.repo || p.repo === a.repo).map(p => ({ name: p.name, status: p.status || 'frozen', repo: p.repo, tasks: p.tasks, base: p.base, hash: p.hash, rule: p.rule, prs: p.prs.map(x => ({ id: x.id, pr: x.pr, title: x.title, oracle: x.oracle })), checks: p.checks })));
   }));
 
   server.registerTool('create_pr_set', {
-    description: 'Freeze a PR set from a task set: the PR ids and the selection rule, written before any result is seen. Frozen once created; a different selection is a new PR set.',
-    inputSchema: { name: z.string(), tasks: z.string().describe('Task set file under bench/tasks (list_task_sets)'), ids: z.array(z.string()).optional().describe('Task ids; all of the set when omitted'), rule: z.string().describe('How the PRs were chosen, e.g. "every PR merged after 2026-09-20 with tests"'), description: z.string().optional() },
+    description: 'Make a PR set from a task set: the PR ids and the selection rule, written before any result is seen. With draft: true it can still be changed (update_pr_set) and is frozen later (freeze_pr_set); otherwise it is frozen now. Only a frozen set can be run; a frozen set never changes.',
+    inputSchema: { name: z.string(), tasks: z.string().describe('Task set file under bench/tasks (list_task_sets)'), ids: z.array(z.string()).optional().describe('Task ids; all of the set when omitted'), rule: z.string().describe('How the PRs were chosen, e.g. "every PR merged after 2026-09-20 with tests"'), description: z.string().optional(), draft: z.boolean().optional() },
   }, guard(async a => text(await call('/api/prsets', a))));
+
+  server.registerTool('update_pr_set', {
+    description: 'Change a draft PR set: its task set, PR ids, rule or description. A frozen set cannot change.',
+    inputSchema: { name: z.string(), tasks: z.string().optional(), ids: z.array(z.string()).optional(), rule: z.string().optional(), description: z.string().optional() },
+  }, guard(async a => text(await call('/api/prsets/update', a))));
+
+  server.registerTool('freeze_pr_set', {
+    description: 'Freeze a draft PR set so experiments can run it. From then on it never changes.',
+    inputSchema: { name: z.string() },
+  }, guard(async a => text(await call('/api/prsets/freeze', a))));
 
   server.registerTool('list_caches', {
     description: 'Cache modules: caches built by mining (anchor commit, mining model, notes, status) and which PR sets each passes the checks for.',
@@ -176,6 +186,7 @@ export function buildServer() {
     anchor: z.string().optional().describe('Commit the cache is built at: at or before the PR set\'s base (default the checkout HEAD)'),
     llm: z.enum(['claude', 'codex', 'gemini']).describe('Agent CLI that does the mining'), model: z.string().describe('Mining model: the model the experiment\'s agent will run'),
     effort: z.string().optional(), limit: z.number().int().min(5).max(200).optional().describe('Merged changes to mine (default 60)'),
+    resume: z.boolean().optional().describe('Continue an unfinished build of this name (same parameters): the steps it finished are not repeated'),
   };
   server.registerTool('plan_cache', {
     description: 'Validate a cache build without starting it: the anchor commit, the mining model, the steps (snapshot, mine-prs --git, phrase, relink). Show it to the user before build_cache.',
@@ -219,7 +230,7 @@ export function buildServer() {
   }));
 
   server.registerTool('define_experiment', {
-    description: 'Record or correct what an experiment tests: its name, question, kind, and which arm is cache off and which cache on. Writes bench/runs/<tag>/experiment.json.',
+    description: 'Record or correct what an experiment tests: its name, question, kind, and which arm is cache off and which cache on. Saved in the evals database.',
     inputSchema: { tag: z.string(), name: z.string().optional(), question: z.string().optional(), kind: z.enum(['behavior', 'model']).optional(), off: z.string().optional(), on: z.string().optional() },
     annotations: { idempotentHint: true },
   }, guard(async a => {
@@ -248,13 +259,14 @@ export function buildServer() {
   }));
 
   server.registerTool('get_progress', {
-    description: 'Running and recent experiments: sessions finished out of planned, errors, elapsed time and an estimate of the time left, status, and the log tail. Includes runs started from a terminal.',
+    description: 'What is in progress: running and recent experiments (sessions finished out of planned, each running session\'s live activity, errors, time left) and cache builds (step, mining progress), with the log tail. Includes runs started from a terminal.',
     inputSchema: { tag: z.string().optional().describe('One experiment; all when omitted'), log: z.boolean().optional().describe('Include the last lines of the log') },
     annotations: { readOnlyHint: true },
   }, guard(async a => {
     const { jobs } = await call('/api/jobs');
     return text(jobs.filter(j => !a.tag || j.tag === a.tag).map(j => ({ job_id: j.id, tag: j.tag, name: j.name, status: j.status, waiting_on_limit: j.limit_wait || undefined, source: j.source,
-      model: j.model, repo: j.repo, arms: j.arms, done: j.done, planned: j.expected, errors: j.errors,
+      kind: j.kind || 'experiment', model: j.model, repo: j.repo, arms: j.arms, done: j.done, planned: j.expected, errors: j.errors,
+      step: j.step, mining: j.progress || undefined, live: j.live?.length ? j.live : undefined,
       started: j.started_at ? new Date(j.started_at).toISOString() : null, elapsed_min: r2(j.elapsed / 60000), eta_min: j.eta == null ? null : r2(j.eta / 60000),
       log: a.log ? j.log : undefined })));
   }));

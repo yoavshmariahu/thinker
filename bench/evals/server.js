@@ -9,12 +9,13 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { openDb } from './db.js';
+import { openDb, DEFAULT_DB } from './db.js';
+import { takeSnapshot, listLocal } from './snapshot.js';
 import { ingest, taskInfo } from './ingest.js';
 import { armSummary, METRICS } from './stats.js';
 import { readMeta, resolveMeta, writeMeta, compare } from './experiment.js';
 import { catalog, plan, launch, launchCache, cancel, jobsView } from './jobs.js';
-import { listPrsets, createPrset, readPrset, checkPrset } from './prsets.js';
+import { listPrsets, createPrset, updatePrset, freezePrset, readPrset, checkPrset } from './prsets.js';
 import { listCaches, readReceipt, planCache, checkCache } from './caches.js';
 import { archiveAll, readTranscript, stepStats } from './transcripts.js';
 
@@ -22,34 +23,40 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
 const flag = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? args[i + 1] : d; };
 const BENCH = path.resolve(flag('bench', process.env.EVALS_BENCH || path.join(HERE, '..')));
-const DB_FILE = path.resolve(flag('db', process.env.EVALS_DB || path.join(BENCH, 'evals', 'evals.db')));
+const DB_FILE = path.resolve(flag('db', process.env.EVALS_DB || DEFAULT_DB));
 const PORT = Number(flag('port', process.env.PORT));
 const SCAN_MS = 15_000;
 
-export function createApp({ bench = BENCH, dbFile = DB_FILE } = {}) {
+export function createApp({ bench = BENCH, dbFile = DB_FILE, snapshots = true } = {}) {
   const db = openDb(dbFile);
   let lastScan = 0, scanning = false;
-  // a result's own record, from its file (or its entry in summary.json)
-  const rawOf = r => {
-    try {
-      const j = JSON.parse(fs.readFileSync(path.join(bench, 'runs', r.run, r.file), 'utf8'));
-      return Array.isArray(j) ? j.find(x => `${r.run}/${x.id}` === r.id) || null : j;
-    } catch { return null; }
-  };
-  // copy transcripts into the run folders in the background, before the agent CLIs clean them up
+  // a result's own record: kept in the database when it was imported
+  const rawOf = r => db.record(r.id);
+  // store transcripts in the database in the background, before the agent CLIs clean them up
   const tried = new Set();
-  let archiving = false, archiveStats = { archived: 0, missing: 0 };
+  let archiving = false, archiveStats = { archived: 0, missing: 0, flagged: 0 };
   const archive = async () => {
     if (archiving) return; archiving = true;
     try {
-      const r = await archiveAll(path.join(bench, 'runs'), db.all('SELECT id, run, file FROM results'), rawOf, { tried });
-      archiveStats = { archived: archiveStats.archived + r.archived, missing: archiveStats.missing + r.missing };
+      const r = await archiveAll(db, path.join(bench, 'runs'), { tried });
+      archiveStats = { archived: archiveStats.archived + r.archived, missing: archiveStats.missing + r.missing, flagged: archiveStats.flagged + r.flagged };
     } catch (e) { console.error('transcript archive failed', e.message); } finally { archiving = false; }
   };
   const scan = (force = false) => { if (scanning) return; scanning = true; try { ingest(db, bench, { force }); lastScan = Date.now(); } finally { scanning = false; } archive(); };
   scan();
   const timer = setInterval(() => { try { scan(); } catch (e) { console.error('scan failed', e.message); } }, SCAN_MS);
   timer.unref();
+  // a recoverable snapshot a day (snapshot.js), taken while the app runs; none for an in-memory database
+  let lastSnapshot = null;
+  const snapshotDue = () => {
+    if (dbFile === ':memory:' || !snapshots) return;
+    const newest = listLocal()[0];
+    if (newest && Date.now() - newest.at < 24 * 3600e3) return;
+    try { lastSnapshot = takeSnapshot(dbFile); console.log(`snapshot ${lastSnapshot.file}${lastSnapshot.uploaded ? ' → ' + lastSnapshot.uploaded : ''}`); }
+    catch (e) { lastSnapshot = { error: e.message, at: Date.now() }; console.error('snapshot failed', e.message); }
+  };
+  const snapTimer = setInterval(snapshotDue, 3600e3); snapTimer.unref();
+  setTimeout(snapshotDue, 5000).unref();
 
   const rowsOf = (sql, ...p) => db.all(sql, ...p);
   const info = () => taskInfo(bench);
@@ -57,7 +64,7 @@ export function createApp({ bench = BENCH, dbFile = DB_FILE } = {}) {
   // the comparison of one experiment, cached until its results or its definition change
   const cache = new Map();
   const experiment = (run, onOverride, tasks = info()) => {
-    const stored = readMeta(bench, run.dir);
+    const stored = readMeta(db, run.dir);
     const arms = (run.arms || '').split(',').filter(Boolean);
     const meta = resolveMeta(stored, arms);
     const on = onOverride && arms.includes(onOverride) && onOverride !== meta.off ? onOverride : meta.on;
@@ -70,11 +77,23 @@ export function createApp({ bench = BENCH, dbFile = DB_FILE } = {}) {
     return cache.get(key);
   };
   // a launched experiment is listed from its definition, before its first result lands
-  const runs = () => rowsOf('SELECT * FROM runs ORDER BY coalesce(first_at, scanned_mtime) DESC').filter(r => r.results > 0 || readMeta(bench, r.dir));
+  const runs = () => rowsOf('SELECT * FROM runs ORDER BY coalesce(first_at, scanned_mtime) DESC').filter(r => r.results > 0 || readMeta(db, r.dir));
+
+  // each experiment's and cache's job: the running one, else the latest — the entity shows its own progress
+  const jobsByTag = kind => {
+    const m = new Map();
+    for (const j of jobsView(db, bench)) {
+      if ((j.kind || 'experiment') !== kind) continue;
+      const prev = m.get(j.tag);
+      if (!prev || (j.status === 'running' && prev.status !== 'running') || (prev.status !== 'running' && j.started_at > prev.started_at)) m.set(j.tag, j);
+    }
+    return m;
+  };
 
   const api = {
     'GET /api/experiments': () => {
       const tasks = info();
+      const jobs = jobsByTag('experiment');
       const list = runs().map(run => {
         const { meta, cmp } = experiment(run, null, tasks);
         return {
@@ -82,26 +101,29 @@ export function createApp({ bench = BENCH, dbFile = DB_FILE } = {}) {
           results: run.results, invalid: run.invalid, meta,
           prs: cmp ? cmp.prs.length : new Set(rowsOf('SELECT DISTINCT task FROM results WHERE run = ?', run.dir).map(r => r.task)).size,
           cmp: cmp && { off: cmp.offSide, on: cmp.onSide, pairs: cmp.pairs, served: cmp.served, delta: cmp.delta, counts: cmp.counts, graders: cmp.graders },
+          job: jobs.get(run.dir) || null,
         };
       });
       const totals = db.get(`SELECT count(*) results, sum(invalid IS NOT NULL) invalid, count(DISTINCT task) tasks FROM results`);
-      return { experiments: list, totals, scanned_at: lastScan, bench, metrics: METRICS, transcripts: archiveStats };
+      return { experiments: list, totals, scanned_at: lastScan, bench, metrics: METRICS, transcripts: archiveStats,
+        store: { db: dbFile, snapshot: listLocal()[0] || null, last: lastSnapshot, s3: process.env.EVALS_S3_URI || null } };
     },
     'GET /api/experiment': q => {
       const run = db.get('SELECT * FROM runs WHERE dir = ?', q.get('dir'));
+      if (!run && readReceipt(db, q.get('dir'))) throw Object.assign(httpError(404, 'that is a cache, not an experiment'), { redirect: `#/cache/${encodeURIComponent(q.get('dir'))}` });
       if (!run) throw httpError(404, 'no such experiment');
       const { meta, rows, cmp } = experiment(run, q.get('on'));
       // every other arm against the cache-off arm, the cache-on arm first
       const all = meta.off ? [meta.on, ...meta.others].filter(Boolean).map(a => compare(rows, meta.off, a, info())) : [];
       return {
-        run, meta, cmp, all, metrics: METRICS, arms: armSummary(rows),
+        run, meta, cmp, all, metrics: METRICS, arms: armSummary(rows), job: jobsByTag('experiment').get(run.dir) || null,
         invalid: rows.filter(r => r.invalid).map(r => ({ id: r.id, task: r.task, arm: r.arm, rep: r.rep, reason: r.invalid })),
       };
     },
     'POST /api/experiment': body => {
       const dir = String(body.dir || '');
       if (!db.get('SELECT dir FROM runs WHERE dir = ?', dir)) throw httpError(404, 'no such experiment');
-      return { meta: writeMeta(bench, dir, body, armsOf(dir)) };
+      return { meta: writeMeta(db, dir, body, armsOf(dir)) };
     },
     'GET /api/result': q => {
       const r = db.get('SELECT * FROM results WHERE id = ?', q.get('id'));
@@ -113,30 +135,33 @@ export function createApp({ bench = BENCH, dbFile = DB_FILE } = {}) {
       const r = db.get('SELECT * FROM results WHERE id = ?', q.get('id'));
       if (!r) throw httpError(404, 'no such session');
       const raw = rawOf(r);
-      const t = readTranscript(path.join(bench, 'runs'), r, raw);
-      const meta = resolveMeta(readMeta(bench, r.run), armsOf(r.run));
+      const t = readTranscript(db, path.join(bench, 'runs'), r, raw);
+      const meta = resolveMeta(readMeta(db, r.run), armsOf(r.run));
       // the same PR and rep in the experiment's other arms, to step across
       const partners = db.all('SELECT id, arm, pass, in_tokens, tool_calls, invalid FROM results WHERE run = ? AND task = ? AND rep = ? AND id != ?', r.run, r.task, r.rep, r.id);
       const { diff, result, ...rest } = raw || {};
       return { row: r, raw: rest, diff: diff || null, result: result || null, task: info().get(r.task) || null, meta: { name: meta.name, off: meta.off, on: meta.on },
-        transcript: t ? { format: t.format, archived: t.archived, bytes: t.bytes, steps: t.steps } : null, stats: t ? stepStats(t.steps) : null, partners };
+        transcript: t ? { format: t.format, archived: t.archived, bytes: t.bytes, steps: t.steps, flags: t.flags } : null, stats: t ? stepStats(t.steps) : null, partners };
     },
-    'GET /api/prsets': () => ({ prsets: listPrsets(bench).map(s => ({ ...s, checks: checkPrset(bench, s) })) }),
-    'POST /api/prsets': body => ({ prset: createPrset(bench, body) }),
+    'GET /api/prsets': () => ({ prsets: listPrsets(db).map(s => ({ ...s, checks: checkPrset(bench, s) })) }),
+    'POST /api/prsets': body => ({ prset: createPrset(bench, db, body) }),
+    'POST /api/prsets/update': body => ({ prset: updatePrset(bench, db, String(body.name || ''), body) }),
+    'POST /api/prsets/freeze': body => ({ prset: freezePrset(bench, db, String(body.name || '')) }),
     'GET /api/caches': () => {
-      const prsets = listPrsets(bench);
-      return { caches: listCaches(bench).map(c => ({ ...c, fits: prsets.filter(p => p.repo === c.repo).map(p => ({ prset: p.name, ok: checkCache(bench, c, p).every(x => x.ok) })) })) };
+      const prsets = listPrsets(db);
+      const jobs = jobsByTag('cache');
+      return { caches: listCaches(db).map(c => ({ ...c, job: jobs.get(c.name) || null, fits: prsets.filter(p => p.repo === c.repo).map(p => ({ prset: p.name, ok: checkCache(bench, c, p).every(x => x.ok) })) })) };
     },
     'GET /api/cache': q => {
-      const c = readReceipt(bench, q.get('name'));
+      const c = readReceipt(db, q.get('name'));
       if (!c) throw httpError(404, 'no such cache');
-      const used = runs().filter(r => readMeta(bench, r.dir)?.modules?.cache?.name === c.name).map(r => r.dir);
-      return { cache: c, checks: checkCache(bench, c), against: listPrsets(bench).filter(p => p.repo === c.repo).map(p => ({ prset: p.name, checks: checkCache(bench, c, p) })), used_by: used };
+      const used = runs().filter(r => readMeta(db, r.dir)?.modules?.cache?.name === c.name).map(r => r.dir);
+      return { cache: c, job: jobsByTag('cache').get(c.name) || null, checks: checkCache(bench, c), against: listPrsets(db).filter(p => p.repo === c.repo).map(p => ({ prset: p.name, checks: checkCache(bench, c, p) })), used_by: used };
     },
-    'POST /api/cache/plan': body => planCache(body, bench),
+    'POST /api/cache/plan': body => planCache(body, bench, db),
     'POST /api/cache/build': body => {
       if (body.confirm !== true) throw httpError(400, 'a cache build must be confirmed');
-      const p = planCache(body, bench);
+      const p = planCache(body, bench, db);
       return { id: launchCache(p, { benchDir: bench, db }), name: p.name };
     },
     // one PR across every experiment that ran it, cache off against cache on
@@ -163,7 +188,7 @@ export function createApp({ bench = BENCH, dbFile = DB_FILE } = {}) {
       }
       return { rows: [...by.values()].map(({ d_in, ...a }) => ({ ...a, d_in_share: d_in.length ? d_in.reduce((x, y) => x + y, 0) / d_in.length : null })) };
     },
-    'GET /api/catalog': () => catalog(bench),
+    'GET /api/catalog': () => catalog(bench, db),
     'GET /api/jobs': () => ({ jobs: jobsView(db, bench) }),
     'POST /api/plan': body => plan(body, { benchDir: bench, db }),
     'POST /api/launch': body => {
@@ -178,7 +203,9 @@ export function createApp({ bench = BENCH, dbFile = DB_FILE } = {}) {
       return { id, tag: p.tag };
     },
     'POST /api/cancel': body => { cancel(db, Number(body.id)); return { ok: true }; },
-    'POST /api/rescan': () => { scan(true); return { ok: true, scanned_at: lastScan }; },
+    // re-import one run's files over its sessions in the database (after a regrade rewrote them)
+    'POST /api/reimport': body => { const dir = String(body.dir || ''); if (!db.get('SELECT 1 FROM runs WHERE dir = ?', dir)) throw httpError(404, 'no such experiment'); return { changed: ingest(db, bench, { force: true, only: dir }) }; },
+    'POST /api/snapshot': () => { lastSnapshot = takeSnapshot(dbFile); return lastSnapshot; },
   };
 
   const server = http.createServer(async (req, res) => {
@@ -195,9 +222,9 @@ export function createApp({ bench = BENCH, dbFile = DB_FILE } = {}) {
       }
       if (req.method === 'GET') return serveStatic(res, url.pathname);
       send(res, 404, { error: 'not found' });
-    } catch (e) { send(res, e.status || 500, { error: e.message }); }
+    } catch (e) { send(res, e.status || 500, { error: e.message, ...(e.redirect ? { redirect: e.redirect } : {}) }); }
   });
-  return { server, db, close: () => { clearInterval(timer); server.close(); server.closeAllConnections(); db.raw.close(); } };
+  return { server, db, close: () => { clearInterval(timer); clearInterval(snapTimer); server.close(); server.closeAllConnections(); db.raw.close(); } };
 }
 
 function sameOrigin(req) {
@@ -217,8 +244,10 @@ function readBody(req) {
   });
 }
 
+// the page's own version: a page loaded before the app was updated sees a different one and offers a reload
+const VERSION = String(Math.max(...fs.readdirSync(path.join(HERE, 'public')).map(f => fs.statSync(path.join(HERE, 'public', f)).mtimeMs)) | 0);
 function send(res, status, obj) {
-  res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+  res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store', 'x-evals-version': VERSION });
   res.end(JSON.stringify(obj));
 }
 
@@ -236,5 +265,5 @@ function serveStatic(res, p) {
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   if (!PORT) { console.error('Set a port: PORT=$(~/.claude/bin/claude-port reserve thinker evals) npm run evals'); process.exit(2); }
   const { server } = createApp();
-  server.listen(PORT, '127.0.0.1', () => console.log(`evals: http://127.0.0.1:${PORT}  (runs from ${path.join(BENCH, 'runs')}, index ${DB_FILE})`));
+  server.listen(PORT, '127.0.0.1', () => console.log(`evals: http://127.0.0.1:${PORT}  (database ${DB_FILE}; runner hand-off ${path.join(BENCH, 'runs')})`));
 }

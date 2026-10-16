@@ -1,20 +1,15 @@
-// An experiment is one run directory: a set of PRs (tasks) in one repository, run with the cache
-// off and with it on, to answer one question about a behavior or a model. Its definition lives in
-// bench/runs/<tag>/experiment.json beside the results, so it is versioned with them; runs from
-// before the app have none and get one inferred from their arms until somebody writes it.
-import fs from 'node:fs';
-import path from 'node:path';
+// An experiment is one run: a set of PRs in one repository, run with the cache off and with it on, to
+// answer one question about a behavior or a model. Its definition is kept in the evals database with
+// its sessions; runs from before the app have none and get one inferred from their arms until somebody
+// records it.
 import { BASELINE_ARMS } from './normalize.js';
 import { bootstrap, mean, median, METRICS } from './stats.js';
 
-export const META_FILE = 'experiment.json';
 export const KINDS = ['behavior', 'model'];
 // the arm that is "the cache on", when an experiment does not say: the product's own wiring first
 const ON_ARMS = ['cache', 'hook', 'full', 'thinker', 'after', 'live', 'rerank', 'prompt'];
 
-export function readMeta(benchDir, dir) {
-  try { return JSON.parse(fs.readFileSync(path.join(benchDir, 'runs', dir, META_FILE), 'utf8')); } catch { return null; }
-}
+export const readMeta = (db, dir) => db.definition(dir);
 
 // The stored definition, or one inferred from the arms present. `defined` says which.
 export function resolveMeta(stored, arms) {
@@ -30,17 +25,16 @@ export function resolveMeta(stored, arms) {
 }
 
 const TEXT = /^[^\u0000-\u001f]{0,300}$/;
-export function writeMeta(benchDir, dir, input, arms) {
-  const runDir = path.join(benchDir, 'runs', dir);
-  if (!path.resolve(runDir).startsWith(path.resolve(benchDir, 'runs') + path.sep) || !fs.existsSync(runDir)) throw new Error('no such experiment');
-  const prev = readMeta(benchDir, dir) || {};
+export function writeMeta(db, dir, input, arms) {
+  if (!db.get('SELECT 1 FROM runs WHERE dir = ?', dir)) throw new Error('no such experiment');
+  const prev = readMeta(db, dir) || {};
   const m = { ...prev };
   for (const k of ['name', 'question']) if (input[k] != null) { if (!TEXT.test(String(input[k]))) throw new Error(`${k} is too long or has control characters`); m[k] = String(input[k]).trim(); }
   if (input.kind != null) { if (!KINDS.includes(input.kind)) throw new Error('kind is behavior or model'); m.kind = input.kind; }
   for (const k of ['off', 'on']) if (input[k] != null) { if (arms && !arms.includes(input[k])) throw new Error(`${input[k]} is not an arm of this experiment`); m[k] = input[k]; }
   if (m.off && m.off === m.on) throw new Error('cache off and cache on must be different arms');
   m.created_at ||= Date.now();
-  fs.writeFileSync(path.join(runDir, META_FILE), JSON.stringify(m, null, 2) + '\n');
+  db.setDefinition(dir, m);
   return m;
 }
 

@@ -1,6 +1,6 @@
-// Session transcripts: found where each agent CLI writes them, copied (gzipped) into the run's own
-// folder so they outlive the CLI's cleanup (Claude Code deletes project transcripts after its cleanup
-// period), and parsed into one list of steps for the session page.
+// Session transcripts: found where each agent CLI writes them, stored gzipped in the evals database
+// (they outlive the CLI's cleanup: Claude Code deletes project transcripts after its cleanup period),
+// checked for contamination, and parsed into one list of steps for the session page.
 //   Claude Code  ~/.claude/projects/<cwd>/<session>.jsonl
 //   Codex        bench/runs/<tag>/events/<id>.jsonl (codex-run.js writes the exec event stream)
 //   Gemini       ~/.gemini/antigravity-cli/brain/<session>/.system_generated/logs/transcript.jsonl
@@ -10,11 +10,25 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 
 const HOME = os.homedir();
-export const archivePath = (runsDir, run, id) => path.join(runsDir, run, 'transcripts', `${id}.jsonl.gz`);
 const idOf = row => row.id.slice(row.run.length + 1);
+// the folder an earlier version of the app archived transcripts into; imported, then removed
+const legacyArchive = (runsDir, row) => path.join(runsDir, row.run, 'transcripts', `${idOf(row)}.jsonl.gz`);
+
+// What a transcript must not contain: text the product shows a person, not a benchmark arm. The
+// warm-up offer (repo-onboard.js) tells the agent to stop and ask the user (2026-10-15 smoke run).
+const CONTAMINATION = [[/<thinker-new-repository>/, 'warm-up offer injected into the session (onboarding notice, not the cache)']];
+
+export function claudeProjects() {
+  try { return fs.readdirSync(path.join(HOME, '.claude', 'projects')); } catch { return []; }
+}
 
 // The original transcript of a result, or null. `projects` is the list of Claude Code project dirs.
 export function locate(runsDir, row, raw, projects) {
+  const legacy = legacyArchive(runsDir, row);
+  if (fs.existsSync(legacy)) {
+    let format = null; try { format = JSON.parse(fs.readFileSync(legacy.replace(/\.jsonl\.gz$/, '.source.json'), 'utf8')).format; } catch {}
+    return { file: legacy, format, gz: true };
+  }
   const session = raw?.session || raw?.session_id;
   const events = path.join(runsDir, row.run, 'events', idOf(row) + '.jsonl');
   if (fs.existsSync(events)) return { file: events, format: 'codex' };
@@ -28,49 +42,48 @@ export function locate(runsDir, row, raw, projects) {
   return null;
 }
 
-export function claudeProjects() {
-  try { return fs.readdirSync(path.join(HOME, '.claude', 'projects')); } catch { return []; }
-}
+const guessFormat = text => (/"type":"thread\.started"|"type":"item\.completed"/.test(text) ? 'codex' : /"message":\{/.test(text) ? 'claude' : 'gemini');
 
-// Copy every result's transcript that is not archived yet. Returns { archived, missing }.
-export async function archiveAll(runsDir, rows, readRaw, { tried = new Set(), yieldEvery = 20 } = {}) {
+// Store every result's transcript that the database does not hold yet. Returns { archived, missing, flagged }.
+export async function archiveAll(db, runsDir, { tried = new Set(), yieldEvery = 20 } = {}) {
   const projects = claudeProjects();
-  let archived = 0, missing = 0, n = 0;
+  const rows = db.all('SELECT r.id, r.run, r.invalid FROM results r LEFT JOIN transcripts t ON t.id = r.id WHERE t.id IS NULL');
+  let archived = 0, missing = 0, flagged = 0, n = 0;
   for (const row of rows) {
     if (tried.has(row.id)) continue;
-    const dest = archivePath(runsDir, row.run, idOf(row));
-    if (fs.existsSync(dest)) { tried.add(row.id); continue; }
-    const src = locate(runsDir, row, readRaw(row), projects);
     tried.add(row.id);
+    const src = locate(runsDir, row, db.record(row.id), projects);
     if (!src) { missing++; continue; }
     try {
-      fs.mkdirSync(path.dirname(dest), { recursive: true });
-      const tmp = dest + '.tmp';
-      fs.writeFileSync(tmp, zlib.gzipSync(fs.readFileSync(src.file)));
-      fs.writeFileSync(dest.replace(/\.jsonl\.gz$/, '.source.json'), JSON.stringify({ format: src.format, from: src.file, archived_at: Date.now() }) + '\n');
-      fs.renameSync(tmp, dest);
+      const buf = fs.readFileSync(src.file);
+      const text = (src.gz ? zlib.gunzipSync(buf) : buf).toString('utf8');
+      const flags = CONTAMINATION.filter(([re]) => re.test(text)).map(([, why]) => why);
+      db.run('INSERT OR REPLACE INTO transcripts (id, format, data, bytes, source, archived_at, flags) VALUES (?,?,?,?,?,?,?)',
+        row.id, src.format || guessFormat(text), src.gz ? buf : zlib.gzipSync(text), Buffer.byteLength(text), src.file, Date.now(), flags.length ? JSON.stringify(flags) : null);
+      // a contaminated session is not a measurement: fail it closed, with the reason
+      if (flags.length && !row.invalid) { db.run('UPDATE results SET invalid = ? WHERE id = ?', flags[0], row.id); flagged++; }
+      if (src.gz) { fs.rmSync(src.file, { force: true }); fs.rmSync(src.file.replace(/\.jsonl\.gz$/, '.source.json'), { force: true }); try { fs.rmdirSync(path.dirname(src.file)); } catch {} }
       archived++;
     } catch { missing++; }
     if (++n % yieldEvery === 0) await new Promise(r => setImmediate(r));
   }
-  return { archived, missing };
+  if (flagged) for (const { run } of db.all('SELECT DISTINCT run FROM results WHERE invalid LIKE ?', 'warm-up offer%')) db.refreshRun(run);
+  return { archived, missing, flagged };
 }
 
-export function readTranscript(runsDir, row, raw) {
-  const dest = archivePath(runsDir, row.run, idOf(row));
-  let text = null, format = null, archived = false;
-  if (fs.existsSync(dest)) {
-    text = zlib.gunzipSync(fs.readFileSync(dest)).toString('utf8'); archived = true;
-    try { format = JSON.parse(fs.readFileSync(dest.replace(/\.jsonl\.gz$/, '.source.json'), 'utf8')).format; } catch {}
-  } else {
+export function readTranscript(db, runsDir, row, raw) {
+  const t = db.get('SELECT format, data, flags FROM transcripts WHERE id = ?', row.id);
+  let text = null, format = null, stored = false, flags = null;
+  if (t) { text = zlib.gunzipSync(t.data).toString('utf8'); format = t.format; stored = true; flags = t.flags ? JSON.parse(t.flags) : null; }
+  else {
     const src = locate(runsDir, row, raw, claudeProjects());
-    if (src) { text = fs.readFileSync(src.file, 'utf8'); format = src.format; }
+    if (src) { const buf = fs.readFileSync(src.file); text = (src.gz ? zlib.gunzipSync(buf) : buf).toString('utf8'); format = src.format; }
   }
   if (text == null) return null;
   const lines = text.split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
-  format ||= lines.some(l => l.type === 'thread.started' || l.type === 'item.completed') ? 'codex' : lines.some(l => l.message?.content) ? 'claude' : 'gemini';
+  format ||= guessFormat(text);
   const steps = format === 'claude' ? parseClaude(lines) : format === 'codex' ? parseCodex(lines) : parseGeneric(lines);
-  return { format, archived, bytes: Buffer.byteLength(text), steps };
+  return { format, archived: stored, bytes: Buffer.byteLength(text), steps, flags };
 }
 
 const MAX = 6000;
