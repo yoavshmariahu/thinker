@@ -4,7 +4,8 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { installGitHooks } from '../git-hooks.js';
 import { linkNotes, phraseBatches } from '../ops.js';
-import { CLIENTS, USER_SCOPE_CLIENTS, detectClients, installClient, installCursorRule, stripRepoWiring, trustCodex, trustCodexUser } from '../clients.js';
+import { CLIENTS, USER_SCOPE_CLIENTS, detectClients, installClient, installCursorRule, stripRepoWiring, trustCodex, trustCodexUser, markConnected } from '../clients.js';
+import { thinkerHome } from '../update.js';
 import { available, provider, findBin } from '../llm.js';
 import { cleanErrorMessage } from '../benchmark.js';
 import { oneLine, buildProgress } from '../progress.js';
@@ -21,7 +22,7 @@ import { githubSlug } from './agents.js';
 // apps that read no project files), and, when `repo` is given, the checkout's own pieces: git
 // hooks, Cursor's rule and Codex's trust in the project. Setup wrote per-checkout files until 2026-10-04; this copy's machine-local
 // ones are taken out of the checkout, since the user's now run there.
-export async function stepConnectClis({ repo = null, cliPath, mcpEntry, userMcpEntry, clients, hooks = true, learn = true, late = false, mcp = true, gitHook = true, noTrust = false, yes = false, out = console.log }) {
+export async function stepConnectClis({ repo = null, cliPath, mcpEntry, userMcpEntry, clients, hooks = true, learn = true, late = false, mcp = true, gitHook = true, noTrust = false, yes = false, out = console.log, home = thinkerHome() }) {
   const detected = detectClients();
   const targetClients = clients || detected;
   const userEntry = userMcpEntry || { command: mcpEntry.command, args: mcpEntry.args };
@@ -88,6 +89,10 @@ export async function stepConnectClis({ repo = null, cliPath, mcpEntry, userMcpE
       results.push({ client, status: 'error', detail: e.message });
     }
   }
+
+  // offered: the daily rewire wires an agent installed later once (clients.js:connectDetected), and leaves
+  // these alone, the ones left unticked here included
+  try { markConnected(home, results.filter(r => r.status !== 'error' && USER_SCOPE_CLIENTS.includes(r.client)).map(r => r.client)); } catch {}
 
   // Display clean CLI connection statuses
   for (const res of results) {

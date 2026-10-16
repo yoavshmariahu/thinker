@@ -14,7 +14,7 @@ import { ensureTelemetryScheduled, reportTelemetrySchedule } from './telemetry-s
 import { initAst } from './ast.js';
 import { cacheInstructions, disabledTools, MORE_NOTES_INTRO } from './cache-guidance.js';
 import { isDisabledRepo } from './repo-switch.js';
-import { warmupPending, answerWarmup, startSessionWarmup, WARMUP_CHOICES } from './repo-onboard.js';
+import { warmupPending, warmupOffer, answerWarmup, startSessionWarmup, subagentHarness, WARMUP_CHOICES } from './repo-onboard.js';
 import { coveragePending, answerCoverage } from './coverage.js';
 import { queueDir, buildRunning, buildRequested, nextRequest, answerRequest, requestText } from './session-llm.js';
 import { anyDesktopApp } from './app-host.js';
@@ -138,14 +138,19 @@ function registerTools() {
     },
   }, async ({ task = '', file, budget }) => {
     if (!task.trim() && !file) return text('orient needs the task. Call it again with {"task": "<the user request, in one or two sentences>"}.');
+    // the warm-up offer the prompt hook makes, here too: an agent wired with thinker's server and no hooks never
+    // got it (2026-10-16: a device whose 14 requests all came through MCP, two cold caches, no offer). Once per
+    // repository either way (repo-onboard.js:markOffered), so where the hook made it this adds nothing.
+    let offer = ''; try { offer = warmupOffer(store, { client: subagentHarness(clientName()) || clientName() }); } catch {}
+    const reply = s => text(offer ? `${offer}\n\n${s}` : s);
     // the agent named a budget: let it decide how many notes are served, not the two-note default of the hooks
     const r = await orient(store, { task, file, client: 'mcp', budget: budget || 1000, snippets: snippetsOn(store), ...(budget ? { maxNotes: 5, relFloor: 0.7 } : {}) });
     // no text search over the whole task on a miss: a sentence's words list unrelated code (mitmproxy, 2026-10-07:
     // ValueEditor.tsx and SaveHar for a binary-detection fix) that the agent then opens
-    if (!r.included.length) return text(`${emptyCache() || `No cached notes match this task (${store.list().length} notes in cache). `}Work from the code${noLearn ? '' : ', then call remember with what you learn'}.`);
+    if (!r.included.length) return reply(`${emptyCache() || `No cached notes match this task (${store.list().length} notes in cache). `}Work from the code${noLearn ? '' : ', then call remember with what you learn'}.`);
     const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n')}` : '';
     const notes = `Cached knowledge for this task (${r.included.length} notes, ~${r.tokens} tokens):\n\n${r.text}${more}`;
-    return text(notes);
+    return reply(notes);
   });
 
   retrieval('lookup', {

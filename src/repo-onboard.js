@@ -63,9 +63,12 @@ export function setupRepo(store, { client, cli, learn = true }) {
 // worktree of one counts as it): THINKER_HOME/state/warmup-suggested.json. Returns true the first time.
 // Until 2026-10-14 the offer went only to an empty cache and was recorded in warmup-offered.json; install
 // problems left many of those caches cold after it (the telemetry: devices in daily use with 2 to 25 notes
-// and no request answered), so a new record asks every cold cache once more.
+// and no request answered), so a new record asks every cold cache once more. Again on 2026-10-16, when a
+// cache that never finished a warm-up became cold whatever its notes (WARM_MINED): warmup-suggested-2. An
+// offer answered (no, never, dismissed: the warmup-answered mark) is not asked again.
+const OFFERED = 'warmup-suggested-2';
 function offeredOnce(repo, home = thinkerHome(), { peek = false } = {}) {
-  const file = path.join(home, 'state', 'warmup-suggested.json');
+  const file = path.join(home, 'state', `${OFFERED}.json`);
   let done = {}; try { done = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
   const id = repoId(repo);
   if (done[id]) return false;
@@ -93,13 +96,18 @@ export function offerStore(store) {
 
 // A cache is warm once it has read some of its repository's history: a warm-up reads up to 50 merged
 // changes, maintenance a few at a time. Notes from sessions alone do not make it warm.
-export const WARM_MINED = 10;
+// 2026-10-16: 10 counted caches warm that held 20 to 80 notes, too few to help, and never offered them a
+// warm-up; a cache is warm once a warm-up finished in it (the `warmed` mark, commands/setup.js) or it has read
+// most of what one reads (DEFAULT_PRS, 60)
+export const WARM_MINED = 40;
 // Notes read from the code (understand.js: a coverage build, thinker understand) make a cache warm too: one that
 // holds this many is not offered a warm-up, whatever its merged-change count (2026-10-16: a session served from
 // an understanding cache was stopped by the warm-up offer, its cache counted cold).
 export const WARM_UNDERSTOOD = 10;
 export const understoodCount = store => store.list().filter(n => n.source?.type === 'understanding' && n.status !== 'invalid' && !n.archived).length;
-export const isWarm = store => minedCount(store) >= WARM_MINED || understoodCount(store) >= WARM_UNDERSTOOD;
+export const isWarm = store => fs.existsSync(mark(store, 'warmed')) || minedCount(store) >= WARM_MINED || understoodCount(store) >= WARM_UNDERSTOOD;
+// a warm-up that finished, of any size (a session's reads 12 changes): the cache is not offered another
+export const markWarmed = store => { try { fs.mkdirSync(path.join(store.dir, 'state'), { recursive: true }); fs.writeFileSync(mark(store, 'warmed'), new Date().toISOString() + '\n'); } catch {} };
 // The merged changes a cache has read: the record beside the notes (prs.js:recordMinedPrs, one entry per
 // repository and per area), and the notes that name the change they came from (caches older than the record).
 export function minedCount(store) {
@@ -143,7 +151,7 @@ export function warmupOffer(store, { client, home } = {}) {
 // offer counts as made.
 function warmupDue(store, { home } = {}) {
   if (warmupNever(home) || fs.existsSync(mark(store, 'warmup-answered'))) return null;
-  if (fs.existsSync(mark(store, 'warmup-suggested')) || isWarm(store)) return null;
+  if (fs.existsSync(mark(store, OFFERED)) || isWarm(store)) return null;
   if (!offeredOnce(store.repo, home, { peek: true })) return null;
   return warmupEstimate(store);
 }
@@ -203,7 +211,7 @@ function markRetried(store, est, failed, { client, home } = {}) {
 }
 // The offer made: once per cache and once per repository on this machine, logged for the telemetry.
 function markOffered(store, est, { client, home } = {}) {
-  if (!once(store, 'warmup-suggested') || !offeredOnce(store.repo, home)) return false;
+  if (!once(store, OFFERED) || !offeredOnce(store.repo, home)) return false;
   store.log({ op: 'warmup-offer', client, source: est.mineSource, seconds: est.timing.totalSeconds, notes: store.list().length });
   return true;
 }

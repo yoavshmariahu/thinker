@@ -16,7 +16,7 @@ import { githubSlug } from './shared.js';
 import { minePrs } from './learn.js';
 import { readLog } from '../usage.js';
 import { isTestMode } from '../test-mode.js';
-import { minedCount, logWarmupIssue } from '../repo-onboard.js';
+import { minedCount, logWarmupIssue, markWarmed } from '../repo-onboard.js';
 
 async function initCommand(ctx) {
   // `init` and `setup` were two ways to set a repository up, and the difference was never clear.
@@ -174,7 +174,8 @@ async function rewireCommand(ctx) {
 }
 
 // After an update the new copy rewrites the hooks of every checkout it is wired into, so a new
-// event or command reaches them without `thinker setup` being rerun. The new code knows the new
+// event or command reaches them without `thinker setup` being rerun (and the daily run without an update
+// checks them with this copy). The new code knows the new
 // shape, so it is the new cli that runs, not this process.
 function rewireAfterUpdate(newCli, { quiet }) {
   if (!fs.existsSync(newCli)) return null;
@@ -258,15 +259,20 @@ async function updateCommand(ctx) {
     fs.writeFileSync(lock, String(process.pid));
     try {
       const chk = await checkUpdate({ home, install });
+      let updated = false;
       if (chk.available) {
         const res = await applyUpdate({ home, install, quiet: true, background: true });
         if (res.updated) {
+          updated = true;
           const rewired = rewireAfterUpdate(newCliOf(install, home), { quiet: true });
           const noticeFile = path.join(home, 'state', 'update-notice.json');
           fs.writeFileSync(noticeFile, JSON.stringify({ from: res.from, to: res.to, version: res.version, rewired: rewired?.changed || 0, at: new Date().toISOString() }));
           store.log({ op: 'update', from: res.from, to: res.to, version: res.version, auto: true });
         }
       }
+      // no update: the wiring is checked all the same, since hooks that are gone cannot run the prompt hook's
+      // refresh, and an agent installed after thinker is wired in only here (clients.js:connectDetected)
+      if (!updated) rewireAfterUpdate(path.join(HERE, 'cli.js'), { quiet: true });
     } catch {}
     finally {
       try { fs.rmSync(lock, { force: true }); } catch {}
@@ -302,6 +308,8 @@ async function updateCommand(ctx) {
   }
 
   if (!chk.available && !flags.force) {
+    // up to date: the wiring is checked all the same (the daily job runs this, as `update --quiet`)
+    rewireAfterUpdate(path.join(HERE, 'cli.js'), { quiet: !!flags.quiet });
     if (!flags.quiet) {
       out(`thinker is already up to date on ${chk.branch || chk.ref || 'latest'} (${chk.currentCommit ? chk.currentCommit.slice(0, 7) : 'v' + chk.version}).`);
       if (!isScheduled(home)) {
@@ -361,7 +369,7 @@ export async function setup(ctx, { runSetupFn = runSetup } = {}) {
   // setup can still skip or fail its build, so use its result rather than the process's exit code.
   let started = false, result;
   const onBuildStart = () => { started = true; store.log({ op: 'warmup-start', depth: depth || undefined, source: slug ? 'github' : 'git' }); };
-  const ended = (ok, reason, detail) => { if (started) { let notes = null, mined = null; try { notes = store.list().length; mined = minedCount(store); } catch {} store.log({ op: 'warmup-done', ok, notes, mined, ...(reason ? { reason } : {}) }); if (!ok) logWarmupIssue(store, 'build', reason, { detail }); } };
+  const ended = (ok, reason, detail) => { if (started) { let notes = null, mined = null; try { notes = store.list().length; mined = minedCount(store); } catch {} store.log({ op: 'warmup-done', ok, notes, mined, ...(reason ? { reason } : {}) }); if (ok) markWarmed(store); if (!ok) logWarmupIssue(store, 'build', reason, { detail }); } };
   try { result = await runSetupFn({
     repo,
     store,

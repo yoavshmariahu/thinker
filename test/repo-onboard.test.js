@@ -10,7 +10,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store, repoId } from '../src/store.js';
-import { WARM_MINED, WARMUP_STALL_MS, minedCount, answerWarmup, warmupPending, warmupNever, warmupRetryDue, desktopApp, startSessionWarmup } from '../src/repo-onboard.js';
+import { WARM_MINED, WARMUP_STALL_MS, minedCount, answerWarmup, warmupPending, warmupNever, warmupRetryDue, desktopApp, startSessionWarmup, isWarm, markWarmed } from '../src/repo-onboard.js';
 import { queueDir, buildRequested } from '../src/session-llm.js';
 import { createNote } from '../src/ops.js';
 
@@ -62,7 +62,7 @@ test('the first session in a repository with history sets it up and tells the ag
   assert.equal(hook(path.join(clone, 'c'), 'prompt', { session_id: 'n3', prompt: 'where does fetchRows read the rows from' }).trim(), '');
   assert.ok(!ops(path.join(clone, 'c')).some(e => e.op === 'warmup-offer'));
   assert.ok(ops(path.join(clone, 'c')).some(e => e.op === 'repo-setup'), 'the clone is still set up');
-  assert.equal(Object.keys(JSON.parse(fs.readFileSync(path.join(HOME, 'state', 'warmup-suggested.json'), 'utf8'))).length, 1);
+  assert.equal(Object.keys(JSON.parse(fs.readFileSync(path.join(HOME, 'state', 'warmup-suggested-2.json'), 'utf8'))).length, 1);
 });
 
 test('too little history, or a cache that has read its history, gets the setup but no offer', () => {
@@ -293,4 +293,13 @@ test('the desktop app a session runs in: Claude Desktop by its env or its proces
   assert.equal(desktopApp('cursor', { env: { CURSOR_AGENT: '1' }, ancestry: [] }), 'Cursor');
   for (const h of ['claude', 'codex', 'cursor']) assert.equal(desktopApp(h, none), null);
   assert.equal(desktopApp('gemini', { env: {}, ancestry: ['/Applications/Claude.app/Contents/MacOS/Claude'] }), null);
+});
+
+test('a cache that never finished a warm-up is cold however many notes it holds, until one finishes', () => {
+  // 2026-10-16: caches of 20 to 80 notes counted warm at 10 changes read, and were never offered one
+  const store = new Store(gitRepo(12)).init();
+  fs.writeFileSync(path.join(store.dir, 'prs.json'), JSON.stringify({ local: { mined: Array.from({ length: 20 }, (_, i) => `c${i}`) } }));
+  assert.equal(isWarm(store), false);
+  markWarmed(store);
+  assert.equal(isWarm(store), true, 'a finished warm-up, a session\'s 12 changes included');
 });

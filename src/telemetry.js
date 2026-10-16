@@ -12,7 +12,7 @@ import { thinkerHome, DAY_MS } from './update.js';
 import { summarize, readLog, holdoutOf } from './usage.js';
 import { Store, findRepoRoot } from './store.js';
 import { getDeviceId } from './device.js';
-import { detectClients } from './clients.js';
+import { detectClients, inferWiring, USER_SCOPE_CLIENTS } from './clients.js';
 import { deliveryMetrics } from './delivery-telemetry.js';
 import { isWarm, WARM_MINED, WARM_UNDERSTOOD, warmupIssueReason } from './repo-onboard.js';
 
@@ -276,6 +276,51 @@ export function holdoutMetrics(store, { all = true, now = Date.now() } = {}) {
   };
 }
 
+// Whether the agents on this machine run thinker at all, for a device with caches and no cache request
+// (2026-10-16: three such devices, and nothing said whether their agents were wired or simply unused): each
+// installed agent's machine-wide wiring (hooks, MCP, and whether the copy its entries run is still there)
+// and how many of its sessions changed in the last 7 days, from the agent's own session files (a count,
+// nothing of their content).
+const SESSION_DIRS = {
+  claude: h => [path.join(h, '.claude', 'projects')],
+  codex: h => [path.join(h, '.codex', 'sessions')],
+  cursor: h => [path.join(h, '.cursor', 'projects')],
+};
+function recentSessions(client, { home = os.homedir(), days = 7, max = 5000 } = {}) {
+  const roots = SESSION_DIRS[client]?.(home); if (!roots) return null;
+  const since = Date.now() - days * DAY_MS;
+  let n = 0, seen = 0;
+  // Claude Code: projects/<dir>/<session>.jsonl; Codex: sessions/YYYY/MM/DD/<rollout>.jsonl; Cursor:
+  // projects/<dir>/agent-transcripts/<session>/
+  const walk = (dir, depth) => {
+    let names = []; try { names = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of names) {
+      if (++seen > max) return;
+      const f = path.join(dir, e.name);
+      if (client === 'cursor' && depth === 1) { if (e.name === 'agent-transcripts') walk(f, 2); continue; }
+      if (client === 'cursor' && depth === 2) { try { if (fs.statSync(f).mtimeMs >= since) n++; } catch {} continue; }
+      // Codex files a session under the day it started: an older day's folder is skipped
+      if (e.isDirectory()) { if (depth < (client === 'codex' ? 3 : 1)) { try { if (client !== 'codex' || depth < 2 || fs.statSync(f).mtimeMs >= since) walk(f, depth + 1); } catch {} } continue; }
+      if (e.name.endsWith('.jsonl')) { try { if (fs.statSync(f).mtimeMs >= since) n++; } catch {} }
+    }
+  };
+  for (const r of roots) walk(r, 0);
+  return n;
+}
+export function wiringHealth({ home, detected = detectClients({ fallback: false }) } = {}) {
+  const out = {};
+  for (const client of detected.filter(c => USER_SCOPE_CLIENTS.includes(c))) {
+    let w = null; try { w = inferWiring(null, client, { scope: 'user' }); } catch {}
+    out[client] = {
+      hooks: !!w?.hooks, mcp: !!w?.mcp,
+      // entries whose copy of thinker is gone run nothing
+      live: !!w && w.scripts.length > 0 && w.scripts.every(sc => fs.existsSync(sc)),
+      sessions7d: recentSessions(client, { home }),
+    };
+  }
+  return out;
+}
+
 export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, all = true, event = 'hourly' } = {}) {
   let version = 'unknown';
   try {
@@ -341,6 +386,7 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
     clients: {
       schemaVersion: 1,
       detected: detectClients(),
+      wiring: wiringHealth(),
       activeRequests: cls.active || {},
       servings: cls.servings || {},
       sessions: cls.sessions || {},

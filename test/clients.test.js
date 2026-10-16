@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store } from '../src/store.js';
 import { createNote } from '../src/ops.js';
-import { parseClients, installClient, uninstallClients, uninstallWiring, connectFromCheckouts, pruneInstalls, prunedLines, compareVersions, trustCodex, trustCodexUser, codexHookHash, toolFiles, hookClient, stopOutput, refreshWiring, inferWiring, stripRepoWiring, connectDetected, enableCodexSubagents, codexSubagentsOn } from '../src/clients.js';
+import { parseClients, installClient, uninstallClients, uninstallWiring, connectFromCheckouts, pruneInstalls, prunedLines, compareVersions, trustCodex, trustCodexUser, codexHookHash, toolFiles, hookClient, stopOutput, refreshWiring, inferWiring, stripRepoWiring, connectDetected, markConnected, enableCodexSubagents, codexSubagentsOn } from '../src/clients.js';
 import { installGitHooks, mainCheckout } from '../src/git-hooks.js';
 import { knownRepos } from '../src/commands/setup.js';
 
@@ -789,6 +789,26 @@ test('an update wires a detected pi, OpenCode, Copilot or Windsurf once, with th
     uninstallWiring({ scope: 'user' });
     assert.deepEqual(connectDetected({ cli: CLI, mcpEntry: entry, home: thinker, detected: ['claude', 'pi', 'copilot', 'opencode'] }), ['opencode']);
     assert.equal(inferWiring(null, 'pi', { scope: 'user' }), null);
+  });
+});
+
+test('an agent installed after thinker is wired in once; one left unticked in the installer stays out', () => {
+  const home = { ...fakeHome(), XDG_CONFIG_HOME: '', COPILOT_HOME: '', PI_CODING_AGENT_DIR: '' };
+  inHome(home, () => {
+    const thinker = path.join(home.HOME, '.thinker');
+    const entry = { command: 'node', args: [path.join(path.dirname(CLI), 'mcp.js')] };
+    // the installer wired Claude Code and was shown Codex, left unticked
+    installClient('claude', { scope: 'user', cli: CLI, mcpEntry: entry, hooks: true, learn: true, late: false, mcp: true });
+    markConnected(thinker, ['claude', 'codex']);
+    // Cursor installed later: the daily rewire wires it, with Claude Code's options; Codex stays out
+    assert.deepEqual(connectDetected({ cli: CLI, mcpEntry: entry, home: thinker, detected: ['claude', 'codex', 'cursor'] }), ['cursor']);
+    const w = inferWiring(null, 'cursor', { scope: 'user' });
+    assert.deepEqual([w.hooks, w.learn, w.mcp], [true, true, true]);
+    assert.equal(inferWiring(null, 'codex', { scope: 'user' }), null);
+    // taken out of Cursor by the person: not put back
+    uninstallWiring({ scope: 'user' });
+    assert.deepEqual(connectDetected({ cli: CLI, mcpEntry: entry, home: thinker, detected: ['claude', 'codex', 'cursor'] }), []);
+    assert.equal(inferWiring(null, 'cursor', { scope: 'user' }), null);
   });
 });
 
