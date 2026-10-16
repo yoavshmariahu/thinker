@@ -16,6 +16,7 @@ import { cacheInstructions, disabledTools, MORE_NOTES_INTRO } from './cache-guid
 import { isDisabledRepo } from './repo-switch.js';
 import { warmupPending, answerWarmup, WARMUP_CHOICES } from './repo-onboard.js';
 import { queueDir, buildRunning, nextRequest, answerRequest, requestText } from './session-llm.js';
+import { anyDesktopApp } from './app-host.js';
 
 // MCP-only installations need the same default OS schedule as CLI/hook users.
 try { reportTelemetrySchedule(ensureTelemetryScheduled({ rootDir: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..') })); }
@@ -289,25 +290,28 @@ function registerWarmupTool() {
   });
 }
 
-// A warm-up read through this session (session-llm.js): its subagent takes the build's model calls with
-// warmup_next and answers with warmup_answer. Offered while an offer may still be answered here, or while
-// such a build runs, so a subagent with its own server process finds them too.
-let queueTools;
+// Work read through this session (session-llm.js), a warm-up or, in a desktop app, learning (session-work.js):
+// its subagent takes the model calls with warmup_next and answers with warmup_answer. Offered in a desktop
+// app, while a warm-up offer may still be answered here, or while such work runs, so a subagent with its own
+// server process finds them too.
+let queueTools, inApp;
 function registerQueueTools() {
-  if (queueTools || !store || !(warmupPending(store) || buildRunning(queueDir(store)))) return;
+  if (queueTools || !store) return;
+  inApp ??= anyDesktopApp();
+  if (!(inApp || warmupPending(store) || buildRunning(queueDir(store)))) return;
   queueTools = [server.registerTool('warmup_next', {
     title: 'Take the warm-up\'s next model request',
-    description: 'Only for a subagent told to work thinker\'s warm-up queue: returns the next model request of a warm-up that reads through this session.',
+    description: 'Only for a subagent told to work thinker\'s queue: returns the next model request of thinker\'s background work (a warm-up or learning) that reads through this session.',
     inputSchema: { cwd: z.string().optional().describe('Absolute path of the repository') },
   }, async () => {
     // under the clients' tool timeouts (Codex: 60s), so an empty wait returns and is called again
     const r = await nextRequest(queueDir(store), { waitMs: 25_000 });
     if (r.request) return text(requestText(r.request));
     if (r.waiting) return text('Nothing has come yet: the warm-up is still reading. Call warmup_next again.');
-    return text(`The warm-up is done: the cache holds ${store.list().length} notes. Stop.`);
+    return text(`The work is done: the cache holds ${store.list().length} notes. Stop.`);
   }), server.registerTool('warmup_answer', {
     title: 'Answer a warm-up model request',
-    description: 'Only for a subagent working thinker\'s warm-up queue: the answer to the request warmup_next returned.',
+    description: 'Only for a subagent working thinker\'s queue: the answer to the request warmup_next returned.',
     inputSchema: { id: z.string().describe('The request id'), answer: z.string().describe('The answer: one JSON object when the request gave a schema'), cwd: z.string().optional() },
   }, async ({ id, answer }) => {
     const r = answerRequest(queueDir(store), id, answer);

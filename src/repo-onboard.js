@@ -23,6 +23,8 @@ import { formatDuration } from './setup/ui.js';
 import { isTestMode } from './test-mode.js';
 import { WARMUP_CHOICES } from './warmup-choices.js';
 import { QUEUE_ENV, queueDir, markBuild, subagentPrompt } from './session-llm.js';
+import { SUBAGENT_TOOLS, subagentHarness, desktopApp } from './app-host.js';
+export { SUBAGENT_TOOLS, subagentHarness, desktopApp };
 export { WARMUP_CHOICES };
 
 const mark = (store, name) => path.join(store.dir, 'state', name);
@@ -175,36 +177,6 @@ export function warmupPending(store, { home } = {}) {
   try { return minedCount(store) < WARM_MINED; } catch { return false; }
 }
 
-// How each client's agent starts a subagent that keeps running while it goes on: the clients a warm-up can
-// read through when no agent CLI is signed in (session-llm.js). Codex's spawn_agent does not block; Cursor's
-// Task tool and Claude Code's Agent tool run one in the background when asked.
-export const SUBAGENT_TOOLS = { claude: 'your Agent tool, with run_in_background: true', codex: 'spawn_agent (do not call wait_agent for it)', cursor: 'your Task tool, in the background' };
-// The harness behind a client name: the hooks' and the CLI's (claude, codex, cursor) or an MCP client's own
-// (claude-code, codex-mcp-client, cursor-vscode). Claude's chat apps (claude-ai) start no subagents.
-export const subagentHarness = client => { const n = String(client || '').toLowerCase(); return n === 'claude' || n.startsWith('claude-code') ? 'claude' : n.includes('codex') ? 'codex' : n.includes('cursor') ? 'cursor' : null; };
-// The desktop app this session runs in, for a harness: Claude Desktop says so in the env it starts Claude Code
-// with (CLAUDE_CODE_ENTRYPOINT=claude-desktop, seen 2026-10-16); the Codex app (inside ChatGPT.app) and Cursor
-// set nothing, so their app is found among this process's ancestors. A CLI in a terminal has neither.
-const APPS = {
-  claude: { name: 'Claude Desktop', env: e => e.CLAUDE_CODE_ENTRYPOINT === 'claude-desktop', bundle: /\/Claude\.app\/Contents\// },
-  codex: { name: 'the Codex app', bundle: /\/(ChatGPT|Codex)\.app\/Contents\// },
-  cursor: { name: 'Cursor', bundle: /\/Cursor\.app\/Contents\// },
-};
-export function processAncestry(pid = process.ppid, { max = 16, execFn = execFileSync } = {}) {
-  const out = [];
-  if (process.platform === 'win32') return out;
-  for (let i = 0; i < max && pid > 1; i++) {
-    let line; try { line = execFn('ps', ['-o', 'ppid=,comm=', '-p', String(pid)], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 2000 }).trim(); } catch { break; }
-    const m = line.match(/^(\d+)\s+(.*)$/); if (!m) break;
-    out.push(m[2]); pid = Number(m[1]);
-  }
-  return out;
-}
-export function desktopApp(harness, { env = process.env, ancestry = processAncestry } = {}) {
-  const a = APPS[harness]; if (!a) return null;
-  if (a.env?.(env)) return a.name;
-  return (typeof ancestry === 'function' ? ancestry() : ancestry).some(c => a.bundle.test(c)) ? a.name : null;
-}
 // A session warm-up is sized to one subagent's context: a merged change's evidence is up to ~10k tokens.
 export const SESSION_PRS = 12;
 
