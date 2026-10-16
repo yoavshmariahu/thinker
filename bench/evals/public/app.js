@@ -535,7 +535,7 @@ async function pageCaches() {
     ${caches.map(c => `<tr class="click" data-href="#/cache/${enc(c.name)}"><td><a href="#/cache/${enc(c.name)}"><b>${esc(c.name)}</b></a></td><td>${esc(c.repo)}</td><td>${esc(c.anchor.slice(0, 10))}<div class="muted small">${fmt.date(Date.parse(c.anchor_date))}</div></td>
       <td>${esc(c.model)}<div class="muted small">${esc(c.llm)} · ${esc(cacheWhat(c))}</div></td><td class="num">${c.notes ?? '–'}</td>
       <td>${c.job?.status === 'running' ? statusCell(c.job) : c.status === 'ok' ? '<span class="status good">built</span>' : c.status === 'building' ? '<span class="status serious">stopped</span>' : `<span class="status critical">${esc(c.status)}</span>`}</td>
-      <td class="small">${c.fits.map(f => `${f.ok ? '✓' : '✗'} ${esc(f.prset)}`).join('<br>') || '<span class="muted">no PR set for this repo</span>'}</td><td>${fmt.date(c.created_at)}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">No caches built yet.</td></tr>'}
+      <td class="small">${c.job?.status === 'running' ? '<span class="muted">after the build</span>' : c.fits.map(f => `${f.ok ? '✓' : '✗'} ${esc(f.prset)}`).join('<br>') || '<span class="muted">no PR set for this repo</span>'}</td><td>${fmt.date(c.created_at)}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">No caches built yet.</td></tr>'}
     </tbody></table></div>
     <h2>Build a cache</h2>
     <form class="launch card" id="cf">
@@ -580,8 +580,8 @@ async function pageCache(name) {
     <div id="live"></div>
     ${c.status !== 'ok' ? `<div class="card confirm" id="resume" hidden>This build did not finish (${esc(c.error || c.status)}). Resuming continues after ${(c.steps_done || []).map(esc).join(', ') || 'nothing'} with the same parameters; the steps already done are not repeated. <button class="primary" id="resumego">Resume the build</button> <span class="err" id="rerr"></span></div>` : ''}
     <div class="tiles">${tile('Status', esc(c.status), c.error ? esc(c.error) : `steps: ${(c.steps_done || []).map(esc).join(', ') || '–'}`)}${tile('Notes', fmt.n(c.notes), `${c.described ?? '–'} described · ${c.sources ? `${c.sources.pr} from PRs` : ''}`)}${tile('Mined', fmt.n(c.usage?.mined), `${fmt.n(c.usage?.saved)} saved`)}${tile('Tokens', fmt.tok(c.usage?.tokens), 'as the product logged them')}</div>
-    <h2>Checks</h2><div class="card">${checkList(x.checks)}</div>
-    ${x.against.map(a => `<h2>Against PR set ${esc(a.prset)}</h2><div class="card">${checkList(a.checks)}</div>`).join('')}
+    <h2>Checks</h2>${x.job?.status === 'running' ? '<div class="card muted">The checks run on the finished cache; they appear when the build ends.</div>' : `<div class="card">${checkList(x.checks)}</div>
+    ${x.against.map(a => `<h2>Against PR set ${esc(a.prset)}</h2><div class="card">${checkList(a.checks)}</div>`).join('')}`}
     <h2>Used by</h2><p>${x.used_by.map(d => `<a href="#/exp/${enc(d)}">${esc(d)}</a>`).join(', ') || '<span class="muted">no experiment yet</span>'}</p>
     <details class="card"><summary>Receipt</summary><pre>${esc(JSON.stringify(c, null, 2))}</pre></details>`;
   const showBuild = j => { const el = document.getElementById('live'); if (!el) return; el.innerHTML = j ? buildPanel(j, c) : ''; if (j) bindCancel(el, () => route()); };
