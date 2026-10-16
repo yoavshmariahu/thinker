@@ -15,6 +15,8 @@ import { orient, HOOK_BUDGET, servesNotes, rememberTask, outcome, looksLikeCorre
 import { recordEvent, traceFile, toolName, toolInput } from '../transcripts.js';
 import { turnNotice, weeklyNotice } from '../usage.js';
 import { setupRepo, warmupOffer } from '../repo-onboard.js';
+import { desktopApp, subagentHarness } from '../app-host.js';
+import { enqueueJob, markAppSession, pendingJobs, startSessionWork } from '../session-work.js';
 import { ensureShellPath } from '../shell-path.js';
 
 async function hookCommand(ctx) {
@@ -87,7 +89,10 @@ async function hookCommand(ctx) {
       if (!store.exists() || client === 'windsurf') return;
       // the first session in a repository: what `thinker setup` would write for it, and the warm-up offer (repo-onboard.js)
       setupRepo(store, { client, cli, learn: !NO_LEARN && sessionLearning() });
-      const offer = warmupOffer(store, { client });
+      // queued learning of an app session (session-work.js): the runner starts and the agent is told to start
+      // its subagent; the ancestry is walked only when jobs wait
+      const work = !NO_LEARN && pendingJobs(store).length && desktopApp(subagentHarness(client)) ? startSessionWork(store, { cli, harness: subagentHarness(client) }) : '';
+      const offer = [warmupOffer(store, { client }), work].filter(Boolean).join('\n\n');
       // Every git repository has a cache, started on first use and empty until it learns; the hooks serve
       // from it once it holds a few notes (ops.js:SERVE_MIN_NOTES). A prompt served nothing is still a
       // request: `thinker usage` and the telemetry count a machine as active by its requests, and a cache in
@@ -179,6 +184,9 @@ async function hookCommand(ctx) {
     }
     if (isTestMode() || flags['no-distill'] || NO_LEARN || !sessionLearning()) return;
     if (!source || !fs.existsSync(source)) return;
+    // inside a desktop app no agent CLI runs: the distill waits for the app's own session (session-work.js)
+    const app = desktopApp(subagentHarness(client));
+    if (app) { markAppSession(store, app); enqueueJob(store, `distill-${session}`, ['distill', source, '--incremental', '--quiet', '--session', session, '--repo', repo]); return; }
     // Sessions are distilled locally through the agent's own login.
     // Distilling a session is a model call of its own (about 25k tokens); it draws on the same
     // daily token cap as maintenance, so a long day of work cannot run through the agent's usage
@@ -206,6 +214,10 @@ export function learnInBackground(ctx, client, { maintain = true } = {}) {
   const mark = path.join(store.dir, 'state', 'learn.last');
   try { if (Date.now() - fs.statSync(mark).mtimeMs < 10 * 60_000) return; } catch {}
   fs.mkdirSync(path.dirname(mark), { recursive: true }); fs.writeFileSync(mark, '');
+  const args = ['learn', '--quiet', '--days', '2', '--max', '5', '--idle-min', String(LEARN_IDLE_MIN), ...(maintain ? ['--maintain'] : []), '--repo', repo];
+  // inside a desktop app no agent CLI runs: the catch-up waits for the app's own session (session-work.js)
+  const app = desktopApp(subagentHarness(client));
+  if (app) { markAppSession(store, app); enqueueJob(store, maintain ? 'learn-maintain' : 'learn', args); return; }
   spawn('node', [path.join(HERE, 'cli.js'), 'learn', '--quiet', '--days', '2', '--max', '5', '--idle-min', String(LEARN_IDLE_MIN), ...(maintain ? ['--maintain'] : []), '--repo', repo], { detached: true, stdio: 'ignore', env: { ...process.env, THINKER_LLM_PREFER: client } }).unref();
 }
 

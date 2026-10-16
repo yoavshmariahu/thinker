@@ -23,6 +23,8 @@ import { formatDuration } from './setup/ui.js';
 import { isTestMode } from './test-mode.js';
 import { WARMUP_CHOICES } from './warmup-choices.js';
 import { QUEUE_ENV, queueDir, markBuild, subagentPrompt } from './session-llm.js';
+import { SUBAGENT_TOOLS, subagentHarness, desktopApp } from './app-host.js';
+export { SUBAGENT_TOOLS, subagentHarness, desktopApp };
 export { WARMUP_CHOICES };
 
 const mark = (store, name) => path.join(store.dir, 'state', name);
@@ -175,13 +177,6 @@ export function warmupPending(store, { home } = {}) {
   try { return minedCount(store) < WARM_MINED; } catch { return false; }
 }
 
-// How each client's agent starts a subagent that keeps running while it goes on: the clients a warm-up can
-// read through when no agent CLI is signed in (session-llm.js). Codex's spawn_agent does not block; Cursor's
-// Task tool and Claude Code's Agent tool run one in the background when asked.
-export const SUBAGENT_TOOLS = { claude: 'your Agent tool, with run_in_background: true', codex: 'spawn_agent (do not call wait_agent for it)', cursor: 'your Task tool, in the background' };
-// The harness behind a client name: the hooks' and the CLI's (claude, codex, cursor) or an MCP client's own
-// (claude-code, codex-mcp-client, cursor-vscode). Claude's chat apps (claude-ai) start no subagents.
-export const subagentHarness = client => { const n = String(client || '').toLowerCase(); return n === 'claude' || n.startsWith('claude-code') ? 'claude' : n.includes('codex') ? 'codex' : n.includes('cursor') ? 'cursor' : null; };
 // A session warm-up is sized to one subagent's context: a merged change's evidence is up to ~10k tokens.
 export const SESSION_PRS = 12;
 
@@ -204,7 +199,7 @@ export function startSessionWarmup(store, { spawnFn = spawn } = {}) {
 // its output in the cache's state directory; no leaves the offer made once, as it is; never stops every
 // offer on this machine. Logged as warmup-answer (choice, client, via: picker, or text when the person
 // answered in chat) for the telemetry (telemetry.js:warmupMetrics). Returns the line to tell the agent.
-export async function answerWarmup(store, choice, { client, via = 'picker', home, spawnFn = spawn, selectAgentFn = selectAndAuthenticateAgent } = {}) {
+export async function answerWarmup(store, choice, { client, via = 'picker', home, spawnFn = spawn, selectAgentFn = selectAndAuthenticateAgent, appFn = desktopApp } = {}) {
   const value = ['warm', 'no', 'never', 'dismissed'].includes(choice) ? choice : 'no';
   store = offerStore(store) || store;   // asked in a worktree: the answer is about its repository's cache
   once(store, 'warmup-answered');
@@ -214,18 +209,24 @@ export async function answerWarmup(store, choice, { client, via = 'picker', home
     return 'Recorded: thinker will not offer a warm-up again in any repository on this machine (thinker warmup still warms one up). Go on with the task.';
   }
   if (value !== 'warm') { store.log({ op: 'warmup-answer', choice: value, client, via }); return 'Recorded: no warm-up for this repository; thinker will not ask again here. Go on with the task.'; }
-  // the agent the warm-up reads through, chosen as the warm-up chooses it, and signed in: checked here, since
-  // the background run fails where nobody sees it (2026-10-15: in a container with Claude Code signed out the
-  // answer said "started" and the log said "Authentication required")
-  let auth;
-  try { auth = await selectAgentFn({ requestedAgent: process.env.THINKER_LLM || null, yes: true, out: () => {}, purpose: 'warm up this repository', allowSkip: false }); }
-  catch (e) { auth = { ok: false, error: e.message }; }
-  // no CLI login, in a client whose agent can start a subagent: the session reads instead (session-llm.js)
-  if (!auth?.ok && subagentHarness(client)) {
+  // Inside a desktop app (Claude Desktop, the Codex app, Cursor) the warm-up goes through the app's own
+  // session, whatever CLIs are signed in: a subagent reads, on the app's login and model.
+  const harness = subagentHarness(client), app = harness && appFn(harness);
+  // Elsewhere: the agent the warm-up reads through, chosen as the warm-up chooses it, and signed in: checked
+  // here, since the background run fails where nobody sees it (2026-10-15: in a container with Claude Code
+  // signed out the answer said "started" and the log said "Authentication required").
+  let auth = null;
+  if (!app) {
+    try { auth = await selectAgentFn({ requestedAgent: process.env.THINKER_LLM || null, yes: true, out: () => {}, purpose: 'warm up this repository', allowSkip: false }); }
+    catch (e) { auth = { ok: false, error: e.message }; }
+  }
+  // in an app, or with no CLI login in a client whose agent can start a subagent: the session reads (session-llm.js)
+  if (app || (!auth?.ok && harness)) {
     const r = startSessionWarmup(store, { spawnFn });
-    store.log({ op: 'warmup-answer', choice: value, client, via, started: !r.error, agent: 'session', ...(r.error ? { reason: r.error } : {}) });
+    store.log({ op: 'warmup-answer', choice: value, client, via, started: !r.error, agent: 'session', ...(app ? { app } : {}), ...(r.error ? { reason: r.error } : {}) });
     if (r.error) return `The warm-up did not start (${r.error}). The user can run \`thinker warmup\` in this repository. Go on with the task.`;
-    return `No agent CLI is signed in on this machine${auth?.agent ? ` (${auth.agent})` : ''}, so the warm-up reads through this session: it started in the background and waits for a subagent to answer its model calls (about ${SESSION_PRS} merged pull requests; output in ${path.relative(store.repo, r.logFile)}). Start one now with ${SUBAGENT_TOOLS[subagentHarness(client)]}, and do not wait for it: give it exactly the prompt below. Tell the user in one line that the warm-up runs in a background subagent of this session, then go on with the task.\n\n${subagentPrompt(store.repo)}`;
+    const why = app ? `This session runs in ${app}, so the warm-up reads through it` : `No agent CLI is signed in on this machine${auth?.agent ? ` (${auth.agent})` : ''}, so the warm-up reads through this session`;
+    return `${why}: it started in the background and waits for a subagent to answer its model calls (about ${SESSION_PRS} merged pull requests; output in ${path.relative(store.repo, r.logFile)}). Start one now with ${SUBAGENT_TOOLS[harness]}, and do not wait for it: give it exactly the prompt below. Tell the user in one line that the warm-up runs in a background subagent of this session, then go on with the task.\n\n${subagentPrompt(store.repo)}`;
   }
   if (!auth?.ok) {
     store.log({ op: 'warmup-answer', choice: value, client, via, started: false, reason: auth?.error || 'no agent' });

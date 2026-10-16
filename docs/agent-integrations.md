@@ -92,6 +92,34 @@ existing Thinker model backend (Anthropic API or a supported model CLI); these
 new hook integrations do not add model-provider adapters. Retrieval itself does
 not need model credentials.
 
+## Desktop apps: model calls through the app, never a CLI
+
+Inside a desktop app (Claude Desktop, the Codex app, Cursor) thinker runs no agent
+CLI. A desktop app's login does not sign in its CLI, and many of its users have
+none installed. Every model call thinker makes for such a session goes through
+the app's own session instead, on its login and model: thinker queues the calls
+(`.thinker/state/session-llm`), and the agent starts a background subagent that
+answers them through thinker's `warmup_next` and `warmup_answer` tools.
+
+- **Warm-up.** Answering Warm starts the build with the session provider (about
+  twelve merged pull requests, what one subagent's context holds); the answer tells
+  the agent to start the subagent. No CLI login is checked.
+- **Learning.** The hooks queue what they would have run in the background (a
+  session's distill, catch-up learning, maintenance) as jobs in
+  `.thinker/state/session-jobs`. On a later prompt in an app session, at most every
+  half hour, the prompt hook starts `thinker session-work` on a few of them and asks
+  the agent for the subagent. Maintenance a commit starts in a repository worked in
+  an app within a day is queued the same way.
+- **Detection.** Claude Desktop sets `CLAUDE_CODE_ENTRYPOINT=claude-desktop`; the
+  Codex app (inside ChatGPT.app) and Cursor are found among the process's
+  ancestors. A CLI in a terminal keeps the CLI path.
+- **Codex.** Its subagents (`[features] multi_agent = true` in
+  `~/.codex/config.toml`) are turned on when thinker wires Codex, and by
+  `thinker doctor` on machines wired before.
+
+Outside the apps, where no agent CLI is signed in, Claude Code, Codex and Cursor
+warm up through the session the same way.
+
 ## End-of-turn notices
 
 All eight adapters install a stop callback when hooks are enabled, including with

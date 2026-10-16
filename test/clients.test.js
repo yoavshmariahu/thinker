@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store } from '../src/store.js';
 import { createNote } from '../src/ops.js';
-import { parseClients, installClient, uninstallClients, uninstallWiring, connectFromCheckouts, pruneInstalls, prunedLines, compareVersions, trustCodex, trustCodexUser, codexHookHash, toolFiles, hookClient, stopOutput, refreshWiring, inferWiring, stripRepoWiring, connectDetected } from '../src/clients.js';
+import { parseClients, installClient, uninstallClients, uninstallWiring, connectFromCheckouts, pruneInstalls, prunedLines, compareVersions, trustCodex, trustCodexUser, codexHookHash, toolFiles, hookClient, stopOutput, refreshWiring, inferWiring, stripRepoWiring, connectDetected, enableCodexSubagents, codexSubagentsOn } from '../src/clients.js';
 import { installGitHooks, mainCheckout } from '../src/git-hooks.js';
 import { knownRepos } from '../src/commands/setup.js';
 
@@ -520,12 +520,15 @@ test('connect wires the agents into their own settings, once per machine: no --r
     assert.ok(toml.startsWith('model = "gpt-5"'));
     assert.equal(toml.match(/\[mcp_servers\.thinker\]/g).length, 1);
     assert.ok(!toml.includes('THINKER_REPO') && !toml.includes('[mcp_servers.thinker.env]'), 'no pinned repository');
-    // Codex reviews the user's hooks too: their hashes, keyed by the user's hooks.json
-    assert.deepEqual(trustCodexUser().length, 1);
+    // Codex reviews the user's hooks too: their hashes, keyed by the user's hooks.json; and its subagents
+    // are turned on, which a warm-up in the Codex app reads through
+    const marked = trustCodexUser();
+    assert.equal(marked.length, 2); assert.match(marked[0], /turned on subagents/);
     const trusted = fs.readFileSync(path.join(home.CODEX_HOME, 'config.toml'), 'utf8');
     const hf = fs.realpathSync(path.join(home.CODEX_HOME, 'hooks.json'));
     assert.ok(trusted.includes(`[hooks.state.${JSON.stringify(hf + ':user_prompt_submit:0:0')}]\ntrusted_hash = "${codexHookHash('user_prompt_submit', codex.UserPromptSubmit[0].hooks[0])}"`));
     assert.ok(trusted.includes(':post_tool_use:0:0"]') && trusted.includes(':stop:0:0"]') && !trusted.includes('[projects.'));
+    assert.ok(/\[features\]\nmulti_agent = true\n/.test(trusted));
 
     const gem = JSON.parse(fs.readFileSync(path.join(home.HOME, '.gemini', 'settings.json'), 'utf8'));
     assert.ok(gem.hooks.BeforeAgent[0].hooks[0].command.endsWith('--client gemini --user --record') && gem.mcpServers.thinker);
@@ -550,7 +553,8 @@ test('connect wires the agents into their own settings, once per machine: no --r
     assert.deepEqual(JSON.parse(fs.readFileSync(path.join(home.HOME, '.claude.json'), 'utf8')).mcpServers, { other: { command: 'x' } });
     assert.ok(!fs.existsSync(path.join(home.CODEX_HOME, 'hooks.json')));
     const t2 = fs.readFileSync(path.join(home.CODEX_HOME, 'config.toml'), 'utf8');
-    assert.equal(t2.trim(), 'model = "gpt-5"');
+    // Codex's subagents stay on: a Codex setting (on by default since 0.160), not thinker's wiring
+    assert.equal(t2.trim(), 'model = "gpt-5"\n\n[features]\nmulti_agent = true');
     assert.ok(!fs.existsSync(path.join(home.HOME, '.gemini', 'settings.json')) && !fs.existsSync(path.join(home.HOME, '.cursor', 'mcp.json')));
   });
 });
@@ -779,4 +783,29 @@ test('an update wires a detected pi, OpenCode, Copilot or Windsurf once, with th
     assert.deepEqual(connectDetected({ cli: CLI, mcpEntry: entry, home: thinker, detected: ['claude', 'pi', 'copilot', 'opencode'] }), ['opencode']);
     assert.equal(inferWiring(null, 'pi', { scope: 'user' }), null);
   });
+});
+
+test('Codex subagents are turned on in config.toml, keeping the other [features] keys and tables, once', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-codex-features-'));
+  const file = path.join(dir, 'config.toml');
+  // no [features] yet
+  fs.writeFileSync(file, 'model = "gpt-6"\n');
+  assert.match(enableCodexSubagents({ file })[0], /multi_agent = true/);
+  assert.equal(fs.readFileSync(file, 'utf8'), 'model = "gpt-6"\n\n[features]\nmulti_agent = true\n');
+  assert.deepEqual(enableCodexSubagents({ file }), []);
+  // [features] with hooks, and a table after it
+  fs.writeFileSync(file, '[features]\nhooks = true\n\n[projects."/r"]\ntrust_level = "trusted"\n');
+  enableCodexSubagents({ file });
+  assert.equal(fs.readFileSync(file, 'utf8'), '[features]\nmulti_agent = true\nhooks = true\n\n[projects."/r"]\ntrust_level = "trusted"\n');
+  // turned off: turned back on in place
+  fs.writeFileSync(file, '[features]\nhooks = true\nmulti_agent = false\n');
+  enableCodexSubagents({ file });
+  assert.equal(fs.readFileSync(file, 'utf8'), '[features]\nhooks = true\nmulti_agent = true\n');
+  assert.ok(codexSubagentsOn(fs.readFileSync(file, 'utf8')));
+  // a multi_agent key in another table is not the feature
+  assert.ok(!codexSubagentsOn('[features]\nhooks = true\n[agents]\nmulti_agent = true\n'));
+  // no file: written
+  const fresh = path.join(dir, 'sub', 'config.toml');
+  enableCodexSubagents({ file: fresh });
+  assert.equal(fs.readFileSync(fresh, 'utf8'), '[features]\nmulti_agent = true\n');
 });

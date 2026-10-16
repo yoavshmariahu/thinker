@@ -20,6 +20,7 @@ import { sessionKey } from '../usage.js';
 import { githubSlug, hasBin, verifyAll } from './shared.js';
 import { understand, UNDERSTAND_DEFAULTS } from '../understand.js';
 import { areasConfig } from '../areas.js';
+import { enqueueJob, recentAppSession, runSessionWork } from '../session-work.js';
 
 async function learnCommand(ctx) {
   const { flags } = ctx;
@@ -30,7 +31,11 @@ async function learnCommand(ctx) {
 }
 
 async function maintainCommand(ctx) {
-  const { flags } = ctx;
+  const { flags, store, out } = ctx;
+  // A repository worked in a desktop app runs no agent CLI (app-host.js): maintenance a commit starts there
+  // waits for the app's own session instead (session-work.js), unless this run is that session's.
+  const app = !flags.dry && process.env.THINKER_LLM !== 'session' ? recentAppSession(store) : null;
+  if (app) { enqueueJob(store, 'maintain', ['maintain', '--quiet', '--repo', ctx.repo]); if (!flags.quiet) out(`maintenance queued for the next session in ${app}`); return; }
   // one run of what the hooks do in the background; --dry counts without model calls
   await runMaintain(ctx, { quiet: !!flags.quiet, dry: !!flags.dry });
   return;
@@ -358,7 +363,15 @@ export async function minePrs(ctx, slug, { from, scan, before, after, again, lim
     ...(history ? { ...history, exhausted: history.exhausted && !failed.size } : {}) };
 }
 
+// `thinker session-work`: queued learning of a desktop-app session, run with the session provider (session-work.js)
+async function sessionWorkCommand(ctx) {
+  const { store, HERE, out } = ctx;
+  if (process.env.THINKER_LLM !== 'session') { out('session-work runs only as started by an app session\'s prompt hook'); process.exitCode = 2; return; }
+  out(`${runSessionWork(store, { cli: path.join(HERE, 'cli.js'), out })} jobs run`);
+}
+
 export const commands = {
+  'session-work': sessionWorkCommand,
   'learn': learnCommand,
   'maintain': maintainCommand,
   'distill': distillCommand,
