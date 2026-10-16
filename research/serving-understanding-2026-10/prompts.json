@@ -1,0 +1,16 @@
+{
+  "_how": "Short prompts for the mlflow harder set, written by hand on 2026-10-16 from each request's text alone (not the fix), the way a developer would type one line to their agent.",
+  "PR26225-hard": "stop the tracking server from executing custom scorer code",
+  "PR26270-hard": "gemini and litellm streaming: parallel tool calls all get index 0",
+  "PR26267-hard": "server-info endpoint hangs when the worker pool is busy",
+  "PR26291-hard": "@latest alias returns a different version than /latest for staged models",
+  "PR26269-hard": "anthropic streaming merges parallel tool calls into one",
+  "PR26307-hard": "deepcopy and pickle of spans and traces fail",
+  "PR26369-hard": "trace metrics query fails mixing decimal rollup sums with float raw sums",
+  "PR26442-hard": "let typesafe gateway endpoints use a custom api base url",
+  "PR26252-hard": "min relative change threshold wrong when the baseline metric is negative",
+  "PR26327-hard": "searching mcp endpoints by server name is rejected by the sql parser",
+  "PR26265-hard": "load_text and load_dict should read artifacts as utf-8",
+  "PR26311-hard": "converting a dataset with nested lists of dicts to an evaluation dataset fails",
+  "PR26300-hard": "gemini gateway ignores tool_choice"
+}

@@ -60,3 +60,23 @@ and the gains of the rule are on PR26267 and PR26307, which served5 does not run
   shipped rule. A mixed cache serves one of each at most.
 - Test it where it changes something: the requests of the harder set the shipped rule fails (PR26267,
   PR26307) plus the covered ones, not the six served5 tasks.
+
+## Prompt forms and serving knobs (2026-10-16, later)
+
+Three forms of each request: the full bug report, its first sentence, and a one-line prompt written by hand from
+the request (`prompts.json`). `sweep.mjs`: floor/fallback {0, −2, −4, −6, none} × candidates k {4, 8, 16} ×
+views {search, multi} × request tokens read {60, 120, 250}, one note (`sweep-results.json`). `index-fields.mjs`:
+`applies` and `searchInstances` added to the lexical index.
+
+| form | today's rule (target / precision / noise) | the pool (multi, −4) | best setting found |
+|---|---|---|---|
+| full request | 4/8, 0.71, 0/3 | **7/8**, 0.67, 2/3 | the pool |
+| first sentence | 4/8, 0.44, 1/3 | 5/8, 0.42, 2/3 | 5/8 at 0.83, 0/3 (k 4, multi, floor 0) |
+| one line | 5/8, 0.75, 1/3 | 5/8, 0.45, 2/3 | today's rule |
+
+Short prompts lose their targets before the cross-encoder: at the lexical gate (PR26307, PR26327; both PR26267
+targets on one line) or below rank 8 (PR26267 on the first sentence at 21 and 30). A looser gate (any shared
+word) and indexing `applies` / `searchInstances` change nothing: the notes describe mechanisms ("live",
+"immutable", "finalization") and a short prompt names a symptom ("deepcopy", "pickle", "hangs"). No serving knob
+reaches more than 5 of 8 on short prompts. What is left is on the note side: phrasings in the words a request
+uses, written at build time.

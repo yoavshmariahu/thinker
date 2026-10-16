@@ -44,6 +44,8 @@ async function otherScore(model, query, text, queryTokens) {
   const r = await m(inp);
   return Number(r.logits.data[0]);
 }
+const mappedBy = new Map();
+const mapped = cfg => { if (!mappedBy.has(cfg.mapNote)) mappedBy.set(cfg.mapNote, notes.map(cfg.mapNote)); return mappedBy.get(cfg.mapNote); };
 const memo = new Map();
 async function score(query, n, view, queryTokens, model = null) {
   const key = `${model}\u0000${queryTokens}\u0000${view}\u0000${n.id}\u0000${query}`;
@@ -61,9 +63,11 @@ const VIEWS = { search: ['search'], multi: ['search', 'inst', 'body'], inst: ['i
 export async function trace(task, cfg = BASE) {
   const request = requestOf(task.prompt);
   const q = cfg.query(request, task);
+  // cfg.mapNote: a note as a variant indexes it (more of its own text on the question side, say), ranked as it is
+  const pool = cfg.mapNote ? mapped(cfg) : notes;
   const rows = cfg.gate === 'all'
-    ? rank(notes, { query: q, mode: 'orient', loose: true })
-    : rank(notes, { query: q, mode: 'orient' });
+    ? rank(pool, { query: q, mode: 'orient', loose: true })
+    : rank(pool, { query: q, mode: 'orient' });
   const ranked = rows.filter(r => r.score > 0 && (cfg.gate === 'all' || r.rel > 0 || r.aff > 0)).sort((a, b) => b.score - a.score);
   const cands = ranked.slice(0, cfg.k);
   const ceQuery = cfg.ceQuery ? cfg.ceQuery(request, task) : q;
