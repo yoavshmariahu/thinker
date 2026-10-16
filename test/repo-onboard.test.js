@@ -161,10 +161,23 @@ test('the answer: no closes this repository, never closes every repository, warm
   assert.match(await answerWarmup(warm, 'warm', { client: 'codex', home, selectAgentFn: signedIn, spawnFn: (bin, args, o) => { ran = { args, o }; return { unref() {} }; } }), /started in the background through claude/);
   assert.deepEqual(ran.args.slice(1), ['warmup', '--repos', warm.repo, '--yes', '--terminal', '--agent', 'claude']);
   assert.equal(ops(warm.repo).find(e => e.op === 'warmup-answer').started, true);
-  // no agent signed in: nothing is started, and the agent is told so, with the sign-in command
+  // no agent CLI signed in, in a client that starts subagents: the build reads through the session, and the
+  // agent is told to start the subagent that works its queue
+  for (const client of ['claude-code', 'codex-mcp-client', 'cursor-vscode']) {
+    const s = new Store(gitRepo(8)).init();
+    let run;
+    const said = await answerWarmup(s, 'warm', { client, home, selectAgentFn: async () => ({ ok: false, agent: 'claude', error: 'unauthenticated' }), spawnFn: (bin, args, o) => { run = { args, o }; return { pid: 999999, unref() {} }; } });
+    assert.match(said, /reads through this session/); assert.match(said, /warmup_next/);
+    assert.match(said, { 'claude-code': /Agent tool, with run_in_background/, 'codex-mcp-client': /spawn_agent/, 'cursor-vscode': /Task tool/ }[client]);
+    assert.deepEqual(run.args.slice(1).filter(a => !a.startsWith('/')), ['setup', '--build', '--yes', '--no-ui', '--no-benchmark', '--no-docs', '--prs', '12', '--agent', 'session', '--repo']);
+    assert.equal(run.o.env.THINKER_SESSION_QUEUE, path.join(s.dir, 'state', 'session-llm'));
+    assert.deepEqual(['started', 'agent'].map(k => ops(s.repo).find(e => e.op === 'warmup-answer')[k]), [true, 'session']);
+  }
+  // no agent signed in, in a client with no subagents (Claude's chat app): nothing is started, and the agent
+  // is told so, with the sign-in command
   const out = new Store(gitRepo(8)).init();
   let spawned = false;
-  const refused = await answerWarmup(out, 'warm', { client: 'claude', home, selectAgentFn: async () => ({ ok: false, agent: 'claude', error: 'auth' }), spawnFn: () => { spawned = true; } });
+  const refused = await answerWarmup(out, 'warm', { client: 'claude-ai', home, selectAgentFn: async () => ({ ok: false, agent: 'claude', error: 'auth' }), spawnFn: () => { spawned = true; } });
   assert.match(refused, /did not start: claude is not signed in/); assert.match(refused, /claude auth login/);
   assert.equal(spawned, false);
   assert.deepEqual(['choice', 'started', 'reason'].map(k => ops(out.repo).find(e => e.op === 'warmup-answer')[k]), ['warm', false, 'auth']);

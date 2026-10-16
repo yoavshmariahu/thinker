@@ -6,7 +6,7 @@ export function buildModel(agent, { model, configModel } = {}) {
   const tier = model || configModel || DEFAULT_DISTILL_MODEL;
   const resolved = resolveModel(agent, tier);
   const automatic = !model && !configModel && !process.env.THINKER_LLM_MODEL;
-  const name = automatic ? (agent === 'codex' ? 'Luna' : agent === 'gemini' ? 'Gemini Flash' : 'Sonnet') : resolved;
+  const name = agent === 'session' ? 'your session\'s model' : automatic ? (agent === 'codex' ? 'Luna' : agent === 'gemini' ? 'Gemini Flash' : 'Sonnet') : resolved;
   return { tier, model: resolved, name, automatic };
 }
 
