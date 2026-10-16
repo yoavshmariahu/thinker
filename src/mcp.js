@@ -139,7 +139,7 @@ function registerTools() {
     const r = await orient(store, { task, file, client: 'mcp', budget: budget || 1000, snippets: snippetsOn(store), ...(budget ? { maxNotes: 5, relFloor: 0.7 } : {}) });
     // no text search over the whole task on a miss: a sentence's words list unrelated code (mitmproxy, 2026-10-07:
     // ValueEditor.tsx and SaveHar for a binary-detection fix) that the agent then opens
-    if (!r.included.length) return text(`${emptyCache() || `No cached notes match this task (${store.list().length} notes in cache). `}Work from the code, then call remember with what you learn.`);
+    if (!r.included.length) return text(`${emptyCache() || `No cached notes match this task (${store.list().length} notes in cache). `}Work from the code${noLearn ? '' : ', then call remember with what you learn'}.`);
     const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n')}` : '';
     const notes = `Cached knowledge for this task (${r.included.length} notes, ~${r.tokens} tokens):\n\n${r.text}${more}`;
     return text(notes);

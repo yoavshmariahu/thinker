@@ -248,3 +248,22 @@ test('the guard line says where an uncovered identifier is defined, only when th
   assert.match(g.text, /`run_callback` \(\d files?; defined at src\/core\.py:L10\)/);
   assert.match(g.text, /`helper_twice` \(2 files; defined in 2 places\)/, 'several definitions are counted, not one picked');
 });
+
+test('find on one identifier lists its definitions first, however large their file or body, and shows code only for a single one', () => {
+  const repo = gitRepo();
+  process.env.THINKER_LOG = 'off';
+  // a class past both limits of the word search: a file over 400 kB and a body over 1,500 lines
+  const body = Array.from({ length: 1700 }, (_, i) => `    def m${i}(self):\n        return "${'x'.repeat(220)}"\n`).join('');
+  fs.writeFileSync(path.join(repo, 'src/big_store.py'), `class BigStore:\n${body}`);
+  fs.writeFileSync(path.join(repo, 'src/other.py'), 'def use_store():\n    return BigStore()\n\ndef big_helper():\n    return 1\n');
+  fs.writeFileSync(path.join(repo, 'src/again.py'), 'def big_helper():\n    return 2\n');
+  execFileSync('git', ['add', '-A'], { cwd: repo }); execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'big'], { cwd: repo });
+  assert.ok(fs.statSync(path.join(repo, 'src/big_store.py')).size > 400_000);
+  const store = new Store(repo).init();
+  const f = find(store, { query: 'BigStore' });
+  assert.match(f.text, /^Definitions carrying "BigStore"[^\n]*\n- src\/big_store\.py:BigStore:L1  \(class/, 'the class comes first');
+  assert.match(f.text, /```\n +1  class BigStore:/, 'one definition of the name: its code (head and members) comes with the list');
+  const two = find(store, { query: 'big_helper' });
+  assert.match(two.text, /- src\/(other|again)\.py:big_helper:L\d+[\s\S]*- src\/(other|again)\.py:big_helper:L\d+/);
+  assert.doesNotMatch(two.text, /```/, 'two definitions of the name: none of them is picked to show');
+});
