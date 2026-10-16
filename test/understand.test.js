@@ -53,7 +53,7 @@ test('understand writes notes read from the code, with instance views, and logs 
   const calls = [];
   const completeFn = async o => {
     calls.push(o);
-    if (o.schema.properties.notes) return { json: { notes: [{ title: 'How Hot runs', kind: 'map', body: 'pkg/hot.py:Hot.run returns the iteration.', answers: ['Where does Hot run?'], applies: 'changing Hot', deps: [{ path: 'pkg/hot.py', symbol: 'Hot.run' }] }] }, usage: { input_tokens: 1000, output_tokens: 100 } };
+    if (o.schema.properties.notes) return { json: { notes: [{ title: 'How Hot runs', kind: 'map', body: 'pkg/hot.py:Hot.run returns the iteration.', answers: ['Where does Hot run?'], applies: 'changing Hot', deps: [{ path: 'pkg/hot.py', symbol: 'Hot.run' }] }] }, tokens: { inputTokens: 1000, outputTokens: 100 }, usage: [{ input_tokens: 1000, output_tokens: 100 }] };  // as complete() answers under Codex
     return { json: { search: 'How Hot runs: Hot.run returns the iteration; covers the Hot runner and warm path.' }, usage: {} };
   };
   try {
