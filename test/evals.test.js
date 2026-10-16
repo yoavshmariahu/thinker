@@ -10,7 +10,7 @@ import { bootstrap } from '../bench/evals/stats.js';
 import { compare, resolveMeta, writeMeta, readMeta } from '../bench/evals/experiment.js';
 import { openDb } from '../bench/evals/db.js';
 import { ingest } from '../bench/evals/ingest.js';
-import { plan, launch, cancel, alive, jobsView, liveSessions } from '../bench/evals/jobs.js';
+import { plan, launch, cancel, alive, jobsView, liveSessions, RUNNERS, OPTIONS } from '../bench/evals/jobs.js';
 import { createPrset, readPrset, updatePrset, freezePrset } from '../bench/evals/prsets.js';
 import { importTaskSet, setAcceptance, getTaskSet, writeRunTasks, listTaskSets } from '../bench/evals/tasksets.js';
 import { checkCache, planCache, readReceipt, notesDir, cacheDir, hashNotes, stepsOf } from '../bench/evals/caches.js';
@@ -637,4 +637,12 @@ test('every PR Artemis holds is listed, a PR set opens to its PRs, and a PR show
     assert.deepEqual(pr.spec.tasksets, [{ name: 'click', version: 1 }]); assert.deepEqual(pr.spec.prsets, ['ps']);
     assert.equal(pr.experiments.length, 0);
   } finally { app.close(); }
+});
+
+test('every runner option the experiment form shows has a name and says what it does', () => {
+  for (const [runner, r] of Object.entries(RUNNERS)) for (const key of [...r.booleans, ...r.values]) {
+    const o = OPTIONS[key];
+    assert.ok(o && o.label && o.help && !o.label.startsWith('--'), `${runner}: ${key} needs a label and help in jobs.js OPTIONS`);
+    assert.equal(o.type, r.booleans.includes(key) ? 'switch' : 'setting', `${runner}: ${key}`);
+  }
 });
