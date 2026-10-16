@@ -10,7 +10,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store, repoId } from '../src/store.js';
-import { WARM_MINED, minedCount, answerWarmup, warmupPending, warmupNever } from '../src/repo-onboard.js';
+import { WARM_MINED, minedCount, answerWarmup, warmupPending, warmupNever, desktopApp } from '../src/repo-onboard.js';
 import { createNote } from '../src/ops.js';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
@@ -158,7 +158,7 @@ test('the answer: no closes this repository, never closes every repository, warm
   const warm = new Store(gitRepo(8)).init();
   let ran;
   const signedIn = async () => ({ ok: true, agent: 'claude' });
-  assert.match(await answerWarmup(warm, 'warm', { client: 'codex', home, selectAgentFn: signedIn, spawnFn: (bin, args, o) => { ran = { args, o }; return { unref() {} }; } }), /started in the background through claude/);
+  assert.match(await answerWarmup(warm, 'warm', { client: 'codex', home, selectAgentFn: signedIn, appFn: () => null, spawnFn: (bin, args, o) => { ran = { args, o }; return { unref() {} }; } }), /started in the background through claude/);
   assert.deepEqual(ran.args.slice(1), ['warmup', '--repos', warm.repo, '--yes', '--terminal', '--agent', 'claude']);
   assert.equal(ops(warm.repo).find(e => e.op === 'warmup-answer').started, true);
   // no agent CLI signed in, in a client that starts subagents: the build reads through the session, and the
@@ -166,18 +166,25 @@ test('the answer: no closes this repository, never closes every repository, warm
   for (const client of ['claude-code', 'codex-mcp-client', 'cursor-vscode']) {
     const s = new Store(gitRepo(8)).init();
     let run;
-    const said = await answerWarmup(s, 'warm', { client, home, selectAgentFn: async () => ({ ok: false, agent: 'claude', error: 'unauthenticated' }), spawnFn: (bin, args, o) => { run = { args, o }; return { pid: 999999, unref() {} }; } });
+    const said = await answerWarmup(s, 'warm', { client, home, appFn: () => null, selectAgentFn: async () => ({ ok: false, agent: 'claude', error: 'unauthenticated' }), spawnFn: (bin, args, o) => { run = { args, o }; return { pid: 999999, unref() {} }; } });
     assert.match(said, /reads through this session/); assert.match(said, /warmup_next/);
     assert.match(said, { 'claude-code': /Agent tool, with run_in_background/, 'codex-mcp-client': /spawn_agent/, 'cursor-vscode': /Task tool/ }[client]);
     assert.deepEqual(run.args.slice(1).filter(a => !a.startsWith('/')), ['setup', '--build', '--yes', '--no-ui', '--no-benchmark', '--no-docs', '--prs', '12', '--agent', 'session', '--repo']);
     assert.equal(run.o.env.THINKER_SESSION_QUEUE, path.join(s.dir, 'state', 'session-llm'));
     assert.deepEqual(['started', 'agent'].map(k => ops(s.repo).find(e => e.op === 'warmup-answer')[k]), [true, 'session']);
   }
+  // in a desktop app the session reads, even with a CLI signed in: its login is not even checked
+  const inApp = new Store(gitRepo(8)).init();
+  let checked = false, appRun;
+  const appSaid = await answerWarmup(inApp, 'warm', { client: 'claude-code', home, appFn: h => h === 'claude' ? 'Claude Desktop' : null, selectAgentFn: async () => { checked = true; return { ok: true, agent: 'claude' }; }, spawnFn: (bin, args, o) => { appRun = args; return { pid: 999999, unref() {} }; } });
+  assert.match(appSaid, /runs in Claude Desktop, so the warm-up reads through it/); assert.match(appSaid, /run_in_background/);
+  assert.equal(checked, false); assert.ok(appRun.includes('session'));
+  assert.equal(ops(inApp.repo).find(e => e.op === 'warmup-answer').app, 'Claude Desktop');
   // no agent signed in, in a client with no subagents (Claude's chat app): nothing is started, and the agent
   // is told so, with the sign-in command
   const out = new Store(gitRepo(8)).init();
   let spawned = false;
-  const refused = await answerWarmup(out, 'warm', { client: 'claude-ai', home, selectAgentFn: async () => ({ ok: false, agent: 'claude', error: 'auth' }), spawnFn: () => { spawned = true; } });
+  const refused = await answerWarmup(out, 'warm', { client: 'claude-ai', home, appFn: () => null, selectAgentFn: async () => ({ ok: false, agent: 'claude', error: 'auth' }), spawnFn: () => { spawned = true; } });
   assert.match(refused, /did not start: claude is not signed in/); assert.match(refused, /claude auth login/);
   assert.equal(spawned, false);
   assert.deepEqual(['choice', 'started', 'reason'].map(k => ops(out.repo).find(e => e.op === 'warmup-answer')[k]), ['warm', false, 'auth']);
@@ -220,4 +227,16 @@ test('a linked worktree is its repository: no offer when the main checkout is wa
   const bare = gitRepo(8);
   assert.doesNotMatch(hook(worktree(bare, 'x'), 'prompt', { session_id: 't4', prompt: 'hello' }), /thinker-new-repository/);
   assert.ok(!fs.existsSync(path.join(bare, '.thinker')));
+});
+
+test('the desktop app a session runs in: Claude Desktop by its env or its process, the Codex app and Cursor by their process; a terminal CLI is none', () => {
+  const none = { env: {}, ancestry: ['claude', '-zsh', '/Applications/iTerm.app/Contents/MacOS/iTerm2'] };
+  assert.equal(desktopApp('claude', { env: { CLAUDE_CODE_ENTRYPOINT: 'claude-desktop' }, ancestry: [] }), 'Claude Desktop');
+  assert.equal(desktopApp('claude', { env: {}, ancestry: ['/Users/u/Library/Application Support/Claude/claude-code/2.1.299/x/claude.app/Contents/MacOS/claude', '/Applications/Claude.app/Contents/MacOS/Claude'] }), 'Claude Desktop');
+  // Claude Code's own CLI bundle is not the desktop app
+  assert.equal(desktopApp('claude', { env: { CLAUDE_CODE_ENTRYPOINT: 'cli' }, ancestry: ['/Users/u/.local/share/claude/ClaudeCode.app/Contents/MacOS/claude'] }), null);
+  assert.equal(desktopApp('codex', { env: {}, ancestry: ['/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex', '/Applications/ChatGPT.app/Contents/MacOS/ChatGPT'] }), 'the Codex app');
+  assert.equal(desktopApp('cursor', { env: {}, ancestry: ['Cursor Helper (Plugin)', '/Applications/Cursor.app/Contents/MacOS/Cursor'] }), 'Cursor');
+  for (const h of ['claude', 'codex', 'cursor']) assert.equal(desktopApp(h, none), null);
+  assert.equal(desktopApp('gemini', { env: {}, ancestry: ['/Applications/Claude.app/Contents/MacOS/Claude'] }), null);
 });
