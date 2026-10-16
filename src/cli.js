@@ -21,6 +21,7 @@ import { commands as benchmarkCommands } from './commands/benchmark.js';
 import { commands as doctorCommands } from './commands/doctor.js';
 import { commands as warmupCommands } from './commands/warmup.js';
 import { commands as switchCommands } from './commands/repo-switch.js';
+import { commands as externalCommands } from './commands/external.js';
 import { isDisabledRepo, OFF_MESSAGE } from './repo-switch.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -152,6 +153,12 @@ const HELP = `thinker — knowledge cache for coding agents
                                  --from <commit>: look back from that commit instead of the checkout's head: the newest --limit changes
                                  worth distilling among the 3 x limit commits that end there (--scan n: among n); nothing merged
                                  after it is read
+  mcp                            the MCP server on stdio, for an agent's MCP settings (THINKER_REPO pins the repository)
+  version [--json]               the version this thinker runs, and its commit when it runs from a checkout
+  served [--json]                what this checkout's own log says was served: prompt-hook and file-hook notes, orient and lookup calls
+  spent [--json]                 what this checkout's own log says its model calls spent, and what mining and understanding did
+  guide                          the cache usage guidance an install writes into an agent's instructions
+  export [file.tgz] [--dir d]    back the cache up to a .tgz; --dir writes every note whole, one <id>.json each, into d
   hook <prompt|tool|stop [--nudge]> [--client c]   hook entrypoints (JSON on stdin): prompt = notes for the request, tool = notes about files being edited, stop = nudge + distill
   impact [--days n] [--pr n] [--json]   delivery outcomes: tokens per PR and confirmed bugs fixed before merge
   impact sync [--days n] [--pr n]      read PR lifecycle and commits through gh (no posting)
@@ -228,13 +235,16 @@ function unknownFlags(c, given, help = HELP) {
 const CACHE_COMMANDS = ['tools', 'orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'session-work', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback', 'skills'];
 
 // One handler per command, in src/commands/; each gets the context below and nothing else of this file.
-const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...skillsCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...warmupCommands, ...switchCommands };
+const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...skillsCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...warmupCommands, ...switchCommands, ...externalCommands };
 // Commands that still answer in a repository thinker is switched off for (repo-switch.js): the machine-wide
 // ones, the ones about the install itself, and the switch. `hook` keeps quiet by itself.
-const OFF_COMMANDS = ['enable', 'disable', 'ui', 'warmup', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'stats', 'ast', 'ranker', 'hook', 'serve', undefined];
+const OFF_COMMANDS = ['version', 'enable', 'disable', 'ui', 'warmup', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'stats', 'ast', 'ranker', 'hook', 'serve', undefined];
 
 async function main() {
   if (flags.help || ['help', '--help', '-h'].includes(cmd)) { out(HELP); return; }
+  // the server owns stdout from its first byte, and checks for a switched-off repository itself
+  if (cmd === 'mcp') { await import('./mcp.js'); return; }
+  if (cmd === '--version') { await COMMANDS.version({ flags, out, HERE }); return; }
   if (cmd === 'share' || cmd === 'sync' || flags.shared) {
     console.error('thinker: team sharing is no longer supported; notes and learning stay local.');
     process.exitCode = cmd === 'share' && (flags['pre-push'] || flags['repair-staged']) ? 0 : 1;
@@ -267,7 +277,7 @@ async function main() {
     if (!store.exists()) store.init();
   }
   // symbol boundaries by tree-sitter where its grammars are installed (`thinker ast install`), else by regex
-  if (!['update', 'upgrade', 'switch', 'branch', 'serve', 'ast', 'usage', 'impact', 'stats', 'telemetry', 'help', 'warmup', undefined].includes(cmd)) await initAst();
+  if (!['update', 'upgrade', 'switch', 'branch', 'serve', 'ast', 'usage', 'impact', 'stats', 'telemetry', 'help', 'warmup', 'version', 'served', 'spent', 'guide', undefined].includes(cmd)) await initAst();
 
   const handler = COMMANDS[cmd];
   if (!handler) { out(HELP); return; }
