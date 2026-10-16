@@ -660,15 +660,20 @@ test('telemetry payload carries warm-up offers, the builds they led to, and whet
     store.log({ op: 'warmup-answer', choice: 'never', client: 'pi', via: 'text' });
     store.log({ op: 'warmup-answer', choice: 'dismissed', client: 'codex', via: 'picker' });
     store.log({ op: 'warmup-start', source: 'git' });
-    store.log({ op: 'warmup-done', ok: false, notes: 3, mined: 0 });
+    store.log({ op: 'warmup-done', ok: false, notes: 3, mined: 0, reason: 'unauthenticated' });
     store.log({ op: 'warmup-start', source: 'git' });
     let payload = buildTelemetryPayload(store, { home: tmpHome, days: 1, all: false });
+    const [failed, running] = payload.warmup.requests;
+    assert.deepEqual([failed.outcome, failed.reason, running.outcome, running.endedAt], ['failed', 'unauthenticated', 'unfinished', null]);
+    assert.ok(failed.startedAt <= failed.endedAt, 'a failed build says when it started and when it failed');
+    delete payload.warmup.requests;
     assert.deepEqual(payload.warmup, { schemaVersion: 1, windowDays: 30, warmMined: 10, offers: 1, offersToColdCaches: 1, started: 2, finished: 0, failed: 1, answeredWarm: 1, answeredNo: 0, answeredNever: 1, answersDismissed: 1, answersInPicker: 1, answeredWarmNotStarted: 0, offeredRepositories: 1, offeredThenStarted: 1, activeRepositoriesWarm: 0, activeRepositoriesCold: 1 });
     // the second build finishes, having read its history: the repository in use is warm now
     fs.writeFileSync(path.join(store.dir, 'prs.json'), JSON.stringify({ local: { mined: Array.from({ length: 10 }, (_, i) => `c${i}`) } }));
     store.log({ op: 'warmup-done', ok: true, notes: 40, mined: 10 });
     payload = buildTelemetryPayload(store, { home: tmpHome, days: 1, all: false });
     assert.equal(payload.warmup.finished, 1);
+    assert.deepEqual(payload.warmup.requests.map(r => r.outcome), ['failed', 'finished']);
     assert.deepEqual([payload.warmup.activeRepositoriesWarm, payload.warmup.activeRepositoriesCold], [1, 0]);
     assert.doesNotMatch(JSON.stringify(payload.warmup), new RegExp(path.basename(tmpRepo)), 'counts only, no repository names');
   } finally {
