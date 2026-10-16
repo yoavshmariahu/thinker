@@ -43,6 +43,10 @@ const CLI = path.join(ROOT, 'src', 'cli.js');
 const baseClone = path.join(HERE, 'repos', `${repoName}-base`);
 const WT_REPO = fs.existsSync(baseClone) ? baseClone : REPO;
 const BUDGET = Number(flags.budget || process.env.BENCH_BUDGET) || 750;
+// What every hook and tool call of a cache arm runs with: the product holds notes back on a share of turns
+// (src/ops.js:holdoutRate, 15% since 2026-10-14) to measure itself, which in a benchmark arm would serve
+// nothing on about one session in seven; --ce-views multi scores notes by their best text (src/dense.js)
+const HOOK_ENV = { THINKER_HOLDOUT: '0', ...(flags['ce-views'] ? { THINKER_CE_VIEWS: String(flags['ce-views']) } : {}) };
 // Arms: nocache | full (hooks, MCP tools and the AGENTS.md instruction, as installed) | hook (notes pasted above the request)
 const ARMS = (flags.arm || process.env.BENCH_ARMS || 'nocache,full').split(',').map(a => a === 'cache' ? 'full' : a);
 // A Codex home for the benchmark: the login, the hooks (reviewed and trusted there once) and the
@@ -102,7 +106,7 @@ function armCache(wt) {
   try { if (fs.lstatSync(agentsFile).isSymbolicLink()) { const text = fs.readFileSync(agentsFile, 'utf8'); fs.rmSync(agentsFile); fs.writeFileSync(agentsFile, text); } } catch {}
   installClient('codex', {
     repo: wt, cli: CLI, hooks: false, learn: false, late: true, shared: false, mcp: true,
-    mcpEntry: { command: 'node', args: [path.join(ROOT, 'src', 'mcp.js')], env: { THINKER_REPO: wt, THINKER_NO_LEARN: '1', THINKER_NO_BG_VERIFY: '1', THINKER_LOG: 'local' } },
+    mcpEntry: { command: 'node', args: [path.join(ROOT, 'src', 'mcp.js')], env: { THINKER_REPO: wt, THINKER_NO_LEARN: '1', THINKER_NO_BG_VERIFY: '1', THINKER_LOG: 'local', ...HOOK_ENV } },
   });
   const cfg = path.join(wt, '.codex', 'config.toml');
   fs.writeFileSync(cfg, fs.readFileSync(cfg, 'utf8').replace('[mcp_servers.thinker]\n', '[mcp_servers.thinker]\nenabled_tools = ["orient", "lookup"]\n'));
@@ -139,6 +143,7 @@ function contextFor(task, session, arm = 'hook') {
     ...process.env,
     THINKER_NOTES_DIR: NOTES,
     THINKER_NO_BG_VERIFY: '1',
+    ...HOOK_ENV,
     ...(ARM_ENV[arm] || {}),
   };
   try {
@@ -166,7 +171,7 @@ function codexCall(prompt, cwd, { model = MODEL, resume = null, ephemeral = true
       ...(schemaFile ? ['--output-schema', schemaFile] : []), '-'];
   const started = Date.now();
   return new Promise((resolve, reject) => {
-    const child = spawn('codex', args, { cwd, env: { ...process.env, CODEX_HOME, CODEX_DISABLE_PROJECT_DOCS: '0' } });
+    const child = spawn('codex', args, { cwd, env: { ...process.env, CODEX_HOME, CODEX_DISABLE_PROJECT_DOCS: '0', ...HOOK_ENV } });
     let stdout = '', stderr = '', timedOut = false;
     // a session that stalls would hold its worker for the rest of the run
     const timer = setTimeout(() => { timedOut = true; child.kill(); }, timeoutMin * 60_000);

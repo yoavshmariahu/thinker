@@ -1,0 +1,1713 @@
+[
+ {
+  "dir": "mlflow/store/tracking",
+  "files": [
+   "mlflow/store/tracking/rest_store.py"
+  ],
+  "notes": [
+   "reststore-request-flow-and-endpoint-routing",
+   "how-to-add-a-new-rest-backed-store-method",
+   "trace-apis-v3-first-with-v2-fallback"
+  ],
+  "inTokens": 42864,
+  "outTokens": 3519
+ },
+ {
+  "dir": "mlflow/store/tracking",
+  "files": [
+   "mlflow/store/tracking/sqlalchemy_workspace_store.py",
+   "mlflow/store/tracking/abstract_store.py"
+  ],
+  "notes": [
+   "workspaceawaresqlalchemystore-map-of-workspace-scoping",
+   "add-workspace-scoping-for-a-new-sql-model",
+   "trace-queries-use-an-in-subquery-not-a-join-so-row-locks-lan",
+   "default-experiment-and-artifact-root-invariants-in-workspace"
+  ],
+  "inTokens": 93592,
+  "outTokens": 6785
+ },
+ {
+  "dir": "mlflow/store/tracking",
+  "files": [
+   "mlflow/store/tracking/sqlalchemy_store.py"
+  ],
+  "notes": [
+   "sqlalchemystore-layout-and-session-workspace-scoping",
+   "adding-a-filter-or-order-by-key-to-a-search-api",
+   "trace-span-storage-location-and-archival-read-write-consiste",
+   "concurrency-conventions-savepoints-integrityerror-translatio",
+   "evaluation-dataset-records-digest-schema-and-profile-mainten"
+  ],
+  "inTokens": 72496,
+  "outTokens": 6845
+ },
+ {
+  "dir": "mlflow/server/auth",
+  "files": [
+   "mlflow/server/auth/__init__.py"
+  ],
+  "notes": [
+   "basic-auth-flask-validator-architecture",
+   "how-to-add-authorization-for-a-new-endpoint-resource",
+   "permission-resolution-and-workspace-boundary-rules",
+   "credential-cache-and-user-mutation-invariants",
+   "request-param-helpers-rbac-and-review-queue-gating-quirks"
+  ],
+  "inTokens": 139165,
+  "outTokens": 9805
+ },
+ {
+  "dir": "mlflow/store/tracking",
+  "files": [
+   "mlflow/store/tracking/sqlalchemy_store.py"
+  ],
+  "notes": [
+   "sqlalchemystore-overview-and-session-workspace-hooks",
+   "metric-param-and-tag-write-paths-dedup-locking-retry",
+   "how-to-add-a-new-sqlalchemystore-method-for-an-experiment-sc",
+   "trace-writes-locking-rollups-and-archival-invariants",
+   "search-pagination-and-metric-history-sampling-conventions"
+  ],
+  "inTokens": 150479,
+  "outTokens": 12189
+ },
+ {
+  "dir": "mlflow/store/tracking",
+  "files": [
+   "mlflow/store/tracking/sqlalchemy_store.py"
+  ],
+  "notes": [
+   "trace-span-write-path-start-trace-vs-log-spans",
+   "rule-lock-ordering-and-deterministic-write-order-in-trace-wr",
+   "trace-archival-and-db-payload-generation-guard",
+   "how-to-add-a-trace-search-filter-or-query-dimension",
+   "search-logged-models-filtering-ordering-pagination"
+  ],
+  "inTokens": 154117,
+  "outTokens": 11054
+ },
+ {
+  "dir": "mlflow/server/auth",
+  "files": [
+   "mlflow/server/auth/sqlalchemy_store.py",
+   "mlflow/server/auth/routes.py"
+  ],
+  "notes": [
+   "auth-sqlalchemystore-role-based-storage-with-synthetic-per-u",
+   "reserved-synthetic-role-namespace-user-id",
+   "add-a-permission-controlled-resource-type-to-the-auth-store",
+   "workspace-scoping-in-the-auth-store"
+  ],
+  "inTokens": 44236,
+  "outTokens": 4524
+ },
+ {
+  "dir": "mlflow/server/auth",
+  "files": [
+   "mlflow/server/auth/__init__.py"
+  ],
+  "notes": [
+   "auth-request-flow-flask-hooks-and-fastapi-middleware",
+   "add-an-authorization-validator-for-a-flask-endpoint",
+   "fail-closed-rule-every-route-needs-an-authorization-decision",
+   "auth-caching-bootstrap-and-user-management-invariants",
+   "permission-resolution-and-response-filtering"
+  ],
+  "inTokens": 138227,
+  "outTokens": 11050
+ },
+ {
+  "dir": "mlflow/server",
+  "files": [
+   "mlflow/server/security_utils.py"
+  ],
+  "notes": [
+   "security-utils-overview-shared-helpers-for-host-validation-a",
+   "static-prefix-awareness-in-path-checks",
+   "how-to-change-allowed-host-origin-defaults-or-add-exempt-pat",
+   "matching-semantics-of-allowed-host-origin-lists"
+  ],
+  "inTokens": 4618,
+  "outTokens": 3067
+ },
+ {
+  "dir": "mlflow/server",
+  "files": [
+   "mlflow/server/handlers.py"
+  ],
+  "notes": [
+   "handlers-py-request-pipeline-and-handler-shape",
+   "how-to-add-a-new-rest-handler",
+   "custom-view-tag-cap-on-experiments",
+   "artifact-access-uri-safety-and-proxied-artifacts",
+   "workspace-aware-store-setup-and-validation"
+  ],
+  "inTokens": 121064,
+  "outTokens": 9445
+ },
+ {
+  "dir": "mlflow/server",
+  "files": [
+   "mlflow/server/gateway_api.py",
+   "mlflow/server/__init__.py",
+   "mlflow/server/otel_api.py",
+   "mlflow/server/job_api.py",
+   "mlflow/server/mcp_server_api.py",
+   "mlflow/server/fastapi_app.py"
+  ],
+  "notes": [
+   "server-app-composition-fastapi-wraps-flask",
+   "gateway-request-pipeline-in-gateway-api-py",
+   "how-to-add-a-new-gateway-passthrough-route-or-provider",
+   "gateway-invariants-secrets-ssrf-telemetry-timing",
+   "mcp-registry-and-otlp-ingestion-api-conventions"
+  ],
+  "inTokens": 70684,
+  "outTokens": 5399
+ },
+ {
+  "dir": "mlflow/server",
+  "files": [
+   "mlflow/server/handlers.py"
+  ],
+  "notes": [
+   "anatomy-of-a-handler-in-mlflow-server-handlers-py",
+   "model-version-source-validation-and-lineage-in-create-model",
+   "webhook-delivery-convention-for-registry-mutations",
+   "proxied-artifact-serving-and-workspace-path-scoping",
+   "trace-review-queue-and-job-submitting-handlers-ownership-and"
+  ],
+  "inTokens": 58791,
+  "outTokens": 5846
+ },
+ {
+  "dir": "mlflow",
+  "files": [
+   "mlflow/environment_variables.py",
+   "mlflow/ml_package_versions.py",
+   "mlflow/version.py",
+   "mlflow/db.py",
+   "mlflow/__init__.py"
+  ],
+  "notes": [
+   "adding-or-changing-an-mlflow-environment-variable",
+   "boolean-env-var-parsing-rules",
+   "mlflow-package-import-flow-and-tracing-sdk-split",
+   "adding-a-new-flavor-top-level-module-or-public-api-to-mlflow",
+   "mlflow-db-cli-commands"
+  ],
+  "inTokens": 72291,
+  "outTokens": 3807
+ },
+ {
+  "dir": "mlflow/server",
+  "files": [
+   "mlflow/server/handlers.py"
+  ],
+  "notes": [
+   "how-rest-handlers-are-wired-protos-handlers-get-endpoints",
+   "add-a-new-rest-api-handler",
+   "gateway-budget-guardrail-handler-invariants",
+   "prompt-optimization-and-job-backed-handlers"
+  ],
+  "inTokens": 122527,
+  "outTokens": 8831
+ },
+ {
+  "dir": "mlflow/store/tracking/dbmodels",
+  "files": [
+   "mlflow/store/tracking/dbmodels/models.py"
+  ],
+  "notes": [
+   "dbmodels-models-py-overview-sqlalchemy-orm-layer-for-the-tra",
+   "how-to-add-or-change-a-column-table-in-dbmodels-models-py",
+   "trace-denormalization-sqltraceinfo-sqlassessments-sqlspan-co",
+   "conventions-ids-workspaces-nan-metrics-evaluation-dataset-re"
+  ],
+  "inTokens": 41341,
+  "outTokens": 4012
+ },
+ {
+  "dir": "mlflow/store/tracking/dbmodels",
+  "files": [
+   "mlflow/store/tracking/dbmodels/models.py"
+  ],
+  "notes": [
+   "dbmodels-models-py-map-sqlalchemy-tables-and-entity-conversi",
+   "how-to-add-a-column-or-table-to-a-workspace-scoped-model",
+   "immutable-gateway-secret-fields-aad-binding",
+   "mcp-server-latest-version-resolution",
+   "review-queue-and-label-schema-invariants"
+  ],
+  "inTokens": 43889,
+  "outTokens": 4415
+ },
+ {
+  "dir": ".github/workflows",
+  "files": [
+   ".github/workflows/protect.js",
+   ".github/workflows/team-review.js",
+   ".github/workflows/advice.js"
+  ],
+  "notes": [
+   "workflow-scripts-overview-protect-team-review-advice",
+   "protect-js-check-aggregation-rules",
+   "team-review-reviewer-selection-and-stats-issue",
+   "add-a-new-pr-check-message-to-advice-js"
+  ],
+  "inTokens": 12514,
+  "outTokens": 3210
+ },
+ {
+  "dir": "mlflow/server/js/scripts",
+  "files": [
+   "mlflow/server/js/scripts/componentId-registry.js"
+  ],
+  "notes": [
+   "componentid-registry-purpose-and-ci-contract",
+   "add-or-rename-a-componentid",
+   "registry-file-invariants"
+  ],
+  "inTokens": 152935,
+  "outTokens": 3745
+ },
+ {
+  "dir": "mlflow/tracking",
+  "files": [
+   "mlflow/tracking/client.py"
+  ],
+  "notes": [
+   "mlflowclient-structure-and-delegation",
+   "add-a-new-mlflowclient-api-method",
+   "prompts-must-not-leak-into-the-model-registry-api",
+   "table-logging-and-loading-via-artifacts-and-run-tag"
+  ],
+  "inTokens": 62994,
+  "outTokens": 3396
+ },
+ {
+  "dir": "mlflow/server/jobs",
+  "files": [
+   "mlflow/server/jobs/lock_manager.py"
+  ],
+  "notes": [
+   "joblockmanager-overview-scheduler-lease-and-exclusive-job-lo",
+   "stale-lock-takeover-rules-and-per-dialect-sql",
+   "insert-races-and-error-handling-via-guard-insert-race",
+   "how-to-change-or-add-lock-lease-behavior"
+  ],
+  "inTokens": 24380,
+  "outTokens": 6491
+ },
+ {
+  "dir": "mlflow/entities",
+  "files": [
+   "mlflow/entities/span.py",
+   "mlflow/entities/_job.py",
+   "mlflow/entities/logged_model.py",
+   "mlflow/entities/mcp_server_version.py",
+   "mlflow/entities/_job_status.py",
+   "mlflow/entities/gateway_budget_policy.py",
+   "mlflow/entities/scorer.py"
+  ],
+  "notes": [
+   "span-class-hierarchy-and-creation",
+   "span-attribute-serialization-rule",
+   "span-serialization-formats-and-how-to-add-a-field",
+   "livespan-end-lifecycle-and-attachment-extraction",
+   "entity-conventions-job-enums-proto-conversion-workspace"
+  ],
+  "inTokens": 98143,
+  "outTokens": 10618
+ },
+ {
+  "dir": "mlflow/server/jobs",
+  "files": [
+   "mlflow/server/jobs/utils.py",
+   "mlflow/server/jobs/__init__.py",
+   "mlflow/server/jobs/_executor_runner.py",
+   "mlflow/server/jobs/executor.py",
+   "mlflow/server/jobs/local_executor.py",
+   "mlflow/server/jobs/executor_registry.py"
+  ],
+  "notes": [
+   "server-job-system-map-submit-two-engines-subprocess-executio",
+   "how-to-add-a-new-job-function",
+   "executor-engine-invariants-workspaces-locks-leases-state-tra",
+   "how-to-implement-or-modify-a-job-executor-backend"
+  ],
+  "inTokens": 130825,
+  "outTokens": 9233
+ },
+ {
+  "dir": "mlflow/store/jobs",
+  "files": [
+   "mlflow/store/jobs/sqlalchemy_store.py",
+   "mlflow/store/jobs/abstract_store.py"
+  ],
+  "notes": [
+   "job-store-overview-and-state-machine",
+   "conditional-status-update-pattern",
+   "retry-backoff-and-lease-behaviour",
+   "adding-a-new-job-store-operation-or-status-transition",
+   "report-job-result-payload-contract"
+  ],
+  "inTokens": 43840,
+  "outTokens": 8615
+ },
+ {
+  "dir": "mlflow/tracking",
+  "files": [
+   "mlflow/tracking/client.py"
+  ],
+  "notes": [
+   "mlflowclient-layering-and-lazy-sub-clients",
+   "add-a-client-method-that-delegates-to-the-tracking-store",
+   "prompt-registry-on-top-of-registered-models",
+   "prompt-experiment-id-tag-format-and-cache-invalidation-rules",
+   "manual-trace-and-span-api-constraints"
+  ],
+  "inTokens": 134122,
+  "outTokens": 8156
+ },
+ {
+  "dir": "mlflow/tracking",
+  "files": [
+   "mlflow/tracking/fluent.py"
+  ],
+  "notes": [
+   "fluent-run-lifecycle-start-run-end-run-active-run-stack",
+   "how-to-add-a-new-fluent-log-function",
+   "set-experiment-and-trace-destination-syncing",
+   "rule-validate-before-committing-global-state-keep-thread-loc"
+  ],
+  "inTokens": 38690,
+  "outTokens": 4155
+ },
+ {
+  "dir": "mlflow/tracking",
+  "files": [
+   "mlflow/tracking/fluent.py"
+  ],
+  "notes": [
+   "fluent-api-layer-in-mlflow-tracking-fluent-py-structure-and",
+   "logged-model-lifecycle-in-fluent-py",
+   "active-model-context-thread-local-state-and-env-var-preceden",
+   "how-mlflow-autolog-wires-up-flavor-integrations"
+  ],
+  "inTokens": 40000,
+  "outTokens": 4339
+ },
+ {
+  "dir": "mlflow/utils",
+  "files": [
+   "mlflow/utils/databricks_utils.py",
+   "mlflow/utils/rest_utils.py"
+  ],
+  "notes": [
+   "databricks-credential-resolution-flow-get-databricks-host-cr",
+   "http-request-pipeline-and-databricks-sdk-retry-path",
+   "how-to-add-a-new-mlflowhostcreds-field-or-auth-mode",
+   "databricks-environment-detection-and-repl-context-shortcut"
+  ],
+  "inTokens": 44454,
+  "outTokens": 4392
+ },
+ {
+  "dir": "mlflow/utils",
+  "files": [
+   "mlflow/utils/validation.py",
+   "mlflow/utils/providers.py",
+   "mlflow/utils/server_info.py"
+  ],
+  "notes": [
+   "validation-py-map-input-validators-and-ssrf-url-checks",
+   "ssrf-safe-url-validation-rules",
+   "providers-py-map-model-catalog-pricing-auth-modes",
+   "how-to-add-or-change-a-provider-s-auth-modes",
+   "server-info-py-cached-de-duplicated-server-info-fetch"
+  ],
+  "inTokens": 46993,
+  "outTokens": 5191
+ },
+ {
+  "dir": "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v4/components",
+  "files": [
+   "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v4/components/TracesV4PageContent.tsx",
+   "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v4/components/TracesV4SavedViews.tsx",
+   "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v4/components/TracesV4Toolbar.tsx",
+   "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v4/components/TracesV4DisplayButton.tsx",
+   "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v4/components/TracesV4DateSelector.tsx"
+  ],
+  "notes": [
+   "tracesv4-page-composition-map",
+   "add-or-change-a-standard-column-in-the-v4-toolbar-display-me",
+   "saved-views-storage-apply-and-dirty-tracking",
+   "rule-column-state-is-spread-across-stores-reset-and-view-res"
+  ],
+  "inTokens": 46926,
+  "outTokens": 4545
+ },
+ {
+  "dir": "mlflow/genai/scorers",
+  "files": [
+   "mlflow/genai/scorers/base.py",
+   "mlflow/genai/scorers/scorer_utils.py"
+  ],
+  "notes": [
+   "scorer-base-module-map",
+   "add-a-new-scorer-kind-to-serialization",
+   "custom-scorer-code-execution-security-rules",
+   "ensemble-scorer-behavior-and-invariants",
+   "scorer-decorator-contract"
+  ],
+  "inTokens": 90528,
+  "outTokens": 9335
+ },
+ {
+  "dir": "mlflow/genai/scorers",
+  "files": [
+   "mlflow/genai/scorers/builtin_scorers.py",
+   "mlflow/genai/scorers/job.py"
+  ],
+  "notes": [
+   "built-in-scorers-map",
+   "how-to-add-a-new-built-in-scorer",
+   "built-in-scorer-serialization-and-discovery-invariants",
+   "server-side-scorer-jobs-job-py",
+   "feedback-and-column-conventions-for-scorers"
+  ],
+  "inTokens": 67013,
+  "outTokens": 6038
+ },
+ {
+  "dir": "mlflow/utils",
+  "files": [
+   "mlflow/utils/search_utils.py",
+   "mlflow/utils/uri.py",
+   "mlflow/utils/search_logged_model_utils.py"
+  ],
+  "notes": [
+   "search-utils-py-map-filter-string-parsing-pipeline",
+   "how-to-add-a-new-searchable-entity-parser-or-a-new-key-compa",
+   "uri-py-map-and-path-safety-helpers",
+   "path-uri-safety-validation-must-be-preserved"
+  ],
+  "inTokens": 139697,
+  "outTokens": 11695
+ },
+ {
+  "dir": "mlflow/gateway/providers",
+  "files": [
+   "mlflow/gateway/providers/bedrock.py"
+  ],
+  "notes": [
+   "amazon-bedrock-provider-overview-and-request-routing",
+   "anthropic-messages-passthrough-on-bedrock",
+   "add-or-change-a-bedrock-underlying-model-adapter-completions",
+   "bedrock-rules-auth-mode-gating-and-payload-handling"
+  ],
+  "inTokens": 33965,
+  "outTokens": 7778
+ },
+ {
+  "dir": "mlflow/store/db_migrations/versions",
+  "files": [
+   "mlflow/store/db_migrations/versions/75868b020152_add_sql_trace_analytics_schema.py",
+   "mlflow/store/db_migrations/versions/dc11669786a5_add_job_executor_persistence_model.py"
+  ],
+  "notes": [
+   "trace-analytics-migration-75868b020152-flow-of-upgrade-and-d",
+   "backfill-loop-pattern-and-idempotency-in-the-analytics-migra",
+   "how-to-add-or-change-an-analytics-column-in-this-migration",
+   "rollup-tables-and-index-naming-conventions-in-the-analytics"
+  ],
+  "inTokens": 46435,
+  "outTokens": 7090
+ },
+ {
+  "dir": "mlflow/gateway/providers",
+  "files": [
+   "mlflow/gateway/providers/gemini.py",
+   "mlflow/gateway/providers/vertex_ai.py",
+   "mlflow/gateway/providers/utils.py",
+   "mlflow/gateway/providers/anthropic.py",
+   "mlflow/gateway/providers/base.py",
+   "mlflow/gateway/providers/typesafe.py"
+  ],
+  "notes": [
+   "gateway-provider-layering-baseprovider-provideradapter-and-t",
+   "how-to-add-or-change-a-request-response-field-in-the-gemini",
+   "auth-header-handling-invariants-for-passthrough-and-proxy",
+   "adding-a-vertex-ai-model-family-or-changing-vertex-routing",
+   "token-usage-extraction-for-tracing-and-passthrough"
+  ],
+  "inTokens": 123861,
+  "outTokens": 10713
+ },
+ {
+  "dir": "libs/typescript/integrations/claude-code/src",
+  "files": [
+   "libs/typescript/integrations/claude-code/src/anthropicPricing.ts",
+   "libs/typescript/integrations/claude-code/src/tracing.ts"
+  ],
+  "notes": [
+   "claude-code-transcript-to-trace-pipeline",
+   "cost-calculation-and-pricing-data-flow",
+   "never-hand-edit-anthropicpricing-ts",
+   "add-a-new-trace-metadata-field-or-span-attribute",
+   "transcript-handling-invariants"
+  ],
+  "inTokens": 13198,
+  "outTokens": 4265
+ },
+ {
+  "dir": "mlflow/tracking/_model_registry",
+  "files": [
+   "mlflow/tracking/_model_registry/fluent.py"
+  ],
+  "notes": [
+   "model-registry-fluent-module-map",
+   "register-model-flow-and-source-resolution",
+   "add-a-parameter-to-register-model",
+   "prompt-api-wrapper-conventions"
+  ],
+  "inTokens": 37072,
+  "outTokens": 5726
+ },
+ {
+  "dir": "mlflow/server/js/src/assistant",
+  "files": [
+   "mlflow/server/js/src/assistant/AssistantContext.tsx",
+   "mlflow/server/js/src/assistant/types.ts",
+   "mlflow/server/js/src/assistant/AssistantChatPanel.tsx",
+   "mlflow/server/js/src/assistant/AssistantService.ts"
+  ],
+  "notes": [
+   "assistant-frontend-architecture-and-streaming-data-flow",
+   "stale-send-guarding-request-tokens-and-withguard",
+   "message-parts-model-and-streaming-text-buffering",
+   "transcript-persistence-and-per-user-identity",
+   "client-executed-tools-and-custom-view-repair-loop"
+  ],
+  "inTokens": 115524,
+  "outTokens": 10087
+ },
+ {
+  "dir": "mlflow/server/js/src/shared/web-shared/model-trace-explorer",
+  "files": [
+   "mlflow/server/js/src/shared/web-shared/model-trace-explorer/ModelTraceExplorer.utils.tsx"
+  ],
+  "notes": [
+   "modeltraceexplorer-utils-trace-to-span-node-tree-pipeline",
+   "how-to-add-chat-message-support-for-a-new-framework-format",
+   "span-search-filtering-and-log-level-semantics",
+   "attribute-and-id-decoding-conventions",
+   "assessments-handling-in-the-trace-tree"
+  ],
+  "inTokens": 64563,
+  "outTokens": 11088
+ },
+ {
+  "dir": ".claude/skills/src/skills/github",
+  "files": [
+   ".claude/skills/src/skills/github/uploads.py",
+   ".claude/skills/src/skills/github/client.py"
+  ],
+  "notes": [
+   "github-skill-package-map-uploads-and-api-client",
+   "uploadfailed-errors-status-fatal-and-how-upload-asset-maps-h",
+   "add-a-new-supported-upload-file-type",
+   "add-an-endpoint-or-paginated-method-to-githubclient"
+  ],
+  "inTokens": 6298,
+  "outTokens": 3406
+ },
+ {
+  "dir": "mlflow/assistant/providers",
+  "files": [
+   "mlflow/assistant/providers/claude_code.py",
+   "mlflow/assistant/providers/openai_compatible.py",
+   "mlflow/assistant/providers/codex.py",
+   "mlflow/assistant/providers/tool_executor.py",
+   "mlflow/assistant/providers/base.py"
+  ],
+  "notes": [
+   "assistant-providers-overview-and-data-flow",
+   "sandbox-vs-host-execution-paths-must-stay-in-sync",
+   "tool-permission-model-for-openai-compatible-providers",
+   "how-to-add-a-new-tool-for-the-openai-compatible-loop",
+   "openai-compatible-streaming-quirks-to-preserve"
+  ],
+  "inTokens": 53055,
+  "outTokens": 5731
+ },
+ {
+  "dir": "mlflow/tracing/utils",
+  "files": [
+   "mlflow/tracing/utils/__init__.py"
+  ],
+  "notes": [
+   "mlflow-tracing-utils-init-py-overview",
+   "trace-usage-and-cost-aggregation-and-calculation",
+   "how-to-add-a-new-usage-or-cost-key-to-aggregation",
+   "conventions-attribute-serialization-fail-safe-helpers-lazy-i",
+   "trace-finalization-helpers-and-experiment-resolution"
+  ],
+  "inTokens": 38133,
+  "outTokens": 8184
+ },
+ {
+  "dir": ".claude/skills/src/skills/commands",
+  "files": [
+   ".claude/skills/src/skills/commands/embed_media.py",
+   ".claude/skills/src/skills/commands/upload_media.py"
+  ],
+  "notes": [
+   "embed-media-command-flow-and-decision-points",
+   "never-follow-symlinks-when-collecting-media",
+   "never-post-a-local-path-unresolved-citations-must-be-strippe",
+   "add-or-change-a-media-rewrite-rule-or-supported-payload-fiel",
+   "upload-media-vs-embed-media-credential-and-error-handling"
+  ],
+  "inTokens": 7421,
+  "outTokens": 3562
+ },
+ {
+  "dir": "mlflow/server/assistant",
+  "files": [
+   "mlflow/server/assistant/api.py",
+   "mlflow/server/assistant/session.py"
+  ],
+  "notes": [
+   "assistant-server-api-map",
+   "remote-access-policy-on-assistant-routes",
+   "add-a-new-assistant-api-endpoint",
+   "session-storage-and-process-container-tracking"
+  ],
+  "inTokens": 20690,
+  "outTokens": 4047
+ },
+ {
+  "dir": "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v3",
+  "files": [
+   "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v3/TracesV3Logs.tsx",
+   "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v3/ExperimentCustomViewProvider.tsx",
+   "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v3/TracesV3View.tsx",
+   "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v3/TracesV3SavedViews.tsx"
+  ],
+  "notes": [
+   "tracesv3logs-composition-and-data-flow-of-the-traces-tab-tab",
+   "saved-view-preview-override-in-tracesv3logs",
+   "traces-saved-views-storage-capture-and-sharing",
+   "how-to-add-a-new-url-captured-field-to-traces-saved-views"
+  ],
+  "inTokens": 72701,
+  "outTokens": 7389
+ },
+ {
+  "dir": "mlflow/server/js/src/shared/web-shared/traces-table",
+  "files": [
+   "mlflow/server/js/src/shared/web-shared/traces-table/TracesTable.tsx",
+   "mlflow/server/js/src/shared/web-shared/traces-table/TracesTableView.tsx",
+   "mlflow/server/js/src/shared/web-shared/traces-table/columns.tsx",
+   "mlflow/server/js/src/shared/web-shared/traces-table/TraceCell.tsx",
+   "mlflow/server/js/src/shared/web-shared/traces-table/constants.ts",
+   "mlflow/server/js/src/shared/web-shared/traces-table/index.ts",
+   "mlflow/server/js/src/shared/web-shared/traces-table/TraceColumnHeader.tsx",
+   "mlflow/server/js/src/shared/web-shared/traces-table/TracesTableToolbar.tsx",
+   "mlflow/server/js/src/shared/web-shared/traces-table/TraceColumnSelector.tsx",
+   "mlflow/server/js/src/shared/web-shared/traces-table/types.ts"
+  ],
+  "notes": [
+   "traces-table-architecture-and-data-flow",
+   "add-a-new-standard-trace-column",
+   "column-sizing-layout-and-persistence-rules",
+   "grouped-by-session-mode-and-session-rows",
+   "header-interactions-sort-hide-reorder"
+  ],
+  "inTokens": 64169,
+  "outTokens": 5380
+ },
+ {
+  "dir": "mlflow/openai",
+  "files": [
+   "mlflow/openai/autolog.py"
+  ],
+  "notes": [
+   "openai-autolog-overview-and-data-flow",
+   "add-autologging-for-a-new-openai-api-method",
+   "streaming-span-lifecycle-and-reconstruction",
+   "autolog-enable-disable-split-and-safety-rules"
+  ],
+  "inTokens": 10844,
+  "outTokens": 4038
+ },
+ {
+  "dir": "mlflow/store/tracking/utils",
+  "files": [
+   "mlflow/store/tracking/utils/sql_trace_metrics_utils.py",
+   "mlflow/store/tracking/utils/sql_trace_rollups.py",
+   "mlflow/store/tracking/utils/trace_analytics.py"
+  ],
+  "notes": [
+   "trace-metrics-query-pipeline-raw-path",
+   "add-a-new-trace-span-assessment-metric-or-dimension",
+   "sql-daily-rollup-read-routing",
+   "rollup-invalidation-writers-must-enqueue-rebuilds-queue-firs",
+   "promoted-trace-metadata-columns-trace-analytics"
+  ],
+  "inTokens": 47353,
+  "outTokens": 5460
+ },
+ {
+  "dir": "mlflow/store/model_registry",
+  "files": [
+   "mlflow/store/model_registry/sqlalchemy_store.py"
+  ],
+  "notes": [
+   "sqlalchemystore-map-model-registry-sql-backend",
+   "workspace-scoping-rule-for-registry-queries",
+   "how-to-add-or-extend-a-search-filter-or-order-by-key",
+   "model-version-lifecycle-soft-delete-stages-creation-retries"
+  ],
+  "inTokens": 65244,
+  "outTokens": 8446
+ },
+ {
+  "dir": "mlflow/protos",
+  "files": [
+   "mlflow/protos/service_pb2.py"
+  ],
+  "notes": [
+   "service-pb2-py-is-generated-protobuf-code-do-not-hand-edit",
+   "map-of-message-families-in-service-pb2-py-lines-2850-4275",
+   "adding-a-new-rpc-message-to-the-service-proto"
+  ],
+  "inTokens": 38768,
+  "outTokens": 2128
+ },
+ {
+  "dir": "mlflow/protos",
+  "files": [
+   "mlflow/protos/service_pb2.py"
+  ],
+  "notes": [
+   "service-pb2-py-is-generated-code-what-it-contains-and-how-it",
+   "adding-or-changing-an-rpc-message-in-the-mlflow-service-prot",
+   "domain-areas-covered-by-the-mlflowservice-descriptor",
+   "rule-keep-unspecified-enum-zero-values-and-wire-compatibilit"
+  ],
+  "inTokens": 108845,
+  "outTokens": 3527
+ },
+ {
+  "dir": "mlflow/protos",
+  "files": [
+   "mlflow/protos/service_pb2.py"
+  ],
+  "notes": [
+   "service-pb2-py-is-generated-protobuf-code-for-mlflow-s-mlflo",
+   "how-to-add-or-change-an-mlflow-rest-api-endpoint-in-the-prot",
+   "wire-compatibility-rules-for-service-proto-messages",
+   "map-of-api-areas-defined-in-mlflowservice-service-pb2-py"
+  ],
+  "inTokens": 271615,
+  "outTokens": 6609
+ },
+ {
+  "dir": "mlflow/store/tracking/gateway",
+  "files": [
+   "mlflow/store/tracking/gateway/sqlalchemy_mixin.py"
+  ],
+  "notes": [
+   "gateway-sqlalchemy-store-mixin-overview",
+   "secret-cache-invalidation-on-gateway-mutations",
+   "budget-policy-target-scope-target-value-invariant",
+   "how-to-add-or-change-a-gateway-endpoint-field-or-model-confi",
+   "store-method-conventions-errors-uniqueness-pagination-worksp"
+  ],
+  "inTokens": 60445,
+  "outTokens": 8236
+ },
+ {
+  "dir": "mlflow/protos",
+  "files": [
+   "mlflow/protos/service_pb2.py"
+  ],
+  "notes": [
+   "service-pb2-py-is-generated-protoc-output",
+   "how-to-add-a-new-rpc-to-mlflowservice",
+   "generated-file-invariants-names-shared-offsets-options",
+   "api-surface-by-area-routes-in-mlflowservice"
+  ],
+  "inTokens": 62983,
+  "outTokens": 3160
+ },
+ {
+  "dir": "docs/src",
+  "files": [
+   "docs/src/constants.ts"
+  ],
+  "notes": [
+   "docs-src-constants-ts-holds-the-docs-version-constant",
+   "how-to-bump-the-docs-version",
+   "version-constant-must-stay-a-named-string-export"
+  ],
+  "inTokens": 1638,
+  "outTokens": 942
+ },
+ {
+  "dir": "mlflow/telemetry",
+  "files": [
+   "mlflow/telemetry/events.py"
+  ],
+  "notes": [
+   "telemetry-events-module-overview",
+   "add-a-new-telemetry-event",
+   "bound-cardinality-and-avoid-sensitive-values-in-params",
+   "callsite-detection-and-scorer-evaluation-events"
+  ],
+  "inTokens": 16702,
+  "outTokens": 3659
+ },
+ {
+  "dir": "libs/typescript/integrations/opencode/src",
+  "files": [
+   "libs/typescript/integrations/opencode/src/index.ts"
+  ],
+  "notes": [
+   "opencode-mlflow-tracing-plugin-flow-overview",
+   "per-session-processed-count-dedup-and-lru-eviction",
+   "compatibility-rules-for-mlflow-core-usage-and-span-output-sh",
+   "how-to-trace-a-new-opencode-message-part-or-span-attribute"
+  ],
+  "inTokens": 10399,
+  "outTokens": 3441
+ },
+ {
+  "dir": "mlflow/server/js/src/common",
+  "files": [
+   "mlflow/server/js/src/common/constants.tsx"
+  ],
+  "notes": [
+   "common-constants-tsx-overview",
+   "how-to-add-a-docs-link-constant",
+   "constants-file-conventions"
+  ],
+  "inTokens": 6597,
+  "outTokens": 3030
+ },
+ {
+  "dir": "mlflow/store/db",
+  "files": [
+   "mlflow/store/db/trace_analytics_prepopulation.py",
+   "mlflow/store/db/workspace_move.py",
+   "mlflow/store/db/trace_analytics_schema_75868b020152.py",
+   "mlflow/store/db/workspace_utils.py",
+   "mlflow/store/db/utils.py"
+  ],
+  "notes": [
+   "trace-analytics-online-prepopulation-flow",
+   "frozen-schema-modules-are-immutable-and-shared",
+   "how-move-resources-works-workspace-move",
+   "add-a-new-movable-resource-type-to-workspace-move",
+   "db-utils-init-session-engine-conventions"
+  ],
+  "inTokens": 30187,
+  "outTokens": 5488
+ },
+ {
+  "dir": "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v4/hooks",
+  "files": [
+   "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v4/hooks/useTracesV4Controller.ts",
+   "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v4/hooks/useTracesV4Columns.ts",
+   "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v4/hooks/useTracesV4UrlState.ts",
+   "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v4/hooks/useTracesV4AssessmentColumns.ts"
+  ],
+  "notes": [
+   "traces-v4-hooks-data-flow",
+   "url-state-reset-page-and-keep-identities-stable",
+   "add-a-new-url-backed-filter-param-to-traces-v4",
+   "column-visibility-persistence-in-traces-v4"
+  ],
+  "inTokens": 16604,
+  "outTokens": 3516
+ },
+ {
+  "dir": "mlflow/server/sandbox",
+  "files": [
+   "mlflow/server/sandbox/container.py",
+   "mlflow/server/sandbox/streaming.py",
+   "mlflow/server/sandbox/__init__.py"
+  ],
+  "notes": [
+   "sandbox-package-map-two-docker-execution-paths",
+   "keep-the-hardening-recipe-in-sync-across-both-container-laun",
+   "streaming-stdout-pipeline-backpressure-and-idle-timeout",
+   "orphan-container-reaping-and-labels",
+   "adding-a-new-sandbox-consumer-or-option"
+  ],
+  "inTokens": 17906,
+  "outTokens": 4528
+ },
+ {
+  "dir": "mlflow/tracing",
+  "files": [
+   "mlflow/tracing/provider.py",
+   "mlflow/tracing/constant.py",
+   "mlflow/tracing/fluent.py",
+   "mlflow/tracing/trace_rollup_service.py"
+  ],
+  "notes": [
+   "tracer-provider-management-in-mlflow-tracing-provider-py",
+   "how-to-add-or-change-a-trace-export-destination",
+   "context-attach-detach-rules-for-spans",
+   "enable-disable-reset-state-and-trace-disabled-invariants",
+   "how-to-add-a-new-trace-span-attribute-or-metadata-key"
+  ],
+  "inTokens": 63372,
+  "outTokens": 5166
+ },
+ {
+  "dir": "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v4/utils",
+  "files": [
+   "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v4/utils/tracesV4SavedViewState.ts",
+   "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v4/utils/tracesV4DirtyState.ts",
+   "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v4/utils/filterModel.ts",
+   "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v4/utils/constants.ts",
+   "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v4/utils/buildTracesV4SearchParams.ts",
+   "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v4/utils/buildAssessmentColumnDefs.tsx"
+  ],
+  "notes": [
+   "v4-saved-views-capture-build-and-restore-pipeline",
+   "how-to-add-a-new-url-param-or-captured-field-to-saved-views",
+   "dirty-state-comparison-rules",
+   "search-filter-compilation-for-the-v4-traces-search-api"
+  ],
+  "inTokens": 19692,
+  "outTokens": 4441
+ },
+ {
+  "dir": "mlflow/server/js/src/shared/web-shared/model-trace-explorer/custom-view",
+  "files": [
+   "mlflow/server/js/src/shared/web-shared/model-trace-explorer/custom-view/ModelTraceExplorerCustomView.tsx",
+   "mlflow/server/js/src/shared/web-shared/model-trace-explorer/custom-view/CustomViewDefinitionContext.tsx"
+  ],
+  "notes": [
+   "custom-view-tab-architecture-and-data-flow",
+   "resolving-which-view-an-assistant-spec-applies-to",
+   "staged-feedback-buffer-and-submit-semantics",
+   "add-a-new-catalog-component-to-custom-views"
+  ],
+  "inTokens": 74171,
+  "outTokens": 7370
+ },
+ {
+  "dir": ".claude/skills/src/skills",
+  "files": [
+   ".claude/skills/src/skills/cli.py"
+  ],
+  "notes": [
+   "skills-cli-entry-point-and-dispatch",
+   "add-a-new-skills-subcommand",
+   "command-module-contract-register-and-func"
+  ],
+  "inTokens": 1952,
+  "outTokens": 1535
+ },
+ {
+  "dir": "mlflow/genai/evaluation",
+  "files": [
+   "mlflow/genai/evaluation/harness.py",
+   "mlflow/genai/evaluation/job.py"
+  ],
+  "notes": [
+   "evaluation-harness-pipeline-overview",
+   "rate-limits-pool-sizing-and-backpressure-config",
+   "every-item-must-pass-through-scoring-even-without-scorers",
+   "threading-and-import-conventions-in-the-harness",
+   "how-trace-inputs-are-handled-when-no-predict-fn-is-given"
+  ],
+  "inTokens": 21465,
+  "outTokens": 4785
+ },
+ {
+  "dir": "libs/typescript/core/src",
+  "files": [
+   "libs/typescript/core/src/index.ts"
+  ],
+  "notes": [
+   "public-api-surface-of-the-core-package-index-ts",
+   "how-to-expose-a-new-function-or-type-from-the-core-package",
+   "barrel-export-conventions-types-vs-values-and-constants-wild"
+  ],
+  "inTokens": 2631,
+  "outTokens": 2317
+ },
+ {
+  "dir": "mlflow/store/tracking/mcp_server_registry",
+  "files": [
+   "mlflow/store/tracking/mcp_server_registry/sqlalchemy_mixin.py"
+  ],
+  "notes": [
+   "mcp-server-registry-sqlalchemy-mixin-overview-and-data-flow",
+   "version-lifecycle-latest-and-alias-semantics",
+   "partial-update-convention-not-set-and-icon-tool-validation",
+   "how-to-add-or-change-a-search-filter-or-order-by-key"
+  ],
+  "inTokens": 60685,
+  "outTokens": 8159
+ },
+ {
+  "dir": "docs",
+  "files": [
+   "docs/sidebarsGenAI.ts"
+  ],
+  "notes": [
+   "genai-docs-sidebar-structure-map",
+   "add-a-new-tracing-integration-to-the-sidebar",
+   "sidebar-item-conventions-and-id-rules",
+   "add-a-scorer-or-judge-doc-to-evaluation-monitoring"
+  ],
+  "inTokens": 18838,
+  "outTokens": 2922
+ },
+ {
+  "dir": "mlflow/gateway",
+  "files": [
+   "mlflow/gateway/config.py",
+   "mlflow/gateway/constants.py"
+  ],
+  "notes": [
+   "gateway-config-module-map",
+   "add-a-new-provider-config",
+   "api-key-resolution-rule",
+   "validation-conventions-for-endpoint-config"
+  ],
+  "inTokens": 30202,
+  "outTokens": 5880
+ },
+ {
+  "dir": "mlflow/server/js/src/common/components",
+  "files": [
+   "mlflow/server/js/src/common/components/MlflowSidebar.tsx"
+  ],
+  "notes": [
+   "mlflowsidebar-overview-and-data-flow",
+   "how-to-add-or-change-a-top-level-sidebar-menu-item",
+   "visibility-gating-rules-workflow-type-workspaces-nested-expe",
+   "account-dropdown-at-sidebar-bottom"
+  ],
+  "inTokens": 25089,
+  "outTokens": 6359
+ },
+ {
+  "dir": "mlflow/cli",
+  "files": [
+   "mlflow/cli/traces.py",
+   "mlflow/cli/__init__.py"
+  ],
+  "notes": [
+   "mlflow-cli-structure-and-command-registration",
+   "add-or-change-a-mlflow-traces-subcommand",
+   "traces-search-output-pipeline-and-field-extraction",
+   "assessment-update-semantics-in-traces-cli",
+   "server-and-gc-option-handling-conventions"
+  ],
+  "inTokens": 39093,
+  "outTokens": 3513
+ },
+ {
+  "dir": "mlflow/server/js/src/shared/web-shared/model-trace-explorer/v2",
+  "files": [
+   "mlflow/server/js/src/shared/web-shared/model-trace-explorer/v2/ModelTraceExplorer.utils.tsx"
+  ],
+  "notes": [
+   "trace-to-tree-parsing-pipeline",
+   "add-a-chat-message-format-normalizer",
+   "span-search-and-filtering-contract",
+   "defensive-parsing-of-untrusted-trace-data"
+  ],
+  "inTokens": 24683,
+  "outTokens": 4627
+ },
+ {
+  "dir": "mlflow/pytorch",
+  "files": [
+   "mlflow/pytorch/__init__.py"
+  ],
+  "notes": [
+   "mlflow-pytorch-flavor-map-save-load-pyfunc-autolog",
+   "pickle-deserialization-gating-and-pt2-archive-validation",
+   "pt2-serialization-requirements-in-save-model",
+   "how-to-add-a-new-save-load-option-or-serialization-format",
+   "pyfunc-prediction-wrapper-and-device-handling-conventions"
+  ],
+  "inTokens": 30261,
+  "outTokens": 4555
+ },
+ {
+  "dir": "mlflow/types",
+  "files": [
+   "mlflow/types/schema.py",
+   "mlflow/types/responses.py"
+  ],
+  "notes": [
+   "mlflow-types-schema-py-map-type-system-and-serialization",
+   "how-to-add-a-new-composite-schema-type",
+   "schema-merge-semantics-for-inferred-signatures",
+   "mlflow-types-responses-py-map-responsesagent-types-and-strea",
+   "how-to-support-a-new-responses-item-or-event-type"
+  ],
+  "inTokens": 34034,
+  "outTokens": 4593
+ },
+ {
+  "dir": "mlflow/server/js/src/experiment-tracking/hooks",
+  "files": [
+   "mlflow/server/js/src/experiment-tracking/hooks/useServerInfo.tsx"
+  ],
+  "notes": [
+   "useserverinfo-cached-server-info-query-and-accessors",
+   "add-a-new-server-info-field-or-feature-toggle",
+   "server-info-timeout-and-failure-fallback-is-deliberately-sti"
+  ],
+  "inTokens": 4822,
+  "outTokens": 2981
+ },
+ {
+  "dir": "mlflow/models",
+  "files": [
+   "mlflow/models/utils.py",
+   "mlflow/models/resources.py"
+  ],
+  "notes": [
+   "mlflow-models-utils-py-map-input-examples-schema-enforcement",
+   "add-or-change-a-supported-input-example-type",
+   "add-a-new-schema-data-type-or-nested-type-to-enforcement",
+   "optional-dependencies-and-serving-parity-rules-in-models-uti"
+  ],
+  "inTokens": 42638,
+  "outTokens": 3684
+ },
+ {
+  "dir": "mlflow/models",
+  "files": [
+   "mlflow/models/docker_utils.py",
+   "mlflow/models/model.py"
+  ],
+  "notes": [
+   "model-class-and-mlmodel-serialization",
+   "adding-a-new-field-to-the-mlmodel-file",
+   "model-log-flow-logged-model-based",
+   "dockerfile-generation-for-model-serving-images",
+   "conventions-to-respect-when-editing-model-py-and-docker-util"
+  ],
+  "inTokens": 70529,
+  "outTokens": 7841
+ },
+ {
+  "dir": "mlflow/server/js/src/experiment-tracking/components/experiment-page/hooks",
+  "files": [
+   "mlflow/server/js/src/experiment-tracking/components/experiment-page/hooks/useGetExperimentPageActiveTabByRoute.tsx"
+  ],
+  "notes": [
+   "active-experiment-tab-resolution-from-route",
+   "add-a-new-experiment-page-tab-route",
+   "session-grouping-flag-remaps-singlechatsession-to-traces"
+  ],
+  "inTokens": 3064,
+  "outTokens": 2126
+ },
+ {
+  "dir": "libs/typescript/integrations/codex/src",
+  "files": [
+   "libs/typescript/integrations/codex/src/tracing.ts"
+  ],
+  "notes": [
+   "codex-tracing-flow-processnotify-to-spans",
+   "span-timing-model-for-llm-and-tool-spans",
+   "message-reconstruction-and-tool-status-mapping",
+   "how-to-add-support-for-a-new-codex-record-type-in-traces"
+  ],
+  "inTokens": 18579,
+  "outTokens": 5924
+ },
+ {
+  "dir": "mlflow/prompt",
+  "files": [
+   "mlflow/prompt/constants.py"
+  ],
+  "notes": [
+   "mlflow-prompt-constants-py-map-prompt-tags-and-patterns",
+   "rule-unity-catalog-tag-keys-cannot-contain-dots",
+   "rule-prompt-source-placeholders-must-stay-in-sync-across-cli"
+  ],
+  "inTokens": 2696,
+  "outTokens": 2994
+ },
+ {
+  "dir": "mlflow/gateway/budget_tracker",
+  "files": [
+   "mlflow/gateway/budget_tracker/redis.py"
+  ],
+  "notes": [
+   "redisbudgettracker-overview-and-data-flow",
+   "atomicity-lua-scripts-and-exceeded-flag",
+   "policy-duration-changes-and-stale-windows",
+   "how-to-add-a-field-to-the-stored-budget-policy"
+  ],
+  "inTokens": 17590,
+  "outTokens": 5905
+ },
+ {
+  "dir": "libs/typescript/core/src/exporters",
+  "files": [
+   "libs/typescript/core/src/exporters/uc_table.ts",
+   "libs/typescript/core/src/exporters/mlflow.ts"
+  ],
+  "notes": [
+   "exporter-processor-pairs-how-traces-flow-to-mlflow-vs-unity",
+   "rule-export-is-fire-and-forget-with-self-cleaning-pendingexp",
+   "rule-processor-and-exporter-destinations-must-stay-in-sync-v",
+   "how-to-add-a-new-trace-backend-processor-exporter-or-change"
+  ],
+  "inTokens": 24745,
+  "outTokens": 6775
+ },
+ {
+  "dir": "mlflow/genai/judges",
+  "files": [
+   "mlflow/genai/judges/builtin.py"
+  ],
+  "notes": [
+   "built-in-judges-dispatch-builtin-py-overview",
+   "add-a-new-built-in-judge",
+   "judge-conventions-names-models-return-values"
+  ],
+  "inTokens": 14968,
+  "outTokens": 2950
+ },
+ {
+  "dir": "bin",
+  "files": [
+   "bin/install.py"
+  ],
+  "notes": [
+   "bin-install-py-overview-binary-tool-installer",
+   "how-to-add-or-upgrade-a-tool-in-bin-install-py",
+   "invariants-in-bin-install-py-installs"
+  ],
+  "inTokens": 7136,
+  "outTokens": 2077
+ },
+ {
+  "dir": "mlflow/server/js/src/shared/web-shared/model-trace-explorer/custom-view/agent",
+  "files": [
+   "mlflow/server/js/src/shared/web-shared/model-trace-explorer/custom-view/agent/buildAgentPrompt.ts"
+  ],
+  "notes": [
+   "buildagentprompt-ts-overview-prompt-pieces-for-a2ui-custom-v",
+   "rule-authored-views-are-trace-agnostic-templates-using-bindi",
+   "how-to-add-a-new-component-or-data-source-to-the-custom-view",
+   "delivery-modes-tool-vs-structured-output"
+  ],
+  "inTokens": 16653,
+  "outTokens": 4586
+ },
+ {
+  "dir": "mlflow/shap",
+  "files": [
+   "mlflow/shap/__init__.py"
+  ],
+  "notes": [
+   "mlflow-shap-flavor-overview-and-data-flow",
+   "add-support-for-a-new-underlying-model-flavor-in-shap",
+   "pickle-deserialization-gate-and-trust-boundary-for-shap-expl",
+   "save-explainer-ordering-and-environment-file-constraints"
+  ],
+  "inTokens": 13777,
+  "outTokens": 3747
+ },
+ {
+  "dir": "mlflow/genai/prompts",
+  "files": [
+   "mlflow/genai/prompts/__init__.py"
+  ],
+  "notes": [
+   "mlflow-genai-prompts-facade-overview",
+   "add-a-new-public-prompt-function-to-mlflow-genai",
+   "prompt-model-config-is-stored-as-a-version-tag"
+  ],
+  "inTokens": 7953,
+  "outTokens": 2099
+ },
+ {
+  "dir": "mlflow/sklearn",
+  "files": [
+   "mlflow/sklearn/__init__.py"
+  ],
+  "notes": [
+   "mlflow-sklearn-flavor-save-log-load-flow",
+   "deserialization-safety-gate-and-serialization-format-rules",
+   "autologging-architecture-autolog-autolog",
+   "post-training-metrics-autologging-internals",
+   "how-to-add-an-autologging-option-or-patched-method"
+  ],
+  "inTokens": 83536,
+  "outTokens": 8397
+ },
+ {
+  "dir": "mlflow/server/js/src/common/utils",
+  "files": [
+   "mlflow/server/js/src/common/utils/FileUtils.ts"
+  ],
+  "notes": [
+   "fileutils-artifact-path-helpers-and-extension-sets",
+   "add-support-for-a-new-artifact-file-type",
+   "rule-extension-keys-must-be-lowercase-and-disjoint-across-se"
+  ],
+  "inTokens": 2776,
+  "outTokens": 2554
+ },
+ {
+  "dir": "mlflow/store/artifact",
+  "files": [
+   "mlflow/store/artifact/optimized_s3_artifact_repo.py",
+   "mlflow/store/artifact/artifact_repo.py",
+   "mlflow/store/artifact/azure_blob_artifact_repo.py",
+   "mlflow/store/artifact/mlflow_artifacts_repo.py"
+  ],
+  "notes": [
+   "artifactrepository-base-class-download-flow-and-template-met",
+   "path-safety-and-prefix-matching-rules-in-artifact-repos",
+   "optimizeds3artifactrepository-credentials-upload-and-downloa",
+   "adding-a-new-s3-call-or-upload-option-to-optimizeds3artifact",
+   "mlflowartifactsrepository-uri-resolution-and-multipart-capab"
+  ],
+  "inTokens": 33137,
+  "outTokens": 6495
+ },
+ {
+  "dir": "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v3/hooks/custom-view",
+  "files": [
+   "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v3/hooks/custom-view/useExperimentCustomViewDefinition.ts"
+  ],
+  "notes": [
+   "experiment-custom-view-storage-hook-overview",
+   "unreadable-placeholder-views-must-be-kept-not-dropped",
+   "tag-value-size-limit-and-deflate-compression-on-save",
+   "adding-a-new-persisted-operation-or-format-version-to-custom"
+  ],
+  "inTokens": 4553,
+  "outTokens": 3315
+ },
+ {
+  "dir": "mlflow/server/js/src/gateway/components/edit-endpoint",
+  "files": [
+   "mlflow/server/js/src/gateway/components/edit-endpoint/EditEndpointFormRenderer.tsx"
+  ],
+  "notes": [
+   "editendpointformrenderer-map",
+   "tab-routing-and-gating-by-experimentid",
+   "save-bar-and-validation-rules",
+   "usage-and-logs-metric-filters-flow"
+  ],
+  "inTokens": 12834,
+  "outTokens": 3231
+ },
+ {
+  "dir": "mlflow/server/js/src/mcp-registry/pages",
+  "files": [
+   "mlflow/server/js/src/mcp-registry/pages/MCPRegistryPage.tsx"
+  ],
+  "notes": [
+   "mcpregistrypage-overview-and-data-flow",
+   "add-a-new-filter-to-the-mcp-registry-list",
+   "conventions-in-mcpregistrypage"
+  ],
+  "inTokens": 10755,
+  "outTokens": 4308
+ },
+ {
+  "dir": "mlflow/server/js/src/mcp-registry/hooks",
+  "files": [
+   "mlflow/server/js/src/mcp-registry/hooks/useCreateMCPServerVersionModal.tsx"
+  ],
+  "notes": [
+   "usecreatemcpserverversionmodal-overview-and-data-flow",
+   "submit-payload-rules-in-handlesubmit-version-vs-new-server",
+   "how-to-add-a-new-field-to-the-create-mcp-server-version-moda",
+   "modal-state-reset-and-lifecycle-conventions"
+  ],
+  "inTokens": 21096,
+  "outTokens": 5259
+ },
+ {
+  "dir": "mlflow/genai/judges/instructions_judge",
+  "files": [
+   "mlflow/genai/judges/instructions_judge/__init__.py"
+  ],
+  "notes": [
+   "instructionsjudge-call-flow-and-mode-selection",
+   "template-variable-validation-rules",
+   "add-a-new-constructor-option-to-instructionsjudge",
+   "feedback-value-type-serialization"
+  ],
+  "inTokens": 37843,
+  "outTokens": 5883
+ },
+ {
+  "dir": "mlflow/server/js/src/shared/web-shared/traces-table/hooks",
+  "files": [
+   "mlflow/server/js/src/shared/web-shared/traces-table/hooks/useTraceColumnVisibility.ts",
+   "mlflow/server/js/src/shared/web-shared/traces-table/hooks/useBulkTraceSelection.ts"
+  ],
+  "notes": [
+   "traces-table-hooks-overview",
+   "column-visibility-overrides-on-top-of-live-defaults",
+   "add-a-new-standard-trace-column-to-persisted-state",
+   "bulk-trace-selection-semantics"
+  ],
+  "inTokens": 7828,
+  "outTokens": 2885
+ },
+ {
+  "dir": "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v4",
+  "files": [
+   "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/traces-v4/TracesV4Tab.tsx"
+  ],
+  "notes": [
+   "tracesv4tab-mount-flow",
+   "keep-monitoringconfigprovider-above-v4-page-content",
+   "custom-view-must-stay-lazy-and-keyed-per-experiment"
+  ],
+  "inTokens": 2816,
+  "outTokens": 2192
+ },
+ {
+  "dir": "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/saved-views",
+  "files": [
+   "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/saved-views/SavedViewsMenu.tsx"
+  ],
+  "notes": [
+   "savedviewsmenu-overview-and-data-flow",
+   "mutually-exclusive-action-modes-shared-vs-dirty",
+   "analytics-ids-test-ids-and-keyboard-click-handling-conventio",
+   "how-to-add-a-new-action-or-row-feature-to-the-saved-views-me"
+  ],
+  "inTokens": 17587,
+  "outTokens": 5104
+ },
+ {
+  "dir": "mlflow/server/js/src/shared/web-shared/model-trace-explorer/v2/right-pane",
+  "files": [
+   "mlflow/server/js/src/shared/web-shared/model-trace-explorer/v2/right-pane/ModelTraceExplorerDefaultSpanView.tsx"
+  ],
+  "notes": [
+   "defaultspanview-overview-and-data-flow",
+   "how-to-add-or-change-a-section-render-mode",
+   "chat-field-filtering-and-search-match-conventions"
+  ],
+  "inTokens": 8983,
+  "outTokens": 3081
+ },
+ {
+  "dir": "mlflow/genai/scorers/online",
+  "files": [
+   "mlflow/genai/scorers/online/trace_processor.py"
+  ],
+  "notes": [
+   "online-trace-scoring-processor-flow-of-one-tick",
+   "checkpoint-advancement-invariants-in-process-traces",
+   "scoring-execution-rate-limiting-and-lazy-imports",
+   "how-to-change-which-traces-scorers-get-scored-online"
+  ],
+  "inTokens": 7381,
+  "outTokens": 3775
+ },
+ {
+  "dir": "mlflow/server/js/src/shared/web-shared/genai-traces-table",
+  "files": [
+   "mlflow/server/js/src/shared/web-shared/genai-traces-table/index.ts"
+  ],
+  "notes": [
+   "genai-traces-table-public-barrel-map",
+   "add-a-new-export-to-the-genai-traces-table-module",
+   "barrel-file-conventions-and-shared-code-constraints"
+  ],
+  "inTokens": 4790,
+  "outTokens": 2831
+ },
+ {
+  "dir": "mlflow/server/js/src",
+  "files": [
+   "mlflow/server/js/src/MlflowRouter.tsx"
+  ],
+  "notes": [
+   "mlflowrouter-map-how-the-app-shell-and-routes-are-assembled",
+   "how-to-add-a-new-top-level-route-group-or-feature-gated-rout",
+   "workspace-redirect-logic-in-workspaceroutersync",
+   "dev-only-user-switcher-must-stay-lazy-and-build-gated"
+  ],
+  "inTokens": 6592,
+  "outTokens": 2890
+ },
+ {
+  "dir": "mlflow/store",
+  "files": [
+   "mlflow/store/workspace_rest_store_mixin.py"
+  ],
+  "notes": [
+   "workspacereststoremixin-workspace-capability-detection-map",
+   "using-the-mixin-in-a-rest-store",
+   "workspace-support-probe-invariants"
+  ],
+  "inTokens": 3587,
+  "outTokens": 2459
+ },
+ {
+  "dir": "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/runs",
+  "files": [
+   "mlflow/server/js/src/experiment-tracking/components/experiment-page/components/runs/ExperimentViewRunsTable.tsx"
+  ],
+  "notes": [
+   "experimentviewrunstable-overview-and-data-flow",
+   "column-order-width-persistence-rules",
+   "large-column-count-optimization",
+   "how-to-add-a-table-behavior-or-ag-grid-option"
+  ],
+  "inTokens": 36076,
+  "outTokens": 6019
+ },
+ {
+  "dir": "mlflow/tracing/export",
+  "files": [
+   "mlflow/tracing/export/mlflow_v3.py"
+  ],
+  "notes": [
+   "mlflowv3spanexporter-export-flow",
+   "deferred-root-span-export-and-locking",
+   "export-is-best-effort-error-handling-conventions",
+   "adding-a-step-to-trace-export-or-a-subclass-variant"
+  ],
+  "inTokens": 9325,
+  "outTokens": 3745
+ },
+ {
+  "dir": "mlflow/server/js/src/experiment-tracking/components/experiment-page/utils",
+  "files": [
+   "mlflow/server/js/src/experiment-tracking/components/experiment-page/utils/experimentPage.column-utils.tsx"
+  ],
+  "notes": [
+   "runs-table-column-definitions-hook-map",
+   "add-a-new-attribute-column-to-the-runs-table",
+   "column-id-and-sort-key-conventions",
+   "customizing-metric-column-display"
+  ],
+  "inTokens": 28317,
+  "outTokens": 6158
+ },
+ {
+  "dir": "mlflow/genai/review_queues",
+  "files": [
+   "mlflow/genai/review_queues/__init__.py"
+  ],
+  "notes": [
+   "review-queues-fluent-sdk-map",
+   "add-a-new-public-review-queue-function",
+   "fluent-api-conventions-and-queue-invariants"
+  ],
+  "inTokens": 6386,
+  "outTokens": 2101
+ },
+ {
+  "dir": "mlflow/llama_index",
+  "files": [
+   "mlflow/llama_index/tracer.py"
+  ],
+  "notes": [
+   "llamaindex-tracer-architecture",
+   "streaming-span-lifecycle-and-streamresolver",
+   "add-handling-for-a-new-llamaindex-event-or-instance-type",
+   "tracer-robustness-and-context-token-invariants"
+  ],
+  "inTokens": 15904,
+  "outTokens": 4354
+ },
+ {
+  "dir": "mlflow/store/_unity_catalog/registry",
+  "files": [
+   "mlflow/store/_unity_catalog/registry/rest_store.py"
+  ],
+  "notes": [
+   "ucmodelregistrystore-overview-and-request-flow",
+   "model-version-creation-pipeline",
+   "how-to-add-a-new-uc-prompt-operation",
+   "uc-prompt-search-filter-and-prompt-version-tags",
+   "uc-model-dependency-extraction-and-name-normalization"
+  ],
+  "inTokens": 72800,
+  "outTokens": 9533
+ },
+ {
+  "dir": "mlflow/server/js/src/experiment-tracking/pages/experiment-review-queue",
+  "files": [
+   "mlflow/server/js/src/experiment-tracking/pages/experiment-review-queue/ExperimentReviewQueuePage.tsx",
+   "mlflow/server/js/src/experiment-tracking/pages/experiment-review-queue/AddToReviewQueueDropdown.tsx"
+  ],
+  "notes": [
+   "review-queue-page-structure-and-data-flow",
+   "permission-gating-for-review-queue-actions",
+   "addtoreviewqueuedropdown-how-flagging-traces-works",
+   "add-a-new-queue-level-action-to-the-review-page"
+  ],
+  "inTokens": 24638,
+  "outTokens": 4519
+ },
+ {
+  "dir": "mlflow/metrics",
+  "files": [
+   "mlflow/metrics/metric_definitions.py"
+  ],
+  "notes": [
+   "metric-definitions-py-overview-and-eval-fn-contract",
+   "fail-soft-validation-convention",
+   "loading-huggingface-evaluate-modules",
+   "retrieval-metrics-precision-recall-ndcg-at-k-semantics",
+   "adding-a-new-built-in-metric-eval-function"
+  ],
+  "inTokens": 10768,
+  "outTokens": 3835
+ },
+ {
+  "dir": "mlflow/langchain",
+  "files": [
+   "mlflow/langchain/autolog.py"
+  ],
+  "notes": [
+   "langchain-autolog-how-tracer-injection-works",
+   "avoid-duplicate-mlflowlangchaintracer-injection",
+   "skip-tracer-on-langgraph-lifecycle-managers",
+   "add-a-new-autolog-option-or-patch",
+   "runnablesequence-batch-disables-span-context-attachment"
+  ],
+  "inTokens": 4721,
+  "outTokens": 2835
+ },
+ {
+  "dir": "mlflow/server/js/src/experiment-tracking/components/onboarding",
+  "files": [
+   "mlflow/server/js/src/experiment-tracking/components/onboarding/AgentActionCard.tsx"
+  ],
+  "notes": [
+   "agentactioncard-overview-and-data-flow",
+   "how-to-add-or-change-a-tab-in-agentactioncard",
+   "tab-and-ui-conventions-in-agentactioncard"
+  ],
+  "inTokens": 16055,
+  "outTokens": 4180
+ }
+]

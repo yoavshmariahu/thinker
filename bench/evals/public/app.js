@@ -134,6 +134,10 @@ async function pageExperiments() {
   if (s.experiments.some(e => e.job?.status === 'running')) pollTimer = setInterval(() => { if (!document.querySelector('#exps th[data-dir]')) route(); }, 5000);
 }
 
+// a cache is mined from merged changes or read from the code (bench/evals/caches.js KINDS)
+const cacheKind = c => (c?.kind === 'understanding' ? 'understanding' : 'mined');
+const cacheWhat = c => cacheKind(c) === 'mined' ? `mined, ${c.limit} changes` : `read from the code, top ${c.top} files${c.areas?.length ? ' in ' + c.areas.join(', ') : ''}`;
+
 function expRow(e, metrics) {
   const c = e.cmp, M = Object.fromEntries(metrics.map(m => [m.key, m]));
   const rel = k => {
@@ -222,7 +226,7 @@ function modulesCard(meta) {
   const failed = (last?.checks || []).filter(c => !c.ok);
   return `<div class="modules">
     <div class="card mod"><div class="mtitle">PR set</div><a href="#/prsets">${esc(m.prset.name)}</a> · ${m.prset.prs} PRs<div class="muted small">${esc(m.prset.rule)}</div><div class="muted small">${esc(m.prset.tasks)} at ${esc((m.prset.base || '?').slice(0, 10))} · hash ${esc(m.prset.hash)}</div></div>
-    <div class="card mod"><div class="mtitle">Cache</div><a href="#/cache/${enc(m.cache.name)}">${esc(m.cache.name)}</a> · ${m.cache.notes} notes<div class="muted small">mined (${esc(m.cache.source)}, ${m.cache.limit} changes) by ${esc(m.cache.model)} at ${esc(m.cache.anchor.slice(0, 10))}</div><div class="muted small">notes hash ${esc(m.cache.notes_hash)}</div></div>
+    <div class="card mod"><div class="mtitle">Cache</div><a href="#/cache/${enc(m.cache.name)}">${esc(m.cache.name)}</a> · ${m.cache.notes} notes<div class="muted small">${esc(cacheWhat(m.cache))} by ${esc(m.cache.model)} at ${esc(m.cache.anchor.slice(0, 10))}</div><div class="muted small">notes hash ${esc(m.cache.notes_hash)}</div></div>
     <div class="card mod"><div class="mtitle">Arms</div><b>${esc(m.arms.off)}</b> (off) vs <b>${esc(m.arms.on)}</b> (on)${m.arms.extra?.length ? `<div class="muted small">also ${m.arms.extra.map(esc).join(', ')}</div>` : ''}</div>
     <div class="card mod"><div class="mtitle">Agent</div>${esc(m.agent.model)} via ${esc(m.agent.runner)}<div class="muted small">${m.agent.reps} reps · ${m.agent.conc} at a time${m.agent.flags.length ? ' · ' + m.agent.flags.map(f => '--' + esc(f)).join(' ') : ''}</div></div>
     <div class="card mod"><div class="mtitle">Grading</div>${esc(m.grading.summary)}</div>
@@ -435,9 +439,9 @@ function runPanel(j) {
 }
 
 // a cache being built, on its own page: the step, mining's own progress, the log
-function buildPanel(j) {
+function buildPanel(j, c) {
   const st = STATUS[j.status] || ['', j.status];
-  const steps = ['snapshot', 'mine-prs', 'phrase', 'relink', 'export'];
+  const steps = ['snapshot', cacheKind(c) === 'mined' ? 'mine-prs' : 'understand', 'phrase', 'relink', 'export'];
   return `<div class="card runpanel">
     <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span class="status ${st[0]}">${esc(st[1])}</span>
       <span class="muted small">started ${fmt.dt(j.started_at)} · ${fmt.ms(j.elapsed)} so far</span>
@@ -526,10 +530,10 @@ async function pagePrsets() {
 async function pageCaches() {
   const [{ caches }, cat] = await Promise.all([api('/api/caches'), api('/api/catalog')]);
   $app.innerHTML = `<div class="head"><div><h1>Caches</h1>
-    <p class="sub">What the cache-on arm is served. Each cache is built by the product's own mining (<code>thinker mine-prs --git</code>, then <code>phrase</code> and <code>relink</code>) in a checkout whose history stops at an anchor commit, by the model the agent will run. The receipt records how it was built; an experiment checks it against its PR set before it starts.</p></div></div>
+    <p class="sub">What the cache-on arm is served. Each cache is built by the product's own path, mining (<code>thinker mine-prs --git</code>) or reading the most changed code (<code>thinker understand</code>), then <code>phrase</code> and <code>relink</code>, in a checkout whose history stops at an anchor commit, by the model the agent will run. The receipt records how it was built; an experiment checks it against its PR set before it starts.</p></div></div>
     <div class="card wrap"><table><thead><tr><th>Cache</th><th>Repo</th><th>Anchor</th><th>Mined by</th><th class="num">Notes</th><th>Status</th><th>Fits PR sets</th><th>Built</th></tr></thead><tbody>
     ${caches.map(c => `<tr class="click" data-href="#/cache/${enc(c.name)}"><td><a href="#/cache/${enc(c.name)}"><b>${esc(c.name)}</b></a></td><td>${esc(c.repo)}</td><td>${esc(c.anchor.slice(0, 10))}<div class="muted small">${fmt.date(Date.parse(c.anchor_date))}</div></td>
-      <td>${esc(c.model)}<div class="muted small">${esc(c.llm)} · ${c.limit} changes</div></td><td class="num">${c.notes ?? '–'}</td>
+      <td>${esc(c.model)}<div class="muted small">${esc(c.llm)} · ${esc(cacheWhat(c))}</div></td><td class="num">${c.notes ?? '–'}</td>
       <td>${c.job?.status === 'running' ? statusCell(c.job) : c.status === 'ok' ? '<span class="status good">built</span>' : c.status === 'building' ? '<span class="status serious">stopped</span>' : `<span class="status critical">${esc(c.status)}</span>`}</td>
       <td class="small">${c.fits.map(f => `${f.ok ? '✓' : '✗'} ${esc(f.prset)}`).join('<br>') || '<span class="muted">no PR set for this repo</span>'}</td><td>${fmt.date(c.created_at)}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">No caches built yet.</td></tr>'}
     </tbody></table></div>
@@ -542,20 +546,23 @@ async function pageCaches() {
       <label>Mining agent<select name="llm"><option>claude</option><option>codex</option><option>gemini</option></select></label>
       <label>Mining model<input name="model" required placeholder="the model the agent will run, e.g. sonnet"></label>
       <label>Effort (optional)<input name="effort" placeholder="high"></label>
-      <label>Changes to mine<input name="limit" type="number" min="5" max="200" value="60"></label>
+      <label>Kind<select name="kind"><option value="mined">mined from merged changes</option><option value="understanding">read from the most changed code</option></select></label>
+      <label>Changes to mine (mined)<input name="limit" type="number" min="5" max="200" value="60"></label>
+      <label>Files to read (understanding)<input name="top" type="number" min="10" max="1000" value="200"></label>
+      <label>Only in directories (understanding, optional)<input name="areas" placeholder="mlflow/gateway,mlflow/server"></label>
       <div class="full"><button class="primary" type="submit">Review build</button> <span class="err" id="cerr"></span></div>
     </form><div id="cplan"></div>`;
   document.querySelectorAll('tr.click').forEach(tr => tr.addEventListener('click', e => { if (e.target.tagName !== 'A') location.hash = tr.dataset.href; }));
   if (caches.some(c => c.job?.status === 'running')) pollTimer = setInterval(() => { if (!document.activeElement?.closest('form')) route(); }, 4000);
   const f = document.getElementById('cf');
   f.prset.addEventListener('change', () => { const o = f.prset.selectedOptions[0]; if (o.dataset.repo) { f.repo.value = o.dataset.repo; f.anchor.value = o.dataset.base; } });
-  const req = () => ({ name: f.name.value.trim(), repo: f.repo.value, anchor: f.anchor.value.trim() || 'HEAD', llm: f.llm.value, model: f.model.value.trim(), effort: f.effort.value.trim() || undefined, limit: Number(f.limit.value) });
+  const req = () => ({ name: f.name.value.trim(), repo: f.repo.value, anchor: f.anchor.value.trim() || 'HEAD', llm: f.llm.value, model: f.model.value.trim(), effort: f.effort.value.trim() || undefined, kind: f.kind.value, limit: Number(f.limit.value), top: Number(f.top.value), areas: f.areas.value.trim() || undefined });
   f.addEventListener('submit', async e => {
     e.preventDefault(); document.getElementById('cerr').textContent = '';
     let p; try { p = await api('/api/cache/plan', req()); } catch (err) { document.getElementById('cerr').textContent = err.message; return; }
     document.getElementById('cplan').innerHTML = `<div class="card confirm" style="margin-top:14px"><h2 style="margin-top:0">Build ${esc(p.name)}</h2>
       <dl class="kv"><dt>Checkout</dt><dd>bench/repos/${esc(p.repo)} at <code>${esc(p.anchor.slice(0, 12))}</code> — ${esc(p.anchor_subject || '')} (${fmt.dt(Date.parse(p.anchor_date))})</dd>
-      <dt>Mining</dt><dd>${esc(p.model)} via ${esc(p.llm)}${p.effort ? `, effort ${esc(p.effort)}` : ''}, ${p.limit} changes from the git history before the anchor</dd>
+      <dt>Built by</dt><dd>${esc(p.model)} via ${esc(p.llm)}${p.effort ? `, effort ${esc(p.effort)}` : ''}, ${p.kind === 'understanding' ? `the ${p.top} files with the most recent commits before the anchor${p.areas?.length ? ' in ' + esc(p.areas.join(', ')) : ''}, read whole` : `${p.limit} changes from the git history before the anchor`}</dd>
       <dt>Steps</dt><dd>${p.steps.map(esc).join('<br>')}</dd><dt>Spend</dt><dd>${esc(p.estimate.note)}</dd><dt>Output</dt><dd><code>bench/caches/${esc(p.name)}/</code></dd></dl>
       <p><label class="check"><input type="checkbox" id="cok"> The mining model is the model the experiment's agent will run, and the anchor is at or before the PRs' base.</label></p>
       <button class="primary" id="cgo" disabled>Start the build</button> <span class="err" id="cgerr"></span></div>`;
@@ -569,7 +576,7 @@ async function pageCache(name) {
   const x = await api('/api/cache?name=' + enc(name));
   const c = x.cache;
   $app.innerHTML = `<p class="muted"><a href="#/caches">Caches</a> / ${esc(name)}</p><h1>${esc(name)}</h1>
-    <p class="sub">${esc(c.repo)} · anchor <code>${esc(c.anchor.slice(0, 12))}</code> ${esc(c.anchor_subject || '')} · mined by ${esc(c.model)} (${esc(c.llm)}) · ${c.limit} changes</p>
+    <p class="sub">${esc(c.repo)} · anchor <code>${esc(c.anchor.slice(0, 12))}</code> ${esc(c.anchor_subject || '')} · ${esc(cacheWhat(c))} by ${esc(c.model)} (${esc(c.llm)})</p>
     <div id="live"></div>
     ${c.status !== 'ok' ? `<div class="card confirm" id="resume" hidden>This build did not finish (${esc(c.error || c.status)}). Resuming continues after ${(c.steps_done || []).map(esc).join(', ') || 'nothing'} with the same parameters; the steps already done are not repeated. <button class="primary" id="resumego">Resume the build</button> <span class="err" id="rerr"></span></div>` : ''}
     <div class="tiles">${tile('Status', esc(c.status), c.error ? esc(c.error) : `steps: ${(c.steps_done || []).map(esc).join(', ') || '–'}`)}${tile('Notes', fmt.n(c.notes), `${c.described ?? '–'} described · ${c.sources ? `${c.sources.pr} from PRs` : ''}`)}${tile('Mined', fmt.n(c.usage?.mined), `${fmt.n(c.usage?.saved)} saved`)}${tile('Tokens', fmt.tok(c.usage?.tokens), 'as the product logged them')}</div>
@@ -577,7 +584,7 @@ async function pageCache(name) {
     ${x.against.map(a => `<h2>Against PR set ${esc(a.prset)}</h2><div class="card">${checkList(a.checks)}</div>`).join('')}
     <h2>Used by</h2><p>${x.used_by.map(d => `<a href="#/exp/${enc(d)}">${esc(d)}</a>`).join(', ') || '<span class="muted">no experiment yet</span>'}</p>
     <details class="card"><summary>Receipt</summary><pre>${esc(JSON.stringify(c, null, 2))}</pre></details>`;
-  const showBuild = j => { const el = document.getElementById('live'); if (!el) return; el.innerHTML = j ? buildPanel(j) : ''; if (j) bindCancel(el, () => route()); };
+  const showBuild = j => { const el = document.getElementById('live'); if (!el) return; el.innerHTML = j ? buildPanel(j, c) : ''; if (j) bindCancel(el, () => route()); };
   const running = x.job?.status === 'running' ? x.job : null;
   showBuild(running);
   if (running) pollTimer = setInterval(async () => {
@@ -590,7 +597,7 @@ async function pageCache(name) {
     document.getElementById('resume').hidden = false;
     document.getElementById('resumego').onclick = async e => {
       e.target.disabled = true;
-      try { await api('/api/cache/build', { name: c.name, repo: c.repo, anchor: c.anchor, llm: c.llm, model: c.model, effort: c.effort || undefined, limit: c.limit, resume: true, confirm: true }); route(); }
+      try { await api('/api/cache/build', { name: c.name, repo: c.repo, anchor: c.anchor, llm: c.llm, model: c.model, effort: c.effort || undefined, kind: cacheKind(c), limit: c.limit, top: c.top, areas: c.areas, resume: true, confirm: true }); route(); }
       catch (err) { document.getElementById('rerr').textContent = err.message; e.target.disabled = false; }
     };
   }
@@ -710,7 +717,7 @@ async function pageNew() {
   };
   const syncCache = () => {
     const c = cat.caches.find(x => x.name === f.cache.value);
-    document.getElementById('cacheinfo').innerHTML = c ? `mined by <b>${esc(c.model)}</b> (${esc(c.llm)}) at ${esc(c.anchor.slice(0, 10))} · ${c.notes ?? 0} notes · the agent model must match` : '<a href="#/caches">Build a cache</a> for this PR set first.';
+    document.getElementById('cacheinfo').innerHTML = c ? `${esc(cacheWhat(c))} by <b>${esc(c.model)}</b> (${esc(c.llm)}) at ${esc(c.anchor.slice(0, 10))} · ${c.notes ?? 0} notes · the agent model must match` : '<a href="#/caches">Build a cache</a> for this PR set first.';
     if (c && !f.model.dataset.touched) f.model.value = c.model;
     autoTag();
   };
@@ -744,7 +751,7 @@ async function pageNew() {
       <dl class="kv">
         <dt>Question</dt><dd>${esc(req.question)} <span class="pill kind">${esc(req.kind)}</span></dd>
         <dt>PR set</dt><dd>${esc(m.prset.name)} · ${m.prset.prs} PRs from ${esc(m.prset.tasks)} at ${esc((m.prset.base || '?').slice(0, 10))} — ${esc(m.prset.rule)}</dd>
-        <dt>Cache</dt><dd>${esc(m.cache.name)} · ${m.cache.notes} notes mined by ${esc(m.cache.model)} at ${esc(m.cache.anchor.slice(0, 10))}</dd>
+        <dt>Cache</dt><dd>${esc(m.cache.name)} · ${m.cache.notes} notes, ${esc(cacheWhat(m.cache))}, by ${esc(m.cache.model)} at ${esc(m.cache.anchor.slice(0, 10))}</dd>
         <dt>Arms</dt><dd><b>${esc(m.arms.off)}</b> (cache off) against <b>${esc(m.arms.on)}</b> (cache on)${m.arms.extra.length ? `, plus ${m.arms.extra.map(esc).join(', ')}` : ''}</dd>
         <dt>Agent</dt><dd>${esc(p.model)} via ${esc(p.runner)} · ${p.reps} reps · ${p.conc} at a time</dd>
         <dt>Sessions</dt><dd>${m.prset.prs} PRs × ${p.arms.length} arms × ${p.reps} reps = ${p.expected.length}${p.resumed ? ` · <b>${p.resumed} already on disk, skipped</b>` : ''}</dd>

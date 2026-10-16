@@ -26,14 +26,16 @@ cache off and with it on, to test one **behavior** (a cache feature, prompt, wir
 | Module | Stored | Checks before an experiment may start |
 |---|---|---|
 | **PR set** (`prsets.js`): PRs from one task set, the rule they were chosen by, frozen with a hash | database | the checkout is at the task set's base; no PR's fix is merged in it; no PR's tests need functions only its merged patch defines (`testNeedsGoldSymbols`) |
-| **Cache** (`caches.js`, `build-cache.js`): mined by the product (`mine-prs --git`, `phrase`, `relink`) in a shallow checkout cut at an anchor commit, by a named model, then every note exported whole (`export`) | receipt in the database; `bench/caches/<name>/repo/` (the snapshot), `notes/` (what arms are served) and `build.log` on disk, not checked in | built; not empty; every note `source.type: pr`; notes unchanged since the build (hash); same repository; anchor at or before the base; no PR's fix reachable from the anchor; mined by the agent's model |
+| **Cache** (`caches.js`, `build-cache.js`): built by the product, mined (`mine-prs --git`) or read from the most changed code (`understand`), then `phrase`, `relink`, in a shallow checkout cut at an anchor commit, by a named model, then every note exported whole (`export`) | receipt in the database; `bench/caches/<name>/repo/` (the snapshot), `notes/` (what arms are served) and `build.log` on disk, not checked in | built; not empty; every note `source.type: pr`; notes unchanged since the build (hash); same repository; anchor at or before the base; no PR's fix reachable from the anchor; mined by the agent's model |
 | **Arms** | experiment | cache off and cache on differ |
-| **Agent**: runner, model, reps, concurrency, switches | experiment | the model is the cache's mining model |
+| **Agent**: runner, model, reps, concurrency, switches | experiment | the model is the cache's building model |
 | **Grading**: the PRs' tests, or a named judge | experiment | a judge is named when any PR lacks tests |
 
 A plan with a failing check comes back `blocked` and cannot be started. A cache build fails closed:
-mining that saved nothing or failed on more than a fifth of its changes, an empty cache, or a note
-from anywhere but a PR marks the receipt failed.
+mining (or reading the code) that saved nothing or failed on more than a fifth of its work, an empty
+cache, or a note from anywhere but the kind's own source (a PR for a mined cache, the code for an
+understanding cache) marks the receipt failed. An understanding cache serves best with the runner's
+`ce-views: multi` (src/dense.js scores a note by its best of three texts) and a hook `budget` near 1500.
 
 The experiment's definition is kept in the database with its sessions; a launched experiment records
 its modules and the checks it passed:

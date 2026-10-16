@@ -1,0 +1,192 @@
+{
+  "PR26270-hard": [
+    {
+      "id": "a1",
+      "criterion": "When the Gemini chat provider streams a response chunk containing two or more parallel tool calls together, the resulting streamed tool call deltas are assigned distinct, consecutive indices (0, 1, 2, ...) within that chunk instead of all being reported as index 0.",
+      "essential": true
+    },
+    {
+      "id": "a2",
+      "criterion": "When a Gemini streamed response delivers tool calls across multiple separate chunks, the indices assigned to tool calls in later chunks continue numbering from where the previous chunks left off, rather than restarting at 0.",
+      "essential": true
+    },
+    {
+      "id": "a3",
+      "criterion": "When the LiteLLM chat provider streams a response chunk whose tool-call deltas carry an index from the underlying library, that provided index is preserved on the corresponding output tool call delta instead of being overwritten by the call's position within the chunk.",
+      "essential": true
+    },
+    {
+      "id": "a4",
+      "criterion": "When a LiteLLM streamed tool-call delta does not carry an index from the underlying library, the output tool call delta falls back to using the call's position within that chunk as its index.",
+      "essential": true
+    },
+    {
+      "id": "a5",
+      "criterion": "Existing gateway provider tests for Gemini and LiteLLM chat streaming still pass.",
+      "essential": true,
+      "command": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest tests/gateway/providers/test_gemini.py tests/gateway/providers/test_litellm.py"
+    }
+  ],
+  "PR26300-hard": [
+    {
+      "id": "a1",
+      "criterion": "A chat request (non-streaming) to a Gemini or Vertex AI gateway endpoint that declares tools and sets tool_choice to \"required\" results in the outbound request to the provider carrying a tool-calling configuration that forces a function call (Gemini's ANY mode), rather than leaving tool selection to the model's default automatic behavior.",
+      "essential": true
+    },
+    {
+      "id": "a2",
+      "criterion": "A chat request that declares tools and sets tool_choice to \"none\" results in the outbound request carrying a tool-calling configuration that disables function calling (Gemini's NONE mode), so the provider is instructed not to call any tool.",
+      "essential": true
+    },
+    {
+      "id": "a3",
+      "criterion": "A chat request that declares multiple tools and sets tool_choice to a specific named function results in the outbound request restricting tool calling to only that named function, even though other tools were declared.",
+      "essential": true
+    },
+    {
+      "id": "a4",
+      "criterion": "This tool_choice handling applies identically to streaming chat requests, not just non-streaming ones.",
+      "essential": true
+    },
+    {
+      "id": "a5",
+      "criterion": "When tool_choice is omitted or set to \"auto\", the outbound request is unchanged from current behavior (no forced/none/restricted tool-calling configuration is added), and when no tools are declared in the request at all, no tool-calling configuration is sent regardless of any tool_choice value.",
+      "essential": true
+    },
+    {
+      "id": "a6",
+      "criterion": "Existing Gemini/Vertex AI gateway provider tests still pass.",
+      "command": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest tests/gateway/providers/test_gemini.py tests/gateway/providers/test_vertex_ai.py",
+      "essential": true
+    }
+  ],
+  "PR26269-hard": [
+    {
+      "id": "a1",
+      "criterion": "Streaming a response containing two (or more) parallel tool calls numbers the tool-call deltas sequentially starting at 0 in the order the calls appear (first call's delta chunks use index 0, second call's chunks use index 1, etc.), rather than every chunk reporting index 0.",
+      "essential": true
+    },
+    {
+      "id": "a2",
+      "criterion": "When a text content block precedes a parallel tool call in the model's output, the tool call's delta index still starts counting from 0 among tool calls and is unaffected by the position/index of the preceding text block.",
+      "essential": true
+    },
+    {
+      "id": "a3",
+      "criterion": "Every chunk emitted while streaming a chat completion contains exactly one choice (the first choice), regardless of how many content blocks (text and/or tool calls) the underlying model streamed, so a second tool call is never placed into a second choice.",
+      "essential": true
+    },
+    {
+      "id": "a4",
+      "criterion": "For a given streamed chat completion response, a finish event (a chunk with a non-null finish_reason) is emitted exactly once, at the end of the stream, rather than once per content block.",
+      "essential": true
+    },
+    {
+      "id": "a5",
+      "criterion": "Non-streaming chat completion responses (including ones with one or more tool calls) are unaffected by this change and keep returning a single choice with the tool calls as before.",
+      "essential": true
+    },
+    {
+      "id": "a6",
+      "criterion": "Existing Anthropic provider tests continue to pass.",
+      "command": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest tests/gateway/providers/test_anthropic.py",
+      "essential": true
+    }
+  ],
+  "PR26225-hard": [
+    {
+      "id": "a1",
+      "criterion": "When a custom scorer defined with the scorer decorator is loaded/rebuilt from its serialized form inside the tracking server process (e.g. during online-scoring validation or gateway guardrail loading), the resulting object still exposes the scorer's normal fields (name, description, aggregations, source) and still serializes back to the same data, but invoking/running it in that process raises an error instead of executing the stored function body.",
+      "essential": true
+    },
+    {
+      "id": "a2",
+      "criterion": "A custom scorer submitted to run via the job executor (job execution enabled) is still rebuilt and actually executed, producing a real scoring result, exactly as before this change.",
+      "essential": true
+    },
+    {
+      "id": "a3",
+      "criterion": "A regular client process (not the tracking server) that loads a registered custom scorer and runs it locally behaves exactly as it did before this change (same success/failure conditions, e.g. still gated by the existing Databricks/local-opt-in rules), with no new restriction introduced for that case.",
+      "essential": true
+    },
+    {
+      "id": "a4",
+      "criterion": "Creating a gateway guardrail from a custom (scorer-decorator) scorer, or loading/resolving an already-created guardrail that is backed by a custom scorer -- including an ensemble that contains a custom scorer among its sub-scorers -- raises `UnsupportedGuardrailScorerError` (importable from `mlflow.gateway.guardrails`) instead of running the scorer's code.",
+      "essential": true
+    },
+    {
+      "id": "a5",
+      "criterion": "Guardrails backed by built-in scorers or by judges created with the judge-making helper (make_judge) still create and load successfully and run correctly, unaffected by the new restriction on custom scorers.",
+      "essential": true
+    },
+    {
+      "id": "a6",
+      "criterion": "At request time, a gateway endpoint whose configuration includes a guardrail backed by a custom scorer responds with a server-side error that names the failing guardrail (not a silently-skipped guardrail serving unprotected traffic), while any other, unrelated guardrail-loading failure for that same endpoint is still skipped and logged rather than failing the request.",
+      "essential": true
+    }
+  ],
+  "PR26311-hard": [
+    {
+      "id": "a1",
+      "criterion": "Converting a dataset whose rows contain nested lists/arrays of dictionaries with varying lengths (e.g. a Hugging Face dataset where each row's list-of-dicts column differs in length across rows) into an evaluation dataset succeeds and produces a hash/digest, instead of raising a ValueError about an inhomogeneous or non-rectangular array shape.",
+      "essential": true
+    },
+    {
+      "id": "a2",
+      "criterion": "When the irregular nested data contains dictionaries and cannot be converted into a uniform rectangular array, hashing falls back to walking through the nested contents item by item rather than failing, and this fallback path is actually exercised (not just caught and silently ignored) for such inputs.",
+      "essential": true
+    },
+    {
+      "id": "a3",
+      "criterion": "Hashing the same irregular (varying-length, dict-containing) data twice yields an identical hash each time, i.e. the fallback hashing is deterministic.",
+      "essential": true
+    },
+    {
+      "id": "a4",
+      "criterion": "Datasets with uniform/regular shapes (including existing list-of-dict and nested-array cases) continue to hash successfully and existing hashing/digest tests for evaluation datasets still pass.",
+      "essential": true,
+      "command": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest tests/data/test_evaluation_dataset.py"
+    },
+    {
+      "id": "a5",
+      "criterion": "Converting a dataset with mismatched row lengths that do not contain dictionaries (plain irregular numeric/scalar data) still raises the existing validation error rather than being silently absorbed by the new dict-specific fallback.",
+      "essential": false
+    }
+  ],
+  "PR26442-hard": [
+    {
+      "id": "a1",
+      "criterion": "A TypeSafe endpoint configured with a custom API base URL sends its requests (e.g. the System One passthrough call) to that custom address instead of the public TypeSafe hosted address.",
+      "command": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest tests/gateway/providers/test_typesafe.py",
+      "essential": true
+    },
+    {
+      "id": "a2",
+      "criterion": "A TypeSafe endpoint with no custom API base URL set still sends requests to the existing public TypeSafe hosted address, so previously configured endpoints keep working unchanged.",
+      "command": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest tests/gateway/providers/test_typesafe.py",
+      "essential": true
+    },
+    {
+      "id": "a3",
+      "criterion": "A custom API base URL value saved on a TypeSafe connection is passed through and used when the Gateway builds the provider for an endpoint that uses that connection.",
+      "command": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest tests/server/test_gateway_api.py",
+      "essential": true
+    },
+    {
+      "id": "a4",
+      "criterion": "The TypeSafe provider's listed configuration options include an API base URL setting marked as optional (not required), alongside the existing required API key setting.",
+      "command": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest tests/utils/test_providers.py",
+      "essential": true
+    },
+    {
+      "id": "a5",
+      "criterion": "The endpoint form for a saved TypeSafe connection displays an optional API Base URL input field, consistent with other providers that already expose this field.",
+      "essential": true
+    },
+    {
+      "id": "a6",
+      "criterion": "The model providers documentation describes the optional API base URL setting for TypeSafe and explains when to use it, such as routing through a proxy or pointing at a self-hosted System One server.",
+      "essential": true
+    }
+  ]
+}

@@ -141,6 +141,9 @@ const HELP = `thinker — knowledge cache for coding agents
                                  --prs also mines merged pull requests that were not mined before (default 20)
   record <session>               append events (JSON lines on stdin: {t:prompt|say|tool, ...}) to a session trace, for agents without hooks
   outcome <session> good|bad [reason]           apply an outcome signal to the notes served in a session
+  understand [--top n] [--areas a,b | --all] [--model m] [--dry]
+                                 notes on how the most changed code works now (maps, change recipes, invariants), read from
+                                 the top n files by recent commits (default 200), in the focus areas when set (--all: whole repository)
   mine-prs [owner/repo] [--project file | --full-repo] [--limit n] [--dry] [--git] [--fixes] [--from commit [--scan n] [--paths a,b [--paths-limit n]]]
                                  distill merged PRs into fix / invariant / convention notes: those merged since the last run,
                                  then older ones; mined PRs are recorded in .thinker/prs.json and never distilled twice;

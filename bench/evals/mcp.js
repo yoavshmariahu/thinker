@@ -86,7 +86,7 @@ const launchShape = {
   question: z.string().describe('What the experiment tests, as a question'),
   kind: z.enum(['behavior', 'model']).describe('behavior: a cache feature, prompt or wiring; model: how one model does with the cache'),
   prset: z.string().describe('PR set module: which PRs, at which base (list_pr_sets; create_pr_set to make one)'),
-  cache: z.string().describe('Cache module: the mined cache the cache-on arm is served (list_caches; plan_cache/build_cache to build one). It must be mined by the agent\'s model at or before the PR set\'s base.'),
+  cache: z.string().describe('Cache module: the cache the cache-on arm is served, mined or understanding (list_caches; plan_cache/build_cache to build one). It must be built by the agent\'s model at or before the PR set\'s base.'),
   runner: z.enum(['claude', 'codex', 'gemini']).describe('Agent module: which harness runs the agent (bench/run.js, codex-run.js or gemini-run.js)'),
   model: z.string().describe('Agent model, e.g. sonnet, opus, gpt-6-sol; must be the cache\'s mining model'),
   off: z.string().optional().describe('Cache-off arm; default nocache'),
@@ -101,7 +101,7 @@ const launchShape = {
 
 export function buildServer() {
   const server = new McpServer({ name: 'artemis', version: '0.1.0' }, {
-    instructions: 'Artemis: benchmark experiments for the thinker cache, following the run-evals skill. An experiment is built from modules: a PR set (create_pr_set), a mined cache (plan_cache, build_cache), the arms, the agent, and the grader; it runs the PRs with the cache off and with it on. Results are paired by PR and rep, with 90% bootstrap intervals, invalid sessions excluded. Read with list_experiments, get_experiment, get_pr, get_session (transcripts); follow runs and builds with get_progress. Building a cache and starting an experiment spend model tokens: plan, show the user the plan, and build or start only after the user approves it.',
+    instructions: 'Artemis: benchmark experiments for the thinker cache, following the run-evals skill. An experiment is built from modules: a PR set (create_pr_set), a cache, mined or read from the code (plan_cache, build_cache), the arms, the agent, and the grader; it runs the PRs with the cache off and with it on. Results are paired by PR and rep, with 90% bootstrap intervals, invalid sessions excluded. Read with list_experiments, get_experiment, get_pr, get_session (transcripts); follow runs and builds with get_progress. Building a cache and starting an experiment spend model tokens: plan, show the user the plan, and build or start only after the user approves it.',
   });
 
   server.registerTool('list_experiments', {
@@ -187,17 +187,20 @@ export function buildServer() {
   const cacheShape = {
     name: z.string().describe('New cache name, e.g. posthog-sonnet-a3b3c36'), repo: z.string().describe('Checkout under bench/repos'),
     anchor: z.string().optional().describe('Commit the cache is built at: at or before the PR set\'s base (default the checkout HEAD)'),
-    llm: z.enum(['claude', 'codex', 'gemini']).describe('Agent CLI that does the mining'), model: z.string().describe('Mining model: the model the experiment\'s agent will run'),
-    effort: z.string().optional(), limit: z.number().int().min(5).max(200).optional().describe('Merged changes to mine (default 60)'),
+    kind: z.enum(['mined', 'understanding']).optional().describe('mined (default): notes distilled from merged changes before the anchor (thinker mine-prs --git). understanding: notes on how the most changed code works at the anchor, read from the code (thinker understand)'),
+    llm: z.enum(['claude', 'codex', 'gemini']).describe('Agent CLI that builds the notes'), model: z.string().describe('Building model: the model the experiment\'s agent will run'),
+    effort: z.string().optional(), limit: z.number().int().min(5).max(200).optional().describe('mined: merged changes to mine (default 60)'),
+    top: z.number().int().min(10).max(1000).optional().describe('understanding: files read whole, the top by recency-weighted commits (default 200)'),
+    areas: z.array(z.string()).optional().describe('understanding: only files in these directories (a developer\'s focus areas); default the whole repository'),
     resume: z.boolean().optional().describe('Continue an unfinished build of this name (same parameters): the steps it finished are not repeated'),
   };
   server.registerTool('plan_cache', {
-    description: 'Validate a cache build without starting it: the anchor commit, the mining model, the steps (snapshot, mine-prs --git, phrase, relink). Show it to the user before build_cache.',
+    description: 'Validate a cache build without starting it: the kind, the anchor commit, the building model, the steps (snapshot, mine-prs --git or understand, phrase, relink). Show it to the user before build_cache.',
     inputSchema: cacheShape, annotations: { readOnlyHint: true },
   }, guard(async a => text(await call('/api/cache/plan', a))));
 
   server.registerTool('build_cache', {
-    description: 'Build a planned cache. Mining calls the model and spends tokens: only after the user approved the plan from plan_cache. Follow it with get_progress or get_cache.',
+    description: 'Build a planned cache. Mining or reading the code calls the model and spends tokens: only after the user approved the plan from plan_cache. Follow it with get_progress or get_cache.',
     inputSchema: cacheShape, annotations: { destructiveHint: false, openWorldHint: true },
   }, guard(async a => text(await call('/api/cache/build', { ...a, confirm: true }))));
 

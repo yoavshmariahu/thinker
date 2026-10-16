@@ -18,6 +18,8 @@ import { listMergedPrs, listMergedCommits, distillPr, minedPrs, recordMinedPrs, 
 import { recordEvent, traceFile, toolName, toolInput, hydrate, findSessions } from '../transcripts.js';
 import { sessionKey } from '../usage.js';
 import { githubSlug, hasBin, verifyAll } from './shared.js';
+import { understand, UNDERSTAND_DEFAULTS } from '../understand.js';
+import { areasConfig } from '../areas.js';
 
 async function learnCommand(ctx) {
   const { flags } = ctx;
@@ -88,6 +90,19 @@ async function minePrsCommand(ctx) {
   const paths = typeof flags.paths === 'string' ? flags.paths.split(',').map(s => s.trim()).filter(Boolean) : null;
   await mineMore(ctx, { slug: pos[0], from: typeof flags.from === 'string' ? flags.from : undefined, scan: Number(flags.scan) || undefined, before: flags.before, after: flags.after, again: !!flags.again, limit: Number(flags.limit) || (flags.before || flags.after ? 60 : 20), model: flags.model, dry: !!flags.dry, fixes: !!flags.fixes, git: !!flags.git, paths, pathsLimit: Number(flags['paths-limit']) || null });
   return;
+}
+
+// thinker understand [--top n] [--areas a,b | --all] [--model m] [--dry]: notes on how the most changed code
+// works now (src/understand.js). In the person's focus areas when they are set, else (or with --all) the whole repository.
+async function understandCommand(ctx) {
+  const { flags, store, out } = ctx;
+  const areas = typeof flags.areas === 'string' ? flags.areas.split(',').map(s => s.trim()).filter(Boolean) : flags.all ? [] : (areasConfig(store).directories || []);
+  const r = await understand(store, { top: Number(flags.top) || UNDERSTAND_DEFAULTS.top, areas, model: typeof flags.model === 'string' ? flags.model : undefined, dry: !!flags.dry,
+    onProgress: (d, n) => out(`${d}/${n} processed`) });
+  const where = areas.length ? `in ${areas.join(', ')}` : 'repository-wide';
+  if (flags.dry) { out(`${r.files.length} files ${where}, ${r.calls} calls, about ${Math.round(r.codeTokens / 1000)}k tokens of code`); for (const f of r.files) out('  ' + f); return; }
+  out(`${r.files} files ${where} · ${r.calls} calls · ${r.notes} notes saved${r.failed ? ` · ${r.failed} failed` : ''} · ${r.views} instance views`);
+  if (r.failed && r.failed / r.calls > 0.2) process.exitCode = 1;
 }
 
 // One maintenance run, with PR mining wired to this repository's origin.
@@ -352,4 +367,5 @@ export const commands = {
   'verify': verifyCommand,
   'check': checkCommand,
   'mine-prs': minePrsCommand,
+  'understand': understandCommand,
 };
