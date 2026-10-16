@@ -20,15 +20,29 @@ if [ ! -f "$ROOT/bench/evals/server.js" ]; then
   exit 1
 fi
 
-# already running: one Artemis per machine, every worktree shares its database
+# already running: one Artemis per machine, every worktree shares its database. The server holds
+# ~/.artemis/artemis.db.server.json while it lives (bench/evals/db.js lockServer) and refuses a second start.
+running=$(node -e '
+  const f = require("os").homedir() + "/.artemis/artemis.db.server.json";
+  try { const s = JSON.parse(require("fs").readFileSync(f, "utf8")); process.kill(s.pid, 0); console.log(s.port); } catch {}
+' 2>/dev/null || true)
+# a server started before the lock existed shows only as a live reservation
+if [ -z "${running:-}" ] && [ -x "$PORTS" ]; then
+  running=$("$PORTS" list thinker 2>/dev/null | awk '($3 == "artemis" || $3 == "evals") && $5 == "yes" { print $1; exit }')
+fi
+if [ -n "${running:-}" ]; then
+  echo "Artemis is already running: http://127.0.0.1:$running"
+  open_url "http://127.0.0.1:$running"
+  exit 0
+fi
+
+# one stable port: reuse the registry's artemis reservation while the port is free, drop the rest
 if [ -x "$PORTS" ]; then
-  live=$("$PORTS" list thinker 2>/dev/null | awk '($3 == "artemis" || $3 == "evals") && $5 == "yes" { print $1; exit }')
-  if [ -n "${live:-}" ]; then
-    echo "Artemis is already running: http://127.0.0.1:$live"
-    open_url "http://127.0.0.1:$live"
-    exit 0
-  fi
-  PORT=$("$PORTS" reserve thinker artemis)
+  PORT=""
+  for p in $("$PORTS" list thinker 2>/dev/null | awk '($3 == "artemis" || $3 == "evals") && $5 == "no" { print $1 }'); do
+    if [ -z "$PORT" ]; then PORT=$p; else "$PORTS" release thinker "$p" >/dev/null; fi
+  done
+  [ -n "$PORT" ] || PORT=$("$PORTS" reserve thinker artemis)
 else
   PORT="${PORT:-7860}"
 fi

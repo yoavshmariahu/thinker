@@ -8,7 +8,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { normalize, outcome, invalidReason } from '../bench/evals/normalize.js';
 import { bootstrap } from '../bench/evals/stats.js';
 import { compare, resolveMeta, writeMeta, readMeta } from '../bench/evals/experiment.js';
-import { openDb } from '../bench/evals/db.js';
+import { openDb, lockServer, runningServer, lockFile } from '../bench/evals/db.js';
 import { ingest } from '../bench/evals/ingest.js';
 import { plan, launch, cancel, alive, jobsView, liveSessions, RUNNERS, OPTIONS } from '../bench/evals/jobs.js';
 import { createPrset, readPrset, updatePrset, freezePrset } from '../bench/evals/prsets.js';
@@ -658,6 +658,20 @@ test('every PR Artemis holds is listed, a PR set opens to its PRs, and a PR show
     assert.deepEqual(pr.spec.tasksets, [{ name: 'click', version: 1 }]); assert.deepEqual(pr.spec.prsets, ['ps']);
     assert.equal(pr.experiments.length, 0);
   } finally { app.close(); }
+});
+
+test('one Artemis per database: a live lock refuses a second server, a dead one is taken over', () => {
+  const db = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'artemis-lock-')), 'a.db');
+  const other = spawnSync(process.execPath, ['-e', ''], {}).pid;  // exited: its pid is dead
+  fs.writeFileSync(lockFile(db), JSON.stringify({ pid: other, port: 1111 }));
+  assert.equal(runningServer(db), null);
+  assert.deepEqual(lockServer(2222, db), { held: null });
+  assert.equal(runningServer(db).port, 2222);
+  // another live process holds it
+  const holder = { pid: process.ppid, port: 3333 };
+  fs.writeFileSync(lockFile(db), JSON.stringify(holder));
+  assert.deepEqual(lockServer(4444, db).held, holder);
+  fs.rmSync(lockFile(db));
 });
 
 test('every runner option the experiment form shows has a name and says what it does', () => {

@@ -9,7 +9,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { openDb, DEFAULT_DB, env } from './db.js';
+import { openDb, DEFAULT_DB, env, lockServer } from './db.js';
 import { takeSnapshot, listLocal, s3Uri } from './snapshot.js';
 import { ingest, taskInfo } from './ingest.js';
 import { armSummary, METRICS } from './stats.js';
@@ -311,6 +311,10 @@ function serveStatic(res, p) {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   if (!PORT) { console.error('Set a port: artemis-up, or PORT=$(~/.claude/bin/claude-port reserve thinker artemis) npm run artemis'); process.exit(2); }
+  // one Artemis per database, however it was started (artemis-up, npm run artemis, an agent)
+  const { held } = lockServer(PORT, DB_FILE);
+  if (held) { console.error(`Artemis is already running on this database: http://127.0.0.1:${held.port} (pid ${held.pid}). Not starting a second one.`); process.exit(1); }
   const { server } = createApp();
+  server.on('error', e => { console.error(`Artemis could not listen on ${PORT}: ${e.message}`); process.exit(1); });
   server.listen(PORT, '127.0.0.1', () => console.log(`Artemis: http://127.0.0.1:${PORT}  (database ${DB_FILE}; runner hand-off ${path.join(BENCH, 'runs')})`));
 }

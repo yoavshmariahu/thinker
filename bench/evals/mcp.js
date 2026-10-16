@@ -11,11 +11,15 @@ import { z } from 'zod';
 import { execFileSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
+import { runningServer } from './db.js';
 
-// The app's address: ARTEMIS_URL, else the port the reservation tool holds for it.
+// The app's address: ARTEMIS_URL, else the running server's lock, else the port the reservation tool holds for it.
 function baseUrl() {
   const pinned = process.env.ARTEMIS_URL ?? process.env.EVALS_URL;
   if (pinned) return pinned.replace(/\/$/, '');
+  // the server that holds the database's lock (db.js lockServer)
+  const running = runningServer();
+  if (running) return `http://127.0.0.1:${running.port}`;
   try {
     const out = execFileSync(path.join(os.homedir(), '.claude', 'bin', 'claude-port'), ['list', 'thinker'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
     // the live reservation (it was labelled evals before the platform had a name)

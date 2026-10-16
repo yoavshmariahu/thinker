@@ -9,13 +9,15 @@ artemis-up                                         # scripts/artemis-up: start i
 claude mcp add artemis -- node bench/evals/mcp.js  # agents; finds the app through claude-port, or set ARTEMIS_URL
 ```
 
-`artemis-up` reserves a port (claude-port, label `artemis`), runs the app in the foreground (Ctrl-C
+`artemis-up` reuses one port (claude-port, label `artemis`; it reserves one only when none is free), runs the app in the foreground (Ctrl-C
 stops it) and opens it; when Artemis already runs on this machine it only says where. The alias is
 `alias artemis-up=~/src/thinker/scripts/artemis-up`. By hand: `PORT=$(~/.claude/bin/claude-port
-reserve thinker artemis) npm run artemis` (options: `--bench <dir>`, `--db <file>`).
+reserve thinker artemis) npm run artemis` (options: `--bench <dir>`, `--db <file>`). One server runs per
+database however it is started: the server holds `<db>.server.json` (pid, port) while it lives and a second
+start exits with the first one's address.
 
 The app binds 127.0.0.1 only and refuses cross-origin POSTs and foreign `Host` headers, because it
-starts agent sessions. Release the port with `claude-port release thinker evals` when done.
+starts agent sessions. Release the port with `claude-port release thinker artemis` when done.
 
 ## Experiments and their modules
 
