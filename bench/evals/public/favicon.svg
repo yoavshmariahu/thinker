@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <radialGradient id="planet" cx="0.38" cy="0.32" r="0.75">
+      <stop offset="0" stop-color="#ffe066"/>
+      <stop offset="0.55" stop-color="#ffb02e"/>
+      <stop offset="1" stop-color="#f07a12"/>
+    </radialGradient>
+    <clipPath id="front"><rect x="0" y="0" width="64" height="32"/></clipPath>
+  </defs>
+  <g transform="rotate(-22 32 32)">
+    <circle cx="32" cy="32" r="15" fill="url(#planet)"/>
+    <ellipse cx="32" cy="32" rx="29" ry="9.5" fill="none" stroke="#22d3ee" stroke-width="4"/>
+    <ellipse cx="32" cy="32" rx="22.5" ry="6.5" fill="none" stroke="#86efac" stroke-width="3.5"/>
+    <circle cx="32" cy="32" r="15" fill="url(#planet)" clip-path="url(#front)"/>
+  </g>
+</svg>
