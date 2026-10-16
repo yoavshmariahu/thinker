@@ -933,6 +933,21 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   does not discard existing notes or corrections. `transfer.js` backs up and
   restores effective notes locally. There is no note publishing or client sync.
 
+**Understanding notes as their own pool (off until an experiment, 2026-10-16).** With
+`ce.understanding: { enabled: true }` in `.thinker/config.json` (or `THINKER_CE_UNDERSTANDING=on`,
+for an experiment arm), the prompt hook ranks notes read from the code (`source.type: understanding`)
+apart from the rest (`ops.js:orient`): the other notes are ranked, scored and capped exactly as
+without it, and the understanding notes get their own lexical ranking, the cross-encoder's best of
+their top eight by the best of three texts, one note, served below the floor of 0 when it scores at
+least −4, in 600 tokens of its own (`dense.js:UNDERSTANDING_POOL`). Ranked together, understanding
+notes would change which other notes pass the lexical gate, which weighs a word by how many notes
+hold it. Why: on long bug-report requests every understanding note scores under 0, the one on target
+included; offline on the mlflow harder set the pool served the target on 7 of 8 requests against 5,
+and on PR-mined notes the same rule only added noise (`research/serving-understanding-2026-10` on
+`agent/understanding-serving-probe`). Its cost: on a request the cache does not cover it serves one
+irrelevant note where the shipped rule serves none. It stays off until an Artemis experiment shows it
+helps in agent sessions.
+
 ## Internal server
 
 `src/server/` and `infra/sync/` remain internal infrastructure: the team's note

@@ -101,7 +101,15 @@ export const CE_MODEL = 'Xenova/ms-marco-MiniLM-L-6-v2';
 // general note whose words differ from a specific request can still clear the floor (2026-10-15, mlflow:
 // rated-2 understanding notes scored −0.3 to −5.5 on search text alone; multi served on-target notes on 5 of 13
 // requests against 4).
-export const CE_DEFAULTS = { enabled: true, floor: 0, maxNotes: 2, k: 8, queryTokens: 120, fallbackFloor: null, views: 'search' };
+// Understanding notes (understand.js) as a pool of their own at the prompt hook: the cross-encoder's best of their
+// lexical top k by the best of three texts, one note, served below the floor when it scores at least fallbackFloor,
+// in its own `budget` beside the other notes. On long bug-report requests every understanding note scores under
+// 0, the one on target included (research/serving-understanding-2026-10 on agent/understanding-serving-probe:
+// 7 of 8 targets served against 5; on PR-mined notes the same rule only added noise, so they keep theirs). A new
+// serving strategy: off until an experiment shows it helps (AGENTS.md); `ce.understanding: { enabled: true }`
+// or THINKER_CE_UNDERSTANDING=on turns it on.
+export const UNDERSTANDING_POOL = { enabled: false, views: 'multi', floor: 0, fallbackFloor: -4, maxNotes: 1, budget: 600 };
+export const CE_DEFAULTS = { enabled: true, floor: 0, maxNotes: 2, k: 8, queryTokens: 120, fallbackFloor: null, views: 'search', understanding: UNDERSTANDING_POOL };
 export function ceConfig(store) {
   const c = store?.config?.().ce; const cfg = { ...CE_DEFAULTS, ...(c === false ? { enabled: false } : c && typeof c === 'object' ? c : {}) };
   const e = process.env;
@@ -113,6 +121,9 @@ export function ceConfig(store) {
   if (e.THINKER_CE_FALLBACK !== undefined && e.THINKER_CE_FALLBACK !== '') cfg.fallbackFloor = /^(off|none|false)$/i.test(e.THINKER_CE_FALLBACK) ? null : Number(e.THINKER_CE_FALLBACK);
   if (e.THINKER_CE_VIEWS) cfg.views = e.THINKER_CE_VIEWS;
   if (cfg.fallbackFloor === false) cfg.fallbackFloor = null;
+  const u = c && typeof c === 'object' && c.understanding && typeof c.understanding === 'object' ? c.understanding : {};
+  cfg.understanding = { ...UNDERSTANDING_POOL, ...u };
+  if (e.THINKER_CE_UNDERSTANDING === 'on') cfg.understanding.enabled = true; else if (e.THINKER_CE_UNDERSTANDING === 'off') cfg.understanding.enabled = false;
   return cfg;
 }
 export const ceEnabled = store => ceConfig(store).enabled;
