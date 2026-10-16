@@ -60,7 +60,7 @@ export function textOf(v) {
 }
 const tool = (name, input, result, id) => { const n = toolName(name); return { t: 'tool', id, name: n, input: toolInput(n, input), result: textOf(result) }; };
 // what agents wrap around the user's words
-const cleanPrompt = s => String(s || '').replace(/<(timestamp|environment_context|system-reminder|thinker-cache)>[\s\S]*?<\/\1>/g, '').replace(/<\/?user_query>/g, '').trim();
+const cleanPrompt = s => String(s || '').replace(/<(timestamp|environment_context|system-reminder|thinker-cache|thinker-code)>[\s\S]*?<\/\1>/g, '').replace(/<\/?user_query>/g, '').trim();
 
 function jsonLines(text) {
   return text.split('\n').map(l => { if (!l.trim()) return null; try { return JSON.parse(l); } catch { return null; } });

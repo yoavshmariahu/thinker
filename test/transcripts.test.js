@@ -36,6 +36,11 @@ test('Claude Code transcript', () => {
   assert.equal(parseTranscript(f, { fromLine: 3 }).model, 'claude-opus-5-5');
 });
 
+test('what the hooks inject is not the prompt: notes and code blocks are dropped', () => {
+  const f = write([{ type: 'user', cwd: '/r', message: { content: '<thinker-cache>\nnote\n</thinker-cache>\n\n<thinker-code>\n1  def x(): pass\n</thinker-code>\nwhere is x' } }]);
+  assert.deepEqual(shape(parseTranscript(f).events), ['prompt:where is x']);
+});
+
 test('Codex rollout and `codex exec --json` output', () => {
   const rollout = write([
     { type: 'session_meta', payload: { cwd: '/r', id: 's' } },

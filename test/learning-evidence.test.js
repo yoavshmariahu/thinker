@@ -30,6 +30,8 @@ test('bounded evidence keeps a buried failure and the final fix instead of all r
   assert.ok(packet.length <= EVIDENCE_CHARS);
   assert.match(packet, /FAILURE_MARKER/); assert.match(packet, /FIX_MARKER/);
   assert.ok(!packet.includes('<thinker-cache>'));
+  const coded = evidencePacket([{ t: 'prompt', text: '<thinker-code>\n1  CODE_MARKER\n</thinker-code> explain a' }, edit]);
+  assert.ok(!coded.includes('CODE_MARKER'), 'the code a hook handed over is not what anyone said');
   assert.ok(packet.length < condense(events).length / 4);
 });
 
