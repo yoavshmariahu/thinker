@@ -412,6 +412,14 @@ warm-up did not work, and is still cold, is offered a warm-up once more (`retryO
 repository per machine). Counts and times only, no repository names. The **Cache health** dashboard
 shows the counts, warm-up requests and issues per day, and tables of every request and every issue
 newest first; run `refresh` to add the cards (the layout is redrawn once).
+Updated clients include `raw_json.coverage`, 30-day counts of the weekly coverage suggestions
+(`src/coverage.js`): maintenance queues up to five directories the sessions worked in that the cache covers
+little (`suggestions`), the prompt hook puts them to the person (`offers`, `directoriesOffered`), and the
+answers: `answeredBuild` with `directoriesChosen`, `answeredNone` (not now: those directories wait a month),
+`answeredNever` (no suggestions on that machine again), `unanswered` (dropped after three days). A build starts
+through the person's own agent login (`buildsStarted`, `tokensEstimated`) or not, with none signed in
+(`buildsNotStarted`); the whole-directory understanding runs report `wholeRuns`, `wholeFiles`, `wholeNotes` and
+`wholeCallsFailed`. Counts only, no directory names. **Cache health** shows them; run `refresh` to add the card.
 ## Website messages
 
 The bottom-right **Send us a message** button on the homepage and docs opens a

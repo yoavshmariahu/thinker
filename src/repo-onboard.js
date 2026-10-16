@@ -211,7 +211,7 @@ export const QUESTION_TOOLS = { claude: 'AskUserQuestion', gemini: 'ask_user', c
 // The answer goes back through thinker's `warmup` MCP tool where the agent has thinker's server (it took
 // the answer where the shell did not find `thinker`, 2026-10-15), else through the command line, named by
 // path: `thinker` is on the PATH of the person's own shells, not always of the agent's.
-const MCP_CLIENTS = new Set(['claude', 'codex', 'gemini', 'cursor', 'opencode', 'copilot']); // Copilot's in .github/mcp.json (clients.js:MCP_FILES)
+export const MCP_CLIENTS = new Set(['claude', 'codex', 'gemini', 'cursor', 'opencode', 'copilot']); // Copilot's in .github/mcp.json (clients.js:MCP_FILES)
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), 'cli.js');
 const answerCommand = (repo, via, client) => `"${process.execPath}" "${CLI}" warmup --answer <warm|no|never> --via ${via}${client ? ` --client ${client}` : ''} --repos "${repo}"`;
 function askText(client, repo, duration) {

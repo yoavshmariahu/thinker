@@ -102,7 +102,8 @@ async function minePrsCommand(ctx) {
 async function understandCommand(ctx) {
   const { flags, store, out } = ctx;
   const areas = typeof flags.areas === 'string' ? flags.areas.split(',').map(s => s.trim()).filter(Boolean) : flags.all ? [] : (areasConfig(store).directories || []);
-  const r = await understand(store, { top: Number(flags.top) || UNDERSTAND_DEFAULTS.top, areas, model: typeof flags.model === 'string' ? flags.model : undefined, dry: !!flags.dry,
+  if (flags.whole && !areas.length) { out('--whole reads every code file of the directories named with --areas'); process.exitCode = 2; return; }
+  const r = await understand(store, { top: Number(flags.top) || UNDERSTAND_DEFAULTS.top, areas, whole: !!flags.whole, model: typeof flags.model === 'string' ? flags.model : undefined, dry: !!flags.dry,
     onProgress: (d, n, part) => out(`${part ? part + ': ' : ''}${d}/${n} processed`) });
   const where = areas.length ? `in ${areas.join(', ')}` : 'repository-wide';
   if (flags.dry) { out(`${r.files.length} files ${where}, ${r.calls} calls, about ${Math.round(r.codeTokens / 1000)}k tokens of code`); for (const f of r.files) out('  ' + f); return; }

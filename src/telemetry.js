@@ -234,6 +234,27 @@ export function warmupMetrics(store, { all = true, now = Date.now(), repos = nul
 // 'error'); anything else is sent as 'other' so free text never leaves the machine.
 const WARMUP_REQUESTS_MAX = 50;
 const warmupReason = warmupIssueReason;
+// Coverage suggestions over the last 30 days (coverage.js): the questions maintenance queued and the prompt hook
+// put to the person, how they answered (build, none, never, unanswered), the directories offered and chosen, the
+// builds started or not started (no signed-in agent), and the whole-directory understanding runs: files read,
+// notes saved, calls failed. Counts only, no directory names.
+export function coverageMetrics(store, { all = true, now = Date.now() } = {}) {
+  const since = new Date(now - HOLDOUT_WINDOW_DAYS * DAY_MS).toISOString();
+  const m = { schemaVersion: 1, windowDays: HOLDOUT_WINDOW_DAYS, suggestions: 0, offers: 0, directoriesOffered: 0, answeredBuild: 0, answeredNone: 0, answeredNever: 0, unanswered: 0, directoriesChosen: 0,
+    buildsStarted: 0, buildsNotStarted: 0, tokensEstimated: 0, wholeRuns: 0, wholeFiles: 0, wholeNotes: 0, wholeCallsFailed: 0 };
+  for (const e of readLog(store, { all }).filter(e => e.t >= since)) {
+    if (e.op === 'coverage-suggest') m.suggestions++;
+    else if (e.op === 'coverage-offer') { m.offers++; m.directoriesOffered += e.dirs || 0; }
+    else if (e.op === 'coverage-answer') {
+      const k = { build: 'answeredBuild', none: 'answeredNone', never: 'answeredNever', unanswered: 'unanswered' }[e.choice];
+      if (k) m[k]++;
+      m.directoriesChosen += e.chosen || 0;
+    }
+    else if (e.op === 'coverage-build') { if (e.started) { m.buildsStarted++; m.tokensEstimated += e.tokens || 0; } else m.buildsNotStarted++; }
+    else if (e.op === 'understand' && e.whole) { m.wholeRuns++; m.wholeFiles += e.files || 0; m.wholeNotes += e.saved || 0; m.wholeCallsFailed += e.failed || 0; }
+  }
+  return m;
+}
 export function holdoutMetrics(store, { all = true, now = Date.now() } = {}) {
   const since = new Date(now - HOLDOUT_WINDOW_DAYS * DAY_MS).toISOString();
   const events = readLog(store, { all }).filter(e => e.t >= since);
@@ -299,6 +320,8 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
 
     // Warm-up offers, starts and ends, 30 days; the repositories in use today, warm or cold (warmupMetrics).
     warmup: warmupMetrics(store, { all, repos: u.repos }),
+    // coverage suggestions asked, answered and built, 30 days (coverageMetrics)
+    coverage: coverageMetrics(store, { all }),
 
     // Explicit coverage keeps old logs and unsupported provider costs unknown.
     // SQL dashboards read this versioned block from reports.raw_json.

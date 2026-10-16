@@ -15,6 +15,7 @@ import { initAst } from './ast.js';
 import { cacheInstructions, disabledTools, MORE_NOTES_INTRO } from './cache-guidance.js';
 import { isDisabledRepo } from './repo-switch.js';
 import { warmupPending, answerWarmup, WARMUP_CHOICES } from './repo-onboard.js';
+import { coveragePending, answerCoverage } from './coverage.js';
 import { queueDir, buildRunning, nextRequest, answerRequest, requestText } from './session-llm.js';
 import { anyDesktopApp } from './app-host.js';
 
@@ -78,7 +79,7 @@ async function ensureBound(args) {
   if (!r) return { reply: text('thinker is not bound to a repository yet: it was started outside a git checkout. Call again with cwd, the absolute path of your working directory.') };
   if (isDisabledRepo(r)) return { reply: text('thinker is switched off for that repository and serves nothing there.') };
   binding = bind(r); await binding;
-  registerWarmupTool(); registerQueueTools();
+  registerWarmupTool(); registerCoverageTool(); registerQueueTools();
   return { bound: true };
 }
 
@@ -263,7 +264,23 @@ function registerTools() {
   });
 
   registerWarmupTool();
+  registerCoverageTool();
   registerQueueTools();
+}
+
+// The answer to a coverage suggestion (coverage.js:coverageOffer): offered only while one waits for its answer
+// here, so it costs nothing the rest of the time.
+let coverageTool;
+function registerCoverageTool() {
+  if (coverageTool || !store || !coveragePending(store)) return;
+  coverageTool = server.registerTool('coverage', {
+    title: 'Answer a coverage suggestion',
+    description: 'Only when a thinker-coverage-suggestion notice tells you to: records the user\'s answer and builds notes for the directories they chose, in the background.',
+    inputSchema: {
+      choice: z.string().describe('The directories the user chose, comma-separated, exactly as listed; or none; or never'),
+      asked: z.enum(['picker', 'chat']).optional().describe('Where the user answered: your question tool (picker) or chat'),
+    },
+  }, async ({ choice, asked }) => text(await answerCoverage(store, String(choice), { client: clientName(), via: asked === 'chat' ? 'text' : 'picker' })));
 }
 
 let warmupTool;
@@ -340,7 +357,7 @@ if (late) server.server.oninitialized = async () => {
         const r = checkoutOf(root.uri);
         if (!r || isDisabledRepo(r) || store) continue;
         binding = bind(r); await binding;
-        registerWarmupTool(); registerQueueTools();
+        registerWarmupTool(); registerCoverageTool(); registerQueueTools();
         break;
       }
     }
