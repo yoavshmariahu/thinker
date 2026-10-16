@@ -292,34 +292,42 @@ function registerWarmupTool() {
 
 // Work read through this session (session-llm.js), a warm-up or, in a desktop app, learning (session-work.js):
 // its subagent takes the model calls with warmup_next and answers with warmup_answer. Offered in a desktop
-// app, while a warm-up offer may still be answered here, or while such work runs, so a subagent with its own
-// server process finds them too.
+// app from the start, bound or not, while a warm-up offer may still be answered here, or while such work runs,
+// so a subagent with its own server process finds them too. Each call reads the queue of the repository its
+// `cwd` names: Cursor runs one server for every window (2026-10-16: started the day before in the home
+// directory, bound to another repository), so the bound repository is only the fallback.
 let queueTools, inApp;
+const queueStore = cwd => { const r = checkoutOf(cwd); return r ? (r === repo ? store : new Store(r)) : store; };
 function registerQueueTools() {
-  if (queueTools || !store) return;
+  if (queueTools) return;
   inApp ??= anyDesktopApp();
-  if (!(inApp || warmupPending(store) || buildRunning(queueDir(store)))) return;
+  if (!(inApp || (store && (warmupPending(store) || buildRunning(queueDir(store)))))) return;
+  const noRepo = text('Pass cwd: the absolute path of the repository whose warm-up you are answering.');
   queueTools = [server.registerTool('warmup_next', {
     title: 'Take the warm-up\'s next model request',
     description: 'Only for a subagent told to work thinker\'s queue: returns the next model request of thinker\'s background work (a warm-up or learning) that reads through this session.',
     inputSchema: { cwd: z.string().optional().describe('Absolute path of the repository') },
-  }, async () => {
+  }, async ({ cwd } = {}) => {
+    const s = queueStore(cwd); if (!s) return noRepo;
     // under the clients' tool timeouts (Codex: 60s), so an empty wait returns and is called again
-    const r = await nextRequest(queueDir(store), { waitMs: 25_000 });
+    const r = await nextRequest(queueDir(s), { waitMs: 25_000 });
     if (r.request) return text(requestText(r.request));
     if (r.waiting) return text('Nothing has come yet: the warm-up is still reading. Call warmup_next again.');
-    return text(`The work is done: the cache holds ${store.list().length} notes. Stop.`);
+    return text(`The work is done: the cache holds ${s.list().length} notes. Stop.`);
   }), server.registerTool('warmup_answer', {
     title: 'Answer a warm-up model request',
     description: 'Only for a subagent working thinker\'s queue: the answer to the request warmup_next returned.',
     inputSchema: { id: z.string().describe('The request id'), answer: z.string().describe('The answer: one JSON object when the request gave a schema'), cwd: z.string().optional() },
-  }, async ({ id, answer }) => {
-    const r = answerRequest(queueDir(store), id, answer);
+  }, async ({ id, answer, cwd }) => {
+    const s = queueStore(cwd); if (!s) return noRepo;
+    const r = answerRequest(queueDir(s), id, answer);
     return text(r.error ? `Refused: ${r.error}. Answer request ${id} again.` : 'Saved. Call warmup_next for the next request.');
   })];
 }
 
 if (setUp || late) registerTools();
+// unbound in a desktop app: the queue tools are listed from the start (registerQueueTools)
+if (late) registerQueueTools();
 
 // Started outside a repository: a client that declares roots (a workspace) is asked for them, and
 // the first root that is a git repository binds the server. connect() only starts the transport;

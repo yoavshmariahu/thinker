@@ -444,9 +444,13 @@ const sameCopy = (a, b) => real(installRoot(a)) === real(installRoot(b));
 // Whether the checkout's own files run thinker hooks for `client`, of any copy: set up before the
 // wiring went machine-wide, with --shared, or a benchmark arm wired to a checkout of its own. The
 // hook at user scope then yields to them, so a checkout's wiring is the only one that fires there.
+// Hooks whose copy is gone (a deleted worktree's: a benchmark arm's) run nothing, so they are not yielded
+// to: the user's hook goes on, and its prune (pruneInstalls) takes them and their MCP entry out
+// (2026-10-16, click: a dead .mcp.json hid the user's server and the dead hooks silenced the user's).
 export function repoRunsHooks(repo, client) {
   const w = inferWiring(repo, client);
-  return !!(w && w.hooks);
+  if (!w?.hooks) return false;
+  return !w.hookScripts.length || w.hookScripts.some(sc => fs.existsSync(sc));
 }
 
 // The machine-wide wiring, from the checkouts: for each agent that no user-level file wires yet

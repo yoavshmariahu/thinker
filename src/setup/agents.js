@@ -38,7 +38,7 @@ export const BUILD_AGENTS = ['claude', 'gemini', 'codex', 'cursor'];
 export function getAgentDisplayName(agent, bin = null) {
   if (agent === 'session') return 'your agent session';
   if (agent === 'claude') return 'Claude Code';
-  if (agent === 'codex') return 'Codex CLI';
+  if (agent === 'codex') return bin && /\/(ChatGPT|Codex)\.app\//.test(bin) ? 'Codex app' : 'Codex CLI';
   if (agent === 'cursor') return 'Cursor Agent';
   if (agent === 'gemini') {
     if (bin && path.basename(bin) === 'agy') return 'Antigravity (agy)';
