@@ -46,6 +46,7 @@ export function invalidReason(rec, dir) {
   if (rec.timed_out) return 'timed out';
   if ((rec.turns || 0) >= MAX_TURNS && !rec.usage) return `hit the ${MAX_TURNS}-turn cap`;
   if (rec.grade && rec.grade.error && !rec.grade.tests) return 'grading failed: ' + String(rec.grade.error).slice(0, 120);
+  if (rec.loop?.checkerError) return 'checker failed: ' + String(rec.loop.checkerError).slice(0, 120);
   return null;
 }
 
@@ -57,6 +58,17 @@ export function tokens(rec) {
   }
   const read = rec.cache_read_tokens ?? null, write = rec.cache_write_tokens ?? null;
   return { in: rec.in_tokens ?? null, fresh: rec.fresh_in_tokens ?? null, cacheRead: read, cacheWrite: write, out: rec.out_tokens ?? null };
+}
+
+export function loopFields(rec, o = outcome(rec)) {
+  const l = rec.loop;
+  if (!l || typeof l !== 'object') return { done: null, iterations: null, false_done: null, loop_stop: null, checker: null, checker_tokens: null };
+  const done = l.stop === 'done' ? 1 : 0;
+  return {
+    done, iterations: Array.isArray(l.iterations) ? l.iterations.length : null,
+    false_done: done && o.pass != null ? (o.pass ? 0 : 1) : null,
+    loop_stop: l.stop || null, checker: l.checker || null, checker_tokens: l.checker_in_tokens ?? null,
+  };
 }
 
 export function normalize(rec, { dir, file, mtime, sidecar = null, repo = null }) {
@@ -82,6 +94,9 @@ export function normalize(rec, { dir, file, mtime, sidecar = null, repo = null }
     pass: o.pass == null ? null : o.pass ? 1 : 0,
     score: typeof rec.grade?.score === 'number' ? rec.grade.score : (o.all ?? null),
     outcome_source: o.source, judge: o.judge,
+    // loop-to-done sessions (codex-run.js --loop, bench/loop.js): reached done within the limits, in
+    // how many iterations, why it stopped, and done by the checker while the PR's tests fail (false done)
+    ...loopFields(rec, o),
     invalid: invalidReason(rec, dir),
     mtime,
     file,

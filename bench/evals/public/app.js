@@ -236,28 +236,30 @@ function comparison(comps, metrics, meta, scope) {
   const served = scope === 'served';
   const sides = c => served ? { off: c.servedOffSide, on: c.servedOnSide, d: c.deltaServed, n: c.served } : { off: c.offSide, on: c.onSide, d: c.delta, n: c.pairs };
   const graded = comps.some(c => c.offSide.graded);
-  const keys = HEADLINE.filter(k => k !== 'pass' || graded);
+  // a loop experiment (bench/loop.js) leads with whether the sessions got to done
+  const loop = comps.some(c => c.offSide.done != null || c.onSide.done != null);
+  const keys = [...(loop ? ['done'] : []), ...HEADLINE.filter(k => k !== 'pass' || graded)];
   const legend = `<div class="legend"><span><i style="background:var(--baseline)"></i>${esc(meta.off)} · cache off</span>${comps.map(c => `<span><i style="background:${armHue(c.on, meta, comps)}"></i>${esc(c.on)}${armRole(c.on, meta) ? ' · ' + armRole(c.on, meta) : ''}</span>`).join('')}</div>`;
 
   const card = k => {
     const m = M[k], vk = k === 'pass' ? 'pass_rate' : k;  // a side stores the pass rate as pass_rate
     const base = sides(comps[0]).off[vk];
     const vals = [base, ...comps.map(c => sides(c).on[vk])].filter(v => v != null);
-    const max = Math.max(...vals.map(Math.abs), k === 'pass' ? 1 : 0) || 1;
+    const max = Math.max(...vals.map(Math.abs), m.unit === 'share' ? 1 : 0) || 1;
     const bar = (arm, v, extra = '') => `<div class="brow"><span class="blab">${esc(arm)}</span><span class="btrack"><span class="bfill" style="width:${v == null ? 0 : Math.max(1.5, (Math.abs(v) / max) * 100)}%;background:${armHue(arm, meta, comps)}"></span></span><span class="bval">${k === 'pass' ? fmt.pct(v) : fmtValue[m.unit](v)}</span>${extra}</div>`;
     const rows = comps.map(c => {
       const sd = sides(c), d = sd.d[k], v = verdict(d, m.better);
       const rel = sd.off[vk] ? d.mean / sd.off[vk] : null;
       const t = `<b>${esc(c.on)} − ${esc(meta.off)}</b><br>${k === 'pass' ? `${sd.on.passed}/${sd.on.graded} vs ${sd.off.passed}/${sd.off.graded}` : `${fmtValue[m.unit](sd.on[k])} vs ${fmtValue[m.unit](sd.off[k])}`}<br>paired Δ ${fmtDelta[m.unit](d.mean)}${d.lo != null ? `<br>90% interval ${fmtDelta[m.unit](d.lo)} to ${fmtDelta[m.unit](d.hi)}` : ''}<br>${d.n} pairs · ${v.label}`;
-      const chip = d.mean == null ? '' : `<span class="dchip ${v.key}" ${tipAttr(t)}>${k === 'pass' || rel == null ? fmtDelta[m.unit](d.mean) : `${sign(rel)}${Math.abs(rel * 100).toFixed(0)}%`}</span>`;
+      const chip = d.mean == null ? '' : `<span class="dchip ${v.key}" ${tipAttr(t)}>${m.unit === 'share' || rel == null ? fmtDelta[m.unit](d.mean) : `${sign(rel)}${Math.abs(rel * 100).toFixed(0)}%`}</span>`;
       return bar(c.on, sd.on[vk], chip);
     }).join('');
-    return `<div class="card mcard"><div class="mtitle">${esc(m.label)}${k === 'pass' ? '' : ' <span class="muted small">median</span>'}<span class="muted small" style="float:right">${m.better === 'up' ? 'higher is better' : 'lower is better'}</span></div>
+    return `<div class="card mcard"><div class="mtitle">${esc(m.label)}${m.unit === 'share' ? '' : ' <span class="muted small">median</span>'}<span class="muted small" style="float:right">${m.better === 'up' ? 'higher is better' : 'lower is better'}</span></div>
       ${bar(meta.off, base)}${rows}</div>`;
   };
 
   const head = comps.map(c => `<th class="num" colspan="3" style="border-left:3px solid ${armHue(c.on, meta, comps)}">${esc(c.on)}<div class="armname">${armRole(c.on, meta) || 'vs cache off'} · ${sides(c).n} pairs</div></th>`).join('');
-  const rows = metrics.filter(m => m.key !== 'pass' || graded).map(m => {
+  const rows = metrics.filter(m => (m.key !== 'pass' || graded) && (!m.loop || loop)).map(m => {
     const base = sides(comps[0]).off;
     return `<tr><th scope="row">${esc(m.label)}</th><td class="num">${m.key === 'pass' ? `${fmt.pct(base.pass_rate)} <span class="muted">${base.passed}/${base.graded}</span>` : fmtValue[m.unit](base[m.key])}</td>
       ${comps.map(c => { const sd = sides(c), d = sd.d[m.key], v = verdict(d, m.better);

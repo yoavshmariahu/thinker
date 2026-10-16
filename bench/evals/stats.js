@@ -34,6 +34,10 @@ export const METRICS = [
   { key: 'tool_calls', label: 'Tool calls', unit: 'count', better: 'down' },
   { key: 'wall_ms', label: 'Wall time', unit: 'ms', better: 'down' },
   { key: 'cost', label: 'Spend (recorded)', unit: 'usd', better: 'down' },
+  // loop-to-done sessions only (bench/loop.js); `loop` metrics are left out where no session has them
+  { key: 'done', label: 'Done within limits', unit: 'share', better: 'up', loop: true },
+  { key: 'iterations', label: 'Iterations', unit: 'count', better: 'down', loop: true },
+  { key: 'false_done', label: 'False done (checker done, tests fail)', unit: 'share', better: 'down', loop: true },
 ];
 
 export function baselineArm(arms) {
@@ -57,6 +61,7 @@ export function armSummary(rows) {
       turns: median(ok.map(r => r.turns)),
       cost_total: ok.reduce((s, r) => s + (r.cost || 0), 0), cost: median(ok.map(r => r.cost)),
       served_share: ok.length ? ok.filter(r => r.served).length / ok.length : null,
+      done: mean(ok.map(r => r.done)), iterations: median(ok.map(r => r.iterations)), false_done: mean(ok.map(r => r.false_done)),
       graders: [...new Set(graded.map(r => r.outcome_source + (r.judge ? ` · ${r.judge}` : '')))],
     };
   }).sort((a, b) => order(a.arm) - order(b.arm) || a.arm.localeCompare(b.arm));

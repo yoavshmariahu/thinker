@@ -8,12 +8,14 @@ import { spawn, execFileSync } from 'node:child_process';
 import { median } from './stats.js';
 import { readPrset, checkPrset, listPrsets } from './prsets.js';
 import { readReceipt, checkCache, notesDir, listCaches, planCache, cacheDir } from './caches.js';
+import { acceptanceOf, loopLimits } from '../loop.js';
 
 export const RUNNERS = {
   claude: { script: 'run.js', label: 'Claude Code (bench/run.js)', defaultModel: 'sonnet', defaultArms: 'nocache,cache',
     booleans: ['strict-model', 'isolated-settings', 'counterbalance', 'no-judge', 'no-subagents'], values: ['effort', 'max-turns', 'judge-samples'] },
   codex: { script: 'codex-run.js', label: 'Codex (bench/codex-run.js)', defaultModel: 'gpt-5.6-terra', defaultArms: 'nocache,full',
-    booleans: ['no-judge'], values: ['budget'] },
+    // loop: iterate to each task's acceptance criteria with a named checker (bench/loop.js)
+    booleans: ['no-judge', 'loop'], values: ['budget', 'checker', 'iterations', 'iteration-min', 'session-min', 'token-cap'] },
   gemini: { script: 'gemini-run.js', label: 'Gemini (bench/gemini-run.js)', defaultModel: 'gemini-3.8-flash-high', defaultArms: 'nocache,cache',
     booleans: ['strict-model', 'counterbalance', 'no-judge', 'no-tests'], values: ['effort', 'max-min'] },
 };
@@ -80,6 +82,12 @@ export function plan(req, { benchDir, db }) {
   const judged = tasks.some(t => !t.testCmd);
   if (req.judge && !MODEL.test(String(req.judge))) throw new Error('judge is not valid');
   if (judged && !req.judge && !req.flags?.['no-judge']) throw new Error(`${tasks.filter(t => !t.testCmd).length} of these PRs have no tests to grade them: name the judge model`);
+  // module: loop (codex-run.js --loop) — the checker is a judge: named, and the same for every arm
+  const loop = Boolean(req.flags?.loop);
+  if (loop && !runner.booleans.includes('loop')) throw new Error(`${req.runner} has no loop mode yet: use the codex runner`);
+  const checker = loop ? String(req.values?.checker || '') : null;
+  if (loop && !MODEL.test(checker)) throw new Error('a loop experiment names its checker model');
+  const limits = loop ? loopLimits(req.values || {}) : null;
   const graded = allTests ? `PR tests${req.judge ? ` (and judge ${req.judge})` : ''}` : req.flags?.['no-judge'] ? 'ungraded (--no-judge)' : `${tasks.some(t => t.type === 'change') ? 'patch/criteria' : 'answer'} judge: ${req.judge}`;
 
   const tag = String(req.tag || '');
@@ -100,12 +108,13 @@ export function plan(req, { benchDir, db }) {
   const checks = [
     ...checkPrset(benchDir, prset).map(c => ({ module: 'PR set', ...c })),
     ...checkCache(benchDir, receipt, prset, model).map(c => ({ module: 'cache', ...c })),
+    ...(loop ? [checkAcceptance(tasks)] : []),
   ];
   const expected = expectedIds(prset.ids, arms, reps);
   const todo = expected.filter(id => !existing.includes(id));
   // the runners skip a result already on disk, so a tag that has some is a resume
   const history = estimate(db, model, repo);
-  const n = todo.length;
+  const n = todo.length, f = loop ? LOOP_GUESS : 1;
   return {
     runner: req.runner, repo, tasks: prset.tasks, arms, model, reps, conc, tag, only: prset.ids,
     experiment: { name, question, kind: req.kind, off, on },
@@ -115,19 +124,28 @@ export function plan(req, { benchDir, db }) {
       arms: { off, on, extra },
       agent: { runner: req.runner, model, reps, conc, flags: Object.keys(req.flags || {}).filter(k => req.flags[k]), values: req.values || {} },
       grading: { oracle: allTests ? 'tests' : 'judge', judge: req.judge || null, summary: graded },
+      ...(loop ? { loop: { checker, ...limits } } : {}),
     },
     checks, blocked: checks.some(c => !c.ok),
     command: ['node', ...argv.map(a => (a.startsWith(benchDir) ? path.relative(path.dirname(benchDir), a) : a))].join(' '),
     argv, expected, sessions: n, resumed: expected.length - n,
     cache: path.relative(path.dirname(benchDir), notes), graded,
     estimate: history.n ? {
-      basis: history.basis, n: history.n,
-      in_tokens: history.in_tokens * n, out_tokens: history.out_tokens * n,
-      cost: history.cost != null ? history.cost * n : null,
-      wall_ms: history.wall_ms * Math.ceil(n / conc),
+      basis: loop ? `${history.basis}, one-shot sessions × ${LOOP_GUESS} iterations (a guess until loop results exist), checker not included` : history.basis, n: history.n,
+      in_tokens: history.in_tokens * n * f, out_tokens: history.out_tokens * n * f,
+      cost: history.cost != null ? history.cost * n * f : null,
+      wall_ms: history.wall_ms * Math.ceil(n / conc) * f,
     } : null,
   };
 }
+
+// A loop experiment needs acceptance criteria on every PR: written from the request and the base code,
+// never from the gold diff or tests, because the solver is told which ones fail (bench/loop.js).
+export function checkAcceptance(tasks) {
+  const missing = tasks.filter(t => !acceptanceOf(t).length).map(t => t.id);
+  return { module: 'loop', ok: !missing.length, check: 'acceptance criteria on every PR', detail: missing.length ? `missing on ${missing.join(', ')}` : `${tasks.length} PRs` };
+}
+const LOOP_GUESS = 2;
 
 export function expectedIds(taskIds, arms, reps) {
   const ids = [];
