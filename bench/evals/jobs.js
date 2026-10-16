@@ -7,6 +7,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { median } from './stats.js';
+import { BASELINE_ARMS } from './normalize.js';
+import { readArm, writeArmDefs, armDefsFile } from './arms.js';
 import { readPrset, checkPrset, listPrsets, isFrozen } from './prsets.js';
 import { readReceipt, checkCache, notesDir, listCaches, planCache, cacheDir, STEPS, kindOf } from './caches.js';
 import { acceptanceOf, loopLimits } from '../loop.js';
@@ -72,10 +74,6 @@ export function plan(req, { benchDir, db }) {
   const reps = Math.max(1, Math.min(10, Number(req.reps) || 1));
   const conc = Math.max(1, Math.min(8, Number(req.conc) || 1));
 
-  // module: cache
-  const receipt = readReceipt(db, req.cache);
-  if (!receipt) throw new Error(req.cache ? `no cache ${req.cache}` : 'pick a cache (build one for this PR set first)');
-
   // module: arms — every experiment compares the cache off with it on; further arms ride along
   const [defOff, defOn] = runner.defaultArms.split(',');
   const codexArm = a => (req.runner === 'codex' && a === 'cache' ? 'full' : a);
@@ -84,6 +82,16 @@ export function plan(req, { benchDir, db }) {
   if (![off, on, ...extra].every(a => NAME.test(a))) throw new Error('arms are not valid');
   if (off === on) throw new Error('cache off and cache on must be different arms');
   const arms = [...new Set([off, on, ...extra])];
+  // arms defined as data (evals/arms.js): handed to the runner whole, and recorded with the experiment
+  const defined = Object.fromEntries(arms.map(a => [a, readArm(db, a)]).filter(([, d]) => d));
+  for (const [a, d] of Object.entries(defined)) if (d.runner !== req.runner) throw new Error(`arm ${a} is defined for ${d.runner}, not ${req.runner}`);
+
+  // module: cache — only when an arm is served thinker's notes. An experiment of another tool against
+  // the cache off has none, and is given none so that no arm is served one by accident.
+  const servesNotes = arms.some(a => !BASELINE_ARMS.includes(a) && defined[a]?.def.notes !== false);
+  const receipt = servesNotes ? readReceipt(db, req.cache) : null;
+  if (servesNotes && !receipt) throw new Error(req.cache ? `no cache ${req.cache}` : 'pick a cache (build one for this PR set first)');
+  if (!servesNotes && req.cache) throw new Error(`no arm of ${arms.join(', ')} is served notes: leave the cache out`);
 
   // module: grading — the PRs' own tests where every PR has them, else a judge that is named, not defaulted
   const allTests = tasks.length && tasks.every(t => t.testCmd);
@@ -103,9 +111,9 @@ export function plan(req, { benchDir, db }) {
   const outDir = path.join(benchDir, 'runs', tag);
   const existing = fs.existsSync(outDir) ? fs.readdirSync(outDir).filter(f => f.endsWith('.json') && f !== 'summary.json').map(f => f.replace(/\.json$/, '')) : [];
 
-  const notes = notesDir(benchDir, receipt.name);
+  const notes = receipt ? notesDir(benchDir, receipt.name) : null;
   const argv = [path.join(benchDir, runner.script), '--repo', repo, '--tasks', path.join(benchDir, 'tasks', prset.tasks), '--only', prset.ids.join(','),
-    '--arm', arms.join(','), '--model', model, '--reps', String(reps), '--conc', String(conc), '--tag', tag, '--notes-dir', notes];
+    '--arm', arms.join(','), '--model', model, '--reps', String(reps), '--conc', String(conc), '--tag', tag, ...(notes ? ['--notes-dir', notes] : []), ...(Object.keys(defined).length ? ['--arm-defs', armDefsFile(benchDir, tag)] : [])];
   if (req.judge) argv.push('--judge', String(req.judge));
   // the PRs' tests grade every session: a judge would only spend
   else if (allTests && runner.booleans.includes('no-judge') && !req.flags?.['no-judge']) argv.push('--no-judge');
@@ -117,7 +125,7 @@ export function plan(req, { benchDir, db }) {
 
   const checks = [
     ...checkPrset(benchDir, prset).map(c => ({ module: 'PR set', ...c })),
-    ...checkCache(benchDir, receipt, prset, model).map(c => ({ module: 'cache', ...c })),
+    ...(receipt ? checkCache(benchDir, receipt, prset, model).map(c => ({ module: 'cache', ...c })) : []),
     ...(loop ? [checkAcceptance(tasks)] : []),
   ];
   const expected = expectedIds(prset.ids, arms, reps);
@@ -130,8 +138,8 @@ export function plan(req, { benchDir, db }) {
     experiment: { name, question, kind: req.kind, off, on },
     modules: {
       prset: { name: prset.name, hash: prset.hash, rule: prset.rule, base: prset.base, prs: prset.ids.length, tasks: prset.tasks },
-      cache: { name: receipt.name, anchor: receipt.anchor, model: receipt.model, llm: receipt.llm, limit: receipt.limit, notes: receipt.notes, notes_hash: receipt.notes_hash, kind: kindOf(receipt), top: receipt.top ?? null, areas: receipt.areas ?? null, source: kindOf(receipt) === 'mined' ? 'mine-prs --git' : 'understand' },
-      arms: { off, on, extra },
+      cache: receipt && { name: receipt.name, anchor: receipt.anchor, model: receipt.model, llm: receipt.llm, limit: receipt.limit, notes: receipt.notes, notes_hash: receipt.notes_hash, kind: kindOf(receipt), top: receipt.top ?? null, areas: receipt.areas ?? null, source: kindOf(receipt) === 'mined' ? 'mine-prs --git' : 'understand' },
+      arms: { off, on, extra, ...(Object.keys(defined).length ? { defined: Object.fromEntries(Object.entries(defined).map(([a, d]) => [a, { hash: d.hash, ...d.def }])) } : {}) },
       agent: { runner: req.runner, model, reps, conc, flags: [...new Set([...Object.keys(req.flags || {}).filter(k => req.flags[k]), ...(runner.always || [])])], values: req.values || {} },
       grading: { oracle: allTests ? 'tests' : 'judge', judge: req.judge || null, summary: graded },
       ...(loop ? { loop: { checker, ...limits } } : {}),
@@ -139,7 +147,7 @@ export function plan(req, { benchDir, db }) {
     checks, blocked: checks.some(c => !c.ok),
     command: ['node', ...argv.map(a => (a.startsWith(benchDir) ? path.relative(path.dirname(benchDir), a) : a))].join(' '),
     argv, expected, sessions: n, resumed: expected.length - n,
-    cache: path.relative(path.dirname(benchDir), notes), graded,
+    cache: notes && path.relative(path.dirname(benchDir), notes), graded,
     estimate: history.n ? {
       basis: loop ? `${history.basis}, one-shot sessions × ${LOOP_GUESS} iterations (a guess until loop results exist), checker not included` : history.basis, n: history.n,
       in_tokens: history.in_tokens * n * f, out_tokens: history.out_tokens * n * f,
@@ -184,6 +192,8 @@ export function launch(p, { benchDir, db }) {
   db.setDefinition(p.tag, { ...prev, ...p.experiment, modules: p.modules, created_at: prev.created_at || Date.now(),
     launched: [...(prev.launched || []), { at: Date.now(), runner: p.runner, model: p.model, tasks: p.tasks, reps: p.reps, arms: p.arms, command: p.command, checks: p.checks }] });
   db.run('UPDATE runs SET repo = coalesce(repo, ?), runner = coalesce(runner, ?), arms = ?, models = coalesce(nullif(models, \'\'), ?) WHERE dir = ?', p.repo, p.runner, p.arms.join(','), p.model, p.tag);
+  // the defined arms, as planned, where the runner reads them (--arm-defs)
+  if (p.modules.arms.defined) writeArmDefs(benchDir, p.tag, Object.fromEntries(Object.entries(p.modules.arms.defined).map(([a, { hash, ...def }]) => [a, def])));
   const log = path.join(outDir, 'harness.log');
   const fd = fs.openSync(log, 'a');
   fs.writeSync(fd, `\n# ${new Date().toISOString()} launched from Artemis\n# ${p.command}\n`);

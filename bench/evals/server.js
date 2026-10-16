@@ -17,6 +17,7 @@ import { readMeta, resolveMeta, writeMeta, compare } from './experiment.js';
 import { catalog, plan, launch, launchCache, cancel, jobsView } from './jobs.js';
 import { listPrsets, createPrset, updatePrset, freezePrset, readPrset, checkPrset } from './prsets.js';
 import { listCaches, readReceipt, planCache, checkCache } from './caches.js';
+import { listArms, defineArm } from './arms.js';
 import { archiveAll, readTranscript, stepStats } from './transcripts.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -188,6 +189,8 @@ export function createApp({ bench = BENCH, dbFile = DB_FILE, snapshots = true } 
       }
       return { rows: [...by.values()].map(({ d_in, ...a }) => ({ ...a, d_in_share: d_in.length ? d_in.reduce((x, y) => x + y, 0) / d_in.length : null })) };
     },
+    'GET /api/arms': () => ({ arms: listArms(db) }),
+    'POST /api/arms': body => ({ arm: defineArm(db, body) }),
     'GET /api/catalog': () => catalog(bench, db),
     'GET /api/jobs': () => ({ jobs: jobsView(db, bench) }),
     'POST /api/plan': body => plan(body, { benchDir: bench, db }),

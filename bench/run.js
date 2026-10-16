@@ -51,6 +51,26 @@ function makeWorktree(i) {
 // `uses` feeds ranking and the prompt hook holds stale notes back — so each run is given
 // its own copy and the source directory is never touched. `live` is the exception: that
 // arm exists to let the cache change between tasks.
+// Arms defined as data (Artemis: evals/arms.js), handed over by the plan as --arm-defs <file>: another
+// tool's MCP servers, hooks, system-prompt text and env, a command run in the worktree before and after
+// each session, and paths kept out of the graded diff. `{cwd}` in any string is the session's worktree.
+const ARM_DEFS = flags['arm-defs'] ? JSON.parse(fs.readFileSync(flags['arm-defs'], 'utf8')) : {};
+const withCwd = (v, cwd) => typeof v === 'string' ? v.replaceAll('{cwd}', cwd) : Array.isArray(v) ? v.map(x => withCwd(x, cwd)) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, withCwd(x, cwd)])) : v;
+const NOTELESS_ARMS = ['nocache', 'before', 'control', 'baseline', 'none'];  // evals/normalize.js:BASELINE_ARMS
+const servedNotes = arm => !NOTELESS_ARMS.includes(arm) && ARM_DEFS[arm]?.notes !== false;
+// A defined arm's before/after command; `failIf` (a pattern over its output) fails the session.
+function armStep(arm, step, cwd) {
+  const st = ARM_DEFS[arm]?.[step];
+  if (!st?.command?.length) return null;
+  const [bin, ...rest] = withCwd(st.command, cwd);
+  const t0 = Date.now();
+  let out;
+  try { out = execFileSync(bin, rest, { cwd, env: { ...process.env, ...withCwd(ARM_DEFS[arm].env || {}, cwd) }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 1 << 24, timeout: st.timeoutMs || 600_000 }); }
+  catch (e) { if (step === 'after') return { ms: Date.now() - t0, error: e.message.slice(0, 300) }; throw new Error(`${arm} ${step}: ${e.message.slice(0, 300)}`); }
+  if (st.failIf && new RegExp(st.failIf).test(out)) throw new Error(`${arm} ${step}: output matches ${st.failIf}: ${out.slice(0, 300)}`);
+  return { ms: Date.now() - t0, tail: out.slice(-400) };
+}
+
 const SRC_NOTES = path.resolve(flags['notes-dir'] || path.join(HERE, 'repos', repoName, '.thinker', 'notes'));
 function stageNotes(id) {
   const dst = path.join(outDir, 'notes-staged', id);
@@ -89,6 +109,7 @@ function toolStats(file) {
       if (b.type !== 'tool_use') continue;
       stats.calls++; stats.byTool[b.name] = (stats.byTool[b.name] || 0) + 1;
       if (b.name.startsWith('mcp__thinker')) stats.thinkerCalls++;
+      else if (b.name.startsWith('mcp__')) stats.otherMcpCalls = (stats.otherMcpCalls || 0) + 1;
       if (b.name === 'Read') stats.filesRead.add(b.input?.file_path);
       if (b.name === 'Grep' || b.name === 'Glob') stats.greps++;
       if (b.name === 'Bash' && /\b(grep|rg|find|cat|sed|head|tail|ls)\b/.test(b.input?.command || '')) stats.greps++;
@@ -163,7 +184,8 @@ function runClaude(prompt, { arm, allowEdit, cwd, notesDir: staged, system }) {
   // ToolSearch call before the first use, which an agent handed a <thinker-cache> bundle
   // often never pays. `off` puts the schemas in the prompt instead, so an arm measures
   // thinker's tools rather than the host's tool discovery. Applied to both arms alike.
-  const env = { ...process.env, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1', ...(TOOL_SEARCH === 'off' ? { ENABLE_TOOL_SEARCH: 'false' } : {}) };
+  const def = ARM_DEFS[arm] ? withCwd(ARM_DEFS[arm], cwd) : null;
+  const env = { ...process.env, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1', ...(TOOL_SEARCH === 'off' ? { ENABLE_TOOL_SEARCH: 'false' } : {}), ...(def?.env || {}) };
   const notesDir = staged || SRC_NOTES;
   // Hook-based and cache arms. early: what the UserPromptSubmit hook injects; late: PostToolUse
   // file-keyed notes; nudge: Stop-hook completeness check.
@@ -182,8 +204,12 @@ function runClaude(prompt, { arm, allowEdit, cwd, notesDir: staged, system }) {
     'hook-ce2':      { env: { THINKER_CE: 'on', THINKER_CE_FLOOR: '0', THINKER_CE_MAX: '2' } },
   };
 
-  const cfg = ARMS[arm];
-  if (arm === 'cache' || cfg?.mcp) {
+  const cfg = def ? null : ARMS[arm];
+  if (def) {
+    a.push('--mcp-config', JSON.stringify({ mcpServers: def.mcpServers || {} }));
+    if (def.hooks) a.push('--settings', JSON.stringify({ hooks: def.hooks }));
+    if (def.system) sys.push(def.system);
+  } else if (arm === 'cache' || cfg?.mcp) {
     a.push('--mcp-config', JSON.stringify({ mcpServers: { thinker: { command: 'node', args: [path.join(HERE, '..', 'src', 'mcp.js')], env: { THINKER_REPO: cwd, THINKER_NOTES_DIR: notesDir } } } })); sys.push(CACHE_PROMPT);
   } else {
     a.push('--mcp-config', '{"mcpServers":{}}');
@@ -267,8 +293,11 @@ async function main() {
       const file = path.join(outDir, id + '.json');
       if (fs.existsSync(file) && !flags.force) { summary.push(JSON.parse(fs.readFileSync(file, 'utf8'))); console.log(`skip ${id} (exists)`); continue; }
       // `live` learns across tasks on purpose; every other arm gets an untouched copy
-      const notesDir = (arm === 'live' || flags['notes-mutable']) ? SRC_NOTES : stageNotes(id);
-      let r;
+      // arms served no notes (the cache off, another tool) get none staged: a run of them may have no cache at all
+      const notesDir = !servedNotes(arm) ? null : (arm === 'live' || flags['notes-mutable']) ? SRC_NOTES : stageNotes(id);
+      let r, armBefore = null;
+      try { armBefore = armStep(arm, 'before', cwd); }
+      catch (e) { console.log(`${id} ERROR ${e.message}`); resetWorktree(cwd); continue; }
       for (let attempt = 0; ; attempt++) {
         // the request first, the benchmark's framing paragraph ("Implement the following change… Do not install
         // dependencies…") after it, for every arm alike: the hook reads the request's first tokens, and a person
@@ -294,7 +323,8 @@ async function main() {
         }
         break;
       }
-      if (!r) continue;
+      const armAfter = armStep(arm, 'after', cwd);
+      if (!r) { resetWorktree(cwd); continue; }
       let distill = null;
       if (arm === 'live') {
         // the cache learns from this session before the next task runs
@@ -312,7 +342,7 @@ async function main() {
       if (leak.length) console.log(`${id} LEAK: the transcript names gold tests ${leak.join(', ')}`);
       let grade = null, diff = null;
       if (task.type === 'change') {
-        try { execFileSync('git', ['add', '-A', '--', '.', ':!.thinker'], { cwd }); diff = execFileSync('git', ['diff', '--cached', '--no-color'], { cwd, maxBuffer: 16 * 1024 * 1024 }).toString(); execFileSync('git', ['reset', '-q'], { cwd }); } catch (e) { diff = 'DIFF ERROR ' + e.message; }
+        try { execFileSync('git', ['add', '-A', '--', '.', ':!.thinker', ...(ARM_DEFS[arm]?.exclude || []).map(p => ':!' + p)], { cwd }); diff = execFileSync('git', ['diff', '--cached', '--no-color'], { cwd, maxBuffer: 16 * 1024 * 1024 }).toString(); execFileSync('git', ['reset', '-q'], { cwd }); } catch (e) { diff = 'DIFF ERROR ' + e.message; }
         if (!flags['no-judge']) { try { grade = await judgeChange(task, diff, r.result || ''); } catch (e) { grade = { error: e.message }; } }
         if (task.testCmd) {
           try { installGoldTests(task, cwd); } catch (e) { grade = { ...(grade || {}), goldTests: e.message }; }
@@ -334,6 +364,7 @@ async function main() {
         cache_read_tokens: r.usage?.cache_read_input_tokens || 0, cache_write_tokens: r.usage?.cache_creation_input_tokens || 0, fresh_in_tokens: r.usage?.input_tokens || 0,
         goldTouched: diff ? goldTouched(task, diff) : null,
         leak,  // gold test names the transcript shows: a session that saw one had the answer key
+        ...(ARM_DEFS[arm] ? { armSteps: { before: armBefore, after: armAfter } } : {}),  // a defined arm's own steps, not in wall_ms
       };
       fs.writeFileSync(file, JSON.stringify(rec, null, 2));
       summary.push(rec);

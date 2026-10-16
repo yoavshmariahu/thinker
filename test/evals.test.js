@@ -16,6 +16,7 @@ import { checkCache, planCache, readReceipt, notesDir, cacheDir, hashNotes } fro
 import { takeSnapshot, restoreSnapshot } from '../bench/evals/snapshot.js';
 import { parseClaude, parseCodex, stepStats } from '../bench/evals/transcripts.js';
 import { createApp } from '../bench/evals/server.js';
+import { defineArm, armDefsFile } from '../bench/evals/arms.js';
 
 const rec = (o = {}) => ({ id: `${o.task || 'T1'}-${o.arm || 'nocache'}-${o.rep ?? 0}`, task: 'T1', arm: 'nocache', rep: 0, model: 'sonnet', turns: 10, wall_ms: 1000, cost: 0.1, in_tokens: 1000, out_tokens: 10, tools: { calls: 5, injected: [] }, ...o });
 
@@ -317,6 +318,35 @@ test('plan builds the experiment from its modules and blocks a failing check', (
   fs.writeFileSync(path.join(bench, 'tasks', 'click2.json'), JSON.stringify(spec));
   createPrset(bench, db, { name: 'ps2', tasks: 'click2.json', rule: 'r' });
   assert.throws(() => plan({ ...base, prset: 'ps2', tag: 't' }, { benchDir: bench, db }), /name the judge/);
+});
+
+test('an arm defined as data runs against the cache off with no cache, and its definition is recorded and handed to the runner', () => {
+  const { bench } = ready();
+  const db = openDb(':memory:');
+  ingest(db, bench);
+  const tool = { name: 'tool', description: 'another tool', notes: false, mcpServers: { tool: { command: 'tool-mcp', args: ['{cwd}'] } }, system: 'use the tool',
+    before: { command: ['tool', 'index', '{cwd}'], failIf: 'limit reached' }, exclude: ['.tool'] };
+  assert.throws(() => defineArm(db, { ...tool, name: 'cache' }), /runners' own arms/);
+  assert.throws(() => defineArm(db, { ...tool, notes: undefined }), /notes/);
+  assert.throws(() => defineArm(db, { ...tool, before: { command: [] } }), /before.command/);
+  assert.throws(() => defineArm(db, { ...tool, runner: 'codex' }), /claude only/);
+  const arm = defineArm(db, tool);
+  assert.equal(db.getArm('tool').hash, arm.hash);
+  const base = { ...exp, prset: 'ps', runner: 'claude', off: 'nocache', on: 'tool', model: 'sonnet', reps: 1, tag: 'click-tool' };
+  const p = plan(base, { benchDir: bench, db });
+  assert.equal(p.blocked, false, JSON.stringify(p.checks.filter(c => !c.ok)));
+  assert.equal(p.modules.cache, null);
+  assert.ok(!p.argv.includes('--notes-dir'), 'no notes are handed to the runner');
+  assert.equal(p.argv[p.argv.indexOf('--arm-defs') + 1], armDefsFile(bench, 'click-tool'));
+  assert.equal(p.modules.arms.defined.tool.hash, arm.hash);
+  assert.deepEqual(p.modules.arms.defined.tool.before.command, ['tool', 'index', '{cwd}'], 'the plan records the whole definition');
+  assert.throws(() => plan({ ...base, cache: 'c-sonnet' }, { benchDir: bench, db }), /leave the cache out/);
+  assert.throws(() => plan({ ...base, extra: 'hook' }, { benchDir: bench, db }), /pick a cache/, 'an arm served notes still needs one');
+  assert.throws(() => plan({ ...base, runner: 'codex' }, { benchDir: bench, db }), /defined for claude/);
+  // launch writes the definitions where the runner reads them
+  fs.writeFileSync(path.join(bench, 'run.js'), 'setTimeout(() => {}, 10)');
+  launch(p, { benchDir: bench, db });
+  assert.equal(JSON.parse(fs.readFileSync(armDefsFile(bench, 'click-tool'), 'utf8')).tool.system, 'use the tool');
 });
 
 test('a loop experiment names its checker, needs acceptance criteria on every PR, and says its estimate is a guess', () => {
