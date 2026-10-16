@@ -254,6 +254,7 @@ export function codeSnippets(repo, notes, budget, { perNote = 2, max = 4, maxLin
 export async function orient(store, { task, file, session, client, budget = HOOK_BUDGET, maxNotes = 2, relFloor = 0, refreshFirst = true, recordUsage = true, rerankModel = store.config().rerank, links = true, snippets = false, once = false, freshOnly = false, holdout = false, turn = undefined }) {
   const start = Date.now();
   let notes = store.list();
+  const cached = notes.length;
   if (once && session) notes = notes.filter(n => !(n.servedIn || []).includes(session));
   // the agent's own call (more than the hook's two notes) asks with a sentence; a higher body floor keeps
   // the notes that merely share its words out (rank.js:MIN_COVER.agentBody)
@@ -342,8 +343,22 @@ export async function orient(store, { task, file, session, client, budget = HOOK
     try { const g = anchoringGuard(store.repo, String(task), packed.included, { explicitOnly: true, max: 3 }); if (g.text) { packed.text += '\n\n' + g.text; packed.tokens += estTokens(g.text); packed.uncovered = g.uncovered.map(u => u.ident); } } catch {}
   }
   addSnippets(store, packed, budget, snippets);
-  if (recordUsage) store.log({ op: 'orient', session, turn, client: client || 'cli', dense: dense ? 'minilm' : undefined, ce: ce || undefined, understood: understood.length ? understood.map(r => Number(r.ce.toFixed(2))) : undefined, task: String(task).slice(0, 200), file, served: packed.included.map(n => n.id), uncovered: packed.uncovered, snippets: packed.snippets?.length || undefined, stale: packed.included.filter(n => n.status === 'stale').map(n => n.id), held: held.length ? held.map(n => n.id) : undefined, durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
+  const empty = packed.included.length ? undefined : emptyReason({ cached, notes, lexical, ranked, ce, freshOnly });
+  if (recordUsage) store.log({ op: 'orient', session, turn, client: client || 'cli', empty, dense: dense ? 'minilm' : undefined, ce: ce || undefined, understood: understood.length ? understood.map(r => Number(r.ce.toFixed(2))) : undefined, task: String(task).slice(0, 200), file, served: packed.included.map(n => n.id), uncovered: packed.uncovered, snippets: packed.snippets?.length || undefined, stale: packed.included.filter(n => n.status === 'stale').map(n => n.id), held: held.length ? held.map(n => n.id) : undefined, durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
   return packed;
+}
+
+// Why a request was served nothing (logged as `empty`, counted by usage.js, sent as retrieval.emptyReasons):
+// 2026-10-16, external caches of 88 and 442 notes answered 2% of requests and nothing said whether the
+// cache had no note on the subject or the ranker turned its notes down. Two more come from the prompt hook:
+// too-few-notes (it does not ask a cache below its serving threshold, ops.js:servesNotes) and held-out.
+export const EMPTY_REASONS = ['too-few-notes', 'held-out', 'all-served', 'no-match', 'only-stale', 'ranker-rejected', 'below-floor'];
+function emptyReason({ cached, notes, lexical, ranked, ce, freshOnly }) {
+  if (!notes.length) return cached ? 'all-served' : 'too-few-notes';
+  if (!lexical.length) return 'no-match';                                   // no note shares the request's terms
+  if (freshOnly && lexical.every(r => r.note.status === 'stale')) return 'only-stale';
+  if (ce && !ranked.length) return 'ranker-rejected';                       // the cross-encoder kept none
+  return 'below-floor';                                                     // candidates too weak to pack
 }
 
 // `snippets: false` in .thinker/config.json leaves the code out everywhere.
@@ -565,7 +580,8 @@ export async function lookup(store, { query, client, budget = 2500, maxNotes = 3
   candidates = candidates.map(r => fresh.has(r.note.id) ? { ...r, note: fresh.get(r.note.id) } : r);
   const packed = pack(candidates, budget, { minRel: 0.15 });
   addSnippets(store, packed, budget, snippets, false);
-  store.log({ op: 'lookup', client: client || 'cli', query: String(query || '').slice(0, 200), kind, served: packed.included.map(n => n.id), snippets: packed.snippets?.length || undefined, durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
+  const empty = packed.included.length ? undefined : !notes.length ? 'too-few-notes' : !ranked.length ? 'no-match' : 'below-floor';
+  store.log({ op: 'lookup', client: client || 'cli', query: String(query || '').slice(0, 200), kind, empty, served: packed.included.map(n => n.id), snippets: packed.snippets?.length || undefined, durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
   return packed;
 }
 

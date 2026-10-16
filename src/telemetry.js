@@ -409,6 +409,9 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
         ? Math.round(ret.durationMs / ret.durationSamples)
         : null,
       servedByKind: ret.servedByKind || {},
+      // why the empty requests were empty; too-few-notes: the cache was not asked at all (ops.js:EMPTY_REASONS)
+      emptyReasons: ret.emptyReasons || {},
+      emptyShortPrompts: ret.emptyShortPrompts || 0,
     },
 
     effectiveness: {

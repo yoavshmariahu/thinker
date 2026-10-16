@@ -275,3 +275,28 @@ test('a still_valid verdict later contradicted, or given while a contradiction s
     assert.match(renderUsage(u), /doubted passes  1 passed notes later contradicted or corrected; 1 passed while a contradiction stood/);
   });
 });
+
+test('a request served nothing records why, and the summary counts the reasons', async () => {
+  const home = tmp('thinker-home-');
+  const { orient, lookup } = await import('../src/ops.js');
+  // withEnv puts the environment back when fn returns, before an async fn's awaits: set it for the whole test
+  const prev = { THINKER_HOME: process.env.THINKER_HOME, THINKER_LOG: process.env.THINKER_LOG, THINKER_NOTES_DIR: process.env.THINKER_NOTES_DIR };
+  process.env.THINKER_HOME = home; delete process.env.THINKER_LOG; delete process.env.THINKER_NOTES_DIR;
+  try {
+    const store = repoWith({ 'upload-rate-limit': ['a.js'] });
+    // nothing on the subject: the lexical ranking finds no note
+    await orient(store, { task: 'rename the billing currency column', client: 'claude', session: 's1' });
+    await lookup(store, { query: 'billing currency', client: 'mcp' });
+    // the prompt hook does not ask a cache below its serving threshold, and says so
+    store.log({ op: 'orient', session: 's2', client: 'claude', task: 'what', served: [], empty: 'too-few-notes' });
+    // older clients: `empty: true` is the threshold, and a held-out turn is held out
+    store.log({ op: 'orient', session: 's3', client: 'claude', task: 'fix the upload limit', served: [], empty: true });
+    store.log({ op: 'orient', session: 's4', client: 'claude', task: 'fix the upload limit', served: [], holdout: true });
+    store.log({ op: 'orient', session: 's5', client: 'claude', task: 'fix the upload limit', served: [] });
+    const logged = fs.readFileSync(logFile(store), 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l)).filter(e => e.op === 'orient' || e.op === 'lookup');
+    assert.deepEqual(logged.slice(0, 2).map(e => e.empty), ['no-match', 'no-match']);
+    const u = summarize(store);
+    assert.deepEqual(u.retrieval.emptyReasons, { 'no-match': 2, 'too-few-notes': 2, 'held-out': 1, unrecorded: 1 });
+    assert.equal(u.retrieval.emptyShortPrompts, 1, '"what"');
+  } finally { for (const [k, v] of Object.entries(prev)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } }
+});

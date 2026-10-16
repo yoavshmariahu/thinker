@@ -161,13 +161,13 @@ export async function provision({ call = api, config = state, persist = save, re
   state.cards ||= {};
   for (const question of questions) {
     const existingId = state.cards[question.name];
-    if (existingId && (question.cache ? state.cacheCardVersion === 3 : question.holdout ? state.holdoutCardVersion === 3 : question.delivery ? state.deliveryCardVersion === 2 : state.cardVersion === 5)) continue;
+    if (existingId && (question.cache ? state.cacheCardVersion === 4 : question.holdout ? state.holdoutCardVersion === 3 : question.delivery ? state.deliveryCardVersion === 2 : state.cardVersion === 5)) continue;
     const card = await api(existingId ? `/card/${existingId}` : '/card', existingId ? 'PUT' : 'POST', { name: question.name, display: question.display, description: question.description || null,
       collection_id: state.collectionId, visualization_settings: question.settings || {},
       dataset_query: dataset(question, db.id) });
     state.cards[question.name] = card.id; save();
   }
-  state.cardVersion = 5; state.deliveryCardVersion = 2; state.holdoutCardVersion = 3; state.cacheCardVersion = 3; save();
+  state.cardVersion = 5; state.deliveryCardVersion = 2; state.holdoutCardVersion = 3; state.cacheCardVersion = 4; save();
   if (!state.dashboardId) {
     state.dashboardId = (await api('/dashboard', 'POST', { name: 'Thinker telemetry', collection_id: state.collectionId,
       description: 'Live reports, installation activity, and data quality. Installation IDs are not people. Older telemetry may contain test data. Usage fields are rolling snapshots; do not sum all reports.' })).id;
@@ -286,7 +286,7 @@ export async function provision({ call = api, config = state, persist = save, re
       description: 'What the cache serves, how fresh its notes are, and how often a re-verification pass was later doubted. Latest snapshot per device; each card names its window.' })).id;
     save();
   }
-  if (state.cacheDashboardVersion !== 5) {
+  if (state.cacheDashboardVersion !== 6) {
     const cards = [{ id: -1, card_id: null, row: 0, col: 0, size_x: 24, size_y: 4,
       visualization_settings: { virtual_card: { display: 'text' }, text: '## Is the cache serving current, trustworthy notes?\nEach card reads the latest snapshot per known device (installation fallback). Retrieval and assessment cards cover that snapshot\'s 24 hours; verification cards cover 30 days; note status and confidence are the notes at upload time.\n**Doubted passes are a lower bound:** a wrong verification pass is only seen when a session or a person later contradicts or corrects the note. Clients before the verification block show no value, not zero.' } }];
     let row = 8, col = 0;
@@ -298,7 +298,7 @@ export async function provision({ call = api, config = state, persist = save, re
       if (q.fullWidth || col) { row += 8; col = 0; } else col = 12;
     });
     await api(`/dashboard/${state.cacheId}`, 'PUT', { parameters, dashcards: cards });
-    state.cacheDashboardVersion = 5; save();
+    state.cacheDashboardVersion = 6; save();
   } else {
     const dashboard = await api(`/dashboard/${state.cacheId}`);
     await api(`/dashboard/${state.cacheId}`, 'PUT', { parameters: [...parameters,
