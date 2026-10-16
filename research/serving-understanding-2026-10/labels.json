@@ -1,0 +1,49 @@
+{
+  "_how": "Hand labels (2026-10-16, the agent, from the request and the notes that point at the fix's source files): 2 = the note states the mechanism the task changes; 1 = a useful map of the code the task changes. Notes not listed are 0. Cache: mlflow-b2-astra-understanding-200. PR26252, PR26265 and PR26311 change files no note points at: anything served there is noise.",
+  "PR26225-hard": {
+    "deserialization-preserves-variant-and-code-execution-boundar": 2,
+    "scorer-invocation-signature-filtering-an": 1,
+    "guardrail-definitions-are-separate-from-": 1
+  },
+  "PR26270-hard": {
+    "changing-gemini-tool-call-round-trips-re": 2,
+    "provider-entry-points-separate-normalize": 1
+  },
+  "PR26267-hard": {
+    "http-routes-combine-protobuf-descriptors": 2,
+    "server-selection-native-routing-and-flas": 2,
+    "authentication-entry-points-and-flask-au": 1
+  },
+  "PR26291-hard": {
+    "search-pagination-and-latest-version-loa": 2
+  },
+  "PR26269-hard": {
+    "anthropic-usage-changes-must-cover-norma": 1,
+    "provider-entry-points-separate-normalize": 1
+  },
+  "PR26307-hard": {
+    "span-construction-and-finalization-follo": 2,
+    "span-persistence-distinguishes-encoded-a": 1
+  },
+  "PR26369-hard": {
+    "aggregate-composition-and-database-colla": 2,
+    "rollup-eligibility-coverage-and-serving-": 1,
+    "raw-metric-queries-share-one-pipeline-wi": 1,
+    "trace-search-separates-columns-child-row": 1
+  },
+  "PR26442-hard": {
+    "changing-openai-versus-azure-configurati": 1,
+    "gateway-endpoint-resolution-and-provider": 1,
+    "provider-identifiers-select-configuratio": 1
+  },
+  "PR26327-hard": {
+    "shared-search-parsing-produces-clauses-e": 2
+  },
+  "PR26300-hard": {
+    "changing-gemini-tool-call-round-trips-re": 2,
+    "provider-entry-points-separate-normalize": 1
+  },
+  "PR26252-hard": {},
+  "PR26265-hard": {},
+  "PR26311-hard": {}
+}

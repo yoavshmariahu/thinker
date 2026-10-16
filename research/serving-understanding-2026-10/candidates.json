@@ -1,0 +1,1112 @@
+[
+ {
+  "id": "PR26225-hard",
+  "request": "Custom scorers written with the scorer decorator carry their function source code, and loading one runs that code. Today this happens inside the tracking server itself, for example when a scorer is invoked, when online-scoring settings are validated, and when gateway guardrails are loaded. That means user-supplied code can run in the server process, which is a security problem. Desired behavior: the server must never execute custom scorer code. In the server, a custom scorer should load as inert metadata that keeps its fields and serialized form, so it can be inspected and passed along to the job executor, but running it must raise an error. The job executor should still rebuild and run custom scorers as before, and a regular client process, such as a user loading a registered scorer to run locally, should behave exactly as it does now. This refusal must be enforced at the point where scorers are rebuilt, so a future code path in the server can't bypass it, and the server must not be able to pick up executor permission from its surrounding environment. Gateway guardrails run inside the server, so custom decorator-based scorers must be rejected as guardrails, both when a guardrail is created and when one is loaded. This includes ensembles that contain a custom scorer. Built-in scorers and judges created with the judge-making helper must keep working. If an endpoint already has a guardrail backed by a custom scorer, requests to it should fail with a server error that names the guardrail, instead of silently skipping it and serving traffic unprotected. Other guardrail loading failures should still be skipped and logged as they are now. A custom scorer refused as a guardrail raises `UnsupportedGuardrailScorerError`, defined in `mlflow.gateway.guardrails`.",
+  "gold": [
+   "mlflow/environment_variables.py",
+   "mlflow/gateway/guardrail_utils.py",
+   "mlflow/gateway/guardrails.py",
+   "mlflow/genai/evaluation/job.py",
+   "mlflow/genai/scorers/base.py",
+   "mlflow/genai/scorers/job.py",
+   "mlflow/server/__init__.py",
+   "mlflow/store/tracking/gateway/sqlalchemy_mixin.py"
+  ],
+  "cands": [
+   {
+    "id": "adding-a-persisted-decorator-scorer-option-follows-the-timeo",
+    "kind": "howto",
+    "title": "Adding a persisted decorator-scorer option follows the timeout path",
+    "files": [
+     "mlflow/genai/scorers/base.py",
+     "mlflow/genai/scorers/scorer_utils.py"
+    ],
+    "body": "For a new persisted decorator option, follow the existing timeout wiring in this order.\n1. Add the runtime field to mlflow/genai/scorers/base.py:Scorer. Update both overloads and the implementation of mlflow/genai/scorers/base.py:scorer, including validation, the func-is-None partial, and construction of the local scorer instance.\n2. Add the serialized field and its missing-payload default to mlflow/genai/scorers/base.py:SerializedScorer. Defaults encode compatibility behavior: timeout is None for fresh runtime scorers but defaults to zero in serialized data.\n3. Pass the field into the decorat"
+   },
+   {
+    "id": "async-invocation-and-online-scheduling-split-on-session-leve",
+    "kind": "map",
+    "title": "Async invocation and online scheduling split on session-level status",
+    "files": [
+     "mlflow/genai/scorers/job.py"
+    ],
+    "body": "mlflow/genai/scorers/job.py:get_trace_batches_for_scorer creates fixed-size single-turn batches or one batch per session. mlflow/genai/scorers/job.py:_group_traces_by_session_id reads trace metadata, skips traces without a session ID, and sorts each group by timestamp; its sort key sends falsy timestamps to infinity.\nmlflow/genai/scorers/job.py:invoke_scorer_job optionally sets gateway username/password environment variables, deserializes the scorer, attaches supplied registration-version metadata, dispatches by is_session_level_scorer, and converts TraceResult dataclasses to dictionaries.\nmlf"
+   },
+   {
+    "id": "boolean-settings-preserve-unset-state-and-special-logging-pr",
+    "kind": "rule",
+    "title": "Boolean settings preserve unset state and special logging precedence",
+    "files": [
+     "mlflow/environment_variables.py"
+    ],
+    "body": "mlflow/environment_variables.py:_EnvironmentVariable.__init__ rejects bool converters unless the instance is a _BooleanEnvironmentVariable. mlflow/environment_variables.py:_BooleanEnvironmentVariable.__init__ accepts defaults only when they are identically True, False, or None; integer 1 and 0 are rejected.\nmlflow/environment_variables.py:_BooleanEnvironmentVariable.get returns the default when the key is absent. Otherwise it accepts only case-insensitive true, false, 1, and 0. Empty strings and whitespace-padded tokens are invalid. A None default therefore represents an unset third state rath"
+   },
+   {
+    "id": "budget-targets-belong-to-their-scope",
+    "kind": "rule",
+    "title": "Budget targets belong to their scope",
+    "files": [
+     "mlflow/store/tracking/gateway/sqlalchemy_mixin.py"
+    ],
+    "body": "mlflow/store/tracking/gateway/sqlalchemy_mixin.py:_normalize_budget_target_value requires a truthy target_value for ENDPOINT and USER scopes, raising INVALID_PARAMETER_VALUE otherwise. Every other scope normalizes its target to None.\nmlflow/store/tracking/gateway/sqlalchemy_mixin.py:SqlAlchemyGatewayStoreMixin.create_budget_policy normalizes the scope and target before persistence. ENDPOINT targets must resolve to an existing endpoint; USER targets are free-form usernames with no table lookup. Budget unit, action, and scope accept either their enum instances or raw values, while duration is re"
+   },
+   {
+    "id": "change-endpoint-linkage-persistence-across-all-mutation-path",
+    "kind": "howto",
+    "title": "Change endpoint linkage persistence across all mutation paths",
+    "files": [
+     "mlflow/store/tracking/gateway/sqlalchemy_mixin.py"
+    ],
+    "body": "For a change to how existing model-config fields become endpoint mappings, update these paths together in this order.\n1. mlflow/store/tracking/gateway/sqlalchemy_mixin.py:SqlAlchemyGatewayStoreMixin.create_gateway_endpoint validates a nonempty configuration list and all referenced definitions, then writes mappings containing weight, linkage_type.value, fallback_order, and creation metadata. It separately serializes fallback strategy, max_attempts, and fallback model IDs into endpoint JSON when fallback settings or fallback mappings exist.\n2. mlflow/store/tracking/gateway/sqlalchemy_mixin.py:Sq"
+   },
+   {
+    "id": "deserialization-preserves-variant-and-code-execution-boundar",
+    "kind": "rule",
+    "title": "Deserialization preserves variant and code-execution boundaries",
+    "files": [
+     "mlflow/genai/scorers/base.py",
+     "mlflow/genai/scorers/scorer_utils.py"
+    ],
+    "body": "mlflow/genai/scorers/base.py:SerializedScorer.__post_init__ requires exactly one non-null discriminator among builtin_scorer_class, call_source, instructions_judge_pydantic_data, memory_augmented_judge_data, third_party_scorer_data, and ensemble_scorer_data. mlflow/genai/scorers/base.py:SerializedScorer.from_dict logs and removes unknown fields before constructing the schema; remaining data still undergoes variant validation.\nmlflow/genai/scorers/base.py:Scorer.model_validate dispatches by serialized fields. Its third-party branch checks module membership in an exact allow-list before importin"
+   },
+   {
+    "id": "ensembles-preserve-sub-results-while-selecting-aggregation-i",
+    "kind": "map",
+    "title": "Ensembles preserve sub-results while selecting aggregation inputs",
+    "files": [
+     "mlflow/genai/scorers/base.py"
+    ],
+    "body": "mlflow/genai/scorers/base.py:make_scorer_ensemble requires a nonempty list with a homogeneous session level. It resolves built-in functions by name or callable identity and checks declared feedback types for numeric and boolean built-ins.\nmlflow/genai/scorers/base.py:EnsembleScorer.__call__ selects session or single-turn arguments and runs children sequentially. mlflow/genai/scorers/base.py:EnsembleScorer._run_sub_scorer invokes each child's run and converts caught Exceptions to error Feedback. mlflow/genai/scorers/base.py:_extract_scorer_value maps None and error Feedback to None, unwraps suc"
+   },
+   {
+    "id": "environment-settings-are-live-reads-with-callable-conversion",
+    "kind": "map",
+    "title": "Environment settings are live reads with callable conversion",
+    "files": [
+     "mlflow/environment_variables.py"
+    ],
+    "body": "mlflow/environment_variables.py:_EnvironmentVariable stores an environment key, conversion callable, and default. mlflow/environment_variables.py:_EnvironmentVariable.get reads through mlflow/environment_variables.py:_EnvironmentVariable.get_raw on every call; a present value is passed to the converter, while an absent value returns the stored default directly. Conversion exceptions become ValueError messages containing the raw value and environment key. Defaults are neither converted nor copied.\nmlflow/environment_variables.py:_EnvironmentVariable.set writes str(value) into os.environ without"
+   },
+   {
+    "id": "guardrail-definitions-are-separate-from-endpoint-execution-c",
+    "kind": "map",
+    "title": "Guardrail definitions are separate from endpoint execution configuration",
+    "files": [
+     "mlflow/store/tracking/gateway/sqlalchemy_mixin.py"
+    ],
+    "body": "mlflow/store/tracking/gateway/sqlalchemy_mixin.py:SqlAlchemyGatewayStoreMixin.create_gateway_guardrail validates scorer_id/scorer_version through the host's scorer-version lookup, then persists a workspace-associated definition containing stage.value, action.value, optional action_endpoint_id, and audit fields.\nmlflow/store/tracking/gateway/sqlalchemy_mixin.py:SqlAlchemyGatewayStoreMixin.add_guardrail_to_endpoint validates both the endpoint and guardrail, then creates a separate workspace-associated configuration containing their IDs and optional execution_order. IntegrityError becomes RESOURC"
+   },
+   {
+    "id": "registration-copies-scorers-and-branches-monitoring-updates",
+    "kind": "map",
+    "title": "Registration copies scorers and branches monitoring updates by backend",
+    "files": [
+     "mlflow/genai/scorers/base.py"
+    ],
+    "body": "mlflow/genai/scorers/base.py:Scorer.register checks eligibility, creates a copy, applies an optional name to both the copy and its cached dump, registers it through the selected store, and marks the copy's backend.\nmlflow/genai/scorers/base.py:Scorer._create_copy reconstructs third-party instances from metric kwargs and model rather than deep-copying their clients. It respects class-pinned metric names. Ensembles recursively copy children and rebuild through the ensemble factory; other supported kinds use a deep model copy. An existing cached dump receives a separate outer dictionary.\nmlflow/g"
+   },
+   {
+    "id": "resource-bindings-and-cache-invalidation",
+    "kind": "map",
+    "title": "Resource bindings and cache invalidation",
+    "files": [
+     "mlflow/store/tracking/gateway/sqlalchemy_mixin.py"
+    ],
+    "body": "mlflow/store/tracking/gateway/sqlalchemy_mixin.py:SqlAlchemyGatewayStoreMixin.create_endpoint_binding validates an endpoint and stores its association with a resource_type/resource_id pair, including creation and update audit fields. It flushes and refreshes the binding before returning its entity, and invalidates the secret cache.\nmlflow/store/tracking/gateway/sqlalchemy_mixin.py:SqlAlchemyGatewayStoreMixin.delete_endpoint_binding identifies a binding by all three fields: endpoint_id, resource_type, and resource_id. It deletes the resolved row and invalidates the cache.\nmlflow/store/tracking/"
+   },
+   {
+    "id": "scorer-invocation-signature-filtering-and-timeout-context",
+    "kind": "map",
+    "title": "Scorer invocation, signature filtering, and timeout context",
+    "files": [
+     "mlflow/genai/scorers/base.py"
+    ],
+    "body": "mlflow/genai/scorers/base.py:scorer creates a local Scorer subclass around the supplied function and installs its original signature, with self prepended, on __call__. A session parameter selects session-level scoring and cannot coexist with inputs, outputs, or trace. pass_if is stored privately for in-process use.\nmlflow/genai/scorers/base.py:Scorer.run accepts the five evaluation inputs, passes only names present in the callable signature, validates the result, and renames a single default-named Feedback to the scorer name. Accepted results include primitives, current or legacy Assessment ob"
+   },
+   {
+    "id": "secrets-supply-reusable-model-definitions",
+    "kind": "map",
+    "title": "Secrets supply reusable model definitions",
+    "files": [
+     "mlflow/store/tracking/gateway/sqlalchemy_mixin.py"
+    ],
+    "body": "mlflow/store/tracking/gateway/sqlalchemy_mixin.py:SqlAlchemyGatewayStoreMixin provides SQLAlchemy persistence through host-store session, query, entity-lookup, and workspace helpers. Mutations open ManagedSessionMaker(read_only=False); returned database rows are generally converted to MLflow entities inside the session.\nmlflow/store/tracking/gateway/sqlalchemy_mixin.py:SqlAlchemyGatewayStoreMixin.create_gateway_secret JSON-serializes credentials, envelope-encrypts them using the generated secret ID and supplied name, and stores encrypted material, a wrapped DEK, KEK version, masked values, and"
+   },
+   {
+    "id": "server-selection-native-routing-and-flask-fallback",
+    "kind": "map",
+    "title": "Server selection, native routing, and Flask fallback",
+    "files": [
+     "mlflow/server/__init__.py",
+     "mlflow/server/fastapi_app.py"
+    ],
+    "body": "mlflow/server/__init__.py:_run_server assembles worker environment variables and selects Uvicorn by default; explicit Waitress or Gunicorn options select those servers. The default application is FastAPI for Uvicorn and Flask otherwise. Named applications resolve through mlflow/server/__init__.py:_find_app, with factory detection in mlflow/server/__init__.py:_is_factory. Basic-auth bootstrapping occurs before workers start.\nmlflow/server/fastapi_app.py:create_fastapi_app initializes security, workspace handling, and gateway timing; registers native OTLP, jobs, gateway, assistant, artifact, and"
+   },
+   {
+    "id": "ui-evaluation-job-setup-and-scorer-version-alignment",
+    "kind": "map",
+    "title": "UI evaluation job setup and scorer-version alignment",
+    "files": [
+     "mlflow/genai/evaluation/job.py"
+    ],
+    "body": "mlflow/genai/evaluation/job.py:invoke_genai_evaluate_job is the Huey job backing the UI evaluation invocation endpoint. Its decorator registers the invoke_genai_evaluate job with concurrency from MLFLOW_SERVER_JUDGE_INVOKE_MAX_WORKERS. It accepts fixed trace IDs, serialized scorers, and a pre-existing run ID.\nWhen username is supplied, the job sets MLFLOW_TRACKING_USERNAME and, if available, uses the internal gateway token as MLFLOW_TRACKING_PASSWORD. Setup links the requested traces to the run in MAX_TRACE_LINKS_PER_REQUEST batches, fetches the traces, and deserializes scorers through Scorer."
+   },
+   {
+    "id": "usage-tracking-configuration-and-trace-cost-aggregation",
+    "kind": "map",
+    "title": "Usage tracking configuration and trace-cost aggregation",
+    "files": [
+     "mlflow/store/tracking/gateway/sqlalchemy_mixin.py"
+    ],
+    "body": "mlflow/store/tracking/gateway/sqlalchemy_mixin.py:SqlAlchemyGatewayStoreMixin.create_gateway_endpoint defaults usage_tracking to True. When enabled without an experiment ID, it requests an experiment named gateway/{endpoint_name}, tagged with gateway source type, endpoint source ID, and the gateway marker. An explicitly supplied experiment ID is parsed and stored even when usage_tracking is false.\nmlflow/store/tracking/gateway/sqlalchemy_mixin.py:SqlAlchemyGatewayStoreMixin._get_or_create_experiment_id first calls create_experiment. Only RESOURCE_ALREADY_EXISTS triggers lookup by name and reus"
+   }
+  ]
+ },
+ {
+  "id": "PR26270-hard",
+  "request": "When the AI Gateway streams a response containing multiple parallel tool calls through the Gemini or LiteLLM providers, every tool call is reported with the same position (index 0). Clients that assemble streamed tool calls by index then merge separate calls into one, concatenating their arguments into a single broken call. For Gemini, each tool call arrives whole, so two calls in the same streamed chunk both show index 0, and calls arriving in later chunks also restart at 0. For LiteLLM, the index that the underlying library supplies on each chunk is ignored and replaced with the call's position within that chunk, so interleaved chunks for call 0 and call 1 all end up as 0. Desired behavior: for Gemini, tool calls should get consecutive indices across the whole stream, so calls in one chunk are numbered 0, 1, and so on, and calls in later chunks continue the numbering. For LiteLLM, the index provided on each streamed chunk should be preserved, falling back to the call's position in the chunk only when none is provided. That way, arguments for each call are merged correctly per index. Two issues are out of scope: Gemini's finish reason never reporting tool calls, and the Bedrock index offset after a text block.",
+  "gold": [
+   "mlflow/gateway/providers/gemini.py",
+   "mlflow/gateway/providers/litellm.py"
+  ],
+  "cands": [
+   {
+    "id": "changing-gemini-tool-call-round-trips-requires-request-respo",
+    "kind": "howto",
+    "title": "Changing Gemini tool-call round trips requires request, response, and Vertex handling",
+    "files": [
+     "mlflow/gateway/providers/gemini.py",
+     "mlflow/gateway/providers/vertex_ai.py"
+    ],
+    "body": "For a change to Gemini tool-call identity or metadata, work through these coupled locations in order.\nFirst, update mlflow/gateway/providers/gemini.py:GeminiAdapter.chat_to_model. It parses OpenAI argument strings into functionCall args, records call IDs to function names, and emits thought_signature as part-level thoughtSignature. A model message with tool calls emits those calls instead of its content. Tool messages resolve names from preceding calls and combine consecutive functionResponse-only user turns. mlflow/gateway/providers/gemini.py:_tool_result_to_response preserves parsed JSON obj"
+   },
+   {
+    "id": "http-helpers-own-egress-protection-and-proxy-generator-lifet",
+    "kind": "rule",
+    "title": "HTTP helpers own egress protection and proxy generator lifetime",
+    "files": [
+     "mlflow/gateway/providers/utils.py",
+     "mlflow/gateway/providers/gemini.py",
+     "mlflow/gateway/providers/anthropic.py"
+    ],
+    "body": "mlflow/gateway/providers/utils.py:_aiohttp_post is the shared HTTP boundary. It removes Accept-Encoding, Content-Encoding, and the gateway authorization header case-insensitively, sets gzip/deflate/identity acceptance, posts reserialized JSON, applies the configured total timeout, and disables redirects. SSRF protection defaults on and checks the URL plus the connection target through a guarded connector. Connector cleanup runs even on failure.\nmlflow/gateway/providers/utils.py:send_request accepts JSON or text/plain responses, wraps plain text in a message object, propagates upstream HTTP err"
+   },
+   {
+    "id": "provider-entry-points-separate-normalized-apis-from-native-p",
+    "kind": "map",
+    "title": "Provider entry points separate normalized APIs from native payloads",
+    "files": [
+     "mlflow/gateway/providers/base.py",
+     "mlflow/gateway/providers/gemini.py",
+     "mlflow/gateway/providers/anthropic.py",
+     "mlflow/gateway/providers/typesafe.py"
+    ],
+    "body": "mlflow/gateway/providers/base.py:BaseProvider defines public chat, completion, embedding, passthrough, and proxy entry points around provider-specific underscore methods. Normalized chat responses receive the configured provider identity. Default unimplemented operations raise 501.\nmlflow/gateway/providers/gemini.py:GeminiProvider serializes normalized request models with null fields excluded, rejects caller-supplied model fields, translates through its adapter_class, sends HTTP requests, and adapts responses. Chat and completions use generateContent; streaming uses streamGenerateContent with "
+   }
+  ]
+ },
+ {
+  "id": "PR26267-hard",
+  "request": "When the tracking server is under heavy load and its shared pool of worker threads for handling requests is fully occupied, the server-info endpoint (the one clients use to discover server capabilities) stops responding. It hangs or times out along with every other request, even though it only returns a small, static piece of information. This makes capability discovery unreliable exactly when the server is busiest. The endpoint should keep responding promptly even when the shared worker pool is exhausted, by being handled with its own dedicated, separate capacity. This applies to both the standard API path and the equivalent path used by the web UI's AJAX calls. The response content must stay exactly the same as before. The endpoint must remain publicly accessible without authentication, including when a custom static prefix is configured for the server. Deployments that run under other server setups (such as Gunicorn or Waitress) must continue to serve the same server-info response as they do today.",
+  "gold": [
+   "mlflow/server/auth/__init__.py",
+   "mlflow/server/fastapi_app.py",
+   "mlflow/server/handlers.py",
+   "mlflow/server/mcp_server_api.py",
+   "mlflow/server/mlflow_response.py",
+   "mlflow/server/server_info_api.py"
+  ],
+  "cands": [
+   {
+    "id": "artifact-responses-preserve-attachment-headers-and-streaming",
+    "kind": "rule",
+    "title": "Artifact responses preserve attachment headers and streaming cleanup",
+    "files": [
+     "mlflow/server/handlers.py"
+    ],
+    "body": "mlflow/server/handlers.py:_send_artifact serves an existing local repository path directly when available; otherwise it downloads into a TemporaryDirectory and transfers cleanup responsibility to the streaming response. Failure before returning the response cleans the directory immediately.\nmlflow/server/handlers.py:_create_artifact_file_response and mlflow/server/handlers.py:_create_temp_artifact_file_response reject directories and derive the attachment filename from the logical artifact name rather than the local download filename.\nThe temporary-file response opens the file before construct"
+   },
+   {
+    "id": "async-trace-jobs-validate-experiment-membership-before-creat",
+    "kind": "map",
+    "title": "Async trace jobs validate experiment membership before creating runs",
+    "files": [
+     "mlflow/server/handlers.py"
+    ],
+    "body": "mlflow/server/handlers.py:_invoke_issue_detection_handler and mlflow/server/handlers.py:_invoke_genai_evaluate_handler accept validated JSON, deduplicate trace IDs while preserving order, reject empty selections, and validate trace experiment membership before creating a run. Both submit a background job and return job_id plus run_id.\nmlflow/server/handlers.py:_validate_trace_ids_in_experiment deliberately fetches trace infos without an experiment filter so foreign traces remain visible. Unsupported batch lookup falls back to individual lookups. Missing traces are left for downstream job handl"
+   },
+   {
+    "id": "authentication-entry-points-and-flask-authorization-dispatch",
+    "kind": "map",
+    "title": "Authentication entry points and Flask authorization dispatch",
+    "files": [
+     "mlflow/server/auth/__init__.py"
+    ],
+    "body": "mlflow/server/auth/__init__.py:create_app initializes the secret key, CSRF integration and auth store, marks authentication initialized, registers user/RBAC routes and installs Flask before/after hooks. Under uvicorn it wraps Flask in FastAPI and installs native-route permission middleware.\nmlflow/server/auth/__init__.py:authenticate_request invokes the configured module:function authentication callable. mlflow/server/auth/__init__.py:_before_request skips unprotected routes, accepts an Authorization or returns an authentication Response, and records the username on Flask g. Admins bypass perm"
+   },
+   {
+    "id": "backend-selection-is-lazy-and-cached-startup-validates-capab",
+    "kind": "map",
+    "title": "Backend selection is lazy and cached; startup validates capabilities",
+    "files": [
+     "mlflow/server/handlers.py"
+    ],
+    "body": "mlflow/server/handlers.py:_get_tracking_store and mlflow/server/handlers.py:_get_model_registry_store initialize module-global stores only when unset. Tracking uses an explicit backend URI or the backend environment setting and also sets the tracking URI. Registry precedence is explicit registry URI, registry environment setting, then backend environment setting; initialization also sets the registry URI. Later calls return the cached instances.\nmlflow/server/handlers.py:TrackingStoreRegistryWrapper.__init__ and mlflow/server/handlers.py:ModelRegistryStoreRegistryWrapper.__init__ register file"
+   },
+   {
+    "id": "budget-writes-validate-effective-targets-and-refresh-enforce",
+    "kind": "rule",
+    "title": "Budget writes validate effective targets and refresh enforcement state",
+    "files": [
+     "mlflow/server/handlers.py"
+    ],
+    "body": "mlflow/server/handlers.py:_validate_budget_target_scope requires a nonempty target_value for ENDPOINT and USER scopes and rejects a nonempty target for other scopes. mlflow/server/handlers.py:_assert_user_scope_enforceable rejects USER scope when server authentication is disabled.\nmlflow/server/handlers.py:_create_budget_policy validates enum conversions and positive duration, then applies both scope guards before persistence. mlflow/server/handlers.py:_update_budget_policy preserves field presence with HasField. If scope or target_value is supplied, it loads the existing policy and validates "
+   },
+   {
+    "id": "change-custom-view-tag-policy-through-both-creation-and-tag",
+    "kind": "howto",
+    "title": "Change custom-view tag policy through both creation and tag writes",
+    "files": [
+     "mlflow/server/handlers.py"
+    ],
+    "body": "To change handler-side custom-view admission policy, work through these coupled points in mlflow/server/handlers.py in order.\nFirst, adjust classification and counting in mlflow/server/handlers.py:_is_custom_view_tag and mlflow/server/handlers.py:_count_custom_views if the definition of a custom-view tag changes. Classification currently checks the imported custom-view prefix; counting counts matching entries.\nSecond, update both admission checks: mlflow/server/handlers.py:_validate_custom_view_count rejects an initial tag list only when its count exceeds MAX_CUSTOM_VIEWS_PER_EXPERIMENT; mlflo"
+   },
+   {
+    "id": "change-metric-target-authorization-across-both-logging-shape",
+    "kind": "howto",
+    "title": "Change metric target authorization across both logging shapes",
+    "files": [
+     "mlflow/server/auth/__init__.py"
+    ],
+    "body": "To change authorization for metrics that target logged models, coordinate three functions in mlflow/server/auth/__init__.py.\nFirst, update mlflow/server/auth/__init__.py:_validate_can_update_run_and_models for the shared policy. It currently requires UPDATE on the run and every distinct target model. A nonexistent model returns False; other lookup errors propagate.\nSecond, update mlflow/server/auth/__init__.py:validate_can_log_metric if target extraction changes. It parses a LogMetric protobuf and passes either its single nonempty model_id or an empty set to the shared helper.\nThird, update ml"
+   },
+   {
+    "id": "change-trace-tag-mutation-handling-across-both-api-generatio",
+    "kind": "howto",
+    "title": "Change trace-tag mutation handling across both API generations",
+    "files": [
+     "mlflow/server/handlers.py"
+    ],
+    "body": "For a handler-level trace-tag mutation policy change, the shared policy point and all four callers are in mlflow/server/handlers.py.\n1. Update mlflow/server/handlers.py:_validate_trace_tag_handler_mutation for the shared key/operation check. Each caller invokes it after parsing the request and before mutating the tracking store.\n2. Apply any set-request schema or invocation changes together to mlflow/server/handlers.py:_set_trace_tag and mlflow/server/handlers.py:_set_trace_tag_v3. Both require a string key, accept a string value, pass operation 'set' to the shared validator, and call the same"
+   },
+   {
+    "id": "changing-evaluation-dataset-permission-policy-and-registerin",
+    "kind": "howto",
+    "title": "Changing evaluation-dataset permission policy and registering its routes",
+    "files": [
+     "mlflow/server/auth/__init__.py"
+    ],
+    "body": "All shown dataset authorization wiring is in mlflow/server/auth/__init__.py.\n1. For existing-dataset operations, start at mlflow/server/auth/__init__.py:_dataset_experiment_permissions. It resolves dataset_id to associated experiments and their permissions; a missing dataset produces empty lists. mlflow/server/auth/__init__.py:validate_can_read_dataset, mlflow/server/auth/__init__.py:validate_can_update_dataset and mlflow/server/auth/__init__.py:validate_can_delete_dataset each require a nonempty experiment list and the corresponding permission on every associated experiment. Keep these three "
+   },
+   {
+    "id": "changing-shared-openai-responses-request-handling",
+    "kind": "howto",
+    "title": "Changing shared OpenAI Responses request handling",
+    "files": [
+     "mlflow/server/gateway_api.py",
+     "mlflow/server/fastapi_app.py"
+    ],
+    "body": "For a Responses setup or guardrail change that must affect both unary and streaming requests, update these paths together in order.\n1. Change mlflow/server/gateway_api.py:_openai_responses_passthrough_unary for shared unary behavior. It removes the endpoint selector from 'model', resolves the provider, sets telemetry attribution, checks the budget, loads guardrails, and traces a pre-guardrail → provider passthrough → post-guardrail call. Its completion callback receives workspace, endpoint ID, and username for budget accounting. Guardrail violations become HTTP 400.\n2. Apply corresponding setu"
+   },
+   {
+    "id": "coordinate-prompt-optimization-submission-with-job-reconstru",
+    "kind": "howto",
+    "title": "Coordinate prompt optimization submission with job reconstruction",
+    "files": [
+     "mlflow/server/handlers.py"
+    ],
+    "body": "To change how an existing prompt-optimization configuration value is transported or returned, coordinate the submission and reconstruction code in mlflow/server/handlers.py.\nFirst, update mlflow/server/handlers.py:_create_prompt_optimization_job: request extraction and validation, any corresponding run parameter, the submitted job params, and the immediate response must agree. The handler parses optimizer_config_json before creating a run. It then creates the run, logs configuration parameters, optionally logs dataset lineage, and submits a job carrying run_id. The immediate response copies th"
+   },
+   {
+    "id": "credential-caching-stores-successful-users-under-locked-pass",
+    "kind": "rule",
+    "title": "Credential caching stores successful users under locked, password-derived keys",
+    "files": [
+     "mlflow/server/auth/__init__.py"
+    ],
+    "body": "mlflow/server/auth/__init__.py:_auth_cache_key combines the username with an HMAC-SHA256 password digest generated using a random per-process key. Plaintext passwords are not cache keys.\nmlflow/server/auth/__init__.py:_authenticate_cached uses an optional TTL cache of User objects; a nonpositive configured TTL disables it. On a cache miss, authentication and user retrieval happen outside the cache lock. Invalid credentials, a user lookup raising MlflowException, and disabled legacy-admin credentials return None without populating the cache. A cache hit returns the stored User directly.\nEvery a"
+   },
+   {
+    "id": "extending-graphql-field-authorization-requires-selection-che",
+    "kind": "howto",
+    "title": "Extending GraphQL field authorization requires selection, checks and result handling",
+    "files": [
+     "mlflow/server/auth/__init__.py"
+    ],
+    "body": "The shown GraphQL authorization changes belong in mlflow/server/auth/__init__.py.\n1. Add a protected top-level field to PROTECTED_FIELDS on mlflow/server/auth/__init__.py:GraphQLAuthorizationMiddleware, or a nested field as a (parent type, field name) pair in PROTECTED_NESTED_FIELDS. mlflow/server/auth/__init__.py:GraphQLAuthorizationMiddleware.resolve forwards unlisted fields directly. Listed fields authenticate, bypass checks for admins, return None on authentication/check failures, and otherwise resolve then post-process.\n2. Implement the input decision in mlflow/server/auth/__init__.py:Gra"
+   },
+   {
+    "id": "field-presence-carries-semantics-beyond-protobuf-default-val",
+    "kind": "rule",
+    "title": "Field presence carries semantics beyond protobuf default values",
+    "files": [
+     "mlflow/server/handlers.py"
+    ],
+    "body": "Do not replace explicit presence checks with truthiness or protobuf default-value checks. mlflow/server/handlers.py:_update_run uses HasField to pass None for omitted run_name, end_time, and status. mlflow/server/handlers.py:_get_metric_history likewise passes max_results=None when absent and rejects an explicitly supplied non-positive value.\nRepeated fields need raw-request inspection: mlflow/server/handlers.py:_raw_request_has_field distinguishes omission from an explicit empty list, since both deserialize to an empty protobuf sequence. It checks protobuf names in GET arguments and protobuf "
+   },
+   {
+    "id": "http-request-validation-and-tracking-response-flow",
+    "kind": "map",
+    "title": "HTTP request validation and tracking response flow",
+    "files": [
+     "mlflow/server/handlers.py"
+    ],
+    "body": "mlflow/server/handlers.py:_get_run demonstrates the tracking handler flow: parse and validate a protobuf request, call mlflow/server/handlers.py:get_run_impl, convert the store entity to protobuf, and serialize JSON. The implementation resolves run_id or legacy run_uuid and reads through mlflow/server/handlers.py:_get_tracking_store.\nmlflow/server/handlers.py:_get_request_message reads populated GET query arguments using protobuf field descriptors, preserves repeated fields as lists, and accepts boolean strings only as true/false, case-insensitively. Other requests use mlflow/server/handlers.p"
+   },
+   {
+    "id": "http-routes-combine-protobuf-descriptors-with-explicit-endpo",
+    "kind": "map",
+    "title": "HTTP routes combine protobuf descriptors with explicit endpoint lists",
+    "files": [
+     "mlflow/server/handlers.py"
+    ],
+    "body": "mlflow/server/handlers.py:get_endpoints assembles routes for tracking, model registry, artifacts and webhook services, plus explicit GraphQL, server-info, online-scoring, gateway, demo, evaluation and job routes. It returns tuples of path, handler and allowed methods.\nmlflow/server/handlers.py:get_service_endpoints reads each service method's RPC endpoint metadata, uses endpoint.since.major as the API version, and resolves the request class through mlflow/server/handlers.py:get_handler. That resolver consults HANDLERS and falls back to the not-implemented handler.\nmlflow/server/handlers.py:_ge"
+   },
+   {
+    "id": "keep-gateway-linkage-validation-aligned-across-three-model-w",
+    "kind": "howto",
+    "title": "Keep gateway linkage validation aligned across three model write paths",
+    "files": [
+     "mlflow/server/handlers.py"
+    ],
+    "body": "To change handler-level acceptance of gateway model linkage types, work through these locations in mlflow/server/handlers.py in order.\nFirst, change mlflow/server/handlers.py:_assert_linkage_type_specified, the shared acceptance check. It accepts only values whose entity conversion returns a known linkage type; otherwise it raises an invalid-parameter error. Its optional index determines whether the error identifies model_config or model_configs[index].\nSecond, align mlflow/server/handlers.py:_create_gateway_endpoint with the revised contract. It validates every supplied model config before co"
+   },
+   {
+    "id": "logged-model-artifacts-branch-on-whether-the-artifact-root-i",
+    "kind": "map",
+    "title": "Logged-model artifacts branch on whether the artifact root is served through the proxy",
+    "files": [
+     "mlflow/server/handlers.py"
+    ],
+    "body": "mlflow/server/handlers.py:get_logged_model_artifact_handler requires a nonempty artifact_file_path query parameter and validates its safety before loading the logged model. The model's artifact_location determines the repository path. For a servable proxied root, the handler selects the MLflow artifacts repository, translates the root plus relative file path into a destination path, then applies workspace scoping. Otherwise it resolves a repository directly from artifact_location and uses the supplied relative path. Both branches finish by sending the artifact through the shared sender.\nmlflow"
+   },
+   {
+    "id": "mcp-ownership-grants-depend-on-the-exact-operation-and-recor",
+    "kind": "rule",
+    "title": "MCP ownership grants depend on the exact operation and recorded creator",
+    "files": [
+     "mlflow/server/auth/__init__.py"
+    ],
+    "body": "mlflow/server/auth/__init__.py:_get_mcp_server_validator interprets the first two suffix segments as namespace/slug. Collection POST requires create permission; named-server GET requires READ, POST/PATCH requires UPDATE and DELETE requires DELETE. Version creation records an UPDATE recheck callable on request.state and whether the parent server is missing. A missing parent uses the create-permission check.\nmlflow/server/auth/__init__.py:_mcp_server_after_create skips admins. For version creation it grants MANAGE only when request.state says the parent was auto-created and the persisted server."
+   },
+   {
+    "id": "mcp-registry-preserves-field-presence-and-orders-greedy-rout",
+    "kind": "rule",
+    "title": "MCP registry preserves field presence and orders greedy routes",
+    "files": [
+     "mlflow/server/mcp_server_api.py"
+    ],
+    "body": "MCP PATCH handling distinguishes omitted fields from explicit null using model_fields_set. mlflow/server/mcp_server_api.py:_update_mcp_server_kwargs forwards only supplied description, display_name, and icons. mlflow/server/mcp_server_api.py:_update_mcp_server_version_kwargs rejects explicit null status, converts supplied tools, and forwards supplied connect_options. mlflow/server/mcp_server_api.py:_update_mcp_access_endpoint_kwargs similarly preserves supplied nulls and parses non-null transport types. Replacing these checks with truthiness or an unconditional model dump changes the update co"
+   },
+   {
+    "id": "model-version-creation-resolves-lineage-before-validating-an",
+    "kind": "map",
+    "title": "Model-version creation resolves lineage before validating and persisting the source",
+    "files": [
+     "mlflow/server/handlers.py"
+    ],
+    "body": "mlflow/server/handlers.py:_create_model_version validates the request and optional source regex, classifies prompt requests, validates the artifact URI scheme, resolves non-prompt lineage, and then calls the registry store. A truthy resolved model_id selects model-source validation; otherwise run-source validation applies. After creation, non-prompt logged models receive tracking-store model-version tags, and creation emits a prompt or model webhook using the resolved values.\nmlflow/server/handlers.py:_is_prompt_request collapses duplicate tag keys with the last value winning; only a case-inse"
+   },
+   {
+    "id": "native-fastapi-authorization-owns-authentication-workspace-c",
+    "kind": "map",
+    "title": "Native FastAPI authorization owns authentication, workspace context and response filtering",
+    "files": [
+     "mlflow/server/auth/__init__.py"
+    ],
+    "body": "mlflow/server/auth/__init__.py:add_fastapi_permission_middleware snapshots native routes, excluding mounts, and installs the native authorization flow. A request with no selected validator passes onward unless fail-closed mode identifies it as a native route without an exception.\nmlflow/server/auth/__init__.py:_find_fastapi_validator dispatches gateway, trace ingestion, jobs, assistant, native artifact and MCP requests. Gateway/jobs/assistant/trace checks use a static-prefix-stripped path; native artifacts use the raw path and only GET/PUT artifact routes, leaving other artifact operations to "
+   },
+   {
+    "id": "proxied-artifact-paths-preserve-workspace-isolation-and-lega",
+    "kind": "rule",
+    "title": "Proxied artifact paths preserve workspace isolation and legacy default roots",
+    "files": [
+     "mlflow/server/handlers.py"
+    ],
+    "body": "mlflow/server/handlers.py:_get_workspace_scoped_repo_path_if_enabled returns paths unchanged when workspaces are disabled. When enabled, an active request workspace is required. Non-default workspaces get a workspaces/<workspace> prefix. Already-prefixed paths must name the active workspace; malformed or foreign prefixes are rejected. The default workspace preserves absent paths and legacy paths outside the workspaces/ namespace.\nmlflow/server/handlers.py:_download_artifact, mlflow/server/handlers.py:_upload_artifact, mlflow/server/handlers.py:_list_artifacts_mlflow_artifacts, and mlflow/serve"
+   },
+   {
+    "id": "request-validators-connect-endpoint-dispatch-to-resource-own",
+    "kind": "map",
+    "title": "Request validators connect endpoint dispatch to resource ownership",
+    "files": [
+     "mlflow/server/auth/__init__.py"
+    ],
+    "body": "mlflow/server/auth/__init__.py:get_before_request_handler selects a validator from the protobuf request-class table. The module builds a (path, HTTP method) validator table from those selections, retaining only handlers present in the request-class table; explicitly registered view functions must not become authorization validators. Auth, role-management, and other plain Flask routes receive explicit entries. Parameterized trace routes additionally receive regex entries compiled by mlflow/server/auth/__init__.py:_re_compile_path.\nResource validators generally extract an identifier, resolve its"
+   },
+   {
+    "id": "review-queue-visibility-has-separate-list-and-detail-policie",
+    "kind": "howto",
+    "title": "Review-queue visibility has separate list and detail policies",
+    "files": [
+     "mlflow/server/auth/__init__.py"
+    ],
+    "body": "To change review-queue visibility, coordinate the following functions in mlflow/server/auth/__init__.py in this order.\nFirst, if identity matching changes, update mlflow/server/auth/__init__.py:_review_queue_has_member and mlflow/server/auth/__init__.py:_is_review_queue_owner. Membership normalizes only the incoming username because queue.users is already normalized; ownership normalizes both created_by and the caller.\nSecond, update both detail gates: mlflow/server/auth/__init__.py:validate_can_view_review_queue and mlflow/server/auth/__init__.py:validate_can_view_review_queue_by_name. Both r"
+   },
+   {
+    "id": "review-queues-bind-identity-preserve-update-presence-and-val",
+    "kind": "rule",
+    "title": "Review queues bind identity, preserve update presence, and validate trace membership",
+    "files": [
+     "mlflow/server/handlers.py"
+    ],
+    "body": "mlflow/server/handlers.py:_get_request_username reads the authenticated identity from Flask g, returning None without that identity. mlflow/server/handlers.py:_create_review_queue stamps created_by from this value rather than the client and leaves it unset without authentication. Queue type conversion rejects the unspecified enum value; the code explicitly preserves this conversion instead of substituting a required-field schema check. mlflow/server/handlers.py:_get_or_create_user_queue passes the requested user to the store, which the handler documents as the user queue's owner.\nmlflow/server"
+   },
+   {
+    "id": "run-artifact-reads-branch-between-configured-proxy-storage-a",
+    "kind": "map",
+    "title": "Run artifact reads branch between configured proxy storage and stored URIs",
+    "files": [
+     "mlflow/server/handlers.py"
+    ],
+    "body": "mlflow/server/handlers.py:get_artifact_handler validates the requested relative path, loads the run, selects a repository and repository-relative path, then sends the artifact. mlflow/server/handlers.py:list_artifacts_impl follows the same proxy-versus-direct decision and returns the run's original artifact URI as root_uri.\nmlflow/server/handlers.py:_is_servable_proxied_run_artifact_root treats http, https, and mlflow-artifacts roots as locally servable whenever artifact serving is enabled. This decision uses scheme and server mode, not a comparison of URI hosts.\nmlflow/server/handlers.py:_get"
+   },
+   {
+    "id": "scorer-apis-separate-experiment-selection-payload-validation",
+    "kind": "map",
+    "title": "Scorer APIs separate experiment selection, payload validation and asynchronous execution",
+    "files": [
+     "mlflow/server/handlers.py"
+    ],
+    "body": "mlflow/server/handlers.py:_list_scorers distinguishes an explicitly supplied experiment_ids field from an omitted field using raw-request presence. A nonempty experiment_id cannot accompany experiment_ids. Explicit IDs are deduplicated in order, validated, filtered through the store's active-ID batch API, then passed to cross-experiment listing; an explicit empty list follows that same branch. A single experiment_id uses single-experiment listing. With neither selector, mlflow/server/handlers.py:_search_active_experiment_ids enumerates active experiments in pages of 1000 before the batch score"
+   },
+   {
+    "id": "server-selection-native-routing-and-flask-fallback",
+    "kind": "map",
+    "title": "Server selection, native routing, and Flask fallback",
+    "files": [
+     "mlflow/server/__init__.py",
+     "mlflow/server/fastapi_app.py"
+    ],
+    "body": "mlflow/server/__init__.py:_run_server assembles worker environment variables and selects Uvicorn by default; explicit Waitress or Gunicorn options select those servers. The default application is FastAPI for Uvicorn and Flask otherwise. Named applications resolve through mlflow/server/__init__.py:_find_app, with factory detection in mlflow/server/__init__.py:_is_factory. Basic-auth bootstrapping occurs before workers start.\nmlflow/server/fastapi_app.py:create_fastapi_app initializes security, workspace handling, and gateway timing; registers native OTLP, jobs, gateway, assistant, artifact, and"
+   },
+   {
+    "id": "shared-registry-routes-preserve-separate-prompt-and-model-gr",
+    "kind": "rule",
+    "title": "Shared registry routes preserve separate prompt and model grant namespaces",
+    "files": [
+     "mlflow/server/auth/__init__.py"
+    ],
+    "body": "Registered models and prompts share REST operations, but their grants use separate resource types. mlflow/server/auth/__init__.py:set_can_manage_registered_model_permission classifies the persisted creation response using its prompt tag and grants the creator MANAGE in either prompt or registered_model.\nmlflow/server/auth/__init__.py:filter_search_registered_models uses a prompt-aware read predicate for both initial protobuf rows and refetched store entities. It refetches to fill max_results and advances the pagination offset by the number of underlying rows consumed, including unreadable rows"
+   },
+   {
+    "id": "shared-registry-routes-use-persisted-namespaces-and-check-ve",
+    "kind": "map",
+    "title": "Shared registry routes use persisted namespaces and check version sources",
+    "files": [
+     "mlflow/server/auth/__init__.py"
+    ],
+    "body": "mlflow/server/auth/__init__.py:_get_registered_model_or_prompt_permission loads the persisted registry entity, chooses 'prompt' or 'registered_model' from its _is_prompt() result, and resolves permission using the entity's workspace. These are separate grant namespaces despite sharing registry storage and routes.\nmlflow/server/auth/__init__.py:_get_permission_from_registered_model_or_prompt_name reads the request name and delegates to that resolver. Only RESOURCE_DOES_NOT_EXIST triggers its fallback to registered-model resolution with an unknown workspace; other errors propagate.\nFor search ro"
+   },
+   {
+    "id": "trace-retrieval-separates-metadata-serialization-from-span-d",
+    "kind": "map",
+    "title": "Trace retrieval separates metadata serialization from span-data fallback",
+    "files": [
+     "mlflow/server/handlers.py"
+    ],
+    "body": "mlflow/server/handlers.py:_get_trace_info_v3 loads metadata and returns it inside a trace envelope. mlflow/server/handlers.py:_search_traces_v3 extracts experiment IDs from supported location entries, delegates filtering and pagination to the tracking store, and caps requested results at 500. Both use mlflow/server/handlers.py:_wrap_trace_info_response, which requests compact JSON and disables int64-to-number conversion. Metadata uses Timestamp/Duration messages; complete traces retain default numeric conversion for span timestamps.\nmlflow/server/handlers.py:_get_trace retrieves a complete tra"
+   },
+   {
+    "id": "workspace-denial-must-survive-the-default-permission-floor",
+    "kind": "rule",
+    "title": "Workspace denial must survive the default-permission floor",
+    "files": [
+     "mlflow/server/auth/__init__.py"
+    ],
+    "body": "mlflow/server/auth/__init__.py:_role_permission_for resolves the resource's workspace when workspaces are enabled. An unknown workspace returns NO_PERMISSIONS. With workspaces disabled, it skips resource workspace lookup and resolves grants in DEFAULT_WORKSPACE_NAME. A missing grant returns None in that mode; with workspaces enabled it returns NO_PERMISSIONS unless configured default-workspace access applies.\nmlflow/server/auth/__init__.py:_role_permission_for_known_workspace accepts an already resolved workspace. A missing workspace denies when workspaces are enabled and becomes DEFAULT_WORKS"
+   }
+  ]
+ },
+ {
+  "id": "PR26291-hard",
+  "request": "On a registered model that uses stages, loading a model through the \"latest\" alias form (model name followed by @latest) can return a different version than loading it through the \"latest\" path form (model name followed by /latest). For example, if a model has versions 1 and 2 and version 2 is moved to the Production stage, the path form loads version 2 but the alias form loads version 1, the older version still in stage None. The alias appears to pick whichever version comes first among the per-stage latest versions, which isn't necessarily the highest version once the model spans more than one stage. The reserved \"latest\" alias should always resolve to the highest version number of the model, regardless of how many stages are in use or which order they come in. This should match what the path form already returns, so the two forms agree in every case. One consequence is that if the highest version is archived (for example version 1 in Production and version 2 in Archived), the alias now returns version 2, as the path form already does. Models without stages, such as prompts, already behave correctly and should be unaffected.",
+  "gold": [
+   "mlflow/store/model_registry/file_store.py",
+   "mlflow/store/model_registry/sqlalchemy_store.py"
+  ],
+  "cands": [
+   {
+    "id": "changing-prompt-inclusion-requires-coordinating-both-search",
+    "kind": "howto",
+    "title": "Changing prompt inclusion requires coordinating both search builders",
+    "files": [
+     "mlflow/store/model_registry/sqlalchemy_store.py"
+    ],
+    "body": "To change how searches distinguish prompts from ordinary models, work through these points in order, all in the same file.\n1. Change recognition in mlflow/store/model_registry/sqlalchemy_store.py:SqlAlchemyStore._is_querying_prompt. It examines the first matching prompt-tag filter and recognizes either equality to 'true' or inequality to 'false', comparing the value case-insensitively. No matching filter means ordinary-model search.\n2. Coordinate exclusion behavior in mlflow/store/model_registry/sqlalchemy_store.py:SqlAlchemyStore._update_query_to_exclude_prompts. It removes the prompt key fro"
+   },
+   {
+    "id": "search-pagination-and-latest-version-loading-have-separate-p",
+    "kind": "map",
+    "title": "Search pagination and latest-version loading have separate paths",
+    "files": [
+     "mlflow/store/model_registry/sqlalchemy_store.py"
+    ],
+    "body": "mlflow/store/model_registry/sqlalchemy_store.py:SqlAlchemyStore.search_registered_models parses filters and ordering, requests max_results + 1 rows, applies the token's offset, and eagerly loads tags and aliases. It fetches latest versions only for the returned page and passes those rows into entity conversion.\nmlflow/store/model_registry/sqlalchemy_store.py:SqlAlchemyStore._get_latest_versions_for_models computes row_number partitioned by workspace, model name, and stage, ordered by descending version. Deleted versions are excluded before ranking. It joins rank-one rows back by workspace/name"
+   },
+   {
+    "id": "store-initialization-engine-reuse-and-session-routing",
+    "kind": "map",
+    "title": "Store initialization, engine reuse, and session routing",
+    "files": [
+     "mlflow/store/model_registry/sqlalchemy_store.py"
+    ],
+    "body": "mlflow/store/model_registry/sqlalchemy_store.py:SqlAlchemyStore is the SQLAlchemy backend for registered models, model versions, tags, aliases, and webhooks. Public operations validate inputs, use managed sessions to read or mutate ORM rows, and convert results to MLflow entities.\nmlflow/store/model_registry/sqlalchemy_store.py:SqlAlchemyStore._get_or_create_engine caches engines by database URI at class level, using a lock and a second cache check during creation.\nmlflow/store/model_registry/sqlalchemy_store.py:SqlAlchemyStore.__init__ obtains the primary engine, initializes tables when neede"
+   },
+   {
+    "id": "version-allocation-artifact-locations-and-deletion-retain-di",
+    "kind": "rule",
+    "title": "Version allocation, artifact locations, and deletion retain distinct semantics",
+    "files": [
+     "mlflow/store/model_registry/sqlalchemy_store.py"
+    ],
+    "body": "mlflow/store/model_registry/sqlalchemy_store.py:SqlAlchemyStore.create_model_version preserves the supplied source while resolving storage_location separately. A models URI with a model ID resolves through a logged model; another models URI resolves through the referenced version's download URI. Logged-model information can also supply a missing run ID. Within a write session, allocation uses the maximum version for the workspace/name plus one, including deleted rows. Integrity errors trigger rollback and retry, with three attempts. Creation also updates the parent timestamp and deduplicates i"
+   },
+   {
+    "id": "webhook-crud-stores-subscriptions-separately-and-uses-soft-d",
+    "kind": "map",
+    "title": "Webhook CRUD stores subscriptions separately and uses soft deletion",
+    "files": [
+     "mlflow/store/model_registry/sqlalchemy_store.py"
+    ],
+    "body": "mlflow/store/model_registry/sqlalchemy_store.py:SqlAlchemyStore.create_webhook validates name, URL, and events, creates a UUID and timestamps, assigns workspace to the webhook, and defaults status to ACTIVE. Subscription rows store webhook ID plus entity/action enum values. The write session flushes before conversion to a Webhook entity.\nmlflow/store/model_registry/sqlalchemy_store.py:SqlAlchemyStore._get_webhook_by_id scopes lookup through the workspace query helper and requires deleted_timestamp to be null; absent or deleted IDs raise RESOURCE_DOES_NOT_EXIST.\nmlflow/store/model_registry/sqla"
+   },
+   {
+    "id": "workspace-identity-must-survive-queries-joins-and-writes",
+    "kind": "rule",
+    "title": "Workspace identity must survive queries, joins, and writes",
+    "files": [
+     "mlflow/store/model_registry/sqlalchemy_store.py"
+    ],
+    "body": "Workspace filtering applies even in the single-tenant store. mlflow/store/model_registry/sqlalchemy_store.py:SqlAlchemyStore._get_active_workspace returns the default workspace and provides the override point for workspace-aware subclasses.\nmlflow/store/model_registry/sqlalchemy_store.py:SqlAlchemyStore._get_query adds the active workspace predicate for registered models, model versions, webhooks, registered-model tags, version tags, and aliases. mlflow/store/model_registry/sqlalchemy_store.py:SqlAlchemyStore._get_workspace_clauses provides equivalent predicates for select statements and manua"
+   }
+  ]
+ },
+ {
+  "id": "PR26269-hard",
+  "request": "When I stream a response through the AI Gateway's Anthropic provider and the model makes parallel tool calls, the calls get merged into one. Every tool call is reported with index 0, the second call is placed in the second choice instead of the first, and the finish event is sent once per content block instead of once at the end. Clients that read only the first choice and merge tool-call fragments by index (such as the OpenAI Python client and LangChain) end up with a single tool call whose arguments are the concatenation of both calls' arguments. The same problem can occur when a text block comes before a tool call, because the tool call's position then depends on the text block's position. Streaming should number tool calls sequentially from 0 in the order they appear, regardless of any text blocks before them. Every streamed chunk should use only the first choice. The finish event should be emitted exactly once per response. Non-streaming behavior should stay as it is.",
+  "gold": [
+   "mlflow/gateway/providers/anthropic.py"
+  ],
+  "cands": [
+   {
+    "id": "anthropic-usage-changes-must-cover-normalized-and-passthroug",
+    "kind": "howto",
+    "title": "Anthropic usage changes must cover normalized and passthrough streams",
+    "files": [
+     "mlflow/gateway/providers/anthropic.py",
+     "mlflow/gateway/providers/base.py"
+    ],
+    "body": "When changing Anthropic input or cache-token accounting, update the following paths together.\nFirst, change mlflow/gateway/providers/anthropic.py:AnthropicAdapter._build_chat_usage for normalized responses. Prompt tokens include input_tokens plus cache-read and cache-creation tokens when input_tokens is present. Total tokens require both prompt and output counts. Cache reads become prompt_tokens_details.cached_tokens; cache creation remains an extra usage field, and other unrecognized usage fields are retained.\nSecond, update mlflow/gateway/providers/anthropic.py:AnthropicProvider._chat_stream"
+   },
+   {
+    "id": "http-helpers-own-egress-protection-and-proxy-generator-lifet",
+    "kind": "rule",
+    "title": "HTTP helpers own egress protection and proxy generator lifetime",
+    "files": [
+     "mlflow/gateway/providers/utils.py",
+     "mlflow/gateway/providers/gemini.py",
+     "mlflow/gateway/providers/anthropic.py"
+    ],
+    "body": "mlflow/gateway/providers/utils.py:_aiohttp_post is the shared HTTP boundary. It removes Accept-Encoding, Content-Encoding, and the gateway authorization header case-insensitively, sets gzip/deflate/identity acceptance, posts reserialized JSON, applies the configured total timeout, and disables redirects. SSRF protection defaults on and checks the URL plus the connection target through a guarded connector. Connector cleanup runs even on failure.\nmlflow/gateway/providers/utils.py:send_request accepts JSON or text/plain responses, wraps plain text in a message object, propagates upstream HTTP err"
+   },
+   {
+    "id": "provider-entry-points-separate-normalized-apis-from-native-p",
+    "kind": "map",
+    "title": "Provider entry points separate normalized APIs from native payloads",
+    "files": [
+     "mlflow/gateway/providers/base.py",
+     "mlflow/gateway/providers/gemini.py",
+     "mlflow/gateway/providers/anthropic.py",
+     "mlflow/gateway/providers/typesafe.py"
+    ],
+    "body": "mlflow/gateway/providers/base.py:BaseProvider defines public chat, completion, embedding, passthrough, and proxy entry points around provider-specific underscore methods. Normalized chat responses receive the configured provider identity. Default unimplemented operations raise 501.\nmlflow/gateway/providers/gemini.py:GeminiProvider serializes normalized request models with null fields excluded, rejects caller-supplied model fields, translates through its adapter_class, sends HTTP requests, and adapts responses. Chat and completions use generateContent; streaming uses streamGenerateContent with "
+   }
+  ]
+ },
+ {
+  "id": "PR26307-hard",
+  "request": "Copying or serializing trace data fails today. Calling a deep copy or pickle on a finalized (immutable) span raises an error saying a thread lock cannot be pickled. A span loaded lazily from a stored trace produces a broken copy that errors with a missing internal key when inspected. Because traces fetched through the get-trace or search-traces APIs contain these lazy spans, deep-copying or pickling a whole trace also fails, which breaks multiprocessing and other process-based distributed pipelines. Deep copy and pickle should work for immutable spans, lazily loaded spans, no-op spans, and whole traces, and the restored objects should keep the same data, including any attachments. A restored lazy span should stay unloaded until its data is first accessed, and the pickled payload should not carry duplicate raw data. A shallow copy of an immutable span should keep working and share the underlying span. A span that is still live and being recorded should refuse deep copy and pickle with a clear error telling the user to convert it to an immutable span first, while a shallow copy of a live span should keep working.",
+  "gold": [
+   "mlflow/entities/span.py"
+  ],
+  "cands": [
+   {
+    "id": "add-structured-attachment-formats-through-the-shared-extract",
+    "kind": "howto",
+    "title": "Add structured attachment formats through the shared extraction pipeline",
+    "files": [
+     "mlflow/entities/span.py"
+    ],
+    "body": "To recognize another provider-specific dictionary containing media, add its recognition and decoding branch in mlflow/entities/span.py:LiveSpan._try_convert_structured_content. Existing branches validate the shape, decode content, return None when decoding fails, and replace the media field while preserving surrounding fields. Send decoded content through mlflow/entities/span.py:LiveSpan._store_attachment and use its returned reference or size-limit placeholder.\nThe shared plumbing already handles both inputs and outputs, so a new dictionary pattern needs no duplicate setter implementation. ml"
+   },
+   {
+    "id": "span-construction-and-finalization-follow-distinct-live-and",
+    "kind": "map",
+    "title": "Span construction and finalization follow distinct live and persisted paths",
+    "files": [
+     "mlflow/entities/span.py"
+    ],
+    "body": "mlflow/entities/span.py:create_mlflow_span selects NoOpSpan for missing or NonRecordingSpan inputs, LiveSpan for OTelSpan, and Span for OTelReadableSpan; other inputs raise an invalid-parameter exception. The factory checks the live type before the readable type.\nmlflow/entities/span.py:Span.__init__ wraps the readable span with cached attribute decoding and initializes attachments and converted links. mlflow/entities/span.py:LiveSpan.__init__ skips that constructor, uses an uncached registry, writes the MLflow request ID and span type, and retains the original name.\nmlflow/entities/span.py:Li"
+   },
+   {
+    "id": "span-persistence-distinguishes-encoded-attributes-otel-ids-a",
+    "kind": "rule",
+    "title": "Span persistence distinguishes encoded attributes, OTel IDs, and MLflow identity",
+    "files": [
+     "mlflow/entities/span.py"
+    ],
+    "body": "mlflow/entities/span.py:_SpanAttributesRegistry.set accepts string keys and serializes values before writing to OTel. mlflow/entities/span.py:_SpanAttributesRegistry.get JSON-decodes truthy stored values, returning the raw value when decoding fails. mlflow/entities/span.py:_CachedSpanAttributesRegistry caches reads and rejects writes, so its backing attributes are expected to remain immutable.\nmlflow/entities/span.py:Span.to_dict preserves raw stored attributes and emits OTel IDs as base64-encoded bytes. mlflow/entities/span.py:Span.from_dict requires the request-ID attribute, dispatches dicti"
+   }
+  ]
+ },
+ {
+  "id": "PR26369-hard",
+  "request": "Metric queries that combine pre-aggregated trace rollup data with raw metrics can fail when the rollup sums come back as exact decimal numbers while the raw metric sums come back as floating-point numbers. The two types can't be merged, so the query errors out instead of returning results. The desired behavior is that these queries always succeed, with the sums converted to a compatible numeric type before being combined. Separately, trace search and rollup maintenance put more load on the database than necessary. Sorting traces by attributes that can never be empty shouldn't add extra handling for empty values, though optional fields must still sort with empty values last. On PostgreSQL, grouping spans into time buckets should be exact and handle timestamps before the epoch (negative values) correctly, including at nanosecond boundaries and at the extreme ends of the integer range. Rollup eligibility checks should look only at the traces that contribute to each rollup, and checking whether span costs exist should be a cheap existence check instead of a count. On PostgreSQL, the span-cost grouping queries should be combined into one, and finding candidate days for rollups should use efficient timestamp lookups. Through all of this, workspace isolation, inactivity checks across days, partition locking, and the order in which rollups are published must behave exactly as before.",
+  "gold": [
+   "mlflow/store/db/trace_rollups.py",
+   "mlflow/store/tracking/sqlalchemy_store.py",
+   "mlflow/store/tracking/utils/sql_trace_metrics_utils.py",
+   "mlflow/store/tracking/utils/sql_trace_rollups.py"
+  ],
+  "cands": [
+   {
+    "id": "aggregate-composition-and-database-collation-constrain-mergi",
+    "kind": "rule",
+    "title": "Aggregate composition and database collation constrain merging",
+    "files": [
+     "mlflow/store/tracking/utils/sql_trace_rollups.py",
+     "mlflow/store/tracking/utils/sql_trace_metrics_utils.py"
+    ],
+    "body": "mlflow/store/tracking/utils/sql_trace_rollups.py:raw_aggregations_for_plan expands unbucketed AVG into SUM and COUNT and deduplicates support aggregation types. mlflow/store/tracking/utils/sql_trace_rollups.py:merge_unbucketed_data_points adds sums/counts, takes extrema, and reconstructs averages from total sum divided by total sample count. Daily averages are never averaged together. Group keys use ordered dimension items.\nmlflow/store/tracking/utils/sql_trace_rollups.py:requires_sql_grouped_merge selects model/provider span-cost groupings for database-side merging. mlflow/store/tracking/util"
+   },
+   {
+    "id": "assessment-mutation-changes-must-preserve-routing-aggregates",
+    "kind": "howto",
+    "title": "Assessment mutation changes must preserve routing, aggregates, and override validity",
+    "files": [
+     "mlflow/store/tracking/sqlalchemy_store.py"
+    ],
+    "body": "For changes to assessment value or override behavior, coordinate these mutation paths in mlflow/store/tracking/sqlalchemy_store.py.\n1. mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore.create_assessment converts the supplied entity, copies experiment ID and trace timestamp from the locked trace, and invalidates an overridden assessment scoped to that trace. A missing override raises RESOURCE_DOES_NOT_EXIST. Its flush-error handling distinguishes a missing trace from another constraint violation.\n2. mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore.update_assessment reconstructs"
+   },
+   {
+    "id": "bulk-upsert-updates-only-explicitly-shared-columns",
+    "kind": "rule",
+    "title": "Bulk upsert updates only explicitly shared columns",
+    "files": [
+     "mlflow/store/tracking/sqlalchemy_store.py"
+    ],
+    "body": "mlflow/store/tracking/sqlalchemy_store.py:_bulk_upsert derives primary-key columns from the model table and computes update candidates from the intersection of keys present in every supplied row. Primary-key and computed columns are excluded. Preserve this restriction: omitted columns must not enter the generated conflict-update assignments. The code explicitly avoids referencing missing MySQL insert aliases and overwriting intentionally absent values.\nThe update-column set is computed across the whole input before dividing rows into batches of 100. Empty input returns immediately.\nmlflow/stor"
+   },
+   {
+    "id": "changing-archival-eligibility-requires-matching-selection-an",
+    "kind": "howto",
+    "title": "Changing archival eligibility requires matching selection and revalidation",
+    "files": [
+     "mlflow/store/tracking/sqlalchemy_store.py"
+    ],
+    "body": "To change which trace states or payloads may be archived, coordinate the predicates in this order, all in mlflow/store/tracking/sqlalchemy_store.py.\n1. mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore._find_archivable_trace_candidates_for_experiments performs SQL candidate selection: exclude IN_PROGRESS, any non-TRACKING_STORE location tag, and any archival-failure tag; require at least one nonempty span content row. It applies an inclusive timestamp cutoff and orders by timestamp then request ID, merging bounded results across experiment chunks.\n2. mlflow/store/tracking/sqlalchemy_st"
+   },
+   {
+    "id": "changing-interval-metric-history-sampling",
+    "kind": "howto",
+    "title": "Changing interval metric-history sampling",
+    "files": [
+     "mlflow/store/tracking/sqlalchemy_store.py"
+    ],
+    "body": "Keep the following implementation points aligned, in order, when changing interval sampling behavior.\n1. mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore.get_metric_history_bulk_interval owns the public contract: start_step and end_step must be supplied together, max_results is clamped to at least one, every requested run is access-validated before sampling, and the limit applies per run.\n2. mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore._sample_metric_history_single_run builds inclusive step filters and orders rows by (step, timestamp, value, is_nan). It dispatches to the "
+   },
+   {
+    "id": "changing-run-name-assignment-requires-coordinated-creation-a",
+    "kind": "howto",
+    "title": "Changing run-name assignment requires coordinated creation and tag paths",
+    "files": [
+     "mlflow/store/tracking/sqlalchemy_store.py"
+    ],
+    "body": "Run-name assignment writes both the run's name column and its mlflow.runName tag. For a change to assignment or precedence, coordinate these four methods in order.\n1. mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore.create_run handles initial precedence. It copies the supplied tags, rejects conflicting truthy run_name and run-name-tag values, chooses the argument, tag, or generated random name, and adds the name tag when no truthy name tag was supplied. It initializes the run column from the selected name.\n2. mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore.update_run_info ha"
+   },
+   {
+    "id": "changing-when-review-queue-questions-can-be-replaced",
+    "kind": "howto",
+    "title": "Changing when review queue questions can be replaced",
+    "files": [
+     "mlflow/store/tracking/sqlalchemy_store.py"
+    ],
+    "body": "For a change to the store's question-freeze policy, coordinate these locations in mlflow/store/tracking/sqlalchemy_store.py in this order.\n1. SqlAlchemyStore._get_sql_review_queue is the shared workspace-scoped lookup and optional FOR UPDATE lock. Preserve a common locking mechanism for question edits and item attachment: the lock spans the rest of the transaction.\n2. SqlAlchemyStore.update_review_queue implements the policy. It acquires that lock, rejects updates to user queues, and checks item count whenever schema_ids is supplied. Any attached item currently blocks schema replacement, even "
+   },
+   {
+    "id": "deletion-must-invalidate-assessment-rollups-before-removing",
+    "kind": "rule",
+    "title": "Deletion must invalidate assessment rollups before removing their source rows",
+    "files": [
+     "mlflow/store/tracking/sqlalchemy_store.py"
+    ],
+    "body": "mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore.delete_run delegates to mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore._mark_run_deleted. This helper deletes assessments whose metadata contains the reserved source-run-ID entry, then marks the run deleted and records deleted_time. Assessment association here is found through the metadata JSON text, not a run_id column.\nBefore deleting assessments, mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore._enqueue_assessment_rebuilds_for_filter finds distinct experiment/day partitions from their denormalized experiment_id an"
+   },
+   {
+    "id": "evaluation-dataset-records-use-input-identity-and-incrementa",
+    "kind": "map",
+    "title": "Evaluation dataset records use input identity and incremental metadata",
+    "files": [
+     "mlflow/store/tracking/sqlalchemy_store.py"
+    ],
+    "body": "mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore.upsert_dataset_records validates dataset accessibility, serializes inputs with sorted keys, and hashes that JSON with SHA-256. Identity is the pair of dataset ID and input hash. Existing records receive merge(record_dict); new records are constructed from inputs, outputs, expectations, tags, source, and timestamps. Returned counts distinguish these two branches.\nAfter processing records, the same method updates dataset metadata. The last encountered MLFLOW_USER tag supplies last_updated_by, otherwise it is None. mlflow/store/tracking/sq"
+   },
+   {
+    "id": "expose-an-already-implemented-raw-dimension-through-the-metr",
+    "kind": "howto",
+    "title": "Expose an already implemented raw dimension through the metric configuration",
+    "files": [
+     "mlflow/store/tracking/utils/sql_trace_metrics_utils.py",
+     "mlflow/store/tracking/utils/sql_trace_rollups.py"
+    ],
+    "body": "To allow an existing dimension on another raw metric, first check mlflow/store/tracking/utils/sql_trace_metrics_utils.py:_apply_dimension_to_query for the view's SQL expression and output label. For example, span type already maps to the span type column.\nNext edit the target metric's dimensions set in SPANS_METRICS_CONFIGS, TRACES_METRICS_CONFIGS, or ASSESSMENTS_METRICS_CONFIGS in sql_trace_metrics_utils.py. These entries are instances of mlflow/store/tracking/utils/sql_trace_metrics_utils.py:TraceMetricsConfig. Adding span type to span latency therefore needs only that metric's configuration"
+   },
+   {
+    "id": "listing-label-schemas-is-a-write-capable-operation",
+    "kind": "rule",
+    "title": "Listing label schemas is a write-capable operation",
+    "files": [
+     "mlflow/store/tracking/sqlalchemy_store.py"
+    ],
+    "body": "mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore.list_label_schemas deliberately opens a writable session: after validating the experiment, it ensures the default schema before querying and paginating results. Preserve that write capability when changing this read-facing API.\nmlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore._ensure_default_label_schema checks for an is_default row within the experiment. If absent, it constructs a FEEDBACK schema with text input, the reserved default name and instruction, comments disabled, and is_default=True. Insertion and flush occur inside"
+   },
+   {
+    "id": "metric-identity-latest-value-ordering-and-transaction-recove",
+    "kind": "rule",
+    "title": "Metric identity, latest-value ordering, and transaction recovery",
+    "files": [
+     "mlflow/store/tracking/sqlalchemy_store.py"
+    ],
+    "body": "mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore.sanitize_metric_value represents NaN as value=0 with is_nan=True and clamps infinities to signed maximum finite 64-bit floats.\nmlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore._log_metrics_once validates metrics, deduplicates incoming entities, checks that the run is active, and commits history insertion together with latest-metric updates. On IntegrityError it rolls back, deduplicates sanitized identities, queries existing identities in chunks of 100, and retries only absent rows. Within a run, recovery identity is (key, times"
+   },
+   {
+    "id": "promoted-metadata-equality-follows-the-exact-synthesized-jso",
+    "kind": "rule",
+    "title": "Promoted metadata equality follows the exact synthesized JSON representation",
+    "files": [
+     "mlflow/store/tracking/utils/trace_analytics.py",
+     "mlflow/store/tracking/utils/sql_trace_metrics_utils.py"
+    ],
+    "body": "mlflow/store/tracking/utils/trace_analytics.py:analytics_columns_from_metadata extracts session, token, and cost values into dedicated columns. Only recognized items present in the input object produce entries; malformed or non-object JSON produces no token/cost entries.\nmlflow/store/tracking/utils/trace_analytics.py:token_count_or_none accepts finite integral values within signed BIGINT bounds and rejects booleans. mlflow/store/tracking/utils/trace_analytics.py:finite_float_or_none accepts finite float conversions and rejects booleans, conversion failures, and overflow. Neither helper imposes"
+   },
+   {
+    "id": "raw-metric-queries-share-one-pipeline-with-view-specific-sou",
+    "kind": "map",
+    "title": "Raw metric queries share one pipeline with view-specific sources and timestamps",
+    "files": [
+     "mlflow/store/tracking/utils/sql_trace_metrics_utils.py"
+    ],
+    "body": "mlflow/store/tracking/utils/sql_trace_metrics_utils.py:validate_query_trace_metrics_params checks the view's configured metrics, aggregation types, and dimensions. It is separate from mlflow/store/tracking/utils/sql_trace_metrics_utils.py:query_metrics; the query function does not call validation.\nquery_metrics applies joins and filters, chooses a metric expression, removes null inputs and dimensions, builds grouping and aggregation expressions, orders by bucket then requested dimensions, limits rows, and converts results.\nmlflow/store/tracking/utils/sql_trace_metrics_utils.py:_get_column_to_a"
+   },
+   {
+    "id": "rollup-eligibility-coverage-and-serving-are-separate-decisio",
+    "kind": "map",
+    "title": "Rollup eligibility, coverage, and serving are separate decisions",
+    "files": [
+     "mlflow/store/tracking/utils/sql_trace_rollups.py"
+    ],
+    "body": "mlflow/store/tracking/utils/sql_trace_rollups.py:resolve_rollup_read creates a plan only when rollups are enabled, the metric/grouping/aggregation is supported, filters are absent, the range is bounded, exactly one experiment is supplied, and the interval is absent or exactly one day. Empty aggregation lists fall back to raw. Daily percentiles are limited to PostgreSQL trace metrics at 50, 90, and 99.\nmlflow/store/tracking/utils/sql_trace_rollups.py:resolve_grouping_set supports global grouping for all three views, trace status, and span model/provider combinations. Session count, span count/l"
+   },
+   {
+    "id": "rollup-invalidation-uses-queue-first-locking-and-stable-read",
+    "kind": "rule",
+    "title": "Rollup invalidation uses queue-first locking and stable reads",
+    "files": [
+     "mlflow/store/tracking/utils/sql_trace_rollups.py"
+    ],
+    "body": "mlflow/store/tracking/utils/sql_trace_rollups.py:enqueue_rollup_rebuild_partitions documents the writer contract: lock affected rebuild keys before locking or mutating source rows. It skips work when rollups are disabled, ignores absent experiment IDs/timestamps and unsupported families, and invalidates only timestamps at least one day old. Keys are deduplicated and locked in experiment-ID, day, family-value order. mlflow/store/tracking/utils/sql_trace_rollups.py:enqueue_rollup_rebuilds delegates a single family/experiment request to this batch operation.\nmlflow/store/tracking/utils/sql_trace_"
+   },
+   {
+    "id": "scorer-versions-gateway-references-and-online-execution-sele",
+    "kind": "map",
+    "title": "Scorer versions, gateway references, and online execution selection",
+    "files": [
+     "mlflow/store/tracking/sqlalchemy_store.py"
+    ],
+    "body": "mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore.register_scorer validates the name, active experiment, and serialized model. It identifies a scorer by experiment and name, assigns a UUID for a new scorer, and inserts version max+1 or 1. Gateway model names are resolved to endpoint IDs before serialization is stored. When the endpoint row exists, its binding is replaced using the scorer ID as resource_id.\nmlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore._get_scorer_version validates the scorer through the query hook and returns either an explicit version or the highest versio"
+   },
+   {
+    "id": "search-predicates-must-preserve-entity-cardinality-before-pa",
+    "kind": "rule",
+    "title": "Search predicates must preserve entity cardinality before pagination",
+    "files": [
+     "mlflow/store/tracking/sqlalchemy_store.py"
+    ],
+    "body": "mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore._apply_filter_string_datasets_search_logged_models joins distinct model-ID subqueries for metric predicates and for dataset-only restrictions. Multiple matching metric rows must not duplicate a model before OFFSET/LIMIT. Dataset alternatives are ORed; when metric predicates exist, dataset restrictions apply within each metric predicate. Deleted models are excluded and experiment IDs constrain the final query.\nmlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore.search_logged_models validates dataset names, validates pagination toke"
+   },
+   {
+    "id": "store-initialization-session-routing-and-workspace-extension",
+    "kind": "map",
+    "title": "Store initialization, session routing, and workspace extension points",
+    "files": [
+     "mlflow/store/tracking/sqlalchemy_store.py"
+    ],
+    "body": "mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore implements SQL-backed tracking metadata; artifact locations are recorded separately from artifact contents.\nmlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore.__init__ obtains the primary engine, initializes missing tables, configures managed sessions, verifies primary and optional replica schemas, and initializes store state. A distinct read_db_uri enables separate read and write session factories. Write methods explicitly request read_only=False. Initialization does not create the local artifact directory.\nmlflow/store/tracking"
+   },
+   {
+    "id": "trace-ingestion-has-complete-trace-and-incremental-span-entr",
+    "kind": "map",
+    "title": "Trace ingestion has complete-trace and incremental-span entry points",
+    "files": [
+     "mlflow/store/tracking/sqlalchemy_store.py"
+    ],
+    "body": "mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore.start_trace delegates to _start_trace_once through deadlock retry. mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore._start_trace_once writes top-level trace fields, promotes analytics metadata into columns, removes promoted keys from metadata rows, and writes TRACE_INFO_FINALIZED. On an insert conflict it rolls back, locks the existing trace, requires DB-backed storage, and merges tags, assessments, and metadata rather than replacing child collections. It also updates spans' experiment IDs and assessments' experiment/timestamp "
+   },
+   {
+    "id": "trace-reads-distinguish-incomplete-export-from-empty-archive",
+    "kind": "map",
+    "title": "Trace reads distinguish incomplete export from empty archived payloads",
+    "files": [
+     "mlflow/store/tracking/sqlalchemy_store.py"
+    ],
+    "body": "mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore.get_trace retries an incomplete non-partial read up to three times, sleeping one then two seconds. Partial reads call the underlying read once.\nmlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore._get_trace loads trace metadata with tags, metadata rows, and assessments, then loads DB span snapshots only when SPANS_LOCATION is TRACKING_STORE. After leaving the session it refreshes snapshots whose payloads were cleared during archival, then resolves spans using the refreshed trace information. A missing trace raises immediately. Non"
+   },
+   {
+    "id": "trace-reads-recover-from-archival-transitions",
+    "kind": "map",
+    "title": "Trace reads recover from archival transitions",
+    "files": [
+     "mlflow/store/tracking/sqlalchemy_store.py"
+    ],
+    "body": "mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore._load_tracking_store_span_snapshots deduplicates requested trace IDs and loads content, parent IDs, and start times. Empty-string content is excluded from snapshots and recorded separately as a trace with cleared payloads.\nmlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore._refresh_transitioning_trace_snapshot handles a metadata/span-read race: if the original location is TRACKING_STORE and cleared payloads were observed, it rereads metadata. A changed location produces a new snapshot with no database spans; an unchanged location"
+   },
+   {
+    "id": "trace-search-separates-columns-child-rows-and-session-wide-a",
+    "kind": "map",
+    "title": "Trace search separates columns, child rows, and session-wide assessments",
+    "files": [
+     "mlflow/store/tracking/sqlalchemy_store.py"
+    ],
+    "body": "mlflow/store/tracking/sqlalchemy_store.py:_parse_trace_filter caches parsed filters as tuples of frozen clause objects. mlflow/store/tracking/sqlalchemy_store.py:_get_filter_clauses_for_search_traces translates those clauses into five outputs: trace attribute filters, tag/metadata subqueries, span attribute filters, other matching-trace subqueries, and a separately handled source-run equality value.\nTrace-name tags and session metadata target trace_info columns directly. Reserved analytics metadata uses dedicated column-filter construction. Ordinary tag/metadata null checks use correlated exis"
+   },
+   {
+    "id": "trace-writes-coordinate-rebuild-locks-and-archival-generatio",
+    "kind": "rule",
+    "title": "Trace writes coordinate rebuild locks and archival generations",
+    "files": [
+     "mlflow/store/tracking/sqlalchemy_store.py"
+    ],
+    "body": "mlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore._log_spans_once acquires rollup rebuild queue keys before trace-row locks and span writes. It enqueues old and incoming routing partitions, processes existing trace locks in request-ID order, and emits per-trace metadata merges in sorted key order. Rebuild markers are re-enqueued after a trace-creation rollback.\nmlflow/store/tracking/sqlalchemy_store.py:SqlAlchemyStore.create_assessment snapshots trace routing, enqueues the assessment partition, then locks and refreshes the trace. If routing changed, it rolls back and retries in a fresh"
+   }
+  ]
+ },
+ {
+  "id": "PR26442-hard",
+  "request": "Endpoints in the AI Gateway that use the TypeSafe provider always send requests to TypeSafe's public hosted service address. Users who need to go through a proxy or run their own self-hosted System One server have no way to point the endpoint at a different address, so those setups can't be used. The endpoint form also doesn't offer an optional API Base URL field for saved TypeSafe connections, so there is nowhere to enter a custom address.\n\nDesired behavior: a TypeSafe endpoint can be configured with an optional custom API base URL. When one is set, all requests the Gateway forwards to TypeSafe go to that address instead of the public one. When it is left empty, the public hosted address remains the default, so existing endpoints behave exactly as before. For saved TypeSafe connections, the endpoint form should show the optional API Base URL field, and a value saved there must carry through when the Gateway builds the provider for the endpoint. The provider's listed configuration options should also show the base URL as an optional setting. The documentation for model providers should describe this option and when to use it, such as with a proxy or a self-hosted server.",
+  "gold": [
+   "mlflow/gateway/config.py",
+   "mlflow/gateway/providers/typesafe.py",
+   "mlflow/server/gateway_api.py",
+   "mlflow/utils/providers.py"
+  ],
+  "cands": [
+   {
+    "id": "adding-a-catalog-capability-to-model-responses",
+    "kind": "howto",
+    "title": "Adding a catalog capability to model responses",
+    "files": [
+     "mlflow/utils/providers.py"
+    ],
+    "body": "For a new boolean capability exposed alongside the existing supports_* fields, update the representations in mlflow/utils/providers.py in data-flow order.\n1. Add the catalog-side field to mlflow/utils/providers.py:CatalogCapabilities, which is nested in mlflow/utils/providers.py:CatalogModelEntry. Catalog capability fields are optional.\n2. Add its flattened supports_* field to mlflow/utils/providers.py:ModelInfo, whose fields are also optional.\n3. Extend mlflow/utils/providers.py:_flatten_catalog_entry to map the nested capability to the flat field, following the existing False default. The ca"
+   },
+   {
+    "id": "api-key-resolution-is-gated-and-preserves-literal-input",
+    "kind": "rule",
+    "title": "API-key resolution is gated and preserves literal input",
+    "files": [
+     "mlflow/gateway/config.py"
+    ],
+    "body": "mlflow/gateway/config.py:_resolve_api_key_from_input requires a string. It resolves a leading $ as an environment-variable reference only when MLFLOW_GATEWAY_RESOLVE_API_KEY_FROM_ENV is enabled. An unset or empty referenced variable raises an invalid-parameter error; that branch does not fall back to file or literal handling.\nFile resolution occurs only when MLFLOW_GATEWAY_RESOLVE_API_KEY_FROM_FILE is enabled. An existing file is returned using read_text without stripping whitespace. OSError during file probing or reading is ignored, and unresolved input is returned literally. Thus a $-prefixe"
+   },
+   {
+    "id": "changing-openai-versus-azure-configuration-requirements",
+    "kind": "howto",
+    "title": "Changing OpenAI versus Azure configuration requirements",
+    "files": [
+     "mlflow/gateway/config.py"
+    ],
+    "body": "To add or change an OpenAI configuration field and its API-type restrictions, make the coordinated changes in mlflow/gateway/config.py in this order.\nFirst, update the declaration, type, and default in mlflow/gateway/config.py:OpenAIConfig. Second, update the relevant branch in mlflow/gateway/config.py:OpenAIConfig._validate_field_compatibility, including its required-field checks and error text. mlflow/gateway/config.py:OpenAIConfig.validate_field_compatibility is the before-model validator that delegates to this helper; keep that delegation intact.\nThe helper passes non-dictionary input thro"
+   },
+   {
+    "id": "changing-shared-openai-responses-request-handling",
+    "kind": "howto",
+    "title": "Changing shared OpenAI Responses request handling",
+    "files": [
+     "mlflow/server/gateway_api.py",
+     "mlflow/server/fastapi_app.py"
+    ],
+    "body": "For a Responses setup or guardrail change that must affect both unary and streaming requests, update these paths together in order.\n1. Change mlflow/server/gateway_api.py:_openai_responses_passthrough_unary for shared unary behavior. It removes the endpoint selector from 'model', resolves the provider, sets telemetry attribution, checks the budget, loads guardrails, and traces a pre-guardrail → provider passthrough → post-guardrail call. Its completion callback receives workspace, endpoint ID, and username for budget accounting. Guardrail violations become HTTP 400.\n2. Apply corresponding setu"
+   },
+   {
+    "id": "endpoint-conversion-exposes-model-identity-and-preserves-leg",
+    "kind": "rule",
+    "title": "Endpoint conversion exposes model identity and preserves legacy field mappings",
+    "files": [
+     "mlflow/gateway/config.py"
+    ],
+    "body": "mlflow/gateway/config.py:EndpointConfig.to_endpoint and mlflow/gateway/config.py:EndpointConfig._to_legacy_route construct public model metadata from only model.name and model.provider; they do not copy the provider configuration. Both build the invocation URL as /gateway/{name}/invocations and carry the endpoint limit through.\nThe modern conversion uses endpoint_type and endpoint_url. The legacy conversion uses route_type and route_url in mlflow/gateway/config.py:_LegacyRoute. mlflow/gateway/config.py:_LegacyRoute.to_endpoint maps those legacy fields back to their modern names while preservin"
+   },
+   {
+    "id": "gateway-configuration-loading-and-endpoint-validation",
+    "kind": "map",
+    "title": "Gateway configuration loading and endpoint validation",
+    "files": [
+     "mlflow/gateway/config.py"
+    ],
+    "body": "mlflow/gateway/config.py:_validate_config checks that the configuration path exists, delegates loading, and wraps failures as invalid-parameter errors. mlflow/gateway/config.py:_load_gateway_config reads and parses YAML, calls the deprecated-field and route-name-collision checks, then constructs mlflow/gateway/config.py:GatewayConfig. YAML read/parse failures and Pydantic validation failures receive separate error messages.\nmlflow/gateway/config.py:GatewayConfig requires endpoints and optionally accepts traffic routes. mlflow/gateway/config.py:EndpointConfig validates endpoint names, endpoint "
+   },
+   {
+    "id": "gateway-endpoint-resolution-and-provider-composition",
+    "kind": "map",
+    "title": "Gateway endpoint resolution and provider composition",
+    "files": [
+     "mlflow/server/gateway_api.py"
+    ],
+    "body": "mlflow/server/gateway_api.py:invocations takes the endpoint name from the URL and selects chat when 'messages' exists, otherwise embeddings when 'input' exists. mlflow/server/gateway_api.py:chat_completions takes the endpoint name from body['model'], removes it, and validates the remaining unified chat payload. mlflow/server/gateway_api.py:list_models exposes sorted endpoint names as model IDs. mlflow/server/gateway_api.py:_validate_store requires a SQLAlchemy store.\nmlflow/server/gateway_api.py:_create_provider_from_endpoint_name resolves database configuration, enables destination-dependent "
+   },
+   {
+    "id": "provider-catalogs-discovery-fallback-filtering-and-pricing",
+    "kind": "map",
+    "title": "Provider catalogs: discovery, fallback, filtering, and pricing",
+    "files": [
+     "mlflow/utils/providers.py"
+    ],
+    "body": "mlflow/utils/providers.py:_list_provider_names discovers sorted bundled JSON filenames and caches the list. mlflow/utils/providers.py:get_models selects those provider files, then loads each through mlflow/utils/providers.py:_load_provider. A truthy remote catalog replaces the bundled catalog; otherwise the bundled catalog is used, without merging.\nmlflow/utils/providers.py:_fetch_remote_provider supports HTTP, HTTPS, and file URIs; an empty configured URI disables remote fetching. Its cache is keyed by provider and caches failures as empty dictionaries. mlflow/utils/providers.py:_get_remote_c"
+   },
+   {
+    "id": "provider-entry-points-separate-normalized-apis-from-native-p",
+    "kind": "map",
+    "title": "Provider entry points separate normalized APIs from native payloads",
+    "files": [
+     "mlflow/gateway/providers/base.py",
+     "mlflow/gateway/providers/gemini.py",
+     "mlflow/gateway/providers/anthropic.py",
+     "mlflow/gateway/providers/typesafe.py"
+    ],
+    "body": "mlflow/gateway/providers/base.py:BaseProvider defines public chat, completion, embedding, passthrough, and proxy entry points around provider-specific underscore methods. Normalized chat responses receive the configured provider identity. Default unimplemented operations raise 501.\nmlflow/gateway/providers/gemini.py:GeminiProvider serializes normalized request models with null fields excluded, rejects caller-supplied model fields, translates through its adapter_class, sends HTTP requests, and adapts responses. Chat and completions use generateContent; streaming uses streamGenerateContent with "
+   },
+   {
+    "id": "provider-identifiers-select-configuration-types-through-the",
+    "kind": "map",
+    "title": "Provider identifiers select configuration types through the registry",
+    "files": [
+     "mlflow/gateway/config.py"
+    ],
+    "body": "mlflow/gateway/config.py:Model declares provider before config. mlflow/gateway/config.py:Model.validate_provider preserves Provider instances; otherwise it replaces hyphens with underscores and uppercases the input to look for an enum member. If that fails, it accepts an exact provider-registry key. Other values raise an unsupported-provider error. The built-in identifiers are defined by mlflow/gateway/config.py:Provider.\nmlflow/gateway/config.py:Model.validate_config delegates to mlflow/gateway/config.py:Model._validate_config. That method reads the already-validated provider from context.dat"
+   }
+  ]
+ },
+ {
+  "id": "PR26252-hard",
+  "request": "When validating a candidate model against a baseline, the minimum relative change threshold gives wrong results if the baseline metric value is negative. For example, with a baseline R² of -1.8 and a 5% required improvement, a clearly worse candidate at -5.0 passes validation, while a perfect candidate at 1.0 fails. The relative change is currently computed by dividing the difference by the signed baseline value, which flips the direction of the comparison for negative baselines. The relative change should instead be measured against the magnitude (absolute value) of the baseline, for both metrics where higher is better and metrics where lower is better. Behavior for positive baselines must stay exactly the same, and the existing zero-baseline handling (falling back to a plain comparison) must not change. The documentation describing the threshold should also be corrected to state the required value as the baseline plus the relative change times the baseline's magnitude (and the lower-is-better counterpart), noting that this matches the old formula when the baseline is positive.",
+  "gold": [
+   "mlflow/models/evaluation/validation.py"
+  ],
+  "cands": []
+ },
+ {
+  "id": "PR26327-hard",
+  "request": "Searching MCP access endpoints by the name of the server they point to doesn't work. When a user filters on that attribute, the search is rejected with an error, even though the filter is meant to be supported. The underlying SQL parser treats the attribute's name as a reserved word, so the comparison isn't recognized as a valid filter. The same problem affects list-style comparisons, so users can't ask for endpoints whose server name is in a given set, or is not in a given set. Searches should accept this attribute with the usual equality comparison. They should also accept \"in\" and \"not in\" comparisons with a list of values. Values must keep their original mixed-case form and not be lowercased or altered. The fix should behave the same whether or not workspaces are enabled. Other attributes and other search types should be unaffected.",
+  "gold": [
+   "mlflow/utils/search_utils.py"
+  ],
+  "cands": [
+   {
+    "id": "add-a-trace-numeric-attribute-alias-through-validation-and-c",
+    "kind": "howto",
+    "title": "Add a trace numeric attribute alias through validation and canonicalization together",
+    "files": [
+     "mlflow/utils/search_utils.py"
+    ],
+    "body": "For another public alias of an existing numeric trace attribute, the coordinated edits are in mlflow/utils/search_utils.py:SearchTraceUtils. First add the alias to VALID_SEARCH_ATTRIBUTE_KEYS and NUMERIC_ATTRIBUTES. Add it to VALID_ORDER_BY_ATTRIBUTE_KEYS if ordering should accept it. Then add its canonical attribute name to SEARCH_KEY_TO_ATTRIBUTE. Existing examples map timestamp to timestamp_ms, execution_time to execution_time_ms, and end_time to end_time_ms.\nThe order matters in the data flow: mlflow/utils/search_utils.py:SearchTraceUtils._get_value checks the public key against NUMERIC_AT"
+   },
+   {
+    "id": "logged-model-search-has-distinct-parsers-and-distinct-metric",
+    "kind": "map",
+    "title": "Logged-model search has distinct parsers and distinct metric selection rules",
+    "files": [
+     "mlflow/utils/search_logged_model_utils.py",
+     "mlflow/utils/search_utils.py"
+    ],
+    "body": "mlflow/utils/search_logged_model_utils.py:parse_filter_string returns Comparison dataclasses. It parses one SQL expression, uses the shared token joiner, uppercases operators, accepts AND separators, and rejects other statement tokens. Numeric operands become floats; nonnumeric parenthesized operands use literal evaluation, while scalar strings have surrounding single quotes stripped.\nmlflow/utils/search_logged_model_utils.py:Entity.from_str recognizes explicit lowercase plural namespaces through mlflow/utils/search_logged_model_utils.py:EntityType.from_str: attributes, metrics, params, and ta"
+   },
+   {
+    "id": "ordering-preserves-explicit-tie-breakers-and-pagination-form",
+    "kind": "rule",
+    "title": "Ordering preserves explicit tie-breakers and pagination formats remain separate",
+    "files": [
+     "mlflow/utils/search_utils.py"
+    ],
+    "body": "mlflow/utils/search_utils.py:SearchUtils.sort first orders runs by start_time descending and run_id ascending, then applies requested clauses in reverse order using stable sorts. Preserve that reverse application order so earlier requested clauses retain higher priority. mlflow/utils/search_utils.py:SearchUtils._get_value_for_sort constructs direction-dependent keys that place ordinary values before NaN and NaN before None in either direction.\nOther entities build tuple keys. mlflow/utils/search_utils.py:SearchExperimentsUtils._get_sort_key appends experiment_id descending unless explicitly or"
+   },
+   {
+    "id": "shared-search-parsing-produces-clauses-entity-specific-evalu",
+    "kind": "map",
+    "title": "Shared search parsing produces clauses; entity-specific evaluators apply them",
+    "files": [
+     "mlflow/utils/search_utils.py"
+    ],
+    "body": "mlflow/utils/search_utils.py:SearchUtils.parse_search_filter accepts an empty filter or one SQL statement and delegates to the subclass's statement processor. mlflow/utils/search_utils.py:SearchUtils._process_statement allows Comparison tokens, whitespace, and AND, returning clause dictionaries with type, key, comparator, and value.\nmlflow/utils/search_utils.py:_join_in_comparison_tokens adapts sqlparse tokenization: from version 0.4.4 onward it groups IN, NOT IN, IS NULL, and IS NOT NULL; trace mode also handles numeric timestamp comparisons.\nmlflow/utils/search_utils.py:SearchUtils._get_iden"
+   }
+  ]
+ },
+ {
+  "id": "PR26265-hard",
+  "request": "Text I save as an artifact with the text-logging feature is stored as UTF-8. But when I read it back with the text-loading and dictionary-loading artifact functions, they use the machine's default encoding instead. On systems where that default isn't UTF-8 (for example a Traditional Chinese Windows locale), non-ASCII content comes back silently wrong. \"café résumé\" turns into \"caf矇 r矇sum矇\". In other cases loading the text fails with \"Unable to form a str object from file content\", or loading a dictionary fails with a decoding error. Both functions should always read artifacts as UTF-8, so what I logged is what I get back whatever the system locale is. If an artifact isn't valid UTF-8, such as a file in a legacy code page uploaded as a plain artifact file, reading it should fail with a clear error. The error should say the artifact is not valid UTF-8 and suggest downloading the artifact instead, and it should keep the original decoding error as its cause. The dictionary loader should raise that same clear error, not let a raw decoding error escape.",
+  "gold": [
+   "mlflow/artifacts/__init__.py"
+  ],
+  "cands": []
+ },
+ {
+  "id": "PR26311-hard",
+  "request": "Converting a dataset into an evaluation dataset fails with an error when the dataset contains nested arrays of varying lengths whose elements are dictionaries. For example, a Hugging Face dataset where each row holds a list of dictionaries, and the lists differ in length from row to row. The failure happens while the dataset's content is being hashed (fingerprinted). The hashing step tries to turn the irregular nested data into a uniform rectangular array, and that is impossible when lengths differ, so a value error is raised and the conversion aborts. Datasets with uniform, regular shapes work fine. Converting such datasets should succeed instead of raising an error. When the data can't be made into a uniform array and contains dictionaries, hashing should fall back to a general approach that walks through the nested contents item by item. Hashing should still produce a consistent result, so the same data gives the same hash every time.",
+  "gold": [
+   "mlflow/data/evaluation_dataset.py"
+  ],
+  "cands": []
+ },
+ {
+  "id": "PR26300-hard",
+  "request": "When I send a chat request to a Gemini or Vertex AI gateway endpoint with a tool choice setting, the setting is silently ignored. If I require the model to call a tool, force a specific named function, or turn off tool calling entirely, the model still uses Gemini's default automatic tool selection. This happens for both regular and streaming requests. The gateway should honor the setting. \"Required\" should force the model to call some tool. \"None\" should prevent any tool call. A specific named function should restrict the model to calling only that function, even when several tools are declared. Omitted or automatic choices should keep today's default behavior. If no tools are declared in the request, no tool-calling configuration should be sent.",
+  "gold": [
+   "mlflow/gateway/providers/gemini.py"
+  ],
+  "cands": [
+   {
+    "id": "changing-gemini-tool-call-round-trips-requires-request-respo",
+    "kind": "howto",
+    "title": "Changing Gemini tool-call round trips requires request, response, and Vertex handling",
+    "files": [
+     "mlflow/gateway/providers/gemini.py",
+     "mlflow/gateway/providers/vertex_ai.py"
+    ],
+    "body": "For a change to Gemini tool-call identity or metadata, work through these coupled locations in order.\nFirst, update mlflow/gateway/providers/gemini.py:GeminiAdapter.chat_to_model. It parses OpenAI argument strings into functionCall args, records call IDs to function names, and emits thought_signature as part-level thoughtSignature. A model message with tool calls emits those calls instead of its content. Tool messages resolve names from preceding calls and combine consecutive functionResponse-only user turns. mlflow/gateway/providers/gemini.py:_tool_result_to_response preserves parsed JSON obj"
+   },
+   {
+    "id": "http-helpers-own-egress-protection-and-proxy-generator-lifet",
+    "kind": "rule",
+    "title": "HTTP helpers own egress protection and proxy generator lifetime",
+    "files": [
+     "mlflow/gateway/providers/utils.py",
+     "mlflow/gateway/providers/gemini.py",
+     "mlflow/gateway/providers/anthropic.py"
+    ],
+    "body": "mlflow/gateway/providers/utils.py:_aiohttp_post is the shared HTTP boundary. It removes Accept-Encoding, Content-Encoding, and the gateway authorization header case-insensitively, sets gzip/deflate/identity acceptance, posts reserialized JSON, applies the configured total timeout, and disables redirects. SSRF protection defaults on and checks the URL plus the connection target through a guarded connector. Connector cleanup runs even on failure.\nmlflow/gateway/providers/utils.py:send_request accepts JSON or text/plain responses, wraps plain text in a message object, propagates upstream HTTP err"
+   },
+   {
+    "id": "provider-entry-points-separate-normalized-apis-from-native-p",
+    "kind": "map",
+    "title": "Provider entry points separate normalized APIs from native payloads",
+    "files": [
+     "mlflow/gateway/providers/base.py",
+     "mlflow/gateway/providers/gemini.py",
+     "mlflow/gateway/providers/anthropic.py",
+     "mlflow/gateway/providers/typesafe.py"
+    ],
+    "body": "mlflow/gateway/providers/base.py:BaseProvider defines public chat, completion, embedding, passthrough, and proxy entry points around provider-specific underscore methods. Normalized chat responses receive the configured provider identity. Default unimplemented operations raise 501.\nmlflow/gateway/providers/gemini.py:GeminiProvider serializes normalized request models with null fields excluded, rejects caller-supplied model fields, translates through its adapter_class, sends HTTP requests, and adapts responses. Chat and completions use generateContent; streaming uses streamGenerateContent with "
+   }
+  ]
+ }
+]
