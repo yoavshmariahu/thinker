@@ -158,7 +158,7 @@ export function buildServer() {
 
   server.registerTool('create_pr_set', {
     description: 'Make a PR set from a task set: the PR ids and the selection rule, written before any result is seen. With draft: true it can still be changed (update_pr_set) and is frozen later (freeze_pr_set); otherwise it is frozen now. Only a frozen set can be run; a frozen set never changes.',
-    inputSchema: { name: z.string(), tasks: z.string().describe('Task set file under bench/tasks (list_task_sets)'), ids: z.array(z.string()).optional().describe('Task ids; all of the set when omitted'), rule: z.string().describe('How the PRs were chosen, e.g. "every PR merged after 2026-09-20 with tests"'), description: z.string().optional(), draft: z.boolean().optional() },
+    inputSchema: { name: z.string(), tasks: z.string().describe('Task set name (list_task_sets; import_task_set to add one)'), ids: z.array(z.string()).optional().describe('Task ids; all of the set when omitted'), rule: z.string().describe('How the PRs were chosen, e.g. "every PR merged after 2026-09-20 with tests"'), description: z.string().optional(), draft: z.boolean().optional() },
   }, guard(async a => text(await call('/api/prsets', a))));
 
   server.registerTool('update_pr_set', {
@@ -228,12 +228,27 @@ export function buildServer() {
   }));
 
   server.registerTool('list_task_sets', {
-    description: 'The task sets (PRs) that can be run, the repository checkouts available, and each runner\'s default model, arms and switches.',
+    description: 'The task sets Artemis holds (each with its version), the repository checkouts available, and each runner\'s default model, arms and switches.',
     inputSchema: {}, annotations: { readOnlyHint: true },
   }, guard(async () => {
     const c = await call('/api/catalog');
-    return text({ runners: c.runners, repos: c.repos, task_sets: c.taskSets.map(t => ({ file: t.file, repo: t.repo, tasks: t.tasks.map(x => ({ id: x.id, pr: x.pr, title: x.title, has_tests: x.tests })) })) });
+    return text({ runners: c.runners, repos: c.repos, task_sets: c.taskSets.map(t => ({ name: t.name, version: t.version, repo: t.repo, base: t.base, tasks: t.tasks.map(x => ({ id: x.id, pr: x.pr, title: x.title, has_tests: x.tests, acceptance: x.acceptance })) })) });
   }));
+
+  server.registerTool('import_task_set', {
+    description: 'Import a task set into Artemis, the system of record: from a JSON file (path from the repository root, or a name under bench/tasks) or from a file at a git ref (ref + file). Every gold diff is read from the same place and stored; a task whose gold diff is missing or lacks its test files fails the import. Importing changed content writes a new version; PR sets keep the version they froze.',
+    inputSchema: { name: z.string().describe('Task set name, e.g. mlflow-b2-hard'), file: z.string().optional().describe('JSON file: a path from the repository root, or with ref, the path at that ref'), ref: z.string().optional().describe('A git ref of this repository to read the file and gold diffs from'), repo: z.string().optional().describe('The checkout under bench/repos the tasks run in, when the file does not name it') },
+  }, guard(async a => text(await call('/api/tasksets/import', a))));
+
+  server.registerTool('get_task_set', {
+    description: 'One task set: its tasks (request, base, test command, acceptance criteria; gold diffs by size only), its source, and every version it had.',
+    inputSchema: { name: z.string(), version: z.number().int().optional() }, annotations: { readOnlyHint: true },
+  }, guard(async a => text(await call('/api/taskset?name=' + encodeURIComponent(a.name) + (a.version ? '&version=' + a.version : '')))));
+
+  server.registerTool('set_acceptance', {
+    description: 'Set a task\'s acceptance criteria for loop experiments: behavior a reviewer can observe, written from the request and the base code, never from the gold diff or tests, naming no file, function or class the request does not. Writes a new version of the task set.',
+    inputSchema: { name: z.string(), task: z.string(), acceptance: z.array(z.object({ id: z.string(), criterion: z.string(), command: z.string().optional(), essential: z.boolean().optional() })) },
+  }, guard(async a => text(await call('/api/taskset/acceptance', a))));
 
   server.registerTool('define_experiment', {
     description: 'Record or correct what an experiment tests: its name, question, kind, and which arm is cache off and which cache on. Saved in the evals database.',

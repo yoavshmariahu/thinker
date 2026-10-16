@@ -369,6 +369,6 @@ async function runWorker(cwd, checkCwd) {
 }
 await Promise.all(Array.from({ length: CONC }, (_, i) => worker(i)));
 
-const records = fs.readdirSync(OUT).filter(f => f.endsWith('.json') && f !== 'summary.json').map(f => JSON.parse(fs.readFileSync(path.join(OUT, f), 'utf8')));
+const records = fs.readdirSync(OUT).filter(f => f.endsWith('.json') && f !== 'summary.json' && f !== 'tasks.json').map(f => JSON.parse(fs.readFileSync(path.join(OUT, f), 'utf8')));
 fs.writeFileSync(path.join(OUT, 'summary.json'), JSON.stringify(records, null, 2));
 console.log(`\nSaved ${records.length} records in ${OUT}`);

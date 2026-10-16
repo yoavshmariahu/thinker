@@ -12,6 +12,7 @@ import { openDb } from '../bench/evals/db.js';
 import { ingest } from '../bench/evals/ingest.js';
 import { plan, launch, cancel, alive, jobsView, liveSessions } from '../bench/evals/jobs.js';
 import { createPrset, readPrset, updatePrset, freezePrset } from '../bench/evals/prsets.js';
+import { importTaskSet, setAcceptance, getTaskSet, writeRunTasks, listTaskSets } from '../bench/evals/tasksets.js';
 import { checkCache, planCache, readReceipt, notesDir, cacheDir, hashNotes } from '../bench/evals/caches.js';
 import { takeSnapshot, restoreSnapshot } from '../bench/evals/snapshot.js';
 import { parseClaude, parseCodex, stepStats } from '../bench/evals/transcripts.js';
@@ -200,10 +201,12 @@ test('a PR set is frozen with its rule and checked against the checkout', () => 
   assert.throws(() => createPrset(bench, db, { name: 'p', tasks: 'click.json', rule: 'again' }), /exists/);
   assert.equal(readPrset(db, 'p').prs[0].oracle, 'tests');
   // tests that call the merged patch's own functions fail the set
+  // (a re-import of the changed file is a new version; the frozen set p keeps its own)
   const spec = JSON.parse(fs.readFileSync(path.join(bench, 'tasks', 'click.json'), 'utf8'));
   spec.tasks[0].testNeedsGoldSymbols = true;
   fs.writeFileSync(path.join(bench, 'tasks', 'click.json'), JSON.stringify(spec));
-  const g = createPrset(bench, db, { name: 'g', tasks: 'click.json', rule: 'all' });
+  assert.equal(importTaskSet(bench, db, { name: 'click', file: 'bench/tasks/click.json' }).version, 2);
+  const g = createPrset(bench, db, { name: 'g', tasks: 'click', rule: 'all' });
   assert.deepEqual(g.checks.filter(c => !c.ok).map(c => c.check), ["tests passable without the merged patch's own API"]);
 });
 
@@ -301,6 +304,8 @@ test('plan builds the experiment from its modules and blocks a failing check', (
   assert.equal(p.modules.prset.prs, 2); assert.equal(p.modules.cache.name, 'c-sonnet');
   assert.ok(p.argv.includes('--notes-dir') && p.argv[p.argv.indexOf('--notes-dir') + 1] === notesDir(bench, 'c-sonnet'));
   assert.equal(p.argv[p.argv.indexOf('--only') + 1], 'T1,T2');
+  assert.equal(p.argv[p.argv.indexOf('--tasks') + 1], path.join(bench, 'runs', 'click-v9', 'tasks.json'), 'the runner reads the task set as the launch writes it into the run');
+  assert.equal(p.taskset.name, 'click'); assert.ok(p.taskset.hash);
   assert.equal(plan({ ...exp, prset: 'ps', cache: 'c-sonnet', runner: 'claude', model: 'opus', tag: 't' }, { benchDir: bench, db }).blocked, true, 'an agent model other than the mining model blocks');
   fakeCache(bench, 'late', { anchor: fix, db });
   assert.equal(plan({ ...exp, prset: 'ps', cache: 'late', runner: 'claude', model: 'sonnet', tag: 't' }, { benchDir: bench, db }).blocked, true);
@@ -330,9 +335,10 @@ test('a loop experiment names its checker, needs acceptance criteria on every PR
   const missing = plan({ ...base, values: { checker: 'sonnet' } }, { benchDir: bench, db });
   assert.equal(missing.blocked, true);
   assert.match(missing.checks.find(c => c.module === 'loop').detail, /missing on T1, T2/);
-  const spec = JSON.parse(fs.readFileSync(path.join(bench, 'tasks', 'click.json'), 'utf8'));
-  spec.tasks.forEach(t => { t.acceptance = [{ id: 'a1', criterion: 'it works' }]; });
-  fs.writeFileSync(path.join(bench, 'tasks', 'click.json'), JSON.stringify(spec));
+  // criteria are set in Artemis (a new task set version), and a PR set drawn from that version runs with them
+  for (const t of ['T1', 'T2']) setAcceptance(db, 'click', t, [{ id: 'a1', criterion: 'it works' }]);
+  createPrset(bench, db, { name: 'ps-acc', tasks: 'click', rule: 'both PRs' });
+  base.prset = 'ps-acc';
   const p = plan({ ...base, values: { checker: 'sonnet', iterations: '3' } }, { benchDir: bench, db });
   assert.equal(p.blocked, false, JSON.stringify(p.checks.filter(c => !c.ok)));
   assert.deepEqual(p.modules.loop, { checker: 'sonnet', iterations: 3, iterationMin: 10, sessionMin: 30, tokenCap: null });
@@ -436,6 +442,7 @@ test('a launched run reports progress from its result files and can be cancelled
   ingest(db, bench);
   const p = plan({ name: 'Stub', question: 'q', kind: 'behavior', prset: 'ps', cache: 'c-sonnet', runner: 'claude', off: 'nocache', on: 'cache', model: 'sonnet', tag: 'stub' }, { benchDir: bench, db });
   const id = launch(p, { benchDir: bench, db });
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(bench, 'runs', 'stub', 'tasks.json'), 'utf8')).tasks.map(t => t.id), ['T1', 'T2'], 'the launch writes the frozen task set into the run');
   let job;
   for (let i = 0; i < 50; i++) {
     job = jobsView(db, bench).find(j => j.id === id);
@@ -533,4 +540,41 @@ test('the home from before the name moves to ~/.artemis once, its database renam
   assert.ok(fs.existsSync(path.join(home, '.artemis', 'config.json')) && fs.existsSync(path.join(home, '.artemis', 'snapshots')));
   assert.equal(fs.existsSync(path.join(home, '.thinker-evals')), false);
   assert.equal(migrateHome(home), false, 'once');
+});
+
+test('task sets live in Artemis: imported with their gold diffs, versioned, and written into a run for the runner', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tasksets-'));
+  const bench = path.join(root, 'bench');
+  fs.mkdirSync(path.join(bench, 'tasks'), { recursive: true }); fs.mkdirSync(path.join(bench, 'data'), { recursive: true });
+  const diff = 'diff --git a/src/a.py b/src/a.py\n+x\ndiff --git a/tests/test_a.py b/tests/test_a.py\n+def test_a(): pass\n';
+  fs.writeFileSync(path.join(bench, 'data', 'PR1.diff'), diff);
+  const set = { repo: 'org/proj', base: 'abc123', tasks: [{ id: 'PR1-hard', prompt: 'Fix a.', goldDiff: 'bench/data/PR1.diff', testFiles: ['tests/test_a.py'], testCmd: 'pytest tests/test_a.py' }] };
+  fs.writeFileSync(path.join(bench, 'tasks', 'proj-hard.json'), JSON.stringify(set));
+  const db = openDb(':memory:');
+  const v1 = importTaskSet(bench, db, { name: 'proj-hard', file: 'bench/tasks/proj-hard.json' });
+  assert.equal(v1.version, 1); assert.equal(v1.repo, 'proj', 'the checkout name, not the GitHub slug');
+  assert.equal(getTaskSet(db, 'proj-hard').tasks[0].goldDiffText, diff, 'the gold diff is stored whole');
+  assert.equal(importTaskSet(bench, db, { name: 'proj-hard', file: 'bench/tasks/proj-hard.json' }).unchanged, true, 'the same content is not a new version');
+  // a task the runner could not grade fails the import
+  fs.writeFileSync(path.join(bench, 'tasks', 'bad.json'), JSON.stringify({ ...set, tasks: [{ ...set.tasks[0], testFiles: ['tests/test_b.py'] }] }));
+  assert.throws(() => importTaskSet(bench, db, { name: 'bad', file: 'bench/tasks/bad.json' }), /test files not in the gold diff/);
+  fs.writeFileSync(path.join(bench, 'tasks', 'gone.json'), JSON.stringify({ ...set, tasks: [{ ...set.tasks[0], goldDiff: 'bench/data/none.diff' }] }));
+  assert.throws(() => importTaskSet(bench, db, { name: 'gone', file: 'bench/tasks/gone.json' }), /not found/);
+  // acceptance criteria are a new version; the old one stays readable by its hash
+  const v2 = setAcceptance(db, 'proj-hard', 'PR1-hard', [{ id: 'a1', criterion: 'a works' }]);
+  assert.equal(v2.version, 2); assert.equal(getTaskSet(db, 'proj-hard', { hash: v1.hash }).tasks[0].acceptance, undefined);
+  assert.throws(() => setAcceptance(db, 'proj-hard', 'PR1-hard', [{ id: 'a1', criterion: 'x' }, { id: 'a1', criterion: 'y' }]), /repeat/);
+  // the run's task file: the frozen version, gold diffs beside it, goldDiff as the oracle reads it
+  const out = path.join(bench, 'runs', 'proj-x');
+  const file = writeRunTasks(bench, db, { name: 'proj-hard', hash: v1.hash, outDir: out });
+  const run = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.equal(run.hash, v1.hash); assert.equal(run.tasks[0].goldDiffText, undefined);
+  assert.equal(fs.readFileSync(path.join(root, run.tasks[0].goldDiff), 'utf8'), diff);
+  // from a git ref: the file and its gold diffs as they were at that commit
+  const g = (...a) => execFileSync('git', ['-C', root, ...a], { stdio: 'ignore', env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' } });
+  g('init', '-q'); g('add', 'bench/tasks/proj-hard.json', 'bench/data/PR1.diff'); g('commit', '-qm', 'set');
+  fs.rmSync(path.join(bench, 'data', 'PR1.diff'));
+  const fromGit = importTaskSet(bench, db, { name: 'proj-git', ref: 'HEAD', file: 'bench/tasks/proj-hard.json' });
+  assert.equal(fromGit.from.kind, 'git'); assert.equal(getTaskSet(db, 'proj-git').tasks[0].goldDiffText, diff);
+  assert.deepEqual(listTaskSets(db).map(s => s.name), ['proj-git', 'proj-hard']);
 });
