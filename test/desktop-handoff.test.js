@@ -59,6 +59,10 @@ test('progress: started once the session ran the answer, working once its subage
   const repo = tmp('handoff-repo-'), state = path.join(repo, '.thinker', 'state'), q = path.join(state, 'session-llm');
   const since = Date.now();
   assert.equal(handoffProgress(repo, since), 'none');
+  // the answer asks for the build; the server starts it when the subagent comes
+  fs.mkdirSync(q, { recursive: true }); fs.writeFileSync(path.join(q, 'build-request.json'), JSON.stringify({ t: new Date(since + 5).toISOString() }));
+  assert.equal(handoffProgress(repo, since), 'started');
+  fs.rmSync(path.join(q, 'build-request.json'));
   fs.mkdirSync(q, { recursive: true });
   fs.writeFileSync(path.join(q, 'build.json'), JSON.stringify({ pid: 1, started: new Date(since - 60_000).toISOString() }));
   assert.equal(handoffProgress(repo, since), 'none', 'an earlier build is not this one');

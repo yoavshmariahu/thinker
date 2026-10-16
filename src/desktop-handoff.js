@@ -77,14 +77,16 @@ export async function openHandoff(app, repo, { spawnFn = spawnSync, wait = ms =>
 }
 
 // How far the warm-up handed off at `since` (ms) has come: 'none'; 'started' once the session ran the answer,
-// which starts a session build (repo-onboard.js:startSessionWarmup: its queue's build.json); 'working' once a
+// which asks for a session build (session-llm.js:requestBuild) or once that build runs (its build.json); 'working' once a
 // subagent of the session takes a call off the queue (session-llm.js: a claimed or answered request). Started
 // alone is not enough: a session whose thinker tools did not load (2026-10-16, click: a stale .mcp.json) runs
 // the answer, then has nothing to work the queue with, and the build waits until it gives up.
 export function handoffProgress(repo, since) {
   const dir = path.join(repo, '.thinker', 'state', 'session-llm');
-  let b; try { b = JSON.parse(fs.readFileSync(path.join(dir, 'build.json'), 'utf8')); } catch { return 'none'; }
-  if (!(Date.parse(b.started) >= since)) return 'none';
+  const read = f => { try { return JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')); } catch { return null; } };
+  // the answer asks for the build (build-request.json) and the server starts it when the subagent comes
+  const b = read('build.json'), asked = read('build-request.json');
+  if (!(Date.parse(b?.started) >= since)) return Date.parse(asked?.t) >= since ? 'started' : 'none';
   let files = []; try { files = fs.readdirSync(dir); } catch {}
   if (files.some(f => /\.(claimed|res)\.json$/.test(f))) return 'working';
   try { if (/PR mining: [1-9]\d*\/\d+ processed/.test(fs.readFileSync(path.join(repo, '.thinker', 'state', 'warmup.log'), 'utf8').slice(-20_000))) return 'working'; } catch {}

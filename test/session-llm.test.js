@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { viaSession, nextRequest, answerRequest, requestText, markBuild, buildRunning } from '../src/session-llm.js';
+import { viaSession, nextRequest, answerRequest, requestText, markBuild, buildRunning, requestBuild, buildRequested } from '../src/session-llm.js';
 import { complete } from '../src/llm.js';
 
 const queue = () => fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-session-'));
@@ -51,4 +51,23 @@ test('THINKER_LLM=session routes complete() to the queue and labels the model se
   } finally {
     for (const [k, v] of [['THINKER_LLM', saved.llm], ['THINKER_SESSION_QUEUE', saved.q]]) if (v === undefined) delete process.env[k]; else process.env[k] = v;
   }
+});
+
+test('a build asked for by the session is started by the taker; a queue that never had a build waits before it is done', async () => {
+  const dir = queue();
+  // the subagent came first: nothing asked for yet, so it waits out its wait instead of being told to stop
+  const t0 = Date.now();
+  assert.deepEqual(await nextRequest(dir, { waitMs: 150, pollMs: 10, start: () => assert.fail('nothing was asked for') }), { done: true });
+  assert.ok(Date.now() - t0 >= 140);
+  requestBuild(dir);
+  assert.ok(buildRequested(dir)); assert.ok(!buildRequested(dir, { maxAgeMs: -1 }), 'an old request is not one');
+  let started = 0;
+  const call = nextRequest(dir, { waitMs: 2000, pollMs: 10, start: () => { started++; fs.rmSync(path.join(dir, 'build-request.json')); markBuild(dir, process.pid); } });
+  const answer = viaSession({ prompt: 'PR #2' }, { dir, pollMs: 10 });
+  const { request } = await call;
+  assert.equal(started, 1); assert.equal(request.prompt, 'PR #2');
+  answerRequest(dir, request.id, 'ok'); await answer;
+  // a start that fails is the subagent's answer
+  const other = queue(); requestBuild(other);
+  assert.deepEqual(await nextRequest(other, { waitMs: 50, pollMs: 10, start: () => ({ error: 'spawn EPERM' }) }), { error: 'spawn EPERM' });
 });
