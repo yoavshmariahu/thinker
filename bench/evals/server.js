@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDb, DEFAULT_DB } from './db.js';
-import { takeSnapshot, listLocal } from './snapshot.js';
+import { takeSnapshot, listLocal, s3Uri } from './snapshot.js';
 import { ingest, taskInfo } from './ingest.js';
 import { armSummary, METRICS } from './stats.js';
 import { readMeta, resolveMeta, writeMeta, compare } from './experiment.js';
@@ -106,7 +106,7 @@ export function createApp({ bench = BENCH, dbFile = DB_FILE, snapshots = true } 
       });
       const totals = db.get(`SELECT count(*) results, sum(invalid IS NOT NULL) invalid, count(DISTINCT task) tasks FROM results`);
       return { experiments: list, totals, scanned_at: lastScan, bench, metrics: METRICS, transcripts: archiveStats,
-        store: { db: dbFile, snapshot: listLocal()[0] || null, last: lastSnapshot, s3: process.env.EVALS_S3_URI || null } };
+        store: { db: dbFile, snapshot: listLocal()[0] || null, last: lastSnapshot, s3: s3Uri() } };
     },
     'GET /api/experiment': q => {
       const run = db.get('SELECT * FROM runs WHERE dir = ?', q.get('dir'));

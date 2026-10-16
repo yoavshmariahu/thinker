@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Recoverable snapshots of the evals database. A snapshot is a consistent copy (SQLite VACUUM INTO,
-// safe while the app writes), gzipped, kept in ~/.thinker-evals/snapshots (the newest 14) and, when
-// EVALS_S3_URI is set (s3://bucket/prefix), uploaded there with the aws CLI. The app takes one daily.
+// safe while the app writes), gzipped, kept in ~/.thinker-evals/snapshots (the newest 14) and uploaded
+// with the aws CLI to the S3 location in ~/.thinker-evals/config.json ({"s3": "s3://bucket/prefix"}),
+// or EVALS_S3_URI, which overrides it. The app takes one daily.
 //
 //   node bench/evals/snapshot.js take              a snapshot now
 //   node bench/evals/snapshot.js list              local snapshots and, with EVALS_S3_URI, the bucket's
@@ -18,13 +19,20 @@ import { DatabaseSync } from 'node:sqlite';
 import { DEFAULT_DB } from './db.js';
 
 export const SNAP_DIR = path.join(os.homedir(), '.thinker-evals', 'snapshots');
+export const CONFIG = path.join(os.homedir(), '.thinker-evals', 'config.json');
+
+// where snapshots go: the environment first, then the machine's evals config
+export function s3Uri(config = CONFIG) {
+  if (process.env.EVALS_S3_URI) return process.env.EVALS_S3_URI;
+  try { const s = JSON.parse(fs.readFileSync(config, 'utf8')).s3; return typeof s === 'string' && /^s3:\/\/[a-z0-9.-]+(\/[\w./-]*)?$/.test(s) ? s : null; } catch { return null; }
+}
 const KEEP = 14;
 
 export function listLocal(dir = SNAP_DIR) {
   try { return fs.readdirSync(dir).filter(f => /^evals-.*\.db\.gz$/.test(f)).sort().reverse().map(f => ({ file: path.join(dir, f), bytes: fs.statSync(path.join(dir, f)).size, at: fs.statSync(path.join(dir, f)).mtimeMs })); } catch { return []; }
 }
 
-export function takeSnapshot(dbFile = DEFAULT_DB, { dir = SNAP_DIR, s3 = process.env.EVALS_S3_URI, now = new Date() } = {}) {
+export function takeSnapshot(dbFile = DEFAULT_DB, { dir = SNAP_DIR, s3 = s3Uri(), now = new Date() } = {}) {
   fs.mkdirSync(dir, { recursive: true });
   const stamp = now.toISOString().replace(/[:]/g, '').replace(/\..+/, 'Z');
   const tmp = path.join(dir, `evals-${stamp}.db`);
@@ -70,7 +78,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   if (cmd === 'take') console.log(JSON.stringify(takeSnapshot(dbFile), null, 2));
   else if (cmd === 'list') {
     console.log(listLocal().map(s => `${new Date(s.at).toISOString()}  ${(s.bytes / 1e6).toFixed(1)} MB  ${s.file}`).join('\n') || 'no local snapshots');
-    if (process.env.EVALS_S3_URI) execFileSync('aws', ['s3', 'ls', process.env.EVALS_S3_URI.replace(/\/?$/, '/')], { stdio: 'inherit' });
+    if (s3Uri()) execFileSync('aws', ['s3', 'ls', s3Uri().replace(/\/?$/, '/')], { stdio: 'inherit' });
   } else if (cmd === 'restore' && arg && process.argv.includes('--force')) console.log(JSON.stringify(restoreSnapshot(arg, dbFile), null, 2));
   else { console.error('usage: snapshot.js take | list | restore <file | s3://…> --force   (stop the app before restoring)'); process.exit(2); }
 }

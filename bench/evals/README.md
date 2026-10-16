@@ -93,8 +93,10 @@ does not remove it, and `POST /api/reimport {dir}` re-imports a run on purpose (
 `bench/runs`, PR sets and receipts written as files before the database were imported once.
 
 **Snapshots** (`snapshot.js`): the app takes one a day — a consistent copy (`VACUUM INTO`), gzipped,
-the newest 14 kept in `~/.thinker-evals/snapshots/`, and copied to S3 when `EVALS_S3_URI` is set
-(`s3://bucket/prefix`, through the aws CLI's own credentials). `node bench/evals/snapshot.js take |
+the newest 14 kept in `~/.thinker-evals/snapshots/`, and copied to the S3 location in
+`~/.thinker-evals/config.json` (`{"s3": "s3://bucket/prefix"}`; `EVALS_S3_URI` overrides it), through the
+aws CLI's own credentials. This machine's bucket is `thinker-evals-snapshots-442899048927` (us-west-1:
+private, encrypted, versioned, old versions kept 30 days). `node bench/evals/snapshot.js take |
 list | restore <file|s3://…> --force` (stop the app before restoring; the replaced database is kept
 beside it).
 
