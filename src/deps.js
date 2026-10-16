@@ -93,7 +93,7 @@ export function locateSymbol(text, symbol, file, { engine } = {}) {
   return loc ? { ...loc, engine: 'regex' } : null;
 }
 
-function blockEnd(lines, start, lang = 'auto') {
+export function blockEnd(lines, start, lang = 'auto') {
   const first = lines[start];
   const indent = first.match(/^\s*/)[0].length;
   const braceLang = lang === 'brace' || (lang === 'auto' && (/[{]\s*$/.test(first) || /\)\s*(?:->\s*[\w<>\[\]:, ]+)?\s*[{]/.test(first) || /=>\s*[{]?\s*$/.test(first) || (!/:\s*(#.*)?$/.test(first) && /[{(]/.test(first))));

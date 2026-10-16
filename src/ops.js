@@ -710,7 +710,8 @@ export function codeForRequest(store, task, { notes = [], max = 2, room = 60 } =
 export function find(store, { query, path: scope, limit = 12, client } = {}) {
   const start = Date.now(); const repo = store.repo;
   const r = findSymbols(repo, query, { scope, limit });
-  if (r === null) return { error: 'cannot search this checkout (not a git repository?)' };
+  // null: git grep failed, almost always its timeout on a large checkout or a busy machine, not "no repository"
+  if (r === null) return { error: `the search did not finish in time${scope ? '' : ' (narrow it with path, e.g. a directory)'}; or search with your own tools` };
   if (!r.hits.length) {
     const text = r.toks.length ? `No definition carries "${query}"${scope ? ` under ${scope}` : ''}. Try the words the code would use, or one identifier; lookup searches the notes instead.` : 'find needs words to look for: an identifier, or what the code would call the thing.';
     store.log({ op: 'find', client: client || 'cli', query: String(query).slice(0, 200), scope, hits: 0, durationMs: Date.now() - start });

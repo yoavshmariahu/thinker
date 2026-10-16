@@ -267,3 +267,29 @@ test('find on one identifier lists its definitions first, however large their fi
   assert.match(two.text, /- src\/(other|again)\.py:big_helper:L\d+[\s\S]*- src\/(other|again)\.py:big_helper:L\d+/);
   assert.doesNotMatch(two.text, /```/, 'two definitions of the name: none of them is picked to show');
 });
+
+test('find puts every identifier the query names first, a named class with the members asked for, and words fill the rest', () => {
+  const repo = gitRepo();
+  process.env.THINKER_LOG = 'off';
+  fs.writeFileSync(path.join(repo, 'src/params.py'), [
+    'class Option:', '    def __init__(self):', '        self.x = 1', '    def to_info_dict(self):', '        return {"convert": 1, "type": 2}',
+    'class Parameter:', '    def to_info_dict(self):', '        return {"convert": 3}',
+    'def convert_type(ty):', '    return ty', 'def convert_value(x):', '    return convert_type(x) or "convert type convert type"', ''].join('\n'));
+  execFileSync('git', ['add', '-A'], { cwd: repo }); execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'params'], { cwd: repo });
+  const store = new Store(repo).init();
+  const syms = q => find(store, { query: q, limit: 6 }).hits.map(h => h.symbol);
+  assert.equal(syms('flag_value convert_type')[0], 'convert_type', 'an identifier among words is not split into "convert" and "type"');
+  assert.deepEqual(syms('run_callback convert_type').slice(0, 2), ['run_callback', 'convert_type'], 'several identifiers, in the order named');
+  assert.deepEqual(syms('to_info_dict Option Parameter').slice(0, 2), ['Option.to_info_dict', 'Parameter.to_info_dict'], 'a class named beside a member: that member first');
+  assert.equal(syms('Option init')[0], 'Option.__init__', 'a plain word names a member of the class too');
+});
+
+test('git grep reaches a file the agent just wrote without walking the tree, and leaves nested checkouts out', () => {
+  const repo = gitRepo();
+  process.env.THINKER_LOG = 'off';
+  fs.writeFileSync(path.join(repo, 'src/fresh.py'), 'def brand_new_helper():\n    return 1\n');  // untracked
+  const nested = path.join(repo, 'bench/clone'); fs.mkdirSync(nested, { recursive: true });
+  execFileSync('git', ['init', '-q'], { cwd: nested }); fs.writeFileSync(path.join(nested, 'x.py'), 'def brand_new_helper():\n    return 2\n');
+  assert.deepEqual((findDefinitions(repo, 'brand_new_helper') || []).map(d => d.path), ['src/fresh.py']);
+  assert.equal(find(new Store(repo).init(), { query: 'brand_new_helper' }).hits[0].path, 'src/fresh.py');
+});
