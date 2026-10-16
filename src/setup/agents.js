@@ -4,6 +4,7 @@ import path from 'node:path';
 import readlinePromises from 'node:readline/promises';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { available, findBin, BINS } from '../llm.js';
+import { QUEUE_ENV } from '../session-llm.js';
 import { c, selectMenu } from './ui.js';
 import { buildModel } from './models.js';
 
@@ -35,6 +36,7 @@ export function buildAgent() {
 export const BUILD_AGENTS = ['claude', 'gemini', 'codex', 'cursor'];
 
 export function getAgentDisplayName(agent, bin = null) {
+  if (agent === 'session') return 'your agent session';
   if (agent === 'claude') return 'Claude Code';
   if (agent === 'codex') return 'Codex CLI';
   if (agent === 'cursor') return 'Cursor Agent';
@@ -234,6 +236,13 @@ export async function selectAndAuthenticateAgent({
   const installedAgents = BUILD_AGENTS.filter(ag => Boolean(findBin(BINS[ag] || [])));
   const isInteractive = !yes && (Boolean(readlineFn) || Boolean(stdin && stdin.isTTY));
 
+  // the person's agent session answers through thinker's queue (session-llm.js): signed in by being the
+  // session, so there is nothing to check but that a warm-up answered in one started this run
+  if (requestedAgent === 'session') {
+    if (process.env[QUEUE_ENV]) return { ok: true, agent: 'session' };
+    out(`  ${c.red('✖')} The session agent answers only a warm-up started from an agent session.`);
+    return { ok: false, agent: 'session', error: 'no_session' };
+  }
   let selectedAgent = requestedAgent;
 
   if (selectedAgent) {

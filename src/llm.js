@@ -25,6 +25,7 @@ import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
 import { logModelUsage, normalizeModelUsage } from './model-usage.js';
+import { viaSession } from './session-llm.js';
 const ALIASES = { haiku: 'claude-haiku-5-5', sonnet: 'claude-sonnet-5-5', opus: 'claude-opus-5-5', fable: 'claude-fable-5-1' };
 export const BINS = { claude: ['claude'], gemini: ['agy', 'gemini'], codex: ['codex'], cursor: ['agent', 'cursor-agent'] };
 export const FALLBACK_ORDER = ['claude', 'gemini', 'codex', 'cursor'];
@@ -81,9 +82,11 @@ export function claudeLoginSettings(dir = process.env.CLAUDE_CONFIG_DIR || path.
   return Object.keys(out).length ? out : null;
 }
 
-// Hooks run with a short PATH; also look where these tools install themselves.
+// Hooks run with a short PATH; also look where these tools install themselves. The Codex desktop app
+// ships its CLI inside ChatGPT.app, off PATH, signed in with the app (they share ~/.codex).
 export function findBin(names) {
-  const dirs = [...(process.env.PATH || '').split(path.delimiter), path.join(os.homedir(), '.local', 'bin'), '/opt/homebrew/bin', '/usr/local/bin'].filter(Boolean);
+  const dirs = [...(process.env.PATH || '').split(path.delimiter), path.join(os.homedir(), '.local', 'bin'), '/opt/homebrew/bin', '/usr/local/bin',
+    ...(process.platform === 'darwin' ? ['/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin'] : [])].filter(Boolean);
   for (const n of names) for (const d of dirs) { const f = path.join(d, n); try { fs.accessSync(f, fs.constants.X_OK); return f; } catch {} }
   return null;
 }
@@ -105,7 +108,8 @@ export function resetFallback() {
 export function getFallbackOrder() {
   const want = process.env.THINKER_LLM;
   if (want) {
-    if (want === 'anthropic' || want === 'command' || want === 'openai' || BINS[want]) return [want];
+    // session: the person's agent session answers (session-llm.js); only ever pinned, never detected
+    if (want === 'anthropic' || want === 'command' || want === 'openai' || want === 'session' || BINS[want]) return [want];
     throw new Error(`unknown THINKER_LLM: ${want}`);
   }
   const have = available();
@@ -129,7 +133,8 @@ export function provider() {
 async function executeProvider(p, opts) {
   let reported = false;
   const resolved = resolveModel(p === 'anthropic' ? 'claude' : p, opts.model);
-  const model = ['claude', 'anthropic'].includes(p) ? ALIASES[resolved] || resolved : resolved;
+  // the session's own model answers a session call, whichever it is: no tier picks it
+  const model = p === 'session' ? 'session' : ['claude', 'anthropic'].includes(p) ? ALIASES[resolved] || resolved : resolved;
   let response = { provider: p, model, usage: null, cost: null };
   // Capture counters before parsing the model's JSON, so unusable answers still count.
   const o = { ...opts,
@@ -140,7 +145,7 @@ async function executeProvider(p, opts) {
     },
   };
   try {
-    const res = await (p === 'anthropic' ? viaSdk(o) : p === 'openai' ? viaOpenai(o) : p === 'claude' ? viaCli(o) : viaOther(p, o));
+    const res = await (p === 'anthropic' ? viaSdk(o) : p === 'openai' ? viaOpenai(o) : p === 'claude' ? viaCli(o) : p === 'session' ? viaSession(o) : viaOther(p, o));
     if (!reported) response = { ...response, ...res };
     if (opts.accounting) logModelUsage(opts.accounting.store, opts.accounting, response);
     // every answer carries its normalized counters, so a caller can say what the run used in tokens
