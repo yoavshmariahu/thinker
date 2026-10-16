@@ -8,8 +8,7 @@
     "thinker-server": "./src/server/cli.js"
   },
   "scripts": {
-    "test": "THINKER_TEST=1 node --test test/*.test.js",
-    "artemis": "node bench/evals/server.js"
+    "test": "THINKER_TEST=1 node --test test/*.test.js"
   },
   "license": "MIT",
   "dependencies": {

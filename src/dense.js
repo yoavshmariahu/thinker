@@ -85,7 +85,7 @@ export async function denseScores(notes, query, { maxEmbedNow = 25 } = {}) {
 // posthog-v3 0.72 → 0.79, mitmproxy 0.48 → 0.73, with 6/11, 12/14 and 6/8 (from 7) tasks still hit; 40–220 ms
 // a request for eight pairs. The 12-layer model separated worse; a cosine confirm on top added nothing.
 export const CE_MODEL = 'Xenova/ms-marco-MiniLM-L-6-v2';
-// Defaults chosen on 54 labeled tasks (bench/RESULTS.md, "Ranking: labels"): floor 0 and one note gave a useful
+// Defaults chosen on 54 labeled tasks (research/bench-history/RESULTS.md, "Ranking: labels"): floor 0 and one note gave a useful
 // note 94% of the time and an important one 88%, serving nothing when nothing fit; the request cut to its first
 // 120 tokens kept the note text inside the 512-token pair and took tasks hit from 16 to 21 of 54 at the same
 // precision. `ce` in .thinker/config.json adjusts them ({ enabled, floor, maxNotes, k, queryTokens }), the

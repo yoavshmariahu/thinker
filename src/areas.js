@@ -1,7 +1,7 @@
 // Focus areas: the directories a user's own commits touch. A cache build and maintenance warm
 // those areas (their history first, then new merges there) instead of the newest pull requests
 // repository-wide, which left the cache cold for most of what a user then asks about
-// (bench/serving/README.md, 2026-10-11). The areas live in .thinker/config.json under `areas`:
+// (research/bench-history/serving/README.md, 2026-10-11). The areas live in .thinker/config.json under `areas`:
 //   { directories, source: 'activity' | 'prs' | 'manual' | 'all', walk, walkedBy, found, refreshedAt }
 // 'all' is the generic build: no focus, the whole repository. Areas found from activity follow the
 // person: maintenance finds them again once a day (`refreshAreas`), from half a year of their

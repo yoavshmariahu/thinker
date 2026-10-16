@@ -398,12 +398,12 @@ function sessionState(store, session) {
 // Once per session, at the first prompt: what thinker's code tools are and how to reach them. In two
 // weeks of real sessions `find` was called 3 times over MCP while agents grepped: Claude Code defers
 // MCP tools until they are searched for, and nothing named the search. On two Grafana tasks under
-// Gemini (bench/RESULTS.md, "Tool intro") the intro got `find` called where it never was. The intro
+// Gemini (research/bench-history/RESULTS.md, "Tool intro") the intro got `find` called where it never was. The intro
 // also told the agent to run `review` before reporting done, and a first-edit nudge repeated it:
 // taken out on 2026-10-05 at the user's decision (a review is run when asked for, not by default),
 // after those runs showed the agent polling a slow review for minutes instead of working. A bare
 // mention that review exists went the same day: with it, the agent still called review at the end
-// of both reruns and lost three minutes to each timed-out call (bench/RESULTS.md). Since 2026-10-07
+// of both reruns and lost three minutes to each timed-out call (research/bench-history/RESULTS.md). Since 2026-10-07
 // the prompt hook sends it only with the first bundle that serves a note (commands/hooks.js): a
 // session the cache has nothing for pays nothing for thinker.
 export function sessionIntro(store, { session, client }) {
@@ -739,7 +739,7 @@ export function find(store, { query, path: scope, limit = 12, client } = {}) {
 // says: phrasings in the words of the product (ranking counts them with the title and answers).
 // search: a compact description of the note written from the note alone, 3–6 sentences naming the rule, its
 // constraints, the tasks it bears on and the identifiers it names; read by the cross-encoder
-// (dense.js:ceText). Measured on 54 labeled tasks (bench/RESULTS.md, "Ranking: labels"): on raw note text the
+// (dense.js:ceText). Measured on 54 labeled tasks (research/bench-history/RESULTS.md, "Ranking: labels"): on raw note text the
 // cross-encoder did not tell important notes from irrelevant ones; on this text it did.
 const PHRASE_SCHEMA = { type: 'object', properties: { notes: { type: 'array', items: { type: 'object', properties: { n: { type: 'number' }, says: { type: 'array', items: { type: 'string' } }, search: { type: 'string' } }, required: ['n', 'says', 'search'] } } }, required: ['notes'] };
 export async function phraseNotes(store, notes, { model, max = 5, phase = 'maintenance', completeFn = complete } = {}) {

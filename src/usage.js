@@ -21,7 +21,7 @@ import { sessionModel } from './transcripts.js';
 const FILE_CAP = 6000;   // tokens one read of a large file returns (about 2000 lines)
 const MAX_FILES = 5;
 // Wall clock of one avoided read: the model turn that issues it and takes in the result.
-// bench/RESULTS.md measured 2 to 4.5 seconds of wall clock per tool call (click: 15 s over
+// research/bench-history/RESULTS.md measured 2 to 4.5 seconds of wall clock per tool call (click: 15 s over
 // 3.4 calls; PostHog: 1.1 min less over 31.6 fewer calls), so this too is an estimate.
 export const SECONDS_PER_READ = 4;
 
