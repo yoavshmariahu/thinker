@@ -186,7 +186,7 @@ export function launch(p, { benchDir, db }) {
   db.run('UPDATE runs SET repo = coalesce(repo, ?), runner = coalesce(runner, ?), arms = ?, models = coalesce(nullif(models, \'\'), ?) WHERE dir = ?', p.repo, p.runner, p.arms.join(','), p.model, p.tag);
   const log = path.join(outDir, 'harness.log');
   const fd = fs.openSync(log, 'a');
-  fs.writeSync(fd, `\n# ${new Date().toISOString()} launched from the evals app\n# ${p.command}\n`);
+  fs.writeSync(fd, `\n# ${new Date().toISOString()} launched from Artemis\n# ${p.command}\n`);
   // detached: its own process group, so the run outlives the app and a cancel reaches every agent it spawned
   const child = spawn(process.execPath, p.argv, { cwd: path.dirname(benchDir), detached: true, stdio: ['ignore', fd, fd], env: { ...process.env, THINKER_TEST: '1', THINKER_HOLDOUT: '0' } });  // AGENTS.md: no telemetry from benchmarks
   fs.closeSync(fd);

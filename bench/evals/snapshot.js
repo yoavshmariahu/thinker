@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// Recoverable snapshots of the evals database. A snapshot is a consistent copy (SQLite VACUUM INTO,
-// safe while the app writes), gzipped, kept in ~/.thinker-evals/snapshots (the newest 14) and uploaded
-// with the aws CLI to the S3 location in ~/.thinker-evals/config.json ({"s3": "s3://bucket/prefix"}),
-// or EVALS_S3_URI, which overrides it. The app takes one daily.
+// Recoverable snapshots of Artemis's database. A snapshot is a consistent copy (SQLite VACUUM INTO,
+// safe while the app writes), gzipped, kept in ~/.artemis/snapshots (the newest 14) and uploaded with
+// the aws CLI to the S3 location in ~/.artemis/config.json ({"s3": "s3://bucket/prefix"}), or
+// ARTEMIS_S3_URI, which overrides it. The app takes one daily.
 //
 //   node bench/evals/snapshot.js take              a snapshot now
-//   node bench/evals/snapshot.js list              local snapshots and, with EVALS_S3_URI, the bucket's
+//   node bench/evals/snapshot.js list              local snapshots and the bucket's
 //   node bench/evals/snapshot.js restore <file | s3://…> --force
 //                                                  replace the database with a snapshot (stop the app first;
 //                                                  the database it replaces is kept beside it)
@@ -16,26 +16,26 @@ import zlib from 'node:zlib';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
-import { DEFAULT_DB } from './db.js';
+import { DEFAULT_DB, HOME_DIR, env } from './db.js';
 
-export const SNAP_DIR = path.join(os.homedir(), '.thinker-evals', 'snapshots');
-export const CONFIG = path.join(os.homedir(), '.thinker-evals', 'config.json');
+export const SNAP_DIR = path.join(HOME_DIR, 'snapshots');
+export const CONFIG = path.join(HOME_DIR, 'config.json');
 
 // where snapshots go: the environment first, then the machine's evals config
 export function s3Uri(config = CONFIG) {
-  if (process.env.EVALS_S3_URI) return process.env.EVALS_S3_URI;
+  if (env('S3_URI')) return env('S3_URI');
   try { const s = JSON.parse(fs.readFileSync(config, 'utf8')).s3; return typeof s === 'string' && /^s3:\/\/[a-z0-9.-]+(\/[\w./-]*)?$/.test(s) ? s : null; } catch { return null; }
 }
 const KEEP = 14;
 
 export function listLocal(dir = SNAP_DIR) {
-  try { return fs.readdirSync(dir).filter(f => /^evals-.*\.db\.gz$/.test(f)).sort().reverse().map(f => ({ file: path.join(dir, f), bytes: fs.statSync(path.join(dir, f)).size, at: fs.statSync(path.join(dir, f)).mtimeMs })); } catch { return []; }
+  try { return fs.readdirSync(dir).filter(f => /^(artemis|evals)-.*\.db\.gz$/.test(f)).sort().reverse().map(f => ({ file: path.join(dir, f), bytes: fs.statSync(path.join(dir, f)).size, at: fs.statSync(path.join(dir, f)).mtimeMs })); } catch { return []; }
 }
 
 export function takeSnapshot(dbFile = DEFAULT_DB, { dir = SNAP_DIR, s3 = s3Uri(), now = new Date() } = {}) {
   fs.mkdirSync(dir, { recursive: true });
   const stamp = now.toISOString().replace(/[:]/g, '').replace(/\..+/, 'Z');
-  const tmp = path.join(dir, `evals-${stamp}.db`);
+  const tmp = path.join(dir, `artemis-${stamp}.db`);
   const db = new DatabaseSync(dbFile);
   try { db.exec(`VACUUM INTO '${tmp.replace(/'/g, "''")}'`); } finally { db.close(); }
   // a snapshot that does not open is no snapshot
@@ -74,7 +74,7 @@ export function restoreSnapshot(src, dbFile = DEFAULT_DB) {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const [cmd, arg] = process.argv.slice(2);
-  const dbFile = process.env.EVALS_DB || DEFAULT_DB;
+  const dbFile = env('DB') || DEFAULT_DB;
   if (cmd === 'take') console.log(JSON.stringify(takeSnapshot(dbFile), null, 2));
   else if (cmd === 'list') {
     console.log(listLocal().map(s => `${new Date(s.at).toISOString()}  ${(s.bytes / 1e6).toFixed(1)} MB  ${s.file}`).join('\n') || 'no local snapshots');

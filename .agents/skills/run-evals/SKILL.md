@@ -1,8 +1,8 @@
 ---
 name: run-evals
 description: >-
-  The only way to run, follow and read benchmark evals in this repository: the evals platform
-  (bench/evals) and its MCP tools. Use whenever a task involves running a benchmark or experiment,
+  The only way to run, follow and read benchmark evals in this repository: Artemis, the evals
+  platform (bench/evals), and its MCP tools. Use whenever a task involves running a benchmark or experiment,
   building a benchmark cache, choosing PRs to evaluate on, comparing the cache on against off, checking
   whether a change or a model helps, following a run in progress, reading session transcripts, or
   reading, summarizing or reporting eval results — including results already on disk under bench/runs.
@@ -10,7 +10,7 @@ description: >-
   numbers from bench/runs JSON for a report.
 ---
 
-# Running evals through the evals platform
+# Running evals through Artemis
 
 Every eval is an **experiment**: a set of PRs in one repository, run with the cache **off** and with
 it **on** (and sometimes further arms such as a placebo), to answer one question about a **behavior**
@@ -25,7 +25,7 @@ is put together from **modules**, each made and checked on its own:
 | **Agent** | runner, model (= the cache's mining model), reps, concurrency | part of the experiment |
 | **Grading** | the PRs' own tests, or a named judge | part of the experiment |
 
-The platform plans, prices, starts, tracks, archives and compares experiments. It is the exclusive path:
+Artemis plans, prices, starts, tracks, archives and compares experiments. It is the exclusive path:
 
 - **Build caches and start experiments** only through it: plan → user approval → build / start (the MCP
   tools or the **Caches** and **New experiment** pages). Never invoke `bench/run.js`,
@@ -34,21 +34,22 @@ The platform plans, prices, starts, tracks, archives and compares experiments. I
 - **Read** results only with `get_experiment`, `list_experiments`, `get_pr` and `get_session` (or the
   pages). Their numbers are paired, interval-bounded, fail closed on invalid sessions and name their
   grader; a figure computed by hand from `bench/runs/*.json` is none of those.
-- **The evals database is the system of record** (`~/.thinker-evals/evals.db`, snapshotted daily):
+- **Artemis's database is the system of record** (`~/.artemis/artemis.db`, snapshotted daily to S3):
   experiments, PR sets, cache receipts, every session's record and transcript, jobs. The runners'
   files under `bench/runs/<tag>/` are only their hand-off, imported once. Never edit the database or
   those files by hand, and never treat a file as the result.
 
 ## 0. Connect
 
-The MCP server talks to the running app. Check whether it is up before starting it — another session
-may already run it:
+The MCP server talks to the running app; another session may already run it:
 
 ```bash
-~/.claude/bin/claude-port list thinker          # an "evals" row with LIVE yes: it is running
-PORT=$(~/.claude/bin/claude-port reserve thinker evals) THINKER_TEST=1 npm run evals   # otherwise, in the background
-claude mcp add evals -- node bench/evals/mcp.js  # once per machine; it finds the port itself (or set EVALS_URL)
+artemis-up                                       # starts Artemis, or says where it already runs (scripts/artemis-up)
+claude mcp add artemis -- node bench/evals/mcp.js  # once per machine; it finds the port itself (or set ARTEMIS_URL)
 ```
+
+`artemis-up` runs in the foreground: an agent starts it in the background. One Artemis runs per
+machine, and every worktree shares its database.
 
 Run the app from the checkout that holds the data (`bench/runs`, `bench/repos`); from a worktree pass
 `--bench <main checkout>/bench`. Without the MCP tools (another agent), use the same HTTP API the tools

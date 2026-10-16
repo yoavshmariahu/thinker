@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Build one benchmark cache, started by the evals app as a detached job:
+// Build one benchmark cache, started by Artemis as a detached job:
 //   node bench/evals/build-cache.js <bench dir> <plan.json> <evals db>
 // A checkout whose history stops at the anchor, the product's own mining, phrasing and relinking in
 // it, and a receipt with what was built. Every step that fails, or an empty cache, marks the receipt

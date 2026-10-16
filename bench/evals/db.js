@@ -1,13 +1,25 @@
-// The evals database: the system of record for experiments, their PR sets and caches, every session
+// Artemis's database: the system of record for experiments, their PR sets and caches, every session
 // with its full record and transcript, and the jobs that ran them. It lives on this machine, outside
-// any checkout (~/.thinker-evals/evals.db), and is snapshotted daily (snapshot.js). The runners still
+// any checkout (~/.artemis/artemis.db), and is snapshotted daily (snapshot.js). The runners still
 // write one JSON file per session under bench/runs/<tag>/: that is their hand-off, imported once.
 import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-export const DEFAULT_DB = path.join(os.homedir(), '.thinker-evals', 'evals.db');
+export const HOME_DIR = path.join(os.homedir(), '.artemis');
+export const DEFAULT_DB = path.join(HOME_DIR, 'artemis.db');
+// ARTEMIS_<name>, or the EVALS_<name> it was called before the platform had a name
+export const env = name => process.env[`ARTEMIS_${name}`] ?? process.env[`EVALS_${name}`];
+
+// The platform's home before it was named (~/.thinker-evals, evals.db) moves once to ~/.artemis.
+export function migrateHome(home = os.homedir()) {
+  const from = path.join(home, '.thinker-evals'), to = path.join(home, '.artemis');
+  if (fs.existsSync(to) || !fs.existsSync(from)) return false;
+  fs.renameSync(from, to);
+  for (const ext of ['', '-wal', '-shm']) if (fs.existsSync(path.join(to, 'evals.db' + ext))) fs.renameSync(path.join(to, 'evals.db' + ext), path.join(to, 'artemis.db' + ext));
+  return true;
+}
 export const SCHEMA_VERSION = 2;
 
 const SCHEMA = `
@@ -52,6 +64,7 @@ const ADDED = {
 };
 
 export function openDb(file = DEFAULT_DB) {
+  if (file === DEFAULT_DB) migrateHome();
   if (file !== ':memory:') fs.mkdirSync(path.dirname(file), { recursive: true });
   const db = new DatabaseSync(file);
   db.exec('PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;');

@@ -1,7 +1,7 @@
-# Running evals: the evals platform only
+# Running evals: Artemis only
 
-Benchmark experiments are planned, started, followed and read only through the evals platform
-(`bench/evals`, web app and MCP server), as the `run-evals` skill describes
+Benchmark experiments are planned, started, followed and read only through Artemis, the evals
+platform (`bench/evals`, web app and MCP server, started with `artemis-up`), as the `run-evals` skill describes
 (`.agents/skills/run-evals/SKILL.md`). The runners below it (`run.js`, `codex-run.js`,
 `gemini-run.js`) are started by the platform, not by hand. The cache-source requirement that follows
 applies to every experiment it starts: the platform's cache module builds caches only by `mine-prs`

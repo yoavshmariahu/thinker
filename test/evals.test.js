@@ -503,3 +503,16 @@ test('snapshots go to the S3 location in the evals config, the environment overr
     assert.equal(s3Uri(cfg), 's3://from-env/p');
   } finally { if (was) process.env.EVALS_S3_URI = was; else delete process.env.EVALS_S3_URI; }
 });
+
+test('the home from before the name moves to ~/.artemis once, its database renamed', async () => {
+  const { migrateHome } = await import('../bench/evals/db.js');
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'artemis-home-'));
+  fs.mkdirSync(path.join(home, '.thinker-evals', 'snapshots'), { recursive: true });
+  fs.writeFileSync(path.join(home, '.thinker-evals', 'evals.db'), 'db');
+  fs.writeFileSync(path.join(home, '.thinker-evals', 'config.json'), '{"s3":"s3://b/p"}');
+  assert.equal(migrateHome(home), true);
+  assert.equal(fs.readFileSync(path.join(home, '.artemis', 'artemis.db'), 'utf8'), 'db');
+  assert.ok(fs.existsSync(path.join(home, '.artemis', 'config.json')) && fs.existsSync(path.join(home, '.artemis', 'snapshots')));
+  assert.equal(fs.existsSync(path.join(home, '.thinker-evals')), false);
+  assert.equal(migrateHome(home), false, 'once');
+});

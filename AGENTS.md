@@ -115,9 +115,9 @@ model mismatch as an invalid comparison. Prefer executable tests for correctness
 keep correctness, tokens and latency separate. Results from different models or
 reasoning settings belong in separate cohorts, not one ranking.
 
-**Evals run only through the evals platform (MANDATORY RULE):**
-Run, follow and read benchmark experiments only through the evals platform (`bench/evals`, its web
-app and its MCP server), following the `run-evals` skill (`.agents/skills/run-evals/SKILL.md`):
+**Evals run only through Artemis, the evals platform (MANDATORY RULE):**
+Run, follow and read benchmark experiments only through Artemis (`bench/evals`, started with
+`artemis-up`; its web app and its MCP server), following the `run-evals` skill (`.agents/skills/run-evals/SKILL.md`):
 freeze the PRs with `create_pr_set`, build the cache through `plan_cache`/`build_cache`, plan the
 experiment with `plan_experiment`, get the user's approval of each plan, start with
 `start_experiment`, read with `get_experiment` and `get_session`. Do not start `bench/run.js`,
@@ -170,7 +170,7 @@ cache at twice the input price and never read again.
 | `src/change.js` | the change under review with no model call: scope, parsed diff, the definitions the hunks touched, the notes resting on them (`selectNotes`), what the changed definitions use one hop down (`usedContext`); the model-free half of the `thinker review` command removed on 2026-10-11 |
 | `test/` | unit tests (`node --test`) |
 | `bench/` | benchmark harness, task sets, PR data, and `RESULTS.md` |
-| `bench/evals/` | the evals platform, with its SQLite database (`db.js`, `~/.thinker-evals/evals.db`) as the system of record and daily snapshots (`snapshot.js`, to S3 with `EVALS_S3_URI`): experiments built from modules — PR sets (`prsets.js`), mined caches (`caches.js`, `build-cache.js`; checkouts and served notes in `bench/caches/`) — sessions imported once from the runners' files in `bench/runs` (`ingest.js`), compared cache off against cache on (`experiment.js`), launched and followed (`jobs.js`), transcripts stored and parsed (`transcripts.js`), served as a local web app (`server.js`, `public/`) and an MCP server (`mcp.js`); see its README and the `run-evals` skill |
+| `bench/evals/` | Artemis, the evals platform (`scripts/artemis-up` starts it), with its SQLite database (`db.js`, `~/.artemis/artemis.db`) as the system of record and daily snapshots (`snapshot.js`, to the S3 location in `~/.artemis/config.json`): experiments built from modules — PR sets (`prsets.js`), mined caches (`caches.js`, `build-cache.js`; checkouts and served notes in `bench/caches/`) — sessions imported once from the runners' files in `bench/runs` (`ingest.js`), compared cache off against cache on (`experiment.js`), launched and followed (`jobs.js`), transcripts stored and parsed (`transcripts.js`), served as a local web app (`server.js`, `public/`) and an MCP server (`mcp.js`); see its README and the `run-evals` skill |
 | `bench/retrieval.js` | what is served for each task's request and how much of it rests on a changed file; no agent runs, seconds per task set |
 | `.thinker/` | thinker's own notes about this repo |
 
