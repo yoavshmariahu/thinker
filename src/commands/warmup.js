@@ -4,6 +4,8 @@
 // before 2026-10-12 the installer launched it anyway, said it had opened, and five of seven installs that
 // day never warmed a cache. The terminal path takes the page's defaults: full depth, the whole repository,
 // the agent already logged in. Before building, an arrow-key menu lets the person change harness.
+// A signed-in desktop app (Claude Desktop, Cursor) is offered beside the CLIs: the warm-up is handed to a
+// session there (desktop-handoff.js), and leads when no CLI is signed in, so an install without one still warms.
 import fs from 'node:fs';
 import path from 'node:path';
 import readlinePromises from 'node:readline/promises';
@@ -11,9 +13,11 @@ import { spawn, spawnSync } from 'node:child_process';
 import { warmupCandidates, warmupCandidate } from '../machine.js';
 import { selectMenu, multiSelect, c, formatDuration, withSpinner } from '../setup/ui.js';
 import { DEFAULT_DEPTH } from '../setup/estimate.js';
-import { buildAgent, selectAndAuthenticateAgent } from '../setup/agents.js';
+import { buildAgent, selectAndAuthenticateAgent, checkAgentAuth, BUILD_AGENTS, getAgentDisplayName } from '../setup/agents.js';
 import { useBuildModel } from '../setup/models.js';
-import { answerWarmup } from '../repo-onboard.js';
+import { answerWarmup, SESSION_PRS } from '../repo-onboard.js';
+import { findBin, BINS } from '../llm.js';
+import { desktopApps, HANDOFF_APPS, handoffMessage, openHandoff, handoffProgress } from '../desktop-handoff.js';
 import { Store, findRepoRoot } from '../store.js';
 
 export const SHOWN = 10, PICKED = 5; // as the page: ten rows, the five most recently active with no cache yet picked
@@ -31,8 +35,62 @@ const rowNote = r => {
 };
 const row = (r, picked, width) => `    ${picked.includes(r) ? c.cyan('[x]') : c.dim('[ ]')} ${r.name.padEnd(width)} ${c.dim(rowNote(r))}`;
 
+// The way the picked repositories are read: an agent CLI here, or a signed-in desktop app the warm-up is
+// handed to (desktop-handoff.js). Asked only when such an app is signed in. A signed-in CLI leads: it reads the
+// full depth with nothing to click; with none, the app leads, so the install still ends with a warm-up started.
+async function pickRoute({ flags, out, appsFn, checkAuthFn }) {
+  const apps = appsFn().filter(a => a.signedIn);
+  if (!apps.length) return { route: 'cli' };
+  const clis = BUILD_AGENTS.filter(a => findBin(BINS[a]));
+  const signed = clis.find(a => checkAuthFn(a).authenticated);
+  const appItems = apps.map(a => ({ label: `${a.name} ${c.dim(`· signed in${a.account ? ` as ${a.account}` : ''} · opens a session there; reads the ${SESSION_PRS} newest pull requests`)}`, value: { route: 'app', app: a.app } }));
+  const cliItem = clis.length ? [{ label: signed ? `${getAgentDisplayName(signed, findBin(BINS[signed]))} here ${c.dim('· signed in · runs in the background, nothing to click')}` : `An agent CLI here ${c.dim('· none is signed in')}`, value: { route: 'cli' } }] : [];
+  const items = signed ? [...cliItem, ...appItems] : [...appItems, ...cliItem];
+  if (flags.yes || !process.stdin.isTTY) return items[0].value;
+  const pick = await selectMenu({ header: `\n  ${c.bold('Warm up through')}:`, items, out });
+  return pick?.value || null;
+}
+
+// Hand the warm-up to the app: show the message, ask, open one session per repository, then wait until each
+// session's subagent is reading, so the person leaves knowing whether the warm-up really runs
+export async function handOff(app, chosen, { out, ask, yes = false, openFn = openHandoff, progressFn = handoffProgress, waitMs = 180_000, workMs = 120_000, pollMs = 2000, sleep = ms => new Promise(r => setTimeout(r, ms)) }) {
+  const name = HANDOFF_APPS[app].name;
+  out(`\n  ${c.bold(`Warm up in ${name}`)}`);
+  out(`  ${c.dim(`Thinker opens ${chosen.length === 1 ? 'a new session' : `a new session for each of the ${chosen.length} repositories`} there with this message filled in. Nothing runs until you press Enter in ${name}.`)}\n`);
+  for (const line of handoffMessage(app, chosen[0].name).split('\n')) out(`    ${c.cyan('│')} ${line}`);
+  out('');
+  if (app === 'cursor') out(`  ${c.dim('Cursor first asks whether to open a link from Thinker: choose Open.')}`);
+  if (!yes) {
+    const a = (await ask(`  Open ${name} now? ${c.dim('[Y/n]')}: `)).trim().toLowerCase();
+    if (!['', 'y', 'yes'].includes(a)) { out('  Skipped.'); return { started: [], waiting: chosen, stalled: [] }; }
+  }
+  const since = Date.now(), opened = [];
+  for (const r of chosen) {
+    try { await openFn(app, r.checkout); opened.push(r); }
+    catch (e) { out(`  ${r.name}: ${name} did not open (${e.message}).`); }
+  }
+  if (!opened.length) return { started: [], waiting: chosen, stalled: [] };
+  out(`  Opened ${name}. Press Enter on the message ${opened.length === 1 ? '' : 'in each session '}to start the warm-up. ${c.dim('Waiting for it to start…')}`);
+  // per repository: sent (the session ran the answer) and then reading (its subagent took a call)
+  const sentAt = new Map(), started = [], stalled = [];
+  for (const end = Date.now() + waitMs + workMs; started.length + stalled.length < opened.length && Date.now() < end;) {
+    for (const r of opened) {
+      if (started.includes(r) || stalled.includes(r)) continue;
+      const p = progressFn(r.checkout, since);
+      if (p === 'working') { started.push(r); out(`  ${c.green('✓')} ${r.name}: the warm-up is reading in ${name}.`); }
+      else if (p === 'started' && !sentAt.has(r)) { sentAt.set(r, Date.now()); out(`  ${c.dim(`${r.name}: sent; waiting for ${name}'s session to start its background subagent…`)}`); }
+      else if (p === 'started' && Date.now() - sentAt.get(r) > workMs) { stalled.push(r); out(`  ${c.yellow('⚠')} ${r.name}: the session in ${name} ran the warm-up but nothing is reading it. Thinker's tools may not have loaded there: the session says why. The warm-up gives up by itself after 15 minutes; run thinker warmup to try again.`); }
+    }
+    if (started.length + stalled.length < opened.length) await sleep(pollMs);
+  }
+  const waiting = opened.filter(r => !started.includes(r) && !stalled.includes(r));
+  if (waiting.length) out(`  ${waiting.map(r => r.name).join(', ')}: not started yet. The message waits in ${name}: press Enter there whenever you like.`);
+  return { started, waiting, stalled };
+}
+
 export async function warmupCommand(ctx, { selectAgentFn = selectAndAuthenticateAgent,
-  candidatesFn = warmupCandidates, candidateFn = warmupCandidate, spawnFn = spawnSync } = {}) {
+  candidatesFn = warmupCandidates, candidateFn = warmupCandidate, spawnFn = spawnSync,
+  appsFn = desktopApps, checkAuthFn = checkAgentAuth, handOffFn = handOff } = {}) {
   const { flags, store, out, HERE } = ctx;
   const cli = path.join(HERE, 'cli.js');
   const ask = async q => { const rl = readlinePromises.createInterface({ input: process.stdin, output: process.stdout }); try { return await rl.question(q); } finally { rl.close(); } };
@@ -110,8 +168,20 @@ export async function warmupCommand(ctx, { selectAgentFn = selectAndAuthenticate
   if (noPrs.length) out(`  ${noPrs.map(r => r.name).join(', ')}: no merged pull requests to read; the cache there grows from your sessions.`);
   if (!chosen.length) { out('  Nothing to warm up.'); later(); return; }
   const requestedAgent = flags.agent || process.env.THINKER_LLM || null;
+  // each CLI's sign-in is asked once: the route and the agent menu both want it, and each answer takes seconds
+  const authSeen = new Map(), authOnce = a => { if (!authSeen.has(a)) authSeen.set(a, checkAuthFn(a)); return authSeen.get(a); };
+  // --app claude|cursor: hand the warm-up to that app without the menu (the person named it: no question either)
+  if (flags.app && !HANDOFF_APPS[String(flags.app)]) { out(`  No hand-off to ${flags.app}: one of ${Object.keys(HANDOFF_APPS).join(', ')}.`); process.exitCode = 1; return; }
+  const route = flags.app ? { route: 'app', app: String(flags.app), named: true }
+    : requestedAgent || flags.dry ? { route: 'cli' } : await pickRoute({ flags, out, appsFn, checkAuthFn: authOnce });
+  if (!route) { out('  Warm-up skipped.'); later(); return; }
+  if (route.route === 'app') {
+    const r = await handOffFn(route.app, chosen, { out, ask, yes: !!flags.yes || route.named || !process.stdin.isTTY });
+    if (!r.started.length && r.waiting.length === chosen.length) later();
+    return;
+  }
   const auth = flags.dry ? { ok: true, agent: requestedAgent || buildAgent() }
-    : await selectAgentFn({ requestedAgent, yes: !!flags.yes, out, purpose: 'warm up these repositories', allowSkip: false });
+    : await selectAgentFn({ requestedAgent, yes: !!flags.yes, out, purpose: 'warm up these repositories', allowSkip: false, checkAuthFn: authOnce });
   if (!auth.ok) {
     if (auth.error === 'cancelled') out('  Warm-up skipped.');
     else process.exitCode = 1;

@@ -809,3 +809,18 @@ test('Codex subagents are turned on in config.toml, keeping the other [features]
   enableCodexSubagents({ file: fresh });
   assert.equal(fs.readFileSync(fresh, 'utf8'), '[features]\nmulti_agent = true\n');
 });
+
+// A benchmark arm's worktree wired a checkout and was deleted (2026-10-16, click): its hooks run nothing, so
+// the user's hook must not yield to them, or the checkout gets no thinker at all and nothing prunes them.
+test('repoRunsHooks: hooks of a copy that is gone are not yielded to', async () => {
+  const { repoRunsHooks } = await import('../src/clients.js');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-dead-hooks-'));
+  fs.mkdirSync(path.join(repo, '.cursor'));
+  const wire = cli => fs.writeFileSync(path.join(repo, '.cursor', 'hooks.json'), JSON.stringify({ version: 1, hooks: { beforeSubmitPrompt: [{ command: `node "${cli}" hook prompt --client cursor --record`, timeout: 15 }] } }));
+  const live = path.join(repo, 'app', 'src', 'cli.js'); fs.mkdirSync(path.dirname(live), { recursive: true }); fs.writeFileSync(live, '');
+  wire(live);
+  assert.equal(repoRunsHooks(repo, 'cursor'), true);
+  wire(path.join(repo, 'gone-worktree', 'src', 'cli.js'));
+  assert.equal(repoRunsHooks(repo, 'cursor'), false);
+  fs.rmSync(repo, { recursive: true, force: true });
+});

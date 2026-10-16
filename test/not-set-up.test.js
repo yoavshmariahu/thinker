@@ -101,6 +101,26 @@ test('the MCP server takes the repository from its working directory, or from th
   assert.ok(named.init.result.instructions.includes(`cache of notes about this repository (${fs.realpathSync(dir)})`), named.init.result.instructions.slice(0, 120));
 });
 
+// A desktop app may run one server for every window: Cursor's started in the home directory and bound to the
+// first repository a call named (2026-10-16). Its queue tools are listed from the start, and each call reads
+// the queue of the repository its cwd names, so a warm-up handed to a second window is still answered.
+test('in a desktop app the queue tools are listed unbound and follow the cwd of each call', t => {
+  const a = fresh(t), b = fresh(t);
+  const q = path.join(b, '.thinker', 'state', 'session-llm'); fs.mkdirSync(q, { recursive: true });
+  fs.writeFileSync(path.join(q, 'r1-abc.req.json'), JSON.stringify({ id: 'r1-abc', system: '', prompt: 'summarize PR 7', schema: null, t: new Date().toISOString() }));
+  const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-no-repo-'));
+  t.after(() => fs.rmSync(bare, { recursive: true, force: true }));
+  const s = mcpSession(bare, { THINKER_REPO: '', CLAUDE_CODE_ENTRYPOINT: 'claude-desktop' }, [
+    { name: 'orient', arguments: { task: 'tests', cwd: a } },
+    { name: 'warmup_next', arguments: { cwd: b } },
+  ]);
+  assert.ok(s.tools.some(x => x.name === 'warmup_next') && s.tools.some(x => x.name === 'warmup_answer'), 'listed before any repository is bound');
+  assert.match(s.replies[1], /summarize PR 7/, 'the request of the repository cwd names, not the bound one');
+  assert.ok(fs.existsSync(path.join(q, 'r1-abc.claimed.json')));
+  // outside an app, unbound, they are not listed
+  assert.ok(!mcpSession(bare, { THINKER_REPO: '', CLAUDE_CODE_ENTRYPOINT: '' }).tools.some(x => x.name === 'warmup_next'));
+});
+
 // install.sh: the tool is installed, the agents are wired up (`thinker connect`, asking nothing), and the
 // warm-up is chosen last by `thinker warmup` (browser or terminal); from a pipe with no terminal nothing is
 // asked and the user is told how to come back. A fake tarball and manifest stand in for the release, served from a file URL rewritten

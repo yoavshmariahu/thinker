@@ -249,3 +249,27 @@ test('the switch flips a repository off and on without rebuilding the page\'s li
   await post('/api/repos/switch', { checkout: dir, disabled: false });
   assert.equal((await get('/api/repos')).repos.length, 0, 'no cache yet, so the cache list is empty either way');
 });
+
+test('the warm-up page offers signed-in desktop apps and hands the picked repositories to one', async t => {
+  const { dir } = repo(t);
+  const th = tmp('thinker-ho-th-');
+  const claude = path.join(th, '.claude', 'projects', dir.replace(/[/.]/g, '-')); fs.mkdirSync(claude, { recursive: true });
+  fs.writeFileSync(path.join(claude, 's1.jsonl'), JSON.stringify({ type: 'user', cwd: dir, message: 'hi' }) + '\n');
+  const opened = [];
+  const ui = createUiServer(new Store(dir), { token: 'a'.repeat(32), home: tmp('thinker-ho-home-'), transcriptsHome: th, cliPath: '/x/cli.js',
+    spawnFn: () => { throw new Error('a hand-off builds nothing here'); },
+    appsFn: () => [{ app: 'cursor', name: 'Cursor', signedIn: true, account: 'me@example.com' }, { app: 'claude', name: 'Claude Desktop', signedIn: false }],
+    openHandoffFn: async (app, checkout) => { opened.push([app, checkout]); } });
+  const { port } = await ui.listen(0);
+  t.after(() => ui.close());
+  const get = async p => { const r = await call(port, p, { token: 'a'.repeat(32) }); assert.equal(r.status, 200, r.body); return JSON.parse(r.body); };
+  const post = async (p, body) => { const r = await call(port, p, { token: 'a'.repeat(32), body }); return { status: r.status, ...JSON.parse(r.body) }; };
+  const agents = await get('/api/agents');
+  assert.deepEqual(agents.apps.map(a => [a.agent, a.account]), [['app:cursor', 'me@example.com']], 'only the signed-in app');
+  await get('/api/machine');
+  assert.equal((await post('/api/warmup', { repos: [{ checkout: dir }], agent: 'app:codex' })).status, 400);
+  const r = await post('/api/warmup', { repos: [{ checkout: dir }], agent: 'app:cursor' });
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.handoff, { app: 'cursor', name: 'Cursor', opened: [path.basename(dir)].map(() => r.handoff.opened[0]), failed: [] });
+  assert.deepEqual(opened, [['cursor', dir]]);
+});

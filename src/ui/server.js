@@ -28,6 +28,8 @@ import { discoverRepos, warmupCandidates, cacheStats, displayName } from '../mac
 import { activity, cancelActivity, alive, latestBatch, batchEta } from '../activity.js';
 import { thinkerHome } from '../update.js';
 import { BUILD_AGENTS, buildAgent, checkAgentAuth, getAgentDisplayName } from '../setup/agents.js';
+import { desktopApps, openHandoff, HANDOFF_APPS } from '../desktop-handoff.js';
+import { SESSION_PRS } from '../repo-onboard.js';
 import { DEPTHS, DEFAULT_DEPTH } from '../setup/estimate.js';
 import { findBin, BINS, DEFAULT_DISTILL_MODEL } from '../llm.js';
 import { buildModel } from '../setup/models.js';
@@ -193,7 +195,7 @@ export function warmupJobs({ home, cliPath, spawnFn = spawn, onChange = () => {}
   };
 }
 
-export function createUiServer(store, { token = crypto.randomBytes(16).toString('hex'), home = thinkerHome(), transcriptsHome, cliPath = path.join(HERE, '..', 'cli.js'), spawnFn = spawn } = {}) {
+export function createUiServer(store, { token = crypto.randomBytes(16).toString('hex'), home = thinkerHome(), transcriptsHome, cliPath = path.join(HERE, '..', 'cli.js'), spawnFn = spawn, appsFn = desktopApps, openHandoffFn = openHandoff } = {}) {
   const page = fs.readFileSync(path.join(HERE, 'page.html'), 'utf8');
   let port = 0, known = null, lastRequest = Date.now();
   const repos = () => known ||= machineRepos(store, { home: transcriptsHome });
@@ -211,7 +213,7 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
     let pending = 0; try { pending = pendingBehaviors(open(r.checkout)).length; } catch {}
     return { ...r, stats: cacheStats(r.checkout), pending, job: jobs.list().filter(j => j.checkout === r.checkout).pop() || null };
   };
-  let candidates = null, agents = null;
+  let candidates = null, agents = null, apps = null;
   const server = http.createServer(async (req, res) => {
     lastRequest = Date.now();
     const url = new URL(req.url, 'http://127.0.0.1');
@@ -241,7 +243,10 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
       // once per server
       if (req.method === 'GET' && url.pathname === '/api/agents') {
         agents ||= BUILD_AGENTS.filter(a => findBin(BINS[a])).map(a => { const auth = checkAgentAuth(a); return { agent: a, name: getAgentDisplayName(a, findBin(BINS[a])), authenticated: !!auth.authenticated, details: auth.details || '', loginCmd: auth.loginCmd, model: buildModel(a) }; });
-        return json(res, 200, { agents, defaultAgent: buildAgent(), defaultTier: DEFAULT_DISTILL_MODEL });
+        // the signed-in desktop apps a warm-up can be handed to (desktop-handoff.js), as `app:<id>`; with no CLI signed in, one leads
+        apps ||= appsFn().filter(a => a.signedIn).map(a => ({ agent: `app:${a.app}`, app: a.app, name: a.name, account: a.account || null, sessionPrs: SESSION_PRS }));
+        const cli = agents.find(a => a.agent === buildAgent() && a.authenticated) || agents.find(a => a.authenticated);
+        return json(res, 200, { agents, apps, defaultAgent: cli?.agent || apps[0]?.agent || buildAgent(), defaultTier: DEFAULT_DISTILL_MODEL });
       }
       if (req.method === 'GET' && url.pathname === '/api/usage') {
         const days = Number(url.searchParams.get('days')) || undefined;
@@ -266,6 +271,21 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
       if (url.pathname === '/api/warmup') {
         // only repositories the machine page listed, by checkout, and only the depths a build has
         candidates ||= warmupCandidates(store, { home: transcriptsHome });
+        // handed to a desktop app: one session per repository there, which starts the warm-up when the person sends it
+        const app = typeof b.agent === 'string' && b.agent.startsWith('app:') ? b.agent.slice(4) : null;
+        if (app) {
+          if (!HANDOFF_APPS[app]) return json(res, 400, { error: `no hand-off to ${app}` });
+          const picked = [];
+          for (const r of Array.isArray(b.repos) ? b.repos : []) {
+            const c = candidates.find(x => x.checkout === r.checkout); if (!c) return json(res, 400, { error: `not a repository on this machine: ${r.checkout}` });
+            if (isDisabledRepo(c.checkout)) return json(res, 400, { error: `thinker is switched off for ${c.name}; turn it on first` });
+            picked.push(c);
+          }
+          if (!picked.length) return json(res, 400, { error: 'no repositories selected' });
+          const opened = [], failed = [];
+          for (const c of picked) { try { await openHandoffFn(app, c.checkout); opened.push(c.name); } catch (e) { failed.push({ name: c.name, error: e.message }); } }
+          return json(res, opened.length ? 200 : 500, { ok: opened.length > 0, handoff: { app, name: HANDOFF_APPS[app].name, opened, failed }, ...(opened.length ? {} : { error: `${HANDOFF_APPS[app].name} did not open` }) });
+        }
         const agent = b.agent && BUILD_AGENTS.includes(b.agent) ? b.agent : null;
         const tier = buildModel(agent || buildAgent()).tier;
         const list = [];

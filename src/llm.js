@@ -86,7 +86,7 @@ export function claudeLoginSettings(dir = process.env.CLAUDE_CONFIG_DIR || path.
 // ships its CLI inside ChatGPT.app, off PATH, signed in with the app (they share ~/.codex).
 export function findBin(names) {
   const dirs = [...(process.env.PATH || '').split(path.delimiter), path.join(os.homedir(), '.local', 'bin'), '/opt/homebrew/bin', '/usr/local/bin',
-    ...(process.platform === 'darwin' ? ['/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin'] : [])].filter(Boolean);
+    ...(process.platform === 'darwin' ? ['/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin', '/Applications/Codex.app/Contents/Resources'] : [])].filter(Boolean);
   for (const n of names) for (const d of dirs) { const f = path.join(d, n); try { fs.accessSync(f, fs.constants.X_OK); return f; } catch {} }
   return null;
 }

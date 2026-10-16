@@ -823,13 +823,21 @@ async function loadWarmup() {
     // the agents are asked whether they are signed in, which takes a moment: the bar fills in when they answer
     if (!AGENTS) { $('#w-agent').innerHTML = '<option value="">checking your agents…</option>'; AGENTS = await api('/api/agents'); W.agents = AGENTS.agents; }
     const agentSel = $('#w-agent');
-    agentSel.innerHTML = W.agents.length ? W.agents.map(a => `<option value="${esc(a.agent)}"${a.agent === (AGENTS.defaultAgent || W.agents[0].agent) ? ' selected' : ''}>${esc(a.name)}${a.authenticated ? '' : ' · not signed in'}</option>`).join('') : '<option value="">no agent CLI found</option>';
+    // agent CLIs, then the signed-in desktop apps the warm-up can be handed to
+    W.agents = [...AGENTS.agents, ...(AGENTS.apps || []).map(a => ({ ...a, authenticated: true }))];
+    const dflt = AGENTS.defaultAgent || W.agents[0]?.agent;
+    agentSel.innerHTML = W.agents.length ? W.agents.map(a => `<option value="${esc(a.agent)}"${a.agent === dflt ? ' selected' : ''}>${esc(a.name)}${a.app ? ' · opens a session there' : a.authenticated ? '' : ' · not signed in'}</option>`).join('') : '<option value="">no agent CLI or desktop app found</option>';
     showAgentModel();
     renderWarmup();
   } catch (e) { $('#w-grid').innerHTML = `<div class="empty">Could not look for repositories: ${esc(e.message)}</div>`; }
 }
 function showAgentModel() {
   const a = W.agents.find(x => x.agent === $('#w-agent').value) || W.agents[0];
+  if (a?.app) {
+    $('#w-model').textContent = `${a.name}'s own model · the ${a.sessionPrs} newest pull requests`;
+    $('#w-auth').textContent = `signed in${a.account ? ' as ' + a.account : ''} · a session opens there per repository; press Enter in it to start`;
+    $('#w-auth').className = 'auth muted'; return;
+  }
   $('#w-model').textContent = a ? `${a.model.name} · ${a.model.automatic ? 'automatic' : 'configured'}` : '';
   $('#w-auth').textContent = a ? (a.authenticated ? `signed in${a.details && /as /.test(a.details) ? ' ' + a.details.replace(/^Signed in /, '') : ''}` : `not signed in · run ${a.loginCmd} first`) : '';
   $('#w-auth').className = 'auth ' + (a && !a.authenticated ? 'loss' : 'muted');
@@ -925,7 +933,8 @@ $('#w-start').onclick = async () => {
   try {
     const repos = [...SEL].map(([checkout, s]) => ({ checkout, depth: s.depth, directories: s.directories, automatic: s.automatic }));
     const r = await api('/api/warmup', { repos, agent: $('#w-agent').value || null });
-    toast(`Building ${r.jobs.length} ${r.jobs.length === 1 ? 'cache' : 'caches'}, one at a time`);
+    if (r.handoff) toast(`Opened ${r.handoff.name}: press Enter on the Thinker message in ${r.handoff.opened.length === 1 ? 'the new session' : `each of the ${r.handoff.opened.length} new sessions`} to start the warm-up${r.handoff.failed.length ? ` (${r.handoff.failed.map(f => f.name).join(', ')} did not open)` : ''}`);
+    else toast(`Building ${r.jobs.length} ${r.jobs.length === 1 ? 'cache' : 'caches'}, one at a time`);
     SEL = new Map(); W = null; prevJobs = ''; DROP = null;
     DREPO = ''; show('cache');
   } catch (e) { btn.disabled = false; toast(e.message, true); }
