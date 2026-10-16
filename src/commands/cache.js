@@ -1,5 +1,6 @@
 // Cache backup and restore (export, import), the MCP server (serve), and what the cache
 // holds and did (health, stats, usage).
+import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { refresh } from '../ops.js';
@@ -10,7 +11,17 @@ import { areasConfig, notesByArea } from '../areas.js';
 import { stats, renderStats } from '../stats.js';
 
 async function exportCommand(ctx) {
-  const { pos, repo, store, out } = ctx;
+  const { pos, flags, repo, store, out } = ctx;
+  // --dir: every note whole, one <id>.json each, into one directory (what THINKER_NOTES_DIR serves)
+  if (flags.dir && flags.dir !== true) {
+    const dir = path.resolve(flags.dir);
+    fs.rmSync(dir, { recursive: true, force: true });
+    fs.mkdirSync(dir, { recursive: true });
+    const notes = store.list();
+    for (const n of notes) fs.writeFileSync(path.join(dir, n.id + '.json'), JSON.stringify(n, null, 2) + '\n');
+    out(`exported ${notes.length} notes → ${dir}`);
+    return;
+  }
   const file = path.resolve(pos[0] || `thinker-cache-${path.basename(repo)}.tgz`);
   const result = exportCache(store, file);
   out(`exported ${result.notes} notes → ${file}`);

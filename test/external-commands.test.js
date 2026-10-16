@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { servedSummary } from '../src/commands/external.js';
+import { servedSummary, spentSummary } from '../src/commands/external.js';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
 const run = (args, opts = {}) => execFileSync('node', [CLI, ...args], { encoding: 'utf8', env: { ...process.env, THINKER_TEST: '1' }, ...opts });
@@ -53,4 +53,29 @@ test('mcp: the server answers initialize on stdio', async () => {
     p.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 't', version: '1' } } }) + '\n');
   }).finally(() => p.kill());
   assert.equal(reply.result.serverInfo.name, 'thinker');
+});
+
+test('spent: sums the model calls a checkout logged, and what mining and understanding did', () => {
+  const d = checkout();
+  fs.mkdirSync(path.join(d, '.thinker', 'state'));
+  fs.writeFileSync(path.join(d, '.thinker', 'log.jsonl'), [
+    { op: 'model', tokens: { inputTokens: 100, cacheReadTokens: 40, outputTokens: 10 } },
+    { op: 'mine-prs', prs: 5, saved: 3 },
+  ].map(l => JSON.stringify(l)).join('\n') + '\n');
+  fs.writeFileSync(path.join(d, '.thinker', 'state', 'log.jsonl'), JSON.stringify({ op: 'understand', files: 7, saved: 2 }) + '\n' + JSON.stringify({ op: 'model', tokens: { inputTokens: 1, outputTokens: 1 } }) + '\n');
+  assert.deepEqual(spentSummary(path.join(d, '.thinker')), { tokens: 112, input: 101, cached: 40, output: 11, calls: 2, mined: 5, files: 7, saved: 5 });
+  assert.equal(JSON.parse(run(['spent', '--json', '--repo', d])).calls, 2);
+});
+
+test('export --dir: every note whole, one file each', () => {
+  const d = checkout();
+  fs.writeFileSync(path.join(d, 'a.py'), 'def f():\n    return 1\n');
+  execFileSync('git', ['-C', d, 'add', '-A']);
+  execFileSync('git', ['-C', d, '-c', 'user.name=T', '-c', 'user.email=t@example.invalid', 'commit', '-qm', 'base']);
+  run(['add', '--repo', d], { input: JSON.stringify({ title: 'f returns one', body: 'a.py:f returns 1.', kind: 'howto', deps: [{ path: 'a.py' }] }) });
+  const out = path.join(d, '..', path.basename(d) + '-notes');
+  assert.match(run(['export', '--dir', out, '--repo', d]), /exported 1 notes/);
+  const files = fs.readdirSync(out);
+  assert.equal(files.length, 1);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(out, files[0]), 'utf8')).title, 'f returns one');
 });

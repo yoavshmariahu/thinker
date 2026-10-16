@@ -156,7 +156,9 @@ const HELP = `thinker — knowledge cache for coding agents
   mcp                            the MCP server on stdio, for an agent's MCP settings (THINKER_REPO pins the repository)
   version [--json]               the version this thinker runs, and its commit when it runs from a checkout
   served [--json]                what this checkout's own log says was served: prompt-hook and file-hook notes, orient and lookup calls
+  spent [--json]                 what this checkout's own log says its model calls spent, and what mining and understanding did
   guide                          the cache usage guidance an install writes into an agent's instructions
+  export [file.tgz] [--dir d]    back the cache up to a .tgz; --dir writes every note whole, one <id>.json each, into d
   hook <prompt|tool|stop [--nudge]> [--client c]   hook entrypoints (JSON on stdin): prompt = notes for the request, tool = notes about files being edited, stop = nudge + distill
   impact [--days n] [--pr n] [--json]   delivery outcomes: tokens per PR and confirmed bugs fixed before merge
   impact sync [--days n] [--pr n]      read PR lifecycle and commits through gh (no posting)
@@ -275,7 +277,7 @@ async function main() {
     if (!store.exists()) store.init();
   }
   // symbol boundaries by tree-sitter where its grammars are installed (`thinker ast install`), else by regex
-  if (!['update', 'upgrade', 'switch', 'branch', 'serve', 'ast', 'usage', 'impact', 'stats', 'telemetry', 'help', 'warmup', 'version', 'served', 'guide', undefined].includes(cmd)) await initAst();
+  if (!['update', 'upgrade', 'switch', 'branch', 'serve', 'ast', 'usage', 'impact', 'stats', 'telemetry', 'help', 'warmup', 'version', 'served', 'spent', 'guide', undefined].includes(cmd)) await initAst();
 
   const handler = COMMANDS[cmd];
   if (!handler) { out(HELP); return; }

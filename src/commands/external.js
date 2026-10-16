@@ -1,6 +1,7 @@
 // The commands another program drives thinker through as an installed tool, never by its source: an
 // evaluation harness wires a worktree with `mcp` and `hook`, reads the guidance an install writes with
-// `guide`, what one session was served with `served`, and which thinker it ran with `version`.
+// `guide`, what one session was served with `served`, what a cache build spent with `spent`, and which
+// thinker it ran with `version` (`export --dir` writes the notes it serves, commands/cache.js).
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -36,6 +37,30 @@ export function servedSummary(storeDir) {
   return use;
 }
 
+// What a checkout's own log says its model calls spent (op 'model', model-usage.js), with what mining and
+// understanding said they did: the cost of a cache build made there
+export function spentSummary(storeDir) {
+  const usage = { tokens: 0, input: 0, cached: 0, output: 0, calls: 0, mined: 0, files: 0, saved: 0 };
+  for (const file of ['log.jsonl', path.join('state', 'log.jsonl')]) {
+    let text = ''; try { text = fs.readFileSync(path.join(storeDir, file), 'utf8'); } catch { continue; }
+    for (const line of text.split('\n')) {
+      let e; try { e = JSON.parse(line); } catch { continue; }
+      if (e.op === 'model') {
+        const t = e.tokens || {};
+        usage.calls++; usage.input += Number(t.inputTokens) || 0; usage.cached += Number(t.cacheReadTokens) || 0; usage.output += Number(t.outputTokens) || 0;
+      } else if (e.op === 'mine-prs') { usage.mined += e.prs || 0; usage.saved += e.saved || 0; }
+      else if (e.op === 'understand') { usage.files += e.files || 0; usage.saved += e.saved || 0; }
+    }
+  }
+  usage.tokens = usage.input + usage.output;
+  return usage;
+}
+
+async function spentCommand({ flags, store, out }) {
+  const u = spentSummary(store.dir);
+  out(flags.json ? JSON.stringify(u) : `${u.calls} model calls: ${u.input} input (${u.cached} cached), ${u.output} output tokens; ${u.mined} changes mined, ${u.files} files read, ${u.saved} notes saved`);
+}
+
 async function versionCommand({ flags, out, HERE }) {
   const v = versionInfo(path.resolve(HERE, '..'));
   out(flags.json ? JSON.stringify(v) : `thinker ${v.version}${v.commit ? ` (${v.commit.slice(0, 9)}${v.dirty ? ', modified' : ''})` : ''}`);
@@ -54,5 +79,6 @@ async function guideCommand({ store, out }) {
 export const commands = {
   version: versionCommand,
   served: servedCommand,
+  spent: spentCommand,
   guide: guideCommand,
 };
