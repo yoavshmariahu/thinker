@@ -20,6 +20,37 @@ export function migrateHome(home = os.homedir()) {
   for (const ext of ['', '-wal', '-shm']) if (fs.existsSync(path.join(to, 'evals.db' + ext))) fs.renameSync(path.join(to, 'evals.db' + ext), path.join(to, 'artemis.db' + ext));
   return true;
 }
+// One Artemis per database: the server that runs it holds <db>.server.json ({ pid, port }) while it lives.
+export const lockFile = (db = DEFAULT_DB) => db + '.server.json';
+const alive = pid => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
+
+// The running server for a database, or null (a lock left by a dead process does not count).
+export function runningServer(db = DEFAULT_DB) {
+  try { const s = JSON.parse(fs.readFileSync(lockFile(db), 'utf8')); return s.pid && s.port && alive(s.pid) ? s : null; }
+  catch { return null; }
+}
+
+// Take the lock for this process, or return the server that already holds it. Removed again on exit.
+export function lockServer(port, db = DEFAULT_DB) {
+  const file = lockFile(db);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  for (let i = 0; i < 2; i++) {
+    try { fs.writeFileSync(file, JSON.stringify({ pid: process.pid, port, started: new Date().toISOString() }), { flag: 'wx' }); }
+    catch (e) {
+      if (e.code !== 'EEXIST') throw e;
+      const held = runningServer(db);
+      if (held && held.pid !== process.pid) return { held };
+      fs.rmSync(file, { force: true });
+      continue;
+    }
+    const release = () => { if (runningServer(db)?.pid === process.pid) fs.rmSync(file, { force: true }); };
+    process.on('exit', release);
+    for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.once(sig, () => { release(); process.exit(128 + ({ SIGINT: 2, SIGTERM: 15, SIGHUP: 1 })[sig]); });
+    return { held: null };
+  }
+  return { held: runningServer(db) };
+}
+
 export const SCHEMA_VERSION = 2;
 
 const SCHEMA = `
