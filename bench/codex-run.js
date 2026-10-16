@@ -52,6 +52,35 @@ const ARMS = (flags.arm || process.env.BENCH_ARMS || 'nocache,full').split(',').
 // A Codex home for the benchmark: the login, the hooks (reviewed and trusted there once) and the
 // worktrees marked trusted. The hooks say nothing in a worktree that has no notes.
 const CODEX_HOME = path.join(HERE, 'codex-home');
+// Arms defined as data (Artemis: evals/arms.js), handed over by the plan as --arm-defs <file>: MCP
+// servers written into the worktree's .codex/config.toml (each may name its enabled_tools), text put at
+// the top of AGENTS.md, env for the session, a command run in the worktree before and after it, and
+// paths kept out of the graded diff. `{cwd}` in any string is the session's worktree.
+const ARM_DEFS = flags['arm-defs'] ? JSON.parse(fs.readFileSync(flags['arm-defs'], 'utf8')) : {};
+const withCwd = (v, cwd) => typeof v === 'string' ? v.replaceAll('{cwd}', cwd) : Array.isArray(v) ? v.map(x => withCwd(x, cwd)) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, withCwd(x, cwd)])) : v;
+const toml = v => JSON.stringify(v);  // strings and arrays of strings: JSON's quoting is TOML's
+function armDefined(wt, arm) {
+  const def = withCwd(ARM_DEFS[arm], wt);
+  const servers = Object.entries(def.mcpServers || {}).map(([name, m]) => [
+    `[mcp_servers.${name}]`, `command = ${toml(m.command)}`, `args = ${toml(m.args || [])}`,
+    ...(m.enabled_tools ? [`enabled_tools = ${toml(m.enabled_tools)}`] : []),
+    ...(m.env ? [`[mcp_servers.${name}.env]`, ...Object.entries(m.env).map(([k, v]) => `${k} = ${toml(String(v))}`)] : []),
+  ].join('\n'));
+  if (servers.length) { fs.mkdirSync(path.join(wt, '.codex'), { recursive: true }); fs.writeFileSync(path.join(wt, '.codex', 'config.toml'), servers.join('\n\n') + '\n'); }
+  if (def.system) { const agents = path.join(wt, 'AGENTS.md'); fs.writeFileSync(agents, def.system + '\n\n' + (fs.existsSync(agents) ? fs.readFileSync(agents, 'utf8') : '')); }
+  return def;
+}
+function armStep(arm, step, cwd) {
+  const st = ARM_DEFS[arm]?.[step];
+  if (!st?.command?.length) return null;
+  const [bin, ...rest] = withCwd(st.command, cwd);
+  const t0 = Date.now();
+  let out;
+  try { out = execFileSync(bin, rest, { cwd, env: { ...process.env, ...withCwd(ARM_DEFS[arm].env || {}, cwd) }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 1 << 24, timeout: st.timeoutMs || 600_000 }); }
+  catch (e) { if (step === 'after') return { ms: Date.now() - t0, error: e.message.slice(0, 300) }; throw new Error(`${arm} ${step}: ${e.message.slice(0, 300)}`); }
+  if (st.failIf && new RegExp(st.failIf).test(out)) throw new Error(`${arm} ${step}: output matches ${st.failIf}: ${out.slice(0, 300)}`);
+  return { ms: Date.now() - t0, tail: out.slice(-400) };
+}
 const AGENTS_BLOCK = `<!-- thinker:start (managed by thinker, do not edit) -->
 ## Cache of notes about this repository
 
@@ -164,14 +193,14 @@ function contextFor(task, session, arm = 'hook') {
 // One `codex exec` (or, with `resume`, `codex exec resume <thread>`) call: its events, exit and timing.
 // `ephemeral: false` keeps the session on disk so a loop can resume it; resume takes no --cd or
 // --sandbox, so it runs with the worktree as cwd and the sandbox set through -c.
-function codexCall(prompt, cwd, { model = MODEL, resume = null, ephemeral = true, timeoutMin = Number(process.env.BENCH_TIMEOUT_MIN) || 20, schemaFile = null } = {}) {
+function codexCall(prompt, cwd, { model = MODEL, resume = null, ephemeral = true, timeoutMin = Number(process.env.BENCH_TIMEOUT_MIN) || 20, schemaFile = null, env: armEnv = {} } = {}) {
   const args = resume
     ? ['exec', 'resume', '--json', '--ignore-rules', '--model', model, '-c', 'sandbox_mode="workspace-write"', resume, '-']
     : ['exec', '--json', ...(ephemeral ? ['--ephemeral'] : []), '--ignore-rules', '--model', model, '--sandbox', 'workspace-write', '--cd', cwd,
       ...(schemaFile ? ['--output-schema', schemaFile] : []), '-'];
   const started = Date.now();
   return new Promise((resolve, reject) => {
-    const child = spawn('codex', args, { cwd, env: { ...process.env, CODEX_HOME, CODEX_DISABLE_PROJECT_DOCS: '0', ...HOOK_ENV } });
+    const child = spawn('codex', args, { cwd, env: { ...process.env, CODEX_HOME, CODEX_DISABLE_PROJECT_DOCS: '0', ...HOOK_ENV, ...armEnv } });
     let stdout = '', stderr = '', timedOut = false;
     // a session that stalls would hold its worker for the rest of the run
     const timer = setTimeout(() => { timedOut = true; child.kill(); }, timeoutMin * 60_000);
@@ -196,6 +225,9 @@ function summarize(events, wall_ms) {
   const calls = events.filter(e => e.type === 'item.started' && e.item && !['agent_message', 'reasoning'].includes(e.item.type));
   const byTool = {};
   for (const e of calls) byTool[e.item.type] = (byTool[e.item.type] || 0) + 1;
+  // MCP calls by server and tool (thinker.find, thinker.drilldown, …): what a defined arm's tools were used for
+  const mcp = {};
+  for (const e of calls) if (e.item.type === 'mcp_tool_call') { const k = `${e.item.server || '?'}.${e.item.tool || '?'}`; mcp[k] = (mcp[k] || 0) + 1; }
   return {
     session_id: events.find(e => e.type === 'thread.started')?.thread_id,
     turns: usage.length,
@@ -205,12 +237,12 @@ function summarize(events, wall_ms) {
     out_tokens: usage.reduce((s, u) => s + (u.output_tokens || 0), 0),
     wall_ms,
     result: msg,
-    tools: { calls: calls.length, byTool, thinkerCalls: 0, filesRead: 0, greps: 0, injected: [] },
+    tools: { calls: calls.length, byTool, mcp, thinkerCalls: 0, filesRead: 0, greps: 0, injected: [] },
     raw_events: events,
   };
 }
-async function runCodex(prompt, cwd) {
-  const c = await codexCall(prompt, cwd);
+async function runCodex(prompt, cwd, opts = {}) {
+  const c = await codexCall(prompt, cwd, opts);
   if (c.timedOut) throw new Error('timed out');
   if (c.code !== 0 || c.failure) throw new Error(`Codex exited ${c.code}: ${JSON.stringify(c.failure || c.stderr).slice(0, 900)}`);
   return summarize(c.events, c.wall_ms);
@@ -282,8 +314,8 @@ function syncCopy(src, dst) {
   execFileSync('git', ['reset', '-q'], { cwd: src });
   if (diff.length) execFileSync('git', ['apply', '--whitespace=nowarn', '-'], { cwd: dst, input: diff });
 }
-function getDiff(cwd) {
-  execFileSync('git', ['add', '-A', '--', '.', ':!.thinker', ':!.codex', ':!AGENTS.md'], { cwd });
+function getDiff(cwd, exclude = []) {
+  execFileSync('git', ['add', '-A', '--', '.', ':!.thinker', ':!.codex', ':!AGENTS.md', ...exclude.map(p => ':!' + p)], { cwd });
   const diff = execFileSync('git', ['diff', '--cached', '--no-color'], { cwd, maxBuffer: 1 << 26 }).toString();
   execFileSync('git', ['reset', '-q'], { cwd });
   return diff;
@@ -329,9 +361,14 @@ async function runWorker(cwd, checkCwd) {
       // the notes carry their own preamble; no second instruction around them
       prompt = `${injected}\n\n${task.prompt}`;
     }
+    let armBefore = null, armAfter = null, def = null;
     try {
       if (arm === 'full') armCache(cwd);  // inside the try: a failure here is one errored record, not a dead worker
-      const run = LOOP ? await runLoop(task, prompt, cwd, checkCwd) : await runCodex(prompt, cwd);
+      if (ARM_DEFS[arm]) { if (LOOP) throw new Error('a defined arm does not run in --loop yet'); armBefore = armStep(arm, 'before', cwd); def = armDefined(cwd, arm); }
+      let run;
+      try { run = LOOP ? await runLoop(task, prompt, cwd, checkCwd) : await runCodex(prompt, cwd, { env: def?.env || {} }); }
+      finally { if (ARM_DEFS[arm]) armAfter = armStep(arm, 'after', cwd); }
+      if (ARM_DEFS[arm]) run.armSteps = { before: armBefore, after: armAfter };  // a defined arm's own steps, not in wall_ms
       run.tools.injected = [...new Set([...injected.matchAll(/\(id: ([\w-]+), confidence/g)].map(m => m[1]))];
       if (arm === 'full') { const use = cacheUse(cwd); run.tools.injected = use.injected; run.tools.cache = use; run.tools.thinkerCalls = use.orientCalls + use.lookupCalls; }
       run.model = MODEL;
@@ -344,7 +381,7 @@ async function runWorker(cwd, checkCwd) {
       run.session = run.session_id;
       run.cost = null;
       run.api_ms = null;
-      run.diff = task.type === 'change' ? getDiff(cwd) : null;
+      run.diff = task.type === 'change' ? getDiff(cwd, ARM_DEFS[arm]?.exclude || []) : null;
       // the executable oracle where the task has one; the model judge otherwise (or on request)
       run.grade = task.testCmd ? runOracle(task, cwd) : null;
       if (!flags['no-judge'] && !task.testCmd) run.grade = await gradePatch(task, run.diff, run.result);

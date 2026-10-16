@@ -339,7 +339,10 @@ test('an arm defined as data runs against the cache off with no cache, and its d
   assert.throws(() => defineArm(db, { ...tool, name: 'cache' }), /runners' own arms/);
   assert.throws(() => defineArm(db, { ...tool, notes: undefined }), /notes/);
   assert.throws(() => defineArm(db, { ...tool, before: { command: [] } }), /before.command/);
-  assert.throws(() => defineArm(db, { ...tool, runner: 'codex' }), /claude only/);
+  assert.throws(() => defineArm(db, { ...tool, runner: 'gemini' }), /claude, codex only/);
+  assert.throws(() => defineArm(db, { ...tool, name: 'tool-codex', runner: 'codex', hooks: { Stop: [] } }), /takes no hooks/);
+  assert.throws(() => defineArm(db, { ...tool, name: 'tool-codex', runner: 'codex', mcpServers: { t: { args: [] } } }), /needs a command/);
+  assert.equal(defineArm(db, { ...tool, name: 'tool-codex', runner: 'codex', mcpServers: { t: { command: 'x', enabled_tools: ['find'] } } }).runner, 'codex');
   const arm = defineArm(db, tool);
   assert.equal(db.getArm('tool').hash, arm.hash);
   const base = { ...exp, prset: 'ps', runner: 'claude', off: 'nocache', on: 'tool', model: 'sonnet', reps: 1, tag: 'click-tool' };
