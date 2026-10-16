@@ -2,29 +2,14 @@ node_modules/
 .metrics-work/
 dist/
 *.log
-# benchmark scratch: cloned repos and per-run git worktrees (large, reproducible)
-bench/repos/
-bench/worktrees/
+# benchmarks moved to Artemis and the task runner (their own repositories) on 2026-10-16; what a
+# checkout still holds under bench/ (clones, caches, run output) is local leftovers, never committed
+bench/
 .worktrees/
 eval-support/
-bench/runs/empty-notes/
-bench/runs/efficiency-simple/
-# the benchmark's own python environment, built from python-requirements.txt
 .venv-perf/
 .venv-astra-mem0/
 
 # private gateway deployment snapshots and credentials
 .access-work/
 
-!bench/runs/mlflow-contaminated-2026-10-11/README.md
-# contaminated mlflow runs of 2026-10-11: diagnosis only, kept on disk, not in git (README stays)
-bench/data/*.bundle
-bench/runs/mlflow-contaminated-2026-10-11/*
-
-# the evals app's index: rebuilt from bench/runs on start
-bench/evals/evals.db*
-# evals platform: archived session transcripts (large; local to the machine that ran them) and
-# cache build checkouts (the receipt.json beside each is checked in)
-bench/runs/*/transcripts/
-bench/caches/*/repo/
-bench/caches/*/build.log

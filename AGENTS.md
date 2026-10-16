@@ -13,7 +13,7 @@ Use the Thinker MCP tools (if they are listed as deferred, load them with the ho
 
 Reference for agents and contributors working on this repository. The
 user-facing summary is in `README.md`; benchmark results are in
-`bench/RESULTS.md`.
+`research/bench-history/RESULTS.md`.
 
 ```
 agent session ──► distill ──► .thinker/local/notes/*.json ──► orient / lookup (MCP)
@@ -118,18 +118,24 @@ keep correctness, tokens and latency separate. Results from different models or
 reasoning settings belong in separate cohorts, not one ranking.
 
 **Evals run only through Artemis, the evals platform (MANDATORY RULE):**
-Run, follow and read benchmark experiments only through Artemis (`bench/evals`, started with
-`artemis-up`; its web app and its MCP server), following the `run-evals` skill (`.agents/skills/run-evals/SKILL.md`):
-freeze the PRs with `create_pr_set`, build the cache through `plan_cache`/`build_cache`, plan the
-experiment with `plan_experiment`, get the user's approval of each plan, start with
-`start_experiment`, read with `get_experiment` and `get_session`. Do not start `bench/run.js`,
-`bench/codex-run.js`, `bench/gemini-run.js` or a benchmark `mine-prs` by hand, and do not report
-numbers hand-computed from `bench/runs` files. The cache-source and
-matched-model rules above still apply to every experiment the platform starts.
+Run, follow and read benchmark experiments only through Artemis, its own repository
+(`~/src/artemis`, started with its `bin/artemis-up`; a web app and an MCP server), following its
+`run-evals` skill (`.agents/skills/run-evals/SKILL.md` there): freeze the PRs with `create_pr_set`,
+build the cache through `plan_cache`/`build_cache`, plan the experiment with `plan_experiment`, get
+the user's approval of each plan, start with `start_experiment`, read with `get_experiment` and
+`get_session`. Do not start the task runner (`~/src/task-runner`) or a benchmark `mine-prs` by hand,
+and do not report numbers hand-computed from run files. The cache-source and matched-model rules
+above still apply to every experiment the platform starts.
+
+Artemis and the task runner use thinker only as an installed program, through its CLI (`thinker
+mcp`, `hook`, `guide`, `served`, `spent`, `export --dir`, `version`; `src/commands/external.js`).
+Changing what those commands print or take is a change to their interface: keep them compatible, or
+change Artemis in step. Which thinker an experiment tests is Artemis's setting (`~/.artemis/
+config.json` `"thinker"`): point it at a worktree to test a branch.
 
 **Agent concurrency and worktrees (MANDATORY RULE):**
 All agents working on this repository MUST perform code changes, scratch experiments, and benchmark runs in isolated git worktrees to avoid collisions with other active agents or running benchmark jobs. Never edit directly in the primary working tree.
-- **Create a worktree:** `git worktree add -b agent/<task-name> .worktrees/<task-name> HEAD` (or in `bench/worktrees/`; both are gitignored).
+- **Create a worktree:** `git worktree add -b agent/<task-name> .worktrees/<task-name> HEAD` (gitignored).
 - **Work strictly within the worktree.**
 - **Destroy on completion:** Once changes are committed/pushed/merged, or if the task is aborted or cancelled, always remove the worktree:
   ```bash
@@ -171,14 +177,12 @@ cache at twice the input price and never read again.
 | `infra/sync/` | the server on EC2: CloudFormation stack, bootstrap script, deploy script |
 | `src/change.js` | the change under review with no model call: scope, parsed diff, the definitions the hunks touched, the notes resting on them (`selectNotes`), what the changed definitions use one hop down (`usedContext`); the model-free half of the `thinker review` command removed on 2026-10-11 |
 | `test/` | unit tests (`node --test`) |
-| `bench/` | benchmark harness, task sets, PR data, and `RESULTS.md` |
-| `bench/evals/` | Artemis, the evals platform (`scripts/artemis-up` starts it), with its SQLite database (`db.js`, `~/.artemis/artemis.db`) as the system of record and daily snapshots (`snapshot.js`, to the S3 location in `~/.artemis/config.json`): experiments built from modules — task sets (`tasksets.js`, imported with their gold diffs and versioned), PR sets (`prsets.js`), caches (`caches.js`, `build-cache.js`; checkouts and served notes in `bench/caches/`) — sessions imported once from the runners' files in `bench/runs` (`ingest.js`), compared cache off against cache on (`experiment.js`), launched and followed (`jobs.js`), transcripts stored and parsed (`transcripts.js`), served as a local web app (`server.js`, `public/`) and an MCP server (`mcp.js`); see its README and the `run-evals` skill |
-| `bench/retrieval.js` | what is served for each task's request and how much of it rests on a changed file; no agent runs, seconds per task set |
+| `research/bench-history/` | what the benchmarks measured before they moved out (`RESULTS.md`, serving notes); the harness, task sets and run data are in Artemis's database, the old scripts in this repository's history before 2026-10-16 |
 | `.thinker/` | thinker's own notes about this repo |
 
-`bench/repos/` (clones of click, mitmproxy, PostHog) and `bench/runs/` (raw
-run output) are not checked in. To run the benchmark, clone the target repo
-into `bench/repos/<name>` first.
+Benchmarks are not in this repository: Artemis (`~/src/artemis`) holds the task sets, PR sets,
+caches, runs and their data, and the task runner (`~/src/task-runner`) runs the sessions. A
+`bench/` folder left in a checkout is local leftovers and ignored.
 
 ## What `setup` does
 
@@ -345,7 +349,7 @@ sessions did with them, what was learned and what it cost, and an estimate of
 the tool calls and tokens saved. The estimate counts only servings a session
 was seen to act on (`confirmed`), as one read per file the note rests on (at
 most 5) at the file's size (at most 6,000 tokens). It is not a measurement;
-measured effects are in `bench/RESULTS.md`.
+measured effects are in `research/bench-history/RESULTS.md`.
 
 A dep that is not code a session would have read counts as nothing
 (`usage.js:countsAsReading`): the agents' own configuration (`.claude/`,
@@ -603,7 +607,7 @@ Each session both consumes and improves the cache:
    again next run (`learn.js:minePrs`, `deferred`). The record of a fix is
    what a review draws on most: on 23 real PostHog regressions every bug the
    cache caught and the diff alone missed rested on a note mined from the fix
-   (`bench/RESULTS.md`, "Real bugs on PostHog"). Re-verification ahead of time is for notes served in
+   (`research/bench-history/RESULTS.md`, "Real bugs on PostHog"). Re-verification ahead of time is for notes served in
    the last 14 days (`verifyServedDays`; 0: all), the most served first; a
    stale note nobody is reading waits until a later batch after it is served.
    Dependency hashes and git diffs since each note was verified identify the
@@ -652,7 +656,7 @@ tools; the control arm of `thinker benchmark`), `THINKER_HOLDOUT`. The
 switches of settled experiments were removed in October 2026 (early modes,
 the router, forced or naive serving, links and co-change off, the guard off,
 cover floors, pointer and snippet limits, the fanout tag, a per-model guide
-above `orient`); what they measured is in `bench/RESULTS.md`, and what won is
+above `orient`); what they measured is in `research/bench-history/RESULTS.md`, and what won is
 the only behavior. A harness that needs the order alone passes `cover: {body:
 0, question: 0}` to `rank` and `refreshFirst: false` to `orient`.
 
@@ -700,7 +704,7 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   `test -d .thinker`. It does
   not name `review`: with one sentence saying it existed, the agent called it at
   the end of both reruns and lost three minutes to each timed-out call. A held-out session gets
-  none of it. On two Grafana tasks under Gemini (`bench/RESULTS.md`, "Tool
+  none of it. On two Grafana tasks under Gemini (`research/bench-history/RESULTS.md`, "Tool
   intro") the intro got `find` called where it never was. It first also told
   the agent to run `review` before reporting done, with a first-edit nudge
   repeating it; both went the same day at the user's decision, a review runs
@@ -748,11 +752,10 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   for a while. Measured on click (`research/cbm-comparison/`) the graph-backed
   arm was marginally cheaper and no more accurate than thinker's own tools,
   so the engine, its `thinker cbm` command and its switches were removed in
-  October 2026. CBM stays the comparison baseline of the benchmarks:
-  `bench/eval-support/cbm.js` installs the pinned release and indexes a
-  checkout, and `bench/cbm-compare.js`, `bench/cbm-pr-compare.js` and
-  `bench/cbm-preflight.js` compare the arms `thinker` (notes, git grep) and
-  `cbm` (the graph alone, as the agent's MCP server); the earlier comparison
+  October 2026. CBM stayed a comparison baseline: the harness that compared
+  the arms `thinker` (notes, git grep) and `cbm` (the graph alone, as the
+  agent's MCP server) was `bench/cbm-*.js`, in this repository's history
+  before 2026-10-16; as an arm today it is defined in Artemis; the earlier comparison
   against Qartez is in `research/qartez-comparison/`.
 - The prompt hooks serve two notes. When an agent calls `orient` with its own
   `budget`, up to five are served (past the second, a note must reach 0.7 of
@@ -880,7 +883,7 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   the cross-encoder is confident of. Defaults `floor: 0, maxNotes: 1,
   fallbackFloor: null` (`dense.js:CE_DEFAULTS`),
   chosen on 54 tasks labeled by a Codex judge against the merged fixes
-  (`bench/RESULTS.md`, "Ranking: labels"): 94% of served notes useful, 88%
+  (`research/bench-history/RESULTS.md`, "Ranking: labels"): 94% of served notes useful, 88%
   important, nothing served when nothing fits, a quarter of the tokens; the
   price is reach, 15 of 70 important notes at prompt time against 27, which
   the edit hook recovers in part (it reaches the important notes resting on
@@ -1236,7 +1239,7 @@ distillation saw, and gated what learning wrote: a catalog scan, a relation
 judgment against existing notes, grounding of every claim against the source,
 and a fidelity check of each search description, with a deferral queue under
 `.thinker/state/learning-pending/` for what the gates held back. The
-measurements are in `bench/RESULTS.md` ("Serving: Jev", "Derived verify
+measurements are in `research/bench-history/RESULTS.md` ("Serving: Jev", "Derived verify
 verdicts", "Jev capture selection", "Current Jev versus historical cached
 runs") and under `research/jev-*`. What they showed: a strong offline serving
 result (2.5x the important notes reached at the same precision on 54 labelled

@@ -16,7 +16,7 @@ export function listMergedPrs(slug, { before, after, limit = 100 }) {
   return JSON.parse(gh('pr', 'list', '--repo', slug, '--state', 'merged', '--limit', String(limit), '--search', q, '--json', 'number,title,body,mergedAt,additions,files'));
 }
 
-// Changes whose message says they fix something: the records review draws on most (bench/RESULTS.md,
+// Changes whose message says they fix something: the records review draws on most (research/bench-history/RESULTS.md,
 // "Review strategies": the one PostHog bug the notes caught over the baseline came from a fix PR's
 // note). `thinker mine-prs --fixes` keeps only these; a repository developed by direct commits has
 // no pull requests, and its fix commits are what review wants.
@@ -239,7 +239,7 @@ export function mineable(prs, { fixes = false, git = false } = {}) {
 
 // Which of the candidates to distill this run: fixes first, since the record of a fix is what a
 // review draws on most (on the PostHog regressions every bug the cache caught and the diff alone
-// missed rested on a note mined from the fix; bench/RESULTS.md, "Real bugs on PostHog"), up to two
+// missed rested on a note mined from the fix; research/bench-history/RESULTS.md, "Real bugs on PostHog"), up to two
 // thirds of the run when other changes wait, so a busy repository's features are not starved; the
 // rest stratified across subsystems as before. A candidate passed over is not recorded as mined
 // (learn.js:minePrs), so it is offered again next run rather than lost to the cap.
