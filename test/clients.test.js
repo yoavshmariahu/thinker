@@ -494,7 +494,7 @@ test('connect wires the agents into their own settings, once per machine: no --r
   const home = fakeHome();
   inHome(home, () => {
     const MCP = path.join(path.dirname(CLI), 'mcp.js');
-    const entry = { command: 'node', args: [MCP] };
+    const entry = { command: 'node', args: [MCP], env: { THINKER_MCP_LAUNCHER: '1' } };
     fs.mkdirSync(path.join(home.HOME, '.claude'));
     fs.writeFileSync(path.join(home.HOME, '.claude', 'settings.json'), JSON.stringify({ model: 'opus', hooks: { Stop: [{ hooks: [{ type: 'command', command: 'other' }] }] } }));
     fs.writeFileSync(path.join(home.HOME, '.claude.json'), JSON.stringify({ numStartups: 3, mcpServers: { other: { command: 'x' } } }));
@@ -519,7 +519,7 @@ test('connect wires the agents into their own settings, once per machine: no --r
     const toml = fs.readFileSync(path.join(home.CODEX_HOME, 'config.toml'), 'utf8');
     assert.ok(toml.startsWith('model = "gpt-5"'));
     assert.equal(toml.match(/\[mcp_servers\.thinker\]/g).length, 1);
-    assert.ok(!toml.includes('THINKER_REPO') && !toml.includes('[mcp_servers.thinker.env]'), 'no pinned repository');
+    assert.ok(!toml.includes('THINKER_REPO'), 'no pinned repository');
     // Codex reviews the user's hooks too: their hashes, keyed by the user's hooks.json; and its subagents
     // are turned on, which a warm-up in the Codex app reads through
     const marked = trustCodexUser();
@@ -544,6 +544,13 @@ test('connect wires the agents into their own settings, once per machine: no --r
     fs.writeFileSync(path.join(home.HOME, '.claude', 'settings.json'), JSON.stringify(old));
     assert.deepEqual(refreshWiring(null, { scope: 'user', cli: CLI, mcpEntry: entry }).changed, ['~/.claude/settings.json']);
     // and the command, which does the user's files first
+    // an entry written before the launcher (no marker) is rewritten once: Cursor, watching its file, then
+    // replaces the server it started before the update with one the launcher keeps current
+    const preLauncher = { command: 'node', args: [MCP] };
+    installClient('cursor', { ...o, mcpEntry: preLauncher });
+    assert.ok(refreshWiring(null, { scope: 'user', cli: CLI, mcpEntry: entry }).changed.includes('~/.cursor/mcp.json'));
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(home.HOME, '.cursor', 'mcp.json'), 'utf8')).mcpServers.thinker, entry);
+    assert.ok(!refreshWiring(null, { scope: 'user', cli: CLI, mcpEntry: entry }).changed.includes('~/.cursor/mcp.json'), 'once');
     const outp = execFileSync('node', [CLI, 'rewire', '--here', '--dry', '--repo', os.tmpdir()], { encoding: 'utf8', env: { ...process.env, ...home, THINKER_LOG: 'off', THINKER_TELEMETRY: 'off' } });
     assert.match(outp, /the wiring is current/);
 
