@@ -22,6 +22,8 @@ export const notesDir = (benchDir, name) => path.join(cacheDir(benchDir, name), 
 export const STEPS = ['snapshot', 'mine-prs', 'understand', 'phrase', 'relink', 'export'];
 export const KINDS = { mined: { step: 'mine-prs', source: 'pr' }, understanding: { step: 'understand', source: 'understanding' } };
 export const kindOf = c => (c?.kind && KINDS[c.kind] ? c.kind : 'mined');  // receipts from before kinds were mined
+// the steps a build of this kind goes through, in order: a mined build has no understand step, and the reverse
+export const stepsOf = c => STEPS.filter(s => !Object.values(KINDS).some(k => k.step === s) || s === KINDS[kindOf(c)].step);
 export const readReceipt = (db, name) => (NAME.test(name || '') ? db.getCache(name) : null);
 export const listCaches = db => db.listCaches();
 

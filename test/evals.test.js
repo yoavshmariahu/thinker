@@ -13,7 +13,7 @@ import { ingest } from '../bench/evals/ingest.js';
 import { plan, launch, cancel, alive, jobsView, liveSessions } from '../bench/evals/jobs.js';
 import { createPrset, readPrset, updatePrset, freezePrset } from '../bench/evals/prsets.js';
 import { importTaskSet, setAcceptance, getTaskSet, writeRunTasks, listTaskSets } from '../bench/evals/tasksets.js';
-import { checkCache, planCache, readReceipt, notesDir, cacheDir, hashNotes } from '../bench/evals/caches.js';
+import { checkCache, planCache, readReceipt, notesDir, cacheDir, hashNotes, stepsOf } from '../bench/evals/caches.js';
 import { takeSnapshot, restoreSnapshot } from '../bench/evals/snapshot.js';
 import { parseClaude, parseCodex, stepStats } from '../bench/evals/transcripts.js';
 import { createApp } from '../bench/evals/server.js';
@@ -225,6 +225,11 @@ test('a PR set is composed as a draft, changed, frozen, and only then run', () =
   assert.throws(() => updatePrset(bench, db, 'd', { ids: ['T1'] }), /frozen/);
   assert.equal(plan({ ...exp, prset: 'd', cache: 'c-sonnet', runner: 'claude', model: 'sonnet', tag: 't' }, { benchDir: bench, db }).sessions, 4);
   assert.equal(readPrset(db, 'ps').status, 'frozen', 'a set from before drafts is frozen');
+});
+
+test('a build goes through its own kind\'s steps', () => {
+  assert.deepEqual(stepsOf({ kind: 'understanding' }), ['snapshot', 'understand', 'phrase', 'relink', 'export']);
+  assert.deepEqual(stepsOf({}), ['snapshot', 'mine-prs', 'phrase', 'relink', 'export'], 'a receipt from before kinds is mined');
 });
 
 test('an understanding cache is planned from the most changed files and holds only notes read from the code', () => {

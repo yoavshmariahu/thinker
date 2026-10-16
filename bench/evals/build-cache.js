@@ -69,8 +69,9 @@ function runStep(label, args) {
     const child = spawn(process.execPath, [CLI, ...args, '--repo', repo], { cwd: repo, env });
     let stdout = '', stderr = '', last = 0;
     const seen = chunk => {
-      const m = [...String(chunk).matchAll(/(\d+)\/(\d+) processed/g)].pop();
-      if (m) { receipt.progress = { step: label, done: Number(m[1]), total: Number(m[2]) }; if (Date.now() - last > 2000) { last = Date.now(); save(); } }
+      // "n/m processed", or "<part>: n/m processed" when a step has passes of its own (understand: reading code, instance views)
+      const m = [...String(chunk).matchAll(/(?:([a-z][a-z ]*[a-z]): )?(\d+)\/(\d+) processed/g)].pop();
+      if (m) { receipt.progress = { step: label, ...(m[1] ? { part: m[1] } : {}), done: Number(m[2]), total: Number(m[3]) }; if (Date.now() - last > 2000) { last = Date.now(); save(); } }
     };
     child.stdout.on('data', c => { stdout += c; process.stdout.write(c); seen(c); });
     child.stderr.on('data', c => { stderr += c; process.stderr.write(c); seen(c); });

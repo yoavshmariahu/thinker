@@ -98,7 +98,7 @@ async function understandCommand(ctx) {
   const { flags, store, out } = ctx;
   const areas = typeof flags.areas === 'string' ? flags.areas.split(',').map(s => s.trim()).filter(Boolean) : flags.all ? [] : (areasConfig(store).directories || []);
   const r = await understand(store, { top: Number(flags.top) || UNDERSTAND_DEFAULTS.top, areas, model: typeof flags.model === 'string' ? flags.model : undefined, dry: !!flags.dry,
-    onProgress: (d, n) => out(`${d}/${n} processed`) });
+    onProgress: (d, n, part) => out(`${part ? part + ': ' : ''}${d}/${n} processed`) });
   const where = areas.length ? `in ${areas.join(', ')}` : 'repository-wide';
   if (flags.dry) { out(`${r.files.length} files ${where}, ${r.calls} calls, about ${Math.round(r.codeTokens / 1000)}k tokens of code`); for (const f of r.files) out('  ' + f); return; }
   out(`${r.files} files ${where} · ${r.calls} calls · ${r.notes} notes saved${r.failed ? ` · ${r.failed} failed` : ''} · ${r.views} instance views`);

@@ -415,7 +415,7 @@ const STATUS = { running: ['good', 'running'], done: ['good', 'finished'], faile
 function statusCell(j, unit = 'sessions') {
   if (!j || j.status !== 'running') return j && j.status !== 'done' ? `<span class="status ${(STATUS[j.status] || [''])[0]}">${esc((STATUS[j.status] || ['', j.status])[1])}</span>` : '';
   const share = j.expected ? j.done / j.expected : 0;
-  const label = j.kind === 'cache' ? (j.progress?.total ? `${esc(j.step)} ${j.progress.done}/${j.progress.total}` : esc(j.step)) : `${j.done}/${j.expected} ${unit}${j.live?.filter(l => l.state === 'working').length ? ` · ${j.live.filter(l => l.state === 'working').length} working` : ''}`;
+  const label = j.kind === 'cache' ? (j.progress?.total ? `${esc(j.step)}${j.progress.part ? ': ' + esc(j.progress.part) : ''} ${j.progress.done}/${j.progress.total}` : esc(j.step)) : `${j.done}/${j.expected} ${unit}${j.live?.filter(l => l.state === 'working').length ? ` · ${j.live.filter(l => l.state === 'working').length} working` : ''}`;
   const frac = j.kind === 'cache' && j.progress?.total ? (j.done + j.progress.done / j.progress.total) / j.expected : share;
   return `<div class="mini"><span class="status ${j.limit_wait ? 'warning' : 'good'}">${j.limit_wait ? 'waiting on a usage limit' : 'running'}</span><div class="bar"><span style="width:${Math.max(2, frac * 100)}%"></span></div><span class="muted small">${label}</span></div>`;
 }
@@ -446,7 +446,7 @@ function buildPanel(j, c) {
     <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span class="status ${st[0]}">${esc(st[1])}</span>
       <span class="muted small">started ${fmt.dt(j.started_at)} · ${fmt.ms(j.elapsed)} so far</span>
       ${j.status === 'running' ? `<button class="danger" data-cancel="${j.id}" style="margin-left:auto">Cancel</button>` : ''}</div>
-    <ol class="steps">${steps.map((x, i) => `<li class="${i < j.done ? 'done' : x === j.step ? 'now' : ''}">${esc(x)}${x === j.step && j.progress?.total ? ` <span class="muted small">${j.progress.done} / ${j.progress.total} changes</span><div class="bar"><span style="width:${(j.progress.done / j.progress.total) * 100}%"></span></div>` : ''}</li>`).join('')}</ol>
+    <ol class="steps">${steps.map((x, i) => `<li class="${i < j.done ? 'done' : x === j.step ? 'now' : ''}">${esc(x)}${x === j.step && j.progress?.total ? ` <span class="muted small">${j.progress.part ? esc(j.progress.part) + ': ' : ''}${j.progress.done} / ${j.progress.total} ${j.progress.part ? '' : x === 'understand' ? 'calls' : 'changes'}</span><div class="bar"><span style="width:${(j.progress.done / j.progress.total) * 100}%"></span></div>` : ''}</li>`).join('')}</ol>
     <details ${j.status === 'running' ? 'open' : ''}><summary class="muted small">Log</summary><pre>${esc(j.log || '')}</pre></details>
   </div>`;
 }
