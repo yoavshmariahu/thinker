@@ -661,13 +661,21 @@ test('telemetry payload carries warm-up offers, the builds they led to, and whet
     store.log({ op: 'warmup-answer', choice: 'dismissed', client: 'codex', via: 'picker' });
     store.log({ op: 'warmup-start', source: 'git' });
     store.log({ op: 'warmup-done', ok: false, notes: 3, mined: 0, reason: 'unauthenticated' });
+    store.log({ op: 'warmup-issue', stage: 'build', reason: 'unauthenticated', detail: `Authentication required in ${tmpRepo}` });
+    store.log({ op: 'warmup-offer', client: 'claude', source: 'git', seconds: 60, notes: 3, retry: true });
     store.log({ op: 'warmup-start', source: 'git' });
     let payload = buildTelemetryPayload(store, { home: tmpHome, days: 1, all: false });
+    assert.deepEqual(payload.warmup.issues.map(i => [i.stage, i.reason]), [['build', 'unauthenticated']]);
+    assert.ok(payload.warmup.issues[0].at, 'when the issue happened');
+    assert.deepEqual(payload.warmup.issuesByStage, { start: 0, build: 1, stalled: 0 });
+    assert.equal(payload.warmup.retryOffers, 1);
+    assert.doesNotMatch(JSON.stringify(payload.warmup), /Authentication required/, 'the error\'s own words stay on the machine');
+    delete payload.warmup.issues; delete payload.warmup.issuesByStage; delete payload.warmup.retryOffers;
     const [failed, running] = payload.warmup.requests;
     assert.deepEqual([failed.outcome, failed.reason, running.outcome, running.endedAt], ['failed', 'unauthenticated', 'unfinished', null]);
     assert.ok(failed.startedAt <= failed.endedAt, 'a failed build says when it started and when it failed');
     delete payload.warmup.requests;
-    assert.deepEqual(payload.warmup, { schemaVersion: 1, windowDays: 30, warmMined: 10, offers: 1, offersToColdCaches: 1, started: 2, finished: 0, failed: 1, answeredWarm: 1, answeredNo: 0, answeredNever: 1, answersDismissed: 1, answersInPicker: 1, answeredWarmNotStarted: 0, offeredRepositories: 1, offeredThenStarted: 1, activeRepositoriesWarm: 0, activeRepositoriesCold: 1 });
+    assert.deepEqual(payload.warmup, { schemaVersion: 1, windowDays: 30, warmMined: 10, offers: 2, offersToColdCaches: 2, started: 2, finished: 0, failed: 1, answeredWarm: 1, answeredNo: 0, answeredNever: 1, answersDismissed: 1, answersInPicker: 1, answeredWarmNotStarted: 0, offeredRepositories: 1, offeredThenStarted: 1, activeRepositoriesWarm: 0, activeRepositoriesCold: 1 });
     // the second build finishes, having read its history: the repository in use is warm now
     fs.writeFileSync(path.join(store.dir, 'prs.json'), JSON.stringify({ local: { mined: Array.from({ length: 10 }, (_, i) => `c${i}`) } }));
     store.log({ op: 'warmup-done', ok: true, notes: 40, mined: 10 });

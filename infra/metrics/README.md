@@ -404,9 +404,14 @@ a request in the report's 24 hours. `requests` lists the newest 50 asked-for bui
 each with `startedAt`, `endedAt` (null while running or after a stop), `outcome` (`finished`, `failed`,
 `unfinished`), a failed build's `reason` code (an agent sign-in error such as `unauthenticated`, `incomplete`,
 `not-built`, `error`, or `other`; never free text) and the history `source` (`git` or `github`).
-Counts and times only, no repository names. The **Cache health** dashboard shows the counts, warm-up
-requests per day by outcome, and a table of every request newest first with when it failed and why;
-run `refresh` to add the cards (the layout is redrawn once).
+`issues` lists the newest 50 warm-up problems the machine recorded (`at`, `stage`: `start` when an
+asked-for warm-up could not start, `build` when it failed, `stalled` when it started and never ended
+within 6 hours; and a `reason` code), and `issuesByStage` counts them. Each is logged on the machine as
+a `warmup-issue` event whose `detail` (the error's own words) is never sent. A cache whose asked-for
+warm-up did not work, and is still cold, is offered a warm-up once more (`retryOffers`; once per
+repository per machine). Counts and times only, no repository names. The **Cache health** dashboard
+shows the counts, warm-up requests and issues per day, and tables of every request and every issue
+newest first; run `refresh` to add the cards (the layout is redrawn once).
 ## Website messages
 
 The bottom-right **Send us a message** button on the homepage and docs opens a

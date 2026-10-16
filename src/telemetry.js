@@ -14,7 +14,7 @@ import { Store, findRepoRoot } from './store.js';
 import { getDeviceId } from './device.js';
 import { detectClients } from './clients.js';
 import { deliveryMetrics } from './delivery-telemetry.js';
-import { minedCount, WARM_MINED } from './repo-onboard.js';
+import { minedCount, WARM_MINED, warmupIssueReason } from './repo-onboard.js';
 
 export const HOUR_MS = 60 * 60 * 1000;
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -183,14 +183,22 @@ export function verificationMetrics(store, { all = true } = {}) {
 // whose warm-up could not start (no signed-in agent). And whether the
 // repositories in use in the report's day are warm (WARM_MINED merged changes read) or cold now. `requests` lists
 // the newest builds, each start paired with its end in the same repository: when it started and ended, and a failed
-// build's reason code. Counts and times only, no repository names.
+// build's reason code. `issues` lists the newest warm-up problems the machine recorded (repo-onboard.js:logWarmupIssue:
+// could not start, failed, stalled) with their reason code, `issuesByStage` counts them, and `retryOffers` counts
+// the second offers made after one (repo-onboard.js:warmupRetryDue). Counts and times only, no repository names.
 export function warmupMetrics(store, { all = true, now = Date.now(), repos = null } = {}) {
   const since = new Date(now - HOLDOUT_WINDOW_DAYS * DAY_MS).toISOString();
   const events = readLog(store, { all }).filter(e => e.t >= since);
-  const offered = new Set(), accepted = new Set(), open = new Map(), requests = [];
-  const m = { offers: 0, offersToColdCaches: 0, started: 0, finished: 0, failed: 0, answeredWarm: 0, answeredNo: 0, answeredNever: 0, answersDismissed: 0, answersInPicker: 0, answeredWarmNotStarted: 0 };
+  const offered = new Set(), accepted = new Set(), open = new Map(), requests = [], issues = [];
+  const issuesByStage = { start: 0, build: 0, stalled: 0 };
+  const m = { offers: 0, offersToColdCaches: 0, started: 0, finished: 0, failed: 0, answeredWarm: 0, answeredNo: 0, answeredNever: 0, answersDismissed: 0, answersInPicker: 0, answeredWarmNotStarted: 0, retryOffers: 0 };
   for (const e of events) {
-    if (e.op === 'warmup-offer') { m.offers++; if (e.notes) m.offersToColdCaches++; offered.add(e.origin); }
+    if (e.op === 'warmup-offer') { m.offers++; if (e.notes) m.offersToColdCaches++; if (e.retry) m.retryOffers++; offered.add(e.origin); }
+    else if (e.op === 'warmup-issue') {
+      const stage = e.stage in issuesByStage ? e.stage : 'other';
+      issuesByStage[stage] = (issuesByStage[stage] || 0) + 1;
+      issues.push({ at: e.t, stage, reason: warmupReason(e.reason) });
+    }
     else if (e.op === 'warmup-start') {
       m.started++; if (offered.has(e.origin)) accepted.add(e.origin);
       const r = { startedAt: e.t, endedAt: null, outcome: 'unfinished', reason: null, source: e.source === 'github' ? 'github' : 'git' };
@@ -219,12 +227,13 @@ export function warmupMetrics(store, { all = true, now = Date.now(), repos = nul
     ...m, offeredRepositories: offered.size, offeredThenStarted: accepted.size,
     activeRepositoriesWarm: active.warm, activeRepositoriesCold: active.cold,
     requests: requests.slice(-WARMUP_REQUESTS_MAX),
+    issues: issues.slice(-WARMUP_REQUESTS_MAX), issuesByStage,
   };
 }
 // A failed build's reason is a code from commands/setup.js (an agent sign-in error, 'incomplete', 'not-built',
 // 'error'); anything else is sent as 'other' so free text never leaves the machine.
 const WARMUP_REQUESTS_MAX = 50;
-const warmupReason = reason => typeof reason === 'string' && /^[a-z_-]{1,32}$/.test(reason) ? reason : (reason ? 'other' : 'unknown');
+const warmupReason = warmupIssueReason;
 export function holdoutMetrics(store, { all = true, now = Date.now() } = {}) {
   const since = new Date(now - HOLDOUT_WINDOW_DAYS * DAY_MS).toISOString();
   const events = readLog(store, { all }).filter(e => e.t >= since);
