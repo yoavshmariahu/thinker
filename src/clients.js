@@ -715,14 +715,35 @@ export function trustCodex(repo) {
   fs.writeFileSync(file, text);
   return [`Codex: marked this repository as trusted${n ? ` and thinker's ${n} hooks as reviewed` : ''} in ${file}`];
 }
-// Mark thinker's hooks in the user's own hooks.json as reviewed.
+// Codex's subagents ([features] multi_agent): a warm-up in the Codex app reads through a subagent of the
+// session (repo-onboard.js:SUBAGENT_TOOLS). On by default since Codex 0.160; set outright for older versions
+// and for a config that turned it off. Other keys of [features] (hooks) are kept.
+export function codexSubagentsOn(text) { return /^\[features\][^\[]*^\s*multi_agent\s*=\s*true\b/m.test(text); }
+export function enableCodexSubagents({ file = codexConfig() } = {}) {
+  const cur = readText(file);
+  if (codexSubagentsOn(cur)) return [];
+  const lines = cur.split('\n'); const at = lines.findIndex(l => l.trim() === '[features]');
+  let next;
+  if (at < 0) next = (cur.trimEnd() ? cur.trimEnd() + '\n\n' : '') + '[features]\nmulti_agent = true\n';
+  else {
+    let end = lines.findIndex((l, i) => i > at && /^\s*\[/.test(l)); if (end < 0) end = lines.length;
+    const key = lines.findIndex((l, i) => i > at && i < end && /^\s*multi_agent\s*=/.test(l));
+    if (key >= 0) lines[key] = 'multi_agent = true'; else lines.splice(at + 1, 0, 'multi_agent = true');
+    next = lines.join('\n');
+  }
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, next);
+  return [`Codex: turned on subagents ([features] multi_agent = true) in ${file}`];
+}
+// Mark thinker's hooks in the user's own hooks.json as reviewed, and turn Codex's subagents on.
 export function trustCodexUser() {
   const file = codexConfig();
+  const done = enableCodexSubagents({ file });
   const { text, n } = trustHooksIn(readText(file), wiringFiles('codex', { scope: 'user' }).hooks, null);
-  if (!n) return [];
+  if (!n) return done;
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, text);
-  return [`Codex: marked thinker's ${n} hooks as reviewed in ${file}`];
+  return [...done, `Codex: marked thinker's ${n} hooks as reviewed in ${file}`];
 }
 function untrustCodexHooks(hooksFile) {
   const file = codexConfig();

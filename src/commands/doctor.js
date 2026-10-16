@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { thinkerHome, detectInstall, isScheduled } from '../update.js';
-import { USER_SCOPE_CLIENTS, detectClients, inferWiring, refreshWiring, pruneInstalls, prunedLines, installClient, trustCodexUser } from '../clients.js';
+import { USER_SCOPE_CLIENTS, detectClients, inferWiring, refreshWiring, pruneInstalls, prunedLines, installClient, trustCodexUser, enableCodexSubagents } from '../clients.js';
 import { HOOKS } from '../git-hooks.js';
 import { postCommitHook } from '../maintain.js';
 import { gitHookPath } from '../store.js';
@@ -111,6 +111,11 @@ async function runChecks(ctx) {
         if (client === 'codex') trustCodexUser();
       },
     });
+  }
+  // Codex's subagents, which a warm-up in the Codex app reads through: turned on, not reported, as the PATH line
+  if (detected.includes('codex') && !unwired.includes('codex')) {
+    let turned = []; try { turned = enableCodexSubagents(); } catch (e) { add('codex subagents', 'warn', `could not turn them on: ${e.message}`); }
+    if (turned.length) add('codex subagents', 'ok', 'turned on ([features] multi_agent = true in ~/.codex/config.toml)');
   }
   if (unwired.length) {
     add('agents', 'fail', `thinker is not wired into ${unwired.join(', ')}`, {
