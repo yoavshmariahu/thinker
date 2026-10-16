@@ -1,7 +1,8 @@
 // Arms defined as data: another tool run as an arm of an experiment, kept in the evals database
 // rather than in a runner's code. A definition says what the agent session is given — MCP servers,
 // hooks, system-prompt text, env — and what runs in the worktree before and after each session (an
-// index build, its teardown), for the Claude Code runner (bench/run.js --arm-defs). `{cwd}` in any
+// index build, its teardown), for the Claude Code runner (bench/run.js --arm-defs) and the Codex runner
+// (bench/codex-run.js --arm-defs: MCP servers into .codex/config.toml, the text atop AGENTS.md, no hooks). `{cwd}` in any
 // string is the session's worktree. A plan records the full definition of every arm it runs, so an
 // experiment keeps what its arms were even after a definition changes.
 import fs from 'node:fs';
@@ -13,7 +14,7 @@ const NAME = /^[a-z][a-z0-9._-]{0,40}$/;
 // the runners' own arms; a defined arm never shadows one
 const RESERVED = [...BASELINE_ARMS, 'cache', 'hook', 'live', 'prompt', 'late', 'late+nudge', 'irrelevant', 'naive', 'full', 'thinker', 'after',
   'rerank', 'hook-bm25', 'hook-minilm', 'hook-ce', 'hook-ce1', 'hook-ce2'];
-const RUNNERS = ['claude'];
+const RUNNERS = ['claude', 'codex'];
 const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
 const strings = (v, what) => { if (!Array.isArray(v) || !v.length || !v.every(x => typeof x === 'string')) throw new Error(`${what} is a non-empty list of strings`); };
 
@@ -36,6 +37,11 @@ export function defineArm(db, body) {
   if (typeof body.notes !== 'boolean') throw new Error("notes: true when the arm is served thinker's notes, false otherwise");
   for (const k of ['mcpServers', 'hooks', 'env']) if (body[k] != null && !isObj(body[k])) throw new Error(`${k} is an object`);
   if (body.env && !Object.values(body.env).every(v => typeof v === 'string')) throw new Error('env values are strings');
+  if (runner === 'codex' && body.hooks) throw new Error('the Codex runner takes no hooks: leave them out');
+  for (const [k, m] of Object.entries(body.mcpServers || {})) {
+    if (!isObj(m) || typeof m.command !== 'string') throw new Error(`mcpServers.${k} needs a command`);
+    if (m.enabled_tools != null) strings(m.enabled_tools, `mcpServers.${k}.enabled_tools`);
+  }
   if (body.system != null && typeof body.system !== 'string') throw new Error('system is text');
   if (body.exclude != null) strings(body.exclude, 'exclude');
   checkStep(body.before, 'before'); checkStep(body.after, 'after');
