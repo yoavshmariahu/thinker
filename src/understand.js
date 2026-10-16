@@ -116,8 +116,9 @@ export async function understand(store, { top, since, halfLife, areas = [], batc
       let r = null;
       for (let a = 0; a < 3 && !r; a++) { try { r = await completeFn({ model, system: UNDERSTAND_SYSTEM, prompt: `CODE in ${b.dir}:\n${b.body.join('\n\n')}`, schema: SCHEMA, maxTokens: 16000, timeoutMs: 900_000, accounting: { store, purpose: 'understand', phase: 'build' } }); } catch {} }
       if (!r) failed++;
-      const u = r?.usage || {};
-      tokens += (u.input_tokens ?? u.inputTokens ?? 0) + (u.output_tokens ?? u.outputTokens ?? 0);
+      // complete() reports usage as `tokens` (src/llm.js); `usage` is the provider's raw form, empty under Codex
+      const u = r?.tokens || r?.usage || {};
+      tokens += (u.inputTokens ?? u.input_tokens ?? 0) + (u.outputTokens ?? u.output_tokens ?? 0);
       for (const n of r?.json?.notes || []) { const res = createNote(store, { ...n, tags: [b.dir] }, { source: { type: 'understanding', ref: b.files.join(',') } }); if (!res.error) made++; }
       finished++;
       onProgress?.(finished, batches.length, 'reading code');
