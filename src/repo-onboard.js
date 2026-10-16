@@ -23,7 +23,7 @@ import { githubSlug, selectAndAuthenticateAgent, getAgentLoginCommand } from './
 import { formatDuration } from './setup/ui.js';
 import { isTestMode } from './test-mode.js';
 import { WARMUP_CHOICES } from './warmup-choices.js';
-import { QUEUE_ENV, queueDir, markBuild, subagentPrompt } from './session-llm.js';
+import { QUEUE_ENV, queueDir, markBuild, requestBuild, subagentPrompt } from './session-llm.js';
 import { SUBAGENT_TOOLS, subagentHarness, desktopApp } from './app-host.js';
 export { SUBAGENT_TOOLS, subagentHarness, desktopApp };
 export { WARMUP_CHOICES };
@@ -267,7 +267,7 @@ export function startSessionWarmup(store, { spawnFn = spawn } = {}) {
 }
 
 // Once started, a warm-up needs nothing from the agent; naming its log invited agents to tail it (2026-10-16).
-const HANDS_OFF = 'It needs nothing more from you. Go on with the task.';
+const HANDS_OFF = 'It needs nothing more from you: do not check on it (no reading thinker\'s files or logs, no looking for its processes); thinker tells the user how it went. Go on with the task.';
 
 // The person's answer to the offer, from their agent's question tool (`thinker warmup --answer`) or
 // thinker's picker (mcp.js:warmup): warm starts the warm-up detached, through the agent's own login, with
@@ -297,7 +297,8 @@ export async function answerWarmup(store, choice, { client, via = 'picker', home
   }
   // in an app, or with no CLI login in a client whose agent can start a subagent: the session reads (session-llm.js)
   if (app || (!auth?.ok && harness)) {
-    const r = startSessionWarmup(store, { spawnFn });
+    // asked for here, started by thinker's MCP server when the subagent comes for it (session-llm.js:requestBuild)
+    let r = {}; try { requestBuild(queueDir(store)); } catch (e) { r = { error: e.message.slice(0, 120) }; }
     store.log({ op: 'warmup-answer', choice: value, client, via, started: !r.error, agent: 'session', ...(app ? { app } : {}), ...(r.error ? { reason: r.error } : {}) });
     if (r.error) logWarmupIssue(store, 'start', 'session-spawn', { detail: r.error, client });
     if (r.error) return `The warm-up did not start (${r.error}). The user can run \`thinker warmup\` in this repository. Go on with the task.`;

@@ -27,6 +27,18 @@ export function buildRunning(dir) {
   try { process.kill(b.pid, 0); return true; } catch (e) { return e.code === 'EPERM'; }
 }
 
+// A warm-up asked for by the session's shell (repo-onboard.js:answerWarmup) and started by thinker's MCP
+// server when the session's subagent first calls warmup_next (mcp-server.js): Cursor runs its agent's commands
+// in a sandbox with no network and no writes outside the workspace (2026-10-16, photocraft: `gh pr list`
+// failed, ~/.codex refused), and a build started there inherits it; the server runs outside it.
+const REQUEST = 'build-request.json';
+export function requestBuild(dir) { fs.mkdirSync(dir, { recursive: true }); writeAtomic(path.join(dir, REQUEST), { t: new Date().toISOString() }); }
+// asked for and not yet started, within the time a subagent has to come for it
+export function buildRequested(dir, { maxAgeMs = UNCLAIMED_MS } = {}) {
+  const r = readJson(path.join(dir, REQUEST));
+  return !!r?.t && Date.now() - Date.parse(r.t) < maxAgeMs;
+}
+
 // provider `session`: one request in, its answer out, or an error once nobody took it in time
 export async function viaSession({ system, prompt, schema }, { dir = process.env[QUEUE_ENV], pollMs = 1000, unclaimedMs = UNCLAIMED_MS, claimedMs = CLAIMED_MS } = {}) {
   if (!dir) throw new Error(`the session provider needs ${QUEUE_ENV}: it is started by a warm-up answered in an agent session`);
@@ -51,9 +63,13 @@ export async function viaSession({ system, prompt, schema }, { dir = process.env
 
 // warmup_next: the oldest waiting request, taken (an atomic rename, so two takers never share one);
 // { done } once the build has ended with nothing waiting; { waiting } when none came within waitMs.
-export async function nextRequest(dir, { waitMs = 45_000, pollMs = 500 } = {}) {
+// start: called while a build is asked for and not running (it starts one). A subagent may call before the
+// session's shell has asked (Cursor started its subagent first, 2026-10-16), so a queue that never had a
+// build waits out waitMs before it reads as done.
+export async function nextRequest(dir, { waitMs = 45_000, pollMs = 500, start: startBuild } = {}) {
   const start = Date.now();
   for (;;) {
+    if (startBuild && buildRequested(dir) && !buildRunning(dir)) { const r = startBuild(); if (r?.error) return { error: r.error }; }
     let names = []; try { names = fs.readdirSync(dir).filter(n => n.endsWith('.req.json')).sort(); } catch {}
     for (const n of names) {
       const id = n.slice(0, -'.req.json'.length);
@@ -61,7 +77,8 @@ export async function nextRequest(dir, { waitMs = 45_000, pollMs = 500 } = {}) {
       const r = readJson(file(dir, id, 'claimed'));
       if (r) return { request: r };
     }
-    if (!buildRunning(dir)) return { done: true };
+    const never = !fs.existsSync(path.join(dir, 'build.json'));
+    if (!buildRunning(dir) && !(never && Date.now() - start < waitMs)) return { done: true };
     if (Date.now() - start >= waitMs) return { waiting: true };
     await sleep(pollMs);
   }

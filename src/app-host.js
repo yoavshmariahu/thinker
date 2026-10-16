@@ -13,13 +13,14 @@ export const SUBAGENT_TOOLS = { claude: 'your Agent tool, with run_in_background
 export const subagentHarness = client => { const n = String(client || '').toLowerCase(); return n === 'claude' || n.startsWith('claude-code') ? 'claude' : n.includes('codex') ? 'codex' : n.includes('cursor') ? 'cursor' : null; };
 
 // Claude Desktop says so in the env it starts Claude Code with (CLAUDE_CODE_ENTRYPOINT=claude-desktop, seen
-// 2026-10-16); the Codex app (inside ChatGPT.app) and Cursor set nothing (the Codex app's MCP servers get
-// HOME, PATH and little else), so their app is found among this process's ancestors. A CLI in a terminal has
+// 2026-10-16), Cursor in its agent's shell (CURSOR_AGENT=1: its sandbox hides the process tree from ps, so
+// the ancestry came back empty, 2026-10-16); the Codex app (inside ChatGPT.app) and Cursor's MCP servers get
+// HOME, PATH and little else, so their app is found among this process's ancestors. A CLI in a terminal has
 // neither; Claude Code's own CLI bundle (~/.local/share/claude/ClaudeCode.app) is not Claude.app.
 const APPS = {
   claude: { name: 'Claude Desktop', env: e => e.CLAUDE_CODE_ENTRYPOINT === 'claude-desktop', bundle: /\/Claude\.app\/Contents\// },
   codex: { name: 'the Codex app', bundle: /\/(ChatGPT|Codex)\.app\/Contents\// },
-  cursor: { name: 'Cursor', bundle: /\/Cursor\.app\/Contents\// },
+  cursor: { name: 'Cursor', env: e => e.CURSOR_AGENT === '1', bundle: /\/Cursor\.app\/Contents\// },
 };
 export function processAncestry(pid = process.ppid, { max = 16, execFn = execFileSync } = {}) {
   const out = [];

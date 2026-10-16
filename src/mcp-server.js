@@ -14,9 +14,9 @@ import { ensureTelemetryScheduled, reportTelemetrySchedule } from './telemetry-s
 import { initAst } from './ast.js';
 import { cacheInstructions, disabledTools, MORE_NOTES_INTRO } from './cache-guidance.js';
 import { isDisabledRepo } from './repo-switch.js';
-import { warmupPending, answerWarmup, WARMUP_CHOICES } from './repo-onboard.js';
+import { warmupPending, answerWarmup, startSessionWarmup, WARMUP_CHOICES } from './repo-onboard.js';
 import { coveragePending, answerCoverage } from './coverage.js';
-import { queueDir, buildRunning, nextRequest, answerRequest, requestText } from './session-llm.js';
+import { queueDir, buildRunning, buildRequested, nextRequest, answerRequest, requestText } from './session-llm.js';
 import { anyDesktopApp } from './app-host.js';
 
 // MCP-only installations need the same default OS schedule as CLI/hook users.
@@ -318,7 +318,7 @@ const queueStore = cwd => { const r = checkoutOf(cwd); return r ? (r === repo ? 
 function registerQueueTools() {
   if (queueTools) return;
   inApp ??= anyDesktopApp();
-  if (!(inApp || (store && (warmupPending(store) || buildRunning(queueDir(store)))))) return;
+  if (!(inApp || (store && (warmupPending(store) || buildRunning(queueDir(store)) || buildRequested(queueDir(store)))))) return;
   const noRepo = text('Pass cwd: the absolute path of the repository whose warm-up you are answering.');
   queueTools = [server.registerTool('warmup_next', {
     title: 'Take the warm-up\'s next model request',
@@ -327,7 +327,9 @@ function registerQueueTools() {
   }, async ({ cwd } = {}) => {
     const s = queueStore(cwd); if (!s) return noRepo;
     // under the clients' tool timeouts (Codex: 60s), so an empty wait returns and is called again
-    const r = await nextRequest(queueDir(s), { waitMs: 25_000 });
+    // a warm-up the session's shell asked for starts here, outside the app's command sandbox (session-llm.js:requestBuild)
+    const r = await nextRequest(queueDir(s), { waitMs: 25_000, start: () => startSessionWarmup(s) });
+    if (r.error) return text(`The warm-up could not start (${r.error}). Stop, and reply with that one line.`);
     if (r.request) return text(requestText(r.request));
     if (r.waiting) return text('Nothing has come yet: the warm-up is still reading. Call warmup_next again.');
     return text(`The work is done: the cache holds ${s.list().length} notes. Stop.`);

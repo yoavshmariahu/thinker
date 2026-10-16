@@ -10,7 +10,8 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store, repoId } from '../src/store.js';
-import { WARM_MINED, WARMUP_STALL_MS, minedCount, answerWarmup, warmupPending, warmupNever, warmupRetryDue, desktopApp } from '../src/repo-onboard.js';
+import { WARM_MINED, WARMUP_STALL_MS, minedCount, answerWarmup, warmupPending, warmupNever, warmupRetryDue, desktopApp, startSessionWarmup } from '../src/repo-onboard.js';
+import { queueDir, buildRequested } from '../src/session-llm.js';
 import { createNote } from '../src/ops.js';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
@@ -213,19 +214,23 @@ test('the answer: no closes this repository, never closes every repository, warm
   for (const client of ['claude-code', 'codex-mcp-client', 'cursor-vscode']) {
     const s = new Store(gitRepo(8)).init();
     let run;
-    const said = await answerWarmup(s, 'warm', { client, home, appFn: () => null, selectAgentFn: async () => ({ ok: false, agent: 'claude', error: 'unauthenticated' }), spawnFn: (bin, args, o) => { run = { args, o }; return { pid: 999999, unref() {} }; } });
-    assert.match(said, /reads through this session/); assert.match(said, /warmup_next/);
+    const said = await answerWarmup(s, 'warm', { client, home, appFn: () => null, selectAgentFn: async () => ({ ok: false, agent: 'claude', error: 'unauthenticated' }), spawnFn: () => { run = true; } });
+    assert.match(said, /reads through this session/); assert.match(said, /warmup_next/); assert.match(said, /do not check on it/);
     assert.match(said, { 'claude-code': /Agent tool, with run_in_background/, 'codex-mcp-client': /spawn_agent/, 'cursor-vscode': /Task tool/ }[client]);
+    // asked for, not started: the MCP server starts it outside the app's command sandbox (Cursor's has no network)
+    assert.equal(run, undefined); assert.ok(buildRequested(queueDir(s)));
+    startSessionWarmup(s, { spawnFn: (bin, args, o) => { run = { args, o }; return { pid: 999999, unref() {} }; } });
     assert.deepEqual(run.args.slice(1).filter(a => !a.startsWith('/')), ['setup', '--build', '--yes', '--no-ui', '--no-benchmark', '--no-docs', '--prs', '12', '--agent', 'session', '--repo']);
     assert.equal(run.o.env.THINKER_SESSION_QUEUE, path.join(s.dir, 'state', 'session-llm'));
+    assert.ok(!buildRequested(queueDir(s)), 'started: the request is gone');
     assert.deepEqual(['started', 'agent'].map(k => ops(s.repo).find(e => e.op === 'warmup-answer')[k]), [true, 'session']);
   }
   // in a desktop app the session reads, even with a CLI signed in: its login is not even checked
   const inApp = new Store(gitRepo(8)).init();
-  let checked = false, appRun;
-  const appSaid = await answerWarmup(inApp, 'warm', { client: 'claude-code', home, appFn: h => h === 'claude' ? 'Claude Desktop' : null, selectAgentFn: async () => { checked = true; return { ok: true, agent: 'claude' }; }, spawnFn: (bin, args, o) => { appRun = args; return { pid: 999999, unref() {} }; } });
+  let checked = false;
+  const appSaid = await answerWarmup(inApp, 'warm', { client: 'claude-code', home, appFn: h => h === 'claude' ? 'Claude Desktop' : null, selectAgentFn: async () => { checked = true; return { ok: true, agent: 'claude' }; } });
   assert.match(appSaid, /runs in Claude Desktop, so the warm-up reads through it/); assert.match(appSaid, /run_in_background/);
-  assert.equal(checked, false); assert.ok(appRun.includes('session'));
+  assert.equal(checked, false); assert.ok(buildRequested(queueDir(inApp)));
   assert.equal(ops(inApp.repo).find(e => e.op === 'warmup-answer').app, 'Claude Desktop');
   // no agent signed in, in a client with no subagents (Claude's chat app): nothing is started, and the agent
   // is told so, with the sign-in command
@@ -284,6 +289,8 @@ test('the desktop app a session runs in: Claude Desktop by its env or its proces
   assert.equal(desktopApp('claude', { env: { CLAUDE_CODE_ENTRYPOINT: 'cli' }, ancestry: ['/Users/u/.local/share/claude/ClaudeCode.app/Contents/MacOS/claude'] }), null);
   assert.equal(desktopApp('codex', { env: {}, ancestry: ['/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex', '/Applications/ChatGPT.app/Contents/MacOS/ChatGPT'] }), 'the Codex app');
   assert.equal(desktopApp('cursor', { env: {}, ancestry: ['Cursor Helper (Plugin)', '/Applications/Cursor.app/Contents/MacOS/Cursor'] }), 'Cursor');
+  // Cursor's agent shell: its sandbox hides the process tree, the env says so (2026-10-16)
+  assert.equal(desktopApp('cursor', { env: { CURSOR_AGENT: '1' }, ancestry: [] }), 'Cursor');
   for (const h of ['claude', 'codex', 'cursor']) assert.equal(desktopApp(h, none), null);
   assert.equal(desktopApp('gemini', { env: {}, ancestry: ['/Applications/Claude.app/Contents/MacOS/Claude'] }), null);
 });
