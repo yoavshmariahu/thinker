@@ -7,7 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { repoFile, symbolBlock, locateSymbol } from './deps.js';
+import { repoFile, symbolBlock, locateSymbol, blockEnd, langOf } from './deps.js';
 import { definitions, astReady } from './ast.js';
 import { tokenize } from './rank.js';
 
@@ -29,29 +29,61 @@ const callLine = name => new RegExp(`(?:^|[^\\w.])${esc(name)}\\s*!?\\(|\\.${esc
 const importLine = /^\s*(?:import\b|from\b.*\bimport\b|use\b|require\(|#include)/;
 function esc(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
-function gitGrep(repo, args, { maxBuffer = 16 * 1024 * 1024 } = {}) {
-  try {
-    const lines = execFileSync('git', ['grep', '-n', '-I', '--untracked', '--no-color', ...args], { cwd: repo, stdio: ['ignore', 'pipe', 'ignore'], maxBuffer, timeout: 10_000 }).toString().split('\n').filter(Boolean);
-    // `--untracked` reaches into a checkout nested under this one (a benchmark's clone, a worktree
-    // left in a run directory): not this repository's code. Judged once per directory per call.
-    const nested = new Map();
-    const inNested = file => {
-      const seen = []; let dir = path.posix.dirname(file), hit = false;
-      for (; dir && dir !== '.' && dir !== '/'; dir = path.posix.dirname(dir)) {
-        if (nested.has(dir)) { hit = nested.get(dir); break; }
-        seen.push(dir);
-        if (fs.existsSync(path.join(repo, dir, '.git'))) { hit = true; break; }
-      }
-      for (const d of seen) nested.set(d, hit);
-      return hit;
-    };
-    return lines.filter(l => !inNested(l.slice(0, l.indexOf(':'))));
-  } catch (e) {
-    if (e.status === 1) return []; // no match
-    return null; // not a git repository, timeout, or git missing: unknown
-  }
+// Untracked files a search must still reach (a file the agent just wrote), listed once a second per
+// checkout: `git grep --untracked` walks every ignored directory to find them, 4.6 s of a 12 s scan on
+// PostHog for its 6 untracked entries (2026-10-16), where listing them takes 0.3 s.
+const untrackedSeen = new Map();
+function untrackedFiles(repo) {
+  const hit = untrackedSeen.get(repo);
+  if (hit && Date.now() - hit.at < 1000) return hit.files;
+  let files = [];
+  try { files = execFileSync('git', ['ls-files', '-o', '--exclude-standard', '-z'], { cwd: repo, stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 16 << 20, timeout: 10_000 }).toString().split('\0').filter(f => f && !f.endsWith('/')); } catch { files = null; }  // a trailing slash: a nested checkout, not this repository's code
+  untrackedSeen.set(repo, { at: Date.now(), files });
+  return files;
 }
-export const isTestPath = p => /(^|\/)(tests?|__tests__|spec)\/|(^|\/)test_[^/]*$|\.(test|spec)\.\w+$|_test\.\w+$/.test(p);
+// The pathspecs git grep takes here, matched in JS for the untracked files: `.`, a path or prefix, a
+// `*.ext` glob (any directory, as git matches it), and `:(exclude)` of either.
+const specMatcher = specs => {
+  const re = g => new RegExp('^' + g.split('*').map(esc).join('.*') + '(/|$)');
+  const inc = [], exc = [];
+  for (const sp of specs) { const m = /^:\(exclude\)(.*)$/.exec(sp); (m ? exc : inc).push(m ? m[1] : sp); }
+  const test = (g, f) => g === '.' || (g.includes('*') ? re(g).test(f) : f === g || f.startsWith(g.replace(/\/$/, '') + '/'));
+  return f => (!inc.length || inc.some(g => test(g, f))) && !exc.some(g => test(g, f));
+};
+function gitGrep(repo, args, { maxBuffer = 16 * 1024 * 1024 } = {}) {
+  const dash = args.indexOf('--');
+  const pats = dash >= 0 ? args.slice(0, dash) : args, specs = dash >= 0 ? args.slice(dash + 1) : [];
+  const run = argv => {
+    try { return execFileSync('git', argv, { cwd: repo, stdio: ['ignore', 'pipe', 'ignore'], maxBuffer, timeout: 10_000 }).toString().split('\n').filter(Boolean); }
+    catch (e) { if (e.status === 1) return []; return null; } // 1: no match; else not a repository, a timeout, or git missing
+  };
+  const tracked = run(['grep', '-n', '-I', '--no-color', ...args]);
+  if (tracked === null) return null;
+  const extra = untrackedFiles(repo);
+  if (extra === null) { const all = run(['grep', '-n', '-I', '--untracked', '--no-color', ...args]); return all === null ? null : dropNested(repo, all); }
+  const files = extra.filter(specMatcher(specs.length ? specs : ['.']));
+  if (!files.length) return tracked;
+  const more = [];
+  for (let k = 0; k < files.length; k += 500) { const part = run(['grep', '--no-index', '-n', '-I', '--no-color', ...pats, '--', ...files.slice(k, k + 500)]); if (part === null) return null; more.push(...part); }
+  return [...tracked, ...dropNested(repo, more)];
+}
+// a checkout nested under this one (a benchmark's clone, a worktree left in a run directory) is not this
+// repository's code; judged once per directory per call
+function dropNested(repo, lines) {
+  const nested = new Map();
+  const inNested = file => {
+    const seen = []; let dir = path.posix.dirname(file), hit = false;
+    for (; dir && dir !== '.' && dir !== '/'; dir = path.posix.dirname(dir)) {
+      if (nested.has(dir)) { hit = nested.get(dir); break; }
+      seen.push(dir);
+      if (fs.existsSync(path.join(repo, dir, '.git'))) { hit = true; break; }
+    }
+    for (const d of seen) nested.set(d, hit);
+    return hit;
+  };
+  return lines.filter(l => !inNested(l.slice(0, l.indexOf(':'))));
+}
+export const isTestPath = p => /(^|\/)(tests?|__tests__|__mocks__|spec)\/|(^|\/)test_[^/]*$|\.(test|spec)\.\w+$|_test\.\w+$/.test(p);
 const parseLine = l => { const m = /^(.+?):(\d+):(.*)$/.exec(l); return m ? { path: m[1], line: Number(m[2]), text: m[3] } : null; };
 
 // Where `name` occurs in files of the family of `file` (every tracked file when there is none):
@@ -151,11 +183,28 @@ export function definitionOf(repo, ident) {
   return { def: defs.length === 1 ? defs[0] : null, count: defs.length };
 }
 
+// The definitions of each name: one fixed-string, whole-word git grep for all of them, the definition
+// patterns matched here on the lines it returns. A regex scan per name took 5 s on PostHog's 53,000 files and,
+// under load, ran into the 10 s timeout and answered nothing (find replayed 2026-10-16: every exact match lost,
+// 10-55 s a query); the literal scan takes about 1.4 s for any number of names.
+const DEF_KEYWORDS = '(?:def|class|function|fn|func|type|interface|struct|trait|enum|impl)';
+const defPatterns = name => { const n = esc(name); return [new RegExp(`${DEF_KEYWORDS}\\s+${n}(?![A-Za-z0-9_])`), new RegExp(`(?:const|let|var)\\s+${n}\\s*[=:]`), new RegExp(`func\\s*\\([^)]*\\)\\s*${n}\\s*\\(`)]; };
+export function findDefinitionsMany(repo, names, { limit = 10 } = {}) {
+  const want = [...new Set((names || []).filter(n => /^[A-Za-z_$][\w$]*$/.test(n)))];
+  const out = new Map(want.map(n => [n, []]));
+  if (!want.length) return out;
+  const raw = gitGrep(repo, ['-F', '-w', ...want.flatMap(n => ['-e', n]), '--', '.', ':(exclude).thinker', ':(exclude)*.md', ':(exclude)*.json']);
+  if (!raw) return raw === null ? null : out;
+  const pats = new Map(want.map(n => [n, defPatterns(n)]));
+  for (const l of raw) {
+    const r = parseLine(l); if (!r) continue;
+    for (const n of want) { const list = out.get(n); if (list.length < limit && r.text.includes(n) && pats.get(n).some(p => p.test(r.text))) list.push(r); }
+  }
+  return out;
+}
 export function findDefinitions(repo, name, { limit = 10 } = {}) {
-  const sp = '[[:space:]]';
-  const raw = gitGrep(repo, ['-E', '-e', `(def|class|function|fn|func|type|interface|struct|trait|enum|impl)${sp}+${esc(name)}[^[:alnum:]_]`, '-e', `(const|let|var)${sp}+${esc(name)}${sp}*[=:]`, '-e', `func${sp}*\\([^)]*\\)${sp}*${esc(name)}${sp}*\\(`, '--', '.', ':(exclude).thinker', ':(exclude)*.md', ':(exclude)*.json']);
-  if (!raw) return null;
-  return raw.map(parseLine).filter(Boolean).slice(0, limit);
+  const m = findDefinitionsMany(repo, [name], { limit });
+  return m ? m.get(name) || [] : null;  // [] when the name has no definition, null when the search failed
 }
 
 // Definitions that carry the words of a query, in their name or in their body: find("flag default
@@ -175,9 +224,16 @@ const globRe = g => new RegExp('(^|/)' + g.split('**').map(p => p.split('*').map
 export function findSymbols(repo, query, { scope, limit = 12, files: maxFiles = 50 } = {}) {
   const q = String(query || '').trim();
   const ident = /^[A-Za-z_$][\w$]*$/.test(q) ? q : null;
-  const toks = [...new Set([...(ident ? [ident.toLowerCase()] : []), ...tokenize(q)])].filter(t => t.length >= 3).slice(0, 12);
-  if (!toks.length) return { hits: [], toks, more: false };
   const inScope = scope ? (/[*?]/.test(scope) ? (re => p => re.test(p))(globRe(scope)) : p => p.includes(scope)) : () => true;
+  // the identifiers the query names, by their own definitions (exactFirst); one that has them is searched
+  // below as itself (its callers and tests), not split into words: get_parameter_source as "get", "paramet",
+  // "sourc" matched most of the checkout, and common words made the scan 8 s on PostHog
+  const first = exactFirst(repo, q, ident, { inScope, scope });
+  const found = new Set(first.flatMap(e => [e.name, e.parent].filter(Boolean)));
+  const terms = q.split(/[\s,()]+/).filter(Boolean);
+  const words = terms.flatMap(t => { const n = t.split('.').pop(); return found.has(n) || found.has(t) ? [n.toLowerCase()] : tokenize(t); });
+  const toks = [...new Set([...(ident ? [ident.toLowerCase()] : []), ...words])].filter(t => t.length >= 3).slice(0, 12);
+  if (!toks.length) return { hits: [], toks, more: false };
   const specs = [...CODE_EXT].map(e => `*.${e}`);
   // 1. the files that mention the words, most first (tests count for less)
   const counted = gitGrep(repo, ['-c', '-F', '-i', ...toks.flatMap(t => ['-e', t]), '--', ...specs, ...EXCLUDES], { maxBuffer: 64 * 1024 * 1024 });
@@ -205,17 +261,22 @@ export function findSymbols(repo, query, { scope, limit = 12, files: maxFiles = 
       // definition indented no deeper than this one.
       let lines = null; try { lines = fs.readFileSync(repoFile(repo, file), 'utf8').split('\n'); } catch {}
       const indent = d => lines ? /^\s*/.exec(lines[d.line - 1] || '')[0].length : 0;
-      for (let i = 0; i < defs.length; i++) {
-        if (defs[i].end) continue;
+      // ends are found only for the definitions a matching line could sit in, the nearest first: matching
+      // every definition's block in the 50 files cost 5 s a query on PostHog (2026-10-16)
+      const endOf = i => {
+        if (defs[i].end) return defs[i].end;
         const sibling = defs.slice(i + 1).find(d => d.line > defs[i].line && indent(d) <= indent(defs[i]));
         const cap = sibling ? sibling.line - 1 : Infinity;
-        const loc = lines && locateSymbol(lines.join('\n'), defs[i].parent ? `${defs[i].parent}.${defs[i].name}` : defs[i].name, file);
-        defs[i].end = loc && loc.start + 1 === defs[i].line ? Math.min(loc.end, cap) : (i + 1 < defs.length ? defs[i + 1].line - 1 : Infinity);
-      }
+        // the block from the line the outline gave: locating the name again rescanned the whole file per definition
+        const end = lines && defs[i].line >= 1 ? blockEnd(lines, defs[i].line - 1, langOf(file)) : null;
+        return (defs[i].end = Number.isFinite(end) && end >= defs[i].line - 1 ? Math.min(end, cap) : (i + 1 < defs.length ? defs[i + 1].line - 1 : Infinity));
+      };
       for (const d of defs) cand(file, d);
       for (const r of rows) {
-        let enc = null; // the innermost definition enclosing the line
-        for (const d of defs) { if (d.line > r.line) break; if (r.line <= d.end && (!enc || d.line >= enc.line)) enc = d; }
+        let enc = null; // the innermost definition enclosing the line: the latest-starting one whose block reaches it
+        let k = defs.length - 1; while (k >= 0 && defs[k].line > r.line) k--;
+        for (; k >= 0; k--) if (r.line <= endOf(k)) { enc = defs[k]; break; }
+        if (enc) cand(file, enc).end = enc.end;
         if (!enc) continue;
         const c = cand(file, enc); c.mentions++;
         for (const t of toks) if (has(r.text, t)) c.body.set(t, (c.body.get(t) || 0) + 1);
@@ -225,7 +286,7 @@ export function findSymbols(repo, query, { scope, limit = 12, files: maxFiles = 
   // 4. score: a word in the name above one in the body above one in the path; a word on few lines
   // weighs more than one on hundreds; a definition that covers more of the words comes first
   const weight = t => 1 / (1 + Math.log(1 + (lineCount.get(t) || 0) / 20));
-  const scored = [];
+  let scored = [];
   for (const c of cands.values()) {
     const nl = c.name.toLowerCase(), nt = new Set(tokenize(c.name)), pt = new Set(tokenize(c.path)), par = (c.parent || '').toLowerCase();
     let s = 0, cover = 0;
@@ -248,24 +309,59 @@ export function findSymbols(repo, query, { scope, limit = 12, files: maxFiles = 
     scored.push({ ...c, score: Math.round(s * 100) / 100 });
   }
   scored.sort((a, b) => b.score - a.score || a.path.localeCompare(b.path) || a.line - b.line);
-  // One identifier: the definitions carrying exactly that name come first, whatever their size. The word
-  // search above skips files over 400 kB and bodies over 1,500 lines, so `find SqlAlchemyStore` on mlflow
-  // (an 11,000-line file) listed functions mentioning "sql" and never the class (2026-10-15).
-  if (ident) {
-    const exact = (findDefinitions(repo, ident, { limit: 8 }) || []).filter(d => CODE_EXT.has(extOf(d.path)) && inScope(d.path) && !isTestPath(d.path));
-    const top = (scored[0]?.score || 0) + 10;
-    for (const d of exact.reverse()) {
-      const o = (outline(repo, d.path, { limit: 5000 }) || []).find(x => x.line === d.line && x.name === ident);
-      const symbol = o?.parent ? `${o.parent}.${ident}` : ident;
-      const i = scored.findIndex(c => c.path === d.path && c.symbol === symbol);
-      if (i >= 0) scored.splice(i, 1);
-      const kind = o?.kind || (/\b(class|struct|interface|trait|enum)\b/.test(d.text) ? 'class' : 'definition');
-      scored.unshift({ path: d.path, name: ident, parent: o?.parent || null, symbol, kind, line: d.line, end: o?.end || null, score: top, mentions: 0 });
-    }
+  // The identifiers the query names come first, each by its own definitions, whatever their size: the word
+  // search splits convert_type into "convert" and "type" and ranks File.convert above it, and skips files over
+  // 400 kB and bodies over 1,500 lines (find SqlAlchemyStore on mlflow). Replaying 73 real agent queries
+  // (2026-10-16), 43 named identifiers, often several at once ("get_pager_file echo_via_pager"); only 26 of
+  // the 69 came back first. A class named beside a member name ("to_info_dict Option Parameter") puts that
+  // member of the class first (Option.to_info_dict), then the class.
+  if (first.length) {
+    const top = (scored[0]?.score || 0) + 10 + first.length;
+    const keys = new Set(first.map(e => `${e.path}|${e.symbol}`));
+    scored = [...first.map((e, k) => ({ ...e, score: top - k })), ...scored.filter(c => !keys.has(`${c.path}|${c.symbol}`))];
   }
   const hits = scored.slice(0, limit).map(h => { const o = { ...h }; delete o.body; return o; });
   for (const h of hits) { const b = symbolBlock(repo, { path: h.path, symbol: h.symbol }, 1); if (b) { h.line = b.start; h.end = b.start + b.total - 1; } else if (h.end === Infinity) h.end = null; } // exact spans for what is shown
   return { hits, toks, more: scored.length > hits.length };
+}
+// The definitions a query names by identifier, in the query's order: a member of a class the query also
+// names first, then each identifier's own definitions, then the classes. Terms that look like code
+// (snake_case, camelCase, PascalCase, Owner.member), or the whole query when it is one identifier. Tests count
+// only under a test path. At most four definitions a name.
+const CLASSY = new Set(['class', 'interface', 'struct', 'trait', 'enum', 'type']);
+function exactFirst(repo, q, ident, { inScope, scope }) {
+  const terms = q.split(/[\s,()]+/).filter(Boolean);
+  const looksLikeCode = w => /^[A-Za-z_$][\w$]*(\.[A-Za-z_$][\w$]*)?$/.test(w) && (/_/.test(w) || /[a-z][A-Z]/.test(w) || /^[A-Z]/.test(w) || w.includes('.'));
+  const named = ident ? [ident] : [...new Set(terms.filter(looksLikeCode))];
+  if (!named.length) return [];
+  const testsOk = Boolean(scope) && /test/i.test(scope);
+  // member names a named class is asked for: the identifiers, and plain words too ("Group invoke" is Group.invoke,
+  // "Option init" Option.__init__), compared without case or underscores
+  const norm = w => w.toLowerCase().replace(/_/g, '');
+  const bare = new Set([...named.map(t => norm(t.split('.').pop())), ...terms.filter(w => /^[a-z_]\w{2,}$/i.test(w)).map(norm)]);
+  const outlines = new Map(), outlineOf = f => { if (!outlines.has(f)) outlines.set(f, outline(repo, f, { limit: 5000 }) || []); return outlines.get(f); };
+  const all = findDefinitionsMany(repo, [...new Set(named.flatMap(t => t.split('.')))], { limit: 10 }) || new Map();  // one scan for every name
+  const defsOf = name => (all.get(name) || []).filter(d => CODE_EXT.has(extOf(d.path)) && inScope(d.path) && (testsOk || !isTestPath(d.path)));
+  const entry = (path, o) => ({ path, name: o.name, parent: o.parent || null, symbol: o.parent ? `${o.parent}.${o.name}` : o.name, kind: o.kind || 'definition', line: o.line, end: o.end || null, mentions: 0 });
+  const members = [], own = [], classes = [];
+  for (const term of named) {
+    const parts = term.split('.'), name = parts.pop(), owner = parts.pop();
+    if (owner) { // Owner.member: the member inside the owner's own definitions
+      for (const d of defsOf(owner).slice(0, 4)) for (const o of outlineOf(d.path)) if (o.parent === owner && o.name === name) members.push(entry(d.path, o));
+      continue;
+    }
+    for (const d of defsOf(name).slice(0, 4)) {
+      const o = outlineOf(d.path).find(x => x.line === d.line && x.name === name) || { name, line: d.line, kind: /\b(class|struct|interface|trait|enum)\b/.test(d.text) ? 'class' : 'definition' };
+      if (CLASSY.has(o.kind)) {
+        classes.push(entry(d.path, o));
+        // the members the query names, inside this class (found through the outline, so methods with no keyword count)
+        for (const m of outlineOf(d.path)) if (m.parent === name && bare.has(norm(m.name)) && m.name !== name) members.push(entry(d.path, m));
+      } else own.push(entry(d.path, o));
+    }
+  }
+  const seen = new Set(), out = [];
+  for (const e of [...members, ...own, ...classes]) { const k = `${e.path}|${e.symbol}`; if (!seen.has(k)) { seen.add(k); out.push(e); } }
+  return out;
 }
 const SKIP_KINDS = new Set(['section', 'file', 'folder', 'module', 'package', 'resource', 'branch', 'repository', 'route']);
 const ci = s => s.replace(/[A-Za-z]/g, c => `[${c.toLowerCase()}${c.toUpperCase()}]`);
