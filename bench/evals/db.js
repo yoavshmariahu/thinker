@@ -1,4 +1,4 @@
-// Artemis's database: the system of record for experiments, their PR sets and caches, every session
+// Artemis's database: the system of record for experiments, their task sets, PR sets and caches, every session
 // with its full record and transcript, and the jobs that ran them. It lives on this machine, outside
 // any checkout (~/.artemis/artemis.db), and is snapshotted daily (snapshot.js). The runners still
 // write one JSON file per session under bench/runs/<tag>/: that is their hand-off, imported once.
@@ -44,6 +44,9 @@ CREATE TABLE IF NOT EXISTS transcripts (
   id TEXT PRIMARY KEY, format TEXT, data BLOB, bytes INTEGER, source TEXT, archived_at INTEGER, flags TEXT
 );
 CREATE TABLE IF NOT EXISTS prsets (name TEXT PRIMARY KEY, repo TEXT, hash TEXT, created_at INTEGER, data TEXT);
+-- task sets (tasksets.js): the current version of each, and every version it had
+CREATE TABLE IF NOT EXISTS tasksets (name TEXT PRIMARY KEY, repo TEXT, hash TEXT, version INTEGER, created_at INTEGER, data TEXT);
+CREATE TABLE IF NOT EXISTS taskset_versions (name TEXT, version INTEGER, hash TEXT, created_at INTEGER, data TEXT, PRIMARY KEY (name, version));
 CREATE TABLE IF NOT EXISTS caches (name TEXT PRIMARY KEY, repo TEXT, status TEXT, created_at INTEGER, data TEXT);
 CREATE TABLE IF NOT EXISTS arms (name TEXT PRIMARY KEY, runner TEXT, hash TEXT, created_at INTEGER, data TEXT);
 CREATE TABLE IF NOT EXISTS jobs (

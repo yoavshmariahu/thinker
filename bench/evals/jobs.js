@@ -12,6 +12,7 @@ import { readArm, writeArmDefs, armDefsFile } from './arms.js';
 import { readPrset, checkPrset, listPrsets, isFrozen } from './prsets.js';
 import { readReceipt, checkCache, notesDir, listCaches, planCache, cacheDir, STEPS, kindOf } from './caches.js';
 import { acceptanceOf, loopLimits } from '../loop.js';
+import { ensureTaskSet, listTaskSets, writeRunTasks } from './tasksets.js';
 
 export const RUNNERS = {
   // isolated-settings, always: without it a session loads this machine's own Claude Code settings, and the
@@ -32,12 +33,10 @@ const MODEL = /^[A-Za-z0-9][A-Za-z0-9._:\-[\]]{0,80}$/;
 function readJson(p) { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return null; } }
 
 export function catalog(benchDir, db) {
-  const tasksDir = path.join(benchDir, 'tasks');
   const repos = fs.existsSync(path.join(benchDir, 'repos')) ? fs.readdirSync(path.join(benchDir, 'repos')).filter(d => fs.existsSync(path.join(benchDir, 'repos', d, '.git'))) : [];
-  const taskSets = (fs.existsSync(tasksDir) ? fs.readdirSync(tasksDir) : []).filter(f => f.endsWith('.json')).map(f => {
-    const spec = readJson(path.join(tasksDir, f)) || {};
-    return { file: f, repo: f.replace(/(-hard|-adv)?\.json$/, ''), tasks: (spec.tasks || []).map(t => ({ id: t.id, pr: String(t.id).match(/^PR(\d+)/)?.[1] || null, title: t.goldTitle || null, area: t.area || null, type: t.type || 'question', tests: Boolean(t.testCmd) })) };
-  });
+  // the task sets Artemis holds (tasksets.js); `file` is the name a PR set is drawn from
+  const taskSets = listTaskSets(db).map(spec => ({ file: spec.name, name: spec.name, version: spec.version, hash: spec.hash, repo: spec.repo, base: spec.base,
+    tasks: spec.tasks.map(t => ({ id: t.id, pr: String(t.id).match(/^PR(\d+)/)?.[1] || null, title: t.goldTitle || null, area: t.area || null, type: t.type || 'question', tests: Boolean(t.testCmd), acceptance: acceptanceOf(t).length })) }));
   return { prsets: listPrsets(db), caches: listCaches(db), runners: Object.fromEntries(Object.entries(RUNNERS).map(([k, r]) => [k, { label: r.label, defaultModel: r.defaultModel, defaultArms: r.defaultArms, booleans: r.booleans, values: r.values }])), repos, taskSets };
 }
 
@@ -61,8 +60,9 @@ export function plan(req, { benchDir, db }) {
   if (!isFrozen(prset)) throw new Error(`PR set ${prset.name} is a draft: freeze it before running it`);
   const repo = prset.repo;
   if (!fs.existsSync(path.join(benchDir, 'repos', repo, '.git'))) throw new Error(`bench/repos/${repo} is not a cloned repository`);
-  const spec = readJson(path.join(benchDir, 'tasks', prset.tasks));
-  if (!spec?.tasks?.length) throw new Error(`bench/tasks/${prset.tasks} is gone`);
+  // the task set version the PR set froze (a PR set from before versions: the current one)
+  const spec = ensureTaskSet(benchDir, db, prset.tasks, prset.taskset_hash || null);
+  if (!spec?.tasks?.length) throw new Error(`task set ${prset.tasks}${prset.taskset_hash ? ` at ${prset.taskset_hash}` : ''} is not in Artemis`);
   const tasks = spec.tasks.filter(t => prset.ids.includes(t.id));
 
   // module: agent
@@ -112,7 +112,8 @@ export function plan(req, { benchDir, db }) {
   const existing = fs.existsSync(outDir) ? fs.readdirSync(outDir).filter(f => f.endsWith('.json') && f !== 'summary.json').map(f => f.replace(/\.json$/, '')) : [];
 
   const notes = receipt ? notesDir(benchDir, receipt.name) : null;
-  const argv = [path.join(benchDir, runner.script), '--repo', repo, '--tasks', path.join(benchDir, 'tasks', prset.tasks), '--only', prset.ids.join(','),
+  // the runner reads the task set as the launch writes it into the run (tasksets.js:writeRunTasks)
+  const argv = [path.join(benchDir, runner.script), '--repo', repo, '--tasks', path.join(benchDir, 'runs', tag, 'tasks.json'), '--only', prset.ids.join(','),
     '--arm', arms.join(','), '--model', model, '--reps', String(reps), '--conc', String(conc), '--tag', tag, ...(notes ? ['--notes-dir', notes] : []), ...(Object.keys(defined).length ? ['--arm-defs', armDefsFile(benchDir, tag)] : [])];
   if (req.judge) argv.push('--judge', String(req.judge));
   // the PRs' tests grade every session: a judge would only spend
@@ -124,7 +125,7 @@ export function plan(req, { benchDir, db }) {
   }
 
   const checks = [
-    ...checkPrset(benchDir, prset).map(c => ({ module: 'PR set', ...c })),
+    ...checkPrset(benchDir, prset, db).map(c => ({ module: 'PR set', ...c })),
     ...(receipt ? checkCache(benchDir, receipt, prset, model).map(c => ({ module: 'cache', ...c })) : []),
     ...(loop ? [checkAcceptance(tasks)] : []),
   ];
@@ -134,10 +135,10 @@ export function plan(req, { benchDir, db }) {
   const history = estimate(db, model, repo);
   const n = todo.length, f = loop ? LOOP_GUESS : 1;
   return {
-    runner: req.runner, repo, tasks: prset.tasks, arms, model, reps, conc, tag, only: prset.ids,
+    runner: req.runner, repo, tasks: prset.tasks, taskset: { name: spec.name, version: spec.version, hash: spec.hash }, arms, model, reps, conc, tag, only: prset.ids,
     experiment: { name, question, kind: req.kind, off, on },
     modules: {
-      prset: { name: prset.name, hash: prset.hash, rule: prset.rule, base: prset.base, prs: prset.ids.length, tasks: prset.tasks },
+      prset: { name: prset.name, hash: prset.hash, rule: prset.rule, base: prset.base, prs: prset.ids.length, tasks: prset.tasks, taskset_version: spec.version, taskset_hash: spec.hash },
       cache: receipt && { name: receipt.name, anchor: receipt.anchor, model: receipt.model, llm: receipt.llm, limit: receipt.limit, notes: receipt.notes, notes_hash: receipt.notes_hash, kind: kindOf(receipt), top: receipt.top ?? null, areas: receipt.areas ?? null, source: kindOf(receipt) === 'mined' ? 'mine-prs --git' : 'understand' },
       arms: { off, on, extra, ...(Object.keys(defined).length ? { defined: Object.fromEntries(Object.entries(defined).map(([a, d]) => [a, { hash: d.hash, ...d.def }])) } : {}) },
       agent: { runner: req.runner, model, reps, conc, flags: [...new Set([...Object.keys(req.flags || {}).filter(k => req.flags[k]), ...(runner.always || [])])], values: req.values || {} },
@@ -187,6 +188,7 @@ export function alive(pid) { if (!pid) return false; try { process.kill(pid, 0);
 export function launch(p, { benchDir, db }) {
   const outDir = path.join(benchDir, 'runs', p.tag);
   fs.mkdirSync(outDir, { recursive: true });
+  writeRunTasks(benchDir, db, { name: p.taskset.name, hash: p.taskset.hash, outDir });
   // the experiment's definition is recorded before the first session exists
   const prev = db.definition(p.tag) || {};
   db.setDefinition(p.tag, { ...prev, ...p.experiment, modules: p.modules, created_at: prev.created_at || Date.now(),

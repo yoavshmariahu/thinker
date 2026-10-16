@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { normalize } from './normalize.js';
+import { listTaskSets } from './tasksets.js';
 
 // A run is one directory of records; a few runs nest one level (bench/runs/invalid/<run>).
 function runDirs(runsDir) {
@@ -30,10 +31,14 @@ export function runnerOf(models) {
   return 'claude';
 }
 
-// task id → { repo, title, pr } from the task files; a run of an unlisted task set falls back to the
-// directory prefix for its repo
-export function taskInfo(benchDir) {
+// task id → { repo, title, pr } from the task sets Artemis holds, then any task file it has not imported;
+// a run of an unlisted task set falls back to the directory prefix for its repo
+export function taskInfo(benchDir, db = null) {
   const map = new Map();
+  for (const s of db ? listTaskSets(db) : []) for (const t of s.tasks) {
+    if (map.has(t.id)) continue;
+    map.set(t.id, { repo: s.repo, title: t.goldTitle || String(t.prompt || '').replace(/^Implement the following change[^\n]*\n\n/, '').split('\n')[0].slice(0, 140) || null, pr: String(t.id).match(/^PR(\d+)/)?.[1] || null });
+  }
   for (const f of safeList(path.join(benchDir, 'tasks'))) {
     if (!f.endsWith('.json')) continue;
     const repo = f.replace(/(-hard|-adv)?\.json$/, '');
@@ -89,7 +94,7 @@ function dirMtime(p) {
 // e.g. after it was regraded). A run folder removed from disk stays in the database.
 export function ingest(db, benchDir, { force = false, only = null } = {}) {
   const runsDir = path.join(benchDir, 'runs');
-  const repos = taskInfo(benchDir);
+  const repos = taskInfo(benchDir, db);
   const changed = [];
   for (const dir of runDirs(runsDir)) {
     if (only && dir !== only) continue;
