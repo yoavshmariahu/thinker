@@ -41,6 +41,28 @@ function untrackedFiles(repo) {
   untrackedSeen.set(repo, { at: Date.now(), files });
   return files;
 }
+
+// Tracked source files too large to be where a definition is looked for: generated protobuf stubs,
+// bundled releases. One of them is enough to stall every search: on mlflow, Service.java (10.8 MB)
+// kept `git grep -F -i` with a few words past the timeout below, so find, definitionOf and the code the
+// prompt hook hands over all came back empty, on every task (2026-10-16). Left out of every grep, as
+// vexp leaves out files over 512 KB. Binary files are skipped by -I anyway, so only code counts here.
+export const MAX_GREP_BYTES = 512 * 1024;
+const oversizedCache = new Map();
+export function oversized(repo) {
+  if (oversizedCache.has(repo)) return oversizedCache.get(repo);
+  let files = [];
+  try {
+    const out = execFileSync('git', ['ls-tree', '-r', '-l', '--full-tree', 'HEAD'], { cwd: repo, stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 256 * 1024 * 1024, timeout: 10_000 }).toString();
+    for (const line of out.split('\n')) {
+      const m = /^\S+ blob \S+\s+(\d+)\t(.+)$/.exec(line);
+      if (m && Number(m[1]) > MAX_GREP_BYTES && CODE_EXT.has(extOf(m[2]))) files.push(m[2]);
+    }
+  } catch { files = []; } // no commit yet, or not a repository: nothing to leave out
+  oversizedCache.set(repo, files);
+  return files;
+}
+
 // The pathspecs git grep takes here, matched in JS for the untracked files: `.`, a path or prefix, a
 // `*.ext` glob (any directory, as git matches it), and `:(exclude)` of either.
 const specMatcher = specs => {
@@ -57,10 +79,12 @@ function gitGrep(repo, args, { maxBuffer = 16 * 1024 * 1024 } = {}) {
     try { return execFileSync('git', argv, { cwd: repo, stdio: ['ignore', 'pipe', 'ignore'], maxBuffer, timeout: 10_000 }).toString().split('\n').filter(Boolean); }
     catch (e) { if (e.status === 1) return []; return null; } // 1: no match; else not a repository, a timeout, or git missing
   };
-  const tracked = run(['grep', '-n', '-I', '--no-color', ...args]);
+  // every caller ends its arguments with `--` and pathspecs, so the exclusions go last
+  const skip = dash >= 0 ? oversized(repo).map(f => `:(exclude,literal)${f}`) : [];
+  const tracked = run(['grep', '-n', '-I', '--no-color', ...args, ...skip]);
   if (tracked === null) return null;
   const extra = untrackedFiles(repo);
-  if (extra === null) { const all = run(['grep', '-n', '-I', '--untracked', '--no-color', ...args]); return all === null ? null : dropNested(repo, all); }
+  if (extra === null) { const all = run(['grep', '-n', '-I', '--untracked', '--no-color', ...args, ...skip]); return all === null ? null : dropNested(repo, all); }
   const files = extra.filter(specMatcher(specs.length ? specs : ['.']));
   if (!files.length) return tracked;
   const more = [];
