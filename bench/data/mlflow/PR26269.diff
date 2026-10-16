@@ -1,0 +1,201 @@
+diff --git a/mlflow/gateway/providers/anthropic.py b/mlflow/gateway/providers/anthropic.py
+index e2918bfb14bf2..8e9c5e30cf14e 100644
+--- a/mlflow/gateway/providers/anthropic.py
++++ b/mlflow/gateway/providers/anthropic.py
+@@ -457,7 +457,7 @@ def model_to_chat_streaming(cls, resp, config):
+             delta = chat.StreamDelta(
+                 tool_calls=[
+                     ToolCallDelta(
+-                        index=0,
++                        index=resp.get("_tool_index", 0),
+                         id=content.get("id"),
+                         type="function",
+                         function=Function(name=content.get("name")),
+@@ -467,7 +467,10 @@ def model_to_chat_streaming(cls, resp, config):
+         elif content.get("type") == "input_json_delta":
+             delta = chat.StreamDelta(
+                 tool_calls=[
+-                    ToolCallDelta(index=0, function=Function(arguments=content.get("partial_json")))
++                    ToolCallDelta(
++                        index=resp.get("_tool_index", 0),
++                        function=Function(arguments=content.get("partial_json")),
++                    )
+                 ]
+             )
+         else:
+@@ -487,7 +490,7 @@ def model_to_chat_streaming(cls, resp, config):
+             model=resp["model"],
+             choices=[
+                 chat.StreamChoice(
+-                    index=resp["index"],
++                    index=0,
+                     finish_reason=stop_reason,
+                     delta=delta,
+                 )
+@@ -677,7 +680,7 @@ async def _chat_stream(
+             payload=payload,
+         )
+ 
+-        indices = []
++        tool_indices: dict[int, int] = {}  # content block index -> tool call index
+         metadata = {}
+         usage_data = {}  # Track usage across events
+         async for chunk in stream:
+@@ -714,9 +717,13 @@ async def _chat_stream(
+             ):
+                 continue
+ 
+-            index = resp.get("index")
+-            if index is not None and index not in indices:
+-                indices.append(index)
++            block_index = resp.get("index")
++            if resp["type"] == "content_block_start" and (
++                resp["content_block"].get("type") == "tool_use"
++            ):
++                tool_indices[block_index] = len(tool_indices)
++            if block_index in tool_indices:
++                resp["_tool_index"] = tool_indices[block_index]
+ 
+             resp.update(metadata)
+             if resp["type"] == "message_delta":
+@@ -725,11 +732,7 @@ async def _chat_stream(
+                     usage_data["output_tokens"] = delta_usage.get("output_tokens")
+                 # Include accumulated usage in the response
+                 resp["_usage_data"] = usage_data
+-                for index in indices:
+-                    yield AnthropicAdapter.model_to_chat_streaming(
+-                        {**resp, "index": index},
+-                        self.config,
+-                    )
++                yield AnthropicAdapter.model_to_chat_streaming(resp, self.config)
+             else:
+                 yield AnthropicAdapter.model_to_chat_streaming(resp, self.config)
+ 
+diff --git a/tests/gateway/providers/test_anthropic.py b/tests/gateway/providers/test_anthropic.py
+index 24cd52cffb438..cdd4cb538fc09 100644
+--- a/tests/gateway/providers/test_anthropic.py
++++ b/tests/gateway/providers/test_anthropic.py
+@@ -1,3 +1,4 @@
++import json
+ from unittest import mock
+ 
+ import pytest
+@@ -906,6 +907,118 @@ async def test_chat_function_calling_stream():
+         )
+ 
+ 
++def _sse(event):
++    return [b"data: " + json.dumps(event).encode() + b"\n", b"\n"]
++
++
++def _tool_use_stream(blocks):
++    """blocks: list of ("text", str) or ("tool", id, name, partial_json)."""
++    events = [
++        {
++            "type": "message_start",
++            "message": {
++                "id": "test-id",
++                "model": "claude-2.1",
++                "usage": {"input_tokens": 25, "output_tokens": 1},
++            },
++        }
++    ]
++    for i, block in enumerate(blocks):
++        if block[0] == "text":
++            start = {"type": "text", "text": ""}
++            delta = {"type": "text_delta", "text": block[1]}
++        else:
++            start = {"type": "tool_use", "id": block[1], "name": block[2], "input": {}}
++            delta = {"type": "input_json_delta", "partial_json": block[3]}
++        events += [
++            {"type": "content_block_start", "index": i, "content_block": start},
++            {"type": "content_block_delta", "index": i, "delta": delta},
++            {"type": "content_block_stop", "index": i},
++        ]
++    events.append({
++        "type": "message_delta",
++        "delta": {"stop_reason": "tool_use", "stop_sequence": None},
++        "usage": {"output_tokens": 15},
++    })
++    return [line for e in events for line in _sse(e)]
++
++
++async def _stream_tool_calls(blocks):
++    config = chat_config()
++    with mock.patch(
++        "aiohttp.ClientSession.post",
++        return_value=MockAsyncStreamingResponse(_tool_use_stream(blocks)),
++    ):
++        provider = AnthropicProvider(EndpointConfig(**config))
++        payload = chat_function_calling_payload(stream=True)
++        return [c async for c in provider.chat_stream(chat.RequestPayload(**payload))]
++
++
++def _merge_tool_calls(chunks):
++    calls = {}
++    for chunk in chunks:
++        assert [c.index for c in chunk.choices] == [0]
++        for tc in chunk.choices[0].delta.tool_calls or []:
++            call = calls.setdefault(tc.index, {"name": None, "arguments": ""})
++            call["name"] = call["name"] or tc.function.name
++            call["arguments"] += tc.function.arguments or ""
++    return calls
++
++
++@pytest.mark.asyncio
++async def test_chat_stream_parallel_tool_calls():
++    chunks = await _stream_tool_calls([
++        ("tool", "toolu_1", "get_weather", '{"city": "Paris"}'),
++        ("tool", "toolu_2", "get_time", '{"tz": "UTC"}'),
++    ])
++    assert _merge_tool_calls(chunks) == {
++        0: {"name": "get_weather", "arguments": '{"city": "Paris"}'},
++        1: {"name": "get_time", "arguments": '{"tz": "UTC"}'},
++    }
++    assert len([c for c in chunks if c.choices[0].finish_reason]) == 1
++
++
++@pytest.mark.asyncio
++async def test_chat_stream_three_parallel_tool_calls():
++    chunks = await _stream_tool_calls([
++        ("tool", "toolu_1", "get_weather", '{"city": "Paris"}'),
++        ("tool", "toolu_2", "get_time", '{"tz": "UTC"}'),
++        ("tool", "toolu_3", "get_weather", '{"city": "Tokyo"}'),
++    ])
++    assert _merge_tool_calls(chunks) == {
++        0: {"name": "get_weather", "arguments": '{"city": "Paris"}'},
++        1: {"name": "get_time", "arguments": '{"tz": "UTC"}'},
++        2: {"name": "get_weather", "arguments": '{"city": "Tokyo"}'},
++    }
++    assert len([c for c in chunks if c.choices[0].finish_reason]) == 1
++
++
++@pytest.mark.asyncio
++async def test_chat_stream_text_then_tool_call():
++    chunks = await _stream_tool_calls([
++        ("text", "Let me check."),
++        ("tool", "toolu_1", "get_weather", '{"city": "Paris"}'),
++    ])
++    assert _merge_tool_calls(chunks) == {
++        0: {"name": "get_weather", "arguments": '{"city": "Paris"}'},
++    }
++    assert len([c for c in chunks if c.choices[0].finish_reason]) == 1
++
++
++@pytest.mark.asyncio
++async def test_chat_stream_text_between_tool_calls():
++    chunks = await _stream_tool_calls([
++        ("tool", "toolu_1", "get_weather", '{"city": "Paris"}'),
++        ("text", "Also checking the time."),
++        ("tool", "toolu_2", "get_time", '{"tz": "UTC"}'),
++    ])
++    assert _merge_tool_calls(chunks) == {
++        0: {"name": "get_weather", "arguments": '{"city": "Paris"}'},
++        1: {"name": "get_time", "arguments": '{"tz": "UTC"}'},
++    }
++    assert len([c for c in chunks if c.choices[0].finish_reason]) == 1
++
++
+ def embedding_config():
+     return {
+         "name": "embeddings",

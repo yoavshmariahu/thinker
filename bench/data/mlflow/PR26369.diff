@@ -1,0 +1,931 @@
+diff --git a/mlflow/store/db/trace_rollups.py b/mlflow/store/db/trace_rollups.py
+index 259b5268b2cdd..d5336c848f04f 100644
+--- a/mlflow/store/db/trace_rollups.py
++++ b/mlflow/store/db/trace_rollups.py
+@@ -26,7 +26,7 @@
+ from typing import Any, Literal
+ 
+ import sqlalchemy as sa
+-from sqlalchemy import case, func, or_, true
++from sqlalchemy import func, or_, true
+ from sqlalchemy.orm import Session, aliased, sessionmaker
+ 
+ from mlflow.entities.trace_metrics import MetricViewType
+@@ -241,23 +241,44 @@ def _span_day_start_expr(db_type: str):
+     return get_time_bucket_expression(MetricViewType.SPANS, DAILY_INTERVAL_SECONDS, db_type)
+ 
+ 
+-def _trace_is_unsettled(trace_id_column, cutoff_ms: int):
+-    """Return a correlated predicate for an incomplete or recently active trace."""
+-    trace_info = aliased(SqlTraceInfo)
++def _partition_has_active_span(partition_traces, trace_id_column, cutoff_ms: int) -> bool:
+     any_span = aliased(SqlSpan)
+-    complete_trace = sa.exists().where(
+-        trace_info.request_id == trace_id_column,
+-        trace_info.status.in_(_COMPLETE_TRACE_STATUSES),
+-        trace_info.timestamp_ms <= cutoff_ms,
++    # A scalar LIMIT probe stays correlated on PostgreSQL. EXISTS inside an OR can instead
++    # become a hashed subplan that scans the entire spans table for every partition.
++    active_span = (
++        sa
++        .select(sa.literal(1))
++        .where(
++            any_span.trace_id == trace_id_column,
++            or_(
++                any_span.end_time_unix_nano.is_(None),
++                any_span.end_time_unix_nano > cutoff_ms * 1_000_000,
++            ),
++        )
++        .limit(1)
++        .scalar_subquery()
+     )
+-    active_span = sa.exists().where(
+-        any_span.trace_id == trace_id_column,
+-        or_(
+-            any_span.end_time_unix_nano.is_(None),
+-            any_span.end_time_unix_nano > cutoff_ms * 1_000_000,
+-        ),
++    return partition_traces.filter(active_span.isnot(None)).first() is not None
++
++
++def _partition_has_unsettled_trace(partition_traces, trace_id_column, cutoff_ms: int) -> bool:
++    trace_info = aliased(SqlTraceInfo)
++    # Keep this lookup local too: an anti-join could otherwise read all historical traces
++    # just to establish that this partition has no incomplete contributing traces.
++    complete_trace = (
++        sa
++        .select(sa.literal(1))
++        .where(
++            trace_info.request_id == trace_id_column,
++            trace_info.status.in_(_COMPLETE_TRACE_STATUSES),
++            trace_info.timestamp_ms <= cutoff_ms,
++        )
++        .limit(1)
++        .scalar_subquery()
++    )
++    return partition_traces.filter(complete_trace.is_(None)).first() is not None or (
++        _partition_has_active_span(partition_traces, trace_id_column, cutoff_ms)
+     )
+-    return or_(~complete_trace, active_span)
+ 
+ 
+ def _trace_partition_state(
+@@ -272,17 +293,14 @@ def _trace_partition_state(
+         SqlTraceInfo.timestamp_ms < hi,
+     )
+     has_rows = partition_traces.first() is not None
+-    has_unsettled_trace = (
+-        session
+-        .query(sa.literal(1))
+-        .filter(
+-            SqlTraceInfo.experiment_id == experiment_id,
+-            SqlTraceInfo.timestamp_ms >= lo,
+-            SqlTraceInfo.timestamp_ms < hi,
+-            _trace_is_unsettled(SqlTraceInfo.request_id, cutoff_ms),
++    has_unsettled_trace = partition_traces.filter(
++        or_(
++            SqlTraceInfo.status.is_(None),
++            SqlTraceInfo.status.notin_(_COMPLETE_TRACE_STATUSES),
++            SqlTraceInfo.timestamp_ms > cutoff_ms,
+         )
+-        .first()
+-        is not None
++    ).first() is not None or _partition_has_active_span(
++        partition_traces, SqlTraceInfo.request_id, cutoff_ms
+     )
+     return not has_unsettled_trace, has_rows
+ 
+@@ -299,9 +317,8 @@ def _assessment_partition_state(
+         SqlAssessments.trace_timestamp_ms < hi,
+     )
+     has_rows = assessments.first() is not None
+-    has_unsettled_trace = (
+-        assessments.filter(_trace_is_unsettled(SqlAssessments.trace_id, cutoff_ms)).first()
+-        is not None
++    has_unsettled_trace = _partition_has_unsettled_trace(
++        assessments, SqlAssessments.trace_id, cutoff_ms
+     )
+     return not has_unsettled_trace, has_rows
+ 
+@@ -317,34 +334,23 @@ def _span_cost_partition_state(
+         SqlSpan.start_time_unix_nano >= lo_ns,
+         SqlSpan.start_time_unix_nano < hi_ns,
+     )
+-    count_value = (
+-        session
+-        .query(
+-            func.count(
+-                case((
+-                    or_(
+-                        SqlSpan.input_cost.isnot(None),
+-                        SqlSpan.output_cost.isnot(None),
+-                        SqlSpan.total_cost.isnot(None),
+-                    ),
+-                    1,
+-                ))
++    has_rows = (
++        partition_spans.filter(
++            or_(
++                SqlSpan.input_cost.isnot(None),
++                SqlSpan.output_cost.isnot(None),
++                SqlSpan.total_cost.isnot(None),
+             )
+-        )
+-        .filter(
+-            SqlSpan.experiment_id == experiment_id,
+-            SqlSpan.start_time_unix_nano >= lo_ns,
+-            SqlSpan.start_time_unix_nano < hi_ns,
+-        )
+-        .scalar()
++        ).first()
++        is not None
+     )
+-    has_unsettled_trace = (
+-        partition_spans.filter(_trace_is_unsettled(SqlSpan.trace_id, cutoff_ms)).first() is not None
++    has_unsettled_trace = _partition_has_unsettled_trace(
++        partition_spans, SqlSpan.trace_id, cutoff_ms
+     )
+     # Eligibility follows each contributing trace across all of its spans, not just the spans that
+     # started in this UTC day. A trace must be complete and every span in that trace must be closed
+     # and past the inactivity cutoff before any of its span-cost partitions can be published.
+-    return not has_unsettled_trace, bool(count_value)
++    return not has_unsettled_trace, has_rows
+ 
+ 
+ def _partition_state(
+@@ -497,24 +503,44 @@ def _aggregate_assessment(
+     ]
+ 
+ 
+-def _aggregate_span_cost(
+-    session: Session, experiment_id: int, day_bucket: int
+-) -> list[SqlSpanCostDailyRollup]:
+-    lo_ns = day_bucket * MS_PER_DAY * 1_000_000
+-    hi_ns = (day_bucket + 1) * MS_PER_DAY * 1_000_000
+-    day = _bucket_to_date(day_bucket)
+-    base_filters = [
+-        SqlSpan.experiment_id == experiment_id,
+-        SqlSpan.start_time_unix_nano >= lo_ns,
+-        SqlSpan.start_time_unix_nano < hi_ns,
+-    ]
++def _span_cost_grouped_results(session: Session, base_filters):
+     groupings = (
+         (GroupingSet.GLOBAL, ()),
+         (GroupingSet.MODEL, (SqlSpan.model_name,)),
+         (GroupingSet.PROVIDER, (SqlSpan.model_provider,)),
+         (GroupingSet.MODEL_PROVIDER, (SqlSpan.model_name, SqlSpan.model_provider)),
+     )
+-    rows: list[SqlSpanCostDailyRollup] = []
++    if session.get_bind().dialect.name == "postgresql":
++        model = SqlSpan.model_name
++        provider = SqlSpan.model_provider
++        query = (
++            session
++            .query(
++                model.label("model_name"),
++                provider.label("model_provider"),
++                func.grouping(model, provider).label("grouping_mask"),
++                *_aggregate_columns(_SPAN_COST_METRIC_SPECS),
++            )
++            .filter(*base_filters)
++            .group_by(func.grouping_sets(*(sa.tuple_(*columns) for _, columns in groupings)))
++        )
++        grouping_by_mask = {
++            3: GroupingSet.GLOBAL,
++            1: GroupingSet.MODEL,
++            2: GroupingSet.PROVIDER,
++            0: GroupingSet.MODEL_PROVIDER,
++        }
++        for result in query:
++            grouping_set = grouping_by_mask[result.grouping_mask]
++            # GROUPING distinguishes a rolled-up dimension from an actual source NULL. Raw
++            # grouped metrics exclude NULL dimensions, but global metrics include those rows.
++            if result.grouping_mask & 2 == 0 and result.model_name is None:
++                continue
++            if result.grouping_mask & 1 == 0 and result.model_provider is None:
++                continue
++            yield grouping_set, result.model_name, result.model_provider, result
++        return
++
+     for grouping_set, group_columns in groupings:
+         select_columns = [column.label(f"group_{i}") for i, column in enumerate(group_columns)]
+         query = session.query(*select_columns, *_aggregate_columns(_SPAN_COST_METRIC_SPECS)).filter(
+@@ -537,26 +563,51 @@ def _aggregate_span_cost(
+                 model_name = result.group_0
+                 model_provider = result.group_1
+ 
+-            for spec in _SPAN_COST_METRIC_SPECS:
+-                sample_count = getattr(result, f"{spec.metric_name}__n") or 0
+-                # Do not publish an empty row for a metric with no source values. Readers will
+-                # correctly fall back to raw for that metric/day.
+-                if sample_count == 0:
+-                    continue
+-                rows.append(
+-                    SqlSpanCostDailyRollup(
+-                        experiment_id=experiment_id,
+-                        rollup_day=day,
+-                        metric_name=spec.metric_name,
+-                        grouping_set=grouping_set.value,
+-                        model_name=model_name,
+-                        model_provider=model_provider,
+-                        sample_count=sample_count,
+-                        sum_value=getattr(result, f"{spec.metric_name}__s"),
+-                        min_value=getattr(result, f"{spec.metric_name}__mn"),
+-                        max_value=getattr(result, f"{spec.metric_name}__mx"),
+-                    )
++            yield grouping_set, model_name, model_provider, result
++
++
++def _aggregate_span_cost(
++    session: Session, experiment_id: int, day_bucket: int
++) -> list[SqlSpanCostDailyRollup]:
++    lo_ns = day_bucket * MS_PER_DAY * 1_000_000
++    hi_ns = (day_bucket + 1) * MS_PER_DAY * 1_000_000
++    day = _bucket_to_date(day_bucket)
++    base_filters = [
++        SqlSpan.experiment_id == experiment_id,
++        SqlSpan.start_time_unix_nano >= lo_ns,
++        SqlSpan.start_time_unix_nano < hi_ns,
++        # Rows without any cost cannot contribute to a published cost metric. This also
++        # matches the predicate of PostgreSQL's covering cost index.
++        or_(
++            SqlSpan.input_cost.isnot(None),
++            SqlSpan.output_cost.isnot(None),
++            SqlSpan.total_cost.isnot(None),
++        ),
++    ]
++    rows: list[SqlSpanCostDailyRollup] = []
++    for grouping_set, model_name, model_provider, result in _span_cost_grouped_results(
++        session, base_filters
++    ):
++        for spec in _SPAN_COST_METRIC_SPECS:
++            sample_count = getattr(result, f"{spec.metric_name}__n") or 0
++            # Do not publish an empty row for a metric with no source values. Readers will
++            # correctly fall back to raw for that metric/day.
++            if sample_count == 0:
++                continue
++            rows.append(
++                SqlSpanCostDailyRollup(
++                    experiment_id=experiment_id,
++                    rollup_day=day,
++                    metric_name=spec.metric_name,
++                    grouping_set=grouping_set.value,
++                    model_name=model_name,
++                    model_provider=model_provider,
++                    sample_count=sample_count,
++                    sum_value=getattr(result, f"{spec.metric_name}__s"),
++                    min_value=getattr(result, f"{spec.metric_name}__mn"),
++                    max_value=getattr(result, f"{spec.metric_name}__mx"),
+                 )
++            )
+     return rows
+ 
+ 
+@@ -760,58 +811,52 @@ def _new_candidates_for_experiment(
+             source_experiment_id,
+             source_timestamp,
+             timestamp_units_per_ms,
+-            day_start_ms,
++            _,
+             source_filters,
+         ) = _source_discovery_parts(family, db_type)
+         rollup_model = FAMILY_MODEL[family]
+-        queued_days = (
+-            session
+-            .query(
+-                _rollup_day_bucket_expression(db_type, SqlTraceRollupRebuild.rollup_day).label(
+-                    "day_start_ms"
+-                )
+-            )
+-            .filter(
++        queued_days = {
++            _date_to_bucket(day)
++            for (day,) in session.query(SqlTraceRollupRebuild.rollup_day).filter(
+                 SqlTraceRollupRebuild.rollup_family == family.value,
+                 SqlTraceRollupRebuild.experiment_id == experiment_id,
+             )
+-            .subquery()
+-        )
+-        latest_day_start_ms = (
++        }
++        latest_day = (
+             session
+-            .query(func.max(_rollup_day_bucket_expression(db_type, rollup_model.rollup_day)))
++            .query(func.max(rollup_model.rollup_day))
+             .filter(rollup_model.experiment_id == experiment_id)
+             .scalar()
+         )
++        units_per_day = MS_PER_DAY * timestamp_units_per_ms
++        lower_bound = (
++            (_date_to_bucket(latest_day) + 1) * units_per_day
++            if latest_day is not None
++            else _MIN_SOURCE_TIMESTAMP
++        )
+         query = (
+             session
+-            .query(day_start_ms.label("day_start_ms"))
++            .query(source_timestamp)
+             .select_from(source_model)
+-            .outerjoin(
+-                queued_days,
+-                queued_days.c.day_start_ms == day_start_ms,
+-            )
+             .filter(
+                 source_experiment_id == experiment_id,
+                 *source_filters,
+-                source_timestamp < frozen_day_bucket * MS_PER_DAY * timestamp_units_per_ms,
+-                queued_days.c.day_start_ms.is_(None),
++                source_timestamp < frozen_day_bucket * units_per_day,
+             )
+-            .group_by(day_start_ms)
+-            .order_by(day_start_ms)
++            .order_by(source_timestamp)
+         )
+-        if latest_day_start_ms is not None:
+-            query = query.filter(
+-                source_timestamp >= (int(latest_day_start_ms) + MS_PER_DAY) * timestamp_units_per_ms
+-            )
+-        rows, overflow = _bounded_query_rows(query, limit)
+-    return (
+-        [
+-            (family, (experiment_id, int(day_start_ms_value) // MS_PER_DAY))
+-            for (day_start_ms_value,) in rows
+-        ],
+-        overflow,
+-    )
++        candidates = []
++        # Seek to the first source row of each next day instead of grouping all remaining
++        # source rows on every quota round. The raw timestamp range uses the source-time index.
++        while len(candidates) <= limit:
++            row = query.filter(source_timestamp >= lower_bound).first()
++            if row is None:
++                break
++            day_bucket = int(row[0]) // units_per_day
++            lower_bound = (day_bucket + 1) * units_per_day
++            if day_bucket not in queued_days:
++                candidates.append((family, (experiment_id, day_bucket)))
++    return candidates[:limit], len(candidates) > limit
+ 
+ 
+ def _group_candidates_by_experiment(candidates: list[_Candidate]):
+diff --git a/mlflow/store/tracking/sqlalchemy_store.py b/mlflow/store/tracking/sqlalchemy_store.py
+index c2f7f69ccf355..ae5fe3c2ba4b5 100644
+--- a/mlflow/store/tracking/sqlalchemy_store.py
++++ b/mlflow/store/tracking/sqlalchemy_store.py
+@@ -10375,8 +10375,10 @@ def _get_orderby_clauses_for_search_traces(order_by_list: list[str], session):
+                 f"Ordering by reserved metadata '{key}' is not supported because it is "
+                 "represented by multiple columns."
+             )
++        needs_null_ordering = True
+         if SearchTraceUtils.is_attribute(key_type, key, "="):
+             order_value = getattr(SqlTraceInfo, key)
++            needs_null_ordering = order_value.nullable
+         elif SearchTraceUtils.is_tag(key_type, "=") and key == TraceTagKey.TRACE_NAME:
+             order_value = SqlTraceInfo.trace_name
+         elif (
+@@ -10399,9 +10401,10 @@ def _get_orderby_clauses_for_search_traces(order_by_list: list[str], session):
+             ordering_joins.append(subquery)
+             order_value = subquery.c.value
+ 
+-        case = sql.case((order_value.is_(None), 1), else_=0).label(f"clause_{clause_id}")
+-        clauses.append(case.name)
+-        select_clauses.append(case)
++        if needs_null_ordering:
++            case = sql.case((order_value.is_(None), 1), else_=0).label(f"clause_{clause_id}")
++            clauses.append(case.name)
++            select_clauses.append(case)
+         select_clauses.append(order_value)
+ 
+         if (key_type, key) in observed_order_by_clauses:
+diff --git a/mlflow/store/tracking/utils/sql_trace_metrics_utils.py b/mlflow/store/tracking/utils/sql_trace_metrics_utils.py
+index b898e23225bdd..fd8939ceb5b3c 100644
+--- a/mlflow/store/tracking/utils/sql_trace_metrics_utils.py
++++ b/mlflow/store/tracking/utils/sql_trace_metrics_utils.py
+@@ -307,6 +307,18 @@ def get_time_bucket_expression(
+     # Convert time_interval_seconds to milliseconds
+     bucket_size_ms = time_interval_seconds * 1000
+ 
++    if db_type == db_types.POSTGRES and view_type == MetricViewType.SPANS:
++        timestamp_ns = SqlSpan.start_time_unix_nano
++        bucket_size_ns = time_interval_seconds * 1_000_000_000
++        # Avoid fractional NUMERIC division rounding across nanosecond boundaries.
++        # div truncates toward zero, so negative nonmultiples need one more bucket.
++        quotient = func.div(timestamp_ns, bucket_size_ns)
++        correction = case(
++            (and_(timestamp_ns < 0, func.mod(timestamp_ns, bucket_size_ns) != 0), 1),
++            else_=0,
++        )
++        return (quotient - correction) * bucket_size_ms
++
+     if db_type == db_types.MSSQL:
+         # MSSQL requires the exact same SQL text in SELECT, GROUP BY, and ORDER BY clauses.
+         # We use literal_column to generate identical SQL text across all clauses.
+diff --git a/mlflow/store/tracking/utils/sql_trace_rollups.py b/mlflow/store/tracking/utils/sql_trace_rollups.py
+index c38f74c762c13..47fd221f53c33 100644
+--- a/mlflow/store/tracking/utils/sql_trace_rollups.py
++++ b/mlflow/store/tracking/utils/sql_trace_rollups.py
+@@ -30,6 +30,7 @@
+ from collections.abc import Iterable
+ from dataclasses import dataclass
+ from datetime import date, datetime, timezone
++from decimal import Decimal
+ from enum import Enum
+ from typing import Any
+ 
+@@ -1052,6 +1053,9 @@ def merge_unbucketed_data_points(
+             value = point.values[label]
+             match aggregation.aggregation_type:
+                 case AggregationType.COUNT | AggregationType.SUM:
++                    # PostgreSQL SUM(bigint) returns Decimal, while rollup sums are floats.
++                    if isinstance(value, Decimal):
++                        value = float(value)
+                     accumulated[label] = accumulated.get(label, 0) + value
+                 case AggregationType.MIN:
+                     accumulated[label] = min(accumulated.get(label, value), value)
+diff --git a/tests/store/db/test_trace_rollups.py b/tests/store/db/test_trace_rollups.py
+index 0f78b05b37432..390fa10869dbe 100644
+--- a/tests/store/db/test_trace_rollups.py
++++ b/tests/store/db/test_trace_rollups.py
+@@ -1,3 +1,4 @@
++import os
+ import uuid
+ from concurrent.futures import ThreadPoolExecutor
+ from datetime import datetime, timezone
+@@ -86,6 +87,16 @@ def enable_rollups(monkeypatch: pytest.MonkeyPatch):
+     monkeypatch.setenv(MLFLOW_SQL_TRACE_ROLLUPS_ENABLED.name, "true")
+ 
+ 
++@pytest.fixture(params=["sqlite", "postgresql"])
++def maintenance_store(request, tmp_path):
++    if request.param == "sqlite":
++        return request.getfixturevalue("store")
++    uri = os.environ.get("MLFLOW_ROLLUP_TEST_POSTGRES_URI")
++    if not uri:
++        pytest.skip("Set MLFLOW_ROLLUP_TEST_POSTGRES_URI to a disposable PostgreSQL database")
++    return SqlAlchemyStore(uri, (tmp_path / "artifacts").as_uri())
++
++
+ def _day_of(timestamp_ms: int):
+     return datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc).date()
+ 
+@@ -542,6 +553,152 @@ def test_open_span_on_another_day_defers_span_cost_partition(store: SqlAlchemySt
+     assert _count(store, SqlTraceRollupRebuild, rollup_family=RollupFamily.SPAN_COST.value) == 1
+ 
+ 
++@pytest.mark.parametrize("span_state", ["open", "recent", "at_cutoff"])
++def test_partition_eligibility_checks_costless_spans_on_other_days(maintenance_store, span_state):
++    store = maintenance_store
++    exp_id = store.create_experiment(f"exp-{uuid.uuid4()}")
++    trace_id = _new_trace(store, exp_id, DAY_A_MS)
++    _add_feedback(store, trace_id)
++    cutoff_ms = FUTURE_NOW_MS - ROLLUP_ELIGIBILITY_LAG_MS
++    end_ns = {
++        "open": None,
++        "recent": cutoff_ms * 1_000_000 + 1,
++        "at_cutoff": cutoff_ms * 1_000_000,
++    }[span_state]
++    with store.ManagedSessionMaker(read_only=False) as session:
++        session.add_all([
++            SqlSpan(
++                trace_id=trace_id,
++                experiment_id=int(exp_id),
++                span_id="cost",
++                status="OK",
++                start_time_unix_nano=DAY_A_MS * 1_000_000,
++                end_time_unix_nano=(DAY_A_MS + 10) * 1_000_000,
++                total_cost=0.0,
++                content="{}",
++            ),
++            SqlSpan(
++                trace_id=trace_id,
++                experiment_id=int(exp_id),
++                span_id="costless-other-day",
++                status="UNSET",
++                start_time_unix_nano=DAY_B_MS * 1_000_000,
++                end_time_unix_nano=end_ns,
++                content="{}",
++            ),
++        ])
++    with store.ManagedSessionMaker() as session:
++        for family in RollupFamily:
++            assert trace_rollups._partition_state(
++                session,
++                family,
++                int(exp_id),
++                DAY_A_MS // MS_PER_DAY,
++                cutoff_ms,
++                cutoff_ms // MS_PER_DAY,
++            ) == (span_state == "at_cutoff", True)
++
++
++def test_span_cost_aggregates_match_independent_oracle_with_null_dimensions(maintenance_store):
++    store = maintenance_store
++    exp_id = store.create_experiment(f"exp-{uuid.uuid4()}")
++    trace_id = _new_trace(store, exp_id, DAY_A_MS)
++    inputs = [
++        ("model-a", "provider-a", 0.0, 0.5, 0.5),
++        ("model-a", None, 0.25, None, 0.25),
++        (None, "provider-a", None, 0.75, 0.75),
++        (None, None, 1.0, None, None),
++        ("model-b", "provider-b", None, None, None),
++    ]
++    with store.ManagedSessionMaker(read_only=False) as session:
++        session.add_all([
++            SqlSpan(
++                trace_id=trace_id,
++                experiment_id=int(exp_id),
++                span_id=str(i),
++                status="OK",
++                start_time_unix_nano=DAY_A_MS * 1_000_000,
++                end_time_unix_nano=(DAY_A_MS + 10) * 1_000_000,
++                model_name=model,
++                model_provider=provider,
++                input_cost=input_cost,
++                output_cost=output_cost,
++                total_cost=total_cost,
++                content="{}",
++            )
++            for i, (model, provider, input_cost, output_cost, total_cost) in enumerate(inputs)
++        ])
++    expected = {}
++    for model, provider, *costs in inputs:
++        groups = [(GroupingSet.GLOBAL.value, None, None)]
++        if model is not None:
++            groups.append((GroupingSet.MODEL.value, model, None))
++        if provider is not None:
++            groups.append((GroupingSet.PROVIDER.value, None, provider))
++        if model is not None and provider is not None:
++            groups.append((GroupingSet.MODEL_PROVIDER.value, model, provider))
++        for group in groups:
++            for metric, cost in zip(
++                [SpanMetricKey.INPUT_COST, SpanMetricKey.OUTPUT_COST, SpanMetricKey.TOTAL_COST],
++                costs,
++                strict=True,
++            ):
++                if cost is not None:
++                    expected.setdefault((*group, metric), []).append(cost)
++    with store.ManagedSessionMaker() as session:
++        rows = trace_rollups._aggregate_span_cost(session, int(exp_id), DAY_A_MS // MS_PER_DAY)
++    actual = {
++        (row.grouping_set, row.model_name, row.model_provider, row.metric_name): row for row in rows
++    }
++    assert actual.keys() == expected.keys()
++    for key, values in expected.items():
++        row = actual[key]
++        assert row.sample_count == len(values)
++        assert (row.sum_value, row.min_value, row.max_value) == pytest.approx((
++            sum(values),
++            min(values),
++            max(values),
++        ))
++
++
++@pytest.mark.parametrize("family", list(RollupFamily))
++def test_day_discovery_seeks_over_duplicates_gaps_and_queued_days(maintenance_store, family):
++    store = maintenance_store
++    exp_id = store.create_experiment(f"exp-{uuid.uuid4()}")
++    for i, day_offset in enumerate([0, 0, 3, 5, 6]):
++        timestamp_ms = DAY_A_MS + day_offset * MS_PER_DAY
++        trace_id = _new_trace(store, exp_id, timestamp_ms)
++        _add_feedback(store, trace_id)
++        with store.ManagedSessionMaker(read_only=False) as session:
++            session.add(
++                SqlSpan(
++                    trace_id=trace_id,
++                    experiment_id=int(exp_id),
++                    span_id=str(i),
++                    status="OK",
++                    start_time_unix_nano=timestamp_ms * 1_000_000,
++                    end_time_unix_nano=(timestamp_ms + 10) * 1_000_000,
++                    total_cost=0.0,
++                    content="{}",
++                )
++            )
++    with store.ManagedSessionMaker(read_only=False) as session:
++        session.query(SqlTraceRollupRebuild).filter_by(experiment_id=int(exp_id)).delete()
++    _enqueue_entry(store, family, exp_id, DAY_A_MS + 3 * MS_PER_DAY)
++    candidates, overflow = trace_rollups._new_candidates_for_experiment(
++        store.ManagedSessionMaker,
++        family,
++        int(exp_id),
++        (FUTURE_NOW_MS - ROLLUP_ELIGIBILITY_LAG_MS) // MS_PER_DAY,
++        2,
++    )
++    assert candidates == [
++        (family, (int(exp_id), DAY_A_MS // MS_PER_DAY)),
++        (family, (int(exp_id), DAY_A_MS // MS_PER_DAY + 5)),
++    ]
++    assert overflow
++
++
+ def test_emptied_partition_removes_rollups_and_queue_entry(store: SqlAlchemyStore):
+     exp_id = store.create_experiment(f"exp-{uuid.uuid4()}")
+     trace_id = _new_trace(store, exp_id, DAY_A_MS)
+@@ -1063,10 +1220,11 @@ def capture_select(_conn, _cursor, statement, _parameters, _context, _executeman
+         event.remove(store.engine, "before_cursor_execute", capture_select)
+ 
+     assert candidates == [(RollupFamily.TRACE_METRIC, (int(exp_id), DAY_B_MS // MS_PER_DAY))]
+-    assert len(statements) == 2
++    assert len(statements) == 3
+     for statement in statements:
+         assert "TRACE_INFO.TIMESTAMP_MS <" in statement
+         assert "TRACE_INFO.TIMESTAMP_MS >=" in statement
++        assert "GROUP BY" not in statement
+ 
+ 
+ def test_queued_rebuild_precedes_new_partition_across_families(store: SqlAlchemyStore):
+diff --git a/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_query_trace_metrics.py b/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_query_trace_metrics.py
+index 2a019e129c92d..67744b6bce1cd 100644
+--- a/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_query_trace_metrics.py
++++ b/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_query_trace_metrics.py
+@@ -6,6 +6,7 @@
+ import numpy as np
+ import pytest
+ from opentelemetry import trace as trace_api
++from sqlalchemy import literal, select, union_all
+ from sqlalchemy.dialects import postgresql
+ from sqlalchemy.orm import Query
+ 
+@@ -28,7 +29,7 @@
+ from mlflow.exceptions import MlflowException
+ from mlflow.genai.judges import CategoricalRating
+ from mlflow.store.db import db_types
+-from mlflow.store.tracking.dbmodels.models import SqlTraceInfo, SqlTraceMetadata
++from mlflow.store.tracking.dbmodels.models import SqlSpan, SqlTraceInfo, SqlTraceMetadata
+ from mlflow.store.tracking.sqlalchemy_store import SqlAlchemyStore
+ from mlflow.store.tracking.utils.sql_trace_metrics_postgres import (
+     _apply_postgres_trace_first_span_query,
+@@ -36,6 +37,7 @@
+ from mlflow.store.tracking.utils.sql_trace_metrics_utils import (
+     _apply_filters,
+     _partition_span_metric_filters,
++    get_time_bucket_expression,
+     query_metrics,
+     validate_query_trace_metrics_params,
+ )
+@@ -59,6 +61,51 @@
+ pytestmark = pytest.mark.notrackingurimock
+ 
+ 
++def _postgres_span_bucket_boundary_query(time_interval_seconds):
++    bucket_ns = time_interval_seconds * 1_000_000_000
++    timestamps = {-(2**63), -1, 0, 1, 2**63 - 1}
++    for multiplier in [-2, -1, 1, 2, 1_750_000_000 // time_interval_seconds]:
++        boundary = multiplier * bucket_ns
++        timestamps.update(
++            value for value in [boundary - 1, boundary, boundary + 1] if -(2**63) <= value < 2**63
++        )
++    timestamps = sorted(timestamps)
++    spans = union_all(
++        *(select(literal(value).label("start_time_unix_nano")) for value in timestamps)
++    ).cte("spans")
++    expression = get_time_bucket_expression(
++        MetricViewType.SPANS, time_interval_seconds, db_types.POSTGRES
++    )
++    query = (
++        select(SqlSpan.start_time_unix_nano, expression)
++        .add_cte(spans)
++        .order_by(SqlSpan.start_time_unix_nano)
++    )
++    expected = [
++        (value, (value // bucket_ns) * time_interval_seconds * 1000) for value in timestamps
++    ]
++    return query, expected
++
++
++def test_postgres_span_time_buckets_use_exact_quotient():
++    query, _ = _postgres_span_bucket_boundary_query(86400)
++    statement = str(
++        query.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True})
++    )
++    assert "div(spans.start_time_unix_nano, 86400000000000)" in statement
++    assert "mod(spans.start_time_unix_nano, 86400000000000)" in statement
++    assert " / " not in statement
++
++
++@pytest.mark.parametrize("time_interval_seconds", [1, 60, 86400, 10_000_000_000])
++def test_postgres_span_time_bucket_boundaries(store, time_interval_seconds):
++    if store.db_type != db_types.POSTGRES:
++        pytest.skip("PostgreSQL-specific exact span bucketing")
++    query, expected = _postgres_span_bucket_boundary_query(time_interval_seconds)
++    with store.ManagedSessionMaker() as session:
++        assert [tuple(row) for row in session.execute(query)] == expected
++
++
+ def test_postgres_span_query_materializes_trace_filters_before_span_join(
+     store: SqlAlchemyStore,
+ ):
+diff --git a/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_trace_rollups.py b/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_trace_rollups.py
+index 66353bc85aad3..126379e7450b3 100644
+--- a/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_trace_rollups.py
++++ b/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_trace_rollups.py
+@@ -10,6 +10,7 @@
+ import logging
+ import uuid
+ from datetime import datetime, timezone
++from decimal import Decimal
+ 
+ import pytest
+ from sqlalchemy import event
+@@ -18,7 +19,12 @@
+ 
+ from mlflow.entities import AssessmentSource, AssessmentSourceType, Feedback, trace_location
+ from mlflow.entities.trace_info import TraceInfo
+-from mlflow.entities.trace_metrics import AggregationType, MetricAggregation, MetricViewType
++from mlflow.entities.trace_metrics import (
++    AggregationType,
++    MetricAggregation,
++    MetricDataPoint,
++    MetricViewType,
++)
+ from mlflow.entities.trace_state import TraceState
+ from mlflow.environment_variables import MLFLOW_SQL_TRACE_ROLLUPS_ENABLED
+ from mlflow.store.tracking.dbmodels.models import (
+@@ -34,10 +40,12 @@
+     MAX_ROLLUP_DAYS,
+     GroupingSet,
+     RollupFamily,
++    RollupReadPlan,
+     _build_sql_grouped_span_cost_query,
+     _protect_rebuild_queue_read,
+     compute_covered_day_starts,
+     configure_rollup_read_snapshot,
++    merge_unbucketed_data_points,
+     resolve_rollup_read,
+     rollup_read_is_current,
+     serve_rollup_read,
+@@ -991,6 +999,63 @@ def test_unbucketed_avg_uses_sum_and_count_contributions(store: SqlAlchemyStore,
+     )
+ 
+ 
++def _unbucketed_trace_plan(aggregation_type):
++    return RollupReadPlan(
++        family=RollupFamily.TRACE_METRIC,
++        metric_name=TraceMetricKey.INPUT_TOKENS,
++        grouping_set=GroupingSet.GLOBAL,
++        dimensions=[],
++        aggregations=[MetricAggregation(aggregation_type=aggregation_type)],
++        bucketed=False,
++        experiment_id=1,
++        covered_day_starts_ms=[DAY_A_START],
++        raw_ranges=[(DAY_B_START, DAY_B_START + 10_000)],
++        uses_percentiles=False,
++    )
++
++
++@pytest.mark.parametrize("aggregation_type", [AggregationType.SUM, AggregationType.AVG])
++@pytest.mark.parametrize("raw_sum", [0, 30])
++@pytest.mark.parametrize(
++    ("rollup_type", "raw_type"), [(float, Decimal), (Decimal, float), (Decimal, Decimal)]
++)
++def test_unbucketed_merge_accepts_decimal_sums(aggregation_type, raw_sum, rollup_type, raw_type):
++    plan = _unbucketed_trace_plan(aggregation_type)
++    rollup_point = MetricDataPoint(
++        metric_name=plan.metric_name,
++        dimensions={},
++        values={"SUM": rollup_type(120), "COUNT": 3},
++    )
++    raw_point = MetricDataPoint(
++        metric_name=plan.metric_name,
++        dimensions={},
++        values={"SUM": raw_type(raw_sum), "COUNT": 1},
++    )
++
++    result = merge_unbucketed_data_points(plan, [rollup_point], [raw_point], max_results=100)
++
++    expected = 120 + raw_sum
++    if aggregation_type == AggregationType.AVG:
++        expected /= 4
++    assert result == [
++        MetricDataPoint(
++            metric_name=plan.metric_name, dimensions={}, values={str(aggregation_type): expected}
++        )
++    ]
++
++
++def test_unbucketed_merge_preserves_large_integer_counts():
++    plan = _unbucketed_trace_plan(AggregationType.COUNT)
++    count = 2**53 + 1
++    rollup_point = MetricDataPoint(plan.metric_name, {}, {"COUNT": count})
++    raw_point = MetricDataPoint(plan.metric_name, {}, {"COUNT": 2})
++
++    result = merge_unbucketed_data_points(plan, [rollup_point], [raw_point], max_results=100)
++
++    assert result[0].values["COUNT"] == count + 2
++    assert isinstance(result[0].values["COUNT"], int)
++
++
+ def test_min_max_merge_rollup_and_raw_contributions(store: SqlAlchemyStore, monkeypatch):
+     exp_id = _seed(store)
+     _insert_trace_metric_rollup(
+diff --git a/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_traces.py b/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_traces.py
+index 418c2f2fb6986..b7a47e04a4016 100644
+--- a/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_traces.py
++++ b/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_traces.py
+@@ -429,6 +429,50 @@ def test_search_traces_order_by(store_with_traces, order_by, expected_ids):
+     assert actual_ids == expected_ids
+ 
+ 
++@pytest.mark.parametrize(
++    ("order_by", "needs_null_ordering"),
++    [
++        ("timestamp ASC", False),
++        ("timestamp DESC", False),
++        ("experiment_id", False),
++        ("status", False),
++        ("execution_time DESC", True),
++        ("name", True),
++        ("tag.nonexistent", True),
++        ("run_id", True),
++    ],
++)
++def test_search_traces_order_by_null_handling(store, order_by, needs_null_ordering):
++    with store.ManagedSessionMaker() as session:
++        selects, clauses, joins = sqlalchemy_store_module._get_orderby_clauses_for_search_traces(
++            [order_by], session
++        )
++        query = session.query(SqlTraceInfo, *selects)
++        for join in joins:
++            query = query.outerjoin(join, SqlTraceInfo.request_id == join.c.request_id)
++        statement = str(query.order_by(*clauses).statement.compile(dialect=postgresql.dialect()))
++
++    assert ("CASE WHEN" in statement) == needs_null_ordering
++    assert statement.endswith("trace_info.request_id ASC") or statement.endswith(
++        "trace_info.request_id"
++    )
++    if order_by.startswith("timestamp"):
++        direction = " DESC" if order_by.endswith("DESC") else ""
++        assert f"ORDER BY trace_info.timestamp_ms{direction}, trace_info.request_id" in statement
++
++
++@pytest.mark.parametrize("direction", ["ASC", "DESC"])
++def test_search_traces_order_by_nullable_attribute(store, direction):
++    exp_id = store.create_experiment("nullable-ordering")
++    _create_trace(store, "tr-missing", exp_id, execution_duration=None)
++    _create_trace(store, "tr-fast", exp_id, execution_duration=1)
++    _create_trace(store, "tr-slow", exp_id, execution_duration=2)
++
++    traces, _ = store.search_traces([exp_id], order_by=[f"execution_time {direction}"])
++    ordered_ids = ["tr-fast", "tr-slow"] if direction == "ASC" else ["tr-slow", "tr-fast"]
++    assert [trace.trace_id for trace in traces] == [*ordered_ids, "tr-missing"]
++
++
+ @pytest.mark.parametrize(
+     ("filter_string", "expected_ids"),
+     [
+@@ -665,7 +709,8 @@ def test_search_traces_pagination(store_with_traces):
+     assert token is None
+ 
+ 
+-def test_search_traces_pagination_tie_breaker(store):
++@pytest.mark.parametrize("order_by", [None, ["timestamp DESC"]])
++def test_search_traces_pagination_tie_breaker(store, order_by):
+     # This test is for ensuring the tie breaker for ordering traces with the same timestamp
+     # works correctly.
+     exp1 = store.create_experiment("exp1")
+@@ -682,13 +727,13 @@ def test_search_traces_pagination_tie_breaker(store):
+     for rid in trace_ids:
+         _create_trace(store, rid, exp1, request_time=1)
+ 
+-    traces, token = store.search_traces([exp1], max_results=3)
++    traces, token = store.search_traces([exp1], max_results=3, order_by=order_by)
+     assert [t.trace_id for t in traces] == ["tr-5", "tr-6", "tr-7"]
+-    traces, token = store.search_traces([exp1], max_results=3, page_token=token)
++    traces, token = store.search_traces([exp1], max_results=3, page_token=token, order_by=order_by)
+     assert [t.trace_id for t in traces] == ["tr-8", "tr-9", "tr-0"]
+-    traces, token = store.search_traces([exp1], max_results=3, page_token=token)
++    traces, token = store.search_traces([exp1], max_results=3, page_token=token, order_by=order_by)
+     assert [t.trace_id for t in traces] == ["tr-1", "tr-2", "tr-3"]
+-    traces, token = store.search_traces([exp1], max_results=3, page_token=token)
++    traces, token = store.search_traces([exp1], max_results=3, page_token=token, order_by=order_by)
+     assert [t.trace_id for t in traces] == ["tr-4"]
+ 
+ 
+diff --git a/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_workspace_store.py b/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_workspace_store.py
+index cff2a1b352dcd..e958ee21e878d 100644
+--- a/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_workspace_store.py
++++ b/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_workspace_store.py
+@@ -1520,7 +1520,8 @@ def test_trace_tag_operations_are_workspace_scoped(workspace_tracking_store):
+             workspace_tracking_store.delete_trace_tag(trace_id_a, "key")
+ 
+ 
+-def test_search_traces_is_workspace_scoped(workspace_tracking_store):
++@pytest.mark.parametrize("order_by", [None, ["timestamp DESC"]])
++def test_search_traces_is_workspace_scoped(workspace_tracking_store, order_by):
+     with WorkspaceContext("team-search-a"):
+         exp_a = workspace_tracking_store.create_experiment("exp-search-a")
+         trace_id_a = generate_request_id_v2()
+@@ -1550,11 +1551,11 @@ def test_search_traces_is_workspace_scoped(workspace_tracking_store):
+             )
+ 
+         # Cross-workspace search returns nothing
+-        results, _ = workspace_tracking_store.search_traces(locations=[exp_a])
++        results, _ = workspace_tracking_store.search_traces(locations=[exp_a], order_by=order_by)
+         assert results == []
+ 
+         # Same-workspace search works
+-        results, _ = workspace_tracking_store.search_traces(locations=[exp_b])
++        results, _ = workspace_tracking_store.search_traces(locations=[exp_b], order_by=order_by)
+         assert len(results) == 1
+         assert results[0].trace_id == trace_id_b
+ 

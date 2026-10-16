@@ -1,0 +1,46 @@
+diff --git a/mlflow/store/tracking/sqlalchemy_store.py b/mlflow/store/tracking/sqlalchemy_store.py
+index adc4f76668a10..a978e605b9737 100644
+--- a/mlflow/store/tracking/sqlalchemy_store.py
++++ b/mlflow/store/tracking/sqlalchemy_store.py
+@@ -10192,7 +10192,7 @@ def _get_search_experiments_filter_clauses(parsed_filters, dialect):
+     for f in parsed_filters:
+         type_ = f["type"]
+         key = f["key"]
+-        comparator = f["comparator"]
++        comparator = f["comparator"].upper()
+         value = f["value"]
+         if type_ == "attribute":
+             if key == "experiment_id":
+diff --git a/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_experiments.py b/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_experiments.py
+index e37d7b42d3923..64df91a13a333 100644
+--- a/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_experiments.py
++++ b/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_experiments.py
+@@ -356,6 +356,28 @@ def test_search_experiments_filter_by_attribute(store: SqlAlchemyStore):
+     assert [e.name for e in experiments] == ["ab"]
+ 
+ 
++@pytest.mark.parametrize(
++    ("filter_string", "expected"),
++    [
++        ("name like 'a%'", ["ab", "a"]),
++        ("name ilike 'a%'", ["Abc", "ab", "a"]),
++        ("tag.key like 'val%'", ["a"]),
++        ("tag.key ilike 'VAL%'", ["a"]),
++        ("tag.key is null", ["Abc", "ab", "Default"]),
++    ],
++)
++def test_search_experiments_filter_with_lowercase_comparator(
++    store: SqlAlchemyStore, filter_string, expected
++):
++    _create_experiments(store, ["a", "ab", "Abc"])
++    store.set_experiment_tag(
++        store.get_experiment_by_name("a").experiment_id, ExperimentTag("key", "value")
++    )
++
++    experiments = store.search_experiments(filter_string=filter_string)
++    assert [e.name for e in experiments] == expected
++
++
+ def test_search_experiments_filter_by_experiment_id_in(store: SqlAlchemyStore):
+     id_a, id_b, id_c = _create_experiments(store, ["a", "b", "c"])
+ 

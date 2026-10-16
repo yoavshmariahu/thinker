@@ -1,0 +1,66 @@
+diff --git a/mlflow/utils/string_utils.py b/mlflow/utils/string_utils.py
+index f253795fa78c7..a197096983f1d 100644
+--- a/mlflow/utils/string_utils.py
++++ b/mlflow/utils/string_utils.py
+@@ -53,9 +53,10 @@ def _create_table(
+     a     b     c
+     d     e     f
+     """
++    columns = zip(*rows) if rows else [[] for _ in headers]
+     column_widths = [
+-        max(len(max(col, key=len)), len(header) + 2, min_column_width)
+-        for col, header in zip(zip(*rows), headers)
++        max(max((len(cell) for cell in col), default=0), len(header) + 2, min_column_width)
++        for col, header in zip(columns, headers)
+     ]
+     aligned_rows = [
+         column_sep.join(header.ljust(width) for header, width in zip(headers, column_widths)),
+diff --git a/tests/cli/test_scorers.py b/tests/cli/test_scorers.py
+index 5c1b301a58fe5..a4656e7eba8c4 100644
+--- a/tests/cli/test_scorers.py
++++ b/tests/cli/test_scorers.py
+@@ -146,7 +146,7 @@ def test_list_scorers_json_output(
+ @pytest.mark.parametrize(
+     ("output_format", "expected_output"),
+     [
+-        ("table", ""),
++        ("table", "Scorer Name    Description  \n-------------  -------------\n"),
+         ("json", {"scorers": []}),
+     ],
+ )
+@@ -164,8 +164,7 @@ def test_list_scorers_empty_experiment(
+         output_json = json.loads(result.output)
+         assert output_json == expected_output
+     else:
+-        # Empty table produces minimal output
+-        assert result.output.strip() == expected_output
++        assert result.output == expected_output
+ 
+ 
+ def test_list_scorers_with_experiment_id_env_var(
+diff --git a/tests/utils/test_string_utils.py b/tests/utils/test_string_utils.py
+index 20c7ac3c69a50..ca9ba61db3145 100644
+--- a/tests/utils/test_string_utils.py
++++ b/tests/utils/test_string_utils.py
+@@ -1,6 +1,7 @@
+ import pytest
+ 
+ from mlflow.utils.string_utils import (
++    _create_table,
+     format_table_cell_value,
+     is_string_type,
+     mslex_quote,
+@@ -9,6 +10,13 @@
+ )
+ 
+ 
++def test_create_table_empty_rows_keeps_headers():
++    assert _create_table([], ["Name", "ID"]).splitlines() == [
++        "Name    ID  ",
++        "------  ----",
++    ]
++
++
+ @pytest.mark.parametrize(
+     (("original", "prefix", "expected")),
+     [("smoketest", "smoke", "test"), ("", "test", ""), ("", "", ""), ("test", "", "test")],

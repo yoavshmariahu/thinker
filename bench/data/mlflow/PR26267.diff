@@ -1,0 +1,451 @@
+diff --git a/mlflow/server/auth/__init__.py b/mlflow/server/auth/__init__.py
+index ff8bf15d7852c..98ce0850f1e23 100644
+--- a/mlflow/server/auth/__init__.py
++++ b/mlflow/server/auth/__init__.py
+@@ -548,7 +548,12 @@ def is_unprotected_route(path: str) -> bool:
+     # both the unprefixed and the prefixed forms so health checks don't end
+     # up requiring auth on prefixed deployments.
+     prefixed = tuple(_add_static_prefix(p) for p in _UNPROTECTED_PATH_PREFIXES)
+-    return path.startswith(_UNPROTECTED_PATH_PREFIXES) or path.startswith(prefixed)
++    if path.startswith(_UNPROTECTED_PATH_PREFIXES) or path.startswith(prefixed):
++        return True
++    # Server-info is public, including on a basic-auth server, so a client can read
++    # how the server is configured before logging in. Keep the payload free of
++    # secrets; see build_server_info_payload.
++    return _matches_route_suffix(_strip_static_prefix(path), _PUBLIC_ROUTE_SUFFIXES)
+ 
+ 
+ def make_basic_auth_response() -> Response:
+@@ -3621,7 +3626,8 @@ def _find_validator(req: Request) -> Callable[[], bool] | None:
+ 
+ # Fail-closed net (opt-in via MLFLOW_BASIC_AUTH_FAIL_CLOSED).
+ _PUBLIC_ROUTE_SUFFIXES = (
+-    "/mlflow/server-info",  # capability discovery; no tenant data
++    # Public capability discovery. No login. Do not add tenant data here.
++    "/mlflow/server-info",
+ )
+ 
+ # Routes that self-authorize (e.g. filter results by the caller) rather than via a
+@@ -6081,7 +6087,7 @@ def add_fastapi_permission_middleware(app: FastAPI) -> None:
+     async def fastapi_permission_middleware(request, call_next):
+         path = get_routed_asgi_path(request)
+ 
+-        # Skip unprotected routes
++        # Skip routes that do not require login, including server-info.
+         if is_unprotected_route(path):
+             return await call_next(request)
+ 
+diff --git a/mlflow/server/fastapi_app.py b/mlflow/server/fastapi_app.py
+index 85e75c0e62479..aff118f6cb327 100644
+--- a/mlflow/server/fastapi_app.py
++++ b/mlflow/server/fastapi_app.py
+@@ -37,13 +37,14 @@
+ from mlflow.server.handlers import STATIC_PREFIX_ENV_VAR, _add_static_prefix
+ from mlflow.server.job_api import job_api_router
+ from mlflow.server.mcp_server_api import (
+-    _mlflow_error_response,
+     _request_validation_error_response,
+     get_mcp_server_api_route_prefixes,
+     is_mcp_server_api_path,
+     mcp_server_router,
+ )
++from mlflow.server.mlflow_response import mlflow_exception_response
+ from mlflow.server.otel_api import otel_router
++from mlflow.server.server_info_api import server_info_router
+ from mlflow.server.workspace_helpers import (
+     WORKSPACE_HEADER_NAME,
+     resolve_workspace_for_request_if_enabled,
+@@ -187,13 +188,13 @@ def add_mcp_exception_handlers(fastapi_app: FastAPI) -> None:
+     async def mcp_mlflow_exception_handler(request: Request, exc: MlflowException):
+         path = get_routed_asgi_path(request)
+         if is_mcp_server_api_path(path):
+-            return _mlflow_error_response(exc)
++            return mlflow_exception_response(exc, handler_name="mcp_mlflow_exception_handler")
+         if original_mlflow_exception_handler is not None:
+             response = original_mlflow_exception_handler(request, exc)
+             if inspect.isawaitable(response):
+                 return await response
+             return response
+-        return _mlflow_error_response(exc)
++        return mlflow_exception_response(exc, handler_name="mcp_mlflow_exception_handler")
+ 
+     @fastapi_app.exception_handler(RequestValidationError)
+     async def mcp_request_validation_error_handler(request: Request, exc: RequestValidationError):
+@@ -296,6 +297,8 @@ def create_fastapi_app(flask_app: Flask = flask_app):
+     for route_prefix in get_mcp_server_api_route_prefixes():
+         fastapi_app.include_router(mcp_server_router, prefix=route_prefix)
+ 
++    fastapi_app.include_router(server_info_router, prefix=static_prefix)
++
+     # Mount the entire Flask application at the root path.
+     # Must come AFTER include_router so native FastAPI routes take precedence.
+     fastapi_app.mount("/", _EfficientWSGIMiddleware(flask_app))
+diff --git a/mlflow/server/handlers.py b/mlflow/server/handlers.py
+index 3b4f556a7dceb..371ac2fa30861 100644
+--- a/mlflow/server/handlers.py
++++ b/mlflow/server/handlers.py
+@@ -7459,8 +7459,10 @@ def _update_endpoint_guardrail_config():
+     return _wrap_response(response_message)
+ 
+ 
+-@catch_mlflow_exception
+-def _get_server_info():
++def build_server_info_payload() -> dict[str, Any]:
++    # This JSON is returned with no login, including when basic auth is on.
++    # Clients use it to learn how the server is set up before they authenticate.
++    # Do not add secrets, credentials, tenant data, or internal addresses.
+     from mlflow.store.tracking.file_store import FileStore
+     from mlflow.store.tracking.sqlalchemy_store import SqlAlchemyStore
+ 
+@@ -7501,7 +7503,7 @@ def _get_server_info():
+                 exc_info=True,
+             )
+ 
+-    return jsonify({
++    return {
+         SERVER_INFO_STORE_TYPE: store_type,
+         SERVER_INFO_WORKSPACES_ENABLED: MLFLOW_ENABLE_WORKSPACES.get(),
+         SERVER_INFO_TRACE_ARCHIVAL_ENABLED: trace_archival_enabled,
+@@ -7513,7 +7515,12 @@ def _get_server_info():
+         SERVER_INFO_FEATURES_ENABLED: {
+             "gateway": MLFLOW_ENABLE_AI_GATEWAY.get(),
+         },
+-    })
++    }
++
++
++@catch_mlflow_exception
++def _get_server_info():
++    return jsonify(build_server_info_payload())
+ 
+ 
+ @catch_mlflow_exception
+diff --git a/mlflow/server/mcp_server_api.py b/mlflow/server/mcp_server_api.py
+index e6e50316f6651..8d77201273fcd 100644
+--- a/mlflow/server/mcp_server_api.py
++++ b/mlflow/server/mcp_server_api.py
+@@ -1,11 +1,10 @@
+ from __future__ import annotations
+ 
+-import json
+ from typing import TYPE_CHECKING, Any, Literal
+ 
+ from fastapi import APIRouter, Query, Request
+ from fastapi.exceptions import RequestValidationError
+-from fastapi.responses import JSONResponse
++from fastapi.responses import Response
+ from pydantic import (
+     BaseModel,
+     ConfigDict,
+@@ -26,6 +25,7 @@
+ from mlflow.entities.mcp_server_version import ConnectOptionSettings, MCPServerVersion
+ from mlflow.exceptions import MlflowException
+ from mlflow.protos.databricks_pb2 import PERMISSION_DENIED, RESOURCE_ALREADY_EXISTS, ErrorCode
++from mlflow.server.mlflow_response import mlflow_exception_response
+ from mlflow.utils.validation import (
+     _MAX_MCP_ICONS_PER_LIST,
+     _MAX_MCP_TOOLS_PER_LIST,
+@@ -473,13 +473,6 @@ def _parse_transport_type(value: str) -> MCPRemoteTransportType:
+         ) from None
+ 
+ 
+-def _mlflow_error_response(e: MlflowException) -> JSONResponse:
+-    return JSONResponse(
+-        status_code=e.get_http_status_code(),
+-        content=json.loads(e.serialize_as_json()),
+-    )
+-
+-
+ def _format_validation_errors(exc: RequestValidationError) -> str:
+     messages = []
+     for error in exc.errors():
+@@ -490,11 +483,12 @@ def _format_validation_errors(exc: RequestValidationError) -> str:
+     return "; ".join(messages)
+ 
+ 
+-def _request_validation_error_response(exc: RequestValidationError) -> JSONResponse:
+-    return _mlflow_error_response(
++def _request_validation_error_response(exc: RequestValidationError) -> Response:
++    return mlflow_exception_response(
+         MlflowException.invalid_parameter_value(
+             f"Invalid request: {_format_validation_errors(exc)}"
+-        )
++        ),
++        handler_name="_request_validation_error_response",
+     )
+ 
+ 
+diff --git a/mlflow/server/mlflow_response.py b/mlflow/server/mlflow_response.py
+new file mode 100644
+index 0000000000000..07799fcf8a02b
+--- /dev/null
++++ b/mlflow/server/mlflow_response.py
+@@ -0,0 +1,25 @@
++"""Shared HTTP responses for MLflow exceptions."""
++
++import logging
++
++from starlette.responses import Response
++
++from mlflow.exceptions import MlflowException
++
++_logger = logging.getLogger(__name__)
++
++
++def mlflow_exception_response(exc: MlflowException, *, handler_name: str) -> Response:
++    """Return Flask's exact ``serialize_as_json()`` body."""
++    status_code = exc.get_http_status_code()
++    if status_code >= 500:
++        is_debug = _logger.isEnabledFor(logging.DEBUG)
++        msg = f"Error in {handler_name}: {exc}"
++        if not is_debug:
++            msg += ". Set MLFLOW_LOGGING_LEVEL=DEBUG for traceback."
++        _logger.error(msg, exc_info=is_debug)
++    return Response(
++        content=exc.serialize_as_json(),
++        media_type="application/json",
++        status_code=status_code,
++    )
+diff --git a/mlflow/server/server_info_api.py b/mlflow/server/server_info_api.py
+new file mode 100644
+index 0000000000000..1e707a5398697
+--- /dev/null
++++ b/mlflow/server/server_info_api.py
+@@ -0,0 +1,35 @@
++"""Native FastAPI routes for the server-info capability endpoint."""
++
++import anyio
++from fastapi import APIRouter
++from fastapi.responses import JSONResponse, PlainTextResponse, Response
++
++from mlflow.exceptions import MlflowException
++from mlflow.server.handlers import build_server_info_payload
++from mlflow.server.mlflow_response import mlflow_exception_response
++
++# Separate from AnyIO's default thread limiter, which the Flask WSGI mount uses.
++# Overlapping Kubelet, UI, and Python client calls for this one endpoint.
++# Per process, and only for server-info. /health does not use it.
++_SERVER_INFO_LIMITER = anyio.CapacityLimiter(8)
++
++server_info_router = APIRouter(tags=["Server Info"])
++
++
++@server_info_router.get("/health")
++async def health() -> PlainTextResponse:
++    # Probes must not wait for a Flask worker. Gunicorn and Waitress keep the Flask route.
++    return PlainTextResponse("OK")
++
++
++@server_info_router.get("/api/3.0/mlflow/server-info")
++@server_info_router.get("/ajax-api/3.0/mlflow/server-info")
++async def get_server_info() -> Response:
++    try:
++        payload = await anyio.to_thread.run_sync(
++            build_server_info_payload,
++            limiter=_SERVER_INFO_LIMITER,
++        )
++    except MlflowException as exc:
++        return mlflow_exception_response(exc, handler_name="get_server_info")
++    return JSONResponse(content=payload)
+diff --git a/tests/server/auth/test_authorization_coverage.py b/tests/server/auth/test_authorization_coverage.py
+index 6a915da3443fa..f29e1e18c7f81 100644
+--- a/tests/server/auth/test_authorization_coverage.py
++++ b/tests/server/auth/test_authorization_coverage.py
+@@ -104,6 +104,7 @@ def _fastapi_native_routes():
+         job_api_router,
+         mcp_server_router,
+         otel_router,
++        server_info_router,
+     )
+ 
+     def _methods(route):
+@@ -113,7 +114,14 @@ def _methods(route):
+             if m not in ("HEAD", "OPTIONS")
+         ]
+ 
+-    for router in (artifact_router, assistant_router, gateway_router, job_api_router, otel_router):
++    for router in (
++        artifact_router,
++        assistant_router,
++        gateway_router,
++        job_api_router,
++        otel_router,
++        server_info_router,
++    ):
+         for route in router.routes:
+             for method in _methods(route):
+                 yield route.path, method
+@@ -132,6 +140,7 @@ def test_no_ungated_fastapi_native_routes():
+         for path, method in _fastapi_native_routes()
+         if a._find_fastapi_validator(path, method) is None
+         and not a.is_unprotected_route(path)
++        and not a._matches_route_suffix(a._strip_static_prefix(path), a._PUBLIC_ROUTE_SUFFIXES)
+         and not any(m in path for m in a._KNOWN_UNGATED_FASTAPI_ROUTE_MARKERS)
+     )
+     assert not uncovered, (
+diff --git a/tests/server/test_fastapi_app.py b/tests/server/test_fastapi_app.py
+index 47059f5c39e0a..4ce5c4122695d 100644
+--- a/tests/server/test_fastapi_app.py
++++ b/tests/server/test_fastapi_app.py
+@@ -26,7 +26,7 @@ def test_websocket_to_wsgi_mount_does_not_crash(client):
+ 
+ 
+ def test_http_to_wsgi_mount_still_served(client):
+-    resp = client.get("/health")
++    resp = client.get("/version")
+     assert resp.status_code == 200
+ 
+ 
+diff --git a/tests/server/test_server_info_api.py b/tests/server/test_server_info_api.py
+new file mode 100644
+index 0000000000000..29fd8dc31836b
+--- /dev/null
++++ b/tests/server/test_server_info_api.py
+@@ -0,0 +1,147 @@
++import threading
++from typing import Any
++
++import anyio
++import pytest
++from flask import Flask
++from starlette.testclient import TestClient
++
++try:
++    import httpx2 as httpx
++except ModuleNotFoundError:
++    import httpx
++
++from mlflow.exceptions import MlflowException
++from mlflow.server import app as flask_app
++from mlflow.server.fastapi_app import create_fastapi_app
++from mlflow.server.handlers import STATIC_PREFIX_ENV_VAR
++
++_SERVER_INFO_PATHS = (
++    "/api/3.0/mlflow/server-info",
++    "/ajax-api/3.0/mlflow/server-info",
++)
++
++
++def _flask_server_info(path: str) -> dict[str, Any]:
++    response = flask_app.test_client().get(path)
++    assert response.status_code == 200
++    return response.get_json()
++
++
++def test_server_info_matches_flask_json(monkeypatch):
++    monkeypatch.setenv("MLFLOW_SERVER_DISABLE_SECURITY_MIDDLEWARE", "true")
++    with TestClient(create_fastapi_app()) as client:
++        for path in _SERVER_INFO_PATHS:
++            response = client.get(path)
++            assert response.status_code == 200
++            assert response.json() == _flask_server_info(path)
++        health = client.get("/health")
++        assert health.status_code == 200
++        assert health.text == "OK"
++
++
++def test_server_info_matches_flask_json_with_static_prefix(monkeypatch):
++    monkeypatch.setenv("MLFLOW_SERVER_DISABLE_SECURITY_MIDDLEWARE", "true")
++    monkeypatch.setenv(STATIC_PREFIX_ENV_VAR, "/mlflow")
++    with TestClient(create_fastapi_app()) as client:
++        for path in _SERVER_INFO_PATHS:
++            response = client.get(f"/mlflow{path}")
++            assert response.status_code == 200
++            assert response.json() == _flask_server_info(path)
++        health = client.get("/mlflow/health")
++        assert health.status_code == 200
++        assert health.text == "OK"
++
++
++def test_server_info_error_body_matches_flask_json(monkeypatch):
++    monkeypatch.setenv("MLFLOW_SERVER_DISABLE_SECURITY_MIDDLEWARE", "true")
++    exc = MlflowException("server-info failed")
++
++    def _raise():
++        raise exc
++
++    monkeypatch.setattr("mlflow.server.server_info_api.build_server_info_payload", _raise)
++    with TestClient(create_fastapi_app()) as client:
++        response = client.get("/api/3.0/mlflow/server-info")
++    assert response.status_code == exc.get_http_status_code()
++    assert response.text == exc.serialize_as_json()
++
++
++@pytest.mark.asyncio
++async def test_server_info_responds_when_wsgi_pool_is_exhausted(monkeypatch):
++    monkeypatch.setenv("MLFLOW_SERVER_DISABLE_SECURITY_MIDDLEWARE", "true")
++    started = threading.Event()
++    release = threading.Event()
++    blocking_app = Flask("wsgi-pool-block")
++
++    @blocking_app.route("/_block")
++    def _block():
++        started.set()
++        release.wait(timeout=30)
++        return "ok"
++
++    fastapi_app = create_fastapi_app(blocking_app)
++    # The default limiter lives on the app's event loop. Shrink it there, and
++    # issue the blocking Flask call and server-info as concurrent ASGI tasks.
++    saved_limiter: list[tuple[anyio.CapacityLimiter, float]] = []
++
++    @fastapi_app.middleware("http")
++    async def _exhaust_default_limiter(request, call_next):
++        limiter = anyio.to_thread.current_default_thread_limiter()
++        if not saved_limiter:
++            saved_limiter.append((limiter, limiter.total_tokens))
++            limiter.total_tokens = 1
++        return await call_next(request)
++
++    responses = []
++    try:
++        transport = httpx.ASGITransport(app=fastapi_app)
++        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
++
++            async def _hold_wsgi_pool():
++                await client.get("/_block")
++
++            async with anyio.create_task_group() as task_group:
++                task_group.start_soon(_hold_wsgi_pool)
++                try:
++                    for _ in range(100):
++                        if started.is_set():
++                            break
++                        await anyio.sleep(0.05)
++                    assert started.is_set()
++                    for path in (*_SERVER_INFO_PATHS, "/health"):
++                        with anyio.move_on_after(2):
++                            responses.append(await client.get(path))
++                finally:
++                    release.set()
++    finally:
++        if saved_limiter:
++            limiter, original_tokens = saved_limiter[0]
++            limiter.total_tokens = original_tokens
++
++    assert len(responses) == 3, "server-info or health blocked on the shared WSGI thread pool"
++    assert all(response.status_code == 200 for response in responses)
++
++
++def test_server_info_is_public_when_basic_auth_is_on(monkeypatch):
++    pytest.importorskip("flask_wtf")
++    from mlflow.server import auth
++
++    monkeypatch.setenv("MLFLOW_SERVER_DISABLE_SECURITY_MIDDLEWARE", "true")
++    monkeypatch.setenv("MLFLOW_BASIC_AUTH_FAIL_CLOSED", "true")
++    for prefix in ("", "/mlflow"):
++        if prefix:
++            monkeypatch.setenv(STATIC_PREFIX_ENV_VAR, prefix)
++        else:
++            monkeypatch.delenv(STATIC_PREFIX_ENV_VAR, raising=False)
++        for path in _SERVER_INFO_PATHS:
++            assert auth.is_unprotected_route(path)
++            assert auth.is_unprotected_route(f"{prefix}{path}")
++
++        app = create_fastapi_app()
++        auth.add_fastapi_permission_middleware(app)
++        with TestClient(app) as client:
++            for path in _SERVER_INFO_PATHS:
++                response = client.get(f"{prefix}{path}")
++                assert response.status_code == 200
++                assert "authorization" not in {name.lower() for name in response.request.headers}

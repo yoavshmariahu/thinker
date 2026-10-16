@@ -1,0 +1,189 @@
+diff --git a/docs/docs/genai/governance/ai-gateway/endpoints/model-providers.mdx b/docs/docs/genai/governance/ai-gateway/endpoints/model-providers.mdx
+index e8857c8528bc2..203b0910c52e6 100644
+--- a/docs/docs/genai/governance/ai-gateway/endpoints/model-providers.mdx
++++ b/docs/docs/genai/governance/ai-gateway/endpoints/model-providers.mdx
+@@ -281,6 +281,8 @@ response = client.chat.completions.create(
+ 
+ The TypeSafe passthrough exposes TypeSafe's System One API through the MLflow Gateway. The gateway endpoint name goes in the request body's `model` field; the gateway forwards the request to the configured TypeSafe model with its server-side TypeSafe API key.
+ 
++Requests are sent to `https://api.typesafe.ai/v1` by default. To use a proxy or another System One host, set **API Base URL** (`api_base`) on the TypeSafe LLM connection. Private or non-HTTPS connection URLs require the settings described in [custom base URL validation](/genai/governance/ai-gateway/api-keys/create-and-manage#custom-base-url-validation). When constructing `TypeSafeConfig` directly, use `typesafe_api_base` instead.
++
+ **Base URL:** `http://localhost:5000/gateway/typesafe/v1`
+ 
+ **Supported Endpoints:**
+diff --git a/mlflow/gateway/config.py b/mlflow/gateway/config.py
+index b1ea8f73e08bd..98e96e8ebc712 100644
+--- a/mlflow/gateway/config.py
++++ b/mlflow/gateway/config.py
+@@ -21,6 +21,7 @@
+     MLFLOW_AI_GATEWAY_MOSAICML_CHAT_SUPPORTED_MODEL_PREFIXES,
+     MLFLOW_GATEWAY_ROUTE_BASE,
+     MLFLOW_QUERY_SUFFIX,
++    TYPESAFE_API_BASE_URL,
+ )
+ from mlflow.gateway.utils import (
+     check_configuration_deprecated_fields,
+@@ -83,6 +84,7 @@ def validate_togetherai_api_key(cls, value):
+ 
+ class TypeSafeConfig(ConfigModel):
+     typesafe_api_key: str
++    typesafe_api_base: str = TYPESAFE_API_BASE_URL
+ 
+     @field_validator("typesafe_api_key", mode="before")
+     def validate_typesafe_api_key(cls, value):
+diff --git a/mlflow/gateway/providers/typesafe.py b/mlflow/gateway/providers/typesafe.py
+index c9faa0fbae181..a6cddf2b70e29 100644
+--- a/mlflow/gateway/providers/typesafe.py
++++ b/mlflow/gateway/providers/typesafe.py
+@@ -1,7 +1,7 @@
+ from typing import Any
+ 
+ from mlflow.gateway.config import EndpointConfig, TypeSafeConfig
+-from mlflow.gateway.constants import TYPESAFE_API_BASE_URL, TYPESAFE_SYSTEM_ONE_PATH
++from mlflow.gateway.constants import TYPESAFE_SYSTEM_ONE_PATH
+ from mlflow.gateway.exceptions import AIGatewayException
+ from mlflow.gateway.providers.base import BaseProvider, PassthroughAction
+ from mlflow.gateway.providers.utils import send_request
+@@ -24,7 +24,7 @@ def headers(self) -> dict[str, str]:
+ 
+     @property
+     def base_url(self) -> str:
+-        return TYPESAFE_API_BASE_URL
++        return self.typesafe_config.typesafe_api_base
+ 
+     async def _passthrough(
+         self,
+diff --git a/mlflow/server/gateway_api.py b/mlflow/server/gateway_api.py
+index 613dfcde2f269..2efed4ddaedd2 100644
+--- a/mlflow/server/gateway_api.py
++++ b/mlflow/server/gateway_api.py
+@@ -425,9 +425,12 @@ def _build_endpoint_config(
+             mistral_api_key=model_config.secret_value.get(_AuthConfigKey.API_KEY),
+         )
+     elif model_config.provider == Provider.TYPESAFE:
+-        provider_config = TypeSafeConfig(
+-            typesafe_api_key=model_config.secret_value.get(_AuthConfigKey.API_KEY),
+-        )
++        typesafe_config = {
++            "typesafe_api_key": model_config.secret_value.get(_AuthConfigKey.API_KEY),
++        }
++        if model_config.auth_config and _AuthConfigKey.API_BASE in model_config.auth_config:
++            typesafe_config["typesafe_api_base"] = model_config.auth_config[_AuthConfigKey.API_BASE]
++        provider_config = TypeSafeConfig(**typesafe_config)
+     elif model_config.provider == Provider.GEMINI:
+         provider_config = GeminiConfig(
+             gemini_api_key=model_config.secret_value.get(_AuthConfigKey.API_KEY),
+diff --git a/mlflow/utils/providers.py b/mlflow/utils/providers.py
+index dc868d20cd81f..6ef82cd8fd374 100644
+--- a/mlflow/utils/providers.py
++++ b/mlflow/utils/providers.py
+@@ -825,6 +825,12 @@ def cost_per_token(
+                     "secret": True,
+                     "required": True,
+                 },
++                {
++                    "name": "api_base",
++                    "description": "TypeSafe API Base URL (defaults to https://api.typesafe.ai/v1)",
++                    "secret": False,
++                    "required": False,
++                },
+             ],
+         },
+     },
+diff --git a/tests/gateway/providers/test_typesafe.py b/tests/gateway/providers/test_typesafe.py
+index 8fad0bcdde61d..21e96b548ea2c 100644
+--- a/tests/gateway/providers/test_typesafe.py
++++ b/tests/gateway/providers/test_typesafe.py
+@@ -6,6 +6,7 @@
+ 
+ from mlflow.exceptions import MlflowException
+ from mlflow.gateway.config import EndpointConfig, TypeSafeConfig
++from mlflow.gateway.constants import TYPESAFE_API_BASE_URL
+ from mlflow.gateway.exceptions import AIGatewayException
+ from mlflow.gateway.provider_registry import provider_registry
+ from mlflow.gateway.providers.base import PassthroughAction
+@@ -49,6 +50,31 @@ def test_typesafe_api_key_config(monkeypatch):
+         TypeSafeConfig(typesafe_api_key=None)
+ 
+ 
++@pytest.mark.asyncio
++async def test_typesafe_api_base_config(provider):
++    assert provider.base_url == TYPESAFE_API_BASE_URL
++
++    custom_provider = TypeSafeProvider(
++        EndpointConfig(
++            name="custom-jev-evaluator",
++            endpoint_type="llm/v1/chat",
++            model={
++                "provider": "typesafe",
++                "name": "jev-1.13.0",
++                "config": {
++                    "typesafe_api_key": "typesafe-test-key",
++                    "typesafe_api_base": "https://typesafe.example.com/v1",
++                },
++            },
++        )
++    )
++    assert custom_provider.base_url == "https://typesafe.example.com/v1"
++
++    with patch("mlflow.gateway.providers.typesafe.send_request", return_value={}) as send:
++        await custom_provider.passthrough(PassthroughAction.TYPESAFE_SYSTEM_ONE, {})
++    assert send.await_args.kwargs["base_url"] == "https://typesafe.example.com/v1"
++
++
+ @pytest.mark.parametrize(
+     ("question", "answer"),
+     [
+diff --git a/tests/server/test_gateway_api.py b/tests/server/test_gateway_api.py
+index ccb2fbba2abc8..93946de9c303f 100644
+--- a/tests/server/test_gateway_api.py
++++ b/tests/server/test_gateway_api.py
+@@ -34,6 +34,7 @@
+     OpenAIAPIType,
+     OpenAIConfig,
+     PortkeyConfig,
++    TypeSafeConfig,
+     VertexAIConfig,
+ )
+ from mlflow.gateway.constants import MLFLOW_GATEWAY_DURATION_HEADER, MLFLOW_GATEWAY_OVERHEAD_HEADER
+@@ -170,6 +171,20 @@ def test_build_endpoint_config_vertex_ai_reads_anthropic_betas_from_auth_config(
+     assert config.model.config.vertex_anthropic_betas == expected
+ 
+ 
++def test_build_endpoint_config_typesafe_reads_api_base_from_auth_config():
++    model_config = GatewayModelConfig(
++        model_definition_id="md-test",
++        provider="typesafe",
++        model_name="jev-1.13.0",
++        secret_value={"api_key": "typesafe-test-key"},
++        auth_config={"api_base": "https://typesafe.example.com/v1"},
++    )
++    config = _build_endpoint_config("test-ep", model_config, EndpointType.LLM_V1_CHAT)
++
++    assert isinstance(config.model.config, TypeSafeConfig)
++    assert config.model.config.typesafe_api_base == "https://typesafe.example.com/v1"
++
++
+ def test_create_provider_from_endpoint_name_openai(store: SqlAlchemyStore):
+     # Create test data
+     secret = store.create_gateway_secret(
+diff --git a/tests/utils/test_providers.py b/tests/utils/test_providers.py
+index d325581384e9b..bc93d00920625 100644
+--- a/tests/utils/test_providers.py
++++ b/tests/utils/test_providers.py
+@@ -91,7 +91,14 @@ def test_typesafe_models_and_credentials(monkeypatch):
+     assert config["auth_modes"][0]["secret_fields"] == [
+         {"name": "api_key", "type": "string", "description": "TypeSafe API Key", "required": True}
+     ]
+-    assert config["auth_modes"][0]["config_fields"] == []
++    assert config["auth_modes"][0]["config_fields"] == [
++        {
++            "name": "api_base",
++            "type": "string",
++            "description": "TypeSafe API Base URL (defaults to https://api.typesafe.ai/v1)",
++            "required": False,
++        }
++    ]
+ 
+     input_cost, output_cost = cost_per_token(
+         model="jev-preview",

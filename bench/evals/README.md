@@ -31,6 +31,16 @@ cache off and with it on, to test one **behavior** (a cache feature, prompt, wir
 | **Agent**: runner, model, reps, concurrency, switches | experiment | the model is the cache's mining model |
 | **Grading**: the PRs' tests, or a named judge | experiment | a judge is named when any PR lacks tests |
 
+A task set (`bench/tasks/<repo>[-hard|-adv].json`) runs in the checkout `bench/repos/<repo>`, named
+by its `repo` field (the file name without `-hard`/`-adv` when it has none); checkouts are not
+checked in. The runners cut each session's worktree from that checkout (`bench/worktrees.js`), at
+its HEAD or the task set's `base`, so the checkout must stay at the base. The mlflow sets:
+`mlflow-b2.json`/`mlflow-b2-hard.json` run in `bench/repos/mlflow-b2`, a clone of mlflow/mlflow
+with branch `base` at `1bb65f1c63811362e224de885a52aedb00a3fa54`; `mlflow.json`/`mlflow-hard.json`
+in `bench/repos/mlflow` at `c63fb454c7e1`. Their `testCmd`s run pytest from the Python 3.12 env
+`/Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv` with `PYTHONPATH=.`, so the worktree's
+mlflow shadows the editable install from `bench/repos/mlflow`; gold diffs are in `bench/data/mlflow/`.
+
 A plan with a failing check comes back `blocked` and cannot be started. A cache build fails closed:
 mining that saved nothing or failed on more than a fifth of its changes, an empty cache, or a note
 from anywhere but a PR marks the receipt failed.

@@ -1,0 +1,61 @@
+diff --git a/mlflow/utils/proto_json_utils.py b/mlflow/utils/proto_json_utils.py
+index abd8ef259d4fb..e1bfcb71a3dde 100644
+--- a/mlflow/utils/proto_json_utils.py
++++ b/mlflow/utils/proto_json_utils.py
+@@ -712,7 +712,7 @@ def dump_input_data(data, inputs_key="inputs", params: dict[str, Any] | None = N
+     if isinstance(data, pd.DataFrame):
+         post_data = {"dataframe_split": data.to_dict(orient="split")}
+     elif isinstance(data, dict):
+-        post_data = {inputs_key: {k: get_jsonable_input(k, v) for k, v in data}}
++        post_data = {inputs_key: {k: get_jsonable_input(k, v) for k, v in data.items()}}
+     elif isinstance(data, np.ndarray):
+         post_data = {inputs_key: data.tolist()}
+     elif isinstance(data, list):
+diff --git a/tests/utils/test_proto_json_utils.py b/tests/utils/test_proto_json_utils.py
+index c60c3c1313f87..4f23d9016cb27 100644
+--- a/tests/utils/test_proto_json_utils.py
++++ b/tests/utils/test_proto_json_utils.py
+@@ -22,6 +22,7 @@
+     cast_df_types_according_to_schema,
+     dataframe_from_parsed_json,
+     dataframe_from_raw_json,
++    dump_input_data,
+     message_to_json,
+     parse_dict,
+     parse_tf_serving_input,
+@@ -30,6 +31,35 @@
+ from tests.protos.test_message_pb2 import SampleMessage
+ 
+ 
++@pytest.mark.parametrize(
++    ("data", "expected"),
++    [
++        ({"x": np.array([1, 2])}, {"inputs": {"x": [1, 2]}}),
++        (
++            {"ab": np.array([[1, 2], [3, 4]]), "column": np.array([5.0])},
++            {"inputs": {"ab": [[1, 2], [3, 4]], "column": [5.0]}},
++        ),
++    ],
++)
++def test_dump_input_data_dict(data, expected):
++    assert json.loads(dump_input_data(data)) == expected
++
++
++def test_dump_input_data_dict_with_custom_key_and_params():
++    data = {"x": np.array([1, 2])}
++    assert json.loads(
++        dump_input_data(data, inputs_key="instances", params={"temperature": 0.5})
++    ) == {
++        "instances": {"x": [1, 2]},
++        "params": {"temperature": 0.5},
++    }
++
++
++def test_dump_input_data_dict_rejects_unsupported_value():
++    with pytest.raises(MlflowException, match="Incompatible input type:.* for input x"):
++        dump_input_data({"x": [1, 2]})
++
++
+ def test_message_to_json():
+     json_out = message_to_json(Experiment("123", "name", "arty", "active").to_proto())
+     assert json.loads(json_out) == {

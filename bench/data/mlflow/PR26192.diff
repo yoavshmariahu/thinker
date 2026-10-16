@@ -1,0 +1,37 @@
+diff --git a/mlflow/cli/traces.py b/mlflow/cli/traces.py
+index ee4e855632f76..ca295051beb12 100644
+--- a/mlflow/cli/traces.py
++++ b/mlflow/cli/traces.py
+@@ -291,7 +291,7 @@ def search_traces(
+     mlflow traces search --experiment-id 1 --no-include-spans
+     """
+     client = TracingClient()
+-    order_by_list = order_by.split(",") if order_by else None
++    order_by_list = [o.strip() for o in order_by.split(",")] if order_by else None
+ 
+     # Set the sql_warehouse_id in the environment variable
+     if sql_warehouse_id is not None:
+diff --git a/tests/cli/test_traces.py b/tests/cli/test_traces.py
+index bcc88ec5048db..cd7f4bb66a88c 100644
+--- a/tests/cli/test_traces.py
++++ b/tests/cli/test_traces.py
+@@ -118,6 +118,19 @@ def test_search_command_with_fields(runner):
+         assert "OK" in result.output
+ 
+ 
++def test_search_command_strips_spaces_in_order_by(runner):
++    with mock.patch("mlflow.cli.traces.TracingClient") as mock_client:
++        mock_client.return_value.search_traces.return_value = PagedList([], None)
++        result = runner.invoke(
++            commands,
++            ["search", "--experiment-id", "1", "--order-by", "timestamp_ms DESC, status"],
++        )
++
++    assert result.exit_code == 0
++    _, kwargs = mock_client.return_value.search_traces.call_args
++    assert kwargs["order_by"] == ["timestamp_ms DESC", "status"]
++
++
+ def test_get_command_with_fields(runner):
+     trace_location = TraceLocation(
+         type=TraceLocationType.MLFLOW_EXPERIMENT,

@@ -1,0 +1,65 @@
+diff --git a/mlflow/utils/validation.py b/mlflow/utils/validation.py
+index f9ff26acbbd51..9747566a0057f 100644
+--- a/mlflow/utils/validation.py
++++ b/mlflow/utils/validation.py
+@@ -636,7 +636,7 @@ def _validate_batch_log_api_req(json_req):
+ 
+ def _validate_experiment_name(experiment_name):
+     """Check that `experiment_name` is a valid string and raise an exception if it isn't."""
+-    if experiment_name == "" or experiment_name is None:
++    if experiment_name is None or (is_string_type(experiment_name) and not experiment_name.strip()):
+         raise MlflowException(
+             f"Invalid experiment name: '{experiment_name}'",
+             error_code=INVALID_PARAMETER_VALUE,
+diff --git a/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_experiments.py b/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_experiments.py
+index 50647c66a14d0..e37d7b42d3923 100644
+--- a/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_experiments.py
++++ b/tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_experiments.py
+@@ -946,6 +946,26 @@ def test_create_experiments(store: SqlAlchemyStore):
+         store.create_experiment(name="x" * (MAX_EXPERIMENT_NAME_LENGTH + 1))
+ 
+ 
++@pytest.mark.parametrize("name", [" ", "\t\n", "\u2003"])
++def test_experiment_name_cannot_be_whitespace(store: SqlAlchemyStore, name):
++    with pytest.raises(
++        MlflowException,
++        match="Invalid experiment name",
++        check=lambda e: e.error_code == ErrorCode.Name(INVALID_PARAMETER_VALUE),
++    ):
++        store.create_experiment(name)
++    assert len(store.search_experiments()) == 1
++
++    experiment_id = store.create_experiment(" valid name ")
++    with pytest.raises(
++        MlflowException,
++        match="Invalid experiment name",
++        check=lambda e: e.error_code == ErrorCode.Name(INVALID_PARAMETER_VALUE),
++    ):
++        store.rename_experiment(experiment_id, name)
++    assert store.get_experiment(experiment_id).name == " valid name "
++
++
+ def test_create_experiment_with_tags_works_correctly(store: SqlAlchemyStore, workspaces_enabled):
+     artifact_location = None if workspaces_enabled else "some location"
+     experiment_id = store.create_experiment(
+diff --git a/tests/utils/test_validation.py b/tests/utils/test_validation.py
+index 33eb1f0e7609e..0226a7f7b155a 100644
+--- a/tests/utils/test_validation.py
++++ b/tests/utils/test_validation.py
+@@ -359,12 +359,14 @@ def test_validate_experiment_artifact_location_bad(location):
+         _validate_experiment_artifact_location(location)
+ 
+ 
+-@pytest.mark.parametrize("experiment_name", ["validstring", b"test byte string".decode("utf-8")])
++@pytest.mark.parametrize(
++    "experiment_name", ["validstring", " valid name ", b"test byte string".decode("utf-8")]
++)
+ def test_validate_experiment_name_good(experiment_name):
+     _validate_experiment_name(experiment_name)
+ 
+ 
+-@pytest.mark.parametrize("experiment_name", ["", 12, 12.7, None, {}, []])
++@pytest.mark.parametrize("experiment_name", ["", " ", "\t\n", "\u2003", 12, 12.7, None, {}, []])
+ def test_validate_experiment_name_bad(experiment_name):
+     with pytest.raises(MlflowException, match="Invalid experiment name"):
+         _validate_experiment_name(experiment_name)

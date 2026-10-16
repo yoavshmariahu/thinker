@@ -1,0 +1,722 @@
+{
+ "repo": "mlflow",
+ "base": "c63fb454c7e1",
+ "baseDate": "2026-09-20T23:42:26Z",
+ "builtAt": "2026-10-11T08:59:39.121Z",
+ "tasks": [
+  {
+   "id": "PR26252-hard",
+   "area": "mlflow/models",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\nWhen validating a candidate model against a baseline, the minimum relative change threshold gives the wrong result if the baseline metric value is negative. The relative change is computed by dividing by the signed baseline value, which reverses the comparison. For example, with a baseline R² of -1.8 and a 5% required improvement, a clearly worse candidate at -5.0 passes validation, while a perfect candidate at 1.0 fails. This happens for both metrics where higher is better and metrics where lower is better. The relative change should instead be measured against the magnitude (absolute value) of the baseline, so the required threshold is the baseline plus the minimum relative change times the baseline's absolute value (and the corresponding rule for lower-is-better metrics). Results for positive baselines must stay the same, and the existing behavior for a baseline of zero (a plain comparison) must be unchanged. The documentation describing the threshold rule should also be corrected to state this magnitude-based formula, noting that it matches the old formula when the baseline is positive.",
+   "goldTitle": "Use the baseline's magnitude in min_relative_change checks",
+   "goldFiles": [
+    "mlflow/models/evaluation/validation.py",
+    "tests/evaluate/test_validation.py"
+   ],
+   "goldDiff": "bench/data/mlflow/PR26252.diff",
+   "testFiles": [
+    "tests/evaluate/test_validation.py"
+   ],
+   "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/evaluate/test_validation.py'",
+   "mergeCommit": "edaaf644c1cff198eb620fa4a31d10605ea87323",
+   "mergedAt": "2026-10-06T02:52:32Z",
+   "loc": 85,
+   "preflight": {
+    "baseKind": "behaviour",
+    "testNeedsGoldSymbols": false,
+    "secs": 85
+   }
+  },
+  {
+   "id": "PR26244-hard",
+   "area": "mlflow/entities",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\nWhen a logged model is converted to its serialized (protobuf) form and then read back, its status message is lost. For example, a logged model marked as failed with a reason such as \"Upload failed\" comes back with an empty status message. Reading the status message from serialized data already works, but writing it out never happens, so the information disappears whenever a logged model passes through that serialized representation. The desired behavior is that converting a logged model to its serialized form includes the status message, just like the other descriptive fields, so a round trip preserves it exactly (e.g., a failed model keeps \"Upload failed\"). Other logged model fields and existing behavior should remain unchanged.",
+   "goldTitle": "Fix `LoggedModel.to_proto` dropping `status_message`",
+   "goldFiles": [
+    "mlflow/entities/logged_model.py",
+    "tests/entities/test_logged_model.py"
+   ],
+   "goldDiff": "bench/data/mlflow/PR26244.diff",
+   "testFiles": [
+    "tests/entities/test_logged_model.py"
+   ],
+   "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/entities/test_logged_model.py'",
+   "mergeCommit": "f639ef745fd8af54e11eb0d57ac369f8ccb3768d",
+   "mergedAt": "2026-09-29T09:50:18Z",
+   "loc": 19,
+   "preflight": {
+    "baseKind": "behaviour",
+    "testNeedsGoldSymbols": false,
+    "secs": 2
+   }
+  },
+  {
+   "id": "PR26245-hard",
+   "area": "mlflow/entities",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\nCreating a prompt version with a custom tags dictionary changes that dictionary. After creation, the caller's tags contain extra internal entries the caller never added: the prompt template text, the prompt type, a prompt marker, and the model configuration if one was given. This causes real problems when the same tags dictionary is reused for another prompt version. The second prompt picks up the first prompt's template and model configuration. For example, I create one version with tags {\"author\": \"alice\"}, a template \"Hello {{name}}\", and a temperature of 0.7. I then reuse those tags for a second version with the template \"Hi!\" and no model configuration. The second version wrongly reports a temperature of 0.7 as its model configuration. Creating a prompt version should never modify the tags the caller passed in. The caller's dictionary should keep exactly its original contents. Each prompt version should get its own internal tags, so nothing leaks between versions that share a tags dictionary.",
+   "goldTitle": "Fix `PromptVersion` mutating the caller's tags dict",
+   "goldFiles": [
+    "mlflow/entities/model_registry/prompt_version.py",
+    "tests/entities/test_prompt.py"
+   ],
+   "goldDiff": "bench/data/mlflow/PR26245.diff",
+   "testFiles": [
+    "tests/entities/test_prompt.py"
+   ],
+   "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/entities/test_prompt.py'",
+   "mergeCommit": "c8303cf9f610a372c7931a13f110ebc690f71b06",
+   "mergedAt": "2026-09-29T10:53:29Z",
+   "loc": 18,
+   "preflight": {
+    "baseKind": "behaviour",
+    "testNeedsGoldSymbols": false,
+    "secs": 2
+   }
+  },
+  {
+   "id": "PR26066-hard",
+   "area": "mlflow/prompt",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\nWhen an application uses more than one prompt registry in the same process, the cached prompts are shared across all of them. A client pointed at one registry can get prompt content that was cached by a client pointed at a different registry, even when the prompt name, version, or alias happens to match. This returns the wrong prompt data and makes behavior depend on which registry was queried first. Invalidation has the same problem: clearing cached entries after an update or delete is not limited to the registry where the change happened, and a failed change should not wrongly affect cached entries either. Desired behavior: cached prompts, whether looked up by version or by alias, should be kept separately for each registry that a client resolves to, so clients configured for different registries never see each other's cached prompt state. Invalidation should only affect entries for the relevant registry. Existing cache lifetime (TTL) and reuse behavior within a single registry should stay the same.",
+   "goldTitle": "Scope prompt cache entries by registry",
+   "goldFiles": [
+    "mlflow/prompt/registry_utils.py",
+    "mlflow/tracking/client.py",
+    "tests/genai/prompts/test_prompts.py",
+    "tests/genai/utils/test_prompt_cache.py",
+    "tests/tracking/test_client.py"
+   ],
+   "goldDiff": "bench/data/mlflow/PR26066.diff",
+   "testFiles": [
+    "tests/genai/prompts/test_prompts.py",
+    "tests/genai/utils/test_prompt_cache.py",
+    "tests/tracking/test_client.py"
+   ],
+   "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/genai/prompts/test_prompts.py' 'tests/genai/utils/test_prompt_cache.py' 'tests/tracking/test_client.py'",
+   "mergeCommit": "36ce73c17f2ea6a594e7f084fcda917eda709857",
+   "mergedAt": "2026-09-22T13:13:31Z",
+   "loc": 434,
+   "preflight": {
+    "baseKind": "symbol",
+    "testNeedsGoldSymbols": true,
+    "secs": 64
+   }
+  },
+  {
+   "id": "PR26265-hard",
+   "area": "mlflow/artifacts",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\nText saved as an artifact with the text-logging feature is written as UTF-8. The functions that load text and dictionary artifacts read it back using the machine's default locale encoding instead. On systems where that default isn't UTF-8 (for example a Traditional Chinese Windows locale), non-ASCII content comes back silently corrupted: \"café résumé\" turns into \"caf矇 r矇sum矇\". In other cases loading text fails with \"Unable to form a str object from file content\", and loading a dictionary fails with a decoding error. Both loading functions should always read artifacts as UTF-8, so content logged as text round-trips correctly whatever the machine's default encoding is. A file in a legacy encoding that was uploaded as a generic artifact used to read back correctly on the same machine, and will now fail to load. In that case, both functions should raise a clear error saying the artifact is not valid UTF-8 and suggesting the user download the artifact instead. The original decoding error should stay attached as the cause. Loading a dictionary should not let the raw decoding error escape uncaught.",
+   "goldTitle": "Read `load_text` and `load_dict` artifacts as UTF-8",
+   "goldFiles": [
+    "mlflow/artifacts/__init__.py",
+    "tests/artifacts/test_artifacts.py"
+   ],
+   "goldDiff": "bench/data/mlflow/PR26265.diff",
+   "testFiles": [
+    "tests/artifacts/test_artifacts.py"
+   ],
+   "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/artifacts/test_artifacts.py'",
+   "mergeCommit": "2cf3495a4a102f301d6247db94f951e446766e69",
+   "mergedAt": "2026-10-01T04:29:32Z",
+   "loc": 70,
+   "preflight": {
+    "baseKind": "behaviour",
+    "testNeedsGoldSymbols": false,
+    "secs": 6
+   }
+  },
+  {
+   "id": "PR26519-hard",
+   "area": "mlflow/utils",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\nWhen I send a scoring request to a deployed model using named inputs, such as a dictionary mapping an input name to a numpy array, the request fails before it is ever sent. The step that converts input data into the request payload goes through the dictionary incorrectly. It handles only the names and not the name and value pairs, so named tensor inputs can't be serialized. For example, passing a dictionary with the name \"x\" and the array [1, 2] should produce the payload {\"inputs\": {\"x\": [1, 2]}}. I want dictionary inputs to be converted correctly, with each name kept alongside its serialized value. This should work for one-dimensional and multidimensional arrays, and when a custom input key is used together with extra parameters. Values that can't be serialized should still be rejected with a clear error.",
+   "goldTitle": "Fix `dump_input_data` serialization of dict inputs",
+   "goldFiles": [
+    "mlflow/utils/proto_json_utils.py",
+    "tests/utils/test_proto_json_utils.py"
+   ],
+   "goldDiff": "bench/data/mlflow/PR26519.diff",
+   "testFiles": [
+    "tests/utils/test_proto_json_utils.py"
+   ],
+   "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/utils/test_proto_json_utils.py'",
+   "mergeCommit": "b12ba4e3c5499153f765bf004ff75ca722bca7bd",
+   "mergedAt": "2026-10-07T13:02:33Z",
+   "loc": 32,
+   "preflight": {
+    "baseKind": "behaviour",
+    "testNeedsGoldSymbols": false,
+    "secs": 2
+   }
+  },
+  {
+   "id": "PR26204-hard",
+   "area": "mlflow/cli",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\nThe command for deleting traces from an experiment, when given a comma-separated list of trace IDs, silently skips any ID that has a space after the comma. For example, passing \"tr-aaa, tr-bbb\" deletes only the first trace. The second ID keeps its leading space, so it matches no trace. The command still exits successfully and prints a smaller deleted count (such as \"Deleted 1 trace(s)\"), so the user doesn't know a trace was left behind. Running a search afterward shows the trace still exists. This is easy to hit, especially for automated agents that call the same deletion functionality and tend to write comma-plus-space lists. The related trace search ordering option and the trace evaluation command already ignore whitespace around entries. The deletion command should do the same: it should ignore leading and trailing whitespace around each trace ID in the list, so \"a, b\" deletes both traces just as \"a,b\" does.",
+   "goldTitle": "Strip spaces around `--trace-ids` entries in `mlflow traces delete`",
+   "goldFiles": [
+    "mlflow/cli/traces.py",
+    "tests/cli/test_traces.py"
+   ],
+   "goldDiff": "bench/data/mlflow/PR26204.diff",
+   "testFiles": [
+    "tests/cli/test_traces.py"
+   ],
+   "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/cli/test_traces.py'",
+   "mergeCommit": "1a4059a3d4d93a523d559901751267f9bd6de6e0",
+   "mergedAt": "2026-09-27T01:38:26Z",
+   "loc": 15,
+   "preflight": {
+    "baseKind": "behaviour",
+    "testNeedsGoldSymbols": false,
+    "secs": 2
+   }
+  },
+  {
+   "id": "PR26523-hard",
+   "area": "mlflow/gateway",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\nOpenAI-compatible clients can send a request that turns off parallel tool calls, often together with a forced tool choice. The AI Gateway passes that OpenAI-only setting through to Anthropic and to Claude on Vertex, and those providers reject the request as containing an unsupported field. As a result, these requests fail even though they are valid for OpenAI clients. The Gateway should not forward that setting to these providers, whatever its value. When parallel tool calls are turned off and the tool choice is a specific named tool, automatic, or required, the Gateway should translate that into the provider's own way of disabling parallel tool use, as a flag inside the tool choice. For example, a named-tool choice would include the flag that disables parallel tool use. If the tool choice is disabled or not provided, there is nowhere to attach the flag, so the tool choice should stay as it is and the request should still go through without the unsupported field.",
+   "goldTitle": "Fix `parallel_tool_calls` translation for Anthropic and Vertex Claude",
+   "goldFiles": [
+    "mlflow/gateway/providers/anthropic.py",
+    "tests/gateway/providers/test_anthropic_adapter.py"
+   ],
+   "goldDiff": "bench/data/mlflow/PR26523.diff",
+   "testFiles": [
+    "tests/gateway/providers/test_anthropic_adapter.py"
+   ],
+   "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/gateway/providers/test_anthropic_adapter.py'",
+   "mergeCommit": "b89930558c076b39f71d566eff82fee9b9a4eede",
+   "mergedAt": "2026-10-09T09:48:17Z",
+   "loc": 51,
+   "preflight": {
+    "baseKind": "behaviour",
+    "testNeedsGoldSymbols": false,
+    "secs": 2
+   }
+  },
+  {
+   "id": "PR26311-hard",
+   "area": "mlflow/data",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\nConverting a dataset into an evaluation dataset fails with an error when the dataset contains nested arrays of varying lengths whose elements are dictionaries. For example, a Hugging Face dataset where each row holds a list of dictionaries, and the lists differ in length from row to row, hits this. The failure happens while the system computes a hash of the dataset contents. It tries to treat the nested data as a uniform rectangular grid, and that isn't possible when the lengths are uneven. The user sees an error instead of getting an evaluation dataset. Datasets with uneven nested arrays of dictionaries should be hashed without error, and the conversion should succeed. The hash should be computed from the actual contents, using the existing approach for arrays that contain dictionaries. Datasets that already worked should keep producing the same results.",
+   "goldTitle": "Fix hashing of nested variable-length arrays",
+   "goldFiles": [
+    "mlflow/data/evaluation_dataset.py",
+    "tests/data/test_evaluation_dataset.py",
+    "tests/data/test_huggingface_dataset_and_source.py"
+   ],
+   "goldDiff": "bench/data/mlflow/PR26311.diff",
+   "testFiles": [
+    "tests/data/test_evaluation_dataset.py",
+    "tests/data/test_huggingface_dataset_and_source.py"
+   ],
+   "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/data/test_evaluation_dataset.py' 'tests/data/test_huggingface_dataset_and_source.py'",
+   "mergeCommit": "8d383877adbcef1812ca986fb4bcbac64236ab36",
+   "mergedAt": "2026-10-02T09:33:37Z",
+   "loc": 106,
+   "preflight": {
+    "baseKind": "behaviour",
+    "testNeedsGoldSymbols": false,
+    "secs": 18
+   }
+  },
+  {
+   "id": "PR26362-hard",
+   "area": "mlflow/utils",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\nRight now it's possible to create an experiment whose name is made up only of whitespace, such as spaces or tabs. You can also rename an existing experiment to a whitespace-only name. The name looks blank in listings and is effectively meaningless, so users can't tell experiments apart. Both creating and renaming an experiment should reject a name that is empty after whitespace is considered, and they should return a clear validation error. Valid names should keep working and be stored exactly as the user supplied them. That means no trimming or other changes to names that contain real characters, including names with leading or trailing spaces. Experiments that already have whitespace-only names don't need to be migrated or changed.",
+   "goldTitle": "Reject whitespace-only experiment names",
+   "goldFiles": [
+    "mlflow/utils/validation.py",
+    "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_experiments.py",
+    "tests/utils/test_validation.py"
+   ],
+   "goldDiff": "bench/data/mlflow/PR26362.diff",
+   "testFiles": [
+    "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_experiments.py",
+    "tests/utils/test_validation.py"
+   ],
+   "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_experiments.py' 'tests/utils/test_validation.py'",
+   "mergeCommit": "dbffdea0fc96899c3af993a885d0d4b3abbb44df",
+   "mergedAt": "2026-10-07T23:49:18Z",
+   "loc": 28,
+   "preflight": {
+    "baseKind": "behaviour",
+    "testNeedsGoldSymbols": false,
+    "secs": 9
+   }
+  },
+  {
+   "id": "PR26172-hard",
+   "area": "mlflow/genai",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\nA custom scorer defined with the scorer decorator can be saved but can never be loaded back if its function signature contains parentheses, for example a default value that is a tuple, a call, or a string containing a closing parenthesis. A typical case is a scorer that takes an outputs argument and a keywords argument whose default is a tuple of two strings. When loading, the signature is cut off at the first closing parenthesis, so the rebuilt function is invalid. The user gets an error saying the function could not be recreated from source code, with an invalid syntax message. Loading should work for any valid signature, including parentheses inside default values or annotations, and the full parameter list, with all defaults intact, should be restored. As before, the return annotation should be dropped from the rebuilt function. The signature should be parsed safely without executing anything. Saving and loading scorers with ordinary signatures should keep working as it does today.",
+   "goldTitle": "Fix loading `@scorer` functions whose signature contains parentheses",
+   "goldFiles": [
+    "mlflow/genai/scorers/scorer_utils.py",
+    "tests/genai/scorers/test_scorer_utils.py"
+   ],
+   "goldDiff": "bench/data/mlflow/PR26172.diff",
+   "testFiles": [
+    "tests/genai/scorers/test_scorer_utils.py"
+   ],
+   "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/genai/scorers/test_scorer_utils.py'",
+   "mergeCommit": "b610b1385f7026a4621bf03910f13183005b35a7",
+   "mergedAt": "2026-09-25T09:51:53Z",
+   "loc": 35,
+   "preflight": {
+    "baseKind": "symbol",
+    "testNeedsGoldSymbols": true,
+    "secs": 8
+   }
+  },
+  {
+   "id": "PR26267-hard",
+   "area": "mlflow/server",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\nWhen the tracking server is under heavy load and its shared pool of worker threads for handling requests is fully occupied, the server-info endpoint (the one clients use to discover server capabilities) stops responding. It hangs or times out along with every other request, even though it's a lightweight call. The same happens for its AJAX variant used by the UI. Capability discovery should keep working in this situation. The server-info endpoint and its AJAX equivalent should be served independently of the shared worker pool, using their own dedicated, separately limited pool of threads, so a saturated pool doesn't block them. The response content must stay exactly the same as today. Both paths must remain publicly accessible without authentication, including when a static prefix is configured. Deployments that run on other server types (Gunicorn and Waitress) must keep working as before and return the same JSON.",
+   "goldTitle": "Keep server-info responsive when shared WSGI thread pool is exhausted",
+   "goldFiles": [
+    "mlflow/server/auth/__init__.py",
+    "mlflow/server/fastapi_app.py",
+    "mlflow/server/handlers.py",
+    "mlflow/server/mcp_server_api.py",
+    "mlflow/server/mlflow_response.py",
+    "mlflow/server/server_info_api.py",
+    "tests/server/auth/test_authorization_coverage.py",
+    "tests/server/test_fastapi_app.py",
+    "tests/server/test_server_info_api.py"
+   ],
+   "goldDiff": "bench/data/mlflow/PR26267.diff",
+   "testFiles": [
+    "tests/server/auth/test_authorization_coverage.py",
+    "tests/server/test_fastapi_app.py",
+    "tests/server/test_server_info_api.py"
+   ],
+   "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/server/auth/test_authorization_coverage.py' 'tests/server/test_fastapi_app.py' 'tests/server/test_server_info_api.py'",
+   "mergeCommit": "59dac6f73ed74e9cd7a1b7d21dc46aacc7ce3361",
+   "mergedAt": "2026-10-01T20:35:26Z",
+   "loc": 274,
+   "preflight": {
+    "baseKind": "symbol",
+    "testNeedsGoldSymbols": true,
+    "secs": 3
+   }
+  },
+  {
+   "id": "PR26332-hard",
+   "area": "mlflow/genai",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\nLLM judges fail with \"Failed to parse response from judge model\" when the model wraps its JSON verdict in a markdown code fence in two layouts. First, if the whole reply is on one line, such as a fence with a language tag, then the JSON, then a closing fence, the cleanup treats the entire line as the opening fence and returns an empty string. Second, if the opening fence is on its own line but the closing fence is glued to the end of the JSON line, the trailing fence is kept and the JSON can't be parsed. Wanted: a one-line reply should have its opening fence (with or without a language tag) and its trailing fence removed, so only the JSON remains. For a multi-line reply, a fence on its own line should still close the block, as it does now. Only when no such line exists should a fence glued to the end of a line close the block. In that case, keep the text before the fence and drop anything after it, such as trailing prose. A line inside a JSON string value that merely ends with triple backticks must not cut the content short when a proper closing fence exists on its own line. The result should be trimmed of surrounding whitespace. Two shapes stay out of scope and unchanged: a bare unlabeled fence after introductory text, and a multi-line reply whose opening fence is glued to the first line of content.",
+   "goldTitle": "Fix `_strip_markdown_code_blocks` for single-line and glued closing code fences",
+   "goldFiles": [
+    "mlflow/genai/judges/utils/parsing_utils.py",
+    "tests/genai/judges/utils/test_parsing_utils.py"
+   ],
+   "goldDiff": "bench/data/mlflow/PR26332.diff",
+   "testFiles": [
+    "tests/genai/judges/utils/test_parsing_utils.py"
+   ],
+   "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/genai/judges/utils/test_parsing_utils.py'",
+   "mergeCommit": "f9566d17741ad0af8beb134d162d2b34348fe20b",
+   "mergedAt": "2026-10-02T09:38:56Z",
+   "loc": 45,
+   "preflight": {
+    "baseKind": "behaviour",
+    "testNeedsGoldSymbols": false,
+    "secs": 2
+   }
+  },
+  {
+   "id": "PR26619-hard",
+   "area": "mlflow/store",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\nWhen searching experiments against a database-backed tracking store, filter strings that use lowercase comparators fail. For example, `name like 'Def%'` or `tags.t ilike 'v%'` is rejected with an \"Invalid comparator 'like'\" error. The same lowercase comparators already work when searching runs and when using the file-based store, so the behavior is inconsistent across backends. Comparators should be case-insensitive, so `like`, `ilike`, and `is null` (lowercase) behave exactly like their uppercase forms. This should apply to filters on experiment names and on tags, whether or not workspaces are enabled. Uppercase comparators should continue to work as before.",
+   "goldTitle": "Accept lowercase comparators in `search_experiments` for SQL stores",
+   "goldFiles": [
+    "mlflow/store/tracking/sqlalchemy_store.py",
+    "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_experiments.py"
+   ],
+   "goldDiff": "bench/data/mlflow/PR26619.diff",
+   "testFiles": [
+    "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_experiments.py"
+   ],
+   "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_experiments.py'",
+   "mergeCommit": "a4d5f3e7b929b60abda621d1cdc20b1d46c47545",
+   "mergedAt": "2026-10-10T10:57:36Z",
+   "loc": 24,
+   "preflight": {
+    "baseKind": "other",
+    "testNeedsGoldSymbols": false,
+    "secs": 8
+   }
+  },
+  {
+   "id": "PR26082-hard",
+   "area": "mlflow/genai",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\nIssue discovery can crash when the model proposes a deduplication group that refers to a candidate issue that doesn't exist. For example, a group pointing at the fourth item when only three candidates exist fails with an index error and stops the whole run. Other malformed groups fail silently and give wrong results. A group with a negative reference can merge the wrong findings together. A group that repeats the same reference can overwrite an issue's description without merging any distinct findings. Each proposed group should be checked before it changes anything. It must contain at least two references, with no repeats, no negative values, and nothing out of range. A malformed group should be skipped in full, with a debug-level log entry. Its candidate issues should stay available for other valid merges, and it should not be partially applied, because dropping only the bad references could attach a description written for a different set of issues. Valid groups should keep working as before, including overlapping groups that merge transitively, and merged findings should keep their supporting examples. This should hold whichever order the invalid and valid groups appear in.",
+   "goldTitle": "Validate deduplication group references in issue discovery",
+   "goldFiles": [
+    "mlflow/genai/discovery/pipeline.py",
+    "tests/genai/discovery/test_pipeline.py"
+   ],
+   "goldDiff": "bench/data/mlflow/PR26082.diff",
+   "testFiles": [
+    "tests/genai/discovery/test_pipeline.py"
+   ],
+   "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/genai/discovery/test_pipeline.py'",
+   "mergeCommit": "97a050e9ea6d0a0c110d2e497cdda901d3db6082",
+   "mergedAt": "2026-09-25T09:21:15Z",
+   "loc": 74,
+   "preflight": {
+    "baseKind": "behaviour",
+    "testNeedsGoldSymbols": false,
+    "secs": 4
+   }
+  },
+  {
+   "id": "PR26093-hard",
+   "area": "mlflow/store",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\nWhen MLflow uses Microsoft SQL Server 2022 or older as its tracking backend, loading label schemas and loading questions for a review queue fails with a database syntax error. The cause is that the lookup for the protected default label schema checks its \"protected\" flag in a way that SQL Server doesn't support. The generated query uses an \"IS 1\" style comparison, which those SQL Server versions reject. Users on these versions can't use label schemas or review queues at all. The lookup should instead use a standard boolean equality comparison, which becomes a valid \"= 1\" check on SQL Server 2022 and older. Behavior on other databases should stay the same, and it should hold for both the standard tracking setup and the workspace-aware one. The default label schema should still be found and treated as protected.",
+   "goldTitle": "Fix MSSQL label schema boolean predicate",
+   "goldFiles": [
+    "mlflow/store/tracking/sqlalchemy_store.py",
+    "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_label_schemas.py"
+   ],
+   "goldDiff": "bench/data/mlflow/PR26093.diff",
+   "testFiles": [
+    "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_label_schemas.py"
+   ],
+   "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_label_schemas.py'",
+   "mergeCommit": "489fa78365ccb80cee4d8f5e2e42a0674814ad5c",
+   "mergedAt": "2026-09-23T02:37:40Z",
+   "loc": 31,
+   "preflight": {
+    "baseKind": "behaviour",
+    "testNeedsGoldSymbols": false,
+    "secs": 4
+   }
+  },
+  {
+   "id": "PR26503-hard",
+   "area": "mlflow/utils",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\nWhen a command-line query returns no results, such as listing runs, experiments, datasets, or traces that match nothing, the printed table comes out without its column headers. The user sees blank or empty output and can't tell what columns the table would have had. This happens for every command that uses the shared table display. The header row should still be shown when there are no data rows. Column widths in that case should come from the header labels and the usual minimum-width and padding rules, so the header looks the same as it would in a populated table. Tables that do have rows should look exactly as they do now.",
+   "goldTitle": "Fix `_create_table` headers for empty CLI results",
+   "goldFiles": [
+    "mlflow/utils/string_utils.py",
+    "tests/cli/test_scorers.py",
+    "tests/utils/test_string_utils.py"
+   ],
+   "goldDiff": "bench/data/mlflow/PR26503.diff",
+   "testFiles": [
+    "tests/cli/test_scorers.py",
+    "tests/utils/test_string_utils.py"
+   ],
+   "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/cli/test_scorers.py' 'tests/utils/test_string_utils.py'",
+   "mergeCommit": "09bdb2cca50a1ab31feefd513ea059bfbd252269",
+   "mergedAt": "2026-10-07T16:37:20Z",
+   "loc": 18,
+   "preflight": {
+    "baseKind": "behaviour",
+    "testNeedsGoldSymbols": false,
+    "secs": 3
+   }
+  },
+  {
+   "id": "PR26063-hard",
+   "area": "mlflow/tracing",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\nWhen traces are sent to a Unity Catalog table, the root span is supposed to be tagged with user and session information before it is exported. If that tagging step fails for any reason, the root span is dropped and never exported. An earlier incompatibility with a newer OpenTelemetry release caused this failure and has already been fixed. Any similar failure in the future would again make the trace disappear without a clear cause. Adding user and session information should be best-effort. If it fails, the failure should be logged at debug level and the span should still be exported through the normal path, exactly once. Failures in the exporter itself should still surface as errors and not be hidden.",
+   "goldTitle": "Ensure UC spans export after attribute enrichment failures",
+   "goldFiles": [
+    "mlflow/tracing/processor/uc_table.py",
+    "tests/tracing/processor/test_uc_table_processor.py"
+   ],
+   "goldDiff": "bench/data/mlflow/PR26063.diff",
+   "testFiles": [
+    "tests/tracing/processor/test_uc_table_processor.py"
+   ],
+   "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/tracing/processor/test_uc_table_processor.py'",
+   "mergeCommit": "af52996823160d231badbc2557f8428c5c9db8ea",
+   "mergedAt": "2026-09-22T04:35:12Z",
+   "loc": 31,
+   "preflight": {
+    "baseKind": "behaviour",
+    "testNeedsGoldSymbols": false,
+    "secs": 2
+   }
+  },
+  {
+   "id": "PR26130-hard",
+   "area": "mlflow/store",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest <path>`.\n\nFull-text search over trace content (the trace text / span content filter, and the Traces search box in the UI) never finds non-ASCII text when using a SQL-backed tracking store such as SQLite, PostgreSQL or MySQL. For example, after logging traces with inputs like \"¿Cuál es la capital de España?\", \"什么是MLflow?\" and \"What is MLflow?\", searching with a LIKE or ILIKE filter for \"España\" or \"什么\" returns zero traces, while searching for \"What is\" correctly returns one. The same problem affects accented characters, CJK text and emoji, because the stored span content keeps them in an escaped form that the search pattern can't match. Searching for non-ASCII terms should return the matching traces, just as ASCII terms do, and trace inputs and outputs should still come back unchanged when a trace is retrieved. This only needs to apply to newly logged spans; existing stored data doesn't need to be migrated. On Microsoft SQL Server, where the content column can't reliably store raw non-Latin characters (they would turn into \"?\"), the current escaped storage should be kept.",
+   "goldTitle": "Fix `trace.text` search missing non-ASCII span content",
+   "goldFiles": [
+    "mlflow/store/tracking/sqlalchemy_store.py",
+    "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_traces.py"
+   ],
+   "goldDiff": "bench/data/mlflow/PR26130.diff",
+   "testFiles": [
+    "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_traces.py"
+   ],
+   "testCmd": "PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest -q -x -p no:cacheprovider 'tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_traces.py'",
+   "mergeCommit": "218bf8bc183132501f38919364530501e23ba9da",
+   "mergedAt": "2026-09-28T02:49:48Z",
+   "loc": 46,
+   "preflight": {
+    "baseKind": "behaviour",
+    "testNeedsGoldSymbols": false,
+    "secs": 28
+   }
+  }
+ ],
+ "dropped": [
+  {
+   "id": "PR26051",
+   "failToPass": false,
+   "error": "test hunks do not apply: error: tests/genai/skill_content/test_skill_md.py: does not exist in index\n"
+  },
+  {
+   "id": "PR26071",
+   "failToPass": false,
+   "baseKind": "symbol",
+   "testNeedsGoldSymbols": true,
+   "secs": 3
+  },
+  {
+   "id": "PR26181",
+   "failToPass": false,
+   "baseKind": "behaviour",
+   "testNeedsGoldSymbols": false,
+   "secs": 18
+  },
+  {
+   "id": "PR26327",
+   "failToPass": false,
+   "error": "test hunks do not apply: Applied patch to 'tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_mcp_server_registry.py' cleanly.\nApplied patch to 'tests/utils/test_search_utils.py' with conflicts.\nU tests/utils/test_se"
+  },
+  {
+   "id": "PR26223",
+   "failToPass": false,
+   "error": "gold diff does not apply: Applied patch to 'mlflow/store/tracking/gateway/sqlalchemy_mixin.py' cleanly.\nApplied patch to 'mlflow/store/tracking/sqlalchemy_store.py' with conflicts.\nApplied patch to 'mlflow/utils/validation.py'"
+  },
+  {
+   "id": "PR26594",
+   "failToPass": false,
+   "error": "test hunks do not apply: Applied patch to 'tests/gateway/providers/test_gemini.py' cleanly.\nApplied patch to 'tests/server/test_gateway_api.py' with conflicts.\nApplied patch to 'tests/utils/test_uri.py' cleanly.\nU tests/serve"
+  },
+  {
+   "id": "PR26451",
+   "failToPass": false,
+   "baseKind": "behaviour",
+   "testNeedsGoldSymbols": false,
+   "secs": 33
+  },
+  {
+   "id": "PR26390",
+   "failToPass": false,
+   "error": "gold diff does not apply: Applied patch to 'mlflow/gateway/providers/anthropic.py' cleanly.\nApplied patch to 'mlflow/gateway/providers/gemini.py' with conflicts.\nApplied patch to 'tests/gateway/providers/test_anthropic.py' cle"
+  },
+  {
+   "id": "PR26057",
+   "failToPass": false,
+   "error": "test hunks do not apply: Applied patch to 'tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_runs.py' with conflicts.\nU tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_runs.py\n"
+  },
+  {
+   "id": "PR26433",
+   "failToPass": false,
+   "error": "test hunks do not apply: Applied patch to 'tests/data/test_evaluation_dataset.py' with conflicts.\nU tests/data/test_evaluation_dataset.py\n"
+  },
+  {
+   "id": "PR26292",
+   "failToPass": false,
+   "baseKind": "behaviour",
+   "testNeedsGoldSymbols": false,
+   "secs": 3
+  },
+  {
+   "id": "PR26547",
+   "failToPass": false,
+   "baseKind": "symbol",
+   "testNeedsGoldSymbols": true,
+   "secs": 4
+  },
+  {
+   "id": "PR26180",
+   "failToPass": false,
+   "error": "test hunks do not apply: Applied patch to 'tests/db/test_workspace_tracking_store.py' with conflicts.\nApplied patch to 'tests/utils/test_search_utils.py' cleanly.\nU tests/db/test_workspace_tracking_store.py\n"
+  },
+  {
+   "id": "PR26260",
+   "failToPass": false,
+   "baseKind": "symbol",
+   "testNeedsGoldSymbols": true,
+   "secs": 3
+  },
+  {
+   "id": "PR26109",
+   "failToPass": false,
+   "baseKind": "symbol",
+   "testNeedsGoldSymbols": true,
+   "secs": 5
+  },
+  {
+   "id": "PR26445",
+   "failToPass": false,
+   "error": "test hunks do not apply: error: tests/genai/judges/test_typesafe.py: does not exist in index\n"
+  },
+  {
+   "id": "PR26423",
+   "failToPass": false,
+   "error": "test hunks do not apply: Applied patch to 'tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_mcp_server_registry.py' cleanly.\nApplied patch to 'tests/utils/test_search_utils.py' with conflicts.\nU tests/utils/test_se"
+  },
+  {
+   "id": "PR26075",
+   "failToPass": false,
+   "baseKind": "other",
+   "testNeedsGoldSymbols": false,
+   "secs": 1
+  },
+  {
+   "id": "PR26270",
+   "failToPass": false,
+   "baseKind": "symbol",
+   "testNeedsGoldSymbols": true,
+   "secs": 5
+  },
+  {
+   "id": "PR26439",
+   "failToPass": false,
+   "baseKind": "symbol",
+   "testNeedsGoldSymbols": true,
+   "secs": 5
+  },
+  {
+   "id": "PR26643",
+   "failToPass": false,
+   "error": "test hunks do not apply: Applied patch to 'tests/metrics/test_metric_definitions.py' with conflicts.\nU tests/metrics/test_metric_definitions.py\n"
+  },
+  {
+   "id": "PR26512",
+   "failToPass": false,
+   "error": "gold diff does not apply: Applied patch to 'mlflow/store/tracking/sqlalchemy_store.py' cleanly.\nApplied patch to 'tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_runs.py' with conflicts.\nU tests/store/tracking/sqla"
+  },
+  {
+   "id": "PR26047",
+   "failToPass": false,
+   "baseKind": "behaviour",
+   "testNeedsGoldSymbols": false,
+   "secs": 3
+  },
+  {
+   "id": "PR26462",
+   "failToPass": false,
+   "baseKind": "behaviour",
+   "testNeedsGoldSymbols": false,
+   "secs": 18
+  },
+  {
+   "id": "PR26374",
+   "failToPass": false,
+   "error": "test hunks do not apply: Applied patch to 'tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_eval_datasets.py' with conflicts.\nApplied patch to 'tests/store/tracking/sqlalchemy_store/test_sqlalchemy_workspace_store."
+  },
+  {
+   "id": "PR26291",
+   "failToPass": false,
+   "error": "test hunks do not apply: Applied patch to 'tests/store/model_registry/test_sqlalchemy_store.py' with conflicts.\nU tests/store/model_registry/test_sqlalchemy_store.py\n"
+  },
+  {
+   "id": "PR26300",
+   "failToPass": false,
+   "baseKind": "symbol",
+   "testNeedsGoldSymbols": true,
+   "secs": 4
+  },
+  {
+   "id": "PR26269",
+   "failToPass": false,
+   "baseKind": "symbol",
+   "testNeedsGoldSymbols": true,
+   "secs": 4
+  },
+  {
+   "id": "PR26546",
+   "failToPass": false,
+   "error": "test hunks do not apply: Applied patch to 'tests/server/test_init.py' with conflicts.\nU tests/server/test_init.py\n"
+  },
+  {
+   "id": "PR26442",
+   "failToPass": false,
+   "error": "test hunks do not apply: error: tests/gateway/providers/test_typesafe.py: does not exist in index\nApplied patch to 'tests/server/test_gateway_api.py' cleanly.\nApplied patch to 'tests/utils/test_providers.py' with conflicts.\n"
+  },
+  {
+   "id": "PR26165",
+   "failToPass": false,
+   "error": "test hunks do not apply: Applied patch to 'tests/entities/test_span.py' with conflicts.\nU tests/entities/test_span.py\n"
+  },
+  {
+   "id": "PR26178",
+   "failToPass": false,
+   "baseKind": "symbol",
+   "testNeedsGoldSymbols": true,
+   "secs": 1
+  },
+  {
+   "id": "PR26440",
+   "failToPass": false,
+   "baseKind": "symbol",
+   "testNeedsGoldSymbols": true,
+   "secs": 4
+  },
+  {
+   "id": "PR26179",
+   "failToPass": false,
+   "baseKind": "passes-at-base",
+   "testNeedsGoldSymbols": false,
+   "secs": 2
+  },
+  {
+   "id": "PR26307",
+   "failToPass": false,
+   "error": "test hunks do not apply: Applied patch to 'tests/entities/test_span.py' with conflicts.\nU tests/entities/test_span.py\n"
+  },
+  {
+   "id": "PR26541",
+   "failToPass": false,
+   "error": "test hunks do not apply: error: tests/genai/databricks/review_queues/test_api.py: does not exist in index\n"
+  },
+  {
+   "id": "PR26600",
+   "failToPass": false,
+   "error": "test hunks do not apply: Applied patch to 'tests/utils/test_search_utils.py' with conflicts.\nU tests/utils/test_search_utils.py\n"
+  },
+  {
+   "id": "PR26574",
+   "failToPass": false,
+   "baseKind": "symbol",
+   "testNeedsGoldSymbols": true,
+   "secs": 1
+  },
+  {
+   "id": "PR26446",
+   "failToPass": false,
+   "error": "test hunks do not apply: Applied patch to 'tests/gateway/providers/test_gemini.py' with conflicts.\nU tests/gateway/providers/test_gemini.py\n"
+  },
+  {
+   "id": "PR26253",
+   "failToPass": false,
+   "error": "test hunks do not apply: Applied patch to 'tests/gateway/providers/test_gemini.py' with conflicts.\nApplied patch to 'tests/gateway/providers/test_vertex_ai.py' cleanly.\nU tests/gateway/providers/test_gemini.py\n"
+  }
+ ]
+}

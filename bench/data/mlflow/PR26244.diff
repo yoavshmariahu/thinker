@@ -1,0 +1,36 @@
+diff --git a/mlflow/entities/logged_model.py b/mlflow/entities/logged_model.py
+index e0137a7c7ad9c..1d9815ed4d680 100644
+--- a/mlflow/entities/logged_model.py
++++ b/mlflow/entities/logged_model.py
+@@ -201,6 +201,7 @@ def to_proto(self) -> pb2.LoggedModel:
+                 model_type=self.model_type,
+                 source_run_id=self.source_run_id,
+                 status=self.status.to_proto(),
++                status_message=self.status_message,
+                 tags=[pb2.LoggedModelTag(key=k, value=v) for k, v in self.tags.items()],
+             ),
+             data=pb2.LoggedModelData(
+diff --git a/tests/entities/test_logged_model.py b/tests/entities/test_logged_model.py
+new file mode 100644
+index 0000000000000..522ebb624632a
+--- /dev/null
++++ b/tests/entities/test_logged_model.py
+@@ -0,0 +1,18 @@
++from mlflow.entities import LoggedModel, LoggedModelStatus
++
++
++def test_logged_model_proto_round_trip_keeps_status_message():
++    model = LoggedModel(
++        experiment_id="1",
++        model_id="m-123",
++        name="model",
++        artifact_location="file:///tmp/model",
++        creation_timestamp=1,
++        last_updated_timestamp=2,
++        status=LoggedModelStatus.FAILED,
++        status_message="Upload failed",
++    )
++
++    proto = model.to_proto()
++    assert proto.info.status_message == "Upload failed"
++    assert LoggedModel.from_proto(proto).status_message == "Upload failed"
