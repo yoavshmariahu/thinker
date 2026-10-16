@@ -25,6 +25,7 @@ cache off and with it on, to test one **behavior** (a cache feature, prompt, wir
 
 | Module | Stored | Checks before an experiment may start |
 |---|---|---|
+| **Task set** (`tasksets.js`): PRs a benchmark can run — request, base, gold diff, test command, acceptance criteria — imported from a file or a git ref, every gold diff stored whole, versioned | database | every gold diff exists and holds the task's test files (at import) |
 | **PR set** (`prsets.js`): PRs from one task set, the rule they were chosen by, frozen with a hash | database | the checkout is at the task set's base; no PR's fix is merged in it; no PR's tests need functions only its merged patch defines (`testNeedsGoldSymbols`) |
 | **Cache** (`caches.js`, `build-cache.js`): built by the product, mined (`mine-prs --git`) or read from the most changed code (`understand`), then `phrase`, `relink`, in a shallow checkout cut at an anchor commit, by a named model, then every note exported whole (`export`) | receipt in the database; `bench/caches/<name>/repo/` (the snapshot), `notes/` (what arms are served) and `build.log` on disk, not checked in | built; not empty; every note `source.type: pr`; notes unchanged since the build (hash); same repository; anchor at or before the base; no PR's fix reachable from the anchor; mined by the agent's model |
 | **Arms** | experiment | cache off and cache on differ |
@@ -116,6 +117,17 @@ beside it).
 | served | the arm injected a note or the agent called a thinker tool |
 | invalid | runner error, usage limit, answer-key leak, session error, 60-turn cap, timeout, failed grading, or a diagnosis-only directory (`invalid/`, `empty-notes`, contaminated runs). Left out of every number and listed on the experiment. |
 | started | the earlier of the record files' mtime and the commit that first added the run (regrading rewrites the files) |
+
+## Task sets
+
+The database holds every task set (`tasksets`, and every version in `taskset_versions`). `import_task_set`
+reads one from a JSON file or from a file at a git ref, with its gold diffs from the same place, and
+fails if a task's gold diff is missing or lacks its test files. An import that changes the content, or
+`set_acceptance` on a task, writes a new version. A PR set records the version (`taskset_hash`) it was
+drawn from, and a launch writes that version into the run (`bench/runs/<tag>/tasks.json`, gold diffs in
+`gold/`), which is what the runner reads: an experiment always says exactly what it ran, and a later
+edit to the set never changes an experiment already defined. Files still under `bench/tasks` are
+imported once at startup (or when a PR set first names them); from then on the database is read.
 
 ## Loop experiments
 

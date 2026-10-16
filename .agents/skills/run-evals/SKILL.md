@@ -66,7 +66,10 @@ per PR, an executed oracle, Sonnet) before any large one. The answer may already
 ## 2. PR set
 
 `list_pr_sets` first: reuse a PR set when it fits the question, so results compare across experiments.
-Otherwise `create_pr_set` from a task set (`list_task_sets`):
+Otherwise `create_pr_set` from a task set (`list_task_sets`). Task sets live in Artemis's database: add one
+with `import_task_set` (a JSON file, or a file at a git ref; its gold diffs come along), read it with
+`get_task_set`, and set a task's loop criteria with `set_acceptance`. Each change is a new version; a PR
+set keeps the version it was drawn from, so changing a set means a new PR set:
 
 - **Write the selection rule before seeing any result** ("every PR merged after 2026-09-20 that
   changes posthog/ and has tests"). The rule is saved with the set and shown on every experiment.
