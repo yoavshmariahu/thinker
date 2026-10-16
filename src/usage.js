@@ -187,6 +187,10 @@ export function summarize(store, { days, all = false } = {}) {
       durationMs: 0,
       durationSamples: 0,
       servedByKind: {},
+      // requests served nothing, by why (ops.js:EMPTY_REASONS; `unrecorded` for requests logged before the reasons were), and how many of
+      // them were a prompt of three words or fewer ("what", "ok go"), which no cache answers
+      emptyReasons: {},
+      emptyShortPrompts: 0,
     },
     saved: { calls: 0, tokens: 0, servings: 0, byModel: {} },
     holdout: null,
@@ -240,6 +244,11 @@ export function summarize(store, { days, all = false } = {}) {
         r.requests++;
         u.clients.active[cl] = (u.clients.active[cl] || 0) + 1;
         if (ids.length) u.answered++;
+        else {
+          const why = typeof e.empty === 'string' ? e.empty : e.empty === true ? 'too-few-notes' : e.holdout ? 'held-out' : 'unrecorded';
+          u.retrieval.emptyReasons[why] = (u.retrieval.emptyReasons[why] || 0) + 1;
+          if (e.op === 'orient' && String(e.task || '').trim().split(/\s+/).filter(Boolean).length <= 3) u.retrieval.emptyShortPrompts++;
+        }
       }
       if (typeof e.durationMs === 'number' && Number.isFinite(e.durationMs) && e.durationMs >= 0) {
         u.retrieval.durationMs += e.durationMs;

@@ -135,7 +135,7 @@ test('a prompt in a repository whose cache is empty says nothing and logs the re
   const orients = fs.readFileSync(path.join(dir, '.thinker/log.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l)).filter(e => e.op === 'orient');
   assert.equal(orients.length, 1);
   assert.deepEqual(orients[0].served, []);
-  assert.equal(orients[0].empty, true);
+  assert.equal(orients[0].empty, 'too-few-notes');
   assert.equal(orients[0].session, 'e1');
   assert.equal(orients[0].client, 'claude');
   // the request counts in the usage summary, unanswered
@@ -158,7 +158,7 @@ test('a cache under the serving threshold is served by neither hook, and the thr
   assert.equal(hook(dir, 'prompt', { session_id: 'u1', prompt: 'where does fetchRows read the rows from' }).trim(), '', 'two notes: nothing served');
   assert.equal(hook(dir, 'tool', { session_id: 'u1', tool_name: 'Read', tool_input: { file_path: path.join(dir, 'src/a.js') }, tool_response: 'x' }).trim(), '', 'no late notes either');
   const orients = fs.readFileSync(path.join(dir, '.thinker/log.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l)).filter(e => e.op === 'orient');
-  assert.equal(orients.length, 1); assert.equal(orients[0].empty, true);
+  assert.equal(orients.length, 1); assert.equal(orients[0].empty, 'too-few-notes');
   note();
   assert.match(hook(dir, 'prompt', { session_id: 'u2', prompt: 'where does fetchRows read the rows from' }), /<thinker-cache>/, 'three notes: served');
   fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ ...store.config(), minNotes: 10 }));
