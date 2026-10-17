@@ -231,7 +231,7 @@ Old sync settings are ignored.
 Maintainers: see [Cutting a release](releases.md) for the manual PR, tag,
 GitHub and npm release command.
 
-Thinker auto-updates daily in the background. To check or update manually at any time:
+Thinker checks for updates every 4 hours in the background. To check or update manually at any time:
 
 ```bash
 thinker update
@@ -242,7 +242,7 @@ A release is a tag `vX.Y.Z` on GitHub with three files attached: `thinker.tgz`,
 `install.sh`. An install made by the installer reads the latest release's
 `version.json`, and when it names a newer version downloads the archive, checks it
 against the digest and swaps it in; no GitHub credentials are needed. Git checkouts
-update from their Git remote. Daily updates run on invocation and, when installed,
+update from their Git remote. The checks run on invocation and, when installed,
 through the OS scheduler; they are not an immediate push to every client.
 
 Linux containers without `crontab` use the invocation check automatically.

@@ -15,6 +15,7 @@ import {
   isScheduled,
   scheduleDaily,
   unscheduleDaily,
+  refreshSchedule,
   applyUpdate,
   releaseAssetUrl,
   tarSupportsFlag,
@@ -427,13 +428,18 @@ fi
       if (existing) fs.writeFileSync(table, existing);
       const result = runLinuxSchedule(tmp);
       assert.equal(result.status, 0, result.stderr);
-      assert.match(result.stdout, /Scheduled daily auto-update/);
+      assert.match(result.stdout, /Scheduled auto-updates every 4 hours/);
       const content = fs.readFileSync(table, 'utf8');
       assert.ok(content.startsWith(existing));
-      assert.match(content, /0 3 \* \* \* .*thinker" update --quiet/);
+      assert.match(content, /0 \*\/4 \* \* \* .*thinker" update --quiet/);
       assert.equal(runLinuxSchedule(tmp).status, 0);
       assert.equal(fs.readFileSync(table, 'utf8'), content);
     }
+    // an earlier version's daily line is replaced, the other job kept
+    const ours = fs.readFileSync(table, 'utf8').split('\n').find(l => l.includes('update --quiet'));
+    fs.writeFileSync(table, '15 2 * * * /usr/local/bin/other-job\n' + ours.replace('0 */4 * * *', '0 3 * * *') + '\n');
+    assert.equal(runLinuxSchedule(tmp).status, 0);
+    assert.equal(fs.readFileSync(table, 'utf8'), '15 2 * * * /usr/local/bin/other-job\n' + ours + '\n');
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
@@ -445,7 +451,7 @@ test('Linux scheduling still reports crontab write failures', () => {
     fs.writeFileSync(path.join(tmp, 'crontab'), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
     const result = runLinuxSchedule(tmp);
     assert.equal(result.status, 1);
-    assert.match(result.stdout, /Failed to schedule daily auto-update/);
+    assert.match(result.stdout, /Failed to schedule auto-updates/);
     assert.doesNotMatch(result.stdout, /check for updates when invoked/);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
@@ -465,6 +471,13 @@ test('scheduleDaily and unscheduleDaily manage plist file', { skip: process.plat
     const content = fs.readFileSync(plistPath, 'utf8');
     assert.ok(content.includes('com.thinker.update'));
     assert.ok(content.includes(binPath));
+    assert.match(content, /<key>StartInterval<\/key>\s*<integer>14400<\/integer>/, 'every 4 hours');
+    assert.equal(refreshSchedule({ home: tmp, binPath, plistPath, skipLaunchctl: true }), null, 'current: left alone');
+    // a daily schedule written by an earlier version moves to the current interval
+    fs.writeFileSync(plistPath, content.replace(/<key>StartInterval<\/key>\s*<integer>14400<\/integer>/, '<key>StartCalendarInterval</key><dict><key>Hour</key><integer>3</integer></dict>'));
+    assert.equal(refreshSchedule({ home: tmp, binPath, plistPath, skipLaunchctl: true }).type, 'launchd');
+    assert.match(fs.readFileSync(plistPath, 'utf8'), /<integer>14400<\/integer>/);
+    assert.doesNotMatch(fs.readFileSync(plistPath, 'utf8'), /StartCalendarInterval/);
 
     const unsched = unscheduleDaily({ home: tmp, plistPath, skipLaunchctl: true });
     assert.equal(unsched.unscheduled, true);

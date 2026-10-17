@@ -40,7 +40,7 @@
 #   --no-git-hook       do not install the git post-commit hook (it re-checks and maintains notes after each commit)
 #   --ref <tag>         release to install, a tag such as v0.1.34 (default latest; --branch also accepted)
 #   --update            update an installed thinker to the latest release and exit
-#   --no-auto-update    do not schedule daily background auto-updates
+#   --no-auto-update    do not schedule background auto-updates (every 4 hours)
 #   --no-modify-path    do not add THINKER_HOME/bin to PATH in your shell's and bash's startup files
 #   --uninstall         remove hooks and registration from this repo (add --purge to delete notes too); run outside
 #                       a repository, it removes the wiring from your agents' own settings

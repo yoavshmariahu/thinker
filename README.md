@@ -51,7 +51,7 @@ OpenCode ([hook coverage and limitations](docs/agent-integrations.md)).
 The installer fetches the [latest release](https://github.com/yoavshmariahu/thinker/releases)
 (a tag `vX.Y.Z` with the archive, its `version.json` manifest and the installer attached)
 and checks the archive against the manifest's SHA-256. `thinker update` does the same
-daily in the background; `thinker update v0.1.34` pins a release.
+every 4 hours in the background; `thinker update v0.1.34` pins a release.
 
 ## Uninstall
 

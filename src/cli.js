@@ -202,7 +202,7 @@ const HELP = `thinker — knowledge cache for coding agents
                                  with no question, offers questions the cache covers (picks the first outside a terminal)
   benchmark report              show the latest comparison (answers are saved for human quality review)
   update [tag] [--check] [--force] [--quiet] [--schedule] [--unschedule] [--status]
-                                 update thinker to the latest GitHub release, or to the release tagged <tag>; --schedule / --unschedule manages daily background updates
+                                 update thinker to the latest GitHub release, or to the release tagged <tag>; --schedule / --unschedule manages background updates every 4 hours
   switch <tag>                   switch thinker to the release tagged <tag> (a git checkout: to that branch); main or latest returns to the latest
   branch                         show the installed release tag, or the branch of a git checkout
   upgrade                        alias for update
