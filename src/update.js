@@ -461,6 +461,7 @@ export function isScheduled(home = thinkerHome(), opts = {}) {
   if (process.platform === 'darwin') {
     const plist = opts.plistPath || getLaunchAgentPath();
     if (!fs.existsSync(plist)) return false;
+    if (opts.skipLaunchctl) return true;
     try {
       const out = execFileSync('launchctl', ['list'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
       return out.includes('com.thinker.update');
@@ -478,6 +479,11 @@ export function isScheduled(home = thinkerHome(), opts = {}) {
   return false;
 }
 
+// How often thinker looks for a new release: on use (maybeCheckDailyUpdateInBackground) and from the OS
+// schedule. Daily until 2026-10-16; four hours brings a fix out the same working day.
+export const UPDATE_EVERY_MS = 4 * 3600_000;
+
+// The OS schedule at UPDATE_EVERY_MS (the name is older than the interval)
 export function scheduleDaily(opts = {}) {
   const home = opts.home || thinkerHome();
   const binPath = opts.binPath || path.join(home, 'bin', 'thinker');
@@ -503,13 +509,8 @@ export function scheduleDaily(opts = {}) {
         <string>-c</string>
         <string>PATH="${nodeBinDir}:$PATH:/usr/local/bin:/opt/homebrew/bin" exec "${binPath}" update --quiet</string>
     </array>
-    <key>StartCalendarInterval</key>
-    <dict>
-        <key>Hour</key>
-        <integer>3</integer>
-        <key>Minute</key>
-        <integer>0</integer>
-    </dict>
+    <key>StartInterval</key>
+    <integer>${UPDATE_EVERY_MS / 1000}</integer>
     <key>StandardErrorPath</key>
     <string>${path.join(home, 'update.err')}</string>
     <key>StandardOutPath</key>
@@ -542,15 +543,33 @@ export function scheduleDaily(opts = {}) {
       if (e.code === 'ENOENT') return { type: 'invocation', reason: 'crontab not installed' };
     }
 
-    const line = `0 3 * * * PATH="${nodeBinDir}:$PATH:/usr/local/bin" "${binPath}" update --quiet`;
+    const line = `0 */${UPDATE_EVERY_MS / 3600_000} * * * PATH="${nodeBinDir}:$PATH:/usr/local/bin" "${binPath}" update --quiet`;
     if (!crontab.includes(line)) {
-      const newCrontab = (crontab.trim() ? crontab.trim() + '\n' : '') + line + '\n';
+      // an earlier schedule's line (daily at 3:00 until 2026-10-16) is replaced, not run beside the new one
+      const kept = crontab.split('\n').filter(l => !(l.includes(binPath) && / update --quiet\b/.test(l))).join('\n').trim();
+      const newCrontab = (kept ? kept + '\n' : '') + line + '\n';
       execFileSync('crontab', ['-'], { input: newCrontab, encoding: 'utf8' });
     }
     return { type: 'cron', line };
   }
 
   throw new Error(`OS scheduler not supported on platform: ${process.platform}`);
+}
+
+// A schedule written by an earlier version (daily at 3:00) is rewritten at the current interval. Run from the
+// update that the hooks start, never from the scheduled job itself: reloading the LaunchAgent would stop the
+// job that is reloading it.
+export function refreshSchedule(opts = {}) {
+  const home = opts.home || thinkerHome();
+  if (!isScheduled(home, opts)) return null;
+  try {
+    if (process.platform === 'darwin') {
+      if (fs.readFileSync(opts.plistPath || getLaunchAgentPath(), 'utf8').includes(`<integer>${UPDATE_EVERY_MS / 1000}</integer>`)) return null;
+    } else if (process.platform === 'linux') {
+      if (execFileSync('crontab', ['-l'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).includes(`0 */${UPDATE_EVERY_MS / 3600_000} * * *`)) return null;
+    } else return null;
+    return scheduleDaily(opts);
+  } catch { return null; }
 }
 
 export function unscheduleDaily(opts = {}) {
@@ -589,7 +608,7 @@ export function unscheduleDaily(opts = {}) {
   return { unscheduled: false };
 }
 
-// Invocations check daily update in background (non-blocking)
+// Invocations check for an update in the background (non-blocking), at most every UPDATE_EVERY_MS
 export function maybeCheckDailyUpdateInBackground({ home = thinkerHome(), cliPath = path.join(HERE, 'cli.js'), force = false } = {}) {
   if (isTestMode()) return;
   if (!force) {
@@ -604,7 +623,7 @@ export function maybeCheckDailyUpdateInBackground({ home = thinkerHome(), cliPat
   if (!force) {
     try {
       const st = fs.statSync(stampFile);
-      if (Date.now() - st.mtimeMs < DAY_MS) return;
+      if (Date.now() - st.mtimeMs < UPDATE_EVERY_MS) return;
     } catch {}
   }
 

@@ -11,7 +11,7 @@ import { uninstallGitHooks } from '../git-hooks.js';
 import { runSetup, stepConnectClis } from '../setup.js';
 import { unscheduleTelemetry, sendUninstallFeedback, sendTelemetry } from '../telemetry.js';
 import readlinePromises from 'node:readline/promises';
-import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, unscheduleDaily, isScheduled, getLaunchAgentPath } from '../update.js';
+import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, unscheduleDaily, refreshSchedule, isScheduled, getLaunchAgentPath } from '../update.js';
 import { githubSlug } from './shared.js';
 import { minePrs } from './learn.js';
 import { readLog } from '../usage.js';
@@ -234,10 +234,10 @@ async function updateCommand(ctx) {
       if (res.type === 'invocation') {
         out(`Daily OS scheduling unavailable (${res.reason}); thinker will check for updates when invoked, at most once a day, unless auto-updates are disabled.`);
       } else {
-        out(`Scheduled daily auto-update for thinker (${res.type === 'launchd' ? 'LaunchAgent: ' + res.path : 'cron: ' + res.line}).`);
+        out(`Scheduled auto-updates every 4 hours for thinker (${res.type === 'launchd' ? 'LaunchAgent: ' + res.path : 'cron: ' + res.line}).`);
       }
     } catch (e) {
-      out(`Failed to schedule daily auto-update: ${e.message}`);
+      out(`Failed to schedule auto-updates: ${e.message}`);
       process.exit(1);
     }
     return;
@@ -245,8 +245,8 @@ async function updateCommand(ctx) {
 
   if (flags.unschedule) {
     const res = unscheduleDaily({ home });
-    if (res.unscheduled) out('Removed scheduled daily auto-update for thinker.');
-    else out('No scheduled daily auto-update was found.');
+    if (res.unscheduled) out('Removed scheduled auto-updates for thinker.');
+    else out('No scheduled auto-update was found.');
     return;
   }
 
@@ -257,6 +257,8 @@ async function updateCommand(ctx) {
     } catch {}
     fs.mkdirSync(path.dirname(lock), { recursive: true });
     fs.writeFileSync(lock, String(process.pid));
+    // an earlier version's daily schedule moves to the current interval (update.js:refreshSchedule)
+    if (install.type !== 'git') try { refreshSchedule({ home, binPath: install.binPath }); } catch {}
     try {
       const chk = await checkUpdate({ home, install });
       let updated = false;
@@ -313,7 +315,7 @@ async function updateCommand(ctx) {
     if (!flags.quiet) {
       out(`thinker is already up to date on ${chk.branch || chk.ref || 'latest'} (${chk.currentCommit ? chk.currentCommit.slice(0, 7) : 'v' + chk.version}).`);
       if (!isScheduled(home)) {
-        out('Tip: Run `thinker update --schedule` to enable daily automatic background updates.');
+        out('Tip: Run `thinker update --schedule` to check for updates every 4 hours in the background.');
       }
     }
     return;
@@ -336,7 +338,7 @@ async function updateCommand(ctx) {
     rewireAfterUpdate(newCliOf(install, home), { quiet: !!flags.quiet });
     if (!flags.quiet) {
       if (!isScheduled(home)) {
-        out('Tip: Run `thinker update --schedule` to enable daily automatic background updates.');
+        out('Tip: Run `thinker update --schedule` to check for updates every 4 hours in the background.');
       }
     }
     store.log({ op: 'update', from: res.from, to: res.to, version: res.version, branch: res.branch || res.ref, auto: false });
