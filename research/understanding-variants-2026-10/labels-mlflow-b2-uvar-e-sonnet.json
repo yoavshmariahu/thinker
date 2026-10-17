@@ -1,0 +1,266 @@
+{
+ "PR26270-hard": {
+  "gateway-provider-structure-adapter-provider-pattern-gemini-a": {
+   "rating": 1,
+   "why": "Maps Gemini streaming flow (_chat_stream, model_to_chat_streaming) and LiteLLM provider files, but doesn't state the tool-call index mechanism."
+  },
+  "header-and-auth-handling-in-provider-get-headers": {
+   "rating": 0,
+   "why": "Header/auth handling; unrelated to tool call indices."
+  },
+  "how-to-change-chat-request-translation-new-openai-param-tool": {
+   "rating": 1,
+   "why": "Mentions Gemini streaming function calls going through _convert_function_call_to_openai_choice with stream=True, which is touched, but is about request translation generally."
+  },
+  "litellm-destination-guard-requests-must-not-choose-the-upstr": {
+   "rating": 0,
+   "why": "LiteLLM destination guard; unrelated to streaming tool call index."
+  },
+  "token-usage-normalization-input-tokens-includes-cache-tokens": {
+   "rating": 0,
+   "why": "Token usage normalization; unrelated."
+  }
+ },
+ "PR26267-hard": {
+  "add-a-before-request-validator-for-a-new-flask-endpoint": {
+   "rating": 0,
+   "why": ""
+  },
+  "add-a-new-rest-handler-for-a-proto-rpc": {
+   "rating": 0,
+   "why": ""
+  },
+  "add-a-new-rest-handler": {
+   "rating": 0,
+   "why": ""
+  },
+  "anatomy-of-a-handler-in-mlflow-server-handlers-py": {
+   "rating": 1,
+   "why": ""
+  },
+  "artifact-access-and-uri-safety-in-handlers": {
+   "rating": 0,
+   "why": ""
+  },
+  "artifact-serving-for-logged-models-and-proxied-roots": {
+   "rating": 1,
+   "why": ""
+  },
+  "auth-request-flow-flask-before-after-hooks-and-validator-loo": {
+   "rating": 1,
+   "why": ""
+  },
+  "basic-auth-permission-resolution-chain": {
+   "rating": 0,
+   "why": ""
+  },
+  "experiment-custom-view-tag-limit-and-trace-tag-guards": {
+   "rating": 0,
+   "why": ""
+  },
+  "fail-closed-deny-on-missing-resource-no-existence-oracles": {
+   "rating": 0,
+   "why": ""
+  },
+  "fail-closed-net-and-gating-invariants": {
+   "rating": 2,
+   "why": ""
+  },
+  "fastapi-permission-middleware-gateway-mcp-jobs-artifacts-ote": {
+   "rating": 1,
+   "why": ""
+  },
+  "gateway-budget-policy-validation-and-tracker-refresh": {
+   "rating": 0,
+   "why": ""
+  },
+  "handlers-py-map-store-singletons-and-request-pipeline": {
+   "rating": 0,
+   "why": ""
+  },
+  "handlers-py-request-flow-and-route-registration": {
+   "rating": 1,
+   "why": ""
+  },
+  "how-to-add-authorization-for-a-new-rest-resource-or-endpoint": {
+   "rating": 0,
+   "why": ""
+  },
+  "howto-add-a-new-rest-endpoint-handler": {
+   "rating": 0,
+   "why": ""
+  },
+  "mcp-server-registry-rest-router-conventions": {
+   "rating": 1,
+   "why": ""
+  },
+  "model-version-source-validation": {
+   "rating": 0,
+   "why": ""
+  },
+  "proxied-artifact-endpoints-and-workspace-scoping": {
+   "rating": 0,
+   "why": ""
+  },
+  "request-authentication-flow-and-credential-cache": {
+   "rating": 0,
+   "why": ""
+  },
+  "request-validation-get-request-message-and-schema-validators": {
+   "rating": 0,
+   "why": ""
+  },
+  "scorer-payload-safety-and-scorer-handlers": {
+   "rating": 0,
+   "why": ""
+  },
+  "server-app-composition-fastapi-wraps-flask": {
+   "rating": 2,
+   "why": ""
+  },
+  "trust-and-ownership-rules-in-review-queue-trace-and-job-hand": {
+   "rating": 0,
+   "why": ""
+  },
+  "user-credentials-admin-bootstrap-and-auth-cache": {
+   "rating": 0,
+   "why": ""
+  }
+ },
+ "PR26291-hard": {
+  "how-to-add-or-change-a-searchable-attribute-or-filter-for-re": {
+   "rating": 0,
+   "why": "About search filters; unrelated to alias resolution."
+  },
+  "model-registry-stores-sql-vs-file-backends-overview": {
+   "rating": 1,
+   "why": "Maps both stores and says shared API behavior changes go in both files, which fits this change, but it doesn't mention get_model_version_by_alias or the latest alias."
+  },
+  "soft-deletion-and-prompt-exclusion-invariants": {
+   "rating": 0,
+   "why": "About soft-deletion invariants; the change doesn't touch them."
+  },
+  "workspace-scoping-in-sqlalchemystore-queries": {
+   "rating": 0,
+   "why": "About workspace scoping; not relevant to this change."
+  }
+ },
+ "PR26269-hard": {
+  "gateway-provider-structure-adapter-provider-pattern-gemini-a": {
+   "rating": 1,
+   "why": "Maps the Anthropic provider, mentions _chat_stream and model_to_chat_streaming, but not the index/finish mechanism."
+  },
+  "header-and-auth-handling-in-provider-get-headers": {
+   "rating": 0,
+   "why": "Header/auth handling; unrelated to streaming tool-call indexing."
+  },
+  "how-to-change-chat-request-translation-new-openai-param-tool": {
+   "rating": 0,
+   "why": "Covers request translation; only a passing mention of streaming response methods, nothing on tool-call indexing."
+  },
+  "token-usage-normalization-input-tokens-includes-cache-tokens": {
+   "rating": 0,
+   "why": "Token usage normalization; not relevant to the index fix."
+  }
+ },
+ "PR26307-hard": {
+  "attachment-extraction-in-livespan-inputs-outputs": {
+   "rating": 0,
+   "why": "Attachment extraction is unrelated to copy/pickle, apart from a passing mention of _attachments."
+  },
+  "livespan-end-lifecycle-and-failure-tolerance": {
+   "rating": 0,
+   "why": "Covers the end lifecycle. It mentions NoOpSpan only in terms of mirroring mutators, which doesn't help with copy or pickle."
+  },
+  "span-attribute-serialization-json-in-otel": {
+   "rating": 1,
+   "why": "Notes that to_dict emits raw JSON-string attributes so from_dict can reload them. The change builds on this, but the note doesn't describe the copy/pickle mechanism."
+  },
+  "span-class-hierarchy-and-creation": {
+   "rating": 2,
+   "why": "Describes the Span, LiveSpan, LazySpan and NoOpSpan hierarchy. It covers LazySpan's __dict__ writes and lazy materialization, LiveSpan's lock-holding state and _attachments, and NoOpSpan skipping Span.__init__. That is the structure the per-class __reduce__ and __deepcopy__ methods must fit."
+  },
+  "span-serialization-formats-and-deserialization-paths": {
+   "rating": 1,
+   "why": "Describes to_dict and from_dict, which the new __reduce__ and __deepcopy__ use as a round trip. It doesn't mention the copy protocols."
+  }
+ },
+ "PR26442-hard": {
+  "add-a-new-gateway-provider-config": {
+   "rating": 1,
+   "why": "General provider config howto; touches config class but not the api_base mechanism."
+  },
+  "api-key-resolution-rule": {
+   "rating": 0,
+   "why": "API key validation; not relevant to adding base URL."
+  },
+  "endpoint-validation-rules": {
+   "rating": 0,
+   "why": "Endpoint validation rules; unrelated."
+  },
+  "gateway-config-module-map": {
+   "rating": 1,
+   "why": "Map of config.py where TypeSafeConfig lives; useful but not the mechanism."
+  },
+  "gateway-provider-structure-adapter-provider-pattern-gemini-a": {
+   "rating": 1,
+   "why": "Mentions TypeSafeProvider file but little on base_url."
+  },
+  "gateway-request-flow-in-gateway-api-py": {
+   "rating": 0,
+   "why": "Request flow in handlers; change is in _build_endpoint_config only."
+  },
+  "gateway-security-invariants-ssrf-secrets-body-size": {
+   "rating": 1,
+   "why": "Explains api_base lives in auth_config and SSRF handling, relevant to reading API_BASE from auth_config in the branch."
+  },
+  "how-to-add-a-new-passthrough-route-or-provider-to-the-gatewa": {
+   "rating": 2,
+   "why": "States the _build_endpoint_config branch should build config from auth_config (api_base) and secret_value, matching the change."
+  },
+  "how-to-add-or-change-fields-in-the-catalog-schema": {
+   "rating": 0,
+   "why": "Catalog schema fields; not relevant."
+  },
+  "model-catalog-loading-and-lookup-in-providers-py": {
+   "rating": 0,
+   "why": "Catalog loading; unrelated."
+  },
+  "provider-auth-modes-and-config-response": {
+   "rating": 2,
+   "why": "Describes _PROVIDER_AUTH_MODES field definitions and non-secret config fields, exactly where the api_base field is added."
+  },
+  "provider-model-filtering-and-normalization-rules-in-get-mode": {
+   "rating": 0,
+   "why": "Model filtering rules; unrelated."
+  }
+ },
+ "PR26327-hard": {
+  "how-to-add-or-change-a-searchable-attribute-or-filter-for-re": {
+   "rating": 0,
+   "why": "About registry search backends (model versions, registered models); not MCP access endpoint search in search_utils."
+  },
+  "searchutils-class-hierarchy-and-how-to-add-a-searchable-enti": {
+   "rating": 2,
+   "why": "Describes SearchUtils pipeline: _process_statement, LIST_SUPPORTED_KEYS, Comparison grouping, and how to override _process_statement per entity. This is exactly the mechanism the change touches (override _process_statement, set LIST_SUPPORTED_KEYS)."
+  }
+ },
+ "PR26300-hard": {
+  "gateway-provider-structure-adapter-provider-pattern-gemini-a": {
+   "rating": 1,
+   "why": "Maps the Gemini adapter and chat_to_model flow, including streaming sharing the adapter, but doesn't state the tool_choice mechanism."
+  },
+  "header-and-auth-handling-in-provider-get-headers": {
+   "rating": 0,
+   "why": "About header/auth handling; unrelated to tool choice."
+  },
+  "how-to-change-chat-request-translation-new-openai-param-tool": {
+   "rating": 2,
+   "why": "Describes Gemini chat_to_model, where tools become functionDeclarations, and notes Anthropic handles tool_choice via match as a sibling. It tells you where the change goes and what to match."
+  },
+  "token-usage-normalization-input-tokens-includes-cache-tokens": {
+   "rating": 0,
+   "why": "About token usage normalization; unrelated."
+  }
+ }
+}

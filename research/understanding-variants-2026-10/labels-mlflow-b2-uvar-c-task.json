@@ -1,0 +1,306 @@
+{
+ "PR26270-hard": {
+  "changing-how-cached-anthropic-tokens-contribute-to-usage-tot": {
+   "rating": 0,
+   "why": ""
+  },
+  "changing-how-gemini-tool-calls-and-results-survive-a-convers": {
+   "rating": 1,
+   "why": ""
+  },
+  "changing-how-streamed-tool-calls-are-numbered": {
+   "rating": 2,
+   "why": "Directly describes Gemini index 0 in _convert_function_call_to_openai_choice, caller model_to_chat_streaming, candidate vs tool-call numbering, and LiteLLM per-chunk enumerate."
+  },
+  "changing-image-and-multimodal-message-conversion": {
+   "rating": 0,
+   "why": ""
+  },
+  "changing-json-output-constraints-and-unsupported-schema-fall": {
+   "rating": 0,
+   "why": ""
+  },
+  "changing-which-upstream-destinations-litellm-requests-may-us": {
+   "rating": 0,
+   "why": ""
+  }
+ },
+ "PR26267-hard": {
+  "adding-an-mcp-registry-route-that-works-under-both-api-prefi": {
+   "rating": 1,
+   "why": "Describes mounting native FastAPI routers before Flask mount and static prefix handling, which is the pattern server_info_router follows; but about MCP, not server-info."
+  },
+  "adding-an-optimization-option-that-remains-visible-after-job": {
+   "rating": 0,
+   "why": "Prompt optimization; unrelated."
+  },
+  "adding-authorization-to-a-native-fastapi-route": {
+   "rating": 1,
+   "why": "Native FastAPI route auth and middleware; relevant context but the change just makes route unprotected via is_unprotected_route."
+  },
+  "changing-admin-bootstrap-and-password-rotation-on-restart": {
+   "rating": 0,
+   "why": "Admin bootstrap; unrelated."
+  },
+  "changing-artifact-downloads-without-breaking-filenames-or-te": {
+   "rating": 0,
+   "why": "Artifact downloads; unrelated."
+  },
+  "changing-authorization-for-metrics-attached-to-logged-models": {
+   "rating": 0,
+   "why": "Metric authorization; unrelated."
+  },
+  "changing-default-access-and-creation-rights-in-workspaces": {
+   "rating": 0,
+   "why": "Workspace permissions; unrelated."
+  },
+  "changing-expiration-or-resource-support-for-presigned-artifa": {
+   "rating": 0,
+   "why": "Presigned URLs; unrelated."
+  },
+  "changing-gateway-latency-headers-and-invocation-telemetry": {
+   "rating": 0,
+   "why": "Gateway timing; unrelated."
+  },
+  "changing-how-budget-policies-switch-between-endpoint-and-use": {
+   "rating": 0,
+   "why": "Budget policies; unrelated."
+  },
+  "changing-how-gateway-secret-updates-preserve-or-clear-authen": {
+   "rating": 0,
+   "why": "Gateway secrets; unrelated."
+  },
+  "changing-how-mcp-updates-distinguish-omitted-fields-from-nul": {
+   "rating": 0,
+   "why": "MCP updates; unrelated."
+  },
+  "changing-how-proxied-artifact-locations-resolve-to-storage-p": {
+   "rating": 0,
+   "why": "Proxied artifacts; unrelated."
+  },
+  "changing-how-proxied-artifacts-are-scoped-to-a-workspace": {
+   "rating": 0,
+   "why": "Workspace artifact scoping; unrelated."
+  },
+  "changing-how-trace-downloads-fall-back-between-storage-backe": {
+   "rating": 0,
+   "why": "Trace fallback; unrelated."
+  },
+  "changing-metric-history-page-sizes-and-result-limits": {
+   "rating": 0,
+   "why": "Metric history; unrelated."
+  },
+  "changing-the-limit-on-saved-custom-views": {
+   "rating": 0,
+   "why": "Custom views; unrelated."
+  },
+  "changing-validation-of-model-roles-on-gateway-endpoints": {
+   "rating": 0,
+   "why": "Gateway model roles; unrelated."
+  },
+  "changing-when-mcp-server-creation-grants-ownership": {
+   "rating": 0,
+   "why": "MCP ownership; unrelated."
+  },
+  "changing-which-artifact-sources-can-create-a-model-version": {
+   "rating": 0,
+   "why": "Model version source; unrelated."
+  },
+  "changing-which-experiments-are-included-when-listing-scorers": {
+   "rating": 0,
+   "why": "Scorer listing; unrelated."
+  },
+  "changing-which-experiments-authorize-access-to-an-evaluation": {
+   "rating": 0,
+   "why": "Dataset auth; unrelated."
+  },
+  "changing-which-mcp-icon-metadata-is-accepted-and-returned": {
+   "rating": 0,
+   "why": "MCP icons; unrelated."
+  },
+  "changing-which-serialized-scorers-the-server-accepts": {
+   "rating": 0,
+   "why": "Scorer validation; unrelated."
+  },
+  "changing-which-source-permissions-are-required-to-create-a-m": {
+   "rating": 0,
+   "why": "Model version permissions; unrelated."
+  },
+  "changing-which-traces-can-be-submitted-for-evaluation-or-iss": {
+   "rating": 0,
+   "why": "Trace evaluation; unrelated."
+  },
+  "changing-who-can-see-edit-and-review-a-review-queue": {
+   "rating": 0,
+   "why": "Review queue; unrelated."
+  },
+  "changing-who-owns-review-queues-and-receives-completion-cred": {
+   "rating": 0,
+   "why": "Review queue ownership; unrelated."
+  },
+  "changing-workspace-storage-defaults-and-how-users-clear-over": {
+   "rating": 0,
+   "why": "Workspace storage; unrelated."
+  },
+  "filling-mcp-search-pages-after-unreadable-results-are-remove": {
+   "rating": 0,
+   "why": "MCP search; unrelated."
+  },
+  "keeping-prompt-permissions-consistent-when-creating-renaming": {
+   "rating": 0,
+   "why": "Prompt permissions; unrelated."
+  },
+  "keeping-prompt-permissions-separate-on-shared-model-registry": {
+   "rating": 0,
+   "why": "Prompt permissions; unrelated."
+  },
+  "rejecting-requests-that-spell-the-same-field-two-ways": {
+   "rating": 0,
+   "why": "Alias rejection; unrelated."
+  }
+ },
+ "PR26291-hard": {
+  "changing-how-model-uri-sources-resolve-to-downloadable-artif": {
+   "rating": 0,
+   "why": "About source URI resolution; unrelated to latest alias."
+  },
+  "changing-registry-search-ordering-and-pagination": {
+   "rating": 0,
+   "why": "About search ordering and pagination, not get_model_version_by_alias."
+  },
+  "changing-what-happens-when-a-model-version-is-deleted": {
+   "rating": 1,
+   "why": "Mentions deleted-version handling and batched latest-version retrieval in both stores, a loose map, but doesn't describe alias resolution."
+  },
+  "changing-which-prompts-appear-in-model-searches": {
+   "rating": 0,
+   "why": "About prompt filtering in searches; not relevant."
+  },
+  "keeping-new-sql-registry-operations-scoped-to-the-active-wor": {
+   "rating": 0,
+   "why": "About workspace scoping; the latest-versions mention is incidental and doesn't help with alias resolution."
+  }
+ },
+ "PR26269-hard": {
+  "changing-how-cached-anthropic-tokens-contribute-to-usage-tot": {
+   "rating": 0,
+   "why": "About usage/cache token accounting; unrelated to tool-call numbering."
+  },
+  "changing-how-streamed-tool-calls-are-numbered": {
+   "rating": 2,
+   "why": "Describes exactly the mechanism: _chat_stream emitting message_delta per collected index, model_to_chat_streaming using event index as choice index and tool-call index 0; says to coordinate both methods."
+  },
+  "changing-image-and-multimodal-message-conversion": {
+   "rating": 0,
+   "why": "About multimodal content conversion; not relevant."
+  },
+  "changing-json-output-constraints-and-unsupported-schema-fall": {
+   "rating": 0,
+   "why": "About JSON schema/response_format; not relevant."
+  }
+ },
+ "PR26307-hard": {
+  "changing-default-span-severity-and-exception-handling": {
+   "rating": 0,
+   "why": "About severity and exception handling; unrelated to copy/pickle."
+  },
+  "changing-span-serialization-without-breaking-round-trips": {
+   "rating": 1,
+   "why": "Describes to_dict/from_dict round trip, which the new reduce/deepcopy rely on, but does not cover copy protocol."
+  },
+  "changing-which-trace-ids-span-links-accept": {
+   "rating": 0,
+   "why": "About span links trace ID policy; not relevant."
+  },
+  "extracting-attachments-from-another-image-or-audio-payload-f": {
+   "rating": 0,
+   "why": "About attachment extraction; only tangentially related to attachments being preserved."
+  },
+  "speeding-up-stored-trace-export-while-preserving-edits": {
+   "rating": 1,
+   "why": "Maps LazySpan stored dict, raw JSON, and lazy materialization, which the lazy reduce/deepcopy must preserve, but doesn't mention copy/pickle."
+  }
+ },
+ "PR26442-hard": {
+  "adding-a-gateway-provider-or-changing-its-authentication-opt": {
+   "rating": 2,
+   "why": "Describes _build_endpoint_config, where auth_config settings are mapped into provider config; the change adds api_base there for TypeSafe."
+  },
+  "adding-a-provider-authentication-option-or-configuration-fie": {
+   "rating": 2,
+   "why": "Covers the provider auth table in mlflow/utils/providers.py and field definitions; the change adds an optional api_base field there."
+  },
+  "adding-a-provider-that-gateway-configuration-accepts": {
+   "rating": 1,
+   "why": "Map of gateway config and provider config types, but the change only adds a field to TypeSafeConfig."
+  },
+  "changing-endpoint-metadata-without-breaking-legacy-route-res": {
+   "rating": 0,
+   "why": "Legacy route metadata, unrelated."
+  },
+  "changing-gateway-latency-headers-and-invocation-telemetry": {
+   "rating": 0,
+   "why": "Telemetry, unrelated."
+  },
+  "changing-how-api-keys-are-read-from-environment-variables-or": {
+   "rating": 0,
+   "why": "API key resolution, not touched."
+  },
+  "changing-how-cached-prompt-tokens-are-charged": {
+   "rating": 0,
+   "why": "Cost calculation, unrelated."
+  },
+  "changing-how-litellm-authentication-settings-are-prepared": {
+   "rating": 1,
+   "why": "Mentions the shared _AuthConfigKey and api_base handling in config, but for LiteLLM; only loosely related."
+  },
+  "changing-how-model-catalogs-refresh-and-fall-back-when-unava": {
+   "rating": 0,
+   "why": "Catalog refresh, unrelated."
+  },
+  "changing-when-gateway-guardrails-run-for-streamed-and-ordina": {
+   "rating": 0,
+   "why": "Guardrails, unrelated."
+  },
+  "changing-which-anthropic-beta-values-are-allowed-through-ver": {
+   "rating": 0,
+   "why": "Vertex betas, unrelated."
+  },
+  "changing-which-settings-openai-and-azure-endpoints-require": {
+   "rating": 1,
+   "why": "Shows how a base URL config field and default are handled on OpenAIConfig, a sibling pattern, but not the TypeSafe mechanism."
+  }
+ },
+ "PR26327-hard": {
+  "allowing-a-search-field-to-match-a-list-of-values": {
+   "rating": 1,
+   "why": "Covers LIST_SUPPORTED_KEYS and in/not in flow, and notes that allowlisting doesn't fix reserved keyword tokenization, but doesn't state the _process_statement keyword-to-Identifier fix."
+  },
+  "changing-numeric-comparisons-for-trace-feedback-and-expectat": {
+   "rating": 0,
+   "why": "About trace assessment numeric comparisons; unrelated."
+  },
+  "changing-searches-for-missing-tags-parameters-or-trace-metad": {
+   "rating": 0,
+   "why": "About IS NULL handling; unrelated."
+  }
+ },
+ "PR26300-hard": {
+  "changing-how-gemini-tool-calls-and-results-survive-a-convers": {
+   "rating": 1,
+   "why": "Maps GeminiAdapter.chat_to_model and tools handling, but covers call round-trip, not tool_choice/toolConfig mapping."
+  },
+  "changing-how-streamed-tool-calls-are-numbered": {
+   "rating": 0,
+   "why": "About streamed tool-call indices; unrelated to tool_choice."
+  },
+  "changing-image-and-multimodal-message-conversion": {
+   "rating": 0,
+   "why": "Multimodal conversion; not relevant."
+  },
+  "changing-json-output-constraints-and-unsupported-schema-fall": {
+   "rating": 0,
+   "why": "Structured output/response_format; different feature, though it touches chat_to_model."
+  }
+ }
+}

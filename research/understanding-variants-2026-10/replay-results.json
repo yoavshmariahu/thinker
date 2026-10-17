@@ -1,0 +1,157 @@
+[
+ {
+  "cache": "mlflow-b2-uvar-a-default",
+  "notes": 66,
+  "with2": 4,
+  "res": {
+   "full · today": {
+    "target": 1,
+    "has2": 4,
+    "useful": 2,
+    "precision": 1
+   },
+   "full · pool": {
+    "target": 2,
+    "has2": 4,
+    "useful": 7,
+    "precision": 0.875
+   },
+   "one line · today": {
+    "target": 2,
+    "has2": 4,
+    "useful": 3,
+    "precision": 0.5
+   },
+   "one line · pool": {
+    "target": 2,
+    "has2": 4,
+    "useful": 3,
+    "precision": 0.42857142857142855
+   }
+  }
+ },
+ {
+  "cache": "mlflow-b2-uvar-b-finer",
+  "notes": 195,
+  "with2": 6,
+  "res": {
+   "full · today": {
+    "target": 3,
+    "has2": 6,
+    "useful": 5,
+    "precision": 0.6
+   },
+   "full · pool": {
+    "target": 2,
+    "has2": 6,
+    "useful": 5,
+    "precision": 0.625
+   },
+   "one line · today": {
+    "target": 4,
+    "has2": 6,
+    "useful": 4,
+    "precision": 0.5
+   },
+   "one line · pool": {
+    "target": 3,
+    "has2": 6,
+    "useful": 3,
+    "precision": 0.42857142857142855
+   }
+  }
+ },
+ {
+  "cache": "mlflow-b2-uvar-c-task",
+  "notes": 63,
+  "with2": 3,
+  "res": {
+   "full · today": {
+    "target": 2,
+    "has2": 3,
+    "useful": 4,
+    "precision": 0.5555555555555556
+   },
+   "full · pool": {
+    "target": 3,
+    "has2": 3,
+    "useful": 5,
+    "precision": 0.625
+   },
+   "one line · today": {
+    "target": 2,
+    "has2": 3,
+    "useful": 4,
+    "precision": 0.5714285714285714
+   },
+   "one line · pool": {
+    "target": 2,
+    "has2": 3,
+    "useful": 5,
+    "precision": 0.8333333333333334
+   }
+  }
+ },
+ {
+  "cache": "mlflow-b2-uvar-d-overview",
+  "notes": 202,
+  "with2": 6,
+  "res": {
+   "full · today": {
+    "target": 2,
+    "has2": 6,
+    "useful": 5,
+    "precision": 0.7
+   },
+   "full · pool": {
+    "target": 2,
+    "has2": 6,
+    "useful": 6,
+    "precision": 0.75
+   },
+   "one line · today": {
+    "target": 3,
+    "has2": 6,
+    "useful": 4,
+    "precision": 0.7
+   },
+   "one line · pool": {
+    "target": 2,
+    "has2": 6,
+    "useful": 5,
+    "precision": 0.7142857142857143
+   }
+  }
+ },
+ {
+  "cache": "mlflow-b2-uvar-e-sonnet",
+  "notes": 52,
+  "with2": 5,
+  "res": {
+   "full · today": {
+    "target": 1,
+    "has2": 5,
+    "useful": 3,
+    "precision": 0.8
+   },
+   "full · pool": {
+    "target": 2,
+    "has2": 5,
+    "useful": 5,
+    "precision": 0.625
+   },
+   "one line · today": {
+    "target": 1,
+    "has2": 5,
+    "useful": 2,
+    "precision": 1
+   },
+   "one line · pool": {
+    "target": 1,
+    "has2": 5,
+    "useful": 4,
+    "precision": 0.5714285714285714
+   }
+  }
+ }
+]

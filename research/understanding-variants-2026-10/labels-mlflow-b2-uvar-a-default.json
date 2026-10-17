@@ -1,0 +1,338 @@
+{
+ "PR26270-hard": {
+  "extend-multimodal-conversion-at-the-helpers-and-their-role-g": {
+   "rating": 0,
+   "why": ""
+  },
+  "gemini-tool-round-trips-and-anthropic-streaming-carry-differ": {
+   "rating": 2,
+   "why": "Describes the Gemini _convert_function_call_to_openai_choice stream branch assigning tool-call index zero, exactly what the change fixes."
+  },
+  "preserve-credential-selection-proxy-roots-and-litellm-destin": {
+   "rating": 0,
+   "why": ""
+  },
+  "provider-entry-points-separate-wire-conversion-from-transpor": {
+   "rating": 0,
+   "why": ""
+  },
+  "structured-output-changes-require-provider-specific-request": {
+   "rating": 0,
+   "why": ""
+  },
+  "token-accounting-distinguishes-inclusive-prompt-totals-from": {
+   "rating": 0,
+   "why": ""
+  }
+ },
+ "PR26267-hard": {
+  "asgi-routing-flask-fallback-and-gateway-timing": {
+   "rating": 2,
+   "why": "Describes create_fastapi_app, router registration before the Flask mount, and the thread-worker WSGI responder; this is where server_info_router gets included."
+  },
+  "async-trace-jobs-validate-experiment-membership-before-creat": {
+   "rating": 0,
+   "why": "Async trace jobs; unrelated."
+  },
+  "authentication-contracts-and-account-mutations-stay-consiste": {
+   "rating": 0,
+   "why": "Auth contracts and account mutations; not touched."
+  },
+  "backend-selection-and-initialization-are-cached-per-process": {
+   "rating": 0,
+   "why": "Backend store init; not relevant."
+  },
+  "budget-writes-validate-effective-targets-and-refresh-enforce": {
+   "rating": 0,
+   "why": "Budget policies; unrelated."
+  },
+  "change-gateway-model-config-validation-across-all-three-writ": {
+   "rating": 0,
+   "why": "Gateway config validation; unrelated."
+  },
+  "change-metric-write-authorization-in-both-request-shapes": {
+   "rating": 0,
+   "why": "Metric auth; unrelated."
+  },
+  "change-trace-tag-request-handling-across-both-api-versions": {
+   "rating": 0,
+   "why": "Trace tags; unrelated."
+  },
+  "changing-mcp-version-tools-at-the-http-boundary": {
+   "rating": 0,
+   "why": "MCP tools payloads; unrelated."
+  },
+  "changing-workspace-storage-validation-requires-preserving-pa": {
+   "rating": 0,
+   "why": "Workspace storage; unrelated."
+  },
+  "credential-caching-stores-only-accepted-users-and-requires-p": {
+   "rating": 0,
+   "why": "Credential cache; unrelated."
+  },
+  "custom-view-quota-changes-must-cover-creation-and-subsequent": {
+   "rating": 0,
+   "why": "Custom view quota; unrelated."
+  },
+  "evaluation-dataset-payloads-carry-json-strings-inside-protob": {
+   "rating": 0,
+   "why": "Dataset payloads; unrelated."
+  },
+  "extend-evaluation-dataset-authorization-through-experiment-p": {
+   "rating": 0,
+   "why": "Dataset auth; unrelated."
+  },
+  "flask-authorization-dispatch-and-response-hooks": {
+   "rating": 1,
+   "why": "Maps auth hooks including unprotected paths and public suffixes, and the FastAPI permission middleware, which relates to is_unprotected_route, but it doesn't state the change."
+  },
+  "graphql-combines-field-gates-input-narrowing-and-result-filt": {
+   "rating": 0,
+   "why": "GraphQL auth; unrelated."
+  },
+  "http-handlers-combine-protobuf-parsing-with-raw-request-vali": {
+   "rating": 0,
+   "why": "Protobuf parsing; only the catch_mlflow_exception mention is marginally relevant."
+  },
+  "http-routes-combine-protobuf-service-metadata-with-explicit": {
+   "rating": 1,
+   "why": "Mentions server-info in get_endpoints and the AJAX/REST path generation and static prefix, which helps locate the Flask route being mirrored."
+  },
+  "keep-prompt-optimization-configuration-creation-and-reconstr": {
+   "rating": 0,
+   "why": "Prompt optimization; unrelated."
+  },
+  "mcp-registry-routing-and-version-creation-flow": {
+   "rating": 1,
+   "why": "Shows the existing native FastAPI router pattern, with static-prefix mounting and MLflow exception JSON shape, which the new router follows."
+  },
+  "model-version-creation-resolves-lineage-before-validating-an": {
+   "rating": 0,
+   "why": "Model version creation; unrelated."
+  },
+  "native-fastapi-authorization-owns-workspace-context-across-t": {
+   "rating": 1,
+   "why": "Describes the native FastAPI permission middleware and how it dispatches by static-prefix-stripped path. This is relevant to making the routes public, but it doesn't cover is_unprotected_route."
+  },
+  "proxied-artifact-paths-preserve-workspace-isolation-and-lega": {
+   "rating": 0,
+   "why": "Artifact paths; unrelated."
+  },
+  "request-dispatch-and-resource-permission-inheritance": {
+   "rating": 0,
+   "why": "Permission inheritance; unrelated."
+  },
+  "request-presence-is-distinct-from-protobuf-default-values": {
+   "rating": 0,
+   "why": "Protobuf presence; unrelated."
+  },
+  "review-queues-bind-attribution-to-identity-and-validate-trac": {
+   "rating": 0,
+   "why": "Review queues; unrelated."
+  },
+  "review-queues-separate-listing-detail-access-ownership-and-a": {
+   "rating": 0,
+   "why": "Review queues; unrelated."
+  },
+  "run-artifacts-branch-between-server-proxied-storage-and-stor": {
+   "rating": 0,
+   "why": "Artifacts; unrelated."
+  },
+  "scorer-handlers-separate-payload-validation-experiment-selec": {
+   "rating": 0,
+   "why": "Scorers; unrelated."
+  },
+  "shared-registry-endpoints-must-preserve-prompt-and-model-gra": {
+   "rating": 0,
+   "why": "Registry grants; unrelated."
+  },
+  "shared-registry-routes-classify-persisted-prompts-and-check": {
+   "rating": 0,
+   "why": "Registry prompts; unrelated."
+  },
+  "trace-downloads-distinguish-attachments-stored-spans-and-arc": {
+   "rating": 0,
+   "why": "Trace downloads; unrelated."
+  },
+  "workspace-denial-must-survive-the-default-permission-floor": {
+   "rating": 0,
+   "why": "Workspace permissions; unrelated."
+  }
+ },
+ "PR26291-hard": {
+  "changing-model-source-resolution-across-both-backends": {
+   "rating": 0,
+   "why": "About source resolution in create_model_version; unrelated to alias lookup."
+  },
+  "filesystem-metadata-is-reconstructed-from-several-sources": {
+   "rating": 0,
+   "why": "File store metadata reconstruction; doesn't touch get_model_version_by_alias."
+  },
+  "search-executes-in-sql-or-in-memory-with-explicit-prompt-han": {
+   "rating": 1,
+   "why": "Mentions _get_latest_versions_for_models, which returns the latest version per stage. That is the source of the bug, but the note doesn't discuss alias resolution."
+  },
+  "sql-sessions-and-workspace-boundaries": {
+   "rating": 0,
+   "why": "Session and workspace rules; not relevant to the change."
+  },
+  "sql-webhook-persistence-and-visibility": {
+   "rating": 0,
+   "why": "Webhook persistence; unrelated."
+  },
+  "version-deletion-retains-storage-records-and-removes-aliases": {
+   "rating": 0,
+   "why": "Version deletion semantics; not about latest alias resolution."
+  }
+ },
+ "PR26269-hard": {
+  "extend-multimodal-conversion-at-the-helpers-and-their-role-g": {
+   "rating": 0,
+   "why": "About multimodal conversion; unrelated to streaming."
+  },
+  "gemini-tool-round-trips-and-anthropic-streaming-carry-differ": {
+   "rating": 2,
+   "why": "Describes AnthropicProvider._chat_stream tracking content indices, emitting message_delta once per index, and model_to_chat_streaming using tool-call index zero and event-derived choice index. Exactly the mechanism changed."
+  },
+  "preserve-credential-selection-proxy-roots-and-litellm-destin": {
+   "rating": 0,
+   "why": "About headers, proxy, and LiteLLM validation; unrelated."
+  },
+  "provider-entry-points-separate-wire-conversion-from-transpor": {
+   "rating": 0,
+   "why": "General entry-point map; no streaming mechanism."
+  },
+  "structured-output-changes-require-provider-specific-request": {
+   "rating": 0,
+   "why": "Structured output; unrelated."
+  },
+  "token-accounting-distinguishes-inclusive-prompt-totals-from": {
+   "rating": 0,
+   "why": "Token accounting; unrelated to this change."
+  }
+ },
+ "PR26307-hard": {
+  "attribute-storage-and-serialization-use-different-representa": {
+   "rating": 1,
+   "why": "Describes to_dict/from_dict representations that the new reduce/deepcopy rely on, but not the copy mechanism."
+  },
+  "extend-attachment-extraction-through-the-shared-conversion-p": {
+   "rating": 0,
+   "why": "Attachment extraction on live spans; unrelated to copy/pickle."
+  },
+  "finalization-orders-status-cost-severity-processors-and-otel": {
+   "rating": 0,
+   "why": "Finalization sequence; not relevant."
+  },
+  "lazyspan-preserves-stored-dictionaries-and-conditionally-reu": {
+   "rating": 2,
+   "why": "Explains LazySpan stored dict, raw JSON, and materialization; exactly what LazySpan __reduce__/__deepcopy__ must preserve (stay unloaded, raw_json, no duplicate data)."
+  },
+  "span-construction-and-live-to-immutable-conversion": {
+   "rating": 1,
+   "why": "Maps Span/LiveSpan/to_immutable_span and attachments; useful context for live vs immutable, but no copy mechanism."
+  },
+  "trace-identity-and-link-location-handling": {
+   "rating": 0,
+   "why": "Trace identity and links; not relevant to copy/pickle."
+  }
+ },
+ "PR26442-hard": {
+  "api-key-resolution-is-gated-and-ordered": {
+   "rating": 0,
+   "why": ""
+  },
+  "asgi-routing-flask-fallback-and-gateway-timing": {
+   "rating": 0,
+   "why": ""
+  },
+  "authentication-responses-are-declarative-field-partitions": {
+   "rating": 1,
+   "why": "Describes how provider auth config fields are declared and partitioned in providers.py; relevant to adding api_base config field, though not TypeSafe-specific."
+  },
+  "carry-a-new-model-capability-through-both-catalog-representa": {
+   "rating": 0,
+   "why": ""
+  },
+  "changing-openai-configuration-fields-and-compatibility": {
+   "rating": 0,
+   "why": ""
+  },
+  "changing-unified-chat-guardrails-consistently": {
+   "rating": 0,
+   "why": ""
+  },
+  "database-gateway-dispatch-and-provider-composition": {
+   "rating": 1,
+   "why": "Covers _build_endpoint_config, where the TypeSafe api_base is carried through; map-level only."
+  },
+  "endpoint-validation-separates-endpoint-types-from-gateway-re": {
+   "rating": 0,
+   "why": ""
+  },
+  "gateway-configuration-loading-and-saving": {
+   "rating": 0,
+   "why": ""
+  },
+  "gateway-request-and-destination-boundaries": {
+   "rating": 1,
+   "why": "Mentions _build_endpoint_config and api_base destination handling plus SSRF protection tied to configured destination keys; partially relevant."
+  },
+  "keep-legacy-and-endpoint-metadata-conversions-aligned": {
+   "rating": 0,
+   "why": ""
+  },
+  "provider-catalog-discovery-loading-and-pricing-lookup": {
+   "rating": 0,
+   "why": ""
+  },
+  "provider-entry-points-separate-wire-conversion-from-transpor": {
+   "rating": 1,
+   "why": "Mentions TypeSafeProvider._passthrough, the provider being changed, but not base_url mechanism."
+  },
+  "provider-selection-determines-configuration-parsing": {
+   "rating": 1,
+   "why": "Explains provider-to-config-type parsing in config.py, related to TypeSafeConfig, but not the change itself."
+  }
+ },
+ "PR26327-hard": {
+  "logged-model-filtering-and-ordering-select-metrics-different": {
+   "rating": 0,
+   "why": "Covers logged-model filtering/ordering, unrelated to MCP endpoint search."
+  },
+  "search-parsing-evaluation-and-sql-comparison-are-separate-la": {
+   "rating": 1,
+   "why": "Maps the parsing layers (_process_statement, list-supported validation, IN token joining) that the fix overrides, but doesn't mention the sqlparse keyword problem or the MCP subclass."
+  },
+  "trace-aliases-and-assessment-values-have-distinct-processing": {
+   "rating": 0,
+   "why": "About trace aliases and assessments; not relevant to MCP endpoints."
+  }
+ },
+ "PR26300-hard": {
+  "extend-multimodal-conversion-at-the-helpers-and-their-role-g": {
+   "rating": 1,
+   "why": "Mentions GeminiAdapter.chat_to_model but about multimodal parts, not tool choice."
+  },
+  "gemini-tool-round-trips-and-anthropic-streaming-carry-differ": {
+   "rating": 1,
+   "why": "Describes Gemini tool handling in chat_to_model and function calls; related map but not tool_choice/toolConfig."
+  },
+  "preserve-credential-selection-proxy-roots-and-litellm-destin": {
+   "rating": 0,
+   "why": "Headers, proxy and LiteLLM validation; unrelated."
+  },
+  "provider-entry-points-separate-wire-conversion-from-transpor": {
+   "rating": 1,
+   "why": "Mentions the Gemini _chat flow and adapter conversion; a general map, no tool_choice mechanism."
+  },
+  "structured-output-changes-require-provider-specific-request": {
+   "rating": 1,
+   "why": "Describes the sibling response_format handling in GeminiAdapter.chat_to_model, which is the same function and a similar pattern, but not tool choice."
+  },
+  "token-accounting-distinguishes-inclusive-prompt-totals-from": {
+   "rating": 0,
+   "why": "Token accounting; unrelated."
+  }
+ }
+}

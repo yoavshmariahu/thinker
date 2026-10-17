@@ -1,0 +1,506 @@
+{
+ "PR26270-hard": {
+  "adapted-request-flow-and-streaming-boundaries": {
+   "rating": 1,
+   "why": "Describes Gemini _chat_stream loop, where counts are tracked, but not tool index mechanism."
+  },
+  "all-sdk-request-paths-share-destination-validation-before-di": {
+   "rating": 0,
+   "why": "About destination validation; unrelated."
+  },
+  "change-automatic-streaming-usage-requests-in-three-coordinat": {
+   "rating": 0,
+   "why": "About stream usage policy; unrelated."
+  },
+  "change-response-text-handling-across-full-and-streamed-adapt": {
+   "rating": 1,
+   "why": "Covers model_to_chat_streaming per-candidate choices, partially relevant but not index logic."
+  },
+  "embedding-payload-shape-controls-endpoint-selection": {
+   "rating": 0,
+   "why": "Embeddings; unrelated."
+  },
+  "extend-request-translation-at-the-shared-chat-adapter": {
+   "rating": 0,
+   "why": "Request translation; unrelated."
+  },
+  "gateway-provider-adapters-and-execution-paths": {
+   "rating": 1,
+   "why": "General map pointing to model_to_chat_streaming; not the mechanism."
+  },
+  "passthrough-dispatch-returns-dictionaries-or-wraps-async-str": {
+   "rating": 0,
+   "why": "Passthrough dispatch; unrelated."
+  },
+  "passthrough-streams-preserve-bytes-and-replace-accumulated-u": {
+   "rating": 0,
+   "why": "Passthrough usage; unrelated."
+  },
+  "raw-forwarding-has-separate-authentication-url-and-usage-han": {
+   "rating": 0,
+   "why": "Raw forwarding; unrelated."
+  },
+  "tool-conversations-preserve-call-identity-signatures-and-gro": {
+   "rating": 2,
+   "why": "States _convert_function_call_to_openai_choice streamed ToolCallDelta uses index=0, the exact thing changed."
+  },
+  "typed-requests-flow-through-adapters-guarded-kwargs-and-expl": {
+   "rating": 2,
+   "why": "States LiteLLMAdapter streaming assigns tool-call indices by enumeration and _chat_stream projection, the exact spot changed."
+  },
+  "usage-extraction-has-separate-typed-nonstreaming-passthrough": {
+   "rating": 0,
+   "why": "Usage extraction; unrelated."
+  }
+ },
+ "PR26267-hard": {
+  "changing-native-router-mounting-and-static-prefix-behavior": {
+   "rating": 2,
+   "why": "Covers include_router with static_prefix before the Flask mount; the change adds server_info_router the same way."
+  },
+  "fastapi-application-assembly-and-route-precedence": {
+   "rating": 2,
+   "why": "Also covers add_mcp_exception_handlers and the MLflow error helper, both touched by the change."
+  },
+  "server-info-separates-configured-features-from-repository-ca": {
+   "rating": 2,
+   "why": "Describes _get_server_info payload logic, which was refactored into build_server_info_payload."
+  },
+  "flask-authentication-and-authorization-dispatch": {
+   "rating": 2,
+   "why": "Covers is_unprotected_route, _strip_static_prefix and _matches_route_suffix, which the auth change uses to make server-info public."
+  },
+  "route-assembly-and-rest-ajax-exposure": {
+   "rating": 1,
+   "why": "Notes server-info is registered via _get_paths at version 3 on both REST and AJAX routes, which the native routes mirror."
+  },
+  "flask-fallback-buffers-http-bodies-and-rejects-unmatched-web": {
+   "rating": 1,
+   "why": "Describes the Flask WSGI mount that uses AnyIO's default thread pool, the shared pool the change avoids."
+  },
+  "authentication-setup-and-native-fastapi-dispatch": {
+   "rating": 1,
+   "why": "Covers the auth middleware and unprotected-path skipping, which is relevant context."
+  },
+  "registry-http-handlers-adapt-requests-to-tracking-store-call": {
+   "rating": 1,
+   "why": "Mentions _mlflow_error_response, which was moved into the shared helper mlflow_exception_response."
+  },
+  "registering-a-response-filter-requires-dispatch-and-authoriz": {
+   "rating": 1,
+   "why": "Notes that server-info is excluded from the after-request handlers, which is tangentially relevant."
+  },
+  "workspace-context-has-request-scoped-cleanup": {
+   "rating": 1,
+   "why": "Shows how a middleware turns an MlflowException into a JSON response, a similar pattern."
+  },
+  "endpoint-guards-and-exception-translation-are-separate-contr": {
+   "rating": 1,
+   "why": "Covers catch_mlflow_exception's error translation, which the native handler mirrors."
+  },
+  "authentication-and-authorization-integration-map": {
+   "rating": 1,
+   "why": "Gives an overview of the auth layer."
+  }
+ },
+ "PR26291-hard": {
+  "aliases-belong-to-the-registered-model-and-point-to-version": {
+   "rating": 2,
+   "why": "States FileStore.get_model_version_by_alias takes first non-None result from get_latest_versions; exactly the code changed."
+  },
+  "reading-a-registered-model-reconstructs-tags-aliases-and-lat": {
+   "rating": 1,
+   "why": "Explains get_latest_versions returns per-stage latest with unsorted order; context for the fix but not the changed function."
+  },
+  "tag-and-alias-writes-derive-workspace-from-an-existing-owner": {
+   "rating": 2,
+   "why": "States SqlAlchemyStore.get_model_version_by_alias returns first result of get_latest_versions; exactly the changed mechanism."
+  },
+  "model-registry-persistence-sql-and-filesystem-backends": {
+   "rating": 1,
+   "why": "General map of both stores; mentions alias methods but no mechanism."
+  },
+  "registered-model-search-pagination-and-latest-version-loadin": {
+   "rating": 0,
+   "why": "Search pagination and latest-version loading for models; not the alias path."
+  },
+  "stage-changes-and-deletion-preserve-version-rows-with-differ": {
+   "rating": 0,
+   "why": "Stage transitions and deletion; not relevant."
+  },
+  "creation-preserves-the-source-uri-while-resolving-a-download": {
+   "rating": 0,
+   "why": "Creation; not relevant."
+  },
+  "deletion-leaves-version-records-that-raw-enumeration-still-r": {
+   "rating": 0,
+   "why": "Deletion; not relevant."
+  },
+  "version-metadata-is-assembled-from-several-sources": {
+   "rating": 0,
+   "why": "Version metadata; not relevant."
+  },
+  "change-model-version-search-ordering-at-both-default-and-fal": {
+   "rating": 0,
+   "why": "Search ordering; unrelated."
+  },
+  "change-version-tag-storage-through-its-shared-path-writer-re": {
+   "rating": 0,
+   "why": "Tags; unrelated."
+  },
+  "changing-prompt-visibility-requires-coordinated-classificati": {
+   "rating": 0,
+   "why": "Prompt visibility; unrelated."
+  },
+  "changing-registered-model-search-requires-preserving-pipelin": {
+   "rating": 0,
+   "why": "Search; unrelated."
+  },
+  "filesystem-registry-initialization-and-registered-model-pers": {
+   "rating": 0,
+   "why": "Init; unrelated."
+  },
+  "keep-webhook-event-creation-replacement-and-matching-aligned": {
+   "rating": 0,
+   "why": "Webhooks; unrelated."
+  },
+  "model-names-and-tag-names-have-different-filesystem-contract": {
+   "rating": 0,
+   "why": "Filesystem contracts; unrelated."
+  },
+  "model-version-creation-resolves-artifacts-before-allocating": {
+   "rating": 0,
+   "why": "Creation; unrelated."
+  },
+  "registered-model-mutations-and-lookup-flow": {
+   "rating": 0,
+   "why": "Registered model mutations; unrelated."
+  },
+  "rename-rebuilds-destination-metadata-before-removing-the-sou": {
+   "rating": 0,
+   "why": "Rename; unrelated."
+  },
+  "search-filters-combine-attributes-with-per-key-tag-matches": {
+   "rating": 0,
+   "why": "Search filters; unrelated."
+  },
+  "store-initialization-and-database-routing": {
+   "rating": 0,
+   "why": "Init; unrelated."
+  },
+  "version-search-loads-all-records-before-filtering-sorting-an": {
+   "rating": 0,
+   "why": "Version search; unrelated."
+  },
+  "webhook-crud-uses-soft-deletion-and-two-independent-listing": {
+   "rating": 0,
+   "why": "Webhooks; unrelated."
+  },
+  "workspace-predicates-apply-even-in-the-single-tenant-store": {
+   "rating": 0,
+   "why": "Workspace; unrelated."
+  }
+ },
+ "PR26269-hard": {
+  "anthropic-transport-entry-points-and-credential-selection": {
+   "rating": 0,
+   "why": "Covers transport/credentials, not streaming index logic."
+  },
+  "changing-anthropic-tool-call-translation-across-request-and": {
+   "rating": 1,
+   "why": "Mentions model_to_chat_streaming tool index 0 and _chat_stream fan-out, but is framed as a general howto and doesn't state the fix mechanism."
+  },
+  "coordinate-cache-token-accounting-across-native-and-translat": {
+   "rating": 0,
+   "why": "About cache-token accounting, unrelated."
+  },
+  "gateway-provider-adapters-and-execution-paths": {
+   "rating": 0,
+   "why": "General map; too broad to act on."
+  },
+  "structured-output-requires-explicit-object-properties": {
+   "rating": 0,
+   "why": "Structured output schema rule, unrelated."
+  },
+  "translated-anthropic-streaming-depends-on-message-start-meta": {
+   "rating": 2,
+   "why": "Describes exactly the mechanism changed: observed-index list, message_delta emitted once per index, adapter requiring index, and need to coordinate terminal emission."
+  }
+ },
+ "PR26307-hard": {
+  "adding-a-structured-attachment-payload-format": {
+   "rating": 0,
+   "why": ""
+  },
+  "attribute-writes-use-json-serialization-cached-registries-re": {
+   "rating": 0,
+   "why": ""
+  },
+  "coordinate-changes-to-span-event-serialization-across-dictio": {
+   "rating": 0,
+   "why": ""
+  },
+  "dictionary-persistence-retains-serialized-span-attributes": {
+   "rating": 1,
+   "why": "to_dict/from_dict are what the new reduce/deepcopy rely on; useful but not the mechanism"
+  },
+  "input-and-output-attachment-extraction-has-two-passes": {
+   "rating": 0,
+   "why": ""
+  },
+  "keep-mlflow-trace-identity-separate-from-opentelemetry-ident": {
+   "rating": 0,
+   "why": ""
+  },
+  "lazy-spans-preserve-stored-json-only-while-passthrough-is-sa": {
+   "rating": 2,
+   "why": "Describes LazySpan stored dict, raw JSON, materialization, __getattr__ — exactly what the LazySpan reduce/deepcopy must keep consistent"
+  },
+  "links-and-span-conversion-have-distinct-copying-semantics": {
+   "rating": 1,
+   "why": "to_immutable_span and copy semantics of attachments; related to the copy topic"
+  },
+  "live-span-finalization-order-and-exception-handling": {
+   "rating": 0,
+   "why": ""
+  },
+  "span-construction-selects-the-runtime-or-persisted-represent": {
+   "rating": 1,
+   "why": "Describes the Span/LiveSpan/NoOpSpan constructors, relevant to reconstruction"
+  },
+  "span-entities-lifecycle-representations-and-serialization": {
+   "rating": 1,
+   "why": "General map of span.py classes touched by the change"
+  }
+ },
+ "PR26442-hard": {
+  "adding-a-scalar-token-price-category-to-cost-calculation": {
+   "rating": 0,
+   "why": ""
+  },
+  "adding-an-openai-configuration-option-with-api-type-constrai": {
+   "rating": 0,
+   "why": ""
+  },
+  "adding-or-changing-an-authentication-field": {
+   "rating": 2,
+   "why": "Describes adding a field to a mode's fields list in _PROVIDER_AUTH_MODES, which is the providers.py catalog change."
+  },
+  "api-key-resolution-is-gated-and-ordered": {
+   "rating": 0,
+   "why": ""
+  },
+  "authentication-configuration-response-flow": {
+   "rating": 1,
+   "why": "Maps the auth config response flow and the api_base config field, but doesn't cover the TypeSafe change."
+  },
+  "catalog-caches-have-separate-lifetimes-and-keys": {
+   "rating": 0,
+   "why": ""
+  },
+  "catalog-loading-and-normalization-pipeline": {
+   "rating": 0,
+   "why": ""
+  },
+  "changing-behavior-shared-by-openai-responses-routes": {
+   "rating": 0,
+   "why": ""
+  },
+  "endpoint-selection-and-the-passthrough-request-pipeline": {
+   "rating": 0,
+   "why": ""
+  },
+  "endpoint-validation-and-public-conversion-contracts": {
+   "rating": 0,
+   "why": ""
+  },
+  "extend-endpoint-attribution-through-request-state-and-the-te": {
+   "rating": 0,
+   "why": ""
+  },
+  "gateway-configuration-loading-and-serialization": {
+   "rating": 0,
+   "why": ""
+  },
+  "gateway-configuration-map": {
+   "rating": 1,
+   "why": "Maps config.py provider config classes, where TypeSafeConfig lives, but gives no mechanism."
+  },
+  "gateway-entry-points-and-endpoint-selection": {
+   "rating": 0,
+   "why": ""
+  },
+  "gateway-provider-adapters-and-execution-paths": {
+   "rating": 1,
+   "why": "Mentions the TypeSafe provider and its connection config, but only as a short pointer."
+  },
+  "guardrail-placement-and-tracing-depend-on-response-mode": {
+   "rating": 0,
+   "why": ""
+  },
+  "mlflow-server-http-composition-handlers-gateway-and-mcp-regi": {
+   "rating": 1,
+   "why": "Points to _build_endpoint_config in gateway_api.py, but only generally."
+  },
+  "model-filtering-and-identity-depend-on-transformation-order": {
+   "rating": 0,
+   "why": ""
+  },
+  "preserve-destination-provenance-and-conditional-ssrf-protect": {
+   "rating": 1,
+   "why": "Covers how _build_endpoint_config reads api_base from auth_config and the SSRF handling around it, which is related to the TypeSafe change."
+  },
+  "pricing-lookup-depends-on-the-explicit-provider-hint": {
+   "rating": 0,
+   "why": ""
+  },
+  "provider-and-model-discovery-flow": {
+   "rating": 0,
+   "why": ""
+  },
+  "provider-catalogs-and-entity-search-utilities": {
+   "rating": 0,
+   "why": ""
+  },
+  "provider-construction-composes-primary-routing-and-fallback": {
+   "rating": 1,
+   "why": "Describes _build_endpoint_config turning secrets and auth_config into provider configs, the place the change goes."
+  },
+  "provider-selection-determines-the-configuration-model": {
+   "rating": 1,
+   "why": "Explains how provider selection determines which config class is built, which is relevant but doesn't cover the change."
+  },
+  "raw-proxy-routing-and-its-first-item-response-contract": {
+   "rating": 0,
+   "why": ""
+  },
+  "request-parsing-reuses-middleware-state-and-bounds-zstd-expa": {
+   "rating": 0,
+   "why": ""
+  },
+  "token-accounting-includes-cached-input-and-nested-creation-c": {
+   "rating": 0,
+   "why": ""
+  },
+  "typesafe-is-a-nonstreaming-native-passthrough-provider": {
+   "rating": 2,
+   "why": "States that TypeSafeProvider.base_url returns the constant API base and that the provider holds the config. The change replaces that with a config value."
+  },
+  "typesafe-system-one-is-native-unary-and-provider-restricted": {
+   "rating": 1,
+   "why": "Covers the TypeSafe route and provider restriction, which is context for the change but not the mechanism."
+  },
+  "unified-invocation-wraps-chat-guardrails-inside-tracing": {
+   "rating": 0,
+   "why": ""
+  }
+ },
+ "PR26327-hard": {
+  "adding-a-model-version-search-or-ordering-attribute": {
+   "rating": 0,
+   "why": ""
+  },
+  "adding-another-numeric-alias-for-run-start-time-requires-adm": {
+   "rating": 0,
+   "why": ""
+  },
+  "assessment-comparison-syntax-and-json-storage-semantics-must": {
+   "rating": 0,
+   "why": ""
+  },
+  "comparison-execution-has-separate-python-and-sql-dialect-pat": {
+   "rating": 0,
+   "why": ""
+  },
+  "dataset-clauses-independently-match-any-input-dataset": {
+   "rating": 0,
+   "why": ""
+  },
+  "extend-logged-model-ordering-through-parsing-extraction-and": {
+   "rating": 0,
+   "why": ""
+  },
+  "logged-model-filtering-combines-clauses-with-dataset-scoped": {
+   "rating": 0,
+   "why": ""
+  },
+  "logged-model-page-tokens-bind-an-offset-to-exact-query-param": {
+   "rating": 0,
+   "why": ""
+  },
+  "model-version-filters-parse-into-and-ed-comparison-dictionar": {
+   "rating": 0,
+   "why": ""
+  },
+  "null-predicates-bypass-ordinary-comparison-dispatch": {
+   "rating": 0,
+   "why": ""
+  },
+  "provider-catalogs-and-entity-search-utilities": {
+   "rating": 1,
+   "why": "Mentions MCP access-endpoint subclasses in search_utils and the general flow, but not the keyword issue."
+  },
+  "registry-list-operands-are-nonempty-tuples-of-strings": {
+   "rating": 0,
+   "why": ""
+  },
+  "run-filters-flow-from-sql-tokens-to-clause-dictionaries-to-a": {
+   "rating": 1,
+   "why": "Describes the shared _process_statement/_join_in_comparison_tokens flow that the override hooks into, but not the keyword problem."
+  },
+  "run-ordering-relies-on-stable-sorts-and-direction-aware-miss": {
+   "rating": 0,
+   "why": ""
+  },
+  "sorting-supplies-entity-specific-tie-breakers-before-offset": {
+   "rating": 0,
+   "why": ""
+  },
+  "tag-absence-has-entity-specific-semantics": {
+   "rating": 0,
+   "why": ""
+  },
+  "trace-filters-become-typed-comparison-dictionaries": {
+   "rating": 0,
+   "why": ""
+  },
+  "trace-metrics-filters-have-a-separate-single-clause-contract": {
+   "rating": 0,
+   "why": ""
+  },
+  "trace-search-normalizes-public-keys-before-evaluation": {
+   "rating": 0,
+   "why": ""
+  }
+ },
+ "PR26300-hard": {
+  "adapted-request-flow-and-streaming-boundaries": {
+   "rating": 0,
+   "why": "Covers request flow and streaming, but not tool choice translation in chat_to_model."
+  },
+  "change-response-text-handling-across-full-and-streamed-adapt": {
+   "rating": 0,
+   "why": "About response handling, not request tool config."
+  },
+  "embedding-payload-shape-controls-endpoint-selection": {
+   "rating": 0,
+   "why": "About embeddings; unrelated."
+  },
+  "extend-request-translation-at-the-shared-chat-adapter": {
+   "rating": 1,
+   "why": "Describes chat_to_model as the shared request translation point where the change goes, and the sibling generation config handling, but not tool choice."
+  },
+  "gateway-provider-adapters-and-execution-paths": {
+   "rating": 1,
+   "why": "Map pointing to GeminiAdapter.chat_to_model for tool semantics; general."
+  },
+  "raw-forwarding-has-separate-authentication-url-and-usage-han": {
+   "rating": 0,
+   "why": "About passthrough and headers; unrelated."
+  },
+  "tool-conversations-preserve-call-identity-signatures-and-gro": {
+   "rating": 1,
+   "why": "Covers tool declarations in chat_to_model, where toolConfig is added, but doesn't mention tool_choice."
+  }
+ }
+}
