@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { thinkerHome, DAY_MS } from './update.js';
 import { summarize, readLog, holdoutOf } from './usage.js';
 import { Store, findRepoRoot } from './store.js';
-import { getDeviceId } from './device.js';
+import { deviceIdentity } from './device.js';
 import { detectClients, inferWiring, USER_SCOPE_CLIENTS } from './clients.js';
 import { deliveryMetrics } from './delivery-telemetry.js';
 import { isWarm, WARM_MINED, WARM_UNDERSTOOD, warmupIssueReason } from './repo-onboard.js';
@@ -343,9 +343,11 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
     ? Math.round(((u.answered || 0) / u.requests) * 1000) / 1000
     : 0;
 
+  const device = deviceIdentity({ home });
   return {
     installId: getInstallId(home),
-    deviceId: getDeviceId(),
+    deviceId: device.id,
+    deviceSource: device.source,
     event,
     version,
     platform: process.platform,
