@@ -11,6 +11,8 @@ import { orient, lookup, drilldown, find, createNote, feedback, snippetsOn, KIND
 import { listBehaviors, behaviorsSummary, addBehavior } from './behavior.js';
 import { editBehavior, removeBehavior } from './behavior-workbench.js';
 import { ensureTelemetryScheduled, reportTelemetrySchedule } from './telemetry-schedule.js';
+import { maybeCheckDailyUpdateInBackground } from './update.js';
+import { maybeSendTelemetryInBackground, HOUR_MS } from './telemetry.js';
 import { initAst } from './ast.js';
 import { cacheInstructions, disabledTools, MORE_NOTES_INTRO } from './cache-guidance.js';
 import { isDisabledRepo } from './repo-switch.js';
@@ -373,3 +375,14 @@ if (late) server.server.oninitialized = async () => {
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
+
+// A client wired to this server alone (no hooks) never runs the CLI, which is where updates and reports
+// start when the OS has no scheduler (containers: no cron, no systemd user manager). Check at start and
+// hourly while the session lasts; the stamps keep it to one update check per 4 hours and one report an hour,
+// and mcp.js restarts this server on the new code once an update lands.
+const upkeep = () => {
+  try { maybeCheckDailyUpdateInBackground(); } catch {}
+  try { maybeSendTelemetryInBackground({ store: store || undefined }); } catch {}
+};
+upkeep();
+setInterval(upkeep, HOUR_MS).unref();
