@@ -146,7 +146,7 @@ const HELP = `thinker — knowledge cache for coding agents
                                  --prs also mines merged pull requests that were not mined before (default 20)
   record <session>               append events (JSON lines on stdin: {t:prompt|say|tool, ...}) to a session trace, for agents without hooks
   outcome <session> good|bad [reason]           apply an outcome signal to the notes served in a session
-  understand [--top n] [--areas a,b | --all] [--whole] [--model m] [--dry]
+  understand [--top n] [--areas a,b | --all] [--whole] [--batch tokens] [--style default|task|overview] [--model m] [--dry]
                                  notes on how the most changed code works now (maps, change recipes, invariants), read from
                                  the top n files by recent commits (default 200), in the focus areas when set (--all: whole repository);
                                  --whole: every code file of the --areas directories, whatever its age, except files already read

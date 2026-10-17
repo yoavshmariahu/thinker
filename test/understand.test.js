@@ -79,3 +79,34 @@ test('the cross-encoder scores by search text unless views are multi, by config 
   process.env.THINKER_CE_VIEWS = 'multi';
   try { assert.equal(ceConfig(null).views, 'multi'); } finally { delete process.env.THINKER_CE_VIEWS; }
 });
+
+test('build styles: task notes come from their own instructions; overview maps each directory from outlines first', async () => {
+  const { UNDERSTAND_SYSTEM, UNDERSTAND_TASK_SYSTEM, UNDERSTAND_OVERVIEW_SYSTEM } = await import('../src/understand.js');
+  const { Store } = await import('../src/store.js');
+  const run = async style => {
+    const r = repo();
+    const notesDir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-understand-notes-'));
+    process.env.THINKER_NOTES_DIR = notesDir;
+    const store = new Store(r), calls = [];
+    const completeFn = async o => {
+      calls.push(o);
+      if (o.schema.properties.notes) return { json: { notes: [{ title: `${style} note ${calls.length}`, kind: 'map', body: 'pkg/hot.py:Hot.run returns the iteration.', answers: ['Hot returns the wrong number'], applies: 'changing Hot', deps: [{ path: 'pkg/hot.py', symbol: 'Hot.run' }] }] }, tokens: { inputTokens: 10, outputTokens: 1 } };
+      return { json: { search: 'How Hot runs: Hot.run returns the iteration; covers the Hot runner.' } };
+    };
+    try { const res = await understand(store, { areas: ['pkg'], whole: true, style, model: 'm', completeFn }); return { res, calls: calls.filter(c => c.schema.properties.notes), notes: store.list() }; }
+    finally { delete process.env.THINKER_NOTES_DIR; }
+  };
+  const def = await run('default');
+  assert.ok(def.calls.every(c => c.system === UNDERSTAND_SYSTEM), 'the default is unchanged');
+  const task = await run('task');
+  assert.ok(task.calls.every(c => c.system === UNDERSTAND_TASK_SYSTEM));
+  assert.equal(task.notes[0].source.style, 'task', 'the note records the style it was built with');
+  const ov = await run('overview');
+  assert.equal(ov.calls[0].system, UNDERSTAND_OVERVIEW_SYSTEM, 'the directory map comes first');
+  assert.match(ov.calls[0].prompt, /OUTLINES of the code in pkg/);
+  assert.match(ov.calls[0].prompt, /class Hot/); assert.doesNotMatch(ov.calls[0].prompt, /return 0/, 'outlines, not bodies');
+  assert.ok(ov.calls.slice(1).every(c => c.system === UNDERSTAND_SYSTEM && /CODE in pkg/.test(c.prompt)), 'then the code itself');
+  assert.ok(ov.notes.some(n => n.source.ref === 'overview:pkg'));
+  assert.equal(ov.res.calls, def.res.calls + 1);
+  await assert.rejects(run('fancy'), /style is one of/);
+});
