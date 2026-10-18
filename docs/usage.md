@@ -151,6 +151,50 @@ back to `git grep` meanwhile. A missing or half-built table is never an error.
 it in the foreground (`--max-files`, `--build-ms` bound it, and a build that
 ran out of either says so); `thinker symbols refresh` brings it up to date.
 
+## Test runs an agent can afford to read
+
+A failing test run is often the most expensive thing in a session: whole suites of output read
+back into the context on every iteration, a third of it colour escapes, and seventy failures that
+are really a handful of causes.
+
+```sh
+thinker test -- pytest tests/test_api.py
+```
+
+runs the command as given, with colour off, keeps the whole log in
+`.thinker/state/tests/<timestamp>-<runner>.log` (ignored by git; the last twenty are kept) and
+prints only what a reader needs:
+
+```
+pytest: 9 failed, 0 passed — exit 1
+2 distinct causes in 9 failing tests:
+8× ConnectionError: could not reach the rows database at 127.0.0.1:5432
+    tests/test_rows.py::test_fetch_rows[1], tests/test_rows.py::test_fetch_rows[2], … +6 more
+    tests/test_rows.py:8 in test_fetch_rows
+    app/rows.py:6 in fetch
+    app/rows.py:2 in connect
+1× ModuleNotFoundError: No module named 'app.gone'
+    tests/test_rows.py::test_import_missing
+    tests/test_rows.py:17 in test_import_missing
+full log (81 lines): .thinker/state/tests/2026-10-18T05-37-29-595-pytest.log
+```
+
+The exit code is the test command's, so it drops into a script or a `&&` chain unchanged. pytest,
+jest, vitest, `go test`, `cargo test` and `node --test` are parsed; any other runner is run as
+given and reported by the last lines of its log.
+
+Agents can be asked to use it. With
+
+```json
+{ "tests": { "nudge": true } }
+```
+
+in `.thinker/config.json`, a shell command that is a test run is answered before it runs: Claude
+Code and Codex have the command rewritten to go through `thinker test`, and Cursor is told what to
+run instead. Each command is answered once per session. Without that setting nothing is answered
+and the wrapper is only what you type yourself. The same `tests` object sets `color`, `causes`,
+`examples`, `traceback`, `tail` and `keepLogs`.
+
 ## Your own model endpoint
 
 Where model traffic must go through a gateway (a corporate proxy with its own base URL and

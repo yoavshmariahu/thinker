@@ -1,0 +1,30 @@
+F.FsF.                                                                   [100%]
+=================================== FAILURES ===================================
+__________________________________ test_deep ___________________________________
+test_deep.py:4: in test_deep
+    assert outer(1) == 2
+app/calc.py:5: in outer
+    return inner(a)
+app/calc.py:2: in inner
+    raise ValueError("boom in inner")
+E   ValueError: boom in inner
+______________________________ test_rejects_empty ______________________________
+test_math.py:8: in test_rejects_empty
+    assert add(1, 1) == 3
+E   assert 2 == 3
+E    +  where 2 = add(1, 1)
+_________________________________ test_raises __________________________________
+test_math.py:15: in test_raises
+    raise ValueError("boom")
+E   ValueError: boom
+=============================== warnings summary ===============================
+test_warn.py::test_warns
+  /repo/test_warn.py:4: DeprecationWarning: old api
+    warnings.warn("old api", DeprecationWarning)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED test_deep.py::test_deep - ValueError: boom in inner
+FAILED test_math.py::test_rejects_empty - assert 2 == 3
+FAILED test_math.py::test_raises - ValueError: boom
+3 failed, 2 passed, 1 skipped, 1 warning in 0.04s

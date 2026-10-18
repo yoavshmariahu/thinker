@@ -191,6 +191,7 @@ cache at twice the input price and never read again.
 | `src/distill.js` | transcript → notes and per-note assessments |
 | `src/maintain.js` | background maintenance: re-verify stale notes, phrase new ones, distill newly merged PRs, under a daily cap |
 | `src/skills.js`, `src/commands/skills.js` | skill files (SKILL.md) as cached knowledge: one card per file, audited against the code, graded by the sessions that invoke it, duplicates settled; `thinker skills` (docs/skills.md) |
+| `src/testing.js`, `src/commands/testing.js` | test economy, off until an experiment: `thinker test -- <command>` runs a test command with colour off, keeps the whole log in `.thinker/state/tests/` and prints the counts, the failures grouped by distinct cause, and the log path; the parsers (pytest, jest, vitest, go, cargo, node --test), the cause grouping and the command classifier the `pre` hook uses |
 | `src/guard.js` | anchoring guard: names identifiers in the request that the served notes do not cover |
 | `src/update.js` | CLI self-update and daily automatic background updates (LaunchAgent / cron / invocation) |
 | `src/usage.js` | summary of the usage log and the estimate of saved calls and tokens, in tokens (never dollars) |
@@ -959,6 +960,41 @@ the session already saw. Logged as a `late` serving with `on: 'sight'`. Why: on 
 served by request text for 1 of 12 tasks, while the bare agent opened such a file before its first
 edit in 18 of 42 sessions and had seen its path in a search result 2.5 steps earlier in half of
 them; the notes on those files stated the fix's mechanism for 3 of 8 tasks.
+
+**Test economy: the wrapper and the pre-tool nudge (off until an experiment, 2026-10-18).**
+A stage-0 diagnostic over 662 sessions and their 910 test runs says where the tokens go. Not
+selection: no run was a full suite, one was a directory run, only 2 of 910 were redundant re-runs,
+and agents already run one or two test files — an import-graph selector tried on a real two-file
+run widened it to 93. The cost is the single catastrophic failing run: 50k–100k tokens, 80–88% of
+a session's whole tool output, about 30% of it ANSI colour escapes, and 70 failures that collapse
+to some 13 distinct causes. Opus already pipes such runs through `tail`, blind. So:
+
+- `thinker test -- <command>` (`src/commands/testing.js`) runs the command with colour off
+  (`NO_COLOR`/`FORCE_COLOR`/`TERM=dumb`/`COLUMNS=200` in the environment, plus `--color=no
+  -p no:cacheprovider` for pytest, `--colors=false` for jest, `--no-color` for vitest, `--color
+  never` for cargo), streams the log with any remaining escapes stripped to
+  `.thinker/state/tests/<stamp>-<runner>.log` (out of git by `store.js:EXCLUDED`, last 20 kept),
+  and prints the counts, the failures grouped by cause, the warnings as one number and the log
+  path. The exit code is the test command's. A cause is the message with its numbers, hex, uuids
+  and temp paths normalised away (`testing.js:causeOf`); each is printed once with its count, a
+  few example test names and up to six frames in this repository's files. pytest also gets
+  `-q --tb=short -rfE`: `-rfE` keeps the short summary, and the full message is read from the
+  traceback, because pytest cuts the summary line to the terminal width and a cut message would
+  split one cause into several. An unrecognised runner is passed through and reported by the last
+  lines of its log. Parsers: pytest, jest (text and `--json`), vitest, `go test` (text and
+  `-json`), cargo, `node --test` (spec and TAP).
+- The `pre` hook (PreToolUse, `commands/hooks.js`) answers a shell command that is a test run with
+  the same run through the wrapper, once per command per session so the re-issued command cannot
+  loop. Claude Code and Codex take `updatedInput`, so the command is rewritten and no permission
+  decision is returned (nothing is auto-approved); Cursor's `beforeShellExecution` cannot rewrite,
+  so it is denied with the command to run in `agent_message` (`clients.js:preToolOutput`). No other
+  client has a pre-tool event thinker can answer on. Logged as `test-nudge`.
+
+Both are off: `tests: { nudge: true }` in `.thinker/config.json` turns the hook on (`tests: true`
+means the same), and `tests` also carries `color`, `causes`, `examples`, `traceback`, `tail` and
+`keepLogs` (`testing.js:TESTS`). No environment knobs. Deliberately not built: narrowing a run to
+the tests that cover the edited files, and the state machine that would allow one full run after a
+narrow one passed — the diagnostic says there is nothing there to win.
 
 **Understanding notes as their own pool (off until an experiment, 2026-10-16).** With
 `ce.understanding: { enabled: true }` in `.thinker/config.json` (or `THINKER_CE_UNDERSTANDING=on`,

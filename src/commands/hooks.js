@@ -7,12 +7,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { MORE_NOTES_INTRO, cacheBundleIntro, disabledTools } from '../cache-guidance.js';
-import { pruneInstalls, prunedLines, refreshWiring, stripRepoWiring, repoRunsHooks, normalizeHookEvent, hookClient, sessionOf, toolFiles, seenFiles, seenHits, searchedIdentifier, promptOutput, toolOutput, stopOutput, parkPending, takePending, orientedFile } from '../clients.js';
+import { pruneInstalls, prunedLines, refreshWiring, stripRepoWiring, repoRunsHooks, normalizeHookEvent, hookClient, sessionOf, toolFiles, seenFiles, seenHits, searchedIdentifier, promptOutput, toolOutput, stopOutput, preToolOutput, rewritesCommands, PRE_TOOL_CLIENTS, parkPending, takePending, orientedFile } from '../clients.js';
+import { testsConfig, classifyTestCommand, wrappedCommand, wrapperBin, NUDGE_REASON } from '../testing.js';
 import { parseTranscript, batchDue } from '../distill.js';
 import { Store, findRepoRoot } from '../store.js';
 import { isDisabledRepo } from '../repo-switch.js';
 import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '../maintain.js';
-import { codeForRequest, orient, HOOK_BUDGET, servesNotes, rememberTask, outcome, looksLikeCorrection, lateNotes, onSightNotes, onSightConfig, onSightOutlines, onSightOutlineConfig, completenessNudge, peekTurn, takeTurn, beginTurn, holdoutTurn, sessionIntro, linkAgentSession, isHarnessEvent } from '../ops.js';
+import { codeForRequest, orient, HOOK_BUDGET, servesNotes, rememberTask, outcome, looksLikeCorrection, lateNotes, onSightNotes, onSightConfig, onSightOutlines, onSightOutlineConfig, completenessNudge, nudgedForTest, peekTurn, takeTurn, beginTurn, holdoutTurn, sessionIntro, linkAgentSession, isHarnessEvent } from '../ops.js';
 import { recordEvent, traceFile, toolName, toolInput } from '../transcripts.js';
 import { turnNotice, turnFooterMarkdown, weeklyNotice } from '../usage.js';
 import { claudeCardActive } from '../claude-card.js';
@@ -36,6 +37,8 @@ async function hookCommand(ctx) {
   if (process.env.THINKER_HOOK_DEBUG) fs.appendFileSync(process.env.THINKER_HOOK_DEBUG, JSON.stringify({ hook: pos[0], client, ev }) + '\n');
   // Cursor also runs the Claude Code hooks it imports; its own hooks do the work
   if (client === 'cursor-import') return;
+  // the pre hook runs before every shell command: it decides as early as it can
+  if (pos[0] === 'pre' && !PRE_TOOL_CLIENTS.includes(client)) return;
   // A hook at user scope (--user: the agent's own settings, read in every checkout) takes the
   // checkout from the agent's input. Every git checkout has a cache, started here on first use;
   // outside one the hooks do nothing. Where the checkout's own files run thinker hooks too (set up
@@ -142,6 +145,30 @@ async function hookCommand(ctx) {
       emit([offer, intro, text, codeFor(r.included), card].filter(Boolean).join('\n\n'));
     })();
     if (client === 'cursor') out(promptOutput(client, said));
+  } else if (pos[0] === 'pre') {
+    // Before a shell command runs: a test run is answered with the same run through `thinker test`,
+    // which keeps the log in a file and prints the failures grouped by cause (testing.js). Off
+    // unless `tests: { nudge: true }` in .thinker/config.json. The hook must never fail a tool
+    // call, so everything here is inside a try and nothing is printed on an error.
+    try {
+      if (!store.exists() || !PRE_TOOL_CLIENTS.includes(client)) return;
+      if (!testsConfig(store).nudge) return;
+      // shell commands only (Codex also fires this event for apply_patch and its MCP calls);
+      // Cursor's beforeShellExecution names no tool and carries the command at the top level
+      const name = toolName(ev.tool_name);
+      if (name && name !== 'Bash') return;
+      const command = toolInput(name, ev.tool_input).command || (typeof ev.command === 'string' ? ev.command : '');
+      if (!command) return;
+      if (!classifyTestCommand(command)) return;
+      // once per command per session: the agent re-issues what it was given, and answering that
+      // again would loop
+      if (nudgedForTest(store, session, command)) return;
+      const suggestion = wrappedCommand(command, wrapperBin(cli));
+      store.log({ op: 'test-nudge', session: session === 'unknown' ? undefined : session, client,
+        command: command.slice(0, 300), suggest: suggestion.slice(0, 300), how: rewritesCommands(client) ? 'rewrite' : 'deny' });
+      const o = preToolOutput(client, { command: suggestion, reason: NUDGE_REASON(suggestion) });
+      if (o) out(o);
+    } catch { /* a pre-tool hook never blocks the tool call */ }
   } else if (pos[0] === 'tool') {
     // After a tool call: the agent opened files; serve notes anchored to them, once each.
     if (!store.exists()) return;

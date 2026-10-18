@@ -1,0 +1,31 @@
+{"Time":"2026-10-17T22:23:08.0668-07:00","Action":"start","Package":"example.com/m"}
+{"Time":"2026-10-17T22:23:08.067029-07:00","Action":"start","Package":"example.com/m/other"}
+{"Time":"2026-10-17T22:23:08.147701-07:00","Action":"run","Package":"example.com/m/other","Test":"TestOk"}
+{"Time":"2026-10-17T22:23:08.147864-07:00","Action":"output","Package":"example.com/m/other","Test":"TestOk","Output":"=== RUN   TestOk\n","OutputType":"frame"}
+{"Time":"2026-10-17T22:23:08.147923-07:00","Action":"output","Package":"example.com/m/other","Test":"TestOk","Output":"--- PASS: TestOk (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-17T22:23:08.147945-07:00","Action":"pass","Package":"example.com/m/other","Test":"TestOk","Elapsed":0}
+{"Time":"2026-10-17T22:23:08.147963-07:00","Action":"output","Package":"example.com/m/other","Output":"PASS\n","OutputType":"frame"}
+{"Time":"2026-10-17T22:23:08.147995-07:00","Action":"run","Package":"example.com/m","Test":"TestAdd"}
+{"Time":"2026-10-17T22:23:08.148045-07:00","Action":"output","Package":"example.com/m","Test":"TestAdd","Output":"=== RUN   TestAdd\n","OutputType":"frame"}
+{"Time":"2026-10-17T22:23:08.148058-07:00","Action":"output","Package":"example.com/m","Test":"TestAdd","Output":"--- PASS: TestAdd (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-17T22:23:08.148069-07:00","Action":"pass","Package":"example.com/m","Test":"TestAdd","Elapsed":0}
+{"Time":"2026-10-17T22:23:08.148078-07:00","Action":"run","Package":"example.com/m","Test":"TestSub"}
+{"Time":"2026-10-17T22:23:08.148086-07:00","Action":"output","Package":"example.com/m","Test":"TestSub","Output":"=== RUN   TestSub\n","OutputType":"frame"}
+{"Time":"2026-10-17T22:23:08.148073-07:00","Action":"output","Package":"example.com/m/other","Output":"ok  \texample.com/m/other\t0.081s\n"}
+{"Time":"2026-10-17T22:23:08.148096-07:00","Action":"output","Package":"example.com/m","Test":"TestSub","Output":"    calc_test.go:13: got 2, want 3\n","OutputType":"error"}
+{"Time":"2026-10-17T22:23:08.148863-07:00","Action":"output","Package":"example.com/m","Test":"TestSub","Output":"--- FAIL: TestSub (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-17T22:23:08.14888-07:00","Action":"fail","Package":"example.com/m","Test":"TestSub","Elapsed":0}
+{"Time":"2026-10-17T22:23:08.148885-07:00","Action":"run","Package":"example.com/m","Test":"TestSkipped"}
+{"Time":"2026-10-17T22:23:08.148892-07:00","Action":"output","Package":"example.com/m","Test":"TestSkipped","Output":"=== RUN   TestSkipped\n","OutputType":"frame"}
+{"Time":"2026-10-17T22:23:08.148897-07:00","Action":"output","Package":"example.com/m","Test":"TestSkipped","Output":"    calc_test.go:18: not ready\n"}
+{"Time":"2026-10-17T22:23:08.148905-07:00","Action":"output","Package":"example.com/m","Test":"TestSkipped","Output":"--- SKIP: TestSkipped (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-17T22:23:08.148909-07:00","Action":"skip","Package":"example.com/m","Test":"TestSkipped","Elapsed":0}
+{"Time":"2026-10-17T22:23:08.148915-07:00","Action":"run","Package":"example.com/m","Test":"TestFatal"}
+{"Time":"2026-10-17T22:23:08.148919-07:00","Action":"output","Package":"example.com/m","Test":"TestFatal","Output":"=== RUN   TestFatal\n","OutputType":"frame"}
+{"Time":"2026-10-17T22:23:08.148928-07:00","Action":"output","Package":"example.com/m","Test":"TestFatal","Output":"    calc_test.go:22: could not open fixture: no such file\n","OutputType":"error"}
+{"Time":"2026-10-17T22:23:08.148936-07:00","Action":"output","Package":"example.com/m","Test":"TestFatal","Output":"--- FAIL: TestFatal (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-17T22:23:08.14894-07:00","Action":"fail","Package":"example.com/m","Test":"TestFatal","Elapsed":0}
+{"Time":"2026-10-17T22:23:08.148943-07:00","Action":"output","Package":"example.com/m","Output":"FAIL\n","OutputType":"frame"}
+{"Time":"2026-10-17T22:23:08.149052-07:00","Action":"output","Package":"example.com/m","Output":"FAIL\texample.com/m\t0.082s\n","OutputType":"frame"}
+{"Time":"2026-10-17T22:23:08.149073-07:00","Action":"fail","Package":"example.com/m","Elapsed":0.082}
+{"Time":"2026-10-17T22:23:08.149144-07:00","Action":"pass","Package":"example.com/m/other","Elapsed":0.082}

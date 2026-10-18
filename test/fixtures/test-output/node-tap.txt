@@ -1,0 +1,50 @@
+TAP version 13
+# (node:60391) DeprecationWarning: old api
+# (Use `node --trace-deprecation ...` to show where the warning was created)
+# Subtest: adds
+ok 1 - adds
+  ---
+  duration_ms: 0.68
+  type: 'test'
+  ...
+# Subtest: rejects empty
+not ok 2 - rejects empty
+  ---
+  duration_ms: 0.239375
+  type: 'test'
+  location: '/repo/a.test.js:9:1'
+  failureType: 'testCodeFailure'
+  error: 'boom in inner'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    inner (file:///repo/lib.js:2:9)
+    outer (file:///repo/lib.js:5:10)
+    TestContext.<anonymous> (file:///repo/a.test.js:10:16)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1201:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:831:18)
+    Test.postRun (node:internal/test_runner/test:1330:19)
+    Test.run (node:internal/test_runner/test:1258:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3)
+  ...
+# Subtest: skipped
+ok 3 - skipped # SKIP not ready
+  ---
+  duration_ms: 0.0575
+  type: 'test'
+  ...
+# Subtest: warns
+ok 4 - warns
+  ---
+  duration_ms: 0.17625
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 2
+# fail 1
+# cancelled 0
+# skipped 1
+# todo 0
+# duration_ms 101.63525

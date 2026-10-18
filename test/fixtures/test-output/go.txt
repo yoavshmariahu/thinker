@@ -1,0 +1,8 @@
+--- FAIL: TestSub (0.00s)
+    calc_test.go:13: got 2, want 3
+--- FAIL: TestFatal (0.00s)
+    calc_test.go:22: could not open fixture: no such file
+FAIL
+FAIL	example.com/m	0.152s
+ok  	example.com/m/other	0.158s
+FAIL

@@ -484,6 +484,21 @@ export function rememberTask(store, session, task) {
   if (!session || !String(task || '').trim() || !store.exists()) return;
   locked(store, session, () => { const { st, save } = sessionState(store, session); st.task = String(task).slice(0, 2000); save(); });
 }
+// The test commands the pre hook has already answered in this session (testing.js). It answers
+// each one once: the agent re-issues the command it was given, and a hook that answered that one
+// too would loop. At most a few dozen are remembered, which is more test runs than a session makes.
+export function nudgedForTest(store, session, command) {
+  if (!session || session === 'unknown' || !store.exists()) return false;
+  const key = String(command).replace(/\s+/g, ' ').trim().slice(0, 500);
+  return locked(store, session, () => {
+    const { st, save } = sessionState(store, session);
+    st.testNudged ||= [];
+    if (st.testNudged.includes(key)) return true;
+    st.testNudged = [...st.testNudged, key].slice(-50);
+    save();
+    return false;
+  });
+}
 export function lateNotes(store, { session, client, files, edited = false, perEvent = 2, perSession = 3, minRel = 0.35, turn = undefined }) {
   if (!edited) return { text: '', included: [] };
   const on = 'edit';
