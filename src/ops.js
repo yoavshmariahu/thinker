@@ -1220,7 +1220,11 @@ export function holdoutDecision(store, session, turn) {
 // or another session's message, a CI or side-session event. On 2026-10-18 they were a share of this
 // repository's prompts, each ranked against the notes (never a hit) and counted a turn of the user's.
 const HARNESS_EVENT = /^\s*<(task-notification|agent-message|side-sessions-event|ci-monitor-event|system-reminder|local-command-(stdout|stderr|caveat)|command-name)\b/;
-export const isHarnessEvent = prompt => HARNESS_EVENT.test(String(prompt || ''));
+// The Codex desktop app asks for a suggested next message through the prompt hook too, in plain text
+// with no tag: "This is an app-generated request for a suggested next user message. The user did not
+// write this message." Six of them by 2026-10-18, each logged as a request of the user's.
+const APP_GENERATED = /^\s*This is an app-generated request\b/;
+export const isHarnessEvent = prompt => { const p = String(prompt || ''); return HARNESS_EVENT.test(p) || APP_GENERATED.test(p); };
 // The prompt hook opens the session's next turn: its number, and whether the hooks hold their notes back in it.
 export function beginTurn(store, session) {
   if (!session || session === 'unknown' || !store.exists()) return { turn: 0, holdout: false };
