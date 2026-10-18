@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { rankFiles, batchFiles, understand } from '../src/understand.js';
+import { rankFiles, batchFiles, codeFiles, understand } from '../src/understand.js';
 import { ceConfig } from '../src/dense.js';
 
 // A repository whose history makes a ranking: hot.py changed often and lately, warm.py once lately,
@@ -109,4 +109,16 @@ test('build styles: task notes come from their own instructions; overview maps e
   assert.ok(ov.notes.some(n => n.source.ref === 'overview:pkg'));
   assert.equal(ov.res.calls, def.res.calls + 1);
   await assert.rejects(run('fancy'), /style is one of/);
+});
+
+test('a data project is code too: dbt models (SQL) and their documentation (YAML) are read, whole and by recency', () => {
+  const r = repo();
+  const g = (args, date) => execFileSync('git', args, { cwd: r, env: { ...process.env, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' }, stdio: 'ignore' });
+  fs.mkdirSync(path.join(r, 'warehouse/models'), { recursive: true });
+  fs.writeFileSync(path.join(r, 'warehouse/models/fct_sales.sql'), "select channel, amount from {{ ref('int_sales') }}\n");
+  fs.writeFileSync(path.join(r, 'warehouse/models/schema.yml'), 'version: 2\nmodels:\n  - name: fct_sales\n    description: Sales lines.\n');
+  fs.writeFileSync(path.join(r, 'warehouse/README.md'), '# warehouse\n');
+  g(['add', '-A'], '2026-09-26T00:00:00Z'); g(['commit', '-qm', 'warehouse'], '2026-09-26T00:00:00Z');
+  assert.deepEqual(codeFiles(r, ['warehouse']), ['warehouse/models/fct_sales.sql', 'warehouse/models/schema.yml'], 'a whole-directory build reads the models and their docs, not the README');
+  assert.deepEqual(rankFiles(r, { top: 10, areas: ['warehouse'] }).sort(), ['warehouse/models/fct_sales.sql', 'warehouse/models/schema.yml']);
 });
