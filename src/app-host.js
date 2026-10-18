@@ -4,6 +4,7 @@
 // subagent answering thinker's queue (session-llm.js): the warm-up (repo-onboard.js:answerWarmup) and
 // learning (session-work.js).
 import { execFileSync } from 'node:child_process';
+import { isTestMode } from './test-mode.js';
 
 // How each client's agent starts a subagent that keeps running while it goes on. Codex's spawn_agent does
 // not block; Cursor's Task tool and Claude Code's Agent tool run one in the background when asked.
@@ -32,14 +33,17 @@ export function processAncestry(pid = process.ppid, { max = 16, execFn = execFil
   }
   return out;
 }
+// The suite never reads the machine's process tree: run from a desktop app, every test sat under the app's
+// bundle and took itself for an app session. A test passes its own ancestry.
+const machineAncestry = () => isTestMode() ? [] : processAncestry();
 // The app this session runs in, for a harness: its name, or null.
-export function desktopApp(harness, { env = process.env, ancestry = processAncestry } = {}) {
+export function desktopApp(harness, { env = process.env, ancestry = machineAncestry } = {}) {
   const a = APPS[harness]; if (!a) return null;
   if (a.env?.(env)) return a.name;
   return (typeof ancestry === 'function' ? ancestry() : ancestry).some(c => a.bundle.test(c)) ? a.name : null;
 }
 // Any of them, for a process that does not know its client (the MCP server before the client says who it is).
-export function anyDesktopApp({ env = process.env, ancestry = processAncestry } = {}) {
+export function anyDesktopApp({ env = process.env, ancestry = machineAncestry } = {}) {
   const chain = typeof ancestry === 'function' ? ancestry() : ancestry;
   for (const h of Object.keys(APPS)) { const n = desktopApp(h, { env, ancestry: chain }); if (n) return n; }
   return null;
