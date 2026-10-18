@@ -13,6 +13,7 @@ import { summarize, readLog, holdoutOf } from './usage.js';
 import { Store, findRepoRoot } from './store.js';
 import { deviceIdentity } from './device.js';
 import { detectClients, inferWiring, USER_SCOPE_CLIENTS } from './clients.js';
+import { detectHarnesses } from './harnesses.js';
 import { deliveryMetrics } from './delivery-telemetry.js';
 import { isWarm, WARM_MINED, WARM_UNDERSTOOD, warmupIssueReason } from './repo-onboard.js';
 
@@ -387,7 +388,10 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
 
     clients: {
       schemaVersion: 1,
-      detected: detectClients(),
+      // the supported agents found, none when none is (the `claude` fallback is for setting up, not for reporting)
+      detected: detectClients({ fallback: false }),
+      // every coding agent found, supported or not, with the days since it was last used (harnesses.js)
+      harnesses: detectHarnesses(),
       wiring: wiringHealth(),
       activeRequests: cls.active || {},
       servings: cls.servings || {},
@@ -551,6 +555,23 @@ export async function sendUninstallFeedback(message, {
   } catch (err) {
     return { sent: false, error: err.message };
   }
+}
+
+// After an update the new copy reports once, right away, so that what it detects reaches the dashboard
+// the same day on every install, with or without a working hourly job (2026-10-17: the harness detection
+// reached the installs that had never made a request this way). Disabled telemetry, test mode and a
+// background send's own child stay silent. Returns whether a send was started.
+export function sendTelemetryAfterUpdate({ cliPath, home = thinkerHome(), spawnFn = spawn, env = process.env, testMode = isTestMode() } = {}) {
+  if (!cliPath || !fs.existsSync(cliPath)) return false;
+  if (testMode || !isTelemetryEnabled({ home })) return false;
+  if (isTestTelemetryBlocked(getTelemetryEndpoint({ home }), env)) return false;
+  if (env.THINKER_IN_LLM || env.THINKER_BACKGROUND_TELEMETRY) return false;
+  try {
+    const child = spawnFn(process.execPath, [cliPath, 'telemetry', '--background', '--force', '--event', 'update', '--quiet'],
+      { detached: true, stdio: 'ignore', env: { ...env, THINKER_BACKGROUND_TELEMETRY: '1' } });
+    child?.unref?.();
+    return true;
+  } catch { return false; }
 }
 
 export function maybeSendTelemetryInBackground({
