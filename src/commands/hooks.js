@@ -5,7 +5,7 @@ import { gitContext, tryImpact } from '../impact-journal.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
-import { MORE_NOTES_INTRO, CACHE_LEARNING_GUIDE, cacheBundleIntro, disabledTools } from '../cache-guidance.js';
+import { MORE_NOTES_INTRO, cacheBundleIntro, disabledTools } from '../cache-guidance.js';
 import { pruneInstalls, prunedLines, refreshWiring, stripRepoWiring, repoRunsHooks, normalizeHookEvent, hookClient, sessionOf, toolFiles, seenFiles, promptOutput, toolOutput, stopOutput, parkPending, takePending, orientedFile } from '../clients.js';
 import { parseTranscript } from '../distill.js';
 import { Store, findRepoRoot } from '../store.js';
@@ -121,7 +121,7 @@ async function hookCommand(ctx) {
       const intro = introOk ? sessionIntro(store, { session, client }) : '';
       const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}${n.status === 'stale' ? ' ⚠ STALE' : ''}  (id: ${n.id})`).join('\n')}` : '';
       const header = cacheBundleIntro({ stale: r.included.some(n => n.status === 'stale'), disabled: disabledTools(store.config()) });
-      const text = `<thinker-cache>\n${header}\n\n${r.text}${more}${!NO_LEARN && sessionLearning() && !['windsurf', 'pi', 'copilot'].includes(client) ? '\n\n' + CACHE_LEARNING_GUIDE : ''}\n</thinker-cache>`;
+      const text = `<thinker-cache>\n${header}\n\n${r.text}${more}\n</thinker-cache>`;
       emit([offer, intro, text, codeFor(r.included)].filter(Boolean).join('\n\n'));
     })();
     if (client === 'cursor') out(promptOutput(client, said));

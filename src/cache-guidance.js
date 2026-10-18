@@ -39,24 +39,24 @@ If these tools are listed as deferred names rather than callable tools, load the
 // As shipped: with the code tools off.
 export const CACHE_USAGE_GUIDE = cacheUsageGuide();
 
-// Benchmark runs expose only orient and lookup, so keep the learning tools separate.
-export const CACHE_LEARNING_GUIDE = `If a note was wrong, call feedback with its id and the correction. Save a reusable call path, rule, or gotcha with remember as soon as substantial investigation establishes it, while the evidence is in context. Include the reason, constraints, and concrete file:symbol dependencies. This is the primary learning path; background learning sees only selected evidence and may miss the discovery. Do not save a one-off task summary.`;
-
+// No text an agent reads asks it to call remember or feedback (the user's decision, 2026-10-08: "Note
+// distillation should happen offline. Never on the critical path."). On the Click rerun of that day all
+// six Opus arms ended with ToolSearch + remember, two turns the baseline never spent, because this
+// guide asked for it. Learning is the stop hook's distillation; the tools stay for a person who asks.
 export const MORE_NOTES_INTRO = 'Other cached titles. Use lookup only if one directly answers a question still open for this task:';
 
 // Claude Code cuts an MCP server's `instructions` at exactly 2048 characters and appends
-// "… [truncated]" (measured 2026-10-07 against 0.1.16: 2741 characters sent, so the tail of the
-// usage guide and the whole learning guide never reached the model, and nothing logged the loss).
+// "… [truncated]" (measured 2026-10-07 against 0.1.16: 2741 characters sent, so the
+// tail of the usage guide never reached the model, and nothing logged the loss).
 // Other hosts may cut lower or not at all. `cacheInstructions` composes the string so this cannot
 // happen silently: it drops a whole trailing section rather than hand a host half a sentence, and
 // the suite holds the total under the cap for a long repository path.
 export const INSTRUCTIONS_LIMIT = 2048;
 
-export function cacheInstructions({ repo, limit = INSTRUCTIONS_LIMIT, disabled, learn = true, intro } = {}) {
+export function cacheInstructions({ repo, limit = INSTRUCTIONS_LIMIT, disabled, intro } = {}) {
   const sections = [
     intro || `thinker is a cache of notes about this repository (${repo}) from earlier sessions and humans.`,
     cacheUsageGuide({ disabled }),
-    ...(learn ? [CACHE_LEARNING_GUIDE] : []),
   ];
   const text = () => sections.join('\n\n');
   while (sections.length > 1 && text().length > limit) sections.pop();
@@ -79,7 +79,7 @@ export const cacheBundleIntro = ({ stale = false, disabled } = {}) => {
 // THINKER_MCP=off and THINKER_NO_LEARN=1 and to apply it only where .thinker/ exists: on the Click
 // canary a Codex agent spent its first turn running `printenv THINKER_MCP THINKER_NO_LEARN; test -d
 // .thinker` to comply. The hooks and the server enforce those switches; the agent never needs to.
-export function agentWorkflow({ cli, repo, mcp = true, learn = true, disabled } = {}) {
+export function agentWorkflow({ cli, repo, mcp = true, disabled } = {}) {
   const quote = value => "'" + String(value).replaceAll("'", "'\\''") + "'";
   const command = cli ? `node ${quote(cli)}` : 'thinker';
   const suffix = repo ? ` --repo ${quote(repo)}` : '';
@@ -92,6 +92,5 @@ Use ${tools} as a map to the code, then do the work. If they are unavailable, co
 
 - Read an injected <thinker-cache> bundle first: keep the notes that answer the request, ignore the rest, and check a STALE claim against the code. When none was injected, or none bears on the task, ${call('orient', '"<task>"')} once.
 - ${reach}. ${call('lookup', '"<question or note id>"')} answers one question a note left open.
-- Then edit and test. Do not keep retrieving notes.
-${learn ? `- Save a reusable rule, call path or gotcha with ${mcp ? '`remember`' : call('add', '"<note.json>" --source agent') + ' (JSON with title, kind map/howto/rule, answers, body, deps)'} while the evidence is in context, with its reason and file:symbol deps; not a task summary. Correct a wrong note with ${mcp ? '`feedback` (its id, useful: false, the corrected body)' : call('feedback', '"<feedback.json>"') + ' (JSON with id, useful: false, correction)'}.` : '- Learning is disabled here: do not save notes or feedback.'}`;
+- Then edit and test. Do not keep retrieving notes.`;
 }

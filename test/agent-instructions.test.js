@@ -6,7 +6,7 @@ import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { updateInstructions } from '../src/agent-instructions.js';
-import { agentWorkflow, cacheInstructions, cacheBundleIntro, disabledTools, CACHE_LEARNING_GUIDE, INSTRUCTIONS_LIMIT } from '../src/cache-guidance.js';
+import { agentWorkflow, cacheInstructions, cacheBundleIntro, disabledTools, INSTRUCTIONS_LIMIT } from '../src/cache-guidance.js';
 import { installClient, refreshWiring, uninstallClients, uninstallWiring } from '../src/clients.js';
 import { piExtension } from '../src/integrations/pi.js';
 import { opencodePlugin } from '../src/integrations/opencode.js';
@@ -23,10 +23,10 @@ function fixture(t) {
 }
 const read = file => fs.readFileSync(file, 'utf8');
 function checkWorkflow(text, cliOnly = false) {
-  for (const name of ['orient', 'lookup', 'feedback']) assert.ok(text.includes(name), name);
+  for (const name of ['orient', 'lookup']) assert.ok(text.includes(name), name);
+  assert.doesNotMatch(text, /remember|feedback/, 'no instruction asks the agent to save or grade notes');
   // the code tools are off unless a repository turns them on, and a tool that is off is never named
   for (const name of ['find', 'drilldown']) assert.ok(!new RegExp(`\\b${name}\\b`).test(text), `${name} is off and must not be named`);
-  assert.ok(text.includes(cliOnly ? 'add ' : '`remember`'));
   // the four decisions, one line each; nothing about environment switches or whether .thinker/ exists,
   // which had a Codex agent spend its first turn checking them (the Click canary of 2026-10-07)
   assert.match(text, /Read an injected <thinker-cache> bundle first/);
@@ -112,14 +112,15 @@ test('user-scope installation, upgrade and uninstall preserve existing instructi
   for (const file of Object.values(files)) assert.equal(read(path.join(config.repo, file)), 'user rules\n');
 });
 
-test('disabled integrations and learning are respected, and CLI instructions quote executable paths', async t => {
+test('disabled integrations are respected, no instruction asks the agent to save or grade notes, and CLI instructions quote executable paths', async t => {
   const config = fixture(t);
   installClient('codex', { ...config, hooks: false, mcp: false });
   assert.equal(fs.existsSync(path.join(config.repo, 'AGENTS.md')), false);
   installClient('codex', { ...config, mcp: false, learn: false });
   const text = read(path.join(config.repo, 'AGENTS.md'));
-  assert.match(text, /Learning is disabled/);
-  assert.doesNotMatch(text, /Use the Thinker MCP|call `remember`/);
+  assert.doesNotMatch(text, /Use the Thinker MCP|remember|feedback|Learning is disabled/);
+  installClient('codex', { ...config, mcp: true, learn: true });
+  assert.doesNotMatch(read(path.join(config.repo, 'AGENTS.md')), /remember|feedback/, 'learning is the background distillation, never the agent (2026-10-08)');
   const oc = await opencodePlugin({ ...config, mcp: false })();
   const c = {}; await oc.config(c);
   assert.equal(c.mcp, undefined); assert.equal(c.instructions.length, 1);
@@ -168,20 +169,20 @@ test('CLI feedback corrects an existing note; invalid input does not write, and 
 });
 
 // Claude Code cuts a server's instructions at INSTRUCTIONS_LIMIT and appends "… [truncated]", which
-// silently dropped the learning guide before the text was composed under the cap.
+// silently dropped the tail of the guide before the text was composed under the cap.
 test('MCP instructions fit the host cap whole, and the bundle header carries the two local decisions', () => {
   const deep = '/Users/x/' + 'deep/'.repeat(60) + 'repo';
   for (const repo of ['/r', '/Users/yoavshmariahu/src/thinker', deep]) {
     const text = cacheInstructions({ repo });
     assert.ok(text.length <= INSTRUCTIONS_LIMIT, `${repo}: ${text.length}`);
     assert.ok(text.includes(repo));
-    assert.ok(text.endsWith(CACHE_LEARNING_GUIDE), `${repo} lost the learning guide`);
-    for (const name of ['orient', 'lookup', 'remember', 'feedback']) assert.ok(text.includes(name), name);
+    for (const name of ['orient', 'lookup']) assert.ok(text.includes(name), name);
+    assert.doesNotMatch(text, /remember|feedback/, 'no instruction asks the agent to save or grade notes (2026-10-08)');
     assert.doesNotMatch(text, /\bfind\b|\bdrilldown\b|before the first grep/, 'the code tools are off: not named');
     assert.match(text, /bears on the task/);
     // a repository that turned the code tools on is offered them beside its own search, never ahead of it, still under the cap
     const on = cacheInstructions({ repo, disabled: [] });
-    assert.ok(on.length <= INSTRUCTIONS_LIMIT && on.endsWith(CACHE_LEARNING_GUIDE), `${repo}: ${on.length} with the code tools on`);
+    assert.ok(on.length <= INSTRUCTIONS_LIMIT && /edit and verify/.test(on), `${repo}: ${on.length} with the code tools on`);
     for (const name of ['find', 'drilldown', 'mcp__thinker__find,mcp__thinker__drilldown']) assert.ok(on.includes(name), name);
     assert.match(on, /neither replaces one batched search or reading the file you will edit/);
     assert.doesNotMatch(on, /before the first grep|instead of grepping|fallback/, 'the tools are not put ahead of search');
@@ -190,7 +191,7 @@ test('MCP instructions fit the host cap whole, and the bundle header carries the
   }
   // A cap below one section drops whole sections rather than handing the host half a sentence.
   const tight = cacheInstructions({ repo: '/r', limit: 600 });
-  assert.ok(tight.length <= 600 && !tight.includes(CACHE_LEARNING_GUIDE));
+  assert.ok(tight.length <= 600 && !/edit and verify/.test(tight));
   assert.match(cacheBundleIntro(), /match the working tree/);
   assert.match(cacheBundleIntro({ stale: true }), /STALE/);
   for (const t of [cacheBundleIntro(), cacheBundleIntro({ stale: true })]) {

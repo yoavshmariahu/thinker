@@ -972,7 +972,7 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
     const file = candidates.find(f => fs.existsSync(f)) || candidates.at(-1);
     if (file) {
       const existed = fs.existsSync(file);
-      if (updateInstructions(file, agentWorkflow({ cli, repo: scope === 'repo' ? repo : undefined, mcp: !!mcp && client !== 'windsurf', learn: !!learn, disabled: scope === 'repo' ? repoDisabledTools(repo) : undefined }))) done.push(`${client}: Thinker workflow in ${rel(file)}`);
+      if (updateInstructions(file, agentWorkflow({ cli, repo: scope === 'repo' ? repo : undefined, mcp: !!mcp && client !== 'windsurf', disabled: scope === 'repo' ? repoDisabledTools(repo) : undefined }))) done.push(`${client}: Thinker workflow in ${rel(file)}`);
       // Do not hide an existing user instruction file from version control.
       if (!existed) localFiles([file]);
     }
@@ -991,7 +991,7 @@ function repoDisabledTools(repo) {
 // Cursor keeps user rules in its settings, not in a file.
 export function installCursorRule(repo, { learn = true } = {}) {
   const rule = wiringFiles('cursor', { repo }).rule;
-  const text = `---\ndescription: Use Thinker for repository exploration and learning\nalwaysApply: true\n---\n${agentWorkflow({ learn, disabled: repoDisabledTools(repo) })}\n`;
+  const text = `---\ndescription: Use Thinker for repository exploration and learning\nalwaysApply: true\n---\n${agentWorkflow({ disabled: repoDisabledTools(repo) })}\n`;
   fs.mkdirSync(path.dirname(rule), { recursive: true });
   if (readText(rule) !== text) fs.writeFileSync(rule, text);
   return rule;
