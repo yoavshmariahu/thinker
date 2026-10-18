@@ -22,8 +22,10 @@ test('a model call round-trips through the queue, and a malformed answer is refu
   assert.deepEqual(await nextRequest(dir, { waitMs: 50, pollMs: 10 }), { waiting: true });
   assert.match(answerRequest(dir, request.id, 'no idea').error, /not JSON/);
   assert.match(answerRequest(dir, request.id, '{"other": 1}').error, /notes/);
+  assert.equal(fs.existsSync(path.join(dir, 'last-answer.json')), false);
   assert.deepEqual(answerRequest(dir, request.id, '```json\n{"notes": [{"title": "t"}]}\n```'), { ok: true });
   const r = await call;
+  assert.ok(Date.parse(JSON.parse(fs.readFileSync(path.join(dir, 'last-answer.json'), 'utf8')).at));
   assert.deepEqual(r.json, { notes: [{ title: 't' }] });
   assert.match(answerRequest(dir, request.id, '{"notes": []}').error, /no request/);
 });

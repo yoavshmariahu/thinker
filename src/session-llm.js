@@ -74,6 +74,8 @@ export async function nextRequest(dir, { waitMs = 45_000, pollMs = 500, start: s
     for (const n of names) {
       const id = n.slice(0, -'.req.json'.length);
       try { fs.renameSync(file(dir, id, 'req'), file(dir, id, 'claimed')); } catch { continue; }
+      const claimed = new Date();
+      try { fs.utimesSync(file(dir, id, 'claimed'), claimed, claimed); } catch (e) { if (e.code === 'ENOENT') continue; throw e; }
       const r = readJson(file(dir, id, 'claimed'));
       if (r) return { request: r };
     }
@@ -98,6 +100,8 @@ export function answerRequest(dir, id, answer) {
   }
   writeAtomic(file(dir, req.id, 'res'), { text: typeof answer === 'string' ? answer : JSON.stringify(answer), json });
   fs.rmSync(file(dir, req.id, 'claimed'), { force: true });
+  // A receipt for doctor, not a model probe: records actual use of the app's queue.
+  try { writeAtomic(path.join(dir, 'last-answer.json'), { at: new Date().toISOString() }); } catch {}
   return { ok: true };
 }
 

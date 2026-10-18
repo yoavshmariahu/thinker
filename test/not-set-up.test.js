@@ -11,6 +11,11 @@ const CLI = path.join(ROOT, 'src/cli.js');
 const HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-not-set-up-home-'));
 const env = { ...process.env, THINKER_TELEMETRY: 'off', THINKER_LOG: 'off', THINKER_NO_LEARN: '1', HOME, CODEX_HOME: path.join(HOME, '.codex'), CLAUDE_CONFIG_DIR: '' };
 delete env.CLAUDE_CONFIG_DIR;
+// App identity comes from each fixture's explicit environment, never the test runner's ancestors.
+const bin = path.join(HOME, 'bin'); fs.mkdirSync(bin);
+fs.writeFileSync(path.join(bin, 'ps'), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+env.PATH = bin + path.delimiter + env.PATH;
+delete env.CLAUDE_CODE_ENTRYPOINT; delete env.CURSOR_AGENT;
 const fresh = t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-not-set-up-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));

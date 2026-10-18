@@ -5,6 +5,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { Store } from '../src/store.js';
+import { desktopLearningCheck } from '../src/commands/doctor.js';
+import { enqueueJob, runSessionWork, RUN_EVERY_MS } from '../src/session-work.js';
+import { queueDir, markBuild, UNCLAIMED_MS, CLAIMED_MS } from '../src/session-llm.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CLI = path.join(ROOT, 'src/cli.js');
@@ -24,7 +28,7 @@ function machine(t) {
   const env = { ...process.env, HOME: home, THINKER_HOME: path.join(home, '.thinker'), CODEX_HOME: path.join(home, '.codex'), THINKER_MODELS_DIR: models, THINKER_TELEMETRY: 'off', THINKER_LOG: 'off', THINKER_NO_LEARN: '1' };
   delete env.CLAUDE_CONFIG_DIR;
   const run = (...args) => spawnSync(process.execPath, [CLI, ...args, '--repo', repo], { env, cwd: repo, encoding: 'utf8', timeout: 120_000 });
-  return { home, repo, run };
+  return { home, repo, run, env };
 }
 const byName = (checks, name) => checks.find(c => c.name === name);
 
@@ -61,4 +65,50 @@ test('doctor says a repository has no cache yet, as a fact and not a failure, an
   assert.equal(repoCheck.status, 'ok');
   assert.match(repoCheck.detail, /no cache in .* yet.*thinker ui/);
   assert.ok(!fs.existsSync(path.join(repo, '.thinker')));
+});
+
+test('desktop doctor uses the app session even when no configured CLI provider can run', t => {
+  const { run, env } = machine(t);
+  env.CLAUDE_CODE_ENTRYPOINT = 'claude-desktop';
+  env.THINKER_NO_LEARN = '0';
+  env.THINKER_LLM = 'no-such-provider'; // would fail if doctor tried the CLI/API probe
+  const r = run('doctor', '--json');
+  const checks = JSON.parse(r.stdout);
+  assert.equal(byName(checks, 'model').status, 'ok');
+  assert.match(byName(checks, 'model').detail, /Claude Desktop.*no CLI login/);
+  assert.equal(byName(checks, 'desktop learning').status, 'warn');
+  assert.match(byName(checks, 'desktop learning').detail, /no completed app model request/);
+});
+
+test('desktop doctor distinguishes waiting, failed retries, and a proven queue response', t => {
+  const { repo } = machine(t), store = new Store(repo).init(), now = Date.now();
+  const dir = queueDir(store); fs.mkdirSync(dir, { recursive: true });
+  enqueueJob(store, 'distill-s1', ['distill', 'fixture']);
+  let r = desktopLearningCheck(store, { now: now + RUN_EVERY_MS + 1000 });
+  assert.equal(r.status, 'warn'); assert.match(r.detail, /beyond the normal/);
+  runSessionWork(store, { cli: '/unused', out: () => {}, now, spawnFn: () => ({ status: 1 }) });
+  r = desktopLearningCheck(store, { now });
+  assert.equal(r.status, 'warn'); assert.match(r.detail, /failed job.*retained.*exited with 1.*next attempt/);
+  runSessionWork(store, { cli: '/unused', out: () => {}, now: now + RUN_EVERY_MS, spawnFn: () => ({ status: 0 }) });
+  r = desktopLearningCheck(store);
+  assert.equal(r.status, 'warn'); // empty queue alone is not proof of successful handoff
+  fs.writeFileSync(path.join(dir, 'last-answer.json'), JSON.stringify({ at: new Date(now).toISOString() }));
+  r = desktopLearningCheck(store);
+  assert.equal(r.status, 'ok'); assert.match(r.detail, /last app answer/);
+});
+
+test('desktop doctor detects unanswered and abandoned requests without taking or modifying them', t => {
+  const { repo } = machine(t), store = new Store(repo).init(), dir = queueDir(store), now = Date.now();
+  markBuild(dir, process.pid);
+  const request = path.join(dir, 'example.req.json'); fs.writeFileSync(request, '{}');
+  assert.match(desktopLearningCheck(store).detail, /waiting for an app subagent/);
+  const old = new Date(now - UNCLAIMED_MS - 1000); fs.utimesSync(request, old, old);
+  assert.equal(desktopLearningCheck(store, { now }).status, 'fail');
+  const claim = path.join(dir, 'example.claimed.json'); fs.renameSync(request, claim);
+  const claimed = new Date(now - CLAIMED_MS - 1000); fs.utimesSync(claim, claimed, claimed);
+  assert.equal(desktopLearningCheck(store, { now }).status, 'fail');
+  fs.utimesSync(claim, new Date(now), new Date(now));
+  markBuild(dir, 2 ** 22 + 12345);
+  assert.match(desktopLearningCheck(store, { now }).detail, /worker stopped/);
+  assert.equal(fs.readFileSync(claim, 'utf8'), '{}');
 });

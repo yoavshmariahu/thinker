@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store } from '../src/store.js';
 import { enqueueJob, pendingJobs, startSessionWork, runSessionWork, markAppSession, recentAppSession, RUN_EVERY_MS } from '../src/session-work.js';
@@ -67,4 +67,85 @@ test('any desktop app by env or process; a terminal is none', () => {
   assert.equal(anyDesktopApp({ env: { CLAUDE_CODE_ENTRYPOINT: 'claude-desktop' }, ancestry: [] }), 'Claude Desktop');
   assert.equal(anyDesktopApp({ env: {}, ancestry: ['/Applications/Cursor.app/Contents/MacOS/Cursor'] }), 'Cursor');
   assert.equal(anyDesktopApp({ env: {}, ancestry: ['-zsh', '/Applications/iTerm.app/Contents/MacOS/iTerm2'] }), null);
+});
+
+test('failed jobs survive, back off across repeated hooks, and are acknowledged after success', () => {
+  const store = repo(), now = Date.now();
+  enqueueJob(store, 'distill-s1', ['distill', '/t/s1.jsonl']);
+  const run = options => runSessionWork(store, { cli: '/unused', out: () => {}, now, ...options });
+  assert.equal(run({ spawnFn: () => ({ status: 1 }) }), 1);
+  let job = pendingJobs(store)[0];
+  assert.equal(job.attempts, 1); assert.match(job.lastError, /exited with 1/);
+  assert.equal(Date.parse(job.nextAttemptAt), now + RUN_EVERY_MS);
+  enqueueJob(store, 'distill-s1', ['distill', '/t/s1.jsonl']);
+  assert.equal(pendingJobs(store).length, 1);
+  assert.equal(pendingJobs(store)[0].attempts, 1);
+  assert.equal(run({ spawnFn: () => assert.fail('backoff must survive enqueue') }), 0);
+  assert.equal(startSessionWork(store, { cli: '/unused', harness: 'codex', now, spawnFn: () => assert.fail('no eligible work') }), '');
+  run({ now: now + RUN_EVERY_MS, spawnFn: () => ({ status: 2 }) });
+  job = pendingJobs(store)[0];
+  assert.equal(job.attempts, 2);
+  assert.equal(Date.parse(job.nextAttemptAt), now + 3 * RUN_EVERY_MS);
+  run({ now: Date.parse(job.nextAttemptAt), spawnFn: () => ({ status: 0 }) });
+  assert.deepEqual(pendingJobs(store), []);
+});
+
+test('signals and spawn errors retain jobs, while unrelated ready jobs still run', () => {
+  for (const failure of [() => ({ status: null, signal: 'SIGTERM' }), () => ({ error: new Error('spawn ENOENT') }), () => { throw new Error('spawn failed'); }]) {
+    const store = repo();
+    enqueueJob(store, 'a-fail', ['distill', 'a']); enqueueJob(store, 'b-ok', ['distill', 'b']);
+    const n = runSessionWork(store, { cli: '/unused', out: () => {}, spawnFn: (bin, args) => args.at(-1) === 'a' ? failure() : { status: 0 } });
+    assert.equal(n, 2); assert.equal(pendingJobs(store).length, 1);
+    assert.match(pendingJobs(store)[0].lastError, /SIGTERM|spawn/);
+  }
+});
+
+test('retry backoff starts when a slow attempt fails, not when the batch started', () => {
+  const store = repo(); let time = Date.now();
+  enqueueJob(store, 'slow', ['distill', 'fixture']);
+  runSessionWork(store, { cli: '/unused', out: () => {}, now: () => time, spawnFn: () => { time += 2 * RUN_EVERY_MS; return { status: 1 }; } });
+  assert.equal(Date.parse(pendingJobs(store)[0].nextAttemptAt), time + RUN_EVERY_MS);
+});
+
+test('a live claim cannot be taken twice, and success preserves work enqueued during the attempt', () => {
+  const store = repo();
+  enqueueJob(store, 'distill-s1', ['distill', 'old']);
+  runSessionWork(store, { cli: '/unused', out: () => {}, spawnFn: () => {
+    assert.equal(runSessionWork(store, { cli: '/unused', spawnFn: () => assert.fail('already claimed') }), 0);
+    enqueueJob(store, 'distill-s1', ['distill', 'new']);
+    return { status: 0 };
+  } });
+  assert.deepEqual(pendingJobs(store).map(j => j.args), [['distill', 'new']]);
+});
+
+test('a process dying after claiming leaves durable work that another runner recovers', () => {
+  const store = repo();
+  enqueueJob(store, 'distill-s1', ['distill', 'fixture']);
+  const source = `import { Store } from ${JSON.stringify(new URL('../src/store.js', import.meta.url).href)};
+    import { runSessionWork } from ${JSON.stringify(new URL('../src/session-work.js', import.meta.url).href)};
+    runSessionWork(new Store(process.argv[1]), { cli: '/unused', out: () => {}, spawnFn: () => process.exit(19) });`;
+  assert.throws(() => execFileSync(process.execPath, ['--input-type=module', '-e', source, store.repo], { env: { ...process.env, THINKER_TEST: '1' }, stdio: 'pipe' }), e => e.status === 19);
+  assert.equal(pendingJobs(store).length, 1);
+  assert.equal(pendingJobs(store)[0].running, false);
+  let calls = 0;
+  runSessionWork(store, { cli: '/unused', out: () => {}, spawnFn: () => { calls++; return { status: 0 }; } });
+  assert.equal(calls, 1); assert.deepEqual(pendingJobs(store), []);
+});
+
+test('catch-up reports a failed session to the queue instead of acknowledging the batch', () => {
+  const store = repo();
+  fs.writeFileSync(path.join(store.repo, 'a.js'), 'export const value = 1;');
+  const trace = path.join(store.dir, 'state', 'trace-catchup.jsonl');
+  fs.mkdirSync(path.dirname(trace), { recursive: true });
+  const events = [{ t: 'prompt', text: 'fix value' },
+    ...[1, 2, 3].map(() => ({ t: 'tool', name: 'Read', input: { file_path: 'a.js' }, result: 'export const value = 1;' })),
+    { t: 'tool', name: 'Edit', input: { file_path: 'a.js', old_string: '0', new_string: '1' }, result: 'ok' },
+    { t: 'say', text: 'Fixed value in a.js.' }];
+  fs.writeFileSync(trace, events.map(e => JSON.stringify(e)).join('\n') + '\n');
+  const env = { ...process.env, HOME: store.repo, THINKER_HOME: path.join(store.repo, 'home'), THINKER_LLM: 'session', THINKER_NO_LEARN: '0', THINKER_LOG: 'local', THINKER_TEST: '1' };
+  delete env.THINKER_SESSION_QUEUE; // fail immediately, with no real model/network call
+  const r = spawnSync(process.execPath, [CLI, 'learn', '--quiet', '--idle-min', '0', '--repo', store.repo], { env, encoding: 'utf8', timeout: 15_000 });
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(r.stdout, /failed:.*session provider needs/);
+  assert.equal(fs.existsSync(path.join(store.dir, 'state', 'trace-catchup.json')), false, 'failure did not advance the distillation checkpoint');
 });

@@ -6,6 +6,7 @@
 // subagent's context holds (a session's distill is ~25k tokens); the rest wait for the next run.
 import fs from 'node:fs';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import { QUEUE_ENV, queueDir, markBuild, buildRunning, subagentPrompt } from './session-llm.js';
 import { SUBAGENT_TOOLS } from './app-host.js';
@@ -19,17 +20,37 @@ export const APP_RECENT_MS = 24 * 3600_000;
 const state = (store, ...p) => path.join(store.dir, 'state', ...p);
 const jobsDir = store => state(store, 'session-jobs');
 const safe = k => String(k).replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 120);
+const readJson = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
+const alive = pid => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
+function writeAtomic(file, value) {
+  const tmp = `${file}.${randomUUID()}.tmp`;
+  try { fs.writeFileSync(tmp, JSON.stringify(value)); fs.renameSync(tmp, file); }
+  finally { fs.rmSync(tmp, { force: true }); }
+}
+const retryDelay = attempts => Math.min(24 * 3600_000, RUN_EVERY_MS * 2 ** Math.min(attempts - 1, 6));
+const runnable = (job, now) => !job.running && !(Date.parse(job.nextAttemptAt) > now);
 
 // A job: the arguments of a thinker command, keyed so a session's distill or the catch-up run is queued once.
 export function enqueueJob(store, key, args) {
   const dir = jobsDir(store); fs.mkdirSync(dir, { recursive: true });
   const f = path.join(dir, `${safe(key)}.json`);
-  let t = new Date().toISOString(); try { t = JSON.parse(fs.readFileSync(f, 'utf8')).t || t; } catch {}
-  fs.writeFileSync(f, JSON.stringify({ key, args, t }));
+  // Repeated hooks coalesce, retaining retry backoff. An enqueue while a job is running is
+  // a separate pending request: acknowledging the running snapshot must not erase new work.
+  const retries = pendingJobs(store).filter(j => j.key === key && j.file.endsWith('.retry'));
+  const previous = [readJson(f), ...retries].filter(Boolean).sort((a, b) => (b.attempts || 0) - (a.attempts || 0))[0] || {};
+  const { file: ignoredFile, running: ignoredRunning, ...record } = previous;
+  writeAtomic(f, { ...record, key, args, t: previous.t || new Date().toISOString() });
+  for (const j of retries) fs.rmSync(j.file, { force: true });
 }
 export function pendingJobs(store) {
-  let names = []; try { names = fs.readdirSync(jobsDir(store)).filter(n => n.endsWith('.json')); } catch { return []; }
-  return names.map(n => { try { return { file: path.join(jobsDir(store), n), ...JSON.parse(fs.readFileSync(path.join(jobsDir(store), n), 'utf8')) }; } catch { return null; } })
+  let names = []; try { names = fs.readdirSync(jobsDir(store)).filter(n => /\.(json|retry|running)$/.test(n)); } catch { return []; }
+  return names.map(n => {
+    const file = path.join(jobsDir(store), n), job = readJson(file);
+    // Ownership is in the name, so a crash between the rename and writing attempt metadata
+    // still leaves a recoverable job. A live worker's claim is never taken by another runner.
+    const pid = n.match(/\.(\d+)\.[^.]+\.running$/)?.[1];
+    return job && { ...job, file, running: !!pid && alive(Number(pid)) };
+  })
     .filter(j => j && Array.isArray(j.args)).sort((a, b) => String(a.t).localeCompare(String(b.t)));
 }
 
@@ -43,7 +64,7 @@ export function recentAppSession(store, { now = Date.now() } = {}) {
 // From the prompt hook of an app session: start the runner when jobs wait and none is running (a warm-up's
 // build shares the queue), at most every RUN_EVERY_MS. Returns what to tell the agent, or ''.
 export function startSessionWork(store, { cli, harness, now = Date.now(), spawnFn = spawn } = {}) {
-  if (!SUBAGENT_TOOLS[harness] || !pendingJobs(store).length) return '';
+  if (!SUBAGENT_TOOLS[harness] || !pendingJobs(store).some(j => runnable(j, now))) return '';
   const dir = queueDir(store);
   if (buildRunning(dir)) return '';
   const last = state(store, 'session-work.last');
@@ -62,14 +83,35 @@ export function startSessionWork(store, { cli, harness, now = Date.now(), spawnF
 }
 
 // `thinker session-work`: the oldest jobs, one after another, each a thinker command run with the session
-// provider pinned (THINKER_LLM=session in the env it was started with). A job leaves the queue when it starts.
-export function runSessionWork(store, { cli, limit = JOBS_PER_RUN, spawnFn = spawnSync, out = console.log } = {}) {
+// provider pinned (THINKER_LLM=session in the env it was started with). Claim by atomic rename;
+// acknowledge only on success. A killed runner leaves its claim for the next app session.
+// This is at-least-once delivery: incremental distillation and maintenance own their checkpoints.
+export function runSessionWork(store, { cli, limit = JOBS_PER_RUN, spawnFn = spawnSync, out = console.log, now = Date.now } = {}) {
+  const clock = typeof now === 'function' ? now : () => now;
   let done = 0;
-  for (const job of pendingJobs(store).slice(0, limit)) {
-    fs.rmSync(job.file, { force: true });
-    out(`${new Date().toISOString()} ${job.args.join(' ')}`);
-    const r = spawnFn(process.execPath, [cli, ...job.args], { cwd: store.repo, stdio: 'inherit', env: process.env });
-    store.log({ op: 'session-job', key: job.key, ok: r.status === 0 });
+  for (const job of pendingJobs(store).filter(j => runnable(j, clock())).slice(0, limit)) {
+    const claim = path.join(jobsDir(store), `${safe(job.key)}.${process.pid}.${randomUUID()}.running`);
+    try { fs.renameSync(job.file, claim); } catch (e) { if (e.code === 'ENOENT') continue; throw e; }
+    // An enqueue may have replaced the pending file after the listing; run what we claimed.
+    const record = readJson(claim);
+    if (!record || !Array.isArray(record.args)) throw new Error(`invalid learning job: ${claim}`);
+    record.attempts = (record.attempts || 0) + 1;
+    record.lastAttemptAt = new Date(clock()).toISOString();
+    writeAtomic(claim, record);
+    out(`${record.lastAttemptAt} ${record.args.join(' ')}`);
+    let r;
+    try { r = spawnFn(process.execPath, [cli, ...record.args], { cwd: store.repo, stdio: 'inherit', env: process.env }); }
+    catch (error) { r = { error }; }
+    const ok = r.status === 0 && !r.error && !r.signal;
+    if (ok) fs.rmSync(claim, { force: true });
+    else {
+      record.lastError = String(r.error?.message || (r.signal ? `terminated by ${r.signal}` : `exited with ${r.status}`)).slice(0, 300);
+      record.nextAttemptAt = new Date(clock() + retryDelay(record.attempts)).toISOString();
+      writeAtomic(claim, record);
+      fs.renameSync(claim, claim.replace(/\.running$/, '.retry'));
+      out(`learning job ${record.key} failed: ${record.lastError}; retained for retry after ${record.nextAttemptAt}`);
+    }
+    store.log({ op: 'session-job', key: record.key, ok, attempts: record.attempts, ...(ok ? {} : { error: record.lastError, nextAttemptAt: record.nextAttemptAt }) });
     done++;
   }
   return done;

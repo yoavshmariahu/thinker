@@ -110,6 +110,11 @@ answers them through thinker's `warmup_next` and `warmup_answer` tools.
   half hour, the prompt hook starts `thinker session-work` on a few of them and asks
   the agent for the subagent. Maintenance a commit starts in a repository worked in
   an app within a day is queued the same way.
+  Jobs stay on disk until their command succeeds. Failed attempts retain their error
+  and retry after 30 minutes, doubling the delay up to 24 hours; retries still need
+  a later app prompt. A stopped worker's jobs are recovered by the next worker.
+  Delivery is at least once: the commands' incremental checkpoints avoid repeating
+  completed distillation. Work queued during an attempt survives its completion.
 - **Detection.** Claude Desktop sets `CLAUDE_CODE_ENTRYPOINT=claude-desktop`; the
   Codex app (inside ChatGPT.app) and Cursor are found among the process's
   ancestors. A CLI in a terminal keeps the CLI path.
@@ -119,6 +124,15 @@ answers them through thinker's `warmup_next` and `warmup_answer` tools.
 
 Outside the apps, where no agent CLI is signed in, Claude Code, Codex and Cursor
 warm up through the session the same way.
+
+`thinker doctor` recognizes a desktop app or recent app activity in the repository.
+It checks pending learning jobs, retained failures, the live worker and unanswered
+model requests, and reports the last successful answer through the session queue.
+It does not start a CLI model probe for this path. An empty queue or installed MCP
+alone is not evidence that the app has answered a model request, and an answer is
+not proof that a new note was learned. Resume an app session to service waiting
+work; inspect `.thinker/state/session-work.log` for job failures. `doctor --fix`
+repairs wiring but does not launch background learning or discard failed jobs.
 
 ## End-of-turn notices
 
