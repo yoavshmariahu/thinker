@@ -9,7 +9,8 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
 import { rank } from '../src/rank.js';
-import { createNote, orient, lookup, lateNotes, rememberTask, outcome, holdoutDecision, beginTurn, holdoutTurn, holdoutRate, archiveNotes, archiveReason, ARCHIVE_DEFAULTS } from '../src/ops.js';
+import { createNote, orient, lookup, lateNotes, rememberTask, outcome, holdoutDecision, beginTurn, holdoutTurn, holdoutRate, archiveNotes, archiveReason, ARCHIVE_DEFAULTS, linkAgentSession, agentSession } from '../src/ops.js';
+import { ancestorPids } from '../src/app-host.js';
 import { maintain, pickStale, DEFAULTS, MAINTENANCE_INTERVAL_MS } from '../src/maintain.js';
 import { holdoutSummary, renderHoldout, summarize, renderUsage, weeklyNotice, weeklyLine, isoWeek } from '../src/usage.js';
 import { parseTranscript } from '../src/transcripts.js';
@@ -75,6 +76,41 @@ test('a held-out orient serves nothing, marks nothing served, and logs what it w
   assert.equal(served.included.length, 1);
   assert.equal(logLines(store).filter(l => l.op === 'orient').pop().turn, 1);
 }));
+
+test('a held-out lookup returns nothing and logs what it withheld with the session and turn', () => withEnv({ THINKER_LOG: 'local', THINKER_HOLDOUT: undefined, THINKER_NO_BG_VERIFY: '1' }, async () => {
+  const store = new Store(gitRepo()).init();
+  createNote(store, { title: 'fetchRows reads the rows table', kind: 'callpath', answers: ['how are rows fetched'], body: 'src/a.js:fetchRows reads the rows table and returns them', deps: [{ path: 'src/a.js', symbol: 'fetchRows' }] });
+  const n = store.list()[0];
+  const held = await lookup(store, { query: n.id, session: 's1', turn: 2, holdout: true, client: 'mcp' });
+  assert.equal(held.text, ''); assert.equal(held.included.length, 0); assert.deepEqual(held.withheld.map(x => x.id), [n.id]);
+  const line = logLines(store).find(l => l.op === 'lookup');
+  assert.equal(line.session, 's1'); assert.equal(line.turn, 2); assert.equal(line.holdout, true); assert.deepEqual(line.withheld, [n.id]);
+  const served = await lookup(store, { query: n.id, session: 's1', turn: 3, client: 'mcp' });
+  assert.equal(served.included.length, 1);
+  assert.equal(logLines(store).filter(l => l.op === 'lookup').pop().turn, 3);
+}));
+
+test('the MCP server finds the session through the agent pid the prompt hook linked, nearest ancestor first, and not after a day', () => {
+  const store = new Store(gitRepo()).init();
+  // hook: node <- claude(500) <- app(10); server: mcp-server <- launcher(700) <- claude(500) <- app(10)
+  linkAgentSession(store, 'sess-a', [500, 10]);
+  linkAgentSession(store, 'sess-b', [900, 10]);   // another session of the same app writes the shared ancestor last
+  assert.equal(agentSession(store, [700, 500, 10]), 'sess-a', 'the agent process is reached before the app');
+  assert.equal(agentSession(store, [800, 801]), null, 'a server no hook linked (an MCP-only client) has no session');
+  const later = Date.now() + 25 * 3600_000;
+  assert.equal(agentSession(store, [700, 500], { now: later }), null, 'a link older than a day may be a reused pid');
+  const agents = path.join(store.dir, 'state', 'agents'), old = new Date(Date.now() - 49 * 3600_000);
+  for (const f of fs.readdirSync(agents)) fs.utimesSync(path.join(agents, f), old, old);
+  linkAgentSession(store, 'sess-c', [600]);
+  assert.deepEqual(fs.readdirSync(agents), ['600'], 'links older than two days are removed');
+  linkAgentSession(store, 'unknown', [1]); linkAgentSession(store, 'x', []);
+  assert.equal(agentSession(store, [1]), null);
+  // one ps, walked from the given pid
+  const ps = () => ' 700   500\n 500    10\n  10     1\n 900    10\n';
+  assert.deepEqual(ancestorPids(700, { execFn: ps }), [700, 500, 10]);
+  assert.deepEqual(ancestorPids(700, { max: 2, execFn: ps }), [700, 500]);
+  assert.deepEqual(ancestorPids(700, { execFn: () => { throw new Error('no ps'); } }), []);
+});
 
 test('the hooks of a held-out turn serve nothing, and every stop logs the session stats with the turn number', () => withEnv({ THINKER_LOG: 'local', THINKER_HOLDOUT: '1', THINKER_NO_BG_VERIFY: '1', THINKER_NO_LEARN: '1' }, async () => {
   const dir = gitRepo(); const store = new Store(dir).init();

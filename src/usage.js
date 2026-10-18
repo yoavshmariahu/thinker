@@ -357,8 +357,9 @@ export function summarize(store, { days, all = false } = {}) {
 
 const num = n => Math.round(n).toLocaleString('en-US');
 
-// The holdout comparison: turns the hooks served notes against turns they held notes back from
-// (ops.js:beginTurn), on what each turn cost by the session's transcript. The stop hook writes a
+// The holdout comparison: turns served notes (by the hooks, or by the agent's own orient and lookup)
+// against turns the notes were held back from (ops.js:beginTurn), on what each turn cost by the
+// session's transcript. The stop hook writes a
 // `session` line after every turn with the session's cost so far and the turn's number; a turn's
 // cost is its line minus the line of the turn before (turn 1: from nothing). A turn is measured
 // only when both lines exist: a stop hook that did not run (an interrupted turn, no transcript)
@@ -384,7 +385,7 @@ export function holdoutOf(events) {
     if (!e.session || e.session === 'unknown' || !(e.turn >= 1)) continue;
     const k = `${e.origin}|${sessionKey(e.session)}`;
     if (e.op === 'session') at(lines, k).set(e.turn, e);
-    else if (e.op === 'orient' || e.op === 'late') {
+    else if (e.op === 'orient' || e.op === 'late' || e.op === 'lookup') {
       const t = at(turns, k), x = t.get(e.turn) || { served: 0, withheld: 0, holdout: false, corrected: false };
       if (e.holdout) { x.holdout = true; x.withheld += (e.withheld || []).length; } else x.served += (e.served || []).length;
       t.set(e.turn, x);

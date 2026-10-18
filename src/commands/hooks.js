@@ -11,12 +11,12 @@ import { parseTranscript } from '../distill.js';
 import { Store, findRepoRoot } from '../store.js';
 import { isDisabledRepo } from '../repo-switch.js';
 import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '../maintain.js';
-import { codeForRequest, orient, HOOK_BUDGET, servesNotes, rememberTask, outcome, looksLikeCorrection, lateNotes, onSightNotes, onSightConfig, completenessNudge, takeTurn, beginTurn, holdoutTurn, sessionIntro } from '../ops.js';
+import { codeForRequest, orient, HOOK_BUDGET, servesNotes, rememberTask, outcome, looksLikeCorrection, lateNotes, onSightNotes, onSightConfig, completenessNudge, takeTurn, beginTurn, holdoutTurn, sessionIntro, linkAgentSession } from '../ops.js';
 import { recordEvent, traceFile, toolName, toolInput } from '../transcripts.js';
 import { turnNotice, weeklyNotice } from '../usage.js';
 import { setupRepo, warmupOffer } from '../repo-onboard.js';
 import { coverageOffer, recordAccess } from '../coverage.js';
-import { desktopApp, subagentHarness } from '../app-host.js';
+import { desktopApp, subagentHarness, ancestorPids } from '../app-host.js';
 import { enqueueJob, markAppSession, pendingJobs, startSessionWork } from '../session-work.js';
 import { ensureShellPath } from '../shell-path.js';
 
@@ -85,6 +85,9 @@ async function hookCommand(ctx) {
       // not help). A held-out turn gets neither the intro nor the notes (ops.js:beginTurn): the holdout
       // compares turns with thinker's help against turns without; the intro waits for a served turn.
       const { turn, holdout } = store.exists() ? beginTurn(store, session) : { turn: 0, holdout: false };
+      // the agent's process is among this hook's nearest ancestors: the MCP server finds the session (and so the
+      // turn and its holdout) through it (ops.js:agentSession)
+      if (store.exists()) linkAgentSession(store, session, ancestorPids());
       const introOk = store.exists() && !['windsurf', 'pi', 'copilot'].includes(client) && !holdout;
       const emit = text => { if (client === 'cursor') said = text; else if (client === 'copilot') parkPending(store.dir, session, text); else out(promptOutput(client, text)); };
       if (!store.exists() || client === 'windsurf') return;
