@@ -2,6 +2,7 @@ import { isTestMode } from '../test-mode.js';
 import { gitContext, tryImpact } from '../impact-journal.js';
 // The hook entrypoints the agents call (clients.js installs them): prompt, tool and stop, with the
 // background catch-up they start. JSON on stdin, the client's answer on stdout.
+import { noticeCard } from '../notice-card.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
@@ -136,7 +137,8 @@ async function hookCommand(ctx) {
       const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}${n.status === 'stale' ? ' ⚠ STALE' : ''}  (id: ${n.id})`).join('\n')}` : '';
       const header = cacheBundleIntro({ stale: r.included.some(n => n.status === 'stale'), disabled: disabledTools(store.config()) });
       const text = `<thinker-cache>\n${header}\n\n${r.text}${more}${cursorFootnote(r.included)}\n</thinker-cache>`;
-      emit([offer, intro, text, codeFor(r.included)].filter(Boolean).join('\n\n'));
+      const card = noticeCard(store, { client, session, turn, holdout, notes: r.included });
+      emit([offer, intro, text, codeFor(r.included), card].filter(Boolean).join('\n\n'));
     })();
     if (client === 'cursor') out(promptOutput(client, said));
   } else if (pos[0] === 'tool') {
@@ -196,6 +198,8 @@ async function hookCommand(ctx) {
         if (o.text) parts.push(o.text);
       }
     }
+    const card = noticeCard(store, { client, session, ...t, notes: peekTurn(store, session).map(id => store.get(id)).filter(Boolean) });
+    if (card) parts.push(card);
     if (parts.length) out(toolOutput(client, parts.join('\n\n')));
   } else if (pos[0] === 'stop') {
     if (!store.exists()) return;
@@ -220,6 +224,7 @@ async function hookCommand(ctx) {
     }
     if (client === 'cursor') out('{}');
     // what the turn's servings saved, for the user; the ids are cleared so the next turn starts from none
+    noticeCard(store, { client, session, ...holdoutTurn(store, session), notes: peekTurn(store, session).map(id => store.get(id)).filter(Boolean), updateOnly: true });
     const served = takeTurn(store, session !== 'unknown' ? session : null);
     // what the session has cost so far, for the holdout comparison (usage.js:holdoutOf): the turn's cost is the
     // difference from the line of the turn before, so each line carries the turn number the prompt hook opened
