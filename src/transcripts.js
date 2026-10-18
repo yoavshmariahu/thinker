@@ -73,7 +73,7 @@ const tool = (name, input, result, id) => {
   return { t: 'tool', id, name: n, input: toolInput(n, input), result: textOf(result) };
 };
 // what agents wrap around the user's words
-const cleanPrompt = s => String(s || '').replace(/<(timestamp|environment_context|system[-_]reminder|thinker-cache|thinker-code|thinker-learning|thinker-new-repository|thinker-coverage-suggestion|open_and_recently_viewed_files|attached_files)>[\s\S]*?<\/\1>/g, '').replace(/<\/?user_query>/g, '').trim();
+const cleanPrompt = s => String(s || '').replace(/<(timestamp|environment_context|system[-_]reminder|thinker-cache|thinker-code|thinker-learning|thinker-new-repository|thinker-coverage-suggestion|open_and_recently_viewed_files|attached_files|available_subagent_types|available_subagent_models|dynamic_tool_catalog|agent_skills|user_info|git_status|agent_transcripts|rules|summary_content)>[\s\S]*?<\/\1>/g, '').replace(/<\/?user_query>/g, '').trim();
 
 function jsonLines(text) {
   return text.split('\n').map(l => { if (!l.trim()) return null; try { return JSON.parse(l); } catch { return null; } });
@@ -153,7 +153,7 @@ function parseMessages(rows, fromLine) {
     if (j.type === 'tool_use' && (j.tool_name || j.name)) { events.push(tool(j.tool_name || j.name, j.parameters ?? j.input, '', j.tool_id ?? j.id)); return; }
     if (j.type === 'tool_result') { results.set(j.tool_id ?? j.tool_use_id, textOf(j.output ?? j.content)); return; }
     if (j.type === 'message' && typeof j.content === 'string') {
-      if (j.role === 'user') events.push({ t: 'prompt', text: cleanPrompt(j.content) });
+      if (j.role === 'user') { const t = cleanPrompt(j.content); if (t) events.push({ t: 'prompt', text: t }); }
       else if (j.delta && events.at(-1)?.t === 'say') events.at(-1).text += j.content;
       else events.push({ t: 'say', text: j.content });
       return;
@@ -161,12 +161,12 @@ function parseMessages(rows, fromLine) {
     const role = j.type === 'user' || j.type === 'assistant' ? j.type : j.role;
     if (role !== 'user' && role !== 'assistant') return;
     const c = j.message?.content;
-    if (typeof c === 'string') { if (role === 'user' && !j.isMeta) events.push({ t: 'prompt', text: cleanPrompt(c) }); else if (role === 'assistant') events.push({ t: 'say', text: c }); return; }
+    if (typeof c === 'string') { if (role === 'user' && !j.isMeta) { const t = cleanPrompt(c); if (t) events.push({ t: 'prompt', text: t }); } else if (role === 'assistant') events.push({ t: 'say', text: c }); return; }
     if (!Array.isArray(c)) return;
     for (const b of c) {
       // Claude Code loads a skill as a meta message after the Skill call: keep the directory on the call (skills.js:skillsInvoked)
       if (b.type === 'text' && role === 'user' && j.isMeta && /^Base directory for this skill: /.test(String(b.text || ''))) { const last = events.findLast(e => e.t === 'tool' && e.name === 'Skill'); if (last) last.skillDir = String(b.text).split('\n')[0].slice('Base directory for this skill: '.length).trim(); continue; }
-      if (b.type === 'text' && role === 'user' && !j.isMeta) events.push({ t: 'prompt', text: cleanPrompt(b.text) });
+      if (b.type === 'text' && role === 'user' && !j.isMeta) { const t = cleanPrompt(b.text); if (t) events.push({ t: 'prompt', text: t }); }
       else if (b.type === 'text' && role === 'assistant') events.push({ t: 'say', text: b.text });
       else if (b.type === 'tool_use') events.push(tool(b.name, b.input, '', b.id));
       else if (b.type === 'tool_result') results.set(b.tool_use_id, textOf(b.content));

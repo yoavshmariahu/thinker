@@ -162,13 +162,16 @@ test('hooks ignore the queue-worker subagent itself and only queue distill at se
   assert.equal(fs.existsSync(path.join(store.dir, 'state', 'trace-w-sub.jsonl')), false, 'worker session leaves no trace');
   assert.deepEqual(pendingJobs(store).filter(j => j.key.includes('w-sub')), [], 'worker session is never queued for distillation');
 
-  // Regular user session: turn-end `stop` does not queue an unbatched per-turn distill; `sessionEnd` does
+  // Regular user session: turn-end `stop` does not queue an unbatched per-turn distill; `sessionEnd` does,
+  // even when Cursor injected <dynamic_tool_catalog> listing warmup_next and warmup_answer
   const tr = path.join(store.dir, 'u-main.jsonl');
   fs.writeFileSync(tr, [
-    JSON.stringify({ role: 'user', message: { content: [{ type: 'text', text: 'investigate src/a.js' }] } }),
+    JSON.stringify({ role: 'user', message: { content: [{ type: 'text', text: '<dynamic_tool_catalog><namespace name="user-thinker" tools="orient, lookup, warmup_next, warmup_answer" /></dynamic_tool_catalog>\n<user_query>\ninvestigate src/a.js\n</user_query>' }] } }),
     JSON.stringify({ role: 'assistant', message: { content: [{ type: 'tool_use', id: '1', name: 'Read', input: { path: 'src/a.js' } }, { type: 'text', text: 'done' }] } }),
   ].join('\n') + '\n');
+  hook('prompt', { conversation_id: 'u-main', prompt: 'investigate src/a.js' });
   hook('stop', { conversation_id: 'u-main', hook_event_name: 'stop', transcript_path: tr });
+  assert.equal(fs.existsSync(path.join(store.dir, 'state', 'trace-u-main.jsonl')), true, 'user session trace is preserved across stop when dynamic_tool_catalog is present');
   assert.deepEqual(pendingJobs(store).filter(j => j.key === 'distill-u-main'), [], 'turn-end stop leaves small backlog for sessionEnd');
   hook('stop', { conversation_id: 'u-main', hook_event_name: 'sessionEnd', transcript_path: tr });
   assert.deepEqual(pendingJobs(store).filter(j => j.key === 'distill-u-main').map(j => j.key), ['distill-u-main']);
