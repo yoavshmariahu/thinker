@@ -161,6 +161,8 @@ export function refresh(store, notes = store.list(), { persist = true, narrow = 
       if (persist && (!wasStale || upgraded || JSON.stringify(n.stale?.changed) !== JSON.stringify(changed))) store.put(next);
       return next;
     }
+    // a contradicted note stays stale with no code change: only its verification clears it
+    if (wasStale && n.contradicted) return n;
     if (wasStale) { const next = { ...n, status: 'fresh', deps }; delete next.stale; if (persist) store.put(next); return next; }
     // the parser now hashes a dep the regex hashed, and both see the same block: keep the parser's hash
     if (upgraded) { const next = { ...n, deps }; if (persist) store.put(next); return next; }
@@ -942,7 +944,7 @@ export async function verifyNote(store, note, { model } = {}) {
   const diff = gitDiffFor(repo, note.verifiedCommit, paths);
   const current = (note.deps || []).map(d => `--- ${d.path}${d.symbol ? ' :: ' + d.symbol : ''} ---\n${symbolText(repo, d, 120) ?? '(missing)'}`).join('\n\n');
   const system = 'You verify cached notes about a codebase after the code changed. Be strict: a note that is subtly wrong is worse than no note. Only answer still_valid when every concrete claim in the note (file paths, symbol names, call order, what must change together, commands) is still true given the current code shown. Answer update if the note is mostly right but some claim needs correction, and give the full corrected body (keep it as short as the original, keep file:symbol pointers). Answer invalid if the thing the note describes no longer exists or the approach changed fundamentally. Answer with the JSON alone: the verdict, one sentence of reason, and a body only for update.';
-  const prompt = `NOTE (kind=${note.kind}) "${note.title}"\n${note.body}\n\nDEPENDENCIES THAT CHANGED: ${changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`).join(', ') || 'unknown'}\n\nGIT DIFF SINCE THE NOTE WAS VERIFIED (may be empty if changes are uncommitted):\n${diff || '(no diff available)'}\n\nCURRENT CODE OF EACH DEPENDENCY:\n${current.slice(0, 40000)}`;
+  const prompt = `NOTE (kind=${note.kind}) "${note.title}"\n${note.body}\n\n${note.contradicted ? `A CODING SESSION REPORTED THIS NOTE CONTRADICTED (check it against the current code; the session may be wrong):\n${note.contradicted.evidence}\n\n` : ''}DEPENDENCIES THAT CHANGED: ${changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`).join(', ') || (note.contradicted ? 'none' : 'unknown')}\n\nGIT DIFF SINCE THE NOTE WAS VERIFIED (may be empty if changes are uncommitted):\n${diff || '(no diff available)'}\n\nCURRENT CODE OF EACH DEPENDENCY:\n${current.slice(0, 40000)}`;
   const res = await complete({ system, prompt, model, accounting: { store, purpose: 'verify' }, schema: VERIFY_SCHEMA, maxTokens: VERIFY_MAX_TOKENS });
   const v = res.json || {};
   const now = new Date().toISOString();
@@ -959,9 +961,9 @@ export async function verifyNote(store, note, { model } = {}) {
   // drop deps whose files disappeared; count references again for the symbols that changed
   next.deps = dropShadowedFileDeps((next.deps || []).filter(d => !d.missing));
   if (v.verdict !== 'invalid') { const ch = new Set(changed.map(c => `${c.path}|${c.symbol || ''}`)); next.deps = next.deps.map(d => ch.has(`${d.path}|${d.symbol || ''}`) ? annotateFanout(repo, [d], { max: 1 })[0] : d); }
-  delete next.verifying;
+  delete next.verifying; delete next.contradicted;
   store.put(next);
-  store.log({ op: 'verify', id: note.id, verdict: v.verdict, cost: res.cost, metered: true, changed: changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`) });
+  store.log({ op: 'verify', id: note.id, verdict: v.verdict, contradicted: note.contradicted ? true : undefined, cost: res.cost, metered: true, changed: changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`) });
   return { note: next, verdict: v.verdict, reason: v.reason, cost: res.cost, tokens: tokensOf(res) };
 }
 
