@@ -38,7 +38,7 @@ test('archive updates check the public manifest, verify checksum, and stop when 
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-dist-update-'));
   const source = path.join(tmp, 'source');
   fs.mkdirSync(path.join(source, 'src'), { recursive: true });
-  fs.writeFileSync(path.join(source, 'src', 'cli.js'), 'console.log("updated");');
+  fs.writeFileSync(path.join(source, 'src', 'cli.js'), 'console.log(JSON.stringify({ files: [], changed: 0 }));');
   fs.writeFileSync(path.join(source, 'package.json'), JSON.stringify({ name: 'thinker', version: '0.1.1' }));
   fs.writeFileSync(path.join(source, 'package-lock.json'), JSON.stringify({ name: 'thinker', version: '0.1.1', lockfileVersion: 3, requires: true, packages: { '': { name: 'thinker', version: '0.1.1' } } }));
   const archive = path.join(tmp, 'release.tgz');
@@ -106,7 +106,7 @@ test('archive updates follow the release redirect and a tag selects its release'
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-redirect-update-'));
   const source = path.join(tmp, 'source');
   fs.mkdirSync(path.join(source, 'src'), { recursive: true });
-  fs.writeFileSync(path.join(source, 'src', 'cli.js'), 'console.log("pinned");');
+  fs.writeFileSync(path.join(source, 'src', 'cli.js'), 'console.log(JSON.stringify({ files: [], changed: 0 }));');
   fs.writeFileSync(path.join(source, 'package.json'), JSON.stringify({ name: 'thinker', version: '0.1.30' }));
   fs.writeFileSync(path.join(source, 'package-lock.json'), JSON.stringify({ name: 'thinker', version: '0.1.30', lockfileVersion: 3, requires: true, packages: { '': { name: 'thinker', version: '0.1.30' } } }));
   const archive = path.join(tmp, 'release.tgz');
@@ -271,6 +271,8 @@ test('applyUpdate updates git installation when clean', async () => {
     const seedDir = path.join(tmp, 'seed');
     execFileSync('git', ['clone', '-q', bareDir, seedDir]);
     fs.writeFileSync(path.join(seedDir, 'package.json'), JSON.stringify({ name: 'thinker', version: '0.1.0' }));
+    fs.mkdirSync(path.join(seedDir, 'src'));
+    fs.writeFileSync(path.join(seedDir, 'src/cli.js'), 'console.log(JSON.stringify({ files: [], changed: 0 }));');
     execFileSync('git', ['config', 'user.name', 'Test'], { cwd: seedDir });
     execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: seedDir });
     execFileSync('git', ['add', '.'], { cwd: seedDir });
@@ -346,6 +348,8 @@ test('applyUpdate can switch between git branches', async () => {
     const seedDir = path.join(tmp, 'seed');
     execFileSync('git', ['clone', '-q', bareDir, seedDir]);
     fs.writeFileSync(path.join(seedDir, 'package.json'), JSON.stringify({ name: 'thinker', version: '0.1.0' }));
+    fs.mkdirSync(path.join(seedDir, 'src'));
+    fs.writeFileSync(path.join(seedDir, 'src/cli.js'), 'console.log(JSON.stringify({ files: [], changed: 0 }));');
     execFileSync('git', ['config', 'user.name', 'Test'], { cwd: seedDir });
     execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: seedDir });
     execFileSync('git', ['add', '.'], { cwd: seedDir });
@@ -496,7 +500,7 @@ test('applyUpdate unpacks tarball archive for standalone install', async () => {
     const launchesFile = path.join(tmp, 'launches.jsonl');
     fs.writeFileSync(path.join(pkgSrc, 'src', 'cli.js'), `#!/usr/bin/env node
 require('node:fs').appendFileSync(${JSON.stringify(launchesFile)}, JSON.stringify({ cli: __filename, args: process.argv.slice(2), home: process.env.THINKER_HOME, test: process.env.THINKER_TEST }) + '\\n');
-console.log('v2');`);
+console.log(JSON.stringify({ files: [], changed: 0 }));`);
     fs.writeFileSync(path.join(pkgSrc, 'package.json'), JSON.stringify({ name: 'thinker', version: '0.2.0' }));
     const tarball = path.join(tmp, 'dist.tgz');
     execFileSync('tar', ['-czf', tarball, '-C', tmp, 'pkg-src']);
@@ -586,7 +590,7 @@ test('applyUpdate unpacks cleanly without emitting unknown extended header keywo
   try {
     const pkgSrc = path.join(tmp, 'pkg-src');
     fs.mkdirSync(path.join(pkgSrc, 'src'), { recursive: true });
-    fs.writeFileSync(path.join(pkgSrc, 'src', 'cli.js'), '#!/usr/bin/env node\nconsole.log("v3");');
+    fs.writeFileSync(path.join(pkgSrc, 'src', 'cli.js'), '#!/usr/bin/env node\nconsole.log(JSON.stringify({ files: [], changed: 0 }));');
     fs.writeFileSync(path.join(pkgSrc, 'package.json'), JSON.stringify({ name: 'thinker', version: '0.3.0' }));
 
     // Pack archive using tarPackArgs

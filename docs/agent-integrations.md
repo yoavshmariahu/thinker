@@ -54,6 +54,22 @@ does it explicitly. Prompt hooks also refresh connected installations. Restart t
 host afterward to reload persistent instructions. `thinker uninstall --user` removes
 the user-scope blocks; repository uninstall removes project instructions.
 
+Updates repair the environment through the new copy's `rewire` command, including
+scheduled checks that find no newer version and `install.sh --update`. Existing
+Codex wiring gets subagents enabled and generated hooks reviewed even when the
+hook files are unchanged. Entries pointing to missing installations are moved to
+the updated copy. Learning preferences and removed/declined clients are preserved.
+The repair makes no model calls and does not require a CLI login.
+
+A malformed configuration, a custom hook, or wiring to another live installation
+is reported as an incomplete repair; other clients are still checked. Update exits
+unsuccessfully and saves details in `~/.thinker/state/environment-repair.json`.
+`thinker doctor` and the next terminal notice expose the failure; `thinker rewire`
+retries it, and `thinker doctor --fix` can also retry. A later successful repair
+clears the error. Older updaters that ignore the repair command's exit status still
+leave this record on their first upgrade. Restart open desktop apps after settings
+change; pending learning resumes through a later app prompt.
+
 `thinker doctor` checks the install end to end: Node, dependencies, `thinker` on
 PATH, each agent's hooks and MCP entry, wiring left by another or a deleted copy,
 this checkout's setup and git hooks, the MCP server answering `tools/list`, and the
