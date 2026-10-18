@@ -29,7 +29,7 @@ export function noticeCard(store, { client, session, turn, holdout, notes = [], 
     const counts = [`${unique.length} ${unique.length === 1 ? 'note' : 'notes'} ${linked ? 'this turn' : 'retrieved'}`, calls ? `${calls} ${calls === 1 ? 'file' : 'files'}` : '', tokens ? `~${formatTokens(tokens)} tokens of code` : ''].filter(Boolean).join(' · ');
     const html = `<section id="thinker-${key}" aria-label="Thinker cache hit">
   <div class="card">
-    <div class="viz-row"><i data-lucide="brain" aria-hidden="true"></i><strong style="font-weight:500">Thinker</strong><span class="viz-badge">Cache hit</span></div>
+    <div class="viz-row"><span aria-hidden="true">🧠</span><strong style="font-weight:500">Thinker</strong><span class="viz-badge">Cache hit</span></div>
     <p class="tabular-nums">${counts}</p>
     <details><summary class="cursor-interaction">Retrieved notes</summary>
       <ul>${unique.map(n => `<li>${escape(n.title || n.id)}${n.status === 'stale' ? ' — dependency changed; verify before use' : ''}</li>`).join('')}</ul>
