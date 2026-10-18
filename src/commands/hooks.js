@@ -11,7 +11,7 @@ import { parseTranscript, batchDue } from '../distill.js';
 import { Store, findRepoRoot } from '../store.js';
 import { isDisabledRepo } from '../repo-switch.js';
 import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '../maintain.js';
-import { codeForRequest, orient, HOOK_BUDGET, servesNotes, rememberTask, outcome, looksLikeCorrection, lateNotes, onSightNotes, onSightConfig, onSightOutlines, onSightOutlineConfig, completenessNudge, takeTurn, beginTurn, holdoutTurn, sessionIntro, linkAgentSession, isHarnessEvent } from '../ops.js';
+import { codeForRequest, orient, HOOK_BUDGET, servesNotes, rememberTask, outcome, looksLikeCorrection, lateNotes, onSightNotes, onSightConfig, onSightOutlines, onSightOutlineConfig, completenessNudge, peekTurn, takeTurn, beginTurn, holdoutTurn, sessionIntro, linkAgentSession, isHarnessEvent } from '../ops.js';
 import { recordEvent, traceFile, toolName, toolInput } from '../transcripts.js';
 import { turnNotice, weeklyNotice } from '../usage.js';
 import { setupRepo, warmupOffer } from '../repo-onboard.js';
@@ -59,6 +59,13 @@ async function hookCommand(ctx) {
   if (isDisabledRepo(repo)) return;
   if (!store.exists()) store.init();
   const session = sessionOf(ev);
+  // Cursor's stop hook has no user-facing message field (clients.js:stopOutput); when notes are served in
+  // Cursor, ask the agent to end its reply with the same turnNotice line other hosts show at stop.
+  const cursorFootnote = notes => {
+    if (client !== 'cursor' || !noticeOn(store)) return '';
+    const line = turnNotice(store.repo, notes);
+    return line ? `\n\nEnd your reply to the user with this exact line on its own line: \`${line}\`` : '';
+  };
   // Do not combine unrelated sessions from unsupported/older hook payloads.
   if (['pi', 'windsurf', 'copilot', 'opencode'].includes(client) && session === 'unknown') return;
   // installed hooks carry --record; THINKER_NO_LEARN=1 switches learning off without reinstalling them
@@ -128,7 +135,7 @@ async function hookCommand(ctx) {
       const intro = introOk ? sessionIntro(store, { session, client }) : '';
       const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}${n.status === 'stale' ? ' ⚠ STALE' : ''}  (id: ${n.id})`).join('\n')}` : '';
       const header = cacheBundleIntro({ stale: r.included.some(n => n.status === 'stale'), disabled: disabledTools(store.config()) });
-      const text = `<thinker-cache>\n${header}\n\n${r.text}${more}\n</thinker-cache>`;
+      const text = `<thinker-cache>\n${header}\n\n${r.text}${more}${cursorFootnote(r.included)}\n</thinker-cache>`;
       emit([offer, intro, text, codeFor(r.included)].filter(Boolean).join('\n\n'));
     })();
     if (client === 'cursor') out(promptOutput(client, said));
@@ -160,7 +167,7 @@ async function hookCommand(ctx) {
       const claim = () => { try { fs.mkdirSync(path.dirname(turn), { recursive: true }); fs.writeFileSync(turn, '', { flag: 'wx' }); return true; } catch { return false; } };
       if (!p && !mcpCall && ev.transcript_path && fs.existsSync(ev.transcript_path) && servesNotes(store) && claim()) {
         const task = parseTranscript(ev.transcript_path).events.filter(e => e.t === 'prompt').pop()?.text;
-        if (task && !isWorkerPrompt(task)) { const { turn, holdout } = beginTurn(store, session); const r = await orient(store, { task, session, client: 'cursor', budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout, turn: turn || undefined }); if (r.included.length) p = `<thinker-cache>\nNotes about this repo from earlier sessions; their code dependencies were re-hashed just now.\n\n${r.text}\n</thinker-cache>`; }
+        if (task && !isWorkerPrompt(task)) { const { turn, holdout } = beginTurn(store, session); const r = await orient(store, { task, session, client: 'cursor', budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout, turn: turn || undefined }); if (r.included.length) p = `<thinker-cache>\nNotes about this repo from earlier sessions; their code dependencies were re-hashed just now.\n\n${r.text}${cursorFootnote(r.included)}\n</thinker-cache>`; }
       }
       if (p && !mcpCall) parts.push(p);
     }
@@ -172,9 +179,15 @@ async function hookCommand(ctx) {
       const r = lateNotes(store, { session, client, files: toolFiles(ev, repo), edited, turn: t.turn || undefined });
       if (r.text) parts.push(r.text);
       // understanding notes on the first sight of a file (ops.js:onSightNotes; off until an experiment)
+      let sightedNotes = [];
       if (onSightConfig(store).enabled) {
         const s = onSightNotes(store, { session, client, files: [...toolFiles(ev, repo), ...seenFiles(ev, repo)], turn: t.turn || undefined });
-        if (s.text) parts.push(s.text);
+        if (s.text) { parts.push(s.text); sightedNotes = s.included || []; }
+      }
+      if (client === 'cursor' && (r.included?.length || sightedNotes.length)) {
+        const turnNotes = peekTurn(store, session !== 'unknown' ? session : null).map(id => store.get(id)).filter(Boolean);
+        const fn = cursorFootnote(turnNotes.length ? turnNotes : [...(r.included || []), ...sightedNotes]);
+        if (fn) parts.push(fn.trim());
       }
       // and the file's own outline, from the symbol table (ops.js:onSightOutlines; off until an experiment)
       if (onSightOutlineConfig(store).enabled) {

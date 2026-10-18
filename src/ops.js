@@ -459,6 +459,10 @@ export function trackTurn(store, session, ids) {
   if (!session || !ids?.length || !store.exists()) return;
   locked(store, session, () => { const { st, save } = sessionState(store, session); st.turn = [...new Set([...(st.turn || []), ...ids])]; save(); });
 }
+export function peekTurn(store, session) {
+  if (!session || !store.exists()) return [];
+  return sessionState(store, session).st.turn || [];
+}
 export function takeTurn(store, session) {
   if (!session || !store.exists()) return [];
   return locked(store, session, () => { const { st, save } = sessionState(store, session); const ids = st.turn || []; if (!ids.length) return []; st.turn = []; save(); return ids; });

@@ -122,8 +122,8 @@ export function subagentPrompt(repo) {
 // A background subagent spawned with `subagentPrompt` triggers the host's hooks on its own turns and tool
 // calls (Cursor runs `beforeSubmitPrompt`, `postToolUse`, `stop` and `sessionEnd` for subagents too): skip
 // orienting, recording or distilling the queue worker itself so it cannot recurse.
-// Documentation and normal questions can name both queue tools too. Only our actual worker
-// instruction starts with this introduction; matching mentions anywhere suppresses notices and learning.
+// Documentation, Cursor's `<dynamic_tool_catalog>`, and normal questions can name both queue tools too.
+// Only our actual worker instruction starts with this introduction; matching mentions anywhere suppresses notices and learning.
 export const isWorkerPrompt = s => {
   const text = String(s || '').trimStart();
   return text.startsWith(`${WORKER_INTRO} (`) && /\bwarmup_next\b[\s\S]*\bwarmup_answer\b/.test(text);

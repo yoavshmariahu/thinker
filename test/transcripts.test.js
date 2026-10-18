@@ -284,9 +284,11 @@ test('Cursor transcripts strip system_reminder and thinker-learning tags and hyd
   const file = path.join(dir, 'c1.jsonl');
   fs.writeFileSync(file, [
     JSON.stringify({ role: 'user', message: { content: [{ type: 'text', text: '<system_reminder>\n<thinker-learning>\nsubagent instructions\n</thinker-learning>\n</system_reminder>\n<open_and_recently_viewed_files>foo.js</open_and_recently_viewed_files>\n<user_query>\nfix auth\n</user_query>' }] } }),
+    JSON.stringify({ role: 'user', message: { content: [{ type: 'text', text: '<available_subagent_types>generalPurpose</available_subagent_types>\n<available_subagent_models>inherit</available_subagent_models>\n<dynamic_tool_catalog>\n<namespace name="user-thinker" tools="orient, lookup, remember, behavior, feedback, warmup_next, warmup_answer" />\n</dynamic_tool_catalog>' }] } }),
     JSON.stringify({ role: 'assistant', message: { content: [{ type: 'tool_use', id: '1', name: 'CallDynamicTool', input: { namespace: 'user-thinker', toolName: 'orient', arguments: { cwd: dir, task: 'fix auth' } } }, { type: 'text', text: 'Fixed auth.' }] } }),
   ].join('\n') + '\n');
   const parsed = parseTranscript(file);
+  assert.equal(parsed.events.filter(e => e.t === 'prompt').length, 1, 'pure catalog/system-wrapper user rows produce no prompt event');
   assert.equal(parsed.events[0].text, 'fix auth');
   assert.equal(parsed.events[1].name, 'mcp__thinker__orient');
   assert.deepEqual(parsed.events[1].input, { cwd: dir, task: 'fix auth' });
