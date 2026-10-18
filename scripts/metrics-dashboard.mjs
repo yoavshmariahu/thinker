@@ -82,8 +82,6 @@ const diagnosticQuestions = [
   { name: 'Snapshot patterns · inspect potential test data', display: 'table', sql: 'SELECT cache_total_notes, requests_total, tokens_served, assessed_confirmed, tokens_avoided, sessions_distilled, count(*) AS installations FROM v_latest_installs GROUP BY 1,2,3,4,5,6 ORDER BY count(*) DESC' },
   { name: 'Upload types', display: 'bar', sql: "SELECT CASE WHEN event IS NULL OR event IN ('undefined', '') THEN 'Unknown' ELSE event END AS upload_type, count(*) AS uploads FROM reports GROUP BY 1 ORDER BY 2 DESC", settings: { 'graph.dimensions': ['upload_type'], 'graph.metrics': ['uploads'] } },
   { name: 'Waitlist emails', display: 'table', fullWidth: true, sql: "SELECT raw_json->>'email' AS email, min(timestamp) AS first_signup, max(timestamp) AS latest_signup, count(*) AS submissions FROM reports WHERE event = 'waitlist' AND nullif(raw_json->>'email', '') IS NOT NULL GROUP BY 1 ORDER BY first_signup DESC" },
-  { name: 'Harnesses · latest device snapshots', display: 'table', description: 'Coding agents found on each device in its latest report, supported by thinker or not, and how many used the agent in the last 7 days. Clients from 0.1.62 on report this.', sql: "SELECT h.key AS harness, (h.value->>'supported')::boolean AS supported, count(*) AS devices, count(*) FILTER (WHERE (h.value->>'lastUsedDays')::int <= 7) AS used_last_7_days FROM v_latest_devices d CROSS JOIN LATERAL jsonb_each(CASE WHEN jsonb_typeof(d.raw_json #> '{clients,harnesses}') = 'object' THEN d.raw_json #> '{clients,harnesses}' ELSE '{}'::jsonb END) h GROUP BY 1, 2 ORDER BY 3 DESC" },
-  { name: 'Devices without a supported agent', display: 'table', description: 'Devices whose latest report found no agent thinker can wire, with the unsupported agents found there, if any. Clients from 0.1.62 on report this.', sql: "SELECT left(d.device_id, 12) AS device, d.version, d.timestamp, (SELECT string_agg(h.key, ', ' ORDER BY h.key) FROM jsonb_each(d.raw_json #> '{clients,harnesses}') h WHERE NOT (h.value->>'supported')::boolean) AS unsupported_agents FROM v_latest_devices d WHERE jsonb_typeof(d.raw_json #> '{clients,harnesses}') = 'object' AND NOT EXISTS (SELECT 1 FROM jsonb_each(d.raw_json #> '{clients,harnesses}') h WHERE (h.value->>'supported')::boolean) ORDER BY d.timestamp DESC" },
   { name: 'Latest telemetry · SQL starter', display: 'table', sql: 'SELECT timestamp, event, platform, version, install_id, device_id, requests_total, cache_total_notes FROM reports ORDER BY timestamp DESC LIMIT 100' }
 ];
 
@@ -163,13 +161,13 @@ export async function provision({ call = api, config = state, persist = save, re
   state.cards ||= {};
   for (const question of questions) {
     const existingId = state.cards[question.name];
-    if (existingId && (question.cache ? state.cacheCardVersion === 4 : question.holdout ? state.holdoutCardVersion === 3 : question.delivery ? state.deliveryCardVersion === 2 : state.cardVersion === 6)) continue;
+    if (existingId && (question.cache ? state.cacheCardVersion === 5 : question.holdout ? state.holdoutCardVersion === 3 : question.delivery ? state.deliveryCardVersion === 2 : state.cardVersion === 7)) continue;
     const card = await api(existingId ? `/card/${existingId}` : '/card', existingId ? 'PUT' : 'POST', { name: question.name, display: question.display, description: question.description || null,
       collection_id: state.collectionId, visualization_settings: question.settings || {},
       dataset_query: dataset(question, db.id) });
     state.cards[question.name] = card.id; save();
   }
-  state.cardVersion = 6; state.deliveryCardVersion = 2; state.holdoutCardVersion = 3; state.cacheCardVersion = 4; save();
+  state.cardVersion = 7; state.deliveryCardVersion = 2; state.holdoutCardVersion = 3; state.cacheCardVersion = 5; save();
   if (!state.dashboardId) {
     state.dashboardId = (await api('/dashboard', 'POST', { name: 'Thinker telemetry', collection_id: state.collectionId,
       description: 'Live reports, installation activity, and data quality. Installation IDs are not people. Older telemetry may contain test data. Usage fields are rolling snapshots; do not sum all reports.' })).id;
@@ -191,7 +189,7 @@ export async function provision({ call = api, config = state, persist = save, re
     const parameters = filterDefs.map(([id, name], index) => ({ id, name, slug: id, type: 'string/=',
       isMultiSelect: false, sectionId: 'string', values_query_type: 'list', values_source_type: 'static-list',
       values_source_config: { values: [...new Set(filterValues.data.rows.map(row => row[index] ?? 'unknown'))].sort().map(value => [value, value]) } }));
-  if (state.dashboardVersion !== 6) {
+  if (state.dashboardVersion !== 7) {
     const cards = [{ id: -1, row: 0, col: 0, size_x: 24, size_y: 3, card_id: null,
       visualization_settings: { virtual_card: { display: 'text' }, text: '## Thinker overview\nLive PostgreSQL data · read-only connection · use the refresh control for the latest reports.\n\n**Read these totals carefully:** Installation IDs are not people. Historical reports may include test data. Usage, cache, learning, and savings cards sum the latest snapshot per installation; they are not lifetime totals and may overlap across installations on the same device. Savings are estimates. Missing device IDs are unknown, not zero users.' } }];
     let row = 7, col = 0;
@@ -229,7 +227,7 @@ export async function provision({ call = api, config = state, persist = save, re
     const waitlistCard = state.cards['Waitlist emails'];
     await api(`/dashboard/${state.waitlistId}`, 'PUT', { parameters, dashcards: [{ id: -1, card_id: waitlistCard,
       row: 0, col: 0, size_x: 24, size_y: 12, parameter_mappings: mappings(waitlistCard) }] });
-    state.dashboardVersion = 6; save();
+    state.dashboardVersion = 7; save();
   } else {
     // Refresh choices for new device IDs/versions without rearranging user cards.
     for (const id of [state.dashboardId, state.diagnosticsId, state.waitlistId]) {
@@ -288,7 +286,7 @@ export async function provision({ call = api, config = state, persist = save, re
       description: 'What the cache serves, how fresh its notes are, and how often a re-verification pass was later doubted. Latest snapshot per device; each card names its window.' })).id;
     save();
   }
-  if (state.cacheDashboardVersion !== 6) {
+  if (state.cacheDashboardVersion !== 7) {
     const cards = [{ id: -1, card_id: null, row: 0, col: 0, size_x: 24, size_y: 4,
       visualization_settings: { virtual_card: { display: 'text' }, text: '## Is the cache serving current, trustworthy notes?\nEach card reads the latest snapshot per known device (installation fallback). Retrieval and assessment cards cover that snapshot\'s 24 hours; verification cards cover 30 days; note status and confidence are the notes at upload time.\n**Doubted passes are a lower bound:** a wrong verification pass is only seen when a session or a person later contradicts or corrects the note. Clients before the verification block show no value, not zero.' } }];
     let row = 8, col = 0;
@@ -300,7 +298,7 @@ export async function provision({ call = api, config = state, persist = save, re
       if (q.fullWidth || col) { row += 8; col = 0; } else col = 12;
     });
     await api(`/dashboard/${state.cacheId}`, 'PUT', { parameters, dashcards: cards });
-    state.cacheDashboardVersion = 6; save();
+    state.cacheDashboardVersion = 7; save();
   } else {
     const dashboard = await api(`/dashboard/${state.cacheId}`);
     await api(`/dashboard/${state.cacheId}`, 'PUT', { parameters: [...parameters,
