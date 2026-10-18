@@ -516,9 +516,9 @@ export function repoRunsHooks(repo, client) {
 // this through `rewire`, so an existing user gets the wiring without a step; the checkouts switch
 // to it on their next prompt (`stripRepoWiring`). Codex's user hooks are marked reviewed: the
 // user accepted the same hooks when setting the checkout up. Returns [{client, from, options}].
-export function connectFromCheckouts(repos, { cli, mcpEntry, dry = false } = {}) {
+export function connectFromCheckouts(repos, { cli, mcpEntry, dry = false, clients = USER_SCOPE_CLIENTS } = {}) {
   const done = [];
-  for (const client of USER_SCOPE_CLIENTS) {
+  for (const client of clients) {
     if (inferWiring(null, client, { scope: 'user' })) continue;
     const options = { hooks: false, learn: false, late: false, mcp: false };
     let from = 0;
@@ -550,13 +550,13 @@ export function markConnected(thinker, clients) {
 // (after an update and on the daily run), with the options of this copy's machine-wide wiring for another
 // agent (learning, late notes), else the installer's defaults; one already wired is only marked. Returns
 // the clients wired.
-export function connectDetected({ cli, mcpEntry, home: thinker, learn = true, dry = false, detected = detectClients({ fallback: false }) } = {}) {
+export function connectDetected({ cli, mcpEntry, home: thinker, learn = true, dry = false, detected = detectClients({ fallback: false }), excluded = [] } = {}) {
   const seen = readJsonOr(connectedFile(thinker), {});
   const done = [], marked = [];
   const others = USER_SCOPE_CLIENTS.map(c => { try { return inferWiring(null, c, { scope: 'user' }); } catch { return null; } }).filter(w => w?.hooks && w.hookScripts.every(sc => sameCopy(sc, cli)));
   const options = others.length ? { hooks: true, learn: others.some(w => w.learn), late: others.some(w => w.late), mcp: true } : { hooks: true, learn, late: false, mcp: true };
   for (const client of USER_SCOPE_CLIENTS) {
-    if (seen[client] || !detected.includes(client)) continue;
+    if (excluded.includes(client) || seen[client] || !detected.includes(client)) continue;
     marked.push(client);
     if (inferWiring(null, client, { scope: 'user' })) continue;
     if (!dry) { installClient(client, { scope: 'user', cli, mcpEntry, ...options }); if (client === 'codex') trustCodexUser(); }
@@ -570,21 +570,41 @@ export function connectDetected({ cli, mcpEntry, home: thinker, learn = true, dr
 // unused) for the copy of thinker at `cli`. Returns what changed:
 // { changed: ['.claude/settings.local.json', …], skipped: [{client, reason}], clients: [...] }.
 // With `dry` nothing is written. `mcpEntry` is this copy's MCP entry for the scope.
-export function refreshWiring(repo, { cli, mcpEntry, dry = false, clients = CLIENTS, scope = 'repo' } = {}) {
+export function refreshWiring(repo, { cli, mcpEntry, dry = false, clients = CLIENTS, scope = 'repo', repair = false } = {}) {
   const o = { scope, repo };
   const ours = script => !script || sameCopy(script, cli);
   const where = scripts => [...new Set(scripts.filter(s => !ours(s)).map(s => `${installRoot(s)}${fs.existsSync(s) ? '' : ', no longer there'}`))].join('; ');
-  const files = [...allWiring(o, clients), ...(scope === 'repo' ? HOOKS.map(h => gitHookPath(repo, h)).filter(Boolean) : [])];
+  const files = [...new Set([...allWiring(o, clients), ...(scope === 'repo' ? HOOKS.map(h => gitHookPath(repo, h)).filter(Boolean) : []), ...(repair && clients.includes('codex') ? [codexConfig()] : [])])];
   const snapshot = () => Object.fromEntries(files.map(f => [f, fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : null]));
   const before = snapshot();
   const r = { changed: [], skipped: [], clients: [] };
   try {
     for (const client of clients) {
+      // Never turn an unreadable/invalid config into an empty one during automatic repair.
+      if (repair) for (const file of allWiring(o, [client])) {
+        if (file.endsWith('.json') && fs.existsSync(file)) JSON.parse(fs.readFileSync(file, 'utf8'));
+      }
       const w = inferWiring(repo, client, { scope });
       if (!w) continue;
-      if (!w.scripts.every(ours)) { r.skipped.push({ client, reason: `wired to another copy of thinker (${where(w.scripts)})` }); continue; }
+      if (!w.scripts.every(ours) && !(repair && w.scripts.every(sc => ours(sc) || !fs.existsSync(sc)))) { r.skipped.push({ client, reason: `wired to another copy of thinker (${where(w.scripts)})` }); continue; }
       if (w.custom.length) { r.skipped.push({ client, reason: `a hook command was written by hand: ${w.custom[0]}` }); continue; }
       installClient(client, { scope, repo, cli, mcpEntry, hooks: w.hooks, learn: w.learn, late: w.late, shared: w.shared, mcp: w.mcp });
+      // An unchanged hooks.json says nothing about the prerequisite settings or reviewed hashes.
+      // Do this inside the snapshot so dry runs restore it and repairs are reported as changes.
+      if (repair && client === 'codex') {
+        // Codex may remove our comments when saving TOML. Such an owned MCP entry must still
+        // get the launcher marker and lose a repository pin at user scope; keep custom env keys.
+        const file = wiringFiles('codex', o).toml, text = readText(file);
+        if (w.mcp && !text.includes(TOML_START) && codexMcpScript(text) && sameCopy(codexMcpScript(text), cli)) {
+          const header = '[mcp_servers.thinker.env]';
+          const body = text.match(/^\[mcp_servers\.thinker\.env\]\s*\n((?:(?!\[).*\n?)*)/m)?.[1] || '';
+          const kept = body.split('\n').filter(l => l.trim() && !/^\s*THINKER_(REPO|MCP_LAUNCHER)\s*=/.test(l));
+          const next = setTomlTable(text, header, [...kept, ...Object.entries(mcpEntry.env || {}).map(([k, v]) => `${k} = ${tomlStr(v)}`)]);
+          if (next !== text) fs.writeFileSync(file, next);
+        }
+        if (scope === 'user') trustCodexUser();
+        else if (readText(codexConfig()).includes(`[projects.${tomlStr(real(repo))}]`)) trustCodex(repo);
+      }
       r.clients.push(client);
     }
     if (scope === 'repo') {
@@ -604,7 +624,7 @@ export function refreshWiring(repo, { cli, mcpEntry, dry = false, clients = CLIE
     if (dry) for (const f of files) { if (before[f] === after[f]) continue; if (before[f] === null) fs.rmSync(f, { force: true }); else fs.writeFileSync(f, before[f]); }
   }
   // Codex keeps a hash of each reviewed hook: a rewritten hook needs its hash again, where the hooks were trusted before
-  if (!dry && r.clients.includes('codex')) {
+  if (!repair && !dry && r.clients.includes('codex')) {
     const hooksFile = wiringFiles('codex', o).hooks;
     if (r.changed.includes(label(hooksFile, o))) {
       if (scope === 'repo' && readText(codexConfig()).includes(`[projects.${tomlStr(real(repo))}]`)) trustCodex(repo);
@@ -822,8 +842,9 @@ export function enableCodexSubagents({ file = codexConfig() } = {}) {
 export function trustCodexUser() {
   const file = codexConfig();
   const done = enableCodexSubagents({ file });
-  const { text, n } = trustHooksIn(readText(file), wiringFiles('codex', { scope: 'user' }).hooks, null);
-  if (!n) return done;
+  const before = readText(file);
+  const { text, n } = trustHooksIn(before, wiringFiles('codex', { scope: 'user' }).hooks, null);
+  if (!n || text === before) return done;
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, text);
   return [...done, `Codex: marked thinker's ${n} hooks as reviewed in ${file}`];

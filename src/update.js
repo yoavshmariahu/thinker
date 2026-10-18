@@ -1,4 +1,5 @@
 import { isTestMode } from './test-mode.js';
+import { repairNotice, repairAfterUpdate } from './environment-repair.js';
 // Self-update and daily automatic updates for thinker CLI.
 // Supports both archive installations (~/.thinker/app) and git checkouts.
 import fs from 'node:fs';
@@ -325,9 +326,11 @@ export async function applyUpdate(opts = {}) {
     catch (e) { throw new Error(`Updated source but could not install locked dependencies: ${e.message}`); }
     const ranker = fetchRankerModel(gitDir);
     scheduleTelemetryAfterUpdate(path.join(gitDir, 'src', 'cli.js'), home);
+    const environmentRepair = repairAfterUpdate(path.join(gitDir, 'src', 'cli.js'), { home, quiet });
 
     return {
       type: 'git',
+      environmentRepair,
       ranker,
       updated: oldCommit !== newCommit || switchingBranch || force,
       from: oldCommit,
@@ -438,9 +441,11 @@ export async function applyUpdate(opts = {}) {
     };
     fs.writeFileSync(path.join(home, 'install.json'), JSON.stringify(installJson, null, 2) + '\n');
     scheduleTelemetryAfterUpdate(path.join(appDir, 'src', 'cli.js'), home);
+    const environmentRepair = repairAfterUpdate(path.join(appDir, 'src', 'cli.js'), { home, quiet });
 
     return {
       type: 'archive',
+      environmentRepair,
       updated: true,
       from: fromCommit,
       to: toCommit,
@@ -645,15 +650,16 @@ export function maybeCheckDailyUpdateInBackground({ home = thinkerHome(), cliPat
 }
 
 export function checkPendingNotice(home = thinkerHome()) {
+  const repair = repairNotice(home, { includeRestart: true });
   const noticeFile = path.join(home, 'state', 'update-notice.json');
   try {
     if (fs.existsSync(noticeFile)) {
       const data = JSON.parse(fs.readFileSync(noticeFile, 'utf8'));
       fs.rmSync(noticeFile, { force: true });
       if (data.to) {
-        return `auto-updated to ${data.to.slice(0, 7)}${data.version ? ` (v${data.version})` : ''}${data.rewired ? `; the hooks of ${data.rewired} ${data.rewired === 1 ? 'checkout were' : 'checkouts were'} rewritten for it` : ''}`;
+        return `auto-updated to ${data.to.slice(0, 7)}${data.version ? ` (v${data.version})` : ''}${data.rewired ? `; the hooks of ${data.rewired} ${data.rewired === 1 ? 'checkout were' : 'checkouts were'} rewritten for it; restart open desktop apps to load changed settings` : ''}${repair ? `; ${repair}` : ''}`;
       }
     }
   } catch {}
-  return null;
+  return repair;
 }

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store } from '../src/store.js';
 import { createNote } from '../src/ops.js';
@@ -386,10 +386,10 @@ test('refreshWiring brings a checkout\'s entries to this version\'s shape, keeps
   assert.deepEqual(r3.changed, ['.git/hooks/pre-commit']);
   assert.equal(fs.existsSync(pre), false, 'the pre-commit hook ran `thinker review --staged`; it is removed now');
 
-  // the command, for one checkout
-  // the command, for one checkout
-  const outp = execFileSync('node', [CLI, 'rewire', '--here', '--dry', '--repo', dir], { encoding: 'utf8', env: { ...process.env, THINKER_LOG: 'off', THINKER_TELEMETRY: 'off' } });
-  assert.match(outp, /codex left alone/); assert.match(outp, /cursor left alone/); assert.match(outp, /1 checkouts checked; the wiring is current/);
+  // A repair preview reports preserved custom/other-copy wiring as unresolved, never as current.
+  const preview = spawnSync(process.execPath, [CLI, 'rewire', '--here', '--dry', '--repo', dir], { encoding: 'utf8', env: { ...process.env, ...fakeHome(), THINKER_TEST: '1', THINKER_LOG: 'off', THINKER_TELEMETRY: 'off' } });
+  assert.equal(preview.status, 1);
+  assert.match(preview.stdout, /codex.*another copy/); assert.match(preview.stdout, /gemini.*written by hand/); assert.match(preview.stdout, /repair incomplete/);
   fs.rmSync(other, { recursive: true, force: true });
 });
 

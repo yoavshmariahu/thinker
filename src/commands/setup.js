@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { initAst, astDirs, GRAMMAR_NAMES } from '../ast.js';
-import { parseClients, uninstallClients, uninstallWiring, refreshWiring, connectFromCheckouts, connectDetected } from '../clients.js';
+import { parseClients, uninstallClients, uninstallWiring, refreshWiring, connectFromCheckouts, connectDetected, CLIENTS, USER_SCOPE_CLIENTS } from '../clients.js';
 import { uninstallGitHooks } from '../git-hooks.js';
 import { runSetup, stepConnectClis } from '../setup.js';
 import { unscheduleTelemetry, sendUninstallFeedback, sendTelemetry, sendTelemetryAfterUpdate } from '../telemetry.js';
@@ -17,6 +17,7 @@ import { minePrs } from './learn.js';
 import { readLog } from '../usage.js';
 import { isTestMode } from '../test-mode.js';
 import { minedCount, logWarmupIssue, markWarmed } from '../repo-onboard.js';
+import { recordRepair, repairAfterUpdate as rewireAfterUpdate } from '../environment-repair.js';
 
 async function initCommand(ctx) {
   // `init` and `setup` were two ways to set a repository up, and the difference was never clear.
@@ -138,38 +139,58 @@ async function rewireCommand(ctx) {
   const cli = path.join(HERE, 'cli.js');
   const repos = flags.here ? (store.exists() ? [repo] : []) : knownRepos(store, repo);
   const dry = !!flags.dry, quiet = !!flags.quiet;
-  const summary = { repos: 0, changed: 0, files: [] };
-  // the user's own settings first: the machine-wide wiring
-  try {
-    const u = refreshWiring(null, { scope: 'user', cli, mcpEntry: ctx.userMcpEntry(), dry });
-    if (u.changed.length) { summary.changed++; summary.files.push(...u.changed); if (!quiet) out(`your settings: ${dry ? 'would rewrite' : 'rewrote'} ${u.changed.join(', ')}`); }
-    if (!quiet) for (const s of u.skipped) out(`your settings: ${s.client} left alone: ${s.reason}`);
-  } catch (e) { if (!quiet) out(`your settings: ${e.message}`); }
-  for (const r of repos) {
-    let res;
-    try { res = refreshWiring(r, { cli, mcpEntry: { command: 'node', args: [path.join(HERE, 'mcp.js')], env: { THINKER_REPO: r } }, dry }); } catch (e) { if (!quiet) out(`${r}: ${e.message}`); continue; }
-    summary.repos++;
-    if (res.changed.length) { summary.changed++; summary.files.push(...res.changed.map(f => path.join(r, f))); }
-    if (quiet) continue;
-    if (res.changed.length) out(`${r}: ${dry ? 'would rewrite' : 'rewrote'} ${res.changed.join(', ')}`);
-    for (const s of res.skipped) out(`${r}: ${s.client} left alone: ${s.reason}`);
-  }
+  const summary = { repos: 0, changed: 0, files: [], errors: [], skipped: [] };
+  const blocked = new Set();
+  // One damaged client must not prevent the other environments from being repaired.
+  const failed = (scope, e) => { summary.errors.push({ scope, message: e.message }); if (!quiet && !flags.json) out(`${scope}: ${e.message}`); };
+  const refresh = (r, scope, clients) => {
+    const changed = new Set();
+    for (const client of clients) {
+      try {
+        const res = refreshWiring(r, { scope, clients: [client], cli, mcpEntry: scope === 'user' ? ctx.userMcpEntry() : ctx.mcpEntry(r), dry, repair: true });
+        for (const f of res.changed) changed.add(scope === 'user' ? f : path.resolve(r, f));
+        for (const skip of res.skipped) {
+          const item = { scope: r || 'your settings', ...skip };
+          summary.skipped.push(item);
+          if (scope === 'user') blocked.add(client);
+          failed(`${item.scope} (${client})`, new Error(skip.reason));
+        }
+      } catch (e) { if (scope === 'user') blocked.add(client); failed(`${r || 'your settings'} (${client})`, e); }
+    }
+    if (changed.size) {
+      summary.changed++; summary.files.push(...changed);
+      if (!quiet && !flags.json) out(`${r || 'your settings'}: ${dry ? 'would repair' : 'repaired'} ${[...changed].join(', ')}`);
+    }
+  };
+  refresh(null, 'user', USER_SCOPE_CLIENTS);
+  for (const r of repos) { summary.repos++; refresh(r, 'repo', CLIENTS); }
   if (!dry && summary.changed) store.log({ op: 'rewire', repos: summary.changed, files: summary.files.length });
   // agents the checkouts wire but the user's own settings do not yet: wired there now (clients.js:connectFromCheckouts)
   if (!flags.here) {
     try {
-      summary.connected = connectFromCheckouts(repos, { cli, mcpEntry: ctx.userMcpEntry(), dry }).map(c => c.client);
+      summary.connected = connectFromCheckouts(repos, { cli, mcpEntry: ctx.userMcpEntry(), dry, clients: USER_SCOPE_CLIENTS.filter(c => !blocked.has(c)) }).map(c => c.client);
       if (summary.connected.length && !dry) store.log({ op: 'connect', clients: summary.connected, from: 'rewire' });
-      if (summary.connected.length && !quiet) out(`your settings: ${dry ? 'would wire' : 'wired'} thinker in for ${summary.connected.join(', ')}; the checkouts switch to it on their next prompt`);
-    } catch (e) { if (!quiet) out(`your settings: ${e.message}`); }
+      if (summary.connected.length && !quiet && !flags.json) out(`your settings: ${dry ? 'would wire' : 'wired'} thinker in for ${summary.connected.join(', ')}; the checkouts switch to it on their next prompt`);
+    } catch (e) { failed('your settings', e); }
     // pi, OpenCode, Copilot and Windsurf, machine-wide since 2026-10-15: installed here but never set up in a checkout
     try {
-      const wired = connectDetected({ cli, mcpEntry: ctx.userMcpEntry(), home: thinkerHome(), learn: !ctx.NO_LEARN, dry });
+      const wired = connectDetected({ cli, mcpEntry: ctx.userMcpEntry(), home: thinkerHome(), learn: !ctx.NO_LEARN, dry, excluded: [...blocked] });
       if (wired.length) { summary.connected = [...(summary.connected || []), ...wired]; if (!dry) store.log({ op: 'connect', clients: wired, from: 'detected' }); }
-      if (wired.length && !quiet) out(`your settings: ${dry ? 'would wire' : 'wired'} thinker in for ${wired.join(', ')}, in every repository`);
-    } catch (e) { if (!quiet) out(`your settings: ${e.message}`); }
+      if (wired.length && !quiet && !flags.json) out(`your settings: ${dry ? 'would wire' : 'wired'} thinker in for ${wired.join(', ')}, in every repository`);
+    } catch (e) { failed('your settings', e); }
+  }
+  summary.ok = summary.errors.length === 0;
+  if (!dry) {
+    // This is intentionally in rewire, the entrypoint already launched by older releases.
+    try { recordRepair(thinkerHome(), summary); }
+    catch (e) { failed('repair status', e); summary.ok = false; }
+  }
+  if (!summary.ok) {
+    process.exitCode = 1;
+    if (quiet) process.stderr.write(`thinker: environment repair incomplete; run thinker rewire or thinker doctor --fix. ${summary.errors.map(e => `${e.scope}: ${e.message}`).join('; ')}\n`);
   }
   if (flags.json) { out(JSON.stringify(summary)); return; }
+  if (!summary.ok) { if (!quiet) out('Environment repair incomplete; run thinker rewire or thinker doctor --fix.'); return; }
   if (!quiet) out(summary.changed ? `${dry ? 'would rewire' : 'rewired'} ${summary.changed} of ${summary.repos} checkouts` : `${summary.repos} checkouts checked; the wiring is current`);
 }
 
@@ -177,14 +198,7 @@ async function rewireCommand(ctx) {
 // event or command reaches them without `thinker setup` being rerun (and the daily run without an update
 // checks them with this copy). The new code knows the new
 // shape, so it is the new cli that runs, not this process.
-function rewireAfterUpdate(newCli, { quiet }) {
-  if (!fs.existsSync(newCli)) return null;
-  const r = spawnSync('node', [newCli, 'rewire', '--json', '--quiet'], { encoding: 'utf8', timeout: 120_000, env: { ...process.env, THINKER_TELEMETRY: process.env.THINKER_TELEMETRY || 'off' } });
-  let summary = null; try { summary = JSON.parse(String(r.stdout || '').trim().split('\n').pop()); } catch {}
-  if (summary && !quiet && summary.changed) process.stdout.write(`Rewired the hooks of ${summary.changed} ${summary.changed === 1 ? 'checkout' : 'checkouts'} for the new version.\n`);
-  if (summary?.connected?.length && !quiet) process.stdout.write(`Wired thinker into your own settings for ${summary.connected.join(', ')} (it runs in every repository that is set up); your checkouts switch to it on their next prompt.\n`);
-  return summary;
-}
+export { repairAfterUpdate as rewireAfterUpdate } from '../environment-repair.js';
 const newCliOf = (install, home) => install.type === 'git' ? path.join(install.path, 'src', 'cli.js') : path.join(home, 'app', 'src', 'cli.js');
 
 async function updateCommand(ctx) {
@@ -266,7 +280,7 @@ async function updateCommand(ctx) {
         const res = await applyUpdate({ home, install, quiet: true, background: true });
         if (res.updated) {
           updated = true;
-          const rewired = rewireAfterUpdate(newCliOf(install, home), { quiet: true });
+          const rewired = res.environmentRepair || rewireAfterUpdate(newCliOf(install, home), { quiet: true });
           sendTelemetryAfterUpdate({ cliPath: newCliOf(install, home), home });
           const noticeFile = path.join(home, 'state', 'update-notice.json');
           fs.writeFileSync(noticeFile, JSON.stringify({ from: res.from, to: res.to, version: res.version, rewired: rewired?.changed || 0, at: new Date().toISOString() }));
@@ -276,7 +290,7 @@ async function updateCommand(ctx) {
       // no update: the wiring is checked all the same, since hooks that are gone cannot run the prompt hook's
       // refresh, and an agent installed after thinker is wired in only here (clients.js:connectDetected)
       if (!updated) rewireAfterUpdate(path.join(HERE, 'cli.js'), { quiet: true });
-    } catch {}
+    } catch (e) { process.stderr.write(`${e.message}\n`); process.exitCode = 1; }
     finally {
       try { fs.rmSync(lock, { force: true }); } catch {}
     }
@@ -312,7 +326,8 @@ async function updateCommand(ctx) {
 
   if (!chk.available && !flags.force) {
     // up to date: the wiring is checked all the same (the daily job runs this, as `update --quiet`)
-    rewireAfterUpdate(path.join(HERE, 'cli.js'), { quiet: !!flags.quiet });
+    try { rewireAfterUpdate(path.join(HERE, 'cli.js'), { quiet: !!flags.quiet }); }
+    catch (e) { out(e.message); process.exitCode = 1; return; }
     if (!flags.quiet) {
       out(`thinker is already up to date on ${chk.branch || chk.ref || 'latest'} (${chk.currentCommit ? chk.currentCommit.slice(0, 7) : 'v' + chk.version}).`);
       if (!isScheduled(home)) {
@@ -336,7 +351,7 @@ async function updateCommand(ctx) {
       const branchInfo = res.branch ? ` on branch ${res.branch}` : (res.ref ? ` on ref ${res.ref}` : '');
       out(`Updated thinker${branchInfo} to ${res.to ? res.to.slice(0, 7) : res.version} (v${res.version || 'latest'}).`);
     }
-    rewireAfterUpdate(newCliOf(install, home), { quiet: !!flags.quiet });
+    if (!res.environmentRepair) rewireAfterUpdate(newCliOf(install, home), { quiet: !!flags.quiet });
     sendTelemetryAfterUpdate({ cliPath: newCliOf(install, home), home });
     if (!flags.quiet) {
       if (!isScheduled(home)) {

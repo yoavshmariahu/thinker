@@ -16,6 +16,7 @@ import { addToPath } from '../shell-path.js';
 import { anyDesktopApp } from '../app-host.js';
 import { recentAppSession, pendingJobs, RUN_EVERY_MS } from '../session-work.js';
 import { queueDir, buildRunning, UNCLAIMED_MS, CLAIMED_MS } from '../session-llm.js';
+import { repairNotice } from '../environment-repair.js';
 
 const MIN_NODE = 20;
 const MARK = { ok: '✓', warn: '!', fail: '✗' };
@@ -83,6 +84,14 @@ async function runChecks(ctx) {
   const install = detectInstall(appDir, home);
   const checks = [];
   const add = (name, status, detail, fix) => checks.push({ name, status, detail, fix });
+  const repair = repairNotice(home);
+  if (repair) add('update repair', 'fail', repair, {
+    what: 'retry environment repair (thinker rewire)',
+    run: () => {
+      const r = spawnSync(process.execPath, [cli, 'rewire', '--json', '--quiet'], { encoding: 'utf8' });
+      if (r.error || r.status !== 0) throw new Error(r.error?.message || r.stderr || `rewire exited ${r.status}`);
+    },
+  });
 
   // Node
   const major = Number(process.versions.node.split('.')[0]);
