@@ -25,7 +25,9 @@ import { isWorkerPrompt } from '../session-llm.js';
 
 async function learnCommand(ctx) {
   const { flags } = ctx;
-  await learn(ctx, { days: Number(flags.days) || 14, idleMin: flags['idle-min'] === undefined ? 2 : Number(flags['idle-min']), max: Number(flags.max) || 50, dry: !!flags.dry, quiet: !!flags.quiet });
+  const result = await learn(ctx, { days: Number(flags.days) || 14, idleMin: flags['idle-min'] === undefined ? 2 : Number(flags['idle-min']), max: Number(flags.max) || 50, dry: !!flags.dry, quiet: !!flags.quiet });
+  // A queued job must not acknowledge a batch whose per-session errors were caught below.
+  if (process.env.THINKER_LLM === 'session' && result?.failed) process.exitCode = 1;
   if (flags.prs) await mineMore(ctx, { limit: flags.prs === true ? 20 : Number(flags.prs) || 20, model: flags.model, dry: !!flags.dry });
   if (flags.maintain) await runMaintain(ctx, { quiet: !!flags.quiet, dry: !!flags.dry });
   return;
@@ -126,7 +128,8 @@ export async function runMaintain(ctx, { quiet, dry }) {
     docs: provider() ? async ({ limit }) => (await import('../behavior-docs.js')).deriveDocBehaviors(store, { limit, phase: 'maintenance' }) : undefined,
     skills: provider() ? ({ limit }) => scanSkills(store, { limit, phase: 'maintenance' }) : undefined,
   } });
-  if (!quiet) out(renderMaintain(r));
+  if (!quiet || (process.env.THINKER_LLM === 'session' && r.errors)) out(renderMaintain(r));
+  if (process.env.THINKER_LLM === 'session' && r.errors) process.exitCode = 1;
 }
 
 // Catch-up learning: works without any end-of-session hook, so it covers
@@ -150,7 +153,7 @@ export async function learn(ctx, { days, idleMin, max, dry, quiet }) {
       pending.push({ ...s, newLines: total - (state.line || 0) });
       if (pending.length >= max) break;
     }
-    let done = 0;
+    let done = 0, failed = 0;
     if (dry) { for (const s of pending) out(`${s.client.padEnd(7)} ${s.session}  ${s.newLines} new lines`); return; }
     const progress = pending.length ? batchProgress({ dir: store.dir, name: 'Distilling sessions', total: pending.length, out, silent: true }) : null;
     try {
@@ -159,6 +162,7 @@ export async function learn(ctx, { days, idleMin, max, dry, quiet }) {
         if (!cap.ok) {
           store.log({ op: 'distill-skipped', reason: 'dailyTokens', spent: cap.spent, cap: cap.cap, left: pending.length - done });
           reportCapped(store, cap);
+          failed = pending.length - done;
           if (!quiet) out(`stopping: ${formatTokens(cap.spent)} of the ${formatTokens(cap.cap)} tokens learning may use a day are used (maintain.dailyTokens in .thinker/config.json)`);
           break;
         }
@@ -166,10 +170,11 @@ export async function learn(ctx, { days, idleMin, max, dry, quiet }) {
         progress.start(`${s.client} ${s.session}`);
         process.env.THINKER_LLM_PREFER = s.client;
         try { await distillFile(ctx, s.file, { minExplore: 3, quiet, incremental: true, session: s.session }); done++; progress.complete({ item: s.session }); }
-        catch (e) { progress.complete({ item: s.session, error: e.message }); if (!quiet) out(`  failed: ${String(e.message).slice(0, 160)}`); }
+        catch (e) { failed++; progress.complete({ item: s.session, error: e.message }); if (!quiet || process.env.THINKER_LLM === 'session') out(`  failed: ${String(e.message).slice(0, 160)}`); }
       }
     } finally { progress?.finish(); }
     if (!quiet) out(`learned from ${done} of ${sessions.length} sessions`);
+    return { done, failed };
   } finally { if (!dry) fs.rmSync(lock, { force: true }); }
 }
 

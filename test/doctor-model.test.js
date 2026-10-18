@@ -6,6 +6,8 @@ import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { installGitHooks } from '../src/git-hooks.js';
+import { Store } from '../src/store.js';
+import { markAppSession } from '../src/session-work.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CLI = path.join(ROOT, 'src/cli.js');
@@ -21,6 +23,11 @@ function machine(t) {
   fs.writeFileSync(path.join(model, 'tokenizer.json'), '{}');
   execFileSync('git', ['init', '-q', repo]);
   const env = { ...process.env, HOME: home, THINKER_HOME: path.join(home, '.thinker'), CODEX_HOME: path.join(home, '.codex'), THINKER_MODELS_DIR: models, THINKER_TELEMETRY: 'off', THINKER_LOG: 'off', THINKER_NO_LEARN: '1' };
+  // This fixture is a terminal, even when the test runner itself belongs to the Codex app.
+  const bin = path.join(dir, 'bin'); fs.mkdirSync(bin);
+  fs.writeFileSync(path.join(bin, 'ps'), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+  env.PATH = bin + path.delimiter + env.PATH;
+  delete env.CLAUDE_CODE_ENTRYPOINT; delete env.CURSOR_AGENT;
   delete env.CLAUDE_CONFIG_DIR;
   for (const k of ['THINKER_LLM', 'THINKER_LLM_CMD', 'THINKER_LLM_MODEL', 'THINKER_LLM_BASE_URL', 'ANTHROPIC_API_KEY']) delete env[k];
   const run = (args, extra = {}) => spawnSync(process.execPath, [CLI, ...args, '--repo', repo], { env: { ...env, ...extra }, cwd: repo, encoding: 'utf8', timeout: 120_000 });
@@ -75,4 +82,14 @@ test('doctor says when the git hook is someone else\'s, with the path and the li
   installGitHooks(repo, CLI, true, l => said.push(l));
   assert.match(said.join('\n'), /skipped git post-commit hook: the existing hook at .*post-commit is not ours/);
   assert.match(fs.readFileSync(path.join(hooks, 'post-commit'), 'utf8'), /git lfs/);
+});
+
+test('a terminal doctor recognizes queued learning from a recent Codex app session', t => {
+  const { repo, run } = machine(t);
+  markAppSession(new Store(repo).init(), 'the Codex app');
+  const r = run(['doctor', '--json'], { THINKER_LLM: 'no-such-provider', THINKER_NO_LEARN: '0' });
+  const checks = JSON.parse(r.stdout);
+  assert.match(byName(checks, 'model').detail, /the Codex app.*no CLI login/);
+  assert.equal(byName(checks, 'desktop learning').status, 'warn');
+  assert.match(byName(checks, 'desktop learning').detail, /no completed app model request/);
 });

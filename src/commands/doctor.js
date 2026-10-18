@@ -13,10 +13,38 @@ import { gitHookPath } from '../store.js';
 import { isTestMode } from '../test-mode.js';
 import { hasBin } from './shared.js';
 import { addToPath } from '../shell-path.js';
+import { anyDesktopApp } from '../app-host.js';
+import { recentAppSession, pendingJobs, RUN_EVERY_MS } from '../session-work.js';
+import { queueDir, buildRunning, UNCLAIMED_MS, CLAIMED_MS } from '../session-llm.js';
 
 const MIN_NODE = 20;
 const MARK = { ok: '✓', warn: '!', fail: '✗' };
 const realpath = f => { try { return fs.realpathSync(f); } catch { return f; } };
+
+// Read actual app handoff evidence without starting model work or requiring a CLI login.
+export function desktopLearningCheck(store, { now = Date.now() } = {}) {
+  const dir = queueDir(store), jobs = pendingJobs(store), running = buildRunning(dir);
+  let names = []; try { names = fs.readdirSync(dir); } catch {}
+  let last = null; try { last = JSON.parse(fs.readFileSync(path.join(dir, 'last-answer.json'), 'utf8')).at; } catch {}
+  const receipt = last ? `last app answer: ${last}` : 'no completed app model request recorded yet';
+  const requests = names.filter(n => /\.(req|claimed)\.json$/.test(n)).flatMap(n => {
+    try { return [{ claimed: n.endsWith('.claimed.json'), age: now - fs.statSync(path.join(dir, n)).mtimeMs }]; } catch { return []; }
+  });
+  const result = (status, detail) => ({ name: 'desktop learning', status, detail: `${detail}; ${receipt}` });
+  if (requests.some(r => r.age >= (r.claimed ? CLAIMED_MS : UNCLAIMED_MS))) {
+    return result('fail', 'an app model request has timed out waiting for its subagent; resume an app session in this repository and check .thinker/state/session-work.log');
+  }
+  const failed = jobs.filter(j => j.lastError);
+  if (failed.length) return result('warn', `${failed.length} failed job(s) retained for retry; ${failed[0].lastError}; next attempt after ${failed[0].nextAttemptAt || 'the next app prompt'}`);
+  if (!running && requests.length) return result('warn', 'the worker stopped with unanswered model requests; queued jobs resume on a later app prompt');
+  if (requests.some(r => !r.claimed)) return result('warn', 'the worker is waiting for an app subagent to take its model request; check that the session started the warmup_next / warmup_answer loop');
+  if (running) return result(last ? 'ok' : 'warn', 'the session worker is running; this does not confirm that a new note was learned');
+  if (jobs.length) {
+    const oldest = Math.min(...jobs.map(j => Date.parse(j.t)).filter(Number.isFinite));
+    return result('warn', `${jobs.length} job(s) waiting${now - oldest > RUN_EVERY_MS ? ' beyond the normal 30-minute interval' : ''}; continue an app session in this repository to run them`);
+  }
+  return result(last ? 'ok' : 'warn', 'no queued learning jobs; learning runs through an active app session');
+}
 
 // Start the MCP server the way an agent does, ask for its tools, and stop it.
 function probeMcp(mcpJs, repo, timeoutMs = 20_000) {
@@ -48,6 +76,7 @@ function probeMcp(mcpJs, repo, timeoutMs = 20_000) {
 
 async function runChecks(ctx) {
   const { repo, store, HERE, learnOn } = ctx;
+  const currentApp = anyDesktopApp();
   const home = thinkerHome();
   const cli = path.join(HERE, 'cli.js');
   const appDir = path.resolve(HERE, '..');
@@ -181,6 +210,9 @@ async function runChecks(ctx) {
     } else add('git hooks', 'warn', 'none: the cache is not refreshed on commit and merge (`thinker setup` installs them)');
     const mcp = await probeMcp(path.join(HERE, 'mcp.js'), repo);
     add('MCP server', mcp.ok && mcp.tools.length ? 'ok' : 'fail', mcp.ok ? (mcp.tools.length ? `starts; tools: ${mcp.tools.join(', ')}` : 'starts but offers no tools') : `does not start: ${mcp.error}`);
+    if (currentApp && mcp.ok && !['warmup_next', 'warmup_answer'].every(t => mcp.tools.includes(t))) {
+      add('desktop queue tools', 'fail', 'the MCP server does not offer warmup_next and warmup_answer in this app; reconnect thinker and restart the host before learning can run');
+    }
   }
 
   // The ranking model the hooks choose notes with
@@ -195,26 +227,33 @@ async function runChecks(ctx) {
   // The model behind distilling, verifying, PR mining and skills: which provider answers first, and
   // whether it does (a short call, with the fallback off so the answer is about that provider). Under
   // test the call is made only when THINKER_LLM names the provider.
-  const llm = await import('../llm.js');
-  const have = llm.available();
-  if (!have.length) add('model', 'warn', 'none: install the claude, codex, gemini or cursor CLI, or set THINKER_LLM_BASE_URL (an OpenAI-compatible endpoint), ANTHROPIC_API_KEY or THINKER_LLM_CMD; distilling, verifying and PR mining need one');
-  else {
-    let order = [];
-    try { order = llm.getFallbackOrder(); } catch (e) { add('model', 'fail', e.message); }
-    if (order.length) {
-      const p = order[0];
-      const then = order.length > 1 ? `, then ${order.slice(1).join(', ')}` : '';
-      if (isTestMode() && !process.env.THINKER_LLM) add('model', 'ok', `${p}${then} (not probed under test)`);
-      else {
-        const saved = { THINKER_LLM: process.env.THINKER_LLM, THINKER_QUIET: process.env.THINKER_QUIET };
-        process.env.THINKER_LLM = p; process.env.THINKER_QUIET = '1';
-        const t0 = Date.now();
-        try {
-          const r = await llm.complete({ prompt: 'Reply with the single word ok and nothing else.', model: 'haiku', maxTokens: 20, timeoutMs: 90_000 });
-          add('model', 'ok', `${p} answers (${r.model || p}, ${((Date.now() - t0) / 1000).toFixed(1)}s)${then}`);
-        } catch (e) {
-          add('model', 'fail', `${p} does not answer: ${String(e.message || e).replace(/\s+/g, ' ').slice(0, 220)}${then ? `; a model call would then try ${order.slice(1).join(', ')}` : ''}`);
-        } finally { for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } }
+  const app = currentApp || recentAppSession(store);
+  if (app) {
+    add('model', 'ok', `${app}: background learning uses the app session via warmup_next / warmup_answer; no CLI login or model probe required`);
+    if (ctx.NO_LEARN || !ctx.sessionLearning()) add('desktop learning', 'warn', 'learning from sessions is disabled');
+    else checks.push(desktopLearningCheck(store));
+  } else {
+    const llm = await import('../llm.js');
+    const have = llm.available();
+    if (!have.length) add('model', 'warn', 'none: install the claude, codex, gemini or cursor CLI, or set THINKER_LLM_BASE_URL (an OpenAI-compatible endpoint), ANTHROPIC_API_KEY or THINKER_LLM_CMD; distilling, verifying and PR mining need one');
+    else {
+      let order = [];
+      try { order = llm.getFallbackOrder(); } catch (e) { add('model', 'fail', e.message); }
+      if (order.length) {
+        const p = order[0];
+        const then = order.length > 1 ? `, then ${order.slice(1).join(', ')}` : '';
+        if (isTestMode() && !process.env.THINKER_LLM) add('model', 'ok', `${p}${then} (not probed under test)`);
+        else {
+          const saved = { THINKER_LLM: process.env.THINKER_LLM, THINKER_QUIET: process.env.THINKER_QUIET };
+          process.env.THINKER_LLM = p; process.env.THINKER_QUIET = '1';
+          const t0 = Date.now();
+          try {
+            const r = await llm.complete({ prompt: 'Reply with the single word ok and nothing else.', model: 'haiku', maxTokens: 20, timeoutMs: 90_000 });
+            add('model', 'ok', `${p} answers (${r.model || p}, ${((Date.now() - t0) / 1000).toFixed(1)}s)${then}`);
+          } catch (e) {
+            add('model', 'fail', `${p} does not answer: ${String(e.message || e).replace(/\s+/g, ' ').slice(0, 220)}${then ? `; a model call would then try ${order.slice(1).join(', ')}` : ''}`);
+          } finally { for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } }
+        }
       }
     }
   }

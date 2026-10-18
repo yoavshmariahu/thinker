@@ -149,7 +149,9 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
   const lastRun = Date.parse(state.startedAt || state.at);
   if (!dry && Number.isFinite(lastRun) && now - lastRun < MAINTENANCE_INTERVAL_MS) {
     fs.rmSync(lock, { force: true });
-    return { skipped: 'not-due' };
+    // A cooldown is not recovery from the previous batch's errors. Queued session work
+    // must retain its retry until a due batch actually succeeds.
+    return { skipped: 'not-due', ...(state.last?.errors ? { errors: state.last.errors } : {}) };
   }
   // Persist before any model calls: failed/interrupted batches must not retry every prompt.
   if (!dry) {

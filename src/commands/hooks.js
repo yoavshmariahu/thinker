@@ -99,7 +99,7 @@ async function hookCommand(ctx) {
       setupRepo(store, { client, cli, learn: !NO_LEARN && sessionLearning() });
       // queued learning of an app session (session-work.js): the runner starts and the agent is told to start
       // its subagent; the ancestry is walked only when jobs wait
-      const work = !NO_LEARN && pendingJobs(store).length && desktopApp(subagentHarness(client)) ? startSessionWork(store, { cli, harness: subagentHarness(client) }) : '';
+      const work = !isTestMode() && !NO_LEARN && pendingJobs(store).length && desktopApp(subagentHarness(client)) ? startSessionWork(store, { cli, harness: subagentHarness(client) }) : '';
       // a weekly suggestion of directories to cover (coverage.js), never on the turn of a warm-up offer
       const offer = [warmupOffer(store, { client }) || coverageOffer(store, { client }), work].filter(Boolean).join('\n\n');
       // Every git repository has a cache, started on first use and empty until it learns; the hooks serve
@@ -227,7 +227,9 @@ async function hookCommand(ctx) {
       recordEvent(store.dir, session, { t: 'say', text: last });
       source = traceFile(store.dir, session);
     }
-    if (isTestMode() || flags['no-distill'] || NO_LEARN || !sessionLearning()) return;
+    // Explicit hook fixtures may inspect app jobs on disk while retaining test-mode isolation.
+    // Model work and background processes remain disabled below and in learnInBackground.
+    if ((isTestMode() && process.env.THINKER_HOOKS !== 'on') || flags['no-distill'] || NO_LEARN || !sessionLearning()) return;
     if (!source || !fs.existsSync(source)) return;
     // One distill per session, not per turn: each call carries a fixed prompt, so at the end of a turn
     // only a backlog near the trace limit is distilled (`--batch`). The session's end distills the
@@ -248,6 +250,7 @@ async function hookCommand(ctx) {
       if (!ending) learnInBackground(ctx, client, { maintain: false });
       return;
     }
+    if (isTestMode()) return;
     // Sessions are distilled locally through the agent's own login.
     // Distilling a session is a model call of its own (about 25k tokens); it draws on the same
     // daily token cap as maintenance, so a long day of work cannot run through the agent's usage

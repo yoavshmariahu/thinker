@@ -247,3 +247,15 @@ test('existing maintenance timestamps delay the first batch after upgrade', () =
     assert.deepEqual(await maintain(store, dir, { now, fns: { spentToday() { throw Error('must not start work'); } } }), { skipped: 'not-due' });
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }));
+
+test('a failed maintenance batch stays failed through cooldown until a due batch succeeds', () => withEnv(async () => {
+  const { dir, store } = staleRepo(), now = Date.now();
+  const fns = { spentToday: () => 0, verify: async () => { throw new Error('session stopped'); }, phrase: async (s, notes) => ({ done: notes, tokens: 0 }) };
+  try {
+    assert.equal((await maintain(store, dir, { now, fns })).errors, 1);
+    assert.deepEqual(await maintain(new Store(dir), dir, { now: now + 30 * 60_000, fns }), { skipped: 'not-due', errors: 1 });
+    fns.verify = async () => ({ verdict: 'still_valid', tokens: 0 });
+    assert.equal((await maintain(store, dir, { now: now + MAINTENANCE_INTERVAL_MS, fns })).errors, 0);
+    assert.deepEqual(await maintain(store, dir, { now: now + MAINTENANCE_INTERVAL_MS + 1, fns }), { skipped: 'not-due' });
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}));
