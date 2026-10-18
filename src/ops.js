@@ -507,6 +507,64 @@ function lateLocked(store, { session, client, rel, on, perEvent, perSession, min
   return { included: pick, text };
 }
 
+// --- understanding notes on sight -----------------------------------------------
+// Understanding notes (source.type 'understanding', from `thinker understand`) served when a file first comes
+// into the agent's view: named in a tool's input (opened, edited) or its result (a search hit, a listing). The
+// file is the relevance signal, not the request. Why (research/understanding-variants-2026-10, PostHog,
+// 2026-10-17): from a task-blind cache the prompt hook served a note about a file the fix changed for 1 of 12
+// tasks, by request text, while the bare agent opened such a file before its first edit in 18 of 42 sessions
+// (6 of 14 tasks) and had seen its path in a search result 2.5 steps earlier in half of them; the notes on
+// those files stated the mechanism of the fix for 3 of 8 tasks. Once per file and a few notes per session,
+// so a listing of a directory does not flood the turn. A new serving strategy: off until an experiment shows
+// it helps (AGENTS.md); `onSight: { enabled: true }` in the config or THINKER_ON_SIGHT=on turns it on.
+export const ON_SIGHT = { enabled: false, perFile: 2, perSession: 8 };
+export function onSightConfig(store) {
+  const c = store?.config?.().onSight;
+  const cfg = { ...ON_SIGHT, ...(c === true ? { enabled: true } : c && typeof c === 'object' ? c : {}) };
+  const e = process.env.THINKER_ON_SIGHT;
+  if (e === 'on') cfg.enabled = true; else if (e === 'off') cfg.enabled = false;
+  return cfg;
+}
+export function onSightNotes(store, { session, client, files, turn = undefined }) {
+  const cfg = onSightConfig(store);
+  if (!cfg.enabled || !session) return { text: '', included: [] };
+  const rel = [...new Set((files || []).map(f => normPath(store.repo, f)).filter(Boolean))];
+  if (!rel.length) return { text: '', included: [] };
+  return locked(store, session, () => sightLocked(store, { session, client, rel, cfg, turn }));
+}
+function sightLocked(store, { session, client, rel, cfg, turn }) {
+  const { st, save } = sessionState(store, session);
+  st.sight ||= []; st.sighted ||= [];
+  const fresh = rel.filter(f => !st.sighted.includes(f));
+  const room = () => cfg.perSession - st.sight.length;
+  if (!fresh.length || room() <= 0) return { text: '', included: [] };
+  const seen = new Set([...st.sight, ...st.late]);
+  const cands = store.list().filter(n => n.source?.type === 'understanding' && n.status !== 'invalid' && !n.archived && !seen.has(n.id) && !(n.servedIn || []).includes(session));
+  // the request orders the notes on one file; the file is the relevance signal, so there is no floor
+  const score = st.task && cands.length ? new Map(rank(cands, { query: st.task, mode: 'lookup' }).map(r => [r.note.id, r.rel])) : new Map();
+  const pick = [], files = [];
+  for (const f of fresh) {
+    if (room() - pick.length <= 0) break;
+    st.sighted.push(f);
+    let on = cands.filter(n => !pick.includes(n) && (n.deps || []).some(d => d.path === f));
+    if (!on.length) continue;
+    on = refresh(store, on).filter(n => n.status !== 'stale'); // as the hooks elsewhere: no stale note
+    on.sort((a, b) => (score.get(b.id) || 0) - (score.get(a.id) || 0) || (LATE_PRIORITY[a.kind] ?? 9) - (LATE_PRIORITY[b.kind] ?? 9) || (b.confidence ?? 0.7) - (a.confidence ?? 0.7));
+    const take = on.slice(0, Math.min(cfg.perFile, room() - pick.length));
+    if (take.length) { pick.push(...take); files.push(f); }
+  }
+  st.sighted = st.sighted.slice(-500);
+  if (!pick.length) { save(); return { text: '', included: [] }; }
+  for (const n of pick) { st.sight.push(n.id); n.uses = (n.uses || 0) + 1; n.servedIn = [...(n.servedIn || []), session].slice(-30); store.put(n); }
+  st.turn = [...new Set([...(st.turn || []), ...pick.map(n => n.id)])];
+  save();
+  const intro = `Notes about ${files.join(', ')}, which just came into view, written from a read of this code: how it works and what a change there keeps consistent. Where they answer the question, use them in place of reading further.`;
+  const text = `<thinker-cache>\n${intro}\n\n${pick.map(n => renderNote(n)).join('\n\n')}\n</thinker-cache>`;
+  // logged as a file-keyed serving (`late`), so usage and impact count it with the others
+  store.log({ op: 'late', on: 'sight', session, turn, client: client || 'cli', files, served: pick.map(n => n.id), ...servedFields(store, pick, text) });
+  return { included: pick, text };
+}
+
 // --- completeness nudge -------------------------------------------------------
 // At the end of a session that edited files: rule notes on the edited files that were never served.
 export function completenessNudge(store, { session, changed }) {

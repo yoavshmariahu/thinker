@@ -933,6 +933,18 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   does not discard existing notes or corrections. `transfer.js` backs up and
   restores effective notes locally. There is no note publishing or client sync.
 
+**Understanding notes on the first sight of a file (off until an experiment, 2026-10-17).** With
+`onSight: { enabled: true }` in `.thinker/config.json` (or `THINKER_ON_SIGHT=on`, for an experiment
+arm), the tool hook serves understanding notes by file instead of by request (`ops.js:onSightNotes`):
+when a repository file first appears in a tool's input or result (opened, edited, a search hit, a
+listing; `clients.js:seenFiles`), the notes whose deps point at it are served, at most two per file
+ordered by the request's lexical relevance, at most eight per session, once per file, never a note
+the session already saw. Logged as a `late` serving with `on: 'sight'`. Why: on PostHog
+(research/understanding-variants-2026-10) a task-blind cache's note about a file the fix changed was
+served by request text for 1 of 12 tasks, while the bare agent opened such a file before its first
+edit in 18 of 42 sessions and had seen its path in a search result 2.5 steps earlier in half of
+them; the notes on those files stated the fix's mechanism for 3 of 8 tasks.
+
 **Understanding notes as their own pool (off until an experiment, 2026-10-16).** With
 `ce.understanding: { enabled: true }` in `.thinker/config.json` (or `THINKER_CE_UNDERSTANDING=on`,
 for an experiment arm), the prompt hook ranks notes read from the code (`source.type: understanding`)

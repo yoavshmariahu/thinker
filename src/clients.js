@@ -29,6 +29,7 @@ import { updateInstructions } from './agent-instructions.js';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { gitHookPath } from './store.js';
 import { HOOKS, installGitHooks } from './git-hooks.js';
+import { textOf } from './transcripts.js';
 
 export const CLIENTS = ['claude', 'codex', 'cursor', 'gemini', 'pi', 'windsurf', 'copilot', 'opencode'];
 
@@ -117,6 +118,20 @@ export function toolFiles(ev, repo) {
   const command = typeof ti.command === 'string' ? ti.command : Array.isArray(ti.command) ? ti.command.join(' ') : typeof ev.command === 'string' ? ev.command : '';
   for (const m of command.matchAll(/(?:^|[\s'"=])((?:[\w.@-]+\/)+[\w.@-]+\.\w{1,5})(?=$|[\s'":|;)])/g)) { const f = m[1]; if (fs.existsSync(path.join(repo, f))) files.push(f); }
   return files.map(f => path.isAbsolute(f) ? path.relative(repo, f) : f).filter(f => f && !f.startsWith('..'));
+}
+// Files named in a tool's result: search hits, listings, the paths a read printed. Repository files only, in the
+// order seen, at most `max` of them (ops.js:onSightNotes serves understanding notes on the first sight of a file).
+export function seenFiles(ev, repo, { max = 40 } = {}) {
+  const text = textOf(ev.tool_response ?? ev.tool_output ?? ev.output).slice(0, 200_000);
+  const out = new Set();
+  for (const m of text.matchAll(/(?:^|[\s'"`=:(\[])(\/?(?:[\w.@-]+\/)+[\w.@-]+\.\w{1,5})(?=$|[\s'"`:|;)\],])/gm)) {
+    let f = m[1].replace(/^\.\//, '');
+    if (path.isAbsolute(f)) f = path.relative(repo, f);
+    if (!f || f.startsWith('..') || out.has(f)) continue;
+    if (fs.existsSync(path.join(repo, f))) out.add(f);
+    if (out.size >= max) break;
+  }
+  return [...out];
 }
 
 // What the prompt hook prints: the bundle as context for the agent, and nothing for the
