@@ -795,6 +795,21 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
  session is assessed, in `thinker usage`. Shown through `systemMessage` in Claude Code and Gemini CLI;
  Codex and Cursor have no channel for it from a stop hook. `THINKER_NOTICE=off`
  or `notice: false` in `.thinker/config.json` turns it off.
+- The Claude card (2026-10-18): the Claude desktop app shows a stop hook's
+ `systemMessage` collapsed, so nobody saw the line. `thinker connect` names a Claude
+ Code mod, `src/integrations/claude-card`, in `CLAUDE_CODE_PLUGIN_DIRS` in the `env`
+ block of `~/.claude/settings.json` (`clients.js:installClient`, user scope; `rewire`
+ points it at the new copy after an update, `uninstall --user` takes it out). The mod
+ reads the notes the hooks served (the prompt's as the hook row the session appends,
+ the late notes from PostToolUse's `additionalContext`) and draws a card under that
+ turn's answer: `🧠 Thinker · 2 notes this turn · Estimated tokens saved: ~6k` and
+ the notes' headlines, with the estimate made as `usage.js:cacheHitSavings` makes it
+ (`test/claude-card.test.js` holds the constants together). The card is kept in the
+ mod's store by the end of the answer's text, so it is drawn again with the transcript
+ and stays in the history. The mod marks each session it runs in under
+ `THINKER_HOME/state/claude-card/`, and the stop hook leaves the turn's line out of a
+ marked session only (`claude-card.js:claudeCardActive`): a Claude Code without mods
+ keeps the line. Its own tests run with `claude plugin test src/integrations/claude-card`.
 - Ranking: BM25 over title/answers/tags/deps/body with identifier splitting,
   plus path affinity to the current file, kind priors for orientation,
   confidence, what sessions did with the note when it was served
