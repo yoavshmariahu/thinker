@@ -208,12 +208,16 @@ export function preToolOutput(client, { command, reason }) {
   if (!PRE_TOOL_CLIENTS.includes(client)) return '';
   return JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { command }, additionalContext: reason } });
 }
-export function toolOutput(client, text) {
+// `updated` (Claude Code only): the tool's result replaced before the model reads it (diet.js)
+export function toolOutput(client, text, { updated } = {}) {
   if (client === 'windsurf') return '';
   if (client === 'pi' || client === 'opencode') return text;
   if (client === 'copilot') return JSON.stringify({ additionalContext: text });
   if (client === 'cursor') return JSON.stringify({ additional_context: text });
-  return JSON.stringify({ hookSpecificOutput: { hookEventName: client === 'gemini' ? 'AfterTool' : 'PostToolUse', additionalContext: text } });
+  const o = { hookEventName: client === 'gemini' ? 'AfterTool' : 'PostToolUse' };
+  if (text) o.additionalContext = text;
+  if (updated !== undefined && client === 'claude') o.updatedToolOutput = updated;
+  return JSON.stringify({ hookSpecificOutput: o });
 }
 
 // Copilot: park the prompt-time bundle until the first tool call of the turn.

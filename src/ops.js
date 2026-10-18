@@ -424,7 +424,7 @@ export function attest(store, assessments, { session, client, model } = {}) {
 // agent that gets notes after every read was seen to read in smaller steps and make more calls.
 const RULE_KINDS = ['behavior', 'rule'];
 const LATE_PRIORITY = { behavior: 0, rule: 1, howto: 2, map: 3 };
-function sessionState(store, session) {
+export function sessionState(store, session) {
   const f = path.join(store.dir, 'state', `session-${String(session).replace(/[^\w-]/g, '')}.json`);
   let st = { late: [], turn: [], nudged: false }; try { st = { ...st, ...JSON.parse(fs.readFileSync(f, 'utf8')) }; } catch {}
   return { st, save: () => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify(st)); } };
@@ -469,7 +469,7 @@ export function takeTurn(store, session) {
 }
 // Hooks of one session can run at the same moment. Unlocked, two of them read the same
 // state and both serve, which is how a session got past its limit of late notes.
-function locked(store, session, fn) {
+export function locked(store, session, fn) {
   const lock = path.join(store.dir, 'state', `session-${String(session).replace(/[^\w-]/g, '')}.lock`);
   fs.mkdirSync(path.dirname(lock), { recursive: true });
   const wait = new Int32Array(new SharedArrayBuffer(4));

@@ -9,6 +9,7 @@ import { spawn, execFileSync } from 'node:child_process';
 import { MORE_NOTES_INTRO, cacheBundleIntro, disabledTools } from '../cache-guidance.js';
 import { pruneInstalls, prunedLines, refreshWiring, stripRepoWiring, repoRunsHooks, normalizeHookEvent, hookClient, sessionOf, toolFiles, seenFiles, seenHits, searchedIdentifier, promptOutput, toolOutput, stopOutput, preToolOutput, rewritesCommands, PRE_TOOL_CLIENTS, parkPending, takePending, orientedFile } from '../clients.js';
 import { testsConfig, classifyTestCommand, wrappedCommand, wrapperBin, NUDGE_REASON } from '../testing.js';
+import { dietConfig, dietResult, rememberTerms } from '../diet.js';
 import { parseTranscript, batchDue } from '../distill.js';
 import { Store, findRepoRoot } from '../store.js';
 import { isDisabledRepo } from '../repo-switch.js';
@@ -101,6 +102,8 @@ async function hookCommand(ctx) {
       // not help). A held-out turn gets neither the intro nor the notes (ops.js:beginTurn): the holdout
       // compares turns with thinker's help against turns without; the intro waits for a served turn.
       const { turn, holdout } = store.exists() ? beginTurn(store, session) : { turn: 0, holdout: false };
+      // the request's identifiers, for the context diet (diet.js; off until an experiment)
+      if (store.exists() && client === 'claude' && dietConfig(store).enabled) rememberTerms(store, session, { prompt: ev.prompt });
       // the agent's process is among this hook's nearest ancestors: the MCP server finds the session (and so the
       // turn and its holdout) through it (ops.js:agentSession)
       if (store.exists()) linkAgentSession(store, session, ancestorPids());
@@ -202,6 +205,14 @@ async function hookCommand(ctx) {
       if (p && !mcpCall) parts.push(p);
     }
     const t = holdoutTurn(store, session);
+    // the context diet (diet.js; off until an experiment): the result replaced before the model reads it
+    let updated;
+    const diet = client === 'claude' ? dietConfig(store) : null;
+    if (diet?.enabled) {
+      const name = toolName(ev.tool_name), input = toolInput(name, ev.tool_input);
+      try { rememberTerms(store, session, { name, input }); } catch {}
+      try { const d = dietResult(store, { session, repo, cwd: ev.cwd, name, input, response: ev.tool_response, cfg: diet, turn: t.turn || undefined, client }); if (d) updated = d.output; } catch {}
+    }
     if ((client === 'claude' || flags.late) && !t.holdout && servesNotes(store)) {
       const name = toolName(ev.tool_name), command = toolInput(name, ev.tool_input).command || '';
       // an edit tool, or a shell command that writes a file in place
@@ -228,7 +239,7 @@ async function hookCommand(ctx) {
     }
     const card = noticeCard(store, { client, session, ...t, notes: peekTurn(store, session).map(id => store.get(id)).filter(Boolean) });
     if (card) parts.push(card);
-    if (parts.length) out(toolOutput(client, parts.join('\n\n')));
+    if (parts.length || updated !== undefined) out(toolOutput(client, parts.join('\n\n'), { updated }));
   } else if (pos[0] === 'stop') {
     if (!store.exists()) return;
     const workerSession = isWorkerPrompt(ev.prompt) || (() => {

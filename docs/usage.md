@@ -151,6 +151,30 @@ back to `git grep` meanwhile. A missing or half-built table is never an error.
 it in the foreground (`--max-files`, `--build-ms` bound it, and a build that
 ran out of either says so); `thinker symbols refresh` brings it up to date.
 
+## The context diet
+
+Off until an experiment shows it helps. With
+
+```json
+{ "diet": { "enabled": true } }
+```
+
+in `.thinker/config.json` (or `THINKER_DIET=on`), thinker's post-tool hook in Claude Code replaces a
+tool's result before the model reads it, so less enters the context and less is re-read on every
+later turn:
+
+- a whole file read with `cat`, `nl`, `sed -n '1,$p'` or the Read tool becomes the lines around what
+  the session searched for and the identifiers of the request, with each omitted range naming the
+  definitions it holds, and a last line saying how to read any range;
+- a test run becomes the counts and each distinct failure cause once, the whole log kept under
+  `.thinker/state/tests/`;
+- a search with a large output becomes its hits grouped per file, a few per file.
+
+A short file, a file with nothing to centre on, or one where the kept lines would be most of it
+passes whole. `minLines` (120), `window` (40 lines each side of a hit), `cap` (0.6), `testChars`
+(2000), `searchChars` (8000), `perFile` (3) and `maxFiles` (40) in the same object adjust it; `tests:
+false` leaves test runs alone. Other agents get their results untouched.
+
 ## Test runs an agent can afford to read
 
 A failing test run is often the most expensive thing in a session: whole suites of output read

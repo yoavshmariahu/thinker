@@ -263,7 +263,7 @@ function unknownFlags(c, given, help = HELP) {
 const CACHE_COMMANDS = ['tools', 'symbols', 'orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'session-work', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback', 'skills', 'test'];
 
 // One handler per command, in src/commands/; each gets the context below and nothing else of this file.
-const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...skillsCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...warmupCommands, ...coverageCommands, ...symbolsCommands, ...switchCommands, ...externalCommands };
+const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...skillsCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...testingCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...warmupCommands, ...coverageCommands, ...symbolsCommands, ...switchCommands, ...externalCommands };
 // Commands that still answer in a repository thinker is switched off for (repo-switch.js): the machine-wide
 // ones, the ones about the install itself, and the switch. `hook` keeps quiet by itself.
 const OFF_COMMANDS = ['version', 'enable', 'disable', 'ui', 'warmup', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'stats', 'ast', 'ranker', 'hook', 'serve', undefined];

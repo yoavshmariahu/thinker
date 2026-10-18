@@ -1011,6 +1011,26 @@ and on PR-mined notes the same rule only added noise (`research/serving-understa
 irrelevant note where the shipped rule serves none. It stays off until an Artemis experiment shows it
 helps in agent sessions.
 
+**The context diet (off until an experiment, 2026-10-18).** With `diet: { enabled: true }` in
+`.thinker/config.json` (or `THINKER_DIET=on`, for an experiment arm), the tool hook replaces a tool's result
+before the model reads it, through Claude Code's PostToolUse `updatedToolOutput` (`diet.js:dietResult`,
+`clients.js:toolOutput`; Claude Code only, checked against the tool's own output shape, so a Bash result keeps
+`{stdout, stderr, interrupted}` and a Read result its `file` object). Three results are trimmed: a whole file read
+through `cat`, `nl`, `sed -n '1,$p'` or Read becomes the lines around the session's recent search patterns and the
+request's identifiers (kept per session by the hooks, `diet.js:rememberTerms`), each omitted range named with the
+definitions it holds and a last line saying how to read a range; a test run becomes the counts and each distinct
+failure cause once, the whole log kept under `.thinker/state/tests/` (`testing.js`, as `thinker test` prints it); a
+search output over `searchChars` becomes its hits grouped per file. A file under `minLines`, one with no hit, or one
+whose kept lines reach `cap` of it passes whole, logged as `diet-skip` with the reason; a trim is logged as `diet`
+with the sizes. Claude Code numbers a Read result itself from the file's first line, so a trimmed Read keeps every
+line in place (a marker then empty lines for an omitted range); a numbered text came out numbered twice and a plain
+string was refused (2026-10-18 smoke sessions). Why: on a 60-call Opus session re-reading the accumulated context was
+over half the bill and the fixed prefix a tenth, and nothing thinker serves ever leaves the context; replaying 442
+bare sessions (research notes, 2026-10-18) the hit-centred region held the agent's next edit 20 of 23 times and every
+gold hunk 149 of 166, but a third of whole-file reads had no term to centre on and most of the rest needed over half
+the file, so the whole diet is worth about 15–20% of tool output, roughly a tenth of a session. The experiment has to
+show the agent does not read again what was trimmed.
+
 ## Internal server
 
 `src/server/` and `infra/sync/` remain internal infrastructure: the team's note
