@@ -40,17 +40,17 @@ test('one card per turn deduplicates notes and files, escapes titles and preserv
   assert.ok(first.startsWith(path.join(store.dir, 'state/notice-cards')));
   assert.equal(noticeCard(store, { ...args, notes: [one, two] }), '', 'update does not reinject the reference');
   const html = fs.readFileSync(first, 'utf8');
-  assert.match(html, /2 notes this turn · 1 file · ~1k tokens of code/);
+  assert.match(html, /2 notes this turn · 1 file · Estimated tokens saved: ~1k/);
   assert.match(html, /&lt;script&gt;untrusted&lt;\/script&gt;/);
   assert.match(html, /dependency changed; verify before use/);
-  assert.match(html, /not measured tokens saved/);
+  assert.match(html, /actual token savings are not measured/);
   assert.doesNotMatch(html, /<script>|<!doctype|<html|<body/);
   const second = ref(noticeCard(store, { ...args, turn: 2 }));
   assert.notEqual(first, second);
   assert.equal(fs.readFileSync(first, 'utf8'), html, 'new turn leaves the prior card intact');
   assert.notEqual(first, ref(noticeCard(store, { ...args, session: 'another-chat' })));
   const config = ref(noticeCard(store, { client: 'codex', notes: [{ id: 'cfg', deps: [{ path: '.codex/config.toml' }] }] }));
-  assert.doesNotMatch(fs.readFileSync(config, 'utf8'), /tokens of code|file ·|this turn/);
+  assert.doesNotMatch(fs.readFileSync(config, 'utf8'), /Estimated tokens saved|file ·|this turn/);
 });
 
 test('misses, holdouts, disabled notices and write failures leave retrieval alone', t => {
@@ -108,7 +108,7 @@ test('real MCP lookup includes a usable local reference automatically, misses an
       const result = await client.callTool({ name: 'lookup', arguments: { query: 'cache-card-fixture' } });
       assert.ok(!result.isError);
       const text = result.content.map(c => c.text || '').join('\n');
-      if (enabled === '1') assert.match(fs.readFileSync(ref(text), 'utf8'), /1 note retrieved · 1 file · ~1k tokens of code/);
+      if (enabled === '1') assert.match(fs.readFileSync(ref(text), 'utf8'), /1 note retrieved · 1 file · Estimated tokens saved: ~1k/);
       else assert.doesNotMatch(text, /thinker-notice|visualize/);
       const miss = await client.callTool({ name: 'lookup', arguments: { query: 'zzz-nothing-matches-zzzz' } });
       assert.doesNotMatch(JSON.stringify(miss), /thinker-notice|visualize/);

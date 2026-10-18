@@ -26,14 +26,14 @@ export function noticeCard(store, { client, session, turn, holdout, notes = [], 
     const exists = fs.existsSync(file);
     if (updateOnly && !exists) return '';
     const { calls, tokens } = cacheHitSavings(store.repo, unique);
-    const counts = [`${unique.length} ${unique.length === 1 ? 'note' : 'notes'} ${linked ? 'this turn' : 'retrieved'}`, calls ? `${calls} ${calls === 1 ? 'file' : 'files'}` : '', tokens ? `~${formatTokens(tokens)} tokens of code` : ''].filter(Boolean).join(' · ');
+    const counts = [`${unique.length} ${unique.length === 1 ? 'note' : 'notes'} ${linked ? 'this turn' : 'retrieved'}`, calls ? `${calls} ${calls === 1 ? 'file' : 'files'}` : '', tokens ? `Estimated tokens saved: ~${formatTokens(tokens)}` : ''].filter(Boolean).join(' · ');
     const html = `<section id="thinker-${key}" aria-label="Thinker cache hit">
   <div class="card">
     <div class="viz-row"><span aria-hidden="true">🧠</span><strong style="font-weight:500">Thinker</strong><span class="viz-badge">Cache hit</span></div>
     <p class="tabular-nums">${counts}</p>
     <details><summary class="cursor-interaction">Retrieved notes</summary>
       <ul>${unique.map(n => `<li>${escape(n.title || n.id)}${n.status === 'stale' ? ' — dependency changed; verify before use' : ''}</li>`).join('')}</ul>
-      ${tokens ? '<p class="text-small">Code size estimate, not measured tokens saved.</p>' : ''}
+      ${tokens ? '<p class="text-small">Estimated from the code files these notes point to; actual token savings are not measured.</p>' : ''}
     </details>
   </div>
 </section>
