@@ -16,7 +16,9 @@ import { complete, DEFAULT_DISTILL_MODEL } from './llm.js';
 import { createNote } from './ops.js';
 
 export const UNDERSTAND_DEFAULTS = { top: 200, since: 180, halfLife: 30, batch: 40_000, concurrency: 6 };
-const CODE = /\.(py|ts|tsx|js|mjs|go|rs|java|kt|rb)$/;
+// what a build reads: the languages the outline knows, and the files a data project is made of (dbt
+// models are SQL, their documentation YAML): a warehouse with nothing else in it read as 0 files
+const CODE = /\.(py|ts|tsx|js|mjs|go|rs|java|kt|rb|sql|ya?ml)$/;
 const NOT_CODE = /(^|\/)(tests?|__tests__|testdata|fixtures?|vendor|node_modules|dist|build|dev)\/|(^|\/)test_|\.test\.|\.spec\./;
 const tok = s => Math.ceil(s.length / 4);
 const git = (repo, args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'ignore'] });
