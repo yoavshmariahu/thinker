@@ -30,3 +30,7 @@ export function updateInstructions(file, workflow) {
   else { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, next); }
   return true;
 }
+// The file carries thinker's workflow block.
+export function hasInstructions(file) {
+  try { const t = fs.readFileSync(file, 'utf8'); return t.includes(START) && t.includes(END); } catch { return false; }
+}

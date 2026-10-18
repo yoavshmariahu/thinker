@@ -25,7 +25,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { guidance } from './integrations/runner.js';
 import { agentWorkflow, disabledTools } from './cache-guidance.js';
-import { updateInstructions } from './agent-instructions.js';
+import { updateInstructions, hasInstructions } from './agent-instructions.js';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { gitHookPath } from './store.js';
 import { HOOKS, installGitHooks } from './git-hooks.js';
@@ -659,6 +659,7 @@ export function prunedLines(done) {
 // (--shared, .mcp.json) are left to the team. Returns the files touched.
 export function stripRepoWiring(repo, { cli, clients = CLIENTS } = {}) {
   const done = pruneEntries(repo, { scope: 'repo', clients, localOnly: true, take: script => script && sameCopy(script, cli) ? installInfo(script) : null });
+  if (clients.includes('claude')) for (const f of staleRepoInstructions(repo)) { try { if (updateInstructions(f, null)) done.push({ file: path.relative(repo, f) }); } catch {} }
   if (clients.includes('codex') && !fs.existsSync(wiringFiles('codex', { repo }).hooks)) untrustCodexHooks(wiringFiles('codex', { repo }).hooks);
   const files = done.map(d => d.file);
   // pi, OpenCode, Copilot and Windsurf keep theirs in files of their own (an extension, a hooks file, a
@@ -669,6 +670,17 @@ export function stripRepoWiring(repo, { cli, clients = CLIENTS } = {}) {
     files.push(...uninstallRepoClient(repo, client));
   }
   return [...new Set(files)];
+}
+
+// Thinker's workflow block in a checkout's own Claude file (CLAUDE.local.md, never committed) while the
+// user's CLAUDE.md carries one: left by a setup from before the wiring went machine-wide, and an older
+// text. Both reach every session, and they disagreed (2026-10-17 on this repository: the checkout's
+// said learning is disabled, the user's asked for remember). A tracked file is the team's and stays.
+export function staleRepoInstructions(repo) {
+  const [local] = instructionFiles('claude', { repo }), [user] = instructionFiles('claude', { scope: 'user' });
+  if (!hasInstructions(local) || !hasInstructions(user)) return [];
+  try { execFileSync('git', ['ls-files', '--error-unmatch', path.basename(local)], { cwd: repo, stdio: 'ignore' }); return []; } catch {}
+  return [local];
 }
 
 // Take one of the four's checkout files out (the ones thinker wrote): returns them, relative to the checkout.
