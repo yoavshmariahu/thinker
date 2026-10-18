@@ -15,6 +15,7 @@ import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '.
 import { codeForRequest, orient, HOOK_BUDGET, servesNotes, rememberTask, outcome, looksLikeCorrection, lateNotes, onSightNotes, onSightConfig, onSightOutlines, onSightOutlineConfig, completenessNudge, peekTurn, takeTurn, beginTurn, holdoutTurn, sessionIntro, linkAgentSession, isHarnessEvent } from '../ops.js';
 import { recordEvent, traceFile, toolName, toolInput } from '../transcripts.js';
 import { turnNotice, turnFooterMarkdown, weeklyNotice } from '../usage.js';
+import { claudeCardActive } from '../claude-card.js';
 import { setupRepo, warmupOffer } from '../repo-onboard.js';
 import { coverageOffer, recordAccess } from '../coverage.js';
 import { desktopApp, subagentHarness, ancestorPids } from '../app-host.js';
@@ -232,7 +233,9 @@ async function hookCommand(ctx) {
     if (session !== 'unknown' && ev.transcript_path && fs.existsSync(ev.transcript_path)) { try { const p = parseTranscript(ev.transcript_path); const record = { op: 'session', session, turn: t.turn || undefined, client, model: p.model || undefined, holdout: t.holdout || undefined, ...gitContext(repo), ...(p.stats || {}) }; store.log(record); tryImpact(store, record); } catch {} }
     if (noticeOn(store)) {
       // once a week, what the notes saved over the last 30 days (usage.js:weeklyNotice); not on a held-out turn
-      const notice = [served.length ? turnNotice(store.repo, served.map(id => store.get(id)).filter(Boolean)) : '', NO_LEARN ? '' : maintenanceNotice(store), t.holdout ? '' : weeklyNotice(store)].filter(Boolean).join('\n');
+      // where the card mod runs, the turn's notes are its card under the answer (claude-card.js)
+      const carded = client === 'claude' && claudeCardActive(session);
+      const notice = [served.length && !carded ? turnNotice(store.repo, served.map(id => store.get(id)).filter(Boolean)) : '', NO_LEARN ? '' : maintenanceNotice(store), t.holdout ? '' : weeklyNotice(store)].filter(Boolean).join('\n');
       const o = stopOutput(client, notice); if (o) out(o);
     }
     // Claude Code: its transcript. Other agents: the trace the hooks recorded,

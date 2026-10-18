@@ -1,0 +1,6 @@
+{
+  "name": "thinker-card",
+  "version": "1.0.0",
+  "description": "Shows the thinker notes a turn was served as a card under the answer, kept in the chat history",
+  "author": { "name": "thinker" }
+}

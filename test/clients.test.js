@@ -166,6 +166,18 @@ test('stop hook tells the user what the turn saved, once, where the client can s
   assert.equal(Object.keys(claude).join(), 'systemMessage', 'no decision: the agent stops as it meant to');
   assert.equal(hook(dir, 'stop', 'claude', { session_id: 't1', cwd: dir }, noLearn), '', 'the next turn starts from none');
 
+  // a session the Claude card mod marked shows its card instead (claude-card.js); others keep the line
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-card-'));
+  try {
+    fs.mkdirSync(path.join(home, 'state', 'claude-card'), { recursive: true });
+    fs.writeFileSync(path.join(home, 'state', 'claude-card', 'card-on'), '');
+    const env = { THINKER_HOME: home, THINKER_HOLDOUT: '0' };
+    assert.ok(hook(dir, 'prompt', 'claude', { session_id: 'card-on', prompt: PROMPT, cwd: dir }, [], env).includes('<thinker-cache>'));
+    assert.equal(hook(dir, 'stop', 'claude', { session_id: 'card-on', cwd: dir }, noLearn, env), '', 'carded: no collapsed line');
+    hook(dir, 'prompt', 'claude', { session_id: 'card-off', prompt: PROMPT, cwd: dir }, [], env);
+    assert.match(JSON.parse(hook(dir, 'stop', 'claude', { session_id: 'card-off', cwd: dir }, noLearn, env)).systemMessage, /1 note this turn/);
+  } finally { fs.rmSync(home, { recursive: true, force: true }); }
+
   hook(dir, 'prompt', 'gemini', { session_id: 't2', prompt: PROMPT, cwd: dir });
   assert.match(JSON.parse(hook(dir, 'stop', 'gemini', { session_id: 't2', cwd: dir }, noLearn)).systemMessage, /1 note this turn/);
 
