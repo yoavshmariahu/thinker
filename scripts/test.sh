@@ -10,4 +10,7 @@ run="$(mktemp -d "${TMPDIR:-/tmp}/thinker-test-run.XXXXXX")"
 trap 'rm -rf "$run"' EXIT
 trap 'exit 130' INT TERM
 export THINKER_MODELS_DIR="${THINKER_MODELS_DIR:-$HOME/.thinker/models}"
+# Run from a desktop app's agent (Claude Desktop, Cursor), the shell carries the app's marker: every test
+# then took itself for an app session (2026-10-17: two failures on main, only when run from Claude Desktop).
+unset CLAUDE_CODE_ENTRYPOINT CURSOR_AGENT
 TMPDIR="$run" THINKER_TEST=1 node --test "${@:-test/*.test.js}"

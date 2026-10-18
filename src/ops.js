@@ -161,6 +161,8 @@ export function refresh(store, notes = store.list(), { persist = true, narrow = 
       if (persist && (!wasStale || upgraded || JSON.stringify(n.stale?.changed) !== JSON.stringify(changed))) store.put(next);
       return next;
     }
+    // a contradicted note stays stale with no code change: only its verification clears it
+    if (wasStale && n.contradicted) return n;
     if (wasStale) { const next = { ...n, status: 'fresh', deps }; delete next.stale; if (persist) store.put(next); return next; }
     // the parser now hashes a dep the regex hashed, and both see the same block: keep the parser's hash
     if (upgraded) { const next = { ...n, deps }; if (persist) store.put(next); return next; }
@@ -623,7 +625,9 @@ export function linkNotes(store, note, notes = store.list()) {
 
 
 const STATUS_ORDER = { violated: 0, broken: 0, stale: 1, fresh: 2 };
-export async function lookup(store, { query, client, budget = 2500, maxNotes = 3, snippets = false, kind } = {}) {
+// session, turn, holdout: as orient's; a held-out turn (the agent's own lookup, over MCP) logs what it
+// would have returned as `withheld` and returns nothing.
+export async function lookup(store, { query, client, budget = 2500, maxNotes = 3, snippets = false, kind, session, turn, holdout = false } = {}) {
   const start = Date.now();
   let notes = store.list();
   if (kind) notes = notes.filter(n => n.kind === kind);
@@ -637,9 +641,13 @@ export async function lookup(store, { query, client, budget = 2500, maxNotes = 3
   const fresh = new Map(refresh(store, candidates.slice(0, Math.max(REFRESH_CANDIDATES, maxNotes || 0)).map(r => r.note)).map(n => [n.id, n]));
   candidates = candidates.map(r => fresh.has(r.note.id) ? { ...r, note: fresh.get(r.note.id) } : r);
   const packed = pack(candidates, budget, { minRel: 0.15 });
+  if (holdout) {
+    store.log({ op: 'lookup', session, turn, client: client || 'cli', query: String(query || '').slice(0, 200), kind, served: [], holdout: true, withheld: packed.included.map(n => n.id), durationMs: Date.now() - start });
+    return { text: '', included: [], omitted: [], tokens: 0, holdout: true, withheld: packed.included };
+  }
   addSnippets(store, packed, budget, snippets, false);
   const empty = packed.included.length ? undefined : !notes.length ? 'too-few-notes' : !ranked.length ? 'no-match' : 'below-floor';
-  store.log({ op: 'lookup', client: client || 'cli', query: String(query || '').slice(0, 200), kind, empty, served: packed.included.map(n => n.id), snippets: packed.snippets?.length || undefined, durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
+  store.log({ op: 'lookup', session, turn, client: client || 'cli', query: String(query || '').slice(0, 200), kind, empty, served: packed.included.map(n => n.id), snippets: packed.snippets?.length || undefined, durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
   return packed;
 }
 
@@ -936,7 +944,7 @@ export async function verifyNote(store, note, { model } = {}) {
   const diff = gitDiffFor(repo, note.verifiedCommit, paths);
   const current = (note.deps || []).map(d => `--- ${d.path}${d.symbol ? ' :: ' + d.symbol : ''} ---\n${symbolText(repo, d, 120) ?? '(missing)'}`).join('\n\n');
   const system = 'You verify cached notes about a codebase after the code changed. Be strict: a note that is subtly wrong is worse than no note. Only answer still_valid when every concrete claim in the note (file paths, symbol names, call order, what must change together, commands) is still true given the current code shown. Answer update if the note is mostly right but some claim needs correction, and give the full corrected body (keep it as short as the original, keep file:symbol pointers). Answer invalid if the thing the note describes no longer exists or the approach changed fundamentally. Answer with the JSON alone: the verdict, one sentence of reason, and a body only for update.';
-  const prompt = `NOTE (kind=${note.kind}) "${note.title}"\n${note.body}\n\nDEPENDENCIES THAT CHANGED: ${changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`).join(', ') || 'unknown'}\n\nGIT DIFF SINCE THE NOTE WAS VERIFIED (may be empty if changes are uncommitted):\n${diff || '(no diff available)'}\n\nCURRENT CODE OF EACH DEPENDENCY:\n${current.slice(0, 40000)}`;
+  const prompt = `NOTE (kind=${note.kind}) "${note.title}"\n${note.body}\n\n${note.contradicted ? `A CODING SESSION REPORTED THIS NOTE CONTRADICTED (check it against the current code; the session may be wrong):\n${note.contradicted.evidence}\n\n` : ''}DEPENDENCIES THAT CHANGED: ${changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`).join(', ') || (note.contradicted ? 'none' : 'unknown')}\n\nGIT DIFF SINCE THE NOTE WAS VERIFIED (may be empty if changes are uncommitted):\n${diff || '(no diff available)'}\n\nCURRENT CODE OF EACH DEPENDENCY:\n${current.slice(0, 40000)}`;
   const res = await complete({ system, prompt, model, accounting: { store, purpose: 'verify' }, schema: VERIFY_SCHEMA, maxTokens: VERIFY_MAX_TOKENS });
   const v = res.json || {};
   const now = new Date().toISOString();
@@ -953,9 +961,9 @@ export async function verifyNote(store, note, { model } = {}) {
   // drop deps whose files disappeared; count references again for the symbols that changed
   next.deps = dropShadowedFileDeps((next.deps || []).filter(d => !d.missing));
   if (v.verdict !== 'invalid') { const ch = new Set(changed.map(c => `${c.path}|${c.symbol || ''}`)); next.deps = next.deps.map(d => ch.has(`${d.path}|${d.symbol || ''}`) ? annotateFanout(repo, [d], { max: 1 })[0] : d); }
-  delete next.verifying;
+  delete next.verifying; delete next.contradicted;
   store.put(next);
-  store.log({ op: 'verify', id: note.id, verdict: v.verdict, cost: res.cost, metered: true, changed: changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`) });
+  store.log({ op: 'verify', id: note.id, verdict: v.verdict, contradicted: note.contradicted ? true : undefined, cost: res.cost, metered: true, changed: changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`) });
   return { note: next, verdict: v.verdict, reason: v.reason, cost: res.cost, tokens: tokensOf(res) };
 }
 
@@ -1067,9 +1075,13 @@ export { renderNote, estTokens, Store };
 // turn, as a hash of the session id and the turn's number (beginTurn), and kept in the session
 // state so that the tool and stop hooks of the same turn agree on it (holdoutTurn). Notes served
 // on an earlier turn stay in the agent's context, so a held-out turn after a served one is partly
-// treated; that understates the difference, never inflates it. The agent's own `orient`, `lookup`,
-// `find` and `drilldown` are not held out (it asked). `holdout` in .thinker/config.json is the
-// share (0 or false: none); THINKER_HOLDOUT overrides it (`0`, `off`, or a share).
+// treated; that understates the difference, never inflates it. The agent's own `orient` and `lookup`
+// over MCP are held out with the turn too: until 2026-10-17 they were not, and the guidance tells an
+// agent that got no bundle to orient, so a held-out turn was served the withheld notes one call later
+// (the control measured the hook against the tool, not notes against none). The server learns the turn
+// from the session the prompt hook linked to the agent's process (linkAgentSession, agentSession).
+// `holdout` in .thinker/config.json is the share (0 or false: none); THINKER_HOLDOUT overrides it
+// (`0`, `off`, or a share).
 export const HOLDOUT_DEFAULT = 0.15;
 export function holdoutRate(store) {
   const env = process.env.THINKER_HOLDOUT;
@@ -1097,6 +1109,28 @@ export function beginTurn(store, session) {
     save();
     return { turn: st.turnNo, holdout: st.heldOut };
   });
+}
+// The MCP server is told no session: the prompt hook names it, by the pids of its nearest ancestors,
+// one of which is the agent process that also started the server (state/agents/<pid>, holding the
+// session id). The server reads its own nearest ancestors, nearest first, so a pid every session shares
+// further up (the desktop app's own process) is never reached before the agent's. A link older than a
+// day is not trusted (the pid may have been reused), and links older than two days are removed.
+const AGENT_LINK_MS = 24 * 3600_000;
+const agentsDir = store => path.join(store.dir, 'state', 'agents');
+export function linkAgentSession(store, session, pids, { now = Date.now() } = {}) {
+  if (!session || session === 'unknown' || !pids?.length) return;
+  try {
+    const dir = agentsDir(store); fs.mkdirSync(dir, { recursive: true });
+    for (const p of pids) fs.writeFileSync(path.join(dir, String(p)), String(session));
+    for (const n of fs.readdirSync(dir)) { const f = path.join(dir, n); try { if (now - fs.statSync(f).mtimeMs > 2 * AGENT_LINK_MS) fs.rmSync(f, { force: true }); } catch {} }
+  } catch {}
+}
+export function agentSession(store, pids, { now = Date.now() } = {}) {
+  for (const p of pids || []) {
+    const f = path.join(agentsDir(store), String(p));
+    try { if (now - fs.statSync(f).mtimeMs < AGENT_LINK_MS) return fs.readFileSync(f, 'utf8').trim() || null; } catch {}
+  }
+  return null;
 }
 // The turn the tool and stop hooks are in, as the prompt hook left it; turn 0 when no prompt hook ran.
 export function holdoutTurn(store, session) {

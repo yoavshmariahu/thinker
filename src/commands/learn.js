@@ -1,6 +1,6 @@
 import { projectFromFlags, includesPath, projectRecordKey } from '../project.js';
 import { learningPlan } from '../learning-evidence.js';
-import { deferLearning, safeLearningAssessments } from '../learning-pending.js';
+import { deferLearning, safeLearningAssessments, takeContradictions } from '../learning-pending.js';
 // The learning loop by hand and from the hooks: distilling sessions (distill, learn, record), one
 // maintenance run, verification, and mining merged pull
 // requests (mine-prs). The helpers take the dispatcher's context (cli.js) as their first argument.
@@ -230,7 +230,8 @@ export async function distillFile(ctx, file, { minExplore, dry, model, quiet, in
   const s = saveNotes(store, r.notes, { source, kinds });
   const assessments = safeLearningAssessments(store, r.assessments, served);
   const pending = deferLearning(store, assessments.deferred, { source, evidenceRef: path.resolve(file) });
-  if (pending.length && !quiet) out(`deferred ${pending.length} findings for investigation: ${path.join(stateDir, 'learning-pending')}`);
+  // the contradicted notes leave serving now and are verified first by the next maintenance
+  if (pending.length) { const t = takeContradictions(store); if (t.marked.length && !quiet) out(`${t.marked.length} contradicted note${t.marked.length === 1 ? '' : 's'} held back until maintenance verifies ${t.marked.length === 1 ? 'it' : 'them'}`); }
   // under the session's id, which is what servings are logged under: a transcript's file name is
   // that id only for Claude Code (Codex adds a date, a recorded trace a prefix, Gemini another suffix)
   // with the session's model, so the reading its confirmed notes saved can be priced (usage.js)

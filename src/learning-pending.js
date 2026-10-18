@@ -36,3 +36,27 @@ export function safeLearningAssessments(store, assessments, shown) {
   }
   return { accepted, deferred };
 }
+
+// The queue's consumer. Until 2026-10-17 nothing read it: 164 contradictions had piled up on this
+// repository since 2026-10-06 while the notes they contradicted went on being served. Each one now
+// marks its note `contradicted` (the evidence and where it came from) and stale: the prompt hooks hold a
+// stale note back, maintenance verifies contradicted notes first and shows the verifier the evidence
+// (ops.js:verifyNote), and refresh keeps the note stale until then (ops.js:refresh). A record whose note
+// is gone or was rewritten since the finding is moot. Every record read leaves the queue.
+export function takeContradictions(store, { now = new Date().toISOString() } = {}) {
+  const dir = path.join(store.dir, 'state', 'learning-pending');
+  let names = []; try { names = fs.readdirSync(dir).filter(n => n.endsWith('.json')); } catch { return { marked: [], moot: 0 }; }
+  const marked = []; let moot = 0;
+  for (const n of names) {
+    const file = path.join(dir, n);
+    let rec; try { rec = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { fs.rmSync(file, { force: true }); continue; }
+    const a = rec.assessment || {}, note = a.id && store.get(a.id);
+    if (rec.reason === 'contradiction requires investigation' && note && note.status !== 'invalid' && !note.archived && note.kind !== 'behavior' && note.body === rec.existing?.body) {
+      store.put({ ...note, status: 'stale', stale: { since: note.stale?.since || now, changed: note.stale?.changed || [] }, contradicted: { evidence: String(a.evidence || '').slice(0, 2000), source: rec.source, at: rec.at || now } });
+      marked.push(note.id);
+    } else moot++;
+    fs.rmSync(file, { force: true });
+  }
+  if (marked.length || moot) store.log({ op: 'contradictions', marked, moot });
+  return { marked, moot };
+}

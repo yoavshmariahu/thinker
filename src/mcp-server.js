@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Store, findRepoRoot } from './store.js';
-import { orient, lookup, drilldown, find, createNote, feedback, snippetsOn, KINDS } from './ops.js';
+import { orient, lookup, drilldown, find, createNote, feedback, snippetsOn, KINDS, agentSession, holdoutTurn } from './ops.js';
 import { listBehaviors, behaviorsSummary, addBehavior } from './behavior.js';
 import { editBehavior, removeBehavior } from './behavior-workbench.js';
 import { ensureTelemetryScheduled, reportTelemetrySchedule } from './telemetry-schedule.js';
@@ -19,7 +19,7 @@ import { isDisabledRepo } from './repo-switch.js';
 import { warmupPending, warmupOffer, answerWarmup, startSessionWarmup, subagentHarness, WARMUP_CHOICES } from './repo-onboard.js';
 import { coveragePending, answerCoverage } from './coverage.js';
 import { queueDir, buildRunning, buildRequested, nextRequest, answerRequest, requestText } from './session-llm.js';
-import { anyDesktopApp } from './app-host.js';
+import { anyDesktopApp, ancestorPids } from './app-host.js';
 
 // MCP-only installations need the same default OS schedule as CLI/hook users.
 try { reportTelemetrySchedule(ensureTelemetryScheduled({ rootDir: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..') })); }
@@ -65,9 +65,9 @@ const server = new McpServer({ name: 'thinker', version: '0.1.0' }, switchedOff 
   instructions: 'thinker is switched off for this repository and serves nothing here.',
 } : off ? {} : setUp ? {
   // Composed under the host's cap, never concatenated here: see cache-guidance.js:INSTRUCTIONS_LIMIT.
-  instructions: cacheInstructions({ repo, disabled: disabledTools(store.config()), learn: !noLearn }),
+  instructions: cacheInstructions({ repo, disabled: disabledTools(store.config()) }),
 } : {
-  instructions: cacheInstructions({ intro: `thinker is a cache of notes per git repository from earlier sessions and humans. It was started outside one (${process.cwd()}): on the first call pass cwd, the absolute path of your working directory, and the tools bind to that repository.`, disabled: disabledTools({}), learn: !noLearn }),
+  instructions: cacheInstructions({ intro: `thinker is a cache of notes per git repository from earlier sessions and humans. It was started outside one (${process.cwd()}): on the first call pass cwd, the absolute path of your working directory, and the tools bind to that repository.`, disabled: disabledTools({}) }),
 });
 
 // Bound late (see `late`): a call must name the repository first. Until one does, every tool answers
@@ -117,6 +117,19 @@ async function askWarmup() {
   } catch (e) { return { error: e.message }; }
 }
 
+// The session and turn the agent's own orient and lookup belong to, from the link the prompt hook left
+// (ops.js:agentSession): logged with the call, and a held-out turn is served nothing here either. {} where no
+// hook ran (an MCP-only client, a benchmark arm with the hooks off): the call is served and logged as before.
+let ancestors;
+function agentTurn() {
+  try {
+    ancestors ||= ancestorPids(process.ppid);
+    const session = agentSession(store, ancestors); if (!session) return {};
+    const { turn, holdout } = holdoutTurn(store, session);
+    return { session, turn: turn || undefined, holdout };
+  } catch { return {}; }
+}
+
 function registerTools() {
   // a tool that is switched off is not offered at all: nothing can call it and fail (bound late, the
   // repository's own choice of code tools is not known yet: the defaults apply)
@@ -146,10 +159,10 @@ function registerTools() {
     let offer = ''; try { offer = warmupOffer(store, { client: subagentHarness(clientName()) || clientName() }); } catch {}
     const reply = s => text(offer ? `${offer}\n\n${s}` : s);
     // the agent named a budget: let it decide how many notes are served, not the two-note default of the hooks
-    const r = await orient(store, { task, file, client: 'mcp', budget: budget || 1000, snippets: snippetsOn(store), ...(budget ? { maxNotes: 5, relFloor: 0.7 } : {}) });
+    const r = await orient(store, { task, file, client: 'mcp', ...agentTurn(), budget: budget || 1000, snippets: snippetsOn(store), ...(budget ? { maxNotes: 5, relFloor: 0.7 } : {}) });
     // no text search over the whole task on a miss: a sentence's words list unrelated code (mitmproxy, 2026-10-07:
     // ValueEditor.tsx and SaveHar for a binary-detection fix) that the agent then opens
-    if (!r.included.length) return reply(`${emptyCache() || `No cached notes match this task (${store.list().length} notes in cache). `}Work from the code${noLearn ? '' : ', then call remember with what you learn'}.`);
+    if (!r.included.length) return reply(`${emptyCache() || `No cached notes match this task (${store.list().length} notes in cache). `}Work from the code.`);
     const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n')}` : '';
     const notes = `Cached knowledge for this task (${r.included.length} notes, ~${r.tokens} tokens):\n\n${r.text}${more}`;
     return reply(notes);
@@ -165,7 +178,7 @@ function registerTools() {
       maxNotes: z.number().int().min(1).max(10).optional().describe('Default 3'),
     },
   }, async ({ query, kind, budget, maxNotes }) => {
-    const r = await lookup(store, { query: query || '', kind, client: 'mcp', budget: budget || 2500, maxNotes: maxNotes || 3, snippets: snippetsOn(store) });
+    const r = await lookup(store, { query: query || '', kind, client: 'mcp', ...agentTurn(), budget: budget || 2500, maxNotes: maxNotes || 3, snippets: snippetsOn(store) });
     if (kind === 'behavior' && !String(query || '').trim()) {
       const rows = listBehaviors(store);
       if (!rows.length) return text('No desired behaviors are written down for this repository yet (they come from the design documents checked in; when the person asks for one, the behavior tool adds it).');

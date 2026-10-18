@@ -28,3 +28,41 @@ test('session contradictions are reviewable and repeated discovery does not dupl
     assert.deepEqual(safeLearningAssessments(store, [{ id: 'rule', verdict: 'confirmed' }], [shown]), { accepted: [], deferred: [] });
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+test('a contradiction a session reported holds its note back until maintenance verifies it with the evidence', async () => {
+  const { execFileSync } = await import('node:child_process');
+  const { Store } = await import('../src/store.js');
+  const { createNote, refresh, verifyNote } = await import('../src/ops.js');
+  const { takeContradictions } = await import('../src/learning-pending.js');
+  const { pickStale, DEFAULTS } = await import('../src/maintain.js');
+  const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-contra-')));
+  const prev = { log: process.env.THINKER_LOG, llm: process.env.THINKER_LLM, cmd: process.env.THINKER_LLM_CMD };
+  try {
+    const git = (...a) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...a], { cwd: repo, stdio: 'ignore' });
+    git('init', '-q'); fs.mkdirSync(path.join(repo, 'src')); fs.writeFileSync(path.join(repo, 'src/a.js'), 'export function charge() { return retry(); }\n'); git('add', '.'); git('commit', '-qm', 'i');
+    process.env.THINKER_LOG = 'local';
+    const store = new Store(repo).init();
+    createNote(store, { title: 'charge never retries', kind: 'rule', answers: ['does charge retry'], body: 'src/a.js:charge never retries a failed charge', deps: [{ path: 'src/a.js', symbol: 'charge' }] });
+    createNote(store, { title: 'charge lives in a.js', kind: 'map', answers: ['where is charge'], body: 'src/a.js:charge is the charge entry point', deps: [{ path: 'src/a.js', symbol: 'charge' }] });
+    const [rule, other] = ['charge-never-retries', 'charge-lives-in-a-js'].map(id => store.list().find(n => n.title.startsWith(id.split('-').slice(0, 2).join(' '))));
+    const defer = (note, body = note.body) => deferLearning(store, [{ reason: 'contradiction requires investigation', assessment: { id: note.id, verdict: 'contradicted', evidence: 'charge calls retry() on failure' }, existing: { id: note.id, body } }], { source: { type: 'agent', ref: 's1' } });
+    defer(rule); defer(other, 'an older body');
+    assert.deepEqual(takeContradictions(store), { marked: [rule.id], moot: 1 }, 'a note rewritten since the finding is moot');
+    assert.deepEqual(fs.readdirSync(path.join(store.dir, 'state', 'learning-pending')), [], 'every record leaves the queue');
+    let n = store.get(rule.id);
+    assert.equal(n.status, 'stale'); assert.match(n.contradicted.evidence, /retry/);
+    n = refresh(store, [n])[0];
+    assert.equal(n.status, 'stale', 'no code change does not clear a contradiction');
+    const { stale } = pickStale(store.list().map(x => x.id === other.id ? { ...x, status: 'stale', uses: 50, lastUsed: new Date().toISOString() } : x), { ...DEFAULTS, verifyServedDays: 7, verifyPerRun: 1 });
+    assert.deepEqual(stale.map(x => x.id), [rule.id], 'verified first, though never served recently');
+    const seen = path.join(repo, 'prompt.txt');
+    process.env.THINKER_LLM = 'command'; process.env.THINKER_LLM_CMD = `cat > "${seen}"; echo '{"verdict":"invalid","reason":"charge retries"}'`;
+    const v = await verifyNote(store, store.get(rule.id), {});
+    assert.equal(v.verdict, 'invalid');
+    assert.match(fs.readFileSync(seen, 'utf8'), /REPORTED THIS NOTE CONTRADICTED[\s\S]*charge calls retry\(\) on failure/);
+    assert.equal(store.get(rule.id).contradicted, undefined);
+  } finally {
+    for (const [k, e] of [['log', 'THINKER_LOG'], ['llm', 'THINKER_LLM'], ['cmd', 'THINKER_LLM_CMD']]) { if (prev[k] === undefined) delete process.env[e]; else process.env[e] = prev[k]; }
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
