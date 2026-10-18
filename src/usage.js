@@ -99,10 +99,10 @@ export function turnFooterMarkdown(repo, notes) {
   const { calls, tokens } = cacheHitSavings(repo, unique);
   const hits = unique.length;
   const noun = `${hits} ${hits === 1 ? 'note' : 'notes'} this turn`;
-  const files = calls ? `${calls} ${calls === 1 ? 'file' : 'files'}` : '';
-  const detail = tokens ? `*pointing at ${files ? `${files} (` : ''}~${formatTokens(tokens)} tokens of code${files ? ')' : ''}*` : '';
-  const titles = unique.slice(0, 2).map(n => `\`${String(n.title || n.id).replace(/`/g, '')}\``).join(', ') + (unique.length > 2 ? ` (+${unique.length - 2} more)` : '');
-  return `---\n🧠 **thinker** · \`${noun}\`${detail ? ` · ${detail}` : ''}${titles ? ` · ${titles}` : ''}`;
+  const files = calls ? `, ${calls} ${calls === 1 ? 'file read' : 'file reads'} avoided` : ' avoided';
+  const detail = tokens ? `*est. savings: ~${formatTokens(tokens)} tokens${files}*` : '';
+  const titles = unique.slice(0, 2).map(n => String(n.title || n.id).replace(/`/g, '')).join(', ') + (unique.length > 2 ? ` (+${unique.length - 2} more)` : '');
+  return `---\n🧠 **thinker** · ${noun}${detail ? ` · ${detail}` : ''}${titles ? ` · ${titles}` : ''}`;
 }
 
 
