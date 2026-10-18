@@ -9,6 +9,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { condense, parseTranscript, exploreCount, batchDue, distillEvents, saveNotes, transcriptsFor, injectedIds, relatedNotes, sessionStakes, QUIET_MIN_EXPLORE } from '../distill.js';
 import { provider, DEFAULT_DISTILL_MODEL } from '../llm.js';
+import { watchInstructions } from '../instructions.js';
 import { maintain, renderMaintain, withinDailyCap, reportCapped } from '../maintain.js';
 import { formatTokens } from '../model-usage.js';
 import { refresh, attest, outcome, distillKinds } from '../ops.js';
@@ -127,6 +128,7 @@ export async function runMaintain(ctx, { quiet, dry }) {
     mineAreaHistory: canMine ? ({ paths, limit, scan }) => minePrs(ctx, slug, { from: 'HEAD', paths, pathsLimit: limit, pathsScan: scan, pathsOnly: true, limit, repo, phase: 'maintenance' }) : undefined,
     docs: provider() ? async ({ limit }) => (await import('../behavior-docs.js')).deriveDocBehaviors(store, { limit, phase: 'maintenance' }) : undefined,
     skills: provider() ? ({ limit }) => scanSkills(store, { limit, phase: 'maintenance' }) : undefined,
+    instructions: () => watchInstructions(store),
   } });
   if (!quiet || (process.env.THINKER_LLM === 'session' && r.errors)) out(renderMaintain(r));
   if (process.env.THINKER_LLM === 'session' && r.errors) process.exitCode = 1;

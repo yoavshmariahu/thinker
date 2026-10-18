@@ -96,6 +96,28 @@ The report's no-new-note/no-merge counts help identify low-yield runs, though th
 may still assess existing notes. Keep quality and downstream task correctness in the
 comparison, not just note count.
 
+## What your instruction files cost, and a slim core
+
+Claude Code loads CLAUDE.md (or AGENTS.md) and every `.claude/rules/*.md` into the context of
+every turn, and every turn re-reads that context. On a large repository that is most of what a
+session bills: measured on PostHog, those files were 13k of a 41k-token prefix, re-read 50 to 100
+times a session.
+
+```sh
+thinker instructions            # the files, their tokens, and from the sessions logged here the share of a session's input they take
+thinker instructions slim       # a core within the budget, written to .thinker/instructions/ for review
+thinker instructions slim --write   # the same, put in the file; the original kept beside the proposal
+thinker instructions check      # exit 1 when the file is over budget, for CI
+```
+
+The core is written by a model from the file itself: the commands, the structure, the code style
+and architecture rules that decide whether a change is correct, security, user-facing text; the
+process sections (commits, pull requests, CI, automation) are left out. The original is kept whole
+as `<name>.full.md` beside the proposal, for serving later what the core condensed. The person's
+file changes only with `--write`, or by their own hand. The budget is 3,000 tokens (`instructions.budget` in `.thinker/config.json`); maintenance
+says once, at the end of a turn, when the file has changed and is over it (`watch: false` stops
+that). Serving the left-out sections on relevance, as notes, is the next step and is not done yet.
+
 ## What the hooks serve, and the symbol table behind it
 
 Besides the notes, the post-tool hook can hand the agent two things about the

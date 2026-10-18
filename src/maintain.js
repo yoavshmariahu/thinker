@@ -255,7 +255,12 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
         if (!dry) { try { const k = await fns.skills({ limit: cfg.skillsPerRun }); r.skills = (k?.saved?.length || 0) + (k?.updated?.length || 0); r.tokens += k?.tokens || 0; } catch { r.errors++; } }
       } else r.capped = true;
     }
-    // 7. at most weekly, a question for the person: the directories their sessions work in that the cache covers
+    // 7. the instruction files every turn re-reads: when the root file changed and is over budget, one line
+    // for the person (instructions.js:watchInstructions). No model call.
+    if (cfg.instructions !== false && fns.instructions && !dry) {
+      try { const lines = fns.instructions(); if (lines?.length) { r.instructions = lines; } } catch { r.errors++; }
+    }
+    // 8. at most weekly, a question for the person: the directories their sessions work in that the cache covers
     // little (coverage.js). No model call; the prompt hook asks it, and a build starts only on their answer.
     if (cfg.coverage === true && !dry) {
       try { const { scheduleSuggestion } = await (fns.coverage ? { scheduleSuggestion: fns.coverage } : import('./coverage.js')); const picks = scheduleSuggestion(store, { now }); if (picks) r.coverageSuggested = picks.length; } catch { r.errors++; }
@@ -269,6 +274,7 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
     if (liveState.brokenSkills?.length) u.brokenSkills = liveState.brokenSkills;
     if (r.revised && !dry) { try { writeSystemMarkdown(store); } catch {} }
     for (const k of ['verified', 'updated', 'retired', 'archived', 'phrased', 'prs', 'docs', 'unstated', 'skills']) u[k] = (u[k] || 0) + r[k];
+    if (r.instructions?.length) u.instructions = [...new Set([...(u.instructions || []), ...r.instructions])];
     // churning notes are named once; a note named before is not named again until it settles
     const named = new Set(state.churnNamed || []);
     const fresh = r.churning.filter(id => !named.has(id));
@@ -307,6 +313,7 @@ export function maintenanceNotice(store, { now = new Date() } = {}) {
   if (u.skills) parts.push(`${u.skills} skill ${u.skills === 1 ? 'card' : 'cards'}`);
   if (u.brokenSkills?.length) parts.push(`${u.brokenSkills.length} ${u.brokenSkills.length === 1 ? 'skill is' : 'skills are'} out of date (${u.brokenSkills.map(b => b.name || b.id).join(', ')}); not served until fixed or reviewed; see thinker skills`);
   if (u.pruned?.length) parts.push('Thinker setup updated');
+  if (u.instructions?.length) parts.push(...u.instructions);
   if (u.capped) {
     const day = capDay(now);
     if ((!u.capped.day || u.capped.day === day) && !capWasReported(store, day)) {

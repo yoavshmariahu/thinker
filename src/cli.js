@@ -13,6 +13,7 @@ import { commands as noteCommands } from './commands/notes.js';
 import { commands as impactCommands } from './commands/impact.js';
 import { commands as cacheCommands } from './commands/cache.js';
 import { commands as skillsCommands } from './commands/skills.js';
+import { commands as instructionsCommands } from './commands/instructions.js';
 import { commands as learnCommands } from './commands/learn.js';
 import { commands as hookCommands } from './commands/hooks.js';
 import { commands as setupCommands } from './commands/setup.js';
@@ -197,6 +198,14 @@ const HELP = `thinker — knowledge cache for coding agents
                                  its issues and is neither served nor audited again until the file changes or a review;
                                  scan cards new or changed files (maintenance does this too), prefer picks one of
                                  several skills that do the same thing
+  instructions [cost|slim|check] [--budget n] [--model m] [--write] [--dry] [--days n] [--json]
+                                 what this repository's instruction files (CLAUDE.md or AGENTS.md, .claude/rules) cost:
+                                 Claude Code loads them into every turn's context, so cost shows their tokens and, from
+                                 the sessions logged here, the share of a session's input tokens they take; slim writes
+                                 a core within the budget (default 3,000 tokens) to .thinker/instructions/ for review,
+                                 keeping the sections it leaves out beside it (--write puts it in the file, the original
+                                 kept); check exits 1 when the file is over budget, for CI. The budget is
+                                 instructions.budget in .thinker/config.json
   usage [--here] [--days n] [--json]
                                  how the cache has been used on this machine, in every repository: notes served, what sessions
                                  did with them, build/distillation tokens, and estimated savings
@@ -246,10 +255,10 @@ function unknownFlags(c, given, help = HELP) {
 // Commands that read or maintain a cache, and so need a git checkout to keep it in. Not `setup`,
 // `mine-prs`, `import`, `add`, `record`, `distill`: those build one. Not `hook` (quiet outside a
 // checkout) and not `ui`, the machine-wide page.
-const CACHE_COMMANDS = ['tools', 'symbols', 'orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'session-work', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback', 'skills'];
+const CACHE_COMMANDS = ['tools', 'symbols', 'orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'session-work', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback', 'skills', 'instructions'];
 
 // One handler per command, in src/commands/; each gets the context below and nothing else of this file.
-const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...skillsCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...warmupCommands, ...coverageCommands, ...symbolsCommands, ...switchCommands, ...externalCommands };
+const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...skillsCommands, ...instructionsCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...warmupCommands, ...coverageCommands, ...symbolsCommands, ...switchCommands, ...externalCommands };
 // Commands that still answer in a repository thinker is switched off for (repo-switch.js): the machine-wide
 // ones, the ones about the install itself, and the switch. `hook` keeps quiet by itself.
 const OFF_COMMANDS = ['version', 'enable', 'disable', 'ui', 'warmup', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'stats', 'ast', 'ranker', 'hook', 'serve', undefined];

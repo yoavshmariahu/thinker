@@ -975,6 +975,23 @@ and on PR-mined notes the same rule only added noise (`research/serving-understa
 irrelevant note where the shipped rule serves none. It stays off until an Artemis experiment shows it
 helps in agent sessions.
 
+**The instruction files as a cost (2026-10-18).** `thinker instructions` (`instructions.js`, `commands/instructions.js`)
+measures what Claude Code puts in the prefix of every turn here: CLAUDE.md/AGENTS.md (a link and its target once)
+and `.claude/rules/*.md`, in tokens (bytes/4), against the median turns and input tokens of the sessions the stop
+hook logged (`op: session`), as the share of a session's input they take. Why: attributing the input tokens of the
+Artemis sessions to what sits in context, the first-turn context was 63% of a 52-turn Opus session's input on
+PostHog and 76–85% of 14-turn Sonnet ones, with PostHog's own files 13k of its 41k prefix; replacing its 10.4k-token
+AGENTS.md with a 2.4k core and removing the rules cut 10.9k a turn, passes 3/6 → 5/6, five of six tasks cheaper
+(posthog-hard-opus-slim-2026-10-18; research/instruction-surface-2026-10 in thinker-probe2). `slim` has a model
+write the core (`SLIM_SYSTEM`, `slimPrompt`: keep what decides whether a change is correct, drop process) into
+`.thinker/instructions/<name>.slim.md` beside the original whole in `<name>.full.md`, and `--write` puts it in
+the person's file; nothing else touches their file. `check` exits 1 over the budget
+(`INSTRUCTIONS.budget`, 3,000 tokens; `instructions.budget` in the config), and maintenance step 7
+(`watchInstructions`) says once per content, through the maintenance notice, when the root file changed and is
+over it. With no agent CLI signed in, `slim` is queued for the next desktop-app session (`session-work.js`).
+Serving the left-out sections and the rules as file-keyed notes and skill cards is the next experiment; it is
+not built, and nothing here changes what the hooks serve.
+
 ## Internal server
 
 `src/server/` and `infra/sync/` remain internal infrastructure: the team's note
