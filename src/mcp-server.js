@@ -3,6 +3,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
+import { registerCacheCard, cacheCardMeta, withCacheCard } from './mcp-card.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -94,6 +95,8 @@ async function ensureBound(args) {
   return { reply: text('thinker is not bound to a repository yet: it was started outside a git checkout. Call again with cwd, the absolute path of your working directory.') };
 }
 
+const cardOn = () => !off && process.env.THINKER_CACHE_CARD === '1';
+if (cardOn()) registerCacheCard(server);
 const text = s => ({ content: [{ type: 'text', text: s }] });
 // An empty cache is said outright, with its location: "nothing matches" reads as a miss and hides a server pointed at the wrong place.
 const emptyCache = () => store.list().length ? '' : `The cache is empty: no notes in ${store.notesDir}. `;
@@ -160,6 +163,7 @@ function registerTools() {
 
   retrieval('orient', {
     title: 'Orient in this repo',
+    _meta: cardOn() ? cacheCardMeta : undefined,
     description: 'Notes with file:symbol pointers for a task, and the code behind the main ones. Call once at the start unless a thinker-cache bundle for this request is already present; again only for a distinct part it missed. Confirm a STALE claim against the code.',
     inputSchema: {
       task: z.string().optional().default('').describe('What you are about to do; the user request is fine'),
@@ -180,11 +184,12 @@ function registerTools() {
     if (!r.included.length) return reply(`${emptyCache() || `No cached notes match this task (${store.list().length} notes in cache). `}Work from the code.`);
     const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n')}` : '';
     const notes = `Cached knowledge for this task (${r.included.length} notes, ~${r.tokens} tokens):\n\n${r.text}${more}`;
-    return reply(notes);
+    return cardOn() ? withCacheCard(reply(notes), repo, r.included) : reply(notes);
   });
 
   retrieval('lookup', {
     title: 'Look up cached knowledge',
+    _meta: cardOn() ? cacheCardMeta : undefined,
     description: 'One specific open question, or a note id listed by orient (not every title). If no note answers, search the code. kind "behavior": the desired behaviors of the system; all of them with an empty query.',
     inputSchema: {
       query: z.string().describe('Question, topic, or a note id; empty with kind behavior lists all'),
@@ -200,7 +205,7 @@ function registerTools() {
       return text(`Desired behaviors of the system (${rows.length}; the code must uphold each):\n${behaviorsSummary(rows)}\n\n${r.text}${r.omitted?.length ? `\n\n(${r.omitted.length} more not shown for the budget; lookup by id for one)` : ''}`);
     }
     if (!r.included.length) return text(emptyCache() || `Nothing cached about that. ${codeFallback(query) || 'Try fewer or different words, or an identifier from the code. '}`);
-    return text(r.text);
+    return cardOn() ? withCacheCard(text(r.text), repo, r.included) : text(r.text);
   });
 
   retrieval('find', {
