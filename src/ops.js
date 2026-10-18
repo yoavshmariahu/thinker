@@ -766,6 +766,7 @@ export async function lookup(store, { query, client, budget = 2500, maxNotes = 3
     store.log({ op: 'lookup', session, turn, client: client || 'cli', query: String(query || '').slice(0, 200), kind, served: [], holdout: true, withheld: packed.included.map(n => n.id), durationMs: Date.now() - start });
     return { text: '', included: [], omitted: [], tokens: 0, holdout: true, withheld: packed.included };
   }
+  if (session) trackTurn(store, session, packed.included.map(n => n.id));
   addSnippets(store, packed, budget, snippets, false);
   const empty = packed.included.length ? undefined : !notes.length ? 'too-few-notes' : !ranked.length ? 'no-match' : 'below-floor';
   store.log({ op: 'lookup', session, turn, client: client || 'cli', query: String(query || '').slice(0, 200), kind, empty, served: packed.included.map(n => n.id), snippets: packed.snippets?.length || undefined, durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
