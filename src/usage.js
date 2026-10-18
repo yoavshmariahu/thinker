@@ -96,11 +96,10 @@ export function turnNotice(repo, notes) {
 export function turnFooterMarkdown(repo, notes) {
   const unique = [...new Map((notes || []).filter(Boolean).map(n => [n.id || n.title, n])).values()];
   if (!unique.length) return '';
-  const { calls, tokens } = cacheHitSavings(repo, unique);
+  const { tokens } = cacheHitSavings(repo, unique);
   const hits = unique.length;
   const noun = `${hits} ${hits === 1 ? 'note' : 'notes'} this turn`;
-  const files = calls ? `, ${calls} ${calls === 1 ? 'file read' : 'file reads'} avoided` : ' avoided';
-  const detail = tokens ? `*est. savings: ~${formatTokens(tokens)} tokens${files}*` : '';
+  const detail = tokens ? `*est. savings: ~${formatTokens(tokens)} tokens*` : '';
   const titles = unique.slice(0, 2).map(n => String(n.title || n.id).replace(/`/g, '')).join(', ') + (unique.length > 2 ? ` (+${unique.length - 2} more)` : '');
   return `---\n🧠 **thinker** · ${noun}${detail ? ` · ${detail}` : ''}${titles ? ` · ${titles}` : ''}`;
 }
