@@ -61,3 +61,44 @@ test('a scratch checkout logs locally unless THINKER_HOME says where the machine
     fs.rmSync(home, { recursive: true, force: true });
   }
 });
+
+test('a linked worktree uses the main checkout\'s cache unless isolation is explicit or already there', async () => {
+  const { createNote } = await import('../src/ops.js');
+  const git = (cwd, ...a) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...a], { cwd, stdio: 'ignore' });
+  const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-wt-')));
+  const main = path.join(tmp, 'main'); fs.mkdirSync(path.join(main, 'src'), { recursive: true });
+  git(main, 'init', '-q'); fs.writeFileSync(path.join(main, 'src/a.js'), 'export function fetchRows() { return 1; }\n'); git(main, 'add', '.'); git(main, 'commit', '-qm', 'i');
+  const prevLog = process.env.THINKER_LOG; process.env.THINKER_LOG = 'local';
+  try {
+    // the main checkout has no notes yet: a worktree keeps its own (a benchmark's base clone)
+    const early = path.join(tmp, 'early'); git(main, 'worktree', 'add', '-q', early);
+    assert.equal(new Store(early).dir, path.join(early, '.thinker'));
+    const store = new Store(main).init();
+    createNote(store, { title: 'fetchRows reads the rows table', kind: 'map', answers: ['where are rows read'], body: 'src/a.js:fetchRows reads rows', deps: [{ path: 'src/a.js', symbol: 'fetchRows' }] });
+    // a worktree inside the checkout (Claude Desktop's .claude/worktrees) and one beside it
+    const nested = path.join(main, '.claude', 'worktrees', 'w1'), beside = path.join(tmp, 'beside');
+    git(main, 'worktree', 'add', '-q', '-b', 'w1', nested); git(main, 'worktree', 'add', '-q', '-b', 'w2', beside);
+    for (const wt of [nested, beside]) {
+      const s = new Store(wt);
+      assert.equal(s.repo, wt, 'code is read from the worktree');
+      assert.equal(s.dir, path.join(main, '.thinker'), 'the cache is the main checkout\'s');
+      assert.deepEqual(s.list().map(n => n.title), ['fetchRows reads the rows table']);
+      assert.doesNotThrow(() => s.assertSafeNotesPath());
+    }
+    // notes a worktree's cache gathered on its own are no reason to stay apart; an isolated file is
+    const own = path.join(tmp, 'own'); git(main, 'worktree', 'add', '-q', '-b', 'w3', own);
+    fs.mkdirSync(path.join(own, '.thinker', 'local', 'notes'), { recursive: true }); fs.writeFileSync(path.join(own, '.thinker', 'local', 'notes', 'x.json'), '{}');
+    assert.equal(new Store(own).dir, path.join(main, '.thinker'));
+    const kept = path.join(tmp, 'kept'); git(main, 'worktree', 'add', '-q', '-b', 'w5', kept);
+    fs.mkdirSync(path.join(kept, '.thinker', 'local'), { recursive: true }); fs.writeFileSync(path.join(kept, '.thinker', 'local', 'isolated'), '');
+    assert.equal(new Store(kept).dir, path.join(kept, '.thinker'));
+    // THINKER_NOTES_DIR (benchmark arms) isolates outright
+    const prev = process.env.THINKER_NOTES_DIR; process.env.THINKER_NOTES_DIR = path.join(tmp, 'arm-notes');
+    try { const wt = path.join(tmp, 'arm'); git(main, 'worktree', 'add', '-q', '-b', 'w4', wt); assert.equal(new Store(wt).dir, path.join(wt, '.thinker')); }
+    finally { if (prev === undefined) delete process.env.THINKER_NOTES_DIR; else process.env.THINKER_NOTES_DIR = prev; }
+    assert.equal(new Store(main).dir, path.join(main, '.thinker'));
+  } finally {
+    if (prevLog === undefined) delete process.env.THINKER_LOG; else process.env.THINKER_LOG = prevLog;
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});

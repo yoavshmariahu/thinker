@@ -194,12 +194,44 @@ function writeJson(file, value) {
   } finally { try { fs.unlinkSync(tmp); } catch {} }
 }
 
+// The checkout whose cache a linked worktree uses: the main checkout of the same repository, so a session
+// in a worktree (Claude Desktop starts many) is served the notes the repository has. Until 2026-10-18 each
+// worktree had a cache of its own: on this repository a worktree saw the 8 committed notes of 457, its edit
+// hooks logged turns the prompt hook never opened, and its learning stayed behind when it was removed.
+// Code is still read from the worktree (Store.repo); only the cache moves. A worktree keeps a cache of its
+// own when isolation is explicit: THINKER_NOTES_DIR is set (benchmark arms), the worktree has a
+// `.thinker/local/isolated` file (an experiment build kept apart), or the main checkout holds no notes (a
+// benchmark's base clone, whose worktrees must see nothing). Notes a worktree's cache gathered on its own
+// before this (on this machine 20 to 30 a worktree, from first-use setup) are no reason: they stay where
+// they are, unread. A submodule (no commondir) is its own repository.
+const homes = new Map();
+export function cacheCheckout(repo) {
+  if (process.env.THINKER_NOTES_DIR) return repo;
+  if (homes.has(repo)) return homes.get(repo);
+  let home = repo;
+  try {
+    const dot = path.join(repo, '.git');
+    if (fs.statSync(dot).isFile()) {
+      const m = fs.readFileSync(dot, 'utf8').match(/^gitdir:\s*(.+)$/m);
+      const gitDir = m && path.resolve(repo, m[1].trim());
+      const common = gitDir && path.resolve(gitDir, fs.readFileSync(path.join(gitDir, 'commondir'), 'utf8').trim());
+      const main = common && path.basename(common) === '.git' ? path.dirname(common) : null;
+      const notes = r => { try { return fs.readdirSync(path.join(r, '.thinker', 'local', 'notes')).some(n => n.endsWith('.json')); } catch { return false; } };
+      if (main && path.resolve(main) !== path.resolve(repo) && !fs.existsSync(path.join(repo, '.thinker', 'local', 'isolated')) && notes(main)) home = main;
+    }
+  } catch {}
+  homes.set(repo, home);
+  return home;
+}
+
 export class Store {
   // readonly: for looking at another checkout (usage, telemetry). Its layout is read as it is and
   // never migrated from here.
   constructor(repo, { readonly = false } = {}) {
     this.repo = repo;
-    this.dir = path.join(repo, '.thinker');
+    // the checkout that holds the cache: this one, or the main checkout of a linked worktree (cacheCheckout)
+    this.home = cacheCheckout(repo);
+    this.dir = path.join(this.home, '.thinker');
     // THINKER_NOTES_DIR serves notes from elsewhere (benchmark control arms).
     this.notesDir = process.env.THINKER_NOTES_DIR || path.join(this.dir, 'notes');
     this.tiered = !process.env.THINKER_NOTES_DIR;
@@ -214,7 +246,7 @@ export class Store {
       for (const dir of [this.notesDir, this.localDir, this.localNotesDir, this.overlayDir]) {
         try {
           if (fs.lstatSync(dir).isSymbolicLink()) throw new Error('refusing to use a symlinked notes directory');
-          const root = fs.realpathSync(this.repo), real = fs.realpathSync(dir);
+          const root = fs.realpathSync(this.home), real = fs.realpathSync(dir);
           const rel = path.relative(root, real);
           if (!rel || rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) throw new Error('notes directory must be inside the repository');
         } catch (e) { if (e.code !== 'ENOENT') throw e; }
@@ -235,7 +267,7 @@ export class Store {
     else this.#sonnetDistill(cfg);
     // a cache made in a checkout that had none stays out of `git status`: thinker starts one in
     // every git repository it runs in, and that must not dirty the repository
-    if (fresh) excludeFromGit(this.repo);
+    if (fresh) excludeFromGit(this.home);
     return this;
   }
   // Until 2026-10-15 init wrote distillModel "haiku" into every config, so a cache's "haiku" is the
@@ -291,7 +323,7 @@ export class Store {
     try {
       const tracked = new Set();
       try {
-        for (const f of execFileSync('git', ['ls-files', '-z', '--', '.thinker/notes'], { cwd: this.repo, stdio: ['ignore', 'pipe', 'ignore'] }).toString().split('\0')) if (f) tracked.add(path.basename(f));
+        for (const f of execFileSync('git', ['ls-files', '-z', '--', '.thinker/notes'], { cwd: this.home, stdio: ['ignore', 'pipe', 'ignore'] }).toString().split('\0')) if (f) tracked.add(path.basename(f));
       } catch { /* not a git checkout: nothing is shared yet */ }
       let files = []; try { files = fs.readdirSync(this.notesDir).filter(f => NOTE_FILE.test(f)); } catch {}
       for (const f of files) {
