@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { thinkerHome, detectInstall, isScheduled } from '../update.js';
-import { USER_SCOPE_CLIENTS, detectClients, inferWiring, refreshWiring, pruneInstalls, prunedLines, installClient, trustCodexUser, enableCodexSubagents } from '../clients.js';
+import { USER_SCOPE_CLIENTS, detectClients, inferWiring, refreshWiring, pruneInstalls, prunedLines, installClient, trustCodexUser, enableCodexSubagents, staleRepoInstructions, stripRepoWiring } from '../clients.js';
 import { HOOKS } from '../git-hooks.js';
 import { postCommitHook } from '../maintain.js';
 import { gitHookPath } from '../store.js';
@@ -191,6 +191,9 @@ async function runChecks(ctx) {
     add('repository', 'ok', `set up in ${repo}`);
     add('notes', bad ? 'warn' : 'ok', `${notes.length} note${notes.length === 1 ? '' : 's'}${bad ? `; ${bad} file${bad === 1 ? '' : 's'} in ${store.notesDir} unreadable` : notes.length ? '' : ' (the cache grows from your sessions; `thinker warmup` here reads the repository\'s history into it)'}`);
     if (configOk) wiringCheck('checkout wiring', repo, 'repo');
+    // the checkout's own CLAUDE.local.md still carries a workflow block the user's CLAUDE.md also carries
+    const twice = staleRepoInstructions(repo);
+    if (twice.length) add('instructions', 'fail', `${twice.map(f => path.relative(repo, f)).join(', ')} repeats thinker's workflow from your CLAUDE.md in an older text`, { what: 'take the checkout\'s copy out', run: () => stripRepoWiring(repo, { cli, clients: ['claude'] }) });
     // The hooks thinker installs (post-commit, post-merge). A hook that is not thinker's (git-lfs, husky,
     // a tracked core.hooksPath directory) is left alone by setup, so the advice is then to chain
     // thinker's line into it, not to run setup again.

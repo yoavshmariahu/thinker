@@ -15,6 +15,8 @@ import { formatTokens } from './model-usage.js';
 import { writeSystemMarkdown } from './behavior.js';
 import { areasConfig, saveAreas, refreshAreas } from './areas.js';
 import { isTestMode } from './test-mode.js';
+import { takeContradictions } from './learning-pending.js';
+import { pruneState } from './state-prune.js';
 
 export const DEFAULTS = {
   enabled: true,    // `maintain: { enabled: false }` in .thinker/config.json switches it off
@@ -114,11 +116,12 @@ export function pickStale(notes, cfg, { counts = new Map(), now = Date.now() } =
   const churning = [];
   const stale = notes
     .filter(n => n.status === 'stale' && !n.archived && !(n.verifying && now - Date.parse(n.verifying) < 10 * 60_000))
-    .filter(n => recent === -Infinity || (n.lastUsed && Date.parse(n.lastUsed) >= recent))
+    .filter(n => n.contradicted || recent === -Infinity || (n.lastUsed && Date.parse(n.lastUsed) >= recent))
     // a skill card whose own file changed is rewritten by the skills step of this run (skills.js:scanSkills), not audited
     .filter(n => !(n.kind === 'skill' && n.skill?.file && (n.stale?.changed || []).some(c => c.path === n.skill.file)))
     .filter(n => { if (cfg.verifyChurn > 0 && (counts.get(n.id) || 0) >= cfg.verifyChurn) { churning.push(n); return false; } return true; })
-    .sort((a, b) => (b.uses || 0) - (a.uses || 0))
+    // a note a session contradicted first: it is held back from serving until verified
+    .sort((a, b) => (b.contradicted ? 1 : 0) - (a.contradicted ? 1 : 0) || (b.uses || 0) - (a.uses || 0))
     .slice(0, cfg.verifyPerRun);
   return { stale, churning };
 }
@@ -160,9 +163,13 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
   const cap = withinDailyCap(store, { spentFn: () => spent }).cap;
   const afford = () => !cap || cap - spent - r.tokens > 0;
   try {
+    // 1b. state files no session will read again (state-prune.js)
+    if (!dry) { try { r.pruned = pruneState(store.dir, { now }).length; } catch { r.errors++; } }
     // 1c. archiving is free too: notes of a kind the sessions never acted on, and notes nobody was
     // served in a month, leave serving and upkeep and stay for lookup by id (ops.js:archiveNotes)
     if (cfg.archive !== false) { try { r.archived = (fns.archive || archiveNotes)(store, { dry }).length; } catch { r.errors++; } }
+    // 1d. contradictions sessions reported (learning-pending.js): the notes are marked for verification
+    if (!dry) { try { takeContradictions(store); } catch { r.errors++; } }
     // 2. Re-hashing is free, even when the model budget is exhausted.
     const notes = (fns.refresh || refresh)(store, store.list(), { narrow: true, persist: !dry }); // --dry writes nothing, statuses included
     if (afford()) {

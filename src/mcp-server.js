@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Store, findRepoRoot } from './store.js';
-import { orient, lookup, drilldown, find, createNote, feedback, snippetsOn, KINDS } from './ops.js';
+import { orient, lookup, drilldown, find, createNote, feedback, snippetsOn, KINDS, agentSession, holdoutTurn } from './ops.js';
 import { listBehaviors, behaviorsSummary, addBehavior } from './behavior.js';
 import { editBehavior, removeBehavior } from './behavior-workbench.js';
 import { ensureTelemetryScheduled, reportTelemetrySchedule } from './telemetry-schedule.js';
@@ -19,7 +19,7 @@ import { isDisabledRepo } from './repo-switch.js';
 import { warmupPending, warmupOffer, answerWarmup, startSessionWarmup, subagentHarness, WARMUP_CHOICES } from './repo-onboard.js';
 import { coveragePending, answerCoverage } from './coverage.js';
 import { queueDir, buildRunning, buildRequested, nextRequest, answerRequest, requestText } from './session-llm.js';
-import { anyDesktopApp } from './app-host.js';
+import { anyDesktopApp, ancestorPids } from './app-host.js';
 
 // MCP-only installations need the same default OS schedule as CLI/hook users.
 try { reportTelemetrySchedule(ensureTelemetryScheduled({ rootDir: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..') })); }
@@ -52,12 +52,18 @@ const off = process.env.THINKER_MCP === 'off' || switchedOff;
 const noLearn = /^(1|true|yes)$/i.test(process.env.THINKER_NO_LEARN || '');
 // Every git repository has a cache: a machine-wide registration starts one (empty, growing from the
 // sessions) in the checkout the client runs in. Started outside one, the server binds late: to the
-// repository of the first call that names a directory in it (its `cwd`, or an absolute `file`).
-let store = null, setUp = false;
+// repository of each call that names a directory in it (its `cwd`, or an absolute `file`).
+let store = null, setUp = false, astReady = false;
 const late = !off && !repo;
+const stores = new Map();
+function storeFor(r) {
+  let s = stores.get(r);
+  if (!s) { s = new Store(r); s.init(); stores.set(r, s); }
+  return s;
+}
 async function bind(r) {
-  repo = r; store = new Store(r); setUp = true;
-  store.init(); await initAst(); // tree-sitter grammars when installed (`thinker ast install`); the regex otherwise
+  repo = r; store = storeFor(r); setUp = true;
+  if (!astReady) { astReady = true; await initAst(); } // tree-sitter grammars when installed (`thinker ast install`); the regex otherwise
 }
 if (!off && repo) await bind(repo);
 
@@ -65,24 +71,27 @@ const server = new McpServer({ name: 'thinker', version: '0.1.0' }, switchedOff 
   instructions: 'thinker is switched off for this repository and serves nothing here.',
 } : off ? {} : setUp ? {
   // Composed under the host's cap, never concatenated here: see cache-guidance.js:INSTRUCTIONS_LIMIT.
-  instructions: cacheInstructions({ repo, disabled: disabledTools(store.config()), learn: !noLearn }),
+  instructions: cacheInstructions({ repo, disabled: disabledTools(store.config()) }),
 } : {
-  instructions: cacheInstructions({ intro: `thinker is a cache of notes per git repository from earlier sessions and humans. It was started outside one (${process.cwd()}): on the first call pass cwd, the absolute path of your working directory, and the tools bind to that repository.`, disabled: disabledTools({}), learn: !noLearn }),
+  instructions: cacheInstructions({ intro: `thinker is a cache of notes per git repository from earlier sessions and humans. It was started outside one (${process.cwd()}): on the first call pass cwd, the absolute path of your working directory, and the tools bind to that repository.`, disabled: disabledTools({}) }),
 });
 
-// Bound late (see `late`): a call must name the repository first. Until one does, every tool answers
-// with what it needs; the call that binds says so above its answer. Calls are handled concurrently,
-// so one that arrives while the bind is under way waits for it rather than finding a half-made store.
+// Bound late (see `late`): a call must name the repository first, and a later call from another
+// window with its own `cwd` (or absolute `file`) switches the active repository to that checkout.
+// Until one does, every tool answers with what it needs; the call that binds says so above its answer.
+// Calls are handled concurrently, so one that arrives while the bind is under way waits for it.
 let binding = null;
 async function ensureBound(args) {
   if (binding) await binding;
+  const r = !pinned ? (checkoutOf(args?.cwd) || checkoutOf(args?.file)) : null;
+  if (r && r !== repo) {
+    if (isDisabledRepo(r)) return { reply: text('thinker is switched off for that repository and serves nothing there.') };
+    binding = bind(r); await binding;
+    registerWarmupTool(); registerCoverageTool(); registerQueueTools();
+    return { bound: true };
+  }
   if (store) return { bound: false };
-  const r = checkoutOf(args?.cwd) || checkoutOf(args?.file);
-  if (!r) return { reply: text('thinker is not bound to a repository yet: it was started outside a git checkout. Call again with cwd, the absolute path of your working directory.') };
-  if (isDisabledRepo(r)) return { reply: text('thinker is switched off for that repository and serves nothing there.') };
-  binding = bind(r); await binding;
-  registerWarmupTool(); registerCoverageTool(); registerQueueTools();
-  return { bound: true };
+  return { reply: text('thinker is not bound to a repository yet: it was started outside a git checkout. Call again with cwd, the absolute path of your working directory.') };
 }
 
 const text = s => ({ content: [{ type: 'text', text: s }] });
@@ -117,17 +126,36 @@ async function askWarmup() {
   } catch (e) { return { error: e.message }; }
 }
 
+// The session and turn the agent's own orient and lookup belong to, from the link the prompt hook left
+// (ops.js:agentSession): logged with the call, and a held-out turn is served nothing here either. {} where no
+// hook ran (an MCP-only client, a benchmark arm with the hooks off): the call is served and logged as before.
+let ancestors;
+function agentTurn() {
+  try {
+    ancestors ||= ancestorPids(process.ppid);
+    const session = agentSession(store, ancestors); if (!session) return {};
+    const { turn, holdout } = holdoutTurn(store, session);
+    return { session, turn: turn || undefined, holdout };
+  } catch { return {}; }
+}
+
 function registerTools() {
   // a tool that is switched off is not offered at all: nothing can call it and fail (bound late, the
   // repository's own choice of code tools is not known yet: the defaults apply)
   const off = disabledTools(store ? store.config() : {});
   if (noLearn) for (const t of ['remember', 'feedback']) off.add(t);
   const cwd = { cwd: z.string().optional().describe('Absolute path of your working directory, once: the server binds to its repository (it was started outside one)') };
-  const retrieval = (name, spec, handler) => off.has(name) ? undefined : server.registerTool(name, late ? { ...spec, inputSchema: { ...spec.inputSchema, ...cwd } } : spec, async (args, extra) => {
-    const { reply, bound } = await ensureBound(args); if (reply) return reply;
-    const r = await handler(args, extra);
-    if (bound) r.content.unshift({ type: 'text', text: `thinker is bound to the repository at ${repo} from here on.` });
-    return r;
+  let active = Promise.resolve();
+  const retrieval = (name, spec, handler) => off.has(name) ? undefined : server.registerTool(name, late ? { ...spec, inputSchema: { ...spec.inputSchema, ...cwd } } : spec, (args, extra) => {
+    const run = async () => {
+      const { reply, bound } = await ensureBound(args); if (reply) return reply;
+      const r = await handler(args, extra);
+      if (bound) r.content.unshift({ type: 'text', text: `thinker is bound to the repository at ${repo} from here on.` });
+      return r;
+    };
+    const next = active.then(run, run);
+    active = next.catch(() => {});
+    return next;
   });
 
   retrieval('orient', {
@@ -146,10 +174,10 @@ function registerTools() {
     let offer = ''; try { offer = warmupOffer(store, { client: subagentHarness(clientName()) || clientName() }); } catch {}
     const reply = s => text(offer ? `${offer}\n\n${s}` : s);
     // the agent named a budget: let it decide how many notes are served, not the two-note default of the hooks
-    const r = await orient(store, { task, file, client: 'mcp', budget: budget || 1000, snippets: snippetsOn(store), ...(budget ? { maxNotes: 5, relFloor: 0.7 } : {}) });
+    const r = await orient(store, { task, file, client: 'mcp', ...agentTurn(), budget: budget || 1000, snippets: snippetsOn(store), ...(budget ? { maxNotes: 5, relFloor: 0.7 } : {}) });
     // no text search over the whole task on a miss: a sentence's words list unrelated code (mitmproxy, 2026-10-07:
     // ValueEditor.tsx and SaveHar for a binary-detection fix) that the agent then opens
-    if (!r.included.length) return reply(`${emptyCache() || `No cached notes match this task (${store.list().length} notes in cache). `}Work from the code${noLearn ? '' : ', then call remember with what you learn'}.`);
+    if (!r.included.length) return reply(`${emptyCache() || `No cached notes match this task (${store.list().length} notes in cache). `}Work from the code.`);
     const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n')}` : '';
     const notes = `Cached knowledge for this task (${r.included.length} notes, ~${r.tokens} tokens):\n\n${r.text}${more}`;
     return reply(notes);
@@ -165,7 +193,7 @@ function registerTools() {
       maxNotes: z.number().int().min(1).max(10).optional().describe('Default 3'),
     },
   }, async ({ query, kind, budget, maxNotes }) => {
-    const r = await lookup(store, { query: query || '', kind, client: 'mcp', budget: budget || 2500, maxNotes: maxNotes || 3, snippets: snippetsOn(store) });
+    const r = await lookup(store, { query: query || '', kind, client: 'mcp', ...agentTurn(), budget: budget || 2500, maxNotes: maxNotes || 3, snippets: snippetsOn(store) });
     if (kind === 'behavior' && !String(query || '').trim()) {
       const rows = listBehaviors(store);
       if (!rows.length) return text('No desired behaviors are written down for this repository yet (they come from the design documents checked in; when the person asks for one, the behavior tool adds it).');
@@ -286,8 +314,12 @@ function registerCoverageTool() {
     inputSchema: {
       choice: z.string().describe('The directories the user chose, comma-separated, exactly as listed; or none; or never'),
       asked: z.enum(['picker', 'chat']).optional().describe('Where the user answered: your question tool (picker) or chat'),
+      ...(late ? { cwd: z.string().optional().describe('Absolute path of the repository') } : {}),
     },
-  }, async ({ choice, asked }) => text(await answerCoverage(store, String(choice), { client: clientName(), via: asked === 'chat' ? 'text' : 'picker' })));
+  }, async ({ choice, asked, cwd }) => {
+    const { reply } = await ensureBound({ cwd }); if (reply) return reply;
+    return text(await answerCoverage(store, String(choice), { client: clientName(), via: asked === 'chat' ? 'text' : 'picker' }));
+  });
 }
 
 let warmupTool;
@@ -303,8 +335,10 @@ function registerWarmupTool() {
     inputSchema: {
       choice: z.string().optional().describe('The user\'s answer: warm, no or never'),
       asked: z.enum(['picker', 'chat']).optional().describe('Where the user answered: your question tool (picker) or chat'),
+      ...(late ? { cwd: z.string().optional().describe('Absolute path of the repository') } : {}),
     },
-  }, async ({ choice, asked }) => {
+  }, async ({ choice, asked, cwd }) => {
+    const { reply } = await ensureBound({ cwd }); if (reply) return reply;
     if (choice) return text(await answerWarmup(store, String(choice).toLowerCase(), { client: clientName(), via: asked === 'picker' ? 'picker' : 'text' }));
     const inChat = `Ask the user in chat with these three numbered choices: ${WARMUP_CHOICES.map((c, i) => `${i + 1}. "${c.label}": ${c.description}`).join('; ')}. Then call warmup again with choice warm, no or never.`;
     if (!server.server.getClientCapabilities()?.elicitation) return text(`This client cannot show thinker's picker. ${inChat}`);
@@ -321,7 +355,7 @@ function registerWarmupTool() {
 // `cwd` names: Cursor runs one server for every window (2026-10-16: started the day before in the home
 // directory, bound to another repository), so the bound repository is only the fallback.
 let queueTools, inApp;
-const queueStore = cwd => { const r = checkoutOf(cwd); return r ? (r === repo ? store : new Store(r)) : store; };
+const queueStore = cwd => { const r = checkoutOf(cwd); return r ? storeFor(r) : store; };
 function registerQueueTools() {
   if (queueTools) return;
   inApp ??= anyDesktopApp();

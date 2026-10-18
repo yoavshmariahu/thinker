@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store } from '../src/store.js';
 import { createNote } from '../src/ops.js';
-import { parseClients, installClient, uninstallClients, uninstallWiring, connectFromCheckouts, pruneInstalls, prunedLines, compareVersions, trustCodex, trustCodexUser, codexHookHash, toolFiles, hookClient, stopOutput, refreshWiring, inferWiring, stripRepoWiring, connectDetected, markConnected, enableCodexSubagents, codexSubagentsOn } from '../src/clients.js';
+import { parseClients, installClient, uninstallClients, uninstallWiring, connectFromCheckouts, pruneInstalls, prunedLines, compareVersions, trustCodex, trustCodexUser, codexHookHash, toolFiles, hookClient, stopOutput, refreshWiring, inferWiring, stripRepoWiring, connectDetected, markConnected, enableCodexSubagents, codexSubagentsOn, staleRepoInstructions } from '../src/clients.js';
 import { installGitHooks, mainCheckout } from '../src/git-hooks.js';
 import { knownRepos } from '../src/commands/setup.js';
 
@@ -850,4 +850,23 @@ test('repoRunsHooks: hooks of a copy that is gone are not yielded to', async () 
   wire(path.join(repo, 'gone-worktree', 'src', 'cli.js'));
   assert.equal(repoRunsHooks(repo, 'cursor'), false);
   fs.rmSync(repo, { recursive: true, force: true });
+});
+
+test('a checkout\'s own CLAUDE.local.md workflow block goes once the user\'s CLAUDE.md carries one; a tracked one stays', () => {
+  const dir = repo(), claude = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-claude-'));
+  const prev = process.env.CLAUDE_CONFIG_DIR; process.env.CLAUDE_CONFIG_DIR = claude;
+  try {
+    const block = text => `<!-- thinker:workflow:start -->\n${text}\n<!-- thinker:workflow:end -->\n\n`;
+    const local = path.join(dir, 'CLAUDE.local.md');
+    fs.writeFileSync(local, block('- Learning is disabled here') + 'my own rule\n');
+    assert.deepEqual(staleRepoInstructions(dir), [], 'nothing machine-wide yet: the checkout\'s block is the only one');
+    fs.writeFileSync(path.join(claude, 'CLAUDE.md'), block('## Using Thinker while working'));
+    assert.deepEqual(staleRepoInstructions(dir), [local]);
+    assert.ok(stripRepoWiring(dir, { cli: CLI, clients: ['claude'] }).includes('CLAUDE.local.md'));
+    assert.equal(fs.readFileSync(local, 'utf8'), 'my own rule\n', 'the person\'s own lines stay');
+    assert.deepEqual(staleRepoInstructions(dir), []);
+    fs.writeFileSync(local, block('old'));
+    execFileSync('git', ['add', '-f', 'CLAUDE.local.md'], { cwd: dir });
+    assert.deepEqual(staleRepoInstructions(dir), [], 'a tracked file is the team\'s');
+  } finally { if (prev === undefined) delete process.env.CLAUDE_CONFIG_DIR; else process.env.CLAUDE_CONFIG_DIR = prev; }
 });

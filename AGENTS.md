@@ -1102,7 +1102,7 @@ from 7 to 11 of 15, and an input-class checklist to 12 of 15.
 | Claude Code, and the Code tab of the Claude desktop app | added to each prompt | yes | yes | `~/.claude/settings.json`, `~/.claude.json` |
 | Codex CLI and the Codex desktop app | added to each prompt | yes | yes | `~/.codex/hooks.json`, `~/.codex/config.toml` |
 | Gemini CLI | added to each prompt | yes | yes | `~/.gemini/settings.json` |
-| Cursor | through the `orient` tool, and with the first tool result | yes | yes (approved by setup) | `~/.cursor/hooks.json`, `~/.cursor/mcp.json`, and `.cursor/rules/thinker.mdc` in the checkout |
+| Cursor | added to each prompt (`additional_context`), with first-tool fallback for `agent -p` and the `orient` tool | yes | yes (approved by setup) | `~/.cursor/hooks.json`, `~/.cursor/mcp.json`, and `.cursor/rules/thinker.mdc` in the checkout |
 | Pi, Windsurf, Copilot CLI, OpenCode | see `docs/agent-integrations.md` | | | the checkout alone (an extension or rule file; nothing machine-wide), by `thinker setup` there |
 
 - The desktop apps run the same engines as the CLIs and read the same user
@@ -1146,9 +1146,10 @@ from 7 to 11 of 15, and an input-class checklist to 12 of 15.
   settings file sees nothing); `thinker rewire [--here] [--dry]` is the command
   by hand. Before 2026-10-04 nothing did this, and this repository ran without
   `SessionEnd` and `PostToolUse` hooks for weeks after both were added.
-- Cursor's prompt hook can allow or block a prompt but cannot add context, so
-  thinker computes the notes at prompt time and hands them over with the first
-  tool result. An always-applied rule also tells the agent to call `orient`.
+- Cursor's `beforeSubmitPrompt` hook returns `{"continue": true, "additional_context": "..."}`
+  at prompt time (since 2026-10-15); in headless modes (`agent -p`) where `beforeSubmitPrompt`
+  does not fire, `postToolUse` orients from the transcript on the first tool call. An
+  always-applied rule also tells the agent to call `orient`.
 - Codex reads a project's `.codex/` only once the project is trusted, runs a
   hook only once it is reviewed, and asks before each MCP tool call. `setup`
   takes care of all three: the MCP server is registered with

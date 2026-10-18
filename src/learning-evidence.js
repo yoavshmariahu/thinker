@@ -4,8 +4,8 @@ import { condense, exploreCount, sessionStakes, touchedFiles } from './distill.j
 
 export const EVIDENCE_CHARS = 12000;
 export const AUDIT_RATE = 0.05;
-// what the hooks inject (notes, and the code a request names) is not what the person or the agent said
-const clean = text => String(text || '').replace(/<(thinker-cache|thinker-code)>[\s\S]*?<\/\1>/g, '');
+// what the hooks inject (notes, learning offers, and the code a request names) is not what the person or the agent said
+const clean = text => String(text || '').replace(/<(thinker-cache|thinker-code|thinker-learning|thinker-new-repository|thinker-coverage-suggestion|system[-_]reminder)>[\s\S]*?<\/\1>/g, '');
 const significant = e => sessionStakes([{ t: 'prompt', text: '' }, e]).any;
 
 export function learningPlan(events, { served = [], repo = '', key = '', auditRate = AUDIT_RATE, minExplore = 8 } = {}) {

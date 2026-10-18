@@ -9,7 +9,8 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
 import { rank } from '../src/rank.js';
-import { createNote, orient, lookup, lateNotes, rememberTask, outcome, holdoutDecision, beginTurn, holdoutTurn, holdoutRate, archiveNotes, archiveReason, ARCHIVE_DEFAULTS } from '../src/ops.js';
+import { createNote, orient, lookup, lateNotes, rememberTask, outcome, holdoutDecision, beginTurn, holdoutTurn, holdoutRate, archiveNotes, archiveReason, ARCHIVE_DEFAULTS, linkAgentSession, agentSession, isHarnessEvent } from '../src/ops.js';
+import { ancestorPids } from '../src/app-host.js';
 import { maintain, pickStale, DEFAULTS, MAINTENANCE_INTERVAL_MS } from '../src/maintain.js';
 import { holdoutSummary, renderHoldout, summarize, renderUsage, weeklyNotice, weeklyLine, isoWeek } from '../src/usage.js';
 import { parseTranscript } from '../src/transcripts.js';
@@ -75,6 +76,41 @@ test('a held-out orient serves nothing, marks nothing served, and logs what it w
   assert.equal(served.included.length, 1);
   assert.equal(logLines(store).filter(l => l.op === 'orient').pop().turn, 1);
 }));
+
+test('a held-out lookup returns nothing and logs what it withheld with the session and turn', () => withEnv({ THINKER_LOG: 'local', THINKER_HOLDOUT: undefined, THINKER_NO_BG_VERIFY: '1' }, async () => {
+  const store = new Store(gitRepo()).init();
+  createNote(store, { title: 'fetchRows reads the rows table', kind: 'callpath', answers: ['how are rows fetched'], body: 'src/a.js:fetchRows reads the rows table and returns them', deps: [{ path: 'src/a.js', symbol: 'fetchRows' }] });
+  const n = store.list()[0];
+  const held = await lookup(store, { query: n.id, session: 's1', turn: 2, holdout: true, client: 'mcp' });
+  assert.equal(held.text, ''); assert.equal(held.included.length, 0); assert.deepEqual(held.withheld.map(x => x.id), [n.id]);
+  const line = logLines(store).find(l => l.op === 'lookup');
+  assert.equal(line.session, 's1'); assert.equal(line.turn, 2); assert.equal(line.holdout, true); assert.deepEqual(line.withheld, [n.id]);
+  const served = await lookup(store, { query: n.id, session: 's1', turn: 3, client: 'mcp' });
+  assert.equal(served.included.length, 1);
+  assert.equal(logLines(store).filter(l => l.op === 'lookup').pop().turn, 3);
+}));
+
+test('the MCP server finds the session through the agent pid the prompt hook linked, nearest ancestor first, and not after a day', () => {
+  const store = new Store(gitRepo()).init();
+  // hook: node <- claude(500) <- app(10); server: mcp-server <- launcher(700) <- claude(500) <- app(10)
+  linkAgentSession(store, 'sess-a', [500, 10]);
+  linkAgentSession(store, 'sess-b', [900, 10]);   // another session of the same app writes the shared ancestor last
+  assert.equal(agentSession(store, [700, 500, 10]), 'sess-a', 'the agent process is reached before the app');
+  assert.equal(agentSession(store, [800, 801]), null, 'a server no hook linked (an MCP-only client) has no session');
+  const later = Date.now() + 25 * 3600_000;
+  assert.equal(agentSession(store, [700, 500], { now: later }), null, 'a link older than a day may be a reused pid');
+  const agents = path.join(store.dir, 'state', 'agents'), old = new Date(Date.now() - 49 * 3600_000);
+  for (const f of fs.readdirSync(agents)) fs.utimesSync(path.join(agents, f), old, old);
+  linkAgentSession(store, 'sess-c', [600]);
+  assert.deepEqual(fs.readdirSync(agents), ['600'], 'links older than two days are removed');
+  linkAgentSession(store, 'unknown', [1]); linkAgentSession(store, 'x', []);
+  assert.equal(agentSession(store, [1]), null);
+  // one ps, walked from the given pid
+  const ps = () => ' 700   500\n 500    10\n  10     1\n 900    10\n';
+  assert.deepEqual(ancestorPids(700, { execFn: ps }), [700, 500, 10]);
+  assert.deepEqual(ancestorPids(700, { max: 2, execFn: ps }), [700, 500]);
+  assert.deepEqual(ancestorPids(700, { execFn: () => { throw new Error('no ps'); } }), []);
+});
 
 test('the hooks of a held-out turn serve nothing, and every stop logs the session stats with the turn number', () => withEnv({ THINKER_LOG: 'local', THINKER_HOLDOUT: '1', THINKER_NO_BG_VERIFY: '1', THINKER_NO_LEARN: '1' }, async () => {
   const dir = gitRepo(); const store = new Store(dir).init();
@@ -334,4 +370,20 @@ test('once a week the stop hook tells the user what the notes saved over the las
   fs.rmSync(path.join(home, 'state'), { recursive: true, force: true });
   execFileSync('node', [CLI, 'hook', 'prompt', '--repo', dir], { input: JSON.stringify({ session_id: 'w2', prompt: 'hi' }), encoding: 'utf8', env: { ...env, THINKER_HOLDOUT: '1' } });
   assert.equal(execFileSync('node', [CLI, 'hook', 'stop', '--no-distill', '--repo', dir], { input: JSON.stringify({ session_id: 'w2' }), encoding: 'utf8', env }).trim(), '', 'a held-out turn shows nothing');
+}));
+
+test('events the harness delivers as prompts are no requests: the prompt hook ranks nothing for them', () => {
+  for (const p of ['<task-notification>\n<task-id>b1</task-id>', '  <agent-message from="a7">done', '<side-sessions-event>x', '<ci-monitor-event>x', '<system-reminder>x', '<local-command-stdout></local-command-stdout>', '<command-name>/clear</command-name>']) assert.ok(isHarnessEvent(p), p);
+  for (const p of ['fix the <task-notification> parser', 'merged', '', undefined, '<div> in the page breaks']) assert.ok(!isHarnessEvent(p), String(p));
+});
+
+test('the prompt hook opens a turn for a harness event but serves and logs no orient for it', () => withEnv({ THINKER_LOG: 'local', THINKER_HOLDOUT: '0', THINKER_NO_BG_VERIFY: '1', THINKER_NO_LEARN: '1' }, async () => {
+  const dir = gitRepo(); const store = new Store(dir).init();
+  for (const t of ['fetchRows reads the rows table', 'rows come from fetchRows', 'fetchRows and the rows table']) createNote(store, { title: t, kind: 'map', answers: ['where does fetchRows read rows'], body: 'src/a.js:fetchRows reads the rows table', deps: [{ path: 'src/a.js', symbol: 'fetchRows' }] });
+  const hook = prompt => execFileSync('node', [CLI, 'hook', 'prompt', '--client', 'claude'], { cwd: dir, env: { ...process.env, THINKER_TEST: '1' }, input: JSON.stringify({ session_id: 'ev', prompt, cwd: dir }) }).toString();
+  assert.equal(hook('<task-notification>\n<task-id>b1</task-id>\n<status>completed</status>'), '');
+  assert.equal(logLines(store).filter(l => l.op === 'orient').length, 0, 'nothing ranked or logged');
+  assert.deepEqual(holdoutTurn(store, 'ev'), { turn: 1, holdout: false }, 'the event still has its turn');
+  hook('where does fetchRows read the rows from');
+  assert.equal(logLines(store).filter(l => l.op === 'orient').pop().turn, 2);
 }));

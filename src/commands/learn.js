@@ -1,6 +1,6 @@
 import { projectFromFlags, includesPath, projectRecordKey } from '../project.js';
 import { learningPlan } from '../learning-evidence.js';
-import { deferLearning, safeLearningAssessments } from '../learning-pending.js';
+import { deferLearning, safeLearningAssessments, takeContradictions } from '../learning-pending.js';
 // The learning loop by hand and from the hooks: distilling sessions (distill, learn, record), one
 // maintenance run, verification, and mining merged pull
 // requests (mine-prs). The helpers take the dispatcher's context (cli.js) as their first argument.
@@ -21,6 +21,7 @@ import { githubSlug, hasBin, verifyAll } from './shared.js';
 import { understand, UNDERSTAND_DEFAULTS } from '../understand.js';
 import { areasConfig } from '../areas.js';
 import { enqueueJob, recentAppSession, runSessionWork } from '../session-work.js';
+import { isWorkerPrompt } from '../session-llm.js';
 
 async function learnCommand(ctx) {
   const { flags } = ctx;
@@ -195,11 +196,16 @@ export async function distillFile(ctx, file, { minExplore, dry, model, quiet, in
   }
   try { return await distillEventsToNotes(); } finally { if (incremental && !dry) fs.rmSync(lock, { force: true }); }
   async function distillEventsToNotes() {
+  const markSeen = () => { if (incremental && !batch && !dry) { fs.mkdirSync(stateDir, { recursive: true }); fs.writeFileSync(stateFile, JSON.stringify({ ...state, line: lineCount, at: new Date().toISOString() })); } };
+  if (events.some(e => e.t === 'prompt' && isWorkerPrompt(e.text))) { markSeen(); return; }
   const n = exploreCount(events);
-  if (n < minExplore && !(incremental && sessionStakes(events).any)) { if (!quiet) out(`only ${n} exploration calls since last distill (<${minExplore}); nothing to distill`); return; }
-  if (!events.some(e => e.t === 'say')) { if (!quiet) out('the session has no answer from the agent yet; nothing to distill'); return; }
-  // notes served in this session: named in the transcript, or recorded on the note when a hook served it
+  if (n < minExplore && !(incremental && sessionStakes(events).any)) { markSeen(); if (!quiet) out(`only ${n} exploration calls since last distill (<${minExplore}); nothing to distill`); return; }
+  if (!events.some(e => e.t === 'say')) { markSeen(); if (!quiet) out('the session has no answer from the agent yet; nothing to distill'); return; }
+  // notes served in this session: named in the transcript, in the hook-recorded trace (Cursor's native
+  // transcript omits tool outputs, including MCP orient/lookup replies), or recorded on the note when a hook served it
+  const trace = session ? traceFile(store.dir, session) : null;
   const ids = new Set(injectedIds(file, { fromLine }));
+  if (trace && trace !== file && fs.existsSync(trace)) for (const id of injectedIds(trace)) ids.add(id);
   if (session) for (const n of store.list()) if ((n.servedIn || []).includes(session)) ids.add(n.id);
   let served = [...ids].filter(id => !(incremental && (state.assessed || []).includes(id))).map(id => store.get(id)).filter(Boolean);
   // the skills the agent invoked are assessed like injected notes (skills.js): the card, with an excerpt of the file
@@ -235,7 +241,8 @@ export async function distillFile(ctx, file, { minExplore, dry, model, quiet, in
   const s = saveNotes(store, r.notes, { source, kinds });
   const assessments = safeLearningAssessments(store, r.assessments, served);
   const pending = deferLearning(store, assessments.deferred, { source, evidenceRef: path.resolve(file) });
-  if (pending.length && !quiet) out(`deferred ${pending.length} findings for investigation: ${path.join(stateDir, 'learning-pending')}`);
+  // the contradicted notes leave serving now and are verified first by the next maintenance
+  if (pending.length) { const t = takeContradictions(store); if (t.marked.length && !quiet) out(`${t.marked.length} contradicted note${t.marked.length === 1 ? '' : 's'} held back until maintenance verifies ${t.marked.length === 1 ? 'it' : 'them'}`); }
   // under the session's id, which is what servings are logged under: a transcript's file name is
   // that id only for Claude Code (Codex adds a date, a recorded trace a prefix, Gemini another suffix)
   // with the session's model, so the reading its confirmed notes saved can be priced (usage.js)

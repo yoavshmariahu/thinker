@@ -5,19 +5,20 @@ import { gitContext, tryImpact } from '../impact-journal.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
-import { MORE_NOTES_INTRO, CACHE_LEARNING_GUIDE, cacheBundleIntro, disabledTools } from '../cache-guidance.js';
+import { MORE_NOTES_INTRO, cacheBundleIntro, disabledTools } from '../cache-guidance.js';
 import { pruneInstalls, prunedLines, refreshWiring, stripRepoWiring, repoRunsHooks, normalizeHookEvent, hookClient, sessionOf, toolFiles, seenFiles, promptOutput, toolOutput, stopOutput, parkPending, takePending, orientedFile } from '../clients.js';
-import { parseTranscript } from '../distill.js';
+import { parseTranscript, batchDue } from '../distill.js';
 import { Store, findRepoRoot } from '../store.js';
 import { isDisabledRepo } from '../repo-switch.js';
 import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '../maintain.js';
-import { codeForRequest, orient, HOOK_BUDGET, servesNotes, rememberTask, outcome, looksLikeCorrection, lateNotes, onSightNotes, onSightConfig, completenessNudge, takeTurn, beginTurn, holdoutTurn, sessionIntro } from '../ops.js';
+import { codeForRequest, orient, HOOK_BUDGET, servesNotes, rememberTask, outcome, looksLikeCorrection, lateNotes, onSightNotes, onSightConfig, completenessNudge, takeTurn, beginTurn, holdoutTurn, sessionIntro, linkAgentSession, isHarnessEvent } from '../ops.js';
 import { recordEvent, traceFile, toolName, toolInput } from '../transcripts.js';
 import { turnNotice, weeklyNotice } from '../usage.js';
 import { setupRepo, warmupOffer } from '../repo-onboard.js';
 import { coverageOffer, recordAccess } from '../coverage.js';
-import { desktopApp, subagentHarness } from '../app-host.js';
+import { desktopApp, subagentHarness, ancestorPids } from '../app-host.js';
 import { enqueueJob, markAppSession, pendingJobs, startSessionWork } from '../session-work.js';
+import { isWorkerPrompt, isWorkerTool } from '../session-llm.js';
 import { ensureShellPath } from '../shell-path.js';
 
 async function hookCommand(ctx) {
@@ -63,6 +64,9 @@ async function hookCommand(ctx) {
   // installed hooks carry --record; THINKER_NO_LEARN=1 switches learning off without reinstalling them
   if (NO_LEARN) flags.record = false;
   if (pos[0] === 'prompt') {
+    // A background subagent spawned to work thinker's queue (session-llm.js:subagentPrompt) runs the host's
+    // hooks too: skip orienting, recording or starting another worker for it.
+    if (isWorkerPrompt(ev.prompt)) { if (client === 'cursor') out(promptOutput(client, '')); return; }
     // Cursor answers once, in JSON: {continue}, with the bundle as additional_context (clients.js:promptOutput)
     let said = '';
     await (async () => {
@@ -85,6 +89,9 @@ async function hookCommand(ctx) {
       // not help). A held-out turn gets neither the intro nor the notes (ops.js:beginTurn): the holdout
       // compares turns with thinker's help against turns without; the intro waits for a served turn.
       const { turn, holdout } = store.exists() ? beginTurn(store, session) : { turn: 0, holdout: false };
+      // the agent's process is among this hook's nearest ancestors: the MCP server finds the session (and so the
+      // turn and its holdout) through it (ops.js:agentSession)
+      if (store.exists()) linkAgentSession(store, session, ancestorPids());
       const introOk = store.exists() && !['windsurf', 'pi', 'copilot'].includes(client) && !holdout;
       const emit = text => { if (client === 'cursor') said = text; else if (client === 'copilot') parkPending(store.dir, session, text); else out(promptOutput(client, text)); };
       if (!store.exists() || client === 'windsurf') return;
@@ -92,7 +99,7 @@ async function hookCommand(ctx) {
       setupRepo(store, { client, cli, learn: !NO_LEARN && sessionLearning() });
       // queued learning of an app session (session-work.js): the runner starts and the agent is told to start
       // its subagent; the ancestry is walked only when jobs wait
-      const work = !NO_LEARN && pendingJobs(store).length && desktopApp(subagentHarness(client)) ? startSessionWork(store, { cli, harness: subagentHarness(client) }) : '';
+      const work = !isTestMode() && !NO_LEARN && pendingJobs(store).length && desktopApp(subagentHarness(client)) ? startSessionWork(store, { cli, harness: subagentHarness(client) }) : '';
       // a weekly suggestion of directories to cover (coverage.js), never on the turn of a warm-up offer
       const offer = [warmupOffer(store, { client }) || coverageOffer(store, { client }), work].filter(Boolean).join('\n\n');
       // Every git repository has a cache, started on first use and empty until it learns; the hooks serve
@@ -109,6 +116,9 @@ async function hookCommand(ctx) {
       if (!servesNotes(store)) {
         store.log({ op: 'orient', session: session === 'unknown' ? undefined : session, client, task: String(ev.prompt || '').slice(0, 200), served: [], empty: 'too-few-notes' });
         const code = codeFor([]); if (offer || code) emit([offer, code].filter(Boolean).join('\n\n')); return; }
+      // a harness event delivered as a prompt (a background task finished, a subagent reported) is no request:
+      // it opens its turn, so the turn costs stay apart, and is served and logged nothing (ops.js:isHarnessEvent)
+      if (isHarnessEvent(ev.prompt)) { if (offer) emit(offer); return; }
       // outcome signal: a correction-shaped follow-up counts against the notes served earlier in this session
       if (session !== 'unknown' && looksLikeCorrection(ev.prompt)) outcome(store, { session, turn: turn > 1 ? turn - 1 : undefined, positive: false, reason: 'correction prompt: ' + String(ev.prompt).slice(0, 80) });
       if (session !== 'unknown') rememberTask(store, session, ev.prompt);
@@ -118,13 +128,14 @@ async function hookCommand(ctx) {
       const intro = introOk ? sessionIntro(store, { session, client }) : '';
       const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}${n.status === 'stale' ? ' ⚠ STALE' : ''}  (id: ${n.id})`).join('\n')}` : '';
       const header = cacheBundleIntro({ stale: r.included.some(n => n.status === 'stale'), disabled: disabledTools(store.config()) });
-      const text = `<thinker-cache>\n${header}\n\n${r.text}${more}${!NO_LEARN && sessionLearning() && !['windsurf', 'pi', 'copilot'].includes(client) ? '\n\n' + CACHE_LEARNING_GUIDE : ''}\n</thinker-cache>`;
+      const text = `<thinker-cache>\n${header}\n\n${r.text}${more}\n</thinker-cache>`;
       emit([offer, intro, text, codeFor(r.included)].filter(Boolean).join('\n\n'));
     })();
     if (client === 'cursor') out(promptOutput(client, said));
   } else if (pos[0] === 'tool') {
     // After a tool call: the agent opened files; serve notes anchored to them, once each.
     if (!store.exists()) return;
+    if (isWorkerTool(ev.tool_name)) { try { fs.rmSync(traceFile(store.dir, session), { force: true }); } catch {} if (ev.hook_event_name === 'afterShellExecution') out('{}'); return; }
     // Cursor reports a shell command's output in afterShellExecution, not in postToolUse
     if (ev.hook_event_name === 'afterShellExecution') { if (flags.record) recordEvent(store.dir, session, { t: 'tool', name: 'Bash', input: { command: ev.command }, result: ev.output }); out('{}'); return; }
     if (flags.record && !(client === 'cursor' && toolName(ev.tool_name) === 'Bash')) { const name = toolName(ev.tool_name); recordEvent(store.dir, session, { t: 'tool', name, input: toolInput(name, ev.tool_input), result: ev.tool_response ?? ev.tool_output ?? ev.output }); }
@@ -149,7 +160,7 @@ async function hookCommand(ctx) {
       const claim = () => { try { fs.mkdirSync(path.dirname(turn), { recursive: true }); fs.writeFileSync(turn, '', { flag: 'wx' }); return true; } catch { return false; } };
       if (!p && !mcpCall && ev.transcript_path && fs.existsSync(ev.transcript_path) && servesNotes(store) && claim()) {
         const task = parseTranscript(ev.transcript_path).events.filter(e => e.t === 'prompt').pop()?.text;
-        if (task) { const { turn, holdout } = beginTurn(store, session); const r = await orient(store, { task, session, client: 'cursor', budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout, turn: turn || undefined }); if (r.included.length) p = `<thinker-cache>\nNotes about this repo from earlier sessions; their code dependencies were re-hashed just now.\n\n${r.text}\n</thinker-cache>`; }
+        if (task && !isWorkerPrompt(task)) { const { turn, holdout } = beginTurn(store, session); const r = await orient(store, { task, session, client: 'cursor', budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout, turn: turn || undefined }); if (r.included.length) p = `<thinker-cache>\nNotes about this repo from earlier sessions; their code dependencies were re-hashed just now.\n\n${r.text}\n</thinker-cache>`; }
       }
       if (p && !mcpCall) parts.push(p);
     }
@@ -169,6 +180,18 @@ async function hookCommand(ctx) {
     if (parts.length) out(toolOutput(client, parts.join('\n\n')));
   } else if (pos[0] === 'stop') {
     if (!store.exists()) return;
+    const workerSession = isWorkerPrompt(ev.prompt) || (() => {
+      for (const f of [ev.transcript_path, traceFile(store.dir, session)]) {
+        if (!f || !fs.existsSync(f)) continue;
+        try { if (parseTranscript(f).events.some(e => e.t === 'prompt' && isWorkerPrompt(e.text))) return true; } catch {}
+      }
+      return false;
+    })();
+    if (workerSession) {
+      try { fs.rmSync(traceFile(store.dir, session), { force: true }); } catch {}
+      if (client === 'cursor') out('{}');
+      return;
+    }
     // completeness nudge (once per session, never when already continuing from a stop hook)
     if (flags.nudge && !ev.stop_hook_active) {
       let changed = [];
@@ -198,20 +221,35 @@ async function hookCommand(ctx) {
       recordEvent(store.dir, session, { t: 'say', text: last });
       source = traceFile(store.dir, session);
     }
-    if (isTestMode() || flags['no-distill'] || NO_LEARN || !sessionLearning()) return;
+    // Explicit hook fixtures may inspect app jobs on disk while retaining test-mode isolation.
+    // Model work and background processes remain disabled below and in learnInBackground.
+    if ((isTestMode() && process.env.THINKER_HOOKS !== 'on') || flags['no-distill'] || NO_LEARN || !sessionLearning()) return;
     if (!source || !fs.existsSync(source)) return;
+    // One distill per session, not per turn: each call carries a fixed prompt, so at the end of a turn
+    // only a backlog near the trace limit is distilled (`--batch`). The session's end distills the
+    // rest; where the agent fires no end, the catch-up run takes sessions that have gone quiet.
+    const ending = /^session_?end$/i.test(ev.hook_event_name || '');
     // inside a desktop app no agent CLI runs: the distill waits for the app's own session (session-work.js)
     const app = desktopApp(subagentHarness(client));
-    if (app) { markAppSession(store, app); enqueueJob(store, `distill-${session}`, ['distill', source, '--incremental', '--quiet', '--session', session, '--repo', repo]); return; }
+    if (app) {
+      markAppSession(store, app);
+      const due = ending || (() => {
+        try {
+          const sf = path.join(store.dir, 'state', path.basename(source).replace(/\.jsonl?$/, '') + '.json');
+          const fromLine = fs.existsSync(sf) ? (JSON.parse(fs.readFileSync(sf, 'utf8')).line || 0) : 0;
+          return batchDue(parseTranscript(source, { fromLine }).events);
+        } catch { return false; }
+      })();
+      if (due) enqueueJob(store, `distill-${session}`, ['distill', source, '--incremental', '--quiet', '--session', session, '--repo', repo]);
+      if (!ending) learnInBackground(ctx, client, { maintain: false });
+      return;
+    }
+    if (isTestMode()) return;
     // Sessions are distilled locally through the agent's own login.
     // Distilling a session is a model call of its own (about 25k tokens); it draws on the same
     // daily token cap as maintenance, so a long day of work cannot run through the agent's usage
     const cap = withinDailyCap(store);
     if (!cap.ok) { store.log({ op: 'distill-skipped', reason: 'dailyTokens', spent: cap.spent, cap: cap.cap, session, client }); reportCapped(store, cap); return; }
-    // One distill per session, not per turn: each call carries a fixed prompt, so at the end of a turn
-    // only a backlog near the trace limit is distilled (`--batch`). The session's end distills the
-    // rest; where the agent fires no end, the catch-up run takes sessions that have gone quiet.
-    const ending = /^session_?end$/i.test(ev.hook_event_name || '');
     const child = spawn('node', [path.join(HERE, 'cli.js'), 'distill', source, '--incremental', '--quiet', '--session', session, '--repo', repo, ...(ending ? [] : ['--batch'])],
       { detached: true, stdio: 'ignore', env: { ...process.env, THINKER_LLM_PREFER: client } });
     child.unref();
