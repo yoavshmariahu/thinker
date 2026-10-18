@@ -1099,6 +1099,11 @@ export function holdoutDecision(store, session, turn) {
   const h = parseInt(createHash('sha1').update(`${session}#${turn}`).digest('hex').slice(0, 8), 16) / 0x100000000;
   return h < rate;
 }
+// Claude Code delivers some events of its own as prompts: a background task's notification, a subagent's
+// or another session's message, a CI or side-session event. On 2026-10-18 they were a share of this
+// repository's prompts, each ranked against the notes (never a hit) and counted a turn of the user's.
+const HARNESS_EVENT = /^\s*<(task-notification|agent-message|side-sessions-event|ci-monitor-event|system-reminder|local-command-(stdout|stderr|caveat)|command-name)\b/;
+export const isHarnessEvent = prompt => HARNESS_EVENT.test(String(prompt || ''));
 // The prompt hook opens the session's next turn: its number, and whether the hooks hold their notes back in it.
 export function beginTurn(store, session) {
   if (!session || session === 'unknown' || !store.exists()) return { turn: 0, holdout: false };

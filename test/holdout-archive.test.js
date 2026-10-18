@@ -9,7 +9,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
 import { rank } from '../src/rank.js';
-import { createNote, orient, lookup, lateNotes, rememberTask, outcome, holdoutDecision, beginTurn, holdoutTurn, holdoutRate, archiveNotes, archiveReason, ARCHIVE_DEFAULTS, linkAgentSession, agentSession } from '../src/ops.js';
+import { createNote, orient, lookup, lateNotes, rememberTask, outcome, holdoutDecision, beginTurn, holdoutTurn, holdoutRate, archiveNotes, archiveReason, ARCHIVE_DEFAULTS, linkAgentSession, agentSession, isHarnessEvent } from '../src/ops.js';
 import { ancestorPids } from '../src/app-host.js';
 import { maintain, pickStale, DEFAULTS, MAINTENANCE_INTERVAL_MS } from '../src/maintain.js';
 import { holdoutSummary, renderHoldout, summarize, renderUsage, weeklyNotice, weeklyLine, isoWeek } from '../src/usage.js';
@@ -370,4 +370,20 @@ test('once a week the stop hook tells the user what the notes saved over the las
   fs.rmSync(path.join(home, 'state'), { recursive: true, force: true });
   execFileSync('node', [CLI, 'hook', 'prompt', '--repo', dir], { input: JSON.stringify({ session_id: 'w2', prompt: 'hi' }), encoding: 'utf8', env: { ...env, THINKER_HOLDOUT: '1' } });
   assert.equal(execFileSync('node', [CLI, 'hook', 'stop', '--no-distill', '--repo', dir], { input: JSON.stringify({ session_id: 'w2' }), encoding: 'utf8', env }).trim(), '', 'a held-out turn shows nothing');
+}));
+
+test('events the harness delivers as prompts are no requests: the prompt hook ranks nothing for them', () => {
+  for (const p of ['<task-notification>\n<task-id>b1</task-id>', '  <agent-message from="a7">done', '<side-sessions-event>x', '<ci-monitor-event>x', '<system-reminder>x', '<local-command-stdout></local-command-stdout>', '<command-name>/clear</command-name>']) assert.ok(isHarnessEvent(p), p);
+  for (const p of ['fix the <task-notification> parser', 'merged', '', undefined, '<div> in the page breaks']) assert.ok(!isHarnessEvent(p), String(p));
+});
+
+test('the prompt hook opens a turn for a harness event but serves and logs no orient for it', () => withEnv({ THINKER_LOG: 'local', THINKER_HOLDOUT: '0', THINKER_NO_BG_VERIFY: '1', THINKER_NO_LEARN: '1' }, async () => {
+  const dir = gitRepo(); const store = new Store(dir).init();
+  for (const t of ['fetchRows reads the rows table', 'rows come from fetchRows', 'fetchRows and the rows table']) createNote(store, { title: t, kind: 'map', answers: ['where does fetchRows read rows'], body: 'src/a.js:fetchRows reads the rows table', deps: [{ path: 'src/a.js', symbol: 'fetchRows' }] });
+  const hook = prompt => execFileSync('node', [CLI, 'hook', 'prompt', '--client', 'claude'], { cwd: dir, env: { ...process.env, THINKER_TEST: '1' }, input: JSON.stringify({ session_id: 'ev', prompt, cwd: dir }) }).toString();
+  assert.equal(hook('<task-notification>\n<task-id>b1</task-id>\n<status>completed</status>'), '');
+  assert.equal(logLines(store).filter(l => l.op === 'orient').length, 0, 'nothing ranked or logged');
+  assert.deepEqual(holdoutTurn(store, 'ev'), { turn: 1, holdout: false }, 'the event still has its turn');
+  hook('where does fetchRows read the rows from');
+  assert.equal(logLines(store).filter(l => l.op === 'orient').pop().turn, 2);
 }));
