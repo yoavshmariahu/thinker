@@ -692,6 +692,44 @@ test('telemetry payload carries warm-up offers, the builds they led to, and whet
   }
 });
 
+test('the payload names the harnesses found and reports no supported agent as none', () => {
+  const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-repo-'));
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-home-'));
+  const h = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-harness-user-'));
+  const saved = { HOME: process.env.HOME, PATH: process.env.PATH, CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR, CODEX_HOME: process.env.CODEX_HOME };
+  process.env.HOME = h; process.env.PATH = ''; delete process.env.CLAUDE_CONFIG_DIR; delete process.env.CODEX_HOME;
+  try {
+    fs.mkdirSync(path.join(h, '.continue'), { recursive: true });
+    const store = new Store(tmpRepo).init();
+    const payload = buildTelemetryPayload(store, { home: tmpHome });
+    assert.deepEqual(payload.clients.detected, [], 'no supported agent: nothing, not the setup fallback');
+    assert.deepEqual(Object.keys(payload.clients.harnesses), ['continue']);
+    assert.equal(payload.clients.harnesses.continue.supported, false);
+  } finally {
+    for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+    for (const d of [tmpRepo, tmpHome, h]) fs.rmSync(d, { recursive: true, force: true });
+  }
+});
+
+test('an applied update starts one report from the new copy, unless telemetry is off', async () => {
+  const { sendTelemetryAfterUpdate } = await import('../src/telemetry.js');
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-home-'));
+  const cli = path.join(tmpHome, 'cli.js'); fs.writeFileSync(cli, '');
+  const calls = [];
+  const spawnFn = (cmd, args, opts) => { calls.push({ cmd, args, opts }); return { unref() {} }; };
+  const env = { PATH: process.env.PATH, THINKER_TELEMETRY_URL: 'http://127.0.0.1:9/x' };
+  try {
+    assert.equal(sendTelemetryAfterUpdate({ cliPath: cli, home: tmpHome, spawnFn, env, testMode: false }), true);
+    assert.equal(calls.length, 1);
+    assert.deepEqual(calls[0].args, [cli, 'telemetry', '--background', '--force', '--event', 'update', '--quiet']);
+    assert.equal(calls[0].opts.env.THINKER_BACKGROUND_TELEMETRY, '1');
+    assert.equal(sendTelemetryAfterUpdate({ cliPath: cli, home: tmpHome, spawnFn, env: { ...env, THINKER_BACKGROUND_TELEMETRY: '1' }, testMode: false }), false, 'a background send does not start another');
+    fs.writeFileSync(path.join(tmpHome, 'install.json'), JSON.stringify({ telemetry: false }));
+    assert.equal(sendTelemetryAfterUpdate({ cliPath: cli, home: tmpHome, spawnFn, env, testMode: false }), false, 'telemetry off: nothing');
+    assert.equal(calls.length, 1);
+  } finally { fs.rmSync(tmpHome, { recursive: true, force: true }); }
+});
+
 test('telemetry says whether each installed agent runs thinker and how much it was used', async () => {
   const { wiringHealth } = await import('../src/telemetry.js');
   const { installClient } = await import('../src/clients.js');

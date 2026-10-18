@@ -9,7 +9,7 @@ import { initAst, astDirs, GRAMMAR_NAMES } from '../ast.js';
 import { parseClients, uninstallClients, uninstallWiring, refreshWiring, connectFromCheckouts, connectDetected } from '../clients.js';
 import { uninstallGitHooks } from '../git-hooks.js';
 import { runSetup, stepConnectClis } from '../setup.js';
-import { unscheduleTelemetry, sendUninstallFeedback, sendTelemetry } from '../telemetry.js';
+import { unscheduleTelemetry, sendUninstallFeedback, sendTelemetry, sendTelemetryAfterUpdate } from '../telemetry.js';
 import readlinePromises from 'node:readline/promises';
 import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, unscheduleDaily, refreshSchedule, isScheduled, getLaunchAgentPath } from '../update.js';
 import { githubSlug } from './shared.js';
@@ -267,6 +267,7 @@ async function updateCommand(ctx) {
         if (res.updated) {
           updated = true;
           const rewired = rewireAfterUpdate(newCliOf(install, home), { quiet: true });
+          sendTelemetryAfterUpdate({ cliPath: newCliOf(install, home), home });
           const noticeFile = path.join(home, 'state', 'update-notice.json');
           fs.writeFileSync(noticeFile, JSON.stringify({ from: res.from, to: res.to, version: res.version, rewired: rewired?.changed || 0, at: new Date().toISOString() }));
           store.log({ op: 'update', from: res.from, to: res.to, version: res.version, auto: true });
@@ -336,6 +337,7 @@ async function updateCommand(ctx) {
       out(`Updated thinker${branchInfo} to ${res.to ? res.to.slice(0, 7) : res.version} (v${res.version || 'latest'}).`);
     }
     rewireAfterUpdate(newCliOf(install, home), { quiet: !!flags.quiet });
+    sendTelemetryAfterUpdate({ cliPath: newCliOf(install, home), home });
     if (!flags.quiet) {
       if (!isScheduled(home)) {
         out('Tip: Run `thinker update --schedule` to check for updates every 4 hours in the background.');

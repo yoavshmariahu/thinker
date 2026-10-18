@@ -137,7 +137,7 @@ is shown with missing-cost counts, rather than claimed as a complete bill.
 
 The **Waitlist** dashboard lists submitted email addresses and first/latest signup
 times, deduplicated by the stored email string. Its table can be exported as CSV.
-The `event` field distinguishes `install`, `daily`, `uninstall` (one report per `thinker uninstall` run with telemetry on), `waitlist`, and missing types
+The `event` field distinguishes `install`, `daily`, `update` (one report right after an update is applied, from the new copy), `uninstall` (one report per `thinker uninstall` run with telemetry on), `waitlist`, and missing types
 (displayed as **Unknown**). An upload is a snapshot, not a distinct user or action.
 
 ### Command-line access
@@ -389,6 +389,13 @@ is not seen, and code that changed between the pass and the report also counts. 
 only, no note ids. The window is 30 days because the report's 24-hour usage window would
 miss contradictions that arrive days after the pass. Clients without the block show no
 value, not zero. Run `refresh` to add the dashboard, then `verify`.
+
+Updated clients include `raw_json.clients.harnesses`: every coding agent found on the machine, by
+name, with `supported` (thinker wires it: the eight agents in `clients.detected`) and `lastUsedDays`
+(days since its configuration or state last changed; null when only its binary was found). Names only,
+never paths or settings. `clients.detected` is empty when no supported agent is found (older clients
+sent `["claude"]`, the setup fallback). The **Harnesses** and **Devices without a supported agent** cards
+read this block; a device whose latest report predates it is left out of both.
 
 Updated clients include `raw_json.warmup`, 30-day counts of the warm-up offers the hooks
 made (`offers`; `offersToColdCaches` went to a cache that held notes from sessions but had
