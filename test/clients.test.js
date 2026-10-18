@@ -678,7 +678,6 @@ test('the home directory is not a checkout: .thinker/ there is thinker\'s own ho
   assert.equal(outp, '');
 });
 
-
 test('all command adapters keep stop hooks with learning disabled across refresh', () => {
   const stops = { claude: ['.claude/settings.local.json', 'Stop'], codex: ['.codex/hooks.json', 'Stop'], gemini: ['.gemini/settings.json', 'AfterAgent'], cursor: ['.cursor/hooks.json', 'stop'], windsurf: ['.windsurf/hooks.json', 'post_cascade_response'], copilot: ['.github/hooks/thinker.json', 'agentStop'] };
   const dir = repo();
@@ -702,7 +701,6 @@ test('stop output follows native notice contracts and never requests continuatio
   for (const client of ['cursor', 'copilot']) assert.equal(stopOutput(client, 'cache hit'), '');
   for (const client of parseClients('all')) assert.equal(stopOutput(client, ''), '');
 });
-
 
 test('CLI retrieval attributed to a Windsurf trajectory produces one visible stop notice', () => {
   const dir = repo();
@@ -874,4 +872,24 @@ test('a checkout\'s own CLAUDE.local.md workflow block goes once the user\'s CLA
     execFileSync('git', ['add', '-f', 'CLAUDE.local.md'], { cwd: dir });
     assert.deepEqual(staleRepoInstructions(dir), [], 'a tracked file is the team\'s');
   } finally { if (prev === undefined) delete process.env.CLAUDE_CONFIG_DIR; else process.env.CLAUDE_CONFIG_DIR = prev; }
+});
+
+test('Codex still injects and emits a stop notice when AGENTS instructions mention queue tools', () => {
+  const dir = repo(), session_id = 'codex-worker-docs';
+  const prompt = `${PROMPT}; explain warmup_next and warmup_answer`;
+  const output = hook(dir, 'prompt', 'codex', { session_id, prompt, cwd: dir }, ['--record']);
+  assert.match(output, /<thinker-cache>/);
+  const transcript = path.join(dir, 'codex.jsonl');
+  const message = (role, text) => ({ type: 'response_item', payload: { type: 'message', role, content: [{ type: role === 'user' ? 'input_text' : 'output_text', text }] } });
+  fs.writeFileSync(transcript, [
+    message('user', '# AGENTS.md instructions\nBackground workers use warmup_next and warmup_answer.'),
+    message('user', prompt),
+    message('assistant', 'Rate limiting lives in src/upload.py:RateLimiter.allow.'),
+  ].map(e => JSON.stringify(e)).join('\n') + '\n');
+  const stop = () => hook(dir, 'stop', 'codex', { session_id, cwd: dir, transcript_path: transcript }, ['--record', '--no-distill']);
+  const notice = JSON.parse(stop());
+  assert.match(notice.systemMessage, /🧠 thinker: 1 note this turn/);
+  assert.equal(notice.decision, undefined);
+  assert.ok(fs.existsSync(path.join(dir, '.thinker/state', `trace-${session_id}.jsonl`)), 'normal session trace is preserved');
+  assert.ok(!stop().includes('note this turn'), 'the notice is emitted once');
 });
