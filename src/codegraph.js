@@ -10,6 +10,10 @@ import { execFileSync } from 'node:child_process';
 import { repoFile, symbolBlock, locateSymbol, blockEnd, langOf } from './deps.js';
 import { definitions, astReady } from './ast.js';
 import { tokenize } from './rank.js';
+// A definition index kept on disk, when the checkout is configured for one (`symbolTable`): the same
+// answers without the scan. It outlines through this file, so the two import each other; neither
+// touches the other at module level. Off by default, and null from it means "ask git" as before.
+import { lookupNames, outlineFile } from './symbols.js';
 
 const FAMILY = {
   py: ['py', 'pyi'], pyi: ['py', 'pyi'],
@@ -217,6 +221,8 @@ export function findDefinitionsMany(repo, names, { limit = 10 } = {}) {
   const want = [...new Set((names || []).filter(n => /^[A-Za-z_$][\w$]*$/.test(n)))];
   const out = new Map(want.map(n => [n, []]));
   if (!want.length) return out;
+  const indexed = lookupNames(repo, want, { limit });  // the symbol table, when this checkout keeps one
+  if (indexed) return indexed;
   const raw = gitGrep(repo, ['-F', '-w', ...want.flatMap(n => ['-e', n]), '--', '.', ':(exclude).thinker', ':(exclude)*.md', ':(exclude)*.json']);
   if (!raw) return raw === null ? null : out;
   const pats = new Map(want.map(n => [n, defPatterns(n)]));
@@ -394,6 +400,8 @@ const ci = s => s.replace(/[A-Za-z]/g, c => `[${c.toLowerCase()}${c.toUpperCase(
 // reads the working tree, so it is exact), else from the graph, else by regex.
 export function outline(repo, file, { limit = 80 } = {}) {
   const abs = repoFile(repo, file); if (!abs) return null;
+  const indexed = outlineFile(repo, file, { limit });  // the symbol table, when this checkout keeps one
+  if (indexed) return indexed;
   let text; try { text = fs.readFileSync(abs, 'utf8'); } catch { return null; }
   if (astReady(file)) { const d = outlineText(text, file, { limit }); if (d) return d; }
   return outlineText(text, file, { limit });

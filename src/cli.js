@@ -21,6 +21,7 @@ import { commands as benchmarkCommands } from './commands/benchmark.js';
 import { commands as doctorCommands } from './commands/doctor.js';
 import { commands as warmupCommands } from './commands/warmup.js';
 import { commands as coverageCommands } from './commands/coverage.js';
+import { commands as symbolsCommands } from './commands/symbols.js';
 import { commands as switchCommands } from './commands/repo-switch.js';
 import { commands as externalCommands } from './commands/external.js';
 import { isDisabledRepo, OFF_MESSAGE } from './repo-switch.js';
@@ -110,6 +111,11 @@ const HELP = `thinker — knowledge cache for coding agents
                                  with this. A document is read once per content (--again: read all again); --dry
                                  lists the documents without a model call; --limit n documents per run (default 12)
   system md                      write .thinker/SYSTEM.md, the behaviors as a document in the repository
+  symbols [build|refresh] [--max-files n] [--build-ms n] [--quiet]
+                                 the definition index this checkout keeps under .thinker/state/symbols, so a
+                                 definition lookup reads a table instead of scanning the tree. Off until
+                                 symbolTable {"enabled": true} is in .thinker/config.json; build is also what a
+                                 lookup starts in the background when the table is missing or too far behind
   tools [enable|disable find|drilldown …]
                                  which code tools the server offers agents in this repository; both are off unless enabled,
                                  and a tool that is off is neither offered nor mentioned to the agent (the commands below still work)
@@ -240,10 +246,10 @@ function unknownFlags(c, given, help = HELP) {
 // Commands that read or maintain a cache, and so need a git checkout to keep it in. Not `setup`,
 // `mine-prs`, `import`, `add`, `record`, `distill`: those build one. Not `hook` (quiet outside a
 // checkout) and not `ui`, the machine-wide page.
-const CACHE_COMMANDS = ['tools', 'orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'session-work', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback', 'skills'];
+const CACHE_COMMANDS = ['tools', 'symbols', 'orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'session-work', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback', 'skills'];
 
 // One handler per command, in src/commands/; each gets the context below and nothing else of this file.
-const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...skillsCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...warmupCommands, ...coverageCommands, ...switchCommands, ...externalCommands };
+const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...skillsCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...warmupCommands, ...coverageCommands, ...symbolsCommands, ...switchCommands, ...externalCommands };
 // Commands that still answer in a repository thinker is switched off for (repo-switch.js): the machine-wide
 // ones, the ones about the install itself, and the switch. `hook` keeps quiet by itself.
 const OFF_COMMANDS = ['version', 'enable', 'disable', 'ui', 'warmup', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'stats', 'ast', 'ranker', 'hook', 'serve', undefined];

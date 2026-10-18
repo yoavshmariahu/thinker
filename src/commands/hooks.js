@@ -6,12 +6,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { MORE_NOTES_INTRO, cacheBundleIntro, disabledTools } from '../cache-guidance.js';
-import { pruneInstalls, prunedLines, refreshWiring, stripRepoWiring, repoRunsHooks, normalizeHookEvent, hookClient, sessionOf, toolFiles, seenFiles, promptOutput, toolOutput, stopOutput, parkPending, takePending, orientedFile } from '../clients.js';
+import { pruneInstalls, prunedLines, refreshWiring, stripRepoWiring, repoRunsHooks, normalizeHookEvent, hookClient, sessionOf, toolFiles, seenFiles, seenHits, searchedIdentifier, promptOutput, toolOutput, stopOutput, parkPending, takePending, orientedFile } from '../clients.js';
 import { parseTranscript, batchDue } from '../distill.js';
 import { Store, findRepoRoot } from '../store.js';
 import { isDisabledRepo } from '../repo-switch.js';
 import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '../maintain.js';
-import { codeForRequest, orient, HOOK_BUDGET, servesNotes, rememberTask, outcome, looksLikeCorrection, lateNotes, onSightNotes, onSightConfig, completenessNudge, takeTurn, beginTurn, holdoutTurn, sessionIntro, linkAgentSession, isHarnessEvent } from '../ops.js';
+import { codeForRequest, orient, HOOK_BUDGET, servesNotes, rememberTask, outcome, looksLikeCorrection, lateNotes, onSightNotes, onSightConfig, onSightOutlines, onSightOutlineConfig, completenessNudge, takeTurn, beginTurn, holdoutTurn, sessionIntro, linkAgentSession, isHarnessEvent } from '../ops.js';
 import { recordEvent, traceFile, toolName, toolInput } from '../transcripts.js';
 import { turnNotice, weeklyNotice } from '../usage.js';
 import { setupRepo, warmupOffer } from '../repo-onboard.js';
@@ -175,6 +175,12 @@ async function hookCommand(ctx) {
       if (onSightConfig(store).enabled) {
         const s = onSightNotes(store, { session, client, files: [...toolFiles(ev, repo), ...seenFiles(ev, repo)], turn: t.turn || undefined });
         if (s.text) parts.push(s.text);
+      }
+      // and the file's own outline, from the symbol table (ops.js:onSightOutlines; off until an experiment)
+      if (onSightOutlineConfig(store).enabled) {
+        const sighted = [...toolFiles(ev, repo).map(file => ({ file, lines: [] })), ...seenHits(ev, repo)];
+        const o = onSightOutlines(store, { session, client, sighted, identifier: searchedIdentifier(ev), turn: t.turn || undefined });
+        if (o.text) parts.push(o.text);
       }
     }
     if (parts.length) out(toolOutput(client, parts.join('\n\n')));

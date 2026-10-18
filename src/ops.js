@@ -567,6 +567,123 @@ function sightLocked(store, { session, client, rel, cfg, turn }) {
   return { included: pick, text };
 }
 
+// --- the outline of a file on sight -------------------------------------------
+// The second on-sight product: not a note but the file's own shape — what is defined in it and on which
+// lines — the first time the file comes into the agent's view. The table behind it is the one on disk
+// (symbols.js) when the checkout keeps one, so this costs a few milliseconds even on a large repository.
+// Why the shape of this: replaying real sessions (2026-10-17), the first read of a file lands a median of
+// one tool call after its path first appears in a tool result, and that appearance is nearly always
+// search output; whole-file reads followed by a one-function edit were the largest single shape of wasted
+// tokens. So the outline is served on a search hit, not only on an open, and it is centred on the lines
+// the search hit rather than truncated at the top of the file: on PostHog's test files and mlflow's
+// sqlalchemy_store.py the first 80 definitions stop long before the one the agent is after.
+// A new serving strategy: off until an experiment shows it helps (AGENTS.md); `onSightOutline:
+// { enabled: true }` in .thinker/config.json turns it on. Known gap: the biggest win would be a
+// PreToolUse hook that answers a `cat` of a large file before it runs, and no client of ours is wired
+// for PreToolUse yet (clients.js), so this is the PostToolUse half of it.
+export const ON_SIGHT_OUTLINE = { enabled: false, perSession: 8, maxLines: 40 };
+export function onSightOutlineConfig(store) {
+  const c = store?.config?.().onSightOutline;
+  return { ...ON_SIGHT_OUTLINE, ...(c === true ? { enabled: true } : c && typeof c === 'object' ? c : {}) };
+}
+// Definitions worth an outline: functions and classes, never imports, constants or fields. A JavaScript
+// `const` is a definition only when it holds a function or a class, which the parser does not say, so
+// the line it starts on decides.
+const OUTLINE_KINDS = new Set(['function', 'method', 'class', 'interface', 'struct', 'trait', 'impl', 'enum', 'module', 'namespace', 'mod']);
+const VALUE_KINDS = new Set(['const', 'var', 'static', 'field', 'property']);
+const OUTLINE_EXT = new Set(['py', 'pyi', 'js', 'jsx', 'mjs', 'cjs', 'ts', 'tsx', 'mts', 'cts', 'go', 'rs', 'rb', 'java', 'kt', 'cs', 'php', 'swift', 'scala', 'c', 'h', 'cc', 'cpp', 'hpp', 'ex', 'exs']);
+const isOutlinable = f => OUTLINE_EXT.has(String(f).split('.').pop().toLowerCase());
+
+// The definitions to show: the one enclosing each line the search hit (and the class it belongs to),
+// then their nearest neighbours, until the cap. With no hit line, the top-level definitions first.
+function pickOutline(defs, lines, max) {
+  const chosen = new Set();
+  const keep = i => { if (chosen.size < max) chosen.add(i); };
+  for (const ln of lines) {
+    let best = -1;
+    for (let i = 0; i < defs.length; i++) {
+      const d = defs[i];
+      if (d.line <= ln && (d.end || d.line) >= ln && (best < 0 || d.line > defs[best].line)) best = i;
+    }
+    if (best < 0) continue;
+    if (defs[best].parent) for (let i = 0; i < defs.length; i++) if (defs[i].name === defs[best].parent && !defs[i].parent) keep(i);
+    keep(best);
+  }
+  const rest = defs.map((_, i) => i).filter(i => !chosen.has(i));
+  if (lines.length) {
+    const dist = i => Math.min(...lines.map(l => Math.abs(defs[i].line - l)));
+    rest.sort((a, b) => dist(a) - dist(b) || defs[a].line - defs[b].line);
+  } else {
+    rest.sort((a, b) => (defs[a].parent ? 1 : 0) - (defs[b].parent ? 1 : 0) || defs[a].line - defs[b].line);
+  }
+  for (const i of rest) keep(i);
+  return [...chosen].sort((a, b) => defs[a].line - defs[b].line || a - b).map(i => defs[i]);
+}
+// One file's outline, or '' when it has no definitions worth showing.
+export function fileOutline(repo, file, { lines = [], maxLines = 40 } = {}) {
+  if (!isOutlinable(file)) return '';
+  const defs = outline(repo, file, { limit: 5000 });
+  if (!defs || !defs.length) return '';
+  let src = null;
+  try { const st = fs.statSync(repoFile(repo, file) || path.join(repo, file)); if (st.size <= 4 << 20) src = fs.readFileSync(path.join(repo, file), 'utf8').split('\n'); } catch {}
+  const valued = d => { const l = src?.[d.line - 1] || ''; return /=>|\bfunction\b|\bclass\b/.test(l); };
+  const shown = defs.filter(d => d.name && (OUTLINE_KINDS.has(d.kind) || (VALUE_KINDS.has(d.kind) && valued(d))));
+  if (!shown.length) return '';
+  const pick = pickOutline(shown, lines, maxLines);
+  const span = d => (d.end && d.end > d.line ? `L${d.line}-${d.end}` : `L${d.line}`);
+  const body = pick.map(d => `${span(d).padEnd(12)}${d.parent ? `${d.parent}.${d.name}` : d.name}`).join('\n');
+  const lineCount = src ? src.length - (src[src.length - 1] === '' ? 1 : 0) : 0;
+  const head = `${file} (${src ? `${lineCount} lines, ` : ''}${shown.length} definition${shown.length === 1 ? '' : 's'})`;
+  const more = shown.length > pick.length ? `\n+${shown.length - pick.length} more definitions in the file.` : '';
+  return `${head}\n${body}${more}`;
+}
+// sighted: [{file, lines}] — the files a tool named, the ones a search hit carrying the lines it hit.
+export function onSightOutlines(store, { session, client, sighted, identifier, turn = undefined, cfg = undefined }) {
+  const c = cfg || onSightOutlineConfig(store);
+  if (!c.enabled || !session) return { text: '', files: [] };
+  const seen = new Map();
+  for (const s of (sighted || [])) {
+    const f = normPath(store.repo, typeof s === 'string' ? s : s.file);
+    if (!f || !isOutlinable(f)) continue;
+    const lines = (typeof s === 'string' ? [] : s.lines || []).filter(n => Number.isFinite(n) && n > 0);
+    if (!seen.has(f)) seen.set(f, { file: f, lines: [] });
+    seen.get(f).lines.push(...lines);
+  }
+  if (!seen.size) return { text: '', files: [] };
+  // hits with lines first; a bare listing (`rg --files`, `ls -R`) must not spend the session's budget
+  const order = [...seen.values()].sort((a, b) => (b.lines.length ? 1 : 0) - (a.lines.length ? 1 : 0));
+  return locked(store, session, () => outlinesLocked(store, { session, client, order, identifier, turn, cfg: c }));
+}
+function outlinesLocked(store, { session, client, order, identifier, turn, cfg }) {
+  const { st, save } = sessionState(store, session);
+  st.outlines ||= []; st.outlineSeen ||= [];
+  const blocks = [], files = [];
+  for (const { file, lines } of order) {
+    if (st.outlines.length + blocks.length >= cfg.perSession) break;
+    if (st.outlineSeen.includes(file)) continue;
+    st.outlineSeen.push(file);
+    const text = fileOutline(store.repo, file, { lines, maxLines: cfg.maxLines });
+    if (text) { blocks.push(text); files.push(file); }
+  }
+  st.outlineSeen = st.outlineSeen.slice(-500);
+  // only when exactly one definition is known, as `find`'s guard line has it: a name with several is noise
+  let where = '';
+  if (identifier) {
+    const d = definitionOf(store.repo, identifier);
+    if (d.def) where = `\n\n${identifier} is defined at ${d.def.path}:L${d.def.line}${d.def.end && d.def.end > d.def.line ? `-${d.def.end}` : ''}.`;
+  }
+  if (!blocks.length && !where) { save(); return { text: '', files: [] }; }
+  st.outlines.push(...files);
+  save();
+  const intro = blocks.length
+    ? 'What is defined where in the files that just came into view, from thinker\'s symbol table. Go to the lines you need instead of reading the file whole.'
+    : 'From thinker\'s symbol table.';
+  const text = `<thinker-outline>\n${intro}\n\n${blocks.join('\n\n')}${where}\n</thinker-outline>`;
+  // a file-keyed serving, as the notes are, with its own `on` so a replay counts it apart from them
+  store.log({ op: 'late', on: 'outline', session, turn, client: client || 'cli', files, served: [], defined: identifier && where ? identifier : undefined, ...servedFields(store, [], text) });
+  return { text, files };
+}
+
 // --- completeness nudge -------------------------------------------------------
 // At the end of a session that edited files: rule notes on the edited files that were never served.
 export function completenessNudge(store, { session, changed }) {
