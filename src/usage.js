@@ -100,8 +100,9 @@ export function turnFooterMarkdown(repo, notes) {
   const hits = unique.length;
   const noun = `${hits} ${hits === 1 ? 'note' : 'notes'} this turn`;
   const detail = tokens ? `*est. savings: ~${formatTokens(tokens)} tokens*` : '';
-  const titles = unique.slice(0, 2).map(n => String(n.title || n.id).replace(/`/g, '')).join(', ') + (unique.length > 2 ? ` (+${unique.length - 2} more)` : '');
-  return `---\n🧠 **thinker** · ${noun}${detail ? ` · ${detail}` : ''}${titles ? ` · ${titles}` : ''}`;
+  const titles = unique.slice(0, 2).map(n => String(n.title || n.id).replace(/[`|]/g, '')).join(', ') + (unique.length > 2 ? ` (+${unique.length - 2} more)` : '');
+  const head = `🧠 **thinker** · ${noun}${detail ? ` · ${detail}` : ''}`;
+  return titles ? `| ${head} |\n| :--- |\n| ${titles} |` : `| ${head} |\n| :--- |`;
 }
 
 

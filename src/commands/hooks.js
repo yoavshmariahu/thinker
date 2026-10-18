@@ -61,11 +61,11 @@ async function hookCommand(ctx) {
   if (!store.exists()) store.init();
   const session = sessionOf(ev);
   // Cursor's stop hook has no user-facing message field (clients.js:stopOutput); when notes are served in
-  // Cursor, ask the agent to end its reply with a horizontal divider and styled cache-hit footer.
+  // Cursor, ask the agent to end its reply with a Markdown table card box.
   const cursorFootnote = notes => {
     if (client !== 'cursor' || !noticeOn(store)) return '';
     const footer = turnFooterMarkdown(store.repo, notes);
-    return footer ? `\n\nEnd your reply to the user with these exact two lines at the very bottom (do not wrap them in a code block):\n${footer}` : '';
+    return footer ? `\n\nEnd your reply to the user with this exact Markdown table at the very bottom (do not wrap it in a code block):\n${footer}` : '';
   };
   // Do not combine unrelated sessions from unsupported/older hook payloads.
   if (['pi', 'windsurf', 'copilot', 'opencode'].includes(client) && session === 'unknown') return;
