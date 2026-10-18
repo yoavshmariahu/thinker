@@ -96,6 +96,61 @@ The report's no-new-note/no-merge counts help identify low-yield runs, though th
 may still assess existing notes. Keep quality and downstream task correctness in the
 comparison, not just note count.
 
+## What the hooks serve, and the symbol table behind it
+
+Besides the notes, the post-tool hook can hand the agent two things about the
+code it is looking at. Both are new serving strategies, so both are **off until
+an experiment shows they help**, and both are turned on per repository in
+`.thinker/config.json`.
+
+```json
+{
+  "symbolTable":    { "enabled": true },
+  "onSight":        { "enabled": true, "perFile": 2, "perSession": 8 },
+  "onSightOutline": { "enabled": true, "perSession": 8, "maxLines": 40 }
+}
+```
+
+`onSight` serves understanding notes the first time a file comes into the
+agent's view. `onSightOutline` serves that file's own outline instead: what is
+defined in it and on which lines, functions and classes only, never imports or
+plain constants, at most `maxLines` lines and `perSession` files in a session,
+each file once. A file named in a search result with the line the search hit is
+outlined around that line — the enclosing definition is always included — rather
+than from the top, so a 600-definition file still answers the question that was
+asked. A bare listing (`rg --files`, `ls -R`) names dozens of files at once, so
+hits with lines take the session's budget first. When the tool searched for a
+single identifier and the checkout defines it in exactly one place, the block
+ends with where that is. Servings are written to the usage log as `late`
+servings with `"on": "outline"`, so a replay can count them apart from the notes.
+
+`symbolTable` is what makes that cheap. With it on, the checkout keeps a
+definition index under `.thinker/state/symbols/` (already outside git, like the
+rest of `state/`), and `thinker`'s definition lookups — `find`, `drilldown`, the
+anchoring guard, the on-sight outline — read it instead of running `git grep`
+over the tree and re-parsing what they hit. On PostHog (53,503 tracked files,
+43,427 of them code, 641,442 definitions) a definition lookup goes from about
+2.9 s for the first and 0.6–0.9 s for each one after, to 108 ms for the first in
+a process and 1–2 ms after; one file's outline costs 2 ms. The index is 62 MB
+there, and the whole-repository build that produces it takes about 95 s (11 s
+when the parser's own disk cache is already warm).
+
+The table is kept current without ever blocking a hook. One `git ls-files -s`
+(26 ms on PostHog) catches everything that moved in git's index; the files that
+changed are outlined again on the spot, up to `refreshFiles` (200) of them and
+`refreshMs` (2 s), and any file the caller names is hashed and outlined there
+and then, so a per-file answer is always exact. Unstaged edits elsewhere in the
+tree need a sweep that stats every file, which costs over a second on a
+checkout that size: it runs inline only once a measurement puts it under
+`sweepMs` (120 ms), and otherwise moves into the background. When more has
+changed than the table's delta holds (`maxDelta`, 400 files), or there is no
+table yet, a detached `thinker symbols build` is started and the caller falls
+back to `git grep` meanwhile. A missing or half-built table is never an error.
+
+`thinker symbols` reports what the table covers; `thinker symbols build` builds
+it in the foreground (`--max-files`, `--build-ms` bound it, and a build that
+ran out of either says so); `thinker symbols refresh` brings it up to date.
+
 ## Your own model endpoint
 
 Where model traffic must go through a gateway (a corporate proxy with its own base URL and

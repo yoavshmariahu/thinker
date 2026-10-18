@@ -134,6 +134,46 @@ export function seenFiles(ev, repo, { max = 40 } = {}) {
   return [...out];
 }
 
+// The same sighting, with the lines a search hit: `path:12:` or `path-12-` is a grep hit, a bare path a
+// listing. Replaying real sessions (research/understanding-variants-2026-10, 2026-10-17), the agent's
+// first read of a file lands a median of one tool call after the path first appears in a tool result,
+// and that first appearance is nearly always search output rather than an open — so a sighting is worth
+// acting on, but `rg --files` or `ls -R` names dozens of files at once. Hits with lines are returned
+// first and take the budget first, and the lines say where in the file to look (ops.js:onSightOutlines).
+export function seenHits(ev, repo, { max = 40 } = {}) {
+  const text = textOf(ev.tool_response ?? ev.tool_output ?? ev.output).slice(0, 200_000);
+  const out = new Map();
+  const add = (raw, line) => {
+    let f = raw.replace(/^\.\//, '');
+    if (path.isAbsolute(f)) f = path.relative(repo, f);
+    if (!f || f.startsWith('..')) return;
+    if (!out.has(f)) {
+      if (out.size >= max || !fs.existsSync(path.join(repo, f))) return;
+      out.set(f, []);
+    }
+    if (line) out.get(f).push(line);
+  };
+  for (const m of text.matchAll(/(?:^|[\s'"`=([])(\/?(?:[\w.@-]+\/)+[\w.@-]+\.\w{1,5}):(\d+)[:-]/gm)) add(m[1], Number(m[2]));
+  for (const m of text.matchAll(/(?:^|[\s'"`=:(\[])(\/?(?:[\w.@-]+\/)+[\w.@-]+\.\w{1,5})(?=$|[\s'"`:|;)\],])/gm)) add(m[1]);
+  return [...out].map(([file, lines]) => ({ file, lines: [...new Set(lines)].sort((a, b) => a - b).slice(0, 20) }));
+}
+
+// The one identifier a tool searched for, when the search was for a bare name: the Grep tool's pattern,
+// or the pattern of a `grep`/`rg` command. Null for a phrase, a regular expression or anything else; the
+// on-sight outline only says where a name is defined when the table knows exactly one definition of it.
+const BARE_IDENT = /^[A-Za-z_$][\w$]{2,}$/;
+export function searchedIdentifier(ev) {
+  const ti = ev.tool_input || {};
+  const cand = [];
+  if (/grep|search|glob/i.test(String(ev.tool_name || '')) && typeof ti.pattern === 'string') cand.push(ti.pattern);
+  if (typeof ti.query === 'string') cand.push(ti.query);
+  const command = typeof ti.command === 'string' ? ti.command : Array.isArray(ti.command) ? ti.command.join(' ') : typeof ev.command === 'string' ? ev.command : '';
+  const m = /\b(?:rg|grep|ag|ack)\b(?:\s+-{1,2}[\w-]+)*\s+(?:-e\s+)?(['"]?)([A-Za-z_$][\w$]{2,})\1(?=\s|$)/.exec(command);
+  if (m) cand.push(m[2]);
+  for (const c of cand) { const s = c.replace(/^\\b/, '').replace(/\\b$/, '').trim(); if (BARE_IDENT.test(s)) return s; }
+  return null;
+}
+
 // What the prompt hook prints: the bundle as context for the agent, and nothing for the
 // user. A line at every prompt was noise; the stop hook names what the turn served once.
 export function promptOutput(client, text) {
