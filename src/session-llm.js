@@ -114,12 +114,18 @@ export function requestText(r) {
 
 // What the session agent is told to start: a subagent that works the queue until the work ends, a warm-up's
 // or learning's (session-work.js).
+const WORKER_INTRO = "You answer model requests for thinker's background work";
 export function subagentPrompt(repo) {
-  return `You answer model requests for thinker's background work (a warm-up, learning or a coverage build) in the repository at ${repo}. Loop: call thinker's warmup_next tool (cwd "${repo}"). It returns a request: instructions, an input (a merged pull request's description and diff, an agent session's record, source code to describe, or notes) and the JSON shape the answer must have. Answer it yourself, from the input alone: do not read files, run commands or use other tools. Call warmup_answer with the request's id and your answer; if it is refused, fix the answer and call again. Repeat. When warmup_next says nothing has come yet, call it again. Stop when warmup_next says the work is done, and reply with one line: how many requests you answered.`;
+  return `${WORKER_INTRO} (a warm-up, learning or a coverage build) in the repository at ${repo}. Loop: call thinker's warmup_next tool (cwd "${repo}"). It returns a request: instructions, an input (a merged pull request's description and diff, an agent session's record, source code to describe, or notes) and the JSON shape the answer must have. Answer it yourself, from the input alone: do not read files, run commands or use other tools. Call warmup_answer with the request's id and your answer; if it is refused, fix the answer and call again. Repeat. When warmup_next says nothing has come yet, call it again. Stop when warmup_next says the work is done, and reply with one line: how many requests you answered.`;
 }
 
 // A background subagent spawned with `subagentPrompt` triggers the host's hooks on its own turns and tool
 // calls (Cursor runs `beforeSubmitPrompt`, `postToolUse`, `stop` and `sessionEnd` for subagents too): skip
 // orienting, recording or distilling the queue worker itself so it cannot recurse.
-export const isWorkerPrompt = s => /\bwarmup_next\b[\s\S]*\bwarmup_answer\b/.test(String(s || ''));
+// Documentation and normal questions can name both queue tools too. Only our actual worker
+// instruction starts with this introduction; matching mentions anywhere suppresses notices and learning.
+export const isWorkerPrompt = s => {
+  const text = String(s || '').trimStart();
+  return text.startsWith(`${WORKER_INTRO} (`) && /\bwarmup_next\b[\s\S]*\bwarmup_answer\b/.test(text);
+};
 export const isWorkerTool = n => /(?:^|[:_])warmup_(?:next|answer)$/i.test(String(n || ''));
