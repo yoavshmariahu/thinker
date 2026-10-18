@@ -140,7 +140,7 @@ test('a whole-directory build reads every code file of the directory, not only r
 test('the tool hook records access for the weekly suggestion', () => {
   const dir = repo();
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-coverage-home-'));
-  const env = { ...process.env, THINKER_HOME: home, THINKER_LOG: 'local', THINKER_HOLDOUT: 'off', THINKER_NO_BG_VERIFY: '1', THINKER_NO_LEARN: '1', THINKER_CE: 'off', THINKER_TELEMETRY: 'off' };
+  const env = { ...process.env, THINKER_HOME: home, THINKER_LOG: 'local', THINKER_HOLDOUT: 'off', THINKER_NO_BG_VERIFY: '1', THINKER_NO_LEARN: '1', THINKER_CE: 'off', THINKER_TELEMETRY: 'off', THINKER_OFFERS: 'on' };
   new Store(dir).init();
   execFileSync('node', [CLI, 'hook', 'tool', '--client', 'claude', '--repo', dir], { input: JSON.stringify({ session_id: 'h1', tool_name: 'Read', tool_input: { file_path: path.join(dir, 'src/api/a.js') } }), encoding: 'utf8', env });
   const act = directoryActivity(new Store(dir), { now: Date.now() });
