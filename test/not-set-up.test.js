@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CLI = path.join(ROOT, 'src/cli.js');
 const HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-not-set-up-home-'));
-const env = { ...process.env, THINKER_TELEMETRY: 'off', THINKER_LOG: 'off', THINKER_NO_LEARN: '1', HOME, CODEX_HOME: path.join(HOME, '.codex'), CLAUDE_CONFIG_DIR: '' };
+const env = { ...process.env, THINKER_TEST: '1', THINKER_TELEMETRY: 'off', THINKER_LOG: 'off', THINKER_NO_LEARN: '1', HOME, CODEX_HOME: path.join(HOME, '.codex'), CLAUDE_CONFIG_DIR: '', CURSOR_AGENT: '', CLAUDE_CODE_ENTRYPOINT: '' };
 delete env.CLAUDE_CONFIG_DIR;
 const fresh = t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-not-set-up-'));
@@ -103,19 +103,29 @@ test('the MCP server takes the repository from its working directory, or from th
 
 // A desktop app may run one server for every window: Cursor's started in the home directory and bound to the
 // first repository a call named (2026-10-16). Its queue tools are listed from the start, and each call reads
-// the queue of the repository its cwd names, so a warm-up handed to a second window is still answered.
-test('in a desktop app the queue tools are listed unbound and follow the cwd of each call', t => {
+// the queue or cache of the repository its cwd names, so a second window switches to its own repository.
+test('in a desktop app the queue and retrieval tools follow the cwd of each call across repositories', t => {
   const a = fresh(t), b = fresh(t);
+  fs.writeFileSync(path.join(b, 'b.js'), 'export function runWidget() { return 42; }\n');
   const q = path.join(b, '.thinker', 'state', 'session-llm'); fs.mkdirSync(q, { recursive: true });
   fs.writeFileSync(path.join(q, 'r1-abc.req.json'), JSON.stringify({ id: 'r1-abc', system: '', prompt: 'summarize PR 7', schema: null, t: new Date().toISOString() }));
   const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-no-repo-'));
   t.after(() => fs.rmSync(bare, { recursive: true, force: true }));
-  const s = mcpSession(bare, { THINKER_REPO: '', CLAUDE_CODE_ENTRYPOINT: 'claude-desktop' }, [
+  const s = mcpSession(bare, { THINKER_REPO: '', THINKER_NO_LEARN: '0', CLAUDE_CODE_ENTRYPOINT: 'claude-desktop' }, [
     { name: 'orient', arguments: { task: 'tests', cwd: a } },
+    { name: 'remember', arguments: { cwd: b, title: 'Run widget test suite', kind: 'howto', answers: ['how to run widget tests'], body: 'Call b.js:runWidget to run widget tests.', deps: [{ path: 'b.js', symbol: 'runWidget' }] } },
+    { name: 'lookup', arguments: { query: 'how to run widget tests' } },
+    { name: 'orient', arguments: { task: 'run widget tests', cwd: a } },
     { name: 'warmup_next', arguments: { cwd: b } },
   ]);
   assert.ok(s.tools.some(x => x.name === 'warmup_next') && s.tools.some(x => x.name === 'warmup_answer'), 'listed before any repository is bound');
-  assert.match(s.replies[1], /summarize PR 7/, 'the request of the repository cwd names, not the bound one');
+  assert.match(s.replies[0], new RegExp(`bound to the repository at ${fs.realpathSync(a)}`));
+  assert.match(s.replies[1], new RegExp(`bound to the repository at ${fs.realpathSync(b)}`), 'a call from a second window switches to its repository');
+  assert.match(s.replies[1], /Saved note/);
+  assert.match(s.replies[2], /Run widget test suite/, 'subsequent calls without cwd stay on the newly bound repository');
+  assert.match(s.replies[3], new RegExp(`bound to the repository at ${fs.realpathSync(a)}`), 'passing cwd for the first window switches back');
+  assert.match(s.replies[3], /The cache is empty/, 'does not leak notes from repository b into repository a');
+  assert.match(s.replies[4], /summarize PR 7/, 'the request of the repository cwd names, not the bound one');
   assert.ok(fs.existsSync(path.join(q, 'r1-abc.claimed.json')));
   // outside an app, unbound, they are not listed
   assert.ok(!mcpSession(bare, { THINKER_REPO: '', CLAUDE_CODE_ENTRYPOINT: '' }).tools.some(x => x.name === 'warmup_next'));

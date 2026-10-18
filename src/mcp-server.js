@@ -52,12 +52,18 @@ const off = process.env.THINKER_MCP === 'off' || switchedOff;
 const noLearn = /^(1|true|yes)$/i.test(process.env.THINKER_NO_LEARN || '');
 // Every git repository has a cache: a machine-wide registration starts one (empty, growing from the
 // sessions) in the checkout the client runs in. Started outside one, the server binds late: to the
-// repository of the first call that names a directory in it (its `cwd`, or an absolute `file`).
-let store = null, setUp = false;
+// repository of each call that names a directory in it (its `cwd`, or an absolute `file`).
+let store = null, setUp = false, astReady = false;
 const late = !off && !repo;
+const stores = new Map();
+function storeFor(r) {
+  let s = stores.get(r);
+  if (!s) { s = new Store(r); s.init(); stores.set(r, s); }
+  return s;
+}
 async function bind(r) {
-  repo = r; store = new Store(r); setUp = true;
-  store.init(); await initAst(); // tree-sitter grammars when installed (`thinker ast install`); the regex otherwise
+  repo = r; store = storeFor(r); setUp = true;
+  if (!astReady) { astReady = true; await initAst(); } // tree-sitter grammars when installed (`thinker ast install`); the regex otherwise
 }
 if (!off && repo) await bind(repo);
 
@@ -70,19 +76,22 @@ const server = new McpServer({ name: 'thinker', version: '0.1.0' }, switchedOff 
   instructions: cacheInstructions({ intro: `thinker is a cache of notes per git repository from earlier sessions and humans. It was started outside one (${process.cwd()}): on the first call pass cwd, the absolute path of your working directory, and the tools bind to that repository.`, disabled: disabledTools({}) }),
 });
 
-// Bound late (see `late`): a call must name the repository first. Until one does, every tool answers
-// with what it needs; the call that binds says so above its answer. Calls are handled concurrently,
-// so one that arrives while the bind is under way waits for it rather than finding a half-made store.
+// Bound late (see `late`): a call must name the repository first, and a later call from another
+// window with its own `cwd` (or absolute `file`) switches the active repository to that checkout.
+// Until one does, every tool answers with what it needs; the call that binds says so above its answer.
+// Calls are handled concurrently, so one that arrives while the bind is under way waits for it.
 let binding = null;
 async function ensureBound(args) {
   if (binding) await binding;
+  const r = !pinned ? (checkoutOf(args?.cwd) || checkoutOf(args?.file)) : null;
+  if (r && r !== repo) {
+    if (isDisabledRepo(r)) return { reply: text('thinker is switched off for that repository and serves nothing there.') };
+    binding = bind(r); await binding;
+    registerWarmupTool(); registerCoverageTool(); registerQueueTools();
+    return { bound: true };
+  }
   if (store) return { bound: false };
-  const r = checkoutOf(args?.cwd) || checkoutOf(args?.file);
-  if (!r) return { reply: text('thinker is not bound to a repository yet: it was started outside a git checkout. Call again with cwd, the absolute path of your working directory.') };
-  if (isDisabledRepo(r)) return { reply: text('thinker is switched off for that repository and serves nothing there.') };
-  binding = bind(r); await binding;
-  registerWarmupTool(); registerCoverageTool(); registerQueueTools();
-  return { bound: true };
+  return { reply: text('thinker is not bound to a repository yet: it was started outside a git checkout. Call again with cwd, the absolute path of your working directory.') };
 }
 
 const text = s => ({ content: [{ type: 'text', text: s }] });
@@ -136,11 +145,17 @@ function registerTools() {
   const off = disabledTools(store ? store.config() : {});
   if (noLearn) for (const t of ['remember', 'feedback']) off.add(t);
   const cwd = { cwd: z.string().optional().describe('Absolute path of your working directory, once: the server binds to its repository (it was started outside one)') };
-  const retrieval = (name, spec, handler) => off.has(name) ? undefined : server.registerTool(name, late ? { ...spec, inputSchema: { ...spec.inputSchema, ...cwd } } : spec, async (args, extra) => {
-    const { reply, bound } = await ensureBound(args); if (reply) return reply;
-    const r = await handler(args, extra);
-    if (bound) r.content.unshift({ type: 'text', text: `thinker is bound to the repository at ${repo} from here on.` });
-    return r;
+  let active = Promise.resolve();
+  const retrieval = (name, spec, handler) => off.has(name) ? undefined : server.registerTool(name, late ? { ...spec, inputSchema: { ...spec.inputSchema, ...cwd } } : spec, (args, extra) => {
+    const run = async () => {
+      const { reply, bound } = await ensureBound(args); if (reply) return reply;
+      const r = await handler(args, extra);
+      if (bound) r.content.unshift({ type: 'text', text: `thinker is bound to the repository at ${repo} from here on.` });
+      return r;
+    };
+    const next = active.then(run, run);
+    active = next.catch(() => {});
+    return next;
   });
 
   retrieval('orient', {
@@ -299,8 +314,12 @@ function registerCoverageTool() {
     inputSchema: {
       choice: z.string().describe('The directories the user chose, comma-separated, exactly as listed; or none; or never'),
       asked: z.enum(['picker', 'chat']).optional().describe('Where the user answered: your question tool (picker) or chat'),
+      ...(late ? { cwd: z.string().optional().describe('Absolute path of the repository') } : {}),
     },
-  }, async ({ choice, asked }) => text(await answerCoverage(store, String(choice), { client: clientName(), via: asked === 'chat' ? 'text' : 'picker' })));
+  }, async ({ choice, asked, cwd }) => {
+    const { reply } = await ensureBound({ cwd }); if (reply) return reply;
+    return text(await answerCoverage(store, String(choice), { client: clientName(), via: asked === 'chat' ? 'text' : 'picker' }));
+  });
 }
 
 let warmupTool;
@@ -316,8 +335,10 @@ function registerWarmupTool() {
     inputSchema: {
       choice: z.string().optional().describe('The user\'s answer: warm, no or never'),
       asked: z.enum(['picker', 'chat']).optional().describe('Where the user answered: your question tool (picker) or chat'),
+      ...(late ? { cwd: z.string().optional().describe('Absolute path of the repository') } : {}),
     },
-  }, async ({ choice, asked }) => {
+  }, async ({ choice, asked, cwd }) => {
+    const { reply } = await ensureBound({ cwd }); if (reply) return reply;
     if (choice) return text(await answerWarmup(store, String(choice).toLowerCase(), { client: clientName(), via: asked === 'picker' ? 'picker' : 'text' }));
     const inChat = `Ask the user in chat with these three numbered choices: ${WARMUP_CHOICES.map((c, i) => `${i + 1}. "${c.label}": ${c.description}`).join('; ')}. Then call warmup again with choice warm, no or never.`;
     if (!server.server.getClientCapabilities()?.elicitation) return text(`This client cannot show thinker's picker. ${inChat}`);
@@ -334,7 +355,7 @@ function registerWarmupTool() {
 // `cwd` names: Cursor runs one server for every window (2026-10-16: started the day before in the home
 // directory, bound to another repository), so the bound repository is only the fallback.
 let queueTools, inApp;
-const queueStore = cwd => { const r = checkoutOf(cwd); return r ? (r === repo ? store : new Store(r)) : store; };
+const queueStore = cwd => { const r = checkoutOf(cwd); return r ? storeFor(r) : store; };
 function registerQueueTools() {
   if (queueTools) return;
   inApp ??= anyDesktopApp();

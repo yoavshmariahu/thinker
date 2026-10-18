@@ -29,7 +29,9 @@ const TOOL_NAMES = [
 export function toolName(name) {
   const n = String(name || '');
   for (const [re, canon] of TOOL_NAMES) if (re.test(n)) return canon;
-  return n.replace(/^mcp_+thinker_+/, 'mcp__thinker__');
+  return n
+    .replace(/^mcp:(orient|lookup|find|drilldown|remember|behavior|feedback|warmup|coverage|warmup_next|warmup_answer)$/i, (_, t) => `mcp__thinker__${t.toLowerCase()}`)
+    .replace(/^mcp_+(?:user[-_])?thinker_+/i, 'mcp__thinker__');
 }
 
 const first = (o, keys) => { for (const k of keys) if (o[k] != null && o[k] !== '') return o[k]; };
@@ -49,7 +51,10 @@ export function toolInput(name, input) {
 }
 export function textOf(v) {
   if (v == null) return '';
-  if (typeof v === 'string') return v;
+  if (typeof v === 'string') {
+    if (v.startsWith('{"content":[')) { try { const j = JSON.parse(v); if (Array.isArray(j.content)) return textOf(j.content); } catch {} }
+    return v;
+  }
   if (Array.isArray(v)) return v.map(textOf).filter(Boolean).join('\n');
   if (typeof v === 'object') {
     const t = first(v, ['text', 'output', 'stdout', 'aggregated_output', 'content', 'result', 'llmContent', 'returnDisplay', 'message']);
@@ -58,9 +63,17 @@ export function textOf(v) {
   }
   return String(v);
 }
-const tool = (name, input, result, id) => { const n = toolName(name); return { t: 'tool', id, name: n, input: toolInput(n, input), result: textOf(result) }; };
+const tool = (name, input, result, id) => {
+  if (name === 'CallDynamicTool' && input && typeof input === 'object' && input.toolName) {
+    const ns = String(input.namespace || '').replace(/^user[-_]/i, '');
+    name = ns ? `mcp__${ns}__${input.toolName}` : String(input.toolName);
+    input = input.arguments || {};
+  }
+  const n = toolName(name);
+  return { t: 'tool', id, name: n, input: toolInput(n, input), result: textOf(result) };
+};
 // what agents wrap around the user's words
-const cleanPrompt = s => String(s || '').replace(/<(timestamp|environment_context|system-reminder|thinker-cache|thinker-code)>[\s\S]*?<\/\1>/g, '').replace(/<\/?user_query>/g, '').trim();
+const cleanPrompt = s => String(s || '').replace(/<(timestamp|environment_context|system[-_]reminder|thinker-cache|thinker-code|thinker-learning|thinker-new-repository|thinker-coverage-suggestion|open_and_recently_viewed_files|attached_files)>[\s\S]*?<\/\1>/g, '').replace(/<\/?user_query>/g, '').trim();
 
 function jsonLines(text) {
   return text.split('\n').map(l => { if (!l.trim()) return null; try { return JSON.parse(l); } catch { return null; } });
@@ -316,15 +329,23 @@ export function recordEvent(storeDir, session, ev) {
 // repeated against the working tree, so the distiller still sees what the
 // agent saw (as of now; a file edited since then shows its current text).
 export function hydrate(events, repo, { trace } = {}) {
-  // shell output the hooks recorded for this session, by command
-  const shell = new Map();
-  if (trace && fs.existsSync(trace)) for (const j of jsonLines(fs.readFileSync(trace, 'utf8'))) if (j?.t === 'tool' && j.name === 'Bash' && j.input?.command && j.result) shell.set(j.input.command, j.result);
+  // shell and MCP output the hooks recorded for this session
+  const shell = new Map(), mcp = new Map();
+  if (trace && fs.existsSync(trace)) {
+    for (const j of jsonLines(fs.readFileSync(trace, 'utf8'))) {
+      if (j?.t !== 'tool' || !j.result) continue;
+      const n = toolName(j.name);
+      if (n === 'Bash' && j.input?.command) shell.set(j.input.command, j.result);
+      else if (/^mcp__thinker__/.test(n)) { if (!mcp.has(n)) mcp.set(n, []); mcp.get(n).push(textOf(j.result)); }
+    }
+  }
   const inRepo = f => { const abs = path.resolve(repo, f); return abs.startsWith(path.resolve(repo) + path.sep) ? abs : null; };
   for (const e of events) {
     // only where the record has no output, or a summary of it in place of the output
     if (e.t !== 'tool' || (e.result && !/^\{".*"(content_length|success)":/.test(e.result))) continue;
     try {
       if (e.name === 'Bash' && shell.has(e.input.command)) { e.result = shell.get(e.input.command); e.hydrated = true; }
+      else if (/^mcp__thinker__/.test(e.name) && mcp.get(e.name)?.length) { e.result = mcp.get(e.name).shift(); e.hydrated = true; }
       else if (e.name === 'Read' && e.input.file_path) {
         const abs = inRepo(e.input.file_path); if (!abs || !fs.statSync(abs).isFile()) continue;
         const lines = fs.readFileSync(abs, 'utf8').split('\n');
