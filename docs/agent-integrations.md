@@ -160,11 +160,27 @@ in `.thinker/config.json` disables notices without disabling learning.
 | Client | Notice display |
 | --- | --- |
 | Claude Code, Gemini CLI | `systemMessage` |
-| Codex | `systemMessage`, surfaced by the host as a UI/event-stream warning |
+| Codex | `systemMessage`; desktop inline card available with `noticeCard: true` |
 | Pi | Native `ctx.ui.notify` in interactive mode |
 | OpenCode | Native `client.tui.showToast` |
 | Windsurf Cascade | Stop stdout with `show_output: true` |
 | Cursor, Copilot CLI | Stop callbacks run, but their APIs have no passive notice output |
+
+Codex desktop can show a cache-hit card automatically when `noticeCard: true` is
+set in `.thinker/config.json`. Prompt/tool hooks and MCP retrieval supply the agent
+with a local display reference alongside actual hits; no special user prompt is
+needed. The agent includes it once in its final answer. This relies on the agent
+following the display instruction and the desktop's inline visualization renderer;
+it is not a native MCP tool card or a guarantee from the stop hook. It is opt-in
+while host support is being verified. `THINKER_NOTICE_CARD=off` disables cards;
+`THINKER_NOTICE=off` disables all notices.
+
+Cards are kept in `.thinker/state/notice-cards/`. One file per session and turn
+collects unique served notes and their existing code-size estimate. Misses and
+held-out turns create no card. MCP without a hook session link reports only that
+retrieval. Previous cards remain on disk for chat history; removing the state
+folder may make those old cards unavailable. No extra model call or stop-hook
+continuation is used to display a card.
 
 Codex supports the [common stop output fields](https://learn.chatgpt.com/docs/hooks#common-output-fields).
 Pi uses its [extension UI](https://pi.dev/docs/latest/extensions), OpenCode its

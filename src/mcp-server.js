@@ -3,12 +3,12 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { registerCacheCard, cacheCardMeta, withCacheCard } from './mcp-card.js';
+import { noticeCard } from './notice-card.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Store, findRepoRoot } from './store.js';
-import { orient, lookup, drilldown, find, createNote, feedback, snippetsOn, KINDS, agentSession, holdoutTurn } from './ops.js';
+import { orient, lookup, drilldown, find, createNote, feedback, snippetsOn, KINDS, agentSession, holdoutTurn, peekTurn } from './ops.js';
 import { listBehaviors, behaviorsSummary, addBehavior } from './behavior.js';
 import { editBehavior, removeBehavior } from './behavior-workbench.js';
 import { ensureTelemetryScheduled, reportTelemetrySchedule } from './telemetry-schedule.js';
@@ -95,8 +95,6 @@ async function ensureBound(args) {
   return { reply: text('thinker is not bound to a repository yet: it was started outside a git checkout. Call again with cwd, the absolute path of your working directory.') };
 }
 
-const cardOn = () => !off && process.env.THINKER_CACHE_CARD === '1';
-if (cardOn()) registerCacheCard(server);
 const text = s => ({ content: [{ type: 'text', text: s }] });
 // An empty cache is said outright, with its location: "nothing matches" reads as a miss and hides a server pointed at the wrong place.
 const emptyCache = () => store.list().length ? '' : `The cache is empty: no notes in ${store.notesDir}. `;
@@ -142,6 +140,13 @@ function agentTurn() {
   } catch { return {}; }
 }
 
+function withNotice(result, included, turnContext) {
+  const tracked = turnContext.session ? peekTurn(store, turnContext.session).map(id => store.get(id)).filter(Boolean) : [];
+  const hint = noticeCard(store, { client: clientName(), ...turnContext, notes: [...tracked, ...included] });
+  if (hint) result.content.push({ type: 'text', text: hint });
+  return result;
+}
+
 function registerTools() {
   // a tool that is switched off is not offered at all: nothing can call it and fail (bound late, the
   // repository's own choice of code tools is not known yet: the defaults apply)
@@ -163,7 +168,6 @@ function registerTools() {
 
   retrieval('orient', {
     title: 'Orient in this repo',
-    _meta: cardOn() ? cacheCardMeta : undefined,
     description: 'Notes with file:symbol pointers for a task, and the code behind the main ones. Call once at the start unless a thinker-cache bundle for this request is already present; again only for a distinct part it missed. Confirm a STALE claim against the code.',
     inputSchema: {
       task: z.string().optional().default('').describe('What you are about to do; the user request is fine'),
@@ -178,18 +182,18 @@ function registerTools() {
     let offer = ''; try { offer = warmupOffer(store, { client: subagentHarness(clientName()) || clientName() }); } catch {}
     const reply = s => text(offer ? `${offer}\n\n${s}` : s);
     // the agent named a budget: let it decide how many notes are served, not the two-note default of the hooks
-    const r = await orient(store, { task, file, client: 'mcp', ...agentTurn(), budget: budget || 1000, snippets: snippetsOn(store), ...(budget ? { maxNotes: 5, relFloor: 0.7 } : {}) });
+    const turnContext = agentTurn();
+    const r = await orient(store, { task, file, client: 'mcp', ...turnContext, budget: budget || 1000, snippets: snippetsOn(store), ...(budget ? { maxNotes: 5, relFloor: 0.7 } : {}) });
     // no text search over the whole task on a miss: a sentence's words list unrelated code (mitmproxy, 2026-10-07:
     // ValueEditor.tsx and SaveHar for a binary-detection fix) that the agent then opens
     if (!r.included.length) return reply(`${emptyCache() || `No cached notes match this task (${store.list().length} notes in cache). `}Work from the code.`);
     const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n')}` : '';
     const notes = `Cached knowledge for this task (${r.included.length} notes, ~${r.tokens} tokens):\n\n${r.text}${more}`;
-    return cardOn() ? withCacheCard(reply(notes), repo, r.included) : reply(notes);
+    return withNotice(reply(notes), r.included, turnContext);
   });
 
   retrieval('lookup', {
     title: 'Look up cached knowledge',
-    _meta: cardOn() ? cacheCardMeta : undefined,
     description: 'One specific open question, or a note id listed by orient (not every title). If no note answers, search the code. kind "behavior": the desired behaviors of the system; all of them with an empty query.',
     inputSchema: {
       query: z.string().describe('Question, topic, or a note id; empty with kind behavior lists all'),
@@ -198,14 +202,15 @@ function registerTools() {
       maxNotes: z.number().int().min(1).max(10).optional().describe('Default 3'),
     },
   }, async ({ query, kind, budget, maxNotes }) => {
-    const r = await lookup(store, { query: query || '', kind, client: 'mcp', ...agentTurn(), budget: budget || 2500, maxNotes: maxNotes || 3, snippets: snippetsOn(store) });
+    const turnContext = agentTurn();
+    const r = await lookup(store, { query: query || '', kind, client: 'mcp', ...turnContext, budget: budget || 2500, maxNotes: maxNotes || 3, snippets: snippetsOn(store) });
     if (kind === 'behavior' && !String(query || '').trim()) {
       const rows = listBehaviors(store);
       if (!rows.length) return text('No desired behaviors are written down for this repository yet (they come from the design documents checked in; when the person asks for one, the behavior tool adds it).');
       return text(`Desired behaviors of the system (${rows.length}; the code must uphold each):\n${behaviorsSummary(rows)}\n\n${r.text}${r.omitted?.length ? `\n\n(${r.omitted.length} more not shown for the budget; lookup by id for one)` : ''}`);
     }
     if (!r.included.length) return text(emptyCache() || `Nothing cached about that. ${codeFallback(query) || 'Try fewer or different words, or an identifier from the code. '}`);
-    return cardOn() ? withCacheCard(text(r.text), repo, r.included) : text(r.text);
+    return withNotice(text(r.text), r.included, turnContext);
   });
 
   retrieval('find', {

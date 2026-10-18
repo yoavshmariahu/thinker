@@ -1235,6 +1235,7 @@ export function beginTurn(store, session) {
   return locked(store, session, () => {
     const { st, save } = sessionState(store, session);
     st.turnNo = (st.turnNo || 0) + 1;
+    st.turn = []; // a missed stop must not attribute the previous turn's hits to this one
     st.heldOut = holdoutDecision(store, session, st.turnNo);
     save();
     return { turn: st.turnNo, holdout: st.heldOut };
