@@ -16,6 +16,7 @@ import { writeSystemMarkdown } from './behavior.js';
 import { areasConfig, saveAreas, refreshAreas } from './areas.js';
 import { isTestMode } from './test-mode.js';
 import { takeContradictions } from './learning-pending.js';
+import { pruneState } from './state-prune.js';
 
 export const DEFAULTS = {
   enabled: true,    // `maintain: { enabled: false }` in .thinker/config.json switches it off
@@ -160,6 +161,8 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
   const cap = withinDailyCap(store, { spentFn: () => spent }).cap;
   const afford = () => !cap || cap - spent - r.tokens > 0;
   try {
+    // 1b. state files no session will read again (state-prune.js)
+    if (!dry) { try { r.pruned = pruneState(store.dir, { now }).length; } catch { r.errors++; } }
     // 1c. archiving is free too: notes of a kind the sessions never acted on, and notes nobody was
     // served in a month, leave serving and upkeep and stay for lookup by id (ops.js:archiveNotes)
     if (cfg.archive !== false) { try { r.archived = (fns.archive || archiveNotes)(store, { dry }).length; } catch { r.errors++; } }
