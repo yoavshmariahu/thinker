@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { viaSession, nextRequest, answerRequest, requestText, markBuild, buildRunning, requestBuild, buildRequested } from '../src/session-llm.js';
+import { viaSession, nextRequest, answerRequest, requestText, markBuild, buildRunning, requestBuild, buildRequested, subagentPrompt, isWorkerPrompt } from '../src/session-llm.js';
 import { complete } from '../src/llm.js';
 
 const queue = () => fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-session-'));
@@ -72,4 +72,14 @@ test('a build asked for by the session is started by the taker; a queue that nev
   // a start that fails is the subagent's answer
   const other = queue(); requestBuild(other);
   assert.deepEqual(await nextRequest(other, { waitMs: 50, pollMs: 10, start: () => ({ error: 'spawn EPERM' }) }), { error: 'spawn EPERM' });
+});
+
+test('worker detection recognizes the worker instruction, not documentation or questions naming its tools', () => {
+  const prompt = subagentPrompt('/tmp/a repo');
+  assert.equal(isWorkerPrompt(prompt), true);
+  assert.equal(isWorkerPrompt('  \n' + prompt), true);
+  assert.equal(isWorkerPrompt('Why do warmup_next and warmup_answer suppress learning?'), false);
+  assert.equal(isWorkerPrompt('# AGENTS.md\nA worker uses warmup_next / warmup_answer.'), false);
+  assert.equal(isWorkerPrompt('# AGENTS.md\nExample worker prompt:\n' + prompt), false);
+  assert.equal(isWorkerPrompt(null), false);
 });

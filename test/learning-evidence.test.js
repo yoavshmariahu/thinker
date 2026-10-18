@@ -8,6 +8,7 @@ import { condense, distillEvents } from '../src/distill.js';
 import { distillFile } from '../src/commands/learn.js';
 import { Store } from '../src/store.js';
 import { resetFallback } from '../src/llm.js';
+import { markBuild, nextRequest, answerRequest, subagentPrompt } from '../src/session-llm.js';
 const read = result => ({ t: 'tool', name: 'Read', input: { file_path: 'src/a.js' }, result });
 const edit = { t: 'tool', name: 'Edit', input: { file_path: 'src/a.js', old_string: 'false', new_string: 'true' }, result: 'ok' };
 const note = { id: 'note-a', kind: 'rule', title: 'A', body: 'src/a.js checks permission.', deps: [{ path: 'src/a.js' }] };
@@ -75,6 +76,36 @@ test('compact assessment suppresses unsupported verdicts and cannot create notes
     const state = JSON.parse(fs.readFileSync(statePath));
     assert.equal(state.line, quiet.length + 2);
     assert.deepEqual(state.assessed, [], 'unselected notes are not marked assessed');
+  } finally {
+    for (const [k, v] of Object.entries(prev)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+    resetFallback(); fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('injected AGENTS instructions do not skip session-provider distillation, but actual workers do', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-worker-docs-'));
+  const store = new Store(dir).init(), queue = path.join(store.dir, 'state/session-llm');
+  const file = path.join(dir, 'session.jsonl'), output = [];
+  const keys = ['THINKER_LLM', 'THINKER_SESSION_QUEUE', 'THINKER_LOG'];
+  const prev = Object.fromEntries(keys.map(k => [k, process.env[k]]));
+  process.env.THINKER_LLM = 'session'; process.env.THINKER_SESSION_QUEUE = queue; process.env.THINKER_LOG = 'off';
+  const run = () => distillFile({ repo: dir, store, out: s => output.push(s) }, file, { minExplore: 1, dry: true, format: 'events' });
+  try {
+    const events = [{ t: 'prompt', text: '# AGENTS.md instructions\nBackground workers use warmup_next and warmup_answer.' }, ...quiet];
+    fs.writeFileSync(file, events.map(e => JSON.stringify(e)).join('\n') + '\n');
+    markBuild(queue, process.pid);
+    const done = run();
+    const { request } = await nextRequest(queue, { waitMs: 2000, pollMs: 10 });
+    assert.ok(request, 'normal conversation reaches the session model queue');
+    assert.match(request.prompt, /AGENTS.md/);
+    assert.deepEqual(answerRequest(queue, request.id, '{"notes":[]}'), { ok: true });
+    await done;
+    assert.ok(output.some(s => s.includes('0 notes')), 'distillation completed');
+    output.length = 0;
+    fs.writeFileSync(file, [{ t: 'prompt', text: subagentPrompt(dir) }, ...quiet.slice(1)].map(e => JSON.stringify(e)).join('\n') + '\n');
+    await run();
+    assert.deepEqual(output, [], 'actual workers are still excluded');
+    assert.equal(fs.readdirSync(queue).some(n => n.endsWith('.req.json')), false);
   } finally {
     for (const [k, v] of Object.entries(prev)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
     resetFallback(); fs.rmSync(dir, { recursive: true, force: true });
