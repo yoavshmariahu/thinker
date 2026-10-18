@@ -9,7 +9,7 @@ import crypto from 'node:crypto';
 import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { thinkerHome, DAY_MS } from './update.js';
-import { summarize, readLog, holdoutOf } from './usage.js';
+import { summarize, readLog, knownRepos, holdoutOf } from './usage.js';
 import { Store, findRepoRoot } from './store.js';
 import { getDeviceId } from './device.js';
 import { detectClients, inferWiring, USER_SCOPE_CLIENTS } from './clients.js';
@@ -78,8 +78,12 @@ export function getInstallId(home = thinkerHome()) {
   return newId;
 }
 
+// Notes on the machine now, in every checkout the machine's log has ever named (usage.js:knownRepos), not
+// only those with an event in the report's day: until 2026-10-17 the repositories came from the day's
+// events, so a machine with caches and a quiet day reported 0 notes, and up-to-date devices read as
+// installed and never used. Requests keep the daily window; the notes count does not.
 export function computeCacheMetrics(store, { home = thinkerHome(), all = true } = {}) {
-  const summary = summarize(store, { days: 1, all });
+  const repos = knownRepos(store, { all });
   const kinds = {};
   const statuses = { fresh: 0, stale: 0, invalid: 0 };
   const sources = {};
@@ -87,8 +91,8 @@ export function computeCacheMetrics(store, { home = thinkerHome(), all = true } 
   let totalDeps = 0;
   let symbolDeps = 0;
   let totalBytes = 0;
-  let totalNotes = summary.notes || 0;
-  let repositoriesCount = (summary.repos || []).length;
+  let totalNotes = 0;
+  let repositoriesCount = repos.length;
   const coveredCheckouts = new Set();
 
   const recordNote = n => {
@@ -115,17 +119,21 @@ export function computeCacheMetrics(store, { home = thinkerHome(), all = true } 
     }
   };
 
-  // Aggregate across all repositories on the machine
-  for (const r of summary.repos || []) {
-    for (const checkout of r.checkouts || []) {
+  // Aggregate across all repositories on the machine; a repository's notes are those of the checkout
+  // holding the most (a worktree often has none of its own), as in usage.js:summarize
+  for (const r of repos) {
+    let most = 0;
+    for (const checkout of r.checkouts) {
       coveredCheckouts.add(path.resolve(checkout));
-      const s = new Store(checkout, { readonly: true });
-      if (!s.exists()) continue;
       try {
+        const s = new Store(checkout, { readonly: true });
+        if (!s.exists()) continue;
         const notes = s.list();
+        most = Math.max(most, notes.length);
         for (const n of notes) recordNote(n);
       } catch {}
     }
+    totalNotes += most;
   }
 
   // If local store has notes and wasn't covered in summary.repos

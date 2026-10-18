@@ -243,6 +243,36 @@ test('computeCacheMetrics accurately counts local store notes on fresh install w
   }
 });
 
+test('computeCacheMetrics counts the notes of a cache the log last named days ago: the report is a daily window, the notes are not', () => {
+  const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-repo-'));
+  const idleRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-idle-'));
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-home-'));
+  const origHome = process.env.THINKER_HOME;
+  try {
+    process.env.THINKER_HOME = tmpHome;
+    const idle = new Store(idleRepo).init();
+    idle.put({ id: 'idle-note-1', kind: 'location', title: 'Route handling', body: 'router.js:handle handles requests' });
+    idle.put({ id: 'idle-note-2', kind: 'gotcha', title: 'Header parsing', body: 'headers.js:parse requires utf8' });
+    idle.log({ t: new Date(Date.now() - 3 * 86400_000).toISOString(), op: 'orient', client: 'claude', task: 'routes', served: ['idle-note-1'] });
+
+    // the hourly job runs outside any checkout: its own store holds nothing
+    const store = new Store(tmpRepo).init();
+    const metrics = computeCacheMetrics(store, { home: tmpHome, all: true });
+    assert.equal(metrics.totalNotes, 2, 'a quiet day must not empty the notes count');
+    assert.equal(metrics.repositoriesCount, 1);
+
+    const payload = buildTelemetryPayload(store, { home: tmpHome, days: 1, all: true });
+    assert.equal(payload.cacheSize.totalNotes, 2);
+    assert.equal(payload.retrieval.requestsTotal, 0, 'requests keep the daily window');
+  } finally {
+    if (origHome) process.env.THINKER_HOME = origHome;
+    else delete process.env.THINKER_HOME;
+    fs.rmSync(tmpRepo, { recursive: true, force: true });
+    fs.rmSync(idleRepo, { recursive: true, force: true });
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  }
+});
+
 test('buildTelemetryPayload and sendTelemetry tag event type (install vs hourly vs daily)', async () => {
   const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-repo-'));
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-home-'));

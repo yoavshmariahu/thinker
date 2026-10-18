@@ -135,6 +135,17 @@ export function readLog(store, { all = false } = {}) {
   return events.filter(e => all || e.origin === here).sort((a, b) => a.t < b.t ? -1 : a.t > b.t ? 1 : 0);
 }
 
+// Every repository the machine's log has named, with its checkouts (clones, worktrees), over the whole
+// log: the caches on the machine, as against summarize's repositories with an event in a window.
+export function knownRepos(store, { all = false } = {}) {
+  const repos = new Map();
+  for (const e of readLog(store, { all })) {
+    if (!repos.has(e.origin)) repos.set(e.origin, { repo: e.origin, checkouts: new Set() });
+    if (e.repo) repos.get(e.origin).checkouts.add(e.repo);
+  }
+  return [...repos.values()].map(r => ({ ...r, checkouts: [...r.checkouts] }));
+}
+
 export function summarize(store, { days, all = false } = {}) {
   const since = days ? new Date(Date.now() - days * 86400_000).toISOString() : '';
   const events = readLog(store, { all }).filter(e => e.t >= since);
