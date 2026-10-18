@@ -17,6 +17,7 @@ import { maybeSendTelemetryInBackground, HOUR_MS } from './telemetry.js';
 import { initAst } from './ast.js';
 import { cacheInstructions, disabledTools, MORE_NOTES_INTRO } from './cache-guidance.js';
 import { isDisabledRepo } from './repo-switch.js';
+import { isTestMode } from './test-mode.js';
 import { warmupPending, warmupOffer, answerWarmup, startSessionWarmup, subagentHarness, WARMUP_CHOICES } from './repo-onboard.js';
 import { coveragePending, answerCoverage } from './coverage.js';
 import { queueDir, buildRunning, buildRequested, nextRequest, answerRequest, requestText } from './session-llm.js';
@@ -179,7 +180,9 @@ function registerTools() {
     // the warm-up offer the prompt hook makes, here too: an agent wired with thinker's server and no hooks never
     // got it (2026-10-16: a device whose 14 requests all came through MCP, two cold caches, no offer). Once per
     // repository either way (repo-onboard.js:markOffered), so where the hook made it this adds nothing.
-    let offer = ''; try { offer = warmupOffer(store, { client: subagentHarness(clientName()) || clientName() }); } catch {}
+    // never in a benchmark or test session (THINKER_TEST=1; THINKER_OFFERS=on restores it, for the tests of the offer)
+    const offersOn = !isTestMode() || process.env.THINKER_OFFERS === 'on';
+    let offer = ''; if (offersOn) try { offer = warmupOffer(store, { client: subagentHarness(clientName()) || clientName() }); } catch {}
     const reply = s => text(offer ? `${offer}\n\n${s}` : s);
     // the agent named a budget: let it decide how many notes are served, not the two-note default of the hooks
     const turnContext = agentTurn();

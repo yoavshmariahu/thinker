@@ -16,7 +16,7 @@ import { createNote } from '../src/ops.js';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
 const HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-onboard-home-'));
-const env = { ...process.env, THINKER_HOME: HOME, THINKER_LOG: 'local', THINKER_HOLDOUT: 'off', THINKER_NO_BG_VERIFY: '1', THINKER_NO_LEARN: '1', THINKER_CE: 'off', THINKER_TELEMETRY: 'off' };
+const env = { ...process.env, THINKER_HOME: HOME, THINKER_LOG: 'local', THINKER_HOLDOUT: 'off', THINKER_NO_BG_VERIFY: '1', THINKER_NO_LEARN: '1', THINKER_CE: 'off', THINKER_TELEMETRY: 'off', THINKER_OFFERS: 'on' };
 const hook = (dir, kind, input, client = 'claude') => execFileSync('node', [CLI, 'hook', kind, '--client', client, '--repo', dir], { input: JSON.stringify(input), encoding: 'utf8', env });
 const ops = dir => fs.readFileSync(path.join(dir, '.thinker/log.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l));
 function gitRepo(commits) {
@@ -28,6 +28,17 @@ function gitRepo(commits) {
   for (let i = 1; i < commits; i++) { fs.writeFileSync(path.join(dir, 'src/a.js'), `export function fetchRows() {\n  return ${i + 1};\n}\n`); git('commit', '-qam', `bump ${i}`); }
   return dir;
 }
+
+// A benchmark or test session (THINKER_TEST=1) is never offered a warm-up: an eval runner marked a session invalid
+// for the offer in its context (2026-10-18). The tests of the offers set THINKER_OFFERS=on.
+test('in test mode the hooks make no offer and log none; THINKER_OFFERS=on restores it', () => {
+  const dir = gitRepo(8), home = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-onboard-quiet-home-'));
+  const ask = (session, over) => execFileSync('node', [CLI, 'hook', 'prompt', '--client', 'claude', '--repo', dir], { input: JSON.stringify({ session_id: session, prompt: 'where does fetchRows read the rows from' }), encoding: 'utf8', env: { ...env, THINKER_HOME: home, ...over } });
+  const quiet = { THINKER_TEST: '1', THINKER_OFFERS: '' };
+  assert.doesNotMatch(ask('q1', quiet), /thinker-new-repository/);
+  assert.ok(!ops(dir).some(e => e.op === 'warmup-offer'), 'not offered, so not marked as offered either');
+  assert.match(ask('q2', { THINKER_OFFERS: 'on' }), /<thinker-new-repository>/, 'the same repository is still offered once the switch is on');
+});
 
 test('the first session in a repository with history sets it up and tells the agent once to offer a warm-up; nothing repeats it', () => {
   const dir = gitRepo(8);

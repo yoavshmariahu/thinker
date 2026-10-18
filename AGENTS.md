@@ -104,7 +104,10 @@ update that runs the new code (`install.sh --update` does it by hand).
 Always set `THINKER_TEST=1` when running tests, benchmarks, evaluation
 harnesses, scratch experiments, or their setup/install steps (`npm test` sets it).
 This single mode blocks production telemetry and automatic background work, keeps
-default usage logs local, and silences machine-wide hooks. `THINKER_TELEMETRY=off`
+default usage logs local, and silences machine-wide hooks. It also makes no warm-up or coverage offer
+to the agent, from the hooks or from `orient` over MCP (2026-10-18: an offer in a benchmark session is noise
+in its context, and the eval runner marked the session invalid for it); `THINKER_OFFERS=on` restores them,
+for the tests of the offers only. `THINKER_TELEMETRY=off`
 remains a valid additional telemetry-only control. Ensure every child
 process inherits it. Never send these runs to the production telemetry endpoint
 or count them as real usage. Telemetry-specific tests may use mocked requests or
