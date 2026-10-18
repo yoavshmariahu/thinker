@@ -44,10 +44,9 @@ Run `thinker setup --no-build --yes` in the repository root.
   - **Codex CLI**: Registers MCP in `.codex/config.toml`, hooks in `.codex/hooks.json`, and records project trust in `~/.codex/config.toml`.
   - **Cursor Agent**: Registers MCP in `.cursor/mcp.json`, rules in `.cursor/rules/thinker.mdc`, hooks in `.cursor/hooks.json`, and approves MCP workspace access.
   - **Gemini / Antigravity (`agy`)**: Registers MCP and hooks in `.gemini/settings.json`.
-- **Git Co-change Mining**: Mines historical commits to populate `.thinker/cochange.json`.
 
 ### Stage 4: Cache Seeding & Multi-Client Cache Hits
-Seed a deterministic note into `.thinker/notes/<id>.json` resting on code symbols (`math.js:multiply`).
+Seed a deterministic note into `.thinker/local/notes/<id>.json` resting on code symbols (`math.js:multiply`).
 1. Re-hash content deps with `thinker check`.
 2. Test CLI retrieval with `thinker orient "<query>"`.
 3. Test prompt hook output across each client adapter:
@@ -55,7 +54,7 @@ Seed a deterministic note into `.thinker/notes/<id>.json` resting on code symbol
    - **Codex**: Injects `<thinker-cache>` bundle to stdout.
    - **Gemini / Agy**: Returns JSON output:
      `{"hookSpecificOutput":{"hookEventName":"BeforeAgent","additionalContext":"<thinker-cache>..."}}`
-   - **Cursor**: Parks prompt-time bundle and delivers via `additional_context` JSON on the agent's first tool call.
+   - **Cursor**: Returns `{"continue":true,"additional_context":"<thinker-cache>..."}` directly from `beforeSubmitPrompt` (with `postToolUse` orienting from the transcript as a fallback when `beforeSubmitPrompt` did not run, e.g. `agent -p`).
 
 ### Stage 5: Learning Loop (Hook Recording & Distillation)
 Simulate an agent session with `--record`:
@@ -63,7 +62,7 @@ Simulate an agent session with `--record`:
 2. `hook tool`: captures tool inputs and file reads into the trace.
 3. `hook stop`: records `{ t: 'say', text: last_assistant_message }`.
 4. Run `thinker distill <trace_file> --repo <repo> --session <session>`.
-5. Verify new note is minted into `.thinker/notes/` with symbol dependencies and content hashes.
+5. Verify new note is minted into `.thinker/local/notes/` with symbol dependencies and content hashes.
 
 ### Stage 6: Cache Re-use & Invalidation
 1. **Re-use**: Query `thinker orient` for the learned topic and confirm immediate cache hit.

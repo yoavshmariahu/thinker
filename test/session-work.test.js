@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { Store } from '../src/store.js';
 import { enqueueJob, pendingJobs, startSessionWork, runSessionWork, markAppSession, recentAppSession, RUN_EVERY_MS } from '../src/session-work.js';
 import { anyDesktopApp } from '../src/app-host.js';
+import { subagentPrompt } from '../src/session-llm.js';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
 function repo() {
@@ -67,4 +68,27 @@ test('any desktop app by env or process; a terminal is none', () => {
   assert.equal(anyDesktopApp({ env: { CLAUDE_CODE_ENTRYPOINT: 'claude-desktop' }, ancestry: [] }), 'Claude Desktop');
   assert.equal(anyDesktopApp({ env: {}, ancestry: ['/Applications/Cursor.app/Contents/MacOS/Cursor'] }), 'Cursor');
   assert.equal(anyDesktopApp({ env: {}, ancestry: ['-zsh', '/Applications/iTerm.app/Contents/MacOS/iTerm2'] }), null);
+});
+
+test('hooks ignore the queue-worker subagent itself and only queue distill at session end (or when batchDue)', () => {
+  const store = repo();
+  const env = { ...process.env, THINKER_HOME: fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-home-')), THINKER_TELEMETRY: 'off', THINKER_LOG: 'local', THINKER_TEST: '0', CLAUDE_CODE_ENTRYPOINT: 'claude-desktop' };
+  const hook = (what, ev) => execFileSync('node', [CLI, 'hook', what, '--client', 'cursor', '--record', '--repo', store.repo], { input: JSON.stringify(ev), encoding: 'utf8', env });
+  const workerPrompt = subagentPrompt(store.repo);
+  assert.deepEqual(JSON.parse(hook('prompt', { conversation_id: 'w-sub', prompt: workerPrompt })), { continue: true });
+  hook('tool', { conversation_id: 'w-sub', tool_name: 'MCP:warmup_next', tool_input: { cwd: store.repo }, tool_output: 'Nothing has come yet' });
+  assert.deepEqual(JSON.parse(hook('stop', { conversation_id: 'w-sub', hook_event_name: 'sessionEnd', prompt: workerPrompt })), {});
+  assert.equal(fs.existsSync(path.join(store.dir, 'state', 'trace-w-sub.jsonl')), false, 'worker session leaves no trace');
+  assert.deepEqual(pendingJobs(store).filter(j => j.key.includes('w-sub')), [], 'worker session is never queued for distillation');
+
+  // Regular user session: turn-end `stop` does not queue an unbatched per-turn distill; `sessionEnd` does
+  const tr = path.join(store.dir, 'u-main.jsonl');
+  fs.writeFileSync(tr, [
+    JSON.stringify({ role: 'user', message: { content: [{ type: 'text', text: 'investigate src/a.js' }] } }),
+    JSON.stringify({ role: 'assistant', message: { content: [{ type: 'tool_use', id: '1', name: 'Read', input: { path: 'src/a.js' } }, { type: 'text', text: 'done' }] } }),
+  ].join('\n') + '\n');
+  hook('stop', { conversation_id: 'u-main', hook_event_name: 'stop', transcript_path: tr });
+  assert.deepEqual(pendingJobs(store).filter(j => j.key === 'distill-u-main'), [], 'turn-end stop leaves small backlog for sessionEnd');
+  hook('stop', { conversation_id: 'u-main', hook_event_name: 'sessionEnd', transcript_path: tr });
+  assert.deepEqual(pendingJobs(store).filter(j => j.key === 'distill-u-main').map(j => j.key), ['distill-u-main']);
 });

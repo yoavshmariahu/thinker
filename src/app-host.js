@@ -47,15 +47,15 @@ export function ancestorPids(pid = process.ppid, { max = 3, execFn = execFileSyn
 }
 // The suite never reads the machine's process tree: run from a desktop app, every test sat under the app's
 // bundle and took itself for an app session. A test passes its own ancestry.
-const machineAncestry = () => isTestMode() ? [] : processAncestry();
+const machineAncestry = env => () => isTestMode(env) ? [] : processAncestry();
 // The app this session runs in, for a harness: its name, or null.
-export function desktopApp(harness, { env = process.env, ancestry = machineAncestry } = {}) {
+export function desktopApp(harness, { env = process.env, ancestry = machineAncestry(env) } = {}) {
   const a = APPS[harness]; if (!a) return null;
   if (a.env?.(env)) return a.name;
   return (typeof ancestry === 'function' ? ancestry() : ancestry).some(c => a.bundle.test(c)) ? a.name : null;
 }
 // Any of them, for a process that does not know its client (the MCP server before the client says who it is).
-export function anyDesktopApp({ env = process.env, ancestry = machineAncestry } = {}) {
+export function anyDesktopApp({ env = process.env, ancestry = machineAncestry(env) } = {}) {
   const chain = typeof ancestry === 'function' ? ancestry() : ancestry;
   for (const h of Object.keys(APPS)) { const n = desktopApp(h, { env, ancestry: chain }); if (n) return n; }
   return null;

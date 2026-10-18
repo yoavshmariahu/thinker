@@ -271,3 +271,26 @@ test('incremental checkpoints retain the first appended event and an incomplete 
     assert.equal(parseTranscript(file, { format: 'events', fromLine: partial.lineCount }).events[0].text, 'last');
   } finally { fs.rmSync(path.dirname(file), { recursive: true, force: true }); }
 });
+
+test('Cursor transcripts strip system_reminder and thinker-learning tags and hydrate CallDynamicTool MCP results from trace', () => {
+  const dir = tmp();
+  const trace = path.join(dir, 'trace-c1.jsonl');
+  fs.writeFileSync(trace, JSON.stringify({
+    t: 'tool',
+    name: 'MCP:orient',
+    input: { cwd: dir, task: 'fix auth' },
+    result: JSON.stringify({ content: [{ type: 'text', text: 'Cached knowledge (id: auth-rule, confidence 90%)' }], isError: false }),
+  }) + '\n');
+  const file = path.join(dir, 'c1.jsonl');
+  fs.writeFileSync(file, [
+    JSON.stringify({ role: 'user', message: { content: [{ type: 'text', text: '<system_reminder>\n<thinker-learning>\nsubagent instructions\n</thinker-learning>\n</system_reminder>\n<open_and_recently_viewed_files>foo.js</open_and_recently_viewed_files>\n<user_query>\nfix auth\n</user_query>' }] } }),
+    JSON.stringify({ role: 'assistant', message: { content: [{ type: 'tool_use', id: '1', name: 'CallDynamicTool', input: { namespace: 'user-thinker', toolName: 'orient', arguments: { cwd: dir, task: 'fix auth' } } }, { type: 'text', text: 'Fixed auth.' }] } }),
+  ].join('\n') + '\n');
+  const parsed = parseTranscript(file);
+  assert.equal(parsed.events[0].text, 'fix auth');
+  assert.equal(parsed.events[1].name, 'mcp__thinker__orient');
+  assert.deepEqual(parsed.events[1].input, { cwd: dir, task: 'fix auth' });
+  hydrate(parsed.events, dir, { trace });
+  assert.equal(parsed.events[1].result, 'Cached knowledge (id: auth-rule, confidence 90%)');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
