@@ -93,33 +93,16 @@ export function turnNotice(repo, notes) {
   return `🧠 thinker: ${noun} (pointing at ${files}~${formatTokens(tokens)} tokens of code)`;
 }
 
-const xmlEsc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-export function turnCardSvg(repo, notes) {
+export function turnFooterMarkdown(repo, notes) {
   const unique = [...new Map((notes || []).filter(Boolean).map(n => [n.id || n.title, n])).values()];
   if (!unique.length) return '';
   const { calls, tokens } = cacheHitSavings(repo, unique);
   const hits = unique.length;
-  const stats = [
-    `${hits} ${hits === 1 ? 'note' : 'notes'} this turn`,
-    calls ? `${calls} ${calls === 1 ? 'file' : 'files'}` : '',
-    tokens ? `~${formatTokens(tokens)} tokens of code` : '',
-  ].filter(Boolean).join(' · ');
-  const rows = unique.slice(0, 3).map((n, i) => {
-    const raw = `↳ [${n.kind || 'note'}] ${n.title || n.id}`;
-    const clipped = raw.length > 66 ? raw.slice(0, 65) + '…' : raw;
-    return i === 2 && unique.length > 3 ? `${clipped} (+${unique.length - 3} more)` : clipped;
-  });
-  const h = 36 + rows.length * 20;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="540" height="${h}" viewBox="0 0 540 ${h}" fill="none">
-  <rect x="0.5" y="0.5" width="539" height="${h - 1}" rx="10" fill="#11181C" stroke="#26343B"/>
-  <rect x="0.5" y="0.5" width="4" height="${h - 1}" rx="2" fill="#30A46C"/>
-  <circle cx="20" cy="20" r="4" fill="#30A46C"/>
-  <text x="31" y="24" fill="#ECEDEE" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" font-size="12.5" font-weight="600">thinker</text>
-  <rect x="82" y="11" width="64" height="18" rx="4" fill="#162B22" stroke="#234E3B"/>
-  <text x="114" y="23" text-anchor="middle" fill="#4CC38A" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" font-size="10.5" font-weight="600">CACHE HIT</text>
-  <text x="158" y="24" fill="#9BA1A6" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" font-size="12">${xmlEsc(stats)}</text>
-  ${rows.map((r, i) => `<text x="20" y="${44 + i * 20}" fill="#C1C8CD" font-family="ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace" font-size="11.5">${xmlEsc(r)}</text>`).join('\n  ')}
-</svg>\n`;
+  const noun = `${hits} ${hits === 1 ? 'note' : 'notes'} this turn`;
+  const files = calls ? `${calls} ${calls === 1 ? 'file' : 'files'}` : '';
+  const detail = tokens ? `*pointing at ${files ? `${files} (` : ''}~${formatTokens(tokens)} tokens of code${files ? ')' : ''}*` : '';
+  const titles = unique.slice(0, 2).map(n => `\`${String(n.title || n.id).replace(/`/g, '')}\``).join(', ') + (unique.length > 2 ? ` (+${unique.length - 2} more)` : '');
+  return `---\n🧠 **thinker** · \`${noun}\`${detail ? ` · ${detail}` : ''}${titles ? ` · ${titles}` : ''}`;
 }
 
 
