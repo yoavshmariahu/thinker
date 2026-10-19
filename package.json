@@ -1,7 +1,7 @@
 {
   "name": "thinker",
   "version": "0.1.66",
-  "description": "Stop wasting context: injects the context and skills that fit each task, keeps itself fresh as the code changes, and switches off the tools your coding agent loads and never uses",
+  "description": "Think ahead. Save context. A knowledge cache for coding agents: injects the context and skills that fit each task and keeps itself fresh as the code changes",
   "type": "module",
   "bin": {
     "thinker": "./src/cli.js",

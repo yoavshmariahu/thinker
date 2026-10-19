@@ -1,7 +1,7 @@
 {
   "name": "@zerotimedev/thinker",
   "version": "0.0.0",
-  "description": "Installer for thinker (stop wasting context): npx @zerotimedev/thinker",
+  "description": "Installer for thinker (think ahead, save context): npx @zerotimedev/thinker",
   "type": "module",
   "bin": {
     "thinker-install": "install.mjs"
