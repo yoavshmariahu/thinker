@@ -3,9 +3,9 @@
 // pull request and the same fact saved from a session 43 minutes later stayed two notes (0.30 by that
 // measure), took both of a turn's serving slots and counted one file's read once between them.
 //
-// A maintenance pass (maintain.js, off by default: a change to what the cache holds ships behind a
-// switch until an experiment shows it helps, AGENTS.md) finds such pairs cheaply and has a model
-// settle each one:
+// A maintenance pass (maintain.js; on by default at the owner's decision on 2026-10-19, an exception
+// to the rule that a change to what the cache holds waits for an experiment, AGENTS.md) finds such
+// pairs cheaply and has a model settle each one:
 // 1. Candidates, free: each note embedded locally (dense.js:embed, all-MiniLM-L6-v2) from its title
 //    and search text; a pair is a candidate when the two rest on a file in common and their cosine
 //    is at least `threshold`. On this repository's 337 notes on 2026-10-18 this took 4 seconds and
@@ -25,10 +25,10 @@ import { gitHead } from './store.js';
 
 export const DEDUPE_DEFAULTS = { threshold: 0.75, perRun: 3 };
 
-// The pass is on when maintenance's config says `dedupe: true` or THINKER_DEDUPE names it (an experiment arm).
+// The pass runs unless maintenance's config says `dedupe: false`; THINKER_DEDUPE=on|off overrides the config.
 export function dedupeOn(cfg, env = process.env) {
   if (/^(off|0|false)$/i.test(env.THINKER_DEDUPE || '')) return false;
-  return /^(on|1|true)$/i.test(env.THINKER_DEDUPE || '') || cfg.dedupe === true;
+  return /^(on|1|true)$/i.test(env.THINKER_DEDUPE || '') || cfg.dedupe !== false;
 }
 
 const eligible = n => !n.archived && n.status !== 'invalid' && n.status !== 'broken' && n.kind !== 'skill' && n.kind !== 'behavior';

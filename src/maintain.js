@@ -41,9 +41,10 @@ export const DEFAULTS = {
   // the weekly suggestion of tools to switch off (harness.js): a new way of reaching the agent, off until an experiment
   // shows it helps; `maintain: { harness: true }` turns it on for a repository
   harness: false,
-  // merge notes that say the same thing in different words (dedupe.js): changes what the cache holds, so off
-  // until an experiment shows it helps; `maintain: { dedupe: true }` (or THINKER_DEDUPE=on) turns it on
-  dedupe: false,
+  // merge notes that say the same thing in different words (dedupe.js). On by default without an experiment,
+  // at the owner's decision on 2026-10-19 (a small upkeep pass); `maintain: { dedupe: false }` or
+  // THINKER_DEDUPE=off turns it off
+  dedupe: true,
   dedupePerRun: DEDUPE_DEFAULTS.perRun,       // candidate pairs judged per run (one model call each)
   dedupeThreshold: DEDUPE_DEFAULTS.threshold, // cosine of the local embeddings, for notes resting on a file in common
   archive: true,    // take notes the sessions showed are not worth serving out of serving and upkeep (ops.js:archiveNotes; `archive` in the config sets the rules)
