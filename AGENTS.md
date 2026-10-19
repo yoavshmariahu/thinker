@@ -325,7 +325,18 @@ beside the pull requests, unless `mining: { commits: false }` in `.thinker/confi
 (or `THINKER_MINE_COMMITS=off`; the variable overrides the config) says otherwise (`prs.js:listMergedChanges`, `commitsOn`):
 a pull request keeps GitHub's description and review comments, a commit is mined from
 its message and diff as with `--git`. On by default without an experiment, at the
-owner's decision (2026-10-19), an exception to the rule below. Every
+owner's decision (2026-10-19), an exception to the rule below.
+A cache warmed before that read the pull requests alone, and in a repository developed
+mostly by direct commits it stayed small. Maintenance finds such caches without a model
+call (`commits-offer.js:scheduleCommitsOffer`, at most weekly, on a GitHub repository whose
+cache has read some history): when 20 of the last 500 first-parent commits are direct,
+unmined and not chores, the next prompt asks the person once ("thinker found N unmined
+commits", `<thinker-unmined-commits>`) to mine them, no or never; a yes runs `thinker
+mine-prs --direct` (only commits naming no pull request) in the background through their
+agent's login, or the session in a desktop app (`answerCommits`, the MCP `commits` tool,
+`thinker commits --answer`). No waits a month; never stops it on the machine
+(`THINKER_HOME/state/commits-never`); `maintain: { commitsOffer: false }` turns the check
+off. `thinker commits` prints the count. Every
 pull request it
 has looked at is recorded in `.thinker/prs.json`, which is committed with the
 notes, so none is distilled twice, by you or by a teammate. Pull requests merged

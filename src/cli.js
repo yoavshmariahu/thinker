@@ -21,6 +21,7 @@ import { commands as benchmarkCommands } from './commands/benchmark.js';
 import { commands as doctorCommands } from './commands/doctor.js';
 import { commands as warmupCommands } from './commands/warmup.js';
 import { commands as coverageCommands } from './commands/coverage.js';
+import { commands as commitsCommands } from './commands/commits.js';
 import { commands as symbolsCommands } from './commands/symbols.js';
 import { commands as switchCommands } from './commands/repo-switch.js';
 import { commands as externalCommands } from './commands/external.js';
@@ -160,10 +161,14 @@ const HELP = `thinker — knowledge cache for coding agents
   coverage [--answer <dirs|none|never>] [--via picker|text] [--client c]
                                  the directories your sessions work in and how much of each the cache covers; --answer takes
                                  the reply to a coverage suggestion (directories, comma-separated) and builds the chosen ones
-  mine-prs [owner/repo] [--project file | --full-repo] [--limit n] [--dry] [--git] [--fixes] [--from commit [--scan n] [--paths a,b [--paths-limit n]]]
+  commits [--answer <mine|no|never>] [--via picker|text] [--client c]
+                                 how many commits on the default branch name no pull request and are not mined yet; --answer
+                                 takes the reply to the unmined-commits question and mines them in the background
+  mine-prs [owner/repo] [--project file | --full-repo] [--limit n] [--dry] [--git | --direct] [--fixes] [--from commit [--scan n] [--paths a,b [--paths-limit n]]]
                                  distill merged PRs into fix / invariant / convention notes: those merged since the last run,
                                  then older ones; mined PRs are recorded in .thinker/prs.json and never distilled twice;
                                  without GitHub, or with --git, commits from git history (--fixes: only those whose message says they fix something)
+                                 --direct: only the commits pushed straight to the default branch, naming no pull request
                                  (default repo: the GitHub origin; --before <iso> [--after <iso>] [--again] picks a window by hand)
                                  --from <commit>: look back from that commit instead of the checkout's head: the newest --limit changes
                                  worth distilling among the 3 x limit commits that end there (--scan n: among n); nothing merged
@@ -259,7 +264,7 @@ function unknownFlags(c, given, help = HELP) {
 const CACHE_COMMANDS = ['tools', 'symbols', 'orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'session-work', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback', 'skills'];
 
 // One handler per command, in src/commands/; each gets the context below and nothing else of this file.
-const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...skillsCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...warmupCommands, ...coverageCommands, ...symbolsCommands, ...switchCommands, ...externalCommands, ...harnessCommands };
+const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...skillsCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...warmupCommands, ...coverageCommands, ...commitsCommands, ...symbolsCommands, ...switchCommands, ...externalCommands, ...harnessCommands };
 // Commands that still answer in a repository thinker is switched off for (repo-switch.js): the machine-wide
 // ones, the ones about the install itself, and the switch. `hook` keeps quiet by itself.
 const OFF_COMMANDS = ['version', 'enable', 'disable', 'ui', 'warmup', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'stats', 'ast', 'ranker', 'hook', 'serve', undefined];

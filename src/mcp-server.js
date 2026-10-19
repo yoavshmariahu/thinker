@@ -20,6 +20,7 @@ import { isDisabledRepo } from './repo-switch.js';
 import { isTestMode } from './test-mode.js';
 import { warmupPending, warmupOffer, answerWarmup, startSessionWarmup, subagentHarness, WARMUP_CHOICES } from './repo-onboard.js';
 import { coveragePending, answerCoverage } from './coverage.js';
+import { commitsPending, answerCommits } from './commits-offer.js';
 import { harnessPending, answerHarness } from './harness.js';
 import { queueDir, buildRunning, buildRequested, nextRequest, answerRequest, requestText } from './session-llm.js';
 import { anyDesktopApp, ancestorPids } from './app-host.js';
@@ -95,7 +96,7 @@ async function ensureBound(args) {
   if (r && r !== repo) {
     if (isDisabledRepo(r)) return { reply: text('thinker is switched off for that repository and serves nothing there.') };
     binding = bind(r); await binding;
-    registerWarmupTool(); registerCoverageTool(); registerHarnessTool(); registerQueueTools();
+    registerWarmupTool(); registerCoverageTool(); registerCommitsTool(); registerHarnessTool(); registerQueueTools();
     return { bound: true };
   }
   if (store) return { bound: false };
@@ -326,7 +327,7 @@ function registerTools() {
   });
 
   registerWarmupTool();
-  registerCoverageTool(); registerHarnessTool();
+  registerCoverageTool(); registerCommitsTool(); registerHarnessTool();
   registerQueueTools();
 }
 
@@ -346,6 +347,25 @@ function registerCoverageTool() {
   }, async ({ choice, asked, cwd }) => {
     const { reply } = await ensureBound({ cwd }); if (reply) return reply;
     return text(await answerCoverage(store, String(choice), { client: clientName(), via: asked === 'chat' ? 'text' : 'picker' }));
+  });
+}
+
+// The answer to the unmined-commits question (commits-offer.js:commitsOffer): offered only while one waits for its
+// answer here, like the coverage tool.
+let commitsTool;
+function registerCommitsTool() {
+  if (commitsTool || !store || !commitsPending(store)) return;
+  commitsTool = server.registerTool('commits', {
+    title: 'Answer the unmined-commits question',
+    description: 'Only when a thinker-unmined-commits notice tells you to: records the user\'s answer and, on mine, mines the commits into the cache in the background.',
+    inputSchema: {
+      choice: z.enum(['mine', 'no', 'never']).describe('The user\'s answer'),
+      asked: z.enum(['picker', 'chat']).optional().describe('Where the user answered: your question tool (picker) or chat'),
+      ...(late ? { cwd: z.string().optional().describe('Absolute path of the repository') } : {}),
+    },
+  }, async ({ choice, asked, cwd }) => {
+    const { reply } = await ensureBound({ cwd }); if (reply) return reply;
+    return text(await answerCommits(store, String(choice), { client: clientName(), via: asked === 'chat' ? 'text' : 'picker' }));
   });
 }
 
@@ -445,7 +465,7 @@ if (late) server.server.oninitialized = async () => {
         const r = checkoutOf(root.uri);
         if (!r || isDisabledRepo(r) || store) continue;
         binding = bind(r); await binding;
-        registerWarmupTool(); registerCoverageTool(); registerHarnessTool(); registerQueueTools();
+        registerWarmupTool(); registerCoverageTool(); registerCommitsTool(); registerHarnessTool(); registerQueueTools();
         break;
       }
     }

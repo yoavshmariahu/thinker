@@ -284,6 +284,11 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
     if (cfg.harness === true && !dry) {
       try { const { scheduleHarnessSuggestion } = await (fns.harness ? { scheduleHarnessSuggestion: fns.harness } : import('./harness.js')); const picks = scheduleHarnessSuggestion(store, { now }); if (picks) r.harnessSuggested = picks.length; } catch { r.errors++; }
     }
+    // 9. at most weekly, a question for the person: direct commits a PR-only warm-up never read (commits-offer.js).
+    // No model call; the prompt hook asks it, and mining starts only on their answer.
+    if (cfg.prs && cfg.commitsOffer !== false && !dry) {
+      try { const { scheduleCommitsOffer } = await (fns.commitsOffer ? { scheduleCommitsOffer: fns.commitsOffer } : import('./commits-offer.js')); const n = scheduleCommitsOffer(store, { now }); if (n) r.commitsSuggested = n; } catch { r.errors++; }
+    }
     const u = state.unreported || {};
     // a behavior found broken during this run was written to the state file by the verification itself
     // (ops.js:noteUnreported), after the state was read: keep it
