@@ -37,7 +37,9 @@ function machine(t) {
   fs.mkdirSync(recs, { recursive: true });
   const add = (id, { desktop = true, start = T0 - 86400_000, extra = [], docs = true } = {}) => {
     fs.writeFileSync(path.join(dir, `${id}.jsonl`), lines(start, extra, { docs }).map(j => JSON.stringify(j)).join('\n') + '\n');
-    if (desktop) fs.writeFileSync(path.join(recs, `local_${id}.json`), JSON.stringify({ sessionId: `local_${id}`, cliSessionId: id, remoteMcpServersConfig: docs ? [docsServer] : [], promptAppendSnapshot: { append: APPEND } }));
+    // the app lists every connector, the ones switched off with each tool false in enabledMcpTools
+    const enabledMcpTools = docs ? undefined : Object.fromEntries(docsServer.tools.map(t => [`${DOCS}:${t.name}`, false]));
+    if (desktop) fs.writeFileSync(path.join(recs, `local_${id}.json`), JSON.stringify({ sessionId: `local_${id}`, cliSessionId: id, remoteMcpServersConfig: [docsServer], enabledMcpTools, promptAppendSnapshot: { append: APPEND } }));
     return { client: 'claude', file: path.join(dir, `${id}.jsonl`), session: id, mtime: start };
   };
   return { h, add };

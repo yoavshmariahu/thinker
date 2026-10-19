@@ -4,7 +4,9 @@
 // instructions, appended to the system prompt. The app keeps both in its record of the session,
 // <app data>/Claude/claude-code-sessions/<account>/<org>/local_<id>.json, keyed to the transcript by
 // `cliSessionId`: `remoteMcpServersConfig` (each connector's uuid, name and tools, the always-loaded ones
-// marked `_meta["anthropic/alwaysLoad"]`) and `promptAppendSnapshot.append` (the appended text).
+// marked `_meta["anthropic/alwaysLoad"]`), `enabledMcpTools` (`"<uuid>:<tool>": false` for each tool of a
+// connector switched off: the list above names every connector, on or off, checked by switching Claude Docs
+// off on 2026-10-19) and `promptAppendSnapshot.append` (the appended text).
 // Read from Claude 2.42304.2 (Claude Code 2.1.299) on 2026-10-19.
 //
 // What switches them off: a connector by the app's Connectors switch (the composer's + menu), which the
@@ -70,12 +72,14 @@ const toolTokens = t => estTokens(JSON.stringify({ name: t.name, description: t.
 // their deferred tools and calls), each connector's name, and the app's sections.
 export function desktopSessionHarness(record, { serverKey }) {
   const loaded = new Map(), connectors = new Map(), texts = new Map();
+  const off = record?.enabledMcpTools || {};
   for (const s of Array.isArray(record?.remoteMcpServersConfig) ? record.remoteMcpServersConfig : []) {
     if (!s?.uuid) continue;
-    const key = `mcp:${serverKey(s.uuid)}`, tools = Array.isArray(s.tools) ? s.tools : [];
+    connectors.set(serverKey(s.uuid), { id: s.uuid, name: connectorName(s.name), label: String(s.name || '') });
+    const key = `mcp:${serverKey(s.uuid)}`, tools = (Array.isArray(s.tools) ? s.tools : []).filter(t => off[`${s.uuid}:${t?.name}`] !== false);
+    if (!tools.length) continue; // switched off in this session
     const always = tools.filter(t => t?._meta?.['anthropic/alwaysLoad']);
     loaded.set(key, always.reduce((n, t) => n + toolTokens(t), 0));
-    connectors.set(serverKey(s.uuid), { id: s.uuid, name: connectorName(s.name), label: String(s.name || '') });
     texts.set(key, `${s.name || ''}. Tools: ${tools.map(t => `${t.name}: ${String(t.description || '').slice(0, 120)}`).join('; ')}`);
   }
   const append = String(record?.promptAppendSnapshot?.append || '');
