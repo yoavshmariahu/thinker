@@ -92,15 +92,16 @@ test('Codex savings require comparable inventories and ignore other harnesses an
   assert.equal(saved.sources[0].sessions, 2); assert.equal(saved.sources[0].absent, 1); assert.equal(saved.sources[0].stillLoaded, 1); assert.ok(saved.tokens > 0); assert.equal(saved.inputTokens, saved.tokens);
 });
 
-test('Codex offers use the available question tool and recall remains opt-in and client scoped', async t => {
+test('Codex offers use the available question tool, and recall follows the harness switch and is client scoped', async t => {
   const f = fixture(t), usage = harnessUsage(f.repo, { home: f.home, sessions: [0, 1, 2].map(i => f.session(`s${i}`)) });
   scheduleHarnessSuggestion(f.store, { ...f.options, usage, force: true });
   assert.equal(harnessOffer(f.store, { ...f.options, client: 'claude' }), '');
   const offer = harnessOffer(f.store, { ...f.options, client: 'codex' });
   assert.match(offer, /request_user_input_async/); assert.doesNotMatch(offer, /AskUserQuestion/); assert.match(offer, /--client codex/); assert.match(offer, /Codex: docs MCP server/);
   switchOffNow(f.store, 'codex:mcp:docs', { ...f.options, usage });
-  assert.equal(await harnessRecall(f.store, 'search docs documentation', { client: 'codex' }), '');
-  fs.writeFileSync(path.join(f.store.dir, 'config.json'), JSON.stringify({ harness: { enabled: true, recall: true } }));
+  fs.writeFileSync(path.join(f.store.dir, 'config.json'), JSON.stringify({ harness: { enabled: true, recall: false } }));
+  assert.equal(await harnessRecall(f.store, 'search docs documentation', { client: 'codex', scoreFn: rows => rows }), '', 'switched off by name');
+  fs.writeFileSync(path.join(f.store.dir, 'config.json'), JSON.stringify({ harness: { enabled: true } }));
   assert.equal(await harnessRecall(f.store, 'search docs documentation', { client: 'claude', scoreFn: rows => rows }), '');
   const recall = await harnessRecall(f.store, 'search docs documentation', { client: 'codex', scoreFn: rows => rows });
   assert.match(recall, /thinker harness --undo codex:mcp:docs/); assert.doesNotMatch(recall, /\/mcp enable/);

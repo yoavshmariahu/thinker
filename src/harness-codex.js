@@ -121,10 +121,10 @@ export function codexHarnessUsage(repo, sessions, options = {}) {
     // Local plugin identity is established by both its installed path and a config entry.
     return file && plugins.find(p => file.includes(`/plugins/cache/`) && file.includes(`/${p.name}/`) && key.startsWith(`skill:${p.name}:`));
   };
-  const rows = new Map(); let counted = 0;
+  const rows = new Map(); let counted = 0; const calls = [];
   for (const { s, h } of read) {
     if (!h.loaded.size || h.parent) continue;
-    counted++;
+    counted++; calls.push(h.calls);
     const descendants = new Set(h.id ? [h.id] : []); let size;
     do { size = descendants.size; for (const r of read) if (r.h.parent && descendants.has(r.h.parent)) descendants.add(r.h.id); } while (size !== descendants.size);
     const used = new Set(read.filter(r => descendants.has(r.h.id)).flatMap(r => [...r.h.used]));
@@ -152,7 +152,8 @@ export function codexHarnessUsage(repo, sessions, options = {}) {
       r.texts = { ...r.texts, ...g.texts }; r.evidenceKeys = [...new Set([...r.evidenceKeys, ...g.evidenceKeys])];
     }
   }
-  return { sessions: counted, sources: [...rows.values()].map(r => {
+  const sorted = calls.sort((x, y) => x - y);
+  return { sessions: counted, calls: sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0, sources: [...rows.values()].map(r => {
     const setting = r.kind === 'mcp' ? config.servers.get(r.name) : r.kind === 'plugin' ? config.plugins.get(r.id) : null;
     const skill = r.dir && !r.dir.includes('/.system/') && !r.dir.includes('/plugins/cache/') && fs.existsSync(path.join(r.dir, 'SKILL.md'));
     return { ...r, tokens: Math.round(r.tokens / r.loaded), scope: setting?.scope || (skill ? 'project' : null), off: setting?.off || (r.dir && (config.skills.get(r.dir) === false || config.skills.get(path.join(r.dir, 'SKILL.md')) === false)), how: valid && (setting || skill) ? `codex-${r.kind}` : null };

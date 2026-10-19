@@ -185,7 +185,7 @@ const HELP = `thinker — knowledge cache for coding agents
                                  what the sessions use, and the ones worth switching off; the report changes nothing. --suggest asks in
                                  the next Claude Code, Codex or Cursor prompt here, one question for all of them (weekly with maintain: {harness: true});
                                  --answer takes the reply, --off switches named ones off without asking; --undo turns them (or the named ones) back on;
-                                 --weekly, --recall (a line when a request needs a switched-off tool) and --suggestions set what thinker does; also on the local page
+                                 --weekly, --recall (a line when a request needs a switched-off tool; on with the harness) and --suggestions set what thinker does; also on the local page
   guide                          the cache usage guidance an install writes into an agent's instructions
   export [file.tgz] [--dir d]    back the cache up to a .tgz; --dir writes every note whole, one <id>.json each, into d
   hook <prompt|tool|stop [--nudge]> [--client c]   hook entrypoints (JSON on stdin): prompt = notes for the request, tool = notes about files being edited, stop = nudge + distill
