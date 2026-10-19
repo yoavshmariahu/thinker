@@ -124,8 +124,11 @@ async function hookCommand(ctx) {
       // never in a benchmark or test session (THINKER_TEST=1): an offer there is noise in the agent's context and an
       // eval runner marks the session invalid for it (2026-10-18); THINKER_OFFERS=on restores them, for the tests of the offers
       const offersOn = !isTestMode() || process.env.THINKER_OFFERS === 'on';
-      // a switched-off tool this request looks like it needs (harness.js:harnessRecall; off until an experiment)
-      const recall = offersOn && ['claude', 'codex', 'cursor'].includes(client) && !isHarnessEvent(ev.prompt) ? await harnessRecall(store, ev.prompt || '', { session, client }) : '';
+      // a switched-off tool this request looks like it needs (harness.js:harnessRecall). Not an offer: a line for the
+      // agent, on with the harness, so it runs in test mode too. Gated as an offer, an eval arm had to turn every
+      // offer back on to measure it, and the warm-up offer then reached the agent (2026-10-19: a PostHog session
+      // stopped to ask about warming its empty cache, because offerStore reads the main checkout's answered mark)
+      const recall = ['claude', 'codex', 'cursor'].includes(client) && !isHarnessEvent(ev.prompt) ? await harnessRecall(store, ev.prompt || '', { session, client }) : '';
       const offer = [offersOn ? (warmupOffer(store, { client }) || commitsOffer(store, { client }) || coverageOffer(store, { client }) || harnessOffer(store, { client })) : '', work, recall].filter(Boolean).join('\n\n');
       // Every git repository has a cache, started on first use and empty until it learns; the hooks serve
       // from it once it holds a few notes (ops.js:SERVE_MIN_NOTES). A prompt served nothing is still a
