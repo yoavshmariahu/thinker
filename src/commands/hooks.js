@@ -18,6 +18,7 @@ import { turnNotice, turnFooterMarkdown, weeklyNotice } from '../usage.js';
 import { claudeCardActive } from '../claude-card.js';
 import { setupRepo, warmupOffer } from '../repo-onboard.js';
 import { coverageOffer, recordAccess } from '../coverage.js';
+import { commitsOffer } from '../commits-offer.js';
 import { harnessOffer, harnessRecall, harnessOn } from '../harness.js';
 import { snapshotCursorInventory } from '../harness-cursor.js';
 import { thinkerHome } from '../update.js';
@@ -125,7 +126,7 @@ async function hookCommand(ctx) {
       const offersOn = !isTestMode() || process.env.THINKER_OFFERS === 'on';
       // a switched-off tool this request looks like it needs (harness.js:harnessRecall; off until an experiment)
       const recall = offersOn && ['claude', 'codex', 'cursor'].includes(client) && !isHarnessEvent(ev.prompt) ? await harnessRecall(store, ev.prompt || '', { session, client }) : '';
-      const offer = [offersOn ? (warmupOffer(store, { client }) || coverageOffer(store, { client }) || harnessOffer(store, { client })) : '', work, recall].filter(Boolean).join('\n\n');
+      const offer = [offersOn ? (warmupOffer(store, { client }) || commitsOffer(store, { client }) || coverageOffer(store, { client }) || harnessOffer(store, { client })) : '', work, recall].filter(Boolean).join('\n\n');
       // Every git repository has a cache, started on first use and empty until it learns; the hooks serve
       // from it once it holds a few notes (ops.js:SERVE_MIN_NOTES). A prompt served nothing is still a
       // request: `thinker usage` and the telemetry count a machine as active by its requests, and a cache in

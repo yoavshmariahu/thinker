@@ -96,7 +96,7 @@ async function minePrsCommand(ctx) {
   // or --from <commit>: the newest --limit changes worth distilling in the git history that ends at that commit
   // --paths a,b [--paths-limit n] with --from: the history of those files first, then the newest changes
   const paths = typeof flags.paths === 'string' ? flags.paths.split(',').map(s => s.trim()).filter(Boolean) : null;
-  await mineMore(ctx, { slug: pos[0], from: typeof flags.from === 'string' ? flags.from : undefined, scan: Number(flags.scan) || undefined, before: flags.before, after: flags.after, again: !!flags.again, limit: Number(flags.limit) || (flags.before || flags.after ? 60 : 20), model: flags.model, dry: !!flags.dry, fixes: !!flags.fixes, git: !!flags.git, paths, pathsLimit: Number(flags['paths-limit']) || null });
+  await mineMore(ctx, { slug: pos[0], from: typeof flags.from === 'string' ? flags.from : undefined, scan: Number(flags.scan) || undefined, before: flags.before, after: flags.after, again: !!flags.again, limit: Number(flags.limit) || (flags.before || flags.after ? 60 : 20), model: flags.model, dry: !!flags.dry, fixes: !!flags.fixes, git: !!flags.git, direct: !!flags.direct, paths, pathsLimit: Number(flags['paths-limit']) || null });
   return;
 }
 
@@ -283,7 +283,7 @@ export async function mineMore(ctx, { slug, ...opts }) {
   return minePrs(ctx, slug, { ...opts, repo });
 }
 
-export async function minePrs(ctx, slug, { from, scan, before, after, again, limit = 20, model, dry, fixes = false, git = false, repo = process.cwd(), phase = 'maintenance', directories = null, concurrency = 4, paths = null, pathsLimit = null, pathsScan = null, pathsOnly = false, onProgress = null, distillPrFn = distillPr } = {}) {
+export async function minePrs(ctx, slug, { from, scan, before, after, again, limit = 20, model, dry, fixes = false, git = false, direct = false, repo = process.cwd(), phase = 'maintenance', directories = null, concurrency = 4, paths = null, pathsLimit = null, pathsScan = null, pathsOnly = false, onProgress = null, distillPrFn = distillPr } = {}) {
   const { flags, store, out } = ctx;
   // --git: commits from git history although GitHub is reachable (a repository whose work lands by
   // direct commits has few pull requests to mine; its fix commits are what review wants)
@@ -297,7 +297,9 @@ export async function minePrs(ctx, slug, { from, scan, before, after, again, lim
   const rec = minedPrs(store, scopeKey);
   if (directories) for (const id of minedPrs(store, recSlug).mined) rec.mined.add(id);
   const fetchLimit = Math.min(Math.max(limit * 3, 60), 250);
-  const listFn = useGit ? (s, o) => listMergedCommits(repo, { ...o, directories })
+  // --direct: only the commits that name no pull request (commits-offer.js: the ones a PR-only warm-up never read)
+  const listFn = direct ? (s, o) => listMergedCommits(repo, { ...o, directories, directOnly: true })
+    : useGit ? (s, o) => listMergedCommits(repo, { ...o, directories })
     : commitsOn(store.config().mining) ? listMergedChanges(repo, { directories }) : listMergedPrs;
 
   // without a window: what was merged since the last run, then further back; never a PR mined before
