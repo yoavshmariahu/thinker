@@ -171,11 +171,13 @@ export function editCodexSetting(text, source, undo) {
     j.skills.config ||= [];
     target = j.skills.config.find(s => s.path === source.dir || s.path === path.join(source.dir, 'SKILL.md'));
     if (!target && undo) return { text, prev: undefined };
-    if (!target) { created = true; j.skills.config.push(target = { path: source.dir }); }
+    // Codex matches a skill switch by its SKILL.md path, not its directory
+    if (!target) { created = true; j.skills.config.push(target = { path: path.join(source.dir, 'SKILL.md') }); }
   } else { const group = kind === 'mcp' ? 'mcp_servers' : 'plugins'; j[group] ||= {}; target = j[group][source.id || source.name] ||= {}; }
   const prev = target.enabled;
   if (undo) { if (target.enabled !== false) return { text, prev }; if (undo.created && kind === 'skill' && Object.keys(target).every(k => ['path', 'enabled'].includes(k))) j.skills.config = j.skills.config.filter(s => s !== target); else if (undo.prev === undefined) delete target.enabled; else target.enabled = undo.prev; }
   else target.enabled = false;
   if (undo?.inherited && JSON.stringify(j.skills?.config) === JSON.stringify(undo.inherited)) delete j.skills.config;
+  if (j.skills && !Object.keys(j.skills).length) delete j.skills;
   return { text: stringify(j), prev, created, inherited };
 }
