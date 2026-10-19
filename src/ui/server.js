@@ -12,6 +12,7 @@
 // It listens on 127.0.0.1 alone. Every API call carries a token minted for this run, which the page
 // gets from the URL it was opened with, and the Host header must name this server, so another page
 // in the browser (or a DNS rebinding) can neither read the cache nor change a behavior.
+import { harnessView, harnessSavings, scheduleHarnessSuggestion, undoHarness, switchOffNow, setHarnessSettings } from '../harness.js';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -214,6 +215,7 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
     return { ...r, stats: cacheStats(r.checkout), pending, job: jobs.list().filter(j => j.checkout === r.checkout).pop() || null };
   };
   let candidates = null, agents = null, apps = null;
+  const harnessCache = new Map();
   const server = http.createServer(async (req, res) => {
     lastRequest = Date.now();
     const url = new URL(req.url, 'http://127.0.0.1');
@@ -257,6 +259,17 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
       if (req.method === 'GET' && url.pathname === '/api/cache') {
         const stores = storesFor(want); if (!stores) return json(res, 400, { error: 'unknown repository' });
         return json(res, 200, { notes: stores.flatMap(([r, st]) => cacheView(st).notes.map(n => ({ ...n, repo: r.id, repoName: r.name }))) });
+      }
+      // what Claude Code loads into every session here and what switching it off saved (harness.js:harnessView, as `thinker harness`)
+      if (req.method === 'GET' && url.pathname === '/api/harness') {
+        if (want === 'all') return json(res, 200, { repos: repos().flatMap(r => { try { const st = open(r.checkout), sv = harnessSavings(st); return sv.sources.length ? [{ repo: r.id, repoName: r.name, saved: sv }] : []; } catch { return []; } }) });
+        const one = storeFor(want); if (!one) return json(res, 400, { error: 'unknown repository' });
+        // it reads every transcript of the window (seconds on a busy repository): kept a minute, dropped on an action
+        const k = `${one.repo}:${Number(url.searchParams.get('days')) || 30}`, hit = harnessCache.get(k);
+        if (hit && Date.now() - hit.at < 60_000) return json(res, 200, hit.view);
+        const view = harnessView(one, { days: Number(url.searchParams.get('days')) || 30 });
+        harnessCache.set(k, { at: Date.now(), view });
+        return json(res, 200, view);
       }
       if (req.method === 'GET' && url.pathname === '/api/behaviors') {
         const stores = storesFor(want); if (!stores) return json(res, 400, { error: 'unknown repository' });
@@ -321,6 +334,7 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
       const st = storeFor(String(b.repo || ''));
       if (!st) return json(res, 400, { error: 'unknown repository' });
       let r;
+      if (url.pathname.startsWith('/api/harness/')) harnessCache.clear();
       if (url.pathname === '/api/behaviors/accept') r = acceptPending(st, b.id, { mutability: b.mutability || 'mutable', edit: b.title || b.body ? { title: b.title, body: b.body } : null });
       else if (url.pathname === '/api/behaviors/discard') r = discardPending(st, b.id);
       else if (url.pathname === '/api/cache/review') {
@@ -333,10 +347,15 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
         if (!n || isBehavior(n)) r = { error: 'no such note' };
         else if (!archiveNotes(st, { ids: [b.id], restore }).length) r = { error: restore ? 'the note is not archived' : 'the note is already archived' };
       }
+      // the page's door to `thinker harness --suggest` and `--undo`: the same functions, for the repository it shows
+      else if (url.pathname === '/api/harness/suggest') { const picks = scheduleHarnessSuggestion(st, { force: true }); r = picks?.length ? { queued: picks.length } : { error: 'nothing here is worth switching off' }; }
+      else if (url.pathname === '/api/harness/undo') r = { said: undoHarness(st, { names: Array.isArray(b.names) ? b.names : null }) };
+      else if (url.pathname === '/api/harness/off') r = Array.isArray(b.labels) && b.labels.length ? { said: switchOffNow(st, b.labels.join(','), { via: 'ui' }) } : { error: 'nothing chosen' };
+      else if (url.pathname === '/api/harness/settings') { const v = k => typeof b[k] === 'boolean' ? b[k] : undefined; r = { said: JSON.stringify(setHarnessSettings(st, { weekly: v('weekly'), recall: v('recall'), suggestions: v('suggestions') })) }; }
       else if (url.pathname === '/api/behaviors/edit') r = editBehavior(st, b.id, { title: b.title, body: b.body, mutability: b.mutability });
       else return json(res, 404, { error: 'not found' });
       if (r?.error) return json(res, 400, { error: r.error });
-      return json(res, 200, { ok: true, id: r?.note?.id, draft: r?.draft });
+      return json(res, 200, { ok: true, id: r?.note?.id, draft: r?.draft, queued: r?.queued, said: r?.said });
     } catch (e) {
       return json(res, 500, { error: String(e.message || e).split('\n')[0].slice(0, 300) });
     }

@@ -37,6 +37,9 @@ export const DEFAULTS = {
   // the weekly suggestion of directories to cover (coverage.js): a new cache-building strategy, off until an experiment
   // shows it helps (AGENTS.md); `maintain: { coverage: true }` in .thinker/config.json turns it on for a repository
   coverage: false,
+  // the weekly suggestion of tools to switch off (harness.js): a new way of reaching the agent, off until an experiment
+  // shows it helps; `maintain: { harness: true }` turns it on for a repository
+  harness: false,
   archive: true,    // take notes the sessions showed are not worth serving out of serving and upkeep (ops.js:archiveNotes; `archive` in the config sets the rules)
 };
 export const MAINTENANCE_INTERVAL_MS = 4 * 60 * 60_000;
@@ -259,6 +262,11 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
     // little (coverage.js). No model call; the prompt hook asks it, and a build starts only on their answer.
     if (cfg.coverage === true && !dry) {
       try { const { scheduleSuggestion } = await (fns.coverage ? { scheduleSuggestion: fns.coverage } : import('./coverage.js')); const picks = scheduleSuggestion(store, { now }); if (picks) r.coverageSuggested = picks.length; } catch { r.errors++; }
+    }
+    // 8. at most weekly, the tools Claude Code loads here and the sessions never use, as one question (harness.js).
+    // No model call; the prompt hook asks it, and a setting changes only on the person's answer.
+    if (cfg.harness === true && !dry) {
+      try { const { scheduleHarnessSuggestion } = await (fns.harness ? { scheduleHarnessSuggestion: fns.harness } : import('./harness.js')); const picks = scheduleHarnessSuggestion(store, { now }); if (picks) r.harnessSuggested = picks.length; } catch { r.errors++; }
     }
     const u = state.unreported || {};
     // a behavior found broken during this run was written to the state file by the verification itself

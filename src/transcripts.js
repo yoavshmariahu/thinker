@@ -374,8 +374,14 @@ export function findSessions(repo, { sinceMs = 14 * 86400_000, storeDir } = {}) 
   const ls = d => { try { return fs.readdirSync(d); } catch { return []; } };
   const real = (() => { try { return fs.realpathSync(repo); } catch { return repo; } })();
   for (const r of new Set([repo, real])) {
-    const claude = path.join(home, '.claude', 'projects', r.replace(/[\/.]/g, '-'));
-    for (const f of ls(claude)) if (f.endsWith('.jsonl')) add('claude', path.join(claude, f), f.slice(0, -6));
+    // Claude Code names the folder after the path with every character but a letter or digit made "-"
+    // (underscores, spaces, a Windows drive's colon and backslashes too); the older rule here changed
+    // only "/" and ".", and both are read. CLAUDE_CONFIG_DIR moves the folder.
+    const projects = path.join(process.env.CLAUDE_CONFIG_DIR || path.join(home, '.claude'), 'projects');
+    for (const slug of new Set([r.replace(/[\/.]/g, '-'), r.replace(/[^A-Za-z0-9]/g, '-')])) {
+      const claude = path.join(projects, slug);
+      for (const f of ls(claude)) if (f.endsWith('.jsonl')) add('claude', path.join(claude, f), f.slice(0, -6));
+    }
     const gemini = path.join(home, '.gemini', 'tmp', crypto.createHash('sha256').update(r).digest('hex'), 'chats');
     for (const f of ls(gemini)) if (f.endsWith('.json')) add('gemini', path.join(gemini, f), f.slice(0, -5));
   }
