@@ -18,7 +18,9 @@ import { turnNotice, turnFooterMarkdown, weeklyNotice } from '../usage.js';
 import { claudeCardActive } from '../claude-card.js';
 import { setupRepo, warmupOffer } from '../repo-onboard.js';
 import { coverageOffer, recordAccess } from '../coverage.js';
-import { harnessOffer, harnessRecall } from '../harness.js';
+import { harnessOffer, harnessRecall, harnessOn } from '../harness.js';
+import { snapshotCursorInventory } from '../harness-cursor.js';
+import { thinkerHome } from '../update.js';
 import { desktopApp, subagentHarness, ancestorPids } from '../app-host.js';
 import { enqueueJob, markAppSession, pendingJobs, startSessionWork } from '../session-work.js';
 import { isWorkerPrompt, isWorkerTool } from '../session-llm.js';
@@ -87,6 +89,8 @@ async function hookCommand(ctx) {
       if (parks || client === 'cursor') takePending(store.dir, session);
       // the turn's prompt hook ran: the tool hook's fallback for Cursor modes without one stays out of it
       if (client === 'cursor') { const f = orientedFile(store.dir, ev.generation_id || session); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, ''); }
+      // what Cursor loaded into this chat, which its transcript does not record (harness-cursor.js)
+      if (client === 'cursor' && harnessOn(store) && (!isTestMode() || process.env.THINKER_HOME)) { try { snapshotCursorInventory({ session, roots: [...(ev.workspace_roots || []), repo], transcript: ev.transcript_path, thinkerHome: thinkerHome() }); } catch {} }
       if (flags.record && store.exists()) { recordEvent(store.dir, session, { t: 'prompt', text: ev.prompt }); learnInBackground(ctx, client); }
       // another, older copy of thinker still wired into this checkout fires on every prompt too: take its entries out
       if (store.exists()) { try { const pruned = pruneInstalls(repo, { cli, mcpEntry: mcpEntry(), olderOnly: true }); if (pruned.length) { store.log({ op: 'prune', removed: pruned }); reportPruned(store, prunedLines(pruned)); } } catch {} }
@@ -120,7 +124,7 @@ async function hookCommand(ctx) {
       // eval runner marks the session invalid for it (2026-10-18); THINKER_OFFERS=on restores them, for the tests of the offers
       const offersOn = !isTestMode() || process.env.THINKER_OFFERS === 'on';
       // a switched-off tool this request looks like it needs (harness.js:harnessRecall; off until an experiment)
-      const recall = offersOn && ['claude', 'codex'].includes(client) && !isHarnessEvent(ev.prompt) ? await harnessRecall(store, ev.prompt || '', { session, client }) : '';
+      const recall = offersOn && ['claude', 'codex', 'cursor'].includes(client) && !isHarnessEvent(ev.prompt) ? await harnessRecall(store, ev.prompt || '', { session, client }) : '';
       const offer = [offersOn ? (warmupOffer(store, { client }) || coverageOffer(store, { client }) || harnessOffer(store, { client })) : '', work, recall].filter(Boolean).join('\n\n');
       // Every git repository has a cache, started on first use and empty until it learns; the hooks serve
       // from it once it holds a few notes (ops.js:SERVE_MIN_NOTES). A prompt served nothing is still a

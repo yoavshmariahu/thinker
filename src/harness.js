@@ -16,6 +16,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { codexSessionHarness, codexHarnessUsage, codexHarnessConfig, codexConfigFile, editCodexSetting } from './harness-codex.js';
 import { desktopRecords, desktopSessionsDir, desktopSessionHarness, desktopUsed, DESKTOP_SECTIONS, CONNECTOR_TOOL } from './harness-desktop.js';
+import { cursorHarnessUsage, cursorSnapshots, editCursorMcp } from './harness-cursor.js';
 import { findSessions } from './transcripts.js';
 import { estTokens } from './rank.js';
 import { thinkerHome } from './update.js';
@@ -190,11 +191,15 @@ function checkouts(repo) {
 // The Claude Code sessions of a repository's checkouts over the window: what each source cost and
 // how often it was called. A source is a plugin when its skills or server belong to one, so a
 // plugin of eighteen skills is one line and one switch.
-export function harnessUsage(repo, { days = 30, home = os.homedir(), sessions } = {}) {
+// Cursor's sources are the machine's (harness-cursor.js): read from every Cursor session on it, unless the
+// caller names its own sessions and no Cursor snapshots.
+export function harnessUsage(repo, { days = 30, home = os.homedir(), sessions, cursor, thinkerHome: tHome = thinkerHome() } = {}) {
+  if (!sessions) cursor ??= cursorSnapshots(tHome, { sinceMs: days * 86400_000 });
   sessions ??= [...new Map(checkouts(repo).flatMap(r => findSessions(r, { sinceMs: days * 86400_000 })).map(s => [s.file, s])).values()];
   const claude = claudeUsage(repo, { days, home, sessions: sessions.filter(s => s.client === 'claude') });
   const codex = codexHarnessUsage(repo, sessions.filter(s => s.client === 'codex'), { home });
-  return { ...claude, sessions: claude.sessions + codex.sessions, byClient: { claude: claude.sessions, codex: codex.sessions }, sources: [...claude.sources.map(s => ({ ...s, client: 'claude' })), ...codex.sources].sort((a, b) => b.tokens * (b.loaded - b.used) - a.tokens * (a.loaded - a.used)) };
+  const cur = cursor ? cursorHarnessUsage({ home, snapshots: cursor }) : { sessions: 0, sources: [] };
+  return { ...claude, sessions: claude.sessions + codex.sessions + cur.sessions, byClient: { claude: claude.sessions, codex: codex.sessions, cursor: cur.sessions }, sources: [...claude.sources.map(s => ({ ...s, client: 'claude' })), ...codex.sources, ...cur.sources].sort((a, b) => b.tokens * (b.loaded - b.used) - a.tokens * (a.loaded - a.used)) };
 }
 function claudeUsage(repo, { days = 30, home = os.homedir(), sessions } = {}) {
   sessions ??= checkouts(repo).flatMap(r => findSessions(r, { sinceMs: days * 86400_000 }).filter(s => s.client === 'claude'));
@@ -262,7 +267,7 @@ function describe(key, { servers, plugins, skills, overrides, connectors }, memb
 // server no settings file names are left to /mcp. A connector of the desktop app goes by the app's own
 // Connectors switch, which the agent flips (harness-desktop.js); that one is for the machine, not the repository.
 function switchOff(s) {
-  if (s.client === 'codex') return s.how || null;
+  if (s.client === 'codex' || s.client === 'cursor') return s.how || null;
   if (s.kind === 'connector' && s.scope === 'desktop' && s.id) return 'desktop-connector';
   if (s.scope === 'managed') return null;
   if (s.kind === 'plugin') return s.scope ? 'plugin' : s.skills?.length ? 'skills' : null;
@@ -280,6 +285,7 @@ export function harnessAdvice(usage) {
 }
 
 function action(s) {
+  if (s.client === 'cursor') return `its entry taken out of ~/.cursor/mcp.json, for every repository (Cursor has no per-repository switch its editor reads; new chats; \`thinker harness --undo\` puts it back)`;
   if (s.client === 'codex') return `${s.kind === 'skill' ? `[[skills.config]] path = ${JSON.stringify(s.dir)}` : `[${s.kind === 'mcp' ? 'mcp_servers' : 'plugins'}.${JSON.stringify(s.id || s.name)}]`} enabled = false in this checkout's .codex/config.toml (trusted projects only; new sessions)`;
   switch (switchOff(s)) {
     case 'desktop-connector': return `the Connectors switch of the Claude desktop app (the + menu); the agent flips it in a desktop session, and the app keeps it off in every new session on this machine, not only this repository`;
@@ -387,12 +393,19 @@ export function scheduleHarnessSuggestion(store, { now = Date.now(), home, force
 }
 
 const KIND = { plugin: 'plugin', mcp: 'MCP server', connector: 'connector', skill: 'skill', skills: '' };
-const labelOf = p => (p.client === 'codex' ? 'Codex: ' : '') + (p.kind === 'skills' ? p.name : `${p.name} ${KIND[p.kind]}`);
+export const clientPrefix = c => ({ codex: 'Codex: ', cursor: 'Cursor: ' })[c] || '';
+const labelOf = p => clientPrefix(p.client) + (p.kind === 'skills' ? p.name : `${p.name} ${KIND[p.kind]}`);
 const shq = s => `'${String(s).replace(/'/g, `'\\''`)}'`;
 const answerCommand = (repo, client = 'claude') => `${shq(process.execPath)} ${shq(CLI)} harness --answer '<labels|none|never>' --via picker --client ${client} --repo ${shq(repo)}`;
 const optionOf = p => p.kind === 'skills'
   ? `label ${JSON.stringify(labelOf(p))}: ${p.skills.join(', ')}; ~${formatTokens(p.tokens)} tokens in every session together; each still runs as /name`
-  : `label ${JSON.stringify(labelOf(p))}: ~${formatTokens(p.tokens)} tokens in every session; ${p.used ? `used in ${p.used} of ${p.loaded}` : `used in none of ${p.loaded}`} sessions here${p.how === 'desktop-connector' ? '; a desktop app connector: off in every new session on this machine, not only this repository' : ''}`;
+  : p.client === 'cursor'
+    ? `label ${JSON.stringify(labelOf(p))}: ~${formatTokens(p.tokens)} tokens in every Cursor chat; ${p.used ? `used in ${p.used} of ${p.loaded}` : `used in none of ${p.loaded}`} Cursor chats on this machine; switched off in every repository`
+    : `label ${JSON.stringify(labelOf(p))}: ~${formatTokens(p.tokens)} tokens in every session; ${p.used ? `used in ${p.used} of ${p.loaded}` : `used in none of ${p.loaded}`} sessions here${p.how === 'desktop-connector' ? '; a desktop app connector: off in every new session on this machine, not only this repository' : ''}`;
+const ASK = {
+  codex: `${SIGNATURE}: Ask the user which of the following labeled sources to switch off. Use request_user_input_async if available, otherwise ask in prose. Allow a comma-separated choice, none, or never. Do not assume a default or change settings until the user answers.`,
+  cursor: `${SIGNATURE}: Before you start on the request, ask the user with your AskQuestion tool, not in prose: one question, title "🧠 Thinker", allow_multiple true, prompt "${SIGNATURE}: switch these off? They are loaded into every chat and almost never used. Each can be turned back on with \`thinker harness --undo\`." Its options are the sources below, in this order, each option's label the label given and then, in parentheses and without commas, its tokens and use from the rest of its line, plus a last option "none" and one "never (stop these suggestions on this machine)". Do not change settings until the user answers.`,
+};
 // a session no person is at: `claude -p`, the Agent SDK (CLAUDE_CODE_ENTRYPOINT sdk-cli, sdk-ts, sdk-py…)
 const unattended = (env = process.env) => /^sdk-/.test(env.CLAUDE_CODE_ENTRYPOINT || '');
 // the Claude desktop app's Code tab, the one place its Connectors switch can be flipped from
@@ -400,7 +413,7 @@ const inDesktop = (env = process.env) => env.CLAUDE_CODE_ENTRYPOINT === 'claude-
 const offerable = (s, client, env) => (s.client || 'claude') === client && (s.how !== 'desktop-connector' || inDesktop(env));
 // The prompt hook: the pending question, said once, as an instruction to the agent to put it to the person.
 export function harnessOffer(store, { client, home, now = Date.now(), env = process.env } = {}) {
-  if (!['claude', 'codex'].includes(client) || !harnessOn(store) || harnessNever(home) || unattended(env)) return '';
+  if (!['claude', 'codex', 'cursor'].includes(client) || !harnessOn(store) || harnessNever(home) || unattended(env)) return '';
   const st = readHarnessState(store);
   if (!st.pending || st.pending.offeredAt || !st.pending.sources.some(s => offerable(s, client, env))) return '';
   st.pending.offeredAt = new Date(now).toISOString();
@@ -412,8 +425,8 @@ export function harnessOffer(store, { client, home, now = Date.now(), env = proc
   store.log({ op: 'harness-offer', client, sources: ps.length, tokens: total });
   const options = ps.map((p, i) => `${i + 1}. ${optionOf(p)}`).join('\n');
   return `<thinker-harness-suggestion>
-Your agents load ${ps.length === 1 ? 'this' : 'these'} into every session in this repository, and the sessions here over the last ${st.pending.days} days almost never used ${ps.length === 1 ? 'it' : 'them'}: about ${formatTokens(total)} tokens across these source listings (the amount per session depends on the agent). thinker can switch ${ps.length === 1 ? 'it' : 'them'} off for this repository only, from the next session on.
-${client === 'codex' ? `${SIGNATURE}: Ask the user which of the following labeled sources to switch off. Use request_user_input_async if available, otherwise ask in prose. Allow a comma-separated choice, none, or never. Do not assume a default or change settings until the user answers.` : `Before you start on the request, ask the user with your AskUserQuestion tool, not in prose: one question with multiSelect true, header "🧠 Thinker", and the question "${SIGNATURE}: switch these off in this repository? About ${formatTokens(total)} tokens are loaded into every session here and almost never used. Each can be turned back on with \`thinker harness --undo\`." Its options are the sources below, in this order, each with the label given and the rest of its line as the description. If there are more than four, ask the rest in a second question of the same call, header "🧠 Thinker" and question "${SIGNATURE}: and these?". Choosing none means not now (thinker does not suggest those again for a month); "never" (Other) stops these suggestions on this machine.`}
+Your agents load ${ps.length === 1 ? 'this' : 'these'} into every session in this repository, and the sessions here over the last ${st.pending.days} days almost never used ${ps.length === 1 ? 'it' : 'them'}: about ${formatTokens(total)} tokens across these source listings (the amount per session depends on the agent). thinker can switch ${ps.length === 1 ? 'it' : 'them'} off ${ps.every(p => p.client === 'cursor') ? 'in Cursor, for every repository (Cursor has no per-repository switch)' : ps.some(p => p.client === 'cursor') ? 'for this repository only (the Cursor ones in every repository: Cursor has no per-repository switch)' : 'for this repository only'}, from the next session on.
+${ASK[client] || `Before you start on the request, ask the user with your AskUserQuestion tool, not in prose: one question with multiSelect true, header "🧠 Thinker", and the question "${SIGNATURE}: switch these off in this repository? About ${formatTokens(total)} tokens are loaded into every session here and almost never used. Each can be turned back on with \`thinker harness --undo\`." Its options are the sources below, in this order, each with the label given and the rest of its line as the description. If there are more than four, ask the rest in a second question of the same call, header "🧠 Thinker" and question "${SIGNATURE}: and these?". Choosing none means not now (thinker does not suggest those again for a month); "never" (Other) stops these suggestions on this machine.`}
 ${options}
 Then call thinker's \`harness\` tool with choice set to the chosen labels exactly as given, comma-separated (or none, or never); if that tool is not available, run \`${answerCommand(store.repo, client)}\`. Then go on with the task.
 </thinker-harness-suggestion>`;
@@ -461,6 +474,7 @@ function apply(repo, s, { userHome, home, now, backups, overrides = {} }) {
   if (s.client === 'codex') return applyCodex(repo, s, { home, userHome, now, backups });
   // the app's switch, flipped by the agent from the line the answer returns; nothing for thinker to write
   if (s.how === 'desktop-connector') return { key: 'desktop-connector', id: s.id, name: s.name };
+  if (s.client === 'cursor') return editCursorMcp({ name: s.name, thinkerHome: home || thinkerHome(), home: userHome, write: writeTheirs });
   const local = path.join(repo, '.claude', 'settings.local.json'), claudeJson = claudePaths(userHome).json;
   const ctx = { home, now, backups }, fresh = !fs.existsSync(local);
   const done = u => { if (u.file === local && fresh) excludeFromGit(repo, local); return u; };
@@ -521,7 +535,7 @@ export function answerHarness(store, choice, { client, via = 'picker', home, use
   }
   // a choice names an option by its label ("rea MCP server"), its key, or its bare name where only one has it
   const said = raw.split(/[,\n]/).map(s => s.trim().replace(/^["'`]|["'`]$/g, '').toLowerCase()).filter(Boolean);
-  const chosen = pending.filter(p => said.some(w => w === labelOf(p).toLowerCase() || w === String(p.key).toLowerCase() || (w === p.name.toLowerCase() && pending.filter(q => q.name.toLowerCase() === w).length === 1)));
+  const chosen = pending.filter(p => said.some(w => w === labelOf(p).toLowerCase() || w.startsWith(`${labelOf(p).toLowerCase()} (`) || w === String(p.key).toLowerCase() || (w === p.name.toLowerCase() && pending.filter(q => q.name.toLowerCase() === w).length === 1)));
   const at = new Date(now).toISOString();
   st.declined ||= {};
   if (declineRest) for (const p of pending) if (!chosen.includes(p)) for (const k of p.members || [p.key]) st.declined[k] = at;
@@ -537,14 +551,14 @@ export function answerHarness(store, choice, { client, via = 'picker', home, use
   const tokens = done.reduce((t, d) => t + d.tokens, 0);
   store.log({ op: 'harness-answer', choice: 'off', client, via, sources: pending.length, chosen: chosen.length, switched: done.length, tokens });
   const files = done.filter(d => d.undo.key !== 'desktop-connector'), desk = done.filter(d => d.undo.key === 'desktop-connector');
-  const line = files.length ? `Switched off here from the next session on: ${files.map(d => d.name).join(', ')}, about ${formatTokens(files.reduce((t, d) => t + d.tokens, 0))} tokens a session. \`thinker harness --undo\` turns them back on${backups.size ? `; what the files said before is under ${path.dirname([...backups.values()][0])}` : ''}.` : '';
+  const line = files.length ? `Switched off here from the next session on${files.some(d => d.client === 'cursor') ? ' (the Cursor ones in every repository)' : ''}: ${files.map(d => d.name).join(', ')}, about ${formatTokens(files.reduce((t, d) => t + d.tokens, 0))} tokens a session. \`thinker harness --undo\` turns them back on${backups.size ? `; what the files said before is under ${path.dirname([...backups.values()][0])}` : ''}.` : '';
   // the desktop app's connectors: the agent flips the app's switch, one call each, which the user approves
   const app = desk.length ? `Now switch off the desktop app's connector${desk.length === 1 ? '' : 's'} the user chose: call ${CONNECTOR_TOOL} with ${desk.map(d => `connector ${JSON.stringify(d.undo.id)} (${d.name})`).join(', ')} and enabled false, one call each. The app keeps ${desk.length === 1 ? 'it' : 'them'} off in every new session on this machine; the + menu → Connectors turns ${desk.length === 1 ? 'it' : 'them'} back on.` : '';
   return [line, app, failed.length ? `Not switched off: ${failed.join('; ')}.` : ''].filter(Boolean).join(' ') + ' Tell the user in one line, then go on with the task.';
 }
 
 // `thinker harness --undo`: every source the answers switched off here, turned back on.
-export function undoHarness(store, { home, now = Date.now(), names } = {}) {
+export function undoHarness(store, { home, userHome = os.homedir(), now = Date.now(), names } = {}) {
   const st = readHarnessState(store), all = st.applied || [];
   const want = names?.length ? new Set(names.map(n => String(n).trim().toLowerCase())) : null;
   const applied = want ? all.filter(a => want.has(a.name.toLowerCase()) || want.has(a.key.toLowerCase())) : all, rest = want ? all.filter(a => !applied.includes(a)) : [];
@@ -556,6 +570,7 @@ export function undoHarness(store, { home, now = Date.now(), names } = {}) {
     try {
       if (u.key === 'codex') { applyCodex(store.repo, u.source, ctx, u); back.unshift(a.name); continue; }
       if (u.key === 'desktop-connector') { app.unshift(a.name); continue; }
+      if (u.key === 'cursor') { editCursorMcp({ name: u.name, thinkerHome: home || thinkerHome(), home: userHome, write: writeTheirs }, true); back.unshift(a.name); continue; }
       editJson(u.file, j => {
         if (u.key === 'enabledPlugins') { if (j.enabledPlugins?.[u.id] === false) { if (u.prev === undefined) delete j.enabledPlugins[u.id]; else j.enabledPlugins[u.id] = u.prev; } }
         else if (u.key === 'skillOverrides') { for (const n of u.ids) if (j.skillOverrides?.[n] === 'user-invocable-only') delete j.skillOverrides[n]; }
@@ -588,6 +603,7 @@ export const recallOn = store => harnessOn(store) && (/^(1|on|true)$/i.test(proc
 function cardsFor(s) {
   const card = (key, name, text, back) => ({ id: key, name, text: String(text || name).slice(0, CARD_CHARS), back });
   if (s.client === 'codex') return [card(s.key, s.name, Object.values(s.texts || {}).join(' '), `\`thinker harness --undo ${s.key}\` brings it back from the next Codex session`)];
+  if (s.client === 'cursor') return [card(s.key, s.name, Object.values(s.texts || {}).join(' '), `\`thinker harness --undo ${s.key}\` puts it back in ~/.cursor/mcp.json, for the next Cursor chat`)];
   if (s.kind === 'mcp') return [card(s.key, s.name, s.texts?.[`mcp:${serverKey(s.name)}`] || Object.values(s.texts || {})[0], `\`/mcp enable ${s.name}\` brings it back in this session`)];
   const back = s.how === 'plugin' ? n => `the ${s.name} plugin is off here: \`thinker harness --undo\` (or "enabledPlugins": {"${s.id}": true} in .claude/settings.local.json) brings it back from the next session` : n => `\`/${n}\` still runs it`;
   return (s.skills?.length ? s.skills : [s.name]).map(n => card(`skill:${n}`, n, s.texts?.[`skill:${n}`], back(n)));
@@ -635,11 +651,15 @@ export async function harnessRecall(store, prompt, { session, client, scoreFn } 
 // context, once in its window and again in each model call that read the window (as cache reads, mostly);
 // still loaded, the switch did not take effect there (another checkout, a setting that outranks it) and it
 // is counted as such, never as saved.
-export function harnessSavings(store, { sessions, home = os.homedir() } = {}) {
+// A Cursor server is read against the Cursor snapshots since (harness-cursor.js): absent from a chat's
+// inventory, it saved its catalog entry there; Cursor records no model calls, so it adds no input tokens.
+export function harnessSavings(store, { sessions, cursor, home = os.homedir(), thinkerHome: tHome = thinkerHome() } = {}) {
   const applied = readHarnessState(store).applied || [];
   if (!applied.length) return { sources: [], sessions: 0, tokens: 0, inputTokens: 0 };
   const since = Math.min(...applied.map(a => Date.parse(a.at)));
   const days = Math.ceil((Date.now() - since) / 86400_000) + 1;
+  if (!sessions) cursor ??= applied.some(a => a.client === 'cursor') ? cursorSnapshots(tHome, { sinceMs: days * 86400_000 }) : [];
+  cursor ||= [];
   sessions ??= [...new Map(checkouts(store.repo).flatMap(r => findSessions(r, { sinceMs: days * 86400_000 })).map(s => [s.file, s])).values()];
   const records = applied.some(a => a.undo?.key === 'desktop-connector') ? desktopFor(home) : null;
   const read = sessions.filter(s => ['claude', 'codex'].includes(s.client)).map(s => ({ ...(s.client === 'codex' ? codexSessionHarness(s.file) : claudeSessionHarness(s.file, records)), client: s.client, mtime: s.mtime })).filter(h => (h.loaded.size || h.coverage?.size) && h.start && !h.parent);
@@ -651,13 +671,18 @@ export function harnessSavings(store, { sessions, home = os.homedir() } = {}) {
   };
   let total = 0, input = 0;
   const out = applied.map(a => {
+    if (a.client === 'cursor') {
+      const id = a.key.replace(/^cursor:mcp:/, ''), after = cursor.filter(s => Date.parse(s.at) > Date.parse(a.at)), still = after.filter(s => s.servers[id]).length;
+      total += (after.length - still) * a.tokens;
+      return { key: a.key, client: 'cursor', name: a.name, kind: a.kind, at: a.at, tokensPerSession: a.tokens, sessions: after.length, absent: after.length - still, stillLoaded: still, tokens: (after.length - still) * a.tokens, inputTokens: 0 };
+    }
     const has = keysOf(a), after = read.filter(h => h.client === (a.client || 'claude') && Date.parse(h.start) > Date.parse(a.at) && (a.undo?.key !== 'desktop-connector' || h.desktop) && (h.client !== 'codex' || (a.evidenceKeys || [a.key.slice(6)]).every(k => h.coverage.has(k.split(':')[0]))));
     const still = after.filter(h => [...h.loaded.keys()].some(has));
     const absent = after.length - still.length, calls = after.filter(h => !still.includes(h)).reduce((n, h) => n + h.calls, 0);
     total += absent * a.tokens; input += calls * a.tokens;
     return { key: a.key, client: a.client || 'claude', name: a.name, kind: a.kind, scope: a.undo?.key === 'desktop-connector' ? 'desktop' : undefined, at: a.at, tokensPerSession: a.tokens, sessions: after.length, absent, stillLoaded: still.length, tokens: absent * a.tokens, inputTokens: calls * a.tokens };
   });
-  return { sources: out, sessions: read.filter(h => Date.parse(h.start) > since).length, tokens: total, inputTokens: input };
+  return { sources: out, sessions: read.filter(h => Date.parse(h.start) > since).length + cursor.filter(s => Date.parse(s.at) > since).length, tokens: total, inputTokens: input };
 }
 
 // Everything the page shows (ui/server.js /api/harness) and the command prints: the report, the advice,

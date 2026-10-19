@@ -165,11 +165,13 @@ test('the page script builds a pick from the areas, and names the depth the comm
   assert.ok(read('machine.js').includes('prs: DEFAULT_PRS'), 'the page estimates with DEFAULT_PRS');
 });
 
-test('CLI and page expose the shared Codex harness report and qualified undo controls', () => {
+test('CLI and page expose the shared Claude Code, Codex and Cursor harness report and qualified undo controls', () => {
   assert.match(read('commands/harness.js'), /harnessUsage\(repo/);
   assert.match(read('ui/server.js'), /harnessView\(/);
-  assert.match(read('cli.js'), /Claude Code and Codex record loading/);
-  assert.match(read('ui/page.html'), /Recorded in Claude Code and Codex transcripts/);
+  assert.match(read('cli.js'), /Claude Code, Codex and Cursor record loading/);
+  assert.match(read('ui/page.html'), /Recorded in Claude Code and Codex transcripts and Cursor's tool inventory/);
+  assert.match(read('ui/page.html'), /cursor: 'Cursor: '/);
   assert.match(read('ui/page.html'), /data-hundo="\$\{esc\(s.key \|\| s.name\)\}"/);
-  assert.match(read('commands/hooks.js'), /\['claude', 'codex'\]\.includes\(client\).*harnessRecall/);
+  assert.match(read('commands/hooks.js'), /\['claude', 'codex', 'cursor'\]\.includes\(client\).*harnessRecall/);
+  assert.match(read('commands/hooks.js'), /snapshotCursorInventory\(/);
 });

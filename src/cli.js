@@ -176,9 +176,9 @@ const HELP = `thinker — knowledge cache for coding agents
   harness [--days n] [--json] [--verbose] [--suggest] [--off <labels>] [--undo [names]] [--answer <labels|none|never> [--via picker|text] [--client c]]
           [--weekly on|off] [--recall on|off] [--suggestions on|off] [--enabled on|off]
                                  off by default, not yet released: --enabled on turns it on for this repository (--undo works either way);
-                                 what Claude Code and Codex record loading here (MCP servers, plugins, skills, with their tokens) against
+                                 what Claude Code, Codex and Cursor record loading here (MCP servers, plugins, skills, with their tokens) against
                                  what the sessions use, and the ones worth switching off; the report changes nothing. --suggest asks in
-                                 the next Claude Code or Codex prompt here, one question for all of them (weekly with maintain: {harness: true});
+                                 the next Claude Code, Codex or Cursor prompt here, one question for all of them (weekly with maintain: {harness: true});
                                  --answer takes the reply, --off switches named ones off without asking; --undo turns them (or the named ones) back on;
                                  --weekly, --recall (a line when a request needs a switched-off tool) and --suggestions set what thinker does; also on the local page
   guide                          the cache usage guidance an install writes into an agent's instructions
