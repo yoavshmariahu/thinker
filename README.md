@@ -1,26 +1,16 @@
-# thinker: stop wasting context
+# thinker: think ahead. save context.
 
 ![Pixel-art blue sky with white clouds](docs/images/sky.png)
 
 Your coding agent rediscovers your codebase on every task: where things live, how the
 parts connect, which change broke what last time. `thinker` remembers it instead.
 
-- **It injects the right context and skills, as the agent works.** Thinker learns from
-  your merged pull requests, your agent sessions and your skill files, and keeps short
-  notes pinned to the exact code they describe. On each request it ranks them and serves
-  only the ones that fit, with pointers into the code, so the agent starts at the right
-  place instead of searching for it.
-- **It keeps the cache fresh on its own.** Every session grades the notes it was served:
-  a note the agent acted on gains confidence, a note the trace contradicts is corrected,
-  an unused one decays. A note whose code changed is held back and re-verified before it
-  is served again. New pull requests become notes as they merge.
-- **It switches off what your agent loads and never uses.** Thinker reads what Claude Code and Codex
-  record loading (MCP servers, plugins, skills) against what the sessions actually
-  call, asks you once which of the unused ones to switch off, and shows the tokens that saved,
-  measured in the sessions since (`thinker harness`, and the local page).
-- **Tasks finish faster, on fewer tokens, with fewer pitfalls.** The agent spends less of
-  its budget rebuilding a picture of the repository, and the traps the history already
-  knows about are in front of it before it touches the code.
+- **Learns from your history.** Merged pull requests, agent sessions and skill files become
+  short notes pinned to the exact code they describe.
+- **Serves only what fits.** Each request gets the notes that match it, with pointers into
+  the code, so the agent starts in the right place.
+- **Keeps itself fresh.** A note whose code changed is re-checked before it is served again;
+  sessions confirm, correct or retire the notes they were shown.
 
 <p align="center">
   <b>18% fewer tokens per task</b> &nbsp;·&nbsp; <b>10% less wall time per task</b><br>
@@ -31,64 +21,37 @@ Website, docs and benchmarks: [zerotime.dev](https://zerotime.dev).
 
 ## Install
 
-Run this in a terminal, inside your repository:
-
 ```bash
 npx @zerotimedev/thinker
 ```
 
-The installer comes in the
-[`@zerotimedev/thinker`](https://www.npmjs.com/package/@zerotimedev/thinker) package on npm.
+The installer wires thinker into the coding agents on the machine and offers to warm up
+caches from your merged pull requests. From then on every git repository has a cache that
+grows from your sessions ([how setup works](docs/setup.md)).
 
-The installer wires thinker into the coding agents on the machine; from then on every git
-repository has a cache that grows from your sessions and is served once it holds a few notes.
-Nothing needs running inside a repository: the first session there sets it up, and when the
-repository has history worth reading, your agent offers once to warm the cache up from it. The installer also offers to warm up
-caches from merged pull requests on a local page in your browser, right there in the
-terminal (the top five picked; arrows and Space change that, then choose a harness), or later with `thinker warmup`
-([how setup works](docs/setup.md)).
-
-Requires bash, git, curl, tar, Node 20+ and a logged-in coding agent. Works with Claude
-Code, Codex CLI, Gemini CLI, Cursor, Pi, Windsurf Cascade, GitHub Copilot CLI and
-OpenCode ([hook coverage and limitations](docs/agent-integrations.md)).
-
-The installer fetches the [latest release](https://github.com/yoavshmariahu/thinker/releases)
-(a tag `vX.Y.Z` with the archive, its `version.json` manifest and the installer attached)
-and checks the archive against the manifest's SHA-256. `thinker update` does the same
-every 4 hours in the background; `thinker update v0.1.34` pins a release.
+Requires git, Node 20+ and a logged-in coding agent: Claude Code, Codex, Cursor, Gemini CLI
+and [others](docs/agent-integrations.md). `thinker update` keeps it current in the background.
 
 ## Uninstall
 
 ```bash
-thinker uninstall --user --purge   # inside a repository: its hooks, MCP registration and notes, and the machine-wide wiring
+thinker uninstall --user --purge   # this repository's hooks and notes, and the machine-wide wiring
 rm -rf ~/.thinker                  # the app, the ranking model and the usage log
 ```
 
-In a terminal, `thinker uninstall` then asks, optionally, why you are uninstalling; Enter skips it
-(`--yes` does too), and nothing is sent unless you type a reason. Then drop the `PATH` line the
-installer added to your shell startup file. To keep
-thinker but switch it off for one repository with sensitive content, run `thinker disable` there.
-
-## How it works
-
-1. **It learns from your history.** Thinker reads your merged pull requests, fixes first, and your agent sessions. It writes short notes: what broke and why, what a later change must not undo, how the parts connect. Each note points at the exact code it describes.
-2. **It hands your agent what fits.** When you give your agent a task, Thinker passes it the notes that fit, if any do, with pointers to the exact code. When the agent edits a file, it gets the rules that rest on that file.
-3. **It keeps itself current.** When the code under a note changes, the note is checked again in the background; until it passes, it is never handed over as fact.
-4. **It knows your skills.** Each skill file (`SKILL.md`) checked into the repository gets a card that is served like any other note and checked against the code it talks about. A skill the code contradicts is listed with its issues and not handed over until it is fixed or reviewed; among skills that do the same thing, the one the sessions confirm is the one served.
-
-Everything stays in your repository's `.thinker/` folder. Model calls go through
-the coding agent you already use, on its own login.
+To keep thinker but switch it off for one repository, run `thinker disable` there.
 
 ## Everyday commands
 
 ```bash
-thinker ui                          # local page: set up repositories, usage, the notes in each cache
-thinker skills                      # the skill files as the cache sees them: out of date, duplicates, evidence
-thinker benchmark                   # compare your agent with and without the cache
-thinker usage --here                # what the cache cost and what it saved
+thinker ui              # local page: repositories, usage, the notes in each cache
+thinker usage --here    # what the cache cost and what it saved
+thinker skills          # the skill files as the cache sees them
+thinker benchmark       # compare your agent with and without the cache
 ```
 
-Otherwise, work with your agent as usual: the notes arrive on their own.
+Otherwise, work with your agent as usual: the notes arrive on their own. Everything stays
+in the repository's `.thinker/` folder, and model calls go through the agent you already use.
 
 ## Results
 
@@ -119,7 +82,7 @@ GPT-6 Astra        without thinker  ██████████████�
 
 Each model saw different tasks, so the rows are not a model ranking; one run per
 arm. Bug detection is not claimed: on held-out bugs the cache did not change what a
-reviewer caught (research/regression-heldout on the `agent/heldout-regression` branch). Method, uncertainty and per-task results: [bench/RESULTS.md](bench/RESULTS.md).
+reviewer caught (research/regression-heldout on the `agent/heldout-regression` branch). Method, uncertainty and per-task results: [research/bench-history/RESULTS.md](research/bench-history/RESULTS.md).
 
 ## Learn more
 

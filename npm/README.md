@@ -1,6 +1,6 @@
 # @zerotimedev/thinker
 
-Installs [thinker](https://github.com/yoavshmariahu/thinker). Stop wasting context: the context each task needs for your coding agents, and nothing they never use.
+Installs [thinker](https://github.com/yoavshmariahu/thinker). Think ahead. Save context: a knowledge cache that gives your coding agents the context each task needs.
 
 ```bash
 npx @zerotimedev/thinker
