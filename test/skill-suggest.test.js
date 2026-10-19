@@ -1,5 +1,5 @@
 // Skill suggestions by file (src/skill-suggest.js): evidence, decay, Thompson sampling, holdout, delivery,
-// the distillation's broken rules, and nothing at all with the switch off.
+// the scoring on unread sessions, the sampled outcome check (skill-outcome.js), and nothing at all with the switch off.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -9,12 +9,17 @@ import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
 import { resetFallback } from '../src/llm.js';
 import { distillEvents } from '../src/distill.js';
+import { markBuild, nextRequest, answerRequest } from '../src/session-llm.js';
 import { distillFile } from '../src/commands/learn.js';
 import {
   areaKeys, creditSession, creditOutcome, decayed, emptyEvidence, seededRng, sampleBeta, suggestFrom, candidates,
   skillSuggestOn, skillSuggestLines, loadEvidence, saveEvidence, recordSkillEvidence, sessionSkillEvidence, seedSkillEvidence,
-  sessionSuggestions, distillSkillContext, recordBrokenRules, eventSkillFacts, hookSkillFacts, SKILL_SUGGEST,
+  sessionSuggestions, hookSkillFacts, refreshRegistry, SKILL_SUGGEST,
 } from '../src/skill-suggest.js';
+import {
+  skillOutcomeOn, outcomeSampled, sessionDiff, outcomeGuidance, matchingRules, ruleGlobs, globRegex, skillsNamedIn,
+  agentsSections, violationSkill, judgeSkillOutcome, skillOutcomeCheck, OUTCOME_SCHEMA,
+} from '../src/skill-outcome.js';
 
 const CLI = new URL('../src/cli.js', import.meta.url).pathname;
 const DAY = 86_400_000;
@@ -116,15 +121,93 @@ test('Beta draws with a fixed seed are repeatable and centred on the mean; Thomp
   assert.ok(!candidates(ev, file, { exclude: new Set(['writing-kea-logics']) }).has('writing-kea-logics'));
 });
 
-test('misses count as successes, broken-after-read as negatives that are logged, not scored', () => {
+test('misses count as successes on unread sessions, broken-after-read as failures', () => {
   const ev = emptyEvidence(), now = Date.now();
   creditSession(ev, { session: 'a', edited: ['posthog/migrations/0001_init.py'], now });
-  const r = creditOutcome(ev, [{ skill: 'django-migrations', file: 'posthog/migrations/0001_init.py', read: false }, { skill: 'writing-tests', file: '', read: true }], { areas: ['dir1:posthog'], now });
+  const r = creditOutcome(ev, [{ skill: 'django-migrations', file: 'posthog/migrations/0001_init.py', read: false, shown: true }, { skill: 'writing-tests', file: '', read: true }], { areas: ['dir1:posthog'], session: 'a', now });
   assert.deepEqual(r.map(x => x.verdict), ['missed', 'broken-after-read']);
-  assert.equal(decayed(ev.areas['kind:migration'].skills['django-migrations'].missed, now), 1);
+  assert.equal(r[0].shown, true, 'a suggestion not followed is still a miss: the line is not the skill');
+  const m = ev.areas['kind:migration'].skills['django-migrations'];
+  assert.equal(decayed(m.missed, now), 1);
+  assert.equal(decayed(m.unread, now), 1, 'the session that missed it is an unread session of the row the check created');
   assert.equal(decayed(ev.areas['dir1:posthog'].skills['writing-tests'].negative, now), 1);
   const c = candidates(ev, 'posthog/migrations/0002.py', { now }).get('django-migrations');
   assert.ok(c.every(p => p.alpha > SKILL_SUGGEST.a0));
+  // a negative adds to beta: the same row read and broken twice more falls
+  const before = Math.max(...c.map(p => p.alpha / (p.alpha + p.beta)));
+  creditOutcome(ev, [{ skill: 'django-migrations', file: 'posthog/migrations/0001_init.py', read: true }, { skill: 'django-migrations', file: 'posthog/migrations/0001_init.py', read: true }], { session: 'a', now });
+  const after = Math.max(...candidates(ev, 'posthog/migrations/0002.py', { now }).get('django-migrations').map(p => p.alpha / (p.alpha + p.beta)));
+  assert.ok(after < before, `${after} < ${before}`);
+});
+
+test('scoring counts only the sessions where the skill was not read: a followed suggestion costs nothing, an ignored one counts', () => {
+  const now = Date.parse('2026-10-19T12:00:00Z'), file = 'frontend/src/scenes/dashLogic.ts';
+  const mean = (ev, skill) => Math.max(...candidates(ev, file, { now }).get(skill).map(p => p.alpha / (p.alpha + p.beta)));
+  const ev = keaEvidence(now), m0 = mean(ev, 'writing-kea-logics');
+  const k = ev.areas['kind:kea-logic'].skills['writing-kea-logics'];
+  assert.equal(decayed(k.unread, now), 2, 'two of ten seeded sessions did not open it');
+  // ten sessions suggested it and the agent followed: nothing for or against it
+  for (let i = 0; i < 10; i++) creditSession(ev, { session: `f${i}`, edited: [file], now, suggestions: [{ skill: 'writing-kea-logics', areas: ['kind:kea-logic'], at: '2026-10-19T09:00:00Z' }], opened: [{ skill: 'writing-kea-logics', at: '2026-10-19T09:01:00Z' }] });
+  assert.equal(decayed(k.unread, now), 2);
+  assert.ok(Math.abs(mean(ev, 'writing-kea-logics') - m0) < 1e-9, 'followed suggestions leave the posterior where it was');
+  // suggested and ignored: an unread session; with a miss it rises, without one it falls
+  const ign = (id, miss) => {
+    creditSession(ev, { session: id, edited: [file], now, suggestions: [{ skill: 'writing-kea-logics', areas: ['kind:kea-logic'], at: '2026-10-19T09:00:00Z' }] });
+    if (miss) creditOutcome(ev, [{ skill: 'writing-kea-logics', file, read: false, shown: true }], { session: id, now });
+  };
+  for (let i = 0; i < 6; i++) ign(`m${i}`, true);
+  assert.equal(decayed(k.unread, now), 8, 'a miss in an already-unread session is not counted twice');
+  const m1 = mean(ev, 'writing-kea-logics'); assert.ok(m1 > m0, `${m1} > ${m0}`);
+  for (let i = 0; i < 12; i++) ign(`n${i}`, false);
+  assert.ok(mean(ev, 'writing-kea-logics') < m1);
+  // recording a session again that turns out to have opened it takes its unread count back
+  creditSession(ev, { session: 'n0', edited: [file], now, opened: [{ skill: 'writing-kea-logics', at: '2026-10-19T10:00:00Z' }], suggestions: [{ skill: 'writing-kea-logics', areas: ['kind:kea-logic'], at: '2026-10-19T09:00:00Z' }] });
+  assert.equal(decayed(k.unread, now), 19);
+});
+
+test('a row made late counts the earlier sessions of its area as unread, unless the skill was added since', () => {
+  const now = Date.now(), file = 'frontend/src/scenes/dashLogic.ts';
+  const ev = emptyEvidence(); ev.skills = { old: { file: '.agents/skills/old/SKILL.md' }, fresh: { file: '.agents/skills/fresh/SKILL.md' } };
+  for (let i = 0; i < 9; i++) creditSession(ev, { session: `q${i}`, edited: [file], now });
+  // opened once, in the tenth session: one success against nine unread sessions, not a lone success
+  creditSession(ev, { session: 'q9', edited: [file], now, opened: [{ skill: 'old' }] });
+  assert.equal(decayed(ev.areas['kind:kea-logic'].skills.old.unread, now), 9);
+  assert.ok(candidates(ev, file, { now }).get('old').every(p => p.alpha / (p.alpha + p.beta) < 0.15));
+  // a skill that appeared after the evidence began has no history to be unread in
+  refreshRegistry(ev, fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-empty-')), { now });
+  assert.deepEqual(ev.skills, {}, 'the registry follows the checkout');
+  ev.skills = { old: { file: 'x' }, fresh: { file: 'y', added: new Date(now).toISOString() } };
+  creditOutcome(ev, [{ skill: 'fresh', file, read: false }], { session: 'q9', now });
+  assert.equal(decayed(ev.areas['kind:kea-logic'].skills.fresh.unread, now), 1);
+  assert.equal(decayed(ev.areas['kind:kea-logic'].skills.fresh.missed, now), 1);
+});
+
+test('the words of the path only bring a skill in when the file has no evidence-backed candidate at all', () => {
+  const now = Date.now(), ev = keaEvidence(now);
+  ev.skills['kea-forms'] = { file: '.agents/skills/kea-forms/SKILL.md', description: 'Forms in kea logic files.' };
+  // the kea logic file has evidence (writing-kea-logics): no lexical newcomer
+  assert.deepEqual([...candidates(ev, 'frontend/src/scenes/dashLogic.ts', { now }).keys()], ['writing-kea-logics']);
+  // a migration nobody has worked on: the description's words decide, at the small prior
+  const c = candidates(ev, 'posthog/migrations/0003_x.py', { now });
+  assert.ok(c.has('django-migrations'));
+  assert.deepEqual(c.get('django-migrations'), [{ area: null, alpha: SKILL_SUGGEST.a0 + SKILL_SUGGEST.lexical, beta: SKILL_SUGGEST.b0 }]);
+  assert.ok(SKILL_SUGGEST.lexical <= 0.25);
+});
+
+test('the per-session cap holds inside a file: a direct call never returns more lines than perSession', t => {
+  withEnv(t, { THINKER_LOG: 'off' });
+  const { store } = repoWithSkills(t);
+  const now = Date.now(), ev = emptyEvidence(); ev.seeded = 'x';
+  ev.skills = Object.fromEntries(Array.from({ length: 9 }, (_, i) => [`s${i}`, { file: `.agents/skills/s${i}/SKILL.md`, description: 'x' }]));
+  const files = Array.from({ length: 6 }, (_, i) => `d${i}/aLogic.ts`);
+  for (let j = 0; j < 10; j++) creditSession(ev, { session: `c${j}`, edited: files, opened: Object.keys(ev.skills).map(skill => ({ skill })), now });
+  saveEvidence(store, ev);
+  const out = skillSuggestLines(store, { session: 'cap', client: 'codex', files, rng: seededRng(4), now });
+  assert.equal(out.split('\n').length, SKILL_SUGGEST.perSession);
+  assert.equal(skillSuggestLines(store, { session: 'cap', client: 'codex', files: ['d9/bLogic.ts'], rng: seededRng(5), now }), '');
+  // a held-out session is capped the same way, in what it withholds
+  skillSuggestLines(store, { session: 'cap-h', client: 'codex', files, holdout: true, rng: seededRng(4), now });
+  assert.equal(sessionSuggestions(store, 'cap-h').length, SKILL_SUGGEST.perSession);
 });
 
 test('the hook says each skill once a session, for a file the first time it is seen; a held-out turn withholds and logs', t => {
@@ -203,22 +286,21 @@ test('evidence is read from Claude Code and Codex transcripts: edits in order, s
   assert.equal(decayed(ev2.areas['kind:kea-logic'].exposures, now), 1);
 });
 
-test('the facts of a hook input and of distiller events: Codex patches, skill paths, the Skill tool', () => {
+test('the facts of a hook input: Codex patches, skill paths, the Skill tool', () => {
   const ev = { tool_name: 'apply_patch', tool_input: { command: '*** Begin Patch\n*** Update File: frontend/src/scenes/dashLogic.ts\n*** End Patch' } };
   assert.deepEqual(hookSkillFacts(ev, '/r').files, ['frontend/src/scenes/dashLogic.ts']);
   assert.deepEqual(hookSkillFacts({ tool_name: 'Read', tool_input: { file_path: '/r/.agents/skills/x-y/SKILL.md' } }, '/r', ['.agents/skills/x-y/SKILL.md']).opened, ['x-y']);
   assert.deepEqual(hookSkillFacts({ tool_name: 'Skill', tool_input: { skill: 'writing-tests' } }, '/r').opened, ['writing-tests']);
-  const f = eventSkillFacts([{ t: 'tool', name: 'Edit', input: { file_path: '/r/a/bLogic.ts' } }, { t: 'tool', name: 'Read', input: { file_path: '/r/.agents/skills/k/SKILL.md' } }, { t: 'tool', name: 'Skill', input: { skill: 'z' } }], '/r');
-  assert.deepEqual(f.edited, ['a/bLogic.ts']); assert.deepEqual([...f.read].sort(), ['k', 'z']);
 });
 
 // a model that records the prompt and schema it was given and answers with a fixed reply
 function fakeModel(t, dir, reply) {
-  const script = path.join(dir, 'model.cjs'), seen = path.join(dir, 'seen.json');
-  fs.writeFileSync(script, `let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{require('fs').writeFileSync(${JSON.stringify(seen)},JSON.stringify({prompt:s,schema:process.env.THINKER_SCHEMA||''}));console.log(${JSON.stringify(JSON.stringify(reply))});});`);
+  const script = path.join(dir, 'model.cjs'), seen = path.join(dir, 'seen.jsonl');
+  fs.writeFileSync(script, `let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{require('fs').appendFileSync(${JSON.stringify(seen)},JSON.stringify({prompt:s,schema:process.env.THINKER_SCHEMA||''})+'\\n');console.log(${JSON.stringify(JSON.stringify(reply))});});`);
   withEnv(t, { THINKER_LLM_CMD: `node "${script}"`, THINKER_LLM: 'command', ANTHROPIC_API_KEY: undefined });
   t.after(() => resetFallback());
-  return () => JSON.parse(fs.readFileSync(seen, 'utf8'));
+  const all = () => { try { return fs.readFileSync(seen, 'utf8').trim().split('\n').filter(Boolean).map(l => JSON.parse(l)); } catch { return []; } };
+  return Object.assign(() => all().at(-1), { all });
 }
 const sessionEvents = dir => [
   { t: 'prompt', text: 'add a migration for the new column' },
@@ -226,46 +308,135 @@ const sessionEvents = dir => [
   { t: 'tool', name: 'Edit', input: { file_path: `${dir}/posthog/migrations/0001_init.py`, old_string: 'x = 1', new_string: 'x = 2' }, result: 'ok' },
   { t: 'say', text: 'Added the migration in posthog/migrations/0001_init.py.' },
 ];
+// a checkout with a rule naming writing-tests for test files, an AGENTS.md, evidence for migrations, and a
+// Claude Code session that changed a migration, added a test and read writing-tests
+function outcomeRepo(t, { config = { harness: { skillSuggest: true, skillOutcome: true, skillOutcomeShare: 1 } } } = {}) {
+  const r = repoWithSkills(t, { config });
+  const { dir, store } = r;
+  fs.mkdirSync(path.join(dir, '.claude/rules'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.claude/rules/writing-tests.md'), "---\npaths:\n  - '**/test_*.py'\n---\nYou MUST invoke the `/writing-tests` skill before writing a test.\n");
+  fs.writeFileSync(path.join(dir, '.claude/rules/kea.md'), "---\nglobs: ['frontend/src/**/*Logic.ts']\n---\nKea rule.\n");
+  fs.writeFileSync(path.join(dir, 'AGENTS.md'), '# Guide\n\n## Commits and Pull Requests\nUse conventional commits.\n\n## Code Style\nNo bare excepts.\n');
+  git(dir, 'add', '.'); git(dir, 'commit', '-q', '-m', 'guidance');
+  const ev = emptyEvidence(); ev.skills = refreshRegistry(emptyEvidence(), dir).skills; ev.seeded = 'x';
+  for (let i = 0; i < 6; i++) creditSession(ev, { session: `m${i}`, edited: ['posthog/migrations/0002_x.py'], opened: [{ skill: 'django-migrations' }] });
+  saveEvidence(store, ev);
+  fs.writeFileSync(path.join(dir, 'posthog/migrations/0001_init.py'), 'x = 2\n');
+  fs.mkdirSync(path.join(dir, 'posthog/test'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'posthog/test/test_new.py'), 'def test_x():\n    assert True\n');
+  const at = s => new Date(Date.now() - 60_000 + s * 1000).toISOString(), row = j => JSON.stringify(j);
+  const file = path.join(dir, 'outcome-session.jsonl');
+  fs.writeFileSync(file, [
+    row({ type: 'user', sessionId: 'os1', cwd: dir, timestamp: at(0), message: { role: 'user', content: 'add the column' } }),
+    row({ type: 'assistant', timestamp: at(1), message: { content: [{ type: 'tool_use', id: '1', name: 'Read', input: { file_path: path.join(dir, '.claude/skills/writing-tests/SKILL.md') } }] } }),
+    row({ type: 'assistant', timestamp: at(2), message: { content: [{ type: 'tool_use', id: '2', name: 'Edit', input: { file_path: path.join(dir, 'posthog/migrations/0001_init.py'), old_string: 'x = 1', new_string: 'x = 2' } }] } }),
+    row({ type: 'assistant', timestamp: at(3), message: { content: [{ type: 'tool_use', id: '3', name: 'Write', input: { file_path: path.join(dir, 'posthog/test/test_new.py'), content: 'def test_x():\n    assert True\n' } }] } }),
+    row({ type: 'assistant', timestamp: at(4), message: { content: [{ type: 'text', text: 'Added the column and a test.' }] } }),
+  ].join('\n') + '\n');
+  return { ...r, file };
+}
+const REPLY = { notes: [], violations: [
+  { rule: 'Migrations must be non-blocking', source: 'skill django-migrations (.agents/skills/django-migrations/SKILL.md)', file: 'posthog/migrations/0001_init.py', evidence: '+x = 2 blocks' },
+  { rule: 'Tests assert behaviour', source: 'skill writing-tests (.claude/skills/writing-tests/SKILL.md)', file: 'posthog/test/test_new.py', evidence: '+assert True' },
+  { rule: 'No bare excepts', source: 'AGENTS.md', file: 'posthog/migrations/0001_init.py', evidence: '+x' },
+] };
 
-test('the distillation names the rules a change broke and their skill: a miss when the skill was not read, logged; the schema keeps the notes', async t => {
-  withEnv(t, { THINKER_LOG: 'local', THINKER_HARNESS_SKILL_SUGGEST: undefined });
-  const { dir, store } = repoWithSkills(t);
-  const seen = fakeModel(t, dir, { notes: [], broken_rules: [{ rule: 'migrations must be non-blocking', file: 'posthog/migrations/0001_init.py', source: 'django-migrations' }, { rule: 'run lint', file: 'posthog/migrations/0001_init.py', source: 'AGENTS.md' }] });
-  const events = sessionEvents(dir);
-  const ctx = distillSkillContext(store, events);
-  assert.deepEqual(ctx.edited, ['posthog/migrations/0001_init.py']);
-  assert.ok(ctx.skills.some(s => s.name === 'django-migrations' && s.file === '.agents/skills/django-migrations/SKILL.md'), 'found by the words of the path when no evidence names it');
-  const r = await distillEvents(events, { skills: ctx.skills });
-  assert.equal(r.brokenRules.length, 2); assert.deepEqual(r.notes, []);
-  const s = seen();
-  assert.match(s.prompt, /SKILLS COVERING THE CHANGED FILES:\n- django-migrations \(\.agents\/skills\/django-migrations\/SKILL\.md\): Writing safe django migrations\./);
-  assert.doesNotMatch(s.prompt, /Body of django-migrations/, 'never the skill text');
-  const schema = JSON.parse(s.schema);
-  assert.ok(schema.properties.broken_rules && schema.required.includes('broken_rules') && schema.required.includes('notes'));
-  const credited = recordBrokenRules(store, r.brokenRules, ctx, { session: 'd1' });
-  assert.deepEqual(credited.map(c => c.verdict), ['missed']);
-  const ev = loadEvidence(store);
-  assert.ok(decayed(ev.areas['kind:migration'].skills['django-migrations'].missed, Date.now()) > 0.9);
-  const outs = logLines(store).filter(l => l.op === 'skill-outcome');
-  assert.deepEqual(outs.map(o => o.verdict), ['missed', 'other-source']);
-  // read in the session and broken all the same: a negative
-  const read = recordBrokenRules(store, r.brokenRules.slice(0, 1), { ...ctx, read: new Set(['django-migrations']) }, { session: 'd2' });
-  assert.deepEqual(read.map(c => c.verdict), ['broken-after-read']);
+test('the outcome check: its own switch, never in test mode unless forced, a share of sessions by id', t => {
+  const { store } = outcomeRepo(t);
+  assert.equal(skillOutcomeOn(store, { THINKER_TEST: '1' }), false, 'the config alone does not run it in test mode');
+  assert.equal(skillOutcomeOn(store, { THINKER_TEST: '1', THINKER_HARNESS_SKILL_OUTCOME: 'on' }), true, 'forced');
+  assert.equal(skillOutcomeOn(store, {}), true);
+  assert.equal(skillOutcomeOn(store, { THINKER_HARNESS_SKILL_OUTCOME: 'off' }), false);
+  const plain = repoWithSkills(t);
+  assert.equal(skillOutcomeOn(plain.store, {}), false, 'off by default, with suggestions on');
+  assert.equal(outcomeSampled('abc', 0), false); assert.equal(outcomeSampled('abc', 1), true);
+  assert.equal(outcomeSampled('abc', 0.25), outcomeSampled('abc', 0.25));
+  const n = Array.from({ length: 4000 }, (_, i) => outcomeSampled(`s-${i}`, 0.25)).filter(Boolean).length;
+  assert.ok(n > 900 && n < 1100, `${n} of 4000`);
 });
 
-test('distillFile with the switch on credits the session and asks for broken rules in the same call', async t => {
-  withEnv(t, { THINKER_LOG: 'local', THINKER_HARNESS_SKILL_SUGGEST: undefined });
-  const { dir, store } = repoWithSkills(t);
-  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ ...store.config(), learn: { auditRate: 1 } }));
-  const seen = fakeModel(t, dir, { notes: [], broken_rules: [{ rule: 'non-blocking', file: 'posthog/migrations/0001_init.py', source: '.agents/skills/django-migrations/SKILL.md' }] });
-  const trace = path.join(dir, 'session.jsonl');
-  fs.writeFileSync(trace, sessionEvents(dir).map(e => JSON.stringify(e)).join('\n') + '\n');
-  await distillFile({ repo: dir, store, out() {} }, trace, { incremental: true, session: 'ds', minExplore: 1, format: 'events' });
-  assert.match(seen().prompt, /SKILLS COVERING THE CHANGED FILES/);
-  assert.ok(logLines(store).some(l => l.op === 'skill-outcome' && l.skill === 'django-migrations' && l.verdict === 'missed'));
+test('the guidance helpers: rule globs, skills a rule names, process sections left out, a violation credited by name or path', t => {
+  assert.deepEqual(ruleGlobs("---\npaths:\n  - '**/test_*.py'\n  - \"a/*.ts\"\n---\nx"), ['**/test_*.py', 'a/*.ts']);
+  assert.deepEqual(ruleGlobs("---\nglobs: ['x/**/*Logic.ts', y.md]\n---\n"), ['x/**/*Logic.ts', 'y.md']);
+  assert.ok(globRegex('**/test_*.py').test('posthog/test/test_new.py') && globRegex('**/test_*.py').test('test_a.py'));
+  assert.ok(globRegex('frontend/src/**/*Logic.ts').test('frontend/src/scenes/aLogic.ts') && !globRegex('frontend/src/**/*Logic.ts').test('frontend/aLogic.ts'));
+  assert.ok(globRegex('a/*.{ts,tsx}').test('a/b.tsx'));
+  assert.deepEqual(skillsNamedIn('invoke the `/writing-tests` skill, then /django-migrations.', ['writing-tests', 'django-migrations', 'writing']), ['writing-tests', 'django-migrations']);
+  const skills = [{ name: 'writing-tests', file: '.claude/skills/writing-tests/SKILL.md' }, { name: 'writing-tests-e2e', file: '.agents/skills/writing-tests-e2e/SKILL.md' }];
+  assert.equal(violationSkill('skill writing-tests (.claude/skills/writing-tests/SKILL.md)', skills), 'writing-tests');
+  assert.equal(violationSkill('AGENTS.md (Tests) / writing-tests-e2e skill', skills), 'writing-tests-e2e');
+  assert.equal(violationSkill('AGENTS.md', skills), null);
+  const { dir } = outcomeRepo(t);
+  assert.deepEqual(matchingRules(dir, ['posthog/test/test_new.py']).map(r => r.path), ['.claude/rules/writing-tests.md']);
+  const a = agentsSections(dir, ['posthog/test/test_new.py']);
+  assert.match(a[0].text, /No bare excepts/); assert.doesNotMatch(a[0].text, /conventional commits/);
 });
 
-test('switched off, nothing changes: no hook line, no state, no evidence, no broken rules in the distillation', async t => {
+test('the outcome check sees the change, the skills that bear on it in full and the rules that match; a miss when unread, a negative when read', async t => {
+  withEnv(t, { THINKER_LOG: 'local' });
+  const { dir, store, file } = outcomeRepo(t);
+  const prompts = [];
+  const completeFn = async o => { prompts.push(o); return { json: REPLY, cost: 0.12, usage: { input_tokens: 1000, output_tokens: 100 } }; };
+  const env = { ...process.env, THINKER_HARNESS_SKILL_OUTCOME: 'on' };
+  const r = await skillOutcomeCheck(store, file, { session: 'os1', completeFn, env });
+  assert.equal(prompts.length, 1);
+  const p = prompts[0].prompt;
+  assert.match(p, /^-x = 1\n\+x = 2$/m, 'the edited file, diffed from the commit before the session');
+  assert.match(p, /\+\+\+ b\/posthog\/test\/test_new\.py/, 'a file the session created');
+  assert.match(p, /===== skill django-migrations \(\.agents\/skills\/django-migrations\/SKILL\.md\) =====\n---\nname: django-migrations/, 'the evidence names it; its full text');
+  assert.match(p, /===== skill writing-tests \(\.claude\/skills\/writing-tests\/SKILL\.md\) =====/, 'named by a matching rule');
+  assert.match(p, /===== \.claude\/rules\/writing-tests\.md =====/); assert.doesNotMatch(p, /Kea rule/);
+  assert.match(p, /No bare excepts/); assert.doesNotMatch(p, /conventional commits/);
+  assert.equal(prompts[0].schema, OUTCOME_SCHEMA);
+  assert.deepEqual(r.guidance.skills.map(s => [s.name, s.by]), [['django-migrations', 'evidence'], ['writing-tests', 'rule']]);
+  assert.deepEqual(r.credited.map(c => [c.skill, c.verdict]), [['django-migrations', 'missed'], ['writing-tests', 'broken-after-read']]);
+  const ev = loadEvidence(store), now = Date.now();
+  assert.ok(decayed(ev.areas['kind:migration'].skills['django-migrations'].missed, now) > 0.9);
+  assert.ok(decayed(ev.areas['kind:py-test'].skills['writing-tests'].negative, now) > 0.9);
+  const log = logLines(store).filter(l => l.op === 'skill-outcome');
+  assert.equal(log.length, 1); assert.equal(log[0].cost, 0.12); assert.equal(log[0].violations.length, 3);
+  assert.deepEqual(log[0].credited.map(c => c.verdict), ['missed', 'broken-after-read']);
+  assert.equal(await skillOutcomeCheck(store, file, { session: 'os1', completeFn, env }), null, 'once a session');
+  assert.equal(prompts.length, 1);
+  // not sampled, not on, or nothing with skills to check: no call
+  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ ...store.config(), harness: { skillSuggest: true, skillOutcome: true, skillOutcomeShare: 0 } }));
+  assert.equal(await skillOutcomeCheck(store, file, { session: 'os2', completeFn, env }), null);
+  assert.equal(await skillOutcomeCheck(store, file, { session: 'os3', completeFn, env: { ...env, THINKER_HARNESS_SKILL_OUTCOME: undefined } }), null);
+  assert.equal(prompts.length, 1);
+  void dir;
+});
+
+test('the outcome check in a desktop app: its model call goes through the session queue like a distillation', async t => {
+  withEnv(t, { THINKER_LOG: 'local' });
+  const { store, file } = outcomeRepo(t);
+  const queue = path.join(store.dir, 'state/session-llm');
+  withEnv(t, { THINKER_LLM: 'session', THINKER_SESSION_QUEUE: queue, THINKER_HARNESS_SKILL_OUTCOME: 'on', ANTHROPIC_API_KEY: undefined });
+  t.after(() => resetFallback());
+  markBuild(queue, process.pid);
+  const done = skillOutcomeCheck(store, file, { session: 'app1' });
+  const { request } = await nextRequest(queue, { waitMs: 5000, pollMs: 10 });
+  assert.ok(request, 'the request reached the session queue');
+  assert.match(request.prompt, /^GUIDANCE:/); assert.ok(request.schema.properties.violations);
+  assert.deepEqual(answerRequest(queue, request.id, JSON.stringify({ violations: REPLY.violations })), { ok: true });
+  const r = await done;
+  assert.deepEqual(r.credited.map(c => c.verdict), ['missed', 'broken-after-read']);
+});
+
+test('distillFile runs the outcome check apart from the distillation, which is as on main', async t => {
+  withEnv(t, { THINKER_LOG: 'local', THINKER_HARNESS_SKILL_OUTCOME: 'on' });
+  const { dir, store, file } = outcomeRepo(t);
+  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ ...store.config(), learn: { auditRate: 1, quietExplore: 0 } }));
+  const seen = fakeModel(t, dir, REPLY);
+  await distillFile({ repo: dir, store, out() {} }, file, { incremental: true, session: 'os1', minExplore: 0 });
+  const calls = seen.all();
+  assert.equal(calls.length, 2, 'the outcome check, then the distillation');
+  assert.ok(calls.some(c => /GUIDANCE:/.test(c.prompt)), 'the outcome check');
+  assert.ok(calls.every(c => !/broken_rules|SKILLS COVERING/.test(c.prompt + c.schema)), 'the distillation is not asked for broken rules');
+  assert.ok(logLines(store).some(l => l.op === 'skill-outcome' && l.credited?.some(c => c.skill === 'django-migrations' && c.verdict === 'missed')));
+  assert.ok(logLines(store).some(l => l.op === 'skill-evidence'));
+});
+
+test('switched off, nothing changes: no hook line, no state, no evidence, no outcome check, a distillation as before', async t => {
   withEnv(t, { THINKER_LOG: 'local', THINKER_HARNESS_SKILL_SUGGEST: undefined, THINKER_HOLDOUT: 'off' });
   const { dir, store } = repoWithSkills(t, { config: {} });
   assert.equal(skillSuggestOn(store), false);
@@ -273,17 +444,17 @@ test('switched off, nothing changes: no hook line, no state, no evidence, no bro
   const on = repoWithSkills(t);
   assert.equal(skillSuggestOn(on.store, { THINKER_HARNESS_SKILL_SUGGEST: 'off' }), false, 'the env wins over the config');
   assert.equal(skillSuggestLines(store, { session: 's', client: 'claude', files: ['frontend/src/scenes/dashLogic.ts'] }), '');
-  assert.equal(distillSkillContext(store, sessionEvents(dir)), null);
+  assert.equal(skillOutcomeOn(store, { THINKER_HARNESS_SKILL_OUTCOME: 'on' }), false, 'the outcome check needs suggestions on');
   const seen = fakeModel(t, dir, { notes: [] });
   const r = await distillEvents(sessionEvents(dir), {});
-  assert.deepEqual(r.brokenRules, []);
+  assert.equal(r.brokenRules, undefined);
   assert.doesNotMatch(seen().prompt, /SKILLS COVERING|broken_rules/);
   assert.equal(JSON.parse(seen().schema).properties.broken_rules, undefined);
   const trace = path.join(dir, 'session.jsonl');
   fs.writeFileSync(trace, sessionEvents(dir).map(e => JSON.stringify(e)).join('\n') + '\n');
   fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ ...store.config(), learn: { auditRate: 1 } }));
   await distillFile({ repo: dir, store, out() {} }, trace, { incremental: true, session: 'off', minExplore: 1, format: 'events' });
-  assert.doesNotMatch(seen().prompt, /SKILLS COVERING/);
+  assert.doesNotMatch(seen().prompt, /SKILLS COVERING|GUIDANCE:/);
   const out = execFileSync('node', [CLI, 'hook', 'tool', '--repo', dir], { input: JSON.stringify({ session_id: 'h-off', tool_name: 'Edit', tool_input: { file_path: path.join(dir, 'frontend/src/scenes/dashLogic.ts') } }), encoding: 'utf8', env: { ...process.env, THINKER_NO_LEARN: '1' } });
   assert.doesNotMatch(out, /thinker-skill/);
   assert.equal(fs.existsSync(path.join(store.dir, 'state', 'skill-evidence.json')), false);

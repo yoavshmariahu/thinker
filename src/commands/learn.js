@@ -22,7 +22,8 @@ import { understand, UNDERSTAND_DEFAULTS } from '../understand.js';
 import { areasConfig } from '../areas.js';
 import { enqueueJob, recentAppSession, runSessionWork } from '../session-work.js';
 import { isWorkerPrompt } from '../session-llm.js';
-import { skillSuggestOn, recordSessionSkills, distillSkillContext, recordBrokenRules } from '../skill-suggest.js';
+import { skillSuggestOn, recordSessionSkills } from '../skill-suggest.js';
+import { skillOutcomeOn, skillOutcomeCheck } from '../skill-outcome.js';
 
 async function learnCommand(ctx) {
   const { flags } = ctx;
@@ -202,6 +203,9 @@ export async function distillFile(ctx, file, { minExplore, dry, model, quiet, in
   // the skills the session opened for the files it edited (skill-suggest.js; off unless harness.skillSuggest):
   // no model call, credited once per session whatever the distillation below decides
   if (!batch && !dry && skillSuggestOn(store)) { try { recordSessionSkills(store, file, { session }); } catch {} }
+  // on a sample of sessions, which rules of those skills the change broke, and whether the skill was read
+  // (skill-outcome.js; its own switch, off by default): one model call, through the session in a desktop app
+  if (!batch && !dry && skillOutcomeOn(store)) { try { await skillOutcomeCheck(store, file, { session, phase }); } catch (e) { store.log({ op: 'skill-outcome', session, failed: String(e.message || e).slice(0, 160) }); } }
   const n = exploreCount(events);
   if (n < minExplore && !(incremental && sessionStakes(events).any)) { markSeen(); if (!quiet) out(`only ${n} exploration calls since last distill (<${minExplore}); nothing to distill`); return; }
   if (!events.some(e => e.t === 'say')) { markSeen(); if (!quiet) out('the session has no answer from the agent yet; nothing to distill'); return; }
@@ -239,12 +243,9 @@ export async function distillFile(ctx, file, { minExplore, dry, model, quiet, in
   // the notes resting on the files the session touched, and up to four on the topic of its requests
   const existing = relatedNotes(store, events, { max: 12 });
   if (phase !== 'init' && !withinDailyCap(store).ok) throw new Error('daily learning token cap reached; session will retry');
-  // with skill suggestions on, the same call names the rules the change broke and the skill each came from
-  let skillCtx = null; if (skillSuggestOn(store)) { try { skillCtx = distillSkillContext(store, events); } catch {} }
-  const r = await distillEvents(events, { model: model || store.config().distillModel || DEFAULT_DISTILL_MODEL, repoHint: repo, served, existing, kinds, evidence: plan.trace, skills: skillCtx?.skills || [], discover: plan.discover, compact: plan.compact ?? !['audit', 'full'].includes(plan.mode), accounting: { ...accounting, purpose: 'distill', traceEvents: events.length, learningMode: plan.mode, evidenceChars: plan.trace.length } });
-  if (dry) { failed = false; out(JSON.stringify({ notes: r.notes, assessments: r.assessments, ...(skillCtx ? { brokenRules: r.brokenRules } : {}) }, null, 2)); out(`(${r.notes.length} notes, ${r.tokens == null ? 'tokens not reported' : '~' + formatTokens(r.tokens) + ' tokens'}, trace ${r.traceChars} chars)`); return; }
+  const r = await distillEvents(events, { model: model || store.config().distillModel || DEFAULT_DISTILL_MODEL, repoHint: repo, served, existing, kinds, evidence: plan.trace, discover: plan.discover, compact: plan.compact ?? !['audit', 'full'].includes(plan.mode), accounting: { ...accounting, purpose: 'distill', traceEvents: events.length, learningMode: plan.mode, evidenceChars: plan.trace.length } });
+  if (dry) { failed = false; out(JSON.stringify({ notes: r.notes, assessments: r.assessments }, null, 2)); out(`(${r.notes.length} notes, ${r.tokens == null ? 'tokens not reported' : '~' + formatTokens(r.tokens) + ' tokens'}, trace ${r.traceChars} chars)`); return; }
   const source = { type: 'agent', ref: path.basename(file, '.jsonl') };
-  if (skillCtx && r.brokenRules?.length) { try { recordBrokenRules(store, r.brokenRules, skillCtx, { session: session || sessionKey(path.basename(file)) }); } catch {} }
   const s = saveNotes(store, r.notes, { source, kinds });
   const assessments = safeLearningAssessments(store, r.assessments, served);
   const pending = deferLearning(store, assessments.deferred, { source, evidenceRef: path.resolve(file) });
