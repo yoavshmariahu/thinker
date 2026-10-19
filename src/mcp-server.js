@@ -20,6 +20,7 @@ import { isDisabledRepo } from './repo-switch.js';
 import { isTestMode } from './test-mode.js';
 import { warmupPending, warmupOffer, answerWarmup, startSessionWarmup, subagentHarness, WARMUP_CHOICES } from './repo-onboard.js';
 import { coveragePending, answerCoverage } from './coverage.js';
+import { harnessPending, answerHarness } from './harness.js';
 import { queueDir, buildRunning, buildRequested, nextRequest, answerRequest, requestText } from './session-llm.js';
 import { anyDesktopApp, ancestorPids } from './app-host.js';
 
@@ -94,7 +95,7 @@ async function ensureBound(args) {
   if (r && r !== repo) {
     if (isDisabledRepo(r)) return { reply: text('thinker is switched off for that repository and serves nothing there.') };
     binding = bind(r); await binding;
-    registerWarmupTool(); registerCoverageTool(); registerQueueTools();
+    registerWarmupTool(); registerCoverageTool(); registerHarnessTool(); registerQueueTools();
     return { bound: true };
   }
   if (store) return { bound: false };
@@ -325,7 +326,7 @@ function registerTools() {
   });
 
   registerWarmupTool();
-  registerCoverageTool();
+  registerCoverageTool(); registerHarnessTool();
   registerQueueTools();
 }
 
@@ -345,6 +346,24 @@ function registerCoverageTool() {
   }, async ({ choice, asked, cwd }) => {
     const { reply } = await ensureBound({ cwd }); if (reply) return reply;
     return text(await answerCoverage(store, String(choice), { client: clientName(), via: asked === 'chat' ? 'text' : 'picker' }));
+  });
+}
+
+// The answer to a harness suggestion (harness.js:harnessOffer): offered only while one waits for its answer
+// here, like the coverage tool.
+let harnessTool;
+function registerHarnessTool() {
+  if (harnessTool || !store || !harnessPending(store)) return;
+  harnessTool = server.registerTool('harness', {
+    title: 'Answer a harness suggestion',
+    description: 'Only when a thinker-harness-suggestion notice tells you to: records the user\'s answer and switches the chosen tools off for this repository.',
+    inputSchema: {
+      choice: z.string().describe('The names the user chose, comma-separated, exactly as quoted; or none; or never'),
+      ...(late ? { cwd: z.string().optional().describe('Absolute path of the repository') } : {}),
+    },
+  }, async ({ choice, cwd }) => {
+    const { reply } = await ensureBound({ cwd }); if (reply) return reply;
+    return text(answerHarness(store, String(choice), { client: clientName(), via: 'picker' }));
   });
 }
 
@@ -426,7 +445,7 @@ if (late) server.server.oninitialized = async () => {
         const r = checkoutOf(root.uri);
         if (!r || isDisabledRepo(r) || store) continue;
         binding = bind(r); await binding;
-        registerWarmupTool(); registerCoverageTool(); registerQueueTools();
+        registerWarmupTool(); registerCoverageTool(); registerHarnessTool(); registerQueueTools();
         break;
       }
     }

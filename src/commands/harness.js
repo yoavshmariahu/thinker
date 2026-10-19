@@ -1,13 +1,21 @@
 // `thinker harness`: what the agent loads into every session here against what the sessions use,
-// and the sources worth switching off (harness.js). It reads transcripts and settings; it changes nothing.
-import { harnessUsage, harnessAdvice, MIN_TOKENS } from '../harness.js';
+// and the sources worth switching off (harness.js). The report reads transcripts and settings and changes
+// nothing; --suggest queues the question for the next prompt, --answer takes its reply, --undo reverses them.
+import { harnessUsage, harnessAdvice, MIN_TOKENS, scheduleHarnessSuggestion, answerHarness, undoHarness } from '../harness.js';
 import { formatTokens } from '../model-usage.js';
 
 const KIND = { plugin: 'plugin', mcp: 'MCP server', connector: 'claude.ai connector', skill: 'skill' };
 
-async function harnessCommand({ repo, flags, out }) {
+async function harnessCommand({ store, repo, flags, out }) {
+  if (flags.answer !== undefined) { out(answerHarness(store, String(flags.answer === true ? '' : flags.answer), { client: flags.client ? String(flags.client) : undefined, via: flags.via === 'text' ? 'text' : 'picker' })); return; }
+  if (flags.undo) { out(undoHarness(store)); return; }
   const days = Number(flags.days) || 30;
   const usage = harnessUsage(repo, { days });
+  if (flags.suggest) {
+    const picks = scheduleHarnessSuggestion(store, { force: true, usage });
+    out(picks?.length ? `Queued: your next prompt in Claude Code here asks which of ${picks.length} source${picks.length === 1 ? '' : 's'} to switch off (${picks.map(p => p.name).join(', ')}).` : 'Nothing here is worth switching off; no question queued.');
+    return;
+  }
   const advice = harnessAdvice(usage);
   if (flags.json) { out(JSON.stringify({ ...usage, advice }, null, 2)); return; }
   if (!usage.sessions) { out(`No Claude Code session here in the last ${days} days records what it loaded.`); return; }
@@ -23,7 +31,7 @@ async function harnessCommand({ repo, flags, out }) {
     out(`- ${s.name} (${KIND[s.kind]}): ${s.unused ? 'no session here used it' : `${s.used} of ${s.loaded} sessions used it`}, ~${formatTokens(s.tokens)} tokens each.`);
     out(`  ${s.action}`);
   }
-  out('\nNothing was changed. Sources Claude Code builds in have no setting and are not listed.');
+  out('\nNothing was changed. `thinker harness --suggest` asks you in your next Claude Code prompt here, all of them in one question.');
 }
 
 export const commands = { harness: harnessCommand };
