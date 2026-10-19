@@ -267,7 +267,10 @@ function describe(key, { servers, plugins, skills, overrides, connectors }, memb
 // server of the user's or local scope by `disabledMcpServers` in the repository's entry of
 // ~/.claude.json (what `/mcp disable` writes), one of .mcp.json by `disabledMcpjsonServers`; a skill by
 // `skillOverrides` "user-invocable-only", which takes it out of the listing and leaves `/name` working.
-// A plugin no setting names (one Claude Code brings) goes skill by skill. A claude.ai connector and a
+// Measured again 2026-10-19 by what a `claude -p` session listed and which server processes it started:
+// each of these held, but a plugin's own skills ignore skillOverrides. A plugin no setting names (one the
+// session brings, as the desktop app brings anthropic-skills) goes as `<name>@inline` and skill by skill
+// (apply). A claude.ai connector and a
 // server no settings file names are left to /mcp. A connector of the desktop app goes by the app's own
 // Connectors switch, which the agent flips (harness-desktop.js); that one is for the machine, not the repository.
 function switchOff(s) {
@@ -294,7 +297,7 @@ function action(s) {
   switch (switchOff(s)) {
     case 'desktop-connector': return `the Connectors switch of the Claude desktop app (the + menu); the agent flips it in a desktop session, and the app keeps it off in every new session on this machine, not only this repository`;
     case 'plugin': return `"enabledPlugins": {"${s.id}": false} in .claude/settings.local.json`;
-    case 'skills': return `"skillOverrides" "user-invocable-only" for its ${s.skills.length} skills in .claude/settings.local.json (each still runs as /name)`;
+    case 'skills': return s.kind === 'plugin' ? `"enabledPlugins": {"${s.name}@inline": false} and "skillOverrides" "user-invocable-only" for its ${s.skills.length} skills in .claude/settings.local.json` : `"skillOverrides" "user-invocable-only" for its ${s.skills.length} skills in .claude/settings.local.json (each still runs as /name)`;
     case 'mcp': return `"disabledMcpServers": ["${s.name}"] in this repository's entry of ~/.claude.json, for all its worktrees (what /mcp disable writes; /mcp enable undoes it)`;
     case 'mcpjson': return `"disabledMcpjsonServers": ["${s.name}"] in .claude/settings.local.json`;
     case 'skill': return `"skillOverrides": {"${s.name}": "user-invocable-only"} in .claude/settings.local.json (it still runs as /${s.name})`;
@@ -503,9 +506,20 @@ function apply(repo, s, { userHome, home, now, backups, overrides = {} }) {
   if (s.how === 'plugin') { let prev; editJson(local, j => { j.enabledPlugins ||= {}; prev = j.enabledPlugins[s.id]; j.enabledPlugins[s.id] = false; }, ctx); return done({ file: local, key: 'enabledPlugins', id: s.id, prev }); }
   if (s.how === 'skills' || s.how === 'skill') {
     const names = (s.how === 'skills' ? s.skills : [s.name]).filter(n => overrides[n] === undefined);
-    if (!names.length) throw new Error('its settings already say how it is listed');
-    editJson(local, j => { j.skillOverrides ||= {}; for (const n of names) j.skillOverrides[n] = 'user-invocable-only'; }, ctx);
-    return done({ file: local, key: 'skillOverrides', ids: names });
+    // a plugin no setting names is loaded for the session alone (--plugin-dir, as the desktop app loads its
+    // anthropic-skills): Claude Code reads skillOverrides for a plugin's skills only from managed or flag
+    // settings, so it goes off as `<name>@inline` too (2.1.303, 2026-10-19: with the override alone a
+    // --plugin-dir plugin's skill stayed listed, as did a marketplace plugin's; with enabledPlugins
+    // "<name>@inline" false it left the listing). The overrides still take the claude.ai skills synced
+    // under the same prefix (~/.claude/skills/synced), which no plugin switch reaches.
+    const plugin = s.kind === 'plugin' ? `${s.name}@inline` : null;
+    if (!names.length && !plugin) throw new Error('its settings already say how it is listed');
+    let prev;
+    editJson(local, j => {
+      if (names.length) { j.skillOverrides ||= {}; for (const n of names) j.skillOverrides[n] = 'user-invocable-only'; }
+      if (plugin) { j.enabledPlugins ||= {}; prev = j.enabledPlugins[plugin]; j.enabledPlugins[plugin] = false; }
+    }, ctx);
+    return done({ file: local, key: 'skillOverrides', ids: names, ...(plugin ? { plugin: { id: plugin, prev } } : {}) });
   }
   if (s.how === 'mcpjson') { editJson(local, j => { j.disabledMcpjsonServers = addTo(j.disabledMcpjsonServers, s.name); }, ctx); return done({ file: local, key: 'disabledMcpjsonServers', id: s.name }); }
   if (s.how === 'mcp') {
@@ -599,7 +613,10 @@ export function undoHarness(store, { home, userHome = os.homedir(), now = Date.n
       if (u.key === 'cursor') { editCursorMcp({ name: u.name, thinkerHome: home || thinkerHome(), home: userHome, write: writeTheirs }, true); back.unshift(a.name); continue; }
       editJson(u.file, j => {
         if (u.key === 'enabledPlugins') { if (j.enabledPlugins?.[u.id] === false) { if (u.prev === undefined) delete j.enabledPlugins[u.id]; else j.enabledPlugins[u.id] = u.prev; } }
-        else if (u.key === 'skillOverrides') { for (const n of u.ids) if (j.skillOverrides?.[n] === 'user-invocable-only') delete j.skillOverrides[n]; }
+        else if (u.key === 'skillOverrides') {
+          for (const n of u.ids) if (j.skillOverrides?.[n] === 'user-invocable-only') delete j.skillOverrides[n];
+          if (u.plugin && j.enabledPlugins?.[u.plugin.id] === false) { if (u.plugin.prev === undefined) delete j.enabledPlugins[u.plugin.id]; else j.enabledPlugins[u.plugin.id] = u.plugin.prev; }
+        }
         else if (u.key === 'disabledMcpjsonServers') j.disabledMcpjsonServers = (j.disabledMcpjsonServers || []).filter(n => n !== u.id);
         else if (u.key === 'disabledMcpServers') { const p = j.projects?.[u.project]; if (p) p.disabledMcpServers = (p.disabledMcpServers || []).filter(n => n !== u.id); }
       }, u.key === 'disabledMcpServers' ? { ...ctx, part: j => j.projects?.[u.project] } : ctx);
@@ -641,7 +658,7 @@ export function cardsFor(s) {
   if (s.client === 'cursor') return [card(s.key, s.name, Object.values(s.texts || {}).join(' '), `\`thinker harness --undo ${s.key}\` puts it back in ~/.cursor/mcp.json, for the next Cursor chat`)];
   if (s.kind === 'mcp') return [card(s.key, s.name, s.texts?.[`mcp:${serverKey(s.name)}`] || Object.values(s.texts || {})[0], `\`/mcp enable ${s.name}\` brings it back in this session`)];
   if (s.how === 'desktop-connector') return [card(s.key, s.name, Object.values(s.texts || {}).join(' '), `the + menu → Connectors turns it back on (in the desktop app you can call ${CONNECTOR_TOOL} with connector ${JSON.stringify(s.id)} and enabled true, from the next turn)`)];
-  const back = s.how === 'plugin' ? n => `the ${s.name} plugin is off here: \`thinker harness --undo\` (or "enabledPlugins": {"${s.id}": true} in .claude/settings.local.json) brings it back from the next session` : n => `\`/${n}\` still runs it`;
+  const back = s.how === 'plugin' || (s.how === 'skills' && s.kind === 'plugin') ? n => `the ${s.name} plugin is off here: \`thinker harness --undo\` (or "enabledPlugins": {"${s.how === 'plugin' ? s.id : `${s.name}@inline`}": true} in .claude/settings.local.json) brings it back from the next session` : n => `\`/${n}\` still runs it`;
   return (s.skills?.length ? s.skills : [s.name]).map(n => card(`skill:${n}`, n, s.texts?.[`skill:${n}`], back(n)));
 }
 

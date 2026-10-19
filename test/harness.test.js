@@ -157,6 +157,30 @@ test('skills too small to ask about one by one are one option together', t => {
   assert.deepEqual(local.skillOverrides, { tiny0: 'user-invocable-only', tiny1: 'user-invocable-only', tiny2: 'user-invocable-only' });
 });
 
+test('a plugin no setting names goes off as <name>@inline as well as skill by skill, and --undo restores both', t => {
+  // Claude Code 2.1.303 ignores skillOverrides for a plugin's own skills (measured 2026-10-19); the
+  // overrides still reach the claude.ai skills synced under the same prefix
+  const dir = tmp('thinker-harness-'); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const store = checkout(t), h = home(t), th = tmp('thinker-harness-th-'); t.after(() => fs.rmSync(th, { recursive: true, force: true }));
+  const skills = ['anthropic-skills:docx', 'anthropic-skills:schedule'];
+  const lines = () => [{ type: 'attachment', cwd: '/r', attachment: { type: 'skill_listing', content: skills.map(n => `- ${n}: ${long(900)}`).join('\n'), names: skills } }];
+  const sessions = [...Array(10).keys()].map(i => { const f = path.join(dir, `p${i}.jsonl`); fs.writeFileSync(f, lines().map(j => JSON.stringify(j)).join('\n') + '\n'); return { client: 'claude', file: f, session: `p${i}`, mtime: Date.now() }; });
+  const picks = scheduleHarnessSuggestion(store, { now: T0, home: th, usage: harnessUsage(store.repo, { home: h, sessions }) });
+  const pick = picks.find(p => p.name === 'anthropic-skills');
+  assert.equal(pick.how, 'skills');
+  const local = path.join(store.repo, '.claude', 'settings.local.json');
+  fs.mkdirSync(path.dirname(local), { recursive: true });
+  fs.writeFileSync(local, JSON.stringify({ enabledPlugins: { 'other@m': true } }));
+  answerHarness(store, pick.key, { home: th, userHome: h, now: T0 });
+  const j = JSON.parse(fs.readFileSync(local, 'utf8'));
+  assert.deepEqual(j.enabledPlugins, { 'other@m': true, 'anthropic-skills@inline': false });
+  assert.deepEqual(j.skillOverrides, { 'anthropic-skills:docx': 'user-invocable-only', 'anthropic-skills:schedule': 'user-invocable-only' });
+  assert.match(readHarnessState(store).applied[0].cards[0].back, /"anthropic-skills@inline": true/);
+  assert.match(undoHarness(store, { home: th, userHome: h, now: T0 }), /Turned back on/);
+  const after = JSON.parse(fs.readFileSync(local, 'utf8'));
+  assert.deepEqual(after.enabledPlugins, { 'other@m': true }); assert.deepEqual(after.skillOverrides, {});
+});
+
 test('the answer switches the chosen sources off for this repository alone, with a backup, and --undo turns them back on', t => {
   const { store, h, thinkerHome } = suggested(t);
   const claudeJson = path.join(h, '.claude.json'), before = fs.readFileSync(claudeJson, 'utf8');
