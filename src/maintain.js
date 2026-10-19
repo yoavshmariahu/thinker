@@ -10,6 +10,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { refresh, verifyNote, phraseNotes, phraseKey, archiveNotes } from './ops.js';
+import { dedupeOn, dedupeNotes, DEDUPE_DEFAULTS } from './dedupe.js';
 import { readLog } from './usage.js';
 import { formatTokens } from './model-usage.js';
 import { writeSystemMarkdown } from './behavior.js';
@@ -40,6 +41,12 @@ export const DEFAULTS = {
   // the weekly suggestion of tools to switch off (harness.js): a new way of reaching the agent, off until an experiment
   // shows it helps; `maintain: { harness: true }` turns it on for a repository
   harness: false,
+  // merge notes that say the same thing in different words (dedupe.js). On by default without an experiment,
+  // at the owner's decision on 2026-10-19 (a small upkeep pass); `maintain: { dedupe: false }` or
+  // THINKER_DEDUPE=off turns it off
+  dedupe: true,
+  dedupePerRun: DEDUPE_DEFAULTS.perRun,       // candidate pairs judged per run (one model call each)
+  dedupeThreshold: DEDUPE_DEFAULTS.threshold, // cosine of the local embeddings, for notes resting on a file in common
   archive: true,    // take notes the sessions showed are not worth serving out of serving and upkeep (ops.js:archiveNotes; `archive` in the config sets the rules)
 };
 export const MAINTENANCE_INTERVAL_MS = 4 * 60 * 60_000;
@@ -161,7 +168,7 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
     state.startedAt = new Date(now).toISOString();
     fs.writeFileSync(stateFile(store), JSON.stringify(state));
   }
-  const r = { verified: 0, updated: 0, retired: 0, churning: [], archived: 0, phrased: 0, prs: 0, docs: 0, unstated: 0, skills: 0, skillsBroken: 0, tokens: 0, capped: false, errors: 0 };
+  const r = { verified: 0, updated: 0, retired: 0, churning: [], archived: 0, merged: 0, phrased: 0, prs: 0, docs: 0, unstated: 0, skills: 0, skillsBroken: 0, tokens: 0, capped: false, errors: 0 };
   const spent = (fns.spentToday || spentToday)(store);
   const cap = withinDailyCap(store, { spentFn: () => spent }).cap;
   const afford = () => !cap || cap - spent - r.tokens > 0;
@@ -192,6 +199,15 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
         } catch { r.errors++; }
       }
     } else r.capped = true;
+    // 2b. notes that say the same thing in different words, merged (dedupe.js; off by default); before the
+    // phrasings, so a merged note is phrased for its new text in this run
+    if (dedupeOn(cfg) && afford()) {
+      try {
+        const d = await (fns.dedupe || dedupeNotes)(store, { perRun: cfg.dedupePerRun, threshold: cfg.dedupeThreshold, dry, afford });
+        r.merged = d.merged.length; r.tokens += d.tokens || 0; r.errors += d.errors || 0;
+        if (d.capped) r.capped = true;
+      } catch { r.errors++; }
+    }
     // 3. phrasings for notes that have none for their present text
     if (afford()) {
       const need = store.list().filter(n => n.status !== 'invalid' && !n.archived
@@ -276,7 +292,7 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
     if (liveState.revised?.length) u.revised = liveState.revised;
     if (liveState.brokenSkills?.length) u.brokenSkills = liveState.brokenSkills;
     if (r.revised && !dry) { try { writeSystemMarkdown(store); } catch {} }
-    for (const k of ['verified', 'updated', 'retired', 'archived', 'phrased', 'prs', 'docs', 'unstated', 'skills']) u[k] = (u[k] || 0) + r[k];
+    for (const k of ['verified', 'updated', 'retired', 'archived', 'merged', 'phrased', 'prs', 'docs', 'unstated', 'skills']) u[k] = (u[k] || 0) + r[k];
     // churning notes are named once; a note named before is not named again until it settles
     const named = new Set(state.churnNamed || []);
     const fresh = r.churning.filter(id => !named.has(id));
@@ -309,6 +325,7 @@ export function maintenanceNotice(store, { now = new Date() } = {}) {
   if (u.verified) parts.push(`${u.verified} checked${updated ? `, ${updated} updated` : ''}${retired ? `, ${retired} retired` : ''}`);
   if (u.phrased) parts.push(`${u.phrased} phrased`);
   if (u.archived) parts.push(`${u.archived} archived`);
+  if (u.merged) parts.push(`${u.merged} duplicate ${u.merged === 1 ? 'note' : 'notes'} merged`);
   if (u.prs) parts.push(`${u.prs} PR notes`);
   if (u.docs) parts.push(`${u.docs} ${u.docs === 1 ? 'behavior' : 'behaviors'} from design documents; see thinker system`);
   if (u.unstated) parts.push(`${u.unstated} ${u.unstated === 1 ? 'behavior' : 'behaviors'} no longer stated by a design document; keep or discard in thinker ui`);
@@ -355,6 +372,7 @@ export function renderMaintain(r) {
   if (r.revised) bits.push(`${r.revised} desired ${r.revised === 1 ? 'behavior' : 'behaviors'} revised to match the merged code`);
   if (r.churning?.length) bits.push(`${r.churning.length} churning left stale`);
   if (r.archived) bits.push(`${r.archived} archived`);
+  if (r.merged) bits.push(`${r.merged} duplicates merged`);
   bits.push(`${r.phrased} phrased`, `${r.prs} from pull requests`);
   if (r.docs) bits.push(`${r.docs} from design documents`);
   if (r.unstated) bits.push(`${r.unstated} no longer stated by a design document`);
