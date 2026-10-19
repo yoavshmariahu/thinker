@@ -24,8 +24,8 @@ ask specific questions with `lookup`, save reusable discoveries, and
 correct wrong notes. The code tools `find` and `drilldown` are off unless a repository
 turns them on with `thinker tools enable find drilldown`; while off they are neither
 offered nor mentioned to the agent. `orient` is off by default too (`thinker tools
-enable orient` turns it on): the prompt hook's notes and `lookup` remain. Windsurf and
-Copilot CLI, whose notes come through the CLI `orient`, keep it in their rules. Ordinary searches and reads remain available
+enable orient` turns it on): the prompt hook's notes and `lookup` remain. No client's rule
+names it; Windsurf, which runs no prompt hook, reaches notes through the CLI `lookup`. Ordinary searches and reads remain available
 when Thinker's tools cannot answer the question.
 
 | Client | Persistent workflow location |
@@ -111,7 +111,7 @@ follow every instruction.
 | Gemini CLI | BeforeAgent | AfterTool | Hook trace | MCP |
 | Cursor | Prompt hook (`additional_context`; first tool call under `agent -p`) | Post-tool hook | Hook trace | MCP + rule |
 | Pi | before_agent_start extension | tool_result extension | Prompt, tools, final answer; shutdown flush | CLI guidance in extension |
-| Windsurf Cascade | Always-on rule asks agent to orient | Agent-directed CLI lookup | Prompt, reads, edits, commands, MCP results, response | CLI rule |
+| Windsurf Cascade | None (no prompt hook); the always-on rule offers the CLI lookup | Agent-directed CLI lookup | Prompt, reads, edits, commands, MCP results, response | CLI rule |
 | GitHub Copilot CLI | First successful tool after prompt; CLI instruction fallback | postToolUse | Prompt, tools/errors, stop/end | CLI instruction; optional manual MCP |
 | OpenCode | chat.message plugin | tool.execute.after plugin | Prompt, successful tools, idle/end | MCP registered by plugin |
 | Copilot in VS Code (Local) | First tool call after the prompt (its UserPromptSubmit takes no context) | PostToolUse `hookSpecificOutput` | Prompt, tools, stop | MCP through the Copilot CLI's `mcp-config.json` (VS Code discovers it) |

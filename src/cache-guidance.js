@@ -19,7 +19,8 @@
 // the hook alone was level with the bare agent and 41k tokens and 2 calls under the orient arm. It was on
 // until the release after 0.1.65, and a `disabledTools` list written before (0.1.65 could switch it) does not
 // keep it on: only `enabledTools` does, so every existing install turns it off on its next start.
-// Clients whose notes come through orient alone keep it in their instructions (ORIENT_CLIENTS).
+// No client is told to orient, Windsurf and Copilot CLI included (the owner's decision, 2026-10-18: the value
+// shown is the hooks'); Windsurf, which runs no prompt hook, reaches notes through the CLI lookup alone.
 export const SWITCHABLE_TOOLS = ['orient', 'find', 'drilldown'];
 export const DEFAULT_DISABLED_TOOLS = ['orient', 'find', 'drilldown'];
 const CODE_TOOLS = ['find', 'drilldown'];
@@ -29,9 +30,6 @@ export function disabledTools(config) {
   if (!(Array.isArray(config?.enabledTools) && config.enabledTools.includes('orient'))) off.add('orient');
   return off;
 }
-// Windsurf runs no prompt hook (its rule asks the agent to orient), and Copilot CLI's hook fires only on
-// the first successful tool call, with the CLI orient as the fallback: their notes would stop with orient.
-export const ORIENT_CLIENTS = ['windsurf', 'copilot'];
 const offered = disabled => { const off = disabled instanceof Set ? disabled : new Set(disabled || DEFAULT_DISABLED_TOOLS); return { orient: !off.has('orient'), find: !off.has('find'), drilldown: !off.has('drilldown') }; };
 // How to get from a note to the code, with the tools on offer; `call` renders a tool's name.
 export function reachCode(disabled, call = name => name) {
