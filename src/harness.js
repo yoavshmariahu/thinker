@@ -829,6 +829,45 @@ export function harnessView(store, { days = 30, home } = {}) {
   };
 }
 
+// --- the index: the names of the switched-off skills, once a session ------------------------------------
+// With the listing off the agent read 15% of the skills its changes called for, against 98% with it listed
+// (posthog-hard-pr-vs-pr-und-sonnet-2026-10-17, Astra), and recall surfaced none: the model judges fit well,
+// it only needs to know what exists. The index gives it the names alone (~770 tokens for PostHog's 107 skills,
+// against ~4.5k for Codex's listing) and where the files are, once at the start of a session. A new way of
+// reaching the agent: off until an experiment shows it helps (AGENTS.md); `harness: { skillIndex: true }` in
+// .thinker/config.json, or THINKER_HARNESS_INDEX=on, turns it on.
+export const indexOn = store => {
+  if (!harnessOn(store)) return false;
+  const env = process.env.THINKER_HARNESS_INDEX || '';
+  if (/^(0|off|false)$/i.test(env)) return false;
+  return /^(1|on|true)$/i.test(env) || store.config().harness?.skillIndex === true;
+};
+// The block, or '' when it is off, already said this session, or no switched-off skill has a file to read.
+export function harnessIndex(store, { session, client } = {}) {
+  if (!indexOn(store)) return '';
+  const st = readHarnessState(store);
+  const cards = (st.applied || []).filter(a => !client || (a.client || 'claude') === client).flatMap(a => a.cards || []).filter(c => c.file);
+  if (!cards.length || (session && st.indexed?.[session])) return '';
+  if (session && session !== 'unknown') {
+    st.indexed ||= {};
+    st.indexed[session] = true;
+    const keys = Object.keys(st.indexed); for (const k of keys.slice(0, Math.max(0, keys.length - RECALL.sessions))) delete st.indexed[k];
+    saveState(store, st);
+  }
+  // one line per directory of skills: <dir>/<name>/SKILL.md, the names after it
+  const rel = f => (store.repo && f.startsWith(store.repo + path.sep) ? path.relative(store.repo, f) : f);
+  const byDir = new Map();
+  for (const c of cards) {
+    const f = rel(c.file), dir = path.basename(path.dirname(f)) === c.name ? path.dirname(path.dirname(f)) : null;
+    if (!/^[^\n\r`<>]{1,400}$/.test(dir || f) || !/^[\w.:-]{1,100}$/.test(c.name)) continue;
+    const k = dir ? `${dir}/<name>/SKILL.md` : f;
+    byDir.set(k, [...(byDir.get(k) || []), c.name]);
+  }
+  if (!byDir.size) return '';
+  store.log({ op: 'harness-index', session: session === 'unknown' ? undefined : session, client, skills: cards.length });
+  return `<thinker-skills>\nThis repository's skills are not listed in full here, to save context. Before work one of them covers, read its file and follow it:\n${[...byDir].map(([k, names]) => `${k}: ${names.sort().join(', ')}`).join('\n')}\n</thinker-skills>`;
+}
+
 // --- the controls: `thinker harness --off/--undo/--recurring/--recall/--suggestions`, and the page's buttons ---
 export function harnessSettings(store, { home } = {}) {
   return { enabled: harnessOn(store), recurring: store.config().maintain?.harness !== false, recall: recallOn(store), suggestions: !harnessNever(home) };

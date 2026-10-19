@@ -19,7 +19,7 @@ import { claudeCardActive } from '../claude-card.js';
 import { setupRepo, warmupOffer } from '../repo-onboard.js';
 import { coverageOffer, recordAccess } from '../coverage.js';
 import { commitsOffer } from '../commits-offer.js';
-import { harnessOffer, harnessRecall, harnessOn } from '../harness.js';
+import { harnessOffer, harnessRecall, harnessIndex, harnessOn } from '../harness.js';
 import { skillSuggestOn, skillSuggestLines, hookSkillFacts } from '../skill-suggest.js';
 import { snapshotCursorInventory } from '../harness-cursor.js';
 import { thinkerHome } from '../update.js';
@@ -129,8 +129,11 @@ async function hookCommand(ctx) {
       // agent, on with the harness, so it runs in test mode too. Gated as an offer, an eval arm had to turn every
       // offer back on to measure it, and the warm-up offer then reached the agent (2026-10-19: a PostHog session
       // stopped to ask about warming its empty cache, because offerStore reads the main checkout's answered mark)
-      const recall = ['claude', 'codex', 'cursor'].includes(client) && !isHarnessEvent(ev.prompt) ? await harnessRecall(store, ev.prompt || '', { session, client }) : '';
-      const offer = [offersOn ? (warmupOffer(store, { client }) || commitsOffer(store, { client }) || coverageOffer(store, { client }) || harnessOffer(store, { client })) : '', work, recall].filter(Boolean).join('\n\n');
+      const harnessHere = ['claude', 'codex', 'cursor'].includes(client) && !isHarnessEvent(ev.prompt);
+      const recall = harnessHere ? await harnessRecall(store, ev.prompt || '', { session, client }) : '';
+      // the names of the switched-off skills, once a session (harness.js:harnessIndex; off until an experiment), not an offer either
+      const index = harnessHere ? harnessIndex(store, { session, client }) : '';
+      const offer = [offersOn ? (warmupOffer(store, { client }) || commitsOffer(store, { client }) || coverageOffer(store, { client }) || harnessOffer(store, { client })) : '', work, index, recall].filter(Boolean).join('\n\n');
       // Every git repository has a cache, started on first use and empty until it learns; the hooks serve
       // from it once it holds a few notes (ops.js:SERVE_MIN_NOTES). A prompt served nothing is still a
       // request: `thinker usage` and the telemetry count a machine as active by its requests, and a cache in
