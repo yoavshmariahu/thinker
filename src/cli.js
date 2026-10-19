@@ -116,9 +116,9 @@ const HELP = `thinker — knowledge cache for coding agents
                                  definition lookup reads a table instead of scanning the tree. Off until
                                  symbolTable {"enabled": true} is in .thinker/config.json; build is also what a
                                  lookup starts in the background when the table is missing or too far behind
-  tools [enable|disable find|drilldown …]
-                                 which code tools the server offers agents in this repository; both are off unless enabled,
-                                 and a tool that is off is neither offered nor mentioned to the agent (the commands below still work)
+  tools [enable|disable orient|find|drilldown …]
+                                 which tools the server offers agents in this repository: orient is on, the code tools are off
+                                 unless enabled, and a tool that is off is neither offered nor mentioned to the agent (the commands below still work)
   find "<words|Identifier>" [--path p] [--limit n]
                                  the definitions whose name or body carry the words, as pointers with their lines
   drilldown <pointer…> [--budget n]

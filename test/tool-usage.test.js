@@ -112,7 +112,7 @@ test('the server neither offers nor mentions a code tool that is off; thinker to
   for (const t of off.tools) assert.doesNotMatch(t.description, /drilldown|`find`|\bfind (lists|takes|for code)|(call|use|with) find\b|thinker__find/, `${t.name} names a tool that is off`);
 
   const cli = (...args) => execFileSync('node', [CLI, ...args, '--repo', dir], { encoding: 'utf8', env });
-  assert.match(cli('tools'), /find: off\ndrilldown: off/);
+  assert.match(cli('tools'), /orient: on\nfind: off\ndrilldown: off/);
   assert.match(cli('tools', 'enable', 'find', 'drilldown'), /find: on\ndrilldown: on/);
   assert.deepEqual(store.config().disabledTools, []);
   const on = serverSays(dir);
@@ -120,6 +120,15 @@ test('the server neither offers nor mentions a code tool that is off; thinker to
   assert.match(on.instructions, /find when you do not know where the code is; drilldown when you need a definition whole/);
   assert.match(cli('tools', 'disable', 'find'), /find: off\ndrilldown: on/);
   assert.deepEqual(serverSays(dir).tools.map(t => t.name).filter(n => ['find', 'drilldown'].includes(n)), ['drilldown']);
+  // orient is on by default and switches the same way; off, the server neither offers nor names it
+  assert.match(cli('tools'), /orient: on/);
+  assert.match(cli('tools', 'disable', 'orient'), /orient: off/);
+  const noOrient = serverSays(dir);
+  assert.ok(!noOrient.tools.some(t => t.name === 'orient') && noOrient.tools.some(t => t.name === 'lookup'));
+  assert.doesNotMatch(noOrient.instructions, /\borient\b/);
+  for (const t of noOrient.tools) assert.doesNotMatch(t.description, /\borient\b/, `${t.name} names orient`);
+  assert.match(cli('tools', 'enable', 'orient'), /orient: on/);
+  assert.ok(serverSays(dir).tools.some(t => t.name === 'orient'));
 });
 
 // Every git repository has a cache (cli.js, hooks.js: store.init on first use), empty until it learns.

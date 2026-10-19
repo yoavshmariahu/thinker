@@ -18,7 +18,8 @@ Setup and `connect` install a short workflow alongside the tools: use injected n
 or `orient`, ask specific questions with `lookup`, save reusable discoveries, and
 correct wrong notes. The code tools `find` and `drilldown` are off unless a repository
 turns them on with `thinker tools enable find drilldown`; while off they are neither
-offered nor mentioned to the agent. An injected bundle
+offered nor mentioned to the agent. `orient` is on by default and switches the same
+way (`thinker tools disable orient`), leaving the prompt hook's notes and `lookup`. An injected bundle
 replaces only the initial `orient` call. Ordinary searches and reads remain available
 when Thinker's tools cannot answer the question.
 

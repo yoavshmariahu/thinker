@@ -197,7 +197,7 @@ function registerTools() {
 
   retrieval('lookup', {
     title: 'Look up cached knowledge',
-    description: 'One specific open question, or a note id listed by orient (not every title). If no note answers, search the code. kind "behavior": the desired behaviors of the system; all of them with an empty query.',
+    description: `One specific open question, or a note id listed by ${off.has('orient') ? 'a thinker-cache bundle' : 'orient'} (not every title). If no note answers, search the code. kind "behavior": the desired behaviors of the system; all of them with an empty query.`,
     inputSchema: {
       query: z.string().describe('Question, topic, or a note id; empty with kind behavior lists all'),
       kind: z.enum(KINDS).optional().describe('Only this kind'),
@@ -231,7 +231,7 @@ function registerTools() {
 
   retrieval('drilldown', {
     title: 'Read one or more definitions by pointer',
-    description: 'Takes pointers as orient, lookup and find print them (path:Symbol, path:Symbol:L12), a path, or a bare symbol name; several at once, separated by commas. Returns each definition whole with its exact lines (a long class as its head and the outline of its members), for a single pointer also one hop of callers and callees, and the cached notes resting on the code. Lines are numbered. Use it when you need a definition whole; a path alone lists what the file defines.',
+    description: `Takes pointers as ${off.has('orient') ? '' : 'orient, '}lookup and find print them (path:Symbol, path:Symbol:L12), a path, or a bare symbol name; several at once, separated by commas. Returns each definition whole with its exact lines (a long class as its head and the outline of its members), for a single pointer also one hop of callers and callees, and the cached notes resting on the code. Lines are numbered. Use it when you need a definition whole; a path alone lists what the file defines.`,
     inputSchema: {
       pointer: z.string().optional().describe('path:Symbol, path, or Symbol; several separated by commas or spaces'),
       pointers: z.array(z.string()).optional().describe('The same, as a list'),
@@ -301,7 +301,7 @@ function registerTools() {
     title: 'Report whether a note was right',
     description: 'After using a note: was it right? A wrong or outdated note gets the corrected body; wrong notes lose confidence and retire.',
     inputSchema: {
-      id: z.string().describe('Note id from orient or lookup'),
+      id: z.string().describe(off.has('orient') ? 'Note id from a thinker-cache bundle or lookup' : 'Note id from orient or lookup'),
       useful: z.boolean(),
       correction: z.string().optional().describe('The corrected body, if wrong'),
     },

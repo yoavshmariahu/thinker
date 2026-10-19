@@ -700,6 +700,17 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   header, the workflow block, the tool intro, `find`'s own "Next:" line), so
   nothing calls it and fails. The `thinker find` and `thinker drilldown` commands
   still work by hand.
+- `orient` switches the same way and is on by default (`thinker tools disable
+  orient`, since 2026-10-18): off, the server does not offer it, and the usage
+  guide, the bundle header and the workflow block say to work from the code
+  instead of calling it; the prompt hook still serves notes and `lookup` stays.
+  On the MLflow fair-11 set with GPT-6 Astra (Artemis
+  `mlflow-fair11-astra-mined200-full-2026-10-18`) the orient-first arm called it
+  every session, got nothing back in 12 of 22, and cost 43k input tokens and 2.1
+  tool calls more than the bare agent; the hook alone was level with the bare
+  agent. A machine-wide instruction file names `orient` whatever a checkout says,
+  since it serves every repository; with the tool not offered, the agent goes on
+  with ordinary tools. The default changes only in a pull request citing that run.
 - Code behind the pointers: the MCP `orient` and `lookup` end with the
   definitions the served notes point at (`ops.js:codeSnippets`: up to two per
   note and four in all, each cut to 30 lines), in what is left of the note
