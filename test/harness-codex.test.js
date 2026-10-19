@@ -65,12 +65,17 @@ test('Codex local plugin and skill switches preserve unrelated TOML; undo restor
   const beforeUser = fs.readFileSync(path.join(f.home, '.codex/config.toml'), 'utf8');
   assert.match(switchOffNow(f.store, 'codex:mcp:docs,codex:plugin:writing@local,codex:skill:writer', { ...f.options, usage }), /Switched off/);
   let j = parse(fs.readFileSync(local, 'utf8'));
-  assert.equal(j.mcp_servers.docs.enabled, false); assert.equal(j.plugins['writing@local'].enabled, false); assert.equal(j.skills.config[0].enabled, false);
+  assert.equal(j.mcp_servers.docs.enabled, false); assert.equal(j.plugins['writing@local'].enabled, false); assert.equal(j.skills, undefined, 'Codex ignores skill switches in a project file');
   assert.equal(j.model, 'keep-me'); assert.equal(j.mcp_servers.docs.env.TOKEN, 'preserve-secret'); assert.deepEqual(j.mcp_servers.docs.args, ['with space']);
-  assert.equal(fs.statSync(local).mode & 0o777, 0o600); assert.equal(fs.readFileSync(path.join(f.home, '.codex/config.toml'), 'utf8'), beforeUser);
+  assert.equal(fs.statSync(local).mode & 0o777, 0o600);
+  // the skill goes in the user's own config, by its SKILL.md path, and nothing else there changes
+  const userFile = path.join(f.home, '.codex/config.toml'), u = parse(fs.readFileSync(userFile, 'utf8'));
+  assert.deepEqual(JSON.parse(JSON.stringify(u.skills.config)), [{ path: f.skill, enabled: false }]);
+  assert.deepEqual(JSON.parse(JSON.stringify({ ...u, skills: undefined })), JSON.parse(JSON.stringify({ ...parse(beforeUser), skills: undefined })));
   assert.doesNotMatch(JSON.stringify(readHarnessState(f.store)), /preserve-secret/);
   assert.match(undoHarness(f.store, f.options), /Turned back on/);
-  j = parse(fs.readFileSync(local, 'utf8')); assert.equal(j.mcp_servers.docs.enabled, true); assert.equal(j.plugins['writing@local'].enabled, undefined); assert.equal(j.skills.config, undefined);
+  j = parse(fs.readFileSync(local, 'utf8')); assert.equal(j.mcp_servers.docs.enabled, true); assert.equal(j.plugins['writing@local'].enabled, undefined);
+  assert.equal(parse(fs.readFileSync(userFile, 'utf8')).skills, undefined, 'undo takes the skill entry out again');
 });
 
 test('Codex undo respects later edits, and invalid TOML and escaping symlinks are left untouched', t => {
@@ -107,6 +112,19 @@ test('Codex offers use the available question tool, and recall follows the harne
   assert.match(recall, /thinker harness --undo codex:mcp:docs/); assert.doesNotMatch(recall, /\/mcp enable/);
 });
 
+test('a Codex skill switched off is recalled as its file to read, still in the checkout', async t => {
+  const f = fixture(t), dir = path.join(f.repo, '.agents', 'skills', 'pdf-tools');
+  const st = { applied: [{ client: 'codex', key: 'codex:skill:pdf-tools', name: 'pdf-tools', kind: 'skill', at: new Date().toISOString(), undo: {}, cards: [] }] };
+  const { cardsFor } = await import('../src/harness.js');
+  st.applied[0].cards = cardsFor({ client: 'codex', kind: 'skill', key: 'codex:skill:pdf-tools', name: 'pdf-tools', dir, texts: { 'skill:pdf-tools': '- pdf-tools: Merge and split PDF files.' } });
+  fs.mkdirSync(path.join(f.store.dir, 'state'), { recursive: true });
+  fs.writeFileSync(path.join(f.store.dir, 'state', 'harness.json'), JSON.stringify(st));
+  fs.writeFileSync(path.join(f.store.dir, 'config.json'), JSON.stringify({ harness: { enabled: true } }));
+  const recall = await harnessRecall(f.store, 'merge these pdf files', { client: 'codex', scoreFn: rows => rows });
+  assert.match(recall, new RegExp(`If this request needs it, read ${path.join(dir, 'SKILL.md').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} and follow it`));
+  assert.doesNotMatch(recall, /tell the user/);
+});
+
 test('CODEX_HOME and project overrides are honored; an invalid config layer yields no advice', t => {
   const f = fixture(t); fs.mkdirSync(path.join(f.repo, '.codex')); fs.writeFileSync(path.join(f.repo, '.codex/config.toml'), '[mcp_servers.docs]\nenabled=false\n');
   assert.equal(codexHarnessConfig(f.repo, { home: '/unused' }).servers.get('docs').off, true);
@@ -114,15 +132,15 @@ test('CODEX_HOME and project overrides are honored; an invalid config layer yiel
   assert.deepEqual(harnessAdvice(harnessUsage(f.repo, { home: f.home, sessions: [0, 1, 2].map(i => f.session(`s${i}`)) })), []);
 });
 
-test('Codex skill overrides preserve inherited disables and restore inheritance on undo', t => {
+test('Codex skill switches go in the user config beside its own entries, and undo takes only ours out', t => {
   const f = fixture(t), user = path.join(f.home, '.codex/config.toml');
   fs.appendFileSync(user, '\n[[skills.config]]\npath="/tmp/other-skill"\nenabled=false\n');
   const usage = harnessUsage(f.repo, { home: f.home, sessions: [0, 1, 2].map(i => f.session(`s${i}`)) });
   switchOffNow(f.store, 'codex:skill:writer', { ...f.options, usage });
-  const file = path.join(f.repo, '.codex/config.toml');
-  assert.deepEqual(JSON.parse(JSON.stringify(parse(fs.readFileSync(file, 'utf8')).skills.config)), [{ path: '/tmp/other-skill', enabled: false }, { path: path.dirname(f.skill), enabled: false }]);
+  assert.deepEqual(JSON.parse(JSON.stringify(parse(fs.readFileSync(user, 'utf8')).skills.config)), [{ path: '/tmp/other-skill', enabled: false }, { path: f.skill, enabled: false }]);
+  assert.equal(fs.existsSync(path.join(f.repo, '.codex/config.toml')), false, 'no project file for a skill');
   undoHarness(f.store, f.options);
-  assert.equal(parse(fs.readFileSync(file, 'utf8')).skills.config, undefined);
+  assert.deepEqual(JSON.parse(JSON.stringify(parse(fs.readFileSync(user, 'utf8')).skills.config)), [{ path: '/tmp/other-skill', enabled: false }], 'the user\'s own entries stay');
 });
 
 test('local plugin manifests link differently named tools and distinguish skill-only plugins', t => {

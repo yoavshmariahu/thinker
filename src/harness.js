@@ -290,7 +290,7 @@ export function harnessAdvice(usage) {
 
 function action(s) {
   if (s.client === 'cursor') return `its entry taken out of ~/.cursor/mcp.json, for every repository (Cursor has no per-repository switch its editor reads; new chats; \`thinker harness --undo\` puts it back)`;
-  if (s.client === 'codex') return `${s.kind === 'skill' ? `[[skills.config]] path = ${JSON.stringify(s.dir)}` : `[${s.kind === 'mcp' ? 'mcp_servers' : 'plugins'}.${JSON.stringify(s.id || s.name)}]`} enabled = false in this checkout's .codex/config.toml (trusted projects only; new sessions)`;
+  if (s.client === 'codex') return s.kind === 'skill' ? `[[skills.config]] path = ${JSON.stringify(path.join(s.dir || '', 'SKILL.md'))} enabled = false in your Codex config (~/.codex/config.toml: Codex reads skill switches nowhere else; the path is this checkout's, so only here; new sessions)` : `[${s.kind === 'mcp' ? 'mcp_servers' : 'plugins'}.${JSON.stringify(s.id || s.name)}] enabled = false in this checkout's .codex/config.toml (trusted projects only; new sessions)`;
   switch (switchOff(s)) {
     case 'desktop-connector': return `the Connectors switch of the Claude desktop app (the + menu); the agent flips it in a desktop session, and the app keeps it off in every new session on this machine, not only this repository`;
     case 'plugin': return `"enabledPlugins": {"${s.id}": false} in .claude/settings.local.json`;
@@ -517,14 +517,18 @@ function apply(repo, s, { userHome, home, now, backups, overrides = {} }) {
   throw new Error(`no setting switches ${s.name} off`);
 }
 
-// Codex's per-project layer applies only to trusted projects. Never write machine-wide settings.
+// Servers and plugins go in Codex's per-project layer, which applies only to trusted projects. Skills cannot:
+// Codex reads [[skills.config]] from the user's own config.toml alone, and only by the SKILL.md path (0.162.1,
+// 2026-10-19: switched off in the project's file, all 107 of PostHog's skills stayed listed; in the user's file
+// they left the prompt, 7.3k tokens to 2.8k). Each entry names this checkout's file, so it switches off only here.
+const codexUserConfig = userHome => path.join(process.env.CODEX_HOME || path.join(userHome || os.homedir(), '.codex'), 'config.toml');
 function applyCodex(repo, s, { home, userHome, now, backups }, undo) {
-  const file = codexConfigFile(repo);
+  const user = s.kind === 'skill';
+  const file = user ? (undo?.file || codexUserConfig(userHome)) : codexConfigFile(repo);
   const existing = fs.existsSync(file) ? file : path.dirname(file);
-  if (fs.existsSync(existing) && !fs.realpathSync(existing).startsWith(fs.realpathSync(repo) + path.sep)) throw new Error('project Codex config points outside this checkout; left unchanged');
+  if (!user && fs.existsSync(existing) && !fs.realpathSync(existing).startsWith(fs.realpathSync(repo) + path.sep)) throw new Error('project Codex config points outside this checkout; left unchanged');
   const before = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
-  const inheritedSkills = s.kind === 'skill' && !undo ? [...codexHarnessConfig(repo, { home: userHome }).skills].map(([path, enabled]) => ({ path, enabled })) : undefined;
-  const changed = editCodexSetting(before, { ...s, inheritedSkills }, undo);
+  const changed = editCodexSetting(before, s, undo);
   if (before && !backups.has(file)) {
     const dir = path.join(home || thinkerHome(), 'state', 'harness-backups', new Date(now).toISOString().replace(/[:.]/g, '-'));
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -538,7 +542,7 @@ function applyCodex(repo, s, { home, userHome, now, backups }, undo) {
     if ((fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '') !== before) throw new Error('Codex config changed concurrently; try again');
     writeTheirs(file, changed.text);
     if (fs.readFileSync(file, 'utf8') !== changed.text) throw new Error('Codex config was rewritten; try again');
-    if (!before) excludeFromGit(repo, file);
+    if (!before && !user) excludeFromGit(repo, file);
   }
   return { file, key: 'codex', source: { kind: s.kind, name: s.name, id: s.id, dir: s.dir }, prev: changed.prev, created: changed.created, inherited: changed.inherited };
 }
@@ -629,9 +633,11 @@ export const recallOn = store => {
 };
 
 // One card per thing the person can bring back by name: a skill each (a plugin's too), a server whole.
-function cardsFor(s) {
-  const card = (key, name, text, back) => ({ id: key, name, text: String(text || name).slice(0, CARD_CHARS), back });
-  if (s.client === 'codex') return [card(s.key, s.name, Object.values(s.texts || {}).join(' '), `\`thinker harness --undo ${s.key}\` brings it back from the next Codex session`)];
+export function cardsFor(s) {
+  const card = (key, name, text, back, use) => ({ id: key, name, text: String(text || name).slice(0, CARD_CHARS), back, ...(use ? { use } : {}) });
+  // a Codex skill switched off is out of the listing, not out of the checkout: the agent can still read it now
+  const skillFile = s.client === 'codex' && s.kind === 'skill' && s.dir && /^[^\n\r`<>]{1,400}$/.test(s.dir) ? path.join(s.dir, 'SKILL.md') : null;
+  if (s.client === 'codex') return [card(s.key, s.name, Object.values(s.texts || {}).join(' '), `\`thinker harness --undo ${s.key}\` brings it back from the next Codex session`, skillFile && `read ${skillFile} and follow it`)];
   if (s.client === 'cursor') return [card(s.key, s.name, Object.values(s.texts || {}).join(' '), `\`thinker harness --undo ${s.key}\` puts it back in ~/.cursor/mcp.json, for the next Cursor chat`)];
   if (s.kind === 'mcp') return [card(s.key, s.name, s.texts?.[`mcp:${serverKey(s.name)}`] || Object.values(s.texts || {})[0], `\`/mcp enable ${s.name}\` brings it back in this session`)];
   if (s.how === 'desktop-connector') return [card(s.key, s.name, Object.values(s.texts || {}).join(' '), `the + menu → Connectors turns it back on (in the desktop app you can call ${CONNECTOR_TOOL} with connector ${JSON.stringify(s.id)} and enabled true, from the next turn)`)];
@@ -671,8 +677,9 @@ export async function harnessRecall(store, prompt, { session, client, scoreFn } 
   store.log({ op: 'harness-recall', session: session === 'unknown' ? undefined : session, client, card: c.id, ce: c.ce == null ? undefined : Math.round(c.ce * 100) / 100 });
   // the description is the skill's own text, a third party's: a short excerpt, quoted as data, with nothing
   // that could close the block or open another
-  const what = String(c.text).replace(/^\S+?(?=: | \()(\s*\([^)]*\))?:\s*/, '').replace(/[<>`\n\r]+/g, ' ').split(/(?<=\.)\s/)[0].trim().slice(0, 160);
-  return `<thinker-switched-off>\n${c.name} is switched off here; its listing said: ${JSON.stringify(what)}. If this request needs it, tell the user that ${c.back}; otherwise ignore this line.\n</thinker-switched-off>`;
+  const what = String(c.text).replace(/^- /, '').replace(/^\S+?(?=: | \()(\s*\([^)]*\))?:\s*/, '').replace(/[<>`\n\r]+/g, ' ').split(/(?<=\.)\s/)[0].trim().slice(0, 160);
+  const then = c.use ? `${c.use} (${c.back})` : `tell the user that ${c.back}`;
+  return `<thinker-switched-off>\n${c.name} is switched off here; its listing said: ${JSON.stringify(what)}. If this request needs it, ${then}; otherwise ignore this line.\n</thinker-switched-off>`;
 }
 
 // --- what switching off saved, measured -----------------------------------------------------------------
