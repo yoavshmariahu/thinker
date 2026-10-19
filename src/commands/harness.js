@@ -1,7 +1,7 @@
 // `thinker harness`: what the agent loads into every session here against what the sessions use,
 // and the sources worth switching off (harness.js). The report reads transcripts and settings and changes
 // nothing; --suggest queues the question for the next prompt, --answer takes its reply, --undo reverses them.
-import { harnessUsage, harnessAdvice, harnessSavings, clientPrefix, MIN_TOKENS, scheduleHarnessSuggestion, answerHarness, undoHarness, switchOffNow, setHarnessSettings, harnessOn, OFF_MESSAGE } from '../harness.js';
+import { harnessUsage, harnessAdvice, harnessSavings, clientPrefix, MIN_TOKENS, scheduleHarnessSuggestion, answerHarness, undoHarness, switchOffNow, setHarnessSettings, harnessOn, OFF_MESSAGE, perSession, recallOn } from '../harness.js';
 import { formatTokens } from '../model-usage.js';
 
 const KIND = { plugin: 'plugin', mcp: 'MCP server', connector: 'claude.ai connector', skill: 'skill', desktop: 'desktop app' };
@@ -44,12 +44,15 @@ async function harnessCommand({ store, repo, flags, out }) {
   const app = usage.sources.filter(s => s.kind === 'desktop' && s.tokens >= MIN_TOKENS && s.used / s.loaded < 0.1);
   if (app.length) out(`\nThe Claude desktop app adds its own instructions, which only the app switches: ${app.map(s => `${s.name} (~${formatTokens(s.tokens)}, used in ${s.used} of ${s.loaded}${s.where ? `; ${s.where}` : ''})`).join(', ')}. The definitions of its built-in tools (browser pane, simulator, session tools) are not recorded and not counted.`);
   if (!advice.length) { out('\nEverything recorded here is used, too small to suggest, or has no supported local switch.'); return; }
-  const total = advice.reduce((n, s) => n + s.tokens, 0);
-  out(`\nWorth switching off here, ~${formatTokens(total)} tokens across these source listings (varies by agent):`);
+  // every model call reads the context again, so a source costs its tokens times a typical session's calls
+  const calls = s => usage.calls?.[s.client || 'claude'] || 0, input = s => perSession(s.tokens, calls(s));
+  const total = advice.reduce((n, s) => n + s.tokens, 0), reread = advice.reduce((n, s) => n + input(s), 0);
+  out(`\nWorth switching off here, ~${formatTokens(total)} tokens across these source listings (varies by agent)${reread > total ? `, read again by every model call: ~${formatTokens(reread)} input tokens in a typical session, mostly prompt-cache reads` : ''}:`);
   for (const s of advice) {
-    out(`- ${clientPrefix(s.client)}${s.name} (${kindOf(s)}): ${s.unused ? 'no session here used it' : `${s.used} of ${s.loaded} sessions used it`}, ~${formatTokens(s.tokens)} tokens each.`);
+    out(`- ${clientPrefix(s.client)}${s.name} (${kindOf(s)}): ${s.unused ? 'no session here used it' : `${s.used} of ${s.loaded} sessions used it`}, ~${formatTokens(s.tokens)} tokens each${calls(s) > 1 ? `, ~${formatTokens(input(s))} input tokens over the ~${calls(s)} model calls of a session` : ''}.`);
     out(`  ${s.action}`);
   }
+  out(`\nSwitched off, a source is not gone: ${recallOn(store) ? 'when a request looks like it needs one, thinker tells the agent it is off and how to bring it back; ' : ''}skills still run when you type /name, and \`thinker harness --undo\` turns everything back on.`);
   out('\nNothing was changed. `thinker harness --suggest` asks you in your next Claude Code, Codex or Cursor prompt here, all of them in one question.');
 }
 

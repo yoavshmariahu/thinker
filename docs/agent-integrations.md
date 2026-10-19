@@ -343,8 +343,17 @@ preserves later edits. The page uses qualified source keys so identically named
 Claude and Codex tools can be restored separately. A newly created project config
 is excluded from Git. Symlinks pointing outside the checkout are refused.
 
-Weekly suggestions and switched-off tool reminders remain opt-in experiments
-(`--weekly on`, `--recall on`); adding Codex does not enable either by default.
+Switched-off tool reminders (recall) are on wherever the harness is on, at the owner's
+decision (2026-10-19): switching a source off is fair only if a request that needs it is
+told that it is off and how to bring it back. `--recall off` (or `harness: { recall: false }`)
+turns them off. On 4,511 replayed prompts they rarely fired wrongly but caught few of the
+turns that needed a tool, so they are a reminder, not a guarantee. Weekly suggestions stay
+opt-in (`--weekly on`).
+
+The question and the report give what a source costs a session: its tokens, which every
+model call reads again, times the model calls of a typical session here (the median, per
+agent), mostly as prompt-cache reads. Cursor records no model calls, so its sources are
+given by size alone.
 Codex suggestions use its available question tool or prose, and wait for an
 explicit answer. To support another harness, add evidence parsing, native scoped
 config changes, restoration, and post-change evidence together; a generic hook

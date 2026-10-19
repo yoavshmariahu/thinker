@@ -118,3 +118,21 @@ test('outside the desktop app a desktop connector is left out of the question an
   const declined = Object.keys(readHarnessState(store).declined);
   assert.ok(declined.includes('skill:bulky')); assert.equal(declined.some(k => k.includes('1a59c906')), false, 'not declined: never asked');
 });
+
+test('the question says what a source costs over a session\'s model calls, and how it comes back', t => {
+  const { h, add } = machine(t), store = checkout(t), th = tmp('thinker-desktop-th-');
+  t.after(() => fs.rmSync(th, { recursive: true, force: true }));
+  // ten model calls a session, each recorded once
+  const turns = Array.from({ length: 10 }, (_, i) => ({ type: 'assistant', uuid: `u${i}`, message: { id: `m${i}`, usage: { input_tokens: 1 }, content: [] } }));
+  const sessions = [0, 1, 2, 3].map(i => add(`d${i}`, { extra: turns }));
+  const usage = harnessUsage(store.repo, { home: h, sessions });
+  assert.equal(usage.calls.claude, 10);
+  scheduleHarnessSuggestion(store, { now: T0, home: th, usage });
+  const ask = harnessOffer(store, { client: 'claude', home: th, now: T0, env: DESKTOP });
+  assert.match(ask, /read again by each of the ~10 model calls of a session here/);
+  assert.match(ask, /each model call reads them again: ~\d+(\.\d)?k input tokens in a typical session/);
+  assert.match(ask, /thinker tells the agent it is off and how to bring it back/, 'recall is on with the harness');
+  answerHarness(store, 'Claude-Docs connector', { client: 'claude', home: th, userHome: h, now: T0 });
+  const card = readHarnessState(store).applied[0].cards[0];
+  assert.match(card.back, /Connectors/); assert.doesNotMatch(card.back, /still runs it/);
+});
