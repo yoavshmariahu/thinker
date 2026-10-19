@@ -14,6 +14,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { codexSessionHarness, codexHarnessUsage, codexHarnessConfig, codexConfigFile, editCodexSetting } from './harness-codex.js';
 import { findSessions } from './transcripts.js';
 import { estTokens } from './rank.js';
 import { thinkerHome } from './update.js';
@@ -176,6 +177,12 @@ function checkouts(repo) {
 // how often it was called. A source is a plugin when its skills or server belong to one, so a
 // plugin of eighteen skills is one line and one switch.
 export function harnessUsage(repo, { days = 30, home = os.homedir(), sessions } = {}) {
+  sessions ??= [...new Map(checkouts(repo).flatMap(r => findSessions(r, { sinceMs: days * 86400_000 })).map(s => [s.file, s])).values()];
+  const claude = claudeUsage(repo, { days, home, sessions: sessions.filter(s => s.client === 'claude') });
+  const codex = codexHarnessUsage(repo, sessions.filter(s => s.client === 'codex'), { home });
+  return { ...claude, sessions: claude.sessions + codex.sessions, byClient: { claude: claude.sessions, codex: codex.sessions }, sources: [...claude.sources.map(s => ({ ...s, client: 'claude' })), ...codex.sources].sort((a, b) => b.tokens * (b.loaded - b.used) - a.tokens * (a.loaded - a.used)) };
+}
+function claudeUsage(repo, { days = 30, home = os.homedir(), sessions } = {}) {
   sessions ??= checkouts(repo).flatMap(r => findSessions(r, { sinceMs: days * 86400_000 }).filter(s => s.client === 'claude'));
   const config = claudeHarnessConfig(repo, { home });
   const rows = new Map();
@@ -236,6 +243,7 @@ function describe(key, { servers, plugins, skills, overrides }, members) {
 // A plugin no setting names (one Claude Code brings) goes skill by skill. A claude.ai connector and a
 // server no settings file names are left to /mcp.
 function switchOff(s) {
+  if (s.client === 'codex') return s.how || null;
   if (s.scope === 'managed') return null;
   if (s.kind === 'plugin') return s.scope ? 'plugin' : s.skills?.length ? 'skills' : null;
   if (s.kind === 'mcp') return s.scope === 'project' ? 'mcpjson' : s.scope ? 'mcp' : null;
@@ -252,6 +260,7 @@ export function harnessAdvice(usage) {
 }
 
 function action(s) {
+  if (s.client === 'codex') return `${s.kind === 'skill' ? `[[skills.config]] path = ${JSON.stringify(s.dir)}` : `[${s.kind === 'mcp' ? 'mcp_servers' : 'plugins'}.${JSON.stringify(s.id || s.name)}]`} enabled = false in this checkout's .codex/config.toml (trusted projects only; new sessions)`;
   switch (switchOff(s)) {
     case 'plugin': return `"enabledPlugins": {"${s.id}": false} in .claude/settings.local.json`;
     case 'skills': return `"skillOverrides" "user-invocable-only" for its ${s.skills.length} skills in .claude/settings.local.json (each still runs as /name)`;
@@ -265,8 +274,7 @@ function action(s) {
 // About once a week, the sources worth switching off, put to the person as one question with every one
 // of them as an option, signed as thinker. A new way of reaching the agent: off until an experiment shows
 // it helps (AGENTS.md); `maintain: { harness: true }` in .thinker/config.json turns it on, `thinker
-// harness --suggest` queues one now. Claude Code only, the one agent whose transcripts record what it
-// loaded.
+// harness --suggest` queues one now. Claude Code and Codex; each adapter counts only what its transcripts record.
 //
 //   scheduleHarnessSuggestion  maintenance: at most weekly, the advice not passed on in the last month
 //   harnessOffer               the prompt hook: the question, once, for the agent to put to the person
@@ -303,7 +311,7 @@ function writeTheirs(f, v) {
   try { target = fs.realpathSync(f); mode = fs.statSync(target).mode & 0o777; } catch {}
   fs.mkdirSync(path.dirname(target), { recursive: true });
   const tmp = `${target}.thinker-${process.pid}`;
-  fs.writeFileSync(tmp, JSON.stringify(v, null, 2) + '\n', { mode });
+  fs.writeFileSync(tmp, typeof v === 'string' ? v : JSON.stringify(v, null, 2) + '\n', { mode });
   fs.chmodSync(tmp, mode);
   fs.renameSync(tmp, target);
 }
@@ -312,7 +320,7 @@ const saveState = (store, st) => writeJson(stateFile(store), st);
 export const harnessPending = (store, { home } = {}) => !harnessNever(home) && Boolean(readHarnessState(store).pending);
 
 // What the question needs of a source, and nothing that could hold a secret.
-const pick = s => ({ key: s.key, name: s.name, kind: s.kind, scope: s.scope, id: s.id, how: s.how, skills: s.skills, tokens: s.tokens, used: s.used, loaded: s.loaded, texts: s.texts });
+const pick = s => ({ client: s.client, dir: s.dir, evidenceKeys: s.evidenceKeys, key: s.key, name: s.name, kind: s.kind, scope: s.scope, id: s.id, how: s.how, skills: s.skills, tokens: s.tokens, used: s.used, loaded: s.loaded, texts: s.texts });
 
 // Small skills as one option: switched off together, each still runnable as /name.
 const bundleOf = skills => ({
@@ -324,7 +332,7 @@ const bundleOf = skills => ({
 // The options of a question: the advice with plain names, the small skills as one option, at most eight.
 function pickSources(usage, keep = () => true, max = HARNESS.max) {
   const advice = harnessAdvice(usage).filter(s => keep(s) && SAFE_NAME.test(s.name) && (s.skills || []).every(n => SAFE_NAME.test(n))).map(pick);
-  const small = advice.filter(s => s.kind === 'skill' && s.tokens < HARNESS.bundle);
+  const small = advice.filter(s => s.client !== 'codex' && s.kind === 'skill' && s.tokens < HARNESS.bundle);
   return (small.length > 1 ? [...advice.filter(s => !small.includes(s)), bundleOf(small)] : advice).slice(0, max);
 }
 
@@ -334,7 +342,7 @@ export function scheduleHarnessSuggestion(store, { now = Date.now(), home, force
   if (harnessNever(home)) return null;
   const st = readHarnessState(store);
   if (st.pending && !force) {
-    // offered and not answered, or never offered (no Claude Code prompt here since): dropped after a while
+    // offered and not answered, or never offered (no supported prompt here since): dropped after a while
     if (now - Date.parse(st.pending.offeredAt || st.pending.at) > HARNESS.answerDays * DAY * (st.pending.offeredAt ? 1 : 2)) {
       store.log({ op: 'harness-answer', choice: 'unanswered', sources: st.pending.sources.length });
       delete st.pending; saveState(store, st);
@@ -346,16 +354,16 @@ export function scheduleHarnessSuggestion(store, { now = Date.now(), home, force
   const recent = t => t && now - Date.parse(t) < HARNESS.declineDays * DAY;
   const picks = pickSources(usage, s => force || !recent(st.declined?.[s.key]));
   st.checkedAt = new Date(now).toISOString();
-  if (picks.length) { st.pending = { at: st.checkedAt, days: usage.days, sessions: usage.sessions, sources: picks }; store.log({ op: 'harness-suggest', sources: picks.length, tokens: picks.reduce((t, p) => t + p.tokens, 0) }); }
+  if (picks.length) { st.pending = { at: st.checkedAt, days: usage.days, sessions: usage.sessions, byClient: usage.byClient, sources: picks }; store.log({ op: 'harness-suggest', sources: picks.length, tokens: picks.reduce((t, p) => t + p.tokens, 0) }); }
   else delete st.pending;
   saveState(store, st);
   return picks;
 }
 
 const KIND = { plugin: 'plugin', mcp: 'MCP server', skill: 'skill', skills: '' };
-const labelOf = p => p.kind === 'skills' ? p.name : `${p.name} ${KIND[p.kind]}`;
+const labelOf = p => (p.client === 'codex' ? 'Codex: ' : '') + (p.kind === 'skills' ? p.name : `${p.name} ${KIND[p.kind]}`);
 const shq = s => `'${String(s).replace(/'/g, `'\\''`)}'`;
-const answerCommand = repo => `${shq(process.execPath)} ${shq(CLI)} harness --answer '<labels|none|never>' --via picker --client claude --repo ${shq(repo)}`;
+const answerCommand = (repo, client = 'claude') => `${shq(process.execPath)} ${shq(CLI)} harness --answer '<labels|none|never>' --via picker --client ${client} --repo ${shq(repo)}`;
 const optionOf = p => p.kind === 'skills'
   ? `label ${JSON.stringify(labelOf(p))}: ${p.skills.join(', ')}; ~${formatTokens(p.tokens)} tokens in every session together; each still runs as /name`
   : `label ${JSON.stringify(labelOf(p))}: ~${formatTokens(p.tokens)} tokens in every session; ${p.used ? `used in ${p.used} of ${p.loaded}` : `used in none of ${p.loaded}`} sessions here`;
@@ -363,19 +371,19 @@ const optionOf = p => p.kind === 'skills'
 const unattended = (env = process.env) => /^sdk-/.test(env.CLAUDE_CODE_ENTRYPOINT || '');
 // The prompt hook: the pending question, said once, as an instruction to the agent to put it to the person.
 export function harnessOffer(store, { client, home, now = Date.now(), env = process.env } = {}) {
-  if (client !== 'claude' || harnessNever(home) || unattended(env)) return '';
+  if (!['claude', 'codex'].includes(client) || harnessNever(home) || unattended(env)) return '';
   const st = readHarnessState(store);
-  if (!st.pending || st.pending.offeredAt) return '';
+  if (!st.pending || st.pending.offeredAt || !st.pending.sources.some(s => (s.client || 'claude') === client)) return '';
   st.pending.offeredAt = new Date(now).toISOString();
   saveState(store, st);
   const ps = st.pending.sources, total = ps.reduce((t, p) => t + p.tokens, 0);
   store.log({ op: 'harness-offer', client, sources: ps.length, tokens: total });
   const options = ps.map((p, i) => `${i + 1}. ${optionOf(p)}`).join('\n');
   return `<thinker-harness-suggestion>
-Claude Code loads ${ps.length === 1 ? 'this' : 'these'} into every session in this repository, and the sessions here over the last ${st.pending.days} days almost never used ${ps.length === 1 ? 'it' : 'them'}: about ${formatTokens(total)} tokens of context in each session. thinker can switch ${ps.length === 1 ? 'it' : 'them'} off for this repository only, from the next session on.
-Before you start on the request, ask the user with your AskUserQuestion tool, not in prose: one question with multiSelect true, header "🧠 Thinker", and the question "${SIGNATURE}: switch these off in this repository? About ${formatTokens(total)} tokens are loaded into every session here and almost never used. Each can be turned back on with \`thinker harness --undo\`." Its options are the sources below, in this order, each with the label given and the rest of its line as the description. If there are more than four, ask the rest in a second question of the same call, header "🧠 Thinker" and question "${SIGNATURE}: and these?". Choosing none means not now (thinker does not suggest those again for a month); "never" (Other) stops these suggestions on this machine.
+Your agents load ${ps.length === 1 ? 'this' : 'these'} into every session in this repository, and the sessions here over the last ${st.pending.days} days almost never used ${ps.length === 1 ? 'it' : 'them'}: about ${formatTokens(total)} tokens across these source listings (the amount per session depends on the agent). thinker can switch ${ps.length === 1 ? 'it' : 'them'} off for this repository only, from the next session on.
+${client === 'codex' ? `${SIGNATURE}: Ask the user which of the following labeled sources to switch off. Use request_user_input_async if available, otherwise ask in prose. Allow a comma-separated choice, none, or never. Do not assume a default or change settings until the user answers.` : `Before you start on the request, ask the user with your AskUserQuestion tool, not in prose: one question with multiSelect true, header "🧠 Thinker", and the question "${SIGNATURE}: switch these off in this repository? About ${formatTokens(total)} tokens are loaded into every session here and almost never used. Each can be turned back on with \`thinker harness --undo\`." Its options are the sources below, in this order, each with the label given and the rest of its line as the description. If there are more than four, ask the rest in a second question of the same call, header "🧠 Thinker" and question "${SIGNATURE}: and these?". Choosing none means not now (thinker does not suggest those again for a month); "never" (Other) stops these suggestions on this machine.`}
 ${options}
-Then call thinker's \`harness\` tool with choice set to the chosen labels exactly as given, comma-separated (or none, or never); if that tool is not available, run \`${answerCommand(store.repo)}\`. Then go on with the task.
+Then call thinker's \`harness\` tool with choice set to the chosen labels exactly as given, comma-separated (or none, or never); if that tool is not available, run \`${answerCommand(store.repo, client)}\`. Then go on with the task.
 </thinker-harness-suggestion>`;
 }
 
@@ -418,6 +426,7 @@ const addTo = (list, v) => { const a = Array.isArray(list) ? list : []; return a
 // with it (its entry in ~/.claude.json, keyed by the main checkout). A skill some settings file already
 // overrides is left as that file says ("off" is stronger than what thinker writes).
 function apply(repo, s, { userHome, home, now, backups, overrides = {} }) {
+  if (s.client === 'codex') return applyCodex(repo, s, { home, userHome, now, backups });
   const local = path.join(repo, '.claude', 'settings.local.json'), claudeJson = claudePaths(userHome).json;
   const ctx = { home, now, backups }, fresh = !fs.existsSync(local);
   const done = u => { if (u.file === local && fresh) excludeFromGit(repo, local); return u; };
@@ -436,6 +445,32 @@ function apply(repo, s, { userHome, home, now, backups, overrides = {} }) {
     return { file: claudeJson, key: 'disabledMcpServers', project: key, id: s.name };
   }
   throw new Error(`no setting switches ${s.name} off`);
+}
+
+// Codex's per-project layer applies only to trusted projects. Never write machine-wide settings.
+function applyCodex(repo, s, { home, userHome, now, backups }, undo) {
+  const file = codexConfigFile(repo);
+  const existing = fs.existsSync(file) ? file : path.dirname(file);
+  if (fs.existsSync(existing) && !fs.realpathSync(existing).startsWith(fs.realpathSync(repo) + path.sep)) throw new Error('project Codex config points outside this checkout; left unchanged');
+  const before = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+  const inheritedSkills = s.kind === 'skill' && !undo ? [...codexHarnessConfig(repo, { home: userHome }).skills].map(([path, enabled]) => ({ path, enabled })) : undefined;
+  const changed = editCodexSetting(before, { ...s, inheritedSkills }, undo);
+  if (before && !backups.has(file)) {
+    const dir = path.join(home || thinkerHome(), 'state', 'harness-backups', new Date(now).toISOString().replace(/[:.]/g, '-'));
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    const copy = path.join(dir, `${backups.size}-config.toml`);
+    fs.writeFileSync(copy, before, { mode: 0o600 }); backups.set(file, copy);
+    const root = path.dirname(dir), all = fs.readdirSync(root).sort();
+    for (const d of all.slice(0, Math.max(0, all.length - BACKUPS_KEPT))) fs.rmSync(path.join(root, d), { recursive: true, force: true });
+  }
+  if (before !== changed.text) {
+    // Refuse to overwrite an edit made while this operation was preparing its backup.
+    if ((fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '') !== before) throw new Error('Codex config changed concurrently; try again');
+    writeTheirs(file, changed.text);
+    if (fs.readFileSync(file, 'utf8') !== changed.text) throw new Error('Codex config was rewritten; try again');
+    if (!before) excludeFromGit(repo, file);
+  }
+  return { file, key: 'codex', source: { kind: s.kind, name: s.name, id: s.id, dir: s.dir }, prev: changed.prev, created: changed.created, inherited: changed.inherited };
 }
 
 // The answer: never stops suggestions on this machine; none (or nothing that names a pending source)
@@ -460,7 +495,7 @@ export function answerHarness(store, choice, { client, via = 'picker', home, use
   if (!chosen.length) { saveState(store, st); store.log({ op: 'harness-answer', choice: 'none', client, via, sources: pending.length }); return 'Recorded: nothing switched off; thinker will not suggest these again for a month. Go on with the task.'; }
   const backups = new Map(), done = [], failed = [], overrides = claudeHarnessConfig(store.repo, { home: userHome }).overrides;
   for (const s of chosen) {
-    try { done.push({ key: s.key, members: s.members, name: s.name, kind: s.kind, tokens: s.tokens, at, undo: apply(store.repo, s, { userHome, home, now, backups, overrides }), cards: cardsFor(s) }); }
+    try { done.push({ client: s.client || 'claude', evidenceKeys: s.evidenceKeys, key: s.key, members: s.members, name: s.name, kind: s.kind, tokens: s.tokens, at, undo: apply(store.repo, s, { userHome, home, now, backups, overrides }), cards: cardsFor(s) }); }
     catch (e) { failed.push(`${s.name} (${e.message})`); }
   }
   (st.applied ||= []).push(...done);
@@ -475,20 +510,21 @@ export function answerHarness(store, choice, { client, via = 'picker', home, use
 export function undoHarness(store, { home, now = Date.now(), names } = {}) {
   const st = readHarnessState(store), all = st.applied || [];
   const want = names?.length ? new Set(names.map(n => String(n).trim().toLowerCase())) : null;
-  const applied = want ? all.filter(a => want.has(a.name.toLowerCase())) : all, rest = want ? all.filter(a => !applied.includes(a)) : [];
+  const applied = want ? all.filter(a => want.has(a.name.toLowerCase()) || want.has(a.key.toLowerCase())) : all, rest = want ? all.filter(a => !applied.includes(a)) : [];
   if (!applied.length) return want ? `Nothing switched off here by those names: ${[...want].join(', ')}.` : 'Nothing to undo: thinker has switched nothing off in this repository.';
   // each entry on its own: one file that cannot be read keeps its entry for the next try, the rest go back
   const backups = new Map(), ctx = { home, now, backups }, back = [], kept = [];
-  for (const a of applied) {
+  for (const a of [...applied].reverse()) {
     const u = a.undo;
     try {
+      if (u.key === 'codex') { applyCodex(store.repo, u.source, ctx, u); back.unshift(a.name); continue; }
       editJson(u.file, j => {
         if (u.key === 'enabledPlugins') { if (j.enabledPlugins?.[u.id] === false) { if (u.prev === undefined) delete j.enabledPlugins[u.id]; else j.enabledPlugins[u.id] = u.prev; } }
         else if (u.key === 'skillOverrides') { for (const n of u.ids) if (j.skillOverrides?.[n] === 'user-invocable-only') delete j.skillOverrides[n]; }
         else if (u.key === 'disabledMcpjsonServers') j.disabledMcpjsonServers = (j.disabledMcpjsonServers || []).filter(n => n !== u.id);
         else if (u.key === 'disabledMcpServers') { const p = j.projects?.[u.project]; if (p) p.disabledMcpServers = (p.disabledMcpServers || []).filter(n => n !== u.id); }
       }, u.key === 'disabledMcpServers' ? { ...ctx, part: j => j.projects?.[u.project] } : ctx);
-      back.push(a.name);
+      back.unshift(a.name);
     } catch (e) { kept.push({ ...a, undoError: e.message }); }
   }
   if (kept.length || rest.length) st.applied = [...rest, ...kept]; else delete st.applied;
@@ -511,6 +547,7 @@ export const recallOn = store => /^(1|on|true)$/i.test(process.env.THINKER_HARNE
 // One card per thing the person can bring back by name: a skill each (a plugin's too), a server whole.
 function cardsFor(s) {
   const card = (key, name, text, back) => ({ id: key, name, text: String(text || name).slice(0, CARD_CHARS), back });
+  if (s.client === 'codex') return [card(s.key, s.name, Object.values(s.texts || {}).join(' '), `\`thinker harness --undo ${s.key}\` brings it back from the next Codex session`)];
   if (s.kind === 'mcp') return [card(s.key, s.name, s.texts?.[`mcp:${serverKey(s.name)}`] || Object.values(s.texts || {})[0], `\`/mcp enable ${s.name}\` brings it back in this session`)];
   const back = s.how === 'plugin' ? n => `the ${s.name} plugin is off here: \`thinker harness --undo\` (or "enabledPlugins": {"${s.id}": true} in .claude/settings.local.json) brings it back from the next session` : n => `\`/${n}\` still runs it`;
   return (s.skills?.length ? s.skills : [s.name]).map(n => card(`skill:${n}`, n, s.texts?.[`skill:${n}`], back(n)));
@@ -533,7 +570,7 @@ export async function recallCard(cards, prompt, { floor = RECALL.floor, k = RECA
 // in a session, or nothing.
 export async function harnessRecall(store, prompt, { session, client, scoreFn } = {}) {
   if (!recallOn(store)) return '';
-  const st = readHarnessState(store), cards = (st.applied || []).flatMap(a => a.cards || []);
+  const st = readHarnessState(store), cards = (st.applied || []).filter(a => !client || (a.client || 'claude') === client).flatMap(a => a.cards || []);
   if (!cards.length) return '';
   const said = new Set(st.recalled?.[session] || []);
   let c = null;
@@ -563,20 +600,21 @@ export function harnessSavings(store, { sessions, home = os.homedir() } = {}) {
   if (!applied.length) return { sources: [], sessions: 0, tokens: 0, inputTokens: 0 };
   const since = Math.min(...applied.map(a => Date.parse(a.at)));
   const days = Math.ceil((Date.now() - since) / 86400_000) + 1;
-  sessions ??= checkouts(store.repo).flatMap(r => findSessions(r, { sinceMs: days * 86400_000 }).filter(s => s.client === 'claude'));
-  const read = sessions.map(s => ({ ...sessionHarness(s.file), mtime: s.mtime })).filter(h => h.loaded.size && h.start);
+  sessions ??= [...new Map(checkouts(store.repo).flatMap(r => findSessions(r, { sinceMs: days * 86400_000 })).map(s => [s.file, s])).values()];
+  const read = sessions.filter(s => ['claude', 'codex'].includes(s.client)).map(s => ({ ...(s.client === 'codex' ? codexSessionHarness(s.file) : sessionHarness(s.file)), client: s.client, mtime: s.mtime })).filter(h => (h.loaded.size || h.coverage?.size) && h.start && !h.parent);
   const keysOf = a => {
+    if (a.client === 'codex') return k => (a.evidenceKeys || [a.key.slice(6)]).includes(k);
     const ks = a.members || [a.key];
     if (a.kind === 'plugin') return k => k === a.key || k.startsWith(`skill:${a.name}:`) || k === `mcp:plugin:${a.name}` || k.startsWith(`mcp:plugin:${a.name}_`);
     return k => ks.includes(k);
   };
   let total = 0, input = 0;
   const out = applied.map(a => {
-    const has = keysOf(a), after = read.filter(h => Date.parse(h.start) > Date.parse(a.at));
+    const has = keysOf(a), after = read.filter(h => h.client === (a.client || 'claude') && Date.parse(h.start) > Date.parse(a.at) && (h.client !== 'codex' || (a.evidenceKeys || [a.key.slice(6)]).every(k => h.coverage.has(k.split(':')[0]))));
     const still = after.filter(h => [...h.loaded.keys()].some(has));
     const absent = after.length - still.length, calls = after.filter(h => !still.includes(h)).reduce((n, h) => n + h.calls, 0);
     total += absent * a.tokens; input += calls * a.tokens;
-    return { name: a.name, kind: a.kind, at: a.at, tokensPerSession: a.tokens, sessions: after.length, absent, stillLoaded: still.length, tokens: absent * a.tokens, inputTokens: calls * a.tokens };
+    return { key: a.key, client: a.client || 'claude', name: a.name, kind: a.kind, at: a.at, tokensPerSession: a.tokens, sessions: after.length, absent, stillLoaded: still.length, tokens: absent * a.tokens, inputTokens: calls * a.tokens };
   });
   return { sources: out, sessions: read.filter(h => Date.parse(h.start) > since).length, tokens: total, inputTokens: input };
 }
@@ -585,9 +623,9 @@ export function harnessSavings(store, { sessions, home = os.homedir() } = {}) {
 // what was switched off with what it saved, and whether a question waits.
 export function harnessView(store, { days = 30, home } = {}) {
   const usage = harnessUsage(store.repo, { days });
-  const slim = s => ({ key: s.key, name: s.name, kind: s.kind, scope: s.scope, loaded: s.loaded, used: s.used, tokens: s.tokens, off: s.off });
+  const slim = s => ({ client: s.client, key: s.key, name: s.name, kind: s.kind, scope: s.scope, loaded: s.loaded, used: s.used, tokens: s.tokens, off: s.off });
   return {
-    days, sessions: usage.sessions,
+    days, sessions: usage.sessions, byClient: usage.byClient,
     sources: usage.sources.filter(s => s.tokens >= MIN_TOKENS).map(slim),
     advice: harnessAdvice(usage).map(s => ({ ...slim(s), label: labelOf(s), action: s.action })),
     settings: harnessSettings(store, { home }),

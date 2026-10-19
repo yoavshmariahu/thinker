@@ -14,8 +14,8 @@ parts connect, which change broke what last time. `thinker` remembers it instead
   a note the agent acted on gains confidence, a note the trace contradicts is corrected,
   an unused one decays. A note whose code changed is held back and re-verified before it
   is served again. New pull requests become notes as they merge.
-- **It switches off what your agent loads and never uses.** Thinker reads what Claude Code
-  puts into every session (MCP servers, plugins, skills) against what the sessions actually
+- **It switches off what your agent loads and never uses.** Thinker reads what Claude Code and Codex
+  record loading (MCP servers, plugins, skills) against what the sessions actually
   call, asks you once which of the unused ones to switch off, and shows the tokens that saved,
   measured in the sessions since (`thinker harness`, and the local page).
 - **Tasks finish faster, on fewer tokens, with fewer pitfalls.** The agent spends less of

@@ -164,3 +164,12 @@ test('the page script builds a pick from the areas, and names the depth the comm
   assert.ok(read('commands/setup.js').includes('num(flags.prs, DEFAULT_PRS)'), 'setup reads DEFAULT_PRS');
   assert.ok(read('machine.js').includes('prs: DEFAULT_PRS'), 'the page estimates with DEFAULT_PRS');
 });
+
+test('CLI and page expose the shared Codex harness report and qualified undo controls', () => {
+  assert.match(read('commands/harness.js'), /harnessUsage\(repo/);
+  assert.match(read('ui/server.js'), /harnessView\(/);
+  assert.match(read('cli.js'), /Claude Code and Codex record loading/);
+  assert.match(read('ui/page.html'), /Recorded in Claude Code and Codex transcripts/);
+  assert.match(read('ui/page.html'), /data-hundo="\$\{esc\(s.key \|\| s.name\)\}"/);
+  assert.match(read('commands/hooks.js'), /\['claude', 'codex'\]\.includes\(client\).*harnessRecall/);
+});
