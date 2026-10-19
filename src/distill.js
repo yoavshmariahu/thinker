@@ -173,6 +173,25 @@ export const EXISTING_RULES = `
 
 EXISTING NOTES: the cache already holds notes on the files this session touched or on the topic it worked on (listed below with ids). Do not write a note that restates one of them, even in other words. When the session establishes something that completes or corrects one of them, return that note with \`extends\` set to its id and the full merged body (its claims that still hold, plus the new ones, same length rules). Prefer extending to writing a new note on a neighbouring topic. A new note is for understanding none of them holds.`;
 
+// The rules a change broke, and the skill each came from (skill-suggest.js; only with `harness: { skillSuggest:
+// true }`): asked of the same call, with the names and one-line descriptions of the skills whose areas match
+// the changed files, never their text.
+export const BROKEN_RULES_SCHEMA = {
+  type: 'array', maxItems: 8,
+  items: {
+    type: 'object',
+    properties: {
+      rule: { type: 'string', description: 'the convention or rule the change broke, one line' },
+      file: { type: 'string', description: 'the changed file that breaks it, repository-relative' },
+      source: { type: 'string', description: 'where the rule is written: a skill name from the list, or a file such as AGENTS.md' },
+    },
+    required: ['rule', 'file', 'source'],
+  },
+};
+export const SKILL_RULES = `
+
+BROKEN RULES: the skills listed below cover the files this session changed. In broken_rules, list the rules from these skills, or from the repository's instruction files (AGENTS.md, CLAUDE.md, a rules file), that the session's own changes break, as far as the trace shows the changed code and the rule; source is the skill's name exactly as listed, or the file's path. Only what the trace shows; an empty list when nothing is broken or you cannot tell.`;
+
 // Files the session read, searched or edited, from the tool events.
 export function touchedFiles(events, repo = '') {
   const out = new Set();
@@ -221,7 +240,7 @@ export function distillSpec({ kinds = KINDS } = {}) {
   const system = DISTILL_SYSTEM + `\n\nDo not produce notes of these kinds: ${left.join(', ')}. This repository does not serve them (code search and git history answer what they would say); fold anything of theirs that matters into a note of another kind, or leave it out.`;
   return { system, schema };
 }
-export async function distillEvents(events, { model = 'sonnet', repoHint = '', served = [], existing = [], kinds = KINDS, accounting, evidence, discover = true, compact = false } = {}) {
+export async function distillEvents(events, { model = 'sonnet', repoHint = '', served = [], existing = [], kinds = KINDS, accounting, evidence, discover = true, compact = false, skills = [] } = {}) {
   const trace = evidence ?? condense(events);
   let prompt = `Repository: ${repoHint}\n\nSESSION TRACE (tool calls with truncated results):\n\n${trace}`;
   let { system, schema } = distillSpec({ kinds });
@@ -245,9 +264,14 @@ export async function distillEvents(events, { model = 'sonnet', repoHint = '', s
       ? `\n\nReturn ${discover ? 'reusable notes, if any,' : 'notes: [],'} and only assessments supported by explicit evidence. Omit unknown notes; never infer unused from this selection.`
       : `\n\nProduce the notes JSON and one assessment per injected note.`;
   } else prompt += `\n\nProduce the notes JSON.`;
+  if (skills?.length) {
+    system += SKILL_RULES;
+    schema = { ...schema, properties: { ...schema.properties, broken_rules: BROKEN_RULES_SCHEMA }, required: [...schema.required, 'broken_rules'] };
+    prompt += `\n\nSKILLS COVERING THE CHANGED FILES:\n` + skills.map(s => `- ${s.name} (${s.file}): ${String(s.description || '').slice(0, 200)}`).join('\n') + `\nAlso return broken_rules.`;
+  }
   const res = await complete({ system, prompt, model, schema, maxTokens: compact ? (discover ? 3000 : 1500) : 6000, thinkingTokens: 0, structuredRetries: 1, accounting });
   const notes = (discover ? (res.json?.notes || []) : []).slice().sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0)).slice(0, MAX_NOTES);
-  return { notes, assessments: (res.json?.assessments || []).filter(a => servedIds.has(a.id) && ['confirmed', 'contradicted', 'unused'].includes(a.verdict) && (!compact || (['confirmed', 'contradicted'].includes(a.verdict) && String(a.evidence || '').trim()))), cost: res.cost, tokens: tokensOf(res), usage: res.usage, traceChars: trace.length, evidence: trace };
+  return { notes, assessments: (res.json?.assessments || []).filter(a => servedIds.has(a.id) && ['confirmed', 'contradicted', 'unused'].includes(a.verdict) && (!compact || (['confirmed', 'contradicted'].includes(a.verdict) && String(a.evidence || '').trim()))), cost: res.cost, tokens: tokensOf(res), usage: res.usage, traceChars: trace.length, evidence: trace, brokenRules: skills?.length ? (Array.isArray(res.json?.broken_rules) ? res.json.broken_rules : []).filter(b => b && String(b.rule || '').trim() && String(b.source || '').trim()).slice(0, 8) : [] };
 }
 
 function jaccard(a, b) {

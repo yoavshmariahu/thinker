@@ -112,6 +112,26 @@ test('Codex offers use the available question tool, and recall follows the harne
   assert.match(recall, /thinker harness --undo codex:mcp:docs/); assert.doesNotMatch(recall, /\/mcp enable/);
 });
 
+test('switched-off skills are found by the agent\'s words when skill lookup is on, and named in an index', async t => {
+  const f = fixture(t), { cardsFor, switchedOffSkills, switchedOffSkillIndex, skillLines } = await import('../src/harness.js');
+  const skill = (name, text) => ({ client: 'codex', key: `codex:skill:${name}`, name, kind: 'skill', at: new Date().toISOString(), undo: {},
+    cards: cardsFor({ client: 'codex', kind: 'skill', key: `codex:skill:${name}`, name, dir: path.join(f.repo, '.agents', 'skills', name), texts: { [`skill:${name}`]: `- ${name}: ${text}` } }) });
+  fs.mkdirSync(path.join(f.store.dir, 'state'), { recursive: true });
+  fs.writeFileSync(path.join(f.store.dir, 'state', 'harness.json'), JSON.stringify({ applied: [
+    skill('writing-tests', 'Conventions for writing backend tests with pytest fixtures.'),
+    skill('writing-user-facing-copy', 'How to word buttons, toasts and error messages.'),
+    { client: 'codex', key: 'codex:mcp:docs', name: 'docs', kind: 'mcp', at: new Date().toISOString(), undo: {}, cards: [{ id: 'codex:mcp:docs', name: 'docs', text: 'mcp__docs: search pytest docs', back: 'undo' }] }] }));
+  fs.writeFileSync(path.join(f.store.dir, 'config.json'), JSON.stringify({ harness: { enabled: true } }));
+  assert.deepEqual(await switchedOffSkills(f.store, 'add pytest tests for the endpoint'), [], 'off by default');
+  fs.writeFileSync(path.join(f.store.dir, 'config.json'), JSON.stringify({ harness: { enabled: true, skillLookup: true } }));
+  const found = await switchedOffSkills(f.store, 'add pytest tests for the endpoint');
+  assert.equal(found[0].name, 'writing-tests'); assert.ok(!found.some(c => c.name === 'docs'), 'servers are not skills');
+  assert.match(skillLines(found), /^- writing-tests: Conventions for writing backend tests with pytest fixtures\. \(read .*writing-tests\/SKILL\.md and follow it\)/);
+  const index = switchedOffSkillIndex(f.store);
+  assert.match(index, /read \.agents\/skills\/<name>\/SKILL\.md and follow it: writing-tests, writing-user-facing-copy\.$/);
+  assert.doesNotMatch(index, /docs/);
+});
+
 test('a Codex skill switched off is recalled as its file to read, still in the checkout', async t => {
   const f = fixture(t), dir = path.join(f.repo, '.agents', 'skills', 'pdf-tools');
   const st = { applied: [{ client: 'codex', key: 'codex:skill:pdf-tools', name: 'pdf-tools', kind: 'skill', at: new Date().toISOString(), undo: {}, cards: [] }] };

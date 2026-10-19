@@ -48,7 +48,8 @@ export function codexSessionHarness(file) {
       put(`mcp:${name.slice(5)}`, `${name}: ${desc}`);
     }
   };
-  const inputs = [];
+  // the files a patch edited and the skills opened, in order (skill-suggest.js reads them)
+  const inputs = [], edited = [], skillOpens = [];
   for (const line of readText(file).split('\n')) {
     let j; try { j = JSON.parse(line); } catch { continue; }
     const p = j.payload || {};
@@ -68,7 +69,12 @@ export function codexSessionHarness(file) {
       const section = text.match(/Deferred tool namespaces:\s*\n([\s\S]*?)(?=<\/tools>|\n\n|$)/)?.[1];
       if (section !== undefined) namespaces(Object.fromEntries([...section.matchAll(/^- (mcp__[^\s:]+)(?:: (.*))?$/gm)].map(m => [m[1], m[2] || ''])));
     }
-    if (['function_call', 'custom_tool_call'].includes(p.type)) inputs.push(`${p.name || ''}\n${typeof p.arguments === 'string' ? p.arguments : JSON.stringify(p.arguments || '')}\n${p.input || ''}`);
+    if (['function_call', 'custom_tool_call'].includes(p.type)) {
+      const text = `${p.name || ''}\n${typeof p.arguments === 'string' ? p.arguments : JSON.stringify(p.arguments || '')}\n${p.input || ''}`;
+      inputs.push(text);
+      for (const m of text.matchAll(/skills\/([\w.-]+)\/SKILL\.md/g)) skillOpens.push({ skill: m[1], at: j.timestamp });
+      for (const m of text.replace(/\\n/g, '\n').matchAll(/^\*\*\* (?:Update|Add|Delete) File: ([^\n"\\]+)/gm)) { const f = m[1].trim(); if (!edited.includes(f)) edited.push(f); }
+    }
     if (p.type === 'message' && p.role === 'user') for (const c of p.content || []) for (const m of String(c.text || '').matchAll(/\$([\w:.-]+)/g)) used.add(`skill:${m[1]}`);
   }
   const input = inputs.join('\n');
@@ -80,8 +86,8 @@ export function codexSessionHarness(file) {
   }
   for (const [key, file] of skillPaths) if (input.includes(file) || input.includes(JSON.stringify(file).slice(1, -1)) || input.includes(`/${path.basename(path.dirname(file))}/SKILL.md`)) used.add(key);
   const skillReads = new Set([...input.matchAll(/[^\s"'`\\]+\/SKILL\.md/g)].map(m => m[0]));
-  if (excluded) { skillReads.clear(); loaded.clear(); coverage.clear(); used.clear(); }
-  return { loaded, used, texts, skillPaths, skillReads, coverage, cwd, start, id, parent, calls: calls.size, client: 'codex' };
+  if (excluded) { skillReads.clear(); loaded.clear(); coverage.clear(); used.clear(); edited.length = 0; skillOpens.length = 0; }
+  return { loaded, used, texts, skillPaths, skillReads, coverage, cwd, start, id, parent, calls: calls.size, client: 'codex', edited, skillOpens };
 }
 
 // Local plugin manifests establish ownership even when tool and plugin names differ. Never print
