@@ -147,7 +147,7 @@ test('Claude and Codex sources with the same name remain distinct in switches an
     sessions.push({ client: 'claude', file, mtime: Date.now() });
   }
   const usage = harnessUsage(f.repo, { home: f.home, sessions });
-  assert.deepEqual(usage.byClient, { claude: 3, codex: 3 });
+  assert.deepEqual(usage.byClient, { claude: 3, codex: 3, cursor: 0 });
   assert.equal(harnessAdvice(usage).filter(s => s.name === 'docs').length, 2);
   switchOffNow(f.store, 'codex:mcp:docs', { ...f.options, usage });
   assert.equal(JSON.parse(fs.readFileSync(path.join(f.home, '.claude.json'), 'utf8')).projects, undefined);
