@@ -121,20 +121,22 @@ export function computeCacheMetrics(store, { home = thinkerHome(), all = true } 
   };
 
   // Aggregate across all repositories on the machine; a repository's notes are those of the checkout
-  // holding the most (a worktree often has none of its own), as in usage.js:summarize
+  // holding the most (a worktree often has none of its own), as in usage.js:summarize. Only that checkout's
+  // notes are recorded: until 2026-10-19 every checkout's were, so a device with 317 notes and a score of
+  // old worktrees, whose copies no maintenance refreshes, reported 7,291 notes by status, 3,220 of them stale.
   for (const r of repos) {
-    let most = 0;
+    let most = [];
     for (const checkout of r.checkouts) {
       coveredCheckouts.add(path.resolve(checkout));
       try {
         const s = new Store(checkout, { readonly: true });
         if (!s.exists()) continue;
         const notes = s.list();
-        most = Math.max(most, notes.length);
-        for (const n of notes) recordNote(n);
+        if (notes.length > most.length) most = notes;
       } catch {}
     }
-    totalNotes += most;
+    for (const n of most) recordNote(n);
+    totalNotes += most.length;
   }
 
   // If local store has notes and wasn't covered in summary.repos

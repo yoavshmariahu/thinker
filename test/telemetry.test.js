@@ -779,3 +779,34 @@ test('telemetry says whether each installed agent runs thinker and how much it w
     });
   } finally { for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } }
 });
+
+test('computeCacheMetrics counts a repository\'s notes once, from its fullest checkout, not again for each worktree', () => {
+  const main = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-main-'));
+  const old = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-old-wt-'));
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-home-'));
+  const origHome = process.env.THINKER_HOME;
+  try {
+    process.env.THINKER_HOME = tmpHome;
+    for (const dir of [main, old]) {
+      execFileSync('git', ['-C', dir, 'init', '-q']);
+      execFileSync('git', ['-C', dir, 'remote', 'add', 'origin', 'https://github.com/acme/app.git']);
+    }
+    const a = new Store(main).init();
+    for (const i of [1, 2, 3]) a.put({ id: `n${i}`, kind: 'rule', title: `Rule ${i}`, body: 'app.js:run' });
+    a.log({ op: 'orient', client: 'claude', task: 'run', served: ['n1'] });
+    // an old worktree: a copy of two of the notes, stale, which no maintenance there will refresh
+    const b = new Store(old).init();
+    for (const i of [1, 2]) b.put({ id: `n${i}`, kind: 'rule', title: `Rule ${i}`, body: 'app.js:run', status: 'stale' });
+    b.log({ op: 'orient', client: 'claude', task: 'run', served: [] });
+
+    const metrics = computeCacheMetrics(new Store(main), { home: tmpHome, all: true });
+    assert.equal(metrics.repositoriesCount, 1);
+    assert.equal(metrics.totalNotes, 3);
+    assert.deepEqual(metrics.statuses, { fresh: 3, stale: 0, invalid: 0 });
+    assert.equal(metrics.kinds.rule, 3);
+  } finally {
+    if (origHome) process.env.THINKER_HOME = origHome;
+    else delete process.env.THINKER_HOME;
+    for (const d of [main, old, tmpHome]) fs.rmSync(d, { recursive: true, force: true });
+  }
+});
