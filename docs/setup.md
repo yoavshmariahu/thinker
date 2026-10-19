@@ -33,7 +33,7 @@ the agent starts a background subagent that answers them through thinker's `warm
 The offer is made once per repository on this machine, not again in another clone or worktree,
 and nothing else repeats it; `thinker warmup` is there any time.
 
-**Tools your sessions never use** (Claude Code; `thinker harness`). Claude Code records in each session's
+**Tools your sessions never use** (Claude Code and its desktop app, Codex; `thinker harness`). Claude Code records in each session's
 transcript what it loaded: every MCP server's tool names and instructions, and the skill list. `thinker harness`
 reads the last 30 days of this repository's sessions and lists each MCP server, plugin and skill with its tokens
 per session and how many sessions used it. `--suggest` (weekly with `maintain: { harness: true }` in

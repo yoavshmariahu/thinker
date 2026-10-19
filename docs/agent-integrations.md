@@ -308,8 +308,19 @@ agent to ignore a tool does not remove its description from context.
 | Harness | Recorded evidence | Mechanical switch | Scope |
 | --- | --- | --- | --- |
 | Claude Code | Deferred tools, MCP instructions, skill listings, tool/skill calls | `enabledPlugins`, `disabledMcpServers`, `disabledMcpjsonServers`, `skillOverrides` | Existing Claude project/local settings; user/local MCP switches cover worktrees |
+| Claude desktop app (Code tab) | The Claude Code transcript, plus the app's session record (`claude-code-sessions/…/local_<id>.json`): connectors' always-loaded tools, the app's appended instructions | The Claude Code switches above (the app runs Claude Code with `--setting-sources=user,project,local`); a connector by the app's Connectors switch, flipped by the agent with `ccd_connectors` `set_session_connector_enabled` | Settings: as Claude Code. Connectors: every new session on this machine (the app makes the switch its default) |
 | Codex CLI and desktop app | Recorded developer skill catalog and deferred namespaces (including desktop `world_state`), direct and `functions.exec` tool calls, skill file reads, child sessions | `mcp_servers.<name>.enabled = false`, `plugins."name@marketplace".enabled = false`, `[[skills.config]]` with path and `enabled = false` | This trusted checkout's `.codex/config.toml`, from new sessions |
 | Other harnesses | No context-reduction adapter yet | None | Report/switch support must be implemented per harness |
+
+The desktop app adds to each session what its transcript does not record: the
+claude.ai connectors it passes in and its own instructions (starting other sessions,
+the task list, the built-in browser, the simulator), about 5k tokens a session read
+on Claude 2.42304.2. Thinker reads both from the app's record of the session and
+reports them. A connector is offered only in a desktop session, since only the agent
+there can flip the app's switch, and its savings are counted in desktop sessions only.
+The app's own instructions and built-in tools are switched in the app's Settings, not
+by Thinker; the definitions of its built-in tools (browser pane, simulator, session
+tools) are not in any record and are not counted.
 
 Codex support uses the same settings layer in the CLI and app. An untrusted project
 ignores that layer. It does not shrink an existing chat or automatically reload its
