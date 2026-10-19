@@ -16,6 +16,7 @@ function fixture(t) {
   t.after(() => { if (old === undefined) delete process.env.CODEX_HOME; else process.env.CODEX_HOME = old; fs.rmSync(root, { recursive: true, force: true }); });
   execFileSync('git', ['init', '-q', repo]);
   const store = new Store(repo); store.init();
+  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ harness: { enabled: true } })); // off until released (harnessOn)
   const skill = path.join(home, '.agents/skills/writer/SKILL.md'), plugin = path.join(home, '.codex/plugins/cache/local/writing/1/skills/write/SKILL.md');
   for (const f of [skill, plugin]) { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, '# instructions'); }
   fs.writeFileSync(path.join(home, '.codex/config.toml'), '[mcp_servers.docs]\ncommand="false"\n[mcp_servers.used]\ncommand="false"\n[plugins."writing@local"]\nenabled=true\n');
@@ -99,7 +100,7 @@ test('Codex offers use the available question tool and recall remains opt-in and
   assert.match(offer, /request_user_input_async/); assert.doesNotMatch(offer, /AskUserQuestion/); assert.match(offer, /--client codex/); assert.match(offer, /Codex: docs MCP server/);
   switchOffNow(f.store, 'codex:mcp:docs', { ...f.options, usage });
   assert.equal(await harnessRecall(f.store, 'search docs documentation', { client: 'codex' }), '');
-  fs.writeFileSync(path.join(f.store.dir, 'config.json'), JSON.stringify({ harness: { recall: true } }));
+  fs.writeFileSync(path.join(f.store.dir, 'config.json'), JSON.stringify({ harness: { enabled: true, recall: true } }));
   assert.equal(await harnessRecall(f.store, 'search docs documentation', { client: 'claude', scoreFn: rows => rows }), '');
   const recall = await harnessRecall(f.store, 'search docs documentation', { client: 'codex', scoreFn: rows => rows });
   assert.match(recall, /thinker harness --undo codex:mcp:docs/); assert.doesNotMatch(recall, /\/mcp enable/);
