@@ -623,9 +623,11 @@ export const recallOn = store => {
 };
 
 // One card per thing the person can bring back by name: a skill each (a plugin's too), a server whole.
-function cardsFor(s) {
-  const card = (key, name, text, back) => ({ id: key, name, text: String(text || name).slice(0, CARD_CHARS), back });
-  if (s.client === 'codex') return [card(s.key, s.name, Object.values(s.texts || {}).join(' '), `\`thinker harness --undo ${s.key}\` brings it back from the next Codex session`)];
+export function cardsFor(s) {
+  const card = (key, name, text, back, use) => ({ id: key, name, text: String(text || name).slice(0, CARD_CHARS), back, ...(use ? { use } : {}) });
+  // a Codex skill switched off is out of the listing, not out of the checkout: the agent can still read it now
+  const skillFile = s.client === 'codex' && s.kind === 'skill' && s.dir && /^[^\n\r`<>]{1,400}$/.test(s.dir) ? path.join(s.dir, 'SKILL.md') : null;
+  if (s.client === 'codex') return [card(s.key, s.name, Object.values(s.texts || {}).join(' '), `\`thinker harness --undo ${s.key}\` brings it back from the next Codex session`, skillFile && `read ${skillFile} and follow it`)];
   if (s.client === 'cursor') return [card(s.key, s.name, Object.values(s.texts || {}).join(' '), `\`thinker harness --undo ${s.key}\` puts it back in ~/.cursor/mcp.json, for the next Cursor chat`)];
   if (s.kind === 'mcp') return [card(s.key, s.name, s.texts?.[`mcp:${serverKey(s.name)}`] || Object.values(s.texts || {})[0], `\`/mcp enable ${s.name}\` brings it back in this session`)];
   if (s.how === 'desktop-connector') return [card(s.key, s.name, Object.values(s.texts || {}).join(' '), `the + menu → Connectors turns it back on (in the desktop app you can call ${CONNECTOR_TOOL} with connector ${JSON.stringify(s.id)} and enabled true, from the next turn)`)];
@@ -665,8 +667,9 @@ export async function harnessRecall(store, prompt, { session, client, scoreFn } 
   store.log({ op: 'harness-recall', session: session === 'unknown' ? undefined : session, client, card: c.id, ce: c.ce == null ? undefined : Math.round(c.ce * 100) / 100 });
   // the description is the skill's own text, a third party's: a short excerpt, quoted as data, with nothing
   // that could close the block or open another
-  const what = String(c.text).replace(/^\S+?(?=: | \()(\s*\([^)]*\))?:\s*/, '').replace(/[<>`\n\r]+/g, ' ').split(/(?<=\.)\s/)[0].trim().slice(0, 160);
-  return `<thinker-switched-off>\n${c.name} is switched off here; its listing said: ${JSON.stringify(what)}. If this request needs it, tell the user that ${c.back}; otherwise ignore this line.\n</thinker-switched-off>`;
+  const what = String(c.text).replace(/^- /, '').replace(/^\S+?(?=: | \()(\s*\([^)]*\))?:\s*/, '').replace(/[<>`\n\r]+/g, ' ').split(/(?<=\.)\s/)[0].trim().slice(0, 160);
+  const then = c.use ? `${c.use} (${c.back})` : `tell the user that ${c.back}`;
+  return `<thinker-switched-off>\n${c.name} is switched off here; its listing said: ${JSON.stringify(what)}. If this request needs it, ${then}; otherwise ignore this line.\n</thinker-switched-off>`;
 }
 
 // --- what switching off saved, measured -----------------------------------------------------------------

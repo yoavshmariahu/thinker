@@ -107,6 +107,19 @@ test('Codex offers use the available question tool, and recall follows the harne
   assert.match(recall, /thinker harness --undo codex:mcp:docs/); assert.doesNotMatch(recall, /\/mcp enable/);
 });
 
+test('a Codex skill switched off is recalled as its file to read, still in the checkout', async t => {
+  const f = fixture(t), dir = path.join(f.repo, '.agents', 'skills', 'pdf-tools');
+  const st = { applied: [{ client: 'codex', key: 'codex:skill:pdf-tools', name: 'pdf-tools', kind: 'skill', at: new Date().toISOString(), undo: {}, cards: [] }] };
+  const { cardsFor } = await import('../src/harness.js');
+  st.applied[0].cards = cardsFor({ client: 'codex', kind: 'skill', key: 'codex:skill:pdf-tools', name: 'pdf-tools', dir, texts: { 'skill:pdf-tools': '- pdf-tools: Merge and split PDF files.' } });
+  fs.mkdirSync(path.join(f.store.dir, 'state'), { recursive: true });
+  fs.writeFileSync(path.join(f.store.dir, 'state', 'harness.json'), JSON.stringify(st));
+  fs.writeFileSync(path.join(f.store.dir, 'config.json'), JSON.stringify({ harness: { enabled: true } }));
+  const recall = await harnessRecall(f.store, 'merge these pdf files', { client: 'codex', scoreFn: rows => rows });
+  assert.match(recall, new RegExp(`If this request needs it, read ${path.join(dir, 'SKILL.md').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} and follow it`));
+  assert.doesNotMatch(recall, /tell the user/);
+});
+
 test('CODEX_HOME and project overrides are honored; an invalid config layer yields no advice', t => {
   const f = fixture(t); fs.mkdirSync(path.join(f.repo, '.codex')); fs.writeFileSync(path.join(f.repo, '.codex/config.toml'), '[mcp_servers.docs]\nenabled=false\n');
   assert.equal(codexHarnessConfig(f.repo, { home: '/unused' }).servers.get('docs').off, true);
