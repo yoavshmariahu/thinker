@@ -713,10 +713,10 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   with the bare agent and 41k tokens and 2 calls under the orient arm. Existing
   installs turn it off too: a `disabledTools` list written before (0.1.65 could
   switch it) does not keep it on, only `enabledTools` does, and `rewire` on
-  update rewrites the instruction files. Windsurf and Copilot CLI keep it named in
-  their rules (`cache-guidance.js:ORIENT_CLIENTS`): Windsurf runs no prompt hook,
-  and Copilot's fires on the first successful tool call with the CLI orient as
-  the fallback, so their notes come through it.
+  update rewrites the instruction files. No client is told to orient, at the
+  owner's decision (the value shown is the hooks'): Windsurf, which runs no
+  prompt hook, reaches notes through the CLI `lookup` alone, and Copilot CLI
+  through its hook on the first successful tool call.
 - Code behind the pointers: the MCP `orient` and `lookup` end with the
   definitions the served notes point at (`ops.js:codeSnippets`: up to two per
   note and four in all, each cut to 30 lines), in what is left of the note

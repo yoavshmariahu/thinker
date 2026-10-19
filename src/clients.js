@@ -24,7 +24,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { guidance } from './integrations/runner.js';
-import { agentWorkflow, disabledTools, DEFAULT_DISABLED_TOOLS, ORIENT_CLIENTS } from './cache-guidance.js';
+import { agentWorkflow, disabledTools } from './cache-guidance.js';
 import { updateInstructions, hasInstructions } from './agent-instructions.js';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { gitHookPath } from './store.js';
@@ -941,9 +941,7 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
     if ((client === 'windsurf' && (hooks || mcp)) || (client === 'copilot' && mcp)) {
       const file = client === 'windsurf' ? (fs.existsSync(path.join(repo, '.devin/rules')) ? '.devin/rules/thinker.md' : '.windsurf/rules/thinker.md') : '.github/instructions/thinker.instructions.md';
       const front = client === 'windsurf' ? 'trigger: always_on' : 'applyTo: "**"';
-      // their notes come through the CLI orient, so it stays named here (cache-guidance.js:ORIENT_CLIENTS)
-      const disabled = new Set(repoDisabledTools(repo)); disabled.delete('orient');
-      const text = `---\n${front}\n---\n<!-- thinker -->\n${guidance({ cli, repo, learn, disabled })}\n`;
+      const text = `---\n${front}\n---\n<!-- thinker -->\n${guidance({ cli, repo, learn, disabled: repoDisabledTools(repo) })}\n`;
       const before = readText(path.join(repo, file));
       if (before && !before.includes('<!-- thinker -->')) throw new Error(`Refusing to overwrite ${file}`);
       fs.mkdirSync(path.dirname(path.join(repo, file)), { recursive: true });
@@ -1054,10 +1052,7 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
     const file = candidates.find(f => fs.existsSync(f)) || candidates.at(-1);
     if (file) {
       const existed = fs.existsSync(file);
-      // a client whose notes come through orient alone keeps it named (cache-guidance.js:ORIENT_CLIENTS)
-      const disabled = new Set(scope === 'repo' ? repoDisabledTools(repo) : DEFAULT_DISABLED_TOOLS);
-      if (ORIENT_CLIENTS.includes(client)) disabled.delete('orient');
-      if (updateInstructions(file, agentWorkflow({ cli, repo: scope === 'repo' ? repo : undefined, mcp: !!mcp && client !== 'windsurf', disabled }))) done.push(`${client}: Thinker workflow in ${rel(file)}`);
+      if (updateInstructions(file, agentWorkflow({ cli, repo: scope === 'repo' ? repo : undefined, mcp: !!mcp && client !== 'windsurf', disabled: scope === 'repo' ? repoDisabledTools(repo) : undefined }))) done.push(`${client}: Thinker workflow in ${rel(file)}`);
       // Do not hide an existing user instruction file from version control.
       if (!existed) localFiles([file]);
     }

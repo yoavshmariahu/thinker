@@ -22,7 +22,7 @@ function fixture(t) {
   return { repo, cli, mcpEntry, hooks: true, learn: true, mcp: true, late: false, shared: false };
 }
 const read = file => fs.readFileSync(file, 'utf8');
-// orient is off by default and named only for the clients whose notes come through it (ORIENT_CLIENTS)
+// orient is off by default and named for no client unless a repository turns it on
 function checkWorkflow(text, cliOnly = false, orient = false) {
   assert.ok(text.includes('lookup'), 'lookup');
   // as a tool (`orient`) or a CLI command (cli.js' orient): the checkout's path may hold the word
@@ -76,7 +76,7 @@ test('all eight adapters deliver the full workflow through native instructions o
   const files = { claude: 'CLAUDE.local.md', codex: 'AGENTS.md', gemini: 'GEMINI.md', cursor: '.cursor/rules/thinker.mdc', windsurf: '.windsurf/rules/thinker.md', copilot: '.github/instructions/thinker.instructions.md', opencode: '.opencode/thinker.md' };
   for (const [client, file] of Object.entries(files)) {
     installClient(client, config);
-    checkWorkflow(read(path.join(config.repo, file)), ['windsurf', 'copilot'].includes(client), ['windsurf', 'copilot'].includes(client));
+    checkWorkflow(read(path.join(config.repo, file)), ['windsurf', 'copilot'].includes(client));
   }
   installClient('pi', config);
   const handlers = {};
