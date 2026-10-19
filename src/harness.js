@@ -735,7 +735,7 @@ export const skillLines = cards => cards.map(c => `- ${c.name}: ${purpose(c)} ($
 export function switchedOffSkillIndex(store, { client } = {}) {
   const cards = skillCards(store, client);
   if (!cards.length) return '';
-  const dirs = [...new Set(cards.map(c => (String(c.use || '').match(/read (.+)\/[^/]+\/SKILL\.md/) || [])[1]).filter(Boolean))];
+  const dirs = [...new Set(cards.map(c => (String(c.use || '').match(/read (.+)\/[^/]+\/SKILL\.md/) || [])[1]).filter(Boolean).map(d => path.relative(store.repo, d) || '.'))];
   return `This repository's skills are not listed in your instructions. When one applies to your change, ${dirs.length === 1 ? `read ${dirs[0]}/<name>/SKILL.md` : 'read its SKILL.md'} and follow it: ${cards.map(c => c.name).join(', ')}.`;
 }
 

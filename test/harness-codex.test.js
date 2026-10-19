@@ -128,7 +128,7 @@ test('switched-off skills are found by the agent\'s words when skill lookup is o
   assert.equal(found[0].name, 'writing-tests'); assert.ok(!found.some(c => c.name === 'docs'), 'servers are not skills');
   assert.match(skillLines(found), /^- writing-tests: Conventions for writing backend tests with pytest fixtures\. \(read .*writing-tests\/SKILL\.md and follow it\)/);
   const index = switchedOffSkillIndex(f.store);
-  assert.match(index, /read .*\.agents\/skills\/<name>\/SKILL\.md and follow it: writing-tests, writing-user-facing-copy\.$/);
+  assert.match(index, /read \.agents\/skills\/<name>\/SKILL\.md and follow it: writing-tests, writing-user-facing-copy\.$/);
   assert.doesNotMatch(index, /docs/);
 });
 
