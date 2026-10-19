@@ -16,15 +16,16 @@ export function listMergedPrs(slug, { before, after, limit = 100 }) {
   return JSON.parse(gh('pr', 'list', '--repo', slug, '--state', 'merged', '--limit', String(limit), '--search', q, '--json', 'number,title,body,mergedAt,additions,files'));
 }
 
-// Direct commits beside the merged pull requests (off until an experiment, 2026-10-19): on a GitHub
+// Direct commits beside the merged pull requests (on by default without an experiment, at the owner's
+// decision, 2026-10-19): on a GitHub
 // repository the pull requests are all a build, the warm-up or maintenance read, and a change pushed
 // straight to the default branch was never mined (a third of this repository's first-parent history
-// since 2026-09-19 names no pull request). With `mining: { commits: true }` in .thinker/config.json
-// (or THINKER_MINE_COMMITS=on) the commits that name no pull request are listed with them; a pull
-// request keeps GitHub's description and review comments. THINKER_MINE_COMMITS=off overrides the config.
+// since 2026-09-19 names no pull request). Unless `mining: { commits: false }` in .thinker/config.json
+// (or THINKER_MINE_COMMITS=off) says otherwise, the commits that name no pull request are listed with
+// them; a pull request keeps GitHub's description and review comments. THINKER_MINE_COMMITS overrides the config.
 export function commitsOn(cfg = {}, env = process.env) {
   if (/^(off|0|false)$/i.test(env.THINKER_MINE_COMMITS || '')) return false;
-  return /^(on|1|true)$/i.test(env.THINKER_MINE_COMMITS || '') || cfg.commits === true;
+  return /^(on|1|true)$/i.test(env.THINKER_MINE_COMMITS || '') || cfg.commits !== false;
 }
 export function listMergedChanges(repo, { directories = null, listPrs = listMergedPrs } = {}) {
   return (slug, opts) => [...listPrs(slug, opts), ...listMergedCommits(repo, { ...opts, directories, directOnly: true })];

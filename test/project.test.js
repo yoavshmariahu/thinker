@@ -172,7 +172,7 @@ test('GitHub project scans keep unrelated and deferred PRs available to another 
   fs.writeFileSync(path.join(bins, 'gh'), `#!/usr/bin/env node\nconst args = process.argv.slice(2); console.log(args[0] === 'pr' && args[1] === 'list' ? ${JSON.stringify(JSON.stringify(prs))} : args[0] === 'api' ? '[]' : 'diff');\n`, { mode: 0o755 });
   const model = path.join(repo, 'fake-model.cjs');
   fs.writeFileSync(model, `process.stdin.resume(); process.stdin.on('end', () => console.log('{"notes":[]}'));`);
-  const env = { PATH: `${bins}${path.delimiter}${process.env.PATH}`, THINKER_LLM_CMD: `${process.execPath} "${model}"`, THINKER_LLM: '', ANTHROPIC_API_KEY: '' };
+  const env = { PATH: `${bins}${path.delimiter}${process.env.PATH}`, THINKER_LLM_CMD: `${process.execPath} "${model}"`, THINKER_LLM: '', ANTHROPIC_API_KEY: '', THINKER_MINE_COMMITS: 'off' }; // the pull requests' scoping alone
   writeProject(repo, project(['apps/web']));
   cli(repo, ['mine-prs', 'owner/repo', '--limit', '1'], env);
   const store = new Store(repo), scoped = minedPrs(store, projectRecordKey('owner/repo', ['apps/web']));

@@ -232,10 +232,10 @@ test('with commit mining on, the commits that name no pull request are listed be
   }
 });
 
-test('commit mining is off by default; the config turns it on and THINKER_MINE_COMMITS overrides the config', () => {
-  assert.equal(commitsOn({}, {}), false);
-  assert.equal(commitsOn(undefined, {}), false);
-  assert.equal(commitsOn({ commits: true }, {}), true);
-  assert.equal(commitsOn({}, { THINKER_MINE_COMMITS: 'on' }), true);
-  assert.equal(commitsOn({ commits: true }, { THINKER_MINE_COMMITS: 'off' }), false);
+test('commit mining is on by default; the config turns it off and THINKER_MINE_COMMITS overrides the config', () => {
+  assert.equal(commitsOn({}, {}), true);
+  assert.equal(commitsOn(undefined, {}), true);
+  assert.equal(commitsOn({ commits: false }, {}), false);
+  assert.equal(commitsOn({ commits: false }, { THINKER_MINE_COMMITS: 'on' }), true);
+  assert.equal(commitsOn({}, { THINKER_MINE_COMMITS: 'off' }), false);
 });
