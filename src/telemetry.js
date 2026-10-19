@@ -93,7 +93,9 @@ export function computeCacheMetrics(store, { home = thinkerHome(), all = true } 
   let symbolDeps = 0;
   let totalBytes = 0;
   let totalNotes = 0;
-  let repositoriesCount = repos.length;
+  // repositories with a cache on the machine now: the log also names checkouts long gone (486 temporary
+  // directories of test runs before 2026-10-04 on one machine, which reported 538 repositories)
+  let repositoriesCount = 0;
   const coveredCheckouts = new Set();
 
   const recordNote = n => {
@@ -125,18 +127,20 @@ export function computeCacheMetrics(store, { home = thinkerHome(), all = true } 
   // notes are recorded: until 2026-10-19 every checkout's were, so a device with 317 notes and a score of
   // old worktrees, whose copies no maintenance refreshes, reported 7,291 notes by status, 3,220 of them stale.
   for (const r of repos) {
-    let most = [];
+    let most = [], cached = false;
     for (const checkout of r.checkouts) {
       coveredCheckouts.add(path.resolve(checkout));
       try {
         const s = new Store(checkout, { readonly: true });
         if (!s.exists()) continue;
+        cached = true;
         const notes = s.list();
         if (notes.length > most.length) most = notes;
       } catch {}
     }
     for (const n of most) recordNote(n);
     totalNotes += most.length;
+    if (cached) repositoriesCount++;
   }
 
   // If local store has notes and wasn't covered in summary.repos

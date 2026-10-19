@@ -164,6 +164,17 @@ test('a prompt in a repository whose cache is empty says nothing and logs the re
   assert.equal(j.requests, 1); assert.equal(j.answered, 0);
 });
 
+// A harness event (a background task's notification, a subagent's hand-back) is no request in a young cache
+// either: until 2026-10-19 the hook logged it as one before it checked, whenever the cache was under its threshold.
+test('a harness event in a cache under the serving threshold is logged as no request', () => {
+  const dir = gitRepo();
+  hook(dir, 'prompt', { session_id: 'h1', prompt: '<task-notification>\n<task-id>b1</task-id>\n<status>completed</status>' });
+  hook(dir, 'prompt', { session_id: 'h1', prompt: '<agent-message from="a7">\n[Subagent hand-back] done' });
+  hook(dir, 'prompt', { session_id: 'h1', prompt: 'where does fetchRows read the rows from' });
+  const orients = fs.readFileSync(path.join(dir, '.thinker/log.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l)).filter(e => e.op === 'orient');
+  assert.deepEqual(orients.map(e => e.task), ['where does fetchRows read the rows from']);
+});
+
 // The hooks serve from a cache once it holds a few notes (ops.js:SERVE_MIN_NOTES; `minNotes` in the
 // repository's config overrides): one or two are not yet a map of the repository, and a cache that
 // young is treated as the empty one above, by the prompt hook and by the late notes alike.

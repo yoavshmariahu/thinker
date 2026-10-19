@@ -810,3 +810,25 @@ test('computeCacheMetrics counts a repository\'s notes once, from its fullest ch
     for (const d of [main, old, tmpHome]) fs.rmSync(d, { recursive: true, force: true });
   }
 });
+
+test('computeCacheMetrics counts the repositories with a cache now, not every checkout the log ever named', () => {
+  const live = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-live-'));
+  const gone = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-gone-'));
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-home-'));
+  const origHome = process.env.THINKER_HOME;
+  try {
+    process.env.THINKER_HOME = tmpHome;
+    const a = new Store(live).init();
+    a.put({ id: 'n1', kind: 'rule', title: 'Rule', body: 'app.js:run' });
+    a.log({ op: 'orient', client: 'claude', task: 'run', served: [] });
+    new Store(gone).init().log({ op: 'orient', client: 'claude', task: 'run', served: [] });
+    fs.rmSync(gone, { recursive: true, force: true }); // a test run's temporary checkout, long removed
+    const metrics = computeCacheMetrics(new Store(live), { home: tmpHome, all: true });
+    assert.equal(metrics.repositoriesCount, 1);
+    assert.equal(metrics.totalNotes, 1);
+  } finally {
+    if (origHome) process.env.THINKER_HOME = origHome;
+    else delete process.env.THINKER_HOME;
+    for (const d of [live, gone, tmpHome]) fs.rmSync(d, { recursive: true, force: true });
+  }
+});
