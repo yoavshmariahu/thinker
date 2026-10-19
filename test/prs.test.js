@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
-import { minedPrs, recordMinedPrs, nextPrs, listMergedCommits, pickPrs, mineable, trimDiff } from '../src/prs.js';
+import { minedPrs, recordMinedPrs, nextPrs, listMergedCommits, listMergedChanges, commitsOn, pickPrs, mineable, trimDiff } from '../src/prs.js';
 
 const day = n => `2026-01-${String(n).padStart(2, '0')}T00:00:00Z`;
 const ALL = Array.from({ length: 12 }, (_, i) => ({ number: i + 1, mergedAt: day(i + 1) }));
@@ -204,4 +204,38 @@ test('trimDiff drops lockfile and snapshot diffs and caps a large file', () => {
   assert.match(out, /src\/a\.js[\s\S]*file diff truncated[\s\S]*src\/b\.js[\s\S]*\+fix\(\)/);
   assert.match(out, /2 lockfile\/generated\/snapshot file diffs omitted/);
   assert.ok(out.length < 9000);
+});
+
+test('with commit mining on, the commits that name no pull request are listed beside the merged pull requests', () => {
+  const dir = createMockPrRepo();
+  const s = store();
+  try {
+    // a fix pushed straight to main: GitHub has no pull request for it
+    fs.writeFileSync(path.join(dir, 'cache.js'), 'export function evict() { return 0; }\n');
+    execFileSync('git', ['add', '.'], { cwd: dir });
+    execFileSync('git', ['commit', '-m', 'fix the eviction of entries past their ttl', '-q'], { cwd: dir });
+    assert.deepEqual(listMergedCommits(dir, { directOnly: true }).map(c => c.title), ['fix the eviction of entries past their ttl', 'chore: initial commit']);
+
+    const prs = [{ number: 101, title: 'feat(auth): implement token verification', body: 'from GitHub', mergedAt: '2000-01-01T00:00:00Z', files: [{ path: 'auth.js' }] }];
+    const list = listMergedChanges(dir, { listPrs: () => prs });
+    const next = nextPrs('o/r', minedPrs(s, 'o/r'), { limit: 5, list, repo: dir });
+    // #101 and #102 are not listed twice; the pull request keeps GitHub's description
+    assert.deepEqual(next.map(p => p.title), ['fix the eviction of entries past their ttl', 'chore: initial commit', 'feat(auth): implement token verification']);
+    assert.equal(next.at(-1).body, 'from GitHub');
+    assert.deepEqual(mineable(next).map(p => p.title), ['fix the eviction of entries past their ttl']);
+
+    recordMinedPrs(s, 'o/r', next);
+    assert.deepEqual(nextPrs('o/r', minedPrs(s, 'o/r'), { limit: 5, list, repo: dir }), []);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(s.dir, { recursive: true, force: true });
+  }
+});
+
+test('commit mining is on by default; the config turns it off and THINKER_MINE_COMMITS overrides the config', () => {
+  assert.equal(commitsOn({}, {}), true);
+  assert.equal(commitsOn(undefined, {}), true);
+  assert.equal(commitsOn({ commits: false }, {}), false);
+  assert.equal(commitsOn({ commits: false }, { THINKER_MINE_COMMITS: 'on' }), true);
+  assert.equal(commitsOn({}, { THINKER_MINE_COMMITS: 'off' }), false);
 });

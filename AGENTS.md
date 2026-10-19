@@ -317,7 +317,15 @@ further back in history, 20 at a time (`--limit n`). Without GitHub, or
 with `--git`, it mines commits from git history; `--fixes` keeps only those
 whose message says they fix something (`prs.js:FIX_LIKE`), the records a
 reviewing agent draws on most; a repository whose work lands by direct commits has
-few pull requests, and this one had 8 to mine against 17 fix commits. Every
+few pull requests, and this one had 8 to mine against 17 fix commits. With GitHub, the
+build, the warm-up and maintenance read merged pull requests alone, so a change pushed
+straight to the default branch is never mined there (188 of this repository's 551
+first-parent commits since 2026-09-19 name no pull request). So those commits are listed
+beside the pull requests, unless `mining: { commits: false }` in `.thinker/config.json`
+(or `THINKER_MINE_COMMITS=off`; the variable overrides the config) says otherwise (`prs.js:listMergedChanges`, `commitsOn`):
+a pull request keeps GitHub's description and review comments, a commit is mined from
+its message and diff as with `--git`. On by default without an experiment, at the
+owner's decision (2026-10-19), an exception to the rule below. Every
 pull request it
 has looked at is recorded in `.thinker/prs.json`, which is committed with the
 notes, so none is distilled twice, by you or by a teammate. Pull requests merged
