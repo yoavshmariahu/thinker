@@ -70,7 +70,7 @@ test('a desktop session adds its connectors\' always-loaded tools and the app\'s
 
 test('the advice names the desktop connector by its name and switches it through the app; the app\'s sections are reported only', t => {
   const { h, add } = machine(t);
-  const sessions = [0, 1, 2, 3].map(i => add(`d${i}`));
+  const sessions = [...Array(10).keys()].map(i => add(`d${i}`));
   const usage = harnessUsage('/nonexistent-repo', { home: h, sessions });
   const docs = usage.sources.find(s => s.id === DOCS);
   assert.equal(docs.kind, 'connector'); assert.equal(docs.scope, 'desktop'); assert.equal(docs.name, 'Claude-Docs');
@@ -84,7 +84,7 @@ test('the advice names the desktop connector by its name and switches it through
 test('the question offers a desktop connector only in the desktop app; the answer has the agent flip the app\'s switch', t => {
   const { h, add } = machine(t), store = checkout(t), th = tmp('thinker-desktop-th-');
   t.after(() => fs.rmSync(th, { recursive: true, force: true }));
-  const sessions = [0, 1, 2, 3].map(i => add(`d${i}`));
+  const sessions = [...Array(10).keys()].map(i => add(`d${i}`));
   const picks = scheduleHarnessSuggestion(store, { now: T0, home: th, usage: harnessUsage(store.repo, { home: h, sessions }) });
   assert.deepEqual(picks.map(p => p.how), ['desktop-connector']);
   assert.equal(harnessOffer(store, { client: 'claude', home: th, now: T0, env: TERMINAL }), '', 'nothing to ask in the terminal');
@@ -110,7 +110,7 @@ test('outside the desktop app a desktop connector is left out of the question an
   const { h, add } = machine(t), store = checkout(t), th = tmp('thinker-desktop-th-');
   t.after(() => fs.rmSync(th, { recursive: true, force: true }));
   // a big skill every session loads and none calls, beside the connector
-  const sessions = [0, 1, 2, 3].map(i => add(`d${i}`, { extra: [{ type: 'attachment', attachment: { type: 'skill_listing', content: `- bulky: ${long(2000)}\n`, names: ['bulky'] } }] }));
+  const sessions = [...Array(10).keys()].map(i => add(`d${i}`, { extra: [{ type: 'attachment', attachment: { type: 'skill_listing', content: `- bulky: ${long(2000)}\n`, names: ['bulky'] } }] }));
   scheduleHarnessSuggestion(store, { now: T0, home: th, usage: harnessUsage(store.repo, { home: h, sessions }) });
   const ask = harnessOffer(store, { client: 'claude', home: th, now: T0, env: TERMINAL });
   assert.match(ask, /bulky skill/); assert.doesNotMatch(ask, /Claude-Docs/);
@@ -124,7 +124,7 @@ test('the question says what a source costs over a session\'s model calls, and h
   t.after(() => fs.rmSync(th, { recursive: true, force: true }));
   // ten model calls a session, each recorded once
   const turns = Array.from({ length: 10 }, (_, i) => ({ type: 'assistant', uuid: `u${i}`, message: { id: `m${i}`, usage: { input_tokens: 1 }, content: [] } }));
-  const sessions = [0, 1, 2, 3].map(i => add(`d${i}`, { extra: turns }));
+  const sessions = [...Array(10).keys()].map(i => add(`d${i}`, { extra: turns }));
   const usage = harnessUsage(store.repo, { home: h, sessions });
   assert.equal(usage.calls.claude, 10);
   scheduleHarnessSuggestion(store, { now: T0, home: th, usage });

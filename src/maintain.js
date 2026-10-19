@@ -38,9 +38,9 @@ export const DEFAULTS = {
   // the weekly suggestion of directories to cover (coverage.js): a new cache-building strategy, off until an experiment
   // shows it helps (AGENTS.md); `maintain: { coverage: true }` in .thinker/config.json turns it on for a repository
   coverage: false,
-  // the weekly suggestion of tools to switch off (harness.js): a new way of reaching the agent, off until an experiment
-  // shows it helps; `maintain: { harness: true }` turns it on for a repository
-  harness: false,
+  // the question of tools to switch off (harness.js), every two weeks: on with the harness itself (harness.enabled,
+  // off until it is released); `maintain: { harness: false }` turns the question off for a repository
+  harness: true,
   // merge notes that say the same thing in different words (dedupe.js). On by default without an experiment,
   // at the owner's decision on 2026-10-19 (a small upkeep pass); `maintain: { dedupe: false }` or
   // THINKER_DEDUPE=off turns it off
@@ -279,9 +279,10 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
     if (cfg.coverage === true && !dry) {
       try { const { scheduleSuggestion } = await (fns.coverage ? { scheduleSuggestion: fns.coverage } : import('./coverage.js')); const picks = scheduleSuggestion(store, { now }); if (picks) r.coverageSuggested = picks.length; } catch { r.errors++; }
     }
-    // 8. at most weekly, the tools Claude Code loads here and the sessions never use, as one question (harness.js).
+    // 8. every two weeks (daily until a first look with enough sessions), the tools the agents load here and the
+    // sessions never use, as one question (harness.js), on with the harness unless maintain.harness is false.
     // No model call; the prompt hook asks it, and a setting changes only on the person's answer.
-    if (cfg.harness === true && !dry) {
+    if (cfg.harness !== false && !dry) {
       try { const { scheduleHarnessSuggestion } = await (fns.harness ? { scheduleHarnessSuggestion: fns.harness } : import('./harness.js')); const picks = scheduleHarnessSuggestion(store, { now }); if (picks) r.harnessSuggested = picks.length; } catch { r.errors++; }
     }
     // 9. at most weekly, a question for the person: direct commits a PR-only warm-up never read (commits-offer.js).

@@ -302,12 +302,11 @@ function action(s) {
 }
 
 // --- the suggestion ---------------------------------------------------------------------------------
-// About once a week, the sources worth switching off, put to the person as one question with every one
-// of them as an option, signed as thinker. A new way of reaching the agent: off until an experiment shows
-// it helps (AGENTS.md); `maintain: { harness: true }` in .thinker/config.json turns it on, `thinker
-// harness --suggest` queues one now. Claude Code and Codex; each adapter counts only what its transcripts record.
+// Every two weeks, the sources worth switching off, put to the person as one question with every one
+// of them as an option, signed as thinker. On with the rest of it (harnessOn); `maintain: { harness: false }`
+// in .thinker/config.json turns this question off, `thinker harness --suggest` queues one now. Claude Code and Codex; each adapter counts only what its transcripts record.
 //
-//   scheduleHarnessSuggestion  maintenance: at most weekly, the advice not passed on in the last month
+//   scheduleHarnessSuggestion  maintenance: every two weeks once there are enough sessions (daily until then), the advice not passed on in the last month
 //   harnessOffer               the prompt hook: the question, once, for the agent to put to the person
 //   answerHarness              the answer (MCP `harness`, `thinker harness --answer`): switches the chosen
 //                              sources off for this repository, a backup of each file first
@@ -316,12 +315,13 @@ function action(s) {
 // Local state: <cache>/state/harness.json (the pending question, answers, what was switched off);
 // THINKER_HOME/state/harness-never.
 export const HARNESS = {
-  everyDays: 7,    // a suggestion at most this often
+  everyDays: 14,   // a suggestion at most this often, once a repository has been looked at with enough sessions
+  waitDays: 1,     // until then, how often maintenance looks again: the first question is asked as soon as the data is there
   max: 8,          // sources in one suggestion: two questions of four options
   bundle: 500,     // skills under this many tokens are one option together, so the question stays short
   declineDays: 30, // a source the person passed on is not suggested again for this long
   answerDays: 3,   // a question left unanswered this long is dropped
-  firstSessions: 10, // the step after the warm-up asks about a repository only with this many sessions recorded there
+  firstSessions: 10, // any question about a repository waits for this many sessions recorded there
 };
 export const SIGNATURE = '🧠 thinker';
 const DAY = 86_400_000;
@@ -397,11 +397,15 @@ export function scheduleHarnessSuggestion(store, { now = Date.now(), home, force
     }
     return null;
   }
-  if (!force && st.checkedAt && now - Date.parse(st.checkedAt) < HARNESS.everyDays * DAY) return null;
+  // a repository never looked at with enough sessions (an existing install, a warm-up skipped) is looked at
+  // daily, and asked the first time the data is there; after that, every two weeks
+  if (!force && st.checkedAt && now - Date.parse(st.checkedAt) < (st.firstLookAt ? HARNESS.everyDays : HARNESS.waitDays) * DAY) return null;
   usage ??= harnessUsage(store.repo);
+  st.checkedAt = new Date(now).toISOString();
+  if (!force && (usage.sessions || 0) < HARNESS.firstSessions) { saveState(store, st); return null; }
+  st.firstLookAt ||= st.checkedAt;
   const recent = t => t && now - Date.parse(t) < HARNESS.declineDays * DAY;
   const picks = pickSources(usage, s => force || !recent(st.declined?.[s.key]));
-  st.checkedAt = new Date(now).toISOString();
   if (picks.length) { st.pending = { at: st.checkedAt, days: usage.days, sessions: usage.sessions, byClient: usage.byClient, sources: picks }; store.log({ op: 'harness-suggest', sources: picks.length, tokens: picks.reduce((t, p) => t + p.tokens, 0) }); }
   else delete st.pending;
   saveState(store, st);
@@ -727,18 +731,19 @@ export function harnessView(store, { days = 30, home } = {}) {
   };
 }
 
-// --- the controls: `thinker harness --off/--undo/--weekly/--recall/--suggestions`, and the page's buttons ---
+// --- the controls: `thinker harness --off/--undo/--recurring/--recall/--suggestions`, and the page's buttons ---
 export function harnessSettings(store, { home } = {}) {
-  return { enabled: harnessOn(store), weekly: store.config().maintain?.harness === true, recall: recallOn(store), suggestions: !harnessNever(home) };
+  return { enabled: harnessOn(store), recurring: store.config().maintain?.harness !== false, recall: recallOn(store), suggestions: !harnessNever(home) };
 }
-// weekly: the question from maintenance (maintain.harness); recall: the switched-off lines (harness.recall),
+// recurring: the question from maintenance every two weeks (maintain.harness, on unless false; `weekly` is its old name); recall: the switched-off lines (harness.recall),
 // both in .thinker/config.json; suggestions: this machine's "never" (THINKER_HOME/state/harness-never);
 // enabled: the whole feature here (harness.enabled), off by default
-export function setHarnessSettings(store, { enabled, weekly, recall, suggestions } = {}, { home } = {}) {
-  if (enabled !== undefined || weekly !== undefined || recall !== undefined) {
+export function setHarnessSettings(store, { enabled, recurring, weekly, recall, suggestions } = {}, { home } = {}) {
+  recurring ??= weekly;
+  if (enabled !== undefined || recurring !== undefined || recall !== undefined) {
     const file = path.join(store.dir, 'config.json'), cfg = readJson(file) || {};
     if (enabled !== undefined) (cfg.harness ||= {}).enabled = Boolean(enabled);
-    if (weekly !== undefined) (cfg.maintain ||= {}).harness = Boolean(weekly);
+    if (recurring !== undefined) (cfg.maintain ||= {}).harness = Boolean(recurring);
     if (recall !== undefined) (cfg.harness ||= {}).recall = Boolean(recall);
     writeJson(file, cfg, true);
   }
@@ -773,6 +778,8 @@ export function harnessFirstLook(checkouts, { days = 30, minSessions = HARNESS.f
     if (!harnessOn(store)) continue;
     const usage = usageFn(checkout, { days });
     if ((usage.sessions || 0) < minSessions) continue;
+    // looked at with enough sessions: the question from maintenance waits its two weeks from here
+    if (store.exists()) { const st = readHarnessState(store), at = new Date().toISOString(); st.firstLookAt ||= at; st.checkedAt = at; saveState(store, st); }
     const picks = pickSources(usage, s => s.how !== 'desktop-connector', Infinity)
       .filter(p => p.client !== 'cursor' || !seen.has(p.key));
     for (const p of picks) if (p.client === 'cursor') seen.add(p.key);
