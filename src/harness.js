@@ -32,9 +32,31 @@ const CARD_CHARS = 1200;
 // instructions ("claude.ai Claude Docs")
 export const serverKey = s => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 const toolServer = name => (String(name).match(/^mcp__(.+?)__/) || [])[1] || null;
-// a plugin's own MCP server is named mcp__plugin_<plugin>_<server>__
-const pluginOfServer = s => (String(s).match(/^plugin_([^_]+)_/) || [])[1] || null;
+// A plugin's own MCP server is named mcp__plugin_<plugin>_<server>__, and a plugin's name may hold "-" or
+// "_": its key keeps the raw name (mcp:plugin:<plugin>_<server>), and which plugin it is is read against
+// the plugins the sessions and settings name (harnessUsage).
+const mcpKey = raw => /^plugin[_:]/.test(raw) ? `mcp:plugin:${String(raw).slice(7).replace(/:/g, '_')}` : `mcp:${serverKey(raw)}`;
 const pluginOfSkill = s => String(s).includes(':') ? String(s).split(':')[0] : null;
+
+// Claude Code's own files; CLAUDE_CONFIG_DIR moves them (clients.js:claudeDir does the same).
+export function claudePaths(home = os.homedir(), env = process.env) {
+  const dir = env.CLAUDE_CONFIG_DIR || path.join(home, '.claude');
+  return { dir, json: env.CLAUDE_CONFIG_DIR ? path.join(dir, '.claude.json') : path.join(home, '.claude.json'), settings: path.join(dir, 'settings.json'), skills: path.join(dir, 'skills') };
+}
+// Claude Code keys a project's entry in .claude.json by the repository's main checkout: a session in a
+// worktree reads the main checkout's entry (on this machine, 34 entries and none for any of 187 worktrees
+// that ran sessions, 2026-10-18). settings.local.json is the checkout's own.
+export function projectKey(repo) {
+  try {
+    const common = execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000 }).trim();
+    return path.basename(common) === '.git' ? path.dirname(common) : repo;
+  } catch { return repo; }
+}
+// Managed settings outrank every file thinker writes: what they set is not thinker's to switch.
+const MANAGED = { darwin: '/Library/Application Support/ClaudeCode/managed-settings.json', linux: '/etc/claude-code/managed-settings.json', win32: 'C:\\ProgramData\\ClaudeCode\\managed-settings.json' };
+// Names put into the agent's instructions: a server's name comes from a repository's .mcp.json, which a
+// clone controls, so only plain names are offered.
+const SAFE_NAME = /^[\w.:@\/+-]{1,80}$/;
 
 // The token cost of each skill in a listing: its entry, up to the next one. An entry is
 // "- <name>: …" or "- <name> (<alias>): …", and a description can run over several lines.
@@ -50,9 +72,10 @@ export function skillCosts(content, names) {
 // One Claude Code transcript (and its subagents'): what it loaded, with the tokens of each source,
 // and what it called. Lines are filtered by text before parsing; a transcript runs to megabytes.
 export function sessionHarness(file) {
-  const loaded = new Map(), used = new Set(), texts = new Map(), calls = new Set();
+  // what a source costs is counted once per thing listed: a session resumed or compacted lists it again
+  const names = new Map(), instr = new Map(), skills = new Map(), used = new Set(), texts = new Map(), calls = new Set(), alias = new Map();
   let cwd = null, start = null;
-  const add = (key, tokens) => loaded.set(key, (loaded.get(key) || 0) + tokens);
+  const once = (key, item, tokens) => { if (!names.has(key)) names.set(key, new Map()); names.get(key).set(item, tokens); };
   const files = [file];
   try { const sub = path.join(file.replace(/\.jsonl$/, ''), 'subagents'); for (const f of fs.readdirSync(sub)) if (f.endsWith('.jsonl')) files.push(path.join(sub, f)); } catch {}
   files.forEach((f, fi) => {
@@ -69,20 +92,29 @@ export function sessionHarness(file) {
       const a = j.attachment;
       if (att && a && typeof a === 'object') {
         if (a.type === 'deferred_tools_delta') {
-          for (const n of a.addedNames || []) { const s = toolServer(n); if (s) { add(`mcp:${serverKey(s)}`, estTokens(n + '\n')); const k = `tools:${serverKey(s)}`; texts.set(k, `${texts.get(k) || ''} ${n.slice(n.lastIndexOf('__') + 2).replace(/_/g, ' ')}`); } }
-          for (const d of a.surfacedDefinitions || []) { const s = toolServer(d?.name); if (s) add(`mcp:${serverKey(s)}`, estTokens(JSON.stringify(d.definition || d))); }
+          for (const n of a.addedNames || []) {
+            const s = toolServer(n); if (!s) continue;
+            once(mcpKey(s), n, estTokens(n + '\n'));
+            const k = `tools:${mcpKey(s)}`, word = ` ${n.slice(n.lastIndexOf('__') + 2).replace(/_/g, ' ')}`;
+            if (!String(texts.get(k) || '').includes(word)) texts.set(k, `${texts.get(k) || ''}${word}`);
+          }
+          for (const d of a.surfacedDefinitions || []) { const s = toolServer(d?.name); if (s) once(mcpKey(s), `def:${d.name}`, estTokens(JSON.stringify(d.definition || d))); }
         } else if (a.type === 'mcp_instructions_delta') {
-          (a.addedNames || []).forEach((n, i) => { add(`mcp:${serverKey(n)}`, estTokens(a.addedBlocks?.[i] || '')); texts.set(`mcp:${serverKey(n)}`, String(a.addedBlocks?.[i] || '')); });
+          (a.addedNames || []).forEach((n, i) => { instr.set(mcpKey(n), estTokens(a.addedBlocks?.[i] || '')); texts.set(mcpKey(n), String(a.addedBlocks?.[i] || '')); });
         } else if (a.type === 'skill_listing') {
-          for (const [n, t] of skillCosts(a.content || '', a.names || [])) add(`skill:${n}`, t);
-          for (const entry of String(a.content || '').split(/\n(?=- \S)/)) { const m = entry.match(/^- (\S+?)(?=: | \()/); if (m) texts.set(`skill:${m[1]}`, entry.slice(2)); }
+          for (const [n, t] of skillCosts(a.content || '', a.names || [])) skills.set(`skill:${n}`, Math.max(skills.get(`skill:${n}`) || 0, t));
+          for (const entry of String(a.content || '').split(/\n(?=- \S)/)) {
+            const m = entry.match(/^- (\S+?)(?: \(([^)\s]+)\))?: /); if (!m) continue;
+            texts.set(`skill:${m[1]}`, entry.slice(2));
+            if (m[2]) alias.set(m[2], m[1]); // "- gtm:00-start-here (gtm:start-here): …" runs as gtm:start-here
+          }
         }
       }
       if (call) {
         for (const c of Array.isArray(j.message?.content) ? j.message.content : []) {
           if (c?.type !== 'tool_use') continue;
           const s = toolServer(c.name);
-          if (s) used.add(`mcp:${serverKey(s)}`);
+          if (s) used.add(mcpKey(s));
           else if (c.name === 'Skill' && c.input?.skill) used.add(`skill:${c.input.skill}`);
         }
       }
@@ -90,21 +122,29 @@ export function sessionHarness(file) {
     }
   });
   // a server's card text: its instructions, then the names of its tools
-  for (const [k, t] of texts) if (k.startsWith('tools:')) { const m = `mcp:${k.slice(6)}`; texts.set(m, `${texts.get(m) || ''}\nTools:${t}`); texts.delete(k); }
-  return { loaded, used, cwd, texts, start, calls: calls.size };
+  for (const [k, t] of texts) if (k.startsWith('tools:')) { const m = k.slice(6); texts.set(m, `${texts.get(m) || ''}\nTools:${t}`); texts.delete(k); }
+  const loaded = new Map();
+  const add = (k, t) => loaded.set(k, (loaded.get(k) || 0) + t);
+  for (const [k, items] of names) for (const t of items.values()) add(k, t);
+  for (const [k, t] of instr) add(k, t);
+  for (const [k, t] of skills) add(k, t);
+  const usedNames = new Set([...used].map(k => k.startsWith('skill:') && alias.has(k.slice(6)) ? `skill:${alias.get(k.slice(6))}` : k));
+  return { loaded, used: usedNames, cwd, texts, start, calls: calls.size };
 }
 
 // Where each source is switched on: Claude Code's settings and MCP files for this repository.
-export function claudeHarnessConfig(repo, { home = os.homedir() } = {}) {
+export function claudeHarnessConfig(repo, { home = os.homedir(), managedFile = MANAGED[process.platform] } = {}) {
   const json = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
   const dirs = d => { try { return fs.readdirSync(d, { withFileTypes: true }).filter(e => e.isDirectory() || e.isSymbolicLink()).map(e => e.name); } catch { return []; } };
-  const claudeJson = json(path.join(home, '.claude.json')) || {};
+  const cp = claudePaths(home), key = projectKey(repo);
+  const claudeJson = json(cp.json) || {}, project = claudeJson.projects?.[key] || {};
+  const managed = (managedFile && json(managedFile)) || {};
   // the settings files from the least to the most specific, so a later one's value wins
-  const settings = [['user', path.join(home, '.claude', 'settings.json')], ['project', path.join(repo, '.claude', 'settings.json')], ['local', path.join(repo, '.claude', 'settings.local.json')]].map(([scope, f]) => [scope, json(f) || {}]);
-  const offMcp = new Set([...(claudeJson.projects?.[repo]?.disabledMcpServers || []), ...settings.flatMap(([, j]) => j.disabledMcpjsonServers || [])].map(serverKey));
+  const settings = [['user', cp.settings], ['project', path.join(repo, '.claude', 'settings.json')], ['local', path.join(repo, '.claude', 'settings.local.json')]].map(([scope, f]) => [scope, json(f) || {}]);
+  const offMcp = new Set([...(project.disabledMcpServers || []), ...settings.flatMap(([, j]) => j.disabledMcpjsonServers || [])].map(serverKey));
   const servers = new Map();
-  for (const [scope, list] of [['user', claudeJson.mcpServers], ['local', claudeJson.projects?.[repo]?.mcpServers], ['project', json(path.join(repo, '.mcp.json'))?.mcpServers]]) {
-    for (const name of Object.keys(list || {})) servers.set(serverKey(name), { name, scope, off: offMcp.has(serverKey(name)) });
+  for (const [scope, list] of [['user', claudeJson.mcpServers], ['local', project.mcpServers], ['project', json(path.join(repo, '.mcp.json'))?.mcpServers]]) {
+    for (const name of Object.keys(list || {})) servers.set(serverKey(name), { name, scope: managed.allowManagedMcpServersOnly ? 'managed' : scope, off: offMcp.has(serverKey(name)) });
   }
   // the scope kept is where it is switched on (the advice names that setting); a later file switching it off wins
   const plugins = new Map();
@@ -114,11 +154,13 @@ export function claudeHarnessConfig(repo, { home = os.homedir() } = {}) {
       plugins.set(name, { id, scope: on !== false || !was ? scope : was.scope, off: on === false });
     }
   }
+  for (const [id, on] of Object.entries(managed.enabledPlugins || {})) plugins.set(id.split('@')[0], { id, scope: 'managed', off: on === false });
   const overrides = Object.assign({}, ...settings.map(([, j]) => j.skillOverrides || {}));
   const skills = new Map();
-  for (const n of dirs(path.join(home, '.claude', 'skills'))) skills.set(n, { scope: 'user', dir: path.join(home, '.claude', 'skills', n) });
+  for (const n of dirs(cp.skills)) skills.set(n, { scope: 'user', dir: path.join(cp.skills, n) });
   for (const n of dirs(path.join(repo, '.claude', 'skills'))) skills.set(n, { scope: 'project', dir: path.join(repo, '.claude', 'skills', n) });
-  return { servers, plugins, skills, overrides };
+  for (const n of Object.keys(managed.skillOverrides || {})) skills.set(n, { scope: 'managed' });
+  return { servers, plugins, skills, overrides, key, paths: cp };
 }
 
 // The checkouts of a repository: itself and its worktrees, whose sessions are its sessions too.
@@ -141,14 +183,16 @@ export function harnessUsage(repo, { days = 30, home = os.homedir(), sessions } 
     if (!rows.has(key)) rows.set(key, { key, loaded: 0, used: 0, tokens: 0, lastUsed: null, skills: new Set(), texts: {} });
     return rows.get(key);
   };
+  const read = sessions.map(s => ({ s, h: sessionHarness(s.file) }));
+  // the plugins the settings and the skill names name, longest first, to read a plugin server's key against
+  const known = [...new Set([...config.plugins.keys(), ...read.flatMap(({ h }) => [...h.loaded.keys()].filter(k => k.startsWith('skill:')).map(k => pluginOfSkill(k.slice(6))).filter(Boolean))])].sort((a, b) => b.length - a.length);
   const group = k => {
-    const [kind, name] = [k.slice(0, k.indexOf(':')), k.slice(k.indexOf(':') + 1)];
-    const plugin = kind === 'skill' ? pluginOfSkill(name) : pluginOfServer(name);
+    if (k.startsWith('mcp:plugin:')) { const rest = k.slice(11); return `plugin:${known.find(p => rest === p || rest.startsWith(`${p}_`)) || rest.split('_')[0]}`; }
+    const plugin = k.startsWith('skill:') ? pluginOfSkill(k.slice(6)) : null;
     return plugin ? `plugin:${plugin}` : k;
   };
   let counted = 0;
-  for (const s of sessions) {
-    const h = sessionHarness(s.file);
+  for (const { s, h } of read) {
     if (!h.loaded.size) continue; // written before Claude Code recorded what it loaded
     counted++;
     const tokens = new Map(), used = new Set([...h.used].map(group));
@@ -192,6 +236,7 @@ function describe(key, { servers, plugins, skills, overrides }, members) {
 // A plugin no setting names (one Claude Code brings) goes skill by skill. A claude.ai connector and a
 // server no settings file names are left to /mcp.
 function switchOff(s) {
+  if (s.scope === 'managed') return null;
   if (s.kind === 'plugin') return s.scope ? 'plugin' : s.skills?.length ? 'skills' : null;
   if (s.kind === 'mcp') return s.scope === 'project' ? 'mcpjson' : s.scope ? 'mcp' : null;
   if (s.kind === 'skill') return 'skill';
@@ -210,7 +255,7 @@ function action(s) {
   switch (switchOff(s)) {
     case 'plugin': return `"enabledPlugins": {"${s.id}": false} in .claude/settings.local.json`;
     case 'skills': return `"skillOverrides" "user-invocable-only" for its ${s.skills.length} skills in .claude/settings.local.json (each still runs as /name)`;
-    case 'mcp': return `"disabledMcpServers": ["${s.name}"] in this repository's entry of ~/.claude.json (what /mcp disable writes; /mcp enable undoes it)`;
+    case 'mcp': return `"disabledMcpServers": ["${s.name}"] in this repository's entry of ~/.claude.json, for all its worktrees (what /mcp disable writes; /mcp enable undoes it)`;
     case 'mcpjson': return `"disabledMcpjsonServers": ["${s.name}"] in .claude/settings.local.json`;
     case 'skill': return `"skillOverrides": {"${s.name}": "user-invocable-only"} in .claude/settings.local.json (it still runs as /${s.name})`;
   }
@@ -251,6 +296,17 @@ const writeJson = (f, v, pretty) => {
   fs.writeFileSync(tmp, pretty ? JSON.stringify(v, null, 2) + '\n' : JSON.stringify(v) + '\n');
   fs.renameSync(tmp, f);
 };
+// A file of the person's (Claude Code's settings, ~/.claude.json): written where a symlink points, with the
+// mode it had (~/.claude.json is 0600 and holds keys), through a file renamed into place.
+function writeTheirs(f, v) {
+  let target = f, mode = 0o644;
+  try { target = fs.realpathSync(f); mode = fs.statSync(target).mode & 0o777; } catch {}
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  const tmp = `${target}.thinker-${process.pid}`;
+  fs.writeFileSync(tmp, JSON.stringify(v, null, 2) + '\n', { mode });
+  fs.chmodSync(tmp, mode);
+  fs.renameSync(tmp, target);
+}
 export const readHarnessState = store => readJson(stateFile(store)) || {};
 const saveState = (store, st) => writeJson(stateFile(store), st);
 export const harnessPending = (store, { home } = {}) => !harnessNever(home) && Boolean(readHarnessState(store).pending);
@@ -271,7 +327,8 @@ export function scheduleHarnessSuggestion(store, { now = Date.now(), home, force
   if (harnessNever(home)) return null;
   const st = readHarnessState(store);
   if (st.pending && !force) {
-    if (st.pending.offeredAt && now - Date.parse(st.pending.offeredAt) > HARNESS.answerDays * DAY) {
+    // offered and not answered, or never offered (no Claude Code prompt here since): dropped after a while
+    if (now - Date.parse(st.pending.offeredAt || st.pending.at) > HARNESS.answerDays * DAY * (st.pending.offeredAt ? 1 : 2)) {
       store.log({ op: 'harness-answer', choice: 'unanswered', sources: st.pending.sources.length });
       delete st.pending; saveState(store, st);
     }
@@ -280,7 +337,7 @@ export function scheduleHarnessSuggestion(store, { now = Date.now(), home, force
   if (!force && st.checkedAt && now - Date.parse(st.checkedAt) < HARNESS.everyDays * DAY) return null;
   usage ??= harnessUsage(store.repo);
   const recent = t => t && now - Date.parse(t) < HARNESS.declineDays * DAY;
-  const advice = harnessAdvice(usage).filter(s => force || !recent(st.declined?.[s.key])).map(pick);
+  const advice = harnessAdvice(usage).filter(s => (force || !recent(st.declined?.[s.key])) && SAFE_NAME.test(s.name) && (s.skills || []).every(n => SAFE_NAME.test(n))).map(pick);
   const small = advice.filter(s => s.kind === 'skill' && s.tokens < HARNESS.bundle);
   const picks = (small.length > 1 ? [...advice.filter(s => !small.includes(s)), bundleOf(small)] : advice).slice(0, HARNESS.max);
   st.checkedAt = new Date(now).toISOString();
@@ -291,13 +348,17 @@ export function scheduleHarnessSuggestion(store, { now = Date.now(), home, force
 }
 
 const KIND = { plugin: 'plugin', mcp: 'MCP server', skill: 'skill', skills: '' };
-const answerCommand = repo => `"${process.execPath}" "${CLI}" harness --answer <names|none|never> --via picker --client claude --repo "${repo}"`;
+const labelOf = p => p.kind === 'skills' ? p.name : `${p.name} ${KIND[p.kind]}`;
+const shq = s => `'${String(s).replace(/'/g, `'\\''`)}'`;
+const answerCommand = repo => `${shq(process.execPath)} ${shq(CLI)} harness --answer '<labels|none|never>' --via picker --client claude --repo ${shq(repo)}`;
 const optionOf = p => p.kind === 'skills'
-  ? `"${p.name}" (label "${p.name}"): ${p.skills.join(', ')}; ~${formatTokens(p.tokens)} tokens in every session together; each still runs as /name`
-  : `"${p.name}" (label "${p.name} ${KIND[p.kind]}"): ~${formatTokens(p.tokens)} tokens in every session; ${p.used ? `used in ${p.used} of ${p.loaded}` : `used in none of ${p.loaded}`} sessions here`;
+  ? `label ${JSON.stringify(labelOf(p))}: ${p.skills.join(', ')}; ~${formatTokens(p.tokens)} tokens in every session together; each still runs as /name`
+  : `label ${JSON.stringify(labelOf(p))}: ~${formatTokens(p.tokens)} tokens in every session; ${p.used ? `used in ${p.used} of ${p.loaded}` : `used in none of ${p.loaded}`} sessions here`;
+// a session no person is at: `claude -p`, the Agent SDK (CLAUDE_CODE_ENTRYPOINT sdk-cli, sdk-ts, sdk-py…)
+const unattended = (env = process.env) => /^sdk-/.test(env.CLAUDE_CODE_ENTRYPOINT || '');
 // The prompt hook: the pending question, said once, as an instruction to the agent to put it to the person.
-export function harnessOffer(store, { client, home, now = Date.now() } = {}) {
-  if (client !== 'claude' || harnessNever(home)) return '';
+export function harnessOffer(store, { client, home, now = Date.now(), env = process.env } = {}) {
+  if (client !== 'claude' || harnessNever(home) || unattended(env)) return '';
   const st = readHarnessState(store);
   if (!st.pending || st.pending.offeredAt) return '';
   st.pending.offeredAt = new Date(now).toISOString();
@@ -307,39 +368,68 @@ export function harnessOffer(store, { client, home, now = Date.now() } = {}) {
   const options = ps.map((p, i) => `${i + 1}. ${optionOf(p)}`).join('\n');
   return `<thinker-harness-suggestion>
 Claude Code loads ${ps.length === 1 ? 'this' : 'these'} into every session in this repository, and the sessions here over the last ${st.pending.days} days almost never used ${ps.length === 1 ? 'it' : 'them'}: about ${formatTokens(total)} tokens of context in each session. thinker can switch ${ps.length === 1 ? 'it' : 'them'} off for this repository only, from the next session on.
-Before you start on the request, ask the user with your AskUserQuestion tool, not in prose: one question with multiSelect true, header "🧠 Thinker", and the question "${SIGNATURE}: switch these off in this repository? About ${formatTokens(total)} tokens are loaded into every session here and almost never used. Each can be turned back on with \`thinker harness --undo\`." Its options are the sources below, in this order, each with the label given and its line as the description. If there are more than four, ask the rest in a second question of the same call, header "🧠 Thinker" and question "${SIGNATURE}: and these?". Choosing none means not now (thinker does not suggest those again for a month); "never" (Other) stops these suggestions on this machine.
+Before you start on the request, ask the user with your AskUserQuestion tool, not in prose: one question with multiSelect true, header "🧠 Thinker", and the question "${SIGNATURE}: switch these off in this repository? About ${formatTokens(total)} tokens are loaded into every session here and almost never used. Each can be turned back on with \`thinker harness --undo\`." Its options are the sources below, in this order, each with the label given and the rest of its line as the description. If there are more than four, ask the rest in a second question of the same call, header "🧠 Thinker" and question "${SIGNATURE}: and these?". Choosing none means not now (thinker does not suggest those again for a month); "never" (Other) stops these suggestions on this machine.
 ${options}
-Then call thinker's \`harness\` tool with choice set to the chosen names exactly as quoted, comma-separated (or none, or never); if that tool is not available, run \`${answerCommand(store.repo)}\`. Then go on with the task.
+Then call thinker's \`harness\` tool with choice set to the chosen labels exactly as given, comma-separated (or none, or never); if that tool is not available, run \`${answerCommand(store.repo)}\`. Then go on with the task.
 </thinker-harness-suggestion>`;
 }
 
-// One edit of one JSON file, after a copy of the file as it was (THINKER_HOME/state/harness-backups/).
-function editJson(file, fn, { home, now, backups }) {
+// One edit of one JSON file, after a copy of what it changes as it was (THINKER_HOME/state/harness-backups/,
+// 0600, the last twenty kept): of ~/.claude.json only the project's entry (`part`), never the keys and
+// account it holds. `check` reads the file back: Claude Code rewrites ~/.claude.json while sessions run,
+// with no lock to take, and an edit it wrote over at that moment is reported, not assumed.
+const BACKUPS_KEPT = 20;
+function editJson(file, fn, { home, now, backups, part, check }) {
   const before = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null;
-  if (before != null && !backups.has(file)) {
-    const dir = path.join(home || thinkerHome(), 'state', 'harness-backups', new Date(now).toISOString().replace(/[:.]/g, '-'));
-    fs.mkdirSync(dir, { recursive: true });
-    const copy = path.join(dir, `${backups.size}-${path.basename(file)}`);
-    fs.writeFileSync(copy, before); backups.set(file, copy);
-  }
   let j = {}; if (before != null) { try { j = JSON.parse(before); } catch { throw new Error(`${file} is not valid JSON; left as it is`); } }
+  if (before != null && !backups.has(file)) {
+    const root = path.join(home || thinkerHome(), 'state', 'harness-backups'), dir = path.join(root, new Date(now).toISOString().replace(/[:.]/g, '-'));
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    const copy = path.join(dir, `${backups.size}-${path.basename(file)}`);
+    fs.writeFileSync(copy, part ? JSON.stringify({ file, part: part(j) ?? null }, null, 2) + '\n' : before, { mode: 0o600 });
+    backups.set(file, copy);
+    try { const all = fs.readdirSync(root).sort(); for (const d of all.slice(0, Math.max(0, all.length - BACKUPS_KEPT))) fs.rmSync(path.join(root, d), { recursive: true, force: true }); } catch {}
+  }
   fn(j);
-  writeJson(file, j, true);
+  writeTheirs(file, j);
+  if (check) { let back = null; try { back = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {} if (!back || !check(back)) throw new Error(`${path.basename(file)} was rewritten at the same moment (a Claude Code session saving it); try again`); }
+}
+// A settings.local.json thinker creates is kept out of git, as .thinker is (store.js:init): an agent's
+// `git add -A` would otherwise commit it.
+function excludeFromGit(repo, file) {
+  try {
+    const rel = path.relative(repo, file);
+    const r = (...a) => execFileSync('git', a, { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000 }).trim();
+    try { r('check-ignore', '-q', rel); return; } catch {}
+    const ex = path.join(r('rev-parse', '--path-format=absolute', '--git-common-dir'), 'info', 'exclude');
+    const cur = fs.existsSync(ex) ? fs.readFileSync(ex, 'utf8') : '';
+    if (!cur.split('\n').includes(rel)) { fs.mkdirSync(path.dirname(ex), { recursive: true }); fs.appendFileSync(ex, `${cur && !cur.endsWith('\n') ? '\n' : ''}${rel}\n`); }
+  } catch {}
 }
 const addTo = (list, v) => { const a = Array.isArray(list) ? list : []; return a.includes(v) ? a : [...a, v]; };
 
-// Switch one source off for this repository; returns what to undo it with.
-function apply(repo, s, { userHome, home, now, backups }) {
-  const local = path.join(repo, '.claude', 'settings.local.json'), claudeJson = path.join(userHome, '.claude.json');
-  const ctx = { home, now, backups };
-  if (s.how === 'plugin') { editJson(local, j => { (j.enabledPlugins ||= {})[s.id] = false; }, ctx); return { file: local, key: 'enabledPlugins', id: s.id }; }
+// Switch one source off; returns what to undo it with, the values it replaced included. A plugin or skill
+// goes off in this checkout (its settings.local.json), an MCP server in the repository, every worktree
+// with it (its entry in ~/.claude.json, keyed by the main checkout). A skill some settings file already
+// overrides is left as that file says ("off" is stronger than what thinker writes).
+function apply(repo, s, { userHome, home, now, backups, overrides = {} }) {
+  const local = path.join(repo, '.claude', 'settings.local.json'), claudeJson = claudePaths(userHome).json;
+  const ctx = { home, now, backups }, fresh = !fs.existsSync(local);
+  const done = u => { if (u.file === local && fresh) excludeFromGit(repo, local); return u; };
+  if (s.how === 'plugin') { let prev; editJson(local, j => { j.enabledPlugins ||= {}; prev = j.enabledPlugins[s.id]; j.enabledPlugins[s.id] = false; }, ctx); return done({ file: local, key: 'enabledPlugins', id: s.id, prev }); }
   if (s.how === 'skills' || s.how === 'skill') {
-    const names = s.how === 'skills' ? s.skills : [s.name];
+    const names = (s.how === 'skills' ? s.skills : [s.name]).filter(n => overrides[n] === undefined);
+    if (!names.length) throw new Error('its settings already say how it is listed');
     editJson(local, j => { j.skillOverrides ||= {}; for (const n of names) j.skillOverrides[n] = 'user-invocable-only'; }, ctx);
-    return { file: local, key: 'skillOverrides', ids: names };
+    return done({ file: local, key: 'skillOverrides', ids: names });
   }
-  if (s.how === 'mcpjson') { editJson(local, j => { j.disabledMcpjsonServers = addTo(j.disabledMcpjsonServers, s.name); }, ctx); return { file: local, key: 'disabledMcpjsonServers', id: s.name }; }
-  if (s.how === 'mcp') { editJson(claudeJson, j => { const p = ((j.projects ||= {})[repo] ||= {}); p.disabledMcpServers = addTo(p.disabledMcpServers, s.name); }, ctx); return { file: claudeJson, key: 'disabledMcpServers', project: repo, id: s.name }; }
+  if (s.how === 'mcpjson') { editJson(local, j => { j.disabledMcpjsonServers = addTo(j.disabledMcpjsonServers, s.name); }, ctx); return done({ file: local, key: 'disabledMcpjsonServers', id: s.name }); }
+  if (s.how === 'mcp') {
+    const key = projectKey(repo);
+    editJson(claudeJson, j => { const p = ((j.projects ||= {})[key] ||= {}); p.disabledMcpServers = addTo(p.disabledMcpServers, s.name); },
+      { ...ctx, part: j => j.projects?.[key], check: j => (j.projects?.[key]?.disabledMcpServers || []).includes(s.name) });
+    return { file: claudeJson, key: 'disabledMcpServers', project: key, id: s.name };
+  }
   throw new Error(`no setting switches ${s.name} off`);
 }
 
@@ -348,48 +438,56 @@ function apply(repo, s, { userHome, home, now, backups }) {
 export function answerHarness(store, choice, { client, via = 'picker', home, userHome = os.homedir(), now = Date.now() } = {}) {
   const st = readHarnessState(store), pending = st.pending?.sources || [];
   const raw = String(choice || '').trim();
+  if (!st.pending && !/^never$/i.test(raw)) return `No thinker question waits for an answer in ${store.repo}; nothing changed. Go on with the task.`;
   if (/^never$/i.test(raw)) {
     const f = neverFile(home); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, new Date(now).toISOString() + '\n');
     delete st.pending; saveState(store, st);
     store.log({ op: 'harness-answer', choice: 'never', client, via, sources: pending.length });
     return 'Recorded: thinker will not suggest switching tools off again on this machine (`thinker harness` still shows the report). Go on with the task.';
   }
-  const names = raw.split(/[,\n]/).map(s => s.trim().replace(/^["'`]|["'`]$/g, '').replace(/ (plugin|MCP server|skill)$/i, '')).filter(Boolean);
-  const chosen = pending.filter(p => names.includes(p.name));
+  // a choice names an option by its label ("rea MCP server"), its key, or its bare name where only one has it
+  const said = raw.split(/[,\n]/).map(s => s.trim().replace(/^["'`]|["'`]$/g, '').toLowerCase()).filter(Boolean);
+  const chosen = pending.filter(p => said.some(w => w === labelOf(p).toLowerCase() || w === String(p.key).toLowerCase() || (w === p.name.toLowerCase() && pending.filter(q => q.name.toLowerCase() === w).length === 1)));
   const at = new Date(now).toISOString();
   st.declined ||= {};
   for (const p of pending) if (!chosen.includes(p)) for (const k of p.members || [p.key]) st.declined[k] = at;
   delete st.pending;
   if (!chosen.length) { saveState(store, st); store.log({ op: 'harness-answer', choice: 'none', client, via, sources: pending.length }); return 'Recorded: nothing switched off; thinker will not suggest these again for a month. Go on with the task.'; }
-  const backups = new Map(), done = [], failed = [];
+  const backups = new Map(), done = [], failed = [], overrides = claudeHarnessConfig(store.repo, { home: userHome }).overrides;
   for (const s of chosen) {
-    try { done.push({ key: s.key, members: s.members, name: s.name, kind: s.kind, tokens: s.tokens, at, undo: apply(store.repo, s, { userHome, home, now, backups }), cards: cardsFor(s) }); }
+    try { done.push({ key: s.key, members: s.members, name: s.name, kind: s.kind, tokens: s.tokens, at, undo: apply(store.repo, s, { userHome, home, now, backups, overrides }), cards: cardsFor(s) }); }
     catch (e) { failed.push(`${s.name} (${e.message})`); }
   }
   (st.applied ||= []).push(...done);
   saveState(store, st);
   const tokens = done.reduce((t, d) => t + d.tokens, 0);
   store.log({ op: 'harness-answer', choice: 'off', client, via, sources: pending.length, chosen: chosen.length, switched: done.length, tokens });
-  const said = done.length ? `Switched off for this repository from the next session on: ${done.map(d => d.name).join(', ')}, about ${formatTokens(tokens)} tokens a session. \`thinker harness --undo\` turns them back on${backups.size ? `; the files as they were are under ${path.dirname([...backups.values()][0])}` : ''}.` : '';
-  return `${said}${failed.length ? `${said ? ' ' : ''}Not switched off: ${failed.join('; ')}.` : ''} Tell the user in one line, then go on with the task.`;
+  const line = done.length ? `Switched off here from the next session on: ${done.map(d => d.name).join(', ')}, about ${formatTokens(tokens)} tokens a session. \`thinker harness --undo\` turns them back on${backups.size ? `; what the files said before is under ${path.dirname([...backups.values()][0])}` : ''}.` : '';
+  return `${line}${failed.length ? `${line ? ' ' : ''}Not switched off: ${failed.join('; ')}.` : ''} Tell the user in one line, then go on with the task.`;
 }
 
 // `thinker harness --undo`: every source the answers switched off here, turned back on.
 export function undoHarness(store, { home, now = Date.now() } = {}) {
   const st = readHarnessState(store), applied = st.applied || [];
   if (!applied.length) return 'Nothing to undo: thinker has switched nothing off in this repository.';
-  const backups = new Map(), ctx = { home, now, backups };
-  for (const { undo: u } of applied) {
-    editJson(u.file, j => {
-      if (u.key === 'enabledPlugins') { if (j.enabledPlugins?.[u.id] === false) delete j.enabledPlugins[u.id]; }
-      else if (u.key === 'skillOverrides') { for (const n of u.ids) if (j.skillOverrides?.[n] === 'user-invocable-only') delete j.skillOverrides[n]; }
-      else if (u.key === 'disabledMcpjsonServers') j.disabledMcpjsonServers = (j.disabledMcpjsonServers || []).filter(n => n !== u.id);
-      else if (u.key === 'disabledMcpServers') { const p = j.projects?.[u.project]; if (p) p.disabledMcpServers = (p.disabledMcpServers || []).filter(n => n !== u.id); }
-    }, ctx);
+  // each entry on its own: one file that cannot be read keeps its entry for the next try, the rest go back
+  const backups = new Map(), ctx = { home, now, backups }, back = [], kept = [];
+  for (const a of applied) {
+    const u = a.undo;
+    try {
+      editJson(u.file, j => {
+        if (u.key === 'enabledPlugins') { if (j.enabledPlugins?.[u.id] === false) { if (u.prev === undefined) delete j.enabledPlugins[u.id]; else j.enabledPlugins[u.id] = u.prev; } }
+        else if (u.key === 'skillOverrides') { for (const n of u.ids) if (j.skillOverrides?.[n] === 'user-invocable-only') delete j.skillOverrides[n]; }
+        else if (u.key === 'disabledMcpjsonServers') j.disabledMcpjsonServers = (j.disabledMcpjsonServers || []).filter(n => n !== u.id);
+        else if (u.key === 'disabledMcpServers') { const p = j.projects?.[u.project]; if (p) p.disabledMcpServers = (p.disabledMcpServers || []).filter(n => n !== u.id); }
+      }, u.key === 'disabledMcpServers' ? { ...ctx, part: j => j.projects?.[u.project] } : ctx);
+      back.push(a.name);
+    } catch (e) { kept.push({ ...a, undoError: e.message }); }
   }
-  delete st.applied; delete st.recalled; saveState(store, st);
-  store.log({ op: 'harness-undo', sources: applied.length });
-  return `Turned back on in this repository, from the next session on: ${applied.map(a => a.name).join(', ')}.`;
+  if (kept.length) st.applied = kept; else delete st.applied;
+  delete st.recalled; saveState(store, st);
+  store.log({ op: 'harness-undo', sources: back.length, failed: kept.length });
+  return `${back.length ? `Turned back on, from the next session on: ${back.join(', ')}.` : ''}${kept.length ? `${back.length ? ' ' : ''}Not turned back on: ${kept.map(k => `${k.name} (${k.undoError})`).join('; ')}; \`thinker harness --undo\` tries again.` : ''}`;
 }
 
 // --- recall: a switched-off source the request needs -------------------------------------------------
@@ -441,8 +539,10 @@ export async function harnessRecall(store, prompt, { session, client, scoreFn } 
     saveState(store, st);
   }
   store.log({ op: 'harness-recall', session: session === 'unknown' ? undefined : session, client, card: c.id, ce: c.ce == null ? undefined : Math.round(c.ce * 100) / 100 });
-  const what = String(c.text).replace(/^\S+?(?=: | \()(\s*\([^)]*\))?:\s*/, '').split(/(?<=\.)\s/)[0].slice(0, 220);
-  return `<thinker-switched-off>\n${c.name} is switched off in this repository (${what}). If this request needs it, tell the user that ${c.back}; otherwise ignore this line.\n</thinker-switched-off>`;
+  // the description is the skill's own text, a third party's: a short excerpt, quoted as data, with nothing
+  // that could close the block or open another
+  const what = String(c.text).replace(/^\S+?(?=: | \()(\s*\([^)]*\))?:\s*/, '').replace(/[<>`\n\r]+/g, ' ').split(/(?<=\.)\s/)[0].trim().slice(0, 160);
+  return `<thinker-switched-off>\n${c.name} is switched off here; its listing said: ${JSON.stringify(what)}. If this request needs it, tell the user that ${c.back}; otherwise ignore this line.\n</thinker-switched-off>`;
 }
 
 // --- what switching off saved, measured -----------------------------------------------------------------
@@ -460,7 +560,7 @@ export function harnessSavings(store, { sessions, home = os.homedir() } = {}) {
   const read = sessions.map(s => ({ ...sessionHarness(s.file), mtime: s.mtime })).filter(h => h.loaded.size && h.start);
   const keysOf = a => {
     const ks = a.members || [a.key];
-    if (a.kind === 'plugin') return k => k === a.key || k.startsWith(`skill:${a.name}:`) || k.startsWith(`mcp:plugin_${a.name}_`);
+    if (a.kind === 'plugin') return k => k === a.key || k.startsWith(`skill:${a.name}:`) || k === `mcp:plugin:${a.name}` || k.startsWith(`mcp:plugin:${a.name}_`);
     return k => ks.includes(k);
   };
   let total = 0, input = 0;

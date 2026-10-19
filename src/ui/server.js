@@ -215,6 +215,7 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
     return { ...r, stats: cacheStats(r.checkout), pending, job: jobs.list().filter(j => j.checkout === r.checkout).pop() || null };
   };
   let candidates = null, agents = null, apps = null;
+  const harnessCache = new Map();
   const server = http.createServer(async (req, res) => {
     lastRequest = Date.now();
     const url = new URL(req.url, 'http://127.0.0.1');
@@ -263,7 +264,12 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
       if (req.method === 'GET' && url.pathname === '/api/harness') {
         if (want === 'all') return json(res, 200, { repos: repos().flatMap(r => { try { const st = open(r.checkout), sv = harnessSavings(st); return sv.sources.length ? [{ repo: r.id, repoName: r.name, saved: sv }] : []; } catch { return []; } }) });
         const one = storeFor(want); if (!one) return json(res, 400, { error: 'unknown repository' });
-        return json(res, 200, harnessView(one, { days: Number(url.searchParams.get('days')) || 30 }));
+        // it reads every transcript of the window (seconds on a busy repository): kept a minute, dropped on an action
+        const k = `${one.repo}:${Number(url.searchParams.get('days')) || 30}`, hit = harnessCache.get(k);
+        if (hit && Date.now() - hit.at < 60_000) return json(res, 200, hit.view);
+        const view = harnessView(one, { days: Number(url.searchParams.get('days')) || 30 });
+        harnessCache.set(k, { at: Date.now(), view });
+        return json(res, 200, view);
       }
       if (req.method === 'GET' && url.pathname === '/api/behaviors') {
         const stores = storesFor(want); if (!stores) return json(res, 400, { error: 'unknown repository' });
@@ -328,6 +334,7 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
       const st = storeFor(String(b.repo || ''));
       if (!st) return json(res, 400, { error: 'unknown repository' });
       let r;
+      if (url.pathname.startsWith('/api/harness/')) harnessCache.clear();
       if (url.pathname === '/api/behaviors/accept') r = acceptPending(st, b.id, { mutability: b.mutability || 'mutable', edit: b.title || b.body ? { title: b.title, body: b.body } : null });
       else if (url.pathname === '/api/behaviors/discard') r = discardPending(st, b.id);
       else if (url.pathname === '/api/cache/review') {
