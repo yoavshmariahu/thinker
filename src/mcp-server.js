@@ -21,7 +21,7 @@ import { isTestMode } from './test-mode.js';
 import { warmupPending, warmupOffer, answerWarmup, startSessionWarmup, subagentHarness, WARMUP_CHOICES } from './repo-onboard.js';
 import { coveragePending, answerCoverage } from './coverage.js';
 import { commitsPending, answerCommits } from './commits-offer.js';
-import { harnessPending, answerHarness } from './harness.js';
+import { harnessPending, answerHarness, switchedOffSkills, skillLines } from './harness.js';
 import { queueDir, buildRunning, buildRequested, nextRequest, answerRequest, requestText } from './session-llm.js';
 import { anyDesktopApp, ancestorPids } from './app-host.js';
 
@@ -222,6 +222,13 @@ function registerTools() {
     const text = s => ({ content: [{ type: 'text', text: offer ? `${offer}\n\n${s}` : s }] });
     const turnContext = agentTurn();
     const r = await lookup(store, { query: query || '', kind, client: 'mcp', ...turnContext, budget: budget || 2500, maxNotes: maxNotes || 3, snippets: snippetsOn(store) });
+    // the switched-off skills the agent's words match, beside the notes (harness.js:switchedOffSkills; off by default)
+    const skills = kind ? [] : await switchedOffSkills(store, query).catch(() => []);
+    if (skills.length) {
+      store.log({ op: 'harness-skill-lookup', client: 'mcp', query: String(query).slice(0, 200), skills: skills.map(c => c.id) });
+      const found = `Switched-off skills for this:\n${skillLines(skills)}`;
+      return r.included.length ? withNotice(text(`${found}\n\n${r.text}`), r.included, turnContext) : text(found);
+    }
     if (kind === 'behavior' && !String(query || '').trim()) {
       const rows = listBehaviors(store);
       if (!rows.length) return text('No desired behaviors are written down for this repository yet (they come from the design documents checked in; when the person asks for one, the behavior tool adds it).');

@@ -699,6 +699,46 @@ export async function harnessRecall(store, prompt, { session, client, scoreFn } 
   return `<thinker-switched-off>\n${c.name} is switched off here; its listing said: ${JSON.stringify(what)}. If this request needs it, ${then}; otherwise ignore this line.\n</thinker-switched-off>`;
 }
 
+// --- switched-off skills, found by the agent ---------------------------------------------------------------
+// Recall matches the person's request, and a request rarely says which skill it needs: on PostHog's 107
+// skills it matched none of 28 sessions, and agents with the listing gone opened 0.6 skills a session against
+// 2.9 with it (2026-10-19). The agent knows what it is about to change, so it is offered the skills two ways,
+// each off until an experiment shows it helps (AGENTS.md): `lookup` searches the switched-off skills with the
+// agent's own words (`harness: { skillLookup: true }`, THINKER_HARNESS_SKILL_LOOKUP=on), and an index of
+// their names alone, a fraction of the listing they replace (switchedOffSkillIndex, for the guidance).
+const flag = (store, key, env) => {
+  if (!harnessOn(store)) return false;
+  const v = process.env[env] || '';
+  if (/^(0|off|false)$/i.test(v)) return false;
+  return /^(1|on|true)$/i.test(v) || store.config().harness?.[key] === true;
+};
+export const skillLookupOn = store => flag(store, 'skillLookup', 'THINKER_HARNESS_SKILL_LOOKUP');
+const skillCards = (store, client) => (readHarnessState(store).applied || [])
+  .filter(a => a.kind === 'skill' || a.kind === 'skills' || /skill/.test(a.key || ''))
+  .filter(a => !client || (a.client || 'claude') === client).flatMap(a => a.cards || []);
+// a skill's description says when to use it, as Codex and Claude Code listed it
+const purpose = c => String(c.text).replace(/^- /, '').replace(/^\S+?(?=: | \()(\s*\([^)]*\))?:\s*/, '').replace(/[<>`\n\r]+/g, ' ').split(/(?<=\.)\s/)[0].trim().slice(0, 200);
+const howTo = c => c.use || c.back;
+
+// The switched-off skills whose name and description carry the agent's words, by the hook's lexical ranking.
+export async function switchedOffSkills(store, query, { client, max = 3 } = {}) {
+  if (!skillLookupOn(store) || !String(query || '').trim()) return [];
+  const cards = skillCards(store, client);
+  if (!cards.length) return [];
+  const { rank } = await import('./rank.js');
+  const notes = cards.map(c => ({ id: c.id, title: c.name.replace(/[:_-]+/g, ' '), answers: [purpose(c)], body: c.text, kind: 'howto', deps: [], card: c }));
+  return rank(notes, { query }).slice(0, max).map(r => r.note.card);
+}
+export const skillLines = cards => cards.map(c => `- ${c.name}: ${purpose(c)} (${howTo(c)})`).join('\n');
+
+// The names of the switched-off skills alone, for the agent's instructions: what exists and where it is.
+export function switchedOffSkillIndex(store, { client } = {}) {
+  const cards = skillCards(store, client);
+  if (!cards.length) return '';
+  const dirs = [...new Set(cards.map(c => (String(c.use || '').match(/read (.+)\/[^/]+\/SKILL\.md/) || [])[1]).filter(Boolean))];
+  return `This repository's skills are not listed in your instructions. When one applies to your change, ${dirs.length === 1 ? `read ${dirs[0]}/<name>/SKILL.md` : 'read its SKILL.md'} and follow it: ${cards.map(c => c.name).join(', ')}.`;
+}
+
 // --- what switching off saved, measured -----------------------------------------------------------------
 // Each source switched off here keeps what it cost a session before (the report's measure, from the
 // transcripts). Every Claude Code session started here since is read for it: absent, the session saved that
