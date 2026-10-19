@@ -4,7 +4,8 @@
 import { harnessUsage, harnessAdvice, harnessSavings, clientPrefix, MIN_TOKENS, scheduleHarnessSuggestion, answerHarness, undoHarness, switchOffNow, setHarnessSettings, harnessOn, OFF_MESSAGE } from '../harness.js';
 import { formatTokens } from '../model-usage.js';
 
-const KIND = { plugin: 'plugin', mcp: 'MCP server', connector: 'claude.ai connector', skill: 'skill' };
+const KIND = { plugin: 'plugin', mcp: 'MCP server', connector: 'claude.ai connector', skill: 'skill', desktop: 'desktop app' };
+const kindOf = s => s.kind === 'connector' && s.scope === 'desktop' ? 'desktop connector' : KIND[s.kind] || s.kind;
 
 async function harnessCommand({ store, repo, flags, out }) {
   const onOff = v => v === undefined ? undefined : /^(on|true|1|yes)$/i.test(String(v));
@@ -30,20 +31,23 @@ async function harnessCommand({ store, repo, flags, out }) {
   if (flags.json) { out(JSON.stringify({ ...usage, advice, saved }, null, 2)); return; }
   if (saved.sources.length) {
     out(`Switched off here by thinker, measured in the ${saved.sessions} Claude Code, Codex or Cursor session${saved.sessions === 1 ? '' : 's'} started since:`);
-    for (const s of saved.sources) out(`- ${clientPrefix(s.client)}${s.name} (${KIND[s.kind] || s.kind}), off since ${s.at.slice(0, 10)}: absent from ${s.absent} of ${s.sessions} sessions, ~${formatTokens(s.tokens)} tokens of context saved (~${formatTokens(s.inputTokens)} input tokens over their model calls)${s.stillLoaded ? `; still loaded in ${s.stillLoaded}, where the switch did not take effect` : ''}`);
+    for (const s of saved.sources) out(`- ${clientPrefix(s.client)}${s.name} (${kindOf(s)}), off since ${s.at.slice(0, 10)}: absent from ${s.absent} of ${s.sessions} sessions, ~${formatTokens(s.tokens)} tokens of context saved (~${formatTokens(s.inputTokens)} input tokens over their model calls)${s.stillLoaded ? `; still loaded in ${s.stillLoaded}, where the switch did not take effect` : ''}`);
     out(`In all: ~${formatTokens(saved.tokens)} tokens of context, ~${formatTokens(saved.inputTokens)} input tokens. \`thinker harness --undo\` turns them back on.\n`);
   }
   if (!usage.sessions) { out(`No Claude Code, Codex or Cursor session here in the last ${days} days records what it loaded.`); return; }
   out(`What Claude Code, Codex or Cursor loaded into ${usage.sessions} sessions here over ${days} days, and how many used it:\n`);
   out(`  ${'source'.padEnd(34)} ${'kind'.padEnd(20)} ${'used'.padStart(9)}  tokens each`);
   for (const s of usage.sources.filter(s => s.tokens >= MIN_TOKENS).slice(0, flags.verbose ? undefined : 15)) {
-    out(`  ${(clientPrefix(s.client) + s.name).slice(0, 34).padEnd(34)} ${(KIND[s.kind] + (s.scope && s.kind !== 'connector' ? ` (${s.scope})` : '')).padEnd(20)} ${`${s.used}/${s.loaded}`.padStart(9)}  ~${formatTokens(s.tokens)}`);
+    out(`  ${(clientPrefix(s.client) + s.name).slice(0, 34).padEnd(34)} ${(kindOf(s) + (s.scope && !['connector', 'desktop'].includes(s.kind) ? ` (${s.scope})` : '')).padEnd(20)} ${`${s.used}/${s.loaded}`.padStart(9)}  ~${formatTokens(s.tokens)}`);
   }
+  // the desktop app's own instructions: counted, switched in the app's Settings where it has a switch, never by thinker
+  const app = usage.sources.filter(s => s.kind === 'desktop' && s.tokens >= MIN_TOKENS && s.used / s.loaded < 0.1);
+  if (app.length) out(`\nThe Claude desktop app adds its own instructions, which only the app switches: ${app.map(s => `${s.name} (~${formatTokens(s.tokens)}, used in ${s.used} of ${s.loaded}${s.where ? `; ${s.where}` : ''})`).join(', ')}. The definitions of its built-in tools (browser pane, simulator, session tools) are not recorded and not counted.`);
   if (!advice.length) { out('\nEverything recorded here is used, too small to suggest, or has no supported local switch.'); return; }
   const total = advice.reduce((n, s) => n + s.tokens, 0);
   out(`\nWorth switching off here, ~${formatTokens(total)} tokens across these source listings (varies by agent):`);
   for (const s of advice) {
-    out(`- ${clientPrefix(s.client)}${s.name} (${KIND[s.kind]}): ${s.unused ? 'no session here used it' : `${s.used} of ${s.loaded} sessions used it`}, ~${formatTokens(s.tokens)} tokens each.`);
+    out(`- ${clientPrefix(s.client)}${s.name} (${kindOf(s)}): ${s.unused ? 'no session here used it' : `${s.used} of ${s.loaded} sessions used it`}, ~${formatTokens(s.tokens)} tokens each.`);
     out(`  ${s.action}`);
   }
   out('\nNothing was changed. `thinker harness --suggest` asks you in your next Claude Code, Codex or Cursor prompt here, all of them in one question.');
