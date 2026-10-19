@@ -318,6 +318,11 @@ const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), 'cli.js');
 const stateFile = store => path.join(store.dir, 'state', 'harness.json');
 const neverFile = (home = thinkerHome()) => path.join(home, 'state', 'harness-never');
 export const harnessNever = home => fs.existsSync(neverFile(home));
+// Off until it is tested and works for every agent that matters (2026-10-19, the owner's decision): no
+// question, no recall line, no advice on the page unless `harness: { enabled: true }` in .thinker/config.json.
+// `thinker harness --undo` still reverses what was switched off before.
+export const harnessOn = store => store.config().harness?.enabled === true;
+export const OFF_MESSAGE = 'thinker harness is off here (not yet released): `thinker harness --enabled on` turns it on for this repository.';
 const readJson = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
 const writeJson = (f, v, pretty) => {
   fs.mkdirSync(path.dirname(f), { recursive: true });
@@ -338,7 +343,7 @@ function writeTheirs(f, v) {
 }
 export const readHarnessState = store => readJson(stateFile(store)) || {};
 const saveState = (store, st) => writeJson(stateFile(store), st);
-export const harnessPending = (store, { home } = {}) => !harnessNever(home) && Boolean(readHarnessState(store).pending);
+export const harnessPending = (store, { home } = {}) => harnessOn(store) && !harnessNever(home) && Boolean(readHarnessState(store).pending);
 
 // What the question needs of a source, and nothing that could hold a secret.
 const pick = s => ({ client: s.client, dir: s.dir, evidenceKeys: s.evidenceKeys, key: s.key, name: s.name, kind: s.kind, scope: s.scope, id: s.id, how: s.how, skills: s.skills, tokens: s.tokens, used: s.used, loaded: s.loaded, texts: s.texts });
@@ -360,7 +365,7 @@ function pickSources(usage, keep = () => true, max = HARNESS.max) {
 // Maintenance (or `thinker harness --suggest`, with force): a new question when there is something
 // to ask. Returns the sources queued, or null.
 export function scheduleHarnessSuggestion(store, { now = Date.now(), home, force = false, usage } = {}) {
-  if (harnessNever(home)) return null;
+  if (!harnessOn(store) || harnessNever(home)) return null;
   const st = readHarnessState(store);
   if (st.pending && !force) {
     // offered and not answered, or never offered (no supported prompt here since): dropped after a while
@@ -395,7 +400,7 @@ const inDesktop = (env = process.env) => env.CLAUDE_CODE_ENTRYPOINT === 'claude-
 const offerable = (s, client, env) => (s.client || 'claude') === client && (s.how !== 'desktop-connector' || inDesktop(env));
 // The prompt hook: the pending question, said once, as an instruction to the agent to put it to the person.
 export function harnessOffer(store, { client, home, now = Date.now(), env = process.env } = {}) {
-  if (!['claude', 'codex'].includes(client) || harnessNever(home) || unattended(env)) return '';
+  if (!['claude', 'codex'].includes(client) || !harnessOn(store) || harnessNever(home) || unattended(env)) return '';
   const st = readHarnessState(store);
   if (!st.pending || st.pending.offeredAt || !st.pending.sources.some(s => offerable(s, client, env))) return '';
   st.pending.offeredAt = new Date(now).toISOString();
@@ -577,7 +582,7 @@ export function undoHarness(store, { home, now = Date.now(), names } = {}) {
 // otherwise. A new way of reaching the agent: off until an experiment shows it helps (AGENTS.md);
 // `harness: { recall: true }` in .thinker/config.json, or THINKER_HARNESS_RECALL=on, turns it on.
 export const RECALL = { floor: -2, k: 8, sessions: 50 };
-export const recallOn = store => /^(1|on|true)$/i.test(process.env.THINKER_HARNESS_RECALL || '') || store.config().harness?.recall === true;
+export const recallOn = store => harnessOn(store) && (/^(1|on|true)$/i.test(process.env.THINKER_HARNESS_RECALL || '') || store.config().harness?.recall === true);
 
 // One card per thing the person can bring back by name: a skill each (a plugin's too), a server whole.
 function cardsFor(s) {
@@ -658,6 +663,7 @@ export function harnessSavings(store, { sessions, home = os.homedir() } = {}) {
 // Everything the page shows (ui/server.js /api/harness) and the command prints: the report, the advice,
 // what was switched off with what it saved, and whether a question waits.
 export function harnessView(store, { days = 30, home } = {}) {
+  if (!harnessOn(store)) return { enabled: false, days, settings: harnessSettings(store, { home }) };
   const usage = harnessUsage(store.repo, { days });
   const slim = s => ({ client: s.client, key: s.key, name: s.name, kind: s.kind, scope: s.scope, loaded: s.loaded, used: s.used, tokens: s.tokens, off: s.off });
   return {
@@ -666,19 +672,21 @@ export function harnessView(store, { days = 30, home } = {}) {
     advice: harnessAdvice(usage).map(s => ({ ...slim(s), label: labelOf(s), action: s.action })),
     settings: harnessSettings(store, { home }),
     saved: harnessSavings(store),
-    pending: harnessPending(store, { home }), never: harnessNever(home),
+    pending: harnessPending(store, { home }), never: harnessNever(home), enabled: true,
   };
 }
 
 // --- the controls: `thinker harness --off/--undo/--weekly/--recall/--suggestions`, and the page's buttons ---
 export function harnessSettings(store, { home } = {}) {
-  return { weekly: store.config().maintain?.harness === true, recall: recallOn(store), suggestions: !harnessNever(home) };
+  return { enabled: harnessOn(store), weekly: store.config().maintain?.harness === true, recall: recallOn(store), suggestions: !harnessNever(home) };
 }
 // weekly: the question from maintenance (maintain.harness); recall: the switched-off lines (harness.recall),
-// both in .thinker/config.json; suggestions: this machine's "never" (THINKER_HOME/state/harness-never)
-export function setHarnessSettings(store, { weekly, recall, suggestions } = {}, { home } = {}) {
-  if (weekly !== undefined || recall !== undefined) {
+// both in .thinker/config.json; suggestions: this machine's "never" (THINKER_HOME/state/harness-never);
+// enabled: the whole feature here (harness.enabled), off by default
+export function setHarnessSettings(store, { enabled, weekly, recall, suggestions } = {}, { home } = {}) {
+  if (enabled !== undefined || weekly !== undefined || recall !== undefined) {
     const file = path.join(store.dir, 'config.json'), cfg = readJson(file) || {};
+    if (enabled !== undefined) (cfg.harness ||= {}).enabled = Boolean(enabled);
     if (weekly !== undefined) (cfg.maintain ||= {}).harness = Boolean(weekly);
     if (recall !== undefined) (cfg.harness ||= {}).recall = Boolean(recall);
     writeJson(file, cfg, true);
@@ -692,6 +700,7 @@ export function setHarnessSettings(store, { weekly, recall, suggestions } = {}, 
 // Switch named sources off now, without a question: the page's checkboxes, `--off`. What is not named is
 // not passed on; a question waiting here is replaced by this answer.
 export function switchOffNow(store, labels, { home, userHome, now = Date.now(), via = 'cli', usage } = {}) {
+  if (!harnessOn(store)) return OFF_MESSAGE;
   const picks = pickSources(usage || harnessUsage(store.repo), () => true, Infinity);
   if (!picks.length) return 'Nothing here is worth switching off; nothing changed.';
   const st = readHarnessState(store);

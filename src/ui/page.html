@@ -541,8 +541,11 @@ async function loadHarness() {
   const el = $('#harness-body'); if (!el) return;
   try {
     const v = await api(`/api/harness?repo=${encodeURIComponent(REPO)}${days ? `&days=${days}` : ''}`);
+    // off until released (harness.js:harnessOn): the page shows nothing of it
+    if (v.enabled === false) { el.remove(); return; }
     let h = `<div class="section-head"><div><div class="kicker">Recorded in Claude Code and Codex transcripts</div><div class="section-title">Tools loaded into every session</div></div></div>`;
     if (ALL()) {
+      if (!(v.repos || []).length) { el.remove(); return; }
       const tot = (v.repos || []).reduce((a, r) => ({ t: a.t + r.saved.tokens, i: a.i + r.saved.inputTokens }), { t: 0, i: 0 });
       h += (v.repos || []).length
         ? `<div class="cards">${card('Context saved', fmt(tot.t), 'tokens of tools switched off by thinker, in the sessions started since', [], true)}${card('Input tokens saved', fmt(tot.i), 'the same context, read again in each model call of those sessions', [], true)}</div><div class="panel"><table>${SAVED_HEAD}<tbody>${v.repos.map(r => savedRows(r.saved, r.repoName)).join('')}</tbody></table></div>`

@@ -47,7 +47,10 @@ function machine(t) {
 function checkout(t) {
   const dir = tmp('thinker-desktop-store-'); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   execFileSync('git', ['-c', 'core.hooksPath=/dev/null', 'init', '-q', '-b', 'main'], { cwd: dir });
-  return new Store(dir).init();
+  // harness.js is off until released (harnessOn); these tests are of the feature switched on
+  const store = new Store(dir).init(), f = path.join(store.dir, 'config.json'), cfg = store.config();
+  fs.writeFileSync(f, JSON.stringify({ ...cfg, harness: { ...cfg.harness, enabled: true } }));
+  return store;
 }
 
 test('a desktop session adds its connectors\' always-loaded tools and the app\'s own instructions', t => {

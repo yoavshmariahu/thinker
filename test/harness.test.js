@@ -102,12 +102,18 @@ test('a source switched off since those sessions ran is not advised again', t =>
   assert.equal(gtm.scope, 'user', 'the scope kept is where it is switched on');
 });
 
+// harness.js is off until released (harnessOn); these tests are of the feature switched on
+function on(store) {
+  const f = path.join(store.dir, 'config.json'), cfg = store.config();
+  fs.writeFileSync(f, JSON.stringify({ ...cfg, harness: { ...cfg.harness, enabled: true } }));
+  return store;
+}
 // --- the suggestion, its answer and its undo ---------------------------------------------------------
 const T0 = Date.parse('2026-10-18T12:00:00Z');
 function checkout(t) {
   const dir = tmp('thinker-harness-store-'); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   execFileSync('git', ['-c', 'core.hooksPath=/dev/null', 'init', '-q', '-b', 'main'], { cwd: dir });
-  return new Store(dir).init();
+  return on(new Store(dir).init());
 }
 function suggested(t, extraSkills = '') {
   const dir = tmp('thinker-harness-'); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
@@ -252,7 +258,7 @@ test('a worktree\'s MCP switch is written under the main checkout, the key Claud
   const wt = path.join(dir, '.worktrees', 'x'); git('worktree', 'add', '-q', '-b', 'x', wt);
   assert.equal(projectKey(wt), dir);
   assert.equal(projectKey(dir), dir);
-  const store = new Store(fs.realpathSync(wt)).init(), h = home(t), th = tmp('thinker-harness-th-'); t.after(() => fs.rmSync(th, { recursive: true, force: true }));
+  const store = on(new Store(fs.realpathSync(wt)).init()), h = home(t), th = tmp('thinker-harness-th-'); t.after(() => fs.rmSync(th, { recursive: true, force: true }));
   const d = tmp('thinker-harness-'); t.after(() => fs.rmSync(d, { recursive: true, force: true }));
   const usage = harnessUsage(store.repo, { home: h, sessions: [0, 1, 2].map(i => session(d, `w${i}`, [call('mcp__artemis__get_experiment')])) });
   scheduleHarnessSuggestion(store, { now: T0, home: th, usage });
@@ -328,7 +334,7 @@ test('a skill a setting already overrides is left as it is, and undo goes on pas
 
 test('a settings.local.json thinker creates is kept out of git', t => {
   const { dir } = gitRepo(t);
-  const store = new Store(dir).init(), h = home(t), th = tmp('thinker-harness-th-'); t.after(() => fs.rmSync(th, { recursive: true, force: true }));
+  const store = on(new Store(dir).init()), h = home(t), th = tmp('thinker-harness-th-'); t.after(() => fs.rmSync(th, { recursive: true, force: true }));
   const d = tmp('thinker-harness-'); t.after(() => fs.rmSync(d, { recursive: true, force: true }));
   scheduleHarnessSuggestion(store, { now: T0, home: th, usage: harnessUsage(dir, { home: h, sessions: [0, 1, 2].map(i => session(d, `g${i}`)) }) });
   answerHarness(store, 'gtm plugin', { home: th, userHome: h, now: T0 });
@@ -377,10 +383,24 @@ test('the controls: switch off by name without passing on the rest, turn one bac
   switchOffNow(store, 'gtm plugin', { home: thinkerHome, userHome: h, now: T0, usage: real });
   assert.match(undoHarness(store, { home: thinkerHome, names: ['rea'] }), /Turned back on, from the next session on: rea\./);
   assert.deepEqual(readHarnessState(store).applied.map(a => a.name), ['gtm']);
-  assert.deepEqual(setHarnessSettings(store, { weekly: true, recall: true, suggestions: false }, { home: thinkerHome }), { weekly: true, recall: true, suggestions: false });
+  assert.deepEqual(setHarnessSettings(store, { weekly: true, recall: true, suggestions: false }, { home: thinkerHome }), { enabled: true, weekly: true, recall: true, suggestions: false });
   assert.equal(store.config().maintain.harness, true);
-  assert.deepEqual(harnessSettings(store, { home: thinkerHome }), { weekly: true, recall: true, suggestions: false });
+  assert.deepEqual(harnessSettings(store, { home: thinkerHome }), { enabled: true, weekly: true, recall: true, suggestions: false });
   setHarnessSettings(store, { suggestions: true }, { home: thinkerHome });
   assert.equal(harnessNever(thinkerHome), false);
   void usage;
+});
+
+test('off until released: no question, no recall, no switch-off and nothing for the page without harness.enabled', async t => {
+  const { store, h, thinkerHome } = suggested(t);
+  assert.equal(harnessPending(store, { home: thinkerHome }), true, 'on, the question waits');
+  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ maintain: { harness: true }, harness: { recall: true } }));
+  assert.equal(harnessPending(store, { home: thinkerHome }), false, 'a question queued while it was on waits unseen');
+  assert.equal(harnessOffer(store, { client: 'claude', home: thinkerHome, env: {} }), '');
+  assert.equal(scheduleHarnessSuggestion(store, { home: thinkerHome, now: T0, force: true }), null);
+  assert.equal(await harnessRecall(store, 'anything', { client: 'claude', scoreFn: rows => rows }), '');
+  assert.match(switchOffNow(store, 'rea MCP server', { home: thinkerHome, userHome: h, now: T0 }), /off here/);
+  assert.deepEqual(harnessView(store, { home: thinkerHome }), { enabled: false, days: 30, settings: { enabled: false, weekly: true, recall: false, suggestions: true } });
+  assert.equal(setHarnessSettings(store, { enabled: true }, { home: thinkerHome }).enabled, true);
+  assert.equal(harnessPending(store, { home: thinkerHome }), true);
 });

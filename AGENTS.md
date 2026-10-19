@@ -616,6 +616,28 @@ Each session both consumes and improves the cache:
    `kinds` and `unservedDays` or is `false`. `thinker archive [--dry]`
    runs the rules by hand, `--list` shows the archive, `--restore [ids]`
    takes notes back, and ids archive any note by request.
+5b. Duplicates by meaning (`dedupe.js`, 2026-10-19; on by default without an experiment, at
+   the owner's decision, as a small upkeep pass: an exception to the rule above): `saveNotes`
+   merges only notes whose title and answers share half their words, so the same fact
+   mined from a pull request and saved from a session in other words stayed two notes
+   (0.30 by that measure) that took both serving slots. Unless `maintain: { dedupe: false }`
+   (or `THINKER_DEDUPE=off`) says otherwise, maintenance finds candidates for free:
+   each note embedded locally from its title and search text (`dense.js:embed`,
+   all-MiniLM-L6-v2, vectors kept in `.thinker/state/dedupe.json` by text), a pair being
+   two notes on a file in common at a cosine of at least `dedupeThreshold` (0.75). On this
+   repository's 337 notes that took 4 to 6 seconds and gave 21 pairs, 17 of them the same
+   claim or two disagreeing claims about one thing (by hand labels of the top 40; recall
+   below 0.75 is not measured). Up to `dedupePerRun` (3) are judged, one call each through
+   the verify model (`dedupe.js:judgePair`, through the session in a desktop app), shown
+   both notes and the current code of the file they share: `same` and `conflict` are
+   merged into the older note (its id, servings and assessments; both notes' answers and
+   deps; the old body in `history`) with the judge's title and body, a conflict keeping
+   only what the code bears out, and the other is archived as `duplicate of <id>`
+   (`thinker archive --restore` takes it back); `distinct` is remembered and not asked
+   again until either note's text changes. Logged as `op: "dedupe"`; the end-of-turn
+   notice says how many were merged. Checked before it was turned on: on mlflow's mined
+   cache 14 pairs, of whose notes past sessions on its 11 tasks were shown 2, so a paired
+   run there could not have told the two apart; no agent-session experiment was run.
 6. Maintenance runs by itself (`maintain.js:maintain`): the catch-up run that
    the prompt hooks start at most every ten minutes ends with one maintenance
    run, and so do the git `post-commit` and `post-merge` hooks that `setup` and the
