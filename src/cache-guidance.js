@@ -10,13 +10,20 @@
 // Codex change-task sessions of 2026-10-07 told to "reach code through pointers before the first grep",
 // every one started with them, added find→drilldown hops a batched grep does in one turn, and re-read
 // the drilled code to edit it anyway (31→51 turns on mitmproxy, first edit 2–3 turns later).
-export const SWITCHABLE_TOOLS = ['find', 'drilldown'];
+// orient can be switched off too (`thinker tools disable orient`), and is on by default. Where it is
+// off, the server does not offer it and no text tells the agent to call it: the prompt hook's bundle is
+// the only way notes arrive, and lookup stays for an id a bundle listed. Measured on the MLflow fair-11
+// set with GPT-6 Astra on 2026-10-18 (Artemis mlflow-fair11-astra-mined200-full-2026-10-18): the arm
+// told to orient called it in every session, got nothing back in 12 of 22, and spent 43k more input
+// tokens and 2.1 more tool calls than the bare agent; the hook alone was level with the bare agent and
+// 41k tokens and 2 calls under the orient arm. The default stays until a pull request citing that changes it.
+export const SWITCHABLE_TOOLS = ['orient', 'find', 'drilldown'];
 export const DEFAULT_DISABLED_TOOLS = ['find', 'drilldown'];
 export function disabledTools(config) {
   const named = config?.disabledTools;
   return new Set((Array.isArray(named) ? named : DEFAULT_DISABLED_TOOLS).filter(t => SWITCHABLE_TOOLS.includes(t)));
 }
-const offered = disabled => { const off = disabled instanceof Set ? disabled : new Set(disabled || DEFAULT_DISABLED_TOOLS); return { find: !off.has('find'), drilldown: !off.has('drilldown') }; };
+const offered = disabled => { const off = disabled instanceof Set ? disabled : new Set(disabled || DEFAULT_DISABLED_TOOLS); return { orient: !off.has('orient'), find: !off.has('find'), drilldown: !off.has('drilldown') }; };
 // How to get from a note to the code, with the tools on offer; `call` renders a tool's name.
 export function reachCode(disabled, call = name => name) {
   const on = offered(disabled);
@@ -26,10 +33,10 @@ export function reachCode(disabled, call = name => name) {
 
 export function cacheUsageGuide({ disabled } = {}) {
   const on = offered(disabled);
-  const names = ['orient', 'lookup', on.find && 'find', on.drilldown && 'drilldown'].filter(Boolean).map(n => `mcp__thinker__${n}`).join(',');
+  const names = [on.orient && 'orient', 'lookup', on.find && 'find', on.drilldown && 'drilldown'].filter(Boolean).map(n => `mcp__thinker__${n}`).join(',');
   return `Use thinker as a map to the code, then do the work.
 
-1. Read the <thinker-cache> bundle in this turn if there is one. Call orient once with the task when there is none, or when nothing in it bears on the task.
+1. Read the <thinker-cache> bundle in this turn if there is one.${on.orient ? ' Call orient once with the task when there is none, or when nothing in it bears on the task.' : ' When there is none, or nothing in it bears on the task, work from the code.'}
 2. Keep the notes that answer the request; ignore the rest. A fresh note is a map, not a plan, and a STALE claim is checked against the code.
 3. ${reachCode(disabled)}.
 4. lookup answers one question a note left open. Then edit and verify.
@@ -68,7 +75,7 @@ export function cacheInstructions({ repo, limit = INSTRUCTIONS_LIMIT, disabled, 
 export const cacheBundleIntro = ({ stale = false, disabled } = {}) => {
   const on = offered(disabled);
   const code = on.find ? ' find locates code no note maps, by the words the code would use.' : '';
-  return `Notes about this repo from earlier sessions; their tracked dependencies were re-hashed just now${stale ? ', so check a STALE claim against the code' : ' and match the working tree'}. Use the pointers that fit this request and ignore neighboring topics; a fresh note is a map, not a plan. If none of them bears on the task, orient on it yourself.${code}`;
+  return `Notes about this repo from earlier sessions; their tracked dependencies were re-hashed just now${stale ? ', so check a STALE claim against the code' : ' and match the working tree'}. Use the pointers that fit this request and ignore neighboring topics; a fresh note is a map, not a plan.${on.orient ? ' If none of them bears on the task, orient on it yourself.' : ''}${code}`;
 };
 
 // Short, persistent workflow for native instruction files and CLI-only adapters.
@@ -86,11 +93,12 @@ export function agentWorkflow({ cli, repo, mcp = true, disabled } = {}) {
   const call = (name, args = '') => mcp ? `\`${name}\`` : `\`${command} ${name}${args ? ' ' + args : ''}${suffix}\``;
   const tools = mcp ? 'the Thinker MCP tools (if they are listed as deferred, load them with the host\'s tool search)' : 'the Thinker CLI commands below';
   const reach = reachCode(disabled, name => call(name, name === 'find' ? '"<code terms or identifier>"' : '"path:Symbol"'));
+  const none = offered(disabled).orient ? `When none was injected, or none bears on the task, ${call('orient', '"<task>"')} once.` : 'When none was injected, or none bears on the task, work from the code.';
   return `## Using Thinker while working
 
 Use ${tools} as a map to the code, then do the work. If they are unavailable, continue with ordinary tools.
 
-- Read an injected <thinker-cache> bundle first: keep the notes that answer the request, ignore the rest, and check a STALE claim against the code. When none was injected, or none bears on the task, ${call('orient', '"<task>"')} once.
+- Read an injected <thinker-cache> bundle first: keep the notes that answer the request, ignore the rest, and check a STALE claim against the code. ${none}
 - ${reach}. ${call('lookup', '"<question or note id>"')} answers one question a note left open.
 - Then edit and test. Do not keep retrieving notes.`;
 }

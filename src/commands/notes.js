@@ -210,7 +210,7 @@ async function phraseCommand(ctx) {
   return;
 }
 
-// thinker tools [enable|disable <name…>]: which code tools this repository's server offers its agents.
+// thinker tools [enable|disable <name…>]: which of orient and the code tools this repository's server offers its agents.
 async function toolsCommand(ctx) {
   const { pos, store, out } = ctx;
   const [verb, ...names] = pos;

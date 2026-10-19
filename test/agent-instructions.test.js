@@ -210,5 +210,17 @@ test('the workflow names the code tools only for a repository that turned them o
   assert.ok(on.split('\n').filter(l => l.startsWith('- ')).length <= 4, 'four lines of decisions');
   assert.equal(agentWorkflow(), agentWorkflow({ disabled: disabledTools({}) }), 'off is the default');
   assert.deepEqual([...disabledTools({ disabledTools: [] })], []);
-  assert.deepEqual([...disabledTools({ disabledTools: ['find', 'orient'] })], ['find'], 'only the code tools can be switched');
+  assert.deepEqual([...disabledTools({ disabledTools: ['find', 'lookup'] })], ['find'], 'only orient and the code tools can be switched');
+});
+
+// orient on by default; off, nothing the agent reads tells it to call orient (cache-guidance.js:SWITCHABLE_TOOLS)
+test('orient is on by default, and off it is named nowhere the agent reads', () => {
+  assert.ok(!disabledTools({}).has('orient'));
+  assert.ok(!disabledTools({ disabledTools: [] }).has('orient'), 'turning the code tools on keeps orient');
+  const off = disabledTools({ disabledTools: ['orient', 'find', 'drilldown'] });
+  assert.ok(off.has('orient'));
+  for (const t of [agentWorkflow(), cacheInstructions({ repo: '/r' }), cacheBundleIntro()]) assert.match(t, /\borient\b/);
+  for (const t of [agentWorkflow({ disabled: off }), agentWorkflow({ disabled: off, mcp: false }), cacheInstructions({ repo: '/r', disabled: off }), cacheBundleIntro({ disabled: off }), cacheBundleIntro({ stale: true, disabled: off })]) assert.doesNotMatch(t, /\borient\b/);
+  assert.match(agentWorkflow({ disabled: off }), /When none was injected, or none bears on the task, work from the code\./);
+  assert.match(cacheInstructions({ repo: '/r', disabled: off }), /ToolSearch `select:mcp__thinker__lookup`/);
 });
