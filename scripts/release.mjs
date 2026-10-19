@@ -23,16 +23,24 @@ const ask = async question => {
   try { await rl.question(question); } finally { rl.close(); }
 };
 
+const USAGE = 'Usage: bash scripts/release.sh [X.Y.Z] [--no-wait] [--hold] | X.Y.Z --promote';
 export function parseArgs(args) {
   const positional = args.filter(a => !a.startsWith('--'));
   if (args.includes('--help') || args.includes('-h')) return { help: true };
-  if (args.some(a => a.startsWith('--') && a !== '--no-wait') || positional.length > 1) throw new Error('Usage: bash scripts/release.sh [X.Y.Z] [--no-wait]');
+  if (args.some(a => a.startsWith('--') && !['--no-wait', '--hold', '--promote'].includes(a)) || positional.length > 1) throw new Error(USAGE);
   const version = positional[0]?.replace(/^v/, '');
   if (version && !VERSION.test(version)) throw new Error('Specify a stable version, for example 0.1.44 (not a commit or patch/minor alias).');
-  return { version, noWait: args.includes('--no-wait') };
+  const hold = args.includes('--hold'), promote = args.includes('--promote');
+  if (promote && (hold || args.includes('--no-wait'))) throw new Error(`--promote takes no other option. ${USAGE}`);
+  if (promote && !version) throw new Error('Name the held version to promote, for example: bash scripts/release.sh 0.1.44 --promote');
+  return promote ? { version, promote } : { version, noWait: args.includes('--no-wait'), hold };
 }
 
-export async function release({ version, noWait = false } = {}, {
+// A held release (--hold) is public under its tag but never `latest`: a GitHub pre-release, which
+// releases/latest skips, and npm's `next` tag. Installs and updates that follow latest (the default,
+// and the daily background update) do not move; `thinker update vX.Y.Z` and the installer's `--ref`
+// install it by name. --promote makes it latest on both.
+export async function release({ version, noWait = false, hold = false, promote = false } = {}, {
   repo = ROOT, run = execute, out = console.log, interactive = !!process.stdin.isTTY,
   confirm = ask, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), env = process.env,
 } = {}) {
@@ -60,7 +68,7 @@ export async function release({ version, noWait = false } = {}, {
   version ||= mainVersion;
   if (!VERSION.test(version)) throw new Error('Only stable X.Y.Z releases are supported.');
   const tag = `v${version}`, branch = `release/${tag}`;
-  const retry = `bash scripts/release.sh ${version}`;
+  let retry = `bash scripts/release.sh ${version}${hold ? ' --hold' : ''}${promote ? ' --promote' : ''}`;
   const tagCommit = () => {
     const r = invoke('git', ['rev-parse', '--verify', '--quiet', `refs/tags/${tag}^{commit}`]);
     if (r.status === 0) return String(r.stdout).trim();
@@ -70,7 +78,7 @@ export async function release({ version, noWait = false } = {}, {
   const prFields = 'url,state,mergeCommit,headRefOid,baseRefName';
   const prs = () => JSON.parse(gh('pr', 'list', '--head', branch, '--base', 'main', '--state', 'all', '--json', prFields));
   const releaseInfo = () => {
-    const s = optional('gh', ['release', 'view', tag, '--repo', ghrepo, '--json', 'isDraft,assets,url'], /release not found|HTTP 404/i);
+    const s = optional('gh', ['release', 'view', tag, '--repo', ghrepo, '--json', 'isDraft,isPrerelease,assets,url'], /release not found|HTTP 404/i);
     return s === null ? null : JSON.parse(s);
   };
   const npmVersion = spec => {
@@ -104,7 +112,69 @@ export async function release({ version, noWait = false } = {}, {
     at('npm', ['test'], { stdio: 'inherit' });
     testedTree = tree;
   };
+  const manifestAt = url => {
+    const r = invoke('curl', ['-fsSL', '--max-time', '20', url]);
+    try { return r.status === 0 ? JSON.parse(r.stdout) : null; } catch { return null; }
+  };
+  // npx and `thinker update` install the latest stable release. Verify that public URL too, not just GitHub's API.
+  const verifyLatestManifest = async (commit, unless) => {
+    let m;
+    for (let i = 0; i < 15; i++) {
+      m = manifestAt(`https://github.com/${ghrepo}/releases/latest/download/version.json`);
+      if (m && VERSION.test(m.version) && compare(m.version, version) >= 0) break;
+      await sleep(2000);
+    }
+    if (!m || !VERSION.test(m.version) || compare(m.version, version) < 0 || (m.version === version && m.commit !== commit)) {
+      throw new Error(`The public latest-release manifest does not yet point to this release or a newer one. ${unless}`);
+    }
+  };
+  // a held release: its own download URL, the one `thinker update vX.Y.Z` reads
+  const verifyTagManifest = async commit => {
+    let m;
+    for (let i = 0; i < 15; i++) {
+      m = manifestAt(`https://github.com/${ghrepo}/releases/download/${tag}/version.json`);
+      if (m?.version === version) break;
+      await sleep(2000);
+    }
+    if (m?.version !== version || m.commit !== commit) throw new Error(`The public manifest of ${tag} does not match this release. npm has not been published.`);
+  };
+  const promoteHeld = async () => {
+    const commit = tagCommit();
+    const info = releaseInfo();
+    if (!commit || !info) throw new Error(`${tag} has no release to promote. Cut it first: bash scripts/release.sh ${version} --hold`);
+    if (info.isDraft) throw new Error(`${tag} is still a draft. Finish it first: bash scripts/release.sh ${version} --hold`);
+    const npmpkg = JSON.parse(git('show', `${tag}:npm/package.json`)).name;
+    if (env.THINKER_NPM_PUBLISH !== '0' && npmVersion(`${npmpkg}@${version}`) !== version) {
+      throw new Error(`${npmpkg}@${version} is not on npm yet. Finish the held release first: bash scripts/release.sh ${version} --hold`);
+    }
+    const latest = optional('gh', ['api', `repos/${ghrepo}/releases/latest`], /HTTP 404/i);
+    const latestTag = latest && JSON.parse(latest).tag_name;
+    if (latestTag && latestTag !== tag && VERSION.test(latestTag.replace(/^v/, '')) && compare(latestTag, version) > 0) {
+      throw new Error(`${latestTag} is newer and already the latest release; promoting ${tag} would move everyone back.`);
+    }
+    if (info.isPrerelease || latestTag !== tag) {
+      out(`Promoting ${tag} to the latest release...`);
+      gh('release', 'edit', tag, '--prerelease=false', '--latest', '--verify-tag');
+    }
+    await verifyLatestManifest(commit, 'npm latest has not been moved.');
+    out(`GitHub release is latest: https://github.com/${ghrepo}/releases/tag/${tag}`);
+    if (env.THINKER_NPM_PUBLISH === '0') { out('npm skipped as requested by THINKER_NPM_PUBLISH=0.'); return { version, promoted: true, npm: false }; }
+    if (npmVersion(npmpkg) !== version) {
+      if (invoke('npm', ['whoami']).status !== 0) {
+        if (!interactive) throw new Error(`npm login is required. Run npm login --auth-type=web, then ${retry}`);
+        command('npm', ['login', '--auth-type=web'], { stdio: 'inherit' });
+        command('npm', ['whoami']);
+      }
+      command('npm', ['dist-tag', 'add', `${npmpkg}@${version}`, 'latest'], { stdio: 'inherit' });
+      let now;
+      for (let i = 0; i < 15; i++) { now = npmVersion(npmpkg); if (now === version) break; await sleep(2000); }
+      if (now !== version) throw new Error(`npm dist-tag returned, but ${npmpkg} latest is not ${version}. Rerun ${retry} to verify.`);
+    }
+    out(`Promoted: ${tag} is the latest release on GitHub and ${npmpkg}@${version} is latest on npm. Installs and updates move to it now.`);
+    return { version, promoted: true, npm: true, commit };
+  };
   try {
+    if (promote) return await promoteHeld();
     let commit = tagCommit();
     if (!commit) {
       let pr = prs()[0];
@@ -155,6 +225,12 @@ export async function release({ version, noWait = false } = {}, {
     let published = npmVersion(`${npmpkg}@${version}`);
     let info = releaseInfo();
     if (published && !info) throw new Error('npm has this version but its GitHub release is missing; inspect the release before proceeding.');
+    if (hold && info && !info.isDraft && !info.isPrerelease) throw new Error(`${tag} is already released to everyone; it cannot be held.`);
+    if (!hold && info?.isPrerelease) {
+      // a held release resumes held: only --promote makes it latest
+      hold = true; retry += ' --hold';
+      out(`${tag} is held; finishing it held. To make it the latest release: bash scripts/release.sh ${version} --promote`);
+    }
     if (!published || !info || info.isDraft) test();
     out(`Building ${tag} from ${commit}...`);
     at('bash', ['scripts/pack.sh'], { stdio: 'inherit', env: { ...childEnv, THINKER_DIST_DIR: dist } });
@@ -182,7 +258,7 @@ export async function release({ version, noWait = false } = {}, {
     if (!existingTag) git('tag', '-a', tag, commit, '-m', `thinker ${version}`);
     git('push', 'origin', `refs/tags/${tag}`);
     if (!info) {
-      const args = ['release', 'create', tag, '--verify-tag', '--draft', '--title', `thinker ${version}`, '--generate-notes'];
+      const args = ['release', 'create', tag, '--verify-tag', '--draft', ...(hold ? ['--prerelease'] : []), '--title', `thinker ${version}`, '--generate-notes'];
       const previous = invoke('git', ['describe', '--tags', '--abbrev=0', '--match', 'v*', `${commit}^`]);
       if (previous.status === 0) args.push('--notes-start-tag', String(previous.stdout).trim());
       gh(...args);
@@ -195,31 +271,22 @@ export async function release({ version, noWait = false } = {}, {
       const latest = optional('gh', ['api', `repos/${ghrepo}/releases/latest`], /HTTP 404/i);
       const latestTag = latest && JSON.parse(latest).tag_name;
       const newer = latestTag && VERSION.test(latestTag.replace(/^v/, '')) && compare(latestTag, version) > 0;
-      gh('release', 'edit', tag, '--draft=false', `--latest=${!newer}`, '--verify-tag');
+      if (hold) gh('release', 'edit', tag, '--draft=false', '--prerelease', '--latest=false', '--verify-tag');
+      else gh('release', 'edit', tag, '--draft=false', `--latest=${!newer}`, '--verify-tag');
     }
     const live = path.join(temp, 'published'); fs.mkdirSync(live);
     gh('release', 'download', tag, '--dir', live, ...ASSETS.flatMap(f => ['--pattern', f]));
     verify(live);
     if (!fs.readFileSync(path.join(live, 'install.sh')).equals(fs.readFileSync(path.join(dist, 'install.sh')))) throw new Error('Published installer differs from the tagged source.');
-    // npx installs the latest stable release. Verify that public URL too, not just GitHub's API.
-    let latestManifest;
-    for (let i = 0; i < 15; i++) {
-      const r = invoke('curl', ['-fsSL', '--max-time', '20', `https://github.com/${ghrepo}/releases/latest/download/version.json`]);
-      try { latestManifest = r.status === 0 ? JSON.parse(r.stdout) : null; } catch { latestManifest = null; }
-      if (latestManifest && VERSION.test(latestManifest.version) && compare(latestManifest.version, version) >= 0) break;
-      await sleep(2000);
-    }
-    if (!latestManifest || !VERSION.test(latestManifest.version) || compare(latestManifest.version, version) < 0
-      || (latestManifest.version === version && latestManifest.commit !== commit)) {
-      throw new Error('The public latest-release manifest does not yet point to this release or a newer one. npm has not been published.');
-    }
-    out(`GitHub release verified: https://github.com/${ghrepo}/releases/tag/${tag}`);
+    if (hold) await verifyTagManifest(commit);
+    else await verifyLatestManifest(commit, 'npm has not been published.');
+    out(`GitHub release verified${hold ? ' (held: not latest)' : ''}: https://github.com/${ghrepo}/releases/tag/${tag}`);
     if (env.THINKER_NPM_PUBLISH === '0') { out('npm skipped as requested by THINKER_NPM_PUBLISH=0.'); return { version, github: true, npm: false }; }
     if (!published) {
       const packed = JSON.parse(command('npm', ['pack', path.join(dist, 'npm'), '--json', '--ignore-scripts', '--pack-destination', dist]));
       if (packed.length !== 1 || packed[0].name !== npmpkg || packed[0].version !== version || path.basename(packed[0].filename) !== packed[0].filename) throw new Error('npm pack produced unexpected metadata.');
       const latest = npmVersion(npmpkg);
-      const npmTag = latest && VERSION.test(latest) && compare(latest, version) > 0 ? `release-${version}` : 'latest';
+      const npmTag = hold ? 'next' : latest && VERSION.test(latest) && compare(latest, version) > 0 ? `release-${version}` : 'latest';
       command('npm', ['publish', path.join(dist, packed[0].filename), '--access', 'public', '--tag', npmTag], { stdio: 'inherit' });
       for (let i = 0; i < 15; i++) {
         published = npmVersion(`${npmpkg}@${version}`);
@@ -227,6 +294,11 @@ export async function release({ version, noWait = false } = {}, {
         await sleep(2000);
       }
       if (published !== version) throw new Error(`npm publish returned, but ${npmpkg}@${version} is not visible. Rerun ${retry} to verify.`);
+    }
+    if (hold) {
+      out(`Held release complete: ${tag} on GitHub (pre-release) and ${npmpkg}@${version} on npm (tag next). Nothing updates to it by itself.`);
+      out(`Install it by name: thinker update ${tag}. Release it to everyone: bash scripts/release.sh ${version} --promote`);
+      return { version, github: true, npm: true, commit, held: true };
     }
     out(`Release complete: ${tag} on GitHub and ${npmpkg}@${version} on npm.`);
     return { version, github: true, npm: true, commit };
@@ -241,7 +313,7 @@ export async function release({ version, noWait = false } = {}, {
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     const options = parseArgs(process.argv.slice(2));
-    if (options.help) console.log('Usage: bash scripts/release.sh [X.Y.Z] [--no-wait]\nCreates a version PR, waits for your merge, then tags and publishes GitHub + npm.\nRerun the same version to resume. No version resumes origin/main’s current version.\n--no-wait stops after opening a PR. Browser/2FA approvals remain interactive.');
+    if (options.help) console.log(`${USAGE}\nCreates a version PR, waits for your merge, then tags and publishes GitHub + npm.\nRerun the same version to resume. No version resumes origin/main’s current version.\n--no-wait stops after opening a PR. Browser/2FA approvals remain interactive.\n--hold publishes it without making it latest: nothing updates to it until X.Y.Z --promote.`);
     else { const result = await release(options); if (result.pending) process.exitCode = 2; }
   } catch (error) { console.error(`release: ${error.message}`); process.exitCode = 1; }
 }
