@@ -22,15 +22,18 @@ function fixture(t) {
   return { repo, cli, mcpEntry, hooks: true, learn: true, mcp: true, late: false, shared: false };
 }
 const read = file => fs.readFileSync(file, 'utf8');
-function checkWorkflow(text, cliOnly = false) {
-  for (const name of ['orient', 'lookup']) assert.ok(text.includes(name), name);
+// orient is off by default and named only for the clients whose notes come through it (ORIENT_CLIENTS)
+function checkWorkflow(text, cliOnly = false, orient = false) {
+  assert.ok(text.includes('lookup'), 'lookup');
+  // as a tool (`orient`) or a CLI command (cli.js' orient): the checkout's path may hold the word
+  assert.equal(/`orient`|' orient\b|thinker orient\b/.test(text), orient, orient ? 'orient is named' : 'orient is off and must not be named');
   assert.doesNotMatch(text, /remember|feedback/, 'no instruction asks the agent to save or grade notes');
   // the code tools are off unless a repository turns them on, and a tool that is off is never named
   for (const name of ['find', 'drilldown']) assert.ok(!new RegExp(`\\b${name}\\b`).test(text), `${name} is off and must not be named`);
   // the four decisions, one line each; nothing about environment switches or whether .thinker/ exists,
   // which had a Codex agent spend its first turn checking them (the Click canary of 2026-10-07)
   assert.match(text, /Read an injected <thinker-cache> bundle first/);
-  assert.match(text, /none bears on the task, .*orient.* once/);
+  assert.match(text, orient ? /none bears on the task, .*orient.* once/ : /none bears on the task, work from the code/);
   assert.match(text, /file:symbol pointers say where the code is/);
   assert.match(text, /ordinary search and reads/);
   assert.match(text, /Then edit and test/);
@@ -73,7 +76,7 @@ test('all eight adapters deliver the full workflow through native instructions o
   const files = { claude: 'CLAUDE.local.md', codex: 'AGENTS.md', gemini: 'GEMINI.md', cursor: '.cursor/rules/thinker.mdc', windsurf: '.windsurf/rules/thinker.md', copilot: '.github/instructions/thinker.instructions.md', opencode: '.opencode/thinker.md' };
   for (const [client, file] of Object.entries(files)) {
     installClient(client, config);
-    checkWorkflow(read(path.join(config.repo, file)), ['windsurf', 'copilot'].includes(client));
+    checkWorkflow(read(path.join(config.repo, file)), ['windsurf', 'copilot'].includes(client), ['windsurf', 'copilot'].includes(client));
   }
   installClient('pi', config);
   const handlers = {};
@@ -176,7 +179,7 @@ test('MCP instructions fit the host cap whole, and the bundle header carries the
     const text = cacheInstructions({ repo });
     assert.ok(text.length <= INSTRUCTIONS_LIMIT, `${repo}: ${text.length}`);
     assert.ok(text.includes(repo));
-    for (const name of ['orient', 'lookup']) assert.ok(text.includes(name), name);
+    assert.ok(text.includes('lookup') && !/\borient\b/.test(text), 'lookup, and orient off by default');
     assert.doesNotMatch(text, /remember|feedback/, 'no instruction asks the agent to save or grade notes (2026-10-08)');
     assert.doesNotMatch(text, /\bfind\b|\bdrilldown\b|before the first grep/, 'the code tools are off: not named');
     assert.match(text, /bears on the task/);
@@ -195,7 +198,7 @@ test('MCP instructions fit the host cap whole, and the bundle header carries the
   assert.match(cacheBundleIntro(), /match the working tree/);
   assert.match(cacheBundleIntro({ stale: true }), /STALE/);
   for (const t of [cacheBundleIntro(), cacheBundleIntro({ stale: true })]) {
-    assert.match(t, /If none of them bears on the task/);
+    assert.doesNotMatch(t, /\borient\b/, 'orient is off by default');
     assert.doesNotMatch(t, /\bfind\b|\bdrilldown\b|before the first grep/);
   }
   assert.match(cacheBundleIntro({ disabled: [] }), /find locates code no note maps/);
@@ -209,18 +212,21 @@ test('the workflow names the code tools only for a repository that turned them o
   assert.match(agentWorkflow({ disabled: [], mcp: false }), /`thinker find "<code terms or identifier>"` when you do not know where the code is/);
   assert.ok(on.split('\n').filter(l => l.startsWith('- ')).length <= 4, 'four lines of decisions');
   assert.equal(agentWorkflow(), agentWorkflow({ disabled: disabledTools({}) }), 'off is the default');
-  assert.deepEqual([...disabledTools({ disabledTools: [] })], []);
-  assert.deepEqual([...disabledTools({ disabledTools: ['find', 'lookup'] })], ['find'], 'only orient and the code tools can be switched');
+  assert.deepEqual([...disabledTools({ disabledTools: [] })], ['orient'], 'the code tools on leave orient off');
+  assert.deepEqual([...disabledTools({ disabledTools: ['find', 'lookup'] })].sort(), ['find', 'orient'], 'only orient and the code tools can be switched');
 });
 
-// orient on by default; off, nothing the agent reads tells it to call orient (cache-guidance.js:SWITCHABLE_TOOLS)
-test('orient is on by default, and off it is named nowhere the agent reads', () => {
-  assert.ok(!disabledTools({}).has('orient'));
-  assert.ok(!disabledTools({ disabledTools: [] }).has('orient'), 'turning the code tools on keeps orient');
-  const off = disabledTools({ disabledTools: ['orient', 'find', 'drilldown'] });
-  assert.ok(off.has('orient'));
-  for (const t of [agentWorkflow(), cacheInstructions({ repo: '/r' }), cacheBundleIntro()]) assert.match(t, /\borient\b/);
-  for (const t of [agentWorkflow({ disabled: off }), agentWorkflow({ disabled: off, mcp: false }), cacheInstructions({ repo: '/r', disabled: off }), cacheBundleIntro({ disabled: off }), cacheBundleIntro({ stale: true, disabled: off })]) assert.doesNotMatch(t, /\borient\b/);
-  assert.match(agentWorkflow({ disabled: off }), /When none was injected, or none bears on the task, work from the code\./);
-  assert.match(cacheInstructions({ repo: '/r', disabled: off }), /ToolSearch `select:mcp__thinker__lookup`/);
+// orient is off by default, and every install turns it off: a disabledTools list from 0.1.65, which could switch it,
+// does not keep it on; only enabledTools does (cache-guidance.js:disabledTools)
+test('orient is off by default and on only where enabledTools names it; off, it is named nowhere the agent reads', () => {
+  assert.ok(disabledTools({}).has('orient'));
+  assert.ok(disabledTools({ disabledTools: [] }).has('orient'), 'a list written before this release does not keep it on');
+  assert.ok(disabledTools({ disabledTools: ['find'] }).has('orient'));
+  const on = disabledTools({ enabledTools: ['orient'] });
+  assert.ok(!on.has('orient') && on.has('find') && on.has('drilldown'));
+  for (const t of [agentWorkflow({ disabled: on }), cacheInstructions({ repo: '/r', disabled: on }), cacheBundleIntro({ disabled: on })]) assert.match(t, /\borient\b/);
+  const off = disabledTools({});
+  for (const t of [agentWorkflow(), agentWorkflow({ disabled: off, mcp: false }), cacheInstructions({ repo: '/r' }), cacheBundleIntro(), cacheBundleIntro({ stale: true })]) assert.doesNotMatch(t, /\borient\b/);
+  assert.match(agentWorkflow(), /When none was injected, or none bears on the task, work from the code\./);
+  assert.match(cacheInstructions({ repo: '/r' }), /ToolSearch `select:mcp__thinker__lookup`/);
 });

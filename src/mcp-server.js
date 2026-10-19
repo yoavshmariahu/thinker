@@ -141,6 +141,16 @@ function agentTurn() {
   } catch { return {}; }
 }
 
+// The warm-up offer the prompt hook makes, made by the first retrieval call too: an agent wired with thinker's
+// server and no hooks never got it (2026-10-16: a device whose 14 requests all came through MCP, two cold
+// caches, no offer). orient made it alone until orient went off by default (2026-10-18); lookup makes it now
+// as well. Once per repository either way (repo-onboard.js:markOffered), so where the hook made it this adds
+// nothing. Never in a benchmark or test session (THINKER_TEST=1; THINKER_OFFERS=on restores it, for the tests).
+function mcpWarmupOffer() {
+  if (isTestMode() && process.env.THINKER_OFFERS !== 'on') return '';
+  try { return warmupOffer(store, { client: subagentHarness(clientName()) || clientName() }) || ''; } catch { return ''; }
+}
+
 function withNotice(result, included, turnContext) {
   const tracked = turnContext.session ? peekTurn(store, turnContext.session).map(id => store.get(id)).filter(Boolean) : [];
   const hint = noticeCard(store, { client: clientName(), ...turnContext, notes: [...tracked, ...included] });
@@ -177,12 +187,8 @@ function registerTools() {
     },
   }, async ({ task = '', file, budget }) => {
     if (!task.trim() && !file) return text('orient needs the task. Call it again with {"task": "<the user request, in one or two sentences>"}.');
-    // the warm-up offer the prompt hook makes, here too: an agent wired with thinker's server and no hooks never
-    // got it (2026-10-16: a device whose 14 requests all came through MCP, two cold caches, no offer). Once per
-    // repository either way (repo-onboard.js:markOffered), so where the hook made it this adds nothing.
-    // never in a benchmark or test session (THINKER_TEST=1; THINKER_OFFERS=on restores it, for the tests of the offer)
-    const offersOn = !isTestMode() || process.env.THINKER_OFFERS === 'on';
-    let offer = ''; if (offersOn) try { offer = warmupOffer(store, { client: subagentHarness(clientName()) || clientName() }); } catch {}
+    // the warm-up offer, as lookup makes it (mcpWarmupOffer)
+    const offer = mcpWarmupOffer();
     const reply = s => text(offer ? `${offer}\n\n${s}` : s);
     // the agent named a budget: let it decide how many notes are served, not the two-note default of the hooks
     const turnContext = agentTurn();
@@ -205,6 +211,8 @@ function registerTools() {
       maxNotes: z.number().int().min(1).max(10).optional().describe('Default 3'),
     },
   }, async ({ query, kind, budget, maxNotes }) => {
+    const offer = mcpWarmupOffer();
+    const text = s => ({ content: [{ type: 'text', text: offer ? `${offer}\n\n${s}` : s }] });
     const turnContext = agentTurn();
     const r = await lookup(store, { query: query || '', kind, client: 'mcp', ...turnContext, budget: budget || 2500, maxNotes: maxNotes || 3, snippets: snippetsOn(store) });
     if (kind === 'behavior' && !String(query || '').trim()) {

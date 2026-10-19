@@ -105,14 +105,15 @@ function serverSays(dir) {
 test('the server neither offers nor mentions a code tool that is off; thinker tools turns them on', () => {
   const dir = gitRepo(); const store = new Store(dir).init();
   const off = serverSays(dir);
-  assert.deepEqual(off.tools.map(t => t.name).filter(n => ['orient', 'lookup', 'find', 'drilldown'].includes(n)), ['orient', 'lookup']);
+  assert.deepEqual(off.tools.map(t => t.name).filter(n => ['orient', 'lookup', 'find', 'drilldown'].includes(n)), ['lookup']);
   // no instruction and no tool description sends the agent to a tool that is not there
-  assert.doesNotMatch(off.instructions, /\bfind\b|\bdrilldown\b/);
+  assert.doesNotMatch(off.instructions, /\bfind\b|\bdrilldown\b|\borient\b/);
+  for (const t of off.tools) assert.doesNotMatch(t.description, /\borient\b/, `${t.name} names orient, which is off`);
   // ("find the code that upholds the rule" in a description is the verb, not the tool)
   for (const t of off.tools) assert.doesNotMatch(t.description, /drilldown|`find`|\bfind (lists|takes|for code)|(call|use|with) find\b|thinker__find/, `${t.name} names a tool that is off`);
 
   const cli = (...args) => execFileSync('node', [CLI, ...args, '--repo', dir], { encoding: 'utf8', env });
-  assert.match(cli('tools'), /orient: on\nfind: off\ndrilldown: off/);
+  assert.match(cli('tools'), /orient: off\nfind: off\ndrilldown: off/);
   assert.match(cli('tools', 'enable', 'find', 'drilldown'), /find: on\ndrilldown: on/);
   assert.deepEqual(store.config().disabledTools, []);
   const on = serverSays(dir);
@@ -120,15 +121,20 @@ test('the server neither offers nor mentions a code tool that is off; thinker to
   assert.match(on.instructions, /find when you do not know where the code is; drilldown when you need a definition whole/);
   assert.match(cli('tools', 'disable', 'find'), /find: off\ndrilldown: on/);
   assert.deepEqual(serverSays(dir).tools.map(t => t.name).filter(n => ['find', 'drilldown'].includes(n)), ['drilldown']);
-  // orient is on by default and switches the same way; off, the server neither offers nor names it
-  assert.match(cli('tools'), /orient: on/);
+  // orient is off by default and switches the same way, kept as enabledTools beside the code tools' list
+  assert.match(cli('tools'), /orient: off/);
+  assert.match(cli('tools', 'enable', 'orient'), /orient: on\nfind: off\ndrilldown: on/);
+  assert.deepEqual(store.config().enabledTools, ['orient']);
+  assert.deepEqual(store.config().disabledTools, ['find']);
+  const withOrient = serverSays(dir);
+  assert.ok(withOrient.tools.some(t => t.name === 'orient'));
+  assert.match(withOrient.instructions, /Call orient once with the task/);
   assert.match(cli('tools', 'disable', 'orient'), /orient: off/);
-  const noOrient = serverSays(dir);
-  assert.ok(!noOrient.tools.some(t => t.name === 'orient') && noOrient.tools.some(t => t.name === 'lookup'));
-  assert.doesNotMatch(noOrient.instructions, /\borient\b/);
-  for (const t of noOrient.tools) assert.doesNotMatch(t.description, /\borient\b/, `${t.name} names orient`);
-  assert.match(cli('tools', 'enable', 'orient'), /orient: on/);
-  assert.ok(serverSays(dir).tools.some(t => t.name === 'orient'));
+  assert.equal(store.config().enabledTools, undefined);
+  assert.ok(!serverSays(dir).tools.some(t => t.name === 'orient'));
+  // a list written by 0.1.65, which could switch orient but never wrote enabledTools, does not keep it on
+  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ ...store.config(), disabledTools: [] }));
+  assert.match(cli('tools'), /orient: off\nfind: on\ndrilldown: on/);
 });
 
 // Every git repository has a cache (cli.js, hooks.js: store.init on first use), empty until it learns.

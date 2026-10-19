@@ -48,7 +48,7 @@ test('a server started outside a repository registers warmup after binding by a 
       for (let i = 0; i < 100 && !(await client.listTools()).tools.some(x => x.name === 'warmup'); i++) await new Promise(r => setTimeout(r, 10));
     } else {
       assert.ok(!(await client.listTools()).tools.some(x => x.name === 'warmup'));
-      await client.callTool({ name: 'orient', arguments: { task: 'where is the API', cwd: repo } });
+      await client.callTool({ name: 'lookup', arguments: { query: 'where is the API', cwd: repo } });
     }
     assert.ok((await client.listTools()).tools.some(x => x.name === 'warmup'));
     assert.match(await call({ choice: 'no' }), /no warm-up for this repository/);
