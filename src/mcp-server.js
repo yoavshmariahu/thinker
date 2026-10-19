@@ -223,7 +223,8 @@ function registerTools() {
     const turnContext = agentTurn();
     const r = await lookup(store, { query: query || '', kind, client: 'mcp', ...turnContext, budget: budget || 2500, maxNotes: maxNotes || 3, snippets: snippetsOn(store) });
     // the switched-off skills the agent's words match, beside the notes (harness.js:switchedOffSkills; off by default)
-    const skills = kind ? [] : await switchedOffSkills(store, query).catch(() => []);
+    // with no kind, or asked for skills by kind: an agent told to look skills up asks with kind "skill"
+    const skills = kind && kind !== 'skill' ? [] : await switchedOffSkills(store, query).catch(() => []);
     if (skills.length) {
       store.log({ op: 'harness-skill-lookup', client: 'mcp', query: String(query).slice(0, 200), skills: skills.map(c => c.id) });
       const found = `Switched-off skills for this:\n${skillLines(skills)}`;
