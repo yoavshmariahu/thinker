@@ -93,7 +93,8 @@ commit (`scripts/pack.sh`), tags it, publishes the GitHub release and its three
 assets, verifies the public download, then publishes the npm installer at the
 same version. Rerunning the same command resumes incomplete steps from the
 exact tag; existing public assets and npm versions are never overwritten.
-Without a version it resumes the current `origin/main` version. See
+Without a version it resumes the current `origin/main` version. `--hold` publishes a version that is not latest (a GitHub pre-release, npm tag `next`), so
+nothing updates to it until `bash scripts/release.sh X.Y.Z --promote`. See
 `docs/releases.md` for prerequisites, authentication and `--no-wait`.
 Nothing is uploaded to zerotime.dev any more; `scripts/pack.sh <base
 url>` still builds a self-hosted set for anyone who wants one. Installs made

@@ -27,7 +27,7 @@ function fixture(t) {
   const initial = git(repo, 'rev-parse', 'HEAD');
   // A caller on an old dirty checkout must never package these uncommitted bytes.
   fs.appendFileSync(path.join(repo, 'README.md'), '\nUSER EDIT\n');
-  const state = { calls: [], pr: null, releases: {}, npm: new Set(), login: true, npmLatest: null, failPublish: false, failTests: false, failUpload: false, staleLatest: false, registryError: false };
+  const state = { calls: [], pr: null, releases: {}, npm: new Set(), login: true, npmLatest: null, failPublish: false, failTests: false, failUpload: false, staleLatest: false, registryError: false, latestTag: null };
   const ok = stdout => ({ status: 0, stdout: typeof stdout === 'string' ? stdout : JSON.stringify(stdout ?? ''), stderr: '' });
   const fail = stderr => ({ status: 1, stdout: '', stderr });
   const merge = () => {
@@ -54,6 +54,7 @@ function fixture(t) {
       if (args[0] === 'test') return state.failTests ? fail('tests failed') : ok();
       if (args[0] === 'whoami') return state.login ? ok('owner') : fail('E401 Unauthorized');
       if (args[0] === 'login') { state.login = true; return ok(); }
+      if (args[0] === 'dist-tag') { assert.equal(args[1], 'add'); if (args[3] === 'latest') state.npmLatest = args[2].split('@')[2]; return ok(); }
       if (args[0] === 'view') {
         if (state.registryError) return fail('E503 registry unavailable');
         const version = args[1].split('@')[2];
@@ -85,19 +86,23 @@ function fixture(t) {
         }
         if (args[1] === 'view') return ok(state.pr);
       }
-      if (args[0] === 'api') {
-        const published = Object.entries(state.releases).find(([, r]) => !r.isDraft);
-        return published ? ok({ tag_name: published[0] }) : fail('HTTP 404');
-      }
+      if (args[0] === 'api') return state.latestTag ? ok({ tag_name: state.latestTag }) : fail('HTTP 404');
       if (args[0] === 'release') {
         const tag = args[2], r = state.releases[tag];
-        if (args[1] === 'view') return r ? ok({ isDraft: r.isDraft, assets: Object.keys(r.files) }) : fail('release not found');
-        if (args[1] === 'create') { state.releases[tag] = { isDraft: true, files: {} }; return ok(); }
+        if (args[1] === 'view') return r ? ok({ isDraft: r.isDraft, isPrerelease: r.isPrerelease, assets: Object.keys(r.files) }) : fail('release not found');
+        if (args[1] === 'create') { state.releases[tag] = { isDraft: true, isPrerelease: args.includes('--prerelease'), files: {} }; return ok(); }
         if (args[1] === 'upload') {
           for (const a of args.slice(3)) if (path.isAbsolute(a)) r.files[path.basename(a)] = fs.readFileSync(a);
           return state.failUpload ? fail('interrupted upload') : ok();
         }
-        if (args[1] === 'edit') { r.isDraft = false; return ok(); }
+        if (args[1] === 'edit') {
+          // like GitHub: a pre-release is never latest, and releases/latest skips it
+          if (args.includes('--draft=false')) r.isDraft = false;
+          if (args.includes('--prerelease')) r.isPrerelease = true;
+          if (args.includes('--prerelease=false')) r.isPrerelease = false;
+          if ((args.includes('--latest') || args.includes('--latest=true')) && !r.isPrerelease) state.latestTag = tag;
+          return ok();
+        }
         if (args[1] === 'download') {
           const dest = args[args.indexOf('--dir') + 1];
           for (const [f, bytes] of Object.entries(r.files)) fs.writeFileSync(path.join(dest, f), bytes);
@@ -105,7 +110,12 @@ function fixture(t) {
         }
       }
     }
-    if (cmd === 'curl') return state.staleLatest ? ok({ version: '0.1.0', commit: initial }) : ok(state.releases['v0.1.1'].files['version.json'].toString());
+    if (cmd === 'curl') {
+      const url = args.at(-1), old = ok({ version: '0.1.0', commit: initial });
+      if (url.includes('/releases/latest/')) return state.staleLatest || !state.latestTag ? old : ok(state.releases[state.latestTag].files['version.json'].toString());
+      const r = state.releases[url.match(/\/download\/(v[^/]+)\//)[1]];
+      return r?.files['version.json'] ? ok(r.files['version.json'].toString()) : fail('404');
+    }
     throw new Error(`Unexpected command: ${cmd} ${args.join(' ')}`);
   };
   const options = { repo, run, env, out: () => {}, interactive: false, sleep: async () => {} };
@@ -119,9 +129,63 @@ function fixture(t) {
 }
 
 test('release arguments accept exact stable versions and a resumable no-argument invocation', () => {
-  assert.deepEqual(parseArgs(['v0.1.44', '--no-wait']), { version: '0.1.44', noWait: true });
-  assert.deepEqual(parseArgs([]), { version: undefined, noWait: false });
+  assert.deepEqual(parseArgs(['v0.1.44', '--no-wait']), { version: '0.1.44', noWait: true, hold: false });
+  assert.deepEqual(parseArgs([]), { version: undefined, noWait: false, hold: false });
   for (const s of ['patch', 'HEAD', '01.2.3', '0.1.2-beta', '--merge']) assert.throws(() => parseArgs([s]));
+  assert.deepEqual(parseArgs(['0.1.44', '--hold']), { version: '0.1.44', noWait: false, hold: true });
+  assert.deepEqual(parseArgs(['0.1.44', '--promote']), { version: '0.1.44', promote: true });
+  assert.throws(() => parseArgs(['--promote']), /Name the held version/);
+  assert.throws(() => parseArgs(['0.1.44', '--promote', '--hold']));
+});
+
+test('a held release is public under its tag but never latest, until it is promoted', async t => {
+  const f = fixture(t), held = { version: '0.1.1', hold: true };
+  assert.equal((await release(held, f.options)).pending, true);
+  f.merge();
+  const done = await release(held, f.options);
+  assert.equal(done.held, true);
+  const r = f.state.releases['v0.1.1'];
+  assert.equal(r.isDraft, false); assert.equal(r.isPrerelease, true);
+  assert.equal(f.state.latestTag, null, 'releases/latest does not move');
+  assert.ok(f.state.npm.has('0.1.1')); assert.equal(f.state.npmLatest, null, 'npm latest does not move');
+  const publish = f.state.calls.find(c => c.cmd === 'npm' && c.args[0] === 'publish');
+  assert.equal(publish.args[publish.args.indexOf('--tag') + 1], 'next');
+  assert.ok(f.state.calls.some(c => c.cmd === 'curl' && c.args.at(-1).endsWith('/releases/download/v0.1.1/version.json')));
+
+  const promoted = await release({ version: '0.1.1', promote: true }, f.options);
+  assert.equal(promoted.promoted, true);
+  assert.equal(r.isPrerelease, false); assert.equal(f.state.latestTag, 'v0.1.1'); assert.equal(f.state.npmLatest, '0.1.1');
+  const edits = f.state.calls.filter(c => c.cmd === 'gh' && c.args[1] === 'edit').length;
+  const tags = f.state.calls.filter(c => c.cmd === 'npm' && c.args[0] === 'dist-tag').length;
+  await release({ version: '0.1.1', promote: true }, f.options);
+  assert.equal(f.state.calls.filter(c => c.cmd === 'gh' && c.args[1] === 'edit').length, edits, 'promoting again changes nothing');
+  assert.equal(f.state.calls.filter(c => c.cmd === 'npm' && c.args[0] === 'dist-tag').length, tags);
+  assert.equal(f.state.calls.filter(c => c.cmd === 'npm' && c.args[0] === 'publish').length, 1, 'promotion never republishes');
+  f.assertUntouched();
+});
+
+test('a held release resumed without --hold stays held', async t => {
+  const f = fixture(t), held = { version: '0.1.1', hold: true };
+  await release(held, f.options); f.merge(); f.state.failUpload = true;
+  await assert.rejects(release(held, f.options), /interrupted upload[^]*--hold/);
+  assert.equal(f.state.releases['v0.1.1'].isPrerelease, true, 'the draft is a pre-release from the start');
+  f.state.failUpload = false;
+  assert.equal((await f.invoke()).held, true);
+  assert.equal(f.state.latestTag, null); assert.equal(f.state.npmLatest, null);
+  f.assertUntouched();
+});
+
+test('promotion and holding refuse what would move installs the wrong way', async t => {
+  const f = fixture(t);
+  await assert.rejects(release({ version: '0.1.1', promote: true }, f.options), /no release to promote/);
+  await f.invoke(); f.merge(); await f.invoke();
+  assert.equal(f.state.latestTag, 'v0.1.1');
+  await assert.rejects(release({ version: '0.1.1', hold: true }, f.options), /already released to everyone/);
+  f.state.latestTag = 'v0.1.2';
+  f.state.releases['v0.1.2'] = { isDraft: false, isPrerelease: false, files: {} };
+  f.state.releases['v0.1.1'].isPrerelease = true;
+  await assert.rejects(release({ version: '0.1.1', promote: true }, f.options), /v0\.1\.2 is newer/);
+  f.assertUntouched();
 });
 
 test('a manual release creates a version-only PR, waits for review, and resumes from its merge', async t => {
