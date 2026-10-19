@@ -14,7 +14,7 @@ import { formatTokens } from '../model-usage.js';
 import { refresh, attest, outcome, distillKinds } from '../ops.js';
 import { scanSkills, skillsInvoked, skillNotesFor } from '../skills.js';
 import { batchProgress, oneLine } from '../progress.js';
-import { listMergedPrs, listMergedCommits, distillPr, minedPrs, recordMinedPrs, nextPrs, pickPrs, mineable } from '../prs.js';
+import { listMergedPrs, listMergedCommits, listMergedChanges, commitsOn, distillPr, minedPrs, recordMinedPrs, nextPrs, pickPrs, mineable } from '../prs.js';
 import { recordEvent, traceFile, toolName, toolInput, hydrate, findSessions } from '../transcripts.js';
 import { sessionKey } from '../usage.js';
 import { githubSlug, hasBin, verifyAll } from './shared.js';
@@ -297,7 +297,8 @@ export async function minePrs(ctx, slug, { from, scan, before, after, again, lim
   const rec = minedPrs(store, scopeKey);
   if (directories) for (const id of minedPrs(store, recSlug).mined) rec.mined.add(id);
   const fetchLimit = Math.min(Math.max(limit * 3, 60), 250);
-  const listFn = useGit ? (s, o) => listMergedCommits(repo, { ...o, directories }) : listMergedPrs;
+  const listFn = useGit ? (s, o) => listMergedCommits(repo, { ...o, directories })
+    : commitsOn(store.config().mining) ? listMergedChanges(repo, { directories }) : listMergedPrs;
 
   // without a window: what was merged since the last run, then further back; never a PR mined before
   const fresh = p => again || (!rec.mined.has(p.number) && (!p.hash || !rec.mined.has(p.hash.slice(0, 8))));
@@ -345,7 +346,7 @@ export async function minePrs(ctx, slug, { from, scan, before, after, again, lim
       const accounting = { store, phase, pr: pr.number, dry: !!dry };
       if (phase !== 'init' && !withinDailyCap(store).ok) throw new Error('daily learning token cap reached; PR will retry');
       // the notes already resting on the files the change touched, shown as context rather than evidence
-      const touched = new Set((pr.files || []).map(f => f.path));
+      const touched = new Set((pr.files || []).map(f => typeof f === 'string' ? f : f.path)); // git lists paths, GitHub objects
       const existing = store.list().filter(n => n.status !== 'invalid' && (n.deps || []).some(d => touched.has(d.path))).slice(0, 12);
       const r = await distillPrFn(slug, pr, { model: model || store.config().distillModel || DEFAULT_DISTILL_MODEL, repo, existing, accounting: { ...accounting, purpose: 'mine-prs' } });
       tokens += r.tokens || 0;

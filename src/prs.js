@@ -16,14 +16,29 @@ export function listMergedPrs(slug, { before, after, limit = 100 }) {
   return JSON.parse(gh('pr', 'list', '--repo', slug, '--state', 'merged', '--limit', String(limit), '--search', q, '--json', 'number,title,body,mergedAt,additions,files'));
 }
 
+// Direct commits beside the merged pull requests (off until an experiment, 2026-10-19): on a GitHub
+// repository the pull requests are all a build, the warm-up or maintenance read, and a change pushed
+// straight to the default branch was never mined (a third of this repository's first-parent history
+// since 2026-09-19 names no pull request). With `mining: { commits: true }` in .thinker/config.json
+// (or THINKER_MINE_COMMITS=on) the commits that name no pull request are listed with them; a pull
+// request keeps GitHub's description and review comments. THINKER_MINE_COMMITS=off overrides the config.
+export function commitsOn(cfg = {}, env = process.env) {
+  if (/^(off|0|false)$/i.test(env.THINKER_MINE_COMMITS || '')) return false;
+  return /^(on|1|true)$/i.test(env.THINKER_MINE_COMMITS || '') || cfg.commits === true;
+}
+export function listMergedChanges(repo, { directories = null, listPrs = listMergedPrs } = {}) {
+  return (slug, opts) => [...listPrs(slug, opts), ...listMergedCommits(repo, { ...opts, directories, directOnly: true })];
+}
+
 // Changes whose message says they fix something: the records review draws on most (research/bench-history/RESULTS.md,
 // "Review strategies": the one PostHog bug the notes caught over the baseline came from a fix PR's
 // note). `thinker mine-prs --fixes` keeps only these; a repository developed by direct commits has
 // no pull requests, and its fix commits are what review wants.
 export const FIX_LIKE = /\b(fix(e[sd])?|bug|regression|crash|broke|broken|wrong|incorrect|leak|race|hang|flak\w*|off[- ]by[- ]one|corrupt\w*)\b/i; // not "stale" or "revert": a word of this repository, and a revert is not a fix record
-export function listMergedCommits(repo, { before, after, limit = 100, directories = null, from = null, paths = null, strict = false } = {}) {
+export function listMergedCommits(repo, { before, after, limit = 100, directories = null, from = null, paths = null, strict = false, directOnly = false } = {}) {
   // from: the `limit` commits that end at that commit and no more, so nothing merged after it can be listed
   // paths: only changes that touched these files (the history of the code a change is about)
+  // directOnly: only changes that name no pull request (pushed straight to the branch); GitHub lists the rest
   const args = ['log', '--first-parent', '-n', String(from ? limit : Math.max(limit * 2, 60)), '--format=%H%x1f%P%x1f%aI%x1f%s%x1f%b%x1e'];
   if (before) args.push(`--before=${before}`);
   if (after) args.push(`--after=${after}`);
@@ -72,6 +87,7 @@ export function listMergedCommits(repo, { before, after, limit = 100, directorie
                     subject.match(/\(#(\d+)\)/) ||
                     cleanBody.match(/\(#(\d+)\)/);
     const prNumber = prMatch ? parseInt(prMatch[1], 10) : null;
+    if (directOnly && prNumber) continue;
 
     let additions = 0;
     const files = [];
@@ -230,7 +246,7 @@ export function stratifyPrs(prs, limit = 20) {
 export function mineable(prs, { fixes = false, git = false } = {}) {
   const filtered = prs
     .filter(p => !/^(chore|deps|docs|revert|ci|build|test)\b|\bbump\b|dependabot|renovate|snapshot/i.test(p.title) &&
-      (fixes || FIX_LIKE.test(p.title) || (p.body || '').length > (git ? 10 : 120)) && p.additions <= 800 && p.additions >= 3); // a fix's subject is its record; most have no body
+      (fixes || FIX_LIKE.test(p.title) || (p.body || '').length > (git || p.isGitCommit ? 10 : 120)) && p.additions <= 800 && p.additions >= 3); // a fix's subject is its record; most have no body
   const candidates = filtered.length ? filtered : prs.filter(p => !/^(chore|deps|bump)\b/i.test(p.title) && p.additions <= 1000 && p.additions >= 1);
   // --fixes: only changes whose message says they fix something (git history has no labels; a repository
   // developed by direct commits has no pull requests to mine, and its fix commits are what review wants)
