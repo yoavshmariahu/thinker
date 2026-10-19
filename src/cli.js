@@ -167,7 +167,8 @@ const HELP = `thinker — knowledge cache for coding agents
                                  --from <commit>: look back from that commit instead of the checkout's head: the newest --limit changes
                                  worth distilling among the 3 x limit commits that end there (--scan n: among n); nothing merged
                                  after it is read
-  mcp                            the MCP server on stdio, for an agent's MCP settings (THINKER_REPO pins the repository)
+  mcp [--enable orient,…]        the MCP server on stdio, for an agent's MCP settings (THINKER_REPO pins the repository;
+                                 --enable offers tools this checkout switched off, for this server only)
   version [--json]               the version this thinker runs, and its commit when it runs from a checkout
   served [--json]                what this checkout's own log says was served: prompt-hook and file-hook notes, orient and lookup calls
   spent [--json]                 what this checkout's own log says its model calls spent, and what mining and understanding did

@@ -42,6 +42,11 @@ const checkoutOf = d => {
   try { p = fs.realpathSync(p); } catch { return null; } // as process.cwd() names a directory: the real path
   const r = findRepoRoot(p); return fs.existsSync(path.join(r, '.git')) ? r : null;
 };
+// `thinker mcp --enable orient,find`: tools this one server offers though the repository's config switches
+// them off (cache-guidance.js:SWITCHABLE_TOOLS), so an experiment arm can name its tools in its own command
+// rather than in the checkout (an Artemis arm told to orient first, since orient went off by default).
+const enabledHere = (() => { const i = process.argv.indexOf('--enable'); return i < 0 ? [] : String(process.argv[i + 1] || '').split(',').map(t => t.trim()).filter(Boolean); })();
+const toolsOff = config => { const off = disabledTools(config); for (const t of enabledHere) off.delete(t); return off; };
 const pinned = process.env.THINKER_REPO;
 let repo = pinned ? findRepoRoot(pinned) : checkoutOf(process.cwd()) || checkoutOf(process.env.CLAUDE_PROJECT_DIR);
 // THINKER_MCP=off: the server starts but offers no tools and no instructions. For control arms of a
@@ -73,9 +78,9 @@ const server = new McpServer({ name: 'thinker', version: '0.1.0' }, switchedOff 
   instructions: 'thinker is switched off for this repository and serves nothing here.',
 } : off ? {} : setUp ? {
   // Composed under the host's cap, never concatenated here: see cache-guidance.js:INSTRUCTIONS_LIMIT.
-  instructions: cacheInstructions({ repo, disabled: disabledTools(store.config()) }),
+  instructions: cacheInstructions({ repo, disabled: toolsOff(store.config()) }),
 } : {
-  instructions: cacheInstructions({ intro: `thinker is a cache of notes per git repository from earlier sessions and humans. It was started outside one (${process.cwd()}): on the first call pass cwd, the absolute path of your working directory, and the tools bind to that repository.`, disabled: disabledTools({}) }),
+  instructions: cacheInstructions({ intro: `thinker is a cache of notes per git repository from earlier sessions and humans. It was started outside one (${process.cwd()}): on the first call pass cwd, the absolute path of your working directory, and the tools bind to that repository.`, disabled: toolsOff({}) }),
 });
 
 // Bound late (see `late`): a call must name the repository first, and a later call from another
@@ -105,7 +110,7 @@ const emptyCache = () => store.list().length ? '' : `The cache is empty: no note
 // instead), so a miss hands its first results over rather than naming the tool.
 // It is `find`'s output, so it goes with `find`: off unless the repository turned that tool on.
 const codeFallback = q => {
-  const off = disabledTools(store.config());
+  const off = toolsOff(store.config());
   if (!String(q || '').trim() || off.has('find')) return '';
   try {
     const r = find(store, { query: q, limit: 6, client: 'mcp-fallback' });
@@ -161,7 +166,7 @@ function withNotice(result, included, turnContext) {
 function registerTools() {
   // a tool that is switched off is not offered at all: nothing can call it and fail (bound late, the
   // repository's own choice of code tools is not known yet: the defaults apply)
-  const off = disabledTools(store ? store.config() : {});
+  const off = toolsOff(store ? store.config() : {});
   if (noLearn) for (const t of ['remember', 'feedback']) off.add(t);
   const cwd = { cwd: z.string().optional().describe('Absolute path of your working directory, once: the server binds to its repository (it was started outside one)') };
   let active = Promise.resolve();

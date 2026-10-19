@@ -91,9 +91,9 @@ test('with notes served, the intro comes with the bundle; an edit brings late no
 });
 
 // What the server offers and says, asked over its own protocol.
-function serverSays(dir) {
+function serverSays(dir, ...args) {
   const msg = (id, method, params = {}) => JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n';
-  const r = spawnSync(process.execPath, [new URL('../src/mcp.js', import.meta.url).pathname], {
+  const r = spawnSync(process.execPath, [new URL('../src/mcp.js', import.meta.url).pathname, ...args], {
     env: { ...env, THINKER_REPO: dir, THINKER_TELEMETRY: 'off' }, encoding: 'utf8', timeout: 30_000,
     input: msg(1, 'initialize', { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 't', version: '0' } })
       + JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n' + msg(2, 'tools/list'),
@@ -135,6 +135,11 @@ test('the server neither offers nor mentions a code tool that is off; thinker to
   // a list written by 0.1.65, which could switch orient but never wrote enabledTools, does not keep it on
   fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ ...store.config(), disabledTools: [] }));
   assert.match(cli('tools'), /orient: off\nfind: on\ndrilldown: on/);
+  // an experiment arm names its tools in the server's own command: `thinker mcp --enable orient` (mcp-server.js:toolsOff)
+  const armed = serverSays(dir, 'mcp', '--enable', 'orient');
+  assert.ok(armed.tools.some(t => t.name === 'orient'));
+  assert.match(armed.instructions, /Call orient once with the task/);
+  assert.match(cli('tools'), /orient: off/, 'the checkout is left as it was');
 });
 
 // Every git repository has a cache (cli.js, hooks.js: store.init on first use), empty until it learns.
