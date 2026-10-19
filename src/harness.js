@@ -25,6 +25,8 @@ export const MIN_SESSIONS = 3;
 export const RARE_SHARE = 0.1;
 // a source this small costs less than reading what the advice says about it
 export const MIN_TOKENS = 100;
+// what a recall card keeps of a source's own description
+const CARD_CHARS = 1200;
 
 // one key for a server, whether it is named by its tools (mcp__claude_ai_Claude_Docs__) or by its
 // instructions ("claude.ai Claude Docs")
@@ -48,7 +50,7 @@ export function skillCosts(content, names) {
 // One Claude Code transcript (and its subagents'): what it loaded, with the tokens of each source,
 // and what it called. Lines are filtered by text before parsing; a transcript runs to megabytes.
 export function sessionHarness(file) {
-  const loaded = new Map(), used = new Set();
+  const loaded = new Map(), used = new Set(), texts = new Map();
   let cwd = null;
   const add = (key, tokens) => loaded.set(key, (loaded.get(key) || 0) + tokens);
   const files = [file];
@@ -63,12 +65,13 @@ export function sessionHarness(file) {
       const a = j.attachment;
       if (att && a && typeof a === 'object') {
         if (a.type === 'deferred_tools_delta') {
-          for (const n of a.addedNames || []) { const s = toolServer(n); if (s) add(`mcp:${serverKey(s)}`, estTokens(n + '\n')); }
+          for (const n of a.addedNames || []) { const s = toolServer(n); if (s) { add(`mcp:${serverKey(s)}`, estTokens(n + '\n')); const k = `tools:${serverKey(s)}`; texts.set(k, `${texts.get(k) || ''} ${n.slice(n.lastIndexOf('__') + 2).replace(/_/g, ' ')}`); } }
           for (const d of a.surfacedDefinitions || []) { const s = toolServer(d?.name); if (s) add(`mcp:${serverKey(s)}`, estTokens(JSON.stringify(d.definition || d))); }
         } else if (a.type === 'mcp_instructions_delta') {
-          (a.addedNames || []).forEach((n, i) => add(`mcp:${serverKey(n)}`, estTokens(a.addedBlocks?.[i] || '')));
+          (a.addedNames || []).forEach((n, i) => { add(`mcp:${serverKey(n)}`, estTokens(a.addedBlocks?.[i] || '')); texts.set(`mcp:${serverKey(n)}`, String(a.addedBlocks?.[i] || '')); });
         } else if (a.type === 'skill_listing') {
           for (const [n, t] of skillCosts(a.content || '', a.names || [])) add(`skill:${n}`, t);
+          for (const entry of String(a.content || '').split(/\n(?=- \S)/)) { const m = entry.match(/^- (\S+?)(?=: | \()/); if (m) texts.set(`skill:${m[1]}`, entry.slice(2)); }
         }
       }
       if (call) {
@@ -82,7 +85,9 @@ export function sessionHarness(file) {
       if (typed) for (const m of line.matchAll(/<command-name>\/?([^<\s]+)<\/command-name>/g)) used.add(`skill:${m[1]}`);
     }
   });
-  return { loaded, used, cwd };
+  // a server's card text: its instructions, then the names of its tools
+  for (const [k, t] of texts) if (k.startsWith('tools:')) { const m = `mcp:${k.slice(6)}`; texts.set(m, `${texts.get(m) || ''}\nTools:${t}`); texts.delete(k); }
+  return { loaded, used, cwd, texts };
 }
 
 // Where each source is switched on: Claude Code's settings and MCP files for this repository.
@@ -129,7 +134,7 @@ export function harnessUsage(repo, { days = 30, home = os.homedir(), sessions } 
   const config = claudeHarnessConfig(repo, { home });
   const rows = new Map();
   const row = key => {
-    if (!rows.has(key)) rows.set(key, { key, loaded: 0, used: 0, tokens: 0, lastUsed: null, skills: new Set() });
+    if (!rows.has(key)) rows.set(key, { key, loaded: 0, used: 0, tokens: 0, lastUsed: null, skills: new Set(), texts: {} });
     return rows.get(key);
   };
   const group = k => {
@@ -146,6 +151,7 @@ export function harnessUsage(repo, { days = 30, home = os.homedir(), sessions } 
     for (const [k, t] of h.loaded) {
       tokens.set(group(k), (tokens.get(group(k)) || 0) + t);
       if (k.startsWith('skill:') && group(k) !== k) row(group(k)).skills.add(k.slice(6));
+      if (h.texts.has(k)) row(group(k)).texts[k] = h.texts.get(k).slice(0, CARD_CHARS);
     }
     for (const [k, t] of tokens) {
       const r = row(k); r.loaded++; r.tokens += t;
@@ -246,12 +252,12 @@ const saveState = (store, st) => writeJson(stateFile(store), st);
 export const harnessPending = (store, { home } = {}) => !harnessNever(home) && Boolean(readHarnessState(store).pending);
 
 // What the question needs of a source, and nothing that could hold a secret.
-const pick = s => ({ key: s.key, name: s.name, kind: s.kind, scope: s.scope, id: s.id, how: s.how, skills: s.skills, tokens: s.tokens, used: s.used, loaded: s.loaded });
+const pick = s => ({ key: s.key, name: s.name, kind: s.kind, scope: s.scope, id: s.id, how: s.how, skills: s.skills, tokens: s.tokens, used: s.used, loaded: s.loaded, texts: s.texts });
 
 // Small skills as one option: switched off together, each still runnable as /name.
 const bundleOf = skills => ({
   key: `skills:${skills.map(s => s.name).join(',')}`, name: `${skills.length} rarely used skills`, kind: 'skills', how: 'skills',
-  skills: skills.map(s => s.name), members: skills.map(s => s.key), tokens: skills.reduce((t, s) => t + s.tokens, 0),
+  skills: skills.map(s => s.name), members: skills.map(s => s.key), tokens: skills.reduce((t, s) => t + s.tokens, 0), texts: Object.assign({}, ...skills.map(s => s.texts)),
   used: Math.max(...skills.map(s => s.used)), loaded: Math.max(...skills.map(s => s.loaded)),
 });
 
@@ -353,7 +359,7 @@ export function answerHarness(store, choice, { client, via = 'picker', home, use
   if (!chosen.length) { saveState(store, st); store.log({ op: 'harness-answer', choice: 'none', client, via, sources: pending.length }); return 'Recorded: nothing switched off; thinker will not suggest these again for a month. Go on with the task.'; }
   const backups = new Map(), done = [], failed = [];
   for (const s of chosen) {
-    try { done.push({ name: s.name, kind: s.kind, tokens: s.tokens, at, undo: apply(store.repo, s, { userHome, home, now, backups }) }); }
+    try { done.push({ name: s.name, kind: s.kind, tokens: s.tokens, at, undo: apply(store.repo, s, { userHome, home, now, backups }), cards: cardsFor(s) }); }
     catch (e) { failed.push(`${s.name} (${e.message})`); }
   }
   (st.applied ||= []).push(...done);
@@ -377,7 +383,60 @@ export function undoHarness(store, { home, now = Date.now() } = {}) {
       else if (u.key === 'disabledMcpServers') { const p = j.projects?.[u.project]; if (p) p.disabledMcpServers = (p.disabledMcpServers || []).filter(n => n !== u.id); }
     }, ctx);
   }
-  delete st.applied; saveState(store, st);
+  delete st.applied; delete st.recalled; saveState(store, st);
   store.log({ op: 'harness-undo', sources: applied.length });
   return `Turned back on in this repository, from the next session on: ${applied.map(a => a.name).join(', ')}.`;
+}
+
+// --- recall: a switched-off source the request needs -------------------------------------------------
+// Switching a source off takes its description out of every session; the request that needs it then has
+// nothing to say the tool exists. Each source switched off keeps a card: its name, its own description as
+// Claude Code listed it, and how the person brings it back. The prompt hook ranks the cards against the
+// request as it ranks notes (rank.js, then the cross-encoder, dense.js:ceRerank), a pool of its own, and
+// when one clears the floor tells the agent in a line, once per card in a session. Nothing is said
+// otherwise. A new way of reaching the agent: off until an experiment shows it helps (AGENTS.md);
+// `harness: { recall: true }` in .thinker/config.json, or THINKER_HARNESS_RECALL=on, turns it on.
+export const RECALL = { floor: -2, k: 8, sessions: 50 };
+export const recallOn = store => /^(1|on|true)$/i.test(process.env.THINKER_HARNESS_RECALL || '') || store.config().harness?.recall === true;
+
+// One card per thing the person can bring back by name: a skill each (a plugin's too), a server whole.
+function cardsFor(s) {
+  const card = (key, name, text, back) => ({ id: key, name, text: String(text || name).slice(0, CARD_CHARS), back });
+  if (s.kind === 'mcp') return [card(s.key, s.name, s.texts?.[`mcp:${serverKey(s.name)}`] || Object.values(s.texts || {})[0], `\`/mcp enable ${s.name}\` brings it back in this session`)];
+  const back = s.how === 'plugin' ? n => `the ${s.name} plugin is off here: \`thinker harness --undo\` (or "enabledPlugins": {"${s.id}": true} in .claude/settings.local.json) brings it back from the next session` : n => `\`/${n}\` still runs it`;
+  return (s.skills?.length ? s.skills : [s.name]).map(n => card(`skill:${n}`, n, s.texts?.[`skill:${n}`], back(n)));
+}
+
+// The card the request needs, if any: the hook's own lexical gate, then the cross-encoder at the floor.
+export async function recallCard(cards, prompt, { floor = RECALL.floor, k = RECALL.k, scoreFn } = {}) {
+  if (!cards?.length || !String(prompt || '').trim()) return null;
+  const { rank } = await import('./rank.js');
+  // a source's description says when to use it: it is the card's question side, where the gate looks
+  const notes = cards.map(c => ({ id: c.id, title: c.name.replace(/[:_-]+/g, ' '), answers: [c.text, ...(c.says || [])], says: c.says, body: c.text, search: c.search || c.text, kind: 'howto', deps: [], card: c }));
+  const rows = rank(notes, { query: prompt });
+  if (!rows.length) return null;
+  const { ceRerank } = await import('./dense.js');
+  const kept = await (scoreFn ? scoreFn(rows, prompt, { floor, k }) : ceRerank(rows, prompt, { floor, k, maxNotes: 1 }));
+  return kept[0] ? { ...kept[0].note.card, ce: kept[0].ce } : null;
+}
+
+// The prompt hook: one line about a switched-off source this request looks like it needs, once per card
+// in a session, or nothing.
+export async function harnessRecall(store, prompt, { session, client, scoreFn } = {}) {
+  if (!recallOn(store)) return '';
+  const st = readHarnessState(store), cards = (st.applied || []).flatMap(a => a.cards || []);
+  if (!cards.length) return '';
+  const said = new Set(st.recalled?.[session] || []);
+  let c = null;
+  try { c = await recallCard(cards.filter(x => !said.has(x.id)), prompt, { scoreFn }); } catch { return ''; }
+  if (!c) return '';
+  if (session && session !== 'unknown') {
+    st.recalled ||= {};
+    st.recalled[session] = [...said, c.id];
+    const keys = Object.keys(st.recalled); for (const k of keys.slice(0, Math.max(0, keys.length - RECALL.sessions))) delete st.recalled[k];
+    saveState(store, st);
+  }
+  store.log({ op: 'harness-recall', session: session === 'unknown' ? undefined : session, client, card: c.id, ce: c.ce == null ? undefined : Math.round(c.ce * 100) / 100 });
+  const what = String(c.text).replace(/^\S+?(?=: | \()(\s*\([^)]*\))?:\s*/, '').split(/(?<=\.)\s/)[0].slice(0, 220);
+  return `<thinker-switched-off>\n${c.name} is switched off in this repository (${what}). If this request needs it, tell the user that ${c.back}; otherwise ignore this line.\n</thinker-switched-off>`;
 }

@@ -18,7 +18,7 @@ import { turnNotice, turnFooterMarkdown, weeklyNotice } from '../usage.js';
 import { claudeCardActive } from '../claude-card.js';
 import { setupRepo, warmupOffer } from '../repo-onboard.js';
 import { coverageOffer, recordAccess } from '../coverage.js';
-import { harnessOffer } from '../harness.js';
+import { harnessOffer, harnessRecall } from '../harness.js';
 import { desktopApp, subagentHarness, ancestorPids } from '../app-host.js';
 import { enqueueJob, markAppSession, pendingJobs, startSessionWork } from '../session-work.js';
 import { isWorkerPrompt, isWorkerTool } from '../session-llm.js';
@@ -119,7 +119,9 @@ async function hookCommand(ctx) {
       // never in a benchmark or test session (THINKER_TEST=1): an offer there is noise in the agent's context and an
       // eval runner marks the session invalid for it (2026-10-18); THINKER_OFFERS=on restores them, for the tests of the offers
       const offersOn = !isTestMode() || process.env.THINKER_OFFERS === 'on';
-      const offer = [offersOn ? (warmupOffer(store, { client }) || coverageOffer(store, { client }) || harnessOffer(store, { client })) : '', work].filter(Boolean).join('\n\n');
+      // a switched-off tool this request looks like it needs (harness.js:harnessRecall; off until an experiment)
+      const recall = client === 'claude' && !isHarnessEvent(ev.prompt) ? await harnessRecall(store, ev.prompt || '', { session, client }) : '';
+      const offer = [offersOn ? (warmupOffer(store, { client }) || coverageOffer(store, { client }) || harnessOffer(store, { client })) : '', work, recall].filter(Boolean).join('\n\n');
       // Every git repository has a cache, started on first use and empty until it learns; the hooks serve
       // from it once it holds a few notes (ops.js:SERVE_MIN_NOTES). A prompt served nothing is still a
       // request: `thinker usage` and the telemetry count a machine as active by its requests, and a cache in
