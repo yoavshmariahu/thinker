@@ -13,7 +13,7 @@ import { Store, findRepoRoot } from '../store.js';
 import { isDisabledRepo } from '../repo-switch.js';
 import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '../maintain.js';
 import { codeForRequest, orient, HOOK_BUDGET, servesNotes, rememberTask, outcome, looksLikeCorrection, lateNotes, onSightNotes, onSightConfig, onSightOutlines, onSightOutlineConfig, completenessNudge, peekTurn, takeTurn, beginTurn, holdoutTurn, sessionIntro, linkAgentSession, isHarnessEvent } from '../ops.js';
-import { recordEvent, traceFile, toolName, toolInput } from '../transcripts.js';
+import { recordEvent, traceFile, toolName, toolInput, textOf } from '../transcripts.js';
 import { turnNotice, turnFooterMarkdown, weeklyNotice } from '../usage.js';
 import { claudeCardActive } from '../claude-card.js';
 import { setupRepo, warmupOffer } from '../repo-onboard.js';
@@ -22,6 +22,7 @@ import { commitsOffer } from '../commits-offer.js';
 import { harnessOffer, harnessRecall, harnessIndex, harnessOn } from '../harness.js';
 import { skillSuggestOn, skillSuggestLines, hookSkillFacts } from '../skill-suggest.js';
 import { snapshotCursorInventory } from '../harness-cursor.js';
+import { sectionsForEvent, sectionsConfig } from '../instruction-sections.js';
 import { thinkerHome } from '../update.js';
 import { desktopApp, subagentHarness, ancestorPids } from '../app-host.js';
 import { enqueueJob, markAppSession, pendingJobs, startSessionWork } from '../session-work.js';
@@ -199,6 +200,17 @@ async function hookCommand(ctx) {
       if (p && !mcpCall) parts.push(p);
     }
     const t = holdoutTurn(store, session);
+    // the repository's instruction sections this tool call is about (instruction-sections.js; off until an experiment):
+    // the team's own text, not notes, so neither the notes' holdout nor an empty cache holds them back
+    if (sectionsConfig(store).enabled) {
+      const name = toolName(ev.tool_name), input = toolInput(name, ev.tool_input), command = typeof input.command === 'string' ? input.command : Array.isArray(input.command) ? input.command.join(' ') : '';
+      const named = toolFiles(ev, repo), patch = JSON.stringify(ev.tool_input ?? '');
+      const patched = [...patch.matchAll(/\*\*\* (?:Update|Add|Delete) File: ([^\\\n"]+)/g)].map(m => path.isAbsolute(m[1]) ? path.relative(repo, m[1]) : m[1]);
+      const edited = name === 'Edit' || name === 'Write' ? [...named, ...patched] : [];
+      let s = '';
+      try { s = sectionsForEvent(store, { session, client, files: [...named, ...edited], command, output: textOf(ev.tool_response ?? ev.tool_output ?? ev.output).slice(0, 200_000), read: name === 'Edit' || name === 'Write' ? [] : named, edited }); } catch {}
+      if (s) parts.push(s);
+    }
     if ((client === 'claude' || flags.late) && !t.holdout && servesNotes(store)) {
       const name = toolName(ev.tool_name), command = toolInput(name, ev.tool_input).command || '';
       // an edit tool, or a shell command that writes a file in place
