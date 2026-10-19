@@ -1,7 +1,7 @@
 // `thinker harness`: what the agent loads into every session here against what the sessions use,
 // and the sources worth switching off (harness.js). The report reads transcripts and settings and changes
 // nothing; --suggest queues the question for the next prompt, --answer takes its reply, --undo reverses them.
-import { harnessUsage, harnessAdvice, MIN_TOKENS, scheduleHarnessSuggestion, answerHarness, undoHarness } from '../harness.js';
+import { harnessUsage, harnessAdvice, harnessSavings, MIN_TOKENS, scheduleHarnessSuggestion, answerHarness, undoHarness } from '../harness.js';
 import { formatTokens } from '../model-usage.js';
 
 const KIND = { plugin: 'plugin', mcp: 'MCP server', connector: 'claude.ai connector', skill: 'skill' };
@@ -16,8 +16,13 @@ async function harnessCommand({ store, repo, flags, out }) {
     out(picks?.length ? `Queued: your next prompt in Claude Code here asks which of ${picks.length} source${picks.length === 1 ? '' : 's'} to switch off (${picks.map(p => p.name).join(', ')}).` : 'Nothing here is worth switching off; no question queued.');
     return;
   }
-  const advice = harnessAdvice(usage);
-  if (flags.json) { out(JSON.stringify({ ...usage, advice }, null, 2)); return; }
+  const advice = harnessAdvice(usage), saved = harnessSavings(store);
+  if (flags.json) { out(JSON.stringify({ ...usage, advice, saved }, null, 2)); return; }
+  if (saved.sources.length) {
+    out(`Switched off here by thinker, measured in the ${saved.sessions} Claude Code session${saved.sessions === 1 ? '' : 's'} started since:`);
+    for (const s of saved.sources) out(`- ${s.name} (${KIND[s.kind] || s.kind}), off since ${s.at.slice(0, 10)}: absent from ${s.absent} of ${s.sessions} sessions, ~${formatTokens(s.tokens)} tokens of context saved (~${formatTokens(s.inputTokens)} input tokens over their model calls)${s.stillLoaded ? `; still loaded in ${s.stillLoaded}, where the switch did not take effect` : ''}`);
+    out(`In all: ~${formatTokens(saved.tokens)} tokens of context, ~${formatTokens(saved.inputTokens)} input tokens. \`thinker harness --undo\` turns them back on.\n`);
+  }
   if (!usage.sessions) { out(`No Claude Code session here in the last ${days} days records what it loaded.`); return; }
   out(`What Claude Code loaded into ${usage.sessions} sessions here over ${days} days, and how many used it:\n`);
   out(`  ${'source'.padEnd(34)} ${'kind'.padEnd(20)} ${'used'.padStart(9)}  tokens each`);

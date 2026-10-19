@@ -50,8 +50,8 @@ export function skillCosts(content, names) {
 // One Claude Code transcript (and its subagents'): what it loaded, with the tokens of each source,
 // and what it called. Lines are filtered by text before parsing; a transcript runs to megabytes.
 export function sessionHarness(file) {
-  const loaded = new Map(), used = new Set(), texts = new Map();
-  let cwd = null;
+  const loaded = new Map(), used = new Set(), texts = new Map(), calls = new Set();
+  let cwd = null, start = null;
   const add = (key, tokens) => loaded.set(key, (loaded.get(key) || 0) + tokens);
   const files = [file];
   try { const sub = path.join(file.replace(/\.jsonl$/, ''), 'subagents'); for (const f of fs.readdirSync(sub)) if (f.endsWith('.jsonl')) files.push(path.join(sub, f)); } catch {}
@@ -59,9 +59,13 @@ export function sessionHarness(file) {
     let text = ''; try { text = fs.readFileSync(f, 'utf8'); } catch { return; }
     for (const line of text.split('\n')) {
       const att = fi === 0 && line.includes('"attachment"'), call = line.includes('"tool_use"'), typed = line.includes('<command-name>');
-      if (!att && !call && !typed && cwd) continue;
+      // a model call of the main session: every one reads the whole context again, what was loaded included
+      const turn = fi === 0 && line.includes('"usage"') && line.includes('"assistant"');
+      if (!att && !call && !typed && !turn && cwd && start) continue;
       let j; try { j = JSON.parse(line); } catch { continue; }
       if (!cwd && typeof j.cwd === 'string') cwd = j.cwd;
+      if (!start && fi === 0 && typeof j.timestamp === 'string') start = j.timestamp;
+      if (turn && j.type === 'assistant' && j.message?.usage) calls.add(j.message.id || j.uuid);
       const a = j.attachment;
       if (att && a && typeof a === 'object') {
         if (a.type === 'deferred_tools_delta') {
@@ -87,7 +91,7 @@ export function sessionHarness(file) {
   });
   // a server's card text: its instructions, then the names of its tools
   for (const [k, t] of texts) if (k.startsWith('tools:')) { const m = `mcp:${k.slice(6)}`; texts.set(m, `${texts.get(m) || ''}\nTools:${t}`); texts.delete(k); }
-  return { loaded, used, cwd, texts };
+  return { loaded, used, cwd, texts, start, calls: calls.size };
 }
 
 // Where each source is switched on: Claude Code's settings and MCP files for this repository.
@@ -359,7 +363,7 @@ export function answerHarness(store, choice, { client, via = 'picker', home, use
   if (!chosen.length) { saveState(store, st); store.log({ op: 'harness-answer', choice: 'none', client, via, sources: pending.length }); return 'Recorded: nothing switched off; thinker will not suggest these again for a month. Go on with the task.'; }
   const backups = new Map(), done = [], failed = [];
   for (const s of chosen) {
-    try { done.push({ name: s.name, kind: s.kind, tokens: s.tokens, at, undo: apply(store.repo, s, { userHome, home, now, backups }), cards: cardsFor(s) }); }
+    try { done.push({ key: s.key, members: s.members, name: s.name, kind: s.kind, tokens: s.tokens, at, undo: apply(store.repo, s, { userHome, home, now, backups }), cards: cardsFor(s) }); }
     catch (e) { failed.push(`${s.name} (${e.message})`); }
   }
   (st.applied ||= []).push(...done);
@@ -439,4 +443,47 @@ export async function harnessRecall(store, prompt, { session, client, scoreFn } 
   store.log({ op: 'harness-recall', session: session === 'unknown' ? undefined : session, client, card: c.id, ce: c.ce == null ? undefined : Math.round(c.ce * 100) / 100 });
   const what = String(c.text).replace(/^\S+?(?=: | \()(\s*\([^)]*\))?:\s*/, '').split(/(?<=\.)\s/)[0].slice(0, 220);
   return `<thinker-switched-off>\n${c.name} is switched off in this repository (${what}). If this request needs it, tell the user that ${c.back}; otherwise ignore this line.\n</thinker-switched-off>`;
+}
+
+// --- what switching off saved, measured -----------------------------------------------------------------
+// Each source switched off here keeps what it cost a session before (the report's measure, from the
+// transcripts). Every Claude Code session started here since is read for it: absent, the session saved that
+// context, once in its window and again in each model call that read the window (as cache reads, mostly);
+// still loaded, the switch did not take effect there (another checkout, a setting that outranks it) and it
+// is counted as such, never as saved.
+export function harnessSavings(store, { sessions, home = os.homedir() } = {}) {
+  const applied = readHarnessState(store).applied || [];
+  if (!applied.length) return { sources: [], sessions: 0, tokens: 0, inputTokens: 0 };
+  const since = Math.min(...applied.map(a => Date.parse(a.at)));
+  const days = Math.ceil((Date.now() - since) / 86400_000) + 1;
+  sessions ??= checkouts(store.repo).flatMap(r => findSessions(r, { sinceMs: days * 86400_000 }).filter(s => s.client === 'claude'));
+  const read = sessions.map(s => ({ ...sessionHarness(s.file), mtime: s.mtime })).filter(h => h.loaded.size && h.start);
+  const keysOf = a => {
+    const ks = a.members || [a.key];
+    if (a.kind === 'plugin') return k => k === a.key || k.startsWith(`skill:${a.name}:`) || k.startsWith(`mcp:plugin_${a.name}_`);
+    return k => ks.includes(k);
+  };
+  let total = 0, input = 0;
+  const out = applied.map(a => {
+    const has = keysOf(a), after = read.filter(h => Date.parse(h.start) > Date.parse(a.at));
+    const still = after.filter(h => [...h.loaded.keys()].some(has));
+    const absent = after.length - still.length, calls = after.filter(h => !still.includes(h)).reduce((n, h) => n + h.calls, 0);
+    total += absent * a.tokens; input += calls * a.tokens;
+    return { name: a.name, kind: a.kind, at: a.at, tokensPerSession: a.tokens, sessions: after.length, absent, stillLoaded: still.length, tokens: absent * a.tokens, inputTokens: calls * a.tokens };
+  });
+  return { sources: out, sessions: read.filter(h => Date.parse(h.start) > since).length, tokens: total, inputTokens: input };
+}
+
+// Everything the page shows (ui/server.js /api/harness) and the command prints: the report, the advice,
+// what was switched off with what it saved, and whether a question waits.
+export function harnessView(store, { days = 30, home } = {}) {
+  const usage = harnessUsage(store.repo, { days });
+  const slim = s => ({ key: s.key, name: s.name, kind: s.kind, scope: s.scope, loaded: s.loaded, used: s.used, tokens: s.tokens, off: s.off });
+  return {
+    days, sessions: usage.sessions,
+    sources: usage.sources.filter(s => s.tokens >= MIN_TOKENS).map(slim),
+    advice: harnessAdvice(usage).map(s => ({ ...slim(s), action: s.action })),
+    saved: harnessSavings(store),
+    pending: harnessPending(store, { home }), never: harnessNever(home),
+  };
 }

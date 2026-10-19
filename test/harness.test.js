@@ -7,7 +7,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
-import { sessionHarness, harnessUsage, harnessAdvice, skillCosts, serverKey, scheduleHarnessSuggestion, harnessOffer, harnessPending, answerHarness, undoHarness, readHarnessState, harnessNever, SIGNATURE } from '../src/harness.js';
+import http from 'node:http';
+import { createUiServer } from '../src/ui/server.js';
+import { sessionHarness, harnessUsage, harnessAdvice, harnessSavings, harnessView, skillCosts, serverKey, scheduleHarnessSuggestion, harnessOffer, harnessPending, answerHarness, undoHarness, readHarnessState, harnessNever, SIGNATURE } from '../src/harness.js';
 
 const tmp = p => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), p)));
 const long = n => 'x'.repeat(n);
@@ -183,4 +185,55 @@ test('none passes on every source for a month; never stops the suggestions on th
   assert.equal(answerHarness(store, 'never', { home: thinkerHome, userHome: h, now: T0 }).startsWith('Recorded'), true);
   assert.equal(harnessNever(thinkerHome), true);
   assert.equal(scheduleHarnessSuggestion(store, { now: T0 + 60 * 86400_000, home: thinkerHome, usage, force: true }), null);
+});
+
+// --- what switching off saved -----------------------------------------------------------------------
+// a session started at `start`, with `calls` model calls, loading what loadedLines loads minus `without`
+function laterSession(dir, id, start, { calls = 4, without = [] } = {}) {
+  const drop = n => without.some(w => n.startsWith(w));
+  const lines = loadedLines().map(j => {
+    const a = j.attachment;
+    if (a.type === 'deferred_tools_delta') return { ...j, timestamp: start, attachment: { ...a, addedNames: a.addedNames.filter(n => !drop(n)) } };
+    if (a.type === 'mcp_instructions_delta') { const keep = a.addedNames.map((n, i) => [n, a.addedBlocks[i]]).filter(([n]) => !without.some(w => w === `mcp__${n}__`)); return { ...j, attachment: { ...a, addedNames: keep.map(k => k[0]), addedBlocks: keep.map(k => k[1]) } }; }
+    if (a.type === 'skill_listing') { const names = a.names.filter(n => !drop(`skill:${n}`)); return { ...j, attachment: { ...a, names, content: a.content.split(/\n(?=- \S)/).filter(e => names.some(n => e.startsWith(`- ${n}`))).join('\n') } }; }
+    return j;
+  });
+  for (let i = 0; i < calls; i++) lines.push({ type: 'assistant', message: { id: `m${id}${i}`, usage: { input_tokens: 10 }, content: [{ type: 'text', text: 'ok' }] } });
+  fs.writeFileSync(path.join(dir, `${id}.jsonl`), lines.map(j => JSON.stringify(j)).join('\n') + '\n');
+  return { client: 'claude', file: path.join(dir, `${id}.jsonl`), session: id, mtime: Date.parse(start) };
+}
+
+test('what switching off saved is read from the sessions started since: absent counts, still loaded does not', t => {
+  const { store, h, thinkerHome } = suggested(t);
+  answerHarness(store, 'gtm, rea', { home: thinkerHome, userHome: h, now: T0 });
+  const dir = tmp('thinker-harness-later-'); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const before = laterSession(dir, 'before', new Date(T0 - 3600e3).toISOString(), { without: [] });
+  const gone = laterSession(dir, 'gone', new Date(T0 + 3600e3).toISOString(), { calls: 5, without: ['mcp__rea__', 'skill:gtm:'] });
+  const other = laterSession(dir, 'other', new Date(T0 + 7200e3).toISOString(), { calls: 2, without: ['skill:gtm:'] });
+  const sv = harnessSavings(store, { sessions: [before, gone, other] });
+  assert.equal(sv.sessions, 2, 'a session from before the switch is not counted');
+  const by = Object.fromEntries(sv.sources.map(s => [s.name, s]));
+  assert.equal(by.gtm.absent, 2); assert.equal(by.gtm.stillLoaded, 0);
+  assert.equal(by.rea.absent, 1); assert.equal(by.rea.stillLoaded, 1, 'the checkout where rea still loaded is named, not counted as saved');
+  assert.equal(by.rea.tokens, by.rea.tokensPerSession);
+  assert.equal(by.rea.inputTokens, 5 * by.rea.tokensPerSession, 'read again in each model call of the session');
+  assert.equal(sv.tokens, by.gtm.tokens + by.rea.tokens);
+  assert.deepEqual(harnessSavings(checkout(t)), { sources: [], sessions: 0, tokens: 0, inputTokens: 0 }, 'nothing switched off, nothing read');
+});
+
+test('the page shows the same view as the command, and asks and undoes through the same functions', async t => {
+  const store = checkout(t);
+  process.env.THINKER_LOG = 'local'; t.after(() => { delete process.env.THINKER_LOG; });
+  const ui = createUiServer(store, { token: 'a'.repeat(32), home: tmp('thinker-harness-uih-'), transcriptsHome: tmp('thinker-harness-uit-') });
+  const { port } = await ui.listen(0); t.after(() => ui.close());
+  const call = (p, body) => new Promise((resolve, reject) => {
+    const req = http.request({ host: '127.0.0.1', port, path: p, method: body ? 'POST' : 'GET', headers: { host: `127.0.0.1:${port}`, 'x-thinker-token': 'a'.repeat(32), ...(body ? { 'content-type': 'application/json' } : {}) } }, res => { let s = ''; res.on('data', d => s += d); res.on('end', () => resolve({ status: res.statusCode, body: JSON.parse(s || '{}') })); });
+    req.on('error', reject); if (body) req.write(JSON.stringify(body)); req.end();
+  });
+  const v = await call('/api/harness');
+  assert.equal(v.status, 200, JSON.stringify(v.body));
+  assert.deepEqual(Object.keys(v.body).sort(), Object.keys(harnessView(store)).sort());
+  assert.equal((await call('/api/harness/suggest', { repo: '' })).status, 400, 'nothing to ask about: said, not queued');
+  assert.match((await call('/api/harness/undo', { repo: '' })).body.said, /Nothing to undo/);
+  assert.equal((await call('/api/harness?repo=all')).status, 200);
 });
