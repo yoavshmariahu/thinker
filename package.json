@@ -1,6 +1,6 @@
 {
   "name": "thinker",
-  "version": "0.1.65",
+  "version": "0.1.66",
   "description": "Stop wasting context: injects the context and skills that fit each task, keeps itself fresh as the code changes, and switches off the tools your coding agent loads and never uses",
   "type": "module",
   "bin": {
