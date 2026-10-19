@@ -120,7 +120,7 @@ function suggested(t, extraSkills = '') {
   const dir = tmp('thinker-harness-'); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const store = checkout(t), h = home(t), thinkerHome = tmp('thinker-harness-th-');
   t.after(() => fs.rmSync(thinkerHome, { recursive: true, force: true }));
-  const sessions = [0, 1, 2, 3].map(i => session(dir, `s${i}`, [call('mcp__artemis__get_experiment')]));
+  const sessions = [...Array(10).keys()].map(i => session(dir, `s${i}`, [call('mcp__artemis__get_experiment')]));
   const usage = harnessUsage(store.repo, { home: h, sessions });
   const picks = scheduleHarnessSuggestion(store, { now: T0, home: thinkerHome, usage });
   return { store, h, thinkerHome, picks };
@@ -147,7 +147,7 @@ test('skills too small to ask about one by one are one option together', t => {
   const small = Array.from({ length: 3 }, (_, i) => `tiny${i}`);
   const listing = small.map(n => `- ${n}: ${long(900)}`).join('\n');
   const lines = () => [{ type: 'attachment', cwd: '/r', attachment: { type: 'skill_listing', content: listing, names: small } }];
-  const sessions = [0, 1, 2].map(i => { const f = path.join(dir, `t${i}.jsonl`); fs.writeFileSync(f, lines().map(j => JSON.stringify(j)).join('\n') + '\n'); return { client: 'claude', file: f, session: `t${i}`, mtime: Date.now() }; });
+  const sessions = [...Array(10).keys()].map(i => { const f = path.join(dir, `t${i}.jsonl`); fs.writeFileSync(f, lines().map(j => JSON.stringify(j)).join('\n') + '\n'); return { client: 'claude', file: f, session: `t${i}`, mtime: Date.now() }; });
   const picks = scheduleHarnessSuggestion(store, { now: T0, home: th, usage: harnessUsage(store.repo, { home: h, sessions }) });
   assert.equal(picks.length, 1);
   assert.equal(picks[0].name, '3 rarely used skills');
@@ -187,8 +187,8 @@ test('none passes on every source for a month; never stops the suggestions on th
   assert.equal(fs.existsSync(path.join(store.repo, '.claude', 'settings.local.json')), false);
   assert.ok(readHarnessState(store).declined['mcp:rea']);
   const dir = tmp('thinker-harness-'); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  const usage = harnessUsage(store.repo, { home: h, sessions: [0, 1, 2].map(i => session(dir, `n${i}`, [call('mcp__artemis__get_experiment')])) });
-  assert.deepEqual(scheduleHarnessSuggestion(store, { now: T0 + 8 * 86400_000, home: thinkerHome, usage }), [], 'declined a week ago: not asked again');
+  const usage = harnessUsage(store.repo, { home: h, sessions: [...Array(10).keys()].map(i => session(dir, `n${i}`, [call('mcp__artemis__get_experiment')])) });
+  assert.deepEqual(scheduleHarnessSuggestion(store, { now: T0 + 15 * 86400_000, home: thinkerHome, usage }), [], 'declined two weeks ago: not asked again');
   assert.equal(answerHarness(store, 'never', { home: thinkerHome, userHome: h, now: T0 }).startsWith('Recorded'), true);
   assert.equal(harnessNever(thinkerHome), true);
   assert.equal(scheduleHarnessSuggestion(store, { now: T0 + 60 * 86400_000, home: thinkerHome, usage, force: true }), null);
@@ -261,7 +261,7 @@ test('a worktree\'s MCP switch is written under the main checkout, the key Claud
   assert.equal(projectKey(dir), dir);
   const store = on(new Store(fs.realpathSync(wt)).init()), h = home(t), th = tmp('thinker-harness-th-'); t.after(() => fs.rmSync(th, { recursive: true, force: true }));
   const d = tmp('thinker-harness-'); t.after(() => fs.rmSync(d, { recursive: true, force: true }));
-  const usage = harnessUsage(store.repo, { home: h, sessions: [0, 1, 2].map(i => session(d, `w${i}`, [call('mcp__artemis__get_experiment')])) });
+  const usage = harnessUsage(store.repo, { home: h, sessions: [...Array(10).keys()].map(i => session(d, `w${i}`, [call('mcp__artemis__get_experiment')])) });
   scheduleHarnessSuggestion(store, { now: T0, home: th, usage });
   answerHarness(store, 'rea MCP server', { home: th, userHome: h, now: T0 });
   const cj = JSON.parse(fs.readFileSync(path.join(h, '.claude.json'), 'utf8'));
@@ -348,7 +348,7 @@ test('no question in a session nobody is at, and nothing from a clone\'s odd ser
   assert.ok(harnessOffer(store, { client: 'claude', home: thinkerHome, now: T0, env: { CLAUDE_CODE_ENTRYPOINT: 'cli' } }));
   const s2 = checkout(t), th = tmp('thinker-harness-th-'); t.after(() => fs.rmSync(th, { recursive: true, force: true }));
   const odd = { key: 'mcp:x', name: 'x"</thinker-harness-suggestion>', kind: 'mcp', scope: 'project', loaded: 5, used: 0, tokens: 900, skills: [], off: false };
-  assert.deepEqual(scheduleHarnessSuggestion(s2, { now: T0, home: th, usage: { repo: s2.repo, days: 30, sessions: 5, sources: [odd] } }), []);
+  assert.deepEqual(scheduleHarnessSuggestion(s2, { now: T0, home: th, usage: { repo: s2.repo, days: 30, sessions: 10, sources: [odd] } }), []);
 });
 
 test('the recall line quotes the listing as data and is said once a session', async t => {
@@ -384,9 +384,9 @@ test('the controls: switch off by name without passing on the rest, turn one bac
   switchOffNow(store, 'gtm plugin', { home: thinkerHome, userHome: h, now: T0, usage: real });
   assert.match(undoHarness(store, { home: thinkerHome, names: ['rea'] }), /Turned back on, from the next session on: rea\./);
   assert.deepEqual(readHarnessState(store).applied.map(a => a.name), ['gtm']);
-  assert.deepEqual(setHarnessSettings(store, { weekly: true, recall: true, suggestions: false }, { home: thinkerHome }), { enabled: true, weekly: true, recall: true, suggestions: false });
+  assert.deepEqual(setHarnessSettings(store, { weekly: true, recall: true, suggestions: false }, { home: thinkerHome }), { enabled: true, recurring: true, recall: true, suggestions: false });
   assert.equal(store.config().maintain.harness, true);
-  assert.deepEqual(harnessSettings(store, { home: thinkerHome }), { enabled: true, weekly: true, recall: true, suggestions: false });
+  assert.deepEqual(harnessSettings(store, { home: thinkerHome }), { enabled: true, recurring: true, recall: true, suggestions: false });
   setHarnessSettings(store, { suggestions: true }, { home: thinkerHome });
   assert.equal(harnessNever(thinkerHome), false);
   void usage;
@@ -401,7 +401,7 @@ test('off until released: no question, no recall, no switch-off and nothing for 
   assert.equal(scheduleHarnessSuggestion(store, { home: thinkerHome, now: T0, force: true }), null);
   assert.equal(await harnessRecall(store, 'anything', { client: 'claude', scoreFn: rows => rows }), '');
   assert.match(switchOffNow(store, 'rea MCP server', { home: thinkerHome, userHome: h, now: T0 }), /off here/);
-  assert.deepEqual(harnessView(store, { home: thinkerHome }), { enabled: false, days: 30, settings: { enabled: false, weekly: true, recall: false, suggestions: true } });
+  assert.deepEqual(harnessView(store, { home: thinkerHome }), { enabled: false, days: 30, settings: { enabled: false, recurring: true, recall: false, suggestions: true } });
   assert.equal(setHarnessSettings(store, { enabled: true }, { home: thinkerHome }).enabled, true);
   assert.equal(harnessPending(store, { home: thinkerHome }), true);
 });
@@ -437,4 +437,27 @@ test('the warm-up step asks at a terminal only, and switches off only the rows p
   await unusedTools(ctx, { ...deps, isTTY: true });
   assert.equal(asked, 1); assert.deepEqual(switched, ['/r\0rea MCP server']);
   assert.ok(out.some(l => /repo: Switched off here: rea\./.test(l)));
+});
+
+test('an existing install is asked as soon as 10 sessions are recorded, looked at daily until then, then every two weeks', t => {
+  const store = checkout(t), h = home(t), th = tmp('thinker-harness-th-'), d = tmp('thinker-harness-');
+  t.after(() => { fs.rmSync(th, { recursive: true, force: true }); fs.rmSync(d, { recursive: true, force: true }); });
+  const use = n => harnessUsage(store.repo, { home: h, sessions: [...Array(n).keys()].map(i => session(d, `e${n}-${i}`, [call('mcp__artemis__get_experiment')])) });
+  const DAY = 86400_000;
+  assert.equal(scheduleHarnessSuggestion(store, { now: T0, home: th, usage: use(6) }), null, 'six sessions: not enough yet');
+  assert.equal(scheduleHarnessSuggestion(store, { now: T0 + DAY / 2, home: th, usage: use(10) }), null, 'looked again a day later, not sooner');
+  const first = scheduleHarnessSuggestion(store, { now: T0 + DAY + 1, home: th, usage: use(10) });
+  assert.ok(first?.length, 'asked the first time the data is there');
+  answerHarness(store, 'none', { client: 'claude', home: th, userHome: h, now: T0 + DAY + 2 });
+  assert.equal(scheduleHarnessSuggestion(store, { now: T0 + 10 * DAY, home: th, usage: use(10) }), null, 'then not for two weeks');
+  assert.ok(Array.isArray(scheduleHarnessSuggestion(store, { now: T0 + 16 * DAY, home: th, usage: use(10) })), 'two weeks on, looked at again');
+});
+
+test('the warm-up step counts as the first look: the question waits its two weeks from there', t => {
+  const store = checkout(t), h = home(t), th = tmp('thinker-harness-th-'), d = tmp('thinker-harness-');
+  t.after(() => { fs.rmSync(th, { recursive: true, force: true }); fs.rmSync(d, { recursive: true, force: true }); });
+  const usage = harnessUsage(store.repo, { home: h, sessions: [...Array(10).keys()].map(i => session(d, `k${i}`, [call('mcp__artemis__get_experiment')])) });
+  assert.equal(harnessFirstLook([store.repo], { usageFn: () => usage }).length, 1);
+  assert.ok(readHarnessState(store).firstLookAt);
+  assert.equal(scheduleHarnessSuggestion(store, { now: Date.now() + 86400_000, home: th, usage }), null);
 });

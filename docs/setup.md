@@ -40,8 +40,9 @@ recorded (`HARNESS.firstSessions`), the sources worth switching off, all picked,
 confirms. Claude Code records in each session's
 transcript what it loaded: every MCP server's tool names and instructions, and the skill list. `thinker harness`
 reads the last 30 days of this repository's sessions and lists each MCP server, plugin and skill with its tokens
-per session and how many sessions used it. `--suggest` (weekly with `maintain: { harness: true }` in
-`.thinker/config.json`, off until an experiment shows it helps) has your next Claude Code prompt here ask you,
+per session and how many sessions used it. `--suggest` (and by itself every two weeks; a repository never looked at
+with 10 sessions recorded is asked as soon as it has them; `maintain: { harness: false }` in `.thinker/config.json`
+turns it off) has your next Claude Code prompt here ask you,
 in one multiple-choice question signed 🧠 Thinker, which of the unused ones to switch off. The ones you pick go
 off for this checkout (`enabledPlugins` and `skillOverrides` in `.claude/settings.local.json`, kept out of git)
 or, for an MCP server, for the repository and its worktrees (`disabledMcpServers` in its entry of

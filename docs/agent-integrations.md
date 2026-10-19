@@ -347,8 +347,8 @@ Switched-off tool reminders (recall) are on wherever the harness is on, at the o
 decision (2026-10-19): switching a source off is fair only if a request that needs it is
 told that it is off and how to bring it back. `--recall off` (or `harness: { recall: false }`)
 turns them off. On 4,511 replayed prompts they rarely fired wrongly but caught few of the
-turns that needed a tool, so they are a reminder, not a guarantee. Weekly suggestions stay
-opt-in (`--weekly on`).
+turns that needed a tool, so they are a reminder, not a guarantee. The question every two weeks
+is on with the harness (`--recurring off` turns it off).
 
 The question and the report give what a source costs a session: its tokens, which every
 model call reads again, times the model calls of a typical session here (the median, per

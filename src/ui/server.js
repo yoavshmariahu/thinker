@@ -365,7 +365,7 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
       else if (url.pathname === '/api/harness/suggest') { const picks = scheduleHarnessSuggestion(st, { force: true }); r = picks?.length ? { queued: picks.length } : { error: 'nothing here is worth switching off' }; }
       else if (url.pathname === '/api/harness/undo') r = { said: undoHarness(st, { names: Array.isArray(b.names) ? b.names : null }) };
       else if (url.pathname === '/api/harness/off') r = Array.isArray(b.labels) && b.labels.length ? { said: switchOffNow(st, b.labels.join(','), { via: 'ui' }) } : { error: 'nothing chosen' };
-      else if (url.pathname === '/api/harness/settings') { const v = k => typeof b[k] === 'boolean' ? b[k] : undefined; r = { said: JSON.stringify(setHarnessSettings(st, { weekly: v('weekly'), recall: v('recall'), suggestions: v('suggestions') })) }; }
+      else if (url.pathname === '/api/harness/settings') { const v = k => typeof b[k] === 'boolean' ? b[k] : undefined; r = { said: JSON.stringify(setHarnessSettings(st, { recurring: v('recurring') ?? v('weekly'), recall: v('recall'), suggestions: v('suggestions') })) }; }
       else if (url.pathname === '/api/behaviors/edit') r = editBehavior(st, b.id, { title: b.title, body: b.body, mutability: b.mutability });
       else return json(res, 404, { error: 'not found' });
       if (r?.error) return json(res, 400, { error: r.error });

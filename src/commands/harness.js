@@ -15,9 +15,10 @@ async function harnessCommand({ store, repo, flags, out }) {
   if (!harnessOn(store)) { out(OFF_MESSAGE); return; }
   if (flags.answer !== undefined) { out(answerHarness(store, String(flags.answer === true ? '' : flags.answer), { client: flags.client ? String(flags.client) : undefined, via: flags.via === 'text' ? 'text' : 'picker' })); return; }
   if (flags.off) { out(switchOffNow(store, String(flags.off), { via: 'cli' })); return; }
-  if (['weekly', 'recall', 'suggestions'].some(k => flags[k] !== undefined)) {
-    const s = setHarnessSettings(store, { weekly: onOff(flags.weekly), recall: onOff(flags.recall), suggestions: onOff(flags.suggestions) });
-    out(`weekly question: ${s.weekly ? 'on' : 'off'} · switched-off hints: ${s.recall ? 'on' : 'off'} · suggestions on this machine: ${s.suggestions ? 'on' : 'off'}`);
+  if (['recurring', 'weekly', 'recall', 'suggestions'].some(k => flags[k] !== undefined)) {
+    // --weekly is the old name of --recurring
+    const s = setHarnessSettings(store, { recurring: onOff(flags.recurring ?? flags.weekly), recall: onOff(flags.recall), suggestions: onOff(flags.suggestions) });
+    out(`question every two weeks: ${s.recurring ? 'on' : 'off'} · switched-off hints: ${s.recall ? 'on' : 'off'} · suggestions on this machine: ${s.suggestions ? 'on' : 'off'}`);
     return;
   }
   const days = Number(flags.days) || 30;
