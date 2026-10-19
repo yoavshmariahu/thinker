@@ -12,7 +12,7 @@
 // It listens on 127.0.0.1 alone. Every API call carries a token minted for this run, which the page
 // gets from the URL it was opened with, and the Host header must name this server, so another page
 // in the browser (or a DNS rebinding) can neither read the cache nor change a behavior.
-import { harnessView, harnessSavings, scheduleHarnessSuggestion, undoHarness, switchOffNow, setHarnessSettings } from '../harness.js';
+import { harnessView, harnessSavings, harnessOn, scheduleHarnessSuggestion, undoHarness, switchOffNow, setHarnessSettings } from '../harness.js';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -262,7 +262,7 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
       }
       // what Claude Code loads into every session here and what switching it off saved (harness.js:harnessView, as `thinker harness`)
       if (req.method === 'GET' && url.pathname === '/api/harness') {
-        if (want === 'all') return json(res, 200, { repos: repos().flatMap(r => { try { const st = open(r.checkout), sv = harnessSavings(st); return sv.sources.length ? [{ repo: r.id, repoName: r.name, saved: sv }] : []; } catch { return []; } }) });
+        if (want === 'all') return json(res, 200, { repos: repos().flatMap(r => { try { const st = open(r.checkout); if (!harnessOn(st)) return []; const sv = harnessSavings(st); return sv.sources.length ? [{ repo: r.id, repoName: r.name, saved: sv }] : []; } catch { return []; } }) });
         const one = storeFor(want); if (!one) return json(res, 400, { error: 'unknown repository' });
         // it reads every transcript of the window (seconds on a busy repository): kept a minute, dropped on an action
         const k = `${one.repo}:${Number(url.searchParams.get('days')) || 30}`, hit = harnessCache.get(k);
