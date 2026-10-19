@@ -940,10 +940,10 @@ $('#w-start').onclick = async () => {
   } catch (e) { btn.disabled = false; toast(e.message, true); }
 };
 
-// first view: the tab the URL names, else the caches; the warm-up page when nothing has a cache yet
+// first view: the tab the URL names, else usage; the warm-up page when nothing has a cache yet
 (async () => {
   let tab = H().get('tab');
-  if (!tab) { try { await fetchRepos(); tab = REPOS.length || skipped() ? 'cache' : 'warmup'; } catch { tab = 'cache'; } }
+  if (!tab) { try { await fetchRepos(); tab = REPOS.length || skipped() ? 'usage' : 'warmup'; } catch { tab = 'usage'; } }
   show(tab);
 })();
 </script>
