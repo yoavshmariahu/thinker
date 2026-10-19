@@ -9,7 +9,7 @@ import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
 import http from 'node:http';
 import { createUiServer } from '../src/ui/server.js';
-import { projectKey, harnessRecall, sessionHarness, harnessUsage, harnessAdvice, harnessSavings, harnessView, skillCosts, serverKey, scheduleHarnessSuggestion, harnessOffer, harnessPending, answerHarness, undoHarness, readHarnessState, harnessNever, SIGNATURE } from '../src/harness.js';
+import { switchOffNow, setHarnessSettings, harnessSettings, projectKey, harnessRecall, sessionHarness, harnessUsage, harnessAdvice, harnessSavings, harnessView, skillCosts, serverKey, scheduleHarnessSuggestion, harnessOffer, harnessPending, answerHarness, undoHarness, readHarnessState, harnessNever, SIGNATURE } from '../src/harness.js';
 
 const tmp = p => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), p)));
 const long = n => 'x'.repeat(n);
@@ -365,4 +365,22 @@ test('CLAUDE_CONFIG_DIR moves Claude Code\'s files, and thinker writes there', t
   answerHarness(store, 'rea', { home: thinkerHome, userHome: h, now: T0 });
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(cfg, '.claude.json'), 'utf8')).projects[store.repo].disabledMcpServers, ['rea']);
   assert.equal(fs.existsSync(path.join(h, '.claude.json')), false);
+});
+
+test('the controls: switch off by name without passing on the rest, turn one back on, and the settings both doors set', async t => {
+  const { store, h, thinkerHome } = suggested(t);
+  const usage = { repo: store.repo, days: 30, sessions: 4, sources: harnessUsage(store.repo, { home: h, sessions: [] }).sources };
+  const d = tmp('thinker-harness-'); t.after(() => fs.rmSync(d, { recursive: true, force: true }));
+  const real = harnessUsage(store.repo, { home: h, sessions: [0, 1, 2].map(i => session(d, `c${i}`, [call('mcp__artemis__get_experiment')])) });
+  assert.match(switchOffNow(store, 'rea MCP server', { home: thinkerHome, userHome: h, now: T0, usage: real }), /Switched off here/);
+  assert.equal(readHarnessState(store).declined?.['plugin:gtm'], undefined, 'what was not named is not passed on');
+  switchOffNow(store, 'gtm plugin', { home: thinkerHome, userHome: h, now: T0, usage: real });
+  assert.match(undoHarness(store, { home: thinkerHome, names: ['rea'] }), /Turned back on, from the next session on: rea\./);
+  assert.deepEqual(readHarnessState(store).applied.map(a => a.name), ['gtm']);
+  assert.deepEqual(setHarnessSettings(store, { weekly: true, recall: true, suggestions: false }, { home: thinkerHome }), { weekly: true, recall: true, suggestions: false });
+  assert.equal(store.config().maintain.harness, true);
+  assert.deepEqual(harnessSettings(store, { home: thinkerHome }), { weekly: true, recall: true, suggestions: false });
+  setHarnessSettings(store, { suggestions: true }, { home: thinkerHome });
+  assert.equal(harnessNever(thinkerHome), false);
+  void usage;
 });

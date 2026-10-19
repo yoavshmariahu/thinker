@@ -1,14 +1,21 @@
 // `thinker harness`: what the agent loads into every session here against what the sessions use,
 // and the sources worth switching off (harness.js). The report reads transcripts and settings and changes
 // nothing; --suggest queues the question for the next prompt, --answer takes its reply, --undo reverses them.
-import { harnessUsage, harnessAdvice, harnessSavings, MIN_TOKENS, scheduleHarnessSuggestion, answerHarness, undoHarness } from '../harness.js';
+import { harnessUsage, harnessAdvice, harnessSavings, MIN_TOKENS, scheduleHarnessSuggestion, answerHarness, undoHarness, switchOffNow, setHarnessSettings } from '../harness.js';
 import { formatTokens } from '../model-usage.js';
 
 const KIND = { plugin: 'plugin', mcp: 'MCP server', connector: 'claude.ai connector', skill: 'skill' };
 
 async function harnessCommand({ store, repo, flags, out }) {
   if (flags.answer !== undefined) { out(answerHarness(store, String(flags.answer === true ? '' : flags.answer), { client: flags.client ? String(flags.client) : undefined, via: flags.via === 'text' ? 'text' : 'picker' })); return; }
-  if (flags.undo) { out(undoHarness(store)); return; }
+  if (flags.undo) { out(undoHarness(store, { names: flags.undo === true ? null : String(flags.undo).split(',') })); return; }
+  if (flags.off) { out(switchOffNow(store, String(flags.off), { via: 'cli' })); return; }
+  const onOff = v => v === undefined ? undefined : /^(on|true|1|yes)$/i.test(String(v));
+  if (['weekly', 'recall', 'suggestions'].some(k => flags[k] !== undefined)) {
+    const s = setHarnessSettings(store, { weekly: onOff(flags.weekly), recall: onOff(flags.recall), suggestions: onOff(flags.suggestions) });
+    out(`weekly question: ${s.weekly ? 'on' : 'off'} · switched-off hints: ${s.recall ? 'on' : 'off'} · suggestions on this machine: ${s.suggestions ? 'on' : 'off'}`);
+    return;
+  }
   const days = Number(flags.days) || 30;
   const usage = harnessUsage(repo, { days });
   if (flags.suggest) {

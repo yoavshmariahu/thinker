@@ -321,6 +321,13 @@ const bundleOf = skills => ({
   used: Math.max(...skills.map(s => s.used)), loaded: Math.max(...skills.map(s => s.loaded)),
 });
 
+// The options of a question: the advice with plain names, the small skills as one option, at most eight.
+function pickSources(usage, keep = () => true, max = HARNESS.max) {
+  const advice = harnessAdvice(usage).filter(s => keep(s) && SAFE_NAME.test(s.name) && (s.skills || []).every(n => SAFE_NAME.test(n))).map(pick);
+  const small = advice.filter(s => s.kind === 'skill' && s.tokens < HARNESS.bundle);
+  return (small.length > 1 ? [...advice.filter(s => !small.includes(s)), bundleOf(small)] : advice).slice(0, max);
+}
+
 // Maintenance (or `thinker harness --suggest`, with force): a new question when there is something
 // to ask. Returns the sources queued, or null.
 export function scheduleHarnessSuggestion(store, { now = Date.now(), home, force = false, usage } = {}) {
@@ -337,9 +344,7 @@ export function scheduleHarnessSuggestion(store, { now = Date.now(), home, force
   if (!force && st.checkedAt && now - Date.parse(st.checkedAt) < HARNESS.everyDays * DAY) return null;
   usage ??= harnessUsage(store.repo);
   const recent = t => t && now - Date.parse(t) < HARNESS.declineDays * DAY;
-  const advice = harnessAdvice(usage).filter(s => (force || !recent(st.declined?.[s.key])) && SAFE_NAME.test(s.name) && (s.skills || []).every(n => SAFE_NAME.test(n))).map(pick);
-  const small = advice.filter(s => s.kind === 'skill' && s.tokens < HARNESS.bundle);
-  const picks = (small.length > 1 ? [...advice.filter(s => !small.includes(s)), bundleOf(small)] : advice).slice(0, HARNESS.max);
+  const picks = pickSources(usage, s => force || !recent(st.declined?.[s.key]));
   st.checkedAt = new Date(now).toISOString();
   if (picks.length) { st.pending = { at: st.checkedAt, days: usage.days, sessions: usage.sessions, sources: picks }; store.log({ op: 'harness-suggest', sources: picks.length, tokens: picks.reduce((t, p) => t + p.tokens, 0) }); }
   else delete st.pending;
@@ -435,7 +440,7 @@ function apply(repo, s, { userHome, home, now, backups, overrides = {} }) {
 
 // The answer: never stops suggestions on this machine; none (or nothing that names a pending source)
 // passes on them for a month; names switch those sources off here. Returns the line to tell the agent.
-export function answerHarness(store, choice, { client, via = 'picker', home, userHome = os.homedir(), now = Date.now() } = {}) {
+export function answerHarness(store, choice, { client, via = 'picker', home, userHome = os.homedir(), now = Date.now(), declineRest = true } = {}) {
   const st = readHarnessState(store), pending = st.pending?.sources || [];
   const raw = String(choice || '').trim();
   if (!st.pending && !/^never$/i.test(raw)) return `No thinker question waits for an answer in ${store.repo}; nothing changed. Go on with the task.`;
@@ -450,7 +455,7 @@ export function answerHarness(store, choice, { client, via = 'picker', home, use
   const chosen = pending.filter(p => said.some(w => w === labelOf(p).toLowerCase() || w === String(p.key).toLowerCase() || (w === p.name.toLowerCase() && pending.filter(q => q.name.toLowerCase() === w).length === 1)));
   const at = new Date(now).toISOString();
   st.declined ||= {};
-  for (const p of pending) if (!chosen.includes(p)) for (const k of p.members || [p.key]) st.declined[k] = at;
+  if (declineRest) for (const p of pending) if (!chosen.includes(p)) for (const k of p.members || [p.key]) st.declined[k] = at;
   delete st.pending;
   if (!chosen.length) { saveState(store, st); store.log({ op: 'harness-answer', choice: 'none', client, via, sources: pending.length }); return 'Recorded: nothing switched off; thinker will not suggest these again for a month. Go on with the task.'; }
   const backups = new Map(), done = [], failed = [], overrides = claudeHarnessConfig(store.repo, { home: userHome }).overrides;
@@ -467,9 +472,11 @@ export function answerHarness(store, choice, { client, via = 'picker', home, use
 }
 
 // `thinker harness --undo`: every source the answers switched off here, turned back on.
-export function undoHarness(store, { home, now = Date.now() } = {}) {
-  const st = readHarnessState(store), applied = st.applied || [];
-  if (!applied.length) return 'Nothing to undo: thinker has switched nothing off in this repository.';
+export function undoHarness(store, { home, now = Date.now(), names } = {}) {
+  const st = readHarnessState(store), all = st.applied || [];
+  const want = names?.length ? new Set(names.map(n => String(n).trim().toLowerCase())) : null;
+  const applied = want ? all.filter(a => want.has(a.name.toLowerCase())) : all, rest = want ? all.filter(a => !applied.includes(a)) : [];
+  if (!applied.length) return want ? `Nothing switched off here by those names: ${[...want].join(', ')}.` : 'Nothing to undo: thinker has switched nothing off in this repository.';
   // each entry on its own: one file that cannot be read keeps its entry for the next try, the rest go back
   const backups = new Map(), ctx = { home, now, backups }, back = [], kept = [];
   for (const a of applied) {
@@ -484,7 +491,7 @@ export function undoHarness(store, { home, now = Date.now() } = {}) {
       back.push(a.name);
     } catch (e) { kept.push({ ...a, undoError: e.message }); }
   }
-  if (kept.length) st.applied = kept; else delete st.applied;
+  if (kept.length || rest.length) st.applied = [...rest, ...kept]; else delete st.applied;
   delete st.recalled; saveState(store, st);
   store.log({ op: 'harness-undo', sources: back.length, failed: kept.length });
   return `${back.length ? `Turned back on, from the next session on: ${back.join(', ')}.` : ''}${kept.length ? `${back.length ? ' ' : ''}Not turned back on: ${kept.map(k => `${k.name} (${k.undoError})`).join('; ')}; \`thinker harness --undo\` tries again.` : ''}`;
@@ -582,8 +589,39 @@ export function harnessView(store, { days = 30, home } = {}) {
   return {
     days, sessions: usage.sessions,
     sources: usage.sources.filter(s => s.tokens >= MIN_TOKENS).map(slim),
-    advice: harnessAdvice(usage).map(s => ({ ...slim(s), action: s.action })),
+    advice: harnessAdvice(usage).map(s => ({ ...slim(s), label: labelOf(s), action: s.action })),
+    settings: harnessSettings(store, { home }),
     saved: harnessSavings(store),
     pending: harnessPending(store, { home }), never: harnessNever(home),
   };
+}
+
+// --- the controls: `thinker harness --off/--undo/--weekly/--recall/--suggestions`, and the page's buttons ---
+export function harnessSettings(store, { home } = {}) {
+  return { weekly: store.config().maintain?.harness === true, recall: recallOn(store), suggestions: !harnessNever(home) };
+}
+// weekly: the question from maintenance (maintain.harness); recall: the switched-off lines (harness.recall),
+// both in .thinker/config.json; suggestions: this machine's "never" (THINKER_HOME/state/harness-never)
+export function setHarnessSettings(store, { weekly, recall, suggestions } = {}, { home } = {}) {
+  if (weekly !== undefined || recall !== undefined) {
+    const file = path.join(store.dir, 'config.json'), cfg = readJson(file) || {};
+    if (weekly !== undefined) (cfg.maintain ||= {}).harness = Boolean(weekly);
+    if (recall !== undefined) (cfg.harness ||= {}).recall = Boolean(recall);
+    writeJson(file, cfg, true);
+  }
+  if (suggestions === false) { const f = neverFile(home); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, new Date().toISOString() + '\n'); }
+  if (suggestions === true) fs.rmSync(neverFile(home), { force: true });
+  const now = harnessSettings(store, { home });
+  store.log({ op: 'harness-settings', ...now });
+  return now;
+}
+// Switch named sources off now, without a question: the page's checkboxes, `--off`. What is not named is
+// not passed on; a question waiting here is replaced by this answer.
+export function switchOffNow(store, labels, { home, userHome, now = Date.now(), via = 'cli', usage } = {}) {
+  const picks = pickSources(usage || harnessUsage(store.repo), () => true, Infinity);
+  if (!picks.length) return 'Nothing here is worth switching off; nothing changed.';
+  const st = readHarnessState(store);
+  st.pending = { at: new Date(now).toISOString(), days: 30, sources: picks, direct: true };
+  saveState(store, st);
+  return answerHarness(store, labels, { via, home, userHome, now, declineRest: false }).replace(/ Tell the user in one line, then go on with the task\.$/, '');
 }

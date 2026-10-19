@@ -12,7 +12,7 @@
 // It listens on 127.0.0.1 alone. Every API call carries a token minted for this run, which the page
 // gets from the URL it was opened with, and the Host header must name this server, so another page
 // in the browser (or a DNS rebinding) can neither read the cache nor change a behavior.
-import { harnessView, harnessSavings, scheduleHarnessSuggestion, undoHarness } from '../harness.js';
+import { harnessView, harnessSavings, scheduleHarnessSuggestion, undoHarness, switchOffNow, setHarnessSettings } from '../harness.js';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -349,7 +349,9 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
       }
       // the page's door to `thinker harness --suggest` and `--undo`: the same functions, for the repository it shows
       else if (url.pathname === '/api/harness/suggest') { const picks = scheduleHarnessSuggestion(st, { force: true }); r = picks?.length ? { queued: picks.length } : { error: 'nothing here is worth switching off' }; }
-      else if (url.pathname === '/api/harness/undo') r = { said: undoHarness(st) };
+      else if (url.pathname === '/api/harness/undo') r = { said: undoHarness(st, { names: Array.isArray(b.names) ? b.names : null }) };
+      else if (url.pathname === '/api/harness/off') r = Array.isArray(b.labels) && b.labels.length ? { said: switchOffNow(st, b.labels.join(','), { via: 'ui' }) } : { error: 'nothing chosen' };
+      else if (url.pathname === '/api/harness/settings') { const v = k => typeof b[k] === 'boolean' ? b[k] : undefined; r = { said: JSON.stringify(setHarnessSettings(st, { weekly: v('weekly'), recall: v('recall'), suggestions: v('suggestions') })) }; }
       else if (url.pathname === '/api/behaviors/edit') r = editBehavior(st, b.id, { title: b.title, body: b.body, mutability: b.mutability });
       else return json(res, 404, { error: 'not found' });
       if (r?.error) return json(res, 400, { error: r.error });
