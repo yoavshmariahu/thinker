@@ -165,6 +165,14 @@ test('the page script builds a pick from the areas, and names the depth the comm
   assert.ok(read('machine.js').includes('prs: DEFAULT_PRS'), 'the page estimates with DEFAULT_PRS');
 });
 
+test('the warm-up ends on the same next step in the terminal and on the page: the unused tools, from harnessFirstLook', () => {
+  assert.match(read('commands/warmup.js'), /firstLookFn = harnessFirstLook/);
+  assert.match(read('commands/warmup.js'), /switchFn = switchOffFirstLook/);
+  assert.match(read('ui/server.js'), /firstLooks = harnessFirstLook\(/);
+  assert.match(read('ui/server.js'), /switchOffFirstLook\(firstLooks/);
+  assert.match(read('ui/page.html'), /afterWarmup\(\)/);
+});
+
 test('CLI and page expose the shared Claude Code, Codex and Cursor harness report and qualified undo controls', () => {
   assert.match(read('commands/harness.js'), /harnessUsage\(repo/);
   assert.match(read('ui/server.js'), /harnessView\(/);

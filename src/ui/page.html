@@ -348,6 +348,11 @@
       <div class="wlist" id="w-grid"><div class="empty"><span class="spinner"></span>Looking for repositories…</div></div>
       <div class="pager" id="w-pager"></div>
     </section>
+    <section id="tab-tools" hidden>
+      <div class="kicker">Next step</div>
+      <h1>Tools your agents load into every session and almost never use</h1>
+      <div id="t-body"></div>
+    </section>
   </main>
   <div class="toast" id="toast"></div>
   <div class="hint" id="hint" role="status">Open this dashboard with <code>thinker ui</code></div>
@@ -460,12 +465,13 @@ $('#to-warmup').onclick = () => show('warmup');
 $('#back').onclick = () => { DREPO = ''; show('cache'); };
 $('#w-back').onclick = () => { DREPO = ''; show('cache'); };
 function show(tab) {
-  document.querySelectorAll('.nav-link').forEach(b => b.classList.toggle('active', b.dataset.tab === (tab === 'warmup' ? 'cache' : tab)));
-  $('#tab-usage').hidden = tab !== 'usage'; $('#tab-cache').hidden = tab !== 'cache'; $('#tab-warmup').hidden = tab !== 'warmup';
+  document.querySelectorAll('.nav-link').forEach(b => b.classList.toggle('active', b.dataset.tab === (tab === 'warmup' || tab === 'tools' ? 'cache' : tab)));
+  $('#tab-usage').hidden = tab !== 'usage'; $('#tab-cache').hidden = tab !== 'cache'; $('#tab-warmup').hidden = tab !== 'warmup'; $('#tab-tools').hidden = tab !== 'tools';
   TAB = tab;
   history.replaceState(null, '', `#t=${TOKEN}&tab=${tab}${tab === 'cache' && DREPO ? `&repo=${encodeURIComponent(DREPO)}` : ''}`);
   if (tab === 'usage') loadUsage();
   else if (tab === 'warmup') loadWarmup();
+  else if (tab === 'tools') loadTools();
   else if (DREPO) openRepo(DREPO);
   else { $('#cache-overview').hidden = false; $('#cache-detail').hidden = true; loadRepos(); }
 }
@@ -972,7 +978,7 @@ document.addEventListener('mousedown', e => { if (DROP && !e.target.closest('.wd
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && DROP) { DROP = null; renderWarmup(); } });
 // skipping builds nothing; the page opens on the caches from then on (the warm-up stays a click away)
 const skipped = () => { try { return localStorage.getItem('thinker.warmupSkipped') === '1'; } catch { return false; } };
-$('#w-skip').onclick = () => { try { localStorage.setItem('thinker.warmupSkipped', '1'); } catch {} toast('Warm-up skipped: every cache grows from your sessions'); DREPO = ''; show('cache'); };
+$('#w-skip').onclick = () => { try { localStorage.setItem('thinker.warmupSkipped', '1'); } catch {} toast('Warm-up skipped: every cache grows from your sessions'); DREPO = ''; afterWarmup(); };
 $('#w-start').onclick = async () => {
   const btn = $('#w-start'); btn.disabled = true;
   try {
@@ -981,9 +987,33 @@ $('#w-start').onclick = async () => {
     if (r.handoff) toast(`Opened ${r.handoff.name}: press Enter on the Thinker message in ${r.handoff.opened.length === 1 ? 'the new session' : `each of the ${r.handoff.opened.length} new sessions`} to start the warm-up${r.handoff.failed.length ? ` (${r.handoff.failed.map(f => f.name).join(', ')} did not open)` : ''}`);
     else toast(`Building ${r.jobs.length} ${r.jobs.length === 1 ? 'cache' : 'caches'}, one at a time`);
     SEL = new Map(); W = null; prevJobs = ''; DROP = null;
-    DREPO = ''; show('cache');
+    DREPO = ''; afterWarmup();
   } catch (e) { btn.disabled = false; toast(e.message, true); }
 };
+
+// ---- the step after the warm-up, as `thinker warmup` ends (commands/warmup.js:unusedTools) ----
+// where enough sessions say so (harness.js:harnessFirstLook), the tools loaded into every session and almost
+// never used, all picked; nothing is switched off until the person presses the button
+let TOOLS = null;
+async function afterWarmup() {
+  try { TOOLS = await api('/api/harness/first-look'); } catch { TOOLS = null; }
+  show(TOOLS?.repos?.length ? 'tools' : 'cache');
+}
+function loadTools() {
+  const el = $('#t-body'), repos = TOOLS?.repos || [];
+  if (!repos.length) { show('cache'); return; }
+  el.innerHTML = `<div class="note-line" style="margin-top:0">Read from the sessions of the last ${repos[0].days} days. Each is switched off for that repository alone; <code>thinker harness --undo</code> turns it back on.</div>
+    <div class="panel"><table><thead><tr><th></th><th>Repository</th><th>Loaded into every session</th><th class="num">Sessions that used it</th><th class="num">Tokens a session</th></tr></thead><tbody>${repos.flatMap(r => r.sources.map(s => `<tr><td><input type="checkbox" data-tpick="${esc(r.checkout)}" data-tlabel="${esc(s.label)}" checked></td><td>${esc(r.name)}</td><td>${esc(s.label)}</td><td class="num">${s.used}/${s.loaded}</td><td class="num">${fmt(s.tokens)}</td></tr>`)).join('')}</tbody></table>
+    <div class="controls"><button class="btn" id="t-off">Switch off selected</button><button class="btn ghost" id="t-keep">Keep them all</button></div></div>`;
+  $('#t-keep').onclick = () => { TOOLS = null; toast('Nothing switched off: thinker harness lists them any time'); show('cache'); };
+  $('#t-off').onclick = async e => {
+    const picks = [...el.querySelectorAll('[data-tpick]:checked')].map(c => ({ checkout: c.dataset.tpick, label: c.dataset.tlabel }));
+    if (!picks.length) return toast('Nothing selected', true);
+    e.target.disabled = true;
+    try { await api('/api/harness/first-look/off', { picks }); TOOLS = null; toast(`Switched off ${picks.length} from the next session on`); show('cache'); }
+    catch (err) { e.target.disabled = false; toast(err.message, true); }
+  };
+}
 
 // first view: the tab the URL names, else usage; the warm-up page when nothing has a cache yet
 (async () => {

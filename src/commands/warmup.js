@@ -19,6 +19,8 @@ import { answerWarmup, SESSION_PRS } from '../repo-onboard.js';
 import { findBin, BINS } from '../llm.js';
 import { desktopApps, HANDOFF_APPS, handoffMessage, openHandoff, handoffProgress } from '../desktop-handoff.js';
 import { Store, findRepoRoot } from '../store.js';
+import { harnessFirstLook, switchOffFirstLook } from '../harness.js';
+import { formatTokens } from '../model-usage.js';
 
 export const SHOWN = 10, PICKED = 5; // as the page: ten rows, the five most recently active with no cache yet picked
 
@@ -88,7 +90,14 @@ export async function handOff(app, chosen, { out, ask, yes = false, openFn = ope
   return { started, waiting, stalled };
 }
 
-export async function warmupCommand(ctx, { selectAgentFn = selectAndAuthenticateAgent,
+// The warm-up, then its next step: the tools the agents load and almost never use, where enough sessions say
+// so (unusedTools). The page takes the browser route through both itself.
+export async function warmupCommand(ctx, deps = {}) {
+  const route = await warmUp(ctx, deps);
+  if (route !== 'browser' && route !== 'answer') await unusedTools(ctx, deps);
+}
+
+async function warmUp(ctx, { selectAgentFn = selectAndAuthenticateAgent,
   candidatesFn = warmupCandidates, candidateFn = warmupCandidate, spawnFn = spawnSync,
   appsFn = desktopApps, checkAuthFn = checkAgentAuth, handOffFn = handOff } = {}) {
   const { flags, store, out, HERE } = ctx;
@@ -102,7 +111,7 @@ export async function warmupCommand(ctx, { selectAgentFn = selectAndAuthenticate
     const s = flags.repos ? new Store(findRepoRoot(String(flags.repos))) : store;
     if (!s.exists()) { out('  No thinker cache here: run this from the repository the offer was about.'); process.exitCode = 1; return; }
     out(await answerWarmup(s, String(flags.answer).toLowerCase(), { client: flags.client ? String(flags.client) : undefined, via: flags.via === 'text' ? 'text' : 'picker' }));
-    return;
+    return 'answer';
   }
   if (flags.skip) { out('  Skipped: every git repository has a cache that grows from your sessions.'); later(); return; }
   const canBrowse = !headless() && !flags.terminal;
@@ -122,7 +131,7 @@ export async function warmupCommand(ctx, { selectAgentFn = selectAndAuthenticate
     if (flags.dry) { out('  would open: thinker ui --from-setup --tab warmup'); return; }
     try { const p = spawn(process.execPath, [cli, 'ui', '--from-setup', '--tab', 'warmup'], { detached: true, stdio: 'ignore' }); p.unref(); } catch {}
     out(`  The warm-up page is opening in your browser. ${c.dim('Open it again any time with thinker ui.')}`);
-    return;
+    return 'browser';
   }
 
   // the terminal: the page's list, the page's defaults
@@ -203,6 +212,31 @@ export async function warmupCommand(ctx, { selectAgentFn = selectAndAuthenticate
   }
   if (failed) process.exitCode = 1;
   if (!flags.dry) out(`\n  Done. ${c.dim('thinker ui shows each cache; thinker warmup warms more.')}`);
+}
+
+// After the warm-up: in each repository with enough sessions recorded (harness.js:harnessFirstLook), the
+// MCP servers, plugins and skills loaded into every session and almost never used, all picked; Enter
+// switches the picked ones off (switchOffNow, as `thinker harness --off`), Esc leaves everything as it is.
+// Only at a terminal: nothing is switched off without the person choosing it.
+export async function unusedTools(ctx, { candidatesFn = warmupCandidates, firstLookFn = harnessFirstLook, selectFn = multiSelect, switchFn = switchOffFirstLook, isTTY = process.stdin.isTTY } = {}) {
+  const { flags, store, out } = ctx;
+  if (flags.dry || flags.yes || !isTTY) return;
+  let looks = [], names = new Map();
+  try {
+    looks = await withSpinner(out, 'Looking at the tools your agents load into every session', async () => {
+      const repos = (await candidatesFn(store, {})).filter(r => !r.disabled).slice(0, SHOWN);
+      names = new Map(repos.map(r => [r.checkout, r.name]));
+      return firstLookFn(repos.map(r => r.checkout));
+    });
+  } catch { return; }
+  if (!looks.length) return;
+  const rows = looks.flatMap(l => l.sources.map(s => ({ id: `${l.checkout}\0${s.label}`, picked: true,
+    label: `${names.get(l.checkout) || path.basename(l.checkout)} · ${s.label}`,
+    note: `~${formatTokens(s.tokens)} tokens a session, used in ${s.used} of ${s.loaded}` })));
+  const got = await selectFn({ items: rows, out, hint: '↑/↓ move, Space toggles, Enter switches the picked ones off, Esc keeps them all',
+    header: `\n  ${c.bold('Next: tools your agents load into every session and almost never use')}\n  ${c.dim(`Read from the sessions of the last ${looks[0].days} days. Each is switched off for that repository alone; thinker harness --undo turns it back on.`)}` });
+  if (!got?.length) { out(`  Nothing switched off. ${c.dim('thinker harness lists them any time.')}`); return; }
+  for (const r of switchFn(looks, new Set(got.map(x => x.id)), { via: 'warmup' })) out(`  ${names.get(r.checkout) || path.basename(r.checkout)}: ${r.said}`);
 }
 
 export const commands = { warmup: warmupCommand };

@@ -12,7 +12,7 @@
 // It listens on 127.0.0.1 alone. Every API call carries a token minted for this run, which the page
 // gets from the URL it was opened with, and the Host header must name this server, so another page
 // in the browser (or a DNS rebinding) can neither read the cache nor change a behavior.
-import { harnessView, harnessSavings, harnessOn, scheduleHarnessSuggestion, undoHarness, switchOffNow, setHarnessSettings } from '../harness.js';
+import { harnessFirstLook, switchOffFirstLook, harnessView, harnessSavings, harnessOn, scheduleHarnessSuggestion, undoHarness, switchOffNow, setHarnessSettings } from '../harness.js';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -214,7 +214,7 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
     let pending = 0; try { pending = pendingBehaviors(open(r.checkout)).length; } catch {}
     return { ...r, stats: cacheStats(r.checkout), pending, job: jobs.list().filter(j => j.checkout === r.checkout).pop() || null };
   };
-  let candidates = null, agents = null, apps = null;
+  let candidates = null, agents = null, apps = null, firstLooks = null;
   const harnessCache = new Map();
   const server = http.createServer(async (req, res) => {
     lastRequest = Date.now();
@@ -271,6 +271,13 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
         harnessCache.set(k, { at: Date.now(), view });
         return json(res, 200, view);
       }
+      // the step after the warm-up (harness.js:harnessFirstLook), as `thinker warmup` ends: kept for the answer
+      if (req.method === 'GET' && url.pathname === '/api/harness/first-look') {
+        candidates ||= warmupCandidates(store, { home: transcriptsHome });
+        const listed = candidates.filter(c => !c.disabled).slice(0, 10);
+        firstLooks = harnessFirstLook(listed.map(c => c.checkout));
+        return json(res, 200, { repos: firstLooks.map(l => ({ checkout: l.checkout, name: listed.find(c => c.checkout === l.checkout)?.name || path.basename(l.checkout), sessions: l.sessions, days: l.days, sources: l.sources })) });
+      }
       if (req.method === 'GET' && url.pathname === '/api/behaviors') {
         const stores = storesFor(want); if (!stores) return json(res, 400, { error: 'unknown repository' });
         const tag = r => b => ({ ...b, repo: r.id, repoName: r.name });
@@ -323,6 +330,13 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
         // the lists stay: a switch changes one flag, and rebuilding the warm-up list costs seconds per click
         for (const r of [...(candidates || []), ...(known || [])]) if (r.checkout === c.checkout || r.checkouts?.includes(c.checkout)) r.disabled = !!b.disabled;
         return json(res, 200, { ok: true, checkout: c.checkout, disabled: !!b.disabled, hasCache: fs.existsSync(path.join(c.checkout, '.thinker')) });
+      }
+      if (url.pathname === '/api/harness/first-look/off') {
+        const picks = Array.isArray(b.picks) ? b.picks.filter(p => p && typeof p.checkout === 'string' && typeof p.label === 'string') : [];
+        if (!firstLooks || !picks.length) return json(res, 400, { error: firstLooks ? 'nothing chosen' : 'nothing to switch off: open the step again' });
+        const said = switchOffFirstLook(firstLooks, new Set(picks.map(p => `${p.checkout}\0${p.label}`)), { via: 'ui' });
+        firstLooks = null; harnessCache.clear();
+        return json(res, 200, { ok: true, said });
       }
       if (url.pathname === '/api/warmup/cancel') { const r = jobs.cancel(String(b.id || '')); return r.error ? json(res, 400, r) : json(res, 200, r); }
       if (url.pathname === '/api/activity/cancel') {
