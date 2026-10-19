@@ -18,6 +18,7 @@ import { codexSessionHarness, codexHarnessUsage, codexHarnessConfig, codexConfig
 import { desktopRecords, desktopSessionsDir, desktopSessionHarness, desktopUsed, DESKTOP_SECTIONS, CONNECTOR_TOOL } from './harness-desktop.js';
 import { cursorHarnessUsage, cursorSnapshots, editCursorMcp } from './harness-cursor.js';
 import { findSessions } from './transcripts.js';
+import { Store } from './store.js';
 import { estTokens } from './rank.js';
 import { thinkerHome } from './update.js';
 import { formatTokens } from './model-usage.js';
@@ -320,6 +321,7 @@ export const HARNESS = {
   bundle: 500,     // skills under this many tokens are one option together, so the question stays short
   declineDays: 30, // a source the person passed on is not suggested again for this long
   answerDays: 3,   // a question left unanswered this long is dropped
+  firstSessions: 10, // the step after the warm-up asks about a repository only with this many sessions recorded there
 };
 export const SIGNATURE = '🧠 thinker';
 const DAY = 86_400_000;
@@ -756,4 +758,38 @@ export function switchOffNow(store, labels, { home, userHome, now = Date.now(), 
   st.pending = { at: new Date(now).toISOString(), days: 30, sources: picks, direct: true };
   saveState(store, st);
   return answerHarness(store, labels, { via, home, userHome, now, declineRest: false }).replace(/ Tell the user in one line, then go on with the task\.$/, '');
+}
+
+// --- the step after the warm-up -----------------------------------------------------------------------
+// `thinker warmup` and the page's warm-up end here: the repositories with enough sessions recorded to tell
+// what goes unused (HARNESS.firstSessions, not the three the advice needs), each with what is worth
+// switching off, for the person to pick from at once. Off with the rest of it (harnessOn). A source that is
+// one switch for the whole machine (a Cursor server) is listed under the first repository that has it; a
+// desktop app connector is left to the question in a desktop session, the one place it can be flipped.
+export function harnessFirstLook(checkouts, { days = 30, minSessions = HARNESS.firstSessions, usageFn = harnessUsage } = {}) {
+  const seen = new Set(), out = [];
+  for (const checkout of checkouts) {
+    const store = new Store(checkout);
+    if (!harnessOn(store)) continue;
+    const usage = usageFn(checkout, { days });
+    if ((usage.sessions || 0) < minSessions) continue;
+    const picks = pickSources(usage, s => s.how !== 'desktop-connector', Infinity)
+      .filter(p => p.client !== 'cursor' || !seen.has(p.key));
+    for (const p of picks) if (p.client === 'cursor') seen.add(p.key);
+    if (picks.length) out.push({ checkout, sessions: usage.sessions, days, usage,
+      sources: picks.map(p => ({ label: labelOf(p), key: p.key, name: p.name, kind: p.kind, client: p.client || 'claude', tokens: p.tokens, used: p.used, loaded: p.loaded })) });
+  }
+  return out;
+}
+// The person's picks from it: each repository's chosen labels switched off through switchOffNow, as `--off`.
+export function switchOffFirstLook(looks, chosen, { via = 'warmup', home, userHome } = {}) {
+  const said = [];
+  for (const l of looks) {
+    const labels = l.sources.filter(s => chosen.has(`${l.checkout}\0${s.label}`)).map(s => s.label);
+    if (!labels.length) continue;
+    const store = new Store(l.checkout);
+    if (!store.exists()) store.init();
+    said.push({ checkout: l.checkout, said: switchOffNow(store, labels.join(','), { via, home, userHome, usage: l.usage }) });
+  }
+  return said;
 }
