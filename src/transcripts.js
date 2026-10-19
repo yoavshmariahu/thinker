@@ -18,13 +18,16 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 
+// with Droid's (Execute, Create, LS), Kiro's (execute_bash, fs_read, fs_write), Cline's (execute_command,
+// replace_in_file, search_files, list_files), Auggie's (view, str-replace-editor, save-file, launch-process)
+// and Goose's (shell, tree, developer__ prefixes)
 const TOOL_NAMES = [
-  [/^(read|read_file|read_many_files|view|view_file|cat|readfile)$/i, 'Read'],
-  [/^(grep|search_file_content|grep_search|rg|search|codebase_search|semanticsearch)$/i, 'Grep'],
-  [/^(glob|list_directory|ls|list_dir|file_search|find)$/i, 'Glob'],
-  [/^(bash|shell|run_shell_command|exec|exec_command|local_shell|run_terminal_cmd|run_command|command_execution|terminal)$/i, 'Bash'],
-  [/^(edit|replace|replace_file_content|str_replace|strreplace|apply_patch|search_replace|multiedit|file_change|edit_file)$/i, 'Edit'],
-  [/^(write|write_file|write_to_file|create_file|create)$/i, 'Write'],
+  [/^(?:developer__)?(read|read_file|read_many_files|view|view_file|cat|readfile|fs_read)$/i, 'Read'],
+  [/^(grep|search_file_content|grep_search|rg|search|codebase_search|semanticsearch|search_files|codebase-retrieval)$/i, 'Grep'],
+  [/^(?:developer__)?(glob|list_directory|ls|list_dir|file_search|find|list_files|tree)$/i, 'Glob'],
+  [/^(?:developer__)?(bash|shell|run_shell_command|exec|exec_command|local_shell|run_terminal_cmd|run_command|command_execution|terminal|execute|execute_bash|execute_command|launch-process)$/i, 'Bash'],
+  [/^(?:developer__)?(edit|replace|replace_file_content|str_replace|strreplace|apply_patch|search_replace|multiedit|file_change|edit_file|replace_in_file|str-replace-editor|text_editor)$/i, 'Edit'],
+  [/^(?:developer__)?(write|write_file|write_to_file|create_file|create|fs_write|save-file)$/i, 'Write'],
 ];
 export function toolName(name) {
   const n = String(name || '');

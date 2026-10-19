@@ -69,18 +69,21 @@ async function hookCommand(ctx) {
     return footer ? `\n\nEnd your reply to the user with this exact Markdown table at the very bottom (do not wrap it in a code block):\n${footer}` : '';
   };
   // Do not combine unrelated sessions from unsupported/older hook payloads.
-  if (['pi', 'windsurf', 'copilot', 'opencode'].includes(client) && session === 'unknown') return;
+  if (['pi', 'windsurf', 'copilot', 'opencode', 'vscode', 'droid', 'qwen', 'kiro', 'cline', 'kilo', 'augment', 'goose'].includes(client) && session === 'unknown') return;
+  // Copilot CLI, VS Code's Copilot and the Cline CLI take no context from a prompt hook: the bundle waits
+  // for the turn's first tool hook (parkPending)
+  const parks = client === 'copilot' || client === 'vscode' || (client === 'cline' && ev.cline_cli);
   // installed hooks carry --record; THINKER_NO_LEARN=1 switches learning off without reinstalling them
   if (NO_LEARN) flags.record = false;
   if (pos[0] === 'prompt') {
     // A background subagent spawned to work thinker's queue (session-llm.js:subagentPrompt) runs the host's
     // hooks too: skip orienting, recording or starting another worker for it.
-    if (isWorkerPrompt(ev.prompt)) { if (client === 'cursor') out(promptOutput(client, '')); return; }
+    if (isWorkerPrompt(ev.prompt)) { if (client === 'cursor' || client === 'cline') out(promptOutput(client, '')); return; }
     // Cursor answers once, in JSON: {continue}, with the bundle as additional_context (clients.js:promptOutput)
     let said = '';
     await (async () => {
       if (store.exists() && session !== 'unknown') tryImpact(store, { op: 'impact-observation', session, ...gitContext(repo) });
-      if (client === 'copilot' || client === 'cursor') takePending(store.dir, session);
+      if (parks || client === 'cursor') takePending(store.dir, session);
       // the turn's prompt hook ran: the tool hook's fallback for Cursor modes without one stays out of it
       if (client === 'cursor') { const f = orientedFile(store.dir, ev.generation_id || session); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, ''); }
       if (flags.record && store.exists()) { recordEvent(store.dir, session, { t: 'prompt', text: ev.prompt }); learnInBackground(ctx, client); }
@@ -92,6 +95,8 @@ async function hookCommand(ctx) {
       // thinker on PATH for bash too, once per machine, on an install from before the installer wrote it there (shell-path.js)
       if (store.exists() && !isTestMode()) { try { const d = ensureShellPath(); if (d?.length) store.log({ op: 'shell-path', files: d }); } catch {} }
       if (store.exists() && userScope) { try { const w = refreshWiring(null, { scope: 'user', cli, mcpEntry: ctx.userMcpEntry() }); if (w.changed.length) { store.log({ op: 'rewire', scope: 'user', files: w.changed }); reportPruned(store, [`rewrote ${w.changed.join(', ')} for this version of thinker`]); } } catch {} }
+      // Goose's hooks only record: what they print never reaches the model, so nothing is oriented or counted as served
+      if (client === 'goose') return;
       // Once per session, what the code tools are and how to reach them: only with the first bundle that
       // serves a note. A session the cache has nothing for gets nothing at all (2026-10-07: on the Click
       // canary the intro, the workflow text and the schemas were the whole cost of the arm the notes did
@@ -102,7 +107,7 @@ async function hookCommand(ctx) {
       // turn and its holdout) through it (ops.js:agentSession)
       if (store.exists()) linkAgentSession(store, session, ancestorPids());
       const introOk = store.exists() && !['windsurf', 'pi', 'copilot'].includes(client) && !holdout;
-      const emit = text => { if (client === 'cursor') said = text; else if (client === 'copilot') parkPending(store.dir, session, text); else out(promptOutput(client, text)); };
+      const emit = text => { if (client === 'cursor' || (client === 'cline' && !parks)) said = text; else if (parks) parkPending(store.dir, session, text); else out(promptOutput(client, text)); };
       if (!store.exists() || client === 'windsurf') return;
       // the first session in a repository: what `thinker setup` would write for it, and the warm-up offer (repo-onboard.js)
       setupRepo(store, { client, cli, learn: !NO_LEARN && sessionLearning() });
@@ -144,7 +149,7 @@ async function hookCommand(ctx) {
       const card = noticeCard(store, { client, session, turn, holdout, notes: r.included });
       emit([offer, intro, text, codeFor(r.included), card].filter(Boolean).join('\n\n'));
     })();
-    if (client === 'cursor') out(promptOutput(client, said));
+    if (client === 'cursor' || client === 'cline') out(promptOutput(client, said));
   } else if (pos[0] === 'tool') {
     // After a tool call: the agent opened files; serve notes anchored to them, once each.
     if (!store.exists()) return;
@@ -158,7 +163,7 @@ async function hookCommand(ctx) {
     // failure but keep prompt context for the next successful tool result.
     if (client === 'copilot' && ev.error) { if (flags.record) learnInBackground(ctx, client); return; }
     const parts = [];
-    if (client === 'copilot') { const pending = takePending(store.dir, session); if (pending) parts.push(pending); }
+    if (parks || client === 'cline') { const pending = takePending(store.dir, session); if (pending) parts.push(pending); }
     if (flags.record) learnInBackground(ctx, client);
     // Cursor drops context added to an MCP call's result: wait for the next tool call,
     // unless the agent asked the cache itself, in which case it has the notes already
@@ -246,6 +251,8 @@ async function hookCommand(ctx) {
     let source = ev.transcript_path;
     const native = ev.transcript_path && fs.existsSync(ev.transcript_path) && (() => { try { return parseTranscript(ev.transcript_path).events.some(e => e.t === 'tool'); } catch { return false; } })();
     if (flags.record && !native) {
+      // Auggie has no prompt hook: its Stop hook carries the turn's prompt (clients.js:normalizeHookEvent)
+      if (client === 'augment' && ev.prompt) recordEvent(store.dir, session, { t: 'prompt', text: ev.prompt });
       let last = ev.last_assistant_message || ev.prompt_response;
       if (!last && ev.transcript_path && fs.existsSync(ev.transcript_path)) { try { last = parseTranscript(ev.transcript_path).events.filter(e => e.t === 'say').pop()?.text; } catch {} }
       recordEvent(store.dir, session, { t: 'say', text: last });

@@ -1229,7 +1229,10 @@ const HARNESS_EVENT = /^\s*<(task-notification|agent-message|side-sessions-event
 // with no tag: "This is an app-generated request for a suggested next user message. The user did not
 // write this message." Six of them by 2026-10-18, each logged as a request of the user's.
 const APP_GENERATED = /^\s*This is an app-generated request\b/;
-export const isHarnessEvent = prompt => { const p = String(prompt || ''); return HARNESS_EVENT.test(p) || APP_GENERATED.test(p); };
+// The Cline CLI fires its prompt hook for its own nudges ("[SYSTEM] This run is not complete until you call
+// one of these terminal completion tools…"), never for the person's prompt (seen with cline 3.0.73, 2026-10-19).
+const CLINE_NUDGE = /^\s*\[SYSTEM\] This run is not complete\b/;
+export const isHarnessEvent = prompt => { const p = String(prompt || ''); return HARNESS_EVENT.test(p) || APP_GENERATED.test(p) || CLINE_NUDGE.test(p); };
 // The prompt hook opens the session's next turn: its number, and whether the hooks hold their notes back in it.
 export function beginTurn(store, session) {
   if (!session || session === 'unknown' || !store.exists()) return { turn: 0, holdout: false };

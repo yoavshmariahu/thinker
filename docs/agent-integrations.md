@@ -1,11 +1,16 @@
 # Coding agent compatibility
 
-Thinker supports eight clients through `thinker setup --clients auto` (detected
-clients), `--clients all`, or a comma-separated selection. To add the new adapters:
+Thinker supports fifteen clients through `thinker setup --clients auto` (detected
+clients), `--clients all`, or a comma-separated selection. To add the newer adapters:
 
 ```sh
-thinker setup --clients pi,windsurf,copilot,opencode --no-build
+thinker connect --clients droid,qwen,kiro,cline,kilo,augment,goose
 ```
+
+Every client is wired machine-wide, in the agent's own files; `thinker update` wires an
+agent installed later once. Copilot in VS Code needs no client of its own: its Local
+harness runs the Copilot CLI's hook files (`~/.copilot/hooks`), and thinker tells its
+payloads apart (`clients.js:hookClient`, client `vscode`).
 
 Restart the host agent after setup so it discovers the generated hooks/extensions.
 Project trust and hook enablement remain controlled by the host. New generated project files
@@ -33,6 +38,13 @@ when Thinker's tools cannot answer the question.
 | Windsurf Cascade | `.windsurf/rules/thinker.md`, or the existing `.devin/rules/` location |
 | Copilot CLI | `.github/instructions/thinker.instructions.md` |
 | OpenCode | `.opencode/thinker.md`, added to `instructions` by the plugin |
+| Factory Droid | `~/.factory/AGENTS.md` |
+| Qwen Code | `~/.qwen/QWEN.md` (respects `QWEN_HOME`) |
+| Kiro CLI | `~/.kiro/steering/thinker.md` |
+| Cline | `~/Documents/Cline/Rules/thinker.md` |
+| Kilo Code | `~/.config/kilo/AGENTS.md` |
+| Auggie | `~/.augment/rules/thinker.md` |
+| Goose | `~/.config/goose/.goosehints` |
 
 Claude, Codex and Gemini instructions live at user scope, like their hooks and MCP
 configuration, so fresh worktrees also receive them. They apply only in repositories
@@ -102,6 +114,14 @@ follow every instruction.
 | Windsurf Cascade | Always-on rule asks agent to orient | Agent-directed CLI lookup | Prompt, reads, edits, commands, MCP results, response | CLI rule |
 | GitHub Copilot CLI | First successful tool after prompt; CLI instruction fallback | postToolUse | Prompt, tools/errors, stop/end | CLI instruction; optional manual MCP |
 | OpenCode | chat.message plugin | tool.execute.after plugin | Prompt, successful tools, idle/end | MCP registered by plugin |
+| Copilot in VS Code (Local) | First tool call after the prompt (its UserPromptSubmit takes no context) | PostToolUse `hookSpecificOutput` | Prompt, tools, stop | MCP through the Copilot CLI's `mcp-config.json` (VS Code discovers it) |
+| Factory Droid | UserPromptSubmit, plain stdout (`~/.factory/hooks.json`, else the `hooks` of `settings.json`) | PostToolUse | Prompt, tools, stop/end | MCP (`~/.factory/mcp.json`) |
+| Qwen Code | UserPromptSubmit, plain stdout (`~/.qwen/settings.json`) | PostToolUse | Prompt, tools, stop/end | MCP (same file) |
+| Kiro CLI | UserPromptSubmit, plain stdout (V3 engine: `~/.kiro/hooks/thinker.json`) | none: Kiro ignores PostToolUse output | Prompt, tools, stop/end | MCP (`~/.kiro/settings/mcp.json`) |
+| Cline | UserPromptSubmit `contextModification` (extension); none in the CLI, whose prompt hook fires only for its own `[SYSTEM]` nudges (3.0.73) | PostToolUse `contextModification` | Prompt, tools, task complete/cancel, shutdown | MCP (`~/.cline/data/settings/cline_mcp_settings.json`) |
+| Kilo Code | OpenCode's plugin (`~/.config/kilo/plugin/thinker.js`): chat.message | tool.execute.after | as OpenCode | MCP registered by plugin |
+| Auggie | none: Auggie has no prompt hook | PostToolUse `hookSpecificOutput` (`.sh` wrappers in `~/.augment/thinker`) | Tools; the prompt from the Stop hook's conversation data | MCP (`~/.augment/settings.json`) |
+| Goose | none: hooks give the model nothing | none | Prompt, tools (no output), stop/end, with learning on | MCP extension in `~/.config/goose/config.yaml` |
 
 File context is enabled with `--late`. Hook recording is enabled by default;
 `--no-learn` or `THINKER_NO_LEARN=1` disables it. Learning still requires an
@@ -153,7 +173,7 @@ repairs wiring but does not launch background learning or discard failed jobs.
 
 ## End-of-turn notices
 
-All eight adapters install a stop callback when hooks are enabled, including with
+All adapters install a stop callback when hooks are enabled, including with
 `--no-learn`. Notices describe notes actually served during that session's turn;
 an empty turn produces no cache-hit notice. `THINKER_NOTICE=off` or `notice: false`
 in `.thinker/config.json` disables notices without disabling learning.
@@ -165,7 +185,9 @@ in `.thinker/config.json` disables notices without disabling learning.
 | Pi | Native `ctx.ui.notify` in interactive mode |
 | OpenCode | Native `client.tui.showToast` |
 | Windsurf Cascade | Stop stdout with `show_output: true` |
-| Cursor, Copilot CLI | Stop callbacks run, but their APIs have no passive notice output |
+| Qwen Code, Auggie, Copilot in VS Code | `systemMessage` |
+| Factory Droid, Kilo Code | Stop stdout (shown in the transcript) / the OpenCode toast |
+| Cursor, Copilot CLI, Kiro CLI, Cline, Goose | Stop callbacks run, but their APIs have no passive notice output |
 
 Codex desktop can show a cache-hit card automatically when `noticeCard: true` is
 set in `.thinker/config.json`. Prompt/tool hooks and MCP retrieval supply the agent

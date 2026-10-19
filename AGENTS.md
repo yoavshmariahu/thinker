@@ -182,7 +182,7 @@ cache at twice the input price and never read again.
 | `src/commands/` | one module per group of commands, each handler taking the dispatcher's context (`store`, `repo`, `flags`, `pos`, `out`, …): `notes.js` (orient, lookup, find, drilldown, system, list, show, add, rm, archive, phrase, rehash, relink), `cache.js` (review, export, import, serve, health, stats, usage), `learn.js` (learn, maintain, distill, record, outcome, verify, check, mine-prs, and the PR-mining helpers), `hooks.js` (the hook entrypoints and the background catch-up they start), `setup.js` (setup, uninstall, ast, update/upgrade/switch/branch), `telemetry.js`, `benchmark.js`, `shared.js` (helpers several of them need) |
 | `src/mcp.js` | MCP server exposing `orient`, `lookup`, `find`, `drilldown`, `remember`, `feedback` |
 | `src/setup.js`, `src/setup/` | the guided `setup` flow (`runSetup`), with its parts under `src/setup/`: `ui.js` (colors, boxes, the arrow-key menu), `agents.js` (which agent CLIs are installed and logged in, and the menu that picks one), `estimate.js` (what a cache build will cost), `steps.js` (wiring the clients, building the cache), `pr-benchmark.js` (the optional PR change benchmark); everything is re-exported from `setup.js` |
-| `src/clients.js` | adapters for Claude Code, Codex, Gemini CLI, Cursor, Pi, Windsurf Cascade, Copilot CLI and OpenCode: config files and hook formats; native extension handlers in `src/integrations/`; coverage in `docs/agent-integrations.md` |
+| `src/clients.js` | adapters for Claude Code, Codex, Gemini CLI, Cursor, Pi, Windsurf Cascade, Copilot CLI (and Copilot in VS Code), OpenCode, Factory Droid, Qwen Code, Kiro CLI, Cline, Kilo Code, Auggie and Goose: config files and hook formats; native extension handlers in `src/integrations/`; coverage in `docs/agent-integrations.md` |
 | `src/transcripts.js` | session transcripts of every agent as one event form; the hook-recorded trace; finding sessions |
 | `src/prs.js` | mining merged pull requests into notes |
 | `src/ops.js` | core operations on notes (serve, merge, assess, link) |
@@ -1132,7 +1132,7 @@ from 7 to 11 of 15, and an input-class checklist to 12 of 15.
 | Codex CLI and the Codex desktop app | added to each prompt | yes | yes | `~/.codex/hooks.json`, `~/.codex/config.toml` |
 | Gemini CLI | added to each prompt | yes | yes | `~/.gemini/settings.json` |
 | Cursor | added to each prompt (`additional_context`), with first-tool fallback for `agent -p` and the `orient` tool | yes | yes (approved by setup) | `~/.cursor/hooks.json`, `~/.cursor/mcp.json`, and `.cursor/rules/thinker.mdc` in the checkout |
-| Pi, Windsurf, Copilot CLI, OpenCode | see `docs/agent-integrations.md` | | | the checkout alone (an extension or rule file; nothing machine-wide), by `thinker setup` there |
+| Pi, Windsurf, Copilot CLI (and Copilot in VS Code), OpenCode, Factory Droid, Qwen Code, Kiro CLI, Cline, Kilo Code, Auggie, Goose | see `docs/agent-integrations.md` (Auggie has no prompt hook, Kiro's V3 engine alone reads global hooks, Goose's hooks only record) | | | each agent's own files, machine-wide |
 
 - The desktop apps run the same engines as the CLIs and read the same user
   settings. The Claude desktop app's Code tab reads hooks and MCP servers from

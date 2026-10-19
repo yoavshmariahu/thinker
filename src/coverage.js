@@ -159,7 +159,7 @@ const answerCommand = (repo, via, client) => `"${process.execPath}" "${CLI}" cov
 const optionOf = p => `"${p.dir}": about ${formatTokens(p.tokens)} tokens; ${p.covered} of ${p.files} code files covered; worked in by ${p.sessions} session${p.sessions === 1 ? '' : 's'} over ${p.days} day${p.days === 1 ? '' : 's'}`;
 // The prompt hook: the pending question, said once, as an instruction to the agent to put it to the person.
 export function coverageOffer(store, { client, home, now = Date.now() } = {}) {
-  if (['windsurf'].includes(client) || coverageNever(home)) return '';
+  if (['windsurf', 'goose', 'augment'].includes(client) || coverageNever(home)) return '';
   const st = readCoverageState(store);
   if (!st.pending || st.pending.offeredAt) return '';
   st.pending.offeredAt = new Date(now).toISOString(); st.pending.client = client || null;
