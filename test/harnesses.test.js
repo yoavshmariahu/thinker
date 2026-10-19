@@ -21,7 +21,7 @@ test('detectHarnesses names every agent found, supported or not, with the days s
     const found = detectHarnesses({ home, platform: 'darwin', env: { PATH: bin } });
     assert.deepEqual(found, {
       claude: { supported: true, lastUsedDays: 1 },
-      cline: { supported: false, lastUsedDays: 3 },
+      cline: { supported: true, lastUsedDays: 3 },
       roo: { supported: false, lastUsedDays: 12 },
       aider: { supported: false, lastUsedDays: null },
     });

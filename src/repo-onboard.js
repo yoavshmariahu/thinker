@@ -126,7 +126,7 @@ export function minedCount(store) {
 // nothing (warmup.js: --repos, --yes, --terminal), and reads through the agent's own login. Nothing is
 // offered on a machine where the person chose "Don't ask again".
 export function warmupOffer(store, { client, home } = {}) {
-  if (['windsurf'].includes(client)) return '';
+  if (['windsurf', 'goose', 'augment'].includes(client)) return '';
   store = offerStore(store);
   if (!store) return '';
   let est = warmupDue(store, { home }), failed = null;

@@ -12,6 +12,21 @@
 //
 // Pi/OpenCode use native extensions in integrations/; Windsurf records hooks
 // and retrieves through a CLI rule; Copilot parks context until postToolUse.
+//
+//   droid    UserPromptSubmit, plain stdout   PostToolUse               ~/.factory/mcp.json
+//   qwen     UserPromptSubmit, plain stdout   PostToolUse               ~/.qwen/settings.json
+//   kiro     UserPromptSubmit, plain stdout   (output ignored)          ~/.kiro/settings/mcp.json
+//            V3 engine's global hooks (~/.kiro/hooks/); V2 reads hooks only in a custom agent
+//   cline    UserPromptSubmit, JSON            PostToolUse               cline_mcp_settings.json
+//            contextModification; one executable per event in ~/Documents/Cline/Hooks; the CLI
+//            gives a prompt hook no return channel (a bundle would wait for the first tool hook), and
+//            fires it for its own [SYSTEM] nudges, not the person's prompt (3.0.73): notes on edits there
+//   kilo     an OpenCode fork: the OpenCode plugin, loaded from ~/.config/kilo/plugin
+//   augment  no prompt hook                    PostToolUse               ~/.augment/settings.json
+//            Auggie runs scripts only: thinker writes .sh wrappers in ~/.augment/thinker
+//   goose    hooks give the model nothing (stdout is a block decision): recording for learning
+//            alone, notes through the MCP extension in config.yaml
+//   vscode   Copilot in VS Code (Local harness) runs ~/.copilot/hooks with its own payloads
 // See docs/agent-integrations.md for the capability matrix.
 //
 // Learning from sessions: Claude Code's transcript is distilled at Stop. For
@@ -32,7 +47,7 @@ import { HOOKS, installGitHooks } from './git-hooks.js';
 import { textOf } from './transcripts.js';
 import { claudeCardDir, withCardDir, withoutCardDir, cardDirIn, CARD_ENV as CARD_LABEL } from './claude-card.js';
 
-export const CLIENTS = ['claude', 'codex', 'cursor', 'gemini', 'pi', 'windsurf', 'copilot', 'opencode'];
+export const CLIENTS = ['claude', 'codex', 'cursor', 'gemini', 'pi', 'windsurf', 'copilot', 'opencode', 'droid', 'qwen', 'kiro', 'cline', 'kilo', 'augment', 'goose'];
 
 export function mergeJson(file, patch) {
   let cur = {};
@@ -62,6 +77,10 @@ export function detectClients({ fallback = true } = {}) {
   for (const [client, dir] of [['pi', '.pi'], ['windsurf', '.codeium/windsurf'], ['copilot', '.copilot'], ['opencode', '.config/opencode']]) {
     if (onPath(client) || fs.existsSync(home(dir))) found.push(client);
   }
+  for (const [client, bins, dirs] of [['droid', ['droid'], [factoryDir()]], ['qwen', ['qwen'], [qwenDir()]], ['kiro', ['kiro-cli'], [kiroDir()]],
+    ['cline', ['cline'], [home('.cline'), clineDocs()]], ['kilo', ['kilo'], [kiloDir()]], ['augment', ['auggie'], [augmentDir()]], ['goose', ['goose'], [gooseDir()]]]) {
+    if (bins.some(onPath) || dirs.some(d => fs.existsSync(d))) found.push(client);
+  }
   return found.length || !fallback ? found : ['claude'];
 }
 
@@ -81,9 +100,13 @@ export function parseClients(value, fallback = ['claude']) {
 // --client claude since the wiring went machine-wide: detect Cursor from the hook input
 // (not the environment: Claude Code started in Cursor's terminal is still Claude Code).
 // 2026-10-15: unguarded, every Cursor prompt was oriented twice and its turns counted twice.
+// VS Code's Copilot (its Local harness) runs the Copilot CLI's hook files from ~/.copilot/hooks too, with
+// payloads of its own and Claude Code's output: told apart by what only VS Code's carry, a transcript_path
+// and a PascalCase event name (UserPromptSubmit, PostToolUse; the Copilot CLI's are userPromptSubmitted, postToolUse).
 export function hookClient(flag, ev = {}) {
   const named = flag && flag !== true ? String(flag) : 'claude';
   if (named === 'claude' && ev.cursor_version) return 'cursor-import';
+  if (named === 'copilot' && ev.transcript_path && /^[A-Z]/.test(ev.hook_event_name || '') && ev.session_id && !ev.sessionId) return 'vscode';
   return named;
 }
 
@@ -107,6 +130,21 @@ export function normalizeHookEvent(client, ev, what) {
       tool_response: ev.toolResult?.textResultForLlm ?? ev.tool_result?.text_result_for_llm ?? (ev.error ? `Error: ${ev.error}` : undefined),
       hook_event_name: ev.hook_event_name || (what === 'stop' && ev.reason ? 'SessionEnd' : undefined) };
   }
+  if (client === 'cline') {
+    // the extension names the event's fields under its key (userPromptSubmit, postToolUse); the CLI's SDK
+    // sends snake_case names, tool_call and tool_result, and a sessionContext
+    const up = ev.userPromptSubmit || {}, pt = ev.postToolUse || {};
+    const name = String(ev.hookName || '');
+    return { ...ev, session_id: ev.taskId || ev.sessionContext?.rootSessionId || ev.session_id, cwd: ev.workspaceRoots?.[0] || ev.workspaceInfo?.rootPath || ev.cwd,
+      prompt: up.prompt ?? ev.prompt, tool_name: pt.toolName || ev.tool_call?.name, tool_input: pt.parameters || ev.tool_call?.input,
+      tool_response: pt.result ?? ev.tool_result, hook_event_name: /^session_?shutdown$/i.test(name) ? 'SessionEnd' : name || undefined, cline_cli: !!ev.sessionContext };
+  }
+  if (client === 'augment') {
+    const conv = ev.conversation || {};
+    return { ...ev, session_id: ev.conversation_id || ev.session_id, cwd: ev.workspace_roots?.[0] || ev.cwd,
+      tool_response: ev.tool_output ?? ev.tool_error, prompt: conv.userPrompt, last_assistant_message: conv.agentTextResponse ?? conv.agentResponse };
+  }
+  if (client === 'goose') return { ...ev, prompt: ev.message ?? ev.prompt, cwd: ev.working_dir || ev.cwd, hook_event_name: ev.event || ev.hook_event_name };
   return ev;
 }
 
@@ -178,7 +216,8 @@ export function searchedIdentifier(ev) {
 // What the prompt hook prints: the bundle as context for the agent, and nothing for the
 // user. A line at every prompt was noise; the stop hook names what the turn served once.
 export function promptOutput(client, text) {
-  if (client === 'windsurf') return '';
+  if (client === 'windsurf' || client === 'goose') return '';
+  if (client === 'cline') return JSON.stringify(text ? { cancel: false, contextModification: text } : { cancel: false });
   if (client === 'gemini') return JSON.stringify({ hookSpecificOutput: { hookEventName: 'BeforeAgent', additionalContext: text } });
   if (client === 'cursor') return JSON.stringify(text ? { continue: true, additional_context: text } : { continue: true });
   return text;
@@ -188,13 +227,16 @@ export function promptOutput(client, text) {
 // Cursor and Copilot stop outputs only control continuation, not user notices.
 export function stopOutput(client, notice) {
   if (!notice) return '';
-  if (['claude', 'codex', 'gemini'].includes(client)) return JSON.stringify({ systemMessage: notice });
-  if (['pi', 'opencode', 'windsurf'].includes(client)) return notice;
+  if (['claude', 'codex', 'gemini', 'qwen', 'augment', 'vscode'].includes(client)) return JSON.stringify({ systemMessage: notice });
+  // Droid shows a stop hook's plain stdout in the transcript
+  if (['pi', 'opencode', 'kilo', 'windsurf', 'droid'].includes(client)) return notice;
   return '';
 }
 export function toolOutput(client, text) {
-  if (client === 'windsurf') return '';
-  if (client === 'pi' || client === 'opencode') return text;
+  // Kiro ignores what a PostToolUse hook prints, Goose reads it as a decision
+  if (client === 'windsurf' || client === 'kiro' || client === 'goose') return '';
+  if (client === 'pi' || client === 'opencode' || client === 'kilo') return text;
+  if (client === 'cline') return JSON.stringify({ cancel: false, contextModification: text });
   if (client === 'copilot') return JSON.stringify({ additionalContext: text });
   if (client === 'cursor') return JSON.stringify({ additional_context: text });
   return JSON.stringify({ hookSpecificOutput: { hookEventName: client === 'gemini' ? 'AfterTool' : 'PostToolUse', additionalContext: text } });
@@ -252,7 +294,7 @@ const isOurs = h => {
 // install left behind, a smoke-test copy, a shared and a local Claude settings file) both fire on
 // every prompt: notes served twice, the old copy's notice and state format back again.
 const scriptOf = cmd => { const m = String(cmd || '').match(/^(?:\w+=\S*\s+)*node (?:"([^"]+)"|'([^']+)'|(\S+))(?:\s|$)/); return m ? (m[1] || m[2] || m[3]) : null; }; // env prefixes (THINKER_LOG=local node …) are allowed
-const hookScript = group => scriptOf((group?.hooks ? group.hooks[0] : group)?.command);
+const hookScript = group => scriptOf(realCommand((group?.hooks ? group.hooks[0] : group)?.command));
 const mcpScript = entry => entry?.command === 'node' ? (entry.args || []).map(String).find(a => /mcp\.js$/.test(a)) || null : null; // a hand-written entry (`thinker serve`) is not touched
 const installRoot = script => path.resolve(path.dirname(script), '..');
 function installInfo(script) {
@@ -267,7 +309,12 @@ export function compareVersions(a, b) {
   return 0;
 }
 // An MCP entry as each client's file takes it: Copilot's names its type and the tools it may call
-const mcpServerEntry = (client, e) => client === 'copilot' ? { type: 'local', command: e.command, args: e.args, env: e.env || {}, tools: ['*'] } : e;
+const mcpServerEntry = (client, e) => {
+  if (client === 'copilot') return { type: 'local', command: e.command, args: e.args, env: e.env || {}, tools: ['*'] };
+  if (client === 'droid') return { type: 'stdio', command: e.command, args: e.args, env: e.env || {} };
+  if (client === 'kiro' || client === 'cline') return { command: e.command, args: e.args, env: e.env || {}, disabled: false };
+  return e;
+};
 function codexTomlBlock(mcpEntry) {
   const env = Object.entries(mcpEntry.env || {});
   return [TOML_START, '[mcp_servers.thinker]', `command = ${tomlStr(mcpEntry.command)}`, `args = [${mcpEntry.args.map(tomlStr).join(', ')}]`, 'default_tools_approval_mode = "approve"',
@@ -286,7 +333,7 @@ const RULE_FILES = { windsurf: ['.windsurf/rules/thinker.md', '.devin/rules/thin
 // it reads its hooks from .github/hooks: thinker's server goes there, pinned to the checkout, kept out
 // of git status as the hooks are. Until 2026-10-15 setup only said "/mcp add" and Copilot had no tools.
 const MCP_FILES = { copilot: '.github/mcp.json' };
-export const USER_SCOPE_CLIENTS = ['claude', 'codex', 'cursor', 'gemini', 'pi', 'opencode', 'copilot', 'windsurf'];
+export const USER_SCOPE_CLIENTS = ['claude', 'codex', 'cursor', 'gemini', 'pi', 'opencode', 'copilot', 'windsurf', 'droid', 'qwen', 'kiro', 'cline', 'kilo', 'augment', 'goose'];
 
 // --- where each client reads its wiring ----------------------------------------------------------
 // Two scopes. `user` is the agent's own files, read in every checkout: ~/.claude/settings.json and
@@ -308,6 +355,23 @@ const piDir = () => process.env.PI_CODING_AGENT_DIR || home('.pi', 'agent');
 const opencodeDir = () => path.join(process.env.XDG_CONFIG_HOME || home('.config'), 'opencode');
 const copilotHome = () => process.env.COPILOT_HOME || home('.copilot');
 const windsurfDir = () => home('.codeium', 'windsurf');
+// Droid (~/.factory), Qwen Code (QWEN_HOME, ~/.qwen), Kiro CLI (~/.kiro), Cline (hooks and rules under
+// ~/Documents/Cline, its data and MCP servers under ~/.cline/data), Kilo (an OpenCode fork, ~/.config/kilo),
+// Auggie (~/.augment), Goose (~/.config/goose, and the Open Plugins directory ~/.agents/plugins for hooks)
+const factoryDir = () => home('.factory');
+const qwenDir = () => process.env.QWEN_HOME || home('.qwen');
+const kiroDir = () => home('.kiro');
+const clineDocs = () => home('Documents', 'Cline');
+const clineData = () => process.env.CLINE_DATA_DIR || path.join(process.env.CLINE_DIR || home('.cline'), 'data');
+const kiloDir = () => path.join(process.env.XDG_CONFIG_HOME || home('.config'), 'kilo');
+const augmentDir = () => home('.augment');
+const gooseDir = () => path.join(process.env.XDG_CONFIG_HOME || home('.config'), 'goose');
+const goosePlugin = () => path.join(process.env.GOOSE_PATH_ROOT || os.homedir(), '.agents', 'plugins', 'thinker');
+// Droid reads ~/.factory/hooks.json, or, when there is none, the `hooks` key of its settings.json (keyed by event at the top of hooks.json)
+const droidHooks = () => { const f = path.join(factoryDir(), 'hooks.json'); return fs.existsSync(f) ? f : path.join(factoryDir(), 'settings.json'); };
+const flatHooks = file => path.basename(file) === 'hooks.json' && path.dirname(file) === factoryDir();
+// Cline's hooks: one executable per event, named after it; the CLI's names for the end of a session too
+const CLINE_EVENTS = ['UserPromptSubmit', 'PostToolUse', 'TaskComplete', 'TaskCancel', 'SessionShutdown'];
 export function wiringFiles(client, { scope = 'repo', repo } = {}) {
   const user = scope === 'user';
   const at = (...p) => path.join(repo, ...p);
@@ -326,6 +390,13 @@ export function wiringFiles(client, { scope = 'repo', repo } = {}) {
     case 'opencode': return user ? { ext: path.join(opencodeDir(), 'plugins', 'thinker.js') } : {};
     case 'copilot': return user ? { hooks: path.join(copilotHome(), 'hooks', 'thinker.json'), mcp: path.join(copilotHome(), 'mcp-config.json') } : {};
     case 'windsurf': return user ? { hooks: path.join(windsurfDir(), 'hooks.json') } : {};
+    case 'droid': return user ? { hooks: droidHooks(), mcp: path.join(factoryDir(), 'mcp.json') } : {};
+    case 'qwen': return user ? { settings: path.join(qwenDir(), 'settings.json') } : {};
+    case 'kiro': return user ? { hooks: path.join(kiroDir(), 'hooks', 'thinker.json'), mcp: path.join(kiroDir(), 'settings', 'mcp.json') } : {};
+    case 'cline': return user ? { hookDir: path.join(clineDocs(), 'Hooks'), mcp: path.join(clineData(), 'settings', 'cline_mcp_settings.json') } : {};
+    case 'kilo': return user ? { ext: path.join(kiloDir(), 'plugin', 'thinker.js') } : {};
+    case 'augment': return user ? { settings: path.join(augmentDir(), 'settings.json'), scripts: path.join(augmentDir(), 'thinker') } : {};
+    case 'goose': return user ? { hooks: path.join(goosePlugin(), 'hooks', 'hooks.json'), yaml: path.join(gooseDir(), 'config.yaml') } : {};
     default: return {};
   }
 }
@@ -339,7 +410,95 @@ function instructionFiles(client, { scope = 'repo', repo } = {}) {
   if (client === 'opencode') return [user ? path.join(opencodeDir(), 'AGENTS.md') : path.join(repo, '.opencode/thinker.md')];
   if (client === 'copilot' && user) return [path.join(copilotHome(), 'copilot-instructions.md')];
   if (client === 'windsurf' && user) return [path.join(windsurfDir(), 'memories', 'global_rules.md')];
+  if (!user) return [];
+  if (client === 'droid') return [path.join(factoryDir(), 'AGENTS.md')];
+  if (client === 'qwen') return [path.join(qwenDir(), 'QWEN.md')];
+  // Kiro's steering files and Cline's and Auggie's rules are whole files: thinker writes one of its own
+  if (client === 'kiro') return [path.join(kiroDir(), 'steering', 'thinker.md')];
+  if (client === 'cline') return [path.join(clineDocs(), 'Rules', 'thinker.md')];
+  if (client === 'kilo') return [path.join(kiloDir(), 'AGENTS.md')];
+  if (client === 'augment') return [path.join(augmentDir(), 'rules', 'thinker.md')];
+  if (client === 'goose') return [path.join(gooseDir(), '.goosehints')];
   return [];
+}
+
+// The hook groups of a Claude-shaped hooks file: under `hooks`, or the whole file (Droid's hooks.json)
+const hooksIn = (cur, flat) => (flat ? cur : cur?.hooks) || {};
+const withHooks = (cur, flat, hooks) => {
+  if (flat) return hooks;
+  const n = { ...cur, hooks }; if (!Object.keys(hooks).length) delete n.hooks; return n;
+};
+// A hook command written into a wrapper script (Auggie runs only scripts, Cline one executable per event):
+// the command the script runs, else the command as it stands
+const WRAPPER_MARK = '# thinker hook (managed by thinker)';
+function realCommand(cmd) {
+  const c = String(cmd || '');
+  if (!/[/\\][\w.-]+$/.test(c) || /\s/.test(c.replace(/^"|"$/g, ''))) return c;
+  const text = readText(c.replace(/^"|"$/g, ''));
+  if (!text.includes(WRAPPER_MARK)) return c;
+  const m = text.match(/^exec (.+)$/m);
+  return m ? m[1].trim() : c;
+}
+const wrapperText = command => `#!/bin/sh\n${WRAPPER_MARK}; \`thinker uninstall --user\` removes it\nexec ${command}\n`;
+function writeWrapper(file, command) {
+  const text = wrapperText(command);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  if (readText(file) !== text) fs.writeFileSync(file, text);
+  fs.chmodSync(file, 0o755);
+}
+const isWrapper = file => readText(file).includes(WRAPPER_MARK);
+
+// Goose keeps its extensions (MCP servers) in config.yaml, which it rewrites itself: thinker's entry is
+// the `thinker:` key under `extensions:`, found by its key and indentation rather than by comment markers.
+// Goose also records each plugin it loaded under `plugins:`, by its directory (`<home>/.agents/plugins/thinker:`).
+const escapeRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function gooseBlock(text, section = 'extensions', key = 'thinker') {
+  const GOOSE_KEY = new RegExp(`^(\\s+)['"]?${escapeRe(key)}['"]?:\\s*$`);
+  const lines = text.split('\n');
+  const ext = lines.findIndex(l => new RegExp(`^${section}:\\s*$`).test(l));
+  if (ext < 0) return null;
+  // the extensions are the keys at the first indentation under `extensions:`
+  const child = (lines.slice(ext + 1).find(l => l.trim()) || '').match(/^\s*/)[0].length;
+  for (let i = ext + 1; i < lines.length && (/^\s/.test(lines[i]) || !lines[i].trim()); i++) {
+    const m = lines[i].match(GOOSE_KEY); if (!m || m[1].length !== child) continue;
+    let end = i + 1;
+    while (end < lines.length && (!lines[end].trim() || lines[end].match(/^\s*/)[0].length > m[1].length)) end++;
+    while (end > i + 1 && !lines[end - 1].trim()) end--;
+    return { lines, start: i, end, indent: m[1] };
+  }
+  return null;
+}
+// the record Goose keeps of thinker's plugin, once the plugin is gone
+function dropGoosePlugin(file) {
+  const text = readText(file), b = gooseBlock(text, 'plugins', goosePlugin());
+  if (!b) return;
+  const lines = [...b.lines.slice(0, b.start), ...b.lines.slice(b.end)];
+  const at = lines.findIndex(l => /^plugins:\s*$/.test(l));
+  // a `plugins:` left with nothing under it goes too
+  if (at >= 0 && !(lines[at + 1] || '').match(/^\s+\S/)) lines.splice(at, 1);
+  fs.writeFileSync(file, lines.join('\n'));
+}
+const gooseMcpScript = text => { const b = gooseBlock(text); return b ? (b.lines.slice(b.start, b.end).join('\n').match(/([^\s"'\[\],]*mcp\.js)/) || [])[1] || null : null; };
+function setGooseExtension(file, entry) {
+  const text = readText(file);
+  const b = gooseBlock(text);
+  let lines = b ? [...b.lines.slice(0, b.start), ...b.lines.slice(b.end)] : text.split('\n');
+  if (entry) {
+    const ind = b?.indent || '  ';
+    const block = [`${ind}thinker:`, ...[
+      'type: stdio', 'name: thinker', 'enabled: true', `cmd: ${JSON.stringify(entry.command)}`, `args: ${JSON.stringify(entry.args)}`,
+      `envs: ${JSON.stringify(entry.env || {})}`, 'env_keys: []', 'timeout: 300', 'description: "thinker: notes about the repository from earlier sessions"',
+    ].map(l => ind + '  ' + l)];
+    let at = lines.findIndex(l => /^extensions:\s*$/.test(l));
+    if (at < 0) { while (lines.length && !lines.at(-1).trim()) lines.pop(); lines.push(...(lines.length ? [''] : []), 'extensions:'); at = lines.length - 1; }
+    lines.splice(at + 1, 0, ...block);
+  }
+  let next = lines.join('\n'); if (next && !next.endsWith('\n')) next += '\n';
+  if (next === text) return false;
+  if (!next.trim() || next.trim() === 'extensions:') { if (fs.existsSync(file)) fs.unlinkSync(file); return true; }
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, next);
+  return true;
 }
 
 // the JSON files of a client that hold hook groups or an MCP entry
@@ -351,12 +510,26 @@ function jsonWiring(client, o) {
   if (client === 'cursor') return [{ file: f.hooks, hooks: true, keepVersion: true }, { file: f.mcp, mcp: true }];
   if (client === 'copilot' && f.hooks) return [{ file: f.hooks, hooks: true, keepVersion: true }, { file: f.mcp, mcp: true }];
   if (client === 'windsurf' && f.hooks) return [{ file: f.hooks, hooks: true }];
+  if (client === 'droid' && f.hooks) return [{ file: f.hooks, hooks: true, flat: flatHooks(f.hooks) }, { file: f.mcp, mcp: true }];
+  if ((client === 'qwen' || client === 'augment') && f.settings) return [{ file: f.settings, hooks: true, mcp: true }];
+  if (client === 'goose' && f.hooks) return [{ file: f.hooks, hooks: true }];
+  if ((client === 'kiro' || client === 'cline') && f.mcp) return [{ file: f.mcp, mcp: true }];
+  return [];
+}
+// The files of a client beyond its JSON wiring: Kiro's hooks file, Cline's hook executables, Auggie's
+// wrapper scripts, Goose's plugin manifest and config.yaml
+function extraFiles(client, o) {
+  const f = wiringFiles(client, o);
+  if (client === 'kiro' && f.hooks) return [f.hooks];
+  if (client === 'cline' && f.hookDir) return CLINE_EVENTS.map(e => path.join(f.hookDir, e));
+  if (client === 'augment' && f.scripts) return ['tool', 'stop', 'end'].map(n => path.join(f.scripts, `${n}.sh`));
+  if (client === 'goose' && f.yaml) return [f.yaml, path.join(goosePlugin(), 'plugin.json')];
   return [];
 }
 const allWiring = (o, clients = CLIENTS) => [...new Set(clients.flatMap(c => {
   const f = wiringFiles(c, o);
   const extra = o.scope === 'repo' ? [...(EXTENSIONS[c] ? [EXTENSIONS[c]] : []), ...(HOOK_FILES[c] || []), ...(RULE_FILES[c] || []), ...(MCP_FILES[c] ? [MCP_FILES[c]] : [])].map(x => path.join(o.repo, x)) : [];
-  return [...instructionFiles(c, o), ...jsonWiring(c, o).map(e => e.file), ...(c === 'codex' ? [f.toml] : []), ...(c === 'cursor' && f.rule ? [f.rule] : []), ...(f.ext ? [f.ext] : []), ...extra];
+  return [...instructionFiles(c, o), ...jsonWiring(c, o).map(e => e.file), ...(c === 'codex' ? [f.toml] : []), ...(c === 'cursor' && f.rule ? [f.rule] : []), ...(f.ext ? [f.ext] : []), ...extraFiles(c, o), ...extra];
 }))];
 // how a file is named to the user: relative to the checkout, or under ~
 const label = (file, { scope, repo }) => scope === 'user' ? file.replace(os.homedir(), '~') : path.relative(repo, file);
@@ -384,7 +557,7 @@ function isLocalFile(client, file, repo) {
 const HOOK_COMMAND = /^node "[^"]+" hook (prompt|tool|stop)(?: --client \w+)?(?: --user)?(?: --repo "[^"]+")?(?: --late)?(?: --record)?(?: --no-distill)?$/;
 const readJsonOr = (f, d) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return d; } };
 const ourGroups = (hooks, ev) => (hooks?.[ev] || []).filter(isOurs);
-const commandOf = g => (g?.hooks ? g.hooks[0] : g)?.command;
+const commandOf = g => { const c = (g?.hooks ? g.hooks[0] : g)?.command; return c === undefined ? c : realCommand(c); };
 // The script of thinker's Codex MCP entry: the managed block, or a bare [mcp_servers.thinker] table.
 // Codex rewrites config.toml when hooks are trusted and drops comments, the block's markers with
 // them; the table it keeps is still thinker's server (installClient leaves such a table as it is).
@@ -451,7 +624,7 @@ export function inferWiring(repo, client, { scope = 'repo' } = {}) {
     if (mcp) { w.mcp = true; const sc = mcpScript(mcp); if (sc) scripts.add(sc); }
     w.shared = scope === 'repo' && !local(f.hooks) && !local(f.mcp);
   }
-  if (EXTENSIONS[client]) {
+  if (EXTENSIONS[client] || (client === 'kilo' && scope === 'user')) {
     const text = readText(scope === 'repo' ? path.join(repo, EXTENSIONS[client]) : f.ext);
     if (!text.startsWith(GENERATED_MARK)) return null;
     try {
@@ -485,6 +658,43 @@ export function inferWiring(repo, client, { scope = 'repo' } = {}) {
     const server = MCP_FILES[client] && readJsonOr(path.join(repo, MCP_FILES[client]), {}).mcpServers?.thinker;
     if (server) { w.mcp = true; const sc = mcpScript(server); if (sc) scripts.add(sc); }
     if (w.mcp && !scripts.size) custom.push('rule-only integration; rerun setup to refresh');
+  }
+  // Droid, Qwen Code, Auggie and Goose: Claude Code's hook groups, in their own files
+  if (['droid', 'qwen', 'augment', 'goose'].includes(client) && scope === 'user') {
+    const [e] = jsonWiring(client, { scope });
+    const hooks = hooksIn(readJsonOr(e.file, {}), e.flat);
+    const evs = Object.keys(hooks).filter(ev => ourGroups(hooks, ev).length);
+    if (evs.length) {
+      w.hooks = true;
+      for (const ev of evs) ourGroups(hooks, ev).forEach(see);
+      const cmds = evs.flatMap(ev => ourGroups(hooks, ev).map(g => commandOf(g) || ''));
+      w.learn = cmds.some(c => / --record\b/.test(c)); w.late = cmds.some(c => / --late\b/.test(c));
+    }
+    const mcpFile = client === 'droid' ? f.mcp : client === 'goose' ? null : f.settings;
+    const server = mcpFile && readJsonOr(mcpFile, {}).mcpServers?.thinker;
+    if (server) { w.mcp = true; const sc = mcpScript(server); if (sc) scripts.add(sc); }
+    if (client === 'goose') { const sc = gooseMcpScript(readText(f.yaml)); if (sc) { w.mcp = true; scripts.add(sc); } }
+  }
+  if (client === 'kiro' && scope === 'user') {
+    const items = (readJsonOr(f.hooks, {}).hooks || []).filter(h => isOurs(h.action || h));
+    if (items.length) {
+      w.hooks = true;
+      for (const h of items) see(h.action);
+      w.learn = items.some(h => / --record\b/.test(h.action?.command || ''));
+    }
+    const server = readJsonOr(f.mcp, {}).mcpServers?.thinker;
+    if (server) { w.mcp = true; const sc = mcpScript(server); if (sc) scripts.add(sc); }
+  }
+  if (client === 'cline' && scope === 'user') {
+    const files = CLINE_EVENTS.map(ev => path.join(f.hookDir, ev)).filter(isWrapper);
+    if (files.length) {
+      w.hooks = true;
+      const cmds = files.map(file => realCommand(file));
+      for (const command of cmds) see({ command });
+      w.learn = cmds.some(c => / --record\b/.test(c)); w.late = cmds.some(c => / --late\b/.test(c));
+    }
+    const server = readJsonOr(f.mcp, {}).mcpServers?.thinker;
+    if (server) { w.mcp = true; const sc = mcpScript(server); if (sc) scripts.add(sc); }
   }
   if (!w.hooks && !w.mcp) return null;
   return { ...w, scripts: [...scripts], hookScripts: [...hookScripts], custom };
@@ -650,14 +860,15 @@ function pruneEntries(repo, { scope = 'repo', clients = CLIENTS, mcpEntry, take,
     if (!fs.existsSync(e.file)) continue;
     let cur; try { cur = JSON.parse(fs.readFileSync(e.file, 'utf8')); } catch { continue; }
     let next = cur, changed = false;
-    if (e.hooks && cur.hooks && typeof cur.hooks === 'object') {
-      const hooks = { ...cur.hooks };
+    const curHooks = hooksIn(cur, e.flat);
+    if (e.hooks && curHooks && typeof curHooks === 'object') {
+      const hooks = { ...curHooks };
       for (const ev of Object.keys(hooks)) {
         if (!Array.isArray(hooks[ev])) continue;
         const kept = hooks[ev].filter(g => { if (!isOurs(g)) return true; const t = take(hookScript(g)); if (t) { record(e.file, t, 'hooks'); return false; } return true; });
         if (kept.length !== hooks[ev].length) { changed = true; if (kept.length) hooks[ev] = kept; else delete hooks[ev]; }
       }
-      if (changed) { next = { ...next, hooks }; if (!Object.keys(hooks).length) delete next.hooks; }
+      if (changed) next = withHooks(next, e.flat, hooks);
     }
     if (e.mcp && cur.mcpServers?.thinker) {
       const t = take(mcpScript(cur.mcpServers.thinker));
@@ -669,7 +880,7 @@ function pruneEntries(repo, { scope = 'repo', clients = CLIENTS, mcpEntry, take,
       }
     }
     if (!changed) continue;
-    if (Object.keys(next).filter(k => !(e.keepVersion && k === 'version')).length) fs.writeFileSync(e.file, JSON.stringify(next, null, 2) + '\n');
+    if (Object.keys(next).filter(k => !(e.keepVersion && k === 'version')).length || e.flat) fs.writeFileSync(e.file, JSON.stringify(next, null, 2) + '\n');
     else fs.unlinkSync(e.file);
   }
   if (clients.includes('codex')) {
@@ -864,12 +1075,14 @@ function setHooks(hooks, events, entries) {
   return next;
 }
 
+// Kilo is an OpenCode fork: OpenCode's plugin, in the module shape Kilo loads ({ id, server })
 function extensionText(config) {
-  const source = pathToFileURL(path.join(path.dirname(config.cli), 'integrations', `${config.client}.js`)).href;
+  const source = pathToFileURL(path.join(path.dirname(config.cli), 'integrations', `${config.client === 'kilo' ? 'opencode' : config.client}.js`)).href;
   const factory = config.client === 'pi' ? 'piExtension' : 'opencodePlugin';
-  return GENERATED_MARK + JSON.stringify(config) + '\n' +
-    `import { ${factory} } from ${JSON.stringify(source)};\n` +
-    (config.client === 'pi' ? `export default pi => piExtension(pi, ${JSON.stringify(config)});\n` : `export default opencodePlugin(${JSON.stringify(config)});\n`);
+  const body = config.client === 'pi' ? `export default pi => piExtension(pi, ${JSON.stringify(config)});\n`
+    : config.client === 'kilo' ? `export default { id: 'thinker', server: opencodePlugin(${JSON.stringify(config)}) };\n`
+    : `export default opencodePlugin(${JSON.stringify(config)});\n`;
+  return GENERATED_MARK + JSON.stringify(config) + '\n' + `import { ${factory} } from ${JSON.stringify(source)};\n` + body;
 }
 
 // Wire one client in: into the repo (scope 'repo') or the user's files (scope 'user'). Returns lines describing what was done.
@@ -1049,6 +1262,93 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
     }
     localFiles(generated);
   }
+  // Droid, Qwen Code, Auggie, Goose: Claude Code's hook groups in their own files. Auggie has no prompt
+  // hook and runs only scripts (thinker's .sh wrappers); Goose's hooks only record, for learning, since
+  // what they print never reaches the model (they are left out without learning).
+  const SHAPED = {
+    droid: { name: 'Droid', prompt: 'UserPromptSubmit', matcher: '*', unit: 1 },
+    qwen: { name: 'Qwen Code', prompt: 'UserPromptSubmit', matcher: '*', unit: 1 },
+    augment: { name: 'Auggie', prompt: null, matcher: '.*', unit: 1000, scripts: true },
+    goose: { name: 'Goose', prompt: 'UserPromptSubmit', matcher: '.*', unit: 1, recordOnly: true },
+  };
+  const shaped = scope === 'user' && SHAPED[client];
+  if (shaped) {
+    const [e] = jsonWiring(client, o);
+    const events = ['UserPromptSubmit', 'PostToolUse', 'Stop', 'SessionEnd'];
+    const wanted = hooks && (!shaped.recordOnly || learn);
+    const command = (what, extra) => {
+      if (!shaped.scripts) return cmd(what, extra);
+      const file = path.join(f.scripts, `${what === 'tool' ? 'tool' : extra === ' --end' ? 'end' : 'stop'}.sh`);
+      writeWrapper(file, cmd(what, extra === ' --end' ? stopFlags : extra));
+      return file;
+    };
+    const group = (what, extra, timeout, tool = false) => ({ ...(tool ? { matcher: shaped.matcher } : {}), hooks: [{ type: 'command', command: command(what, extra), timeout: timeout * shaped.unit }] });
+    const entries = [];
+    if (wanted) {
+      if (shaped.prompt) entries.push(['UserPromptSubmit', group('prompt', rec, 15)]);
+      if (late || learn) entries.push(['PostToolUse', group('tool', (late && !shaped.recordOnly ? ' --late' : '') + rec, 10, true)]);
+      // Auggie hands a Stop hook the turn's prompt and answer when asked (includeConversationData): its trace's prompt
+      entries.push(['Stop', { ...group('stop', stopFlags, 10), ...(client === 'augment' ? { metadata: { includeConversationData: true } } : {}) }]);
+      if (learn) entries.push(['SessionEnd', group('stop', shaped.scripts ? ' --end' : stopFlags, 10)]);
+    }
+    mergeJson(e.file, c => withHooks(c, e.flat, setHooks(hooksIn(c, e.flat), events, entries)));
+    if (shaped.scripts && !wanted) fs.rmSync(f.scripts, { recursive: true, force: true });
+    if (client === 'goose') {
+      const manifest = path.join(goosePlugin(), 'plugin.json');
+      if (wanted) mergeJson(manifest, c => ({ ...c, name: 'thinker', description: 'thinker: records sessions so the cache learns from them' }));
+      else { fs.rmSync(goosePlugin(), { recursive: true, force: true }); dropGoosePlugin(f.yaml); }
+    }
+    if (wanted) done.push(`${shaped.name}: hooks in ${rel(e.file)}: ${shaped.recordOnly ? 'sessions recorded for learning (Goose gives hooks no way to add context)' : `${shaped.prompt ? 'notes injected on each prompt' : 'no prompt hook in Auggie: the rules about a file come when it edits one'}${late ? ', file-keyed notes while working' : ''}${learned}`}`);
+    if (mcp && client !== 'goose') {
+      const file = client === 'droid' ? f.mcp : f.settings;
+      mergeJson(file, c => ({ ...c, mcpServers: { ...(c.mcpServers || {}), thinker: mcpServerEntry(client, mcpEntry) } }));
+      done.push(`${shaped.name}: registered MCP server in ${rel(file)}`);
+    }
+    if (mcp && client === 'goose') { setGooseExtension(f.yaml, mcpEntry); done.push(`Goose: added the thinker extension to ${rel(f.yaml)}`); }
+  }
+
+  // Kiro CLI: the V3 engine's global hooks file, ours alone; the prompt hook's stdout is added to the
+  // context, a PostToolUse hook's is ignored (so the tool hook only records)
+  if (client === 'kiro' && scope === 'user') {
+    if (hooks) {
+      const item = (name, trigger, what, extra, timeout) => ({ name: `thinker-${name}`, trigger, action: { type: 'command', command: cmd(what, extra) }, timeout, enabled: true });
+      const items = [item('prompt', 'UserPromptSubmit', 'prompt', rec, 15)];
+      if (learn) items.push(item('tool', 'PostToolUse', 'tool', rec, 10));
+      items.push(item('stop', 'Stop', 'stop', stopFlags, 10));
+      if (learn) items.push(item('end', 'SessionEnd', 'stop', stopFlags, 10));
+      const text = JSON.stringify({ version: 'v1', hooks: items }, null, 2) + '\n';
+      fs.mkdirSync(path.dirname(f.hooks), { recursive: true });
+      if (readText(f.hooks) !== text) fs.writeFileSync(f.hooks, text);
+      done.push(`Kiro CLI: hooks in ${rel(f.hooks)} (the V3 engine: \`kiro-cli --v3\`, or chat.agentEngine = v3): notes injected on each prompt${learned}`);
+    } else fs.rmSync(f.hooks, { force: true });
+    if (mcp) { mergeJson(f.mcp, c => ({ ...c, mcpServers: { ...(c.mcpServers || {}), thinker: mcpServerEntry('kiro', mcpEntry) } })); done.push(`Kiro CLI: registered MCP server in ${rel(f.mcp)}`); }
+  }
+
+  // Cline: one executable per event in its global hooks folder. An event the person already has a hook
+  // for is left to theirs (a folder holds one file per event).
+  if (client === 'cline' && scope === 'user') {
+    const plan = { UserPromptSubmit: ['prompt', rec], PostToolUse: (late || learn) ? ['tool', (late ? ' --late' : '') + rec] : null,
+      TaskComplete: ['stop', stopFlags], TaskCancel: ['stop', stopFlags], SessionShutdown: learn ? ['stop', stopFlags] : null };
+    const kept = [];
+    for (const ev of CLINE_EVENTS) {
+      const file = path.join(f.hookDir, ev);
+      if (fs.existsSync(file) && !isWrapper(file)) { if (hooks && plan[ev]) kept.push(ev); continue; }
+      if (hooks && plan[ev]) writeWrapper(file, cmd(...plan[ev])); else fs.rmSync(file, { force: true });
+    }
+    if (hooks) done.push(`Cline: hooks in ${rel(f.hookDir)}: notes added on each prompt in the editor (the CLI's prompt hook never sees the person's prompt)${late ? ', file-keyed notes while working' : ''}${learned}${kept.length ? `; left your own ${kept.join(', ')} hook${kept.length > 1 ? 's' : ''} in place` : ''}`);
+    if (mcp) { mergeJson(f.mcp, c => ({ ...c, mcpServers: { ...(c.mcpServers || {}), thinker: mcpServerEntry('cline', mcpEntry) } })); done.push(`Cline: registered MCP server in ${rel(f.mcp)}`); }
+  }
+
+  // Kilo: OpenCode's plugin, in Kilo's global plugin folder; it registers the MCP server itself
+  if (client === 'kilo' && scope === 'user' && (hooks || mcp)) {
+    const before = readText(f.ext);
+    if (before && !before.startsWith(GENERATED_MARK)) throw new Error(`Refusing to overwrite ${rel(f.ext)}: not a generated thinker plugin`);
+    const text = extensionText({ client, repo: null, cli, hooks: !!hooks, learn: !!learn, late: !!late, shared: false, mcp: !!mcp, mcpEntry });
+    fs.mkdirSync(path.dirname(f.ext), { recursive: true });
+    if (before !== text) fs.writeFileSync(f.ext, text);
+    done.push(`Kilo: installed ${rel(f.ext)}`);
+  }
+
   if (hooks || mcp) {
     const candidates = instructionFiles(client, o);
     const file = candidates.find(f => fs.existsSync(f)) || candidates.at(-1);
@@ -1084,20 +1384,20 @@ export function installCursorRule(repo, { learn = true } = {}) {
 
 // Take thinker's hook entries (and, with `mcp`, its MCP entry) out of one JSON file; the file
 // goes when nothing else is in it. Returns whether anything was removed.
-function stripThinkerHooks(file, { keepVersion = false, mcp = false } = {}) {
+function stripThinkerHooks(file, { keepVersion = false, mcp = false, flat = false } = {}) {
   if (!fs.existsSync(file)) return false;
   const before = fs.readFileSync(file, 'utf8');
   mergeJson(file, c => {
-    const hooks = { ...(c.hooks || {}) };
-    for (const ev of Object.keys(hooks)) { hooks[ev] = (hooks[ev] || []).filter(h => !isOurs(h)); if (!hooks[ev].length) delete hooks[ev]; }
-    const n = { ...c, hooks };
-    if (!Object.keys(hooks).length) delete n.hooks;
+    const hooks = { ...hooksIn(c, flat) };
+    for (const ev of Object.keys(hooks)) { if (!Array.isArray(hooks[ev])) continue; hooks[ev] = hooks[ev].filter(h => !isOurs(h)); if (!hooks[ev].length) delete hooks[ev]; }
+    const n = withHooks(c, flat, hooks);
     if (mcp && n.mcpServers?.thinker) { n.mcpServers = { ...n.mcpServers }; delete n.mcpServers.thinker; if (!Object.keys(n.mcpServers).length) delete n.mcpServers; }
     return n;
   });
   const after = fs.readFileSync(file, 'utf8');
   const left = JSON.parse(after);
-  if (!Object.keys(left).filter(k => !(keepVersion && k === 'version')).length) fs.unlinkSync(file);
+  // an emptied hooks.json of Droid's stays: without it Droid would read the hooks in its settings.json
+  if (!flat && !Object.keys(left).filter(k => !(keepVersion && k === 'version')).length) fs.unlinkSync(file);
   return JSON.stringify(JSON.parse(before)) !== JSON.stringify(left);
 }
 
@@ -1112,6 +1412,20 @@ export function uninstallWiring({ scope = 'repo', repo } = {}) {
     for (const client of ['pi', 'opencode']) { const ext = wiringFiles(client, o).ext; if (readText(ext).startsWith(GENERATED_MARK)) fs.unlinkSync(ext); }
     stripThinkerHooks(wiringFiles('copilot', o).hooks, { keepVersion: true }); stripThinkerHooks(wiringFiles('windsurf', o).hooks);
     dropMcpEntry(wiringFiles('copilot', o).mcp);
+    // Droid, Qwen Code, Auggie, Kiro CLI, Cline, Kilo, Goose
+    const droid = wiringFiles('droid', o);
+    stripThinkerHooks(droid.hooks, { flat: flatHooks(droid.hooks) }); dropMcpEntry(droid.mcp);
+    for (const c of ['qwen', 'augment']) stripThinkerHooks(wiringFiles(c, o).settings, { mcp: true });
+    fs.rmSync(wiringFiles('augment', o).scripts, { recursive: true, force: true });
+    const kiro = wiringFiles('kiro', o);
+    fs.rmSync(kiro.hooks, { force: true }); dropMcpEntry(kiro.mcp);
+    const cline = wiringFiles('cline', o);
+    for (const ev of CLINE_EVENTS) { const file = path.join(cline.hookDir, ev); if (isWrapper(file)) fs.unlinkSync(file); }
+    dropMcpEntry(cline.mcp);
+    const kilo = wiringFiles('kilo', o).ext; if (readText(kilo).startsWith(GENERATED_MARK)) fs.unlinkSync(kilo);
+    fs.rmSync(goosePlugin(), { recursive: true, force: true });
+    setGooseExtension(wiringFiles('goose', o).yaml, null);
+    dropGoosePlugin(wiringFiles('goose', o).yaml);
   }
   const stripHooks = (file, keepVersion) => file && stripThinkerHooks(file, { keepVersion, mcp: true });
   if (scope === 'user' && cardDirIn(readJsonOr(claude.local, {}))) mergeJson(claude.local, withoutCardDir);

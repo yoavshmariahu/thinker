@@ -42,7 +42,7 @@ export function shortTitle(title: string): string {
 // / 3.6 tokens capped at FILE_CAP; agent configuration and build output count nothing.
 export const MAX_FILES = 5
 export const FILE_CAP = 6000
-export const NOT_READING = /^(\.claude|\.codex|\.cursor|\.gemini|\.pi|\.windsurf|\.devin|\.opencode|\.vscode|\.idea|\.git|\.thinker|node_modules|dist|coverage)\/|^\.github\/(hooks|instructions)\/|^\.mcp\.json$|^bench\/runs\/|\.log$/
+export const NOT_READING = /^(\.claude|\.codex|\.cursor|\.gemini|\.pi|\.windsurf|\.devin|\.opencode|\.vscode|\.idea|\.factory|\.qwen|\.kiro|\.clinerules|\.cline|\.kilo|\.kilocode|\.augment|\.goose|\.git|\.thinker|node_modules|dist|coverage)\/|^\.github\/(hooks|instructions)\/|^\.mcp\.json$|^bench\/runs\/|\.log$/
 export function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
   if (n >= 10000) return `${Math.round(n / 1000)}k`
