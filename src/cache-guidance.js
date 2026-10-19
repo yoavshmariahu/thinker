@@ -10,19 +10,28 @@
 // Codex change-task sessions of 2026-10-07 told to "reach code through pointers before the first grep",
 // every one started with them, added find→drilldown hops a batched grep does in one turn, and re-read
 // the drilled code to edit it anyway (31→51 turns on mitmproxy, first edit 2–3 turns later).
-// orient can be switched off too (`thinker tools disable orient`), and is on by default. Where it is
-// off, the server does not offer it and no text tells the agent to call it: the prompt hook's bundle is
-// the only way notes arrive, and lookup stays for an id a bundle listed. Measured on the MLflow fair-11
-// set with GPT-6 Astra on 2026-10-18 (Artemis mlflow-fair11-astra-mined200-full-2026-10-18): the arm
-// told to orient called it in every session, got nothing back in 12 of 22, and spent 43k more input
-// tokens and 2.1 more tool calls than the bare agent; the hook alone was level with the bare agent and
-// 41k tokens and 2 calls under the orient arm. The default stays until a pull request citing that changes it.
+// orient is off unless a repository turns it on (`thinker tools enable orient`, kept as `enabledTools`
+// in .thinker/config.json); where it is off, the server does not offer it and no text tells the agent to
+// call it: the prompt hook's bundle is how notes arrive, and lookup stays for an id a bundle listed.
+// Measured on the MLflow fair-11 set with GPT-6 Astra on 2026-10-18 (Artemis
+// mlflow-fair11-astra-mined200-full-2026-10-18): the arm told to orient called it in every session, got
+// nothing back in 12 of 22, and spent 43k more input tokens and 2.1 more tool calls than the bare agent;
+// the hook alone was level with the bare agent and 41k tokens and 2 calls under the orient arm. It was on
+// until the release after 0.1.65, and a `disabledTools` list written before (0.1.65 could switch it) does not
+// keep it on: only `enabledTools` does, so every existing install turns it off on its next start.
+// Clients whose notes come through orient alone keep it in their instructions (ORIENT_CLIENTS).
 export const SWITCHABLE_TOOLS = ['orient', 'find', 'drilldown'];
-export const DEFAULT_DISABLED_TOOLS = ['find', 'drilldown'];
+export const DEFAULT_DISABLED_TOOLS = ['orient', 'find', 'drilldown'];
+const CODE_TOOLS = ['find', 'drilldown'];
 export function disabledTools(config) {
   const named = config?.disabledTools;
-  return new Set((Array.isArray(named) ? named : DEFAULT_DISABLED_TOOLS).filter(t => SWITCHABLE_TOOLS.includes(t)));
+  const off = new Set((Array.isArray(named) ? named : CODE_TOOLS).filter(t => CODE_TOOLS.includes(t)));
+  if (!(Array.isArray(config?.enabledTools) && config.enabledTools.includes('orient'))) off.add('orient');
+  return off;
 }
+// Windsurf runs no prompt hook (its rule asks the agent to orient), and Copilot CLI's hook fires only on
+// the first successful tool call, with the CLI orient as the fallback: their notes would stop with orient.
+export const ORIENT_CLIENTS = ['windsurf', 'copilot'];
 const offered = disabled => { const off = disabled instanceof Set ? disabled : new Set(disabled || DEFAULT_DISABLED_TOOLS); return { orient: !off.has('orient'), find: !off.has('find'), drilldown: !off.has('drilldown') }; };
 // How to get from a note to the code, with the tools on offer; `call` renders a tool's name.
 export function reachCode(disabled, call = name => name) {

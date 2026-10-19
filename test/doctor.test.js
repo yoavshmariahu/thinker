@@ -51,7 +51,7 @@ test('doctor finds wiring of a thinker copy that is gone, and --fix rewires it t
   assert.match(fixed.stderr, /fixing wiring/);
   assert.deepEqual(checks.filter(c => c.status === 'fail'), []);
   assert.equal(byName(checks, 'agent claude').status, 'ok');
-  assert.match(byName(checks, 'MCP server').detail, /orient/);
+  assert.match(byName(checks, 'MCP server').detail, /lookup/);
   const text = fs.readFileSync(settings, 'utf8');
   assert.ok(!text.includes('/gone/'));
   assert.ok(text.includes(CLI));

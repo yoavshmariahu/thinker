@@ -14,13 +14,13 @@ removes Thinker's entries and preserves other integrations.
 
 ## Instructions available before exploration
 
-Setup and `connect` install a short workflow alongside the tools: use injected notes
-or `orient`, ask specific questions with `lookup`, save reusable discoveries, and
+Setup and `connect` install a short workflow alongside the tools: use injected notes,
+ask specific questions with `lookup`, save reusable discoveries, and
 correct wrong notes. The code tools `find` and `drilldown` are off unless a repository
 turns them on with `thinker tools enable find drilldown`; while off they are neither
-offered nor mentioned to the agent. `orient` is on by default and switches the same
-way (`thinker tools disable orient`), leaving the prompt hook's notes and `lookup`. An injected bundle
-replaces only the initial `orient` call. Ordinary searches and reads remain available
+offered nor mentioned to the agent. `orient` is off by default too (`thinker tools
+enable orient` turns it on): the prompt hook's notes and `lookup` remain. Windsurf and
+Copilot CLI, whose notes come through the CLI `orient`, keep it in their rules. Ordinary searches and reads remain available
 when Thinker's tools cannot answer the question.
 
 | Client | Persistent workflow location |

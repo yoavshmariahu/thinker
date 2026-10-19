@@ -68,7 +68,8 @@ test('the MCP server offers its tools in a git repository without .thinker and s
   const dir = fresh(t);
   const s = mcpSession(dir, { THINKER_REPO: dir });
   assert.ok(s.init.result.instructions.includes('cache of notes about this repository'), s.init.result.instructions.slice(0, 120));
-  assert.ok(s.tools.some(x => x.name === 'orient'));
+  assert.ok(s.tools.some(x => x.name === 'lookup'));
+  assert.ok(!s.tools.some(x => x.name === 'orient'), 'orient is off by default');
   assert.ok(fs.existsSync(path.join(dir, '.thinker')));
 });
 
@@ -81,20 +82,20 @@ test('the MCP server takes the repository from its working directory, or from th
   fs.mkdirSync(path.join(dir, 'sub'));
   const set = mcpSession(path.join(dir, 'sub'), { THINKER_REPO: '' });
   assert.ok(set.init.result.instructions.includes(`cache of notes about this repository (${fs.realpathSync(dir)})`), set.init.result.instructions.slice(0, 120));
-  assert.ok(set.tools.some(x => x.name === 'orient'));
-  assert.ok(!set.tools.find(x => x.name === 'orient').inputSchema.properties.cwd, 'bound at start: no cwd to pass');
+  assert.ok(set.tools.some(x => x.name === 'lookup'));
+  assert.ok(!set.tools.find(x => x.name === 'lookup').inputSchema.properties.cwd, 'bound at start: no cwd to pass');
   const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-no-repo-'));
   t.after(() => fs.rmSync(bare, { recursive: true, force: true }));
   const none = mcpSession(bare, { THINKER_REPO: '' }, [
-    { name: 'orient', arguments: { task: 'how do I run tests' } },
-    { name: 'orient', arguments: { task: 'how do I run tests', cwd: path.join(dir, 'sub') } },
+    { name: 'lookup', arguments: { query: 'how do I run tests' } },
+    { name: 'lookup', arguments: { query: 'how do I run tests', cwd: path.join(dir, 'sub') } },
     { name: 'lookup', arguments: { query: 'tests' } },
   ]);
   assert.match(none.init.result.instructions, /started outside one \(.*\): on the first call pass cwd/);
   assert.ok(none.init.result.instructions.length <= 2048);
-  const orient = none.tools.find(x => x.name === 'orient');
-  assert.ok(orient, 'the tools are offered before a repository is known');
-  assert.ok(orient.inputSchema.properties.cwd, 'each takes the working directory');
+  const lookupTool = none.tools.find(x => x.name === 'lookup');
+  assert.ok(lookupTool, 'the tools are offered before a repository is known');
+  assert.ok(lookupTool.inputSchema.properties.cwd, 'each takes the working directory');
   assert.match(none.replies[0], /not bound to a repository yet.*Call again with cwd/, 'a call naming no directory is asked for one');
   assert.ok(!fs.existsSync(path.join(bare, '.thinker')), 'nothing is created outside a repository');
   assert.match(none.replies[1], new RegExp(`bound to the repository at ${fs.realpathSync(dir)} from here on`), 'the first call naming a directory binds the server');
@@ -117,10 +118,10 @@ test('in a desktop app the queue and retrieval tools follow the cwd of each call
   const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-no-repo-'));
   t.after(() => fs.rmSync(bare, { recursive: true, force: true }));
   const s = mcpSession(bare, { THINKER_REPO: '', THINKER_NO_LEARN: '0', CLAUDE_CODE_ENTRYPOINT: 'claude-desktop' }, [
-    { name: 'orient', arguments: { task: 'tests', cwd: a } },
+    { name: 'lookup', arguments: { query: 'tests', cwd: a } },
     { name: 'remember', arguments: { cwd: b, title: 'Run widget test suite', kind: 'howto', answers: ['how to run widget tests'], body: 'Call b.js:runWidget to run widget tests.', deps: [{ path: 'b.js', symbol: 'runWidget' }] } },
     { name: 'lookup', arguments: { query: 'how to run widget tests' } },
-    { name: 'orient', arguments: { task: 'run widget tests', cwd: a } },
+    { name: 'lookup', arguments: { query: 'run widget tests', cwd: a } },
     { name: 'warmup_next', arguments: { cwd: b } },
   ]);
   assert.ok(s.tools.some(x => x.name === 'warmup_next') && s.tools.some(x => x.name === 'warmup_answer'), 'listed before any repository is bound');
@@ -167,13 +168,20 @@ test('the installer installs the tool, connects the agents without asking and en
   assert.deepEqual(fs.readdirSync(work), []);
 });
 
-// An agent wired with thinker's server and no hooks gets the warm-up offer from orient (2026-10-16: a device
-// whose requests all came through MCP had two cold caches and no offer), once per repository.
-test('orient makes the warm-up offer to a cold cache, once', t => {
+// An agent wired with thinker's server and no hooks gets the warm-up offer from its first retrieval call
+// (2026-10-16: a device whose requests all came through MCP had two cold caches and no offer), once per
+// repository: from lookup, and from orient where a repository turned it on (mcp-server.js:mcpWarmupOffer).
+test('lookup and orient make the warm-up offer to a cold cache, once', t => {
   const dir = fresh(t);
   for (let i = 0; i < 8; i++) { fs.writeFileSync(path.join(dir, `f${i}.js`), `export const f${i} = ${i};\n`); execFileSync('git', ['-C', dir, 'add', '.']); execFileSync('git', ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', `fix ${i}`]); }
-  const call = { name: 'orient', arguments: { task: 'where is f3 defined' } };
+  const call = { name: 'lookup', arguments: { query: 'where is f3 defined' } };
   const s = mcpSession(dir, { THINKER_REPO: dir }, [call, call]);
   assert.match(s.replies[0], /<thinker-new-repository>/);
   assert.doesNotMatch(s.replies[1], /<thinker-new-repository>/);
+  const other = fresh(t);
+  for (let i = 0; i < 8; i++) { fs.writeFileSync(path.join(other, `f${i}.js`), `export const f${i} = ${i};\n`); execFileSync('git', ['-C', other, 'add', '.']); execFileSync('git', ['-C', other, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', `fix ${i}`]); }
+  fs.mkdirSync(path.join(other, '.thinker'), { recursive: true });
+  fs.writeFileSync(path.join(other, '.thinker', 'config.json'), JSON.stringify({ enabledTools: ['orient'] }));
+  const o = mcpSession(other, { THINKER_REPO: other }, [{ name: 'orient', arguments: { task: 'where is f3 defined' } }]);
+  assert.match(o.replies[0], /<thinker-new-repository>/);
 });

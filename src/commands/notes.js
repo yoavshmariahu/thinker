@@ -224,7 +224,10 @@ async function toolsCommand(ctx) {
   }
   for (const n of names) verb === 'disable' ? off.add(n) : off.delete(n);
   const file = path.join(store.dir, 'config.json');
-  fs.writeFileSync(file, JSON.stringify({ ...store.config(), disabledTools: SWITCHABLE_TOOLS.filter(t => off.has(t)) }, null, 2) + '\n');
+  // orient is on only where enabledTools names it (cache-guidance.js:disabledTools); the code tools are kept as disabledTools
+  const { enabledTools, ...rest } = store.config();
+  const enabled = [...new Set([...(Array.isArray(enabledTools) ? enabledTools : []).filter(t => t !== 'orient'), ...(off.has('orient') ? [] : ['orient'])])];
+  fs.writeFileSync(file, JSON.stringify({ ...rest, disabledTools: SWITCHABLE_TOOLS.filter(t => t !== 'orient' && off.has(t)), ...(enabled.length ? { enabledTools: enabled } : {}) }, null, 2) + '\n');
   show();
   out('Agents see the change in their next session: the server reads it when it starts.');
 }

@@ -117,8 +117,8 @@ const HELP = `thinker — knowledge cache for coding agents
                                  symbolTable {"enabled": true} is in .thinker/config.json; build is also what a
                                  lookup starts in the background when the table is missing or too far behind
   tools [enable|disable orient|find|drilldown …]
-                                 which tools the server offers agents in this repository: orient is on, the code tools are off
-                                 unless enabled, and a tool that is off is neither offered nor mentioned to the agent (the commands below still work)
+                                 which tools the server offers agents in this repository: all three are off unless enabled,
+                                 and a tool that is off is neither offered nor mentioned to the agent (the commands below still work)
   find "<words|Identifier>" [--path p] [--limit n]
                                  the definitions whose name or body carry the words, as pointers with their lines
   drilldown <pointer…> [--budget n]
@@ -167,7 +167,8 @@ const HELP = `thinker — knowledge cache for coding agents
                                  --from <commit>: look back from that commit instead of the checkout's head: the newest --limit changes
                                  worth distilling among the 3 x limit commits that end there (--scan n: among n); nothing merged
                                  after it is read
-  mcp                            the MCP server on stdio, for an agent's MCP settings (THINKER_REPO pins the repository)
+  mcp [--enable orient,…]        the MCP server on stdio, for an agent's MCP settings (THINKER_REPO pins the repository;
+                                 --enable offers tools this checkout switched off, for this server only)
   version [--json]               the version this thinker runs, and its commit when it runs from a checkout
   served [--json]                what this checkout's own log says was served: prompt-hook and file-hook notes, orient and lookup calls
   spent [--json]                 what this checkout's own log says its model calls spent, and what mining and understanding did
