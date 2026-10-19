@@ -296,3 +296,50 @@ and subprocess failure behavior. These are contract and subprocess tests, not
 live authenticated sessions in all four hosts. A release should smoke-test each
 supported host version with a known note, a prompt, a file read/edit, and session
 end; inspect the trace and confirm the model actually received the context.
+
+## Reducing tool and plugin context
+
+`thinker harness` and the local page read recorded listings and usage, then offer
+sources loaded in at least three sessions, used in fewer than 10%, and costing at
+least 100 estimated tokens. They change the harness's configuration when you choose
+sources with the page, `--off`, or an answer to `--suggest`. A prompt telling the
+agent to ignore a tool does not remove its description from context.
+
+| Harness | Recorded evidence | Mechanical switch | Scope |
+| --- | --- | --- | --- |
+| Claude Code | Deferred tools, MCP instructions, skill listings, tool/skill calls | `enabledPlugins`, `disabledMcpServers`, `disabledMcpjsonServers`, `skillOverrides` | Existing Claude project/local settings; user/local MCP switches cover worktrees |
+| Codex CLI and desktop app | Recorded developer skill catalog and deferred namespaces (including desktop `world_state`), direct and `functions.exec` tool calls, skill file reads, child sessions | `mcp_servers.<name>.enabled = false`, `plugins."name@marketplace".enabled = false`, `[[skills.config]]` with path and `enabled = false` | This trusted checkout's `.codex/config.toml`, from new sessions |
+| Other harnesses | No context-reduction adapter yet | None | Report/switch support must be implemented per harness |
+
+Codex support uses the same settings layer in the CLI and app. An untrusted project
+ignores that layer. It does not shrink an existing chat or automatically reload its
+tools. User-level configuration is read (respecting `CODEX_HOME`), never changed.
+Known local plugins can be disabled as a unit; cloud connectors, built-in skills,
+and plugin sources without a verified local switch remain report-only. Unknown
+plugin tool ownership is treated conservatively when an MCP tool was used.
+
+Token counts estimate only the text present in transcripts; Codex logs do not
+always contain full tool schemas. Missing inventory is unknown, not evidence of a
+saving. Savings compare subsequent sessions of the same harness with the relevant
+inventory present. Reported input-token savings are estimates across recorded
+model calls, not provider billing measurements. Combined source totals are not a
+claim that every agent loaded every source.
+
+Each config edit is backed up with private permissions. TOML values unrelated to
+the switch are retained, though TOML serialization normalizes formatting and
+comments. `thinker harness --undo` restores only the settings Thinker changed and
+preserves later edits. The page uses qualified source keys so identically named
+Claude and Codex tools can be restored separately. A newly created project config
+is excluded from Git. Symlinks pointing outside the checkout are refused.
+
+Weekly suggestions and switched-off tool reminders remain opt-in experiments
+(`--weekly on`, `--recall on`); adding Codex does not enable either by default.
+Codex suggestions use its available question tool or prose, and wait for an
+explicit answer. To support another harness, add evidence parsing, native scoped
+config changes, restoration, and post-change evidence together; a generic hook
+message alone cannot implement context reduction.
+
+The Codex controls are documented in the [configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference)
+and [plugin settings](https://developers.openai.com/plugins/build/plugins).
+They were also verified through Codex 0.162.1’s app server's `config/read`
+with an isolated temporary home and trusted repository, without a model call.
