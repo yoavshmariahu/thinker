@@ -78,6 +78,8 @@ export function skillCosts(content, names) {
 export function sessionHarness(file) {
   // what a source costs is counted once per thing listed: a session resumed or compacted lists it again
   const names = new Map(), instr = new Map(), skills = new Map(), used = new Set(), texts = new Map(), calls = new Set(), alias = new Map();
+  // the files edited and the skills opened, in order (skill-suggest.js reads them)
+  const edited = [], skillOpens = [];
   let cwd = null, start = null;
   const once = (key, item, tokens) => { if (!names.has(key)) names.set(key, new Map()); names.get(key).set(item, tokens); };
   const files = [file];
@@ -120,6 +122,10 @@ export function sessionHarness(file) {
           const s = toolServer(c.name);
           if (s) used.add(mcpKey(s));
           else if (c.name === 'Skill' && c.input?.skill) used.add(`skill:${c.input.skill}`);
+          if (c.name === 'Skill' && c.input?.skill) skillOpens.push({ skill: String(c.input.skill), at: j.timestamp });
+          for (const m of JSON.stringify(c.input || {}).matchAll(/skills\/([\w.-]+)\/SKILL\.md/g)) skillOpens.push({ skill: m[1], at: j.timestamp });
+          const f = ['Edit', 'Write', 'MultiEdit', 'NotebookEdit'].includes(c.name) && (c.input?.file_path || c.input?.notebook_path);
+          if (f && !edited.includes(f)) edited.push(f);
         }
       }
       if (typed) for (const m of line.matchAll(/<command-name>\/?([^<\s]+)<\/command-name>/g)) used.add(`skill:${m[1]}`);
@@ -133,7 +139,7 @@ export function sessionHarness(file) {
   for (const [k, t] of instr) add(k, t);
   for (const [k, t] of skills) add(k, t);
   const usedNames = new Set([...used].map(k => k.startsWith('skill:') && alias.has(k.slice(6)) ? `skill:${alias.get(k.slice(6))}` : k));
-  return { loaded, used: usedNames, cwd, texts, start, calls: calls.size };
+  return { loaded, used: usedNames, cwd, texts, start, calls: calls.size, edited, skillOpens };
 }
 
 // A Claude Code session with what the desktop app added to it, when the app ran it (harness-desktop.js):

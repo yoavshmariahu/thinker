@@ -1066,6 +1066,37 @@ skill's present text is not counted (`skillFileTime`). Duplicates: `skills.js:de
 `skills.prefer` in the config as the pin. Skill cards are never distilled (`distillSpec`,
 `distillKinds`, `saveNotes`) or written through `remember`. See docs/skills.md.
 
+**Skills suggested by the file (off until an experiment, 2026-10-19).** With `harness: { skillSuggest: true }`
+in `.thinker/config.json` (or `THINKER_HARNESS_SKILL_SUGGEST=on`; `=off` wins over the config), the tool
+hook of Claude Code and Codex says, the first time a file is opened or edited in a session, which skills
+past sessions here read for files like it: `<thinker-skill>Past sessions here used <name> for files like
+this one: read <path></thinker-skill>`, at most two a file, each skill once a session
+(`skill-suggest.js:skillSuggestLines`). Why: on PostHog under GPT-6 Astra, switching the 107 skills off
+cut input ~19% at equal passes, but agents then opened 0.6 skills a session against 2.9 and broke more
+minor conventions (0.46 against 0.21 a session); `lookup` over the descriptions was right 42% of the time.
+The evidence (`.thinker/state/skill-evidence.json`, local) is rows by (area, skill), an area being a key of
+the path (`areaKeys`: two directories, the top one, `products/<p>/<layer>`, the kind of file), with organic
+opens, suggested, suggested-then-opened, missed and negative per row and exposures per area, each decaying
+with `harness.skillSuggestHalfLifeDays` (30). To keep a suggestion from feeding itself, only organic opens
+count (no suggestion of that skill earlier in the session; every suggestion is logged as `op:
+"skill-suggest"`) and so do misses: the end-of-session distillation, in the same call, is shown the names,
+one-line descriptions and paths of the skills covering the changed files (`distillSkillContext`, at most
+eight, never their text) and returns `broken_rules` with each rule's source (`distill.js:BROKEN_RULES_SCHEMA`);
+a skill not read is a miss there, one read and broken anyway a logged negative (`recordBrokenRules`). The
+session's opens and edits are credited once, idempotently, from the transcript the harness parses
+(`harness.js:sessionHarness` and `harness-codex.js:codexSessionHarness` return `edited` and `skillOpens`;
+`recordSessionSkills` from `commands/learn.js:distillFile`), so `learn.sessions`, `THINKER_NO_LEARN`, the
+quiet skip and the daily cap apply as to the distillation. Scoring is Thompson sampling of
+Beta(0.5 + organic + missed, 4 + exposures without either), the best of the file's areas, top two above a
+sample of 0.35, plus a small prior for a skill whose description shares a word of the path, so a new skill
+gets tried; a held-out turn (`ops.js:holdoutTurn`) is told nothing and logs `withheld`. First use seeds the
+store from the machine's recent sessions of the repository; `thinker skills seed <transcripts...>` seeds
+from chosen ones (an eval: its training tasks only), `thinker skills suggest <file>` previews. Offline replay
+of the real implementation on 230 PostHog sessions (leave-one-task-out, 20 seeds,
+`bench/worktrees/eval-support/skill-protocol/replay_thompson.py`, local): precision 0.78, recall 0.66,
+2.7 skills a session, 18% of picks exploratory, against 0.83 / 0.62 for the deterministic counts of the
+first replay. No agent session has been run with it.
+
 ## Desired behaviors
 
 Every other kind of note is a claim about the code, and when code and note

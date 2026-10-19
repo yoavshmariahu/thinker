@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { scanSkills, auditSkill, reviewSkill, dedupeSkills, skillRows, renderSkills, skillsLine, isSkill } from '../skills.js';
 import { refresh } from '../ops.js';
+import { skillSuggestOn, seedSkillEvidence, ensureSeeded, loadEvidence, emptyEvidence, suggestFrom, skillSuggestConfig } from '../skill-suggest.js';
 
 async function skillsCommand(ctx) {
   const { pos, flags, store, out } = ctx;
@@ -51,7 +52,22 @@ async function skillsCommand(ctx) {
     for (const x of d) out(`${x.kept} is served; ${x.dropped.join(', ')} ${flags.dry ? 'would be' : ''} archived as duplicates`);
     return out(`${d.length} duplicate ${d.length === 1 ? 'group' : 'groups'}`);
   }
-  throw new Error(`unknown: thinker skills ${sub}. Subcommands: list, scan, audit <id>, review <id>, prefer <id>, dedupe`);
+  // skill suggestions by file (skill-suggest.js; off unless harness.skillSuggest): seed the evidence from named
+  // transcripts (an eval seeds from its training tasks only), or from this machine's recent sessions; preview a file
+  if (sub === 'seed') {
+    const files = pos.slice(1);
+    const r = files.length ? seedSkillEvidence(store, files) : (ensureSeeded(store), { sessions: Object.keys(loadEvidence(store)?.sessions || {}).length, files: null });
+    out(`skill evidence: ${r.sessions} sessions credited${r.files != null ? ` of ${r.files} transcripts` : ''}${skillSuggestOn(store) ? '' : ' (suggestions are off here: harness.skillSuggest in .thinker/config.json)'}`);
+    return;
+  }
+  if (sub === 'suggest') {
+    if (!pos[1]) throw new Error('usage: thinker skills suggest <file>');
+    const ev = loadEvidence(store) || emptyEvidence(), picks = suggestFrom(ev, pos[1], { cfg: skillSuggestConfig(store) });
+    if (flags.json) return out(JSON.stringify({ picks, greedy: picks.greedy }, null, 2));
+    out(picks.length ? picks.map(p => `${p.skill}  sample ${p.score.toFixed(2)}  mean ${p.mean.toFixed(2)}`).join('\n') : 'nothing to suggest');
+    return;
+  }
+  throw new Error(`unknown: thinker skills ${sub}. Subcommands: list, scan, audit <id>, review <id>, prefer <id>, dedupe, seed [transcripts...], suggest <file>`);
 }
 
 export const commands = { skills: skillsCommand };
