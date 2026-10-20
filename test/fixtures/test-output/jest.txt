@@ -1,0 +1,44 @@
+FAIL ./sum.test.js
+  sum
+    ✓ adds numbers (1 ms)
+    ✕ rejects empty (1 ms)
+    ✕ throws deep
+    ○ skipped skipped
+
+  ● sum › rejects empty
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 3
+    Received: 2
+
+       7 |
+       8 |   test('rejects empty', () => {
+    >  9 |     expect(add(1, 1)).toBe(3);
+         |                       ^
+      10 |   });
+      11 |
+      12 |   test('throws deep', () => {
+
+      at Object.toBe (sum.test.js:9:23)
+
+  ● sum › throws deep
+
+    boom in inner
+
+      1 | function inner(a) {
+    > 2 |   throw new Error('boom in inner');
+        |         ^
+      3 | }
+      4 | function outer(a) {
+      5 |   return inner(a);
+
+      at inner (lib.js:2:9)
+      at inner (lib.js:5:10)
+      at Object.outer (sum.test.js:13:12)
+
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 1 skipped, 1 passed, 4 total
+Snapshots:   0 total
+Time:        0.168 s
+Ran all test suites.
