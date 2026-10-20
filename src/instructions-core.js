@@ -57,8 +57,31 @@ export function buildCore(text, keep) {
 
 export const coreConfig = store => {
   const c = store.config().instructions?.core;
-  return { enabled: Array.isArray(c?.keep) && c.keep.length > 0 && c.enabled !== false, keep: Array.isArray(c?.keep) ? c.keep : [] };
+  return { enabled: Array.isArray(c?.keep) && c.keep.length > 0 && c.enabled !== false, keep: Array.isArray(c?.keep) ? c.keep : [], cursor: c?.cursor === true };
 };
+// Agents that read AGENTS.md whole here whatever thinker writes: they have no local replacement (only adding files,
+// or switching instruction files off altogether). agy probed 2026-10-19: AGENTS.md, GEMINI.md and .agents/AGENTS.md
+// read, AGENTS.override.md not.
+export const NOT_TRIMMED = ['Gemini CLI', 'agy', 'Copilot', 'OpenCode', 'Factory Droid', 'Kilo Code', 'Auggie', 'Windsurf', 'Kiro', 'Cline'];
+
+// Cursor's side, on request only (`cursor: true`): .cursorignore with /AGENTS.md keeps Cursor from loading it, and an
+// always-applied local rule holds the core. Probed on Cursor's agent CLI 2026.10.16 (not the editor). The price: a
+// file in .cursorignore is hidden from Cursor's file tools and index too, so the agent cannot open the whole of
+// AGENTS.md when it needs a section left out. Never where the repository has a .cursorignore of its own.
+export const CURSOR_RULE = path.join('.cursor', 'rules', 'thinker-agents-core.mdc');
+const IGNORE_MARK = '# thinker: AGENTS.md is read from .cursor/rules/thinker-agents-core.mdc in this checkout (`thinker instructions --off` removes this)';
+function syncCursor(store, core, on) {
+  const repo = store.repo, ignore = path.join(repo, '.cursorignore'), rule = path.join(repo, CURSOR_RULE);
+  const ignoreMine = (() => { try { return fs.readFileSync(ignore, 'utf8').startsWith(IGNORE_MARK); } catch { return false; } })();
+  const ruleMine = (() => { try { return fs.readFileSync(rule, 'utf8').includes(MARK); } catch { return false; } })();
+  if (!on) { if (ignoreMine) fs.rmSync(ignore, { force: true }); if (ruleMine) fs.rmSync(rule, { force: true }); return ignoreMine || ruleMine ? 'removed' : 'off'; }
+  if ((fs.existsSync(ignore) && !ignoreMine) || (fs.existsSync(rule) && !ruleMine)) return 'theirs';
+  fs.writeFileSync(ignore, `${IGNORE_MARK}\n/AGENTS.md\n`);
+  fs.mkdirSync(path.dirname(rule), { recursive: true });
+  fs.writeFileSync(rule, `---\ndescription: This repository's AGENTS.md, the sections kept for this checkout\nalwaysApply: true\n---\n${core}`);
+  excludeFromGit(repo, ['.cursorignore']); excludeFromGit(repo, [CURSOR_RULE]);
+  return 'written';
+}
 const thinkers = file => { try { return fs.readFileSync(file, 'utf8').startsWith(MARK); } catch { return false; } };
 
 // Whether Claude Code can read the core in place of the team's files here: no CLAUDE.md, or one that is AGENTS.md.
@@ -112,7 +135,7 @@ export function syncCore(store, { force = false } = {}) {
   const exists = fs.existsSync(dst);
   if (exists && !thinkers(dst)) return { state: 'theirs' };
   if (!enabled) {
-    const claude = syncClaude(store, null, false);
+    const claude = syncClaude(store, null, false); syncCursor(store, null, false);
     if (exists) fs.rmSync(dst, { force: true });
     if (exists || claude === 'removed') { try { fs.rmSync(path.join(store.dir, 'state', 'instructions-core.json'), { force: true }); } catch {} store.log({ op: 'instructions-core', state: 'removed' }); return { state: 'removed', claude }; }
     return { state: 'off' };
@@ -126,17 +149,18 @@ export function syncCore(store, { force = false } = {}) {
   fs.writeFileSync(dst, core.text);
   excludeFromGit(repo, [OVERRIDE]);
   const claude = syncClaude(store, core.text, true);
+  const cursor = coreConfig(store).cursor ? syncCursor(store, core.text, true) : syncCursor(store, null, false);
   try { fs.mkdirSync(path.dirname(stateFile), { recursive: true }); fs.writeFileSync(stateFile, JSON.stringify({ key, at: new Date().toISOString(), kept: core.kept, missing: core.missing, claudeExclude: claude?.exclude || st.claudeExclude || null, claude: claude?.written ? 'written' : claude })); } catch {}
   store.log({ op: 'instructions-core', state: 'written', kept: core.kept.length, dropped: core.dropped.length, tokens: Math.ceil(core.text.length / 4), sourceTokens: Math.ceil(text.length / 4), claude: claude?.written ? 'written' : claude });
-  return { state: 'written', ...core, claude: claude?.written ? 'written' : claude, tokens: Math.ceil(core.text.length / 4), sourceTokens: Math.ceil(text.length / 4) };
+  return { state: 'written', ...core, claude: claude?.written ? 'written' : claude, cursor, tokens: Math.ceil(core.text.length / 4), sourceTokens: Math.ceil(text.length / 4) };
 }
 
 // Turn it on with these sections, or off; the file follows at once.
-export function setCore(store, keep) {
+export function setCore(store, keep, { cursor = false } = {}) {
   const file = path.join(store.dir, 'config.json');
   let cfg = {}; try { cfg = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
   cfg.instructions ||= {};
-  if (keep) cfg.instructions.core = { keep }; else delete cfg.instructions.core;
+  if (keep) cfg.instructions.core = { keep, ...(cursor ? { cursor: true } : {}) }; else delete cfg.instructions.core;
   if (!Object.keys(cfg.instructions).length) delete cfg.instructions;
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, JSON.stringify(cfg, null, 2) + '\n');

@@ -115,3 +115,20 @@ test('Claude Code is left alone when CLAUDE.md has text of its own or CLAUDE.loc
   setCore(store, null);
   assert.equal(fs.readFileSync(path.join(repo, 'CLAUDE.local.md'), 'utf8'), 'my notes\n');
 });
+
+test('Cursor is trimmed only on request, never over a .cursorignore of the repository', t => {
+  const { repo, store } = fixture(t);
+  const ignore = path.join(repo, '.cursorignore'), rule = path.join(repo, '.cursor', 'rules', 'thinker-agents-core.mdc');
+  assert.equal(setCore(store, ['Commands']).cursor, 'off', 'not without --cursor');
+  assert.equal(fs.existsSync(ignore), false);
+  assert.equal(setCore(store, ['Commands'], { cursor: true }).cursor, 'written');
+  assert.match(fs.readFileSync(ignore, 'utf8'), /^# thinker: .*\n\/AGENTS\.md\n$/);
+  assert.match(fs.readFileSync(rule, 'utf8'), /^---\ndescription: .*\nalwaysApply: true\n---\n<!-- thinker[\s\S]*hogli test/);
+  assert.equal(execFileSync('git', ['status', '--porcelain', '--', '.cursorignore', '.cursor'], { cwd: repo, encoding: 'utf8' }), '', 'kept out of git');
+  setCore(store, null);
+  assert.equal(fs.existsSync(ignore) || fs.existsSync(rule), false, 'both removed');
+  fs.writeFileSync(ignore, '.env\n');
+  assert.equal(setCore(store, ['Commands'], { cursor: true }).cursor, 'theirs');
+  assert.equal(fs.readFileSync(ignore, 'utf8'), '.env\n');
+  assert.equal(fs.existsSync(rule), false);
+});
