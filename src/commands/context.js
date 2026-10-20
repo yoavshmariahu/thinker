@@ -14,7 +14,7 @@ async function contextCommand({ store, flags, out }) {
   const days = Number(flags.days) || 30;
   if (flags.judge !== undefined) {
     const n = flags.judge === true ? 5 : Math.max(1, Number(flags.judge) || 5);
-    out(`Judging up to ${n} recent session${n === 1 ? '' : 's'} against the instruction file's sections (one model call each)…`);
+    out(`Judging up to ${n} session${n === 1 ? '' : 's'}, sampled over the last ${days} days, against the instruction file's sections (one model call each)…`);
     const r = await judgeRecent(store, { n, days, onEach: (s, x) => out(`  ${s.session.slice(0, 8)} ${s.client}: ${Object.keys(x.verdicts).length} section(s) relevant`) });
     out(r.skipped === 'no-file' ? 'No AGENTS.md or CLAUDE.md here.' : `Judged ${r.judged} session${r.judged === 1 ? '' : 's'}${r.tokens ? `, ~${formatTokens(r.tokens)} tokens` : ''}.${r.skipped === 'daily-cap' ? ' Stopped at the daily token cap.' : ''}`);
     return;

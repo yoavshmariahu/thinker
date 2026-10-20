@@ -193,3 +193,15 @@ test('a tool output costs its tokens once for each model call after it, scaled t
   assert.equal(two['mcp:rea'].input, 20);
   assert.equal(toolKey('mcp__claude-in-chrome__navigate'), 'mcp:claude-in-chrome');
 });
+
+test('waste: high or medium only for a section used in under half the sessions that costs a share of the file', async () => {
+  const { wasteLevel, use } = await import('../src/instruction-value.js');
+  // used in 1 of 10 judged sessions, 100k a session: wastes 90k
+  const r = use({ sessions: 20, applied: 0, triggered: false, judged: 10, bore: 1 }, 100_000);
+  assert.deepEqual(r, { usedShare: 0.1, usedBy: 'judge', wasted: 90_000 });
+  assert.equal(wasteLevel(r, 1_000_000).waste, 'high', '9% of the file');
+  assert.equal(wasteLevel(r, 3_000_000).waste, 'medium', '3% of the file');
+  assert.equal(wasteLevel(r, 10_000_000).waste, 'low', 'under 2%');
+  assert.equal(wasteLevel({ usedShare: 0.6, wasted: 400_000 }, 1_000_000).waste, 'low', 'used in most sessions: never flagged');
+  assert.equal(wasteLevel({ usedShare: null, wasted: null }, 1_000_000).waste, 'unknown');
+});

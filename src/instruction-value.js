@@ -218,7 +218,7 @@ export async function instructionValueCheck(store, file, { session, phase, compl
   return judgeSessionFile(store, file, { session, phase, completeFn });
 }
 
-// Judge the newest `n` sessions not judged yet (`thinker context --judge n`, the page's button).
+// Judge `n` sessions not judged yet, sampled over the window (`thinker context --judge n`, the page's button).
 // A session written to in the last IDLE_MS is still running (this one, or another agent's): judged once it is quiet.
 export const IDLE_MS = 20 * 60_000;
 export async function judgeRecent(store, { n = 5, days = 30, completeFn = complete, sessions, onEach, now = Date.now() } = {}) {
@@ -227,7 +227,9 @@ export async function judgeRecent(store, { n = 5, days = 30, completeFn = comple
   const st = readValueState(store);
   sessions ??= findRepoSessions(store.repo, days);
   let judged = 0, tokens = 0;
-  for (const s of sessions.filter(s => readsFile(src, s.client))) {
+  // a sample spread over the window (by a hash of the session id), not the newest sessions alone
+  const order = s => parseInt(createHash('sha1').update(String(s.session)).digest('hex').slice(0, 8), 16);
+  for (const s of sessions.filter(s => readsFile(src, s.client)).sort((a, b) => order(a) - order(b))) {
     if (judged >= n) break;
     if (st.sessions[s.session]?.judged || now - s.mtime < IDLE_MS) continue;
     const r = await judgeSessionFile(store, s.file, { session: s.session, client: s.client, completeFn, phase: 'manual' });
@@ -275,10 +277,17 @@ export function instructionValue(store, { days = 30, sessions } = {}) {
       text: s.text,
     };
   });
+  // the waste flag: a section used in under half the sessions whose cost there is a large share of the file's
+  const fileCost = rows.reduce((a, r) => a + r.perSession, 0);
+  for (const r of rows) Object.assign(r, wasteLevel(r, fileCost));
+  const flagged = rows.filter(r => r.waste === 'high' || r.waste === 'medium');
+  const savings = { perSession: flagged.reduce((a, r) => a + r.wasted, 0), sections: flagged.length };
+  savings.share = fileCost ? savings.perSession / fileCost : 0;
+  savings.window = savings.perSession * recs.length;
   const fileTokens = Math.ceil(src.text.length / 4);
   // per session, for the trend: the file's tokens read by each of its model calls (today's file: an earlier size is not kept)
   const timeline = recs.filter(r => r.turns).map(r => ({ t: r.mtime, client: r.client, calls: r.turns, tokens: fileTokens }));
-  return { file: src.file, tokens: fileTokens, sessions: recs.length, judged: judged.length, calls, judge: valueConfig(store), sections: rows, timeline };
+  return { file: src.file, tokens: fileTokens, sessions: recs.length, judged: judged.length, calls, judge: valueConfig(store), sections: rows, timeline, savings };
 }
 
 // How much of the time a section was of use, and the tokens spent on it in the sessions it was not: from the judge's
@@ -287,6 +296,17 @@ export function instructionValue(store, { days = 30, sessions } = {}) {
 export function use({ sessions, applied, triggered, judged, bore }, perSession) {
   const [share, by] = judged >= RARE.minSessions ? [bore / judged, 'judge'] : triggered && sessions ? [applied / sessions, 'triggers'] : [null, null];
   return { usedShare: share, usedBy: by, wasted: share == null ? null : Math.round(perSession * (1 - share)) };
+}
+
+// High, medium or low waste: what the section costs in the sessions it was not used, as a share of what the whole
+// file costs a session, for a section used in under half of them. The saving is that cost: what the sessions would
+// not have read had the section come only when it applied. Unknown while there is nothing to say how often it is used.
+export const WASTE = { high: 0.05, medium: 0.02, used: 0.5 };
+export function wasteLevel(r, fileCost) {
+  if (r.wasted == null) return { waste: 'unknown', wasteShare: null };
+  const share = fileCost ? r.wasted / fileCost : 0;
+  const waste = r.usedShare >= WASTE.used ? 'low' : share >= WASTE.high ? 'high' : share >= WASTE.medium ? 'medium' : 'low';
+  return { waste, wasteShare: share };
 }
 
 // A plain label for the table: `used` when sessions acted on it, `rare` when it bore on almost none, `unknown`
