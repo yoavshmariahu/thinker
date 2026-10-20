@@ -1068,10 +1068,12 @@ skill's present text is not counted (`skillFileTime`). Duplicates: `skills.js:de
 
 **Skills suggested by the file (off until an experiment, 2026-10-19).** With `harness: { skillSuggest: true }`
 in `.thinker/config.json` (or `THINKER_HARNESS_SKILL_SUGGEST=on`; `=off` wins over the config), the tool
-hook of Claude Code and Codex says, the first time a file is opened or edited in a session, which skills
+hook of Claude Code and Codex says, the first time a file is opened or edited in a turn, which skills
 past sessions here read for files like it: `<thinker-skill>Past sessions here used <name> for files like
-this one: read <path></thinker-skill>`, at most two a file and six a session, each skill once a session
-(`skill-suggest.js:skillSuggestLines`). Why: on PostHog under GPT-6 Astra, switching the 107 skills off
+this one: read <path></thinker-skill>`, at most two a file and six a turn, each skill once a turn
+(`skill-suggest.js:skillSuggestLines`). The turn, not the session: a session can run for hours over
+several requests, and an earlier turn's skill may be needed again or compacted out of the context, so a
+new turn or a compaction in the transcript (`compactions`) starts the count again (2026-10-19). Why: on PostHog under GPT-6 Astra, switching the 107 skills off
 cut input ~19% at equal passes, but agents then opened 0.6 skills a session against 2.9 and broke more
 minor conventions (0.46 against 0.21 a session); `lookup` over the descriptions was right 42% of the time.
 The evidence (`.thinker/state/skill-evidence.json`, local) is rows by (area, skill), an area being a key of

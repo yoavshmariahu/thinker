@@ -194,7 +194,7 @@ test('the words of the path only bring a skill in when the file has no evidence-
   assert.ok(SKILL_SUGGEST.lexical <= 0.25);
 });
 
-test('the per-session cap holds inside a file: a direct call never returns more lines than perSession', t => {
+test('the per-turn cap holds inside a file: a direct call never returns more lines than perTurn', t => {
   withEnv(t, { THINKER_LOG: 'off' });
   const { store } = repoWithSkills(t);
   const now = Date.now(), ev = emptyEvidence(); ev.seeded = 'x';
@@ -203,11 +203,37 @@ test('the per-session cap holds inside a file: a direct call never returns more 
   for (let j = 0; j < 10; j++) creditSession(ev, { session: `c${j}`, edited: files, opened: Object.keys(ev.skills).map(skill => ({ skill })), now });
   saveEvidence(store, ev);
   const out = skillSuggestLines(store, { session: 'cap', client: 'codex', files, rng: seededRng(4), now });
-  assert.equal(out.split('\n').length, SKILL_SUGGEST.perSession);
+  assert.equal(out.split('\n').length, SKILL_SUGGEST.perTurn);
   assert.equal(skillSuggestLines(store, { session: 'cap', client: 'codex', files: ['d9/bLogic.ts'], rng: seededRng(5), now }), '');
   // a held-out session is capped the same way, in what it withholds
   skillSuggestLines(store, { session: 'cap-h', client: 'codex', files, holdout: true, rng: seededRng(4), now });
-  assert.equal(sessionSuggestions(store, 'cap-h').length, SKILL_SUGGEST.perSession);
+  assert.equal(sessionSuggestions(store, 'cap-h').length, SKILL_SUGGEST.perTurn);
+});
+
+test('suggestions are scoped to the turn: a new turn or a compaction can say a skill again, one turn never repeats it', t => {
+  withEnv(t, { THINKER_LOG: 'off' });
+  const { store, dir } = repoWithSkills(t);
+  const now = Date.now(), ev = emptyEvidence(); ev.seeded = 'x';
+  ev.skills = { 'writing-kea-logics': { file: '.agents/skills/writing-kea-logics/SKILL.md', description: 'kea logic' } };
+  for (let j = 0; j < 12; j++) creditSession(ev, { session: `k${j}`, edited: ['frontend/src/scenes/dashLogic.ts'], opened: [{ skill: 'writing-kea-logics' }], now });
+  saveEvidence(store, ev);
+  const say = (o) => skillSuggestLines(store, { session: 's', client: 'codex', rng: seededRng(1), now, ...o });
+  assert.match(say({ turn: 1, files: ['frontend/src/scenes/dashLogic.ts'] }), /writing-kea-logics/);
+  assert.equal(say({ turn: 1, files: ['frontend/src/scenes/otherLogic.ts'] }), '', 'said once in a turn, across files');
+  assert.equal(say({ turn: 1, files: ['frontend/src/scenes/dashLogic.ts'] }), '', 'a file is seen once in a turn');
+  assert.match(say({ turn: 2, files: ['frontend/src/scenes/otherLogic.ts'] }), /writing-kea-logics/, 'a new turn may say it again');
+  // opened by the agent in this turn: not suggested again in it
+  assert.equal(say({ turn: 3, files: ['frontend/src/scenes/dashLogic.ts'], opened: ['writing-kea-logics'] }), '');
+  // a compaction in the transcript resets the turn's state too
+  const tr = path.join(dir, 'transcript.jsonl');
+  fs.writeFileSync(tr, '{"type":"user"}\n');
+  assert.equal(say({ turn: 3, files: ['frontend/src/scenes/otherLogic.ts'], transcript: tr }), '');
+  fs.appendFileSync(tr, '{"type":"system","subtype":"compact_boundary"}\n');
+  assert.match(say({ turn: 3, files: ['frontend/src/scenes/otherLogic.ts'], transcript: tr }), /writing-kea-logics/, 'compacted: said again');
+  fs.appendFileSync(tr, '{"type":"compacted","payload":{}}\n'.replace('"type":"compacted"', '"type": "compacted"'));
+  assert.match(say({ turn: 3, files: ['frontend/src/scenes/dashLogic.ts'], transcript: tr }), /writing-kea-logics/, 'a Codex compaction counts too');
+  // the session's log keeps every suggestion, for learning
+  assert.equal(sessionSuggestions(store, 's').length, 4);
 });
 
 test('the hook says each skill once a session, for a file the first time it is seen; a held-out turn withholds and logs', t => {
