@@ -5,13 +5,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 async function instructionsCommand({ store, repo, flags, out }) {
-  if (flags.off) { const r = setCore(store, null); out(r.state === 'removed' ? `Removed ${OVERRIDE}: agents here read ${SOURCE} whole again.` : r.state === 'theirs' ? `${OVERRIDE} here is not thinker's; left as it is.` : `Nothing to remove: thinker keeps no ${OVERRIDE} here.`); return; }
+  if (flags.off) { const r = setCore(store, null); out(r.state === 'removed' ? `Removed ${OVERRIDE}${r.claude === 'removed' ? ' and CLAUDE.local.md' : ''}: agents here read ${SOURCE} whole again.` : r.state === 'theirs' ? `${OVERRIDE} here is not thinker's; left as it is.` : `Nothing to remove: thinker keeps no ${OVERRIDE} here.`); return; }
   if (flags.core !== undefined && flags.core !== true) {
     const keep = String(flags.core).split(',').map(s => s.trim()).filter(Boolean);
     const r = setCore(store, keep);
     if (r.state === 'theirs') { out(`${OVERRIDE} here was written by someone else; thinker leaves it alone and wrote nothing.`); return; }
     if (r.state === 'no-source') { out(`No ${SOURCE} in this checkout to trim.`); return; }
-    out(`Wrote ${OVERRIDE} (kept out of git): ${r.kept.length} sections of ${SOURCE}, ~${r.tokens} tokens of ~${r.sourceTokens}. Codex reads it in place of ${SOURCE} from its next session; ${SOURCE} itself is unchanged.`);
+    out(`Wrote ${OVERRIDE} (kept out of git): ${r.kept.length} section${r.kept.length === 1 ? "" : "s"} of ${SOURCE}, ~${r.tokens} tokens of ~${r.sourceTokens}. Codex reads it in place of ${SOURCE} from its next session; ${SOURCE} itself is unchanged.`);
+    out(r.claude === 'written' ? `Claude Code reads the same sections from CLAUDE.local.md (kept out of git)${fs.existsSync(path.join(repo, 'CLAUDE.md')) ? ', with CLAUDE.md skipped through claudeMdExcludes in .claude/settings.local.json, as it is AGENTS.md' : ''}, from its next session.`
+      : r.claude === 'theirs' ? 'Claude Code: CLAUDE.local.md here is your own, so thinker left Claude Code reading the whole file.'
+      : r.claude === 'skipped' ? 'Claude Code: CLAUDE.md here has text of its own, so thinker left Claude Code reading it whole.' : '');
     if (r.missing.length) out(`Not found in ${SOURCE}, so not kept: ${r.missing.join(', ')}.`);
     out(`Left out: ${r.dropped.join(', ')}. \`thinker instructions --off\` puts the whole file back.`);
     return;

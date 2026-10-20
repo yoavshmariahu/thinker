@@ -85,3 +85,33 @@ test('the CLI lists the sections and writes the core', t => {
   assert.match(run('--core', 'Commands, Python'), /Wrote AGENTS\.override\.md .*2 sections/);
   assert.match(run('--off'), /Removed AGENTS\.override\.md/);
 });
+
+test('Claude Code reads the core from CLAUDE.local.md, CLAUDE.md skipped when it is AGENTS.md, other settings kept', t => {
+  const { repo, store } = fixture(t);
+  fs.symlinkSync('AGENTS.md', path.join(repo, 'CLAUDE.md'));
+  const settings = path.join(repo, '.claude', 'settings.local.json');
+  fs.mkdirSync(path.dirname(settings), { recursive: true }); fs.writeFileSync(settings, JSON.stringify({ skillOverrides: { x: 'off' } }));
+  const r = setCore(store, ['Commands']);
+  assert.equal(r.claude, 'written');
+  assert.match(fs.readFileSync(path.join(repo, 'CLAUDE.local.md'), 'utf8'), /hogli test/);
+  const j = JSON.parse(fs.readFileSync(settings, 'utf8'));
+  assert.deepEqual(j.claudeMdExcludes, [path.join(repo, 'CLAUDE.md')]); assert.deepEqual(j.skillOverrides, { x: 'off' });
+  assert.equal(execFileSync('git', ['status', '--porcelain', '--', 'CLAUDE.local.md', '.claude'], { cwd: repo, encoding: 'utf8' }), '', 'kept out of git');
+  assert.equal(setCore(store, null).claude, 'removed');
+  assert.equal(fs.existsSync(path.join(repo, 'CLAUDE.local.md')), false);
+  assert.deepEqual(JSON.parse(fs.readFileSync(settings, 'utf8')), { skillOverrides: { x: 'off' } });
+});
+
+test('Claude Code is left alone when CLAUDE.md has text of its own or CLAUDE.local.md is the person\'s', t => {
+  const { repo, store } = fixture(t);
+  fs.writeFileSync(path.join(repo, 'CLAUDE.md'), '@AGENTS.md\n\nAlso: never use tabs.\n');
+  assert.equal(setCore(store, ['Commands']).claude, 'skipped');
+  assert.equal(fs.existsSync(path.join(repo, 'CLAUDE.local.md')), false);
+  assert.equal(fs.existsSync(path.join(repo, '.claude', 'settings.local.json')), false);
+  fs.writeFileSync(path.join(repo, 'CLAUDE.md'), '@AGENTS.md\n');
+  fs.writeFileSync(path.join(repo, 'CLAUDE.local.md'), 'my notes\n');
+  assert.equal(setCore(store, ['Commands']).claude, 'theirs');
+  assert.equal(fs.readFileSync(path.join(repo, 'CLAUDE.local.md'), 'utf8'), 'my notes\n');
+  setCore(store, null);
+  assert.equal(fs.readFileSync(path.join(repo, 'CLAUDE.local.md'), 'utf8'), 'my notes\n');
+});
