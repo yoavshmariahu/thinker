@@ -41,6 +41,20 @@ const toolServer = name => (String(name).match(/^mcp__(.+?)__/) || [])[1] || nul
 // the plugins the sessions and settings name (harnessUsage).
 const mcpKey = raw => /^plugin[_:]/.test(raw) ? `mcp:plugin:${String(raw).slice(7).replace(/:/g, '_')}` : `mcp:${serverKey(raw)}`;
 const pluginOfSkill = s => String(s).includes(':') ? String(s).split(':')[0] : null;
+// Built-in tools Claude Code sends in full with every call (`prompt_snapshot` records their definitions).
+// Never offered: the ones every session works through, and ToolSearch, whose absence puts every deferred
+// definition inline (2.1.304, 2026-10-20: denied, a `claude -p` call's input went from 25k to 55k tokens), and
+// AskUserQuestion, which this question is put through.
+const CORE_TOOLS = new Set(['Bash', 'Read', 'Edit', 'Write', 'MultiEdit', 'Glob', 'Grep', 'NotebookEdit', 'ToolSearch', 'Skill', 'TodoWrite', 'AskUserQuestion']);
+const builtinKey = name => !String(name).startsWith('mcp__') && !CORE_TOOLS.has(name) ? `tool:${name}` : null;
+// Off until an experiment shows it helps (no-strategy-without-experiment): `harness: { builtinTools: true }`
+// in .thinker/config.json, or THINKER_HARNESS_BUILTIN_TOOLS=on (=off wins over the config).
+export function builtinToolsOn(repo, env = process.env) {
+  const v = env.THINKER_HARNESS_BUILTIN_TOOLS || '';
+  if (/^(0|off|false)$/i.test(v)) return false;
+  if (/^(1|on|true)$/i.test(v)) return true;
+  try { return new Store(repo, { readonly: true }).config().harness?.builtinTools === true; } catch { return false; }
+}
 
 // Claude Code's own files; CLAUDE_CONFIG_DIR moves them (clients.js:claudeDir does the same).
 export function claudePaths(home = os.homedir(), env = process.env) {
@@ -114,6 +128,8 @@ export function sessionHarness(file) {
             texts.set(`skill:${m[1]}`, entry.slice(2));
             if (m[2]) alias.set(m[2], m[1]); // "- gtm:00-start-here (gtm:start-here): …" runs as gtm:start-here
           }
+        } else if (a.type === 'prompt_snapshot' && Array.isArray(a.tools)) {
+          for (const d of a.tools) { const k = builtinKey(d?.name); if (k) { once(k, d.name, estTokens(JSON.stringify(d))); texts.set(k, String(d.description || '')); } }
         }
       }
       if (call) {
@@ -122,6 +138,7 @@ export function sessionHarness(file) {
           const s = toolServer(c.name);
           if (s) used.add(mcpKey(s));
           else if (c.name === 'Skill' && c.input?.skill) used.add(`skill:${c.input.skill}`);
+          if (!s && builtinKey(c.name)) used.add(builtinKey(c.name));
           if (c.name === 'Skill' && c.input?.skill) skillOpens.push({ skill: String(c.input.skill), at: j.timestamp });
           for (const m of JSON.stringify(c.input || {}).matchAll(/skills\/([\w.-]+)\/SKILL\.md/g)) skillOpens.push({ skill: m[1], at: j.timestamp });
           const f = ['Edit', 'Write', 'MultiEdit', 'NotebookEdit'].includes(c.name) && (c.input?.file_path || c.input?.notebook_path);
@@ -183,7 +200,9 @@ export function claudeHarnessConfig(repo, { home = os.homedir(), managedFile = M
   for (const n of dirs(cp.skills)) skills.set(n, { scope: 'user', dir: path.join(cp.skills, n) });
   for (const n of dirs(path.join(repo, '.claude', 'skills'))) skills.set(n, { scope: 'project', dir: path.join(repo, '.claude', 'skills', n) });
   for (const n of Object.keys(managed.skillOverrides || {})) skills.set(n, { scope: 'managed' });
-  return { servers, plugins, skills, overrides, key, paths: cp };
+  // a bare tool name in permissions.deny takes the tool out of the session ("Bash(rm:*)" only narrows it)
+  const denied = new Set([managed, ...settings.map(([, j]) => j)].flatMap(j => j.permissions?.deny || []).filter(d => /^\w+$/.test(d)));
+  return { servers, plugins, skills, overrides, denied, key, paths: cp };
 }
 
 // The middle value, or 0 for none: a session's model calls vary tenfold, and the mean follows the long ones.
@@ -203,13 +222,13 @@ function checkouts(repo) {
 // plugin of eighteen skills is one line and one switch.
 // Cursor's sources are the machine's (harness-cursor.js): read from every Cursor session on it, unless the
 // caller names its own sessions and no Cursor snapshots.
-export function harnessUsage(repo, { days = 30, home = os.homedir(), sessions, cursor, thinkerHome: tHome = thinkerHome() } = {}) {
+export function harnessUsage(repo, { days = 30, home = os.homedir(), sessions, cursor, thinkerHome: tHome = thinkerHome(), builtinTools = builtinToolsOn(repo) } = {}) {
   if (!sessions) cursor ??= cursorSnapshots(tHome, { sinceMs: days * 86400_000 });
   sessions ??= [...new Map(checkouts(repo).flatMap(r => findSessions(r, { sinceMs: days * 86400_000 })).map(s => [s.file, s])).values()];
   const claude = claudeUsage(repo, { days, home, sessions: sessions.filter(s => s.client === 'claude') });
   const codex = codexHarnessUsage(repo, sessions.filter(s => s.client === 'codex'), { home });
   const cur = cursor ? cursorHarnessUsage({ home, snapshots: cursor }) : { sessions: 0, sources: [] };
-  return { ...claude, sessions: claude.sessions + codex.sessions + cur.sessions, byClient: { claude: claude.sessions, codex: codex.sessions, cursor: cur.sessions }, calls: { claude: claude.calls, codex: codex.calls || 0 }, sources: [...claude.sources.map(s => ({ ...s, client: 'claude' })), ...codex.sources, ...cur.sources].sort((a, b) => b.tokens * (b.loaded - b.used) - a.tokens * (a.loaded - a.used)) };
+  return { ...claude, builtinTools, sessions: claude.sessions + codex.sessions + cur.sessions, byClient: { claude: claude.sessions, codex: codex.sessions, cursor: cur.sessions }, calls: { claude: claude.calls, codex: codex.calls || 0 }, sources: [...claude.sources.map(s => ({ ...s, client: 'claude' })), ...codex.sources, ...cur.sources].sort((a, b) => b.tokens * (b.loaded - b.used) - a.tokens * (a.loaded - a.used)) };
 }
 function claudeUsage(repo, { days = 30, home = os.homedir(), sessions } = {}) {
   sessions ??= checkouts(repo).flatMap(r => findSessions(r, { sinceMs: days * 86400_000 }).filter(s => s.client === 'claude'));
@@ -249,8 +268,9 @@ function claudeUsage(repo, { days = 30, home = os.homedir(), sessions } = {}) {
 
 // What a source is and where it is switched on, so the advice names the setting to change.
 // `off`: switched off already, by a setting written since those sessions ran.
-function describe(key, { servers, plugins, skills, overrides, connectors }, members) {
+function describe(key, { servers, plugins, skills, overrides, connectors, denied }, members) {
   const name = key.slice(key.indexOf(':') + 1);
+  if (key.startsWith('tool:')) return { name, kind: 'tool', scope: 'builtin', off: Boolean(denied?.has(name)) };
   if (key.startsWith('desktop:')) return { name: DESKTOP_SECTIONS[key]?.name || name, kind: 'desktop', scope: 'app', where: DESKTOP_SECTIONS[key]?.where, off: false };
   const hidden = n => ['off', 'user-invocable-only'].includes(overrides[n]);
   if (key.startsWith('plugin:')) {
@@ -286,6 +306,7 @@ function switchOff(s) {
   if (s.kind === 'plugin') return s.scope ? 'plugin' : s.skills?.length ? 'skills' : null;
   if (s.kind === 'mcp') return s.scope === 'project' ? 'mcpjson' : s.scope ? 'mcp' : null;
   if (s.kind === 'skill') return 'skill';
+  if (s.kind === 'tool') return 'tool';
   return null;
 }
 
@@ -293,7 +314,7 @@ function switchOff(s) {
 // big enough to matter, and with a setting that switches them off for this repository.
 export function harnessAdvice(usage) {
   return usage.sources
-    .filter(s => switchOff(s) && !s.off && s.loaded >= MIN_SESSIONS && s.tokens >= MIN_TOKENS && s.used / s.loaded < RARE_SHARE)
+    .filter(s => switchOff(s) && !s.off && (s.kind !== 'tool' || usage.builtinTools) && s.loaded >= MIN_SESSIONS && s.tokens >= MIN_TOKENS && s.used / s.loaded < RARE_SHARE)
     .map(s => ({ ...s, unused: s.used === 0, how: switchOff(s), action: action(s) }));
 }
 
@@ -307,6 +328,7 @@ function action(s) {
     case 'mcp': return `"disabledMcpServers": ["${s.name}"] in this repository's entry of ~/.claude.json, for all its worktrees (what /mcp disable writes; /mcp enable undoes it)`;
     case 'mcpjson': return `"disabledMcpjsonServers": ["${s.name}"] in .claude/settings.local.json`;
     case 'skill': return `"skillOverrides": {"${s.name}": "user-invocable-only"} in .claude/settings.local.json (it still runs as /${s.name})`;
+    case 'tool': return `"permissions": {"deny": ["${s.name}"]} in .claude/settings.local.json (the tool and its definition leave new sessions here)`;
   }
 }
 
@@ -421,7 +443,7 @@ export function scheduleHarnessSuggestion(store, { now = Date.now(), home, force
   return picks;
 }
 
-const KIND = { plugin: 'plugin', mcp: 'MCP server', connector: 'connector', skill: 'skill', skills: '' };
+const KIND = { plugin: 'plugin', mcp: 'MCP server', connector: 'connector', skill: 'skill', skills: '', tool: 'tool' };
 export const clientPrefix = c => ({ codex: 'Codex: ', cursor: 'Cursor: ' })[c] || '';
 const labelOf = p => clientPrefix(p.client) + (p.kind === 'skills' ? p.name : `${p.name} ${KIND[p.kind]}`);
 const shq = s => `'${String(s).replace(/'/g, `'\\''`)}'`;
@@ -528,6 +550,7 @@ function apply(repo, s, { userHome, home, now, backups, overrides = {} }) {
     return done({ file: local, key: 'skillOverrides', ids: names, ...(plugin ? { plugin: { id: plugin, prev } } : {}) });
   }
   if (s.how === 'mcpjson') { editJson(local, j => { j.disabledMcpjsonServers = addTo(j.disabledMcpjsonServers, s.name); }, ctx); return done({ file: local, key: 'disabledMcpjsonServers', id: s.name }); }
+  if (s.how === 'tool') { editJson(local, j => { (j.permissions ||= {}).deny = addTo(j.permissions.deny, s.name); }, ctx); return done({ file: local, key: 'permissions.deny', id: s.name }); }
   if (s.how === 'mcp') {
     const key = projectKey(repo);
     editJson(claudeJson, j => { const p = ((j.projects ||= {})[key] ||= {}); p.disabledMcpServers = addTo(p.disabledMcpServers, s.name); },
@@ -624,6 +647,7 @@ export function undoHarness(store, { home, userHome = os.homedir(), now = Date.n
           if (u.plugin && j.enabledPlugins?.[u.plugin.id] === false) { if (u.plugin.prev === undefined) delete j.enabledPlugins[u.plugin.id]; else j.enabledPlugins[u.plugin.id] = u.plugin.prev; }
         }
         else if (u.key === 'disabledMcpjsonServers') j.disabledMcpjsonServers = (j.disabledMcpjsonServers || []).filter(n => n !== u.id);
+        else if (u.key === 'permissions.deny') { if (j.permissions?.deny) j.permissions.deny = j.permissions.deny.filter(n => n !== u.id); }
         else if (u.key === 'disabledMcpServers') { const p = j.projects?.[u.project]; if (p) p.disabledMcpServers = (p.disabledMcpServers || []).filter(n => n !== u.id); }
       }, u.key === 'disabledMcpServers' ? { ...ctx, part: j => j.projects?.[u.project] } : ctx);
       back.unshift(a.name);
@@ -677,6 +701,7 @@ export function cardsFor(s, { repo } = {}) {
   if (s.client === 'codex') return [card(s.key, s.name, Object.values(s.texts || {}).join(' '), `\`thinker harness --undo ${s.key}\` brings it back from the next Codex session`, skillFile && `read ${skillFile} and follow it`, skillFile)];
   if (s.client === 'cursor') return [card(s.key, s.name, Object.values(s.texts || {}).join(' '), `\`thinker harness --undo ${s.key}\` puts it back in ~/.cursor/mcp.json, for the next Cursor chat`)];
   if (s.kind === 'mcp') return [card(s.key, s.name, s.texts?.[`mcp:${serverKey(s.name)}`] || Object.values(s.texts || {})[0], `\`/mcp enable ${s.name}\` brings it back in this session`)];
+  if (s.kind === 'tool') return [card(s.key, s.name, s.texts?.[s.key], `\`thinker harness --undo ${s.name}\` brings it back from the next session`)];
   if (s.how === 'desktop-connector') return [card(s.key, s.name, Object.values(s.texts || {}).join(' '), `the + menu → Connectors turns it back on (in the desktop app you can call ${CONNECTOR_TOOL} with connector ${JSON.stringify(s.id)} and enabled true, from the next turn)`)];
   const back = s.how === 'plugin' || (s.how === 'skills' && s.kind === 'plugin') ? n => `the ${s.name} plugin is off here: \`thinker harness --undo\` (or "enabledPlugins": {"${s.how === 'plugin' ? s.id : `${s.name}@inline`}": true} in .claude/settings.local.json) brings it back from the next session` : n => `\`/${n}\` still runs it`;
   // a skill of the repository's own keeps its file, whose headings and code terms the lexical matcher reads

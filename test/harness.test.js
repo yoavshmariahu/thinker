@@ -181,6 +181,31 @@ test('a plugin no setting names goes off as <name>@inline as well as skill by sk
   assert.deepEqual(after.enabledPlugins, { 'other@m': true }); assert.deepEqual(after.skillOverrides, {});
 });
 
+test('a built-in tool never called goes off by permissions.deny, only under harness.builtinTools; core tools and ToolSearch never', t => {
+  const dir = tmp('thinker-harness-'); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const store = checkout(t), h = home(t), th = tmp('thinker-harness-th-'); t.after(() => fs.rmSync(th, { recursive: true, force: true }));
+  const def = name => ({ name, description: `${name} ${long(2000)}`, input_schema: { type: 'object' } });
+  const snapshot = { type: 'attachment', cwd: '/r', attachment: { type: 'prompt_snapshot', tools: ['Bash', 'ToolSearch', 'AskUserQuestion', 'Workflow', 'Agent', 'mcp__rea__x'].map(def) } };
+  const sessions = [...Array(10).keys()].map(i => { const f = path.join(dir, `b${i}.jsonl`); fs.writeFileSync(f, [snapshot, call('Bash'), ...(i < 3 ? [call('Agent')] : [])].map(j => JSON.stringify(j)).join('\n') + '\n'); return { client: 'claude', file: f, session: `b${i}`, mtime: Date.now() }; });
+  const h0 = sessionHarness(sessions[0].file);
+  assert.deepEqual([...h0.loaded.keys()].sort(), ['tool:Agent', 'tool:Workflow']);
+  assert.ok(h0.used.has('tool:Agent'));
+  assert.deepEqual(harnessAdvice(harnessUsage(store.repo, { home: h, sessions, builtinTools: false })).filter(a => a.kind === 'tool'), [], 'off by default');
+  const usage = harnessUsage(store.repo, { home: h, sessions, builtinTools: true });
+  assert.deepEqual(harnessAdvice(usage).filter(a => a.kind === 'tool').map(a => a.name), ['Workflow'], 'Agent is called in 3 of 10');
+  const picks = scheduleHarnessSuggestion(store, { now: T0, home: th, usage });
+  const pick = picks.find(p => p.name === 'Workflow');
+  const local = path.join(store.repo, '.claude', 'settings.local.json');
+  fs.mkdirSync(path.dirname(local), { recursive: true });
+  fs.writeFileSync(local, JSON.stringify({ permissions: { deny: ['Bash(rm:*)'] } }));
+  answerHarness(store, 'Workflow tool', { home: th, userHome: h, now: T0 });
+  assert.deepEqual(JSON.parse(fs.readFileSync(local, 'utf8')).permissions.deny, ['Bash(rm:*)', 'Workflow']);
+  assert.equal(harnessUsage(store.repo, { home: h, sessions, builtinTools: true }).sources.find(s => s.key === pick.key).off, true, 'a denied tool reads as off');
+  assert.match(readHarnessState(store).applied[0].cards[0].back, /thinker harness --undo Workflow/);
+  assert.match(undoHarness(store, { home: th, userHome: h, now: T0 }), /Turned back on, from the next session on: Workflow/);
+  assert.deepEqual(JSON.parse(fs.readFileSync(local, 'utf8')).permissions.deny, ['Bash(rm:*)']);
+});
+
 test('the answer switches the chosen sources off for this repository alone, with a backup, and --undo turns them back on', t => {
   const { store, h, thinkerHome } = suggested(t);
   const claudeJson = path.join(h, '.claude.json'), before = fs.readFileSync(claudeJson, 'utf8');

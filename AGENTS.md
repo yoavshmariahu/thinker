@@ -1113,6 +1113,19 @@ the repository; `thinker skills seed <transcripts...>` seeds from chosen ones (a
 `thinker skills suggest <file>` previews. The offline checks are in
 `bench/worktrees/eval-support/skill-protocol/` (local). No agent session has been run with it.
 
+**Built-in tools in the harness question (off until an experiment, 2026-10-20).** With `harness: { builtinTools: true }`
+in `.thinker/config.json` (or `THINKER_HARNESS_BUILTIN_TOOLS=on`; `=off` wins over the config), the harness counts
+Claude Code's own tools as sources beside plugins, skills and MCP servers: their definitions from the transcript's
+`prompt_snapshot` attachment, a call by name as a use (`harness.js:sessionHarness`, `builtinKey`). One called in under
+a tenth of the sessions is offered like any source and goes off as a bare name in `permissions.deny` of
+`.claude/settings.local.json`; `--undo` takes it out. Checked with `claude -p` 2.1.304 (2026-10-20): `permissions.deny`
+and `--disallowedTools` both take the definition out of the prompt, Workflow, ScheduleWakeup and ReportFindings
+together ~4k tokens a call. Never offered (`CORE_TOOLS`): the file and shell tools, Skill, AskUserQuestion (the question goes through it), and
+ToolSearch, whose absence puts every deferred definition inline (+29k tokens a call); an allow-list (`--tools`) does the same, so the switch
+is a deny list. Why: on this machine's sessions (Artemis Tokens page, waste view) Artifact (15k tokens) was called in
+1 of 65 sessions that carried it, Workflow in 0 of 535. Not known: whether the desktop app's own tools (Artifact,
+SendFeedback, absent from `-p`) obey the deny list.
+
 ## Desired behaviors
 
 Every other kind of note is a claim about the code, and when code and note
