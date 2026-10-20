@@ -11,15 +11,24 @@
 //
 //   evidence  .thinker/state/skill-evidence.json (local): rows keyed by (area, skill), an area being a key
 //             of a file path (areaKeys). Per row: organic opens (no suggestion of that skill earlier in the
-//             session), suggested, suggested-then-opened, missed (a rule of the skill broken in a session that
-//             touched the area without reading it, from the distillation), negative (broken although read);
-//             per area: exposures (sessions that edited a file there). Every count decays with its age
-//             (halfLifeDays), applied on read.
+//             session), suggested, suggested-then-opened, unread (sessions that edited a file there without
+//             the skill's text reaching the agent: not opened, whether suggested or not), missed (a rule of the skill broken in such a session, from the
+//             sampled outcome check, skill-outcome.js), negative (broken although read); per area: exposures
+//             (sessions that edited a file there). Every count decays with its age (halfLifeDays), on read.
 //   record    once per session, from the transcript the harness parses (harness.js:sessionHarness,
 //             harness-codex.js:codexSessionHarness), at the end-of-session distill (commands/learn.js:distillFile)
-//   score     Beta(a0 + organic + missed, b0 + exposures without either) per (area, skill), the best of the
-//             file's areas, Thompson-sampled; a skill whose description shares a word of the path enters with
-//             a small prior, so a new skill can be tried. The top `max` samples above `floor`.
+//   score     per (area, skill), only on the sessions where the skill was not read: a session that opened it
+//             says nothing about whether it prevents a break (the read prevents the miss), and
+//             counting those as failures suppressed a useful skill the more it was followed (check 1 of the
+//             protocol review, 2026-10-19: equilibrium suggestion rate 0.4 for a skill preventing most
+//             breaks). Beta(a0 + misses + organic·w, b0 + (unread − misses) + negatives), the best of the
+//             file's areas, Thompson-sampled; top `max` samples above `floor`. Organic opens stay as weak
+//             evidence that the skill is relevant there (w = `organic`), so a repository's habits seed the
+//             ranking before any outcome is known. A suggestion the agent did not follow leaves the session
+//             unread: the line is not the skill, and a skill suggested every time would otherwise only be
+//             scored on held-out turns (the popular skill that prevents nothing stayed at 0.75 in check 1).
+//             A skill whose description shares a word of the path
+//             enters with a small prior only when the file's areas have no evidence-backed candidate at all.
 //   deliver   the tool hook, the first time a file is opened or edited in a session, a line per skill, once
 //             per skill a session; a held-out turn (ops.js:holdoutTurn) gets nothing and logs what it withheld.
 //
@@ -39,9 +48,16 @@ import { findSessions } from './transcripts.js';
 // 0.78, b0 6 2.6 at 0.81 with less exploration; recall 0.66 throughout. lexical: the pseudo-successes a
 // description sharing a word of the path adds; floor: the sample a suggestion must reach (the replay's 0.35 on
 // its smoothed estimate); halfLifeDays: a month of work weighs half.
+// lexical: cold start only, and small: in the replay of 8 PostHog eval tasks (check 2, 2026-10-19) none of
+// the 24 suggestions it put forward was a skill the agent went on to open; it is there so a file in an area
+// nobody has worked on yet can get a skill tried at all. organic: the weight of an organic open, as evidence
+// of relevance (see score above): 1, the weight the simulation (check 1) and the replay (check 2) were run with.
+// outcome*: the sampled outcome check (skill-outcome.js): the share of sessions checked, the skills of the
+// evidence and those a matching rule file names, the diff and guidance sizes in characters.
 export const SKILL_SUGGEST = {
-  a0: 0.5, b0: 4, lexical: 0.5, lexicalMax: 3, floor: 0.35, max: 2, perSession: 6, halfLifeDays: 30,
-  sessionsKept: 500, seedSessions: 40, seedDays: 60, seedMs: 3000, distillSkills: 8,
+  a0: 0.5, b0: 4, lexical: 0.25, lexicalMax: 3, organic: 1, floor: 0.35, max: 2, perSession: 6, halfLifeDays: 30,
+  sessionsKept: 500, seedSessions: 40, seedDays: 60, seedMs: 3000,
+  outcomeShare: 0.25, outcomeSkills: 3, outcomeRuleSkills: 2, outcomeDiffChars: 40_000, outcomeGuidanceChars: 80_000,
 };
 const DAY = 86_400_000;
 
@@ -53,8 +69,8 @@ export function skillSuggestOn(store, env = process.env) {
 }
 export function skillSuggestConfig(store) {
   let h = {}; try { h = store.config().harness || {}; } catch {}
-  const days = Number(h.skillSuggestHalfLifeDays);
-  return { ...SKILL_SUGGEST, ...(days > 0 ? { halfLifeDays: days } : {}) };
+  const days = Number(h.skillSuggestHalfLifeDays), share = Number(h.skillOutcomeShare);
+  return { ...SKILL_SUGGEST, ...(days > 0 ? { halfLifeDays: days } : {}), ...('skillOutcomeShare' in h && share >= 0 && share <= 1 ? { outcomeShare: share } : {}) };
 }
 
 // --- areas ---------------------------------------------------------------------------------------------
@@ -96,12 +112,25 @@ export function saveEvidence(store, ev) {
   fs.renameSync(tmp, f);
 }
 const area = (ev, k) => (ev.areas[k] ||= { exposures: null, skills: {} });
-const row = (ev, k, skill) => (area(ev, k).skills[skill] ||= {});
+// A row made for a skill that was there before it (not `added` to the registry since the evidence began)
+// starts with every earlier session in the area as unread: none of them opened it, or the row would exist.
+// Without this a skill opened once in a busy area scored as if that were its only session there (the replay's
+// precision fell from 0.37 to 0.23). exposed: this session is already counted in the area's exposures.
+const row = (ev, k, skill, { now = Date.now(), hl = SKILL_SUGGEST.halfLifeDays, exposed = false } = {}) => {
+  const a = area(ev, k);
+  if (!a.skills[skill]) {
+    const prior = ev.skills?.[skill]?.added ? 0 : Math.max(0, decayed(a.exposures, now, hl) - (exposed ? 1 : 0));
+    a.skills[skill] = prior > 0 ? { unread: { v: prior, at: now } } : {};
+  }
+  return a.skills[skill];
+};
 
 // One session's opens and edits credited, idempotently: what was credited for the session before is kept
 // with it, so recording it again (a session that went on after a catch-up run) credits only what is new.
 // opened: [{ skill, at }] in order; suggestions: [{ skill, areas, at, withheld }]. An open is organic unless
-// a suggestion of that skill was shown earlier in the session (one without times counts as earlier).
+// a suggestion of that skill was shown earlier in the session (one without times counts as earlier). Every
+// skill the area already has a row for and the session did not open (suggested or not) counts the session as
+// unread there; a later recording that finds it opened takes that back.
 export function creditSession(ev, { session, edited = [], opened = [], suggestions = [], now = Date.now(), halfLifeDays = SKILL_SUGGEST.halfLifeDays, kept = SKILL_SUGGEST.sessionsKept } = {}) {
   const areas = [...new Set(edited.filter(suggestable).flatMap(areaKeys))];
   const shown = suggestions.filter(s => !s.withheld);
@@ -111,29 +140,44 @@ export function creditSession(ev, { session, edited = [], opened = [], suggestio
   const followed = [...firstOpen.values()].filter(o => shown.some(s => s.skill === o.skill && before(o, s))).map(o => o.skill);
   const prev = ev.sessions[session] || { areas: [], pairs: [], suggested: [], followed: [] };
   const have = k => new Set(prev[k] || []);
-  const seenAreas = have('areas'), pairs = have('pairs'), sugg = have('suggested'), foll = have('followed');
+  const seenAreas = have('areas'), pairs = have('pairs'), sugg = have('suggested'), foll = have('followed'), unr = have('unread');
   for (const a of areas) if (!seenAreas.has(a)) { area(ev, a).exposures = bump(area(ev, a).exposures, 1, now, halfLifeDays); seenAreas.add(a); }
-  for (const a of areas) for (const s of organic) { const k = `${a}\t${s}`; if (pairs.has(k)) continue; const r = row(ev, a, s); r.organic = bump(r.organic, 1, now, halfLifeDays); pairs.add(k); }
-  for (const s of shown) for (const a of s.areas || []) { const k = `${a}\t${s.skill}`; if (sugg.has(k)) continue; const r = row(ev, a, s.skill); r.suggested = bump(r.suggested, 1, now, halfLifeDays); sugg.add(k); }
-  for (const skill of followed) for (const s of shown.filter(x => x.skill === skill)) for (const a of s.areas || []) { const k = `${a}\t${skill}`; if (foll.has(k)) continue; const r = row(ev, a, skill); r.followed = bump(r.followed, 1, now, halfLifeDays); foll.add(k); }
+  for (const a of areas) for (const s of organic) { const k = `${a}\t${s}`; if (pairs.has(k)) continue; const r = row(ev, a, s, { now, hl: halfLifeDays, exposed: true }); r.organic = bump(r.organic, 1, now, halfLifeDays); pairs.add(k); }
+  for (const s of shown) for (const a of s.areas || []) { const k = `${a}\t${s.skill}`; if (sugg.has(k)) continue; const r = row(ev, a, s.skill, { now, hl: halfLifeDays, exposed: seenAreas.has(a) }); r.suggested = bump(r.suggested, 1, now, halfLifeDays); sugg.add(k); }
+  for (const skill of followed) for (const s of shown.filter(x => x.skill === skill)) for (const a of s.areas || []) { const k = `${a}\t${skill}`; if (foll.has(k)) continue; const r = row(ev, a, skill, { now, hl: halfLifeDays, exposed: seenAreas.has(a) }); r.followed = bump(r.followed, 1, now, halfLifeDays); foll.add(k); }
+  const touched = new Set(firstOpen.keys());
+  for (const a of areas) for (const [skill, r] of Object.entries(area(ev, a).skills)) {
+    const k = `${a}\t${skill}`;
+    if (!touched.has(skill) && !unr.has(k)) { r.unread = bump(r.unread, 1, now, halfLifeDays); unr.add(k); }
+    else if (touched.has(skill) && unr.has(k)) { r.unread = { v: Math.max(0, decayed(r.unread, now, halfLifeDays) - 1), at: now }; unr.delete(k); }
+  }
   if (session) {
-    ev.sessions[session] = { at: new Date(now).toISOString(), areas: [...seenAreas], pairs: [...pairs], suggested: [...sugg], followed: [...foll] };
+    ev.sessions[session] = { ...prev, at: new Date(now).toISOString(), areas: [...seenAreas], pairs: [...pairs], suggested: [...sugg], followed: [...foll], unread: [...unr] };
     const ids = Object.keys(ev.sessions); for (const id of ids.slice(0, Math.max(0, ids.length - kept))) delete ev.sessions[id];
   }
   return { areas, organic, followed };
 }
 
-// Rules a session broke, from its distillation: [{ skill, file, read }]. Not read: a miss on the areas of the
-// file (all the session's areas when the file is not named); read or suggested and broken all the same: a
-// negative for the skill there, counted and logged, not scored.
-export function creditOutcome(ev, broken, { areas = [], now = Date.now(), halfLifeDays = SKILL_SUGGEST.halfLifeDays } = {}) {
-  const out = [];
+// Rules of a skill a session broke, from the outcome check (skill-outcome.js): [{ skill, file, read }]. Not read
+// (suggested or not): a miss on the areas of the file (all the session's areas when the file is not named), the
+// session counted unread there too if it was not already (a row the check created). Read and broken all the
+// same: a negative.
+export function creditOutcome(ev, broken, { areas = [], session, now = Date.now(), halfLifeDays = SKILL_SUGGEST.halfLifeDays } = {}) {
+  const out = [], rec = session ? ev.sessions[session] : null, unr = new Set(rec?.unread || []);
   for (const b of broken || []) {
     if (!b?.skill) continue;
     const ks = b.file && suggestable(b.file) ? areaKeys(b.file) : areas;
-    for (const a of ks) { const r = row(ev, a, b.skill); if (b.read) r.negative = bump(r.negative, 1, now, halfLifeDays); else r.missed = bump(r.missed, 1, now, halfLifeDays); }
-    out.push({ skill: b.skill, file: b.file, verdict: b.read ? 'broken-after-read' : 'missed', areas: ks.length });
+    const verdict = b.read ? 'broken-after-read' : 'missed';
+    for (const a of ks) {
+      const r = row(ev, a, b.skill, { now, hl: halfLifeDays, exposed: Boolean(rec?.areas?.includes(a)) });
+      if (verdict === 'broken-after-read') { r.negative = bump(r.negative, 1, now, halfLifeDays); continue; }
+      r.missed = bump(r.missed, 1, now, halfLifeDays);
+      const k = `${a}\t${b.skill}`;
+      if (!unr.has(k)) { r.unread = bump(r.unread, 1, now, halfLifeDays); unr.add(k); }
+    }
+    out.push({ skill: b.skill, file: b.file, verdict, areas: ks.length, ...(b.shown ? { shown: true } : {}) });
   }
+  if (rec) rec.unread = [...unr];
   return out;
 }
 
@@ -173,25 +217,27 @@ export function lexicalMatches(skills, file, { max = SKILL_SUGGEST.lexicalMax } 
     .filter(x => x.hits > 0).sort((a, b) => b.hits - a.hits || a.name.localeCompare(b.name)).slice(0, max).map(x => x.name);
 }
 
-// The candidates for a file, each with its posterior per area: Beta(a0 + lexical + organic + missed,
-// b0 + exposures - organic - missed).
+// The candidates for a file, each with its posterior per area: Beta(a0 + missed + organic·w,
+// b0 + (unread − missed) + negative), a row entering only with a miss or an organic open. With no such row in
+// any of the file's areas (cold start), the skills whose description shares a word of the path, at a small prior.
 export function candidates(ev, file, { now = Date.now(), cfg = SKILL_SUGGEST, exclude = new Set() } = {}) {
-  const keys = areaKeys(file), out = new Map();
-  const lex = new Set(lexicalMatches(ev.skills, file, { max: cfg.lexicalMax }));
+  const keys = areaKeys(file), out = new Map(), hl = cfg.halfLifeDays, w = cfg.organic ?? SKILL_SUGGEST.organic;
   const known = name => !Object.keys(ev.skills || {}).length || ev.skills[name];
+  let backed = false;
   for (const k of keys) {
     const a = ev.areas[k]; if (!a) continue;
-    const n = decayed(a.exposures, now, cfg.halfLifeDays);
     for (const [skill, r] of Object.entries(a.skills)) {
-      if (exclude.has(skill) || !known(skill)) continue;
-      const s = decayed(r.organic, now, cfg.halfLifeDays) + decayed(r.missed, now, cfg.halfLifeDays);
-      if (s <= 0 && !lex.has(skill)) continue;
-      const alpha = cfg.a0 + (lex.has(skill) ? cfg.lexical : 0) + s, beta = cfg.b0 + Math.max(0, n - s);
+      if (!known(skill)) continue;
+      const m = decayed(r.missed, now, hl), org = decayed(r.organic, now, hl) * w;
+      if (m + org <= 0) continue;
+      backed = true;
+      if (exclude.has(skill)) continue;
+      const alpha = cfg.a0 + m + org, beta = cfg.b0 + Math.max(0, decayed(r.unread, now, hl) - m) + decayed(r.negative, now, hl);
       if (!out.has(skill)) out.set(skill, []);
       out.get(skill).push({ area: k, alpha, beta });
     }
   }
-  for (const skill of lex) if (!exclude.has(skill) && !out.has(skill)) out.set(skill, [{ area: null, alpha: cfg.a0 + cfg.lexical, beta: cfg.b0 }]);
+  if (!backed) for (const skill of lexicalMatches(ev.skills, file, { max: cfg.lexicalMax })) if (!exclude.has(skill)) out.set(skill, [{ area: null, alpha: cfg.a0 + cfg.lexical, beta: cfg.b0 }]);
   return out;
 }
 
@@ -227,6 +273,17 @@ export function skillRegistry(repo) {
   }
   return out;
 }
+// The registry brought up to date with the checkout: a skill that appears after the evidence began is marked
+// `added`, so its rows do not count the sessions from before it existed as unread (row above).
+export function refreshRegistry(ev, repo, { now = Date.now() } = {}) {
+  const fresh = skillRegistry(repo), had = Object.keys(ev.skills || {}).length > 0, out = {};
+  for (const [n, s] of Object.entries(fresh)) {
+    const added = ev.skills?.[n]?.added || (had && !ev.skills?.[n] ? new Date(now).toISOString() : null);
+    out[n] = { ...s, ...(added ? { added } : {}) };
+  }
+  ev.skills = out;
+  return ev;
+}
 const canonical = (skills, name) => {
   if (!name) return null;
   const n = String(name).replace(/^\//, '');
@@ -255,7 +312,8 @@ export const sessionSuggestions = (store, session) => readState(store).sessions?
 // From a parsed session (sessionSkillEvidence): credited once, idempotently (creditSession).
 export function recordSkillEvidence(store, h, { session, suggestions, now = Date.now(), ev: given } = {}) {
   const cfg = skillSuggestConfig(store), ev = given || loadEvidence(store) || emptyEvidence();
-  if (!Object.keys(ev.skills).length) ev.skills = skillRegistry(store.repo);
+  if (!given) refreshRegistry(ev, store.repo, { now });
+  else if (!Object.keys(ev.skills).length) ev.skills = skillRegistry(store.repo);
   const id = session || h.id;
   const opened = (h.opened || []).map(o => ({ ...o, skill: canonical(ev.skills, o.skill) })).filter(o => o.skill && (!Object.keys(ev.skills).length || ev.skills[o.skill]));
   const r = creditSession(ev, { session: id, edited: h.edited || [], opened, suggestions: suggestions ?? sessionSuggestions(store, id), now, halfLifeDays: cfg.halfLifeDays });
@@ -300,60 +358,6 @@ export function recordSessionSkills(store, file, { session } = {}) {
   return r;
 }
 
-// --- the distillation's share ---------------------------------------------------------------------------
-// What a session edited and which skills it read, from the distiller's events (transcripts.js).
-const SKILL_PATH = /skills\/([\w.-]+)\/SKILL\.md/g;
-export function eventSkillFacts(events, repo = '') {
-  const rel = p => { p = String(p || '').trim(); if (repo && p.startsWith(repo + '/')) p = p.slice(repo.length + 1); return p.replace(/^\.\//, ''); };
-  const edited = [], read = new Set();
-  for (const e of events || []) {
-    if (e.t !== 'tool') continue;
-    const inp = e.input || {}, text = JSON.stringify(inp);
-    if (e.name === 'Skill' && inp.skill) read.add(String(inp.skill));
-    for (const m of text.matchAll(SKILL_PATH)) read.add(m[1]);
-    if (['Edit', 'Write', 'MultiEdit', 'NotebookEdit'].includes(e.name)) {
-      for (const f of String(inp.file_path || '').split(/,\s*/)) if (f) edited.push(rel(f));
-      for (const m of String(inp.new_string || inp.input || inp.command || '').matchAll(/^\*\*\* (?:Update|Add) File: (.+)$/gm)) edited.push(rel(m[1]));
-    }
-  }
-  return { edited: [...new Set(edited)].filter(suggestable), read };
-}
-
-// The skills the distiller is shown for a session: those with evidence on the changed files' areas, best
-// first, then those whose description shares a word of a changed path; names, one line and the path only.
-export function distillSkillContext(store, events) {
-  if (!skillSuggestOn(store)) return null;
-  const { edited, read } = eventSkillFacts(events, store.repo);
-  if (!edited.length) return null;
-  const cfg = skillSuggestConfig(store), ev = loadEvidence(store) || emptyEvidence();
-  if (!Object.keys(ev.skills).length) ev.skills = skillRegistry(store.repo);
-  if (!Object.keys(ev.skills).length) return null;
-  const now = Date.now(), best = new Map();
-  for (const f of edited) for (const [skill, posts] of candidates(ev, f, { now, cfg })) best.set(skill, Math.max(best.get(skill) || 0, ...posts.map(p => p.alpha / (p.alpha + p.beta))));
-  const names = [...best].sort((a, b) => b[1] - a[1]).map(([s]) => s).filter(s => ev.skills[s]).slice(0, cfg.distillSkills);
-  if (!names.length) return null;
-  const readCanon = new Set([...read].map(s => canonical(ev.skills, s)));
-  return { skills: names.map(n => ({ name: n, description: ev.skills[n].description, file: ev.skills[n].file })), edited, read: readCanon, areas: [...new Set(edited.flatMap(areaKeys))] };
-}
-
-// The broken rules the distiller returned, credited: a skill's own as a miss or a negative (creditOutcome),
-// the rest (AGENTS.md, a rules file) logged only.
-export function recordBrokenRules(store, broken, ctx, { session } = {}) {
-  if (!ctx || !broken?.length) return [];
-  const ev = loadEvidence(store) || emptyEvidence();
-  const byName = new Map(ctx.skills.flatMap(s => [[s.name, s.name], [s.file, s.name]]));
-  const sug = new Set(sessionSuggestions(store, session).filter(s => !s.withheld).map(s => s.skill));
-  const rows = broken.map(b => {
-    const src = String(b.source || '').trim().replace(/^\//, ''), m = src.match(/skills\/([\w.-]+)\/SKILL\.md/);
-    const skill = byName.get(src) || (m && byName.get(m[1])) || null;
-    return { skill, file: b.file ? String(b.file).replace(/^\.\//, '') : '', read: skill ? ctx.read.has(skill) || sug.has(skill) : false, source: src, rule: String(b.rule || '').slice(0, 200) };
-  });
-  const credited = creditOutcome(ev, rows.filter(r => r.skill), { areas: ctx.areas });
-  saveEvidence(store, ev);
-  for (const r of rows) store.log({ op: 'skill-outcome', session, skill: r.skill || undefined, source: r.source.slice(0, 120), file: r.file || undefined, rule: r.rule, verdict: r.skill ? (r.read ? 'broken-after-read' : 'missed') : 'other-source' });
-  return credited;
-}
-
 // --- delivery ------------------------------------------------------------------------------------------
 // The tool hook: files the tool call opened or edited, each the first time in the session, a line per
 // skill to suggest, once per skill a session. A held-out turn logs what it withheld and says nothing.
@@ -366,12 +370,15 @@ export function skillSuggestLines(store, { session, client, files = [], holdout 
   // a skill the agent opened itself is not suggested to it afterwards
   for (const o of opened) { const c = canonical(ev.skills, o); if (c && !ss.said.includes(c)) ss.said.push(c); }
   const lines = [];
+  // the cap counts what was said and what a held-out turn withheld alike, so both sides have the same cap
+  const full = () => ss.log.length >= cfg.perSession;
   for (const f of [...new Set(files)].filter(suggestable)) {
     if (ss.seen.includes(f)) continue;
     ss.seen.push(f);
-    if (ss.log.filter(l => !l.withheld).length >= cfg.perSession) continue;
+    if (full()) continue;
     const picks = suggestFrom(ev, f, { rng, now, cfg, exclude: new Set(ss.said) });
     for (const p of picks) {
+      if (full()) break;
       const at = new Date(now).toISOString(), entry = { skill: p.skill, areas: p.areas, file: f, at, ...(holdout ? { withheld: true } : {}) };
       ss.said.push(p.skill); ss.log.push(entry);
       store.log({ op: 'skill-suggest', session, client, skill: p.skill, area: p.areas[0], areas: p.areas, file: f, score: Math.round(p.score * 100) / 100, turn: turn || undefined, ...(holdout ? { withheld: true } : {}) });
@@ -386,6 +393,7 @@ export function skillSuggestLines(store, { session, client, files = [], holdout 
   return lines.join('\n');
 }
 
+const SKILL_PATH = /skills\/([\w.-]+)\/SKILL\.md/g;
 // The files a tool call opened or edited, and the skills it opened, from a hook's input: the clients' file
 // fields (clients.js:toolFiles, passed in), plus the files of a Codex patch.
 export function hookSkillFacts(ev, repo, files = []) {

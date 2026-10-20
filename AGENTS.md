@@ -1070,32 +1070,46 @@ skill's present text is not counted (`skillFileTime`). Duplicates: `skills.js:de
 in `.thinker/config.json` (or `THINKER_HARNESS_SKILL_SUGGEST=on`; `=off` wins over the config), the tool
 hook of Claude Code and Codex says, the first time a file is opened or edited in a session, which skills
 past sessions here read for files like it: `<thinker-skill>Past sessions here used <name> for files like
-this one: read <path></thinker-skill>`, at most two a file, each skill once a session
+this one: read <path></thinker-skill>`, at most two a file and six a session, each skill once a session
 (`skill-suggest.js:skillSuggestLines`). Why: on PostHog under GPT-6 Astra, switching the 107 skills off
 cut input ~19% at equal passes, but agents then opened 0.6 skills a session against 2.9 and broke more
 minor conventions (0.46 against 0.21 a session); `lookup` over the descriptions was right 42% of the time.
 The evidence (`.thinker/state/skill-evidence.json`, local) is rows by (area, skill), an area being a key of
 the path (`areaKeys`: two directories, the top one, `products/<p>/<layer>`, the kind of file), with organic
-opens, suggested, suggested-then-opened, missed and negative per row and exposures per area, each decaying
-with `harness.skillSuggestHalfLifeDays` (30). To keep a suggestion from feeding itself, only organic opens
-count (no suggestion of that skill earlier in the session; every suggestion is logged as `op:
-"skill-suggest"`) and so do misses: the end-of-session distillation, in the same call, is shown the names,
-one-line descriptions and paths of the skills covering the changed files (`distillSkillContext`, at most
-eight, never their text) and returns `broken_rules` with each rule's source (`distill.js:BROKEN_RULES_SCHEMA`);
-a skill not read is a miss there, one read and broken anyway a logged negative (`recordBrokenRules`). The
-session's opens and edits are credited once, idempotently, from the transcript the harness parses
-(`harness.js:sessionHarness` and `harness-codex.js:codexSessionHarness` return `edited` and `skillOpens`;
-`recordSessionSkills` from `commands/learn.js:distillFile`), so `learn.sessions`, `THINKER_NO_LEARN`, the
-quiet skip and the daily cap apply as to the distillation. Scoring is Thompson sampling of
-Beta(0.5 + organic + missed, 4 + exposures without either), the best of the file's areas, top two above a
-sample of 0.35, plus a small prior for a skill whose description shares a word of the path, so a new skill
-gets tried; a held-out turn (`ops.js:holdoutTurn`) is told nothing and logs `withheld`. First use seeds the
-store from the machine's recent sessions of the repository; `thinker skills seed <transcripts...>` seeds
-from chosen ones (an eval: its training tasks only), `thinker skills suggest <file>` previews. Offline replay
-of the real implementation on 230 PostHog sessions (leave-one-task-out, 20 seeds,
-`bench/worktrees/eval-support/skill-protocol/replay_thompson.py`, local): precision 0.78, recall 0.66,
-2.7 skills a session, 18% of picks exploratory, against 0.83 / 0.62 for the deterministic counts of the
-first replay. No agent session has been run with it.
+opens, suggested, suggested-then-opened, unread, missed and negative per row and exposures per area, each
+decaying with `harness.skillSuggestHalfLifeDays` (30). The session's opens and edits are credited once,
+idempotently, from the transcript the harness parses (`harness.js:sessionHarness`,
+`harness-codex.js:codexSessionHarness`; `recordSessionSkills` from `commands/learn.js:distillFile`), so
+`learn.sessions`, `THINKER_NO_LEARN` and the quiet skip apply as to the distillation. Scoring
+(`candidates`) counts a (area, skill) only on the sessions where the skill was not read (not opened; a
+suggestion the agent did not follow leaves the session unread): Beta(0.5 + misses + organic opens,
+4 + (unread − misses) + negatives), the best of the file's areas, Thompson-sampled, top two above a
+sample of 0.35. A session that read the skill says nothing about whether it prevents a break; counting
+those as failures, as the first version did, held a skill that prevents most breaks at a 0.4 suggestion
+rate the more it was followed (a simulation of the loop, 2026-10-19). A row made late counts the area's
+earlier sessions as unread unless the skill was `added` to the registry since (`refreshRegistry`), so a skill
+opened once in a busy area does not score as if that were its only session. Organic opens are weak evidence
+of relevance (weight `organic`, 1); a skill whose description shares a word of the path gets a small prior
+(0.25) only when the file's areas have no evidence-backed candidate at all: in a replay of 8 PostHog eval
+tasks none of its 24 picks was a skill the agent went on to open. Misses come from a separate, sampled
+outcome check (`skill-outcome.js:skillOutcomeCheck`, its own switch `harness: { skillOutcome: true }` or
+`THINKER_HARNESS_SKILL_OUTCOME=on`, off by default, never in test mode unless forced by the env), modelled
+on the Artemis conventions grader: once a session, on `harness.skillOutcomeShare` (0.25) of sessions by a hash
+of the id, when the session edited files with candidates, within the daily token cap, one model call through
+`llm.js:complete` (the session queue in a desktop app). It is shown the `git diff` of the files the session
+edited from the commit before its start (plus files it created), the full text of the best three candidates
+and of up to two skills a matching `.claude/rules` file names, those rule files, and the AGENTS.md text
+that applies (process sections left out), and returns violations quoting the rule and its source; a skill's
+break unread is a miss, read a negative, logged as `op: "skill-outcome"`. Asking the end-of-session
+distillation for broken rules instead (the first version) matched the grader on 0 of 30 graded sessions. On 39
+graded PostHog sessions (Sonnet, claude CLI, $0.14 a session) the first prompt found 7 of the grader's 15
+skill-sourced violations by rule, and 3 of 15 clean sessions got a skill violation; the prompt shipped found 13
+of 15 on the 13 sessions with one (16 found, 3 on a rule the grader did not cite); its rate on clean sessions
+was not measured again. A held-out turn (`ops.js:holdoutTurn`) is told nothing and logs `withheld`; the cap of
+six lines a session counts withheld lines too. First use seeds the store from the machine's recent sessions of
+the repository; `thinker skills seed <transcripts...>` seeds from chosen ones (an eval: its training tasks only),
+`thinker skills suggest <file>` previews. The offline checks are in
+`bench/worktrees/eval-support/skill-protocol/` (local). No agent session has been run with it.
 
 ## Desired behaviors
 
