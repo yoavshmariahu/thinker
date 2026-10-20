@@ -6,6 +6,16 @@ import path from 'node:path';
 import { parse, stringify } from 'smol-toml';
 import { estTokens } from './rank.js';
 
+// What one session loaded, by the kind of source (the Context tab's parts): tokens a model call. Keys are
+// `<kind>:<name>`, a plugin's skills and server already folded into `plugin:`.
+const PART = { skill: 'skills', plugin: 'plugins', mcp: 'mcp', tool: 'builtin', desktop: 'builtin' };
+export function partsOf(tokens) {
+  const out = {};
+  for (const [k, t] of tokens) { const p = PART[k.slice(0, k.indexOf(':'))]; if (p) out[p] = (out[p] || 0) + t; }
+  return out;
+}
+
+
 const readText = f => { try { return fs.readFileSync(f, 'utf8'); } catch { return ''; } };
 export const codexConfigFile = repo => path.join(repo, '.codex', 'config.toml');
 export function codexHarnessConfig(repo, { home = os.homedir(), env = process.env } = {}) {
@@ -127,7 +137,7 @@ export function codexHarnessUsage(repo, sessions, options = {}) {
     // Local plugin identity is established by both its installed path and a config entry.
     return file && plugins.find(p => file.includes(`/plugins/cache/`) && file.includes(`/${p.name}/`) && key.startsWith(`skill:${p.name}:`));
   };
-  const rows = new Map(); let counted = 0; const calls = [];
+  const rows = new Map(); let counted = 0; const calls = [], timeline = [];
   for (const { s, h } of read) {
     if (!h.loaded.size || h.parent) continue;
     counted++; calls.push(h.calls);
@@ -152,6 +162,7 @@ export function codexHarnessUsage(repo, sessions, options = {}) {
       const g = grouped.get(k); g.tokens += tokens; g.used ||= used.has(key) || (plugin && usedPlugins.has(plugin.id)); g.texts[key] = h.texts.get(key)?.slice(0, 1200); g.evidenceKeys.push(key);
       if (kind === 'plugin' && key.startsWith('skill:')) g.skills.push(raw);
     }
+    timeline.push({ t: s.mtime, client: 'codex', calls: h.calls, parts: partsOf(new Map([...grouped.values()].map((g, i) => [`${g.kind}:${i}`, g.tokens]))) });
     for (const [key, g] of grouped) {
       if (!rows.has(key)) rows.set(key, { ...g, tokens: 0, loaded: 0, used: 0, lastUsed: null });
       const r = rows.get(key); r.loaded++; r.tokens += g.tokens; if (g.used) { r.used++; r.lastUsed = Math.max(r.lastUsed || 0, s.mtime); }
@@ -159,7 +170,7 @@ export function codexHarnessUsage(repo, sessions, options = {}) {
     }
   }
   const sorted = calls.sort((x, y) => x - y);
-  return { sessions: counted, calls: sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0, sources: [...rows.values()].map(r => {
+  return { sessions: counted, calls: sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0, timeline, sources: [...rows.values()].map(r => {
     const setting = r.kind === 'mcp' ? config.servers.get(r.name) : r.kind === 'plugin' ? config.plugins.get(r.id) : null;
     const skill = r.dir && !r.dir.includes('/.system/') && !r.dir.includes('/plugins/cache/') && fs.existsSync(path.join(r.dir, 'SKILL.md'));
     return { ...r, tokens: Math.round(r.tokens / r.loaded), scope: setting?.scope || (skill ? 'project' : null), off: setting?.off || (r.dir && (config.skills.get(r.dir) === false || config.skills.get(path.join(r.dir, 'SKILL.md')) === false)), how: valid && (setting || skill) ? `codex-${r.kind}` : null };

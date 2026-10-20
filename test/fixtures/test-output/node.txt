@@ -1,0 +1,29 @@
+(node:58748) DeprecationWarning: old api
+(Use `node --trace-deprecation ...` to show where the warning was created)
+✔ adds (0.635833ms)
+✖ rejects empty (0.137625ms)
+﹣ skipped (0.040792ms) # not ready
+✔ warns (0.137917ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 2
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 1
+ℹ todo 0
+ℹ duration_ms 85.590875
+
+✖ failing tests:
+
+test at a.test.js:9:1
+✖ rejects empty (0.137625ms)
+  Error: boom in inner
+      at inner (file:///repo/lib.js:2:9)
+      at outer (file:///repo/lib.js:5:10)
+      at TestContext.<anonymous> (file:///repo/a.test.js:10:16)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1201:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:831:18)
+      at Test.postRun (node:internal/test_runner/test:1330:19)
+      at Test.run (node:internal/test_runner/test:1258:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3)

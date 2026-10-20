@@ -1,0 +1,48 @@
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.8 [39m[90m/repo[39m
+
+ [31m❯[39m sum.test.js [2m([22m[2m4 tests[22m[2m | [22m[31m2 failed[39m[2m | [22m[33m1 skipped[39m[2m)[22m[90m 4[2mms[22m[39m
+[31m   [31m×[31m sum[2m > [22mrejects empty[90m 3[2mms[22m[31m[39m
+[31m     → expected 2 to be 3 // Object.is equality[39m
+[31m   [31m×[31m sum[2m > [22mthrows deep[90m 0[2mms[22m[31m[39m
+[31m     → boom in inner[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[1m[7m Failed Tests 2 [27m[22m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[31m[1m[7m FAIL [27m[22m[39m sum.test.js[2m > [22msum[2m > [22mrejects empty
+[31m[1mAssertionError[22m: expected 2 to be 3 // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 3[39m
+[31m+ 2[39m
+
+[36m [2m❯[22m sum.test.js:[2m10:23[22m[39m
+    [90m  8| [39m
+    [90m  9| [39m  [34mtest[39m([32m'rejects empty'[39m[33m,[39m () [33m=>[39m {
+    [90m 10| [39m    [34mexpect[39m([34madd[39m([34m1[39m[33m,[39m [34m1[39m))[33m.[39m[34mtoBe[39m([34m3[39m)[33m;[39m
+    [90m   | [39m                      [31m^[39m
+    [90m 11| [39m  })[33m;[39m
+    [90m 12| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m sum.test.js[2m > [22msum[2m > [22mthrows deep
+[31m[1mError[22m: boom in inner[39m
+[36m [2m❯[22m inner lib.js:[2m2:9[22m[39m
+    [90m  1| [39m[35mfunction[39m [34minner[39m(a) {
+    [90m  2| [39m  [35mthrow[39m [35mnew[39m [33mError[39m([32m'boom in inner'[39m)[33m;[39m
+    [90m   | [39m        [31m^[39m
+    [90m  3| [39m}
+    [90m  4| [39m[35mexport[39m [35mfunction[39m [34mouter[39m(a) {
+[90m [2m❯[22m Module.outer lib.js:[2m5:10[22m[39m
+[90m [2m❯[22m sum.test.js:[2m14:12[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯[22m[39m
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m1 passed[39m[22m[2m | [22m[33m1 skipped[39m[90m (4)[39m
+[2m   Start at [22m 22:23:52
+[2m   Duration [22m 237ms[2m (transform 11ms, setup 0ms, collect 7ms, tests 4ms, environment 0ms, prepare 33ms)[22m
+

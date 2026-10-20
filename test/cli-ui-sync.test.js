@@ -183,3 +183,28 @@ test('CLI and page expose the shared Claude Code, Codex and Cursor harness repor
   assert.match(read('commands/hooks.js'), /harnessHere = \['claude', 'codex', 'cursor'\]\.includes\(client\)[\s\S]*harnessHere \? await harnessRecall/);
   assert.match(read('commands/hooks.js'), /snapshotCursorInventory\(/);
 });
+
+test('the Context tab and `thinker context` show one report, and its controls are the commands', async t => {
+  assert.match(read('commands/context.js'), /contextView\(store/);
+  assert.match(read('ui/server.js'), /contextView\(one/);
+  // keeping sections is `thinker instructions --core`; judging is `thinker context --judge n`; a switch is `thinker harness --off`
+  assert.match(read('commands/instructions.js'), /setCore\(store, keep/);
+  assert.match(read('ui/server.js'), /\/api\/context\/core'\) \{[^\n]*setCore\(st/);
+  assert.match(read('commands/context.js'), /judgeRecent\(store/);
+  assert.match(read('ui/server.js'), /\/api\/context\/judge'\) \{[^\n]*judgeRecent\(st/);
+  assert.match(read('commands/harness.js'), /switchOffNow\(store, String\(flags.off\), \{ via: 'cli', any: true \}\)/);
+  assert.match(read('ui/server.js'), /switchOffNow\(st, b.labels.join\(','\), \{ via: 'ui', any: true \}\)/);
+  const dir = repo(t); new Store(dir).init();
+  const p = await page(t, dir).start();
+  fs.writeFileSync(path.join(dir, 'AGENTS.md'), '# R\n\n## Tests\n\nRun `npm test`.\n\n## Style\n\nShort lines.\n');
+  const id = (await p.get('/api/repos')).repos[0].id;
+  const v = await p.get(`/api/context?repo=${encodeURIComponent(id)}&days=7`);
+  assert.deepEqual(v.instructions.sections.map(s => s.title), ['Tests', 'Style']);
+  const r = await p.post('/api/context/core', { repo: id, keep: ['Tests'] });
+  assert.equal(r.status, 200, JSON.stringify(r));
+  assert.deepEqual(new Store(dir).config().instructions.core.keep, ['Tests']);
+  assert.match(fs.readFileSync(path.join(dir, 'AGENTS.override.md'), 'utf8'), /## Tests/);
+  assert.equal((await p.get(`/api/context?repo=${encodeURIComponent(id)}&days=7`)).instructions.sections.find(s => s.title === 'Tests').kept, true);
+  await p.post('/api/context/core', { repo: id, keep: null });
+  assert.equal(fs.existsSync(path.join(dir, 'AGENTS.override.md')), false);
+});

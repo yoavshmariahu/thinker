@@ -1,0 +1,81 @@
+[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31mF[0m[31m                                                                [100%][0m
+=================================== FAILURES ===================================
+[31m[1m______________________________ test_fetch_rows[1] ______________________________[0m
+[1m[31mtest_rows.py[0m:8: in test_fetch_rows
+    [0m[94massert[39;49;00m fetch(n) == n * [94m2[39;49;00m[90m[39;49;00m
+[1m[31mapp/rows.py[0m:6: in fetch
+    [0mconn = connect()[90m[39;49;00m
+[1m[31mapp/rows.py[0m:2: in connect
+    [0m[94mraise[39;49;00m [96mConnectionError[39;49;00m([33m"[39;49;00m[33mcould not reach the rows database at 127.0.0.1:5432[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+[1m[31mE   ConnectionError: could not reach the rows database at 127.0.0.1:5432[0m
+[31m[1m______________________________ test_fetch_rows[2] ______________________________[0m
+[1m[31mtest_rows.py[0m:8: in test_fetch_rows
+    [0m[94massert[39;49;00m fetch(n) == n * [94m2[39;49;00m[90m[39;49;00m
+[1m[31mapp/rows.py[0m:6: in fetch
+    [0mconn = connect()[90m[39;49;00m
+[1m[31mapp/rows.py[0m:2: in connect
+    [0m[94mraise[39;49;00m [96mConnectionError[39;49;00m([33m"[39;49;00m[33mcould not reach the rows database at 127.0.0.1:5432[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+[1m[31mE   ConnectionError: could not reach the rows database at 127.0.0.1:5432[0m
+[31m[1m______________________________ test_fetch_rows[3] ______________________________[0m
+[1m[31mtest_rows.py[0m:8: in test_fetch_rows
+    [0m[94massert[39;49;00m fetch(n) == n * [94m2[39;49;00m[90m[39;49;00m
+[1m[31mapp/rows.py[0m:6: in fetch
+    [0mconn = connect()[90m[39;49;00m
+[1m[31mapp/rows.py[0m:2: in connect
+    [0m[94mraise[39;49;00m [96mConnectionError[39;49;00m([33m"[39;49;00m[33mcould not reach the rows database at 127.0.0.1:5432[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+[1m[31mE   ConnectionError: could not reach the rows database at 127.0.0.1:5432[0m
+[31m[1m______________________________ test_fetch_rows[4] ______________________________[0m
+[1m[31mtest_rows.py[0m:8: in test_fetch_rows
+    [0m[94massert[39;49;00m fetch(n) == n * [94m2[39;49;00m[90m[39;49;00m
+[1m[31mapp/rows.py[0m:6: in fetch
+    [0mconn = connect()[90m[39;49;00m
+[1m[31mapp/rows.py[0m:2: in connect
+    [0m[94mraise[39;49;00m [96mConnectionError[39;49;00m([33m"[39;49;00m[33mcould not reach the rows database at 127.0.0.1:5432[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+[1m[31mE   ConnectionError: could not reach the rows database at 127.0.0.1:5432[0m
+[31m[1m______________________________ test_fetch_rows[5] ______________________________[0m
+[1m[31mtest_rows.py[0m:8: in test_fetch_rows
+    [0m[94massert[39;49;00m fetch(n) == n * [94m2[39;49;00m[90m[39;49;00m
+[1m[31mapp/rows.py[0m:6: in fetch
+    [0mconn = connect()[90m[39;49;00m
+[1m[31mapp/rows.py[0m:2: in connect
+    [0m[94mraise[39;49;00m [96mConnectionError[39;49;00m([33m"[39;49;00m[33mcould not reach the rows database at 127.0.0.1:5432[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+[1m[31mE   ConnectionError: could not reach the rows database at 127.0.0.1:5432[0m
+[31m[1m______________________________ test_save_rows[1] _______________________________[0m
+[1m[31mtest_rows.py[0m:13: in test_save_rows
+    [0m[94massert[39;49;00m save(n) == [33m"[39;49;00m[33mok[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+[1m[31mapp/rows.py[0m:11: in save
+    [0mconn = connect()[90m[39;49;00m
+[1m[31mapp/rows.py[0m:2: in connect
+    [0m[94mraise[39;49;00m [96mConnectionError[39;49;00m([33m"[39;49;00m[33mcould not reach the rows database at 127.0.0.1:5432[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+[1m[31mE   ConnectionError: could not reach the rows database at 127.0.0.1:5432[0m
+[31m[1m______________________________ test_save_rows[2] _______________________________[0m
+[1m[31mtest_rows.py[0m:13: in test_save_rows
+    [0m[94massert[39;49;00m save(n) == [33m"[39;49;00m[33mok[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+[1m[31mapp/rows.py[0m:11: in save
+    [0mconn = connect()[90m[39;49;00m
+[1m[31mapp/rows.py[0m:2: in connect
+    [0m[94mraise[39;49;00m [96mConnectionError[39;49;00m([33m"[39;49;00m[33mcould not reach the rows database at 127.0.0.1:5432[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+[1m[31mE   ConnectionError: could not reach the rows database at 127.0.0.1:5432[0m
+[31m[1m______________________________ test_save_rows[3] _______________________________[0m
+[1m[31mtest_rows.py[0m:13: in test_save_rows
+    [0m[94massert[39;49;00m save(n) == [33m"[39;49;00m[33mok[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+[1m[31mapp/rows.py[0m:11: in save
+    [0mconn = connect()[90m[39;49;00m
+[1m[31mapp/rows.py[0m:2: in connect
+    [0m[94mraise[39;49;00m [96mConnectionError[39;49;00m([33m"[39;49;00m[33mcould not reach the rows database at 127.0.0.1:5432[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+[1m[31mE   ConnectionError: could not reach the rows database at 127.0.0.1:5432[0m
+[31m[1m_____________________________ test_import_missing ______________________________[0m
+[1m[31mtest_rows.py[0m:17: in test_import_missing
+    [0m[94mimport[39;49;00m[90m [39;49;00m[04m[96mapp[39;49;00m[04m[96m.[39;49;00m[04m[96mgone[39;49;00m  [90m# noqa: F401[39;49;00m[90m[39;49;00m
+[1m[31mE   ModuleNotFoundError: No module named 'app.gone'[0m
+[36m[1m=========================== short test summary info ============================[0m
+[31mFAILED[0m test_rows.py::[1mtest_fetch_rows[1][0m - ConnectionError: could not reach the rows database at 127.0.0.1:5432
+[31mFAILED[0m test_rows.py::[1mtest_fetch_rows[2][0m - ConnectionError: could not reach the rows database at 127.0.0.1:5432
+[31mFAILED[0m test_rows.py::[1mtest_fetch_rows[3][0m - ConnectionError: could not reach the rows database at 127.0.0.1:5432
+[31mFAILED[0m test_rows.py::[1mtest_fetch_rows[4][0m - ConnectionError: could not reach the rows database at 127.0.0.1:5432
+[31mFAILED[0m test_rows.py::[1mtest_fetch_rows[5][0m - ConnectionError: could not reach the rows database at 127.0.0.1:5432
+[31mFAILED[0m test_rows.py::[1mtest_save_rows[1][0m - ConnectionError: could not reach the rows database at 127.0.0.1:5432
+[31mFAILED[0m test_rows.py::[1mtest_save_rows[2][0m - ConnectionError: could not reach the rows database at 127.0.0.1:5432
+[31mFAILED[0m test_rows.py::[1mtest_save_rows[3][0m - ConnectionError: could not reach the rows database at 127.0.0.1:5432
+[31mFAILED[0m test_rows.py::[1mtest_import_missing[0m - ModuleNotFoundError: No module named 'app.gone'
+[31m[31m[1m9 failed[0m[31m in 0.05s[0m[0m

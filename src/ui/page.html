@@ -41,6 +41,8 @@
     .count { display: inline-block; margin-left: 0.35rem; min-width: 1.2rem; padding: 0 0.35rem; border-radius: 999px; background: #111; color: #fff; font-size: 0.78rem; line-height: 1.2rem; text-align: center; }
 
     main { max-width: 980px; margin: 0 auto; padding: 2.25rem 2rem 4rem; }
+    /* the Context tab holds a document beside its annotations: it takes the width of the window */
+    main:has(#tab-context:not([hidden])) { max-width: 1440px; }
     h1 { font-size: 1.9rem; font-weight: 700; letter-spacing: -0.04em; line-height: 1.15; }
     .lede { font-size: 1rem; color: #6b7280; line-height: 1.55; margin-top: 0.5rem; max-width: 680px; }
     .kicker { font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; margin-bottom: 0.45rem; }
@@ -197,6 +199,122 @@
     .pill.wait { background: #fef9c3; border-color: #fde68a; color: #854d0e; }
     .pill.bad { background: #fee2e2; border-color: #fecaca; color: #991b1b; }
     .pill.ok { background: #dcfce7; border-color: #bbf7d0; color: #166534; }
+    .cost { display: grid; grid-template-columns: minmax(3rem, 1fr) 3.6rem; align-items: center; gap: 0.4rem; min-width: 8rem; font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+    .cost i { display: block; height: 8px; width: var(--w); max-width: 100%; border-radius: 0 3px 3px 0; background: #111; }
+    .cost.off i { background: #d4d4d8; }
+    .ctx-table td, .ctx-table th { vertical-align: middle; }
+    .ctx-table .why { color: #6b7280; font-size: 0.78rem; }
+    .md-row { display: grid; grid-template-columns: minmax(0, 1fr) 19rem; gap: 2rem; padding: 0.7rem 0; border-top: 1px solid #eee; }
+    .md-row:first-child { border-top: 0; }
+    .md-row { border-left: 4px solid transparent; padding-left: 0.8rem; margin-left: -0.8rem; }
+    .md-row.waste-high { border-left-color: #dc2626; }
+    .md-row.waste-medium { border-left-color: #eab308; }
+    .md-row.waste-low { border-left-color: #16a34a; }
+    .ann-save { margin-top: 0.1rem; font-size: 0.78rem; font-weight: 600; color: #991b1b; }
+    .waste-medium .ann-save { color: #854d0e; }
+    .savings { display: flex; flex-direction: column; gap: 0.25rem; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 0.7rem 0.9rem; margin: 0.8rem 0 0.4rem; }
+    .savings.ok { background: #f0fdf4; border-color: #bbf7d0; }
+    .md-off .md-body { opacity: 0.45; }
+    tr.row-off td:not(:first-child) { opacity: 0.45; }
+    .md-body { font-size: 0.86rem; line-height: 1.5; color: #222; }
+    .md-full, .md-sec.open .md-short { display: none; }
+    .md-sec.open .md-full { display: block; }
+    .md-body p { margin: 0.35rem 0; }
+    .md-body ul { margin: 0.35rem 0; padding-left: 1.2rem; }
+    .md-body code { font-size: 0.8rem; background: #f4f4f5; padding: 0 0.25rem; border-radius: 3px; }
+    .md-pre { font-size: 0.75rem; background: #f8f8f8; padding: 0.5rem 0.6rem; border-radius: 4px; overflow-x: auto; white-space: pre; }
+    .md-h { font-weight: 600; margin: 0.2rem 0 0.4rem; }
+    .md-h2 { font-size: 1.02rem; } .md-h3 { font-size: 0.94rem; } .md-h4 { font-size: 0.88rem; }
+    .md-parent { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; }
+    .md-more { margin-top: 0.3rem; padding-left: 0; }
+    .md-ann { position: sticky; top: 1rem; align-self: start; border-left: 1px solid #eee; padding-left: 1rem; font-size: 0.82rem; display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem 1rem; }
+    .ann-cost, .ann-save, .ann-foot { grid-column: 1 / -1; }
+    .md-ann .ann-k { margin-top: 0; display: inline; margin-right: 0.3rem; }
+    .md-ann { gap: 0.25rem 1rem; }
+    .ann-m { font-variant-numeric: tabular-nums; }
+    .ann-cost .why { margin-top: 0.1rem; }
+    .bulk { display: flex; align-items: center; gap: 0.6rem; margin-left: auto; order: 99; }
+    .btn.btn-lg { padding: 0.6rem 1.2rem; font-size: 0.95rem; font-weight: 600; }
+    .doc-toolbar { display: flex; justify-content: flex-end; align-items: center; gap: 0.8rem; margin: 0.8rem 0 0.4rem; }
+    .menu-note { font-size: 0.76rem; color: #6b7280; padding: 0.4rem 0.6rem; }
+    .menu { position: fixed; z-index: 50; min-width: 17rem; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.1); padding: 0.3rem; }
+    .menu button { display: flex; flex-direction: column; align-items: flex-start; gap: 0.1rem; width: 100%; text-align: left; background: none; border: 0; border-radius: 6px; padding: 0.45rem 0.6rem; font: inherit; font-size: 0.84rem; cursor: pointer; color: #111; }
+    .menu button span { font-size: 0.74rem; color: #6b7280; }
+    .menu button:hover:not(:disabled) { background: #f4f4f5; }
+    .menu button:disabled { opacity: 0.4; cursor: default; }
+    .md-row.selectable { grid-template-columns: 1.6rem minmax(0, 1fr) 19rem; gap: 0 1.4rem; }
+    .row-sel { display: flex; justify-content: center; padding-top: 0.2rem; cursor: pointer; }
+    .row-sel input { width: 16px; height: 16px; cursor: pointer; accent-color: #111; }
+    @media (max-width: 760px) { .md-row.selectable { grid-template-columns: 1.6rem minmax(0, 1fr); } .md-row.selectable .md-ann { grid-column: 2; } }
+    .md-row.picked { background: #f8fafc; }
+    .diff-sec { margin: 0.3rem 0; } .diff-sec summary { cursor: pointer; font-size: 0.82rem; }
+    .view-switch > .why { font-size: 0.78rem; }
+    .ann-act .btn { padding: 0.15rem 0.4rem; font-size: 0.78rem; }
+    .md-preview { margin-top: 0.6rem; border: 1px solid #e5e7eb; border-radius: 6px; padding: 0.6rem 0.7rem; background: #fafafa; }
+    .diff-head { font-size: 0.82rem; margin-bottom: 0.4rem; }
+    .diff { font-size: 0.74rem; line-height: 1.45; white-space: pre-wrap; max-height: 22rem; overflow: auto; margin: 0; }
+    .diff span { display: block; }
+    .diff .add { background: #dcfce7; }
+    .diff .del { background: #fee2e2; text-decoration: line-through; color: #7f1d1d; }
+    .ann-k { color: #6b7280; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0.55rem; }
+    .ann-k:first-child { margin-top: 0; }
+    .ann-v { font-variant-numeric: tabular-nums; }
+    .md-ann .cost { margin-top: 0.25rem; }
+    .ann-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 0.2rem; }
+    .switch { display: inline-flex; align-items: center; gap: 0.4rem; cursor: pointer; color: #444; font-size: 0.8rem; user-select: none; }
+    .switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+    .switch span { position: relative; width: 30px; height: 17px; border-radius: 999px; background: #d4d4d8; transition: background .15s; flex-shrink: 0; }
+    .switch span::after { content: ""; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: transform .15s; }
+    .switch input:checked + span { background: #111; }
+    .switch input:checked + span::after { transform: translateX(13px); }
+    .switch input:focus-visible + span { outline: 2px solid #2a78d6; outline-offset: 2px; }
+    @media (max-width: 760px) { .md-row { grid-template-columns: 1fr; gap: 0.6rem; } .md-ann { position: static; border-left: 0; padding-left: 0; } }
+    .view-switch { display: flex; align-items: center; gap: 0.8rem; margin: 1.4rem 0 0.2rem; flex-wrap: wrap; }
+    .ctx-top { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem 2rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .ctx-top .controls { margin-top: 0; }
+    .tr-stats { display: flex; flex-wrap: wrap; gap: 0.8rem 1.3rem; margin-bottom: 1.1rem; }
+    .tr-stat .kicker { display: flex; align-items: center; gap: 0.35rem; margin-bottom: 0.15rem; }
+    .tr-stat .sw { width: 9px; height: 9px; border-radius: 2px; }
+    .tr-num { font-size: 1.25rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .tr-num .muted { font-size: 0.8rem; font-weight: 400; }
+    .tr-stat:first-child .tr-num { font-size: 1.5rem; }
+    button.tr-stat { background: none; border: 0; padding: 0.15rem 0.3rem; margin: -0.15rem -0.3rem; text-align: left; cursor: pointer; border-radius: 6px; font: inherit; color: inherit; }
+    button.tr-stat:hover { background: #f4f4f5; }
+    button.tr-stat.hidden-part { opacity: 0.4; }
+    button.tr-stat.hidden-part .tr-num { text-decoration: line-through; }
+    .trend { display: grid; grid-template-columns: 3.2rem minmax(0, 1fr); height: 210px; }
+    .tr-y { display: flex; flex-direction: column; justify-content: space-between; font-size: 0.72rem; color: #6b7280; text-align: right; padding-right: 0.5rem; transform: translateY(0.45em); font-variant-numeric: tabular-nums; }
+    .tr-plot { position: relative; border-bottom: 1px solid #d4d4d8; }
+    .tr-grid { position: absolute; left: 0; right: 0; border-top: 1px solid #f0f0f0; }
+    .tr-cols { position: absolute; inset: 0; display: flex; gap: 6px; align-items: flex-end; padding: 0 2px; }
+    .tr-col { flex: 1 1 0; height: 100%; display: flex; align-items: flex-end; cursor: default; }
+    .tr-col:hover .tr-stack { opacity: 0.85; }
+    .tr-col.has-active .tr-stack { opacity: 1; }
+    .tr-col.has-active .tr-stack i { opacity: 0.35; }
+    .tr-col.has-active .tr-stack i.active { opacity: 1; }
+    .tr-tip [data-k] { padding: 0.05rem 0.25rem; margin: 0.1rem -0.25rem 0; border-radius: 3px; }
+    .tr-tip [data-k].active { background: #f4f4f5; font-weight: 600; }
+    .tr-stack { width: 100%; max-width: 3rem; margin: 0 auto; display: flex; flex-direction: column-reverse; gap: 2px; }
+    .tr-stack i { display: block; min-height: 1px; }
+    .tr-stack i:last-child { border-radius: 4px 4px 0 0; }
+    .tr-x { display: flex; gap: 6px; margin-left: 3.2rem; padding: 0.3rem 2px 0; font-size: 0.72rem; color: #6b7280; }
+    .tr-x span { flex: 1 1 0; text-align: center; white-space: nowrap; overflow: visible; }
+    #trend { position: relative; }
+    .tr-tip { position: absolute; top: 0; width: 190px; background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,.08); padding: 0.5rem 0.6rem; font-size: 0.76rem; pointer-events: none; z-index: 2; }
+    .tr-tip div { display: flex; align-items: center; gap: 0.35rem; margin-top: 0.15rem; }
+    .tr-tip .num { margin-left: auto; font-variant-numeric: tabular-nums; }
+    .tr-tip .sw { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+    .tr-tip-total { border-top: 1px solid #eee; padding-top: 0.2rem; font-weight: 600; }
+    .stack { display: flex; gap: 2px; height: 22px; }
+    .stack i { display: block; min-width: 2px; }
+    .stack i:first-child { border-radius: 4px 0 0 4px; }
+    .stack i:last-child { border-radius: 0 4px 4px 0; }
+    .stack i:hover { opacity: 0.85; }
+    .stack-legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0.6rem 1.2rem; margin-top: 0.9rem; font-size: 0.86rem; }
+    .stack-legend > div { display: flex; gap: 0.5rem; align-items: flex-start; }
+    .stack-legend .sw { flex-shrink: 0; width: 10px; height: 10px; border-radius: 2px; margin-top: 0.3rem; }
+    .stack-legend .num { font-variant-numeric: tabular-nums; }
+    .stack-legend .why { color: #6b7280; font-size: 0.78rem; }
     .issues { margin: 0.3rem 0 0.3rem 1.1rem; padding: 0; }
     .issues li { margin: 0.15rem 0; }
     .pills { display: flex; gap: 0.35rem; flex-wrap: wrap; justify-content: flex-end; }
@@ -273,6 +391,7 @@
     <div class="brand"><span class="wordmark">thinker</span><span class="brand-sub">local</span></div>
     <div class="nav-right">
       <button class="nav-link" data-tab="usage">Usage</button>
+      <button class="nav-link" data-tab="context">Context</button>
       <button class="nav-link" data-tab="cache">Cache<span class="count" id="wait-count" hidden></span></button>
     </div>
   </nav>
@@ -288,6 +407,19 @@
         <div class="seg" id="days-seg"><button data-days="7">7 days</button><button data-days="30" class="on">30 days</button><button data-days="0">All time</button></div>
       </div>
       <div id="usage-body" class="section"><div class="empty"><span class="spinner"></span>Reading the log…</div></div>
+    </section>
+
+    <!-- Context: where the agents' context goes in one repository, and what each part is worth (context-view.js, as `thinker context`) -->
+    <section id="tab-context" hidden>
+      <div class="ctx-top"><div><h1>Context Overview</h1>
+      <p class="lede">Track where your agents are spending tokens</p></div>
+      <div class="controls">
+        <select class="sel" id="c-repo" aria-label="Repository"></select>
+        <div class="seg" id="c-days-seg"><button data-days="7">7 days</button><button data-days="30" class="on">30 days</button></div>
+        <div class="seg" id="tr-measure"><button data-m="total" class="on">Total</button><button data-m="avg">Per session</button></div>
+        <div class="seg" id="tr-bucket"><button data-b="day">Daily</button><button data-b="week" class="on">Weekly</button></div>
+      </div></div>
+      <div id="context-body" class="section"><div class="empty"><span class="spinner"></span>Reading the transcripts…</div></div>
     </section>
 
     <!-- Cache: every repository with a cache, then one repository's notes and behaviors -->
@@ -439,7 +571,7 @@ let TAB = 'cache';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 // path:Symbol pointers in a body read as code
 const rich = s => esc(s).replace(/(`[^`]+`)/g, m => `<code>${m.slice(1, -1)}</code>`).replace(/(^|[\s(])([\w./-]+\.[a-z]{1,5}:[\w$]+(?:\.[\w$]+)*)/g, '$1<code>$2</code>');
-const fmt = n => n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(n >= 1e4 ? 0 : 1) + 'k' : String(Math.round(n || 0));
+const fmt = n => n >= 1e9 ? (n / 1e9).toFixed(n >= 1e10 ? 0 : 1) + 'B' : n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(n >= 1e4 ? 0 : 1) + 'k' : String(Math.round(n || 0));
 const pct = (a, b) => b ? Math.round(100 * a / b) + '%' : '—';
 const dur = s => !s ? '—' : s < 60 ? `${Math.round(s)}s` : s < 3600 ? `${Math.round(s / 60)} min` : `${(s / 3600).toFixed(1)} h`;
 const home = p => String(p || '').replace(/^\/Users\/[^/]+|^\/home\/[^/]+/, '~');
@@ -466,10 +598,11 @@ $('#back').onclick = () => { DREPO = ''; show('cache'); };
 $('#w-back').onclick = () => { DREPO = ''; show('cache'); };
 function show(tab) {
   document.querySelectorAll('.nav-link').forEach(b => b.classList.toggle('active', b.dataset.tab === (tab === 'warmup' || tab === 'tools' ? 'cache' : tab)));
-  $('#tab-usage').hidden = tab !== 'usage'; $('#tab-cache').hidden = tab !== 'cache'; $('#tab-warmup').hidden = tab !== 'warmup'; $('#tab-tools').hidden = tab !== 'tools';
+  $('#tab-usage').hidden = tab !== 'usage'; $('#tab-context').hidden = tab !== 'context'; $('#tab-cache').hidden = tab !== 'cache'; $('#tab-warmup').hidden = tab !== 'warmup'; $('#tab-tools').hidden = tab !== 'tools';
   TAB = tab;
   history.replaceState(null, '', `#t=${TOKEN}&tab=${tab}${tab === 'cache' && DREPO ? `&repo=${encodeURIComponent(DREPO)}` : ''}`);
   if (tab === 'usage') loadUsage();
+  else if (tab === 'context') loadContext();
   else if (tab === 'warmup') loadWarmup();
   else if (tab === 'tools') loadTools();
   else if (DREPO) openRepo(DREPO);
@@ -577,6 +710,298 @@ async function loadHarness() {
     $('#h-off')?.addEventListener('click', e => { const labels = [...el.querySelectorAll('[data-hoff]:checked')].map(c => c.dataset.hoff); if (!labels.length) return toast('Nothing selected', true); act(e.target, '/api/harness/off', { labels }); });
     $('#h-ask')?.addEventListener('click', e => act(e.target, '/api/harness/suggest', {}, 'Your next Claude Code, Codex or Cursor prompt here asks which to switch off'));
   } catch (e) { el.innerHTML = `<div class="empty">Could not read what Claude Code, Codex or Cursor loads: ${esc(e.message)}</div>`; }
+}
+
+// ---- where the context goes in one repository (context-view.js:contextView, as `thinker context`) ----
+let CREPO = '', cdays = 30;
+document.querySelectorAll('#c-days-seg button').forEach(b => b.onclick = () => { cdays = Number(b.dataset.days); segOn('#c-days-seg', b); loadContext(); });
+$('#c-repo').onchange = e => { CREPO = e.target.value; e.target.blur(); loadContext(); };
+document.querySelectorAll('#tr-measure button').forEach(b => b.onclick = () => { CMEASURE = b.dataset.m; segOn('#tr-measure', b); renderTrend(); });
+document.querySelectorAll('#tr-bucket button').forEach(b => b.onclick = () => { CBUCKET = b.dataset.b; segOn('#tr-bucket', b); renderTrend(); });
+const share = (a, b) => b ? `${Math.round(100 * a / b)}%` : '–';
+const costBar = (n, max, off) => `<div class="cost${off ? ' off' : ''}"><i style="--w:${max ? 100 * n / max : 0}%"></i>${fmt(n)}</div>`;
+const VALUE_PILL = { used: ['ok', 'used'], situational: ['', 'sometimes'], rare: ['wait', 'rarely'], unknown: ['off', 'too few'] };
+async function loadContext() {
+  const el = $('#context-body');
+  el.innerHTML = `<div class="empty"><span class="spinner"></span>Reading the transcripts…</div>`;
+  try {
+    if (!REPOS.length) await fetchRepos();
+    if (!CREPO || (CREPO !== 'all' && !REPOS.some(r => r.id === CREPO))) CREPO = REPO !== 'all' && REPOS.some(r => r.id === REPO) ? REPO : REPOS.find(r => r.current)?.id || REPOS[0]?.id || '';
+    $('#c-repo').innerHTML = `<option value="all"${CREPO === 'all' ? ' selected' : ''}>All repositories</option>` + REPOS.map(r => `<option value="${esc(r.id)}"${r.id === CREPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
+    if (CREPO === 'all') $('#context-body').innerHTML = `<div class="empty"><span class="spinner"></span>Reading every repository's transcripts (the first time takes a while)…</div>`;
+    if (!CREPO) { el.innerHTML = `<div class="empty">No repository with a cache on this machine yet.</div>`; return; }
+    renderContext(await api(`/api/context?repo=${encodeURIComponent(CREPO)}&days=${cdays}`));
+  } catch (e) { el.innerHTML = `<div class="empty">Could not read the context: ${esc(e.message)}</div>`; }
+}
+let CVIEW = 'instructions', CSORT = 'wasted', CTX = null, CMEASURE = 'total', CBUCKET = null, CHIDDEN = new Set();
+const cbucket = () => CBUCKET || (cdays <= 7 ? 'day' : 'week');
+// the parts of a session's input, in the palette's fixed order (dataviz slots 1-6, validated adjacent on white)
+const PARTS = [
+  ['instructions', 'Instruction files', '#2a78d6'], ['custom', 'Custom tools', '#eb6834'], ['builtin', 'Built-in tools', '#1baf7a'], ['outputs', 'Tool outputs', '#eda100'],
+];
+const dayKey = t => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
+const weekKey = t => { const d = new Date(dayKey(t)); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); };
+const dlabel = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+// Input tokens by day or week, stacked by part: the sum over the sessions of each, or that sum over its sessions
+// (each side over its own sessions: the instruction file and the loaded tools are read from different records).
+function mark(col, k) {
+  col.classList.toggle('has-active', !!k);
+  col.querySelectorAll('.tr-stack i').forEach(i => i.classList.toggle('active', i.dataset.k === k));
+  document.querySelectorAll('#trend .tr-tip [data-k]').forEach(r => r.classList.toggle('active', r.dataset.k === k));
+}
+function renderTrend() {
+  const v = CTX, el = $('#trend'); if (!v || !el) return;
+  const bucket = cbucket(), key = bucket === 'day' ? dayKey : weekKey, step = bucket === 'day' ? 1 : 7;
+  const end = key(Date.now()), start = key(Date.now() - (v.days - 1) * 86400_000), cols = [];
+  for (let t = start; t <= end; ) { cols.push({ t, sum: {}, n: {} }); const d = new Date(t); d.setDate(d.getDate() + step); t = d.getTime(); }
+  const byT = new Map(cols.map(c => [c.t, c]));
+  for (const r of v.timeline) {
+    const c = byT.get(key(r.t)); if (!c) continue;
+    // each part over the sessions that recorded it: the parts come from different readers
+    for (const [k] of PARTS) if (r[k] != null) { c.n[k] = (c.n[k] || 0) + 1; c.sum[k] = (c.sum[k] || 0) + r[k]; }
+  }
+  const val = (c, k) => { const n = c.sum[k] || 0; return CMEASURE === 'avg' ? (n ? n / (c.n[k] || 1) : 0) : n; };
+  // the parts with data; a part clicked away in the legend is left out of the columns and the total
+  const present = PARTS.filter(([k]) => cols.some(c => val(c, k) > 0)), live = present.filter(([k]) => !CHIDDEN.has(k));
+  const tot = c => live.reduce((a, [k]) => a + val(c, k), 0), max = Math.max(1, ...cols.map(tot));
+  const nice = (() => { const m = 10 ** Math.floor(Math.log10(max)), f = max / m; return ([1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].find(x => f <= x) || 10) * m; })();
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map(f => f * nice);
+  const sessionsIn = c => Math.max(0, ...Object.values(c.n));
+  el.innerHTML = `<div class="trend"><div class="tr-y">${ticks.slice().reverse().map(t => `<span>${fmt(t)}</span>`).join('')}</div><div class="tr-plot">${ticks.map(t => `<i class="tr-grid" style="bottom:${100 * t / nice}%"></i>`).join('')}<div class="tr-cols">${cols.map((c, i) => `<div class="tr-col" data-i="${i}"><div class="tr-stack" style="height:${100 * tot(c) / nice}%">${live.map(([k, , color]) => val(c, k) ? `<i data-k="${k}" style="flex:${val(c, k)} 1 0;background:${color}"></i>` : '').join('')}</div></div>`).join('')}</div></div></div>
+    <div class="tr-x">${cols.map((c, i) => `<span>${cols.length <= 10 || i % Math.ceil(cols.length / 8) === 0 ? dlabel(c.t) : ''}</span>`).join('')}</div><div class="tr-tip" hidden></div>`;
+  // hover: one column's parts, its total and its sessions
+  const tip = el.querySelector('.tr-tip');
+  el.querySelectorAll('.tr-col').forEach(col => {
+    col.onmouseenter = () => { const c = cols[col.dataset.i]; tip.hidden = false; tip.innerHTML = `<b>${bucket === 'day' ? dlabel(c.t) : `Week of ${dlabel(c.t)}`}</b> · ${sessionsIn(c)} session${sessionsIn(c) === 1 ? '' : 's'}${live.slice().reverse().map(([k, name, color]) => `<div data-k="${k}"><span class="sw" style="background:${color}"></span>${name} <span class="num">${fmt(val(c, k))}</span></div>`).join('')}<div class="tr-tip-total">Total <span class="num">${fmt(tot(c))}</span></div>`; // beside the bar, never over it: to its left, or to its right where the left has no room
+      const bar = col.querySelector('.tr-stack').getBoundingClientRect(), p = el.getBoundingClientRect(), w = 190, gap = 8;
+      const left = bar.left - p.left - w - gap; tip.style.left = `${left >= 0 ? left : Math.min(p.width - w, bar.right - p.left + gap)}px`; };
+    col.onmouseleave = () => { tip.hidden = true; mark(col, null); };
+    // the part under the pointer: that segment stands out in its column, and its line on the card
+    col.querySelectorAll('.tr-stack i').forEach(seg => { seg.onmouseenter = () => mark(col, seg.dataset.k); seg.onmouseleave = () => mark(col, null); });
+  });
+  // the header total and the legend: over the whole window
+  const sumAll = k => v.timeline.reduce((a, r) => a + (r[k] || 0), 0);
+  const nOf = k => v.timeline.filter(r => r[k] != null).length;
+  const whole = k => CMEASURE === 'avg' ? (sumAll(k) ? sumAll(k) / (nOf(k) || 1) : 0) : sumAll(k);
+  const grand = live.reduce((a, [k]) => a + whole(k), 0);
+  const label = CMEASURE === 'avg' ? 'Per session' : 'Total';
+  $('#tr-legend').innerHTML = `<div class="tr-stat"><div class="kicker">${label}</div><div class="tr-num">${fmt(grand)}</div></div>` + present.map(([k, name, color]) => `<button class="tr-stat${CHIDDEN.has(k) ? ' hidden-part' : ''}" data-part="${k}" title="${CHIDDEN.has(k) ? 'show' : 'hide'} ${name} in the chart"><div class="kicker"><span class="sw" style="background:${color}"></span>${name}</div><div class="tr-num">${fmt(whole(k))}${CHIDDEN.has(k) ? '' : ` <span class="muted">${grand ? Math.round(100 * whole(k) / grand) : 0}%</span>`}</div></button>`).join('');
+  $('#tr-legend').querySelectorAll('[data-part]').forEach(b => b.onclick = () => { const k = b.dataset.part; CHIDDEN.has(k) ? CHIDDEN.delete(k) : CHIDDEN.add(k); renderTrend(); });
+}
+// a small markdown reader for the team's own file: headings, lists, code, tables as text, inline code, bold, links' text
+function md(text) {
+  const inline = t => esc(t).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+  const out = []; let list = null, para = [], fence = null, table = null;
+  const flush = () => { if (para.length) out.push(`<p>${inline(para.join(' '))}</p>`); para = []; if (list) out.push(`<ul>${list.map(i => `<li>${inline(i)}</li>`).join('')}</ul>`); list = null; if (table) out.push(`<pre class="md-pre">${esc(table.join('\n'))}</pre>`); table = null; };
+  for (const line of String(text).split('\n')) {
+    if (fence) { if (/^\s*```/.test(line)) { out.push(`<pre class="md-pre">${esc(fence.join('\n'))}</pre>`); fence = null; } else fence.push(line); continue; }
+    if (/^\s*```/.test(line)) { flush(); fence = []; continue; }
+    const h = line.match(/^(#{1,4}) (.+)/);
+    if (h) { flush(); out.push(`<div class="md-h md-h${h[1].length}">${inline(h[2])}</div>`); continue; }
+    if (/^\s*\|/.test(line)) { if (!table) { flush(); table = []; } table.push(line); continue; }
+    const li = line.match(/^\s*(?:[-*]|\d+\.) (.+)/);
+    if (li) { if (para.length || table) { const l = list; list = null; flush(); list = l; } (list ||= []).push(li[1]); continue; }
+    if (!line.trim()) { flush(); continue; }
+    if (list && /^\s{2,}\S/.test(line)) { list[list.length - 1] += ' ' + line.trim(); continue; }
+    if (list || table) flush();
+    para.push(line.trim());
+  }
+  if (fence) out.push(`<pre class="md-pre">${esc(fence.join('\n'))}</pre>`);
+  flush();
+  return out.join('');
+}
+// red, yellow, green by waste (instruction-value.js:wasteLevel); grey while unknown
+const WASTE_PILL = { high: ['bad', 'High waste'], medium: ['wait', 'Medium waste'], low: ['ok', 'Low waste'], unknown: ['off', 'Too few sessions'] };
+const savingsLine = iv => {
+  const sv = iv.savings; if (!sv) return '';
+  const n = l => iv.sections.filter(s => s.waste === l).length;
+  return sv.sections ? `<div class="savings"><div><div class="kicker">Potential savings, at most</div><div class="tr-num">${fmt(sv.perSession)} <span class="muted">input tokens a session · ${Math.round(100 * sv.share)}% of the file's cost · ${fmt(sv.window)} over ${CTX?.days || 30} days</span></div></div><div class="why">${n('high')} high and ${n('medium')} medium waste sections: relevant to under half the sessions, and costly in the rest. This is what removing or compressing them would save at most; a session that needed one would go without it.</div></div>`
+    : `<div class="savings ok"><div class="why">No section is both rarely used and costly.</div></div>`;
+};
+// a section's heading and its first two lines of text
+const short = text => { const lines = String(text).trim().split('\n'), head = /^#{1,4} /.test(lines[0]) ? [lines.shift()] : []; return [...head, ...lines.filter(l => l.trim()).slice(0, 2)].join('\n'); };
+let KSORT = 'wasted';
+// a skill file's description (from its front matter) and its first lines, as the card shows it
+const skillShort = text => {
+  const fm = String(text).match(/^---\n([\s\S]*?)\n---\n?/), desc = fm ? (fm[1].match(/^description:\s*["']?([\s\S]*?)["']?\s*(?:\n\w+:|$)/m) || [])[1] : null;
+  const body = fm ? String(text).slice(fm[0].length) : String(text);
+  return { desc: desc ? desc.replace(/\s+/g, ' ').trim() : '', body: body.trim() };
+};
+function renderSkills(v) {
+  const doc = $('#k-doc'); if (!doc) return;
+  const rows = [...v.skills];
+  const desc = k => (a, b) => (b[k] ?? -1) - (a[k] ?? -1) || b.perSession - a.perSession;
+  if (KSORT === 'used') rows.sort(desc('usedShare')); else if (KSORT === 'wasted') rows.sort(desc('wasted')); else rows.sort((a, b) => a.name.localeCompare(b.name));
+  const maxCost = Math.max(1, ...rows.map(s => s.perSession)), total = rows.reduce((a, s) => a + (s.off ? 0 : s.perSession), 0);
+  const who = s => ({ codex: 'Codex · ', cursor: 'Cursor · ' })[s.client] || '';
+  doc.innerHTML = rows.map(s => {
+    const [wcls, wlabel] = s.off ? ['off', 'Off'] : WASTE_PILL[s.waste] || WASTE_PILL.unknown, k = skillShort(s.text), o = s.outcome;
+    return `<div class="md-row waste-${s.off ? 'unknown' : s.waste || 'unknown'}">
+      <div class="md-sec"><div class="md-body"><div class="md-parent">${esc(who(s) + (s.repos > 1 ? `${s.repos} repositories · ` : '') + (s.scope || 'skill'))}</div><div class="md-h md-h3">${esc(s.name)}</div>${k.desc ? `<p class="muted">${esc(k.desc)}</p>` : ''}<div class="md-short">${md(short(k.body))}</div><div class="md-full">${md(k.body)}</div></div>${k.body && short(k.body) !== k.body ? '<button class="btn text md-more">Show all</button>' : ''}</div>
+      <aside class="md-ann">
+        <div class="ann-cost"><div class="cost${s.off ? ' off' : ''}"><i style="--w:${100 * s.perSession / maxCost}%"></i>${fmt(s.perSession)}</div><div class="why">input tokens a session · ${fmt(s.tokens)} tokens listed · ${total ? Math.round(100 * s.perSession / total) : 0}% of the skills</div></div>
+        <div class="ann-m"><span class="ann-k">Read in</span> ${s.used}/${s.loaded}</div>
+        <div class="ann-m"><span class="ann-k">Wasted</span> ${s.off ? '–' : fmt(s.wasted)}</div>
+        <div class="ann-m"><span class="ann-k" title="checked sessions that read it and kept its rules">Rules kept</span> ${o?.read ? `${o.read - Math.min(o.read, o.brokenAfterRead)}/${o.read}` : '<span class="muted">–</span>'}</div>
+        <div class="ann-m"><span class="ann-k" title="checked sessions that broke its rules without reading it">Missed</span> ${o?.missed || '<span class="muted">–</span>'}</div>
+        <div class="ann-foot"><span class="pill ${wcls}">${wlabel}${!s.off && (s.waste === 'high' || s.waste === 'medium') ? ` · ${fmt(s.wasted)}` : ''}</span>${v.harnessOn && s.label && !s.off ? `<label class="switch" title="on: listed in every session"><input type="checkbox" data-off="${esc(s.label)}" checked><span></span>Listed</label>` : ''}</div>
+      </aside></div>`;
+  }).join('');
+  doc.querySelectorAll('.md-sec').forEach(sec => { const more = sec.querySelector('.md-more'); if (more) more.onclick = () => { const open = sec.classList.toggle('open'); more.textContent = open ? 'Show less' : 'Show all'; }; });
+  doc.querySelectorAll('[data-off]').forEach(c => c.onchange = () => c.closest('.md-row').classList.toggle('md-off', !c.checked));
+}
+let CSEL = new Set();
+const BULK_MENU = (() => {
+  const m = document.createElement('div'); m.className = 'menu'; m.setAttribute('role', 'menu'); m.hidden = true;
+  m.innerHTML = `<button role="menuitem" data-bulk="compress"><b>Compress</b><span>a model rewrites them to a third, keeping the rules</span></button><button role="menuitem" data-bulk="remove"><b>Remove</b><span>take them out of the file</span></button><div class="menu-note" hidden>Select sections first: the boxes on the left of each card.</div>`;
+  document.body.appendChild(m);
+  m.querySelectorAll('[data-bulk]').forEach(b => b.onclick = () => { closeBulkMenu(); bulkEdit(b.dataset.bulk); });
+  document.addEventListener('click', e => { if (!m.hidden && !m.contains(e.target)) closeBulkMenu(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeBulkMenu(); });
+  // it stays under its button when the page scrolls
+  const follow = () => { const b = document.querySelector('#bulk-menu-btn'); if (!m.hidden && b) place(m, b); };
+  window.addEventListener('scroll', follow, { passive: true }); window.addEventListener('resize', follow);
+  return m;
+})();
+function place(menu, btn) { const r = btn.getBoundingClientRect(); menu.style.top = `${r.bottom + 6}px`; menu.style.left = `${Math.max(8, r.right - menu.offsetWidth)}px`; }
+function openBulkMenu(btn) {
+  const n = CSEL.size;
+  BULK_MENU.querySelectorAll('[data-bulk]').forEach(b => b.disabled = !n);
+  BULK_MENU.querySelector('.menu-note').hidden = !!n;
+  BULK_MENU.hidden = false;
+  place(BULK_MENU, btn);
+  btn.setAttribute('aria-expanded', 'true');
+}
+function closeBulkMenu() { BULK_MENU.hidden = true; document.querySelector('#bulk-menu-btn')?.setAttribute('aria-expanded', 'false'); }
+function bulkState() {
+  const n = CSEL.size, lab = $('#sel-n'); if (!lab) return;
+  lab.textContent = n ? `${n} selected` : '';
+
+}
+// the picked sections' change, previewed per repository (one call each), then applied together
+async function bulkEdit(action) {
+  const box = $('#bulk-preview'), byRepo = new Map();
+  for (const k of CSEL) { const [repo, id] = k.split('\t'); if (!byRepo.has(repo)) byRepo.set(repo, []); byRepo.get(repo).push(id); }
+  box.hidden = false; box.scrollIntoView({ block: 'nearest' });
+  box.innerHTML = `<div class="md-preview"><div class="why"><span class="spinner"></span>${action === 'compress' ? `Asking a model to compress ${CSEL.size} section${CSEL.size === 1 ? '' : 's'}…` : 'Working out the change…'}</div></div>`;
+  try {
+    const previews = [];
+    for (const [repo, ids] of byRepo) previews.push({ repo, p: (await api('/api/context/edit', { repo, ids, action })).preview });
+    const before = previews.reduce((a, x) => a + x.p.tokensBefore, 0), after = previews.reduce((a, x) => a + x.p.tokensAfter, 0);
+    const name = id => REPOS.find(r => r.id === id)?.name || id;
+    box.innerHTML = `<div class="md-preview"><div class="diff-head"><b>${action === 'compress' ? 'Compress' : 'Remove'} ${CSEL.size} section${CSEL.size === 1 ? '' : 's'}</b> · ~${fmt(before)} → ~${fmt(after)} tokens in every model call (−${fmt(before - after)})</div>
+      ${previews.flatMap(({ repo, p }) => p.sections.map(x => `<details class="diff-sec"><summary>${byRepo.size > 1 ? `<span class="muted">${esc(name(repo))} · </span>` : ''}${esc(x.title)} <span class="muted">~${fmt(x.tokensBefore)} → ~${fmt(x.tokensAfter)}</span></summary><pre class="diff">${x.diff.map(([k, l]) => `<span class="${k === '+' ? 'add' : k === '-' ? 'del' : 'keep'}">${k} ${esc(l) || ' '}</span>`).join('')}</pre></details>`)).join('')}
+      <div class="controls"><button class="btn" data-apply>Apply to ${previews.length === 1 ? esc(previews[0].p.file) : `${previews.length} files`}</button><button class="btn ghost" data-cancel>Cancel</button><span class="why">Written to the working tree, uncommitted: review with git diff, undo with git checkout.</span></div></div>`;
+    box.querySelector('[data-cancel]').onclick = () => { box.hidden = true; box.innerHTML = ''; };
+    box.querySelector('[data-apply]').onclick = async e => {
+      e.target.disabled = true;
+      try { for (const { repo, p } of previews) await api('/api/context/apply', { repo, id: p.key }); toast(`${action === 'compress' ? 'Compressed' : 'Removed'} ${CSEL.size} section${CSEL.size === 1 ? '' : 's'}: review with git diff`); CSEL.clear(); loadContext(); }
+      catch (err) { toast(err.message, true); e.target.disabled = false; }
+    };
+  } catch (err) { box.innerHTML = `<div class="md-preview"><div class="why">Could not make the change: ${esc(err.message)}</div></div>`; }
+}
+function renderDoc(iv) {
+  const doc = $('#md-doc'); if (!doc) return;
+  const kept = new Set([...doc.querySelectorAll('[data-keep]')].filter(c => !c.checked).map(c => c.dataset.keep));
+  const rows = [...iv.sections];
+  const desc = k => (a, b) => (b[k] ?? -1) - (a[k] ?? -1) || b.perSession - a.perSession;
+  if (CSORT === 'used') rows.sort(desc('usedShare')); else if (CSORT === 'wasted') rows.sort(desc('wasted'));
+  const maxCost = Math.max(1, ...rows.map(s => s.perSession));
+  doc.innerHTML = rows.map(s => {
+    const key = s.parent ? `${s.parent}: ${s.title}` : s.title, [cls, label] = VALUE_PILL[s.value] || VALUE_PILL.unknown;
+    const used = s.usedShare == null ? '<span class="muted">not enough sessions</span>' : `${Math.round(100 * s.usedShare)}% <span class="muted">of sessions, ${s.usedBy === 'judge' ? 'judged' : 'by its triggers'}</span>`;
+    const off = iv.coreOn && !s.kept;
+    const [wcls, wlabel] = WASTE_PILL[s.waste] || WASTE_PILL.unknown;
+    return `<div class="md-row selectable waste-${s.waste || 'unknown'}${off ? ' md-off' : ''}">
+      <label class="row-sel" title="select this section for Compress or Remove"><input type="checkbox" data-sel="${esc(s.id)}" data-repo="${esc(s.repo || CREPO)}"${CSEL.has(`${s.repo || CREPO}\t${s.id}`) ? ' checked' : ''}></label>
+      <div class="md-sec"><div class="md-body">${s.repoName || s.parent ? `<div class="md-parent">${[s.repoName, s.parent].filter(Boolean).map(esc).join(' · ')}</div>` : ''}<div class="md-short">${md(short(s.text))}</div><div class="md-full">${md(s.text)}</div></div>${short(s.text) !== s.text.trim() ? '<button class="btn text md-more">Show all</button>' : ''}</div>
+      <aside class="md-ann">
+        <div class="ann-cost"><div class="cost"><i style="--w:${100 * s.perSession / maxCost}%"></i>${fmt(s.perSession)}</div><div class="why">input tokens a session · ${fmt(s.tokens)} tokens · ${Math.round(100 * s.perSession / Math.max(1, iv.sections.reduce((a, x) => a + x.perSession, 0)))}% of the file</div></div>
+        <div class="ann-m"><span class="ann-k">Used</span> ${s.usedShare == null ? '<span class="muted">–</span>' : `${Math.round(100 * s.usedShare)}%`}</div>
+        <div class="ann-m"><span class="ann-k">Wasted</span> ${s.wasted != null ? fmt(s.wasted) : '<span class="muted">–</span>'}</div>
+        <div class="ann-m"><span class="ann-k" title="judged sessions this section was relevant to">Relevant</span> ${s.judged ? `${s.bore}/${s.judged}` : '<span class="muted">–</span>'}</div>
+        <div class="ann-m"><span class="ann-k" title="of the judged sessions that followed or broke it, how many followed it">Followed</span> ${s.followed + s.violated ? `${s.followed}/${s.followed + s.violated}${s.violated ? ` <span class="pill bad">${s.violated} broke</span>` : ''}` : '<span class="muted">–</span>'}</div>
+        <div class="ann-foot"><span class="pill ${wcls}" title="${s.waste === 'high' || s.waste === 'medium' ? `about ${fmt(s.wasted)} input tokens a session spent on it in sessions it was not relevant to` : ''}">${wlabel}${s.waste === 'high' || s.waste === 'medium' ? ` · ${fmt(s.wasted)}` : ''}</span></div>
+      </aside></div>`;
+  }).join('');
+  // a section is picked with its box; Compress and Remove at the top act on every picked section (instruction-edit.js)
+  doc.querySelectorAll('[data-sel]').forEach(c => c.onchange = () => { const k = `${c.dataset.repo}\t${c.dataset.sel}`; c.checked ? CSEL.add(k) : CSEL.delete(k); c.closest('.md-row').classList.toggle('picked', c.checked); bulkState(); });
+  doc.querySelectorAll('[data-sel]:checked').forEach(c => c.closest('.md-row').classList.add('picked'));
+  bulkState();
+  // a section shows its heading and first two lines; Show all opens the rest
+  doc.querySelectorAll('.md-sec').forEach(sec => { const more = sec.querySelector('.md-more'); if (more) more.onclick = () => { const open = sec.classList.toggle('open'); more.textContent = open ? 'Show less' : 'Show all'; }; });
+}
+function renderContext(v) {
+  const el = $('#context-body'), iv = v.instructions, t = v.totals;
+  // each table's bars on its own scale: one large tool would flatten every section
+  const top = xs => Math.max(1, ...xs.map(s => s.perSession));
+  CTX = v;
+  document.querySelectorAll('#tr-bucket button').forEach(b => b.classList.toggle('on', b.dataset.b === cbucket()));
+  let h = `<div class="panel"><div class="tr-stats" id="tr-legend"></div><div id="trend"></div></div>`;
+  // one part at a time under the chart: its cards, each annotated with what it costs and how much it was of use
+  const VIEWS = [['instructions', 'Instruction files'], ['custom', 'Custom tools'], ['builtin', 'Built-in tools'], ['outputs', 'Tool outputs']];
+  h += `<div class="view-switch"><div class="seg" id="c-view">${VIEWS.map(([k, name]) => `<button data-view="${k}"${CVIEW === k ? ' class="on"' : ''}>${name} <span class="muted">${fmt(t[k]?.perSession || 0)}</span></button>`).join('')}</div><span class="why">input tokens a session</span></div>`;
+  h += `<div class="cview" data-view="instructions"${CVIEW === 'instructions' ? '' : ' hidden'}>`;
+  h += `<div class="section"><div class="section-head"><div><div class="kicker">${esc(iv.file || 'No instruction file')}</div><div class="section-title">Instruction files, section by section</div></div>${iv.file ? `<div class="seg" id="c-sort"><button data-sort="file"${CSORT === 'file' ? ' class="on"' : ''}>File order</button><button data-sort="used"${CSORT === 'used' ? ' class="on"' : ''}>Most used</button><button data-sort="wasted"${CSORT === 'wasted' ? ' class="on"' : ''}>Most wasted</button></div>` : ''}</div><div class="panel">`;
+  if (!iv.file) h += `<div class="note-line" style="margin-top:0">No AGENTS.md or CLAUDE.md in this repository.</div>`;
+  else h += `<div class="note-line" style="margin-top:0">${iv.sessions} sessions read it over ${v.days} days, each reading it again on every model call; ${iv.judged} judged${iv.judge.judge ? `, and a ${Math.round(100 * iv.judge.share)}% sample is judged as sessions end` : ''}. <b>Used</b> is the share of sessions a model judged the section relevant to, once five are judged, and until then the share that touched its files, commands or code (broad for a section about a common path). <b>Wasted</b> is its cost in the sessions it was not used.</div>
+    ${savingsLine(iv)}
+    <div class="doc-toolbar"><span class="why" id="sel-n"></span><button class="btn btn-lg" id="bulk-menu-btn" aria-haspopup="menu" aria-expanded="false">Actions <span aria-hidden="true">▾</span></button></div>
+    <div id="bulk-preview" hidden></div>
+    <div id="md-doc"></div>
+    <div class="note-line">Compress has a model rewrite a section shorter, keeping its rules, commands and paths; Remove takes it out. Each shows the diff first, and Apply writes it to the file in your working tree, uncommitted, for you to review and commit.</div>
+    <div class="controls">${iv.coreOn ? '<button class="btn ghost" id="c-whole">Remove the trimmed copy</button>' : ''}${iv.all ? '' : '<button class="btn ghost" id="c-judge">Judge 5 more sessions</button>'}</div>`;
+  h += `</div></div>`;
+  // skills and tools, each with its switch where the harness is on
+  // on: loaded into every session; turned off and applied, switched off for this repository (thinker harness --off)
+  const sw = s => v.harnessOn && s.label && !s.off ? `<label class="switch" title="on: loaded into every session"><input type="checkbox" data-off="${esc(s.label)}" checked><span></span></label>` : '';
+  const who = s => ({ codex: 'Codex: ', cursor: 'Cursor: ' })[s.client] || '';
+  const offPill = s => s.off ? ' <span class="pill off">off</span>' : s.suggested ? ' <span class="pill wait">rarely used</span>' : '';
+  h += `</div>`;
+  const harnessControls = v.harnessOn ? `<div class="controls"><button class="btn" data-hoff-apply>Apply: switch off the ones turned off</button><button class="btn ghost" data-hundo-all>Turn everything back on</button></div>`
+    : v.all ? '' : `<div class="note-line">Switching skills and tools off for this repository needs the harness: <code>thinker harness --enabled on</code>.</div>`;
+  const KIND = { mcp: 'MCP server', connector: 'connector', plugin: 'plugin', tool: 'built-in tool', desktop: 'desktop app' };
+  // a card for a tool: its description beside its cost, its use and its waste, with its switch where the harness is on
+  const toolCards = (rows, total) => { const mx = top(rows); return [...rows].sort((a, b) => (b.wasted ?? -1) - (a.wasted ?? -1) || b.perSession - a.perSession).map(s => {
+    const [wcls, wlabel] = s.off ? ['off', 'Off'] : WASTE_PILL[s.waste] || WASTE_PILL.unknown;
+    return `<div class="md-row waste-${s.off ? 'unknown' : s.waste || 'unknown'}"><div class="md-sec"><div class="md-body"><div class="md-parent">${esc([who(s).replace(/: $/, ''), KIND[s.kind] || s.kind, s.scope, s.repos > 1 ? `${s.repos} repositories` : ''].filter(Boolean).join(' · '))}</div><div class="md-h md-h3">${esc(s.name)}</div>${s.text ? `<div class="md-short"><p class="muted">${esc(short(s.text).replace(/\n/g, ' ').slice(0, 280))}</p></div><div class="md-full"><pre class="md-pre" style="white-space:pre-wrap">${esc(s.text)}</pre></div>` : '<p class="muted">No description recorded.</p>'}</div>${s.text && s.text.length > 280 ? '<button class="btn text md-more">Show all</button>' : ''}</div>
+      <aside class="md-ann"><div class="ann-cost"><div class="cost${s.off ? ' off' : ''}"><i style="--w:${100 * s.perSession / mx}%"></i>${fmt(s.perSession)}</div><div class="why">input tokens a session · ${fmt(s.tokens)} tokens · ${total ? Math.round(100 * s.perSession / total) : 0}% of these</div></div>
+        <div class="ann-m"><span class="ann-k">Used in</span> ${s.used}/${s.loaded}</div><div class="ann-m"><span class="ann-k">Wasted</span> ${s.off || s.wasted == null ? '–' : fmt(s.wasted)}</div>
+        <div class="ann-foot"><span class="pill ${wcls}">${wlabel}${!s.off && (s.waste === 'high' || s.waste === 'medium') ? ` · ${fmt(s.wasted)}` : ''}</span>${sw(s).replace('</label>', 'Loaded</label>')}</div></aside></div>`; }).join(''); };
+  const section = (kicker, title, body) => `<div class="section"><div class="section-head"><div><div class="kicker">${kicker}</div><div class="section-title">${title}</div></div></div><div class="panel">${body}</div></div>`;
+  // custom tools: skills (renderSkills), then MCP servers and plugins
+  const custom = v.tools.filter(s => s.group !== 'builtin');
+  h += `<div class="cview" data-view="custom"${CVIEW === 'custom' ? '' : ' hidden'}>`;
+  if (v.skills.length) h += `<div class="section"><div class="section-head"><div><div class="kicker">Listed in every session</div><div class="section-title">Skills</div></div><div class="seg" id="k-sort"><button data-sort="name"${KSORT === 'name' ? ' class="on"' : ''}>By name</button><button data-sort="used"${KSORT === 'used' ? ' class="on"' : ''}>Most used</button><button data-sort="wasted"${KSORT === 'wasted' ? ' class="on"' : ''}>Most wasted</button></div></div><div class="panel"><div class="note-line" style="margin-top:0">Every skill's name and description sit in every session's context; the agent reads the file itself only when it opens the skill. <b>Read in</b> counts the sessions that opened it; <b>Rules kept</b> and <b>Missed</b> come from the sampled outcome check (<code>harness.skillOutcome</code>).</div><div id="k-doc"></div></div></div>`;
+  if (custom.length) h += section('Loaded into every session', 'MCP servers and plugins', toolCards(custom, custom.reduce((a, x) => a + (x.off ? 0 : x.perSession), 0)));
+  h += harnessControls + `</div>`;
+  // built-in tools
+  const builtin = v.tools.filter(s => s.group === 'builtin');
+  h += `<div class="cview" data-view="builtin"${CVIEW === 'builtin' ? '' : ' hidden'}>` + (builtin.length ? section('Loaded into every session', 'Built-in tools', toolCards(builtin, t.builtin?.perSession || 0)) : '<div class="empty">No built-in tools recorded.</div>') + harnessControls + `</div>`;
+  // tool outputs: each tool's results, read again by every later model call (tool-outputs.js; an estimate)
+  const outs = v.outputs?.tools || [], mxo = top(outs), totO = t.outputs?.perSession || 0;
+  h += `<div class="cview" data-view="outputs"${CVIEW === 'outputs' ? '' : ' hidden'}>` + section('Kept in the conversation', 'Tool outputs', `<div class="note-line" style="margin-top:0">A tool's output stays in the conversation and every later model call reads it again: its tokens × the model calls left after it, estimated from the transcripts (compactions not counted).</div>` + outs.slice(0, 40).map(s => `<div class="md-row"><div class="md-sec"><div class="md-body"><div class="md-parent">${s.name.startsWith('mcp:') ? 'MCP server' : 'tool'}${s.repos > 1 ? ` · ${s.repos} repositories` : ''}</div><div class="md-h md-h3">${esc(s.name.replace(/^mcp:/, ''))}</div><p class="muted">${fmt(s.tokens)} tokens of output a session, about ${fmt(s.perCall)} a call.</p></div></div>
+      <aside class="md-ann"><div class="ann-cost"><div class="cost"><i style="--w:${100 * s.perSession / mxo}%"></i>${fmt(s.perSession)}</div><div class="why">input tokens a session · ${totO ? Math.round(100 * s.perSession / totO) : 0}% of tool outputs</div></div>
+        <div class="ann-m"><span class="ann-k">Calls</span> ${s.calls < 10 ? s.calls.toFixed(1) : Math.round(s.calls)} <span class="muted">a session</span></div><div class="ann-m"><span class="ann-k">Used in</span> ${s.usedIn}/${v.outputs.sessions}</div></aside></div>`).join('')) + `</div>`;
+  el.innerHTML = h;
+  el.querySelectorAll('#c-view button').forEach(b => b.onclick = () => { CVIEW = b.dataset.view; segOn('#c-view', b); el.querySelectorAll('.cview').forEach(x => x.hidden = x.dataset.view !== CVIEW); });
+  el.querySelectorAll('.cview .md-sec').forEach(sec => { const more = sec.querySelector('.md-more'); if (more && !more.onclick) more.onclick = () => { const open = sec.classList.toggle('open'); more.textContent = open ? 'Show less' : 'Show all'; }; });
+  renderTrend();
+  if (iv.file) renderDoc(iv);
+  renderSkills(v);
+  el.querySelectorAll('#k-sort button').forEach(b => b.onclick = () => { KSORT = b.dataset.sort; segOn('#k-sort', b); renderSkills(v); });
+  // the Actions menu: a floating list under its button (on the body, so no panel clips it); a choice, a click
+  // elsewhere or Escape closes it
+  const mb = $('#bulk-menu-btn');
+  if (mb) mb.onclick = e => { e.stopPropagation(); BULK_MENU.hidden ? openBulkMenu(mb) : closeBulkMenu(); };
+  el.querySelectorAll('#c-sort button').forEach(b => b.onclick = () => { CSORT = b.dataset.sort; segOn('#c-sort', b); renderDoc(iv); });
+  const act = async (btn, p, body, msg) => { if (btn) btn.disabled = true; try { const r = await api(p, { repo: CREPO, ...body }); toast(msg || (r.said && !String(r.said).startsWith('{') ? r.said : 'Saved')); loadContext(); } catch (err) { toast(err.message, true); if (btn) btn.disabled = false; } };
+  false && $('#c-keep')?.addEventListener('click', e => { const keep = [...el.querySelectorAll('[data-keep]:checked')].map(c => c.dataset.keep); if (!keep.length) return toast('Leave at least one section on', true); act(e.target, '/api/context/core', { keep }); });
+  $('#c-whole')?.addEventListener('click', e => act(e.target, '/api/context/core', { keep: null }));
+  $('#c-judge')?.addEventListener('click', e => act(e.target, '/api/context/judge', { n: 5 }, 'Judging 5 more sessions in the background; reload in a few minutes'));
+  el.querySelectorAll('[data-off]').forEach(c => c.onchange = () => c.closest('tr').classList.toggle('row-off', !c.checked));
+  el.querySelectorAll('[data-hoff-apply]').forEach(btn => btn.addEventListener('click', e => { const labels = [...el.querySelectorAll('[data-off]:not(:checked)')].map(c => c.dataset.off); if (!labels.length) return toast('Turn off a tool first', true); act(e.target, '/api/harness/off', { labels }); }));
+  el.querySelectorAll('[data-hundo-all]').forEach(btn => btn.addEventListener('click', e => act(e.target, '/api/harness/undo', {})));
 }
 
 // ---- the caches on this machine --------------------------------------------------------------

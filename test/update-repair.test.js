@@ -22,8 +22,8 @@ function fixture(t) {
     PATH: '/usr/bin:/bin', CURSOR_AGENT: '', CLAUDE_CODE_ENTRYPOINT: '' };
   const config = path.join(env.CODEX_HOME, 'config.toml');
   fs.mkdirSync(env.CODEX_HOME);
-  // Existing generated hooks, but missing reviewed hashes and disabled subagents.
-  const hooks = { hooks: Object.fromEntries([['UserPromptSubmit', 'prompt', 15], ['Stop', 'stop', 10]].map(([event, what, timeout]) =>
+  // Existing generated hooks (the pre hook since the test wrapper, 2026-10-18), but missing reviewed hashes and disabled subagents.
+  const hooks = { hooks: Object.fromEntries([['UserPromptSubmit', 'prompt', 15], ['PreToolUse', 'pre', 10], ['Stop', 'stop', 10]].map(([event, what, timeout]) =>
     [event, [{ hooks: [{ type: 'command', command: `node "${CLI}" hook ${what} --client codex --user${what === 'stop' ? ' --no-distill' : ''}`, timeout }] }]])) };
   fs.writeFileSync(path.join(env.CODEX_HOME, 'hooks.json'), JSON.stringify(hooks, null, 2) + '\n');
   fs.writeFileSync(config, 'model = "my-model"\n[features]\nmulti_agent = false\ncustom_feature = true\n');

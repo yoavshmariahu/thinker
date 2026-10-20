@@ -14,7 +14,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { codexSessionHarness, codexHarnessUsage, codexHarnessConfig, codexConfigFile, editCodexSetting } from './harness-codex.js';
+import { codexSessionHarness, codexHarnessUsage, codexHarnessConfig, codexConfigFile, editCodexSetting, partsOf } from './harness-codex.js';
 import { desktopRecords, desktopSessionsDir, desktopSessionHarness, desktopUsed, DESKTOP_SECTIONS, CONNECTOR_TOOL } from './harness-desktop.js';
 import { cursorHarnessUsage, cursorSnapshots, editCursorMcp } from './harness-cursor.js';
 import { findSessions } from './transcripts.js';
@@ -209,7 +209,7 @@ export function claudeHarnessConfig(repo, { home = os.homedir(), managedFile = M
 export const median = xs => { const a = xs.filter(Number.isFinite).sort((x, y) => x - y); return a.length ? a[Math.floor(a.length / 2)] : 0; };
 
 // The checkouts of a repository: itself and its worktrees, whose sessions are its sessions too.
-function checkouts(repo) {
+export function checkouts(repo) {
   try {
     const out = execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000 });
     return [...new Set([repo, ...out.split('\n').filter(l => l.startsWith('worktree ')).map(l => l.slice(9))])];
@@ -228,7 +228,7 @@ export function harnessUsage(repo, { days = 30, home = os.homedir(), sessions, c
   const claude = claudeUsage(repo, { days, home, sessions: sessions.filter(s => s.client === 'claude') });
   const codex = codexHarnessUsage(repo, sessions.filter(s => s.client === 'codex'), { home });
   const cur = cursor ? cursorHarnessUsage({ home, snapshots: cursor }) : { sessions: 0, sources: [] };
-  return { ...claude, builtinTools, sessions: claude.sessions + codex.sessions + cur.sessions, byClient: { claude: claude.sessions, codex: codex.sessions, cursor: cur.sessions }, calls: { claude: claude.calls, codex: codex.calls || 0 }, sources: [...claude.sources.map(s => ({ ...s, client: 'claude' })), ...codex.sources, ...cur.sources].sort((a, b) => b.tokens * (b.loaded - b.used) - a.tokens * (a.loaded - a.used)) };
+  return { ...claude, builtinTools, timeline: [...claude.timeline, ...(codex.timeline || [])], sessions: claude.sessions + codex.sessions + cur.sessions, byClient: { claude: claude.sessions, codex: codex.sessions, cursor: cur.sessions }, calls: { claude: claude.calls, codex: codex.calls || 0 }, sources: [...claude.sources.map(s => ({ ...s, client: 'claude' })), ...codex.sources, ...cur.sources].sort((a, b) => b.tokens * (b.loaded - b.used) - a.tokens * (a.loaded - a.used)) };
 }
 function claudeUsage(repo, { days = 30, home = os.homedir(), sessions } = {}) {
   sessions ??= checkouts(repo).flatMap(r => findSessions(r, { sinceMs: days * 86400_000 }).filter(s => s.client === 'claude'));
@@ -247,7 +247,7 @@ function claudeUsage(repo, { days = 30, home = os.homedir(), sessions } = {}) {
     const plugin = k.startsWith('skill:') ? pluginOfSkill(k.slice(6)) : null;
     return plugin ? `plugin:${plugin}` : k;
   };
-  let counted = 0; const calls = [];
+  let counted = 0; const calls = [], timeline = [];
   for (const { s, h } of read) {
     if (!h.loaded.size) continue; // written before Claude Code recorded what it loaded
     counted++; calls.push(h.calls);
@@ -257,13 +257,14 @@ function claudeUsage(repo, { days = 30, home = os.homedir(), sessions } = {}) {
       if (k.startsWith('skill:') && group(k) !== k) row(group(k)).skills.add(k.slice(6));
       if (h.texts.has(k)) row(group(k)).texts[k] = h.texts.get(k).slice(0, CARD_CHARS);
     }
+    timeline.push({ t: s.mtime, client: 'claude', calls: h.calls, parts: partsOf(tokens) });
     for (const [k, t] of tokens) {
       const r = row(k); r.loaded++; r.tokens += t;
       if (used.has(k)) { r.used++; if (!r.lastUsed || s.mtime > r.lastUsed) r.lastUsed = s.mtime; }
     }
   }
   const out = [...rows.values()].filter(r => r.loaded).map(r => ({ ...r, skills: [...r.skills].sort(), tokens: Math.round(r.tokens / r.loaded), ...describe(r.key, config, [...r.skills]) }));
-  return { repo, days, sessions: counted, calls: median(calls), sources: out.sort((a, b) => b.tokens * (b.loaded - b.used) - a.tokens * (a.loaded - a.used)) };
+  return { repo, days, sessions: counted, calls: median(calls), timeline, sources: out.sort((a, b) => b.tokens * (b.loaded - b.used) - a.tokens * (a.loaded - a.used)) };
 }
 
 // What a source is and where it is switched on, so the advice names the setting to change.
@@ -314,9 +315,13 @@ function switchOff(s) {
 // big enough to matter, and with a setting that switches them off for this repository.
 export function harnessAdvice(usage) {
   return usage.sources
-    .filter(s => switchOff(s) && !s.off && (s.kind !== 'tool' || usage.builtinTools) && s.loaded >= MIN_SESSIONS && s.tokens >= MIN_TOKENS && s.used / s.loaded < RARE_SHARE)
+    .filter(s => switchable(s, usage) && s.loaded >= MIN_SESSIONS && s.tokens >= MIN_TOKENS && s.used / s.loaded < RARE_SHARE)
     .map(s => ({ ...s, unused: s.used === 0, how: switchOff(s), action: action(s) }));
 }
+// A source a setting here switches off, and not off already: what the person may pick by hand (the Context view,
+// context-view.js), whatever the advice's thresholds say.
+export const switchable = (s, usage) => Boolean(switchOff(s)) && !s.off && (s.kind !== 'tool' || usage.builtinTools);
+const anySource = usage => usage.sources.filter(s => switchable(s, usage)).map(s => ({ ...s, unused: s.used === 0, how: switchOff(s), action: action(s) }));
 
 function action(s) {
   if (s.client === 'cursor') return `its entry taken out of ~/.cursor/mcp.json, for every repository (Cursor has no per-repository switch its editor reads; new chats; \`thinker harness --undo\` puts it back)`;
@@ -398,12 +403,12 @@ const bundleOf = skills => ({
 });
 
 // The options of a question: the advice with plain names, the small skills as one option, at most eight.
-function pickSources(usage, keep = () => true, max = HARNESS.max) {
-  const advice = harnessAdvice(usage).filter(s => keep(s) && SAFE_NAME.test(s.name) && (s.skills || []).every(n => SAFE_NAME.test(n))).map(pick);
+function pickSources(usage, keep = () => true, max = HARNESS.max, { any = false } = {}) {
+  const advice = (any ? anySource(usage) : harnessAdvice(usage)).filter(s => keep(s) && SAFE_NAME.test(s.name) && (s.skills || []).every(n => SAFE_NAME.test(n))).map(pick);
   const small = advice.filter(s => s.client !== 'codex' && s.kind === 'skill' && s.tokens < HARNESS.bundle);
   // each with the model calls of a typical session of its agent here: what it costs is its tokens read again by each
   const calls = s => usage.calls?.[s.client || 'claude'] || 0;
-  return (small.length > 1 ? [...advice.filter(s => !small.includes(s)), bundleOf(small)] : advice).slice(0, max).map(s => ({ ...s, calls: calls(s) }));
+  return (small.length > 1 && !any ? [...advice.filter(s => !small.includes(s)), bundleOf(small)] : advice).slice(0, max).map(s => ({ ...s, calls: calls(s) }));
 }
 
 // What a source costs a session: its tokens sit in the context and every model call reads them again, mostly
@@ -445,7 +450,7 @@ export function scheduleHarnessSuggestion(store, { now = Date.now(), home, force
 
 const KIND = { plugin: 'plugin', mcp: 'MCP server', connector: 'connector', skill: 'skill', skills: '', tool: 'tool' };
 export const clientPrefix = c => ({ codex: 'Codex: ', cursor: 'Cursor: ' })[c] || '';
-const labelOf = p => clientPrefix(p.client) + (p.kind === 'skills' ? p.name : `${p.name} ${KIND[p.kind]}`);
+export const labelOf = p => clientPrefix(p.client) + (p.kind === 'skills' ? p.name : `${p.name} ${KIND[p.kind]}`);
 const shq = s => `'${String(s).replace(/'/g, `'\\''`)}'`;
 const answerCommand = (repo, client = 'claude') => `${shq(process.execPath)} ${shq(CLI)} harness --answer '<labels|none|never>' --via picker --client ${client} --repo ${shq(repo)}`;
 const optionOf = p => p.kind === 'skills'
@@ -917,9 +922,10 @@ export function setHarnessSettings(store, { enabled, recurring, weekly, recall, 
 }
 // Switch named sources off now, without a question: the page's checkboxes, `--off`. What is not named is
 // not passed on; a question waiting here is replaced by this answer.
-export function switchOffNow(store, labels, { home, userHome, now = Date.now(), via = 'cli', usage } = {}) {
+// `any`: a source by its label whether or not the advice would name it (the Context view's switches).
+export function switchOffNow(store, labels, { home, userHome, now = Date.now(), via = 'cli', usage, any = false } = {}) {
   if (!harnessOn(store)) return OFF_MESSAGE;
-  const picks = pickSources(usage || harnessUsage(store.repo), () => true, Infinity);
+  const picks = pickSources(usage || harnessUsage(store.repo), () => true, Infinity, { any });
   if (!picks.length) return 'Nothing here is worth switching off; nothing changed.';
   const st = readHarnessState(store);
   st.pending = { at: new Date(now).toISOString(), days: 30, sources: picks, direct: true };
