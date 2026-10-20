@@ -233,8 +233,17 @@
     .md-ann { gap: 0.25rem 1rem; }
     .ann-m { font-variant-numeric: tabular-nums; }
     .ann-cost .why { margin-top: 0.1rem; }
-    .bulk { display: flex; align-items: center; gap: 0.4rem; margin-left: auto; margin-right: 0.6rem; }
-    .ann-sel { display: flex; align-items: center; gap: 0.3rem; font-size: 0.78rem; color: #444; cursor: pointer; }
+    .bulk { display: flex; align-items: center; gap: 0.6rem; margin-left: auto; margin-right: 0.6rem; }
+    .menu-wrap { position: relative; }
+    .menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 5; min-width: 17rem; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.1); padding: 0.3rem; }
+    .menu button { display: flex; flex-direction: column; align-items: flex-start; gap: 0.1rem; width: 100%; text-align: left; background: none; border: 0; border-radius: 6px; padding: 0.45rem 0.6rem; font: inherit; font-size: 0.84rem; cursor: pointer; color: #111; }
+    .menu button span { font-size: 0.74rem; color: #6b7280; }
+    .menu button:hover:not(:disabled) { background: #f4f4f5; }
+    .menu button:disabled { opacity: 0.4; cursor: default; }
+    .md-row.selectable { grid-template-columns: 1.6rem minmax(0, 1fr) 19rem; gap: 0 1.4rem; }
+    .row-sel { display: flex; justify-content: center; padding-top: 0.2rem; cursor: pointer; }
+    .row-sel input { width: 16px; height: 16px; cursor: pointer; accent-color: #111; }
+    @media (max-width: 760px) { .md-row.selectable { grid-template-columns: 1.6rem minmax(0, 1fr); } .md-row.selectable .md-ann { grid-column: 2; } }
     .md-row.picked { background: #f8fafc; }
     .diff-sec { margin: 0.3rem 0; } .diff-sec summary { cursor: pointer; font-size: 0.82rem; }
     .view-switch > .why { font-size: 0.78rem; }
@@ -842,8 +851,8 @@ function renderSkills(v) {
 let CSEL = new Set();
 function bulkState() {
   const n = CSEL.size, lab = $('#sel-n'); if (!lab) return;
-  lab.textContent = n ? `${n} selected` : '';
-  document.querySelectorAll('[data-bulk]').forEach(b => b.disabled = !n);
+  lab.textContent = n ? `${n} selected` : 'Select sections on the left';
+  document.querySelectorAll('[data-bulk]').forEach(b => { b.disabled = !n; });
 }
 // the picked sections' change, previewed per repository (one call each), then applied together
 async function bulkEdit(action) {
@@ -879,7 +888,8 @@ function renderDoc(iv) {
     const used = s.usedShare == null ? '<span class="muted">not enough sessions</span>' : `${Math.round(100 * s.usedShare)}% <span class="muted">of sessions, ${s.usedBy === 'judge' ? 'judged' : 'by its triggers'}</span>`;
     const off = iv.coreOn && !s.kept;
     const [wcls, wlabel] = WASTE_PILL[s.waste] || WASTE_PILL.unknown;
-    return `<div class="md-row waste-${s.waste || 'unknown'}${off ? ' md-off' : ''}">
+    return `<div class="md-row selectable waste-${s.waste || 'unknown'}${off ? ' md-off' : ''}">
+      <label class="row-sel" title="select this section for Compress or Remove"><input type="checkbox" data-sel="${esc(s.id)}" data-repo="${esc(s.repo || CREPO)}"${CSEL.has(`${s.repo || CREPO}\t${s.id}`) ? ' checked' : ''}></label>
       <div class="md-sec"><div class="md-body">${s.repoName || s.parent ? `<div class="md-parent">${[s.repoName, s.parent].filter(Boolean).map(esc).join(' · ')}</div>` : ''}<div class="md-short">${md(short(s.text))}</div><div class="md-full">${md(s.text)}</div></div>${short(s.text) !== s.text.trim() ? '<button class="btn text md-more">Show all</button>' : ''}</div>
       <aside class="md-ann">
         <div class="ann-cost"><div class="cost"><i style="--w:${100 * s.perSession / maxCost}%"></i>${fmt(s.perSession)}</div><div class="why">input tokens a session · ${fmt(s.tokens)} tokens · ${Math.round(100 * s.perSession / Math.max(1, iv.sections.reduce((a, x) => a + x.perSession, 0)))}% of the file</div></div>
@@ -887,7 +897,7 @@ function renderDoc(iv) {
         <div class="ann-m"><span class="ann-k">Wasted</span> ${s.wasted != null ? fmt(s.wasted) : '<span class="muted">–</span>'}</div>
         <div class="ann-m"><span class="ann-k" title="judged sessions this section was relevant to">Relevant</span> ${s.judged ? `${s.bore}/${s.judged}` : '<span class="muted">–</span>'}</div>
         <div class="ann-m"><span class="ann-k" title="of the judged sessions that followed or broke it, how many followed it">Followed</span> ${s.followed + s.violated ? `${s.followed}/${s.followed + s.violated}${s.violated ? ` <span class="pill bad">${s.violated} broke</span>` : ''}` : '<span class="muted">–</span>'}</div>
-        <div class="ann-foot"><span class="pill ${wcls}" title="${s.waste === 'high' || s.waste === 'medium' ? `about ${fmt(s.wasted)} input tokens a session spent on it in sessions it was not relevant to` : ''}">${wlabel}${s.waste === 'high' || s.waste === 'medium' ? ` · ${fmt(s.wasted)}` : ''}</span><label class="ann-sel"><input type="checkbox" data-sel="${esc(s.id)}" data-repo="${esc(s.repo || CREPO)}"${CSEL.has(`${s.repo || CREPO}\t${s.id}`) ? ' checked' : ''}> Select</label></div>
+        <div class="ann-foot"><span class="pill ${wcls}" title="${s.waste === 'high' || s.waste === 'medium' ? `about ${fmt(s.wasted)} input tokens a session spent on it in sessions it was not relevant to` : ''}">${wlabel}${s.waste === 'high' || s.waste === 'medium' ? ` · ${fmt(s.wasted)}` : ''}</span></div>
       </aside></div>`;
   }).join('');
   // a section is picked with its box; Compress and Remove at the top act on every picked section (instruction-edit.js)
@@ -908,7 +918,7 @@ function renderContext(v) {
   const VIEWS = [['instructions', 'Instruction files'], ['custom', 'Custom tools'], ['builtin', 'Built-in tools'], ['outputs', 'Tool outputs']];
   h += `<div class="view-switch"><div class="seg" id="c-view">${VIEWS.map(([k, name]) => `<button data-view="${k}"${CVIEW === k ? ' class="on"' : ''}>${name} <span class="muted">${fmt(t[k]?.perSession || 0)}</span></button>`).join('')}</div><span class="why">input tokens a session</span></div>`;
   h += `<div class="cview" data-view="instructions"${CVIEW === 'instructions' ? '' : ' hidden'}>`;
-  h += `<div class="section"><div class="section-head"><div><div class="kicker">${esc(iv.file || 'No instruction file')}</div><div class="section-title">Instruction files, section by section</div></div>${iv.file ? `<div class="bulk"><span class="why" id="sel-n"></span><button class="btn ghost" data-bulk="compress" disabled>Compress</button><button class="btn ghost" data-bulk="remove" disabled>Remove</button></div><div class="seg" id="c-sort"><button data-sort="file"${CSORT === 'file' ? ' class="on"' : ''}>File order</button><button data-sort="used"${CSORT === 'used' ? ' class="on"' : ''}>Most used</button><button data-sort="wasted"${CSORT === 'wasted' ? ' class="on"' : ''}>Most wasted</button></div>` : ''}</div><div class="panel">`;
+  h += `<div class="section"><div class="section-head"><div><div class="kicker">${esc(iv.file || 'No instruction file')}</div><div class="section-title">Instruction files, section by section</div></div>${iv.file ? `<div class="bulk"><span class="why" id="sel-n"></span><div class="menu-wrap"><button class="btn" id="bulk-menu-btn" aria-haspopup="menu" aria-expanded="false">Actions ▾</button><div class="menu" id="bulk-menu" role="menu" hidden><button role="menuitem" data-bulk="compress"><b>Compress</b><span>a model rewrites them to a third, keeping the rules</span></button><button role="menuitem" data-bulk="remove"><b>Remove</b><span>take them out of the file</span></button></div></div></div><div class="seg" id="c-sort"><button data-sort="file"${CSORT === 'file' ? ' class="on"' : ''}>File order</button><button data-sort="used"${CSORT === 'used' ? ' class="on"' : ''}>Most used</button><button data-sort="wasted"${CSORT === 'wasted' ? ' class="on"' : ''}>Most wasted</button></div>` : ''}</div><div class="panel">`;
   if (!iv.file) h += `<div class="note-line" style="margin-top:0">No AGENTS.md or CLAUDE.md in this repository.</div>`;
   else h += `<div class="note-line" style="margin-top:0">${iv.sessions} sessions read it over ${v.days} days, each reading it again on every model call; ${iv.judged} judged${iv.judge.judge ? `, and a ${Math.round(100 * iv.judge.share)}% sample is judged as sessions end` : ''}. <b>Used</b> is the share of sessions a model judged the section relevant to, once five are judged, and until then the share that touched its files, commands or code (broad for a section about a common path). <b>Wasted</b> is its cost in the sessions it was not used.</div>
     ${savingsLine(iv)}
@@ -955,7 +965,15 @@ function renderContext(v) {
   if (iv.file) renderDoc(iv);
   renderSkills(v);
   el.querySelectorAll('#k-sort button').forEach(b => b.onclick = () => { KSORT = b.dataset.sort; segOn('#k-sort', b); renderSkills(v); });
-  el.querySelectorAll('[data-bulk]').forEach(b => b.onclick = () => bulkEdit(b.dataset.bulk));
+  // the Actions menu: opens on its button, closes on a choice, outside click or Escape
+  const mb = $('#bulk-menu-btn'), menu = $('#bulk-menu');
+  if (mb) {
+    const close = () => { menu.hidden = true; mb.setAttribute('aria-expanded', 'false'); };
+    mb.onclick = e => { e.stopPropagation(); menu.hidden = !menu.hidden; mb.setAttribute('aria-expanded', String(!menu.hidden)); };
+    document.addEventListener('click', e => { if (!e.target.closest('.menu-wrap')) close(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+    el.querySelectorAll('[data-bulk]').forEach(b => b.onclick = () => { close(); bulkEdit(b.dataset.bulk); });
+  }
   el.querySelectorAll('#c-sort button').forEach(b => b.onclick = () => { CSORT = b.dataset.sort; segOn('#c-sort', b); renderDoc(iv); });
   const act = async (btn, p, body, msg) => { if (btn) btn.disabled = true; try { const r = await api(p, { repo: CREPO, ...body }); toast(msg || (r.said && !String(r.said).startsWith('{') ? r.said : 'Saved')); loadContext(); } catch (err) { toast(err.message, true); if (btn) btn.disabled = false; } };
   false && $('#c-keep')?.addEventListener('click', e => { const keep = [...el.querySelectorAll('[data-keep]:checked')].map(c => c.dataset.keep); if (!keep.length) return toast('Leave at least one section on', true); act(e.target, '/api/context/core', { keep }); });
