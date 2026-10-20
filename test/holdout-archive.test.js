@@ -373,8 +373,8 @@ test('once a week the stop hook tells the user what the notes saved over the las
 }));
 
 test('events the harness delivers as prompts are no requests: the prompt hook ranks nothing for them', () => {
-  for (const p of ['<task-notification>\n<task-id>b1</task-id>', '  <agent-message from="a7">done', '<side-sessions-event>x', '<ci-monitor-event>x', '<system-reminder>x', '<local-command-stdout></local-command-stdout>', '<command-name>/clear</command-name>', 'This is an app-generated request for a suggested next user message. The user did not write this message.\n\nYour suggestion will appear']) assert.ok(isHarnessEvent(p), p);
-  for (const p of ['fix the <task-notification> parser', 'why does Codex send "This is an app-generated request" to the hook?', 'merged', '', undefined, '<div> in the page breaks']) assert.ok(!isHarnessEvent(p), String(p));
+  for (const p of ['<task-notification>\n<task-id>b1</task-id>', '  <agent-message from="a7">done', '<side-sessions-event>x', '<ci-monitor-event>x', '<system-reminder>x', '<local-command-stdout></local-command-stdout>', '<command-name>/clear</command-name>', 'This is an app-generated request for a suggested next user message. The user did not write this message.\n\nYour suggestion will appear', '# Overview\n\nGenerate 0 to 3 hyperpersonalized suggestions for what this user can do with Codex in this local project: /src/app']) assert.ok(isHarnessEvent(p), p);
+  for (const p of ['fix the <task-notification> parser', 'why does Codex send "This is an app-generated request" to the hook?', 'merged', '', undefined, '<div> in the page breaks', '# Overview\n\nThis service exports rows']) assert.ok(!isHarnessEvent(p), String(p));
 });
 
 test('the prompt hook opens a turn for a harness event but serves and logs no orient for it', () => withEnv({ THINKER_LOG: 'local', THINKER_HOLDOUT: '0', THINKER_NO_BG_VERIFY: '1', THINKER_NO_LEARN: '1' }, async () => {

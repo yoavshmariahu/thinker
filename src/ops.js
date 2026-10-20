@@ -1227,8 +1227,10 @@ export function holdoutDecision(store, session, turn) {
 const HARNESS_EVENT = /^\s*<(task-notification|agent-message|side-sessions-event|ci-monitor-event|system-reminder|local-command-(stdout|stderr|caveat)|command-name)\b/;
 // The Codex desktop app asks for a suggested next message through the prompt hook too, in plain text
 // with no tag: "This is an app-generated request for a suggested next user message. The user did not
-// write this message." Six of them by 2026-10-18, each logged as a request of the user's.
-const APP_GENERATED = /^\s*This is an app-generated request\b/;
+// write this message." Six of them by 2026-10-18, each logged as a request of the user's. It asks for
+// suggestions of what to do in a project the same way ("# Overview\n\nGenerate 0 to 3 hyperpersonalized
+// suggestions for what this user can do with Codex…", 2026-10-19), and that one was served a note.
+const APP_GENERATED = /^\s*(This is an app-generated request\b|# Overview\s+Generate \d+ to \d+ hyperpersonalized suggestions\b)/;
 // The Cline CLI fires its prompt hook for its own nudges ("[SYSTEM] This run is not complete until you call
 // one of these terminal completion tools…"), never for the person's prompt (seen with cline 3.0.73, 2026-10-19).
 const CLINE_NUDGE = /^\s*\[SYSTEM\] This run is not complete\b/;

@@ -142,12 +142,13 @@ async function hookCommand(ctx) {
         if (holdout || disabledTools(store.config()).has('find')) return '';
         try { const c = codeForRequest(store, ev.prompt || '', { notes }); if (c.items.length) store.log({ op: 'code', session: session === 'unknown' ? undefined : session, client, served: c.items.map(i => `${i.path}:${i.symbol}`), tokens: c.tokens }); return c.text; } catch { return ''; }
       };
+      // a harness event delivered as a prompt (a background task finished, a subagent reported) is no request:
+      // it opens its turn, so the turn costs stay apart, and is served and logged nothing (ops.js:isHarnessEvent),
+      // in a cache under the serving threshold too: until 2026-10-19 that one logged it as an unanswered request first
+      if (isHarnessEvent(ev.prompt)) { if (offer) emit(offer); return; }
       if (!servesNotes(store)) {
         store.log({ op: 'orient', session: session === 'unknown' ? undefined : session, client, task: String(ev.prompt || '').slice(0, 200), served: [], empty: 'too-few-notes' });
         const code = codeFor([]); if (offer || code) emit([offer, code].filter(Boolean).join('\n\n')); return; }
-      // a harness event delivered as a prompt (a background task finished, a subagent reported) is no request:
-      // it opens its turn, so the turn costs stay apart, and is served and logged nothing (ops.js:isHarnessEvent)
-      if (isHarnessEvent(ev.prompt)) { if (offer) emit(offer); return; }
       // outcome signal: a correction-shaped follow-up counts against the notes served earlier in this session
       if (session !== 'unknown' && looksLikeCorrection(ev.prompt)) outcome(store, { session, turn: turn > 1 ? turn - 1 : undefined, positive: false, reason: 'correction prompt: ' + String(ev.prompt).slice(0, 80) });
       if (session !== 'unknown') rememberTask(store, session, ev.prompt);
