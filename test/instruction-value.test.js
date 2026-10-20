@@ -186,7 +186,9 @@ test('a tool output costs its tokens once for each model call after it, scaled t
   const events = [ev('Read', 400), ev('Bash', 40), ev('mcp__rea__q', 80), { t: 'say', text: 'done' }];
   // one call a model call: the Read is read by the three calls after it (two tools, then the answer)
   const one = sessionOutputs(events);
-  assert.deepEqual(one.Read, { calls: 1, tokens: 100, input: 300 });
+  assert.deepEqual(one.Read, { calls: 1, tokens: 100, input: 300, saveModerate: 0, saveHigh: 0 }, 'under both caps: nothing to save');
+  const big = sessionOutputs([ev('Bash', 8000), { t: 'say', text: 'x' }]);
+  assert.deepEqual([big.Bash.tokens, big.Bash.saveModerate, big.Bash.saveHigh], [2000, 0, 1000], 'past the high cap of 1k tokens');
   assert.equal(one['mcp:rea'].input, 20, 'an MCP server is one row, its last result read once');
   // two model calls for three tool calls: each result is read by half as many calls, never less than once
   const two = sessionOutputs(events, 2);
@@ -197,8 +199,8 @@ test('a tool output costs its tokens once for each model call after it, scaled t
 
 test('waste: high or medium only for a section used in under half the sessions that costs a share of the file', async () => {
   const { wasteLevel, use } = await import('../src/instruction-value.js');
-  // used in 1 of 10 judged sessions, 100k a session: wastes 90k
-  const r = use({ sessions: 20, applied: 0, triggered: false, judged: 10, bore: 1 }, 100_000);
+  // acted on in 1 of 10 judged sessions, 100k a session: wastes 90k
+  const r = use({ sessions: 20, applied: 0, triggered: false, judged: 10, followed: 1 }, 100_000);
   assert.deepEqual(r, { usedShare: 0.1, usedBy: 'judge', wasted: 90_000 });
   assert.equal(wasteLevel(r, 1_000_000).waste, 'high', '9% of the file');
   assert.equal(wasteLevel(r, 3_000_000).waste, 'medium', '3% of the file');
