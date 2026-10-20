@@ -202,6 +202,53 @@
     .cost.off i { background: #d4d4d8; }
     .ctx-table td, .ctx-table th { vertical-align: middle; }
     .ctx-table .why { color: #6b7280; font-size: 0.78rem; }
+    .md-row { display: grid; grid-template-columns: minmax(0, 1fr) 15rem; gap: 1.4rem; padding: 1rem 0; border-top: 1px solid #eee; }
+    .md-row:first-child { border-top: 0; }
+    .md-off .md-body { opacity: 0.45; }
+    .md-body { max-height: 15rem; overflow: hidden; position: relative; font-size: 0.86rem; line-height: 1.5; color: #222; }
+    .md-body::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2.5rem; background: linear-gradient(transparent, #fff); }
+    .md-sec.open .md-body { max-height: none; }
+    .md-sec.open .md-body::after { display: none; }
+    .md-body p { margin: 0.35rem 0; }
+    .md-body ul { margin: 0.35rem 0; padding-left: 1.2rem; }
+    .md-body code { font-size: 0.8rem; background: #f4f4f5; padding: 0 0.25rem; border-radius: 3px; }
+    .md-pre { font-size: 0.75rem; background: #f8f8f8; padding: 0.5rem 0.6rem; border-radius: 4px; overflow-x: auto; white-space: pre; }
+    .md-h { font-weight: 600; margin: 0.2rem 0 0.4rem; }
+    .md-h2 { font-size: 1.02rem; } .md-h3 { font-size: 0.94rem; } .md-h4 { font-size: 0.88rem; }
+    .md-parent { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; }
+    .md-more { margin-top: 0.3rem; padding-left: 0; }
+    .md-ann { position: sticky; top: 1rem; align-self: start; border-left: 1px solid #eee; padding-left: 1rem; font-size: 0.82rem; }
+    .ann-k { color: #6b7280; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0.55rem; }
+    .ann-k:first-child { margin-top: 0; }
+    .ann-v { font-variant-numeric: tabular-nums; }
+    .md-ann .cost { margin-top: 0.25rem; }
+    .ann-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 0.7rem; }
+    .ann-keep { display: flex; gap: 0.3rem; align-items: center; color: #444; }
+    @media (max-width: 760px) { .md-row { grid-template-columns: 1fr; gap: 0.6rem; } .md-ann { position: static; border-left: 0; padding-left: 0; } }
+    .tr-stats { display: flex; flex-wrap: wrap; gap: 0.8rem 1.3rem; margin-bottom: 1.1rem; }
+    .tr-stat .kicker { display: flex; align-items: center; gap: 0.35rem; margin-bottom: 0.15rem; }
+    .tr-stat .sw { width: 9px; height: 9px; border-radius: 2px; }
+    .tr-num { font-size: 1.25rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .tr-num .muted { font-size: 0.8rem; font-weight: 400; }
+    .tr-stat:first-child .tr-num { font-size: 1.5rem; }
+    .trend { display: grid; grid-template-columns: 3.2rem minmax(0, 1fr); height: 210px; }
+    .tr-y { display: flex; flex-direction: column; justify-content: space-between; font-size: 0.72rem; color: #6b7280; text-align: right; padding-right: 0.5rem; transform: translateY(0.45em); font-variant-numeric: tabular-nums; }
+    .tr-plot { position: relative; border-bottom: 1px solid #d4d4d8; }
+    .tr-grid { position: absolute; left: 0; right: 0; border-top: 1px solid #f0f0f0; }
+    .tr-cols { position: absolute; inset: 0; display: flex; gap: 6px; align-items: flex-end; padding: 0 2px; }
+    .tr-col { flex: 1 1 0; height: 100%; display: flex; align-items: flex-end; cursor: default; }
+    .tr-col:hover .tr-stack { opacity: 0.85; }
+    .tr-stack { width: 100%; max-width: 3rem; margin: 0 auto; display: flex; flex-direction: column-reverse; gap: 2px; }
+    .tr-stack i { display: block; min-height: 1px; }
+    .tr-stack i:last-child { border-radius: 4px 4px 0 0; }
+    .tr-x { display: flex; gap: 6px; margin-left: 3.2rem; padding: 0.3rem 2px 0; font-size: 0.72rem; color: #6b7280; }
+    .tr-x span { flex: 1 1 0; text-align: center; white-space: nowrap; overflow: visible; }
+    #trend { position: relative; }
+    .tr-tip { position: absolute; top: 0; width: 190px; background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,.08); padding: 0.5rem 0.6rem; font-size: 0.76rem; pointer-events: none; z-index: 2; }
+    .tr-tip div { display: flex; align-items: center; gap: 0.35rem; margin-top: 0.15rem; }
+    .tr-tip .num { margin-left: auto; font-variant-numeric: tabular-nums; }
+    .tr-tip .sw { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+    .tr-tip-total { border-top: 1px solid #eee; padding-top: 0.2rem; font-weight: 600; }
     .stack { display: flex; gap: 2px; height: 22px; }
     .stack i { display: block; min-width: 2px; }
     .stack i:first-child { border-radius: 4px 0 0 4px; }
@@ -308,9 +355,8 @@
 
     <!-- Context: where the agents' context goes in one repository, and what each part is worth (context-view.js, as `thinker context`) -->
     <section id="tab-context" hidden>
-      <div class="kicker">Context</div>
-      <h1>What your agents read every session</h1>
-      <p class="lede">Each section of the instruction file, each skill and each tool, with what it costs a session and how often the sessions here used it. Read from your agents' transcripts on this machine; nothing leaves it.</p>
+      <h1>Context Overview</h1>
+      <p class="lede">Track where your agents are spending tokens</p>
       <div class="controls">
         <select class="sel" id="c-repo" aria-label="Repository"></select>
         <div class="seg" id="c-days-seg"><button data-days="7">7 days</button><button data-days="30" class="on">30 days</button></div>
@@ -467,7 +513,7 @@ let TAB = 'cache';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 // path:Symbol pointers in a body read as code
 const rich = s => esc(s).replace(/(`[^`]+`)/g, m => `<code>${m.slice(1, -1)}</code>`).replace(/(^|[\s(])([\w./-]+\.[a-z]{1,5}:[\w$]+(?:\.[\w$]+)*)/g, '$1<code>$2</code>');
-const fmt = n => n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(n >= 1e4 ? 0 : 1) + 'k' : String(Math.round(n || 0));
+const fmt = n => n >= 1e9 ? (n / 1e9).toFixed(n >= 1e10 ? 0 : 1) + 'B' : n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(n >= 1e4 ? 0 : 1) + 'k' : String(Math.round(n || 0));
 const pct = (a, b) => b ? Math.round(100 * a / b) + '%' : '—';
 const dur = s => !s ? '—' : s < 60 ? `${Math.round(s)}s` : s < 3600 ? `${Math.round(s / 60)} min` : `${(s / 3600).toFixed(1)} h`;
 const home = p => String(p || '').replace(/^\/Users\/[^/]+|^\/home\/[^/]+/, '~');
@@ -626,34 +672,117 @@ async function loadContext() {
     renderContext(await api(`/api/context?repo=${encodeURIComponent(CREPO)}&days=${cdays}`));
   } catch (e) { el.innerHTML = `<div class="empty">Could not read the context: ${esc(e.message)}</div>`; }
 }
+let CSORT = 'wasted', CTX = null, CMEASURE = 'total', CBUCKET = null;
+const cbucket = () => CBUCKET || (cdays <= 7 ? 'day' : 'week');
+// the parts of a session's input, in the palette's fixed order (dataviz slots 1-6, validated adjacent on white)
+const PARTS = [
+  ['instructions', 'Instruction file', '#2a78d6'], ['skills', 'Skills listed', '#eb6834'], ['mcp', 'MCP servers', '#1baf7a'],
+  ['plugins', 'Plugins', '#eda100'], ['builtin', 'Built-in tools', '#e87ba4'],
+];
+const dayKey = t => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
+const weekKey = t => { const d = new Date(dayKey(t)); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); };
+const dlabel = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+// Input tokens by day or week, stacked by part: the sum over the sessions of each, or that sum over its sessions
+// (each side over its own sessions: the instruction file and the loaded tools are read from different records).
+function renderTrend() {
+  const v = CTX, el = $('#trend'); if (!v || !el) return;
+  const bucket = cbucket(), key = bucket === 'day' ? dayKey : weekKey, step = bucket === 'day' ? 1 : 7;
+  const end = key(Date.now()), start = key(Date.now() - (v.days - 1) * 86400_000), cols = [];
+  for (let t = start; t <= end; ) { cols.push({ t, sum: {}, nFile: 0, nTools: 0 }); const d = new Date(t); d.setDate(d.getDate() + step); t = d.getTime(); }
+  const byT = new Map(cols.map(c => [c.t, c]));
+  for (const r of v.timeline) {
+    const c = byT.get(key(r.t)); if (!c) continue;
+    if (r.instructions != null) c.nFile++; else c.nTools++;
+    for (const [k] of PARTS) if (r[k]) c.sum[k] = (c.sum[k] || 0) + r[k];
+  }
+  const val = (c, k) => { const n = c.sum[k] || 0; return CMEASURE === 'avg' ? (n ? n / (k === 'instructions' ? c.nFile : c.nTools || 1) : 0) : n; };
+  const live = PARTS.filter(([k]) => cols.some(c => val(c, k) > 0));
+  const tot = c => live.reduce((a, [k]) => a + val(c, k), 0), max = Math.max(1, ...cols.map(tot));
+  const nice = (() => { const m = 10 ** Math.floor(Math.log10(max)), f = max / m; return ([1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].find(x => f <= x) || 10) * m; })();
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map(f => f * nice);
+  const sessionsIn = c => Math.max(c.nFile, c.nTools);
+  el.innerHTML = `<div class="trend"><div class="tr-y">${ticks.slice().reverse().map(t => `<span>${fmt(t)}</span>`).join('')}</div><div class="tr-plot">${ticks.map(t => `<i class="tr-grid" style="bottom:${100 * t / nice}%"></i>`).join('')}<div class="tr-cols">${cols.map((c, i) => `<div class="tr-col" data-i="${i}"><div class="tr-stack" style="height:${100 * tot(c) / nice}%">${live.map(([k, , color]) => val(c, k) ? `<i style="flex:${val(c, k)} 1 0;background:${color}"></i>` : '').join('')}</div></div>`).join('')}</div></div></div>
+    <div class="tr-x">${cols.map((c, i) => `<span>${cols.length <= 10 || i % Math.ceil(cols.length / 8) === 0 ? dlabel(c.t) : ''}</span>`).join('')}</div><div class="tr-tip" hidden></div>`;
+  // hover: one column's parts, its total and its sessions
+  const tip = el.querySelector('.tr-tip');
+  el.querySelectorAll('.tr-col').forEach(col => {
+    col.onmouseenter = () => { const c = cols[col.dataset.i]; tip.hidden = false; tip.innerHTML = `<b>${bucket === 'day' ? dlabel(c.t) : `Week of ${dlabel(c.t)}`}</b> · ${sessionsIn(c)} session${sessionsIn(c) === 1 ? '' : 's'}${live.slice().reverse().map(([k, name, color]) => `<div><span class="sw" style="background:${color}"></span>${name} <span class="num">${fmt(val(c, k))}</span></div>`).join('')}<div class="tr-tip-total">Total <span class="num">${fmt(tot(c))}</span></div>`; // beside the bar, never over it: to its left, or to its right where the left has no room
+      const bar = col.querySelector('.tr-stack').getBoundingClientRect(), p = el.getBoundingClientRect(), w = 190, gap = 8;
+      const left = bar.left - p.left - w - gap; tip.style.left = `${left >= 0 ? left : Math.min(p.width - w, bar.right - p.left + gap)}px`; };
+    col.onmouseleave = () => { tip.hidden = true; };
+  });
+  // the header total and the legend: over the whole window
+  const sumAll = k => v.timeline.reduce((a, r) => a + (r[k] || 0), 0);
+  const nFile = v.timeline.filter(r => r.instructions != null).length, nTools = v.timeline.length - nFile;
+  const whole = k => CMEASURE === 'avg' ? (sumAll(k) ? sumAll(k) / (k === 'instructions' ? nFile : nTools || 1) : 0) : sumAll(k);
+  const grand = live.reduce((a, [k]) => a + whole(k), 0);
+  const label = CMEASURE === 'avg' ? 'Per session' : 'Total';
+  $('#tr-legend').innerHTML = `<div class="tr-stat"><div class="kicker">${label}</div><div class="tr-num">${fmt(grand)}</div></div>` + live.map(([k, name, color]) => `<div class="tr-stat"><div class="kicker"><span class="sw" style="background:${color}"></span>${name}</div><div class="tr-num">${fmt(whole(k))} <span class="muted">${grand ? Math.round(100 * whole(k) / grand) : 0}%</span></div></div>`).join('');
+}
+// a small markdown reader for the team's own file: headings, lists, code, tables as text, inline code, bold, links' text
+function md(text) {
+  const inline = t => esc(t).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+  const out = []; let list = null, para = [], fence = null, table = null;
+  const flush = () => { if (para.length) out.push(`<p>${inline(para.join(' '))}</p>`); para = []; if (list) out.push(`<ul>${list.map(i => `<li>${inline(i)}</li>`).join('')}</ul>`); list = null; if (table) out.push(`<pre class="md-pre">${esc(table.join('\n'))}</pre>`); table = null; };
+  for (const line of String(text).split('\n')) {
+    if (fence) { if (/^\s*```/.test(line)) { out.push(`<pre class="md-pre">${esc(fence.join('\n'))}</pre>`); fence = null; } else fence.push(line); continue; }
+    if (/^\s*```/.test(line)) { flush(); fence = []; continue; }
+    const h = line.match(/^(#{1,4}) (.+)/);
+    if (h) { flush(); out.push(`<div class="md-h md-h${h[1].length}">${inline(h[2])}</div>`); continue; }
+    if (/^\s*\|/.test(line)) { if (!table) { flush(); table = []; } table.push(line); continue; }
+    const li = line.match(/^\s*(?:[-*]|\d+\.) (.+)/);
+    if (li) { if (para.length || table) { const l = list; list = null; flush(); list = l; } (list ||= []).push(li[1]); continue; }
+    if (!line.trim()) { flush(); continue; }
+    if (list && /^\s{2,}\S/.test(line)) { list[list.length - 1] += ' ' + line.trim(); continue; }
+    if (list || table) flush();
+    para.push(line.trim());
+  }
+  if (fence) out.push(`<pre class="md-pre">${esc(fence.join('\n'))}</pre>`);
+  flush();
+  return out.join('');
+}
+function renderDoc(iv) {
+  const doc = $('#md-doc'); if (!doc) return;
+  const kept = new Set([...doc.querySelectorAll('[data-keep]')].filter(c => !c.checked).map(c => c.dataset.keep));
+  const rows = [...iv.sections];
+  const desc = k => (a, b) => (b[k] ?? -1) - (a[k] ?? -1) || b.perSession - a.perSession;
+  if (CSORT === 'used') rows.sort(desc('usedShare')); else if (CSORT === 'wasted') rows.sort(desc('wasted'));
+  const maxCost = Math.max(1, ...rows.map(s => s.perSession));
+  doc.innerHTML = rows.map(s => {
+    const key = s.parent ? `${s.parent}: ${s.title}` : s.title, [cls, label] = VALUE_PILL[s.value] || VALUE_PILL.unknown;
+    const used = s.usedShare == null ? '<span class="muted">not enough sessions</span>' : `${Math.round(100 * s.usedShare)}% <span class="muted">of sessions, ${s.usedBy === 'judge' ? 'judged' : 'by its triggers'}</span>`;
+    const off = iv.coreOn && !s.kept;
+    return `<div class="md-row${off ? ' md-off' : ''}">
+      <div class="md-sec"><div class="md-body">${s.parent ? `<div class="md-parent">${esc(s.parent)}</div>` : ''}${md(s.text)}</div><button class="btn text md-more" hidden>Show all</button></div>
+      <aside class="md-ann">
+        <div class="ann-k">Input tokens a session</div><div class="ann-v">${fmt(s.perSession)} <span class="muted">· ${fmt(s.tokens)} tokens</span></div>
+        <div class="cost"><i style="--w:${100 * s.perSession / maxCost}%"></i>${Math.round(100 * s.perSession / Math.max(1, iv.sections.reduce((a, x) => a + x.perSession, 0)))}%</div>
+        <div class="ann-k">Used</div><div class="ann-v">${used}</div>
+        ${s.wasted != null ? `<div class="ann-k">Wasted</div><div class="ann-v">${fmt(s.wasted)} <span class="muted">a session</span></div>` : ''}
+        ${s.judged ? `<div class="ann-k">Judged sessions</div><div class="ann-v">relevant ${s.bore}/${s.judged}${s.followed + s.violated ? ` · followed ${s.followed}/${s.followed + s.violated}` : ''}${s.violated ? ` <span class="pill bad">${s.violated} broke</span>` : ''}</div>` : ''}
+        <div class="ann-foot"><span class="pill ${cls}">${label}</span><label class="ann-keep"><input type="checkbox" data-keep="${esc(key)}"${(!iv.coreOn || s.kept) && !kept.has(key) ? ' checked' : ''}> keep</label></div>
+      </aside></div>`;
+  }).join('');
+  // long sections fold to their first lines; the annotation stays beside them
+  doc.querySelectorAll('.md-sec').forEach(sec => {
+    const body = sec.querySelector('.md-body'), more = sec.querySelector('.md-more');
+    if (body.scrollHeight > body.clientHeight + 4) { more.hidden = false; more.onclick = () => { const open = sec.classList.toggle('open'); more.textContent = open ? 'Show less' : 'Show all'; }; }
+  });
+}
 function renderContext(v) {
   const el = $('#context-body'), iv = v.instructions, t = v.totals;
   // each table's bars on its own scale: one large tool would flatten every section
   const top = xs => Math.max(1, ...xs.map(s => s.perSession)), maxS = top(iv.sections), maxK = top(v.skills), maxT = top(v.tools);
-  // what a part costs a session: its tokens sit in every model call's context and are read again by each call
-  const calls = x => x.tokens ? Math.round(x.perSession / x.tokens) : 0;
-  const how = x => `~${fmt(x.tokens)} tokens in every model call × ~${calls(x)} model calls`;
-  const total = t.instructions.perSession + t.skills.perSession + t.tools.perSession;
-  // one stacked bar: the three parts of a session's input, each labelled with its value below (dataviz: slots 1-3, 2px gaps)
-  const parts = [
-    { name: 'Instruction file', x: t.instructions, color: '#2a78d6', what: esc(iv.file || 'AGENTS.md') },
-    { name: 'Skills listed', x: t.skills, color: '#eb6834', what: `descriptions of ${v.skills.filter(s => !s.off).length} skills` },
-    { name: 'Other tools', x: t.tools, color: '#1baf7a', what: `${v.tools.filter(s => !s.off).length} MCP servers, plugins and built-in tools` },
-  ].filter(p => p.x.perSession > 0);
-  let h = `<div class="section-head"><div class="section-title">Average input tokens per session</div><div style="text-align:right"><div class="kicker">Total</div><div class="section-title">${fmt(total)}</div></div></div>
-  <div class="panel"><div class="stack" role="img" aria-label="${parts.map(p => `${p.name} ${fmt(p.x.perSession)}`).join(', ')}">${parts.map(p => `<i style="flex:${p.x.perSession} 1 0;background:${p.color}" title="${p.name}: ${fmt(p.x.perSession)} (${Math.round(100 * p.x.perSession / total)}%), ${how(p.x)}"></i>`).join('')}</div>
-  <div class="stack-legend">${parts.map(p => `<div><span class="sw" style="background:${p.color}"></span><div><div><b>${p.name}</b> <span class="num">${fmt(p.x.perSession)}</span> <span class="muted">${Math.round(100 * p.x.perSession / total)}%</span></div><div class="why">${p.what}: ${how(p.x)}</div></div></div>`).join('')}</div></div>`;
-  // the instruction file's sections
-  h += `<div class="section"><div class="section-head"><div><div class="kicker">${esc(iv.file || 'No instruction file')}</div><div class="section-title">Sections of the instruction file</div></div></div><div class="panel">`;
+  CTX = v;
+  let h = `<div class="section-head" style="justify-content:flex-end"><div class="seg" id="tr-measure"><button data-m="total"${CMEASURE === 'total' ? ' class="on"' : ''}>Total</button><button data-m="avg"${CMEASURE === 'avg' ? ' class="on"' : ''}>Per session</button></div><div class="seg" id="tr-bucket"><button data-b="day"${cbucket() === 'day' ? ' class="on"' : ''}>Daily</button><button data-b="week"${cbucket() === 'week' ? ' class="on"' : ''}>Weekly</button></div></div>
+  <div class="panel"><div class="tr-stats" id="tr-legend"></div><div id="trend"></div></div>`;
+  // the instruction file itself, section by section, each annotated with what it costs and how much it was of use
+  h += `<div class="section"><div class="section-head"><div><div class="kicker">${esc(iv.file || 'No instruction file')}</div><div class="section-title">The instruction file, section by section</div></div>${iv.file ? `<div class="seg" id="c-sort"><button data-sort="file"${CSORT === 'file' ? ' class="on"' : ''}>File order</button><button data-sort="used"${CSORT === 'used' ? ' class="on"' : ''}>Most used</button><button data-sort="wasted"${CSORT === 'wasted' ? ' class="on"' : ''}>Most wasted</button></div>` : ''}</div><div class="panel">`;
   if (!iv.file) h += `<div class="note-line" style="margin-top:0">No AGENTS.md or CLAUDE.md in this repository.</div>`;
-  else {
-    h += `<table class="ctx-table"><thead><tr><th title="kept in this checkout's trimmed copy">Keep</th><th>Section</th><th>Input tokens a session</th><th class="num" title="sessions that touched the section's files, ran its commands or read code it names">Applied</th><th class="num" title="of the sessions a model judged, those where this section was relevant to the work (followed, broken, or relevant with nothing to show)">Relevant</th><th class="num" title="of the judged sessions where the agent either followed or broke it, how many followed it">Followed</th><th></th></tr></thead><tbody>${[...iv.sections].sort((a, b) => b.perSession - a.perSession).map(s => {
-      const [cls, label] = VALUE_PILL[s.value] || VALUE_PILL.unknown;
-      return `<tr><td><input type="checkbox" data-keep="${esc(s.parent ? `${s.parent}: ${s.title}` : s.title)}"${!iv.coreOn || s.kept ? ' checked' : ''}></td><td>${s.parent ? `<span class="muted">${esc(s.parent)}: </span>` : ''}${esc(s.title)}<div class="why">${fmt(s.tokens)} tokens</div></td><td>${costBar(s.perSession, maxS, iv.coreOn && !s.kept)}</td><td class="num">${s.triggered ? share(s.applied, s.sessions) : '–'}</td><td class="num">${s.judged ? `${s.bore}/${s.judged}` : '–'}</td><td class="num">${s.success == null ? '–' : `${s.followed}/${s.followed + s.violated}${s.violated ? ` <span class="pill bad" title="sessions that went against it">${s.violated} broke</span>` : ''}`}</td><td><span class="pill ${cls}">${label}</span></td></tr>`;
-    }).join('')}</tbody></table>
-    <div class="note-line">${iv.sessions} sessions read it over ${v.days} days; ${iv.judged} judged${iv.judge.judge ? `, and a ${Math.round(100 * iv.judge.share)}% sample is judged as sessions end` : ''}. Applied is free and counts every session that touched the section's files, commands or code. Relevant and Followed come from a model reading a session against the sections: relevant when the section mattered to the work, followed or broken when the session shows which. Keeping a subset writes a trimmed copy for this checkout only (AGENTS.override.md for Codex, CLAUDE.local.md for Claude Code), kept out of git; the team's file is never changed.</div>
+  else h += `<div class="note-line" style="margin-top:0">${iv.sessions} sessions read it over ${v.days} days, each reading it again on every model call; ${iv.judged} judged${iv.judge.judge ? `, and a ${Math.round(100 * iv.judge.share)}% sample is judged as sessions end` : ''}. <b>Used</b> is the share of sessions a model judged the section relevant to, once five are judged, and until then the share that touched its files, commands or code (broad for a section about a common path). <b>Wasted</b> is its cost in the sessions it was not used.</div>
+    <div id="md-doc"></div>
+    <div class="note-line">Keeping a subset writes a trimmed copy for this checkout only (AGENTS.override.md for Codex, CLAUDE.local.md for Claude Code), kept out of git; the team's file is never changed.</div>
     <div class="controls"><button class="btn" id="c-keep">Keep only the checked sections here</button>${iv.coreOn ? '<button class="btn ghost" id="c-whole">Read the whole file again</button>' : ''}<button class="btn ghost" id="c-judge">Judge 5 recent sessions</button></div>`;
-  }
   h += `</div></div>`;
   // skills and tools, each with its switch where the harness is on
   const sw = s => v.harnessOn && s.label && !s.off ? `<input type="checkbox" data-off="${esc(s.label)}">` : '';
@@ -661,10 +790,20 @@ function renderContext(v) {
   const offPill = s => s.off ? ' <span class="pill off">off</span>' : s.suggested ? ' <span class="pill wait">rarely used</span>' : '';
   const kept = o => o?.read ? `${Math.round(100 * o.success)}% <span class="why">of ${o.read}</span>` : '–';
   if (v.skills.length) h += `<div class="section"><div class="section-head"><div><div class="kicker">Listed in every session</div><div class="section-title">Skills</div></div></div><div class="panel"><table class="ctx-table"><thead><tr><th>${v.harnessOn ? 'Off' : ''}</th><th>Skill</th><th>Input tokens a session</th><th class="num">Read in</th><th class="num" title="checked sessions that read it and kept its rules">Rules kept</th><th class="num" title="checked sessions that broke its rules without reading it">Missed</th></tr></thead><tbody>${[...v.skills].sort((a, b) => b.perSession - a.perSession).map(s => `<tr><td>${sw(s)}</td><td>${who(s)}${esc(s.name)}${offPill(s)}<div class="why">${fmt(s.tokens)} tokens listed</div></td><td>${costBar(s.perSession, maxK, s.off)}</td><td class="num">${s.used}/${s.loaded}</td><td class="num">${kept(s.outcome)}</td><td class="num">${s.outcome?.missed || '–'}</td></tr>`).join('')}</tbody></table><div class="note-line">Rules kept and Missed come from the sampled outcome check (<code>harness.skillOutcome</code>), which reads a session's change against the skills that bear on it.</div></div></div>`;
-  if (v.tools.length) h += `<div class="section"><div class="section-head"><div><div class="kicker">Loaded into every session</div><div class="section-title">MCP servers, plugins and built-in tools</div></div></div><div class="panel"><table class="ctx-table"><thead><tr><th>${v.harnessOn ? 'Off' : ''}</th><th>Tool</th><th>Input tokens a session</th><th class="num">Used in</th></tr></thead><tbody>${v.tools.map(s => `<tr><td>${sw(s)}</td><td>${who(s)}${esc(s.name)} <span class="muted">${esc(hkind(s))}</span>${offPill(s)}<div class="why">${fmt(s.tokens)} tokens</div></td><td>${costBar(s.perSession, maxT, s.off)}</td><td class="num">${s.used}/${s.loaded}</td></tr>`).join('')}</tbody></table></div></div>`;
+  const TG = { mcp: 'MCP servers', plugins: 'Plugins', builtin: 'Built-in tools' };
+  for (const [g, title] of Object.entries(TG)) {
+    const xs = v.tools.filter(s => s.group === g); if (!xs.length) continue;
+    const mx = Math.max(1, ...xs.map(s => s.perSession));
+    h += `<div class="section"><div class="section-head"><div><div class="kicker">Loaded into every session</div><div class="section-title">${title}</div></div><div style="text-align:right"><div class="kicker">A session</div><div class="section-title">${fmt(t[g]?.perSession || 0)}</div></div></div><div class="panel"><table class="ctx-table"><thead><tr><th>${v.harnessOn ? 'Off' : ''}</th><th>${title.replace(/s$/, '')}</th><th>Input tokens a session</th><th class="num">Used in</th></tr></thead><tbody>${xs.map(s => `<tr><td>${sw(s)}</td><td>${who(s)}${esc(s.name)} ${g === 'mcp' ? `<span class="muted">${esc(hkind(s))}</span>` : g === 'builtin' && s.kind === 'desktop' ? '<span class="muted">desktop app</span>' : ''}${offPill(s)}<div class="why">${fmt(s.tokens)} tokens</div></td><td>${costBar(s.perSession, mx, s.off)}</td><td class="num">${s.used}/${s.loaded}</td></tr>`).join('')}</tbody></table></div></div>`;
+  }
   h += v.harnessOn ? `<div class="controls"><button class="btn" id="c-off">Switch off the checked skills and tools</button><button class="btn ghost" id="c-undo">Turn everything back on</button></div>`
     : `<div class="note-line">Switching skills and tools off for this repository needs the harness: <code>thinker harness --enabled on</code>.</div>`;
   el.innerHTML = h;
+  renderTrend();
+  el.querySelectorAll('#tr-measure button').forEach(b => b.onclick = () => { CMEASURE = b.dataset.m; segOn('#tr-measure', b); renderTrend(); });
+  el.querySelectorAll('#tr-bucket button').forEach(b => b.onclick = () => { CBUCKET = b.dataset.b; segOn('#tr-bucket', b); renderTrend(); });
+  if (iv.file) renderDoc(iv);
+  el.querySelectorAll('#c-sort button').forEach(b => b.onclick = () => { CSORT = b.dataset.sort; segOn('#c-sort', b); renderDoc(iv); });
   const act = async (btn, p, body, msg) => { if (btn) btn.disabled = true; try { const r = await api(p, { repo: CREPO, ...body }); toast(msg || (r.said && !String(r.said).startsWith('{') ? r.said : 'Saved')); loadContext(); } catch (err) { toast(err.message, true); if (btn) btn.disabled = false; } };
   $('#c-keep')?.addEventListener('click', e => { const keep = [...el.querySelectorAll('[data-keep]:checked')].map(c => c.dataset.keep); if (!keep.length) return toast('Keep at least one section', true); act(e.target, '/api/context/core', { keep }); });
   $('#c-whole')?.addEventListener('click', e => act(e.target, '/api/context/core', { keep: null }));

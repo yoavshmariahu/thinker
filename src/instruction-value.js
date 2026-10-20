@@ -271,9 +271,22 @@ export function instructionValue(store, { days = 30, sessions } = {}) {
       // a share of the sessions judged that the section bore on, and of those it decided, how many it was followed in
       bore, boreShare: judged.length ? bore / judged.length : null, success: decided ? v.followed / decided : null,
       value: valueOf({ sessions: recs.length, applied, triggered: s.triggered, judged: judged.length, bore, followed: v.followed, violated: v.violated }),
+      ...use({ sessions: recs.length, applied, triggered: s.triggered, judged: judged.length, bore }, s.tokens * Math.max(1, calls)),
+      text: s.text,
     };
   });
-  return { file: src.file, tokens: Math.ceil(src.text.length / 4), sessions: recs.length, judged: judged.length, calls, judge: valueConfig(store), sections: rows };
+  const fileTokens = Math.ceil(src.text.length / 4);
+  // per session, for the trend: the file's tokens read by each of its model calls (today's file: an earlier size is not kept)
+  const timeline = recs.filter(r => r.turns).map(r => ({ t: r.mtime, client: r.client, calls: r.turns, tokens: fileTokens }));
+  return { file: src.file, tokens: fileTokens, sessions: recs.length, judged: judged.length, calls, judge: valueConfig(store), sections: rows, timeline };
+}
+
+// How much of the time a section was of use, and the tokens spent on it in the sessions it was not: from the judge's
+// verdicts once enough sessions are judged, else from its triggers (broad: a section about a common path applies
+// often), else unknown. `wasted` ranks the sections that cost most for least.
+export function use({ sessions, applied, triggered, judged, bore }, perSession) {
+  const [share, by] = judged >= RARE.minSessions ? [bore / judged, 'judge'] : triggered && sessions ? [applied / sessions, 'triggers'] : [null, null];
+  return { usedShare: share, usedBy: by, wasted: share == null ? null : Math.round(perSession * (1 - share)) };
 }
 
 // A plain label for the table: `used` when sessions acted on it, `rare` when it bore on almost none, `unknown`

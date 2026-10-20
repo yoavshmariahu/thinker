@@ -14,7 +14,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { codexSessionHarness, codexHarnessUsage, codexHarnessConfig, codexConfigFile, editCodexSetting } from './harness-codex.js';
+import { codexSessionHarness, codexHarnessUsage, codexHarnessConfig, codexConfigFile, editCodexSetting, partsOf } from './harness-codex.js';
 import { desktopRecords, desktopSessionsDir, desktopSessionHarness, desktopUsed, DESKTOP_SECTIONS, CONNECTOR_TOOL } from './harness-desktop.js';
 import { cursorHarnessUsage, cursorSnapshots, editCursorMcp } from './harness-cursor.js';
 import { findSessions } from './transcripts.js';
@@ -228,7 +228,7 @@ export function harnessUsage(repo, { days = 30, home = os.homedir(), sessions, c
   const claude = claudeUsage(repo, { days, home, sessions: sessions.filter(s => s.client === 'claude') });
   const codex = codexHarnessUsage(repo, sessions.filter(s => s.client === 'codex'), { home });
   const cur = cursor ? cursorHarnessUsage({ home, snapshots: cursor }) : { sessions: 0, sources: [] };
-  return { ...claude, builtinTools, sessions: claude.sessions + codex.sessions + cur.sessions, byClient: { claude: claude.sessions, codex: codex.sessions, cursor: cur.sessions }, calls: { claude: claude.calls, codex: codex.calls || 0 }, sources: [...claude.sources.map(s => ({ ...s, client: 'claude' })), ...codex.sources, ...cur.sources].sort((a, b) => b.tokens * (b.loaded - b.used) - a.tokens * (a.loaded - a.used)) };
+  return { ...claude, builtinTools, timeline: [...claude.timeline, ...(codex.timeline || [])], sessions: claude.sessions + codex.sessions + cur.sessions, byClient: { claude: claude.sessions, codex: codex.sessions, cursor: cur.sessions }, calls: { claude: claude.calls, codex: codex.calls || 0 }, sources: [...claude.sources.map(s => ({ ...s, client: 'claude' })), ...codex.sources, ...cur.sources].sort((a, b) => b.tokens * (b.loaded - b.used) - a.tokens * (a.loaded - a.used)) };
 }
 function claudeUsage(repo, { days = 30, home = os.homedir(), sessions } = {}) {
   sessions ??= checkouts(repo).flatMap(r => findSessions(r, { sinceMs: days * 86400_000 }).filter(s => s.client === 'claude'));
@@ -247,7 +247,7 @@ function claudeUsage(repo, { days = 30, home = os.homedir(), sessions } = {}) {
     const plugin = k.startsWith('skill:') ? pluginOfSkill(k.slice(6)) : null;
     return plugin ? `plugin:${plugin}` : k;
   };
-  let counted = 0; const calls = [];
+  let counted = 0; const calls = [], timeline = [];
   for (const { s, h } of read) {
     if (!h.loaded.size) continue; // written before Claude Code recorded what it loaded
     counted++; calls.push(h.calls);
@@ -257,13 +257,14 @@ function claudeUsage(repo, { days = 30, home = os.homedir(), sessions } = {}) {
       if (k.startsWith('skill:') && group(k) !== k) row(group(k)).skills.add(k.slice(6));
       if (h.texts.has(k)) row(group(k)).texts[k] = h.texts.get(k).slice(0, CARD_CHARS);
     }
+    timeline.push({ t: s.mtime, client: 'claude', calls: h.calls, parts: partsOf(tokens) });
     for (const [k, t] of tokens) {
       const r = row(k); r.loaded++; r.tokens += t;
       if (used.has(k)) { r.used++; if (!r.lastUsed || s.mtime > r.lastUsed) r.lastUsed = s.mtime; }
     }
   }
   const out = [...rows.values()].filter(r => r.loaded).map(r => ({ ...r, skills: [...r.skills].sort(), tokens: Math.round(r.tokens / r.loaded), ...describe(r.key, config, [...r.skills]) }));
-  return { repo, days, sessions: counted, calls: median(calls), sources: out.sort((a, b) => b.tokens * (b.loaded - b.used) - a.tokens * (a.loaded - a.used)) };
+  return { repo, days, sessions: counted, calls: median(calls), timeline, sources: out.sort((a, b) => b.tokens * (b.loaded - b.used) - a.tokens * (a.loaded - a.used)) };
 }
 
 // What a source is and where it is switched on, so the advice names the setting to change.

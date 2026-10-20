@@ -26,6 +26,11 @@ export function skillOutcomes(store, { days = 30, now = Date.now(), log } = {}) 
   return Object.fromEntries([...out].map(([n, r]) => [n, { ...r, success: r.read ? (r.read - Math.min(r.read, r.brokenAfterRead)) / r.read : null }]));
 }
 
+// The kinds of tool a session loads, in the order the report shows them.
+// The desktop app's own entries (starting other sessions, sending files) are the agent's tools too: built-in.
+export const TOOL_GROUPS = { mcp: 'MCP servers', plugins: 'Plugins', builtin: 'Built-in tools' };
+export const toolGroup = s => s.kind === 'mcp' || s.kind === 'connector' ? 'mcp' : s.kind === 'plugin' ? 'plugins' : 'builtin';
+
 export function contextView(store, { days = 30, sessions, usage, log } = {}) {
   sessions ??= findRepoSessions(store.repo, days);
   usage ??= harnessUsage(store.repo, { days, sessions });
@@ -43,7 +48,7 @@ export function contextView(store, { days = 30, sessions, usage, log } = {}) {
   const rows = usage.sources.filter(s => s.tokens >= MIN_TOKENS || s.kind === 'skill').map(src);
   const skills = rows.filter(r => r.kind === 'skill').map(r => ({ ...r, outcome: outcomes[r.name] || null }));
   // skills of a plugin are one row in the harness report (one switch): their outcomes are summed onto it
-  const tools = rows.filter(r => r.kind !== 'skill').map(r => {
+  const tools = rows.filter(r => r.kind !== 'skill').map(r => ({ ...r, group: toolGroup(r) })).map(r => {
     const members = usage.sources.find(s => s.key === r.key && (s.client || 'claude') === r.client)?.skills || [];
     const os = members.map(m => outcomes[m]).filter(Boolean);
     if (!os.length) return r;
@@ -63,7 +68,15 @@ export function contextView(store, { days = 30, sessions, usage, log } = {}) {
       instructions: { tokens: iv.tokens || 0, perSession: (iv.tokens || 0) * Math.max(1, iv.calls || 1) },
       skills: { tokens: sum(skills, 'tokens'), perSession: sum(skills, 'perSession') },
       tools: { tokens: sum(tools, 'tokens'), perSession: sum(tools, 'perSession') },
+      // the tools by kind, as the Context tab's bar and tables split them
+      ...Object.fromEntries(Object.keys(TOOL_GROUPS).map(g => { const xs = tools.filter(r => toolGroup(r) === g); return [g, { tokens: sum(xs, 'tokens'), perSession: sum(xs, 'perSession'), count: xs.filter(x => !x.off).length }]; })),
     },
     instructions, skills, tools,
+    // one row per session, for the trend: its input tokens by part (tokens a call × its model calls); the instruction
+    // file and the loaded tools come from different readers, so a session may have one side only
+    timeline: [
+      ...iv.timeline.map(r => ({ t: r.t, instructions: r.tokens * r.calls })),
+      ...(usage.timeline || []).map(r => ({ t: r.t, ...Object.fromEntries(Object.entries(r.parts).map(([k, n]) => [k, n * Math.max(1, r.calls)])) })),
+    ].sort((a, b) => a.t - b.t),
   };
 }
