@@ -238,6 +238,11 @@
     .tr-cols { position: absolute; inset: 0; display: flex; gap: 6px; align-items: flex-end; padding: 0 2px; }
     .tr-col { flex: 1 1 0; height: 100%; display: flex; align-items: flex-end; cursor: default; }
     .tr-col:hover .tr-stack { opacity: 0.85; }
+    .tr-col.has-active .tr-stack { opacity: 1; }
+    .tr-col.has-active .tr-stack i { opacity: 0.35; }
+    .tr-col.has-active .tr-stack i.active { opacity: 1; }
+    .tr-tip [data-k] { padding: 0.05rem 0.25rem; margin: 0.1rem -0.25rem 0; border-radius: 3px; }
+    .tr-tip [data-k].active { background: #f4f4f5; font-weight: 600; }
     .tr-stack { width: 100%; max-width: 3rem; margin: 0 auto; display: flex; flex-direction: column-reverse; gap: 2px; }
     .tr-stack i { display: block; min-height: 1px; }
     .tr-stack i:last-child { border-radius: 4px 4px 0 0; }
@@ -684,6 +689,11 @@ const weekKey = t => { const d = new Date(dayKey(t)); d.setDate(d.getDate() - ((
 const dlabel = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 // Input tokens by day or week, stacked by part: the sum over the sessions of each, or that sum over its sessions
 // (each side over its own sessions: the instruction file and the loaded tools are read from different records).
+function mark(col, k) {
+  col.classList.toggle('has-active', !!k);
+  col.querySelectorAll('.tr-stack i').forEach(i => i.classList.toggle('active', i.dataset.k === k));
+  document.querySelectorAll('#trend .tr-tip [data-k]').forEach(r => r.classList.toggle('active', r.dataset.k === k));
+}
 function renderTrend() {
   const v = CTX, el = $('#trend'); if (!v || !el) return;
   const bucket = cbucket(), key = bucket === 'day' ? dayKey : weekKey, step = bucket === 'day' ? 1 : 7;
@@ -701,15 +711,17 @@ function renderTrend() {
   const nice = (() => { const m = 10 ** Math.floor(Math.log10(max)), f = max / m; return ([1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].find(x => f <= x) || 10) * m; })();
   const ticks = [0, 0.25, 0.5, 0.75, 1].map(f => f * nice);
   const sessionsIn = c => Math.max(c.nFile, c.nTools);
-  el.innerHTML = `<div class="trend"><div class="tr-y">${ticks.slice().reverse().map(t => `<span>${fmt(t)}</span>`).join('')}</div><div class="tr-plot">${ticks.map(t => `<i class="tr-grid" style="bottom:${100 * t / nice}%"></i>`).join('')}<div class="tr-cols">${cols.map((c, i) => `<div class="tr-col" data-i="${i}"><div class="tr-stack" style="height:${100 * tot(c) / nice}%">${live.map(([k, , color]) => val(c, k) ? `<i style="flex:${val(c, k)} 1 0;background:${color}"></i>` : '').join('')}</div></div>`).join('')}</div></div></div>
+  el.innerHTML = `<div class="trend"><div class="tr-y">${ticks.slice().reverse().map(t => `<span>${fmt(t)}</span>`).join('')}</div><div class="tr-plot">${ticks.map(t => `<i class="tr-grid" style="bottom:${100 * t / nice}%"></i>`).join('')}<div class="tr-cols">${cols.map((c, i) => `<div class="tr-col" data-i="${i}"><div class="tr-stack" style="height:${100 * tot(c) / nice}%">${live.map(([k, , color]) => val(c, k) ? `<i data-k="${k}" style="flex:${val(c, k)} 1 0;background:${color}"></i>` : '').join('')}</div></div>`).join('')}</div></div></div>
     <div class="tr-x">${cols.map((c, i) => `<span>${cols.length <= 10 || i % Math.ceil(cols.length / 8) === 0 ? dlabel(c.t) : ''}</span>`).join('')}</div><div class="tr-tip" hidden></div>`;
   // hover: one column's parts, its total and its sessions
   const tip = el.querySelector('.tr-tip');
   el.querySelectorAll('.tr-col').forEach(col => {
-    col.onmouseenter = () => { const c = cols[col.dataset.i]; tip.hidden = false; tip.innerHTML = `<b>${bucket === 'day' ? dlabel(c.t) : `Week of ${dlabel(c.t)}`}</b> · ${sessionsIn(c)} session${sessionsIn(c) === 1 ? '' : 's'}${live.slice().reverse().map(([k, name, color]) => `<div><span class="sw" style="background:${color}"></span>${name} <span class="num">${fmt(val(c, k))}</span></div>`).join('')}<div class="tr-tip-total">Total <span class="num">${fmt(tot(c))}</span></div>`; // beside the bar, never over it: to its left, or to its right where the left has no room
+    col.onmouseenter = () => { const c = cols[col.dataset.i]; tip.hidden = false; tip.innerHTML = `<b>${bucket === 'day' ? dlabel(c.t) : `Week of ${dlabel(c.t)}`}</b> · ${sessionsIn(c)} session${sessionsIn(c) === 1 ? '' : 's'}${live.slice().reverse().map(([k, name, color]) => `<div data-k="${k}"><span class="sw" style="background:${color}"></span>${name} <span class="num">${fmt(val(c, k))}</span></div>`).join('')}<div class="tr-tip-total">Total <span class="num">${fmt(tot(c))}</span></div>`; // beside the bar, never over it: to its left, or to its right where the left has no room
       const bar = col.querySelector('.tr-stack').getBoundingClientRect(), p = el.getBoundingClientRect(), w = 190, gap = 8;
       const left = bar.left - p.left - w - gap; tip.style.left = `${left >= 0 ? left : Math.min(p.width - w, bar.right - p.left + gap)}px`; };
-    col.onmouseleave = () => { tip.hidden = true; };
+    col.onmouseleave = () => { tip.hidden = true; mark(col, null); };
+    // the part under the pointer: that segment stands out in its column, and its line on the card
+    col.querySelectorAll('.tr-stack i').forEach(seg => { seg.onmouseenter = () => mark(col, seg.dataset.k); seg.onmouseleave = () => mark(col, null); });
   });
   // the header total and the legend: over the whole window
   const sumAll = k => v.timeline.reduce((a, r) => a + (r[k] || 0), 0);
