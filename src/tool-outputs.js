@@ -8,7 +8,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseTranscript } from './transcripts.js';
 
-const KEEP = 1000, VERSION = 4;
+const KEEP = 1000, VERSION = 5;
+// what each level's cap leaves of an output, in tokens (diet.js:DIET_LEVELS outputChars / 4): the part of a
+// compressible tool's result past it is a saving at least (the other trims, round search hits and file windows, come on top)
+const CAP = { moderate: 3000, high: 1000 };
 // The program a shell command runs, which is what decides how much it prints: the first command of the line after
 // any `cd`, environment assignments and wrappers (`sudo`, `timeout 60`, `env`), its path left out; for a tool with
 // subcommands (git, gh, npm…) the subcommand too, since `git diff` and `git status` print very differently.
@@ -43,8 +46,10 @@ export function sessionOutputs(events, turns = 0) {
   const tools = events.filter(e => e.t === 'tool'), n = tools.length, by = {};
   const scale = turns > 0 && n > 0 ? Math.min(1, turns / (n + 1)) : 1;
   tools.forEach((e, i) => {
-    const tokens = Math.ceil(String(e.result || '').length / 4), r = (by[toolKey(e.name, e.input)] ||= { calls: 0, tokens: 0, input: 0 });
-    r.calls++; r.tokens += tokens; r.input += Math.round(tokens * Math.max(1, (n - i) * scale));
+    const key = toolKey(e.name, e.input), tokens = Math.ceil(String(e.result || '').length / 4), r = (by[key] ||= { calls: 0, tokens: 0, input: 0, saveModerate: 0, saveHigh: 0 });
+    const reads = Math.max(1, (n - i) * scale);
+    r.calls++; r.tokens += tokens; r.input += Math.round(tokens * reads);
+    if (key === 'Read' || key === 'Bash' || key.startsWith('Bash:')) { r.saveModerate += Math.round(Math.max(0, tokens - CAP.moderate) * reads); r.saveHigh += Math.round(Math.max(0, tokens - CAP.high) * reads); }
   });
   return by;
 }
@@ -72,10 +77,10 @@ export function toolOutputs(store, sessions) {
   // per tool, averaged over the sessions that made any tool call
   const n = recs.length, rows = new Map();
   for (const r of recs) for (const [k, x] of Object.entries(r.by)) {
-    const row = rows.get(k) || { name: k, sessions: 0, calls: 0, tokens: 0, input: 0 };
-    row.sessions++; row.calls += x.calls; row.tokens += x.tokens; row.input += x.input; rows.set(k, row);
+    const row = rows.get(k) || { name: k, sessions: 0, calls: 0, tokens: 0, input: 0, saveModerate: 0, saveHigh: 0 };
+    row.sessions++; row.calls += x.calls; row.tokens += x.tokens; row.input += x.input; row.saveModerate += x.saveModerate || 0; row.saveHigh += x.saveHigh || 0; rows.set(k, row);
   }
-  const tools = [...rows.values()].map(r => ({ name: r.name, usedIn: r.sessions, calls: r.calls / (n || 1), tokens: Math.round(r.tokens / (n || 1)), perSession: Math.round(r.input / (n || 1)), perCall: Math.round(r.tokens / (r.calls || 1)) })).sort((a, b) => b.perSession - a.perSession);
+  const tools = [...rows.values()].map(r => ({ name: r.name, usedIn: r.sessions, calls: r.calls / (n || 1), tokens: Math.round(r.tokens / (n || 1)), perSession: Math.round(r.input / (n || 1)), perCall: Math.round(r.tokens / (r.calls || 1)), saveModerate: Math.round(r.saveModerate / (n || 1)), saveHigh: Math.round(r.saveHigh / (n || 1)) })).sort((a, b) => b.perSession - a.perSession);
   return {
     sessions: n, tools,
     tokens: tools.reduce((a, t) => a + t.tokens, 0), perSession: tools.reduce((a, t) => a + t.perSession, 0),
