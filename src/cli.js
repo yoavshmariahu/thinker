@@ -26,6 +26,7 @@ import { commands as symbolsCommands } from './commands/symbols.js';
 import { commands as switchCommands } from './commands/repo-switch.js';
 import { commands as externalCommands } from './commands/external.js';
 import { commands as harnessCommands } from './commands/harness.js';
+import { commands as instructionsCommands } from './commands/instructions.js';
 import { isDisabledRepo, OFF_MESSAGE } from './repo-switch.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -186,6 +187,9 @@ const HELP = `thinker — knowledge cache for coding agents
                                  the next Claude Code, Codex or Cursor prompt here, one question for all of them (every two weeks by itself, as soon as 10 sessions are recorded the first time);
                                  --answer takes the reply, --off switches named ones off without asking; --undo turns them (or the named ones) back on;
                                  --recurring, --recall (a line when a request needs a switched-off tool; on with the harness) and --suggestions set what thinker does; also on the local page
+  instructions [--core "<Title>, <Title>"] [--off]
+                                 the sections of AGENTS.md and their tokens; --core keeps the named sections, verbatim, in AGENTS.override.md
+                                 (kept out of git, rewritten when AGENTS.md changes), which Codex reads instead of AGENTS.md; --off removes it
   guide                          the cache usage guidance an install writes into an agent's instructions
   export [file.tgz] [--dir d]    back the cache up to a .tgz; --dir writes every note whole, one <id>.json each, into d
   hook <prompt|tool|stop [--nudge]> [--client c]   hook entrypoints (JSON on stdin): prompt = notes for the request, tool = notes about files being edited, stop = nudge + distill
@@ -261,10 +265,10 @@ function unknownFlags(c, given, help = HELP) {
 // Commands that read or maintain a cache, and so need a git checkout to keep it in. Not `setup`,
 // `mine-prs`, `import`, `add`, `record`, `distill`: those build one. Not `hook` (quiet outside a
 // checkout) and not `ui`, the machine-wide page.
-const CACHE_COMMANDS = ['tools', 'symbols', 'orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'session-work', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback', 'skills'];
+const CACHE_COMMANDS = ['tools', 'symbols', 'orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'session-work', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback', 'skills', 'instructions'];
 
 // One handler per command, in src/commands/; each gets the context below and nothing else of this file.
-const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...skillsCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...warmupCommands, ...coverageCommands, ...commitsCommands, ...symbolsCommands, ...switchCommands, ...externalCommands, ...harnessCommands };
+const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...skillsCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...warmupCommands, ...coverageCommands, ...commitsCommands, ...symbolsCommands, ...switchCommands, ...externalCommands, ...harnessCommands, ...instructionsCommands };
 // Commands that still answer in a repository thinker is switched off for (repo-switch.js): the machine-wide
 // ones, the ones about the install itself, and the switch. `hook` keeps quiet by itself.
 const OFF_COMMANDS = ['version', 'enable', 'disable', 'ui', 'warmup', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'stats', 'ast', 'ranker', 'hook', 'serve', undefined];
