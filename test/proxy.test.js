@@ -124,6 +124,42 @@ test('an unreachable API is an api_error the agent retries, not a hang', async (
   } finally { px.server.close(); }
 });
 
+test('a connection dropped before the answer is tried once more, unseen by the agent', async () => {
+  let calls = 0;
+  const flaky = http.createServer((req, res) => {
+    calls++;
+    req.resume();
+    if (calls === 1) { req.socket.destroy(); return; }
+    req.on('end', () => { res.writeHead(200, { 'content-type': 'text/event-stream' }); res.end(SSE.join('')); });
+  });
+  const port = await new Promise(r => flaky.listen(0, '127.0.0.1', () => r(flaky.address().port)));
+  const px = await proxyTo(`http://127.0.0.1:${port}`);
+  try {
+    const r = await send(px.port);
+    assert.equal(r.status, 200);
+    assert.equal(r.text, SSE.join(''));
+    assert.equal(calls, 2);
+    await until(() => rows(px.logFile).some(x => x.op === 'proxy'));
+    const [err, ok] = rows(px.logFile);
+    assert.equal(err.op, 'proxy-error');
+    assert.equal(err.retried, true);
+    assert.equal(ok.retried, true);
+  } finally { px.server.close(); flaky.close(); }
+});
+
+test('a second drop is the agent\'s api_error to retry', async () => {
+  const dead = http.createServer((req, res) => { req.socket.destroy(); });
+  const port = await new Promise(r => dead.listen(0, '127.0.0.1', () => r(dead.address().port)));
+  const px = await proxyTo(`http://127.0.0.1:${port}`);
+  try {
+    const r = await send(px.port);
+    assert.equal(r.status, 502);
+    assert.equal(JSON.parse(r.text).error.type, 'api_error');
+    const errs = rows(px.logFile).filter(x => x.op === 'proxy-error');
+    assert.deepEqual(errs.map(x => x.retried), [true, false]);
+  } finally { px.server.close(); dead.close(); }
+});
+
 test('the report sums each side of the holdout in billed-equivalent input', () => {
   const report = proxyReport([
     { op: 'proxy', injected: true, session: 'a', input: 10, read: 1000, write: 100, out: 5, cleared: 500, overheadMs: 1 },

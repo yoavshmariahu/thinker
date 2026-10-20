@@ -136,27 +136,38 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen } = {}) 
       headers['content-length'] = t.body.length;
       const overheadMs = Number(process.hrtime.bigint() - t0) / 1e6;
       const base = up.pathname.replace(/\/$/, '');
-      const ureq = lib.request({ protocol: up.protocol, hostname: up.hostname, port: up.port || undefined, path: base + req.url, method: req.method, headers, agent }, ures => {
-        const out = {};
-        for (const [k, v] of Object.entries(ures.headers)) if (!['connection', 'keep-alive', 'transfer-encoding'].includes(k)) out[k] = v;
-        res.writeHead(ures.statusCode, out);
-        const tap = t.reason === 'other' ? null : usageTap();
-        ures.on('data', c => { res.write(c); tap?.push(c); });
-        ures.on('end', () => {
-          res.end();
-          if (tap) log({ at: new Date().toISOString(), op: 'proxy', session: sessionOf(req.headers), model: t.model, status: ures.statusCode,
-            injected: !!t.injected, ...(t.injected ? {} : { reason: t.reason }), overheadMs: Math.round(overheadMs * 1000) / 1000, ...tap.result() });
+      let ureq;
+      // A connection dropped before any answer came back (a reset or a broken pipe: twice in one
+      // 84-request Opus session on 2026-10-20) is tried once more on a fresh connection. The agent's
+      // own retry of the 502 cost it 10 to 40 seconds each time. Nothing has reached the agent yet, so
+      // the second try is invisible to it; a drop after the answer started cannot be retried.
+      const send = attempt => {
+        const started = Date.now();
+        ureq = lib.request({ protocol: up.protocol, hostname: up.hostname, port: up.port || undefined, path: base + req.url, method: req.method, headers, agent: attempt ? false : agent }, ures => {
+          const out = {};
+          for (const [k, v] of Object.entries(ures.headers)) if (!['connection', 'keep-alive', 'transfer-encoding'].includes(k)) out[k] = v;
+          res.writeHead(ures.statusCode, out);
+          const tap = t.reason === 'other' ? null : usageTap();
+          ures.on('data', c => { res.write(c); tap?.push(c); });
+          ures.on('end', () => {
+            res.end();
+            if (tap) log({ at: new Date().toISOString(), op: 'proxy', session: sessionOf(req.headers), model: t.model, status: ures.statusCode,
+              injected: !!t.injected, ...(t.injected ? {} : { reason: t.reason }), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...tap.result() });
+          });
+          ures.on('error', () => res.destroy());
         });
-        ures.on('error', () => res.destroy());
-      });
-      ureq.on('error', e => {
-        log({ at: new Date().toISOString(), op: 'proxy-error', error: e.message });
-        if (res.headersSent) return res.destroy();
-        res.writeHead(502, { 'content-type': 'application/json' });
-        res.end(JSON.stringify({ type: 'error', error: { type: 'api_error', message: `thinker proxy: the API could not be reached (${e.message})` } }));
-      });
+        ureq.on('error', e => {
+          const retry = !attempt && !res.headersSent && !res.destroyed && ['ECONNRESET', 'EPIPE'].includes(e.code);
+          log({ at: new Date().toISOString(), op: 'proxy-error', error: e.message, code: e.code, reused: !!ureq.reusedSocket, afterMs: Date.now() - started, retried: retry });
+          if (retry) return send(1);
+          if (res.headersSent) return res.destroy();
+          res.writeHead(502, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ type: 'error', error: { type: 'api_error', message: `thinker proxy: the API could not be reached (${e.message})` } }));
+        });
+        ureq.end(t.body);
+      };
+      send(0);
       res.on('close', () => { if (!res.writableFinished) ureq.destroy(); });
-      ureq.end(t.body);
     });
   });
   server.listen(cfg.port || 0, host, () => onListen?.(server.address()));
