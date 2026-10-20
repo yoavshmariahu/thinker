@@ -5,7 +5,8 @@
 // the page's Context tab, so both show the same rows and the same controls: a section is kept or left out of the
 // checkout's trimmed copy (`thinker instructions --core`, instructions-core.js), a tool is switched off for the
 // repository (`thinker harness --off`), where the harness is on.
-import { harnessUsage, harnessAdvice, harnessOn, labelOf, switchable, MIN_TOKENS, median } from './harness.js';
+import { harnessUsage, harnessAdvice, harnessOn, labelOf, canSwitchOff, MIN_TOKENS, median, setHarnessSettings, switchOffNow, undoHarness } from './harness.js';
+import { dietConfig, compressible, COMPRESSIBLE, setDietLevel } from './diet.js';
 import { instructionValue, findRepoSessions } from './instruction-value.js';
 import { coreConfig } from './instructions-core.js';
 import { wasteLevel } from './instruction-value.js';
@@ -45,8 +46,9 @@ export function contextView(store, { days = 30, sessions, usage, log } = {}) {
   const src = s => ({
     key: s.key, name: s.name, kind: s.kind, client: s.client || 'claude', scope: s.scope || null, tokens: s.tokens, perSession: s.tokens * Math.max(1, calls(s.client)),
     loaded: s.loaded, used: s.used, usedShare: s.loaded ? s.used / s.loaded : null, off: Boolean(s.off),
-    // what switches it off here, when the harness may (harness.js:switchOffNow with `any` takes the label)
-    label: on && switchable(s, usage) ? labelOf(s) : null,
+    // what switches it off here (harness.js:switchOffNow with `any` takes the label); `switchSources` turns the
+    // harness on for it when it is not
+    label: canSwitchOff(s) ? labelOf(s) : null,
     suggested: advice.has(`${s.client || 'claude'}:${s.key}`),
   });
   const rows = usage.sources.filter(s => s.tokens >= MIN_TOKENS || s.kind === 'skill').map(src);
@@ -72,6 +74,9 @@ export function contextView(store, { days = 30, sessions, usage, log } = {}) {
   }
   const iv = instructionValue(store, { days, sessions });
   const outputs = toolOutputs(store, sessions);
+  // each tool's output compression (diet.js): the level set here, and whether thinker can compress it at all
+  const diet = dietConfig(store);
+  outputs.tools = outputs.tools.map(t => ({ ...t, compressible: compressible(t.name), compression: diet.tools ? diet.tools[t.name] || (t.name.startsWith('Bash:') ? diet.tools.Bash : null) || null : diet.enabled && compressible(t.name) ? 'moderate' : null }));
   const core = coreConfig(store), kept = new Set(core.keep.map(k => k.toLowerCase()));
   const instructions = {
     ...iv, coreOn: core.enabled,
@@ -138,4 +143,19 @@ export function mergeViews(list) {
     skills, tools, outputs: { sessions: views.reduce((a, v) => a + v.outputs.sessions, 0), tools: outs },
     timeline: views.flatMap(v => v.timeline).sort((a, b) => a.t - b.t),
   };
+}
+
+// The Context tab's actions on tools, as the command line takes them (`thinker context --switch-off|--switch-on`,
+// `--output-compression <tools> --level high|moderate|off`). Switching off is the person's choice made there, so
+// it turns on what it needs in this repository: the harness, and built-in tool switching for a built-in tool.
+export function switchSources(store, { labels = [], keys = [], on = false, builtin = false } = {}) {
+  if (on) return undoHarness(store, { names: keys });
+  if (!labels.length) return 'nothing chosen';
+  setHarnessSettings(store, { enabled: true, ...(builtin ? { builtinTools: true } : {}) });
+  return switchOffNow(store, labels.join(','), { via: 'context', any: true });
+}
+export function setOutputCompression(store, tools, level) {
+  const can = tools.filter(compressible), cannot = tools.filter(t => !compressible(t));
+  const now = setDietLevel(store, can, level === 'off' ? null : level);
+  return `${can.length ? `${level === 'off' ? 'Compression off' : `${level === 'high' ? 'High' : 'Moderate'} compression`} for ${can.join(', ')} in Claude Code sessions from the next tool call.` : ''}${cannot.length ? ` thinker cannot compress ${cannot.join(', ')} yet (only Bash commands and Read).` : ''}`.trim() || JSON.stringify(now);
 }

@@ -320,6 +320,9 @@ export function harnessAdvice(usage) {
 }
 // A source a setting here switches off, and not off already: what the person may pick by hand (the Context view,
 // context-view.js), whatever the advice's thresholds say.
+// A source some setting here could switch off, whether or not the harness may yet (the Context tab offers it, and
+// turns the harness on when the person picks it).
+export const canSwitchOff = s => Boolean(switchOff(s)) && !s.off;
 export const switchable = (s, usage) => Boolean(switchOff(s)) && !s.off && (s.kind !== 'tool' || usage.builtinTools);
 const anySource = usage => usage.sources.filter(s => switchable(s, usage)).map(s => ({ ...s, unused: s.used === 0, how: switchOff(s), action: action(s) }));
 
@@ -905,11 +908,12 @@ export function harnessSettings(store, { home } = {}) {
 // recurring: the question from maintenance every two weeks (maintain.harness, on unless false; `weekly` is its old name); recall: the switched-off lines (harness.recall),
 // both in .thinker/config.json; suggestions: this machine's "never" (THINKER_HOME/state/harness-never);
 // enabled: the whole feature here (harness.enabled), off by default
-export function setHarnessSettings(store, { enabled, recurring, weekly, recall, suggestions } = {}, { home } = {}) {
+export function setHarnessSettings(store, { enabled, recurring, weekly, recall, suggestions, builtinTools } = {}, { home } = {}) {
   recurring ??= weekly;
-  if (enabled !== undefined || recurring !== undefined || recall !== undefined) {
+  if (enabled !== undefined || recurring !== undefined || recall !== undefined || builtinTools !== undefined) {
     const file = path.join(store.dir, 'config.json'), cfg = readJson(file) || {};
     if (enabled !== undefined) (cfg.harness ||= {}).enabled = Boolean(enabled);
+    if (builtinTools !== undefined) (cfg.harness ||= {}).builtinTools = Boolean(builtinTools);
     if (recurring !== undefined) (cfg.maintain ||= {}).harness = Boolean(recurring);
     if (recall !== undefined) (cfg.harness ||= {}).recall = Boolean(recall);
     writeJson(file, cfg, true);
