@@ -180,6 +180,6 @@ test('CLI and page expose the shared Claude Code, Codex and Cursor harness repor
   assert.match(read('ui/page.html'), /Recorded in Claude Code and Codex transcripts and Cursor's tool inventory/);
   assert.match(read('ui/page.html'), /cursor: 'Cursor: '/);
   assert.match(read('ui/page.html'), /data-hundo="\$\{esc\(s.key \|\| s.name\)\}"/);
-  assert.match(read('commands/hooks.js'), /\['claude', 'codex', 'cursor'\]\.includes\(client\).*harnessRecall/);
+  assert.match(read('commands/hooks.js'), /harnessHere = \['claude', 'codex', 'cursor'\]\.includes\(client\)[\s\S]*harnessHere \? await harnessRecall/);
   assert.match(read('commands/hooks.js'), /snapshotCursorInventory\(/);
 });

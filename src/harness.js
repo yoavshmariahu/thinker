@@ -589,7 +589,7 @@ export function answerHarness(store, choice, { client, via = 'picker', home, use
   if (!chosen.length) { saveState(store, st); store.log({ op: 'harness-answer', choice: 'none', client, via, sources: pending.length }); return 'Recorded: nothing switched off; thinker will not suggest these again for a month. Go on with the task.'; }
   const backups = new Map(), done = [], failed = [], overrides = claudeHarnessConfig(store.repo, { home: userHome }).overrides;
   for (const s of chosen) {
-    try { done.push({ client: s.client || 'claude', evidenceKeys: s.evidenceKeys, key: s.key, members: s.members, name: s.name, kind: s.kind, tokens: s.tokens, at, undo: apply(store.repo, s, { userHome, home, now, backups, overrides }), cards: cardsFor(s) }); }
+    try { done.push({ client: s.client || 'claude', evidenceKeys: s.evidenceKeys, key: s.key, members: s.members, name: s.name, kind: s.kind, tokens: s.tokens, at, undo: apply(store.repo, s, { userHome, home, now, backups, overrides }), cards: cardsFor(s, { repo: store.repo }) }); }
     catch (e) { failed.push(`${s.name} (${e.message})`); }
   }
   (st.applied ||= []).push(...done);
@@ -646,6 +646,20 @@ export function undoHarness(store, { home, userHome = os.homedir(), now = Date.n
 // otherwise. A new way of reaching the agent: off until an experiment shows it helps (AGENTS.md);
 // `harness: { recall: true }` in .thinker/config.json, or THINKER_HARNESS_RECALL=on, turns it on.
 export const RECALL = { floor: -2, k: 8, sessions: 50 };
+// The lexical matcher (`harness: { recallMatch: 'lexical' }`, or THINKER_HARNESS_RECALL_MATCH=lexical; off until an
+// experiment): a skill's one-line description shares few words with the request that needs it, and the
+// cross-encoder, trained on questions and the passages that answer them, scores "use when…" text far under its
+// floor: on 16 PostHog requests each written to need one skill it surfaced 0 (2026-10-19). Ranked by BM25 over the
+// description and the skill file's own headings and code terms, with no floor but cover, the skill was in the top
+// three for 13. Up to `max` skills are named, each covering at least `cover` of the request's term weight.
+export const RECALL_LEXICAL = { cover: 0.3, max: 2, termChars: 3000 };
+export const recallMatch = store => {
+  const env = process.env.THINKER_HARNESS_RECALL_MATCH || '';
+  return /^(lexical|ce)$/i.test(env) ? env.toLowerCase() : store?.config?.().harness?.recallMatch === 'lexical' ? 'lexical' : 'ce';
+};
+// what a skill file says in code terms: its headings and inline code, which name the APIs and files a request touches
+export const skillTerms = md => [...new Set([...String(md).matchAll(/^#{1,4} (.+)$/gm)].map(m => m[1]).concat([...String(md).matchAll(/`([^`\n]{2,60})`/g)].map(m => m[1])))].join(' ').slice(0, RECALL_LEXICAL.termChars);
+const readTerms = file => { try { return file ? skillTerms(fs.readFileSync(file, 'utf8').replace(/^---[\s\S]*?---/, '')) : ''; } catch { return ''; } };
 // On with the harness (2026-10-19, the owner's decision: switching a source off is only fair if thinker
 // brings it back when a request needs it); `harness: { recall: false }` or THINKER_HARNESS_RECALL=off turns it off.
 export const recallOn = store => {
@@ -656,16 +670,28 @@ export const recallOn = store => {
 };
 
 // One card per thing the person can bring back by name: a skill each (a plugin's too), a server whole.
-export function cardsFor(s) {
-  const card = (key, name, text, back, use) => ({ id: key, name, text: String(text || name).slice(0, CARD_CHARS), back, ...(use ? { use } : {}) });
+export function cardsFor(s, { repo } = {}) {
+  const card = (key, name, text, back, use, file) => ({ id: key, name, text: String(text || name).slice(0, CARD_CHARS), back, ...(use ? { use } : {}), ...(file ? { file } : {}) });
   // a Codex skill switched off is out of the listing, not out of the checkout: the agent can still read it now
   const skillFile = s.client === 'codex' && s.kind === 'skill' && s.dir && /^[^\n\r`<>]{1,400}$/.test(s.dir) ? path.join(s.dir, 'SKILL.md') : null;
-  if (s.client === 'codex') return [card(s.key, s.name, Object.values(s.texts || {}).join(' '), `\`thinker harness --undo ${s.key}\` brings it back from the next Codex session`, skillFile && `read ${skillFile} and follow it`)];
+  if (s.client === 'codex') return [card(s.key, s.name, Object.values(s.texts || {}).join(' '), `\`thinker harness --undo ${s.key}\` brings it back from the next Codex session`, skillFile && `read ${skillFile} and follow it`, skillFile)];
   if (s.client === 'cursor') return [card(s.key, s.name, Object.values(s.texts || {}).join(' '), `\`thinker harness --undo ${s.key}\` puts it back in ~/.cursor/mcp.json, for the next Cursor chat`)];
   if (s.kind === 'mcp') return [card(s.key, s.name, s.texts?.[`mcp:${serverKey(s.name)}`] || Object.values(s.texts || {})[0], `\`/mcp enable ${s.name}\` brings it back in this session`)];
   if (s.how === 'desktop-connector') return [card(s.key, s.name, Object.values(s.texts || {}).join(' '), `the + menu → Connectors turns it back on (in the desktop app you can call ${CONNECTOR_TOOL} with connector ${JSON.stringify(s.id)} and enabled true, from the next turn)`)];
   const back = s.how === 'plugin' || (s.how === 'skills' && s.kind === 'plugin') ? n => `the ${s.name} plugin is off here: \`thinker harness --undo\` (or "enabledPlugins": {"${s.how === 'plugin' ? s.id : `${s.name}@inline`}": true} in .claude/settings.local.json) brings it back from the next session` : n => `\`/${n}\` still runs it`;
-  return (s.skills?.length ? s.skills : [s.name]).map(n => card(`skill:${n}`, n, s.texts?.[`skill:${n}`], back(n)));
+  // a skill of the repository's own keeps its file, whose headings and code terms the lexical matcher reads
+  const own = n => repo && /^[\w.-]{1,100}$/.test(n) ? ['.claude', '.agents'].map(d => path.join(repo, d, 'skills', n, 'SKILL.md')).find(f => fs.existsSync(f)) : null;
+  return (s.skills?.length ? s.skills : [s.name]).map(n => card(`skill:${n}`, n, s.texts?.[`skill:${n}`], back(n), null, own(n)));
+}
+
+// The cards the lexical matcher names for a request, best first: BM25 over each card's description and its skill
+// file's terms, kept when the card covers enough of the request's term weight.
+export async function recallLexical(cards, prompt, { cover = RECALL_LEXICAL.cover, max = RECALL_LEXICAL.max } = {}) {
+  if (!cards?.length || !String(prompt || '').trim()) return [];
+  const { rank } = await import('./rank.js');
+  const notes = cards.map(c => ({ id: c.id, title: c.name.replace(/[:_-]+/g, ' '), answers: [c.text], body: `${c.text} ${readTerms(c.file)}`, kind: 'howto', deps: [], card: c }));
+  return rank(notes, { query: prompt, loose: true, mode: 'lookup' }).filter(r => r.matched > 0 && r.cover >= cover)
+    .sort((a, b) => b.score - a.score).slice(0, max).map(r => ({ ...r.note.card, cover: r.cover }));
 }
 
 // The card the request needs, if any: the hook's own lexical gate, then the cross-encoder at the floor.
@@ -688,21 +714,23 @@ export async function harnessRecall(store, prompt, { session, client, scoreFn } 
   const st = readHarnessState(store), cards = (st.applied || []).filter(a => !client || (a.client || 'claude') === client).flatMap(a => a.cards || []);
   if (!cards.length) return '';
   const said = new Set(st.recalled?.[session] || []);
-  let c = null;
-  try { c = await recallCard(cards.filter(x => !said.has(x.id)), prompt, { scoreFn }); } catch { return ''; }
-  if (!c) return '';
+  const open = cards.filter(x => !said.has(x.id)), match = recallMatch(store);
+  let found = [];
+  try { found = match === 'lexical' && !scoreFn ? await recallLexical(open, prompt) : [await recallCard(open, prompt, { scoreFn })].filter(Boolean); } catch { return ''; }
+  if (!found.length) return '';
   if (session && session !== 'unknown') {
     st.recalled ||= {};
-    st.recalled[session] = [...said, c.id];
+    st.recalled[session] = [...said, ...found.map(c => c.id)];
     const keys = Object.keys(st.recalled); for (const k of keys.slice(0, Math.max(0, keys.length - RECALL.sessions))) delete st.recalled[k];
     saveState(store, st);
   }
-  store.log({ op: 'harness-recall', session: session === 'unknown' ? undefined : session, client, card: c.id, ce: c.ce == null ? undefined : Math.round(c.ce * 100) / 100 });
+  for (const c of found) store.log({ op: 'harness-recall', session: session === 'unknown' ? undefined : session, client, card: c.id, match, ce: c.ce == null ? undefined : Math.round(c.ce * 100) / 100, cover: c.cover == null ? undefined : Math.round(c.cover * 100) / 100 });
   // the description is the skill's own text, a third party's: a short excerpt, quoted as data, with nothing
   // that could close the block or open another
-  const what = String(c.text).replace(/^- /, '').replace(/^\S+?(?=: | \()(\s*\([^)]*\))?:\s*/, '').replace(/[<>`\n\r]+/g, ' ').split(/(?<=\.)\s/)[0].trim().slice(0, 160);
-  const then = c.use ? `${c.use} (${c.back})` : `tell the user that ${c.back}`;
-  return `<thinker-switched-off>\n${c.name} is switched off here; its listing said: ${JSON.stringify(what)}. If this request needs it, ${then}; otherwise ignore this line.\n</thinker-switched-off>`;
+  const what = c => String(c.text).replace(/^- /, '').replace(/^\S+?(?=: | \()(\s*\([^)]*\))?:\s*/, '').replace(/[<>`\n\r]+/g, ' ').split(/(?<=\.)\s/)[0].trim().slice(0, 160);
+  const then = c => c.use ? `${c.use} (${c.back})` : `tell the user that ${c.back}`;
+  if (found.length === 1) { const [c] = found; return `<thinker-switched-off>\n${c.name} is switched off here; its listing said: ${JSON.stringify(what(c))}. If this request needs it, ${then(c)}; otherwise ignore this line.\n</thinker-switched-off>`; }
+  return `<thinker-switched-off>\nSwitched off here, and possibly what this request needs; if one is, ${found.some(c => c.use) ? 'follow its instruction' : 'say so'} before editing, otherwise ignore these lines:\n${found.map(c => `- ${c.name}: ${JSON.stringify(what(c))}. ${then(c)[0].toUpperCase()}${then(c).slice(1)}.`).join('\n')}\n</thinker-switched-off>`;
 }
 
 // --- switched-off skills, found by the agent ---------------------------------------------------------------
@@ -799,6 +827,45 @@ export function harnessView(store, { days = 30, home } = {}) {
     saved: harnessSavings(store),
     pending: harnessPending(store, { home }), never: harnessNever(home), enabled: true,
   };
+}
+
+// --- the index: the names of the switched-off skills, once a session ------------------------------------
+// With the listing off the agent read 15% of the skills its changes called for, against 98% with it listed
+// (posthog-hard-pr-vs-pr-und-sonnet-2026-10-17, Astra), and recall surfaced none: the model judges fit well,
+// it only needs to know what exists. The index gives it the names alone (~770 tokens for PostHog's 107 skills,
+// against ~4.5k for Codex's listing) and where the files are, once at the start of a session. A new way of
+// reaching the agent: off until an experiment shows it helps (AGENTS.md); `harness: { skillIndex: true }` in
+// .thinker/config.json, or THINKER_HARNESS_INDEX=on, turns it on.
+export const indexOn = store => {
+  if (!harnessOn(store)) return false;
+  const env = process.env.THINKER_HARNESS_INDEX || '';
+  if (/^(0|off|false)$/i.test(env)) return false;
+  return /^(1|on|true)$/i.test(env) || store.config().harness?.skillIndex === true;
+};
+// The block, or '' when it is off, already said this session, or no switched-off skill has a file to read.
+export function harnessIndex(store, { session, client } = {}) {
+  if (!indexOn(store)) return '';
+  const st = readHarnessState(store);
+  const cards = (st.applied || []).filter(a => !client || (a.client || 'claude') === client).flatMap(a => a.cards || []).filter(c => c.file);
+  if (!cards.length || (session && st.indexed?.[session])) return '';
+  if (session && session !== 'unknown') {
+    st.indexed ||= {};
+    st.indexed[session] = true;
+    const keys = Object.keys(st.indexed); for (const k of keys.slice(0, Math.max(0, keys.length - RECALL.sessions))) delete st.indexed[k];
+    saveState(store, st);
+  }
+  // one line per directory of skills: <dir>/<name>/SKILL.md, the names after it
+  const rel = f => (store.repo && f.startsWith(store.repo + path.sep) ? path.relative(store.repo, f) : f);
+  const byDir = new Map();
+  for (const c of cards) {
+    const f = rel(c.file), dir = path.basename(path.dirname(f)) === c.name ? path.dirname(path.dirname(f)) : null;
+    if (!/^[^\n\r`<>]{1,400}$/.test(dir || f) || !/^[\w.:-]{1,100}$/.test(c.name)) continue;
+    const k = dir ? `${dir}/<name>/SKILL.md` : f;
+    byDir.set(k, [...(byDir.get(k) || []), c.name]);
+  }
+  if (!byDir.size) return '';
+  store.log({ op: 'harness-index', session: session === 'unknown' ? undefined : session, client, skills: cards.length });
+  return `<thinker-skills>\nThis repository's skills are not listed in full here, to save context. Before work one of them covers, read its file and follow it:\n${[...byDir].map(([k, names]) => `${k}: ${names.sort().join(', ')}`).join('\n')}\n</thinker-skills>`;
 }
 
 // --- the controls: `thinker harness --off/--undo/--recurring/--recall/--suggestions`, and the page's buttons ---

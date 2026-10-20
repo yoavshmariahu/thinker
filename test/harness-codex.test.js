@@ -145,6 +145,22 @@ test('a Codex skill switched off is recalled as its file to read, still in the c
   assert.doesNotMatch(recall, /tell the user/);
 });
 
+test('the skill index names the switched-off skills once a session, off unless asked for', async t => {
+  const f = fixture(t), { cardsFor, harnessIndex } = await import('../src/harness.js');
+  const mk = name => ({ client: 'codex', key: `codex:skill:${name}`, name, kind: 'skill', at: new Date().toISOString(), undo: {}, cards: cardsFor({ client: 'codex', kind: 'skill', key: `codex:skill:${name}`, name, dir: path.join(f.repo, '.agents', 'skills', name), texts: { [`skill:${name}`]: `- ${name}: does ${name}.` } }) });
+  fs.mkdirSync(path.join(f.store.dir, 'state'), { recursive: true });
+  fs.writeFileSync(path.join(f.store.dir, 'state', 'harness.json'), JSON.stringify({ applied: [mk('writing-tests'), mk('django-migrations')] }));
+  fs.writeFileSync(path.join(f.store.dir, 'config.json'), JSON.stringify({ harness: { enabled: true } }));
+  assert.equal(harnessIndex(f.store, { session: 's1', client: 'codex' }), '', 'off by default');
+  fs.writeFileSync(path.join(f.store.dir, 'config.json'), JSON.stringify({ harness: { enabled: true, skillIndex: true } }));
+  assert.equal(harnessIndex(f.store, { session: 's1', client: 'claude' }), '', 'client scoped');
+  const block = harnessIndex(f.store, { session: 's1', client: 'codex' });
+  assert.match(block, /^<thinker-skills>\n/); assert.match(block, /\.agents\/skills\/<name>\/SKILL\.md: django-migrations, writing-tests\n/);
+  assert.doesNotMatch(block, /does writing-tests/, 'names only, not descriptions');
+  assert.equal(harnessIndex(f.store, { session: 's1', client: 'codex' }), '', 'once a session');
+  assert.notEqual(harnessIndex(f.store, { session: 's2', client: 'codex' }), '');
+});
+
 test('CODEX_HOME and project overrides are honored; an invalid config layer yields no advice', t => {
   const f = fixture(t); fs.mkdirSync(path.join(f.repo, '.codex')); fs.writeFileSync(path.join(f.repo, '.codex/config.toml'), '[mcp_servers.docs]\nenabled=false\n');
   assert.equal(codexHarnessConfig(f.repo, { home: '/unused' }).servers.get('docs').off, true);
