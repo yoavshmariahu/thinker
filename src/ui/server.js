@@ -13,9 +13,10 @@
 // gets from the URL it was opened with, and the Host header must name this server, so another page
 // in the browser (or a DNS rebinding) can neither read the cache nor change a behavior.
 import { harnessFirstLook, switchOffFirstLook, harnessView, harnessSavings, harnessOn, scheduleHarnessSuggestion, undoHarness, switchOffNow, setHarnessSettings } from '../harness.js';
-import { contextView } from '../context-view.js';
+import { contextView, mergeViews } from '../context-view.js';
 import { judgeRecent } from '../instruction-value.js';
 import { setCore } from '../instructions-core.js';
+import { previewEdit, applyEdit } from '../instruction-edit.js';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -276,11 +277,12 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
       }
       // where the context goes in one repository (context-view.js:contextView, as `thinker context`), kept a minute like the harness
       if (req.method === 'GET' && url.pathname === '/api/context') {
-        if (want === 'all') return json(res, 400, { error: 'pick a repository' });
-        const one = storeFor(want); if (!one) return json(res, 400, { error: 'unknown repository' });
-        const d = Number(url.searchParams.get('days')) || 30, k = `context:${one.repo}:${d}`, hit = harnessCache.get(k);
+        const d = Number(url.searchParams.get('days')) || 30, k = `context:${want}:${d}`, hit = harnessCache.get(k);
         if (hit && Date.now() - hit.at < 60_000) return json(res, 200, hit.view);
-        const view = contextView(one, { days: d });
+        let view;
+        // every repository on the machine, merged (context-view.js:mergeViews); a repository that fails to read is left out
+        if (want === 'all') view = mergeViews(repos().flatMap(r => { try { return [{ repo: r.id, name: r.name, view: contextView(open(r.checkout), { days: d }) }]; } catch { return []; } }));
+        else { const one = storeFor(want); if (!one) return json(res, 400, { error: 'unknown repository' }); view = contextView(one, { days: d }); }
         harnessCache.set(k, { at: Date.now(), view });
         return json(res, 200, view);
       }
@@ -380,6 +382,9 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
       else if (url.pathname === '/api/harness/off') r = Array.isArray(b.labels) && b.labels.length ? { said: switchOffNow(st, b.labels.join(','), { via: 'ui', any: true }) } : { error: 'nothing chosen' };
       // `thinker instructions --core "<Title>, …"` (a list) and `--off` (null)
       else if (url.pathname === '/api/context/core') { const keep = Array.isArray(b.keep) ? b.keep.map(String).filter(Boolean) : null; const c = setCore(st, keep?.length ? keep : null); r = c.state === 'theirs' ? { error: 'AGENTS.override.md here is not thinker\'s; nothing written' } : { said: keep?.length ? `Kept ${c.kept?.length ?? keep.length} sections for this checkout` : 'Agents here read the whole file again' }; }
+      // `thinker instructions --remove|--compress <id>` (the diff) and `--apply` (written to the working tree)
+      else if (url.pathname === '/api/context/edit') { const x = await previewEdit(st, Array.isArray(b.ids) ? b.ids : String(b.id || ''), b.action === 'compress' ? 'compress' : 'remove'); if (x.error) r = x; else return json(res, 200, { ok: true, preview: x }); }
+      else if (url.pathname === '/api/context/apply') r = applyEdit(st, String(b.id || ''));
       // `thinker context --judge n`, in the background: model calls, through the person's agent or the desktop session
       else if (url.pathname === '/api/context/judge') { const n = Math.min(20, Math.max(1, Number(b.n) || 5)); judgeRecent(st, { n }).then(x => { harnessCache.clear(); st.log({ op: 'instruction-value', via: 'ui', judged: x.judged }); }).catch(e => st.log({ op: 'instruction-value', via: 'ui', failed: String(e.message || e).slice(0, 160) })); r = { said: `Judging ${n} sessions in the background` }; }
       else if (url.pathname === '/api/harness/settings') { const v = k => typeof b[k] === 'boolean' ? b[k] : undefined; r = { said: JSON.stringify(setHarnessSettings(st, { recurring: v('recurring') ?? v('weekly'), recall: v('recall'), suggestions: v('suggestions') })) }; }

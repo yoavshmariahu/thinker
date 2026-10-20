@@ -299,8 +299,8 @@ export function use({ sessions, applied, triggered, judged, bore }, perSession) 
 }
 
 // High, medium or low waste: what the section costs in the sessions it was not used, as a share of what the whole
-// file costs a session, for a section used in under half of them. The saving is that cost: what the sessions would
-// not have read had the section come only when it applied. Unknown while there is nothing to say how often it is used.
+// file costs a session, for a section used in under half of them. The saving is that cost, at most: what the
+// sessions would not have read without the section (a session that needed it would go without). Unknown while there is nothing to say how often it is used.
 export const WASTE = { high: 0.05, medium: 0.02, used: 0.5 };
 export function wasteLevel(r, fileCost) {
   if (r.wasted == null) return { waste: 'unknown', wasteShare: null };

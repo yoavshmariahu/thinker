@@ -1,10 +1,27 @@
 // `thinker instructions`: the sections of AGENTS.md, with their tokens, and the trimmed copy this checkout's agents
 // read in its place (instructions-core.js). --core "<Title>, <Title>" keeps those sections, --off removes the copy.
 import { sections, setCore, coreConfig, syncCore, SOURCE, OVERRIDE, NOT_TRIMMED } from '../instructions-core.js';
+import { previewEdit, applyEdit } from '../instruction-edit.js';
 import fs from 'node:fs';
 import path from 'node:path';
 
 async function instructionsCommand({ store, repo, flags, out }) {
+  // --remove / --compress <section id>: the diff of that change; --apply writes it to the working tree (instruction-edit.js)
+  for (const action of ['remove', 'compress']) {
+    if (typeof flags[action] !== 'string') continue;
+    // one section id, or several separated by commas
+    const r = await previewEdit(store, flags[action], action);
+    if (r.error) { out(r.error); return; }
+    for (const x of r.sections) {
+      out(`${action === 'remove' ? 'Remove' : 'Compress'} "${x.title}" in ${r.file}: ~${x.tokensBefore} → ~${x.tokensAfter} tokens\n`);
+      for (const [k, l] of x.diff) if (k !== ' ' || x.diff.length < 40) out(`${k} ${l}`);
+      out('');
+    }
+    if (r.sections.length > 1) out(`In all: ~${r.tokensBefore} → ~${r.tokensAfter} tokens in every model call.`);
+    const ap = flags.apply ? applyEdit(store, r.key) : null;
+    out(ap ? (ap.said || ap.error) : `Nothing written. Add --apply to write it to ${r.file} (uncommitted; git diff to review).`);
+    return;
+  }
   if (flags.off) { const r = setCore(store, null); out(r.state === 'removed' ? `Removed ${OVERRIDE}${r.claude === 'removed' ? ' and CLAUDE.local.md' : ''} (and any Cursor rule thinker wrote): agents here read ${SOURCE} whole again.` : r.state === 'theirs' ? `${OVERRIDE} here is not thinker's; left as it is.` : `Nothing to remove: thinker keeps no ${OVERRIDE} here.`); return; }
   if (flags.core !== undefined && flags.core !== true) {
     const keep = String(flags.core).split(',').map(s => s.trim()).filter(Boolean);

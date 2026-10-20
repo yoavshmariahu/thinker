@@ -8,6 +8,9 @@
 import { harnessUsage, harnessAdvice, harnessOn, labelOf, switchable, MIN_TOKENS, median } from './harness.js';
 import { instructionValue, findRepoSessions } from './instruction-value.js';
 import { coreConfig } from './instructions-core.js';
+import { wasteLevel } from './instruction-value.js';
+import fs from 'node:fs';
+import path from 'node:path';
 import { readLog } from './usage.js';
 import { toolOutputs } from './tool-outputs.js';
 
@@ -47,7 +50,12 @@ export function contextView(store, { days = 30, sessions, usage, log } = {}) {
     suggested: advice.has(`${s.client || 'claude'}:${s.key}`),
   });
   const rows = usage.sources.filter(s => s.tokens >= MIN_TOKENS || s.kind === 'skill').map(src);
-  const skills = rows.filter(r => r.kind === 'skill').map(r => ({ ...r, outcome: outcomes[r.name] || null }));
+  // a skill as the Context tab shows it: its own text beside its cost, how often sessions read it, its outcome, and
+  // the waste flag the instruction sections get (its listing's cost in the sessions that did not read it)
+  const skillText = s => { const src = usage.sources.find(x => x.key === s.key && (x.client || 'claude') === s.client); try { return fs.readFileSync(path.join(src?.dir || '', 'SKILL.md'), 'utf8'); } catch { return Object.values(src?.texts || {})[0] || ''; } };
+  let skills = rows.filter(r => r.kind === 'skill').map(r => ({ ...r, outcome: outcomes[r.name] || null, text: skillText(r).slice(0, 4000), wasted: r.off ? 0 : Math.round(r.perSession * (1 - (r.usedShare ?? 0))) }));
+  const skillCost = skills.reduce((a, r) => a + (r.off ? 0 : r.perSession), 0);
+  skills = skills.map(r => ({ ...r, ...wasteLevel(r, skillCost) }));
   // skills of a plugin are one row in the harness report (one switch): their outcomes are summed onto it
   const tools = rows.filter(r => r.kind !== 'skill').map(r => ({ ...r, group: toolGroup(r) })).map(r => {
     const members = usage.sources.find(s => s.key === r.key && (s.client || 'claude') === r.client)?.skills || [];
@@ -56,6 +64,12 @@ export function contextView(store, { days = 30, sessions, usage, log } = {}) {
     const sum = k => os.reduce((a, o) => a + o[k], 0), read = sum('read');
     return { ...r, skills: members, outcome: { checked: sum('checked'), read, brokenAfterRead: sum('brokenAfterRead'), missed: sum('missed'), success: read ? (read - Math.min(read, sum('brokenAfterRead'))) / read : null } };
   });
+  // each tool's description (what its listing or definition said) and its waste within its kind, for its card
+  const sourceOf = r => usage.sources.find(x => x.key === r.key && (x.client || 'claude') === r.client);
+  for (const g of ['mcp', 'plugins', 'builtin']) {
+    const xs = tools.filter(r => r.group === g), cost = xs.reduce((a, r) => a + (r.off ? 0 : r.perSession), 0);
+    for (const r of xs) Object.assign(r, { text: Object.values(sourceOf(r)?.texts || {}).join('\n\n').slice(0, 2400), wasted: r.off ? 0 : Math.round(r.perSession * (1 - (r.usedShare ?? 0))) }, wasteLevel({ usedShare: r.usedShare, wasted: r.off ? null : Math.round(r.perSession * (1 - (r.usedShare ?? 0))) }, g === 'builtin' ? cost : xs.concat(skills).reduce((a, x) => a + (x.off ? 0 : x.perSession), 0)));
+  }
   const iv = instructionValue(store, { days, sessions });
   const outputs = toolOutputs(store, sessions);
   const core = coreConfig(store), kept = new Set(core.keep.map(k => k.toLowerCase()));
@@ -87,5 +101,41 @@ export function contextView(store, { days = 30, sessions, usage, log } = {}) {
         return { t: r.t, custom: ((p.skills || 0) + (p.mcp || 0) + (p.plugins || 0)) * c, builtin: (p.builtin || 0) * c };
       }),
     ].sort((a, b) => a.t - b.t),
+  };
+}
+
+// Every repository's report as one (the Context tab's "All repositories"): the timeline and the instruction
+// sections side by side (each section names its repository), the tools merged by name across repositories (counts
+// summed, sizes and costs weighted by the sessions behind them), averages weighted by sessions. No switches: those
+// belong to one repository.
+export function mergeViews(list) {
+  list = list.filter(x => x.view && x.view.sessions + (x.view.instructions?.sessions || 0) > 0);
+  const w = (xs, k, by) => { const n = xs.reduce((a, x) => a + (x[by] || 0), 0); return n ? xs.reduce((a, x) => a + (x[k] || 0) * (x[by] || 0), 0) / n : 0; };
+  const merge = (rows, key, by, sums, avgs) => {
+    const m = new Map();
+    for (const r of rows) { const k = key(r); if (!m.has(k)) m.set(k, []); m.get(k).push(r); }
+    return [...m.values()].map(g => ({ ...g[0], ...Object.fromEntries(sums.map(k => [k, g.reduce((a, x) => a + (x[k] || 0), 0)])), ...Object.fromEntries(avgs.map(k => [k, Math.round(w(g, k, by))])), label: null, repos: g.length }));
+  };
+  const views = list.map(x => x.view), sessions = views.reduce((a, v) => a + v.sessions, 0);
+  const tag = x => r => ({ ...r, repo: x.repo, repoName: x.name });
+  const tools = merge(views.flatMap(v => v.tools), r => `${r.client}:${r.key}`, 'loaded', ['loaded', 'used'], ['tokens', 'perSession']).map(r => ({ ...r, usedShare: r.loaded ? r.used / r.loaded : null })).sort((a, b) => b.perSession - a.perSession);
+  const skills = merge(views.flatMap(v => v.skills), r => `${r.client}:${r.key}`, 'loaded', ['loaded', 'used'], ['tokens', 'perSession']);
+  const outs = merge(views.flatMap(v => v.outputs.tools.map(t => ({ ...t, n: v.outputs.sessions }))), r => r.name, 'n', ['usedIn', 'n'], ['tokens', 'perSession', 'perCall']).map(t => ({ ...t, calls: w(views.flatMap(v => v.outputs.tools.filter(x => x.name === t.name).map(x => ({ ...x, n: v.outputs.sessions }))), 'calls', 'n') })).sort((a, b) => b.perSession - a.perSession);
+  const ivs = list.map(x => ({ x, iv: x.view.instructions })).filter(({ iv }) => iv.file);
+  const ivSessions = ivs.reduce((a, { iv }) => a + iv.sessions, 0);
+  const window = ivs.reduce((a, { iv }) => a + (iv.savings?.window || 0), 0);
+  const fileWindow = ivs.reduce((a, { iv }) => a + iv.sections.reduce((s, r) => s + r.perSession, 0) * iv.sessions, 0);
+  const total = k => ({ tokens: Math.round(w(views.map(v => ({ ...v.totals[k], s: v.sessions })), 'tokens', 's')), perSession: Math.round(w(views.map(v => ({ ...v.totals[k], s: v.sessions })), 'perSession', 's')), count: Math.max(0, ...views.map(v => v.totals[k]?.count || 0)) });
+  return {
+    all: true, days: views[0]?.days || 30, sessions, harnessOn: false, repos: list.map(x => ({ repo: x.repo, name: x.name, sessions: x.view.sessions })),
+    totals: Object.fromEntries(Object.keys(views[0]?.totals || {}).map(k => [k, total(k)])),
+    instructions: {
+      all: true, file: ivs.length ? `${ivs.length} instruction file${ivs.length === 1 ? '' : 's'}` : null, sessions: ivSessions,
+      judged: ivs.reduce((a, { iv }) => a + iv.judged, 0), calls: Math.round(w(ivs.map(({ iv }) => iv), 'calls', 'sessions')), judge: ivs[0]?.iv.judge || { judge: false, share: 0 }, coreOn: false,
+      sections: ivs.flatMap(({ x, iv }) => iv.sections.map(tag(x))),
+      savings: { window, perSession: ivSessions ? Math.round(window / ivSessions) : 0, share: fileWindow ? window / fileWindow : 0, sections: ivs.reduce((a, { iv }) => a + (iv.savings?.sections || 0), 0) },
+    },
+    skills, tools, outputs: { sessions: views.reduce((a, v) => a + v.outputs.sessions, 0), tools: outs },
+    timeline: views.flatMap(v => v.timeline).sort((a, b) => a.t - b.t),
   };
 }

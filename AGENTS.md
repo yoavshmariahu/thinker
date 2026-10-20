@@ -1097,7 +1097,19 @@ calls of a session here) and how much the sessions used it. Measurement only; no
   rules, and misses (broken without being read).
 - **Other tools**: MCP servers, plugins, built-in tools, as `thinker harness` reads them.
 
-Controls are the commands: keeping sections writes the checkout's trimmed copy (`thinker instructions --core`,
+The tab (Context Overview) shows the input tokens by day or week as stacked columns (instruction files, custom
+tools, built-in tools, tool outputs; `tool-outputs.js` estimates the outputs: each result's tokens × the model calls
+left after it), then one part at a time as cards: each section, skill or tool beside its cost, use and a waste level
+(`instruction-value.js:wasteLevel`: high or medium for a part relevant to under half the sessions whose cost there is
+5% or 2% of its kind's; the saving shown is that cost, at most). "All repositories" merges every repository's report
+(`context-view.js:mergeViews`).
+
+Sections are changed by the person, in the team's file, as a local diff: picked sections are removed, or compressed
+by a model asked for a third of the length (`instruction-edit.js`, `thinker instructions --remove|--compress <ids>
+[--apply]`, the tab's Compress and Remove). The diff is shown first; Apply writes exactly that text to the working
+tree, uncommitted, and refuses when the file changed since the preview. No commit, no pull request.
+
+Other controls are the commands: keeping sections writes the checkout's trimmed copy (`thinker instructions --core`,
 never the team's file); a skill or tool is switched off by `thinker harness --off <label>`, which since this view
 takes any source a setting switches off, not only the advice's (`harness.js:switchable`; `any`), and only where
 the harness is on.

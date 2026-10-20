@@ -205,3 +205,39 @@ test('waste: high or medium only for a section used in under half the sessions t
   assert.equal(wasteLevel({ usedShare: 0.6, wasted: 400_000 }, 1_000_000).waste, 'low', 'used in most sessions: never flagged');
   assert.equal(wasteLevel({ usedShare: null, wasted: null }, 1_000_000).waste, 'unknown');
 });
+
+test('remove and compress: a diff first, then exactly that text written to the working tree, never over a changed file', async t => {
+  const { previewEdit, applyEdit, locate } = await import('../src/instruction-edit.js');
+  const { repo, store } = fixture(t);
+  assert.equal(locate(AGENTS, 'history').end - locate(AGENTS, 'history').start, 4);
+  const p = await previewEdit(store, 'history', 'remove');
+  assert.ok(p.diff.every(([k]) => k === '-')); assert.equal(p.tokensAfter, 0);
+  assert.equal(fs.readFileSync(path.join(repo, 'AGENTS.md'), 'utf8'), AGENTS, 'a preview writes nothing');
+  assert.match(applyEdit(store, 'history').said, /Removed/);
+  // several at once: one preview, one apply
+  const m = await previewEdit(store, ['api-views', 'commits-and-pull-requests'], 'remove');
+  assert.equal(m.key, 'bulk'); assert.equal(m.sections.length, 2);
+  assert.equal(fs.readFileSync(path.join(repo, 'AGENTS.md'), 'utf8').includes('## API views'), true);
+  fs.writeFileSync(path.join(repo, 'AGENTS.md'), AGENTS.replace('## History\n\nWe tried a cache server once.\n', ''));
+  const after = fs.readFileSync(path.join(repo, 'AGENTS.md'), 'utf8');
+  assert.ok(!after.includes('## History') && after.includes('## Commits and pull requests'));
+  // compress: the model's text, under the section's own heading
+  const completeFn = async () => ({ text: 'Conventional commits.' });
+  const c = await previewEdit(store, 'commits-and-pull-requests', 'compress', { completeFn });
+  assert.ok(c.diff.some(([k, l]) => k === '+' && l === 'Conventional commits.'));
+  fs.appendFileSync(path.join(repo, 'AGENTS.md'), '\nedited meanwhile\n');
+  assert.match(applyEdit(store, 'commits-and-pull-requests').error, /changed since the preview/);
+  assert.match(applyEdit(store, 'nothing').error, /preview/);
+});
+
+test('all repositories: the timeline joined, sections tagged with their repository, a tool merged by name', async () => {
+  const { mergeViews } = await import('../src/context-view.js');
+  const view = (sessions, tool, sec) => ({ days: 30, sessions, totals: { custom: { tokens: 10, perSession: 100, count: 1 } }, skills: [], tools: [tool], outputs: { sessions, tools: [] },
+    instructions: { file: 'AGENTS.md', sessions, judged: 0, calls: 10, judge: { judge: false }, sections: [sec], savings: { window: 50, sessions: 1 } }, timeline: [{ t: sessions, custom: 1 }] });
+  const tool = (loaded, perSession) => ({ client: 'claude', key: 'mcp:rea', name: 'rea', kind: 'mcp', loaded, used: 1, tokens: 1000, perSession });
+  const v = mergeViews([{ repo: 'a', name: 'A', view: view(1, tool(1, 100), { id: 's', perSession: 10 }) }, { repo: 'b', name: 'B', view: view(3, tool(3, 500), { id: 's', perSession: 10 }) }]);
+  assert.equal(v.all, true); assert.equal(v.sessions, 4); assert.equal(v.timeline.length, 2);
+  assert.deepEqual(v.instructions.sections.map(s => s.repoName), ['A', 'B']);
+  assert.equal(v.tools.length, 1); assert.equal(v.tools[0].loaded, 4); assert.equal(v.tools[0].perSession, 400, 'weighted by the sessions that loaded it');
+  assert.equal(v.instructions.savings.window, 100);
+});
