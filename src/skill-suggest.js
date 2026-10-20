@@ -29,8 +29,8 @@
 //             scored on held-out turns (the popular skill that prevents nothing stayed at 0.75 in check 1).
 //             A skill whose description shares a word of the path
 //             enters with a small prior only when the file's areas have no evidence-backed candidate at all.
-//   deliver   the tool hook, the first time a file is opened or edited in a session, a line per skill, once
-//             per skill a session; a held-out turn (ops.js:holdoutTurn) gets nothing and logs what it withheld.
+//   deliver   the tool hook, the first time a file is opened or edited in a turn, a line per skill, once
+//             per skill a turn (reset by a compaction too); a held-out turn (ops.js:holdoutTurn) gets nothing and logs what it withheld.
 //
 // A new way of reaching the agent: off until an experiment shows it helps (AGENTS.md). `harness: { skillSuggest:
 // true }` in .thinker/config.json, or THINKER_HARNESS_SKILL_SUGGEST=on, turns it on; =off wins over the config.
@@ -55,7 +55,7 @@ import { findSessions } from './transcripts.js';
 // outcome*: the sampled outcome check (skill-outcome.js): the share of sessions checked, the skills of the
 // evidence and those a matching rule file names, the diff and guidance sizes in characters.
 export const SKILL_SUGGEST = {
-  a0: 0.5, b0: 4, lexical: 0.25, lexicalMax: 3, organic: 1, floor: 0.35, max: 2, perSession: 6, halfLifeDays: 30,
+  a0: 0.5, b0: 4, lexical: 0.25, lexicalMax: 3, organic: 1, floor: 0.35, max: 2, perTurn: 6, halfLifeDays: 30,
   sessionsKept: 500, seedSessions: 40, seedDays: 60, seedMs: 3000,
   outcomeShare: 0.25, outcomeSkills: 3, outcomeRuleSkills: 2, outcomeDiffChars: 40_000, outcomeGuidanceChars: 80_000,
 };
@@ -361,17 +361,37 @@ export function recordSessionSkills(store, file, { session } = {}) {
 // --- delivery ------------------------------------------------------------------------------------------
 // The tool hook: files the tool call opened or edited, each the first time in the session, a line per
 // skill to suggest, once per skill a session. A held-out turn logs what it withheld and says nothing.
-export function skillSuggestLines(store, { session, client, files = [], holdout = false, turn, rng = Math.random, now = Date.now(), opened = [] } = {}) {
+// Where the agent's context starts again: a context compaction in the transcript (Claude Code's compact_boundary,
+// Codex's compacted item), counted so a new one is noticed. Read on each tool call; a transcript runs to megabytes,
+// so only its size is checked first.
+export function compactions(file, prev = {}) {
+  if (!file) return prev;
+  let size; try { size = fs.statSync(file).size; } catch { return prev; }
+  if (size === prev.size) return prev;
+  let text = ''; try { text = fs.readFileSync(file, 'utf8'); } catch { return prev; }
+  return { size, count: (text.match(/"compact_boundary"|"type":\s*"compacted"/g) || []).length };
+}
+
+// What was suggested is kept in the agent's view for a turn, not a session: a session may run for hours over
+// several requests, and an earlier turn's skill may be needed again for a new file, or compacted out of the
+// context (2026-10-19, the owner's call). So the files seen, the skills said or opened and the cap reset when
+// a new turn begins (ops.js:beginTurn's counter) or the transcript shows a compaction. The log keeps every
+// suggestion of the session: learning reads it to tell an organic open from a followed one.
+export function skillSuggestLines(store, { session, client, files = [], holdout = false, turn, rng = Math.random, now = Date.now(), opened = [], transcript } = {}) {
   if (!skillSuggestOn(store) || !['claude', 'codex'].includes(client) || !session || session === 'unknown') return '';
-  const cfg = skillSuggestConfig(store);
+  const cfg = skillSuggestConfig(store), cap = cfg.perTurn ?? cfg.perSession ?? SKILL_SUGGEST.perTurn;
   const st = readState(store), ss = (st.sessions[session] ||= { seen: [], said: [], log: [] });
+  const comp = compactions(transcript, ss.compacted || {});
+  if ((turn != null && ss.turn !== turn) || (comp.count || 0) > (ss.compacted?.count || 0)) { ss.seen = []; ss.said = []; ss.inTurn = 0; }
+  if (turn != null) ss.turn = turn;
+  ss.compacted = comp; ss.inTurn ||= 0;
   const ev = ensureSeeded(store, { cfg }) || emptyEvidence();
   if (!Object.keys(ev.skills).length) { ev.skills = skillRegistry(store.repo); saveEvidence(store, ev); }
   // a skill the agent opened itself is not suggested to it afterwards
   for (const o of opened) { const c = canonical(ev.skills, o); if (c && !ss.said.includes(c)) ss.said.push(c); }
   const lines = [];
   // the cap counts what was said and what a held-out turn withheld alike, so both sides have the same cap
-  const full = () => ss.log.length >= cfg.perSession;
+  const full = () => ss.inTurn >= cap;
   for (const f of [...new Set(files)].filter(suggestable)) {
     if (ss.seen.includes(f)) continue;
     ss.seen.push(f);
@@ -380,7 +400,7 @@ export function skillSuggestLines(store, { session, client, files = [], holdout 
     for (const p of picks) {
       if (full()) break;
       const at = new Date(now).toISOString(), entry = { skill: p.skill, areas: p.areas, file: f, at, ...(holdout ? { withheld: true } : {}) };
-      ss.said.push(p.skill); ss.log.push(entry);
+      ss.said.push(p.skill); ss.log.push(entry); ss.inTurn++;
       store.log({ op: 'skill-suggest', session, client, skill: p.skill, area: p.areas[0], areas: p.areas, file: f, score: Math.round(p.score * 100) / 100, turn: turn || undefined, ...(holdout ? { withheld: true } : {}) });
       if (holdout) continue;
       const s = ev.skills[p.skill];

@@ -223,7 +223,7 @@ async function hookCommand(ctx) {
     // the skills past sessions here opened for files like the one first opened or edited (skill-suggest.js; off
     // unless harness.skillSuggest): a held-out turn logs what it withheld and says nothing
     if ((client === 'claude' || client === 'codex') && skillSuggestOn(store)) {
-      try { const f = hookSkillFacts(ev, repo, toolFiles(ev, repo)); const line = skillSuggestLines(store, { session, client, files: f.files, opened: f.opened, holdout: t.holdout, turn: t.turn || undefined }); if (line) parts.push(line); } catch {}
+      try { const f = hookSkillFacts(ev, repo, toolFiles(ev, repo)); const line = skillSuggestLines(store, { session, client, files: f.files, opened: f.opened, holdout: t.holdout, turn: t.turn || undefined, transcript: ev.transcript_path }); if (line) parts.push(line); } catch {}
     }
     const card = noticeCard(store, { client, session, ...t, notes: peekTurn(store, session).map(id => store.get(id)).filter(Boolean) });
     if (card) parts.push(card);
