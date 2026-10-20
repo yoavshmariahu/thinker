@@ -23,9 +23,10 @@ async function contextCommand({ store, flags, out }) {
   if (flags.json) { out(JSON.stringify(v, null, 2)); return; }
   const iv = v.instructions, t = v.totals;
   out(`Context per session here, over ${days} days (${v.sessions} sessions; tokens are read again by every model call):`);
-  out(`  instruction file  ~${formatTokens(t.instructions.tokens)} tokens   ~${formatTokens(t.instructions.perSession)} a session`);
-  out(`  skills listed     ~${formatTokens(t.skills.tokens)} tokens   ~${formatTokens(t.skills.perSession)} a session`);
-  out(`  other tools       ~${formatTokens(t.tools.tokens)} tokens   ~${formatTokens(t.tools.perSession)} a session\n`);
+  out(`  instruction files ~${formatTokens(t.instructions.perSession)} a session (~${formatTokens(t.instructions.tokens)} tokens in every model call)`);
+  out(`  custom tools      ~${formatTokens(t.custom.perSession)} a session (skills, MCP servers, plugins: ~${formatTokens(t.custom.tokens)} in every call)`);
+  out(`  built-in tools    ~${formatTokens(t.builtin.perSession)} a session (~${formatTokens(t.builtin.tokens)} in every call)`);
+  out(`  tool outputs      ~${formatTokens(t.outputs.perSession)} a session (each result read again by the calls after it; an estimate)\n`);
   if (iv.file) {
     out(`${iv.file}: ${iv.sessions} sessions read it, ${iv.judged} judged${iv.judge.judge ? ` (a ${Math.round(100 * iv.judge.share)}% sample is judged at session end)` : ' (`thinker context --judge n` judges recent ones)'}.`);
     out(`  ${pad('tokens', 6)} ${pad('a session', 9)} ${pad('applied', 8)} ${pad('relevant', 8)} ${pad('followed', 8)}  value        section`);
@@ -40,6 +41,11 @@ async function contextCommand({ store, flags, out }) {
       const o = s.outcome;
       out(`  ${pad(s.tokens, 6)} ${pad(formatTokens(s.perSession), 9)} read ${pad(`${s.used}/${s.loaded}`, 7)} ${o?.read ? `kept ${pct(o.success)} of ${o.read}` : '            '}${o?.missed ? ` missed ${o.missed}` : ''}  ${s.client === 'claude' ? '' : `${s.client}: `}${s.name}${s.off ? ' (off)' : ''}`);
     }
+    out('');
+  }
+  if (v.outputs.tools.length) {
+    out('Tool outputs: input tokens a session, calls a session, tokens a call.');
+    for (const o of v.outputs.tools.slice(0, flags.verbose ? undefined : 12)) out(`  ${pad(formatTokens(o.perSession), 9)} ${pad(o.calls.toFixed(1), 6)} calls ${pad(formatTokens(o.perCall), 6)}  ${o.name}`);
     out('');
   }
   if (v.tools.length) {

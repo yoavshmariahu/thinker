@@ -9,6 +9,7 @@ import { harnessUsage, harnessAdvice, harnessOn, labelOf, switchable, MIN_TOKENS
 import { instructionValue, findRepoSessions } from './instruction-value.js';
 import { coreConfig } from './instructions-core.js';
 import { readLog } from './usage.js';
+import { toolOutputs } from './tool-outputs.js';
 
 // The skills' outcome checks over the window, per skill: sessions checked where it applied, read in, broken after
 // being read, and broken without being read (missed).
@@ -56,6 +57,7 @@ export function contextView(store, { days = 30, sessions, usage, log } = {}) {
     return { ...r, skills: members, outcome: { checked: sum('checked'), read, brokenAfterRead: sum('brokenAfterRead'), missed: sum('missed'), success: read ? (read - Math.min(read, sum('brokenAfterRead'))) / read : null } };
   });
   const iv = instructionValue(store, { days, sessions });
+  const outputs = toolOutputs(store, sessions);
   const core = coreConfig(store), kept = new Set(core.keep.map(k => k.toLowerCase()));
   const instructions = {
     ...iv, coreOn: core.enabled,
@@ -68,15 +70,22 @@ export function contextView(store, { days = 30, sessions, usage, log } = {}) {
       instructions: { tokens: iv.tokens || 0, perSession: (iv.tokens || 0) * Math.max(1, iv.calls || 1) },
       skills: { tokens: sum(skills, 'tokens'), perSession: sum(skills, 'perSession') },
       tools: { tokens: sum(tools, 'tokens'), perSession: sum(tools, 'perSession') },
+      outputs: { tokens: outputs.tokens, perSession: outputs.perSession },
+      // what the person added to the agent, one part: skills, MCP servers, plugins
+      custom: (() => { const xs = [...skills, ...tools.filter(r => r.group !== 'builtin')]; return { tokens: sum(xs, 'tokens'), perSession: sum(xs, 'perSession'), count: xs.filter(x => !x.off).length }; })(),
       // the tools by kind, as the Context tab's bar and tables split them
       ...Object.fromEntries(Object.keys(TOOL_GROUPS).map(g => { const xs = tools.filter(r => toolGroup(r) === g); return [g, { tokens: sum(xs, 'tokens'), perSession: sum(xs, 'perSession'), count: xs.filter(x => !x.off).length }]; })),
     },
-    instructions, skills, tools,
+    instructions, skills, tools, outputs: { sessions: outputs.sessions, tools: outputs.tools },
     // one row per session, for the trend: its input tokens by part (tokens a call × its model calls); the instruction
     // file and the loaded tools come from different readers, so a session may have one side only
     timeline: [
       ...iv.timeline.map(r => ({ t: r.t, instructions: r.tokens * r.calls })),
-      ...(usage.timeline || []).map(r => ({ t: r.t, ...Object.fromEntries(Object.entries(r.parts).map(([k, n]) => [k, n * Math.max(1, r.calls)])) })),
+      ...outputs.timeline,
+      ...(usage.timeline || []).map(r => {
+        const c = Math.max(1, r.calls), p = r.parts;
+        return { t: r.t, custom: ((p.skills || 0) + (p.mcp || 0) + (p.plugins || 0)) * c, builtin: (p.builtin || 0) * c };
+      }),
     ].sort((a, b) => a.t - b.t),
   };
 }

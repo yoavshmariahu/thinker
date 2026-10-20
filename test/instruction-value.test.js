@@ -178,3 +178,18 @@ test('the context view puts sections, skills and tools side by side, with the ke
   assert.equal(v.instructions.coreOn, true);
   assert.deepEqual(v.instructions.sections.filter(s => s.kept).map(s => s.id), ['api-views']);
 });
+
+test('a tool output costs its tokens once for each model call after it, scaled to the calls the session made', async () => {
+  const { sessionOutputs, toolKey } = await import('../src/tool-outputs.js');
+  const ev = (name, chars) => ({ t: 'tool', name, input: {}, result: 'x'.repeat(chars) });
+  const events = [ev('Read', 400), ev('Bash', 40), ev('mcp__rea__q', 80), { t: 'say', text: 'done' }];
+  // one call a model call: the Read is read by the three calls after it (two tools, then the answer)
+  const one = sessionOutputs(events);
+  assert.deepEqual(one.Read, { calls: 1, tokens: 100, input: 300 });
+  assert.equal(one['mcp:rea'].input, 20, 'an MCP server is one row, its last result read once');
+  // two model calls for three tool calls: each result is read by half as many calls, never less than once
+  const two = sessionOutputs(events, 2);
+  assert.equal(two.Read.input, 150);
+  assert.equal(two['mcp:rea'].input, 20);
+  assert.equal(toolKey('mcp__claude-in-chrome__navigate'), 'mcp:claude-in-chrome');
+});
