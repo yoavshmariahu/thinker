@@ -3,7 +3,7 @@
 // The report changes nothing; --judge n spends model calls on the newest sessions not judged yet, so the
 // sections' verdicts fill in without waiting for the sampled check. The controls are the commands they name:
 // `thinker instructions --core` for the sections, `thinker harness --off` for skills and tools.
-import { contextView } from '../context-view.js';
+import { contextView, switchSources, setOutputCompression } from '../context-view.js';
 import { judgeRecent, findRepoSessions } from '../instruction-value.js';
 import { formatTokens } from '../model-usage.js';
 
@@ -12,6 +12,11 @@ const pad = (s, n) => String(s).padStart(n);
 
 async function contextCommand({ store, flags, out }) {
   const days = Number(flags.days) || 30;
+  // the tab's actions: switch tools off or back on, set a tool's output compression
+  const list = v => String(v).split(',').map(x => x.trim()).filter(Boolean);
+  if (typeof flags['switch-off'] === 'string') { out(switchSources(store, { labels: list(flags['switch-off']), builtin: !!flags.builtin })); return; }
+  if (typeof flags['switch-on'] === 'string') { out(switchSources(store, { keys: list(flags['switch-on']), on: true })); return; }
+  if (typeof flags['output-compression'] === 'string') { out(setOutputCompression(store, list(flags['output-compression']), ['high', 'moderate'].includes(flags.level) ? flags.level : 'off')); return; }
   if (flags.judge !== undefined) {
     const n = flags.judge === true ? 5 : Math.max(1, Number(flags.judge) || 5);
     out(`Judging up to ${n} session${n === 1 ? '' : 's'}, sampled over the last ${days} days, against the instruction file's sections (one model call each)…`);

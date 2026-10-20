@@ -200,11 +200,13 @@ const HELP = `thinker — knowledge cache for coding agents
                                  Claude Code; --cursor also for Cursor (hides AGENTS.md from its file tools); --off removes them
                                  --remove / --compress <section id> show the diff of taking a section out or having a model shorten it;
                                  --apply writes it to AGENTS.md in the working tree, uncommitted (also the Context tab's buttons)
-  context [--days n] [--json] [--verbose] [--judge n]
+  context [--days n] [--json] [--verbose] [--judge n] [--switch-off <labels> [--builtin]] [--switch-on <keys>] [--output-compression <tools> --level high|moderate|off]
                                  where the agents' context goes here and what each part is worth: every section of AGENTS.md (its
                                  tokens, the sessions it applied to, and the judged share it bore on and was followed), every skill
                                  (read in, kept its rules), every other tool loaded; --judge n judges n recent sessions now (model
                                  calls); instructions.value.judge in .thinker/config.json judges a sample at session end; also the page's Context tab
+                                 --switch-off turns the harness on here and switches those tools off (--builtin: built-in tools too);
+                                 --switch-on turns them back on; --output-compression sets how much of a tool's results Claude Code keeps
   guide                          the cache usage guidance an install writes into an agent's instructions
   export [file.tgz] [--dir d]    back the cache up to a .tgz; --dir writes every note whole, one <id>.json each, into d
   hook <prompt|pre|tool|stop [--nudge]> [--client c]   hook entrypoints (JSON on stdin): prompt = notes for the request,
