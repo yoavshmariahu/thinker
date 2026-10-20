@@ -624,7 +624,7 @@ function renderContext(v) {
   const calls = x => x.tokens ? Math.round(x.perSession / x.tokens) : 0;
   const how = x => `~${fmt(x.tokens)} tokens in every model call × ~${calls(x)} model calls`;
   const total = t.instructions.perSession + t.skills.perSession + t.tools.perSession;
-  let h = `<div class="section-head"><div><div class="kicker">${fmt(total)} in all, mostly prompt-cache reads</div><div class="section-title">Average input tokens per session</div></div></div>
+  let h = `<div class="section-head"><div class="section-title">Average input tokens per session</div><div style="text-align:right"><div class="kicker">Total</div><div class="section-title">${fmt(total)}</div></div></div>
   <div class="cards">
     ${card('Instruction file', fmt(t.instructions.perSession), `${esc(iv.file || 'AGENTS.md')}: ${how(t.instructions)}`)}
     ${card('Skills listed', fmt(t.skills.perSession), `descriptions of ${v.skills.filter(s => !s.off).length} skills: ${how(t.skills)}`)}
