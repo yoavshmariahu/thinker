@@ -202,6 +202,16 @@
     .cost.off i { background: #d4d4d8; }
     .ctx-table td, .ctx-table th { vertical-align: middle; }
     .ctx-table .why { color: #6b7280; font-size: 0.78rem; }
+    .stack { display: flex; gap: 2px; height: 22px; }
+    .stack i { display: block; min-width: 2px; }
+    .stack i:first-child { border-radius: 4px 0 0 4px; }
+    .stack i:last-child { border-radius: 0 4px 4px 0; }
+    .stack i:hover { opacity: 0.85; }
+    .stack-legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0.6rem 1.2rem; margin-top: 0.9rem; font-size: 0.86rem; }
+    .stack-legend > div { display: flex; gap: 0.5rem; align-items: flex-start; }
+    .stack-legend .sw { flex-shrink: 0; width: 10px; height: 10px; border-radius: 2px; margin-top: 0.3rem; }
+    .stack-legend .num { font-variant-numeric: tabular-nums; }
+    .stack-legend .why { color: #6b7280; font-size: 0.78rem; }
     .issues { margin: 0.3rem 0 0.3rem 1.1rem; padding: 0; }
     .issues li { margin: 0.15rem 0; }
     .pills { display: flex; gap: 0.35rem; flex-wrap: wrap; justify-content: flex-end; }
@@ -624,12 +634,15 @@ function renderContext(v) {
   const calls = x => x.tokens ? Math.round(x.perSession / x.tokens) : 0;
   const how = x => `~${fmt(x.tokens)} tokens in every model call × ~${calls(x)} model calls`;
   const total = t.instructions.perSession + t.skills.perSession + t.tools.perSession;
+  // one stacked bar: the three parts of a session's input, each labelled with its value below (dataviz: slots 1-3, 2px gaps)
+  const parts = [
+    { name: 'Instruction file', x: t.instructions, color: '#2a78d6', what: esc(iv.file || 'AGENTS.md') },
+    { name: 'Skills listed', x: t.skills, color: '#eb6834', what: `descriptions of ${v.skills.filter(s => !s.off).length} skills` },
+    { name: 'Other tools', x: t.tools, color: '#1baf7a', what: `${v.tools.filter(s => !s.off).length} MCP servers, plugins and built-in tools` },
+  ].filter(p => p.x.perSession > 0);
   let h = `<div class="section-head"><div class="section-title">Average input tokens per session</div><div style="text-align:right"><div class="kicker">Total</div><div class="section-title">${fmt(total)}</div></div></div>
-  <div class="cards">
-    ${card('Instruction file', fmt(t.instructions.perSession), `${esc(iv.file || 'AGENTS.md')}: ${how(t.instructions)}`)}
-    ${card('Skills listed', fmt(t.skills.perSession), `descriptions of ${v.skills.filter(s => !s.off).length} skills: ${how(t.skills)}`)}
-    ${card('Other tools', fmt(t.tools.perSession), `${v.tools.filter(s => !s.off).length} MCP servers, plugins and built-in tools: ${how(t.tools)}`)}
-  </div>`;
+  <div class="panel"><div class="stack" role="img" aria-label="${parts.map(p => `${p.name} ${fmt(p.x.perSession)}`).join(', ')}">${parts.map(p => `<i style="flex:${p.x.perSession} 1 0;background:${p.color}" title="${p.name}: ${fmt(p.x.perSession)} (${Math.round(100 * p.x.perSession / total)}%), ${how(p.x)}"></i>`).join('')}</div>
+  <div class="stack-legend">${parts.map(p => `<div><span class="sw" style="background:${p.color}"></span><div><div><b>${p.name}</b> <span class="num">${fmt(p.x.perSession)}</span> <span class="muted">${Math.round(100 * p.x.perSession / total)}%</span></div><div class="why">${p.what}: ${how(p.x)}</div></div></div>`).join('')}</div></div>`;
   // the instruction file's sections
   h += `<div class="section"><div class="section-head"><div><div class="kicker">${esc(iv.file || 'No instruction file')}</div><div class="section-title">Sections of the instruction file</div></div></div><div class="panel">`;
   if (!iv.file) h += `<div class="note-line" style="margin-top:0">No AGENTS.md or CLAUDE.md in this repository.</div>`;
