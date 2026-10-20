@@ -13,6 +13,9 @@
 // gets from the URL it was opened with, and the Host header must name this server, so another page
 // in the browser (or a DNS rebinding) can neither read the cache nor change a behavior.
 import { harnessFirstLook, switchOffFirstLook, harnessView, harnessSavings, harnessOn, scheduleHarnessSuggestion, undoHarness, switchOffNow, setHarnessSettings } from '../harness.js';
+import { contextView } from '../context-view.js';
+import { judgeRecent } from '../instruction-value.js';
+import { setCore } from '../instructions-core.js';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -271,6 +274,16 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
         harnessCache.set(k, { at: Date.now(), view });
         return json(res, 200, view);
       }
+      // where the context goes in one repository (context-view.js:contextView, as `thinker context`), kept a minute like the harness
+      if (req.method === 'GET' && url.pathname === '/api/context') {
+        if (want === 'all') return json(res, 400, { error: 'pick a repository' });
+        const one = storeFor(want); if (!one) return json(res, 400, { error: 'unknown repository' });
+        const d = Number(url.searchParams.get('days')) || 30, k = `context:${one.repo}:${d}`, hit = harnessCache.get(k);
+        if (hit && Date.now() - hit.at < 60_000) return json(res, 200, hit.view);
+        const view = contextView(one, { days: d });
+        harnessCache.set(k, { at: Date.now(), view });
+        return json(res, 200, view);
+      }
       // the step after the warm-up (harness.js:harnessFirstLook), as `thinker warmup` ends: kept for the answer
       if (req.method === 'GET' && url.pathname === '/api/harness/first-look') {
         candidates ||= warmupCandidates(store, { home: transcriptsHome });
@@ -348,7 +361,7 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
       const st = storeFor(String(b.repo || ''));
       if (!st) return json(res, 400, { error: 'unknown repository' });
       let r;
-      if (url.pathname.startsWith('/api/harness/')) harnessCache.clear();
+      if (url.pathname.startsWith('/api/harness/') || url.pathname.startsWith('/api/context/')) harnessCache.clear();
       if (url.pathname === '/api/behaviors/accept') r = acceptPending(st, b.id, { mutability: b.mutability || 'mutable', edit: b.title || b.body ? { title: b.title, body: b.body } : null });
       else if (url.pathname === '/api/behaviors/discard') r = discardPending(st, b.id);
       else if (url.pathname === '/api/cache/review') {
@@ -364,7 +377,11 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
       // the page's door to `thinker harness --suggest` and `--undo`: the same functions, for the repository it shows
       else if (url.pathname === '/api/harness/suggest') { const picks = scheduleHarnessSuggestion(st, { force: true }); r = picks?.length ? { queued: picks.length } : { error: 'nothing here is worth switching off' }; }
       else if (url.pathname === '/api/harness/undo') r = { said: undoHarness(st, { names: Array.isArray(b.names) ? b.names : null }) };
-      else if (url.pathname === '/api/harness/off') r = Array.isArray(b.labels) && b.labels.length ? { said: switchOffNow(st, b.labels.join(','), { via: 'ui' }) } : { error: 'nothing chosen' };
+      else if (url.pathname === '/api/harness/off') r = Array.isArray(b.labels) && b.labels.length ? { said: switchOffNow(st, b.labels.join(','), { via: 'ui', any: true }) } : { error: 'nothing chosen' };
+      // `thinker instructions --core "<Title>, …"` (a list) and `--off` (null)
+      else if (url.pathname === '/api/context/core') { const keep = Array.isArray(b.keep) ? b.keep.map(String).filter(Boolean) : null; const c = setCore(st, keep?.length ? keep : null); r = c.state === 'theirs' ? { error: 'AGENTS.override.md here is not thinker\'s; nothing written' } : { said: keep?.length ? `Kept ${c.kept?.length ?? keep.length} sections for this checkout` : 'Agents here read the whole file again' }; }
+      // `thinker context --judge n`, in the background: model calls, through the person's agent or the desktop session
+      else if (url.pathname === '/api/context/judge') { const n = Math.min(20, Math.max(1, Number(b.n) || 5)); judgeRecent(st, { n }).then(x => { harnessCache.clear(); st.log({ op: 'instruction-value', via: 'ui', judged: x.judged }); }).catch(e => st.log({ op: 'instruction-value', via: 'ui', failed: String(e.message || e).slice(0, 160) })); r = { said: `Judging ${n} sessions in the background` }; }
       else if (url.pathname === '/api/harness/settings') { const v = k => typeof b[k] === 'boolean' ? b[k] : undefined; r = { said: JSON.stringify(setHarnessSettings(st, { recurring: v('recurring') ?? v('weekly'), recall: v('recall'), suggestions: v('suggestions') })) }; }
       else if (url.pathname === '/api/behaviors/edit') r = editBehavior(st, b.id, { title: b.title, body: b.body, mutability: b.mutability });
       else return json(res, 404, { error: 'not found' });

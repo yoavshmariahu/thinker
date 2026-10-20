@@ -27,6 +27,7 @@ import { commands as switchCommands } from './commands/repo-switch.js';
 import { commands as externalCommands } from './commands/external.js';
 import { commands as harnessCommands } from './commands/harness.js';
 import { commands as instructionsCommands } from './commands/instructions.js';
+import { commands as contextCommands } from './commands/context.js';
 import { isDisabledRepo, OFF_MESSAGE } from './repo-switch.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -191,6 +192,11 @@ const HELP = `thinker — knowledge cache for coding agents
                                  the sections of AGENTS.md and their tokens; --core keeps the named sections, verbatim, in AGENTS.override.md
                                  (kept out of git, rewritten when AGENTS.md changes), which Codex reads instead of AGENTS.md, and CLAUDE.local.md for
                                  Claude Code; --cursor also for Cursor (hides AGENTS.md from its file tools); --off removes them
+  context [--days n] [--json] [--verbose] [--judge n]
+                                 where the agents' context goes here and what each part is worth: every section of AGENTS.md (its
+                                 tokens, the sessions it applied to, and the judged share it bore on and was followed), every skill
+                                 (read in, kept its rules), every other tool loaded; --judge n judges n recent sessions now (model
+                                 calls); instructions.value.judge in .thinker/config.json judges a sample at session end; also the page's Context tab
   guide                          the cache usage guidance an install writes into an agent's instructions
   export [file.tgz] [--dir d]    back the cache up to a .tgz; --dir writes every note whole, one <id>.json each, into d
   hook <prompt|tool|stop [--nudge]> [--client c]   hook entrypoints (JSON on stdin): prompt = notes for the request, tool = notes about files being edited, stop = nudge + distill
@@ -266,10 +272,10 @@ function unknownFlags(c, given, help = HELP) {
 // Commands that read or maintain a cache, and so need a git checkout to keep it in. Not `setup`,
 // `mine-prs`, `import`, `add`, `record`, `distill`: those build one. Not `hook` (quiet outside a
 // checkout) and not `ui`, the machine-wide page.
-const CACHE_COMMANDS = ['tools', 'symbols', 'orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'session-work', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback', 'skills', 'instructions'];
+const CACHE_COMMANDS = ['tools', 'symbols', 'orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'session-work', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback', 'skills', 'instructions', 'context'];
 
 // One handler per command, in src/commands/; each gets the context below and nothing else of this file.
-const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...skillsCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...warmupCommands, ...coverageCommands, ...commitsCommands, ...symbolsCommands, ...switchCommands, ...externalCommands, ...harnessCommands, ...instructionsCommands };
+const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...skillsCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...warmupCommands, ...coverageCommands, ...commitsCommands, ...symbolsCommands, ...switchCommands, ...externalCommands, ...harnessCommands, ...instructionsCommands, ...contextCommands };
 // Commands that still answer in a repository thinker is switched off for (repo-switch.js): the machine-wide
 // ones, the ones about the install itself, and the switch. `hook` keeps quiet by itself.
 const OFF_COMMANDS = ['version', 'enable', 'disable', 'ui', 'warmup', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'stats', 'ast', 'ranker', 'hook', 'serve', undefined];

@@ -197,6 +197,11 @@
     .pill.wait { background: #fef9c3; border-color: #fde68a; color: #854d0e; }
     .pill.bad { background: #fee2e2; border-color: #fecaca; color: #991b1b; }
     .pill.ok { background: #dcfce7; border-color: #bbf7d0; color: #166534; }
+    .cost { display: grid; grid-template-columns: minmax(3rem, 1fr) 3.6rem; align-items: center; gap: 0.4rem; min-width: 8rem; font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+    .cost i { display: block; height: 8px; width: var(--w); max-width: 100%; border-radius: 0 3px 3px 0; background: #111; }
+    .cost.off i { background: #d4d4d8; }
+    .ctx-table td, .ctx-table th { vertical-align: middle; }
+    .ctx-table .why { color: #6b7280; font-size: 0.78rem; }
     .issues { margin: 0.3rem 0 0.3rem 1.1rem; padding: 0; }
     .issues li { margin: 0.15rem 0; }
     .pills { display: flex; gap: 0.35rem; flex-wrap: wrap; justify-content: flex-end; }
@@ -273,6 +278,7 @@
     <div class="brand"><span class="wordmark">thinker</span><span class="brand-sub">local</span></div>
     <div class="nav-right">
       <button class="nav-link" data-tab="usage">Usage</button>
+      <button class="nav-link" data-tab="context">Context</button>
       <button class="nav-link" data-tab="cache">Cache<span class="count" id="wait-count" hidden></span></button>
     </div>
   </nav>
@@ -288,6 +294,18 @@
         <div class="seg" id="days-seg"><button data-days="7">7 days</button><button data-days="30" class="on">30 days</button><button data-days="0">All time</button></div>
       </div>
       <div id="usage-body" class="section"><div class="empty"><span class="spinner"></span>Reading the log…</div></div>
+    </section>
+
+    <!-- Context: where the agents' context goes in one repository, and what each part is worth (context-view.js, as `thinker context`) -->
+    <section id="tab-context" hidden>
+      <div class="kicker">Context</div>
+      <h1>What your agents read every session</h1>
+      <p class="lede">Each section of the instruction file, each skill and each tool, with what it costs a session and how often the sessions here used it. Read from your agents' transcripts on this machine; nothing leaves it.</p>
+      <div class="controls">
+        <select class="sel" id="c-repo" aria-label="Repository"></select>
+        <div class="seg" id="c-days-seg"><button data-days="7">7 days</button><button data-days="30" class="on">30 days</button></div>
+      </div>
+      <div id="context-body" class="section"><div class="empty"><span class="spinner"></span>Reading the transcripts…</div></div>
     </section>
 
     <!-- Cache: every repository with a cache, then one repository's notes and behaviors -->
@@ -466,10 +484,11 @@ $('#back').onclick = () => { DREPO = ''; show('cache'); };
 $('#w-back').onclick = () => { DREPO = ''; show('cache'); };
 function show(tab) {
   document.querySelectorAll('.nav-link').forEach(b => b.classList.toggle('active', b.dataset.tab === (tab === 'warmup' || tab === 'tools' ? 'cache' : tab)));
-  $('#tab-usage').hidden = tab !== 'usage'; $('#tab-cache').hidden = tab !== 'cache'; $('#tab-warmup').hidden = tab !== 'warmup'; $('#tab-tools').hidden = tab !== 'tools';
+  $('#tab-usage').hidden = tab !== 'usage'; $('#tab-context').hidden = tab !== 'context'; $('#tab-cache').hidden = tab !== 'cache'; $('#tab-warmup').hidden = tab !== 'warmup'; $('#tab-tools').hidden = tab !== 'tools';
   TAB = tab;
   history.replaceState(null, '', `#t=${TOKEN}&tab=${tab}${tab === 'cache' && DREPO ? `&repo=${encodeURIComponent(DREPO)}` : ''}`);
   if (tab === 'usage') loadUsage();
+  else if (tab === 'context') loadContext();
   else if (tab === 'warmup') loadWarmup();
   else if (tab === 'tools') loadTools();
   else if (DREPO) openRepo(DREPO);
@@ -577,6 +596,63 @@ async function loadHarness() {
     $('#h-off')?.addEventListener('click', e => { const labels = [...el.querySelectorAll('[data-hoff]:checked')].map(c => c.dataset.hoff); if (!labels.length) return toast('Nothing selected', true); act(e.target, '/api/harness/off', { labels }); });
     $('#h-ask')?.addEventListener('click', e => act(e.target, '/api/harness/suggest', {}, 'Your next Claude Code, Codex or Cursor prompt here asks which to switch off'));
   } catch (e) { el.innerHTML = `<div class="empty">Could not read what Claude Code, Codex or Cursor loads: ${esc(e.message)}</div>`; }
+}
+
+// ---- where the context goes in one repository (context-view.js:contextView, as `thinker context`) ----
+let CREPO = '', cdays = 30;
+document.querySelectorAll('#c-days-seg button').forEach(b => b.onclick = () => { cdays = Number(b.dataset.days); segOn('#c-days-seg', b); loadContext(); });
+$('#c-repo').onchange = e => { CREPO = e.target.value; e.target.blur(); loadContext(); };
+const share = (a, b) => b ? `${Math.round(100 * a / b)}%` : '–';
+const costBar = (n, max, off) => `<div class="cost${off ? ' off' : ''}"><i style="--w:${max ? 100 * n / max : 0}%"></i>${fmt(n)}</div>`;
+const VALUE_PILL = { used: ['ok', 'used'], situational: ['', 'sometimes'], rare: ['wait', 'rarely'], unknown: ['off', 'too few'] };
+async function loadContext() {
+  const el = $('#context-body');
+  el.innerHTML = `<div class="empty"><span class="spinner"></span>Reading the transcripts…</div>`;
+  try {
+    if (!REPOS.length) await fetchRepos();
+    if (!CREPO || !REPOS.some(r => r.id === CREPO)) CREPO = REPO !== 'all' && REPOS.some(r => r.id === REPO) ? REPO : REPOS[0]?.id || '';
+    $('#c-repo').innerHTML = REPOS.map(r => `<option value="${esc(r.id)}"${r.id === CREPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
+    if (!CREPO) { el.innerHTML = `<div class="empty">No repository with a cache on this machine yet.</div>`; return; }
+    renderContext(await api(`/api/context?repo=${encodeURIComponent(CREPO)}&days=${cdays}`));
+  } catch (e) { el.innerHTML = `<div class="empty">Could not read the context: ${esc(e.message)}</div>`; }
+}
+function renderContext(v) {
+  const el = $('#context-body'), iv = v.instructions, t = v.totals;
+  // each table's bars on its own scale: one large tool would flatten every section
+  const top = xs => Math.max(1, ...xs.map(s => s.perSession)), maxS = top(iv.sections), maxK = top(v.skills), maxT = top(v.tools);
+  let h = `<div class="cards">
+    ${card('Instruction file', fmt(t.instructions.perSession), `input tokens a session: ~${fmt(t.instructions.tokens)} tokens of ${esc(iv.file || 'AGENTS.md')}, read again by each of ~${iv.calls || 0} model calls`)}
+    ${card('Skills listed', fmt(t.skills.perSession), `input tokens a session: the descriptions of ${v.skills.filter(s => !s.off).length} skills`)}
+    ${card('Other tools', fmt(t.tools.perSession), `input tokens a session: ${v.tools.filter(s => !s.off).length} MCP servers, plugins and built-in tools`)}
+  </div>`;
+  // the instruction file's sections
+  h += `<div class="section"><div class="section-head"><div><div class="kicker">${esc(iv.file || 'No instruction file')}</div><div class="section-title">Sections of the instruction file</div></div></div><div class="panel">`;
+  if (!iv.file) h += `<div class="note-line" style="margin-top:0">No AGENTS.md or CLAUDE.md in this repository.</div>`;
+  else {
+    h += `<table class="ctx-table"><thead><tr><th title="kept in this checkout's trimmed copy">Keep</th><th>Section</th><th>Input tokens a session</th><th class="num" title="sessions that touched the section's files, ran its commands or read code it names">Applied</th><th class="num" title="of the sessions a model judged, those where this section was relevant to the work (followed, broken, or relevant with nothing to show)">Relevant</th><th class="num" title="of the judged sessions where the agent either followed or broke it, how many followed it">Followed</th><th></th></tr></thead><tbody>${[...iv.sections].sort((a, b) => b.perSession - a.perSession).map(s => {
+      const [cls, label] = VALUE_PILL[s.value] || VALUE_PILL.unknown;
+      return `<tr><td><input type="checkbox" data-keep="${esc(s.parent ? `${s.parent}: ${s.title}` : s.title)}"${!iv.coreOn || s.kept ? ' checked' : ''}></td><td>${s.parent ? `<span class="muted">${esc(s.parent)}: </span>` : ''}${esc(s.title)}<div class="why">${fmt(s.tokens)} tokens</div></td><td>${costBar(s.perSession, maxS, iv.coreOn && !s.kept)}</td><td class="num">${s.triggered ? share(s.applied, s.sessions) : '–'}</td><td class="num">${s.judged ? `${s.bore}/${s.judged}` : '–'}</td><td class="num">${s.success == null ? '–' : `${s.followed}/${s.followed + s.violated}${s.violated ? ` <span class="pill bad" title="sessions that went against it">${s.violated} broke</span>` : ''}`}</td><td><span class="pill ${cls}">${label}</span></td></tr>`;
+    }).join('')}</tbody></table>
+    <div class="note-line">${iv.sessions} sessions read it over ${v.days} days; ${iv.judged} judged${iv.judge.judge ? `, and a ${Math.round(100 * iv.judge.share)}% sample is judged as sessions end` : ''}. Applied is free and counts every session that touched the section's files, commands or code. Relevant and Followed come from a model reading a session against the sections: relevant when the section mattered to the work, followed or broken when the session shows which. Keeping a subset writes a trimmed copy for this checkout only (AGENTS.override.md for Codex, CLAUDE.local.md for Claude Code), kept out of git; the team's file is never changed.</div>
+    <div class="controls"><button class="btn" id="c-keep">Keep only the checked sections here</button>${iv.coreOn ? '<button class="btn ghost" id="c-whole">Read the whole file again</button>' : ''}<button class="btn ghost" id="c-judge">Judge 5 recent sessions</button></div>`;
+  }
+  h += `</div></div>`;
+  // skills and tools, each with its switch where the harness is on
+  const sw = s => v.harnessOn && s.label && !s.off ? `<input type="checkbox" data-off="${esc(s.label)}">` : '';
+  const who = s => ({ codex: 'Codex: ', cursor: 'Cursor: ' })[s.client] || '';
+  const offPill = s => s.off ? ' <span class="pill off">off</span>' : s.suggested ? ' <span class="pill wait">rarely used</span>' : '';
+  const kept = o => o?.read ? `${Math.round(100 * o.success)}% <span class="why">of ${o.read}</span>` : '–';
+  if (v.skills.length) h += `<div class="section"><div class="section-head"><div><div class="kicker">Listed in every session</div><div class="section-title">Skills</div></div></div><div class="panel"><table class="ctx-table"><thead><tr><th>${v.harnessOn ? 'Off' : ''}</th><th>Skill</th><th>Input tokens a session</th><th class="num">Read in</th><th class="num" title="checked sessions that read it and kept its rules">Rules kept</th><th class="num" title="checked sessions that broke its rules without reading it">Missed</th></tr></thead><tbody>${[...v.skills].sort((a, b) => b.perSession - a.perSession).map(s => `<tr><td>${sw(s)}</td><td>${who(s)}${esc(s.name)}${offPill(s)}<div class="why">${fmt(s.tokens)} tokens listed</div></td><td>${costBar(s.perSession, maxK, s.off)}</td><td class="num">${s.used}/${s.loaded}</td><td class="num">${kept(s.outcome)}</td><td class="num">${s.outcome?.missed || '–'}</td></tr>`).join('')}</tbody></table><div class="note-line">Rules kept and Missed come from the sampled outcome check (<code>harness.skillOutcome</code>), which reads a session's change against the skills that bear on it.</div></div></div>`;
+  if (v.tools.length) h += `<div class="section"><div class="section-head"><div><div class="kicker">Loaded into every session</div><div class="section-title">MCP servers, plugins and built-in tools</div></div></div><div class="panel"><table class="ctx-table"><thead><tr><th>${v.harnessOn ? 'Off' : ''}</th><th>Tool</th><th>Input tokens a session</th><th class="num">Used in</th></tr></thead><tbody>${v.tools.map(s => `<tr><td>${sw(s)}</td><td>${who(s)}${esc(s.name)} <span class="muted">${esc(hkind(s))}</span>${offPill(s)}<div class="why">${fmt(s.tokens)} tokens</div></td><td>${costBar(s.perSession, maxT, s.off)}</td><td class="num">${s.used}/${s.loaded}</td></tr>`).join('')}</tbody></table></div></div>`;
+  h += v.harnessOn ? `<div class="controls"><button class="btn" id="c-off">Switch off the checked skills and tools</button><button class="btn ghost" id="c-undo">Turn everything back on</button></div>`
+    : `<div class="note-line">Switching skills and tools off for this repository needs the harness: <code>thinker harness --enabled on</code>.</div>`;
+  el.innerHTML = h;
+  const act = async (btn, p, body, msg) => { if (btn) btn.disabled = true; try { const r = await api(p, { repo: CREPO, ...body }); toast(msg || (r.said && !String(r.said).startsWith('{') ? r.said : 'Saved')); loadContext(); } catch (err) { toast(err.message, true); if (btn) btn.disabled = false; } };
+  $('#c-keep')?.addEventListener('click', e => { const keep = [...el.querySelectorAll('[data-keep]:checked')].map(c => c.dataset.keep); if (!keep.length) return toast('Keep at least one section', true); act(e.target, '/api/context/core', { keep }); });
+  $('#c-whole')?.addEventListener('click', e => act(e.target, '/api/context/core', { keep: null }));
+  $('#c-judge')?.addEventListener('click', e => act(e.target, '/api/context/judge', { n: 5 }, 'Judging 5 sessions in the background; reload in a minute'));
+  $('#c-off')?.addEventListener('click', e => { const labels = [...el.querySelectorAll('[data-off]:checked')].map(c => c.dataset.off); if (!labels.length) return toast('Nothing checked', true); act(e.target, '/api/harness/off', { labels }); });
+  $('#c-undo')?.addEventListener('click', e => act(e.target, '/api/harness/undo', {}));
 }
 
 // ---- the caches on this machine --------------------------------------------------------------

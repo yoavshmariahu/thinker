@@ -195,6 +195,7 @@ cache at twice the input price and never read again.
 | `src/distill.js` | transcript → notes and per-note assessments |
 | `src/maintain.js` | background maintenance: re-verify stale notes, phrase new ones, distill newly merged PRs, under a daily cap |
 | `src/skills.js`, `src/commands/skills.js` | skill files (SKILL.md) as cached knowledge: one card per file, audited against the code, graded by the sessions that invoke it, duplicates settled; `thinker skills` (docs/skills.md) |
+| `src/instruction-value.js`, `src/context-view.js`, `src/commands/context.js` | what each part of the agents' context is worth here: every AGENTS.md section (tokens, sessions it applied to by its triggers, and judged relevant / followed / broken), every skill (read in, rules kept, missed), every other tool; `thinker context` and the page's Context tab (see [Context view](#context-view)) |
 | `src/guard.js` | anchoring guard: names identifiers in the request that the served notes do not cover |
 | `src/update.js` | CLI self-update and daily automatic background updates (LaunchAgent / cron / invocation) |
 | `src/usage.js` | summary of the usage log and the estimate of saved calls and tokens, in tokens (never dollars) |
@@ -1036,6 +1037,34 @@ and on PR-mined notes the same rule only added noise (`research/serving-understa
 `agent/understanding-serving-probe`). Its cost: on a request the cache does not cover it serves one
 irrelevant note where the shipped rule serves none. It stays off until an Artemis experiment shows it
 helps in agent sessions.
+
+## Context view
+
+`thinker context` and the page's Context tab show one report (`context-view.js:contextView`): where the agents'
+context goes in a repository, part by part, with what each part costs a session (its tokens × the median model
+calls of a session here) and how much the sessions used it. Measurement only; nothing is served or rewritten.
+
+- **Instruction file sections** (`instruction-value.js`): AGENTS.md (or CLAUDE.md where there is no AGENTS.md;
+  Claude Code's sessions are left out where CLAUDE.md has text of its own) split as `instructions-core.js:sections`
+  does. *Applied*, free on every session: the session touched the section's files, ran the command it is about, or
+  read code it names (`instruction-sections.js:deriveTriggers` / `sectionFires`, replayed from the transcript).
+  *Relevant* and *Followed*, from a model call per session that reads what the session asked, ran, read and changed
+  against the sections and names those relevant to the work, each followed, violated or relevant with nothing to
+  show (`judgeSessionFile`, logged as `op: "instruction-value"`). Judging is by hand (`thinker context --judge n`,
+  the page's button; sessions written to in the last 20 minutes are skipped) or, with `instructions: { value: {
+  judge: true, share } }` in `.thinker/config.json` (`THINKER_INSTRUCTION_JUDGE`), on a share of sessions at their
+  end (default 0.25), within the daily token cap and through the session in a desktop app. Off by default: it spends
+  tokens. Kept per session in `.thinker/state/instruction-value.json`. Not validated against labels: the judge's
+  verdicts are a model's reading of one session, and a large `##` section with many rules is one row.
+- **Skills**: listed and read per session (harness.js), and from the sampled outcome check (skill-outcome.js, whose
+  log line now records which checked skills the session read) the share of reading sessions that kept the skill's
+  rules, and misses (broken without being read).
+- **Other tools**: MCP servers, plugins, built-in tools, as `thinker harness` reads them.
+
+Controls are the commands: keeping sections writes the checkout's trimmed copy (`thinker instructions --core`,
+never the team's file); a skill or tool is switched off by `thinker harness --off <label>`, which since this view
+takes any source a setting switches off, not only the advice's (`harness.js:switchable`; `any`), and only where
+the harness is on.
 
 ## Internal server
 

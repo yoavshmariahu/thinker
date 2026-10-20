@@ -24,6 +24,7 @@ import { enqueueJob, recentAppSession, runSessionWork } from '../session-work.js
 import { isWorkerPrompt } from '../session-llm.js';
 import { skillSuggestOn, recordSessionSkills } from '../skill-suggest.js';
 import { skillOutcomeOn, skillOutcomeCheck } from '../skill-outcome.js';
+import { instructionValueCheck, valueConfig } from '../instruction-value.js';
 
 async function learnCommand(ctx) {
   const { flags } = ctx;
@@ -206,6 +207,9 @@ export async function distillFile(ctx, file, { minExplore, dry, model, quiet, in
   // on a sample of sessions, which rules of those skills the change broke, and whether the skill was read
   // (skill-outcome.js; its own switch, off by default): one model call, through the session in a desktop app
   if (!batch && !dry && skillOutcomeOn(store)) { try { await skillOutcomeCheck(store, file, { session, phase }); } catch (e) { store.log({ op: 'skill-outcome', session, failed: String(e.message || e).slice(0, 160) }); } }
+  // on a sample of sessions, which sections of the instruction file bore on the work and whether the agent followed
+  // them (instruction-value.js; off by default): one model call, through the session in a desktop app
+  if (!batch && !dry && valueConfig(store).judge) { try { await instructionValueCheck(store, file, { session, phase }); } catch (e) { store.log({ op: 'instruction-value', session, failed: String(e.message || e).slice(0, 160) }); } }
   const n = exploreCount(events);
   if (n < minExplore && !(incremental && sessionStakes(events).any)) { markSeen(); if (!quiet) out(`only ${n} exploration calls since last distill (<${minExplore}); nothing to distill`); return; }
   if (!events.some(e => e.t === 'say')) { markSeen(); if (!quiet) out('the session has no answer from the agent yet; nothing to distill'); return; }

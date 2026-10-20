@@ -267,6 +267,6 @@ export async function skillOutcomeCheck(store, file, { session, phase, h, comple
   const broken = r.violations.filter(v => v.skill).map(v => ({ skill: v.skill, file: v.file, read: isRead(v.skill), shown: shown.has(v.skill) }));
   const credited = creditOutcome(ev, broken, { areas: [...new Set(files.flatMap(areaKeys))], session: id, now, halfLifeDays: cfg.halfLifeDays });
   saveEvidence(store, ev);
-  store.log({ op: 'skill-outcome', session: id, skills: r.guidance.skills.map(s => s.name), rules: r.guidance.rules, diffChars: diff.length, violations: r.violations.map(v => ({ source: v.source.slice(0, 120), skill: v.skill || undefined, file: v.file || undefined, rule: v.rule.slice(0, 160) })), credited: credited.map(c => ({ skill: c.skill, verdict: c.verdict, ...(c.shown ? { shown: true } : {}) })), cost: r.cost ?? undefined, tokens: r.tokens ?? undefined, metered: true, phase });
+  store.log({ op: 'skill-outcome', session: id, skills: r.guidance.skills.map(s => s.name), read: r.guidance.skills.map(s => s.name).filter(isRead), rules: r.guidance.rules, diffChars: diff.length, violations: r.violations.map(v => ({ source: v.source.slice(0, 120), skill: v.skill || undefined, file: v.file || undefined, rule: v.rule.slice(0, 160) })), credited: credited.map(c => ({ skill: c.skill, verdict: c.verdict, ...(c.shown ? { shown: true } : {}) })), cost: r.cost ?? undefined, tokens: r.tokens ?? undefined, metered: true, phase });
   return { ...r, credited };
 }

@@ -209,7 +209,7 @@ export function claudeHarnessConfig(repo, { home = os.homedir(), managedFile = M
 export const median = xs => { const a = xs.filter(Number.isFinite).sort((x, y) => x - y); return a.length ? a[Math.floor(a.length / 2)] : 0; };
 
 // The checkouts of a repository: itself and its worktrees, whose sessions are its sessions too.
-function checkouts(repo) {
+export function checkouts(repo) {
   try {
     const out = execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000 });
     return [...new Set([repo, ...out.split('\n').filter(l => l.startsWith('worktree ')).map(l => l.slice(9))])];
@@ -314,9 +314,13 @@ function switchOff(s) {
 // big enough to matter, and with a setting that switches them off for this repository.
 export function harnessAdvice(usage) {
   return usage.sources
-    .filter(s => switchOff(s) && !s.off && (s.kind !== 'tool' || usage.builtinTools) && s.loaded >= MIN_SESSIONS && s.tokens >= MIN_TOKENS && s.used / s.loaded < RARE_SHARE)
+    .filter(s => switchable(s, usage) && s.loaded >= MIN_SESSIONS && s.tokens >= MIN_TOKENS && s.used / s.loaded < RARE_SHARE)
     .map(s => ({ ...s, unused: s.used === 0, how: switchOff(s), action: action(s) }));
 }
+// A source a setting here switches off, and not off already: what the person may pick by hand (the Context view,
+// context-view.js), whatever the advice's thresholds say.
+export const switchable = (s, usage) => Boolean(switchOff(s)) && !s.off && (s.kind !== 'tool' || usage.builtinTools);
+const anySource = usage => usage.sources.filter(s => switchable(s, usage)).map(s => ({ ...s, unused: s.used === 0, how: switchOff(s), action: action(s) }));
 
 function action(s) {
   if (s.client === 'cursor') return `its entry taken out of ~/.cursor/mcp.json, for every repository (Cursor has no per-repository switch its editor reads; new chats; \`thinker harness --undo\` puts it back)`;
@@ -398,12 +402,12 @@ const bundleOf = skills => ({
 });
 
 // The options of a question: the advice with plain names, the small skills as one option, at most eight.
-function pickSources(usage, keep = () => true, max = HARNESS.max) {
-  const advice = harnessAdvice(usage).filter(s => keep(s) && SAFE_NAME.test(s.name) && (s.skills || []).every(n => SAFE_NAME.test(n))).map(pick);
+function pickSources(usage, keep = () => true, max = HARNESS.max, { any = false } = {}) {
+  const advice = (any ? anySource(usage) : harnessAdvice(usage)).filter(s => keep(s) && SAFE_NAME.test(s.name) && (s.skills || []).every(n => SAFE_NAME.test(n))).map(pick);
   const small = advice.filter(s => s.client !== 'codex' && s.kind === 'skill' && s.tokens < HARNESS.bundle);
   // each with the model calls of a typical session of its agent here: what it costs is its tokens read again by each
   const calls = s => usage.calls?.[s.client || 'claude'] || 0;
-  return (small.length > 1 ? [...advice.filter(s => !small.includes(s)), bundleOf(small)] : advice).slice(0, max).map(s => ({ ...s, calls: calls(s) }));
+  return (small.length > 1 && !any ? [...advice.filter(s => !small.includes(s)), bundleOf(small)] : advice).slice(0, max).map(s => ({ ...s, calls: calls(s) }));
 }
 
 // What a source costs a session: its tokens sit in the context and every model call reads them again, mostly
@@ -445,7 +449,7 @@ export function scheduleHarnessSuggestion(store, { now = Date.now(), home, force
 
 const KIND = { plugin: 'plugin', mcp: 'MCP server', connector: 'connector', skill: 'skill', skills: '', tool: 'tool' };
 export const clientPrefix = c => ({ codex: 'Codex: ', cursor: 'Cursor: ' })[c] || '';
-const labelOf = p => clientPrefix(p.client) + (p.kind === 'skills' ? p.name : `${p.name} ${KIND[p.kind]}`);
+export const labelOf = p => clientPrefix(p.client) + (p.kind === 'skills' ? p.name : `${p.name} ${KIND[p.kind]}`);
 const shq = s => `'${String(s).replace(/'/g, `'\\''`)}'`;
 const answerCommand = (repo, client = 'claude') => `${shq(process.execPath)} ${shq(CLI)} harness --answer '<labels|none|never>' --via picker --client ${client} --repo ${shq(repo)}`;
 const optionOf = p => p.kind === 'skills'
@@ -917,9 +921,10 @@ export function setHarnessSettings(store, { enabled, recurring, weekly, recall, 
 }
 // Switch named sources off now, without a question: the page's checkboxes, `--off`. What is not named is
 // not passed on; a question waiting here is replaced by this answer.
-export function switchOffNow(store, labels, { home, userHome, now = Date.now(), via = 'cli', usage } = {}) {
+// `any`: a source by its label whether or not the advice would name it (the Context view's switches).
+export function switchOffNow(store, labels, { home, userHome, now = Date.now(), via = 'cli', usage, any = false } = {}) {
   if (!harnessOn(store)) return OFF_MESSAGE;
-  const picks = pickSources(usage || harnessUsage(store.repo), () => true, Infinity);
+  const picks = pickSources(usage || harnessUsage(store.repo), () => true, Infinity, { any });
   if (!picks.length) return 'Nothing here is worth switching off; nothing changed.';
   const st = readHarnessState(store);
   st.pending = { at: new Date(now).toISOString(), days: 30, sources: picks, direct: true };

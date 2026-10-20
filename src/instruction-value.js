@@ -1,0 +1,289 @@
+// What each section of a repository's instruction file (AGENTS.md, or CLAUDE.md) is worth, measured on the
+// sessions agents ran here: what it costs (its tokens, read again on every model call of every session) against
+// how often it bore on the work and whether the agent acted on it. A measurement for the person, never a rewrite
+// of the team's file: what to keep is theirs to decide (`thinker instructions --core`, instructions-core.js).
+//
+//   applied   free, on every session: the session did what the section is about, by the triggers the
+//             section's own text gives (instruction-sections.js:deriveTriggers): it named or edited a file of
+//             the section's area, ran the command it is about (a commit, a pull request), or read code it names.
+//             Replayed from the transcript's tool events. A section with no trigger is never "applied": the
+//             judge alone says anything about it.
+//   judged    a model call on a share of sessions (`instructions: { value: { judge: true, share } }`, off by
+//             default, or `thinker context --judge n` by hand): shown the sections, what the session asked, the
+//             commands it ran, the files it read and edited and its change, it names the sections that bore on
+//             the session and says of each whether the agent followed it, went against it, or neither showed.
+//             Through llm.js:complete, so a desktop app's session answers it (session-llm.js), within the daily
+//             token cap. Logged as op "instruction-value".
+//
+// Kept per session in .thinker/state/instruction-value.json (this checkout's, never shared), by the transcript's
+// size so a session that grew is read again.
+import fs from 'node:fs';
+import path from 'node:path';
+import { createHash } from 'node:crypto';
+import { sections } from './instructions-core.js';
+import { deriveTriggers, sectionFires } from './instruction-sections.js';
+import { parseTranscript, findSessions } from './transcripts.js';
+import { complete, DEFAULT_DISTILL_MODEL } from './llm.js';
+import { tokensOf } from './model-usage.js';
+import { isTestMode } from './test-mode.js';
+import { withinDailyCap } from './maintain.js';
+import { outcomeSampled, sessionDiff } from './skill-outcome.js';
+import { checkouts } from './harness.js';
+
+export const VALUE = { share: 0.25, keepSessions: 500, diffChars: 30_000, sectionsChars: 60_000, commands: 60 };
+// a section bearing on fewer than this share of the sessions that read it, with enough sessions to say so
+export const RARE = { share: 0.1, minSessions: 5 };
+
+export function valueConfig(store, env = process.env) {
+  const c = store.config().instructions?.value || {};
+  const v = env.THINKER_INSTRUCTION_JUDGE || '';
+  const judge = /^(0|off|false)$/i.test(v) ? false : /^(1|on|true)$/i.test(v) ? true : !isTestMode(env) && c.judge === true;
+  return { judge, share: Number.isFinite(c.share) ? c.share : VALUE.share, model: c.model || null };
+}
+
+// The instruction file the agents read here, and which agents read it. Claude Code reads AGENTS.md when there is
+// no CLAUDE.md, or when CLAUDE.md is AGENTS.md (a link, a copy, or `@AGENTS.md` alone); a CLAUDE.md with text of
+// its own is what Claude Code reads instead, and then Claude Code's sessions say nothing about AGENTS.md.
+export function instructionFile(repo) {
+  const read = f => { try { return fs.readFileSync(path.join(repo, f), 'utf8'); } catch { return null; } };
+  const agents = read('AGENTS.md'), claude = read('CLAUDE.md');
+  const sameAsAgents = claude != null && agents != null && (claude === agents || /^@?AGENTS\.md\s*$/.test(claude.trim()));
+  if (agents != null) return { file: 'AGENTS.md', text: agents, notClients: claude == null || sameAsAgents ? [] : ['claude'] };
+  if (claude != null) return { file: 'CLAUDE.md', text: claude, onlyClients: ['claude'] };
+  return null;
+}
+const readsFile = (src, client) => src.onlyClients ? src.onlyClients.includes(client) : !src.notClients.includes(client);
+
+const slug = s => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
+const sha = s => createHash('sha256').update(String(s)).digest('hex').slice(0, 16);
+
+// The sections with an id, their tokens and their triggers; the triggers kept by the section's text, since
+// deriving them greps the repository.
+export function valueSections(store, src = instructionFile(store.repo)) {
+  if (!src) return [];
+  const file = path.join(store.dir, 'state', 'instruction-triggers.json');
+  let cache = {}; try { cache = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
+  let changed = false;
+  const out = sections(src.text).filter(s => s.text.split('\n').slice(1).join('\n').trim()).map(s => {
+    const id = slug(s.parent ? `${s.parent} ${s.title}` : s.title), key = sha(s.text);
+    if (!cache[key]) { cache[key] = deriveTriggers(store.repo, { title: s.title, text: s.text }); changed = true; }
+    const t = cache[key];
+    const any = t.paths?.length || t.edits?.length || t.code?.length || t.codeRe?.length || t.cmd;
+    return { id, title: s.title, parent: s.parent, tokens: s.tokens, text: s.text, triggers: t, triggered: Boolean(any) };
+  });
+  if (changed) {
+    const keep = new Set(out.map(s => sha(s.text)));
+    try { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, JSON.stringify(Object.fromEntries(Object.entries(cache).filter(([k]) => keep.has(k))))); } catch {}
+  }
+  return out;
+}
+
+// --- one session ---------------------------------------------------------------------------------------------
+const rel = (repo, f) => { const r = path.isAbsolute(f) ? path.relative(repo, f) : f.replace(/^\.\//, ''); return r && !r.startsWith('..') ? r : null; };
+const PATHS = /(?:^|[\s'"`=:(\[])(\/?(?:[\w.@-]+\/)+[\w.@-]+\.\w{1,5})(?=$|[\s'"`:|;)\],])/gm;
+
+// What a session did, as the section triggers read it: per tool call the files it named or edited, the command
+// it ran and what it printed; plus the prompts, commands and files the judge is shown.
+export function sessionActivity(repo, events) {
+  const calls = [], read = new Set(), edited = new Set(), commands = [], prompts = [];
+  let answer = '';
+  for (const e of events) {
+    if (e.t === 'prompt') { prompts.push(e.text); continue; }
+    if (e.t === 'say') { answer = e.text; continue; }
+    if (e.t !== 'tool') continue;
+    const inp = e.input || {}, command = typeof inp.command === 'string' ? inp.command : '';
+    const named = [];
+    for (const k of ['file_path', 'path']) if (typeof inp[k] === 'string') { const r = rel(repo, inp[k]); if (r) named.push(r); }
+    for (const m of command.matchAll(PATHS)) { const r = rel(repo, m[1]); if (r) named.push(r); }
+    const patched = [...JSON.stringify(inp).matchAll(/\*\*\* (?:Update|Add|Delete) File: ([^\\\n"]+)/g)].map(m => rel(repo, m[1])).filter(Boolean);
+    const edits = e.name === 'Edit' || e.name === 'Write' ? [...named, ...patched] : [];
+    const seen = [];
+    for (const m of String(e.result || '').slice(0, 200_000).matchAll(PATHS)) { const r = rel(repo, m[1]); if (r && seen.length < 40) seen.push(r); }
+    for (const f of edits) edited.add(f);
+    if (!edits.length) for (const f of named) read.add(f);
+    if (command) commands.push(command);
+    calls.push({ files: [...named, ...edits, ...seen], command, output: String(e.result || '').slice(0, 200_000), read: edits.length ? [] : named, edited: edits });
+  }
+  return { calls, read: [...read], edited: [...edited], commands, prompts, answer };
+}
+
+// The sections a session's tool calls fired, each with how it first fired.
+export function appliedSections(secs, activity) {
+  const out = {};
+  for (const c of activity.calls) for (const s of secs) {
+    if (out[s.id] || !s.triggered) continue;
+    const how = sectionFires(s, c);
+    if (how) out[s.id] = how;
+  }
+  return out;
+}
+
+// --- the state -----------------------------------------------------------------------------------------------
+const stateFile = store => path.join(store.dir, 'state', 'instruction-value.json');
+export const readValueState = store => { try { const j = JSON.parse(fs.readFileSync(stateFile(store), 'utf8')); return { sessions: j.sessions || {} }; } catch { return { sessions: {} }; } };
+function writeValueState(store, st) {
+  const ids = Object.keys(st.sessions).sort((a, b) => (st.sessions[a].mtime || 0) - (st.sessions[b].mtime || 0));
+  for (const id of ids.slice(0, Math.max(0, ids.length - VALUE.keepSessions))) delete st.sessions[id];
+  try { fs.mkdirSync(path.dirname(stateFile(store)), { recursive: true }); fs.writeFileSync(stateFile(store), JSON.stringify(st)); } catch {}
+}
+
+// A session's record: read again when its transcript grew or the sections changed; the verdicts kept.
+function sessionRecord(store, st, s, secs, srcHash) {
+  let size = 0; try { size = fs.statSync(s.file).size; } catch { return null; }
+  const prev = st.sessions[s.session];
+  if (prev && prev.size === size && prev.src === srcHash) return prev;
+  let parsed; try { parsed = parseTranscript(s.file); } catch { return null; }
+  if (!parsed.events.some(e => e.t === 'tool' || e.t === 'prompt')) return null;
+  const activity = sessionActivity(store.repo, parsed.events);
+  const rec = { client: s.client, file: s.file, mtime: s.mtime, size, src: srcHash, turns: parsed.stats?.turns || 0, applied: appliedSections(secs, activity), edited: activity.edited.length, ...(prev?.judged ? { judged: prev.judged } : {}) };
+  st.sessions[s.session] = rec;
+  return rec;
+}
+
+// --- the judge -----------------------------------------------------------------------------------------------
+export const VALUE_SCHEMA = {
+  type: 'object',
+  properties: {
+    sections: {
+      type: 'array', maxItems: 40,
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'the id of the section, exactly as given after [id:' },
+          verdict: { type: 'string', enum: ['followed', 'violated', 'applicable'] },
+          evidence: { type: 'string', description: 'one sentence: what in the session shows it, quoting a command, a file or a diff line' },
+        },
+        required: ['id', 'verdict', 'evidence'],
+      },
+    },
+  },
+  required: ['sections'],
+};
+export const VALUE_SYSTEM = `You read what a coding agent did in one session and say which sections of the repository's instruction file bore on that work.
+
+List a section only when it bears on what the session actually did: the files it read or changed, the commands it ran, the change it made, what it was asked. Leave out every section that did not come up. Most sessions touch a few sections; an empty list is a valid answer.
+
+For each section you list, one verdict:
+- followed: the session did what the section asks in a way you can point to (a command it ran, a convention the diff keeps, a file it updated together with another), where the section is what told it so.
+- violated: the session's work goes against what the section asks (the diff breaks its rule, it ran what the section forbids, it skipped a step the section requires for exactly this kind of change).
+- applicable: the section bore on the work but the session shows neither following nor breaking it.
+
+Judge only by the section's own words and the evidence given; no general best practice. When in doubt between followed and applicable, say applicable.`;
+
+export function valuePrompt(secs, activity, diff) {
+  let used = 0;
+  const shown = [];
+  for (const s of secs) { if (used + s.text.length > VALUE.sectionsChars) break; used += s.text.length; shown.push(`[id: ${s.id}]\n${s.text.trim()}`); }
+  const cut = (s, n) => String(s || '').length > n ? `${String(s).slice(0, n)}…` : String(s || '');
+  const cmds = [...new Set(activity.commands.map(c => cut(c.replace(/\s+/g, ' '), 200)))].slice(-VALUE.commands);
+  return `INSTRUCTION FILE SECTIONS:\n\n${shown.join('\n\n')}\n\nSESSION\nAsked:\n${activity.prompts.slice(0, 3).map(p => `- ${cut(p, 600)}`).join('\n') || '(nothing recorded)'}\n\nCommands run:\n${cmds.map(c => `- ${c}`).join('\n') || '(none)'}\n\nFiles read: ${activity.read.slice(0, 60).join(', ') || '(none)'}\nFiles edited: ${activity.edited.slice(0, 60).join(', ') || '(none)'}\n\nThe agent's last message:\n${cut(activity.answer, 1500) || '(none)'}\n\nCHANGE${diff.length > VALUE.diffChars ? ` (cut at ${VALUE.diffChars} of ${diff.length} characters)` : ''}:\n${diff.slice(0, VALUE.diffChars) || '(no change in the working tree)'}`;
+}
+
+export async function judgeSession(store, { secs, activity, diff = '', model, completeFn = complete, accounting }) {
+  const res = await completeFn({ system: VALUE_SYSTEM, prompt: valuePrompt(secs, activity, diff), model: model || store.config().distillModel || DEFAULT_DISTILL_MODEL, schema: VALUE_SCHEMA, maxTokens: 3000, thinkingTokens: 0, structuredRetries: 1, accounting });
+  const ids = new Set(secs.map(s => s.id)), verdicts = {};
+  for (const v of Array.isArray(res.json?.sections) ? res.json.sections : []) {
+    if (!v || !ids.has(v.id) || !['followed', 'violated', 'applicable'].includes(v.verdict) || verdicts[v.id]) continue;
+    verdicts[v.id] = { verdict: v.verdict, evidence: String(v.evidence || '').slice(0, 300) };
+  }
+  return { verdicts, tokens: tokensOf(res), cost: res.cost ?? null, model: res.model || null };
+}
+
+// Judge one session now and keep the verdicts on its record. `force` judges a session judged before.
+export async function judgeSessionFile(store, file, { session, client = null, phase = 'learning', completeFn = complete, force = false, now = Date.now() } = {}) {
+  const src = instructionFile(store.repo);
+  if (!src) return { skipped: 'no-file' };
+  const secs = valueSections(store, src), srcHash = sha(src.text), st = readValueState(store);
+  let mtime = now; try { mtime = fs.statSync(file).mtimeMs; } catch {}
+  const id = session || path.basename(file).replace(/\.jsonl?$/, '');
+  const rec = sessionRecord(store, st, { file, session: id, client, mtime }, secs, srcHash);
+  if (!rec) return { skipped: 'empty' };
+  if (rec.judged && !force) return { skipped: 'judged' };
+  if (phase !== 'init' && !withinDailyCap(store).ok) { store.log({ op: 'instruction-value', session: id, skipped: 'daily-cap' }); return { skipped: 'daily-cap' }; }
+  const activity = sessionActivity(store.repo, parseTranscript(file).events);
+  let start = null; try { start = new Date(fs.statSync(file).birthtimeMs).toISOString(); } catch {}
+  const diff = activity.edited.length ? sessionDiff(store.repo, activity.edited, { start }) : '';
+  const cfg = valueConfig(store);
+  const r = await judgeSession(store, { secs, activity, diff, model: cfg.model, completeFn, accounting: { store, phase, session: id, purpose: 'instruction-value' } });
+  rec.judged = { at: new Date(now).toISOString(), verdicts: r.verdicts };
+  writeValueState(store, st);
+  store.log({ op: 'instruction-value', session: id, file: src.file, sections: Object.fromEntries(Object.entries(r.verdicts).map(([k, v]) => [k, v.verdict])), tokens: r.tokens ?? undefined, cost: r.cost ?? undefined, metered: true, phase });
+  return { verdicts: r.verdicts, tokens: r.tokens };
+}
+
+// The end-of-session path (commands/learn.js:distillFile): on a share of sessions by their id, when the switch is on.
+export async function instructionValueCheck(store, file, { session, phase, completeFn = complete, env = process.env } = {}) {
+  const cfg = valueConfig(store, env);
+  if (!cfg.judge || !outcomeSampled(session || file, cfg.share)) return null;
+  return judgeSessionFile(store, file, { session, phase, completeFn });
+}
+
+// Judge the newest `n` sessions not judged yet (`thinker context --judge n`, the page's button).
+// A session written to in the last IDLE_MS is still running (this one, or another agent's): judged once it is quiet.
+export const IDLE_MS = 20 * 60_000;
+export async function judgeRecent(store, { n = 5, days = 30, completeFn = complete, sessions, onEach, now = Date.now() } = {}) {
+  const src = instructionFile(store.repo);
+  if (!src) return { judged: 0, skipped: 'no-file' };
+  const st = readValueState(store);
+  sessions ??= findRepoSessions(store.repo, days);
+  let judged = 0, tokens = 0;
+  for (const s of sessions.filter(s => readsFile(src, s.client))) {
+    if (judged >= n) break;
+    if (st.sessions[s.session]?.judged || now - s.mtime < IDLE_MS) continue;
+    const r = await judgeSessionFile(store, s.file, { session: s.session, client: s.client, completeFn, phase: 'manual' });
+    if (r.skipped === 'daily-cap') return { judged, tokens, skipped: 'daily-cap' };
+    if (r.skipped) continue;
+    judged++; tokens += r.tokens || 0; onEach?.(s, r);
+  }
+  return { judged, tokens };
+}
+
+// --- the report ----------------------------------------------------------------------------------------------
+export function findRepoSessions(repo, days) {
+  return [...new Map(checkouts(repo).flatMap(r => findSessions(r, { sinceMs: days * 86400_000 })).map(s => [s.file, s])).values()].sort((a, b) => b.mtime - a.mtime);
+}
+const median = xs => { const a = xs.filter(n => Number.isFinite(n) && n > 0).sort((x, y) => x - y); return a.length ? a[Math.floor(a.length / 2)] : 0; };
+
+// Per section over the window: tokens, what it costs a session (tokens × the median model calls), the sessions
+// that read it, how many it bore on (applied), and the judged verdicts with the share followed.
+export function instructionValue(store, { days = 30, sessions } = {}) {
+  const src = instructionFile(store.repo);
+  if (!src) return { file: null, sections: [], sessions: 0 };
+  const secs = valueSections(store, src), srcHash = sha(src.text), st = readValueState(store);
+  sessions ??= findRepoSessions(store.repo, days);
+  const recs = [];
+  for (const s of sessions) {
+    if (!readsFile(src, s.client)) continue;
+    const r = sessionRecord(store, st, s, secs, srcHash);
+    if (r) recs.push(r);
+  }
+  writeValueState(store, st);
+  const calls = median(recs.map(r => r.turns)), judged = recs.filter(r => r.judged);
+  const rows = secs.map(s => {
+    const applied = recs.filter(r => r.applied[s.id]).length;
+    const v = { followed: 0, violated: 0, applicable: 0 };
+    for (const r of judged) { const x = r.judged.verdicts[s.id]; if (x) v[x.verdict]++; }
+    const bore = v.followed + v.violated + v.applicable;
+    const decided = v.followed + v.violated;
+    return {
+      id: s.id, title: s.title, parent: s.parent, tokens: s.tokens, perSession: s.tokens * Math.max(1, calls),
+      sessions: recs.length, triggered: s.triggered, applied, judged: judged.length, ...v,
+      // a share of the sessions judged that the section bore on, and of those it decided, how many it was followed in
+      bore, boreShare: judged.length ? bore / judged.length : null, success: decided ? v.followed / decided : null,
+      value: valueOf({ sessions: recs.length, applied, triggered: s.triggered, judged: judged.length, bore, followed: v.followed, violated: v.violated }),
+    };
+  });
+  return { file: src.file, tokens: Math.ceil(src.text.length / 4), sessions: recs.length, judged: judged.length, calls, judge: valueConfig(store), sections: rows };
+}
+
+// A plain label for the table: `used` when sessions acted on it, `rare` when it bore on almost none, `unknown`
+// while there is too little to say.
+export function valueOf({ sessions, applied, triggered, judged, bore, followed, violated }) {
+  if (judged >= RARE.minSessions) {
+    if (followed + violated > 0 && (followed + violated) / judged >= RARE.share) return 'used';
+    if (bore / judged < RARE.share) return 'rare';
+    return 'situational';
+  }
+  if (triggered && sessions >= RARE.minSessions) return applied / sessions >= RARE.share ? 'situational' : 'rare';
+  return 'unknown';
+}
