@@ -835,8 +835,7 @@ const toolSavings = (rows, sessions, days) => {
 const savingsLine = iv => {
   const sv = iv.savings; if (!sv) return '';
   const n = l => iv.sections.filter(s => s.waste === l).length;
-  return sv.sections ? `<div class="savings"><div><div class="kicker">Potential savings, at most</div><div class="tr-num">${fmt(sv.perSession)} <span class="muted">input tokens a session · ${Math.round(100 * sv.share)}% of the file's cost · ${fmt(sv.window)} over ${CTX?.days || 30} days</span></div></div><div class="why">${n('high')} high and ${n('medium')} medium waste sections: relevant to under half the sessions, and costly in the rest. This is what removing or compressing them would save at most; a session that needed one would go without it.</div></div>`
-    : `<div class="savings ok"><div class="why">No section is both rarely used and costly.</div></div>`;
+  return savingsCard({ perSession: sv.perSession, share: sv.share, window: sv.window, days: CTX?.days, text: `${n('high')} high and ${n('medium')} medium waste sections: acted on in under half the sessions, and costly in the rest. Removing or compressing them saves this at most; a session that needed one would go without it.`, ok: 'No section is both rarely acted on and costly.' });
 };
 // a section's heading and its first two lines of text
 const short = text => { const lines = String(text).trim().split('\n'), head = /^#{1,4} /.test(lines[0]) ? [lines.shift()] : []; return [...head, ...lines.filter(l => l.trim()).slice(0, 2)].join('\n'); };
@@ -986,10 +985,9 @@ function renderContext(v) {
   const VIEWS = [['instructions', 'Instruction files'], ['custom', 'Custom tools'], ['builtin', 'Built-in tools'], ['outputs', 'Tool outputs']];
   h += `<div class="vtabs" id="c-view" role="tablist">${VIEWS.map(([k, name]) => `<button role="tab" data-view="${k}" aria-selected="${CVIEW === k}"${CVIEW === k ? ' class="on"' : ''}><span class="vt-name">${name}</span><span class="vt-num">${fmt(t[k]?.perSession || 0)} <span>a session</span></span></button>`).join('')}</div>`;
   h += `<div class="cview" data-view="instructions"${CVIEW === 'instructions' ? '' : ' hidden'}>`;
-  h += viewHead('instructions', esc(iv.file || 'No instruction file'), 'Instruction files, section by section', iv.file ? [['file', 'File order'], ['used', 'Most acted on'], ['wasted', 'Most wasted']] : null) + `<div class="section"><div class="panel">`;
+  h += viewHead('instructions', esc(iv.file || 'No instruction file'), 'Instruction files, section by section', iv.file ? [['file', 'File order'], ['used', 'Most acted on'], ['wasted', 'Most wasted']] : null) + (iv.file ? savingsLine(iv) : '') + `<div class="section"><div class="panel">`;
   if (!iv.file) h += `<div class="note-line" style="margin-top:0">No AGENTS.md or CLAUDE.md in this repository.</div>`;
   else h += `<div class="note-line" style="margin-top:0">${iv.sessions} sessions read it over ${v.days} days, each reading it again on every model call; ${iv.judged} judged${iv.judge.judge ? `, and a ${Math.round(100 * iv.judge.share)}% sample is judged as sessions end` : ''}. <b>Acted on</b> is the share of judged sessions whose agent followed the section, once five are judged, and until then the share that touched its files, commands or code (broad for a section about a common path). <b>Wasted</b> is its cost in the sessions that did not act on it.</div>
-    ${savingsLine(iv)}
 
     <div id="bulk-preview" hidden></div>
     <div id="md-doc"></div>
