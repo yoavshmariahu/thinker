@@ -250,7 +250,8 @@ const median = xs => { const a = xs.filter(n => Number.isFinite(n) && n > 0).sor
 // that read it, how many it bore on (applied), and the judged verdicts with the share followed.
 export function instructionValue(store, { days = 30, sessions } = {}) {
   const src = instructionFile(store.repo);
-  if (!src) return { file: null, sections: [], sessions: 0 };
+  // no instruction file: the same shape, empty, so the Context view of such a repository still renders
+  if (!src) return { file: null, tokens: 0, sessions: 0, judged: 0, calls: 0, judge: valueConfig(store), sections: [], timeline: [], savings: { perSession: 0, sections: 0, share: 0, window: 0 } };
   const secs = valueSections(store, src), srcHash = sha(src.text), st = readValueState(store);
   sessions ??= findRepoSessions(store.repo, days);
   const recs = [];
