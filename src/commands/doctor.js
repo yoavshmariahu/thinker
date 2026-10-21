@@ -189,7 +189,7 @@ async function runChecks(ctx) {
   // This checkout
   const isGit = fs.existsSync(path.join(repo, '.git'));
   if (!isGit) add('repository', 'warn', `${repo} is not a git repository; run doctor inside one to check its setup`);
-  else if (!store.exists()) add('repository', 'ok', `no cache in ${repo} yet: one starts with the first agent session here, or from the warm-up page (thinker ui)`);
+  else if (!store.exists()) add('repository', 'ok', `no cache in ${repo} yet: one starts with the first agent session here`);
   else {
     let configOk = true;
     const cfg = path.join(store.dir, 'config.json');

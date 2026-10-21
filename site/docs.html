@@ -1089,19 +1089,19 @@ export THINKER_TELEMETRY=off
         <div class="faq-item" id="faq-data">
           <h3>Where is my data stored? Does anything leave my machine?</h3>
           <p>
-            The cache lives in the repository it describes, and it stays on your machine. Notes, from pull requests and from sessions alike, are under <code>.thinker/local/</code>, which git ignores; there is no team sharing or sync. Notes that an older version committed under <code>.thinker/notes/</code> are still read. <code>.thinker/config.json</code> holds the configuration and <code>.thinker/prs.json</code> the list of pull requests already read. Per machine, <code>~/.thinker/</code> holds the installed app, the usage log every serving is recorded in, and the ranking model.
+            The cache lives in the repository it describes, and it stays on your machine. Notes are under <code>.thinker/local/</code>, which git ignores; there is no team sharing or sync. Notes that an older version committed under <code>.thinker/notes/</code> are still read. <code>.thinker/config.json</code> holds the configuration. Per machine, <code>~/.thinker/</code> holds the installed app, the usage log every serving is recorded in, and the ranking model. The Context report is read from the transcripts your agents already write; nothing is copied out of them.
           </p>
           <p>Three things leave the machine, and nothing else:</p>
           <ul>
-            <li><strong>Model calls go to the provider you already use for your agent.</strong> Learning, verification and mining run through your agent's own login (<code>claude</code>, <code>codex</code>, <code>gemini</code>, <code>cursor</code>, or an Anthropic API key). A session is distilled from a condensed transcript; a pull request is read as its title, description, review comments and diff; verification sends a note with the diff of the code it rests on. Thinker runs no model and stores nothing of its own in the cloud.</li>
+            <li><strong>Model calls go to the provider you already use for your agent.</strong> Learning and verification run through your agent's own login (<code>claude</code>, <code>codex</code>, <code>gemini</code>, <code>cursor</code>, or an Anthropic API key), or, in a desktop app (Claude Desktop, the Codex app, Cursor), through the app's own session. A session is distilled from a condensed transcript; verification sends a note with the diff of the code it rests on. Thinker runs no model and stores nothing of its own in the cloud.</li>
             <li><strong>Telemetry is counts only.</strong> An hourly report carries numbers: notes served, verdicts, token totals, the sums of the holdout comparison, with an install id and a hashed device id. It contains no code, note bodies, prompt text, file paths or repository URLs. <code>THINKER_TELEMETRY=off</code> or <code>{ "telemetry": false }</code> in the config stops it; see <a href="#telemetry">Privacy and telemetry</a>.</li>
             <li><strong>The ranking model is downloaded once at install</strong> (about 23 MB) and runs on your machine. Ranking never calls a service.</li>
           </ul>
           <p>
-            <code>gh</code> reads merged pull requests from GitHub during mining; it posts nothing. The local page of <code>thinker ui</code> listens on 127.0.0.1 only.
+            The local page of <code>thinker ui</code> listens on 127.0.0.1 only.
           </p>
           <p>
-            <strong>A repository with sensitive content can be turned off</strong> on the warm-up page of <code>thinker ui</code>, or with <code>thinker disable</code> inside it. Thinker then does nothing there, in any clone or worktree: the hooks and the MCP server serve nothing, no session is distilled, no pull request is read, and nothing is written into it. <code>thinker enable</code> turns it back on.
+            <strong>A repository with sensitive content can be turned off</strong> with <code>thinker disable</code> inside it. Thinker then does nothing there, in any clone or worktree: the hooks and the MCP server serve nothing, no session is distilled, and nothing is written into it. <code>thinker enable</code> turns it back on.
           </p>
         </div>
 
@@ -1111,30 +1111,34 @@ export THINKER_TELEMETRY=off
             A note is a short rule, map or how-to about one part of the code, with <code>file:Symbol</code> pointers and a hash of the code it rests on. The cache is a set of such notes, and the work is in putting the right one in front of the agent without being asked:
           </p>
           <ul>
-            <li><strong>On each request</strong> a hook picks the lexical candidates, then a local ranking model reads the request against them and serves up to two notes, only those it scores relevant, with the code behind its pointers and a count of call sites for each symbol named. The agent starts at the code instead of searching for it.</li>
+            <li><strong>On each request</strong> a hook picks the lexical candidates, then a local ranking model reads the request against them and serves up to two notes, only those it scores relevant. The agent starts at the code instead of searching for it.</li>
             <li><strong>On each file edit</strong> the rules resting on that file are served, so a trap on that code is in view while it is changed.</li>
-            <li><strong>On demand</strong>, the MCP tools <code>orient</code> and <code>lookup</code> give the agent notes when the hooks served nothing; <a href="#skills">skill cards</a> are among them.</li>
-            <li><strong>Never stale.</strong> Every serving re-hashes the dependencies of every note against your working tree. A note whose code changed is held back, re-verified in the background, and served again once it is fresh.</li>
+            <li><strong>On demand</strong>, the MCP tool <code>lookup</code> answers one open question or fetches a note the hook listed; <a href="#skills">skill cards</a> are among the notes.</li>
+            <li><strong>Never stale.</strong> Every serving re-hashes the dependencies of every note against your working tree. A note whose code changed is held back, re-verified with the next batch (every three days), and served again once it is fresh.</li>
             <li><strong>Once per session.</strong> A note is served once, not for one-word turns, and not at all when nothing fits.</li>
           </ul>
           <p>
-            The cache keeps itself: each session is distilled once when it ends, newly merged pull requests are mined as they land, and a maintenance run every four hours re-verifies stale notes and archives the ones sessions never acted on. See <a href="#keeping-current">Keeping it current</a>.
+            The cache keeps itself: each session is distilled once when it ends, stale notes that were served are re-verified every three days, notes the sessions never acted on are archived, and a note nobody was served in two weeks is deleted. See <a href="#keeping-current">Keeping it current</a>.
           </p>
         </div>
 
-        <div class="faq-item" id="faq-mining">
-          <h3>Why does mining take so long? Can I skip it?</h3>
+        <div class="faq-item" id="faq-learning">
+          <h3>Where do the notes come from? Can I build the cache up front?</h3>
           <p>
-            Each merged pull request is read by a frontier model through your agent's login: title, description, review comments and the diff, about 14k tokens and 8 seconds per pull request, four at a time. The default build reads up to 60 of them, then reads the design documents and writes search phrasings for every new note, each a model call. Rate limits on the login stretch it further. The estimate in tokens and minutes is shown before anything is spent.
+            From your own sessions, and from nothing else. When a session ends, a model reads a condensed transcript of it (what was asked, read, run and changed) and saves what the session worked out that the next one would otherwise work out again, usually nothing or one note. The same call grades the notes the session was served: confirmed, contradicted (the note is corrected) or unused. A quiet session, with nothing served, no edit, no failure and little exploring, is skipped.
           </p>
-          <p>Yes, you can skip it, and nothing stops working:</p>
           <ul>
-            <li>Press <strong>Skip for now</strong> on the warm-up view, or run <code>thinker setup --no-build</code>. Thinker is wired and the cache grows from your own sessions.</li>
-            <li>Pick <strong>Shallow</strong>: the newest 30% of the same pull requests.</li>
-            <li>Stopping a build at any point keeps every note saved so far. <code>thinker mine-prs</code> continues where it stopped, 20 pull requests at a time, and the background maintenance mines a few new ones per run anyway.</li>
+            <li><strong>There is no build step.</strong> <code>thinker setup</code> connects your agents and nothing else; every git repository starts with an empty cache, and the hooks serve from it once it holds a few notes.</li>
+            <li><strong>The spend is bounded.</strong> One model call per session, through your agent's login, and learning and maintenance together stop at a daily token cap (<code>maintain.dailyTokens</code> in <code>.thinker/config.json</code>).</li>
+            <li><strong>You can add your own.</strong> <code>thinker add</code> takes a note you wrote, and an agent can save one with the <code>remember</code> tool.</li>
+            <li><strong>You can stop it.</strong> <code>{ "learn": { "sessions": false } }</code> in the config stops learning from sessions in a repository; <code>THINKER_NO_LEARN=1</code> stops all learning.</li>
           </ul>
+        </div>
+
+        <div class="faq-item" id="faq-context">
+          <h3>Can Thinker cut what my agents load into every session?</h3>
           <p>
-            What a build gives you that sessions cannot is the record of past fixes. A repository with little history loses little by skipping it.
+            It shows you what to cut, and you decide. The <a href="#context">Context page</a> and <code>thinker context</code> list every section of your instruction files, every skill and every tool with what it costs a session and how many sessions it bore on. A section you pick can be removed or compressed by a model: the diff is shown first, and Apply writes it to your working tree, uncommitted, for you to review and commit like any change. Nothing is cut on its own.
           </p>
         </div>
 

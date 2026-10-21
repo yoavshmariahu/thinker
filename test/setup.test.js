@@ -33,7 +33,6 @@ import {
   selectAndAuthenticateAgent,
   selectMenu,
   stepPrBenchmark,
-  stepBuildCache,
   depthLimits,
   spinner,
   progressBar,
@@ -72,117 +71,6 @@ function createMockGitRepo() {
 
   return dir;
 }
-
-test('cache build reports partial failures without a success summary', async () => {
-  const repo = createMockGitRepo();
-  try {
-    const store = new Store(repo).init(), lines = [];
-    const estimates = estimateCacheBuild(repo, { prs: 2 });
-    estimates.canMine = true;
-    const result = await stepBuildCache({
-      repo, store, estimates, yes: true, noPhrase: true, agent: 'codex', out: line => lines.push(stripAnsi(line)),
-      minePrsFn: async () => ({ saved: 0, processed: 2, failed: 2 }),
-      proposeFn: async () => ({ proposals: [], sources: 0 }),
-    });
-    assert.equal(result.warnings, 1);
-    assert.match(lines.join('\n'), /Cache build finished with warnings/);
-    assert.doesNotMatch(lines.join('\n'), /Knowledge cache ready|notes generated|Mined.*notes created/);
-  } finally {
-    fs.rmSync(repo, { recursive: true, force: true });
-  }
-});
-
-test('behavior proposal stage runs on every cache build', async () => {
-  const repo = createMockGitRepo();
-  try {
-    const store = new Store(repo).init();
-    const estimates = estimateCacheBuild(repo, { prs: 0 });
-    let calls = 0;
-    const options = { repo, store, estimates, noPhrase: true, agent: 'codex',
-      proposeFn: async () => { calls++; return { proposals: [{ id: 'proposal-example' }], sources: 1 }; },
-      out: () => {} };
-    await stepBuildCache(options);
-    assert.equal(calls, 1);
-    await stepBuildCache({ ...options, noPrs: true });
-    assert.equal(calls, 1);
-  } finally { fs.rmSync(repo, { recursive: true, force: true }); }
-});
-
-test('a build mines the pull requests first and reads the design documents last, and says once that it does not explore the code', async () => {
-  const repo = createMockGitRepo();
-  try {
-    const store = new Store(repo).init(), lines = [];
-    const estimates = estimateCacheBuild(repo, { prs: 2 });
-    estimates.canMine = true;
-    await stepBuildCache({ repo, store, estimates, noPhrase: true, agent: 'codex', out: line => lines.push(stripAnsi(line)),
-      minePrsFn: async () => ({ saved: 0, processed: 2, failed: 0 }),
-      proposeFn: async () => ({ proposals: [], sources: 0 }) });
-    const text = lines.join('\n');
-    assert.match(text, /merged pull requests for the notes; a build does not explore the code/);
-    assert.match(text, /\[1\/3\] Mining/);
-    assert.match(text, /\[2\/3\] Linking notes/);
-    assert.match(text, /\[3\/3\] Reading design documents for system behaviors/);
-    assert.ok(text.indexOf('[1/3]') < text.indexOf('[2/3]') && text.indexOf('[2/3]') < text.indexOf('[3/3]'));
-    assert.doesNotMatch(text, /Skipped|--areas|thinker seed|explore \d|\/2\]/);
-  } finally { fs.rmSync(repo, { recursive: true, force: true }); }
-});
-
-test('a build reads the design documents into behaviors after it mines, at most 8 of them, and says what it saved; --no-docs skips them', async () => {
-  const repo = createMockGitRepo();
-  try {
-    const store = new Store(repo).init(), lines = [], order = [];
-    const estimates = estimateCacheBuild(repo, { prs: 2 });
-    estimates.canMine = true;
-    const res = await stepBuildCache({ repo, store, estimates, noPhrase: true, agent: 'codex', directories: ['src'], out: line => lines.push(stripAnsi(line)),
-      docsFn: async (st, opts) => { order.push('docs'); assert.equal(st, store); assert.deepEqual(opts.directories, ['src']); assert.equal(opts.limit, 8, 'the cap');
-        return { found: 3, docs: ['README.md', 'src/README.md'], read: 2, saved: [{ id: 'a' }, { id: 'b' }, { id: 'c' }], rejected: [{}], failed: 0, remaining: 1 }; },
-      minePrsFn: async () => { order.push('prs'); return { saved: 0, processed: 2, failed: 0 }; },
-      proposeFn: async () => ({ proposals: [], sources: 0 }) });
-    assert.deepEqual(order, ['prs', 'docs']);
-    assert.match(lines.join('\n'), /✔ 3 behaviors from 2 design documents; 1 left out[^\n]*; 1 more to read: thinker system docs; see them with thinker system/);
-    assert.equal(res.warnings, 0);
-    lines.length = 0;
-    let docsCalls = 0;
-    await stepBuildCache({ repo, store, estimates, noPhrase: true, docs: false, agent: 'codex', out: line => lines.push(stripAnsi(line)),
-      docsFn: async () => { docsCalls++; return { found: 0, docs: [], read: 0, saved: [], rejected: [], failed: 0, remaining: 0 }; },
-      minePrsFn: async () => ({ saved: 0, processed: 2, failed: 0 }), proposeFn: async () => ({ proposals: [], sources: 0 }) });
-    assert.equal(docsCalls, 0, '--no-docs reads no document');
-    assert.match(lines.join('\n'), /\[3\/3\] Design documents skipped \(--no-docs\)/);
-    lines.length = 0;
-    const failed = await stepBuildCache({ repo, store, estimates, noPhrase: true, agent: 'codex', out: line => lines.push(stripAnsi(line)),
-      docsFn: async () => { throw new Error('claude -p exited 1'); },
-      minePrsFn: async () => ({ saved: 0, processed: 2, failed: 0 }), proposeFn: async () => ({ proposals: [], sources: 0 }) });
-    assert.match(lines.join('\n'), /Design documents not read: claude -p exited 1\. Retry this step alone: thinker system docs/);
-    assert.equal(failed.warnings, 1);
-  } finally { fs.rmSync(repo, { recursive: true, force: true }); }
-});
-
-test('a failed last stage names the command that retries that stage alone', async () => {
-  const repo = createMockGitRepo();
-  try {
-    const store = new Store(repo).init(), lines = [];
-    store.put({ id: 'n1', title: 'A note', kind: 'rule', body: 'Body of the note.', deps: [], status: 'fresh' });
-    const estimates = estimateCacheBuild(repo, { prs: 2 });
-    estimates.canMine = true;
-    const options = { repo, store, estimates, agent: 'codex', out: line => lines.push(stripAnsi(line)),
-      minePrsFn: async () => ({ saved: 1, processed: 2, failed: 0 }) };
-    // a provider is named so the phrasing step runs on a machine with no agent CLI; phraseFn never calls it
-    const before = process.env.THINKER_LLM; process.env.THINKER_LLM = 'command';
-    const r = await stepBuildCache({ ...options,
-      phraseFn: async (s, notes) => ({ done: [], tokens: 0, failed: notes.length, lastError: new Error('claude -p exited 1') }),
-      proposeFn: async () => { throw new Error('claude -p exited 1'); } })
-      .finally(() => { if (before === undefined) delete process.env.THINKER_LLM; else process.env.THINKER_LLM = before; });
-    const text = lines.join('\n');
-    assert.equal(r.warnings, 2);
-    assert.match(text, /Retry the rest: thinker phrase/);
-    assert.match(text, /Retry this step alone: thinker system propose --refresh/);
-    assert.doesNotMatch(text, /Retry with thinker setup --build/);
-    lines.length = 0;
-    await stepBuildCache({ ...options, noPhrase: true,
-      proposeFn: async () => ({ proposals: [{ id: 'p' }], sources: 8, failed: 4, lastError: new Error('over the cap') }) });
-    assert.match(lines.join('\n'), /1 behavior drafts; 4 of 8 source notes not read \(over the cap\)\. Retry: thinker system propose --refresh/);
-  } finally { fs.rmSync(repo, { recursive: true, force: true }); }
-});
 
 test('visual formatting helpers: stripAnsi, box, stepBanner', () => {
   const colored = c.bold(c.cyan('hello world'));
@@ -339,25 +227,17 @@ test('runSetup completes compact setup flow in clean repo', async () => {
       cliPath: path.resolve('src/cli.js'),
       mcpEntry: { command: 'node', args: ['/path/to/mcp.js'] },
       clients: ['claude'],
-      prs: 2,
-      noBenchmark: true,
       yes: true,
       out,
-      checkAuthFn: () => ({ authenticated: true, account: 'test@thinker.dev' }),
-      minePrsFn: async () => ({ saved: 0, processed: 0 }),
     });
 
     const fullOutput = outLines.join('\n');
     assert.match(fullOutput, /thinker/);
-    assert.match(fullOutput, /1\/2  Connect your agents/);
+    assert.match(fullOutput, /1\/1  Connect your agents/);
     assert.match(fullOutput, /Claude Code\s+Connected/);
-    assert.match(fullOutput, /2\/2  Choose how to start/);
-    assert.match(fullOutput, /Pre-flight estimates for this repository/);
-    assert.match(fullOutput, /Target storage:/);
-    assert.match(fullOutput, /Estimated size:/);
-    assert.match(fullOutput, /Estimated build:/);
-    assert.doesNotMatch(fullOutput, /Optional PR Change Benchmark/);
-    assert.doesNotMatch(fullOutput, /PR change benchmark skipped/);
+    // nothing is built: no build question, no estimate, no mining
+    assert.doesNotMatch(fullOutput, /Choose how to start|Pre-flight estimates|Estimated build|PR Change Benchmark/);
+    assert.match(fullOutput, /Cache starts empty and grows from your sessions/);
     assert.match(fullOutput, /Thinker is ready\./);
     assert.match(fullOutput, /What was done[\s\S]*Restart your agent: start a new session in this repository/);
 
@@ -382,9 +262,6 @@ test('runSetup opens the local page after a repository\'s first setup only', asy
     cliPath: path.resolve('src/cli.js'),
     mcpEntry: { command: 'node', args: ['/path/to/mcp.js'] },
     clients: ['claude'],
-    build: false,
-    noPrs: true,
-    noBenchmark: true,
     yes: true,
     out: () => {},
     dashboard: true,
@@ -395,135 +272,6 @@ test('runSetup opens the local page after a repository\'s first setup only', asy
     assert.deepEqual(opened.map(o => o.repo), [repo]);
     await run();
     assert.equal(opened.length, 1);
-  } finally {
-    fs.rmSync(repo, { recursive: true, force: true });
-  }
-});
-
-test('runSetup mines git history when GitHub origin is unavailable', async () => {
-  const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-setup-gitmine-')));
-  execFileSync('git', ['init', '-q', repo]);
-  execFileSync('git', ['config', 'user.name', 'test'], { cwd: repo });
-  execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: repo });
-  execFileSync('git', ['config', 'commit.gpgsign', 'false'], { cwd: repo });
-
-  for (let i = 1; i <= 6; i++) {
-    fs.writeFileSync(path.join(repo, `file${i}.js`), `export const v${i} = ${i};\n`);
-    execFileSync('git', ['add', '.'], { cwd: repo });
-    execFileSync('git', ['commit', '-m', `commit ${i} description`, '-q'], { cwd: repo });
-  }
-
-  const est = estimateCacheBuild(repo, { prs: 10, noPrs: false, slug: null });
-  assert.equal(est.canMine, true);
-  assert.equal(est.mineSource, 'git');
-
-  const store = new Store(repo);
-  const outLines = [];
-  const out = line => outLines.push(stripAnsi(line));
-  let minedPrsArgs = null;
-
-  try {
-    await runSetup({
-      repo,
-      store,
-      cliPath: path.resolve('src/cli.js'),
-      mcpEntry: { command: 'node', args: ['/path/to/mcp.js'] },
-      clients: ['claude'],
-      prs: 10,
-      noBenchmark: true,
-      yes: true,
-      out,
-      // mining needs an authenticated agent; do not depend on this machine's real login state
-      checkAuthFn: () => ({ authenticated: true, account: 'test@thinker.dev' }),
-      minePrsFn: async (slug, opts) => {
-        minedPrsArgs = { slug, opts };
-        return { saved: 3 };
-      },
-      model: 'sonnet',
-    });
-
-    const fullOutput = outLines.join('\n');
-    assert.match(fullOutput, /\[1\/3\] Mining merged changes from git history \(GitHub CLI unavailable\)/);
-    assert.match(fullOutput, /Mined git history changes → 3 notes created/);
-    assert.equal(minedPrsArgs.slug, null);
-    assert.equal(minedPrsArgs.opts.limit, 10);
-    assert.equal(minedPrsArgs.opts.repo, repo);
-    assert.equal(minedPrsArgs.opts.model, 'sonnet', 'direct setup preserves an explicit model override');
-  } finally {
-    fs.rmSync(repo, { recursive: true, force: true });
-  }
-});
-
-test('runSetup wires the repository up and leaves the cache unbuilt when no agent is authenticated', async () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-setup-halt-'));
-  execFileSync('git', ['init', repo]);
-  execFileSync('git', ['config', 'user.name', 'test'], { cwd: repo });
-  execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: repo });
-  fs.writeFileSync(path.join(repo, 'index.js'), 'export function hello() { return "world"; }\n');
-  execFileSync('git', ['add', '.'], { cwd: repo });
-  execFileSync('git', ['commit', '-m', 'initial commit'], { cwd: repo });
-
-  const store = new Store(repo);
-  const outLines = [];
-  const out = line => outLines.push(stripAnsi(line));
-  let builds = 0;
-
-  try {
-    const res = await runSetup({
-      repo,
-      store,
-      cliPath: path.resolve('src/cli.js'),
-      mcpEntry: { command: 'node', args: ['/path/to/mcp.js'] },
-      clients: ['claude'],
-      prs: 2,
-      noBenchmark: true,
-      agent: 'nonexistent-agent',
-      yes: true,
-      onBuildStart: () => builds++,
-      out,
-    });
-
-    assert.equal(res.built, false);
-    assert.equal(builds, 1, '--yes starts the attempt even when authentication prevents building');
-    assert.ok(res.error);
-    const fullOut = outLines.join('\n');
-    assert.match(fullOut, /Requested agent "nonexistent-agent" is not installed/);
-    // the repository is set up either way: the wiring is done and the footer is reached
-    assert.match(fullOut, /Cache not built here/);
-    assert.match(fullOut, /thinker setup --build/);
-    assert.match(fullOut, /Thinker is ready\./);
-  } finally {
-    fs.rmSync(repo, { recursive: true, force: true });
-  }
-});
-
-test('setup offers the cache build and takes no for an answer outside a terminal', async () => {
-  const repo = createMockGitRepo();
-  const store = new Store(repo);
-  const outLines = [];
-  const out = line => outLines.push(stripAnsi(line));
-  try {
-    const res = await runSetup({
-      repo,
-      store,
-      cliPath: path.resolve('src/cli.js'),
-      mcpEntry: { command: 'node', args: ['/path/to/mcp.js'] },
-      clients: ['claude'],
-      prs: 2,
-      noBenchmark: true,
-      out,
-      // no `build` and no `yes`: the question is asked, and tests are not a terminal
-      minePrsFn: async () => { throw new Error('must not mine without an answer'); },
-      checkAuthFn: () => { throw new Error('must not ask for a login for a build nobody asked for'); },
-      onBuildStart: () => { throw new Error('declining setup must not start a warm-up'); },
-    });
-    const fullOut = outLines.join('\n');
-    assert.equal(res.built, false);
-    assert.match(fullOut, /Build the cache from this repository now\?/);
-    assert.match(fullOut, /Not a terminal/);
-    assert.match(fullOut, /Thinker is ready\./);
-    // wiring and the free part of the cache still happened
-    assert.ok(fs.existsSync(path.join(process.env.HOME, '.claude', 'settings.json')), 'the agents are wired up, in the user\'s own settings');
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }

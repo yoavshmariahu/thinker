@@ -1,20 +1,17 @@
 // The git repositories on this machine, for the local page: the ones the coding agents have
 // worked in lately (their transcripts name the working directory) and the ones thinker's log
-// names. Nothing is read from the repositories but their git metadata, so the warm-up page can
-// list them with a build estimate each, and the cache page can show what each cache holds.
+// names. Nothing is read from the repositories but their git metadata and their caches, so the cache
+// page can show what each cache holds.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store, findRepoRoot, repoId, isScratchCheckout, isGitCheckout } from './store.js';
 import { readLog } from './usage.js';
-import { estimateCacheBuild, depthLimits, DEFAULT_PRS } from './setup/estimate.js';
-import { githubSlug, hasBin } from './setup/agents.js';
 import { isBehavior } from './behavior.js';
 import { activity } from './activity.js';
 import { isTestMode } from './test-mode.js';
 import { isDisabledRepo } from './repo-switch.js';
-import { activityAreas } from './areas.js';
 
 const ls = d => { try { return fs.readdirSync(d); } catch { return []; } };
 const mtime = f => { try { return fs.statSync(f).mtimeMs; } catch { return 0; } };
@@ -110,63 +107,9 @@ function repoRecord(id, cs, here) {
     id, checkout: cs[0].checkout, checkouts: cs.map(c => c.checkout), name: displayName(id, cs[0].checkout),
     lastUsed: lastUsed ? new Date(lastUsed).toISOString() : null, sessions: cs.reduce((a, c) => a + c.sessions, 0),
     current: cs.some(c => c.checkout === here), notes, hasCache: notes > 0,
-    // switched off machine-wide (repo-switch.js): the page offers to turn it on, never a build
+    // switched off machine-wide (repo-switch.js)
     disabled: isDisabledRepo(cs[0].checkout),
   };
-}
-
-// The warm-up page: each repository with what a full and a shallow build would take.
-// When the person's GitHub repositories were last pushed to, by owner/name, from one `gh` call (the
-// repositories they own or collaborate on; others are left out). Kept for the process: the page
-// asks more than once. Nothing without gh or offline.
-let pushedAt = null;
-export function githubPushedAt({ ghFn } = {}) {
-  if (pushedAt) return pushedAt;
-  pushedAt = new Map();
-  try {
-    const out = ghFn ? ghFn() : hasBin('gh') ? execFileSync('gh', ['api', 'user/repos?sort=pushed&per_page=100&affiliation=owner,collaborator,organization_member', '--jq', '.[] | [.full_name, .pushed_at] | @tsv'], { encoding: 'utf8', timeout: 6000, stdio: ['ignore', 'pipe', 'ignore'] }) : '';
-    for (const line of String(out).split('\n')) { const [name, at] = line.split('\t'); if (name && at) pushedAt.set(name.toLowerCase(), at); }
-  } catch {}
-  return pushedAt;
-}
-
-// The warm-up page: each repository with what a full and a shallow build would take, the most recently
-// active first. Activity is the agents' sessions here these 30 days (`sessions`, `lastUsed`) and, for a
-// GitHub repository of the person's, when it was last pushed to (`pushed`). `warmed` says a build has
-// read its pull requests before.
-export function warmupCandidates(store, opts = {}) {
-  const pushed = githubPushedAt(opts);
-  return discoverRepos(store, opts).map(r => candidateOf(r, pushed))
-  // the checkout this runs in leads, whatever its activity: `thinker warmup` or `thinker ui` inside a fresh
-  // clone is how the person reaches it before any session there
-    .sort((a, b) => (b.current - a.current) || (Date.parse(b.active) || 0) - (Date.parse(a.active) || 0) || b.sessions - a.sessions);
-}
-
-// A warm-up entry for any git checkout, listed or not: `thinker warmup --repos <path>` names a fresh
-// clone the agents have not worked in (the first session there would list it). Null outside a checkout.
-export function warmupCandidate(store, p, opts = {}) {
-  let real; try { real = fs.realpathSync(p); } catch { return null; }
-  const root = findRepoRoot(real);
-  if (!isGitCheckout(root)) return null;
-  return candidateOf(repoRecord(repoId(root), [{ checkout: root, lastUsed: 0, sessions: 0 }], checkoutOf(store.repo)), githubPushedAt(opts));
-}
-
-function candidateOf(r, pushed) {
-  {
-    const slug = githubSlug(r.checkout);
-    // the file count plays no part in the time or the tokens, and listing a large repository's files is slow
-    const full = estimateCacheBuild(r.checkout, { prs: DEFAULT_PRS, slug, fileCount: 0 });
-    const shallow = estimateCacheBuild(r.checkout, { ...depthLimits({ depth: 'shallow', prs: DEFAULT_PRS }), slug, commitCount: full.commitCount, fileCount: 0 });
-    const pick = e => ({ seconds: e.timing.totalSeconds, tokens: e.tokenEstimate, notes: e.size.notesRange, prs: e.canMine ? Math.min(60, 50) : 0 });
-    const at = slug ? pushed.get(slug.toLowerCase()) || null : null;
-    const active = Math.max(Date.parse(r.lastUsed) || 0, Date.parse(at) || 0);
-    return {
-      ...r, slug, pushed: at, active: active ? new Date(active).toISOString() : null, warmed: fs.existsSync(path.join(r.checkout, '.thinker', 'prs.json')),
-      canMine: full.canMine, source: full.mineSource, commits: full.commitCount, dirs: topDirs(r.checkout), estimates: { full: pick(full), shallow: pick(shallow) },
-      // the person's focus areas from their own commits (areas.js): the page's default selection
-      areas: activityAreas(r.checkout, { noGitHub: true }).directories,
-    };
-  }
 }
 
 // What a cache holds, for the cache page's repository cards.

@@ -19,24 +19,12 @@ const readJson = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } c
 const writeAtomic = (f, v) => { const t = `${f}.${process.pid}.tmp`; fs.writeFileSync(t, JSON.stringify(v)); fs.renameSync(t, f); };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-// The build that fills the queue: its pid, written when it is started (repo-onboard.js:answerWarmup).
+// The build that fills the queue: its pid, written when it is started (session-work.js, coverage.js).
 export function markBuild(dir, pid) { fs.mkdirSync(dir, { recursive: true }); writeAtomic(path.join(dir, 'build.json'), { pid, started: new Date().toISOString() }); }
 export function buildRunning(dir) {
   const b = readJson(path.join(dir, 'build.json'));
   if (!b?.pid) return false;
   try { process.kill(b.pid, 0); return true; } catch (e) { return e.code === 'EPERM'; }
-}
-
-// A warm-up asked for by the session's shell (repo-onboard.js:answerWarmup) and started by thinker's MCP
-// server when the session's subagent first calls warmup_next (mcp-server.js): Cursor runs its agent's commands
-// in a sandbox with no network and no writes outside the workspace (2026-10-16, photocraft: `gh pr list`
-// failed, ~/.codex refused), and a build started there inherits it; the server runs outside it.
-const REQUEST = 'build-request.json';
-export function requestBuild(dir) { fs.mkdirSync(dir, { recursive: true }); writeAtomic(path.join(dir, REQUEST), { t: new Date().toISOString() }); }
-// asked for and not yet started, within the time a subagent has to come for it
-export function buildRequested(dir, { maxAgeMs = UNCLAIMED_MS } = {}) {
-  const r = readJson(path.join(dir, REQUEST));
-  return !!r?.t && Date.now() - Date.parse(r.t) < maxAgeMs;
 }
 
 // provider `session`: one request in, its answer out, or an error once nobody took it in time
@@ -55,21 +43,19 @@ export async function viaSession({ system, prompt, schema }, { dir = process.env
     if (!claimedAt && fs.existsSync(file(dir, id, 'claimed'))) claimedAt = Date.now();
     if (claimedAt ? Date.now() - claimedAt > claimedMs : Date.now() - start > unclaimedMs) {
       for (const s of ['req', 'claimed']) fs.rmSync(file(dir, id, s), { force: true });
-      throw new Error(claimedAt ? 'the agent session took this request and did not answer it' : 'no agent session answered: nothing is working the warm-up queue (warmup_next)');
+      throw new Error(claimedAt ? 'the agent session took this request and did not answer it' : 'no agent session answered: nothing is working the queue (warmup_next)');
     }
     await sleep(pollMs);
   }
 }
 
 // warmup_next: the oldest waiting request, taken (an atomic rename, so two takers never share one);
-// { done } once the build has ended with nothing waiting; { waiting } when none came within waitMs.
-// start: called while a build is asked for and not running (it starts one). A subagent may call before the
-// session's shell has asked (Cursor started its subagent first, 2026-10-16), so a queue that never had a
-// build waits out waitMs before it reads as done.
-export async function nextRequest(dir, { waitMs = 45_000, pollMs = 500, start: startBuild } = {}) {
+// { done } once the build has ended with nothing waiting; { waiting } when none came within waitMs. A subagent
+// may call before its build has started (Cursor started its subagent first, 2026-10-16), so a queue that never
+// had a build waits out waitMs before it reads as done.
+export async function nextRequest(dir, { waitMs = 45_000, pollMs = 500 } = {}) {
   const start = Date.now();
   for (;;) {
-    if (startBuild && buildRequested(dir) && !buildRunning(dir)) { const r = startBuild(); if (r?.error) return { error: r.error }; }
     let names = []; try { names = fs.readdirSync(dir).filter(n => n.endsWith('.req.json')).sort(); } catch {}
     for (const n of names) {
       const id = n.slice(0, -'.req.json'.length);
@@ -112,11 +98,11 @@ export function requestText(r) {
     : `Answer with warmup_answer: id "${r.id}" and your answer as plain text.`);
 }
 
-// What the session agent is told to start: a subagent that works the queue until the work ends, a warm-up's
-// or learning's (session-work.js).
+// What the session agent is told to start: a subagent that works the queue until the work ends, learning's
+// (session-work.js) or a coverage build's (coverage.js).
 const WORKER_INTRO = "You answer model requests for thinker's background work";
 export function subagentPrompt(repo) {
-  return `${WORKER_INTRO} (a warm-up, learning or a coverage build) in the repository at ${repo}. Loop: call thinker's warmup_next tool (cwd "${repo}"). It returns a request: instructions, an input (a merged pull request's description and diff, an agent session's record, source code to describe, or notes) and the JSON shape the answer must have. Answer it yourself, from the input alone: do not read files, run commands or use other tools. Call warmup_answer with the request's id and your answer; if it is refused, fix the answer and call again. Repeat. When warmup_next says nothing has come yet, call it again. Stop when warmup_next says the work is done, and reply with one line: how many requests you answered.`;
+  return `${WORKER_INTRO} (learning or a coverage build) in the repository at ${repo}. Loop: call thinker's warmup_next tool (cwd "${repo}"). It returns a request: instructions, an input (an agent session's record, source code to describe, or notes) and the JSON shape the answer must have. Answer it yourself, from the input alone: do not read files, run commands or use other tools. Call warmup_answer with the request's id and your answer; if it is refused, fix the answer and call again. Repeat. When warmup_next says nothing has come yet, call it again. Stop when warmup_next says the work is done, and reply with one line: how many requests you answered.`;
 }
 
 // A background subagent spawned with `subagentPrompt` triggers the host's hooks on its own turns and tool

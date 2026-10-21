@@ -1,20 +1,14 @@
-// Thinker setup flow: connect coding agents, choose a cache build,
-// estimating and building the codebase cache, and running an optional PR change benchmark.
-// The flow is `runSetup` below; its parts are under src/setup/ (ui, agents, estimate, steps, pr-benchmark),
-// all re-exported here so nothing else needs to know the layout.
-import { chooseProject } from './setup/project.js';
-import { projectFromFlags } from './project.js';
+// Thinker setup flow: connect the coding agents and fetch the ranking model. Nothing is built: the cache
+// starts empty and grows from the sessions (since 2026-10-21; the warm-up that read merged pull requests
+// into it is gone). The flow is `runSetup` below; its parts are under src/setup/ (ui, agents, estimate,
+// steps, pr-benchmark), all re-exported here so nothing else needs to know the layout.
 import { execFileSync } from 'node:child_process';
 import { thinkerHome } from './update.js';
 import { maybeSendDailyTelemetryInBackground } from './telemetry.js';
 import { c, banner, stepBanner, finishBox, withSpinner } from './setup/ui.js';
-import { githubSlug, buildAgent, checkAgentAuth, selectAndAuthenticateAgent } from './setup/agents.js';
-import { useBuildModel } from './setup/models.js';
-import { estimateCacheBuild, depthLimits, DEFAULT_DEPTH, DEFAULT_PRS } from './setup/estimate.js';
 import fs from 'node:fs';
 import path from 'node:path';
-import { stepConnectClis, ignoreLocalState, stepBuildCache, confirmCacheBuild, openDashboard } from './setup/steps.js';
-import { stepPrBenchmark } from './setup/pr-benchmark.js';
+import { stepConnectClis, ignoreLocalState, openDashboard } from './setup/steps.js';
 export * from './setup/ui.js';
 export * from './setup/agents.js';
 export * from './setup/estimate.js';
@@ -30,19 +24,6 @@ export async function runSetup({
   mcpEntry,
   userMcpEntry,
   clients,
-  projectFlags = {},
-  chooseProjectFn = chooseProject,
-  prs = DEFAULT_PRS,
-  prNumber = null,
-  benchmark = false,
-  noBenchmark = false,
-  build = null,
-  depth = null,
-  noPrs = false,
-  noPhrase = false,
-  docs = true,
-  model,
-  agent,
   yes = false,
   hooks = true,
   learn = true,
@@ -52,14 +33,9 @@ export async function runSetup({
   noTrust = false,
   exportFile = null,
   out = console.log,
-  minePrsFn,
-  checkAuthFn = checkAgentAuth,
   dashboard = false,
   openDashboardFn = openDashboard,
-  onBuildStart = () => {},
 }) {
-  // Validate explicit/saved selections before setup writes agent settings.
-  projectFromFlags(repo, projectFlags);
   // first time here: no .thinker/config.json yet (store.init writes it), so the local page opens at the end
   const firstSetup = !fs.existsSync(path.join(store.dir, 'config.json'));
   store.init();
@@ -69,7 +45,7 @@ export async function runSetup({
   if (!process.env.THINKER_INSTALLER) out('\n' + banner() + '\n');
   out(`  ${c.dim('Repository')}  ${repo}\n`);
 
-  out(stepBanner(1, 2, 'Connect your agents'));
+  out(stepBanner(1, 1, 'Connect your agents'));
   const connections = await stepConnectClis({
     repo,
     cliPath,
@@ -96,138 +72,39 @@ export async function runSetup({
     out(now.runtime && now.model ? `  ${c.green('✓')} Ranking model ready ${c.dim(`(${now.modelName})`)}` : `  ${c.yellow('○')} Ranking model not in place ${c.dim(now.runtime ? '(fetch failed; thinker ranker fetch)' : '(runtime missing: npm ci in the app directory, or thinker update)')}; notes are ranked by words alone until then`);
   } catch (e) { out(`  ${c.yellow('○')} Ranking model not fetched: ${String(e.message).split('\n')[0].slice(0, 120)}`); }
 
-  // Step 2: Build Knowledge Cache
-  const slug = githubSlug(repo);
-
-  out(stepBanner(2, 2, 'Choose how to start'));
-
-  const project = await chooseProjectFn({ repo, store, flags: { ...projectFlags, yes }, out, interactive: !!process.stdin.isTTY && build !== false && !noPrs });
-  const directories = project?.directories || null;
-
-  let activeAgent = agent || buildAgent();
-  let agentAuthed = false;
-  let buildError = null;
-
-  // --no-prs leaves nothing to spend on, so there is nothing to ask about
-  let building = noPrs ? false : build;
-  if (building === null) {
-    const shallowLimits = depthLimits({ depth: 'shallow', prs });
-    const answer = yes ? (depth || DEFAULT_DEPTH) : await confirmCacheBuild({
-      estimates: estimateCacheBuild(repo, { prs, directories, noPrs, slug, agent: activeAgent }),
-      shallow: estimateCacheBuild(repo, { ...shallowLimits, directories, noPrs, slug, agent: activeAgent }),
-      agent: activeAgent,
-      out,
-    });
-    building = Boolean(answer);
-    if (answer) depth = answer;
-    if (building) out('');
-  }
-  // a shallow build is 30% of the full one: the first pull requests of the same order
-  if (building && depth === 'shallow') ({ prs } = depthLimits({ depth, prs }));
-  let effectiveNoPrs = noPrs || !building;
-  if (building) onBuildStart();
-
-  if (!effectiveNoPrs) {
-    const authResult = await selectAndAuthenticateAgent({
-      requestedAgent: agent || null,
-      clients,
-      yes,
-      out,
-      purpose: 'build the knowledge cache',
-      actionName: 'PR mining',
-      allowSkip: false,
-    checkAuthFn,
-    });
-    if (!authResult.ok) {
-      // the repository is already wired up by step 1: say what was not built, and go on
-      if (authResult.error === 'cancelled') out('  Cache build skipped. Run thinker setup --build to choose again.');
-      else {
-        out(`\n  ${c.yellow('○')} ${c.bold('Cache not built here:')} reading the merged pull requests needs an authenticated agent.`);
-        out(`    Run '${c.cyan(authResult.loginCmd || 'claude auth login')}', then: ${c.cyan('thinker setup --build')}`);
-      }
-      out(`    ${c.dim('thinker is set up either way; without a built cache it grows from your own sessions.')}\n`);
-      buildError = authResult.error;
-      building = false;
-      effectiveNoPrs = true;
-    } else {
-      activeAgent = authResult.agent;
-      agentAuthed = true;
-      model = useBuildModel({ agent: activeAgent, model, configModel: store.config().distillModel, out });
-    }
-  }
-
-  if (activeAgent && agentAuthed) {
-    if (!process.env.THINKER_LLM) process.env.THINKER_LLM_PREFER = activeAgent;
-    process.env.THINKER_LLM = activeAgent;
-  }
-
-  const estimates = estimateCacheBuild(repo, { prs, directories, noPrs: effectiveNoPrs, slug, agent: activeAgent });
-
-  const cacheRes = await stepBuildCache({
-    repo,
-    store,
-    estimates,
-    directories,
-    prs,
-    noPrs: effectiveNoPrs,
-    noPhrase,
-    docs,
-    model,
-    agent: activeAgent,
-    out,
-    minePrsFn,
-  });
-
-  // The desired behaviors come from the design documents a build reads (behavior-docs.js); setup asks
-  // the person nothing about them and only counts the drafts waiting for a decision.
+  // The desired behaviors come from the design documents (behavior-docs.js); setup asks the person nothing
+  // about them and only counts the drafts waiting for a decision.
   const { pendingBehaviors } = await import('./behavior-workbench.js');
-  const waiting = () => pendingBehaviors(store).length;
+  const left = pendingBehaviors(store).length;
 
   if (exportFile) {
     execFileSync('node', [cliPath, 'export', exportFile, '--repo', repo], { stdio: 'inherit' });
   }
 
-  if (!noBenchmark && (benchmark || prNumber)) {
-    out(`\n${c.bold('Compare agent performance')}\n`);
-    await stepPrBenchmark({
-      repo, store, prNumber,
-      agent: agentAuthed ? activeAgent : (agent || null),
-      model,
-      budget: 1500,
-      benchmarkFlag: benchmark,
-      yes, out, checkAuthFn,
-    });
-  }
-
-  // Telemetry notification: a run that built the cache is a warm-up (every warm-up path runs setup --build)
-  maybeSendDailyTelemetryInBackground({ home: thinkerHome(), cliPath, store, force: true, event: building ? 'warmup' : 'install' });
+  maybeSendDailyTelemetryInBackground({ home: thinkerHome(), cliPath, store, force: true, event: 'install' });
 
   // One result and one next action, with recovery guidance beside failures above.
   const connected = connections.filter(result => result.status === 'connected');
-  const needsAttention = cacheRes.warnings || connections.some(result => result.status === 'error') || !connected.length;
+  const needsAttention = connections.some(result => result.status === 'error') || !connected.length;
   // What was done, then the one thing to do next: a session already running loaded its hooks and tools before this.
   const names = connected.map(result => result.name || result.client).join(', ');
-  const count = cacheRes.notes?.length || 0;
-  const left = waiting();
+  const count = store.list().length;
   const done = [
     `${needsAttention ? c.yellow('!') : c.green('✓')} ${c.bold(needsAttention ? 'Setup finished with items to review.' : 'Thinker is ready.')}`,
     '',
     c.bold('What was done'),
     connected.length ? `• Connected ${names}: hooks and tools` : `• No agent connected: ${c.cyan('thinker setup --clients <agent>')}`,
-    building ? `• Cache built from merged pull requests: ${count} note${count === 1 ? '' : 's'}`
-      : `• Cache ${count ? `has ${count} note${count === 1 ? '' : 's'}` : 'starts empty'} and grows from your sessions`,
+    `• Cache ${count ? `has ${count} note${count === 1 ? '' : 's'}` : 'starts empty'} and grows from your sessions`,
   ];
   if (left) done.push(`• ${left} behavior draft${left === 1 ? '' : 's'} waiting for your decision`);
-  if (cacheRes.warnings) done.push(`• ${c.yellow('A build step did not finish; its retry command is printed above.')}`);
   done.push('');
   if (connected.length) done.push(c.bold('Restart your agent: start a new session in this repository'), c.bold('so its hooks and tools load.'), '');
   done.push(`Notes, behaviors and usage in your browser: ${c.cyan('thinker ui')}`);
-  if (!building) done.push(`Read merged pull requests into the cache: ${c.cyan('thinker setup --build')}`);
   if (learn) done.push(c.dim('Ongoing learning uses your agent to save knowledge from sessions.'));
   // telemetry carries counts only (telemetry.js:buildTelemetryPayload); no note or behavior text leaves the machine
   done.push(c.dim('Notes stay on this machine in .thinker/local/, which git ignores;'), c.dim('nothing needs committing and Thinker uploads none.'));
   out('\n' + finishBox(done, { ok: !needsAttention }) + '\n');
   if (dashboard && firstSetup && openDashboardFn({ repo, cliPath })) out(`  ${c.dim(`Opening the local page in your browser; open it again any time with ${c.cyan('thinker ui')}.`)}\n`);
 
-  return { built: building, warnings: cacheRes.warnings || 0, error: buildError };
+  return { connections };
 }

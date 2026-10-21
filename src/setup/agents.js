@@ -237,10 +237,10 @@ export async function selectAndAuthenticateAgent({
   const isInteractive = !yes && (Boolean(readlineFn) || Boolean(stdin && stdin.isTTY));
 
   // the person's agent session answers through thinker's queue (session-llm.js): signed in by being the
-  // session, so there is nothing to check but that a warm-up answered in one started this run
+  // session, so there is nothing to check but that a session started this run (session-work.js, coverage.js)
   if (requestedAgent === 'session') {
     if (process.env[QUEUE_ENV]) return { ok: true, agent: 'session' };
-    out(`  ${c.red('✖')} The session agent answers only a warm-up started from an agent session.`);
+    out(`  ${c.red('✖')} The session agent answers only work started from an agent session.`);
     return { ok: false, agent: 'session', error: 'no_session' };
   }
   let selectedAgent = requestedAgent;

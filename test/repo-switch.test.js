@@ -1,5 +1,5 @@
 // A repository switched off machine-wide (repo-switch.js): the hooks and the MCP server do nothing
-// there, the CLI refuses to touch it, and the warm-up page offers the switch and no build.
+// there, and the CLI refuses to touch it.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -111,40 +111,4 @@ test('the MCP server offers no tools in a repository that is off', async t => {
   await assert.rejects(client.listTools(), /Method not found/);
   assert.match(client.getInstructions() || '', /switched off/);
   assert.equal(fs.existsSync(path.join(dir, '.thinker')), false, 'the server starts no cache');
-});
-
-test('the warm-up page shows the switch, refuses to build a repository that is off, and turns it back on', async t => {
-  const { dir } = repo(t);
-  const home = tmp('thinker-switch-home4-'), th = tmp('thinker-switch-th4-');
-  const saved = process.env.THINKER_HOME; process.env.THINKER_HOME = home; t.after(() => { if (saved === undefined) delete process.env.THINKER_HOME; else process.env.THINKER_HOME = saved; });
-  process.env.THINKER_LOG = 'local'; t.after(() => { delete process.env.THINKER_LOG; });
-  const claude = path.join(th, '.claude', 'projects', 'x'); fs.mkdirSync(claude, { recursive: true });
-  fs.writeFileSync(path.join(claude, 's.jsonl'), JSON.stringify({ cwd: dir }) + '\n');
-  const store = new Store(tmp('thinker-switch-cwd-'));
-  const spawned = [];
-  const ui = createUiServer(store, { token: 'a'.repeat(32), home, transcriptsHome: th, cliPath: '/x/cli.js', spawnFn: (c, args) => { spawned.push(args); return { pid: 1, on() {}, unref() {} }; } });
-  const { port } = await ui.listen(0);
-  t.after(() => ui.close());
-  const get = async p => { const r = await call(port, p, { token: 'a'.repeat(32) }); assert.equal(r.status, 200, r.body); return JSON.parse(r.body); };
-  const post = (p, body) => call(port, p, { token: 'a'.repeat(32), body });
-  let m = await get('/api/machine');
-  assert.equal(m.repos.find(r => r.checkout === dir).disabled, false);
-  assert.equal((await post('/api/repos/switch', { checkout: '/nope', disabled: true })).status, 400, 'only a listed repository');
-  const off = await post('/api/repos/switch', { checkout: dir, disabled: true });
-  assert.equal(off.status, 200, off.body);
-  assert.deepEqual(JSON.parse(off.body), { ok: true, checkout: dir, disabled: true, hasCache: false });
-  assert.equal(isDisabledRepo(dir, { home }), true);
-  m = await get('/api/machine');
-  assert.equal(m.repos.find(r => r.checkout === dir).disabled, true);
-  const build = await post('/api/warmup', { repos: [{ checkout: dir, depth: 'full' }] });
-  assert.equal(build.status, 400); assert.match(JSON.parse(build.body).error, /switched off/);
-  assert.equal(spawned.length, 0, 'no build started');
-  const on = await post('/api/repos/switch', { checkout: dir, disabled: false });
-  assert.equal(on.status, 200, on.body);
-  assert.equal(isDisabledRepo(dir, { home }), false);
-  assert.equal((await get('/api/machine')).repos.find(r => r.checkout === dir).disabled, false);
-  // a repository with a cache is listed on the cache page with the flag
-  new Store(dir).init().put({ id: 'n1', title: 'a note', kind: 'rule', answers: [], body: 'src/a.js:a is one', deps: [{ path: 'src/a.js', symbol: 'a' }], source: { type: 'session', ref: 's' }, confidence: 0.8, status: 'fresh' });
-  setRepoDisabled(dir, { disabled: true, home });
-  assert.equal(machineRepos(store, { home: th }).find(r => r.checkout === dir)?.disabled, true);
 });

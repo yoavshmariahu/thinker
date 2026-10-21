@@ -2,9 +2,8 @@
 # thinker install: installs the thinker tool and wires it into the coding agents on
 # this machine (their own settings: hooks and the MCP server, once). Thinker then
 # runs in every git repository on this machine: a cache starts with the first
-# session in a repository, and the warm-up page that opens at the end (thinker ui)
-# builds caches for the repositories your agents have worked in, from their merged
-# pull requests. Nothing is asked in the terminal.
+# session in a repository and grows from the sessions there. Nothing is asked in
+# the terminal.
 #
 # Thinker is open source; no access code or GitHub token is required. It installs the latest
 # GitHub release (https://github.com/yoavshmariahu/thinker/releases: a tag vX.Y.Z carrying
@@ -14,20 +13,10 @@
 #
 # The npm package of that name carries this file and runs it with the arguments passed through.
 #
-# --build from inside a repository builds its cache right here, in the terminal,
-# instead of opening the page. If a cache was already built for the repository,
-# pass --cache instead and nothing has to be built.
-#
 # Options
-#   --build             build the cache of this repository now, in the terminal (the page is not opened)
-#   --no-build          accepted from old scripts: nothing is built without --build anyway
-#   --no-seed, --areas <n>   accepted from old scripts and ignored: a build no longer explores the code
-#   --no-behaviors      accepted from old scripts and ignored: there is no behaviors prompt to print
-#   --depth <d>         with --build: full (default) or shallow, 30% of the full build
-#   --prs <n>           with --build: merged pull requests to mine (default 60; skipped without the gh CLI)
-#   --pr <number>       specific PR number to target for the paired benchmark
-#   --benchmark         run paired PR benchmark during setup
-#   --no-benchmark      skip the paired PR benchmark step
+#   --build, --no-build, --depth <d>, --prs <n>, --pr <n>, --benchmark, --no-benchmark
+#                       accepted from old scripts and ignored: there is no cache build (2026-10-21)
+#   --no-seed, --areas <n>, --no-behaviors   accepted from old scripts and ignored
 #   -y, --yes           accept defaults and skip interactive confirmation prompts
 #   --clients <list>    coding agents to wire up: claude, codex, cursor, gemini, pi, windsurf, copilot, opencode, all or auto
 #                       (default auto)
@@ -97,21 +86,17 @@ path_hint() {
 }
 
 main() {
-  local cache="" build="" areas="" depth="" prs="" clients="" learn=1 late=0 mcp=0 githook=0 uninstall=0 purge=0 update=0 autoupdate=1 modpath=1 ref="${THINKER_REF:-latest}" benchmark="" pr_target="" yes=0 no_seed=0
+  local cache="" areas="" clients="" learn=1 late=0 mcp=0 githook=0 uninstall=0 purge=0 update=0 autoupdate=1 modpath=1 ref="${THINKER_REF:-latest}" yes=0 no_seed=0
   while [ $# -gt 0 ]; do
     case "$1" in
-      --cache) cache="${2:-}"; build=0; shift 2 ;;
-      --build) build=1; shift ;;
-      --no-build) build=0; shift ;;
+      --cache) cache="${2:-}"; shift 2 ;;
+      --build|--no-build) shift ;;
       --no-seed) shift ;;
       --no-behaviors) shift ;;
       -y|--yes) yes=1; shift ;;
       --areas) shift 2 ;;
-      --depth) depth="${2:-}"; shift 2 ;;
-      --prs) prs="${2:-}"; shift 2 ;;
-      --pr) pr_target="${2:-}"; shift 2 ;;
-      --benchmark) benchmark=1; shift ;;
-      --no-benchmark) benchmark=0; shift ;;
+      --depth|--prs|--pr) shift 2 ;;
+      --benchmark|--no-benchmark) shift ;;
       --clients) clients="${2:-}"; shift 2 ;;
       --branch|--ref) ref="${2:-}"; shift 2 ;;
       --learn) learn=1; shift ;;
@@ -361,9 +346,8 @@ EOF
   fi
 
   # --- wire the agents, once, in their own settings ---------------------------
-  # Nothing is asked here: Codex's hook-review marks are written outright, and every other choice
-  # (which repositories to build a cache for, how deep, with which model) is made on the warm-up
-  # page that opens next. Thinker then runs in every git repository on this machine.
+  # Nothing is asked here: Codex's hook-review marks are written outright. Thinker then runs in every
+  # git repository on this machine.
   local cargs="--clients $clients --yes"
   [ "$learn" = 1 ] || cargs="$cargs --no-learn"
   [ "$late" = 1 ] && cargs="$cargs --late"
@@ -371,32 +355,16 @@ EOF
   # shellcheck disable=SC2086
   "$thinker" connect $cargs
 
-  # --- a cache handed over, or a build asked for by flag -------------------------
+  # --- a cache handed over -------------------------------------------------------
   if [ -n "$cache" ]; then
     case "$cache" in
       gh:*) gh_fetch "repos/$ghrepo/contents/${cache#gh:}?ref=$ref" "$tmp/cache.tgz"; "$thinker" import "$tmp/cache.tgz" --repo "$repo" ;;
       *) "$thinker" import "$cache" --repo "$repo" ;;
     esac
-  elif [ "$build" = 1 ] && [ -n "$repo" ]; then
-    # --build from inside a repository: the build runs here, without the page, as before
-    local args="--build --yes --no-ui"
-    [ -n "$clients" ] && args="$args --clients $clients"
-    [ "$learn" = 1 ] || args="$args --no-learn"
-    [ "$githook" = 0 ] && args="$args --no-git-hook"
-    [ "$mcp" = 1 ] || args="$args --no-mcp"
-    [ -n "$depth" ] && args="$args --depth $depth"
-    [ -n "$prs" ] && args="$args --prs $prs"
-    [ -n "$pr_target" ] && args="$args --pr $pr_target"
-    [ "$benchmark" = 1 ] && args="$args --benchmark"
-    [ "$benchmark" = 0 ] && args="$args --no-benchmark"
-    # shellcheck disable=SC2086
-    THINKER_INSTALLER=1 "$thinker" setup $args --repo "$repo"
   fi
 
   # --- done -------------------------------------------------------------------------
-  # Every git repository has a cache from here on, and it grows from the sessions there. Warming one
-  # reads its merged pull requests, a step the person takes by hand (`thinker warmup`, or the page):
-  # until 2026-10-21 the installer ended by running it, and it no longer does.
+  # Every git repository has a cache from here on, and it grows from the sessions there.
   local version; version="$(node -p "require('$home/app/package.json').version" 2>/dev/null || echo '?')"
   path_hint
   say ""
@@ -404,13 +372,13 @@ EOF
     box "$green" "${green}✓${reset} ${bold}Install complete${reset} ${dim}· Thinker v$version${reset}" "" \
       "Installed into ${home/#$HOME/~} and wired into your agents." \
       "Thinker now runs in every git repository on this machine." \
-      "Warm up caches any time: ${cyan}thinker warmup${reset} here, or ${cyan}thinker ui${reset} in the browser." \
+      "See where your agents' context goes: ${cyan}thinker ui${reset}." \
       "${dim}Notes stay on this machine; Thinker uploads none.${reset}" "" \
       "${yellow}*${reset} ${magenta}~${reset} ${yellow}*${reset}  ${bold}all done · happy shipping${reset}  ${yellow}*${reset} ${magenta}~${reset} ${yellow}*${reset}"
   else
     say "Install complete: Thinker v$version, installed into $home and wired into your agents."
     say "Thinker now runs in every git repository on this machine."
-    say "Warm up caches any time: thinker warmup here, or thinker ui in the browser."
+    say "See where your agents' context goes: thinker ui."
     say "Notes stay on this machine; Thinker uploads none."
   fi
 }

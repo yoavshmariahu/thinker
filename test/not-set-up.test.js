@@ -137,11 +137,10 @@ test('in a desktop app the queue and retrieval tools follow the cwd of each call
   assert.ok(!mcpSession(bare, { THINKER_REPO: '', CLAUDE_CODE_ENTRYPOINT: '' }).tools.some(x => x.name === 'warmup_next'));
 });
 
-// install.sh: the tool is installed, the agents are wired up (`thinker connect`, asking nothing), and the
-// warm-up is chosen last by `thinker warmup` (browser or terminal); from a pipe with no terminal nothing is
-// asked and the user is told how to come back. A fake tarball and manifest stand in for the release, served from a file URL rewritten
+// install.sh: the tool is installed and the agents are wired up (`thinker connect`, asking nothing); nothing is
+// built, and the user is told where the page is. A fake tarball and manifest stand in for the release, served from a file URL rewritten
 // to https by a curl stub.
-test('the installer installs the tool, connects the agents without asking and ends with the warm-up', t => {
+test('the installer installs the tool, connects the agents without asking and builds nothing', t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-install-norepo-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const home = path.join(dir, 'home'), bin = path.join(dir, 'bin'), work = path.join(dir, 'work'), dist = path.join(dir, 'dist');
@@ -161,27 +160,9 @@ test('the installer installs the tool, connects the agents without asking and en
   assert.match(r.stdout, /stub connect --clients auto --yes/, 'the agents are wired up, with nothing asked');
   assert.ok(!/stub setup/.test(r.stdout), 'no per-repository setup');
   assert.match(r.stdout, /every git repository on this machine/);
-  assert.match(r.stdout, /thinker warmup/); assert.match(r.stdout, /thinker ui/);
+  assert.doesNotMatch(r.stdout, /warmup|warm up/i); assert.match(r.stdout, /thinker ui/);
   assert.ok(!/stub ui/.test(r.stdout), 'the page is not launched blind');
   assert.ok(fs.existsSync(path.join(home, 'bin', 'thinker')));
   assert.ok(!fs.existsSync(path.join(work, '.thinker')));
   assert.deepEqual(fs.readdirSync(work), []);
-});
-
-// An agent wired with thinker's server and no hooks gets the warm-up offer from its first retrieval call
-// (2026-10-16: a device whose requests all came through MCP had two cold caches and no offer), once per
-// repository: from lookup, and from orient where a repository turned it on (mcp-server.js:mcpWarmupOffer).
-test('lookup and orient make the warm-up offer to a cold cache, once', t => {
-  const dir = fresh(t);
-  for (let i = 0; i < 8; i++) { fs.writeFileSync(path.join(dir, `f${i}.js`), `export const f${i} = ${i};\n`); execFileSync('git', ['-C', dir, 'add', '.']); execFileSync('git', ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', `fix ${i}`]); }
-  const call = { name: 'lookup', arguments: { query: 'where is f3 defined' } };
-  const s = mcpSession(dir, { THINKER_REPO: dir }, [call, call]);
-  assert.match(s.replies[0], /<thinker-new-repository>/);
-  assert.doesNotMatch(s.replies[1], /<thinker-new-repository>/);
-  const other = fresh(t);
-  for (let i = 0; i < 8; i++) { fs.writeFileSync(path.join(other, `f${i}.js`), `export const f${i} = ${i};\n`); execFileSync('git', ['-C', other, 'add', '.']); execFileSync('git', ['-C', other, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', `fix ${i}`]); }
-  fs.mkdirSync(path.join(other, '.thinker'), { recursive: true });
-  fs.writeFileSync(path.join(other, '.thinker', 'config.json'), JSON.stringify({ enabledTools: ['orient'] }));
-  const o = mcpSession(other, { THINKER_REPO: other }, [{ name: 'orient', arguments: { task: 'where is f3 defined' } }]);
-  assert.match(o.replies[0], /<thinker-new-repository>/);
 });

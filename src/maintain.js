@@ -2,8 +2,8 @@
 // run. It re-verifies a few stale notes and writes phrasings for notes that lack them.
 // Since 2026-10-21 that is all it does by default (the owner's decision: the cache was not
 // paying for its background spend, and few people were running it): the notes come from the
-// sessions, and the steps that read history or documents (pull requests and commits, the
-// focus areas' history, design documents, skill files, the duplicate pass) are off until a
+// sessions alone (mining merged pull requests and commits was removed the same day), and the
+// steps that read documents (design documents, skill files, the duplicate pass) are off until a
 // repository's config turns them on. It starts from the catch-up learning run (at most every ten minutes, from the
 // prompt hooks) and from the git post-commit hook. Batches run at most once every four hours,
 // on the next activity after they are due, and are bounded by daily caps on the
@@ -18,7 +18,6 @@ import { dedupeOn, dedupeNotes, DEDUPE_DEFAULTS } from './dedupe.js';
 import { readLog } from './usage.js';
 import { formatTokens } from './model-usage.js';
 import { writeSystemMarkdown } from './behavior.js';
-import { areasConfig, saveAreas, refreshAreas } from './areas.js';
 import { isTestMode } from './test-mode.js';
 import { takeContradictions } from './learning-pending.js';
 import { pruneState } from './state-prune.js';
@@ -41,10 +40,6 @@ export const DEFAULTS = {
   deleteUnusedDays: 14,
   verifyChurn: 3,   // a note re-verified this many times in a week is left stale and reported (0: never)
   phrasePerRun: 8,  // notes given phrasings per run (one model call)
-  // distill pull requests merged since maintenance first ran here, walk the focus areas' history (areas.js)
-  // and ask about unmined commits (commits-offer.js): off since 2026-10-21; `maintain: { prs: true }` turns it on
-  prs: false,
-  prsPerRun: 3,
   docs: false,      // read design documents that are new or changed into behaviors (behavior-docs.js); off since 2026-10-21
   docsPerRun: 3,
   skills: false,    // card the skill files (SKILL.md) that are new or changed, and settle duplicates (skills.js); off since 2026-10-21
@@ -204,7 +199,7 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
     state.startedAt = new Date(now).toISOString();
     fs.writeFileSync(stateFile(store), JSON.stringify(state));
   }
-  const r = { verified: 0, updated: 0, retired: 0, churning: [], archived: 0, merged: 0, phrased: 0, prs: 0, docs: 0, unstated: 0, skills: 0, skillsBroken: 0, tokens: 0, capped: false, errors: 0 };
+  const r = { verified: 0, updated: 0, retired: 0, churning: [], archived: 0, merged: 0, phrased: 0, docs: 0, unstated: 0, skills: 0, skillsBroken: 0, tokens: 0, capped: false, errors: 0 };
   const spent = (fns.spentToday || spentToday)(store);
   const cap = withinDailyCap(store, { spentFn: () => spent }).cap;
   const afford = () => !cap || cap - spent - r.tokens > 0;
@@ -262,51 +257,6 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
         else { try { const p = await (fns.phrase || phraseNotes)(store, need, { phase: 'maintenance' }); r.phrased = p.done.length; r.tokens += p.tokens || 0; } catch { r.errors++; } }
       }
     } else r.capped = true;
-    // 4. pull requests merged since maintenance first ran here, inside the person's focus areas when
-    // the cache has them (areas.js); then, with the budget left, the older history of one area a
-    // run, the first in rank not yet read to its `walk` (the generic build, source 'all', mines
-    // repository-wide and walks nothing). The areas are found again once a day from the person's
-    // activity (areas.js:refreshAreas), and a cache nobody warmed gets its first ones there, so
-    // learning follows where they work now (2026-10-15, the user's call).
-    if (cfg.prs && !dry) {
-      try { refreshAreas(store, repo, { now, find: fns.activityAreas, findOpts: isTestMode() ? { noGitHub: true } : {} }); } catch { r.errors++; }
-    }
-    let areas = areasConfig(store);
-    const focused = areas.source !== 'all' && areas.directories.length > 0;
-    // Old counters counted failures and mistook an empty bounded scan for the end of history.
-    // Recheck those walks once; the mined-PR record still prevents paying for successful changes twice.
-    if (!dry && focused && cfg.prs && fns.mineAreaHistory && areas.walkVersion !== 2) {
-      saveAreas(store, { walkedBy: {}, scannedBy: {}, walkVersion: 2 });
-      areas = areasConfig(store);
-    }
-    if (cfg.prs && fns.minePrs) {
-      if (!state.prsAfter) state.prsAfter = new Date().toISOString();
-      else if (afford()) {
-        if (!dry) { try { const m = await fns.minePrs({ after: state.prsAfter, limit: cfg.prsPerRun, directories: focused ? areas.directories : null }); r.prs = m?.saved || 0; r.tokens += m?.tokens || 0; } catch { r.errors++; } }
-      } else r.capped = true;
-    }
-    const walking = focused ? areas.directories.find(d => (areas.walkedBy[d] || 0) < areas.walk) : null;
-    if (cfg.prs && walking && fns.mineAreaHistory) {
-      if (afford()) {
-        if (!dry) {
-          try {
-            // scan past what this area has read already: the changes mined before are skipped, not counted
-            const done = areas.walkedBy[walking] || 0;
-            const limit = Math.min(cfg.prsPerRun, areas.walk - done);
-            const scan = Math.max(done * 2, areas.scannedBy?.[walking] || 0) + cfg.prsPerRun * 3;
-            const m = await fns.mineAreaHistory({ paths: [walking], limit, scan });
-            r.prs += m?.saved || 0; r.tokens += m?.tokens || 0;
-            const completed = m?.completed ?? Math.max(0, (m?.processed || 0) - (m?.failed || 0));
-            // An empty window can contain only already-mined changes. Widen it next run; only an
-            // explicit end-of-history result can finish the area without reading its full allowance.
-            saveAreas(store, {
-              walkedBy: { ...areas.walkedBy, [walking]: m?.exhausted && !m?.failed ? areas.walk : Math.min(areas.walk, done + completed) },
-              scannedBy: { ...areas.scannedBy, [walking]: m?.scanned ?? scan },
-            });
-          } catch { r.errors++; }
-        }
-      } else r.capped = true;
-    }
     // 5. design documents that are new or changed since they were read: their behaviors follow them
     if (cfg.docs !== false && fns.docs) {
       if (afford()) {
@@ -330,11 +280,6 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
     if (cfg.harness !== false && !dry) {
       try { const { scheduleHarnessSuggestion } = await (fns.harness ? { scheduleHarnessSuggestion: fns.harness } : import('./harness.js')); const picks = scheduleHarnessSuggestion(store, { now }); if (picks) r.harnessSuggested = picks.length; } catch { r.errors++; }
     }
-    // 9. at most weekly, a question for the person: direct commits a PR-only warm-up never read (commits-offer.js).
-    // No model call; the prompt hook asks it, and mining starts only on their answer.
-    if (cfg.prs && cfg.commitsOffer !== false && !dry) {
-      try { const { scheduleCommitsOffer } = await (fns.commitsOffer ? { scheduleCommitsOffer: fns.commitsOffer } : import('./commits-offer.js')); const n = scheduleCommitsOffer(store, { now }); if (n) r.commitsSuggested = n; } catch { r.errors++; }
-    }
     const u = state.unreported || {};
     // a behavior found broken during this run was written to the state file by the verification itself
     // (ops.js:noteUnreported), after the state was read: keep it
@@ -343,7 +288,7 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
     if (liveState.revised?.length) u.revised = liveState.revised;
     if (liveState.brokenSkills?.length) u.brokenSkills = liveState.brokenSkills;
     if (r.revised && !dry) { try { writeSystemMarkdown(store); } catch {} }
-    for (const k of ['verified', 'updated', 'retired', 'archived', 'merged', 'phrased', 'prs', 'docs', 'unstated', 'skills']) u[k] = (u[k] || 0) + r[k];
+    for (const k of ['verified', 'updated', 'retired', 'archived', 'merged', 'phrased', 'docs', 'unstated', 'skills']) u[k] = (u[k] || 0) + r[k];
     // churning notes are named once; a note named before is not named again until it settles
     const named = new Set(state.churnNamed || []);
     const fresh = r.churning.filter(id => !named.has(id));
@@ -377,7 +322,6 @@ export function maintenanceNotice(store, { now = new Date() } = {}) {
   if (u.phrased) parts.push(`${u.phrased} phrased`);
   if (u.archived) parts.push(`${u.archived} archived`);
   if (u.merged) parts.push(`${u.merged} duplicate ${u.merged === 1 ? 'note' : 'notes'} merged`);
-  if (u.prs) parts.push(`${u.prs} PR notes`);
   if (u.docs) parts.push(`${u.docs} ${u.docs === 1 ? 'behavior' : 'behaviors'} from design documents; see thinker system`);
   if (u.unstated) parts.push(`${u.unstated} ${u.unstated === 1 ? 'behavior' : 'behaviors'} no longer stated by a design document; keep or discard in thinker ui`);
   if (u.skills) parts.push(`${u.skills} skill ${u.skills === 1 ? 'card' : 'cards'}`);
@@ -424,7 +368,7 @@ export function renderMaintain(r) {
   if (r.churning?.length) bits.push(`${r.churning.length} churning left stale`);
   if (r.archived) bits.push(`${r.archived} archived`);
   if (r.merged) bits.push(`${r.merged} duplicates merged`);
-  bits.push(`${r.phrased} phrased`, `${r.prs} from pull requests`);
+  bits.push(`${r.phrased} phrased`);
   if (r.docs) bits.push(`${r.docs} from design documents`);
   if (r.unstated) bits.push(`${r.unstated} no longer stated by a design document`);
   if (r.skills) bits.push(`${r.skills} skill ${r.skills === 1 ? 'card' : 'cards'}`);

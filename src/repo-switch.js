@@ -1,7 +1,6 @@
 // Repositories thinker is switched off for, machine-wide. A repository with sensitive content is
-// turned off on the warm-up page of `thinker ui`, or with `thinker disable` inside it; from then on
-// the hooks and the MCP server do nothing there, no session of it is distilled, no pull request of
-// it is read, and no `.thinker/` folder is started in its checkouts. The list is in
+// turned off with `thinker disable` inside it; from then on the hooks and the MCP server do nothing
+// there, no session of it is distilled, and no `.thinker/` folder is started in its checkouts. The list is in
 // THINKER_HOME/config.json (`disabledRepos`), so it covers every clone and worktree of the
 // repository: a repository is named by its id (store.js:repoId, the origin URL), with the checkout
 // it was turned off from kept for the page.
@@ -51,4 +50,4 @@ export function setRepoDisabled(repo, { disabled = true, name, home } = {}) {
 }
 
 // What a command says when it is run in a repository that is off.
-export const OFF_MESSAGE = 'thinker is switched off for this repository: no notes are served or learned here and nothing is written into it. `thinker enable` turns it back on, as does the warm-up page of `thinker ui`.';
+export const OFF_MESSAGE = 'thinker is switched off for this repository: no notes are served or learned here and nothing is written into it. `thinker enable` turns it back on.';
