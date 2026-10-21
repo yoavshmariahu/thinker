@@ -164,15 +164,16 @@ test('the context view puts sections, skills and tools side by side, with the ke
   const log = [{ op: 'skill-outcome', t: new Date().toISOString(), skills: ['naming'], read: [], credited: [{ skill: 'naming', verdict: 'missed' }] }];
   let v = contextView(store, { sessions: [], usage, log });
   assert.equal(v.harnessOn, false);
-  assert.deepEqual(v.skills.map(s => [s.name, s.perSession, s.label, s.outcome.missed]), [['naming', 1200, null, 1]]);
+  // a label even with the harness off: picking it on the tab turns the harness on (context-view.js:switchSources)
+  assert.deepEqual(v.skills.map(s => [s.name, s.perSession, !!s.label, s.outcome.missed]), [['naming', 1200, true, 1]]);
   assert.deepEqual(v.tools.map(s => s.name), ['rea', 'Workflow']);
   assert.equal(v.totals.tools.perSession, 44000);
   assert.ok(v.instructions.sections.every(s => !s.kept)); assert.equal(v.instructions.coreOn, false);
-  // with the harness on, a source with a setting gets the label `thinker harness --off` takes; a built-in tool only where they are on
+  // the label `thinker harness --off` takes, for a built-in tool too (switching it off turns built-in tool switching on)
   fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ harness: { enabled: true } }));
   v = contextView(store, { sessions: [], usage, log });
   assert.equal(v.tools.find(s => s.name === 'rea').label, 'rea MCP server');
-  assert.equal(v.tools.find(s => s.name === 'Workflow').label, null);
+  assert.ok(v.tools.find(s => s.name === 'Workflow').label);
   setCore(store, ['API views']);
   v = contextView(store, { sessions: [], usage, log });
   assert.equal(v.instructions.coreOn, true);
@@ -185,7 +186,9 @@ test('a tool output costs its tokens once for each model call after it, scaled t
   const events = [ev('Read', 400), ev('Bash', 40), ev('mcp__rea__q', 80), { t: 'say', text: 'done' }];
   // one call a model call: the Read is read by the three calls after it (two tools, then the answer)
   const one = sessionOutputs(events);
-  assert.deepEqual(one.Read, { calls: 1, tokens: 100, input: 300 });
+  assert.deepEqual(one.Read, { calls: 1, tokens: 100, input: 300, saveModerate: 0, saveHigh: 0 }, 'under both caps: nothing to save');
+  const big = sessionOutputs([ev('Bash', 8000), { t: 'say', text: 'x' }]);
+  assert.deepEqual([big.Bash.tokens, big.Bash.saveModerate, big.Bash.saveHigh], [2000, 0, 1000], 'past the high cap of 1k tokens');
   assert.equal(one['mcp:rea'].input, 20, 'an MCP server is one row, its last result read once');
   // two model calls for three tool calls: each result is read by half as many calls, never less than once
   const two = sessionOutputs(events, 2);
@@ -196,8 +199,8 @@ test('a tool output costs its tokens once for each model call after it, scaled t
 
 test('waste: high or medium only for a section used in under half the sessions that costs a share of the file', async () => {
   const { wasteLevel, use } = await import('../src/instruction-value.js');
-  // used in 1 of 10 judged sessions, 100k a session: wastes 90k
-  const r = use({ sessions: 20, applied: 0, triggered: false, judged: 10, bore: 1 }, 100_000);
+  // acted on in 1 of 10 judged sessions, 100k a session: wastes 90k
+  const r = use({ sessions: 20, applied: 0, triggered: false, judged: 10, followed: 1 }, 100_000);
   assert.deepEqual(r, { usedShare: 0.1, usedBy: 'judge', wasted: 90_000 });
   assert.equal(wasteLevel(r, 1_000_000).waste, 'high', '9% of the file');
   assert.equal(wasteLevel(r, 3_000_000).waste, 'medium', '3% of the file');
@@ -240,4 +243,37 @@ test('all repositories: the timeline joined, sections tagged with their reposito
   assert.deepEqual(v.instructions.sections.map(s => s.repoName), ['A', 'B']);
   assert.equal(v.tools.length, 1); assert.equal(v.tools[0].loaded, 4); assert.equal(v.tools[0].perSession, 400, 'weighted by the sessions that loaded it');
   assert.equal(v.instructions.savings.window, 100);
+});
+
+test('bash outputs by program; compression per tool or per command, high keeping less than moderate', async t => {
+  const { bashProgram, toolKey } = await import('../src/tool-outputs.js');
+  const { setDietLevel, dietConfig, toolLevel, capOutput, compressible } = await import('../src/diet.js');
+  assert.equal(bashProgram('cd src && rg -n foo'), 'rg');
+  assert.equal(bashProgram('FOO=1 timeout 60 npm test'), 'npm test');
+  assert.equal(bashProgram('git -C x log --oneline'), 'git log');
+  assert.equal(bashProgram('for f in *; do cat $f; done'), 'shell loop');
+  assert.equal(toolKey('Bash', { command: 'sed -n 1,200p a.py' }), 'Bash:sed');
+  assert.ok(compressible('Bash:sed') && compressible('Read') && !compressible('mcp:rea'));
+  const { store } = fixture(t);
+  setDietLevel(store, ['Bash:sed', 'Read', 'mcp:rea'], 'high');
+  setDietLevel(store, ['Bash'], 'moderate');
+  const cfg = dietConfig(store);
+  assert.equal(cfg.enabled, true); assert.deepEqual(cfg.tools, { 'Bash:sed': 'high', Read: 'high', Bash: 'moderate' }, 'an MCP server is never set');
+  assert.equal(toolLevel(cfg, 'Bash', { command: 'sed -n 1p a' }), 'high', "a command's own level first");
+  assert.equal(toolLevel(cfg, 'Bash', { command: 'ls' }), 'moderate', "else Bash's");
+  assert.equal(toolLevel(cfg, 'Grep', {}), null);
+  setDietLevel(store, ['Bash:sed', 'Read', 'Bash'], null);
+  assert.equal(dietConfig(store).enabled, false, 'nothing set: off');
+  const long = Array.from({ length: 400 }, (_, i) => `line ${i}`).join('\n');
+  const c = capOutput(long, 1000);
+  assert.ok(c.length < 1200 && c.startsWith('line 0') && c.endsWith('line 399') && /lines left out/.test(c));
+});
+
+test('switching a tool off from the tab turns the harness on here, and built-in tool switching for a built-in tool', async t => {
+  const { switchSources } = await import('../src/context-view.js');
+  const { store } = fixture(t);
+  assert.equal(switchSources(store, { labels: [] }), 'nothing chosen');
+  switchSources(store, { labels: ['Workflow tool'], builtin: true });
+  const h = store.config().harness;
+  assert.equal(h.enabled, true); assert.equal(h.builtinTools, true);
 });

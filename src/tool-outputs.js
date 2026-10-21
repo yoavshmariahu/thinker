@@ -8,9 +8,37 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseTranscript } from './transcripts.js';
 
-const KEEP = 1000, VERSION = 2;
-// one row per tool, an MCP server's tools as one
-export const toolKey = name => { const m = String(name).match(/^mcp__(.+?)__/); return m ? `mcp:${m[1]}` : String(name || 'unknown'); };
+const KEEP = 1000, VERSION = 5;
+// what each level's cap leaves of an output, in tokens (diet.js:DIET_LEVELS outputChars / 4): the part of a
+// compressible tool's result past it is a saving at least (the other trims, round search hits and file windows, come on top)
+const CAP = { moderate: 3000, high: 1000 };
+// The program a shell command runs, which is what decides how much it prints: the first command of the line after
+// any `cd`, environment assignments and wrappers (`sudo`, `timeout 60`, `env`), its path left out; for a tool with
+// subcommands (git, gh, npm…) the subcommand too, since `git diff` and `git status` print very differently.
+const WRAPPERS = new Set(['sudo', 'env', 'time', 'nice', 'nohup', 'command', 'exec', 'xargs']);
+const SUBCOMMANDS = new Set(['git', 'gh', 'npm', 'pnpm', 'yarn', 'npx', 'cargo', 'go', 'uv', 'docker', 'kubectl', 'pip', 'poetry', 'make', 'bun', 'deno', 'dotnet', 'mvn', 'gradle']);
+export function bashProgram(command) {
+  for (const seg of String(command || '').split(/&&|\|\||;|\||\n/)) {
+    const words = seg.trim().match(/'[^']*'|"[^"]*"|\S+/g) || [];
+    let i = 0;
+    while (i < words.length && (/^\w+=/.test(words[i]) || WRAPPERS.has(words[i]) || (words[i] === 'timeout' && ++i))) i++;
+    const w = words[i]; if (!w || w === 'cd' || w === 'source' || w === '.' || w === 'export' || w === 'set') continue;
+    const prog = w.replace(/^.*\//, '').replace(/^['"]|['"]$/g, '');
+    if (/^(for|while|until|if|case|do|then|\{|\()$/.test(prog)) return 'shell loop';
+    if (!/^[\w.+-]+$/.test(prog)) return 'other';
+    // the first word after the program that is no option, nor the value of one that takes a value (`git -C dir log`)
+    let sub = '';
+    if (SUBCOMMANDS.has(prog)) for (let k = i + 1; k < words.length; k++) { if (/^-[Cc]$|^--(?:git-dir|work-tree|prefix|cwd|dir|directory|manifest-path|project)$/.test(words[k])) { k++; continue; } if (!words[k].startsWith('-')) { sub = words[k]; break; } }
+    return sub && /^[\w:.-]+$/.test(sub) ? `${prog} ${sub}` : prog;
+  }
+  return 'shell';
+}
+// one row per tool, an MCP server's tools as one, a shell command by its program (`Bash:rg`, `Bash:git diff`)
+export const toolKey = (name, input) => {
+  const m = String(name).match(/^mcp__(.+?)__/); if (m) return `mcp:${m[1]}`;
+  if (name === 'Bash' && input?.command) return `Bash:${bashProgram(input.command)}`;
+  return String(name || 'unknown');
+};
 
 // `turns`: the session's model calls, when the transcript counts them; the calls left after a result are its share of
 // those (agents make several tool calls in one model call), else one a tool call
@@ -18,8 +46,10 @@ export function sessionOutputs(events, turns = 0) {
   const tools = events.filter(e => e.t === 'tool'), n = tools.length, by = {};
   const scale = turns > 0 && n > 0 ? Math.min(1, turns / (n + 1)) : 1;
   tools.forEach((e, i) => {
-    const tokens = Math.ceil(String(e.result || '').length / 4), r = (by[toolKey(e.name)] ||= { calls: 0, tokens: 0, input: 0 });
-    r.calls++; r.tokens += tokens; r.input += Math.round(tokens * Math.max(1, (n - i) * scale));
+    const key = toolKey(e.name, e.input), tokens = Math.ceil(String(e.result || '').length / 4), r = (by[key] ||= { calls: 0, tokens: 0, input: 0, saveModerate: 0, saveHigh: 0 });
+    const reads = Math.max(1, (n - i) * scale);
+    r.calls++; r.tokens += tokens; r.input += Math.round(tokens * reads);
+    if (key === 'Read' || key === 'Bash' || key.startsWith('Bash:')) { r.saveModerate += Math.round(Math.max(0, tokens - CAP.moderate) * reads); r.saveHigh += Math.round(Math.max(0, tokens - CAP.high) * reads); }
   });
   return by;
 }
@@ -47,10 +77,10 @@ export function toolOutputs(store, sessions) {
   // per tool, averaged over the sessions that made any tool call
   const n = recs.length, rows = new Map();
   for (const r of recs) for (const [k, x] of Object.entries(r.by)) {
-    const row = rows.get(k) || { name: k, sessions: 0, calls: 0, tokens: 0, input: 0 };
-    row.sessions++; row.calls += x.calls; row.tokens += x.tokens; row.input += x.input; rows.set(k, row);
+    const row = rows.get(k) || { name: k, sessions: 0, calls: 0, tokens: 0, input: 0, saveModerate: 0, saveHigh: 0 };
+    row.sessions++; row.calls += x.calls; row.tokens += x.tokens; row.input += x.input; row.saveModerate += x.saveModerate || 0; row.saveHigh += x.saveHigh || 0; rows.set(k, row);
   }
-  const tools = [...rows.values()].map(r => ({ name: r.name, usedIn: r.sessions, calls: r.calls / (n || 1), tokens: Math.round(r.tokens / (n || 1)), perSession: Math.round(r.input / (n || 1)), perCall: Math.round(r.tokens / (r.calls || 1)) })).sort((a, b) => b.perSession - a.perSession);
+  const tools = [...rows.values()].map(r => ({ name: r.name, usedIn: r.sessions, calls: r.calls / (n || 1), tokens: Math.round(r.tokens / (n || 1)), perSession: Math.round(r.input / (n || 1)), perCall: Math.round(r.tokens / (r.calls || 1)), saveModerate: Math.round(r.saveModerate / (n || 1)), saveHigh: Math.round(r.saveHigh / (n || 1)) })).sort((a, b) => b.perSession - a.perSession);
   return {
     sessions: n, tools,
     tokens: tools.reduce((a, t) => a + t.tokens, 0), perSession: tools.reduce((a, t) => a + t.perSession, 0),

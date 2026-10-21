@@ -19,6 +19,7 @@ import { outlineText } from './codegraph.js';
 import { sessionState, locked } from './ops.js';
 import { classifyTestCommand, parseTestOutput, summarize, stripAnsi, testsConfig, logPathFor, pruneLogs } from './testing.js';
 import { textOf } from './transcripts.js';
+import { bashProgram } from './tool-outputs.js';
 
 export const DIET = {
   enabled: false,
@@ -32,9 +33,41 @@ export const DIET = {
   perFile: 3,        // matching lines kept per file in a grouped search
   maxFiles: 40,      // files kept in a grouped search
 };
+// Per tool, from the Context tab or `thinker context --output-compression`: `diet: { tools: { Bash: 'high', Read:
+// 'moderate' } }` compresses those tools' results and no other's. Moderate is the trims above as measured; high keeps
+// less of each (a narrower window round the hits, one hit a file, shorter test summaries) and caps any other output
+// of the tool. A config without `tools` (`diet: true`) is moderate for every tool it knows.
+export const DIET_LEVELS = {
+  moderate: { outputChars: 12000 },
+  high: { window: 15, cap: 0.35, searchChars: 3000, perFile: 1, maxFiles: 15, testChars: 1000, outputChars: 4000 },
+};
+// the tools whose results the diet can replace (Claude Code's PostToolUse, checked against each one's output shape)
+// A shell command can have its own level by its program (`Bash:sed`), else Bash's.
+export const COMPRESSIBLE = ['Bash', 'Read'];
+export const compressible = name => COMPRESSIBLE.includes(name) || String(name).startsWith('Bash:');
+export const toolLevel = (cfg, name, input) => {
+  if (!cfg.tools) return cfg.enabled ? 'moderate' : null;
+  if (name === 'Bash' && input?.command) { const own = cfg.tools[`Bash:${bashProgram(input.command)}`]; if (own) return own; }
+  return cfg.tools[name] || null;
+};
+
+export function setDietLevel(store, tools, level) {
+  const file = path.join(store.dir, 'config.json');
+  let c = {}; try { c = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
+  const d = c.diet && typeof c.diet === 'object' ? c.diet : {};
+  d.tools ||= {};
+  for (const t of tools) { if (!compressible(t)) continue; if (level === 'high' || level === 'moderate') d.tools[t] = level; else delete d.tools[t]; }
+  d.enabled = Object.keys(d.tools).length > 0;
+  c.diet = d;
+  fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, JSON.stringify(c, null, 2) + '\n');
+  store.log({ op: 'diet-settings', tools: d.tools });
+  return d.tools;
+}
+
 export function dietConfig(store, over = {}) {
   const c = store?.config?.().diet;
   const cfg = { ...DIET, ...(c === true ? { enabled: true } : c && typeof c === 'object' ? c : {}), ...over };
+  if (cfg.tools && typeof cfg.tools === 'object' && c?.enabled === undefined) cfg.enabled = Object.keys(cfg.tools).length > 0;
   const env = process.env.THINKER_DIET;
   if (env === 'on' || env === '1') cfg.enabled = true;
   else if (env === 'off' || env === '0') cfg.enabled = false;
@@ -179,9 +212,24 @@ function rel(repo, p, cwd) {
 }
 // null, or {kind, file?, before, after, output}: the replacement for the tool's result, in the shape the
 // client gave it (Claude Code checks it against the tool's own output), and the sizes for the log.
+// The first and last lines of a long output within `chars`, the lines between counted (errors and summaries are
+// usually at one end or the other).
+export function capOutput(text, chars) {
+  const lines = String(text).split('\n'), head = [], tail = [];
+  let used = 0, i = 0, j = lines.length - 1;
+  while (i <= j && used + lines[i].length + 1 <= chars * 0.6) { head.push(lines[i]); used += lines[i++].length + 1; }
+  while (j >= i && used + lines[j].length + 1 <= chars) { tail.unshift(lines[j]); used += lines[j--].length + 1; }
+  const gone = j - i + 1;
+  return gone > 0 ? [...head, `[... ${gone} lines left out by thinker's output compression; run a narrower command to see them]`, ...tail].join('\n') : text;
+}
+
 export function dietResult(store, { session, repo, cwd, name, input = {}, response, cfg, turn, client = 'claude' }) {
   cfg = cfg || dietConfig(store);
   if (!cfg.enabled || !response || typeof response !== 'object') return null;
+  // only the tools given a level, at that level's settings
+  const level = toolLevel(cfg, name, input);
+  if (!level) return null;
+  cfg = { ...cfg, ...DIET_LEVELS[level], level };
   const log = r => { if (r) store.log({ op: 'diet', kind: r.kind, session, turn, client, file: r.file, before: r.before, after: r.after }); return r; };
   const skip = (kind, file, why, n) => { store.log({ op: 'diet-skip', kind, session, turn, client, file, why, lines: n }); return null; };
   if (name === 'Read') {
@@ -208,7 +256,12 @@ export function dietResult(store, { session, repo, cwd, name, input = {}, respon
   }
   if (/^(?:rg|grep|egrep|git\s+grep)\b/.test(command) && !/[|;&]/.test(command) && stdout.length >= cfg.searchChars) {
     const g = groupSearch(stdout, cfg);
-    return g ? log({ kind: 'search', before: stdout.length, after: g.length, output: { ...response, stdout: g } }) : null;
+    if (g) return log({ kind: 'search', before: stdout.length, after: g.length, output: { ...response, stdout: g } });
+  }
+  // any other long output: its head and its tail, the middle named
+  if (cfg.outputChars && stdout.length > cfg.outputChars) {
+    const c = capOutput(stdout, cfg.outputChars);
+    return log({ kind: 'cap', before: stdout.length, after: c.length, output: { ...response, stdout: c } });
   }
   return null;
 }

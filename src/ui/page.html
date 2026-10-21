@@ -235,6 +235,16 @@
     .ann-cost .why { margin-top: 0.1rem; }
     .bulk { display: flex; align-items: center; gap: 0.6rem; margin-left: auto; order: 99; }
     .btn.btn-lg { padding: 0.6rem 1.2rem; font-size: 0.95rem; font-weight: 600; }
+    .vtabs { display: flex; gap: 0.4rem; margin: 1.8rem 0 0.2rem; border-bottom: 1px solid #e5e7eb; overflow-x: auto; }
+    .vtabs button { background: none; border: 0; border-bottom: 3px solid transparent; margin-bottom: -1px; padding: 0.55rem 1.1rem 0.6rem; cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 0.15rem; color: #6b7280; font: inherit; white-space: nowrap; }
+    .vtabs button:hover { color: #111; }
+    .vtabs button.on { color: #111; border-bottom-color: #111; }
+    .vtabs .vt-name { font-size: 1.05rem; font-weight: 700; letter-spacing: -0.01em; }
+    .vtabs .vt-num { font-size: 0.82rem; font-variant-numeric: tabular-nums; font-weight: 600; }
+    .vtabs .vt-num span { font-weight: 400; color: #9ca3af; }
+    .view-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; margin: 1.2rem 0 0.9rem; flex-wrap: wrap; }
+    .sort-sel { display: flex; align-items: center; gap: 0.4rem; }
+    .view-act { display: flex; justify-content: flex-end; align-items: center; gap: 0.8rem; }
     .doc-toolbar { display: flex; justify-content: flex-end; align-items: center; gap: 0.8rem; margin: 0.8rem 0 0.4rem; }
     .menu-note { font-size: 0.76rem; color: #6b7280; padding: 0.4rem 0.6rem; }
     .menu { position: fixed; z-index: 50; min-width: 17rem; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.1); padding: 0.3rem; }
@@ -390,25 +400,12 @@
   <nav>
     <div class="brand"><span class="wordmark">thinker</span><span class="brand-sub">local</span></div>
     <div class="nav-right">
-      <button class="nav-link" data-tab="usage">Usage</button>
       <button class="nav-link" data-tab="context">Context</button>
       <button class="nav-link" data-tab="cache">Cache<span class="count" id="wait-count" hidden></span></button>
     </div>
   </nav>
 
   <main>
-    <!-- Usage -->
-    <section id="tab-usage" hidden>
-      <div class="kicker">On this machine</div>
-      <h1>How the cache is working for you</h1>
-      <p class="lede">What was served to your agents, what they acted on, what was learned, and what it cost in tokens. Read from your local log; nothing leaves this machine.</p>
-      <div class="controls">
-        <select class="sel" id="u-repo" aria-label="Repository"><option value="all">All repositories</option></select>
-        <div class="seg" id="days-seg"><button data-days="7">7 days</button><button data-days="30" class="on">30 days</button><button data-days="0">All time</button></div>
-      </div>
-      <div id="usage-body" class="section"><div class="empty"><span class="spinner"></span>Reading the log…</div></div>
-    </section>
-
     <!-- Context: where the agents' context goes in one repository, and what each part is worth (context-view.js, as `thinker context`) -->
     <section id="tab-context" hidden>
       <div class="ctx-top"><div><h1>Context Overview</h1>
@@ -425,10 +422,14 @@
     <!-- Cache: every repository with a cache, then one repository's notes and behaviors -->
     <section id="tab-cache" hidden>
       <div id="cache-overview">
-        <div class="kicker">The cache</div>
-        <h1>Your repositories</h1>
-        <p class="lede">Every git repository on this machine with a cache, what each holds, and what is being mined or distilled right now. Open one to read its notes and the behaviors every change must keep.</p>
-        <div class="controls"><button class="btn ghost" id="to-warmup">Warm up more repositories</button></div>
+        <div class="ctx-top"><div><h1>Cache</h1>
+        <p class="lede">What the cache served your agents, what it holds, and what it saved</p></div>
+        <div class="controls">
+          <select class="sel" id="u-repo" aria-label="Repository"><option value="all">All repositories</option></select>
+          <div class="seg" id="days-seg"><button data-days="7">7 days</button><button data-days="30" class="on">30 days</button><button data-days="0">All time</button></div>
+        </div></div>
+        <div id="usage-body"><div class="empty"><span class="spinner"></span>Reading the log…</div></div>
+        <div class="section-head" style="margin-top:2rem"><div><div class="kicker">Every git repository on this machine with a cache</div><div class="section-title">Your repositories</div></div><button class="btn ghost" id="to-warmup">Warm up more repositories</button></div>
         <div class="rgrid" id="r-grid"><div class="empty" style="grid-column:1/-1"><span class="spinner"></span>Reading the caches…</div></div>
       </div>
 
@@ -598,11 +599,11 @@ $('#back').onclick = () => { DREPO = ''; show('cache'); };
 $('#w-back').onclick = () => { DREPO = ''; show('cache'); };
 function show(tab) {
   document.querySelectorAll('.nav-link').forEach(b => b.classList.toggle('active', b.dataset.tab === (tab === 'warmup' || tab === 'tools' ? 'cache' : tab)));
-  $('#tab-usage').hidden = tab !== 'usage'; $('#tab-context').hidden = tab !== 'context'; $('#tab-cache').hidden = tab !== 'cache'; $('#tab-warmup').hidden = tab !== 'warmup'; $('#tab-tools').hidden = tab !== 'tools';
+  if (tab === 'usage') tab = 'cache';
+  $('#tab-context').hidden = tab !== 'context'; $('#tab-cache').hidden = tab !== 'cache'; $('#tab-warmup').hidden = tab !== 'warmup'; $('#tab-tools').hidden = tab !== 'tools';
   TAB = tab;
   history.replaceState(null, '', `#t=${TOKEN}&tab=${tab}${tab === 'cache' && DREPO ? `&repo=${encodeURIComponent(DREPO)}` : ''}`);
-  if (tab === 'usage') loadUsage();
-  else if (tab === 'context') loadContext();
+  if (tab === 'context') loadContext();
   else if (tab === 'warmup') loadWarmup();
   else if (tab === 'tools') loadTools();
   else if (DREPO) openRepo(DREPO);
@@ -613,7 +614,7 @@ function show(tab) {
 let days = 30;
 document.querySelectorAll('#days-seg button').forEach(b => b.onclick = () => { days = Number(b.dataset.days); segOn('#days-seg', b); loadUsage(); });
 function segOn(sel, on) { document.querySelectorAll(sel + ' button').forEach(b => b.classList.toggle('on', b === on)); }
-$('#u-repo').onchange = e => { REPO = e.target.value; e.target.blur(); loadUsage(); };
+$('#u-repo').onchange = e => { REPO = e.target.value; e.target.blur(); loadRepos(); };
 function fillRepoFilter() {
   if (REPO !== 'all' && !REPOS.some(r => r.id === REPO)) REPO = 'all';
   $('#u-repo').innerHTML = `<option value="all"${REPO === 'all' ? ' selected' : ''}>All repositories</option>` + REPOS.map(r => `<option value="${esc(r.id)}"${r.id === REPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
@@ -630,86 +631,20 @@ async function loadUsage() {
 function card(kicker, num, label, rows, gain) {
   return `<div class="card"><div class="kicker">${kicker}</div><div class="metric-num${gain ? ' gain' : ''}">${num}</div><div class="metric-label">${label}</div>${rows && rows.length ? `<ul class="metric-rows">${rows.map(([a, b]) => `<li><span>${esc(a)}</span><span>${esc(b)}</span></li>`).join('')}</ul>` : ''}</div>`;
 }
-function pairRow(name, sub, a, b, fmtv) {
-  const max = Math.max(a, b) || 1, d = a ? Math.round(100 * (b - a) / a) : 0;
-  return `<div class="bench-row"><div><div class="bench-model-name">${esc(name)}</div><div class="bench-model-sub">${esc(sub)}</div></div>
-    <div class="bench-bars"><div class="bar before"><i style="--w:${100 * a / max}%"></i>${fmtv(a)}</div><div class="bar after"><i style="--w:${100 * b / max}%"></i>${fmtv(b)}</div></div>
-    <div class="bench-delta${d >= 0 ? ' flat' : ''}">${d > 0 ? '+' : d < 0 ? '−' : ''}${Math.abs(d)}%</div></div>`;
-}
+// The three numbers at the top of the Cache page, for every repository or the one picked, over the range: what was
+// served (cache hits), what the cache holds and learned (notes), and the tokens it saved (measured against held-out
+// prompts where there are enough of them, else the estimate from the servings sessions acted on).
 function renderUsage(u) {
   const as = u.assessed || {}, judged = (as.confirmed || 0) + (as.contradicted || 0) + (as.unused || 0);
   const served = Object.values(u.servings || {}).reduce((a, b) => a + b, 0);
-  const learned = (u.learned?.notes || 0) + (u.learned?.prNotes || 0);
   const v = u.verified || {};
-  let h = `<div class="cards">
-    ${card('Notes served', fmt(served), `${fmt(u.notesServed)} distinct notes, for ${fmt(u.answered)} of ${fmt(u.requests)} requests`, [['At the prompt', fmt(u.servings?.prompt || 0)], ['While editing a file', fmt(u.servings?.file || 0)], ['Asked for by the agent', fmt(u.servings?.lookup || 0)]])}
-    ${card('Acted on', pct(as.confirmed || 0, judged), `of the servings sessions were judged on: the agent used the note`, [['Acted on', fmt(as.confirmed || 0)], ['Corrected by the session', fmt(as.contradicted || 0)], ['Not used', fmt(as.unused || 0)]], true)}
-    ${card('Learned', fmt(learned), `new notes, from your sessions and merged pull requests`, [['From sessions', fmt(u.learned?.notes || 0)], ['From pull requests', fmt(u.learned?.prNotes || 0)], [ALL() ? 'Notes in the caches' : 'Notes in this cache', fmt(u.notesInCache)]])}
-    ${card('Kept current', fmt((v.still_valid || 0) + (v.update || 0) + (v.invalid || 0)), `re-checks after the code under a note changed`, [['Still valid', fmt(v.still_valid || 0)], ['Rewritten', fmt(v.update || 0)], ['Retired', fmt(v.invalid || 0)]])}
-    ${card('Model usage', fmt(u.spending.tokens), `tokens for learning and upkeep, through your own agent`, Object.entries(u.spending.byPhase || {}).filter(([, x]) => x.tokens).sort((a, b) => b[1].tokens - a[1].tokens).slice(0, 4).map(([k, x]) => [k, fmt(x.tokens)]))}
-    ${card('Reading saved', fmt(u.saved.tokens), `tokens of code the agents did not have to read, estimated from servings they acted on`, [], true)}
+  const ho = u.holdout, measured = ho?.enough && ho.saved?.inputTokens != null;
+  const saved = measured ? ho.saved.inputTokens : u.saved?.tokens || 0;
+  $('#usage-body').innerHTML = `<div class="cards">
+    ${card('Cache hits', fmt(served), `notes served, for ${fmt(u.answered)} of ${fmt(u.requests)} requests`, [['At the prompt', fmt(u.servings?.prompt || 0)], ['While editing a file', fmt(u.servings?.file || 0)], ['Asked for by the agent', fmt(u.servings?.lookup || 0)], ['Acted on', judged ? pct(as.confirmed || 0, judged) : '–']])}
+    ${card('Notes', fmt(u.notesInCache || 0), ALL() ? 'notes in the caches' : 'notes in this cache', [['Learned from sessions', fmt(u.learned?.notes || 0)], ['Learned from pull requests', fmt(u.learned?.prNotes || 0)], ['Kept current', fmt((v.still_valid || 0) + (v.update || 0))], ['Retired', fmt(v.invalid || 0)]])}
+    ${card('Tokens saved', fmt(Math.max(0, saved)), measured ? 'input tokens, measured against prompts that had the notes withheld' : 'tokens of code the agents did not have to read, estimated from servings they acted on', [[measured ? 'Measured' : 'Estimated', measured ? `${fmt(ho.served.prompts)} prompts with notes, ${fmt(ho.heldOut.prompts)} held out` : 'too few held out yet'], ['Spent learning and upkeep', fmt(u.spending?.tokens || 0)], ['Net after spending', u.saved?.netAfterSpend != null ? fmt(u.saved.netAfterSpend) : '–']], true)}
   </div>`;
-  const ho = u.holdout;
-  h += `<div class="section"><div class="section-head"><div><div class="kicker">Measured on your own prompts</div><div class="section-title">With notes, against prompts that had them withheld</div></div></div><div class="panel">`;
-  if (ho && ho.enough && ho.served?.prompts && ho.heldOut?.prompts) {
-    const per = (s, f) => Math.round(s.perPrompt?.[f] || 0);
-    const saved = ho.saved?.inputTokens;
-    h += `<div class="bench-legend"><span><i class="swatch before"></i>notes withheld</span><span><i class="swatch"></i>with notes</span></div><div class="bench-rows">
-      ${pairRow('Tool calls', 'per prompt', per(ho.heldOut, 'toolCalls'), per(ho.served, 'toolCalls'), fmt)}
-      ${pairRow('Input tokens', 'per prompt', per(ho.heldOut, 'inputTokens'), per(ho.served, 'inputTokens'), fmt)}
-    </div><div class="note-line">${fmt(ho.served.prompts)} prompts with notes, ${fmt(ho.heldOut.prompts)} held out, in ${fmt(ho.sessions || 0)} sessions.${saved != null ? ` About ${fmt(Math.abs(saved))} input tokens ${saved >= 0 ? 'less' : 'more'} across the served prompts than at the held-out cost per prompt.` : ''} A share of prompts is served nothing on purpose so this can be measured; a turn's cost is what its session's transcript grew by.</div>`;
-  } else {
-    h += `<div class="note-line" style="margin-top:0">Not enough prompts yet: the comparison appears once twenty prompts stand on each side (${ho?.served?.prompts || 0} with notes, ${ho?.heldOut?.prompts || 0} held out so far).</div>`;
-  }
-  h += `</div></div>`;
-  if (u.top?.length) h += `<div class="section"><div class="section-head"><div><div class="kicker">Most served</div><div class="section-title">The notes your agents saw most</div></div></div><div class="panel"><table><thead><tr><th>Note</th>${ALL() ? '<th>Repository</th>' : ''}<th class="num">Served</th></tr></thead><tbody>${u.top.map(t => `<tr><td>${esc(t.title)}</td>${ALL() ? `<td class="muted">${esc(String(t.repo || '').replace(/^github\.com\//, ''))}</td>` : ''}<td class="num">${t.served}</td></tr>`).join('')}</tbody></table></div></div>`;
-  if (ALL() && u.repos?.length) h += `<div class="section"><div class="section-head"><div><div class="kicker">By repository</div><div class="section-title">Where thinker is working</div></div></div><div class="panel"><table><thead><tr><th>Repository</th><th class="num">Requests</th><th class="num">Served</th><th class="num">Learned</th><th class="num">Tokens</th></tr></thead><tbody>${u.repos.map(r => `<tr><td>${esc(String(r.repo).replace(/^github\.com\//, ''))}</td><td class="num">${fmt(r.requests)}</td><td class="num">${fmt(r.served)}</td><td class="num">${fmt(r.learned)}</td><td class="num">${fmt(r.tokens)}</td></tr>`).join('')}</tbody></table></div></div>`;
-  h += `<div class="section" id="harness-body"><div class="empty"><span class="spinner"></span>Reading what Claude Code, Codex or Cursor loads…</div></div>`;
-  $('#usage-body').innerHTML = h;
-  loadHarness();
-}
-
-// ---- what Claude Code, Codex or Cursor loads into every session, and what switching it off saved (harness.js:harnessView) ----
-const HKIND = { plugin: 'plugin', mcp: 'MCP server', connector: 'claude.ai connector', skill: 'skill', skills: 'skills', desktop: 'desktop app' };
-const hkind = s => s.kind === 'connector' && s.scope === 'desktop' ? 'desktop connector' : HKIND[s.kind] || s.kind;
-function savedRows(sv, repoName) {
-  return sv.sources.map(s => `<tr><td>${({ codex: 'Codex: ', cursor: 'Cursor: ' })[s.client] || ''}${esc(s.name)} <span class="muted">${esc(hkind(s))}</span>${repoName ? `<div class="muted">${esc(repoName)}</div>` : ''}</td><td class="muted">${esc(s.at.slice(0, 10))}</td><td class="num">${s.absent}/${s.sessions}${s.stillLoaded ? ` <span class="pill bad" title="still loaded in ${s.stillLoaded} session(s): the switch did not take effect there">${s.stillLoaded} still loaded</span>` : ''}</td><td class="num">${fmt(s.tokens)}</td><td class="num">${fmt(s.inputTokens)}</td>${repoName ? '' : `<td><button class="btn text" data-hundo="${esc(s.key || s.name)}">Turn back on</button></td>`}</tr>`).join('');
-}
-const SAVED_HEAD = `<thead><tr><th>Switched off</th><th>Since</th><th class="num">Absent from sessions</th><th class="num">Context saved</th><th class="num">Input tokens saved</th></tr></thead>`;
-async function loadHarness() {
-  const el = $('#harness-body'); if (!el) return;
-  try {
-    const v = await api(`/api/harness?repo=${encodeURIComponent(REPO)}${days ? `&days=${days}` : ''}`);
-    // off until released (harness.js:harnessOn): the page shows nothing of it
-    if (v.enabled === false) { el.remove(); return; }
-    let h = `<div class="section-head"><div><div class="kicker">Recorded in Claude Code and Codex transcripts and Cursor's tool inventory</div><div class="section-title">Tools loaded into every session</div></div></div>`;
-    if (ALL()) {
-      if (!(v.repos || []).length) { el.remove(); return; }
-      const tot = (v.repos || []).reduce((a, r) => ({ t: a.t + r.saved.tokens, i: a.i + r.saved.inputTokens }), { t: 0, i: 0 });
-      h += (v.repos || []).length
-        ? `<div class="cards">${card('Context saved', fmt(tot.t), 'tokens of tools switched off by thinker, in the sessions started since', [], true)}${card('Input tokens saved', fmt(tot.i), 'the same context, read again in each model call of those sessions', [], true)}</div><div class="panel"><table>${SAVED_HEAD}<tbody>${v.repos.map(r => savedRows(r.saved, r.repoName)).join('')}</tbody></table></div>`
-        : `<div class="note-line" style="margin-top:0">Nothing is switched off yet. Pick a repository above to see what Claude Code, Codex or Cursor loads there, switch off what it never uses, and set how thinker asks.</div>`;
-      el.innerHTML = h; return;
-    }
-    const st = v.settings || {};
-    const tog = (k, label, sub) => `<label style="display:flex;gap:.55rem;align-items:flex-start;margin:.35rem 0"><input type="checkbox" data-hset="${k}"${st[k] ? ' checked' : ''}><span><b style="font-weight:500">${label}</b><div class="muted">${sub}</div></span></label>`;
-    h += `<div class="panel">${tog('recurring', 'Ask me every two weeks', 'every two weeks, your next Claude Code, Codex or Cursor prompt here asks which unused tools to switch off')}${tog('recall', 'Tell the agent when a request needs a switched-off tool', 'one line, and how to bring it back (an experiment: off by default)')}${tog('suggestions', 'Suggestions on this machine', 'off: thinker never asks, in any repository')}</div>`;
-    if (v.saved.sources.length) h += `<div class="cards" style="margin-top:1rem">${card('Context saved', fmt(v.saved.tokens), `tokens, in the ${v.saved.sessions} session${v.saved.sessions === 1 ? '' : 's'} started since these were switched off`, [], true)}${card('Input tokens saved', fmt(v.saved.inputTokens), 'the same context, read again in each model call of those sessions', [], true)}</div>
-      <div class="panel"><table>${SAVED_HEAD.replace('</tr>', '<th></th></tr>')}<tbody>${savedRows(v.saved)}</tbody></table><div class="controls" style="margin-top:.8rem"><button class="btn ghost" data-hundo="">Turn all back on</button></div></div>`;
-    const waste = v.advice.reduce((a, s) => a + s.tokens, 0);
-    const reread = v.advice.reduce((a, s) => a + (s.input || s.tokens), 0);
-    h += `<div class="panel" style="margin-top:1rem">${v.sessions ? `<table><thead><tr><th></th><th>Loaded into every session</th><th class="num">Sessions that used it</th><th class="num">Tokens a session</th></tr></thead><tbody>${v.sources.slice(0, 20).map(s => { const a = v.advice.find(x => x.key === s.key); return `<tr><td>${a ? `<input type="checkbox" data-hoff="${esc(a.label)}" checked>` : ''}</td><td>${({ codex: 'Codex: ', cursor: 'Cursor: ' })[s.client] || ''}${esc(s.name)} <span class="muted">${esc(hkind(s))}${s.scope && !['connector', 'desktop'].includes(s.kind) ? ` · ${esc(s.scope)}` : ''}</span>${s.off ? ' <span class="pill off">off now</span>' : a ? ' <span class="pill wait">unused</span>' : ''}</td><td class="num">${s.used}/${s.loaded}</td><td class="num">${fmt(s.tokens)}</td></tr>`; }).join('')}</tbody></table>
-      <div class="note-line">${v.sessions} Claude Code, Codex or Cursor sessions here over ${v.days} days. ${v.advice.length ? `${v.advice.length} loaded and almost never used: about ${fmt(waste)} tokens across these listings; the amount per session depends on the agent.${reread > waste ? ` Every model call reads them again: ~${fmt(reread)} input tokens in a typical session (~${v.calls?.claude || v.calls?.codex} model calls), mostly prompt-cache reads.` : ''} Switched off, ${st.recall ? 'thinker tells the agent when a request needs one and how to bring it back; ' : ''}skills still run as /name, and Turn back on undoes it. Codex switches apply to new sessions in this trusted checkout. Claude skills remain available as /name; Claude MCP switches cover the repository’s worktrees.` : 'No supported source meets the suggestion threshold.'}</div>
-      ${v.advice.length ? `<div class="controls"><button class="btn" id="h-off">Switch off selected</button>${st.suggestions ? `<button class="btn ghost" id="h-ask"${v.pending ? ' disabled' : ''}>${v.pending ? 'Asked in your next prompt' : 'Ask me in my next Claude Code, Codex or Cursor prompt'}</button>` : ''}</div>` : ''}`
-      : `<div class="note-line" style="margin-top:0">No Claude Code, Codex or Cursor session here in the last ${v.days} days records what it loaded.</div>`}</div>`;
-    el.innerHTML = h;
-    const repo = REPOS.find(r => r.id === REPO)?.id || '';
-    const act = async (btn, p, body, msg) => { if (btn) btn.disabled = true; try { const r = await api(p, { repo, ...body }); toast(msg || (r.said && !r.said.startsWith('{') ? r.said : 'Saved')); loadHarness(); } catch (err) { toast(err.message, true); if (btn) btn.disabled = false; } };
-    el.querySelectorAll('[data-hset]').forEach(c => c.onchange = () => act(c, '/api/harness/settings', { [c.dataset.hset]: c.checked }, 'Saved'));
-    el.querySelectorAll('[data-hundo]').forEach(b => b.onclick = () => act(b, '/api/harness/undo', b.dataset.hundo ? { names: [b.dataset.hundo] } : {}));
-    $('#h-off')?.addEventListener('click', e => { const labels = [...el.querySelectorAll('[data-hoff]:checked')].map(c => c.dataset.hoff); if (!labels.length) return toast('Nothing selected', true); act(e.target, '/api/harness/off', { labels }); });
-    $('#h-ask')?.addEventListener('click', e => act(e.target, '/api/harness/suggest', {}, 'Your next Claude Code, Codex or Cursor prompt here asks which to switch off'));
-  } catch (e) { el.innerHTML = `<div class="empty">Could not read what Claude Code, Codex or Cursor loads: ${esc(e.message)}</div>`; }
 }
 
 // ---- where the context goes in one repository (context-view.js:contextView, as `thinker context`) ----
@@ -733,7 +668,7 @@ async function loadContext() {
     renderContext(await api(`/api/context?repo=${encodeURIComponent(CREPO)}&days=${cdays}`));
   } catch (e) { el.innerHTML = `<div class="empty">Could not read the context: ${esc(e.message)}</div>`; }
 }
-let CVIEW = 'instructions', CSORT = 'wasted', CTX = null, CMEASURE = 'total', CBUCKET = null, CHIDDEN = new Set();
+let CVIEW = 'instructions', CTX = null, CMEASURE = 'total', CBUCKET = null, CHIDDEN = new Set();
 const cbucket = () => CBUCKET || (cdays <= 7 ? 'day' : 'week');
 // the parts of a session's input, in the palette's fixed order (dataviz slots 1-6, validated adjacent on white)
 const PARTS = [
@@ -812,15 +747,24 @@ function md(text) {
 }
 // red, yellow, green by waste (instruction-value.js:wasteLevel); grey while unknown
 const WASTE_PILL = { high: ['bad', 'High waste'], medium: ['wait', 'Medium waste'], low: ['ok', 'Low waste'], unknown: ['off', 'Too few sessions'] };
+// the Potential savings card, on every view: input tokens a session, the share of the view's cost, the window's total
+const savingsCard = ({ perSession, share, window, days, text, kicker = 'Potential savings, at most', ok }) => perSession > 0
+  ? `<div class="savings"><div><div class="kicker">${kicker}</div><div class="tr-num">${fmt(perSession)} <span class="muted">input tokens a session${share != null ? ` · ${Math.round(100 * share)}% of this` : ''}${window ? ` · ${fmt(window)} over ${days || 30} days` : ''}</span></div></div><div class="why">${text}</div></div>`
+  : `<div class="savings ok"><div class="why">${ok}</div></div>`;
+// flagged (high and medium waste) items of a tools view: what they cost in the sessions that did not act on them
+const toolSavings = (rows, sessions, days) => {
+  const live = rows.filter(r => !r.off), flagged = live.filter(r => r.waste === 'high' || r.waste === 'medium'), cost = live.reduce((a, r) => a + r.perSession, 0);
+  const per = flagged.reduce((a, r) => a + (r.wasted || 0), 0), n = l => flagged.filter(r => r.waste === l).length;
+  return savingsCard({ perSession: per, share: cost ? per / cost : null, window: per * sessions, days, text: `${n('high')} high and ${n('medium')} medium waste: acted on in under half the sessions, and costly in the rest. Switching them off saves this at most; a session that needed one could turn it back on (skills still run as /name).`, ok: 'Nothing here is both rarely acted on and costly.' });
+};
 const savingsLine = iv => {
   const sv = iv.savings; if (!sv) return '';
   const n = l => iv.sections.filter(s => s.waste === l).length;
-  return sv.sections ? `<div class="savings"><div><div class="kicker">Potential savings, at most</div><div class="tr-num">${fmt(sv.perSession)} <span class="muted">input tokens a session · ${Math.round(100 * sv.share)}% of the file's cost · ${fmt(sv.window)} over ${CTX?.days || 30} days</span></div></div><div class="why">${n('high')} high and ${n('medium')} medium waste sections: relevant to under half the sessions, and costly in the rest. This is what removing or compressing them would save at most; a session that needed one would go without it.</div></div>`
-    : `<div class="savings ok"><div class="why">No section is both rarely used and costly.</div></div>`;
+  return savingsCard({ perSession: sv.perSession, share: sv.share, window: sv.window, days: CTX?.days, text: `${n('high')} high and ${n('medium')} medium waste sections: acted on in under half the sessions, and costly in the rest. Removing or compressing them saves this at most; a session that needed one would go without it.`, ok: 'No section is both rarely acted on and costly.' });
 };
 // a section's heading and its first two lines of text
 const short = text => { const lines = String(text).trim().split('\n'), head = /^#{1,4} /.test(lines[0]) ? [lines.shift()] : []; return [...head, ...lines.filter(l => l.trim()).slice(0, 2)].join('\n'); };
-let KSORT = 'wasted';
+
 // a skill file's description (from its front matter) and its first lines, as the card shows it
 const skillShort = text => {
   const fm = String(text).match(/^---\n([\s\S]*?)\n---\n?/), desc = fm ? (fm[1].match(/^description:\s*["']?([\s\S]*?)["']?\s*(?:\n\w+:|$)/m) || [])[1] : null;
@@ -831,57 +775,81 @@ function renderSkills(v) {
   const doc = $('#k-doc'); if (!doc) return;
   const rows = [...v.skills];
   const desc = k => (a, b) => (b[k] ?? -1) - (a[k] ?? -1) || b.perSession - a.perSession;
-  if (KSORT === 'used') rows.sort(desc('usedShare')); else if (KSORT === 'wasted') rows.sort(desc('wasted')); else rows.sort((a, b) => a.name.localeCompare(b.name));
+  rows.splice(0, rows.length, ...sortRows(rows, VSORT.custom));
   const maxCost = Math.max(1, ...rows.map(s => s.perSession)), total = rows.reduce((a, s) => a + (s.off ? 0 : s.perSession), 0);
   const who = s => ({ codex: 'Codex · ', cursor: 'Cursor · ' })[s.client] || '';
   doc.innerHTML = rows.map(s => {
     const [wcls, wlabel] = s.off ? ['off', 'Off'] : WASTE_PILL[s.waste] || WASTE_PILL.unknown, k = skillShort(s.text), o = s.outcome;
-    return `<div class="md-row waste-${s.off ? 'unknown' : s.waste || 'unknown'}">
+    return `<div class="md-row selectable waste-${s.off ? 'unknown' : s.waste || 'unknown'}">
+      ${pickBox('custom', `${s.repo || ''}\t${s.client}:${s.key}`, { repo: s.repo || (v.all ? null : CREPO), label: s.label, key: s.key, name: s.name }, { disabled: s.label || s.off ? '' : 'no setting switches this one off' })}
       <div class="md-sec"><div class="md-body"><div class="md-parent">${esc(who(s) + (s.repos > 1 ? `${s.repos} repositories · ` : '') + (s.scope || 'skill'))}</div><div class="md-h md-h3">${esc(s.name)}</div>${k.desc ? `<p class="muted">${esc(k.desc)}</p>` : ''}<div class="md-short">${md(short(k.body))}</div><div class="md-full">${md(k.body)}</div></div>${k.body && short(k.body) !== k.body ? '<button class="btn text md-more">Show all</button>' : ''}</div>
       <aside class="md-ann">
         <div class="ann-cost"><div class="cost${s.off ? ' off' : ''}"><i style="--w:${100 * s.perSession / maxCost}%"></i>${fmt(s.perSession)}</div><div class="why">input tokens a session · ${fmt(s.tokens)} tokens listed · ${total ? Math.round(100 * s.perSession / total) : 0}% of the skills</div></div>
-        <div class="ann-m"><span class="ann-k">Read in</span> ${s.used}/${s.loaded}</div>
+        <div class="ann-m"><span class="ann-k" title="sessions that opened the skill">Acted on</span> ${s.used}/${s.loaded}</div>
         <div class="ann-m"><span class="ann-k">Wasted</span> ${s.off ? '–' : fmt(s.wasted)}</div>
         <div class="ann-m"><span class="ann-k" title="checked sessions that read it and kept its rules">Rules kept</span> ${o?.read ? `${o.read - Math.min(o.read, o.brokenAfterRead)}/${o.read}` : '<span class="muted">–</span>'}</div>
         <div class="ann-m"><span class="ann-k" title="checked sessions that broke its rules without reading it">Missed</span> ${o?.missed || '<span class="muted">–</span>'}</div>
-        <div class="ann-foot"><span class="pill ${wcls}">${wlabel}${!s.off && (s.waste === 'high' || s.waste === 'medium') ? ` · ${fmt(s.wasted)}` : ''}</span>${v.harnessOn && s.label && !s.off ? `<label class="switch" title="on: listed in every session"><input type="checkbox" data-off="${esc(s.label)}" checked><span></span>Listed</label>` : ''}</div>
+        <div class="ann-foot"><span class="pill ${wcls}">${wlabel}${!s.off && (s.waste === 'high' || s.waste === 'medium') ? ` · ${fmt(s.wasted)}` : ''}</span></div>
       </aside></div>`;
   }).join('');
   doc.querySelectorAll('.md-sec').forEach(sec => { const more = sec.querySelector('.md-more'); if (more) more.onclick = () => { const open = sec.classList.toggle('open'); more.textContent = open ? 'Show less' : 'Show all'; }; });
-  doc.querySelectorAll('[data-off]').forEach(c => c.onchange = () => c.closest('.md-row').classList.toggle('md-off', !c.checked));
+  wirePicks(doc);
 }
-let CSEL = new Set();
+// what is picked in each view, and what each view's Actions menu does with it
+const PICKS = { instructions: new Map(), custom: new Map(), builtin: new Map(), outputs: new Map() };
+const SWITCH = [['off', 'Switch off', 'for this repository, from the next session (turns the harness on here)'], ['on', 'Turn back on', 'what thinker switched off']];
+const ACTIONS = {
+  instructions: [['compress', 'Compress', 'a model rewrites them to a third, keeping the rules'], ['remove', 'Remove', 'take them out of the file']],
+  custom: SWITCH, builtin: SWITCH,
+  outputs: [['high', 'High compression', 'keep the least: a narrow window round search hits, one hit a file, long output cut to ~1k tokens'], ['moderate', 'Moderate compression', 'trim whole-file reads, test runs and big searches; long output cut to ~3k tokens'], ['off', 'No compression', 'results reach the agent whole']],
+};
+const pickBox = (view, k, data, { disabled = '' } = {}) => `<label class="row-sel"${disabled ? ` title="${esc(disabled)}"` : ' title="select for Actions"'}><input type="checkbox" data-pick="${view}" data-k="${esc(k)}" data-d="${esc(JSON.stringify(data))}"${disabled ? ' disabled' : PICKS[view].has(k) ? ' checked' : ''}></label>`;
+// each view's sort, and its header: title on the left, sorting in the middle, the count and Actions on the right
+const VSORT = { instructions: 'wasted', custom: 'wasted', builtin: 'wasted', outputs: 'cost' };
+const viewHead = (view, kicker, title, sorts) => `<div class="view-head"><div><div class="kicker">${kicker}</div><div class="section-title">${title}</div></div><div class="view-act"><span class="why" data-seln="${view}"></span>${sorts ? `<label class="sort-sel"><span class="why">Sort</span><select class="sel" data-vsort="${view}" aria-label="Sort">${sorts.map(([k, name]) => `<option value="${k}"${VSORT[view] === k ? ' selected' : ''}>${name}</option>`).join('')}</select></label>` : ''}<button class="btn btn-lg" data-menu="${view}" aria-haspopup="menu" aria-expanded="false">Actions <span aria-hidden="true">▾</span></button></div></div>`;
+// one ordering for every kind of card: most wasted, most used, or by name (outputs: most costly, most calls)
+const sortRows = (rows, by) => [...rows].sort(by === 'name' ? (a, b) => a.name.localeCompare(b.name) : by === 'used' ? (a, b) => (b.usedShare ?? -1) - (a.usedShare ?? -1) || b.perSession - a.perSession : by === 'calls' ? (a, b) => b.calls - a.calls : by === 'cost' ? (a, b) => b.perSession - a.perSession : (a, b) => (b.wasted ?? -1) - (a.wasted ?? -1) || b.perSession - a.perSession);
+const toolbar = view => `<div class="doc-toolbar"><span class="why" data-seln="${view}"></span><button class="btn btn-lg" data-menu="${view}" aria-haspopup="menu" aria-expanded="false">Actions <span aria-hidden="true">▾</span></button></div>`;
 const BULK_MENU = (() => {
   const m = document.createElement('div'); m.className = 'menu'; m.setAttribute('role', 'menu'); m.hidden = true;
-  m.innerHTML = `<button role="menuitem" data-bulk="compress"><b>Compress</b><span>a model rewrites them to a third, keeping the rules</span></button><button role="menuitem" data-bulk="remove"><b>Remove</b><span>take them out of the file</span></button><div class="menu-note" hidden>Select sections first: the boxes on the left of each card.</div>`;
   document.body.appendChild(m);
-  m.querySelectorAll('[data-bulk]').forEach(b => b.onclick = () => { closeBulkMenu(); bulkEdit(b.dataset.bulk); });
-  document.addEventListener('click', e => { if (!m.hidden && !m.contains(e.target)) closeBulkMenu(); });
+  document.addEventListener('click', e => { if (!m.hidden && !m.contains(e.target) && !e.target.closest('[data-menu]')) closeBulkMenu(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeBulkMenu(); });
   // it stays under its button when the page scrolls
-  const follow = () => { const b = document.querySelector('#bulk-menu-btn'); if (!m.hidden && b) place(m, b); };
+  const follow = () => { if (!m.hidden && m._btn) place(m, m._btn); };
   window.addEventListener('scroll', follow, { passive: true }); window.addEventListener('resize', follow);
   return m;
 })();
 function place(menu, btn) { const r = btn.getBoundingClientRect(); menu.style.top = `${r.bottom + 6}px`; menu.style.left = `${Math.max(8, r.right - menu.offsetWidth)}px`; }
 function openBulkMenu(btn) {
-  const n = CSEL.size;
-  BULK_MENU.querySelectorAll('[data-bulk]').forEach(b => b.disabled = !n);
-  BULK_MENU.querySelector('.menu-note').hidden = !!n;
-  BULK_MENU.hidden = false;
-  place(BULK_MENU, btn);
-  btn.setAttribute('aria-expanded', 'true');
+  const view = btn.dataset.menu, n = PICKS[view].size;
+  BULK_MENU.innerHTML = ACTIONS[view].map(([k, name, sub]) => `<button role="menuitem" data-act="${k}"${n ? '' : ' disabled'}><b>${name}</b><span>${sub}</span></button>`).join('') + (n ? '' : `<div class="menu-note">Select ${view === 'instructions' ? 'sections' : 'items'} first: the boxes on the left of each card.</div>`);
+  BULK_MENU.querySelectorAll('[data-act]').forEach(b => b.onclick = () => { closeBulkMenu(); runAction(view, b.dataset.act); });
+  BULK_MENU.hidden = false; BULK_MENU._btn = btn; place(BULK_MENU, btn); btn.setAttribute('aria-expanded', 'true');
 }
-function closeBulkMenu() { BULK_MENU.hidden = true; document.querySelector('#bulk-menu-btn')?.setAttribute('aria-expanded', 'false'); }
+function closeBulkMenu() { BULK_MENU.hidden = true; BULK_MENU._btn?.setAttribute('aria-expanded', 'false'); }
 function bulkState() {
-  const n = CSEL.size, lab = $('#sel-n'); if (!lab) return;
-  lab.textContent = n ? `${n} selected` : '';
-
+  for (const [view, m] of Object.entries(PICKS)) document.querySelectorAll(`[data-seln="${view}"]`).forEach(l => l.textContent = m.size ? `${m.size} selected` : '');
+}
+// the picked items by repository; in All repositories a merged tool applies to every repository
+const byRepo = view => { const out = new Map(); for (const d of PICKS[view].values()) for (const repo of d.repo ? [d.repo] : (CTX?.repos || []).map(r => r.repo)) { if (!out.has(repo)) out.set(repo, []); out.get(repo).push(d); } return out; };
+async function runAction(view, act) {
+  if (view === 'instructions') return bulkEdit(act);
+  try {
+    const said = [];
+    for (const [repo, ds] of byRepo(view)) {
+      const r = view === 'outputs' ? await api('/api/context/compression', { repo, tools: ds.map(d => d.name), level: act })
+        : await api('/api/context/switch', act === 'on' ? { repo, keys: ds.map(d => d.key), on: true } : { repo, labels: ds.map(d => d.label).filter(Boolean), builtin: view === 'builtin' });
+      if (r.said) said.push(r.said);
+    }
+    toast(said[0] || 'Saved'); PICKS[view].clear(); loadContext();
+  } catch (err) { toast(err.message, true); }
 }
 // the picked sections' change, previewed per repository (one call each), then applied together
 async function bulkEdit(action) {
-  const box = $('#bulk-preview'), byRepo = new Map();
-  for (const k of CSEL) { const [repo, id] = k.split('\t'); if (!byRepo.has(repo)) byRepo.set(repo, []); byRepo.get(repo).push(id); }
+  const box = $('#bulk-preview');
+  const byRepo = new Map(), CSEL = PICKS.instructions;
+  for (const d of CSEL.values()) { if (!byRepo.has(d.repo)) byRepo.set(d.repo, []); byRepo.get(d.repo).push(d.id); }
   box.hidden = false; box.scrollIntoView({ block: 'nearest' });
   box.innerHTML = `<div class="md-preview"><div class="why"><span class="spinner"></span>${action === 'compress' ? `Asking a model to compress ${CSEL.size} section${CSEL.size === 1 ? '' : 's'}…` : 'Working out the change…'}</div></div>`;
   try {
@@ -895,17 +863,21 @@ async function bulkEdit(action) {
     box.querySelector('[data-cancel]').onclick = () => { box.hidden = true; box.innerHTML = ''; };
     box.querySelector('[data-apply]').onclick = async e => {
       e.target.disabled = true;
-      try { for (const { repo, p } of previews) await api('/api/context/apply', { repo, id: p.key }); toast(`${action === 'compress' ? 'Compressed' : 'Removed'} ${CSEL.size} section${CSEL.size === 1 ? '' : 's'}: review with git diff`); CSEL.clear(); loadContext(); }
+      try { for (const { repo, p } of previews) await api('/api/context/apply', { repo, id: p.key }); toast(`${action === 'compress' ? 'Compressed' : 'Removed'} ${CSEL.size} section${CSEL.size === 1 ? '' : 's'}: review with git diff`); PICKS.instructions.clear(); loadContext(); }
       catch (err) { toast(err.message, true); e.target.disabled = false; }
     };
   } catch (err) { box.innerHTML = `<div class="md-preview"><div class="why">Could not make the change: ${esc(err.message)}</div></div>`; }
+}
+function wirePicks(root) {
+  root.querySelectorAll('[data-pick]').forEach(c => { c.onchange = () => { const m = PICKS[c.dataset.pick]; c.checked ? m.set(c.dataset.k, JSON.parse(c.dataset.d)) : m.delete(c.dataset.k); c.closest('.md-row').classList.toggle('picked', c.checked); bulkState(); }; if (c.checked) c.closest('.md-row').classList.add('picked'); });
+  bulkState();
 }
 function renderDoc(iv) {
   const doc = $('#md-doc'); if (!doc) return;
   const kept = new Set([...doc.querySelectorAll('[data-keep]')].filter(c => !c.checked).map(c => c.dataset.keep));
   const rows = [...iv.sections];
   const desc = k => (a, b) => (b[k] ?? -1) - (a[k] ?? -1) || b.perSession - a.perSession;
-  if (CSORT === 'used') rows.sort(desc('usedShare')); else if (CSORT === 'wasted') rows.sort(desc('wasted'));
+  if (VSORT.instructions === 'used') rows.sort(desc('usedShare')); else if (VSORT.instructions === 'wasted') rows.sort(desc('wasted'));
   const maxCost = Math.max(1, ...rows.map(s => s.perSession));
   doc.innerHTML = rows.map(s => {
     const key = s.parent ? `${s.parent}: ${s.title}` : s.title, [cls, label] = VALUE_PILL[s.value] || VALUE_PILL.unknown;
@@ -913,21 +885,17 @@ function renderDoc(iv) {
     const off = iv.coreOn && !s.kept;
     const [wcls, wlabel] = WASTE_PILL[s.waste] || WASTE_PILL.unknown;
     return `<div class="md-row selectable waste-${s.waste || 'unknown'}${off ? ' md-off' : ''}">
-      <label class="row-sel" title="select this section for Compress or Remove"><input type="checkbox" data-sel="${esc(s.id)}" data-repo="${esc(s.repo || CREPO)}"${CSEL.has(`${s.repo || CREPO}\t${s.id}`) ? ' checked' : ''}></label>
+      ${pickBox('instructions', `${s.repo || CREPO}\t${s.id}`, { repo: s.repo || CREPO, id: s.id })}
       <div class="md-sec"><div class="md-body">${s.repoName || s.parent ? `<div class="md-parent">${[s.repoName, s.parent].filter(Boolean).map(esc).join(' · ')}</div>` : ''}<div class="md-short">${md(short(s.text))}</div><div class="md-full">${md(s.text)}</div></div>${short(s.text) !== s.text.trim() ? '<button class="btn text md-more">Show all</button>' : ''}</div>
       <aside class="md-ann">
         <div class="ann-cost"><div class="cost"><i style="--w:${100 * s.perSession / maxCost}%"></i>${fmt(s.perSession)}</div><div class="why">input tokens a session · ${fmt(s.tokens)} tokens · ${Math.round(100 * s.perSession / Math.max(1, iv.sections.reduce((a, x) => a + x.perSession, 0)))}% of the file</div></div>
-        <div class="ann-m"><span class="ann-k">Used</span> ${s.usedShare == null ? '<span class="muted">–</span>' : `${Math.round(100 * s.usedShare)}%`}</div>
+        <div class="ann-m"><span class="ann-k" title="${s.usedBy === 'judge' ? 'judged sessions whose agent followed it' : 'sessions that touched its files, commands or code (until five are judged)'}">Acted on</span> ${s.usedShare == null ? '<span class="muted">–</span>' : `${Math.round(100 * s.usedShare)}%${s.usedBy === 'judge' ? '' : ' <span class="muted">by triggers</span>'}`}</div>
         <div class="ann-m"><span class="ann-k">Wasted</span> ${s.wasted != null ? fmt(s.wasted) : '<span class="muted">–</span>'}</div>
-        <div class="ann-m"><span class="ann-k" title="judged sessions this section was relevant to">Relevant</span> ${s.judged ? `${s.bore}/${s.judged}` : '<span class="muted">–</span>'}</div>
-        <div class="ann-m"><span class="ann-k" title="of the judged sessions that followed or broke it, how many followed it">Followed</span> ${s.followed + s.violated ? `${s.followed}/${s.followed + s.violated}${s.violated ? ` <span class="pill bad">${s.violated} broke</span>` : ''}` : '<span class="muted">–</span>'}</div>
         <div class="ann-foot"><span class="pill ${wcls}" title="${s.waste === 'high' || s.waste === 'medium' ? `about ${fmt(s.wasted)} input tokens a session spent on it in sessions it was not relevant to` : ''}">${wlabel}${s.waste === 'high' || s.waste === 'medium' ? ` · ${fmt(s.wasted)}` : ''}</span></div>
       </aside></div>`;
   }).join('');
   // a section is picked with its box; Compress and Remove at the top act on every picked section (instruction-edit.js)
-  doc.querySelectorAll('[data-sel]').forEach(c => c.onchange = () => { const k = `${c.dataset.repo}\t${c.dataset.sel}`; c.checked ? CSEL.add(k) : CSEL.delete(k); c.closest('.md-row').classList.toggle('picked', c.checked); bulkState(); });
-  doc.querySelectorAll('[data-sel]:checked').forEach(c => c.closest('.md-row').classList.add('picked'));
-  bulkState();
+  wirePicks(doc);
   // a section shows its heading and first two lines; Show all opens the rest
   doc.querySelectorAll('.md-sec').forEach(sec => { const more = sec.querySelector('.md-more'); if (more) more.onclick = () => { const open = sec.classList.toggle('open'); more.textContent = open ? 'Show less' : 'Show all'; }; });
 }
@@ -940,13 +908,12 @@ function renderContext(v) {
   let h = `<div class="panel"><div class="tr-stats" id="tr-legend"></div><div id="trend"></div></div>`;
   // one part at a time under the chart: its cards, each annotated with what it costs and how much it was of use
   const VIEWS = [['instructions', 'Instruction files'], ['custom', 'Custom tools'], ['builtin', 'Built-in tools'], ['outputs', 'Tool outputs']];
-  h += `<div class="view-switch"><div class="seg" id="c-view">${VIEWS.map(([k, name]) => `<button data-view="${k}"${CVIEW === k ? ' class="on"' : ''}>${name} <span class="muted">${fmt(t[k]?.perSession || 0)}</span></button>`).join('')}</div><span class="why">input tokens a session</span></div>`;
+  h += `<div class="vtabs" id="c-view" role="tablist">${VIEWS.map(([k, name]) => `<button role="tab" data-view="${k}" aria-selected="${CVIEW === k}"${CVIEW === k ? ' class="on"' : ''}><span class="vt-name">${name}</span><span class="vt-num">${fmt(t[k]?.perSession || 0)} <span>a session</span></span></button>`).join('')}</div>`;
   h += `<div class="cview" data-view="instructions"${CVIEW === 'instructions' ? '' : ' hidden'}>`;
-  h += `<div class="section"><div class="section-head"><div><div class="kicker">${esc(iv.file || 'No instruction file')}</div><div class="section-title">Instruction files, section by section</div></div>${iv.file ? `<div class="seg" id="c-sort"><button data-sort="file"${CSORT === 'file' ? ' class="on"' : ''}>File order</button><button data-sort="used"${CSORT === 'used' ? ' class="on"' : ''}>Most used</button><button data-sort="wasted"${CSORT === 'wasted' ? ' class="on"' : ''}>Most wasted</button></div>` : ''}</div><div class="panel">`;
+  h += viewHead('instructions', esc(iv.file || 'No instruction file'), 'Instruction files, section by section', iv.file ? [['file', 'File order'], ['used', 'Most acted on'], ['wasted', 'Most wasted']] : null) + (iv.file ? savingsLine(iv) : '') + `<div class="section"><div class="panel">`;
   if (!iv.file) h += `<div class="note-line" style="margin-top:0">No AGENTS.md or CLAUDE.md in this repository.</div>`;
-  else h += `<div class="note-line" style="margin-top:0">${iv.sessions} sessions read it over ${v.days} days, each reading it again on every model call; ${iv.judged} judged${iv.judge.judge ? `, and a ${Math.round(100 * iv.judge.share)}% sample is judged as sessions end` : ''}. <b>Used</b> is the share of sessions a model judged the section relevant to, once five are judged, and until then the share that touched its files, commands or code (broad for a section about a common path). <b>Wasted</b> is its cost in the sessions it was not used.</div>
-    ${savingsLine(iv)}
-    <div class="doc-toolbar"><span class="why" id="sel-n"></span><button class="btn btn-lg" id="bulk-menu-btn" aria-haspopup="menu" aria-expanded="false">Actions <span aria-hidden="true">▾</span></button></div>
+  else h += `<div class="note-line" style="margin-top:0">${iv.sessions} sessions read it over ${v.days} days, each reading it again on every model call; ${iv.judged} judged${iv.judge.judge ? `, and a ${Math.round(100 * iv.judge.share)}% sample is judged as sessions end` : ''}. <b>Acted on</b> is the share of judged sessions whose agent followed the section, once five are judged, and until then the share that touched its files, commands or code (broad for a section about a common path). <b>Wasted</b> is its cost in the sessions that did not act on it.</div>
+
     <div id="bulk-preview" hidden></div>
     <div id="md-doc"></div>
     <div class="note-line">Compress has a model rewrite a section shorter, keeping its rules, commands and paths; Remove takes it out. Each shows the diff first, and Apply writes it to the file in your working tree, uncommitted, for you to review and commit.</div>
@@ -962,39 +929,43 @@ function renderContext(v) {
     : v.all ? '' : `<div class="note-line">Switching skills and tools off for this repository needs the harness: <code>thinker harness --enabled on</code>.</div>`;
   const KIND = { mcp: 'MCP server', connector: 'connector', plugin: 'plugin', tool: 'built-in tool', desktop: 'desktop app' };
   // a card for a tool: its description beside its cost, its use and its waste, with its switch where the harness is on
-  const toolCards = (rows, total) => { const mx = top(rows); return [...rows].sort((a, b) => (b.wasted ?? -1) - (a.wasted ?? -1) || b.perSession - a.perSession).map(s => {
+  const toolCards = (rows, total, view) => { const mx = top(rows); return sortRows(rows, VSORT[view]).map(s => {
     const [wcls, wlabel] = s.off ? ['off', 'Off'] : WASTE_PILL[s.waste] || WASTE_PILL.unknown;
-    return `<div class="md-row waste-${s.off ? 'unknown' : s.waste || 'unknown'}"><div class="md-sec"><div class="md-body"><div class="md-parent">${esc([who(s).replace(/: $/, ''), KIND[s.kind] || s.kind, s.scope, s.repos > 1 ? `${s.repos} repositories` : ''].filter(Boolean).join(' · '))}</div><div class="md-h md-h3">${esc(s.name)}</div>${s.text ? `<div class="md-short"><p class="muted">${esc(short(s.text).replace(/\n/g, ' ').slice(0, 280))}</p></div><div class="md-full"><pre class="md-pre" style="white-space:pre-wrap">${esc(s.text)}</pre></div>` : '<p class="muted">No description recorded.</p>'}</div>${s.text && s.text.length > 280 ? '<button class="btn text md-more">Show all</button>' : ''}</div>
+    const view = s.group === 'builtin' ? 'builtin' : 'custom';
+    return `<div class="md-row selectable waste-${s.off ? 'unknown' : s.waste || 'unknown'}">${pickBox(view, `${s.repo || ''}\t${s.client}:${s.key}`, { repo: s.repo || (v.all ? null : CREPO), label: s.label, key: s.key, name: s.name }, { disabled: s.label || s.off ? '' : 'no setting switches this one off' })}<div class="md-sec"><div class="md-body"><div class="md-parent">${esc([who(s).replace(/: $/, ''), KIND[s.kind] || s.kind, s.scope, s.repos > 1 ? `${s.repos} repositories` : ''].filter(Boolean).join(' · '))}</div><div class="md-h md-h3">${esc(s.name)}</div>${s.text ? `<div class="md-short"><p class="muted">${esc(short(s.text).replace(/\n/g, ' ').slice(0, 280))}</p></div><div class="md-full"><pre class="md-pre" style="white-space:pre-wrap">${esc(s.text)}</pre></div>` : '<p class="muted">No description recorded.</p>'}</div>${s.text && s.text.length > 280 ? '<button class="btn text md-more">Show all</button>' : ''}</div>
       <aside class="md-ann"><div class="ann-cost"><div class="cost${s.off ? ' off' : ''}"><i style="--w:${100 * s.perSession / mx}%"></i>${fmt(s.perSession)}</div><div class="why">input tokens a session · ${fmt(s.tokens)} tokens · ${total ? Math.round(100 * s.perSession / total) : 0}% of these</div></div>
-        <div class="ann-m"><span class="ann-k">Used in</span> ${s.used}/${s.loaded}</div><div class="ann-m"><span class="ann-k">Wasted</span> ${s.off || s.wasted == null ? '–' : fmt(s.wasted)}</div>
-        <div class="ann-foot"><span class="pill ${wcls}">${wlabel}${!s.off && (s.waste === 'high' || s.waste === 'medium') ? ` · ${fmt(s.wasted)}` : ''}</span>${sw(s).replace('</label>', 'Loaded</label>')}</div></aside></div>`; }).join(''); };
+        <div class="ann-m"><span class="ann-k" title="sessions that called it">Acted on</span> ${s.used}/${s.loaded}</div><div class="ann-m"><span class="ann-k">Wasted</span> ${s.off || s.wasted == null ? '–' : fmt(s.wasted)}</div>
+        <div class="ann-foot"><span class="pill ${wcls}">${wlabel}${!s.off && (s.waste === 'high' || s.waste === 'medium') ? ` · ${fmt(s.wasted)}` : ''}</span></div></aside></div>`; }).join(''); };
   const section = (kicker, title, body) => `<div class="section"><div class="section-head"><div><div class="kicker">${kicker}</div><div class="section-title">${title}</div></div></div><div class="panel">${body}</div></div>`;
   // custom tools: skills (renderSkills), then MCP servers and plugins
   const custom = v.tools.filter(s => s.group !== 'builtin');
-  h += `<div class="cview" data-view="custom"${CVIEW === 'custom' ? '' : ' hidden'}>`;
-  if (v.skills.length) h += `<div class="section"><div class="section-head"><div><div class="kicker">Listed in every session</div><div class="section-title">Skills</div></div><div class="seg" id="k-sort"><button data-sort="name"${KSORT === 'name' ? ' class="on"' : ''}>By name</button><button data-sort="used"${KSORT === 'used' ? ' class="on"' : ''}>Most used</button><button data-sort="wasted"${KSORT === 'wasted' ? ' class="on"' : ''}>Most wasted</button></div></div><div class="panel"><div class="note-line" style="margin-top:0">Every skill's name and description sit in every session's context; the agent reads the file itself only when it opens the skill. <b>Read in</b> counts the sessions that opened it; <b>Rules kept</b> and <b>Missed</b> come from the sampled outcome check (<code>harness.skillOutcome</code>).</div><div id="k-doc"></div></div></div>`;
-  if (custom.length) h += section('Loaded into every session', 'MCP servers and plugins', toolCards(custom, custom.reduce((a, x) => a + (x.off ? 0 : x.perSession), 0)));
-  h += harnessControls + `</div>`;
+  h += `<div class="cview" data-view="custom"${CVIEW === 'custom' ? '' : ' hidden'}>` + viewHead('custom', 'Loaded into every session', 'Custom tools', [['name', 'By name'], ['used', 'Most acted on'], ['wasted', 'Most wasted']]) + toolSavings([...v.skills, ...custom], v.sessions, v.days);
+  h += `<div class="section"><div class="panel"><div class="note-line" style="margin-top:0">Every skill's name and description sit in every session's context; the agent reads the file itself only when it opens the skill. <b>Acted on</b> counts the sessions that opened it; <b>Rules kept</b> and <b>Missed</b> come from the sampled outcome check (<code>harness.skillOutcome</code>).</div><div id="k-doc"></div>${custom.length ? toolCards(custom, custom.reduce((a, x) => a + (x.off ? 0 : x.perSession), 0), 'custom') : ''}</div></div>`;
+  h += `</div>`;
   // built-in tools
   const builtin = v.tools.filter(s => s.group === 'builtin');
-  h += `<div class="cview" data-view="builtin"${CVIEW === 'builtin' ? '' : ' hidden'}>` + (builtin.length ? section('Loaded into every session', 'Built-in tools', toolCards(builtin, t.builtin?.perSession || 0)) : '<div class="empty">No built-in tools recorded.</div>') + harnessControls + `</div>`;
+  h += `<div class="cview" data-view="builtin"${CVIEW === 'builtin' ? '' : ' hidden'}>` + viewHead('builtin', 'Loaded into every session', 'Built-in tools', [['name', 'By name'], ['used', 'Most acted on'], ['wasted', 'Most wasted']]) + toolSavings(builtin, v.sessions, v.days) + (builtin.length ? `<div class="section"><div class="panel">${toolCards(builtin, t.builtin?.perSession || 0, 'builtin')}</div></div>` : '<div class="empty">No built-in tools recorded.</div>') + `</div>`;
   // tool outputs: each tool's results, read again by every later model call (tool-outputs.js; an estimate)
   const outs = v.outputs?.tools || [], mxo = top(outs), totO = t.outputs?.perSession || 0;
-  h += `<div class="cview" data-view="outputs"${CVIEW === 'outputs' ? '' : ' hidden'}>` + section('Kept in the conversation', 'Tool outputs', `<div class="note-line" style="margin-top:0">A tool's output stays in the conversation and every later model call reads it again: its tokens × the model calls left after it, estimated from the transcripts (compactions not counted).</div>` + outs.slice(0, 40).map(s => `<div class="md-row"><div class="md-sec"><div class="md-body"><div class="md-parent">${s.name.startsWith('mcp:') ? 'MCP server' : 'tool'}${s.repos > 1 ? ` · ${s.repos} repositories` : ''}</div><div class="md-h md-h3">${esc(s.name.replace(/^mcp:/, ''))}</div><p class="muted">${fmt(s.tokens)} tokens of output a session, about ${fmt(s.perCall)} a call.</p></div></div>
+  h += `<div class="cview" data-view="outputs"${CVIEW === 'outputs' ? '' : ' hidden'}>` + viewHead('outputs', 'Kept in the conversation', 'Tool outputs', [['name', 'By name'], ['calls', 'Most calls'], ['cost', 'Most costly']]) + (() => {
+    // what the compression caps alone would have cut from these sessions' outputs (tool-outputs.js); the other trims add to it
+    const hi = outs.reduce((a, o) => a + (o.saveHigh || 0), 0), mo = outs.reduce((a, o) => a + (o.saveModerate || 0), 0);
+    return savingsCard({ kicker: 'Potential savings, at least', perSession: hi, share: totO ? hi / totO : null, window: hi * (v.outputs.sessions || 0), days: v.days, text: `With high compression on every Bash command and Read; moderate would save at least ${fmt(mo)} a session. Counted from your transcripts as the part of each output past the level's length cap, read again by the calls after it; trimming file reads and search results round what the agent looked for saves more. Claude Code only.`, ok: 'No output here is long enough for the caps to cut.' });
+  })() + `<div class="section"><div class="panel"><div class="note-line" style="margin-top:0">A tool's output stays in the conversation and every later model call reads it again: its tokens × the model calls left after it, estimated from the transcripts (compactions not counted).</div>` + sortRows(outs, VSORT.outputs).slice(0, 40).map(s => `<div class="md-row selectable">${pickBox('outputs', `${s.repo || ''}\t${s.name}`, { repo: s.repo || (v.all ? null : CREPO), name: s.name }, { disabled: s.compressible ? '' : 'thinker cannot compress this one yet (Bash commands and Read, in Claude Code)' })}<div class="md-sec"><div class="md-body"><div class="md-parent">${s.name.startsWith('mcp:') ? 'MCP server' : s.name.startsWith('Bash:') ? 'Bash command' : 'tool'}${s.repos > 1 ? ` · ${s.repos} repositories` : ''}</div><div class="md-h md-h3">${esc(s.name.replace(/^(mcp|Bash):/, ''))}</div><p class="muted">${fmt(s.tokens)} tokens of output a session, about ${fmt(s.perCall)} a call.</p></div></div>
       <aside class="md-ann"><div class="ann-cost"><div class="cost"><i style="--w:${100 * s.perSession / mxo}%"></i>${fmt(s.perSession)}</div><div class="why">input tokens a session · ${totO ? Math.round(100 * s.perSession / totO) : 0}% of tool outputs</div></div>
-        <div class="ann-m"><span class="ann-k">Calls</span> ${s.calls < 10 ? s.calls.toFixed(1) : Math.round(s.calls)} <span class="muted">a session</span></div><div class="ann-m"><span class="ann-k">Used in</span> ${s.usedIn}/${v.outputs.sessions}</div></aside></div>`).join('')) + `</div>`;
+        <div class="ann-m"><span class="ann-k">Calls</span> ${s.calls < 10 ? s.calls.toFixed(1) : Math.round(s.calls)} <span class="muted">a session</span></div><div class="ann-m"><span class="ann-k" title="sessions that called it">Called in</span> ${s.usedIn}/${v.outputs.sessions}</div>
+        <div class="ann-foot">${s.compression ? `<span class="pill ${s.compression === 'high' ? 'fixed' : 'ok'}">${s.compression === 'high' ? 'High' : 'Moderate'} compression</span>` : s.compressible ? '<span class="pill off">Not compressed</span>' : '<span class="pill off">Can\'t compress yet</span>'}</div></aside></div>`).join('') + `</div></div></div>`;
   el.innerHTML = h;
-  el.querySelectorAll('#c-view button').forEach(b => b.onclick = () => { CVIEW = b.dataset.view; segOn('#c-view', b); el.querySelectorAll('.cview').forEach(x => x.hidden = x.dataset.view !== CVIEW); });
+  el.querySelectorAll('.cview[data-view="builtin"], .cview[data-view="outputs"], .cview[data-view="custom"]').forEach(wirePicks);
+  el.querySelectorAll('#c-view button').forEach(b => b.onclick = () => { CVIEW = b.dataset.view; el.querySelectorAll('#c-view button').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-selected', String(x === b)); }); el.querySelectorAll('.cview').forEach(x => x.hidden = x.dataset.view !== CVIEW); });
   el.querySelectorAll('.cview .md-sec').forEach(sec => { const more = sec.querySelector('.md-more'); if (more && !more.onclick) more.onclick = () => { const open = sec.classList.toggle('open'); more.textContent = open ? 'Show less' : 'Show all'; }; });
   renderTrend();
   if (iv.file) renderDoc(iv);
   renderSkills(v);
-  el.querySelectorAll('#k-sort button').forEach(b => b.onclick = () => { KSORT = b.dataset.sort; segOn('#k-sort', b); renderSkills(v); });
   // the Actions menu: a floating list under its button (on the body, so no panel clips it); a choice, a click
   // elsewhere or Escape closes it
-  const mb = $('#bulk-menu-btn');
-  if (mb) mb.onclick = e => { e.stopPropagation(); BULK_MENU.hidden ? openBulkMenu(mb) : closeBulkMenu(); };
-  el.querySelectorAll('#c-sort button').forEach(b => b.onclick = () => { CSORT = b.dataset.sort; segOn('#c-sort', b); renderDoc(iv); });
+  el.querySelectorAll('[data-menu]').forEach(mb => mb.onclick = e => { e.stopPropagation(); BULK_MENU.hidden || BULK_MENU._btn !== mb ? openBulkMenu(mb) : closeBulkMenu(); });
+  el.querySelectorAll('select[data-vsort]').forEach(sel => sel.onchange = () => { VSORT[sel.dataset.vsort] = sel.value; if (sel.dataset.vsort === 'instructions') renderDoc(iv); else { const y = scrollY; renderContext(CTX); scrollTo(0, y); } });
   const act = async (btn, p, body, msg) => { if (btn) btn.disabled = true; try { const r = await api(p, { repo: CREPO, ...body }); toast(msg || (r.said && !String(r.said).startsWith('{') ? r.said : 'Saved')); loadContext(); } catch (err) { toast(err.message, true); if (btn) btn.disabled = false; } };
   false && $('#c-keep')?.addEventListener('click', e => { const keep = [...el.querySelectorAll('[data-keep]:checked')].map(c => c.dataset.keep); if (!keep.length) return toast('Leave at least one section on', true); act(e.target, '/api/context/core', { keep }); });
   $('#c-whole')?.addEventListener('click', e => act(e.target, '/api/context/core', { keep: null }));
@@ -1048,7 +1019,8 @@ async function loadRepos() {
     await fetchRepos();
     // a warm-up still waiting for its repository's first cache file shows up as a card of its own
     const jobCards = JOBS.filter(j => ['queued', 'running'].includes(j.status) && !REPOS.some(r => r.checkout === j.checkout)).map(j => `<div class="rcard none"><div class="rtop"><div style="min-width:0"><div class="rname">${esc(j.name)}</div><div class="rpath mono">${esc(home(j.checkout))}</div></div></div><div class="rstats"></div><span class="pill">starting</span>${progress({ id: '', job: j })}</div>`);
-    const cards = REPOS.map(rcard).concat(jobCards);
+    loadUsage();
+    const cards = REPOS.filter(r => ALL() || r.id === REPO).map(rcard).concat(ALL() ? jobCards : []);
     $('#r-grid').innerHTML = cards.length ? cards.join('') : `<div class="empty" style="grid-column:1/-1">No caches yet. A cache starts with the first agent session in a git repository, or warm one up now.</div>`;
     wireGrid();
   } catch (e) { $('#r-grid').innerHTML = `<div class="empty" style="grid-column:1/-1">Could not read the caches: ${esc(e.message)}</div>`; }
@@ -1443,7 +1415,7 @@ function loadTools() {
 // first view: the tab the URL names, else usage; the warm-up page when nothing has a cache yet
 (async () => {
   let tab = H().get('tab');
-  if (!tab) { try { await fetchRepos(); tab = REPOS.length || skipped() ? 'usage' : 'warmup'; } catch { tab = 'usage'; } }
+  if (!tab) { try { await fetchRepos(); tab = REPOS.length || skipped() ? 'cache' : 'warmup'; } catch { tab = 'cache'; } }
   show(tab);
 })();
 </script>

@@ -177,9 +177,10 @@ test('CLI and page expose the shared Claude Code, Codex and Cursor harness repor
   assert.match(read('commands/harness.js'), /harnessUsage\(repo/);
   assert.match(read('ui/server.js'), /harnessView\(/);
   assert.match(read('cli.js'), /Claude Code, Codex and Cursor record loading/);
-  assert.match(read('ui/page.html'), /Recorded in Claude Code and Codex transcripts and Cursor's tool inventory/);
+  // the page switches tools off and back on from the Context tab (context-view.js:switchSources, as `thinker context --switch-off|--switch-on`)
+  assert.match(read('ui/page.html'), /\/api\/context\/switch', act === 'on' \? \{ repo, keys: ds\.map\(d => d\.key\), on: true \}/);
   assert.match(read('ui/page.html'), /cursor: 'Cursor: '/);
-  assert.match(read('ui/page.html'), /data-hundo="\$\{esc\(s.key \|\| s.name\)\}"/);
+  assert.match(read('commands/context.js'), /switchSources\(store, \{ keys: list\(flags\['switch-on'\]\), on: true \}\)/);
   assert.match(read('commands/hooks.js'), /harnessHere = \['claude', 'codex', 'cursor'\]\.includes\(client\)[\s\S]*harnessHere \? await harnessRecall/);
   assert.match(read('commands/hooks.js'), /snapshotCursorInventory\(/);
 });

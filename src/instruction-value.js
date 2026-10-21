@@ -273,7 +273,7 @@ export function instructionValue(store, { days = 30, sessions } = {}) {
       // a share of the sessions judged that the section bore on, and of those it decided, how many it was followed in
       bore, boreShare: judged.length ? bore / judged.length : null, success: decided ? v.followed / decided : null,
       value: valueOf({ sessions: recs.length, applied, triggered: s.triggered, judged: judged.length, bore, followed: v.followed, violated: v.violated }),
-      ...use({ sessions: recs.length, applied, triggered: s.triggered, judged: judged.length, bore }, s.tokens * Math.max(1, calls)),
+      ...use({ sessions: recs.length, applied, triggered: s.triggered, judged: judged.length, followed: v.followed }, s.tokens * Math.max(1, calls)),
       text: s.text,
     };
   });
@@ -290,11 +290,12 @@ export function instructionValue(store, { days = 30, sessions } = {}) {
   return { file: src.file, tokens: fileTokens, sessions: recs.length, judged: judged.length, calls, judge: valueConfig(store), sections: rows, timeline, savings };
 }
 
-// How much of the time a section was of use, and the tokens spent on it in the sessions it was not: from the judge's
-// verdicts once enough sessions are judged, else from its triggers (broad: a section about a common path applies
+// How often sessions acted on a section, and the tokens spent on it in the sessions that did not: from the judge's
+// verdicts (followed) once enough sessions are judged, else from its triggers (broad: a section about a common path applies
 // often), else unknown. `wasted` ranks the sections that cost most for least.
-export function use({ sessions, applied, triggered, judged, bore }, perSession) {
-  const [share, by] = judged >= RARE.minSessions ? [bore / judged, 'judge'] : triggered && sessions ? [applied / sessions, 'triggers'] : [null, null];
+// Acted on: the judged sessions whose agent followed the section (a verdict of followed), once enough are judged.
+export function use({ sessions, applied, triggered, judged, followed = 0 }, perSession) {
+  const [share, by] = judged >= RARE.minSessions ? [followed / judged, 'judge'] : triggered && sessions ? [applied / sessions, 'triggers'] : [null, null];
   return { usedShare: share, usedBy: by, wasted: share == null ? null : Math.round(perSession * (1 - share)) };
 }
 
