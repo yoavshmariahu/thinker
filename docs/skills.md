@@ -15,8 +15,9 @@ about. The card is ranked like any note, and tells the agent to invoke the skill
 instructions. Its dependencies are the skill file itself and the code the skill names, so the card
 goes stale when either changes.
 
-Maintenance cards new and changed skill files a few at a time (`skills` and `skillsPerRun` in
-`maintain` of `.thinker/config.json`); a build cards them all. By hand:
+A build cards them all, and maintenance cards new and changed skill files a few at a time where
+`maintain: { skills: true }` is set in `.thinker/config.json` (off by default since 2026-10-21;
+`skillsPerRun` sets how many a run). By hand:
 
 ```bash
 thinker skills                 # every skill with its state, evidence and issues

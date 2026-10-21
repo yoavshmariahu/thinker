@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { parse, stringify } from 'smol-toml';
 import { estTokens } from './rank.js';
+import { diskCache, cacheKey, cachedByFiles } from './disk-cache.js';
 
 // What one session loaded, by the kind of source (the Context tab's parts): tokens a model call. Keys are
 // `<kind>:<name>`, a plugin's skills and server already folded into `plugin:`.
@@ -34,7 +35,14 @@ export function codexHarnessConfig(repo, { home = os.homedir(), env = process.en
   return { servers, plugins, skills };
 }
 
+// Kept on this machine by the file's size and mtime, as the Claude reader's is (harness.js:sessionHarness).
+const HARNESS_CACHE = diskCache('session-harness', 1);
+const freeze = h => ({ ...h, loaded: [...h.loaded], used: [...h.used], texts: [...h.texts].map(([k, t]) => [k, String(t).slice(0, 4000)]), skillPaths: [...h.skillPaths], skillReads: [...h.skillReads], coverage: [...h.coverage] });
+const thaw = v => ({ ...v, loaded: new Map(v.loaded), used: new Set(v.used), texts: new Map(v.texts), skillPaths: new Map(v.skillPaths), skillReads: new Set(v.skillReads), coverage: new Set(v.coverage) });
 export function codexSessionHarness(file) {
+  return cachedByFiles(HARNESS_CACHE, cacheKey('codex', file), [file], () => readCodexSessionHarness(file), { freeze, thaw });
+}
+function readCodexSessionHarness(file) {
   const loaded = new Map(), used = new Set(), texts = new Map(), skillPaths = new Map(), coverage = new Set(), calls = new Set();
   let cwd, start, id, parent, excluded = false;
   const put = (key, text) => { loaded.set(key, Math.max(loaded.get(key) || 0, estTokens(text))); texts.set(key, text); };

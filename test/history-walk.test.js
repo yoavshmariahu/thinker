@@ -21,6 +21,7 @@ function fixture(t) {
     git('add', 'src'); git('commit', '-qm', `fix: API value ${i}`);
   }
   const store = new Store(repo).init();
+  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ ...store.config(), maintain: { prs: true } }));  // mining is off by default since 2026-10-21
   saveAreas(store, { directories: ['src/api'], source: 'manual', walkedBy: {}, walkVersion: 2 });
   const ctx = { store, flags: {}, out: () => {} };
   const scan = (options, distillPrFn) => minePrs(ctx, null, { repo, from: 'HEAD', pathsOnly: true, pathsLimit: options.limit,

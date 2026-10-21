@@ -41,9 +41,10 @@ function fakeEmbed(notes, calls) {
   return async texts => { calls.push(texts.length); return texts.map(t => byText.get(t) || [0, 1, 0]); };
 }
 
-test('the pass is on by default; the config or THINKER_DEDUPE turns it off, and the variable wins', () => {
-  assert.equal(DEFAULTS.dedupe, true);
-  assert.equal(dedupeOn({ ...DEFAULTS }, {}), true);
+test('the pass is off by default (since 2026-10-21); the config or THINKER_DEDUPE turns it on, and the variable wins', () => {
+  assert.equal(DEFAULTS.dedupe, false);
+  assert.equal(dedupeOn({ ...DEFAULTS }, {}), false);
+  assert.equal(dedupeOn({ dedupe: true }, {}), true);
   assert.equal(dedupeOn({ dedupe: false }, {}), false);
   assert.equal(dedupeOn({ dedupe: false }, { THINKER_DEDUPE: 'on' }), true);
   assert.equal(dedupeOn({ dedupe: true }, { THINKER_DEDUPE: 'off' }), false);
@@ -119,16 +120,21 @@ test('the judge is shown both notes and the current code of the file they share'
   fs.rmSync(dir, { recursive: true, force: true });
 }));
 
-test('maintenance runs the pass unless it is turned off, and the notice names the merges', () => withEnv(async () => {
+test('maintenance runs the pass where the config turns it on, and the notice names the merges', () => withEnv(async () => {
   const { dir, store } = repo();
+  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ ...store.config(), maintain: { dedupe: true } }));
   let ran = 0;
   const fns = { spentToday: () => 0, verify: async () => ({ verdict: 'still_valid' }), phrase: async notes => ({ done: [], tokens: 0 }), minePrs: async () => ({}), dedupe: async () => { ran++; return { merged: [{ keep: 'x', drop: 'y' }], tokens: 500, errors: 0 }; } };
   const r = await maintain(store, dir, { fns });
-  assert.equal(ran, 1, 'on by default'); assert.equal(r.merged, 1);
+  assert.equal(ran, 1, 'on in the config'); assert.equal(r.merged, 1);
   assert.match(maintenanceNotice(store), /1 duplicate note merged/);
   fs.rmSync(path.join(store.dir, 'state', 'maintain.json'), { force: true });
   fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ ...store.config(), maintain: { dedupe: false } }));
   await maintain(store, dir, { fns });
   assert.equal(ran, 1, 'off in the config');
+  fs.rmSync(path.join(store.dir, 'state', 'maintain.json'), { force: true });
+  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ ...store.config(), maintain: {} }));
+  await maintain(store, dir, { fns });
+  assert.equal(ran, 1, 'off by default');
   fs.rmSync(dir, { recursive: true, force: true });
 }));

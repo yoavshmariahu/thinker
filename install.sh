@@ -393,10 +393,10 @@ EOF
     THINKER_INSTALLER=1 "$thinker" setup $args --repo "$repo"
   fi
 
-  # --- the warm-up ------------------------------------------------------------------
-  # Every git repository has a cache from here on. Warming one reads its merged pull requests, and
-  # `thinker warmup` asks where to choose them: the page in the browser, or right here (a machine with
-  # no display, as over ssh, is offered the terminal alone). Not from CI or a pipe with no terminal.
+  # --- done -------------------------------------------------------------------------
+  # Every git repository has a cache from here on, and it grows from the sessions there. Warming one
+  # reads its merged pull requests, a step the person takes by hand (`thinker warmup`, or the page):
+  # until 2026-10-21 the installer ended by running it, and it no longer does.
   local version; version="$(node -p "require('$home/app/package.json').version" 2>/dev/null || echo '?')"
   path_hint
   say ""
@@ -412,11 +412,6 @@ EOF
     say "Thinker now runs in every git repository on this machine."
     say "Warm up caches any time: thinker warmup here, or thinker ui in the browser."
     say "Notes stay on this machine; Thinker uploads none."
-  fi
-  if [ -z "${CI:-}" ] && [ "$build" != 1 ]; then
-    if [ -t 0 ]; then "$thinker" warmup
-    elif [ -r /dev/tty ] && (exec < /dev/tty) 2>/dev/null; then "$thinker" warmup < /dev/tty
-    fi
   fi
 }
 

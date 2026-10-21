@@ -189,7 +189,7 @@ cache at twice the input price and never read again.
 | `src/ops.js` | core operations on notes (serve, merge, assess, link) |
 | `src/deps.js` | dependency extraction and symbol-level content hashing |
 | `src/ast.js` | symbol boundaries by tree-sitter (Python, JS/TS, Go, Rust), on by default: the parser and its grammars are dependencies; `deps.js` falls back to regex heuristics where they are missing, for other languages, and for a definition with a parse error |
-| `src/disk-cache.js` | results kept on this machine between processes, by a key naming everything they depend on: definitions, symbol and file hashes, hashes at a commit (`~/.thinker/cache`) |
+| `src/disk-cache.js` | results kept on this machine between processes, by a key naming everything they depend on: definitions, symbol and file hashes, hashes at a commit, and what each transcript loaded and called (`harness.js:sessionHarness`, `harness-codex.js:codexSessionHarness`, by the file's size and mtime, `cachedByFiles`: the Context and Harness pages read every transcript of the window on each request, a gigabyte and five seconds on this repository before, under 0.3 s after) (`~/.thinker/cache`) |
 | `src/codegraph.js` | one hop of the call graph: references and blast radius of a symbol (`fanout`), callers, callees, definitions, outlines, and `findSymbols` (the definitions carrying the words of a query); behind `find`, `drilldown` and the `[n call sites in m files]` tags on pointers. From the code graph when the checkout is indexed, else from `git grep` |
 | `src/rank.js` | BM25 ranking, relevance gate, budget packing |
 | `src/distill.js` | transcript → notes and per-note assessments |
@@ -215,12 +215,24 @@ caches, runs and their data, and the task runner (`~/src/task-runner`) runs the 
 ## What `setup` does
 
 The installer (`install.sh`) installs the tool wherever it is run and wires
-it into the agents on this machine (`thinker connect`, below), then opens the
-warm-up page. Every git repository on the machine has a cache from then on:
+it into the agents on this machine (`thinker connect`, below). Every git
+repository on the machine has a cache from then on:
 the first hook, MCP server or cache command in a checkout starts one, empty
 (`store.js:init`, kept out of `git status` through `.git/info/exclude`), and it
 grows from the sessions there. Nothing is opt-in but the warm-up: building a
-cache from merged pull requests. The installer ends with `thinker warmup`
+cache from merged pull requests, a step a person takes by hand with `thinker warmup`
+or `thinker setup --build`. **Background learning was cut to the sessions on
+2026-10-21 (the owner's decision: the cache's background spend was not paying for
+itself, and few people were running it):** the installer no longer ends by running
+`thinker warmup`, the hooks and the MCP server no longer tell the agent to offer a
+warm-up (`repo-onboard.js:warmupOffersOn`; `warmup: { offer: true }` in
+`.thinker/config.json` brings the offer back for a repository, and `THINKER_OFFERS=on`
+for the tests), and maintenance mines no pull requests or commits, walks no area
+history, reads no design documents or skill files and merges no duplicates unless
+the repository's `maintain` config turns each on (`maintain.js:DEFAULTS`). What is
+left on by default: the once-per-session distillation, and a maintenance run that
+re-verifies at most 3 stale notes and phrases the new ones. Everything below this
+paragraph about warm-ups describes the by-hand path, `thinker warmup`
 (`commands/warmup.js`): browser or terminal, then the ten repositories the
 agents work in (`machine.js:warmupCandidates`) with the top five picked (`setup/ui.js:multiSelect`: arrows, Space, Enter;
 Esc skips; a plain Y/n without a TTY), each built
@@ -637,12 +649,12 @@ Each session both consumes and improves the cache:
    `kinds` and `unservedDays` or is `false`. `thinker archive [--dry]`
    runs the rules by hand, `--list` shows the archive, `--restore [ids]`
    takes notes back, and ids archive any note by request.
-5b. Duplicates by meaning (`dedupe.js`, 2026-10-19; on by default without an experiment, at
-   the owner's decision, as a small upkeep pass: an exception to the rule above): `saveNotes`
+5b. Duplicates by meaning (`dedupe.js`, 2026-10-19; on by default from then until 2026-10-21,
+   off since with the rest of the background spend: `maintain: { dedupe: true }` or
+   `THINKER_DEDUPE=on` turns it on for a repository): `saveNotes`
    merges only notes whose title and answers share half their words, so the same fact
    mined from a pull request and saved from a session in other words stayed two notes
-   (0.30 by that measure) that took both serving slots. Unless `maintain: { dedupe: false }`
-   (or `THINKER_DEDUPE=off`) says otherwise, maintenance finds candidates for free:
+   (0.30 by that measure) that took both serving slots. Where it is on, maintenance finds candidates for free:
    each note embedded locally from its title and search text (`dense.js:embed`,
    all-MiniLM-L6-v2, vectors kept in `.thinker/state/dedupe.json` by text), a pair being
    two notes on a file in common at a cosine of at least `dedupeThreshold` (0.75). On this
@@ -665,11 +677,14 @@ Each session both consumes and improves the cache:
    installer put in place (`--no-git-hook` leaves it out). A batch runs at most
    once every four hours, on the next repository activity after
    it is due (including explicit `maintain`; `--dry` previews without waiting).
-   Retrieval never spawns verification. A run re-verifies up
-   to 10 stale notes, writes
-   phrasings for up to 8 notes that lack them, and distills up to 3 pull
+   Retrieval never spawns verification. By default (since 2026-10-21) a run re-verifies up
+   to 3 stale notes (10 before) and writes
+   phrasings for up to 8 notes that lack them, and that is all it spends on. The
+   steps below run only where the repository's config turns them on: with
+   `maintain: { prs: true }` a run distills up to 3 pull
    requests merged since maintenance first ran in the repository (older ones
-   are `thinker mine-prs`). Fixes come first (`prs.js:pickPrs`): a pull
+   are `thinker mine-prs`), walks the focus areas' history (`areas.js`) and
+   schedules the unmined-commits question (`commits-offer.js`). Fixes come first (`prs.js:pickPrs`): a pull
    request whose title says it fixes something qualifies without a body and
    takes up to two thirds of a run's slots when other changes wait; a
    candidate the limit passes over is not recorded as mined and is offered
@@ -687,13 +702,16 @@ Each session both consumes and improves the cache:
    week this was added, 28 of 80 notes maintenance verified had not been served
    at all, and one note was rewritten 8 times. The tokens the model calls of
    learning and maintenance reported are summed from the machine's log and a run stops
-   at `dailyTokens` (default 2M tokens a day, about 80 distillations; until 2026-10-04
+   at `dailyTokens` (default 1M tokens a day with Sonnet, about 40 distillations, and 10M
+   with a cheap model; 2M and 50M until 2026-10-21; until 2026-10-04
    the cap was `dailyCap` in dollars, a key now ignored except that 0 still means no
    cap). `maintain` in `.thinker/config.json`
    overrides `enabled`, `dailyTokens`, `verifyPerRun`, `verifyServedDays`,
-   `verifyChurn`, `phrasePerRun`, `prs`, `prsPerRun`, `docs`, `docsPerRun` (a run also reads up to
+   `verifyChurn`, `phrasePerRun`, `prs`, `prsPerRun`, `docs`, `docsPerRun`, `skills`, `skillsPerRun`,
+   `dedupe` (with `docs: true` a run also reads up to
    three new or changed design documents into behaviors and reconciles the ones a changed
-   document produced: `behavior-docs.js:deriveDocBehaviors`). What a run did is shown once at the end of the next turn
+   document produced: `behavior-docs.js:deriveDocBehaviors`; with `skills: true` it cards up to three
+   new or changed skill files, `skills.js:scanSkills`). What a run did is shown once at the end of the next turn
    (`maintain.js:maintenanceNotice`), through the same channel as the
    cache-hit notice. `thinker maintain [--dry]` is one run by hand;
    `THINKER_NO_LEARN=1` switches it off with the rest of learning.
@@ -1154,7 +1172,8 @@ backup/restore remain supported.
 
 A skill file (SKILL.md under `.claude/skills`, `.agents/skills`, `.codex/skills`, `.cursor/skills`,
 `.github/skills`, `skills/`) gets a note of kind `skill` (`skills.js:scanSkills`, one model call per
-file, by maintenance and by a build): a card that is served like a note and tells the agent to
+file, by a build, by `thinker skills scan`, and by maintenance where `maintain: { skills: true }` is set;
+off there by default since 2026-10-21): a card that is served like a note and tells the agent to
 invoke the skill, with the file and the code the skill names as deps. Staleness is `ops.js:refresh`
 as for any note; the verification is `skills.js:auditSkill` (through `ops.js:verifyNote`), which
 reads the skill file against the current code and answers holds or broken with the issues. A
