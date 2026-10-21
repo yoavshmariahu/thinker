@@ -121,62 +121,7 @@
     .back { background: none; border: none; color: #6b7280; font-size: 0.85rem; cursor: pointer; padding: 0; margin-bottom: 1rem; }
     .back:hover { color: #111; }
 
-    /* warm-up rows: one repository per row, so opening a directory picker moves nothing else */
-    .wlist { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 1.2rem; }
-    .pager { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; margin-top: 1rem; font-size: 0.8rem; color: #6b7280; }
-    .pager .pages { display: flex; gap: 0.3rem; }
-    .pager button { border: 1px solid #e5e7eb; background: #fff; color: #444; border-radius: 6px; padding: 0.3rem 0.6rem; font-size: 0.78rem; cursor: pointer; }
-    .pager button.on { background: #111; border-color: #111; color: #fff; }
-    .pager button:disabled { opacity: 0.4; cursor: default; }
-    .wrow { background: #fafafa; border: 1px solid #e5e7eb; border-radius: 10px; padding: 0.7rem 0.95rem; display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 0.5rem 0.9rem; align-items: center; transition: border-color 0.15s ease, background 0.15s ease; position: relative; }
-    .wrow.on { background: #fff; border-color: #111; }
-    .wrow.off { opacity: 0.65; }
-    .wrow input[type=checkbox] { width: 15px; height: 15px; accent-color: #111; margin: 0; }
-    .wmain { display: flex; gap: 0.8rem; align-items: center; min-width: 0; cursor: pointer; grid-column: 1 / 3; }
-    .wrow.off .wmain { cursor: default; }
-    .wname { min-width: 0; }
-    .wctl { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; justify-content: flex-end; font-size: 0.76rem; color: #6b7280; }
-    .weta { text-align: right; min-width: 92px; white-space: nowrap; }
-    .weta b { display: block; font-size: 1rem; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
-    .weta b.dim { color: #9ca3af; font-weight: 600; }
-    .weta span { display: block; font-size: 0.72rem; color: #6b7280; line-height: 1.3; }
-    .wdir { position: relative; }
-    .wdir-btn { border: 1px solid #e5e7eb; background: #fff; color: #444; border-radius: 8px; padding: 0.3rem 0.65rem; font-size: 0.76rem; cursor: pointer; max-width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .wdir-btn:hover, .wdir.open .wdir-btn { border-color: #111; color: #111; }
-    .wdrop { position: absolute; right: 0; top: calc(100% + 6px); width: 320px; max-width: 80vw; background: #fff; border: 1px solid #d4d4d8; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.12); z-index: 20; padding: 0.5rem; }
-    .wdrop input { width: 100%; border: 1px solid #e5e7eb; border-radius: 8px; padding: 0.45rem 0.6rem; font-size: 0.82rem; outline: none; }
-    .wdrop input:focus { border-color: #111; }
-    .wopts { list-style: none; max-height: 240px; overflow-y: auto; margin-top: 0.4rem; }
-    .wopts li { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; padding: 0.32rem 0.5rem; border-radius: 6px; font-size: 0.8rem; cursor: pointer; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
-    .wopts li:hover { background: #f5f5f5; }
-    .wopts li.on { background: #111; color: #fff; }
-    .wopts li.on:hover { background: #222; }
-    .wopts li .tick { font-size: 0.72rem; opacity: 0.8; }
-    .wdrop .wfoot { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: 0.4rem; padding: 0 0.3rem; font-size: 0.74rem; color: #6b7280; white-space: nowrap; }
-    .wdrop .wfoot button { background: none; border: none; color: #6b7280; font-size: 0.74rem; cursor: pointer; padding: 0; }
-    .wdrop .wfoot button:hover { color: #111; }
-    .wnote { font-size: 0.76rem; color: #9ca3af; white-space: nowrap; }
-    .wswitch { border: none; background: none; padding: 0; font-size: 0.74rem; color: #9ca3af; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
-    .wswitch:hover { color: #111; }
-    .wrow.disabled { opacity: 1; background: #f4f4f5; border-style: dashed; }
-    .wrow.disabled .rname { color: #6b7280; }
     .pill.off { background: #f4f4f5; border-color: #d4d4d8; color: #52525b; }
-    .wbar { position: sticky; top: 3.9rem; z-index: 5; margin-top: 1.4rem; background: rgba(255,255,255,0.94); backdrop-filter: blur(8px); border-top: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb; padding: 0.9rem 0; display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 1.4rem; align-items: center; }
-    .wbar .model { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; font-size: 0.8rem; color: #6b7280; min-width: 0; }
-    .wbar .model .auth { font-size: 0.76rem; white-space: nowrap; }
-    .wbar .sum { text-align: right; white-space: nowrap; }
-    .wbar .sum b { display: block; font-size: 1.25rem; color: #111; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.15; }
-    .wbar .sum span { display: block; font-size: 0.74rem; color: #6b7280; }
-    .wbar .wgo { display: flex; gap: 0.5rem; align-items: center; }
-    .wrow .rname .pill { margin-left: 0.5rem; vertical-align: 1px; font-size: 0.66rem; padding: 0.1rem 0.45rem; }
-    @media (max-width: 760px) {
-      .wrow { grid-template-columns: minmax(0, 1fr) auto; }
-      .wmain { grid-column: 1 / 2; }
-      .wctl { grid-column: 1 / -1; justify-content: flex-start; }
-      .wbar { grid-template-columns: 1fr 1fr; gap: 0.8rem; }
-      .wbar .model { grid-column: 1 / -1; }
-      .wbar .sum { text-align: left; }
-    }
 
     /* behaviors */
     .chips { display: flex; gap: 0.4rem; flex-wrap: wrap; }
@@ -429,7 +374,7 @@
           <div class="seg" id="days-seg"><button data-days="7">7 days</button><button data-days="30" class="on">30 days</button><button data-days="0">All time</button></div>
         </div></div>
         <div id="usage-body"><div class="empty"><span class="spinner"></span>Reading the log…</div></div>
-        <div class="section-head" style="margin-top:2rem"><div><div class="kicker">Every git repository on this machine with a cache</div><div class="section-title">Your repositories</div></div><button class="btn ghost" id="to-warmup">Warm up more repositories</button></div>
+        <div class="section-head" style="margin-top:2rem"><div><div class="kicker">Every git repository on this machine with a cache</div><div class="section-title">Your repositories</div></div></div>
         <div class="rgrid" id="r-grid"><div class="empty" style="grid-column:1/-1"><span class="spinner"></span>Reading the caches…</div></div>
       </div>
 
@@ -462,30 +407,6 @@
       </div>
     </section>
 
-    <!-- Warm up -->
-    <section id="tab-warmup" hidden>
-      <button class="back" id="w-back">← Your repositories</button>
-      <div class="kicker">Warm up your cache</div>
-      <h1>Which repositories should thinker learn first?</h1>
-      <div class="wbar" id="w-bar" hidden>
-        <div class="model">
-          <span>Harness</span>
-          <select class="sel" id="w-agent" aria-label="Harness"></select>
-          <span id="w-model" class="muted"></span>
-          <span id="w-auth" class="auth"></span>
-        </div>
-        <div class="sum"><b id="w-tokens">0</b><span>tokens of usage</span></div>
-        <div class="sum"><b id="w-eta">—</b><span id="w-count">0 repositories</span></div>
-        <div class="wgo"><button class="btn big" id="w-start">Start building</button><button class="btn ghost" id="w-skip" title="Nothing is built now; every cache still grows from your sessions">Skip for now</button></div>
-      </div>
-      <div class="wlist" id="w-grid"><div class="empty"><span class="spinner"></span>Looking for repositories…</div></div>
-      <div class="pager" id="w-pager"></div>
-    </section>
-    <section id="tab-tools" hidden>
-      <div class="kicker">Next step</div>
-      <h1>Tools your agents load into every session and almost never use</h1>
-      <div id="t-body"></div>
-    </section>
   </main>
   <div class="toast" id="toast"></div>
   <div class="hint" id="hint" role="status">Open this dashboard with <code>thinker ui</code></div>
@@ -502,47 +423,53 @@
       <div class="modal-body">
         <div class="faq-item">
           <h3>Where is my data stored? Does anything leave my machine?</h3>
-          <p>The cache lives in the repository it describes and stays on your machine: notes, from pull requests and sessions alike, under <code>.thinker/local/</code>, which git ignores (notes an older version committed under <code>.thinker/notes/</code> are still read); the configuration in <code>.thinker/config.json</code>. There is no team sharing or sync. Per machine, <code>~/.thinker/</code> holds the installed app, the usage log this page reads, and the ranking model.</p>
+          <p>The cache lives in the repository it describes, and it stays on your machine. Notes are under <code>.thinker/local/</code>, which git ignores; there is no team sharing or sync. Notes that an older version committed under <code>.thinker/notes/</code> are still read. <code>.thinker/config.json</code> holds the configuration. Per machine, <code>~/.thinker/</code> holds the installed app, the usage log every serving is recorded in, and the ranking model. The Context report is read from the transcripts your agents already write; nothing is copied out of them.</p>
           <p>Three things leave the machine, and nothing else:</p>
           <ul>
-            <li><b>Model calls go to the provider you already use for your agent</b>, through its own login (claude, codex, gemini, cursor, or an Anthropic API key): a condensed transcript when a session is distilled, a pull request's title, description, review comments and diff when it is mined, a note with the diff of its code when it is re-verified. Thinker runs no model and stores nothing of its own in the cloud.</li>
-            <li><b>Telemetry is counts only</b>: an hourly report of notes served, verdicts, token totals and the holdout sums, with an install id and a hashed device id. No code, note bodies, prompt text, file paths or repository URLs. <code>THINKER_TELEMETRY=off</code> or <code>{ "telemetry": false }</code> in the config stops it.</li>
-            <li><b>The ranking model is downloaded once at install</b> (about 23 MB) and runs on your machine.</li>
+            <li><b>Model calls go to the provider you already use for your agent.</b> Learning and verification run through your agent's own login (<code>claude</code>, <code>codex</code>, <code>gemini</code>, <code>cursor</code>, or an Anthropic API key), or, in a desktop app (Claude Desktop, the Codex app, Cursor), through the app's own session. A session is distilled from a condensed transcript; verification sends a note with the diff of the code it rests on. Thinker runs no model and stores nothing of its own in the cloud.</li>
+            <li><b>Telemetry is counts only.</b> An hourly report carries numbers: notes served, verdicts, token totals, the sums of the holdout comparison, with an install id and a hashed device id. It contains no code, note bodies, prompt text, file paths or repository URLs. <code>THINKER_TELEMETRY=off</code> or <code>{ "telemetry": false }</code> in the config stops it.</li>
+            <li><b>The ranking model is downloaded once at install</b> (about 23 MB) and runs on your machine. Ranking never calls a service.</li>
           </ul>
-          <p><code>gh</code> reads merged pull requests from GitHub during mining and posts nothing. This page listens on 127.0.0.1 only.</p>
-          <p><b>A repository with sensitive content can be turned off</b> on the warm-up page, or with <code>thinker disable</code> inside it. Thinker then does nothing there, in any clone or worktree: the hooks and the MCP server serve nothing, no session is distilled, no pull request is read, and nothing is written into it.</p>
+          <p>This page listens on 127.0.0.1 only.</p>
+          <p><b>A repository with sensitive content can be turned off</b> with <code>thinker disable</code> inside it. Thinker then does nothing there, in any clone or worktree: the hooks and the MCP server serve nothing, no session is distilled, and nothing is written into it. <code>thinker enable</code> turns it back on.</p>
         </div>
+
         <div class="faq-item">
           <h3>How does the cache work? What does it do to make my agents faster?</h3>
-          <p>A note is a short rule, map or how-to about one part of the code, with <code>file:Symbol</code> pointers and a hash of the code it rests on. The work is in putting the right one in front of the agent without being asked:</p>
+          <p>A note is a short rule, map or how-to about one part of the code, with <code>file:Symbol</code> pointers and a hash of the code it rests on. The cache is a set of such notes, and the work is in putting the right one in front of the agent without being asked:</p>
           <ul>
-            <li><b>On each request</b> a hook picks the lexical candidates, then a local ranking model reads the request against them and serves up to two notes, only those it scores relevant, with the code behind their pointers. The agent starts at the code instead of searching for it.</li>
+            <li><b>On each request</b> a hook picks the lexical candidates, then a local ranking model reads the request against them and serves up to two notes, only those it scores relevant. The agent starts at the code instead of searching for it.</li>
             <li><b>On each file edit</b> the rules resting on that file are served, so a trap on that code is in view while it is changed.</li>
-            <li><b>On demand</b>, the MCP tools <code>orient</code> and <code>lookup</code> give the agent notes when the hooks served nothing.</li>
-            <li><b>Never stale.</b> Every serving re-hashes the dependencies of every note against your working tree. A note whose code changed is held back, re-verified in the background, and served again once it is fresh.</li>
-            <li><b>Once per session</b>, not for one-word turns, and not at all when nothing fits.</li>
+            <li><b>On demand</b>, the MCP tool <code>lookup</code> answers one open question or fetches a note the hook listed; skill cards are among the notes.</li>
+            <li><b>Never stale.</b> Every serving re-hashes the dependencies of every note against your working tree. A note whose code changed is held back, re-verified with the next batch (every three days), and served again once it is fresh.</li>
+            <li><b>Once per session.</b> A note is served once, not for one-word turns, and not at all when nothing fits.</li>
           </ul>
-          <p>The cache grows from your sessions: each is distilled once when it ends, and a maintenance run every four hours re-verifies a few stale notes, phrases the new ones and archives the ones sessions never acted on. Newly merged pull requests are not mined in the background unless <code>maintain: { prs: true }</code> is set in <code>.thinker/config.json</code>; <code>thinker mine-prs</code> reads them by hand.</p>
+          <p>The cache keeps itself: each session is distilled once when it ends, stale notes that were served are re-verified every three days, notes the sessions never acted on are archived, and a note nobody was served in two weeks is deleted.</p>
         </div>
+
         <div class="faq-item">
-          <h3>Why does mining take so long? Can I skip it?</h3>
-          <p>Each merged pull request is read by a frontier model through your agent's login: title, description, review comments and the diff, about 14k tokens and 8 seconds per pull request, four at a time. The default build reads up to 60 of them, then reads the design documents and writes search phrasings for every new note, each a model call. Rate limits on the login stretch it further. The estimate in tokens and minutes is shown before anything is spent.</p>
-          <p>Yes, you can skip it, and nothing stops working:</p>
+          <h3>Where do the notes come from? Can I build the cache up front?</h3>
+          <p>From your own sessions, and from nothing else. When a session ends, a model reads a condensed transcript of it (what was asked, read, run and changed) and saves what the session worked out that the next one would otherwise work out again, usually nothing or one note. The same call grades the notes the session was served: confirmed, contradicted (the note is corrected) or unused. A quiet session, with nothing served, no edit, no failure and little exploring, is skipped.</p>
           <ul>
-            <li>Press <b>Skip for now</b> on the warm-up view, or run <code>thinker setup --no-build</code>. Thinker is wired and the cache grows from your own sessions.</li>
-            <li>Pick <b>Shallow</b>: the newest 30% of the same pull requests.</li>
-            <li>Stopping a build at any point keeps every note saved so far. <code>thinker mine-prs</code> continues where it stopped, 20 pull requests at a time, and the background maintenance mines a few new ones per run anyway.</li>
+            <li><b>There is no build step.</b> <code>thinker setup</code> connects your agents and nothing else; every git repository starts with an empty cache, and the hooks serve from it once it holds a few notes.</li>
+            <li><b>The spend is bounded.</b> One model call per session, through your agent's login, and learning and maintenance together stop at a daily token cap (<code>maintain.dailyTokens</code> in <code>.thinker/config.json</code>).</li>
+            <li><b>You can add your own.</b> <code>thinker add</code> takes a note you wrote, and an agent can save one with the <code>remember</code> tool.</li>
+            <li><b>You can stop it.</b> <code>{ "learn": { "sessions": false } }</code> in the config stops learning from sessions in a repository; <code>THINKER_NO_LEARN=1</code> stops all learning.</li>
           </ul>
-          <p>What a build gives you that sessions cannot is the record of past fixes. A repository with little history loses little by skipping it.</p>
         </div>
+
+        <div class="faq-item">
+          <h3>Can Thinker cut what my agents load into every session?</h3>
+          <p>It shows you what to cut, and you decide. The Context view here and <code>thinker context</code> list every section of your instruction files, every skill and every tool with what it costs a session and how many sessions it bore on. A section you pick can be removed or compressed by a model: the diff is shown first, and Apply writes it to your working tree, uncommitted, for you to review and commit like any change. Nothing is cut on its own.</p>
+        </div>
+
         <div class="faq-item">
           <h3>How can I tell if Thinker is helping my agents?</h3>
           <ul>
             <li><b>At the end of each turn</b> one line says what was served and the code it pointed at. It does not say "saved": whether the agent acted on a note is known only once the session is assessed.</li>
             <li><b>The Context view here</b>, and <code>thinker context</code>, show where your agents' context goes: what each instruction section, skill and tool costs a session and how often sessions acted on it, so what you cut is measured on your own sessions.</li>
-            <li><b>The usage under Cache here</b>, and <code>thinker usage</code>, show notes served, what the sessions did with them (confirmed, contradicted, unused), what learning and maintenance cost in tokens, and an estimate of the reads avoided.</li>
+            <li><b><code>thinker usage</code></b>, and the usage under Cache here, show notes served, what the sessions did with them (confirmed, contradicted, unused), what learning and maintenance cost in tokens, and an estimate of the reads avoided.</li>
             <li><b>The holdout is measured, not estimated.</b> 15% of prompts are served nothing, chosen by a hash of the session and the turn, and what every turn cost is read from the session's transcript. Once twenty prompts stand on each side, the holdout section compares the cost per prompt: tool calls and tokens with notes against without, on your repository, by your agent.</li>
-            <li><b><code>thinker benchmark pr</code></b> runs a recent merged pull request with and without the cache and compares time, turns, tool calls and tokens; both answers are saved under <code>.thinker/benchmarks/</code> so you can judge their quality.</li>
           </ul>
           <p>A note served is not a note used. Read the confirmed and unused counts rather than the hit rate; a cache that serves often and is rarely acted on is costing tokens, and maintenance archives such notes over time.</p>
         </div>
@@ -595,18 +522,15 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && faqOverlay
 
 // tabs
 document.querySelectorAll('.nav-link').forEach(b => b.onclick = () => { if (b.dataset.tab === 'cache') DREPO = ''; show(b.dataset.tab); });
-$('#to-warmup').onclick = () => show('warmup');
 $('#back').onclick = () => { DREPO = ''; show('cache'); };
-$('#w-back').onclick = () => { DREPO = ''; show('cache'); };
 function show(tab) {
-  document.querySelectorAll('.nav-link').forEach(b => b.classList.toggle('active', b.dataset.tab === (tab === 'warmup' || tab === 'tools' ? 'cache' : tab)));
-  if (tab === 'usage') tab = 'cache';
-  $('#tab-context').hidden = tab !== 'context'; $('#tab-cache').hidden = tab !== 'cache'; $('#tab-warmup').hidden = tab !== 'warmup'; $('#tab-tools').hidden = tab !== 'tools';
+  // the warm-up and tools pages are gone (2026-10-21): an old link to them opens the caches
+  if (tab !== 'context') tab = 'cache';
+  document.querySelectorAll('.nav-link').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  $('#tab-context').hidden = tab !== 'context'; $('#tab-cache').hidden = tab !== 'cache';
   TAB = tab;
   history.replaceState(null, '', `#t=${TOKEN}&tab=${tab}${tab === 'cache' && DREPO ? `&repo=${encodeURIComponent(DREPO)}` : ''}`);
   if (tab === 'context') loadContext();
-  else if (tab === 'warmup') loadWarmup();
-  else if (tab === 'tools') loadTools();
   else if (DREPO) openRepo(DREPO);
   else { $('#cache-overview').hidden = false; $('#cache-detail').hidden = true; loadRepos(); }
 }
@@ -643,7 +567,7 @@ function renderUsage(u) {
   const saved = measured ? ho.saved.inputTokens : u.saved?.tokens || 0;
   $('#usage-body').innerHTML = `<div class="cards">
     ${card('Cache hits', fmt(served), `notes served, for ${fmt(u.answered)} of ${fmt(u.requests)} requests`, [['At the prompt', fmt(u.servings?.prompt || 0)], ['While editing a file', fmt(u.servings?.file || 0)], ['Asked for by the agent', fmt(u.servings?.lookup || 0)], ['Acted on', judged ? pct(as.confirmed || 0, judged) : '–']])}
-    ${card('Notes', fmt(u.notesInCache || 0), ALL() ? 'notes in the caches' : 'notes in this cache', [['Learned from sessions', fmt(u.learned?.notes || 0)], ['Learned from pull requests', fmt(u.learned?.prNotes || 0)], ['Kept current', fmt((v.still_valid || 0) + (v.update || 0))], ['Retired', fmt(v.invalid || 0)]])}
+    ${card('Notes', fmt(u.notesInCache || 0), ALL() ? 'notes in the caches' : 'notes in this cache', [['Learned from sessions', fmt(u.learned?.notes || 0)], ['Kept current', fmt((v.still_valid || 0) + (v.update || 0))], ['Retired', fmt(v.invalid || 0)]])}
     ${card('Tokens saved', fmt(Math.max(0, saved)), measured ? 'input tokens, measured against prompts that had the notes withheld' : 'tokens of code the agents did not have to read, estimated from servings they acted on', [[measured ? 'Measured' : 'Estimated', measured ? `${fmt(ho.served.prompts)} prompts with notes, ${fmt(ho.heldOut.prompts)} held out` : 'too few held out yet'], ['Spent learning and upkeep', fmt(u.spending?.tokens || 0)], ['Net after spending', u.saved?.netAfterSpend != null ? fmt(u.saved.netAfterSpend) : '–']], true)}
   </div>`;
 }
@@ -977,52 +901,37 @@ function renderContext(v) {
 }
 
 // ---- the caches on this machine --------------------------------------------------------------
-let JOBS = [], ACT = {};
+let ACT = {};
 async function fetchRepos() {
   const r = await api('/api/repos');
-  REPOS = r.repos; JOBS = r.jobs || [];
+  REPOS = r.repos;
   ACT = Object.fromEntries(REPOS.map(x => [x.id, x.stats?.activity || null]));
   fillRepoFilter(); waitCount();
 }
 function waitCount() { const c = $('#wait-count'), n = REPOS.reduce((a, r) => a + (r.pending || 0), 0); c.hidden = !n; c.textContent = n; }
-const jobOf = r => (r.job && ['queued', 'running'].includes(r.job.status)) || (r.job?.ended && Date.now() - Date.parse(r.job.ended) < 10 * 60_000) ? r.job : null;
-// what is running against a cache: the mining or distilling batch with its count, else the state of its warm-up
-// build; the item in hand (`detail`) only on the repository's own page
-// A running warm-up build shows the build's own progress (ui/server.js:jobProgress: its stage, the fraction done
-// and the seconds left); any other batch shows its count with the ETA at its pace so far.
+// what is running against a cache: the distilling or verifying batch with its count and the ETA at its pace so
+// far; the item in hand (`detail`) only on the repository's own page
 const left = s => s == null ? '' : s <= 0 ? 'finishing' : `about ${dur(Math.max(5, s))} left`;
 function progress(r, { detail = false } = {}) {
-  const a = ACT[r.id], j = jobOf(r);
-  if (j && j.status === 'running' && j.progress) {
-    const p = j.progress, pct = Math.round(100 * p.fraction);
-    return `<div class="prog"><div class="track"><i style="--w:${pct}%"></i></div>
-    <div class="prog-line"><span><span class="pct">${pct}%</span> · warming up · ${esc(p.stage)}${p.saved ? ` · ${p.saved} note${p.saved === 1 ? '' : 's'}` : ''}${detail && p.current ? ` · ${esc(p.current)}` : ''}</span><span><span class="eta">${left(p.etaSeconds)}</span> <button class="stop" data-stop-job="${esc(j.id)}">Stop</button></span></div></div>`;
-  }
-  if (a) return `<div class="prog" data-id="${esc(r.id)}"><div class="track"><i style="--w:${a.total ? Math.round(100 * a.completed / a.total) : 0}%"></i></div>
+  const a = ACT[r.id];
+  if (!a) return '';
+  return `<div class="prog" data-id="${esc(r.id)}"><div class="track"><i style="--w:${a.total ? Math.round(100 * a.completed / a.total) : 0}%"></i></div>
     <div class="prog-line"><span>${esc(a.status)}${a.saved ? ` · ${a.saved} note${a.saved === 1 ? '' : 's'}` : ''}${detail && a.current ? ` · ${esc(a.current)}` : ''}</span><span><span class="eta">${left(a.etaSeconds)}</span> <button class="stop" data-stop-pid="${a.pid}" data-repo="${esc(r.id)}">Stop</button></span></div></div>`;
-  if (j && j.status === 'running') return `<div class="prog"><div class="track"><i style="--w:2%"></i></div><div class="prog-line"><span>warming up · starting</span><button class="stop" data-stop-job="${esc(j.id)}">Stop</button></div></div>`;
-  if (j && j.status === 'queued') return `<div class="prog"><div class="track"><i></i></div><div class="prog-line"><span>queued for warm-up (${j.depth})${j.estimateSeconds ? ` · about ${dur(j.estimateSeconds)} once it starts` : ''}</span><button class="stop" data-stop-job="${esc(j.id)}">Remove</button></div></div>`;
-  if (j && j.status === 'done') return `<div class="prog-line"><span class="gain">warm-up finished</span></div>`;
-  if (j && j.status === 'failed') return `<div class="prog-line"><span class="loss">warm-up did not finish · ~/.thinker/state/warmup-${esc(j.name.replace(/\W+/g, '-'))}.log</span></div>`;
-  if (j && j.status === 'cancelled') return `<div class="prog-line"><span class="muted">warm-up stopped</span></div>`;
-  return '';
 }
 function rcard(r) {
   const s = r.stats || {};
   return `<div class="rcard" data-id="${esc(r.id)}" title="${esc(r.checkout)}">
     <div class="rtop"><div style="min-width:0"><div class="rname">${rname(r.name)}</div><div class="rpath mono">${owner(r.name) ? esc(owner(r.name)) + ' · ' : ''}${esc(home(r.checkout))}</div></div></div>
     <div class="rstats"><span><b>${fmt(s.fresh || 0)}</b> fresh</span>${s.stale ? `<span><b>${fmt(s.stale)}</b> stale</span>` : ''}<span><b>${fmt(s.behaviors || 0)}</b> behaviors${r.pending ? ` <b>+${r.pending}</b> proposed` : ''}</span><span><b>${fmt(s.hits || 0)}</b> hits</span><span>${esc(ago(s.lastUsed))}</span></div>
-    <span class="pill${s.notes ? ' ok' : ''}">${fmt(s.notes || 0)} notes</span>${r.disabled ? '<span class="pill off" title="thinker is switched off for this repository; the warm-up page turns it on">off</span>' : ''}
+    <span class="pill${s.notes ? ' ok' : ''}">${fmt(s.notes || 0)} notes</span>${r.disabled ? '<span class="pill off" title="thinker is switched off for this repository; thinker enable turns it back on">off</span>' : ''}
     ${progress(r)}</div>`;
 }
 async function loadRepos() {
   try {
     await fetchRepos();
-    // a warm-up still waiting for its repository's first cache file shows up as a card of its own
-    const jobCards = JOBS.filter(j => ['queued', 'running'].includes(j.status) && !REPOS.some(r => r.checkout === j.checkout)).map(j => `<div class="rcard none"><div class="rtop"><div style="min-width:0"><div class="rname">${esc(j.name)}</div><div class="rpath mono">${esc(home(j.checkout))}</div></div></div><div class="rstats"></div><span class="pill">starting</span>${progress({ id: '', job: j })}</div>`);
     loadUsage();
-    const cards = REPOS.filter(r => ALL() || r.id === REPO).map(rcard).concat(ALL() ? jobCards : []);
-    $('#r-grid').innerHTML = cards.length ? cards.join('') : `<div class="empty" style="grid-column:1/-1">No caches yet. A cache starts with the first agent session in a git repository, or warm one up now.</div>`;
+    const cards = REPOS.filter(r => ALL() || r.id === REPO).map(rcard);
+    $('#r-grid').innerHTML = cards.length ? cards.join('') : `<div class="empty" style="grid-column:1/-1">No caches yet. A cache starts with the first agent session in a git repository and grows from the sessions.</div>`;
     wireGrid();
   } catch (e) { $('#r-grid').innerHTML = `<div class="empty" style="grid-column:1/-1">Could not read the caches: ${esc(e.message)}</div>`; }
 }
@@ -1031,28 +940,26 @@ function wireGrid() {
   wireStops();
 }
 function wireStops() {
-  document.querySelectorAll('[data-stop-pid], [data-stop-job]').forEach(btn => btn.onclick = async () => {
+  document.querySelectorAll('[data-stop-pid]').forEach(btn => btn.onclick = async () => {
     btn.disabled = true;
     try {
-      if (btn.dataset.stopPid) { const r = await api('/api/activity/cancel', { repo: btn.dataset.repo, pid: Number(btn.dataset.stopPid) }); toast(`Stopped ${r.kind} at ${r.completed}/${r.total}; the notes saved so far stay`); }
-      else { await api('/api/warmup/cancel', { id: btn.dataset.stopJob }); toast('Warm-up stopped'); }
+      const r = await api('/api/activity/cancel', { repo: btn.dataset.repo, pid: Number(btn.dataset.stopPid) }); toast(`Stopped ${r.kind} at ${r.completed}/${r.total}; the notes saved so far stay`);
       await refreshActivity(true);
     } catch (e) { btn.disabled = false; toast(e.message, true); }
   });
 }
-// every few seconds while the cache page is open: the bars move, and a finished build reloads the cards
-let prevJobs = '';
+// every few seconds while the cache page is open: the bars move, and a batch that ended reloads the cards
+let prevAct = '';
 async function refreshActivity(force) {
   if (TAB !== 'cache' && !force) return;
   try {
     const r = await api('/api/activity');
-    ACT = r.repos; JOBS = r.jobs || [];
-    const key = JSON.stringify(JOBS.map(j => j.id + j.status));
-    if (force || (prevJobs && key !== prevJobs)) { prevJobs = key; if (DREPO) { await fetchRepos(); renderActivity(); } else await loadRepos(); return; }
-    prevJobs = key;
-    for (const x of REPOS) x.job = JOBS.filter(j => j.checkout === x.checkout).pop() || null;
+    ACT = r.repos;
+    const key = JSON.stringify(Object.entries(ACT).map(([k, a]) => k + (a ? a.pid : '')));
+    if (force || (prevAct && key !== prevAct)) { prevAct = key; if (DREPO) { await fetchRepos(); renderActivity(); } else await loadRepos(); return; }
+    prevAct = key;
     if (DREPO) renderActivity();
-    else document.querySelectorAll('#r-grid .rcard[data-id]').forEach(el => { const r = REPOS.find(x => x.id === el.dataset.id); if (!r) return; const old = el.querySelector('.prog, .prog-line'); const h = progress(r); if (old) old.outerHTML = h; else el.insertAdjacentHTML('beforeend', h); });
+    else document.querySelectorAll('#r-grid .rcard[data-id]').forEach(el => { const r = REPOS.find(x => x.id === el.dataset.id); if (!r) return; const old = el.querySelector('.prog, .prog-line'); const h = progress(r); if (old) old.outerHTML = h; else if (h) el.insertAdjacentHTML('beforeend', h); });
     wireStops();
   } catch {}
 }
@@ -1119,8 +1026,7 @@ function renderCache() {
     ${card('Cache hits', fmt(hits), 'times these notes were served to an agent', [['Notes served at least once', `${fmt(hit)} (${pct(hit, inView.length)})`], ['Never served', fmt(inView.length - hit)], ['Hits per served note', hit ? (hits / hit).toFixed(1) : '—']])}
     ${card('Age', age(median(ages)), 'median age, since each note was written', [['Written this week', fmt(fresh7)], ['Newest', age(Math.min(...ages.filter(x => x != null)))], ['Oldest', age(Math.max(...ages.filter(x => x != null)))]])}` : '';
   if (!shown.length) {
-    $('#c-list').innerHTML = `<div class="empty">${C.notes.length ? 'No notes here.' : 'The cache is empty: it grows from your sessions, or <a href="#" id="c-warm">warm it up</a> from the merged pull requests.'}</div>`;
-    const w = $('#c-warm'); if (w) w.onclick = e => { e.preventDefault(); show('warmup'); };
+    $('#c-list').innerHTML = `<div class="empty">${C.notes.length ? 'No notes here.' : 'The cache is empty: it grows from your sessions.'}</div>`;
     return;
   }
   $('#c-list').innerHTML = shown.slice(0, C_MAX).map(ncard).join('') + (shown.length > C_MAX ? `<div class="note-line">Showing ${C_MAX} of ${shown.length}, most used first. Search to narrow them down.</div>` : '');
@@ -1196,7 +1102,7 @@ function renderBehaviors() {
   const f = FILTERS.find(x => x[0] === filter)[2];
   const shown = items.filter(f).filter(b => !query || (b.title + ' ' + b.body).toLowerCase().includes(query));
   if (!shown.length) {
-    $('#b-list').innerHTML = `<div class="empty">${filter === 'waiting' ? 'No proposed behaviors.' : 'No behaviors here yet. A warm-up reads them from the design documents (READMEs) checked into the repository; <code>thinker system docs</code> does the same. To add one, state the rule in a README beside the code or in a design file.'}</div>`;
+    $('#b-list').innerHTML = `<div class="empty">${filter === 'waiting' ? 'No proposed behaviors.' : 'No behaviors here yet. <code>thinker system docs</code> reads them from the design documents (READMEs) checked into the repository. To add one, state the rule in a README beside the code or in a design file.'}</div>`;
     return;
   }
   $('#b-list').innerHTML = shown.map(bcard).join('');
@@ -1253,173 +1159,9 @@ function wire() {
   });
 }
 
-// ---- warm up ------------------------------------------------------------------------------------
-// W: the machine's repositories with their estimates, most recently active first; SEL: what the person
-// picked, by checkout; one directory picker open at a time (DROP), with its search text
-let W = null, SEL = new Map(), AGENTS = null, DROP = null, dirQuery = '', wPage = 0;
-const W_PAGE = 8;
-async function loadWarmup() {
-  if (!W) $('#w-grid').innerHTML = `<div class="empty"><span class="spinner"></span>Looking for repositories…</div>`;
-  try {
-    W = await api('/api/machine');
-    W.agents = AGENTS?.agents || [];
-    // preselected: the five used most recently (the list is most recently active first) that have history to
-    // read and no cache yet (one that was warmed up before, or holds notes, is marked instead); they lead the list
-    // each starts on the person's own areas, the directories their commits touch (areas.js); the picker clears to the whole repository
-    if (!SEL.size) for (const r of W.repos.filter(r => r.canMine && !r.warmed && !r.hasCache).slice(0, 5)) SEL.set(r.checkout, { depth: 'full', directories: [...(r.areas || [])], automatic: true });
-    W.repos = [...W.repos.filter(r => SEL.has(r.checkout)), ...W.repos.filter(r => !SEL.has(r.checkout))];
-    renderWarmup();
-    // the agents are asked whether they are signed in, which takes a moment: the bar fills in when they answer
-    if (!AGENTS) { $('#w-agent').innerHTML = '<option value="">checking your agents…</option>'; AGENTS = await api('/api/agents'); W.agents = AGENTS.agents; }
-    const agentSel = $('#w-agent');
-    // agent CLIs, then the signed-in desktop apps the warm-up can be handed to
-    W.agents = [...AGENTS.agents, ...(AGENTS.apps || []).map(a => ({ ...a, authenticated: true }))];
-    const dflt = AGENTS.defaultAgent || W.agents[0]?.agent;
-    agentSel.innerHTML = W.agents.length ? W.agents.map(a => `<option value="${esc(a.agent)}"${a.agent === dflt ? ' selected' : ''}>${esc(a.name)}${a.app ? ' · opens a session there' : a.authenticated ? '' : ' · not signed in'}</option>`).join('') : '<option value="">no agent CLI or desktop app found</option>';
-    showAgentModel();
-    renderWarmup();
-  } catch (e) { $('#w-grid').innerHTML = `<div class="empty">Could not look for repositories: ${esc(e.message)}</div>`; }
-}
-function showAgentModel() {
-  const a = W.agents.find(x => x.agent === $('#w-agent').value) || W.agents[0];
-  if (a?.app) {
-    $('#w-model').textContent = `${a.name}'s own model · the ${a.sessionPrs} newest pull requests`;
-    $('#w-auth').textContent = `signed in${a.account ? ' as ' + a.account : ''} · a session opens there per repository; press Enter in it to start`;
-    $('#w-auth').className = 'auth muted'; return;
-  }
-  $('#w-model').textContent = a ? `${a.model.name} · ${a.model.automatic ? 'automatic' : 'configured'}` : '';
-  $('#w-auth').textContent = a ? (a.authenticated ? `signed in${a.details && /as /.test(a.details) ? ' ' + a.details.replace(/^Signed in /, '') : ''}` : `not signed in · run ${a.loginCmd} first`) : '';
-  $('#w-auth').className = 'auth ' + (a && !a.authenticated ? 'loss' : 'muted');
-}
-$('#w-agent').onchange = showAgentModel;
-const est = (r, sel) => r.estimates[sel.depth] || r.estimates.full;
-const when = (iso, verb) => { if (!iso) return ''; const d = (Date.now() - Date.parse(iso)) / 86400_000; return `${verb} ${d < 1 ? 'today' : d < 2 ? 'yesterday' : d < 30 ? `${Math.floor(d)} days ago` : `${Math.floor(d / 30)} months ago`}`; };
-// a subsequence match, contiguous and early matches first
-function fuzzy(q, s) {
-  if (!q) return 0;
-  const i = s.indexOf(q); if (i >= 0) return i + (s.length - q.length) / 1000;
-  let j = 0, gaps = 0, last = -1;
-  for (let k = 0; k < s.length && j < q.length; k++) if (s[k] === q[j]) { if (last >= 0 && k !== last + 1) gaps++; last = k; j++; }
-  return j === q.length ? 1000 + gaps * 10 + s.length / 1000 : -1;
-}
-function dirLabel(sel, r) {
-  const n = sel.directories.length; if (!n) return 'Whole repository';
-  const mine = r?.areas?.length && sel.directories.length === r.areas.length && sel.directories.every(d => r.areas.includes(d));
-  return mine ? `Your areas · ${n}` : `${n} director${n === 1 ? 'y' : 'ies'}`;
-}
-function wrow(r) {
-  const sel = SEL.get(r.checkout), on = !!sel, e = est(r, sel || { depth: 'full' });
-  const cached = r.warmed || r.hasCache;
-  const sub = [owner(r.name), home(r.checkout), when(r.lastUsed, 'used'), r.sessions ? `${r.sessions} session${r.sessions === 1 ? '' : 's'}` : '', when(r.pushed, 'pushed'), r.checkouts.length > 1 ? `${r.checkouts.length} checkouts` : '', cached ? `${r.warmed ? 'warmed up before' : 'has a cache'}${r.notes ? ` · ${fmt(r.notes)} notes` : ''}` : ''].filter(Boolean).join(' · ');
-  const main = `<label class="wmain"><input type="checkbox" data-pick${on ? ' checked' : ''}${r.canMine && !r.disabled ? '' : ' disabled'}><div class="wname"><div class="rname">${rname(r.name)}${r.disabled ? '<span class="pill off" title="thinker does nothing in this repository: no notes, no learning, nothing written into it">off</span>' : cached ? `<span class="pill ok" title="${r.warmed ? 'Its pull requests were read before; a warm-up reads only the newer ones' : 'Notes from sessions already; a warm-up adds the pull requests'}">cache exists</span>` : ''}</div><div class="rpath mono" title="${esc(r.checkout)}">${esc(sub)}</div></div></label>`;
-  // off (sensitive content): no build, no notes, no learning; the row offers to turn it back on
-  if (r.disabled) return `<div class="wrow off disabled" data-c="${esc(r.checkout)}">${main}<div class="wctl"><span class="wnote">thinker is off here${cached ? ' · its cache stays until .thinker/ is deleted' : ''}</span><button class="wswitch" data-switch="on">Turn on</button></div><div class="weta"><b class="dim">—</b></div></div>`;
-  const off = `<button class="wswitch" data-switch="off" title="For a repository with sensitive content: thinker serves and learns nothing there, sends nothing of it to a model, and writes nothing into it">Turn off</button>`;
-  if (!r.canMine) return `<div class="wrow off" data-c="${esc(r.checkout)}">${main}<div class="wctl"><span class="wnote">${r.commits <= 5 ? 'too little history to read' : 'no merged history to read'} · grows from sessions</span>${off}</div><div class="weta"><b class="dim">—</b></div></div>`;
-  const ctl = on ? `<div class="seg small"><button data-depth="shallow"${sel.depth === 'shallow' ? ' class="on"' : ''}>Shallow</button><button data-depth="full"${sel.depth === 'full' ? ' class="on"' : ''}>Full</button></div>
-      ${r.dirs.length ? `<div class="wdir${DROP === r.checkout ? ' open' : ''}"><button class="wdir-btn" data-dirs title="Read only the history of some directories">${esc(dirLabel(sel, r))} ▾</button>${DROP === r.checkout ? '<div class="wdrop" data-drop></div>' : ''}</div>` : ''}` : `<span class="wnote">${esc(e.notes)} · ${dur(r.estimates.shallow.seconds)} shallow</span>`;
-  return `<div class="wrow${on ? ' on' : ''}" data-c="${esc(r.checkout)}">${main}<div class="wctl">${ctl}${off}</div><div class="weta"><b${on ? '' : ' class="dim"'}>${dur(e.seconds)}</b><span>${on ? `~${fmt(e.tokens)} tokens · ${esc(e.notes)}` : ''}</span></div></div>`;
-}
-function renderWarmup() {
-  if (!W.repos.length) { $('#w-grid').innerHTML = `<div class="empty">No git repositories found in your agents' recent work. Run <code>thinker ui</code> or <code>thinker warmup</code> inside one to warm it up; a cache also starts by itself with the first agent session there.</div>`; $('#w-bar').hidden = true; return; }
-  const pages = Math.max(1, Math.ceil(W.repos.length / W_PAGE)); wPage = Math.min(wPage, pages - 1);
-  $('#w-grid').innerHTML = W.repos.slice(wPage * W_PAGE, (wPage + 1) * W_PAGE).map(wrow).join('');
-  $('#w-pager').innerHTML = pages > 1 ? `<span>${wPage * W_PAGE + 1}–${Math.min(W.repos.length, (wPage + 1) * W_PAGE)} of ${W.repos.length} repositories</span><div class="pages"><button data-page="${wPage - 1}"${wPage === 0 ? ' disabled' : ''}>‹</button>${Array.from({ length: pages }, (_, i) => `<button data-page="${i}"${i === wPage ? ' class="on"' : ''}>${i + 1}</button>`).join('')}<button data-page="${wPage + 1}"${wPage === pages - 1 ? ' disabled' : ''}>›</button></div>` : '';
-  document.querySelectorAll('#w-pager [data-page]').forEach(b => b.onclick = () => { wPage = Number(b.dataset.page); DROP = null; renderWarmup(); window.scrollTo({ top: 0 }); });
-  $('#w-bar').hidden = false;
-  let secs = 0, toks = 0;
-  for (const [c, sel] of SEL) { const r = W.repos.find(x => x.checkout === c); if (!r) continue; const e = est(r, sel); secs += e.seconds; toks += e.tokens; }
-  $('#w-eta').textContent = SEL.size ? dur(secs) : '—'; $('#w-tokens').textContent = SEL.size ? `~${fmt(toks)}` : '0'; $('#w-count').textContent = `${SEL.size} ${SEL.size === 1 ? 'repository' : 'repositories'}`;
-  $('#w-start').disabled = !SEL.size || !AGENTS || !W.agents.length;
-  document.querySelectorAll('#w-grid .wrow').forEach(el => {
-    const c = el.dataset.c;
-    const pick = el.querySelector('[data-pick]'); if (pick) pick.onchange = () => { if (pick.checked) SEL.set(c, { depth: 'full', directories: [...(W.repos.find(x => x.checkout === c)?.areas || [])], automatic: true }); else SEL.delete(c); if (DROP === c) DROP = null; renderWarmup(); };
-    el.querySelectorAll('[data-depth]').forEach(b => b.onclick = () => { SEL.get(c).depth = b.dataset.depth; renderWarmup(); });
-    const dirs = el.querySelector('[data-dirs]'); if (dirs) dirs.onclick = () => { DROP = DROP === c ? null : c; dirQuery = ''; renderWarmup(); if (DROP) document.querySelector('.wdrop input')?.focus(); };
-    const sw = el.querySelector('[data-switch]'); if (sw) sw.onclick = async () => {
-      const disabled = sw.dataset.switch === 'off';
-      // the row flips at once; the server's answer confirms it, or puts it back with the reason
-      const row = W.repos.find(x => x.checkout === c), was = row?.disabled;
-      SEL.delete(c); if (DROP === c) DROP = null; if (row) row.disabled = disabled;
-      renderWarmup();
-      try {
-        const r = await api('/api/repos/switch', { checkout: c, disabled });
-        REPOS = [];
-        toast(disabled ? `thinker is off for ${row?.name || 'this repository'}: no notes, no learning, nothing written into it${r.hasCache ? '; its cache stays until .thinker/ is deleted' : ''}` : `thinker is on again for ${row?.name || 'this repository'}`);
-      } catch (e) { if (row) row.disabled = was; renderWarmup(); toast(e.message, true); }
-    };
-  });
-  if (DROP) renderDrop();
-}
-// the picker's own rendering: typing filters the list in place, so the box keeps its focus
-function renderDrop() {
-  const r = W.repos.find(x => x.checkout === DROP), sel = SEL.get(DROP), box = document.querySelector(`.wrow[data-c="${CSS.escape(DROP)}"] [data-drop]`);
-  if (!r || !sel || !box) return;
-  if (!box.querySelector('input')) {
-    box.innerHTML = `<input placeholder="Search ${r.dirs.length} directories…" value="${esc(dirQuery)}"><ul class="wopts"></ul><div class="wfoot"><span data-n></span><button data-clear>Clear</button></div>`;
-    box.querySelector('input').oninput = e => { dirQuery = e.target.value; renderDrop(); };
-    box.querySelector('input').onkeydown = e => { if (e.key === 'Escape') { DROP = null; renderWarmup(); } };
-    box.querySelector('[data-clear]').onclick = () => { sel.directories = []; sel.automatic = false; renderWarmup(); };
-  }
-  const q = dirQuery.trim().toLowerCase();
-  const scored = r.dirs.map(d => [d, fuzzy(q, d.toLowerCase())]).filter(([, s]) => s >= 0).sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]));
-  const picked = [...sel.directories].sort().map(d => [d, -1]);
-  const shown = [...picked, ...scored.filter(([d]) => !sel.directories.includes(d)).slice(0, 60)];
-  box.querySelector('.wopts').innerHTML = shown.length ? shown.map(([d]) => `<li class="${sel.directories.includes(d) ? 'on' : ''}" data-dir="${esc(d)}"><span>${esc(d)}</span>${sel.directories.includes(d) ? '<span class="tick">✓</span>' : ''}</li>`).join('') : '<li class="muted" style="cursor:default">No directory matches</li>';
-  box.querySelector('[data-n]').textContent = sel.directories.length ? `${sel.directories.length} picked · their history only` : 'none picked · the whole repository';
-  box.querySelectorAll('[data-dir]').forEach(li => li.onclick = () => {
-    const d = li.dataset.dir; sel.automatic = false; sel.directories = sel.directories.includes(d) ? sel.directories.filter(x => x !== d) : [...sel.directories, d];
-    renderDrop(); box.querySelector('input').focus(); const btn = document.querySelector(`.wrow[data-c="${CSS.escape(DROP)}"] [data-dirs]`); if (btn) btn.textContent = dirLabel(sel) + ' ▾';
-  });
-}
-document.addEventListener('mousedown', e => { if (DROP && !e.target.closest('.wdir')) { DROP = null; renderWarmup(); } });
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && DROP) { DROP = null; renderWarmup(); } });
-// skipping builds nothing; the page opens on the caches from then on (the warm-up stays a click away)
-const skipped = () => { try { return localStorage.getItem('thinker.warmupSkipped') === '1'; } catch { return false; } };
-$('#w-skip').onclick = () => { try { localStorage.setItem('thinker.warmupSkipped', '1'); } catch {} toast('Warm-up skipped: every cache grows from your sessions'); DREPO = ''; afterWarmup(); };
-$('#w-start').onclick = async () => {
-  const btn = $('#w-start'); btn.disabled = true;
-  try {
-    const repos = [...SEL].map(([checkout, s]) => ({ checkout, depth: s.depth, directories: s.directories, automatic: s.automatic }));
-    const r = await api('/api/warmup', { repos, agent: $('#w-agent').value || null });
-    if (r.handoff) toast(`Opened ${r.handoff.name}: press Enter on the Thinker message in ${r.handoff.opened.length === 1 ? 'the new session' : `each of the ${r.handoff.opened.length} new sessions`} to start the warm-up${r.handoff.failed.length ? ` (${r.handoff.failed.map(f => f.name).join(', ')} did not open)` : ''}`);
-    else toast(`Building ${r.jobs.length} ${r.jobs.length === 1 ? 'cache' : 'caches'}, one at a time`);
-    SEL = new Map(); W = null; prevJobs = ''; DROP = null;
-    DREPO = ''; afterWarmup();
-  } catch (e) { btn.disabled = false; toast(e.message, true); }
-};
-
-// ---- the step after the warm-up, as `thinker warmup` ends (commands/warmup.js:unusedTools) ----
-// where enough sessions say so (harness.js:harnessFirstLook), the tools loaded into every session and almost
-// never used, all picked; nothing is switched off until the person presses the button
-let TOOLS = null;
-async function afterWarmup() {
-  try { TOOLS = await api('/api/harness/first-look'); } catch { TOOLS = null; }
-  show(TOOLS?.repos?.length ? 'tools' : 'cache');
-}
-function loadTools() {
-  const el = $('#t-body'), repos = TOOLS?.repos || [];
-  if (!repos.length) { show('cache'); return; }
-  el.innerHTML = `<div class="note-line" style="margin-top:0">Read from the sessions of the last ${repos[0].days} days. Each is switched off for that repository alone; <code>thinker harness --undo</code> turns it back on.</div>
-    <div class="panel"><table><thead><tr><th></th><th>Repository</th><th>Loaded into every session</th><th class="num">Sessions that used it</th><th class="num">Tokens a session</th></tr></thead><tbody>${repos.flatMap(r => r.sources.map(s => `<tr><td><input type="checkbox" data-tpick="${esc(r.checkout)}" data-tlabel="${esc(s.label)}" checked></td><td>${esc(r.name)}</td><td>${esc(s.label)}</td><td class="num">${s.used}/${s.loaded}</td><td class="num">${fmt(s.tokens)}</td></tr>`)).join('')}</tbody></table>
-    <div class="controls"><button class="btn" id="t-off">Switch off selected</button><button class="btn ghost" id="t-keep">Keep them all</button></div></div>`;
-  $('#t-keep').onclick = () => { TOOLS = null; toast('Nothing switched off: thinker harness lists them any time'); show('cache'); };
-  $('#t-off').onclick = async e => {
-    const picks = [...el.querySelectorAll('[data-tpick]:checked')].map(c => ({ checkout: c.dataset.tpick, label: c.dataset.tlabel }));
-    if (!picks.length) return toast('Nothing selected', true);
-    e.target.disabled = true;
-    try { await api('/api/harness/first-look/off', { picks }); TOOLS = null; toast(`Switched off ${picks.length} from the next session on`); show('cache'); }
-    catch (err) { e.target.disabled = false; toast(err.message, true); }
-  };
-}
-
 // first view: the tab the URL names, else Context (where the agents' context goes is the front door, since
-// 2026-10-21); the warm-up page when nothing has a cache yet
-(async () => {
-  let tab = H().get('tab');
-  if (!tab) { try { await fetchRepos(); tab = REPOS.length || skipped() ? 'context' : 'warmup'; } catch { tab = 'context'; } }
-  show(tab);
-})();
+// 2026-10-21)
+show(H().get('tab') || 'context');
 </script>
 </body>
 </html>

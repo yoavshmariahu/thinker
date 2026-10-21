@@ -27,7 +27,7 @@ test('the release archive loads without the server: no src/server, no thinker-se
   const env = { ...process.env, THINKER_TELEMETRY: 'off', THINKER_LOG: 'off', THINKER_AST: 'off' };
   const help = spawnSync('node', [path.join(app, 'src', 'cli.js'), 'help'], { encoding: 'utf8', env });
   assert.equal(help.status, 0, help.stderr);
-  assert.match(help.stdout, /mine-prs \[owner\/repo\]/); assert.match(help.stdout, /system add/);
+  assert.match(help.stdout, /distill \[transcript\]/); assert.match(help.stdout, /system add/);
   assert.ok(!/\n  review /.test(help.stdout), 'the help lists no review command');
   assert.ok(!/\n  sync /.test(help.stdout), 'the help lists no sync commands');
   // a cache command runs from the archive (no model), against this repository

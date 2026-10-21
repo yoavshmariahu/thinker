@@ -18,9 +18,8 @@ import { codeForRequest, orient, HOOK_BUDGET, servesNotes, rememberTask, outcome
 import { recordEvent, traceFile, toolName, toolInput, textOf } from '../transcripts.js';
 import { turnNotice, turnFooterMarkdown, weeklyNotice } from '../usage.js';
 import { claudeCardActive } from '../claude-card.js';
-import { setupRepo, warmupOffer } from '../repo-onboard.js';
+import { setupRepo } from '../repo-onboard.js';
 import { coverageOffer, recordAccess } from '../coverage.js';
-import { commitsOffer } from '../commits-offer.js';
 import { harnessOffer, harnessRecall, harnessIndex, harnessOn } from '../harness.js';
 import { skillSuggestOn, skillSuggestLines, hookSkillFacts } from '../skill-suggest.js';
 import { snapshotCursorInventory } from '../harness-cursor.js';
@@ -124,12 +123,12 @@ async function hookCommand(ctx) {
       const introOk = store.exists() && !['windsurf', 'pi', 'copilot'].includes(client) && !holdout;
       const emit = text => { if (client === 'cursor' || (client === 'cline' && !parks)) said = text; else if (parks) parkPending(store.dir, session, text); else out(promptOutput(client, text)); };
       if (!store.exists() || client === 'windsurf') return;
-      // the first session in a repository: what `thinker setup` would write for it, and the warm-up offer (repo-onboard.js)
+      // the first session in a repository: what `thinker setup` would write for it (repo-onboard.js)
       setupRepo(store, { client, cli, learn: !NO_LEARN && sessionLearning() });
       // queued learning of an app session (session-work.js): the runner starts and the agent is told to start
       // its subagent; the ancestry is walked only when jobs wait
       const work = !isTestMode() && !NO_LEARN && pendingJobs(store).length && desktopApp(subagentHarness(client)) ? startSessionWork(store, { cli, harness: subagentHarness(client) }) : '';
-      // a weekly suggestion of directories to cover (coverage.js), never on the turn of a warm-up offer
+      // a weekly suggestion of directories to cover (coverage.js)
       // never in a benchmark or test session (THINKER_TEST=1): an offer there is noise in the agent's context and an
       // eval runner marks the session invalid for it (2026-10-18); THINKER_OFFERS=on restores them, for the tests of the offers
       const offersOn = !isTestMode() || process.env.THINKER_OFFERS === 'on';
@@ -144,7 +143,7 @@ async function hookCommand(ctx) {
       const recall = harnessHere ? await harnessRecall(store, ev.prompt || '', { session, client }) : '';
       // the names of the switched-off skills, once a session (harness.js:harnessIndex; off until an experiment), not an offer either
       const index = harnessHere ? harnessIndex(store, { session, client }) : '';
-      const offer = [offersOn ? (warmupOffer(store, { client }) || commitsOffer(store, { client }) || coverageOffer(store, { client }) || harnessOffer(store, { client })) : '', work, index, recall].filter(Boolean).join('\n\n');
+      const offer = [offersOn ? (coverageOffer(store, { client }) || harnessOffer(store, { client })) : '', work, index, recall].filter(Boolean).join('\n\n');
       // Every git repository has a cache, started on first use and empty until it learns; the hooks serve
       // from it once it holds a few notes (ops.js:SERVE_MIN_NOTES). A prompt served nothing is still a
       // request: `thinker usage` and the telemetry count a machine as active by its requests, and a cache in

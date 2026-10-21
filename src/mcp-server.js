@@ -17,12 +17,9 @@ import { maybeSendTelemetryInBackground, HOUR_MS } from './telemetry.js';
 import { initAst } from './ast.js';
 import { cacheInstructions, disabledTools, MORE_NOTES_INTRO } from './cache-guidance.js';
 import { isDisabledRepo } from './repo-switch.js';
-import { isTestMode } from './test-mode.js';
-import { warmupPending, warmupOffer, answerWarmup, startSessionWarmup, subagentHarness, WARMUP_CHOICES } from './repo-onboard.js';
 import { coveragePending, answerCoverage } from './coverage.js';
-import { commitsPending, answerCommits } from './commits-offer.js';
 import { harnessPending, answerHarness, switchedOffSkills, skillLines } from './harness.js';
-import { queueDir, buildRunning, buildRequested, nextRequest, answerRequest, requestText } from './session-llm.js';
+import { queueDir, buildRunning, nextRequest, answerRequest, requestText } from './session-llm.js';
 import { anyDesktopApp, ancestorPids } from './app-host.js';
 
 // MCP-only installations need the same default OS schedule as CLI/hook users.
@@ -96,7 +93,7 @@ async function ensureBound(args) {
   if (r && r !== repo) {
     if (isDisabledRepo(r)) return { reply: text('thinker is switched off for that repository and serves nothing there.') };
     binding = bind(r); await binding;
-    registerWarmupTool(); registerCoverageTool(); registerCommitsTool(); registerHarnessTool(); registerQueueTools();
+    registerCoverageTool(); registerHarnessTool(); registerQueueTools();
     return { bound: true };
   }
   if (store) return { bound: false };
@@ -121,19 +118,7 @@ const codeFallback = q => {
   } catch { return ''; }
 };
 
-// The warm-up picker (repo-onboard.js:WARMUP_CHOICES), through MCP elicitation: { choice } with
-// warm, no, never, or dismissed when the person closed it, or { error }.
 const clientName = () => server.server.getClientVersion()?.name || 'mcp';
-async function askWarmup() {
-  try {
-    const r = await server.server.elicitInput({
-      message: `thinker's cache for this repository has not read its history yet. Warm it up? It reads merged changes into notes in the background, through your own login. ${WARMUP_CHOICES.map(c => `${c.label}: ${c.description}.`).join(' ')}`,
-      requestedSchema: { type: 'object', properties: { choice: { type: 'string', title: 'Warm up thinker\'s cache?', enum: WARMUP_CHOICES.map(c => c.label) } }, required: ['choice'] },
-    });
-    if (r.action !== 'accept') return { choice: 'dismissed' };
-    return { choice: WARMUP_CHOICES.find(c => c.label === r.content?.choice)?.value || 'no' };
-  } catch (e) { return { error: e.message }; }
-}
 
 // The session and turn the agent's own orient and lookup belong to, from the link the prompt hook left
 // (ops.js:agentSession): logged with the call, and a held-out turn is served nothing here either. {} where no
@@ -146,17 +131,6 @@ function agentTurn() {
     const { turn, holdout } = holdoutTurn(store, session);
     return { session, turn: turn || undefined, holdout };
   } catch { return {}; }
-}
-
-// The warm-up offer the prompt hook makes, made by the first retrieval call too: an agent wired with thinker's
-// server and no hooks never got it (2026-10-16: a device whose 14 requests all came through MCP, two cold
-// caches, no offer). orient made it alone until orient went off by default (2026-10-18); lookup makes it now
-// as well. Once per repository either way (repo-onboard.js:markOffered), so where the hook made it this adds
-// nothing. Never in a benchmark or test session (THINKER_TEST=1; THINKER_OFFERS=on restores it, for the tests), and
-// since 2026-10-21 only where the repository's config asks for the offer (repo-onboard.js:warmupOffersOn).
-function mcpWarmupOffer() {
-  if (isTestMode() && process.env.THINKER_OFFERS !== 'on') return '';
-  try { return warmupOffer(store, { client: subagentHarness(clientName()) || clientName() }) || ''; } catch { return ''; }
 }
 
 function withNotice(result, included, turnContext) {
@@ -195,9 +169,7 @@ function registerTools() {
     },
   }, async ({ task = '', file, budget }) => {
     if (!task.trim() && !file) return text('orient needs the task. Call it again with {"task": "<the user request, in one or two sentences>"}.');
-    // the warm-up offer, as lookup makes it (mcpWarmupOffer)
-    const offer = mcpWarmupOffer();
-    const reply = s => text(offer ? `${offer}\n\n${s}` : s);
+    const reply = text;
     // the agent named a budget: let it decide how many notes are served, not the two-note default of the hooks
     const turnContext = agentTurn();
     const r = await orient(store, { task, file, client: 'mcp', ...turnContext, budget: budget || 1000, snippets: snippetsOn(store), ...(budget ? { maxNotes: 5, relFloor: 0.7 } : {}) });
@@ -219,8 +191,6 @@ function registerTools() {
       maxNotes: z.number().int().min(1).max(10).optional().describe('Default 3'),
     },
   }, async ({ query, kind, budget, maxNotes }) => {
-    const offer = mcpWarmupOffer();
-    const text = s => ({ content: [{ type: 'text', text: offer ? `${offer}\n\n${s}` : s }] });
     const turnContext = agentTurn();
     const r = await lookup(store, { query: query || '', kind, client: 'mcp', ...turnContext, budget: budget || 2500, maxNotes: maxNotes || 3, snippets: snippetsOn(store) });
     // the switched-off skills the agent's words match, beside the notes (harness.js:switchedOffSkills; off by default)
@@ -335,8 +305,7 @@ function registerTools() {
     return text(`Recorded. ${r.note.id} confidence now ${Math.round(r.note.confidence * 100)}%${input.correction ? ', body updated' : ''}.`);
   });
 
-  registerWarmupTool();
-  registerCoverageTool(); registerCommitsTool(); registerHarnessTool();
+  registerCoverageTool(); registerHarnessTool();
   registerQueueTools();
 }
 
@@ -359,25 +328,6 @@ function registerCoverageTool() {
   });
 }
 
-// The answer to the unmined-commits question (commits-offer.js:commitsOffer): offered only while one waits for its
-// answer here, like the coverage tool.
-let commitsTool;
-function registerCommitsTool() {
-  if (commitsTool || !store || !commitsPending(store)) return;
-  commitsTool = server.registerTool('commits', {
-    title: 'Answer the unmined-commits question',
-    description: 'Only when a thinker-unmined-commits notice tells you to: records the user\'s answer and, on mine, mines the commits into the cache in the background.',
-    inputSchema: {
-      choice: z.enum(['mine', 'no', 'never']).describe('The user\'s answer'),
-      asked: z.enum(['picker', 'chat']).optional().describe('Where the user answered: your question tool (picker) or chat'),
-      ...(late ? { cwd: z.string().optional().describe('Absolute path of the repository') } : {}),
-    },
-  }, async ({ choice, asked, cwd }) => {
-    const { reply } = await ensureBound({ cwd }); if (reply) return reply;
-    return text(await answerCommits(store, String(choice), { client: clientName(), via: asked === 'chat' ? 'text' : 'picker' }));
-  });
-}
-
 // The answer to a harness suggestion (harness.js:harnessOffer): offered only while one waits for its answer
 // here, like the coverage tool.
 let harnessTool;
@@ -396,35 +346,9 @@ function registerHarnessTool() {
   });
 }
 
-let warmupTool;
-function registerWarmupTool() {
-  // The warm-up offer as a picker (repo-onboard.js:warmupOffer): the hooks tell Codex, whose own question
-  // tool is off outside plan mode, to call this, and the server asks the person through MCP elicitation.
-  // Offered only while an offer may be waiting for its answer here (`warmupPending`), so it costs nothing
-  // once the repository is warm or answered. A client without elicitation is told to ask in chat and call
-  // again with the choice.
-  if (!warmupTool && store && warmupPending(store)) warmupTool = server.registerTool('warmup', {
-    title: 'Offer a warm-up of this cache',
-    description: 'Only when a thinker-new-repository notice tells you to: with choice, records the user\'s answer to the warm-up offer and acts on it (warm starts the warm-up in the background); without, asks the user in a picker first.',
-    inputSchema: {
-      choice: z.string().optional().describe('The user\'s answer: warm, no or never'),
-      asked: z.enum(['picker', 'chat']).optional().describe('Where the user answered: your question tool (picker) or chat'),
-      ...(late ? { cwd: z.string().optional().describe('Absolute path of the repository') } : {}),
-    },
-  }, async ({ choice, asked, cwd }) => {
-    const { reply } = await ensureBound({ cwd }); if (reply) return reply;
-    if (choice) return text(await answerWarmup(store, String(choice).toLowerCase(), { client: clientName(), via: asked === 'picker' ? 'picker' : 'text' }));
-    const inChat = `Ask the user in chat with these three numbered choices: ${WARMUP_CHOICES.map((c, i) => `${i + 1}. "${c.label}": ${c.description}`).join('; ')}. Then call warmup again with choice warm, no or never.`;
-    if (!server.server.getClientCapabilities()?.elicitation) return text(`This client cannot show thinker's picker. ${inChat}`);
-    const r = await askWarmup();
-    if (r.error) return text(`The picker could not be shown (${r.error}). ${inChat}`);
-    return text((await answerWarmup(store, r.choice, { client: clientName(), via: 'picker' })).replace(/^Recorded: no warm-up/, r.choice === 'dismissed' ? 'Dismissed: no warm-up' : '$&'));
-  });
-}
-
-// Work read through this session (session-llm.js), a warm-up or, in a desktop app, learning (session-work.js):
-// its subagent takes the model calls with warmup_next and answers with warmup_answer. Offered in a desktop
-// app from the start, bound or not, while a warm-up offer may still be answered here, or while such work runs,
+// Work read through this session (session-llm.js): in a desktop app, learning (session-work.js) or a coverage
+// build (coverage.js). Its subagent takes the model calls with warmup_next and answers with warmup_answer (the
+// names from when a warm-up used them too). Offered in a desktop app from the start, bound or not, or while such work runs,
 // so a subagent with its own server process finds them too. Each call reads the queue of the repository its
 // `cwd` names: Cursor runs one server for every window (2026-10-16: started the day before in the home
 // directory, bound to another repository), so the bound repository is only the fallback.
@@ -433,23 +357,22 @@ const queueStore = cwd => { const r = checkoutOf(cwd); return r ? storeFor(r) : 
 function registerQueueTools() {
   if (queueTools) return;
   inApp ??= anyDesktopApp();
-  if (!(inApp || (store && (warmupPending(store) || buildRunning(queueDir(store)) || buildRequested(queueDir(store)))))) return;
-  const noRepo = text('Pass cwd: the absolute path of the repository whose warm-up you are answering.');
+  if (!(inApp || (store && buildRunning(queueDir(store))))) return;
+  const noRepo = text('Pass cwd: the absolute path of the repository whose work you are answering.');
   queueTools = [server.registerTool('warmup_next', {
-    title: 'Take the warm-up\'s next model request',
-    description: 'Only for a subagent told to work thinker\'s queue: returns the next model request of thinker\'s background work (a warm-up or learning) that reads through this session.',
+    title: 'Take the next model request of thinker\'s background work',
+    description: 'Only for a subagent told to work thinker\'s queue: returns the next model request of thinker\'s background work (learning or a coverage build) that reads through this session.',
     inputSchema: { cwd: z.string().optional().describe('Absolute path of the repository') },
   }, async ({ cwd } = {}) => {
     const s = queueStore(cwd); if (!s) return noRepo;
     // under the clients' tool timeouts (Codex: 60s), so an empty wait returns and is called again
-    // a warm-up the session's shell asked for starts here, outside the app's command sandbox (session-llm.js:requestBuild)
-    const r = await nextRequest(queueDir(s), { waitMs: 25_000, start: () => startSessionWarmup(s) });
-    if (r.error) return text(`The warm-up could not start (${r.error}). Stop, and reply with that one line.`);
+    const r = await nextRequest(queueDir(s), { waitMs: 25_000 });
+    if (r.error) return text(`The work could not start (${r.error}). Stop, and reply with that one line.`);
     if (r.request) return text(requestText(r.request));
-    if (r.waiting) return text('Nothing has come yet: the warm-up is still reading. Call warmup_next again.');
+    if (r.waiting) return text('Nothing has come yet: the work is still reading. Call warmup_next again.');
     return text(`The work is done: the cache holds ${s.list().length} notes. Stop.`);
   }), server.registerTool('warmup_answer', {
-    title: 'Answer a warm-up model request',
+    title: 'Answer a model request of thinker\'s background work',
     description: 'Only for a subagent working thinker\'s queue: the answer to the request warmup_next returned.',
     inputSchema: { id: z.string().describe('The request id'), answer: z.string().describe('The answer: one JSON object when the request gave a schema'), cwd: z.string().optional() },
   }, async ({ id, answer, cwd }) => {
@@ -474,7 +397,7 @@ if (late) server.server.oninitialized = async () => {
         const r = checkoutOf(root.uri);
         if (!r || isDisabledRepo(r) || store) continue;
         binding = bind(r); await binding;
-        registerWarmupTool(); registerCoverageTool(); registerCommitsTool(); registerHarnessTool(); registerQueueTools();
+        registerCoverageTool(); registerHarnessTool(); registerQueueTools();
         break;
       }
     }

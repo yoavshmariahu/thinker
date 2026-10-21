@@ -1,6 +1,5 @@
 import { retireBackground } from '../retire-background.js';
 import { Store } from '../store.js';
-import { DEPTHS, DEFAULT_PRS } from '../setup/estimate.js';
 // Setting a repository and this machine up: setup, uninstall, the tree-sitter parser (ast), and
 // updating thinker itself (update, upgrade, switch, branch).
 import fs from 'node:fs';
@@ -14,16 +13,13 @@ import { runSetup, stepConnectClis } from '../setup.js';
 import { unscheduleTelemetry, sendUninstallFeedback, sendTelemetry, sendTelemetryAfterUpdate } from '../telemetry.js';
 import readlinePromises from 'node:readline/promises';
 import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, unscheduleDaily, refreshSchedule, isScheduled, getLaunchAgentPath } from '../update.js';
-import { githubSlug } from './shared.js';
-import { minePrs } from './learn.js';
 import { readLog } from '../usage.js';
 import { isTestMode } from '../test-mode.js';
-import { minedCount, logWarmupIssue, markWarmed } from '../repo-onboard.js';
 import { recordRepair, repairAfterUpdate as rewireAfterUpdate } from '../environment-repair.js';
 
 async function initCommand(ctx) {
   // `init` and `setup` were two ways to set a repository up, and the difference was never clear.
-  process.stderr.write('thinker: `thinker init` was replaced by `thinker setup`, the one command that sets a repository up.\n  thinker setup              wire up the agents, then offer to build the cache from the code\n  thinker setup --no-build   wire up the agents only (what `init` did)\n');
+  process.stderr.write('thinker: `thinker init` was replaced by `thinker setup`, the one command that sets a repository up.\n  thinker setup              wire up the agents\n');
   process.exit(1);
 }
 
@@ -45,7 +41,7 @@ async function connectCommand(ctx) {
     hooks: !flags['no-hooks'], learn: !flags['no-hooks'] && learnOn(), late: !flags['no-late'], mcp: !flags['no-mcp'],
     noTrust: Boolean(flags['no-trust']), yes: Boolean(flags.yes), out,
   });
-  out(`\n  thinker runs in every git repository on this machine: a cache starts with the first session there, or build one from the warm-up page (thinker ui).`);
+  out(`\n  thinker runs in every git repository on this machine: a cache starts with the first session there and grows from your sessions.`);
 }
 
 async function uninstallCommand(ctx) {
@@ -372,49 +368,18 @@ async function updateCommand(ctx) {
   return;
 }
 
-// The one command that sets a repository up: wire it into the agents, then offer to build the
-// cache from its merged pull requests. The offer is the only step that spends anything,
-// so it is a question (--build answers yes, --no-build answers no and leaves the wiring alone).
+// The one command that sets a repository up: wire it into the agents. Nothing is built: the cache grows from
+// the sessions (2026-10-21). --build, --prs, --depth, --no-build and the rest of the old build flags are ignored.
 export async function setup(ctx, { runSetupFn = runSetup } = {}) {
   const { flags, repo, store, out, learnOn, mcpEntry, HERE } = ctx;
   const clients = parseClients(flags.clients, parseClients('auto'));
-  const num = (v, d) => v === undefined || v === true || Number.isNaN(Number(v)) ? d : Number(v);
-  // a build mines merged changes and nothing else: exploring the code cost far more than it gave back and was
-  // removed (--areas and --no-seed from old scripts are ignored)
-  const slug = flags['no-prs'] ? null : (typeof flags.slug === 'string' ? flags.slug : githubSlug(repo));
-  const prs = flags['no-prs'] ? 0 : num(flags.prs, DEFAULT_PRS);
-  const agent = typeof flags.agent === 'string' ? flags.agent : (process.env.THINKER_LLM || null);
-  // asking for a size is asking for the build; --no-build (or --no-prs) is a no
-  const depth = typeof flags.depth === 'string' ? flags.depth : null;
-  if (depth && !DEPTHS.includes(depth)) { out(`--depth takes ${DEPTHS.join(' or ')}`); process.exit(2); }
-  const askedToBuild = Boolean(flags.build) || Boolean(depth) || flags.prs !== undefined;
-  const build = flags['no-build'] || flags['no-prs'] ? false : (askedToBuild ? true : null);
-
-  // The build decision belongs to runSetup, including interactive and --yes choices. A successful
-  // setup can still skip or fail its build, so use its result rather than the process's exit code.
-  let started = false, result;
-  const onBuildStart = () => { started = true; store.log({ op: 'warmup-start', depth: depth || undefined, source: slug ? 'github' : 'git' }); };
-  const ended = (ok, reason, detail) => { if (started) { let notes = null, mined = null; try { notes = store.list().length; mined = minedCount(store); } catch {} store.log({ op: 'warmup-done', ok, notes, mined, ...(reason ? { reason } : {}) }); if (ok) markWarmed(store); if (!ok) logWarmupIssue(store, 'build', reason, { detail }); } };
-  try { result = await runSetupFn({
+  return runSetupFn({
     repo,
     store,
     cliPath: path.join(HERE, 'cli.js'),
     mcpEntry: mcpEntry(),
     userMcpEntry: ctx.userMcpEntry(),
     clients,
-    projectFlags: flags,
-    prs,
-    prNumber: flags.pr ? Number(flags.pr) : null,
-    build,
-    onBuildStart,
-    depth,
-    benchmark: Boolean(flags.benchmark),
-    noBenchmark: Boolean(flags['no-benchmark']),
-    noPrs: Boolean(flags['no-prs']) || build === false,
-    noPhrase: Boolean(flags['no-phrase']),
-    docs: !flags['no-docs'],
-    model: flags.model,
-    agent,
     yes: Boolean(flags.yes),
     hooks: !flags['no-hooks'],
     learn: !flags['no-hooks'] && learnOn(),
@@ -424,17 +389,10 @@ export async function setup(ctx, { runSetupFn = runSetup } = {}) {
     noTrust: Boolean(flags['no-trust']),
     exportFile: typeof flags.export === 'string' ? flags.export : null,
     out,
-    minePrsFn: async (slug, opts) => minePrs(ctx, slug, { ...opts, repo, phase: 'init' }),
     // the local page opens after a repository's first setup, except under tests (a bare `node --test` sets only
     // NODE_TEST_CONTEXT), thinker's own model runs, CI, and --no-ui
     dashboard: !flags['no-ui'] && !isTestMode() && !process.env.NODE_TEST_CONTEXT && !process.env.THINKER_IN_LLM && !process.env.CI,
-  }); } catch (e) { ended(false, 'error', e?.message); throw e; }
-  const ok = result?.built === true && !result.error && !result.warnings;
-  ended(ok, result?.error || (result?.warnings ? 'incomplete' : !result?.built ? 'not-built' : null), result?.warnings ? `${result.warnings} warning${result.warnings === 1 ? '' : 's'}` : null);
-  // asked to build, and the build never began: no agent signed in to read through (src/setup.js:runSetup)
-  if (!started && build !== false && result?.error && result.error !== 'cancelled') logWarmupIssue(store, 'start', result.error);
-  if (started && !ok) process.exitCode = 1;
-  return result;
+  });
 }
 
 export const commands = {

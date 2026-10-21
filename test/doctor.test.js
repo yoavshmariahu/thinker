@@ -63,7 +63,7 @@ test('doctor says a repository has no cache yet, as a fact and not a failure, an
   const r = run('doctor', '--json');
   const repoCheck = byName(JSON.parse(r.stdout), 'repository');
   assert.equal(repoCheck.status, 'ok');
-  assert.match(repoCheck.detail, /no cache in .* yet.*thinker ui/);
+  assert.match(repoCheck.detail, /no cache in .* yet: one starts with the first agent session here/);
   assert.ok(!fs.existsSync(path.join(repo, '.thinker')));
 });
 

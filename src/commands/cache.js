@@ -134,11 +134,10 @@ export function areasLine(store, { json = false } = {}) {
 }
 
 // `thinker ui`: the local page (ui/server.js) until Ctrl+C, from any directory: the Context tab first (where the
-// agents' context goes, context-view.js), the caches on this machine with their notes and behaviors, and the
-// warm-up page that builds caches. --from-setup is how the installer and
-// setup open it (setup/steps.js:openDashboard): detached, with no terminal to press Ctrl+C in, so it opens the
+// agents' context goes, context-view.js), then the caches on this machine with their notes and behaviors.
+// --from-setup is how setup opens it (setup/steps.js:openDashboard): detached, with no terminal to press Ctrl+C in, so it opens the
 // browser itself (--tab names the page to land on), shows the page's how-to-come-back hint, and exits once no
-// request has come for UI_IDLE_MS and no warm-up build is queued.
+// request has come for UI_IDLE_MS.
 const UI_IDLE_MS = 30 * 60 * 1000;
 async function uiCommand(ctx) {
   const { flags, store, out } = ctx;
@@ -158,7 +157,7 @@ async function uiCommand(ctx) {
   out('\n' + box([
     `${c.yellow('*')} ${c.magenta('~')} ${c.yellow('*')}  ${c.bold(c.cyan('Thinker'))} ${c.dim('· local')}`,
     '',
-    `Where your agents' context goes, the caches on this machine and the warm-up page at ${c.cyan(`http://127.0.0.1:${port}`)}`,
+    `Where your agents' context goes and the caches on this machine, at ${c.cyan(`http://127.0.0.1:${port}`)}`,
     c.dim('On this machine only. Press Ctrl+C to stop.'),
   ], { width: 74 }) + '\n');
   if (!flags['no-open'] && process.stdout.isTTY) openBrowser(url);

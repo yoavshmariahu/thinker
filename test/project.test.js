@@ -6,10 +6,8 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { PROJECT_FILE, validateProject, readProject, writeProject, projectFromFlags, includesPath, projectRecordKey } from '../src/project.js';
-import { chooseProject } from '../src/setup/project.js';
 import { discoverAreas } from '../src/topology.js';
 import { estimateCacheBuild } from '../src/setup/estimate.js';
-import { stepBuildCache } from '../src/setup/steps.js';
 import { Store } from '../src/store.js';
 import { createNote } from '../src/ops.js';
 import { minedPrs } from '../src/prs.js';
@@ -96,43 +94,6 @@ test('discovery treats directory names literally and can explore an index-only p
   }
   git(repo, 'add', '.');
   assert.deepEqual(discoverAreas(repo, { directories: ['packages/[ui]'] }).map(a => a.dir), ['packages/[ui]/index.js']);
-});
-
-test('onboarding offers the two choices, retries invalid directories, saves and reuses the selection', async t => {
-  const repo = fixture(t);
-  const lines = [], answers = ['Checkout', 'missing', 'Checkout', 'apps/web, packages/ui'];
-  let closed = false;
-  const selected = await chooseProject({ repo, interactive: true, out: s => lines.push(s),
-    selectFn: async options => {
-      assert.deepEqual(options.items.map(x => x.label), ['Full repo', 'Specify project directories']);
-      return options.items[1];
-    }, readlineFn: () => ({ question: async () => answers.shift(), close: () => { closed = true; } }),
-  });
-  assert.equal(closed, true);
-  assert.ok(lines.some(line => /does not exist/.test(line)));
-  assert.deepEqual(selected.directories, ['apps/web', 'packages/ui']);
-  assert.deepEqual(readProject(repo), selected);
-  assert.deepEqual(await chooseProject({ repo, interactive: false, out: () => {}, selectFn: () => { throw new Error('must not prompt'); } }), selected);
-  assert.deepEqual(await chooseProject({ repo, interactive: true, flags: { yes: true }, out: () => {}, selectFn: () => { throw new Error('must not prompt'); } }), selected);
-  assert.equal(await chooseProject({ repo, interactive: true, out: () => {}, selectFn: async opts => opts.items[0] }), null);
-  assert.deepEqual(readProject(repo).directories, ['.'], 'switching to full repo persists for later builds');
-});
-
-test('setup threads the selection into PR mining and retrieval still reads outside it', async t => {
-  const repo = fixture(t), store = new Store(repo).init();
-  const directories = ['apps/web'];
-  writeProject(repo, project(directories));
-  const note = createNote(store, { kind: 'rule', title: 'UI rule outside the project', body: 'packages/ui/core.js:run returns one.', deps: [{ path: 'packages/ui/core.js', symbol: 'run' }] }).note;
-  assert.ok(note);
-  assert.match(cli(repo, ['show', note.id]), /UI rule outside the project/);
-  const estimates = estimateCacheBuild(repo, { directories });
-  estimates.canMine = true;
-  let mined;
-  await stepBuildCache({ repo, store, directories, estimates, noPhrase: true, agent: 'claude', out: () => {},
-    minePrsFn: async (slug, options) => { mined = options; return { saved: 0, processed: 1 }; },
-    proposeFn: async () => ({ proposals: [], sources: 0 }),
-  });
-  assert.deepEqual(mined.directories, directories);
 });
 
 test('project mining skips unrelated changes without hiding them from later full-repo builds', t => {

@@ -9,8 +9,7 @@ import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
 import http from 'node:http';
 import { createUiServer } from '../src/ui/server.js';
-import { switchOffNow, setHarnessSettings, harnessSettings, projectKey, harnessRecall, sessionHarness, harnessUsage, harnessAdvice, harnessSavings, harnessView, skillCosts, serverKey, scheduleHarnessSuggestion, harnessOffer, harnessPending, answerHarness, undoHarness, readHarnessState, harnessNever, SIGNATURE , harnessFirstLook, switchOffFirstLook} from '../src/harness.js';
-import { unusedTools } from '../src/commands/warmup.js';
+import { switchOffNow, setHarnessSettings, harnessSettings, projectKey, harnessRecall, sessionHarness, harnessUsage, harnessAdvice, harnessSavings, harnessView, skillCosts, serverKey, scheduleHarnessSuggestion, harnessOffer, harnessPending, answerHarness, undoHarness, readHarnessState, harnessNever, SIGNATURE } from '../src/harness.js';
 import { setDiskCache } from '../src/disk-cache.js';
 
 const tmp = p => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), p)));
@@ -456,39 +455,6 @@ test('off until released: no question, no recall, no switch-off and nothing for 
   assert.equal(harnessPending(store, { home: thinkerHome }), true);
 });
 
-test('after the warm-up: only repositories with enough sessions, and only what the person picks is switched off', t => {
-  const store = checkout(t), h = home(t), th = tmp('thinker-harness-th-'), d = tmp('thinker-harness-');
-  t.after(() => { fs.rmSync(th, { recursive: true, force: true }); fs.rmSync(d, { recursive: true, force: true }); });
-  const few = [0, 1, 2, 3].map(i => session(d, `f${i}`, [call('mcp__artemis__get_experiment')]));
-  const many = Array.from({ length: 10 }, (_, i) => session(d, `m${i}`, [call('mcp__artemis__get_experiment')]));
-  const look = sessions => harnessFirstLook([store.repo], { usageFn: r => harnessUsage(r, { home: h, sessions }) });
-  assert.deepEqual(look(few), [], 'four sessions are not enough to tell what goes unused');
-  const looks = look(many);
-  assert.equal(looks.length, 1); assert.equal(looks[0].sessions, 10);
-  assert.ok(looks[0].sources.some(s => s.label === 'rea MCP server'));
-  fs.writeFileSync(path.join(store.dir, 'config.json'), '{}');
-  assert.deepEqual(look(many), [], 'off until released (harnessOn)');
-  on(store);
-  const said = switchOffFirstLook(looks, new Set([`${store.repo}\0rea MCP server`]), { home: th, userHome: h });
-  assert.equal(said.length, 1); assert.match(said[0].said, /Switched off here/);
-  assert.deepEqual(readHarnessState(store).applied.map(a => a.name), ['rea'], 'what was not picked stays on');
-});
-
-test('the warm-up step asks at a terminal only, and switches off only the rows picked', async t => {
-  const out = [], ctx = { flags: {}, store: null, out: l => out.push(l) };
-  const looks = [{ checkout: '/r', days: 30, sessions: 12, sources: [{ label: 'rea MCP server', tokens: 900, used: 0, loaded: 12 }, { label: 'gtm plugin', tokens: 2000, used: 1, loaded: 12 }] }];
-  let asked = 0, switched = null;
-  const deps = { candidatesFn: async () => [{ checkout: '/r', name: 'repo' }], firstLookFn: () => looks,
-    selectFn: async ({ items }) => { asked++; assert.ok(items.every(i => i.picked)); return items.slice(0, 1); },
-    switchFn: (l, chosen) => { switched = [...chosen]; return [{ checkout: '/r', said: 'Switched off here: rea.' }]; } };
-  await unusedTools({ ...ctx, flags: { yes: true } }, { ...deps, isTTY: true });
-  await unusedTools(ctx, { ...deps, isTTY: false });
-  assert.equal(asked, 0, 'no question with --yes or without a terminal');
-  await unusedTools(ctx, { ...deps, isTTY: true });
-  assert.equal(asked, 1); assert.deepEqual(switched, ['/r\0rea MCP server']);
-  assert.ok(out.some(l => /repo: Switched off here: rea\./.test(l)));
-});
-
 test('an existing install is asked as soon as 10 sessions are recorded, looked at daily until then, then every two weeks', t => {
   const store = checkout(t), h = home(t), th = tmp('thinker-harness-th-'), d = tmp('thinker-harness-');
   t.after(() => { fs.rmSync(th, { recursive: true, force: true }); fs.rmSync(d, { recursive: true, force: true }); });
@@ -501,15 +467,6 @@ test('an existing install is asked as soon as 10 sessions are recorded, looked a
   answerHarness(store, 'none', { client: 'claude', home: th, userHome: h, now: T0 + DAY + 2 });
   assert.equal(scheduleHarnessSuggestion(store, { now: T0 + 10 * DAY, home: th, usage: use(10) }), null, 'then not for two weeks');
   assert.ok(Array.isArray(scheduleHarnessSuggestion(store, { now: T0 + 16 * DAY, home: th, usage: use(10) })), 'two weeks on, looked at again');
-});
-
-test('the warm-up step counts as the first look: the question waits its two weeks from there', t => {
-  const store = checkout(t), h = home(t), th = tmp('thinker-harness-th-'), d = tmp('thinker-harness-');
-  t.after(() => { fs.rmSync(th, { recursive: true, force: true }); fs.rmSync(d, { recursive: true, force: true }); });
-  const usage = harnessUsage(store.repo, { home: h, sessions: [...Array(10).keys()].map(i => session(d, `k${i}`, [call('mcp__artemis__get_experiment')])) });
-  assert.equal(harnessFirstLook([store.repo], { usageFn: () => usage }).length, 1);
-  assert.ok(readHarnessState(store).firstLookAt);
-  assert.equal(scheduleHarnessSuggestion(store, { now: Date.now() + 86400_000, home: th, usage }), null);
 });
 
 test('what a transcript loaded is kept on disk by its size and mtime: the same answer from the cache, read again when it grows', t => {

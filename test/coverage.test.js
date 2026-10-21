@@ -194,16 +194,6 @@ test('coverage suggestions are off until a repository turns them on (a new strat
   assert.equal(asked, 1, 'on when the config says so');
 });
 
-test('a cache of understanding notes is warm: no warm-up offer', async () => {
-  const { isWarm, warmupPending, WARM_UNDERSTOOD } = await import('../src/repo-onboard.js');
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-coverage-home-'));
-  const store = new Store(repo()).init();
-  assert.equal(isWarm(store), false);
-  for (let i = 0; i < WARM_UNDERSTOOD; i++) createNote(store, { title: `how part ${i} of the api works`, kind: 'map', answers: [`how does part ${i} work`], body: `src/api/a.js:a part ${i} of ${'x'.repeat(i)}`, deps: [{ path: 'src/api/a.js', symbol: 'a' }] }, { source: { type: 'understanding', ref: 'src/api/a.js' } });
-  assert.equal(isWarm(store), true);
-  assert.equal(warmupPending(store, { home }), false);
-});
-
 test('a capped build reads the first batches in rank order and reports only what it read', async () => {
   const { understand } = await import('../src/understand.js');
   const store = new Store(repo()).init();

@@ -42,27 +42,25 @@ test('maintain verifies stale notes, phrases unphrased ones, and reports once', 
     spentToday: () => 0,
     verify: async (s, n) => { verified.push(n.id); return { verdict: n.id === a.id ? 'update' : 'still_valid', tokens: 10000 }; },
     phrase: async (s, notes) => { phrased.push(...notes.map(n => n.id)); return { done: notes, tokens: 5000 }; },
-    minePrs: async () => ({ saved: 9 }),
   } });
   assert.deepEqual(verified, [a.id], 'only the stale note is sent to the model');
   assert.equal(r.verified, 1); assert.equal(r.updated, 1); assert.equal(r.retired, 0);
   assert.deepEqual(phrased.sort(), [a.id, b.id].sort(), 'both notes lack phrasings');
-  assert.equal(r.prs, 0, 'mining is off unless the config turns it on');
   assert.equal(r.tokens, 15000);
   const state = JSON.parse(fs.readFileSync(path.join(dir, '.thinker', 'state', 'maintain.json'), 'utf8'));
-  assert.equal(state.prsAfter, undefined, 'mining is off by default, so no window opens');
+  assert.equal(state.prsAfter, undefined, 'maintenance mines nothing, so no window opens');
   // the user hears about it once
   const notice = maintenanceNotice(store);
   assert.match(notice, /1 checked, 1 updated; 2 phrased/);
   assert.equal(maintenanceNotice(store), '');
-  assert.match(renderMaintain(r), /1 re-verified, 1 updated, 2 phrased, 0 from pull requests \(~15k tokens\)/);
+  assert.match(renderMaintain(r), /1 re-verified, 1 updated, 2 phrased \(~15k tokens\)/);
   fs.rmSync(dir, { recursive: true, force: true });
 }));
 
 // Since 2026-10-21 the steps that read history, documents and skill files are off by default: the cache
 // grows from the sessions, and a repository that wants them says so in its config.
-test('by default maintenance verifies and phrases only: no mining, no documents, no skills, no duplicate pass', () => withEnv(async () => {
-  assert.equal(DEFAULTS.prs, false); assert.equal(DEFAULTS.docs, false); assert.equal(DEFAULTS.skills, false); assert.equal(DEFAULTS.dedupe, false);
+test('by default maintenance verifies and phrases only: no documents, no skills, no duplicate pass, and never any mining', () => withEnv(async () => {
+  assert.equal(DEFAULTS.prs, undefined); assert.equal(DEFAULTS.docs, false); assert.equal(DEFAULTS.skills, false); assert.equal(DEFAULTS.dedupe, false);
   // one verification batch every three days, of the notes served in those days; unused notes deleted after two weeks
   assert.equal(DEFAULTS.verifyEveryDays, 3); assert.equal(DEFAULTS.verifyServedDays, 3); assert.equal(DEFAULTS.verifyPerRun, 50); assert.equal(DEFAULTS.deleteUnusedDays, 14);
   const { dir, store } = staleRepo();
@@ -77,75 +75,10 @@ test('by default maintenance verifies and phrases only: no mining, no documents,
   for (const n of store.list()) if (n.lastUsed) servedAt(store, n.id, t2 - 1000);
   const r = await maintain(store, dir, { fns, now: t2 });
   assert.deepEqual(called, []);
-  assert.equal(r.verified, 1); assert.equal(r.prs, 0); assert.equal(r.docs, 0); assert.equal(r.skills, 0); assert.equal(r.merged, 0);
+  assert.equal(r.verified, 1); assert.equal(r.prs, undefined); assert.equal(r.docs, 0); assert.equal(r.skills, 0); assert.equal(r.merged, 0);
   assert.equal(JSON.parse(fs.readFileSync(path.join(dir, '.thinker', 'state', 'maintain.json'), 'utf8')).prsAfter, undefined, 'no mining window is opened');
   fs.rmSync(dir, { recursive: true, force: true });
 }));
-
-test('maintain mines pull requests merged since its first run, where the config turns mining on', () => withEnv(async () => {
-  const { dir, store } = staleRepo();
-  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ ...store.config(), maintain: { prs: true } }));
-  const calls = [];
-  const fns = { spentToday: () => 0, verify: async () => ({ verdict: 'still_valid', cost: 0 }), phrase: async (s, n) => ({ done: n, cost: 0 }), minePrs: async o => { calls.push(o); return { saved: 2, cost: 0.1 }; } };
-  await maintain(store, dir, { fns });
-  const first = JSON.parse(fs.readFileSync(path.join(dir, '.thinker', 'state', 'maintain.json'), 'utf8')).prsAfter;
-  fs.rmSync(path.join(dir, '.thinker', 'state', 'maintain.lock'), { force: true });
-  const r = await maintain(store, dir, { fns, now: Date.now() + MAINTENANCE_INTERVAL_MS });
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].after, first);
-  assert.equal(calls[0].limit, DEFAULTS.prsPerRun);
-  assert.equal(r.prs, 2);
-  assert.match(maintenanceNotice(store), /2 PR notes/);
-  fs.rmSync(dir, { recursive: true, force: true });
-}));
-
-test('maintain stops at the daily cap, honours the lock, and can be switched off', () => withEnv(async () => {
-  const { dir, store } = staleRepo();
-  let verifyCalls = 0;
-  const fns = { spentToday: () => DEFAULTS.dailyTokens, verify: async () => { verifyCalls++; return { verdict: 'still_valid', cost: 0 }; }, phrase: async (s, n) => ({ done: n, cost: 0 }) };
-  const r = await maintain(store, dir, { fns });
-  assert.equal(r.capped, true); assert.equal(verifyCalls, 0); assert.equal(r.phrased, 0);
-  assert.equal(maintenanceNotice(store), '', 'nothing happened, nothing to say');
-  // a run in progress
-  fs.writeFileSync(path.join(dir, '.thinker', 'state', 'maintain.lock'), '1');
-  assert.deepEqual(await maintain(store, dir, { fns }), { skipped: 'locked' });
-  // off in the repo's config
-  fs.rmSync(path.join(dir, '.thinker', 'state', 'maintain.lock'));
-  fs.writeFileSync(path.join(dir, '.thinker', 'config.json'), JSON.stringify({ maintain: { enabled: false } }));
-  assert.deepEqual(await maintain(store, dir, { fns }), { skipped: 'disabled' });
-  // dry: counts, no calls, no state
-  fs.writeFileSync(path.join(dir, '.thinker', 'config.json'), JSON.stringify({ maintain: { dailyTokens: 5_000_000 } }));
-  fs.rmSync(path.join(dir, '.thinker', 'state', 'maintain.json'));
-  const d = await maintain(store, dir, { dry: true, fns: { ...fns, spentToday: () => 0 } });
-  assert.equal(d.verified, 1); assert.equal(verifyCalls, 0);
-  assert.equal(fs.existsSync(path.join(dir, '.thinker', 'state', 'maintain.json')), false);
-  fs.rmSync(dir, { recursive: true, force: true });
-}));
-
-test('spentToday sums the tokens of learning and maintenance model calls since local midnight', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-maintain-home-'));
-  const { dir, store } = staleRepo();
-  const prev = { THINKER_HOME: process.env.THINKER_HOME, THINKER_LOG: process.env.THINKER_LOG, THINKER_NOTES_DIR: process.env.THINKER_NOTES_DIR };
-  process.env.THINKER_HOME = home; delete process.env.THINKER_LOG; delete process.env.THINKER_NOTES_DIR;
-  try {
-    const now = new Date();
-    const today = new Date(now); today.setHours(12, 0, 0, 0);
-    const yesterday = new Date(today.getTime() - 86400_000);
-    const line = (t, e) => JSON.stringify({ t: t.toISOString(), op: 'model', ...e }) + '\n';
-    const origin = repoId(dir);
-    fs.writeFileSync(path.join(home, 'log.jsonl'),
-      line(today, { origin, phase: 'maintenance', tokens: { totalTokens: 200 }, cost: 0.2 }) +
-      line(today, { origin, phase: 'learning', tokens: { totalTokens: 300 }, cost: 0.3 }) +
-      line(today, { origin, phase: 'init', tokens: { totalTokens: 5000 } }) +
-      line(today, { origin, phase: 'maintenance', tokens: { totalTokens: null }, cost: 0.4 }) +  // no counters: nothing, not an estimate
-      line(yesterday, { origin, phase: 'maintenance', tokens: { totalTokens: 7000 } }) +
-      line(today, { origin: 'elsewhere', phase: 'maintenance', tokens: { totalTokens: 9000 } }));
-    assert.equal(spentToday(store, now), 500);
-  } finally {
-    for (const [k, v] of Object.entries(prev)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
-    fs.rmSync(dir, { recursive: true, force: true }); fs.rmSync(home, { recursive: true, force: true });
-  }
-});
 
 test('postCommitHook maintains with learning on and only re-checks with it off', () => {
   const on = postCommitHook('/x/cli.js', '/r', true), off = postCommitHook('/x/cli.js', '/r', false);

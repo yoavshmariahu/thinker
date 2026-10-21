@@ -2,8 +2,9 @@ import { projectFromFlags, includesPath, projectRecordKey } from '../project.js'
 import { learningPlan } from '../learning-evidence.js';
 import { deferLearning, safeLearningAssessments, takeContradictions } from '../learning-pending.js';
 // The learning loop by hand and from the hooks: distilling sessions (distill, learn, record), one
-// maintenance run, verification, and mining merged pull
-// requests (mine-prs). The helpers take the dispatcher's context (cli.js) as their first argument.
+// maintenance run, verification, and mining merged pull requests (mine-prs, and understand: reading the code).
+// The last two are kept for Artemis's benchmark caches only (src/commands/external.js): no product path runs
+// them since 2026-10-21, and the help does not list them. The helpers take the dispatcher's context (cli.js) as their first argument.
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -31,7 +32,6 @@ async function learnCommand(ctx) {
   const result = await learn(ctx, { days: Number(flags.days) || 14, idleMin: flags['idle-min'] === undefined ? 2 : Number(flags['idle-min']), max: Number(flags.max) || 50, dry: !!flags.dry, quiet: !!flags.quiet });
   // A queued job must not acknowledge a batch whose per-session errors were caught below.
   if (process.env.THINKER_LLM === 'session' && result?.failed) process.exitCode = 1;
-  if (flags.prs) await mineMore(ctx, { limit: flags.prs === true ? 20 : Number(flags.prs) || 20, model: flags.model, dry: !!flags.dry });
   if (flags.maintain) await runMaintain(ctx, { quiet: !!flags.quiet, dry: !!flags.dry });
   return;
 }
@@ -117,17 +117,12 @@ async function understandCommand(ctx) {
   if (r.failed && r.failed / r.calls > 0.2) process.exitCode = 1;
 }
 
-// One maintenance run, with PR mining wired to this repository's origin.
+// One maintenance run.
 export async function runMaintain(ctx, { quiet, dry }) {
   const { repo, store, out, NO_LEARN } = ctx;
   if (NO_LEARN) { if (!quiet) out('maintenance is switched off (THINKER_NO_LEARN)'); return; }
   if (!store.exists()) return;
-  const slug = githubSlug(repo);
-  const canMine = provider() && (slug ? hasBin('gh') : true);
   const r = await maintain(store, repo, { dry, fns: {
-    minePrs: canMine ? ({ after, limit, directories = null }) => minePrs(ctx, slug, { after, before: new Date().toISOString(), limit, repo, phase: 'maintenance', directories }) : undefined,
-    // the focus areas' older history, a few changes a run (maintain.js step 4; areas.js)
-    mineAreaHistory: canMine ? ({ paths, limit, scan }) => minePrs(ctx, slug, { from: 'HEAD', paths, pathsLimit: limit, pathsScan: scan, pathsOnly: true, limit, repo, phase: 'maintenance' }) : undefined,
     docs: provider() ? async ({ limit }) => (await import('../behavior-docs.js')).deriveDocBehaviors(store, { limit, phase: 'maintenance' }) : undefined,
     skills: provider() ? ({ limit }) => scanSkills(store, { limit, phase: 'maintenance' }) : undefined,
   } });

@@ -8,12 +8,12 @@ async function projectCommand({ repo, pos, flags, out }) {
     const directories = pos.slice(1);
     if (!directories.length) throw new Error('Usage: thinker project init <directory> [directory…] [--name name]');
     const project = writeProject(repo, { version: 1, name: flags.name || path.basename(repo), directories }, file);
-    out(`Saved ${file}: ${project.name} (${project.directories.join(', ')}).\nBuild: thinker setup --build --project ${file}`);
+    out(`Saved ${file}: ${project.name} (${project.directories.join(', ')}).\nRead by: thinker mine-prs --project ${file}`);
     return;
   }
   if (pos.length && pos[0] !== 'show') throw new Error('Usage: thinker project [show | init <directory> [directory…]]');
   const project = readProject(repo, file, { optional: !flags.project });
-  out(project ? JSON.stringify(project, null, 2) : 'Full repo (no thinker.project.json). Use thinker setup to choose project directories.');
+  out(project ? JSON.stringify(project, null, 2) : 'Full repo (no thinker.project.json). thinker project init <directory> chooses directories for mine-prs.');
 }
 
 export const commands = { project: projectCommand };

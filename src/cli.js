@@ -19,9 +19,7 @@ import { commands as setupCommands } from './commands/setup.js';
 import { commands as telemetryCommands } from './commands/telemetry.js';
 import { commands as benchmarkCommands } from './commands/benchmark.js';
 import { commands as doctorCommands } from './commands/doctor.js';
-import { commands as warmupCommands } from './commands/warmup.js';
 import { commands as coverageCommands } from './commands/coverage.js';
-import { commands as commitsCommands } from './commands/commits.js';
 import { commands as symbolsCommands } from './commands/symbols.js';
 import { commands as switchCommands } from './commands/repo-switch.js';
 import { commands as externalCommands } from './commands/external.js';
@@ -55,8 +53,7 @@ const NO_LEARN = /^(1|true|yes)$/i.test(process.env.THINKER_NO_LEARN || '');
 const learnOn = () => !NO_LEARN && !flags['no-learn'] && !flags['serve-only'];
 // Learning from sessions (the end-of-turn distill and the catch-up `learn`) is a model call per
 // session, about 10¢ with Sonnet, and in a week on this repository 30% of them produced no note.
-// `learn: {sessions: false}` in .thinker/config.json keeps it off while learning from code changes
-// goes on: pull requests and verification in maintenance.
+// `learn: {sessions: false}` in .thinker/config.json keeps it off; verification in maintenance goes on.
 // `thinker distill <file>` by hand is still answered. THINKER_NO_LEARN=1 switches off everything.
 const sessionLearning = () => store.config().learn?.sessions !== false;
 
@@ -70,34 +67,23 @@ const userMcpEntry = () => ({ command: 'node', args: [path.join(HERE, 'mcp.js')]
 
 const HELP = `thinker — knowledge cache for coding agents
 
-  setup [--build | --no-build] [--depth full|shallow] [--clients list|all|auto] [--agent a] [--prs n] [--pr <num>] [--no-docs]
-        [--benchmark | --no-benchmark] [--no-learn] [--no-hooks] [--no-late] [--no-mcp] [--no-git-hook]
-        [--no-trust] [--yes] [--verbose] [--project file | --directories dir,dir | --full-repo] [--no-ui]
+  setup [--clients list|all|auto] [--no-learn] [--no-hooks] [--no-late] [--no-mcp] [--no-git-hook] [--no-trust] [--yes] [--no-ui]
                                  the one command that sets a repository up: connect the agent CLIs (hooks and the MCP
-                                 server, clients claude, codex, cursor, gemini, pi, windsurf, copilot, opencode; default auto), then offer to build the
-                                 knowledge cache from merged pull requests with pre-flight estimates (a build reads pull requests and does not explore the code), and
-                                 an optional PR change benchmark. --build opts into building; --yes also skips the scope menu; --no-docs skips the last
-                                 stage, the design documents (at most 8 are read). --no-build only wires
-                                 things up and lets the cache grow from your sessions; --depth shallow builds 30% of the full
-                                 build (the newest pull requests); a build also drafts
-                                 system behaviors for human review; --verbose adds per-item details; the first setup of a
-                                 repository opens the local page (thinker ui) in the browser, --no-ui leaves it closed
-  project [show]                show the saved thinker.project.json cache build selection
-  project init <dir> [dir…] [--name name] [--project file]
-                                 save repository-relative directories for future cache builds (no model calls)
-                                 setup and mine-prs use thinker.project.json when present; --project selects
-                                 another file, --full-repo ignores it for one run. Retrieval always uses the whole cache.
+                                 server, clients claude, codex, cursor, gemini, pi, windsurf, copilot, opencode; default auto)
+                                 and fetch the ranking model. Nothing is built: the cache starts empty and grows from your
+                                 sessions. The first setup of a repository opens the local page (thinker ui) in the browser,
+                                 --no-ui leaves it closed
   connect [--clients list|all|auto] [--no-hooks] [--no-late] [--no-learn] [--no-mcp] [--no-trust] [--yes]
                                  wire the agents on this machine into their own settings, once: hooks and the MCP
                                  server. Thinker then runs in every git repository: a cache starts with the first
-                                 session there, or is built from the warm-up page (thinker ui). Codex's hook-review
+                                 session there and grows from the sessions. Codex's hook-review
                                  marks are written without asking (--no-trust leaves them). The installer runs this.
   doctor [--fix] [--json]        check that thinker is installed and wired correctly: Node, dependencies, PATH, the
                                  agents' hooks and MCP server, this checkout's setup and git hooks, the MCP server
                                  starting, the ranking model, the model that answers thinker's calls; --fix repairs what it can and checks again
   disable | enable [--repo dir]  switch thinker off for this repository, machine-wide, or back on: for a repository with
                                  sensitive content. Off, the hooks and the MCP server do nothing there, no session is
-                                 distilled, no pull request is read, nothing is written into it (also on the warm-up page)
+                                 distilled, nothing is written into it
   uninstall [--purge] [--user]   remove this repository's hooks and MCP registration (notes are kept unless --purge);
                                  --user also removes the machine-wide wiring from your agent settings
   system [--all] [--json]        the desired behaviors of the system (notes of kind behavior) and whether the code
@@ -150,42 +136,25 @@ const HELP = `thinker — knowledge cache for coding agents
   rehash [--fanout]              re-baseline every note's hashes without verification (--fanout: count references again)
   relink                         recompute cross-note links
   verify [ids...] [--model m]    re-verify stale notes with a small model
-  maintain [--dry]               run maintenance if four hours have elapsed (--dry previews)
-                                 distill newly merged PRs; runs by itself from the hooks, under a daily cap
+  maintain [--dry]               run maintenance if four hours have elapsed (--dry previews): re-verify stale notes,
+                                 phrase new ones; runs by itself from the hooks, under a daily cap
   phrase [ids...] [--model m] [--force]
                                  add to each note how a user would put it, in the words of the product (for retrieval)
   distill [transcript] [--format auto|claude|codex|cursor|gemini|events] [--min-explore n] [--incremental [--batch]] [--evidence] [--dry] [--model m]
                                  turn a session into notes; reads any of these agents' transcripts, or a plain event trace;
                                  --batch (end of a turn) leaves a small backlog for the end of the session
-  learn [--days n] [--max n] [--idle-min n] [--prs [n]] [--maintain] [--dry]
-                                 learn from new session evidence (edits, failures, corrections), with sampled full-trace audits;
-                                 --prs also mines merged pull requests that were not mined before (default 20)
+  learn [--days n] [--max n] [--idle-min n] [--maintain] [--dry]
+                                 learn from new session evidence (edits, failures, corrections), with sampled full-trace audits
   record <session>               append events (JSON lines on stdin: {t:prompt|say|tool, ...}) to a session trace, for agents without hooks
   outcome <session> good|bad [reason]           apply an outcome signal to the notes served in a session
-  understand [--top n] [--areas a,b | --all] [--whole] [--batch tokens] [--style default|task|overview] [--model m] [--dry]
-                                 notes on how the most changed code works now (maps, change recipes, invariants), read from
-                                 the top n files by recent commits (default 200), in the focus areas when set (--all: whole repository);
-                                 --whole: every code file of the --areas directories, whatever its age, except files already read
   coverage [--answer <dirs|none|never>] [--via picker|text] [--client c]
                                  the directories your sessions work in and how much of each the cache covers; --answer takes
                                  the reply to a coverage suggestion (directories, comma-separated) and builds the chosen ones
-  commits [--answer <mine|no|never>] [--via picker|text] [--client c]
-                                 how many commits on the default branch name no pull request and are not mined yet; --answer
-                                 takes the reply to the unmined-commits question and mines them in the background
-  mine-prs [owner/repo] [--project file | --full-repo] [--limit n] [--dry] [--git | --direct] [--fixes] [--from commit [--scan n] [--paths a,b [--paths-limit n]]]
-                                 distill merged PRs into fix / invariant / convention notes: those merged since the last run,
-                                 then older ones; mined PRs are recorded in .thinker/prs.json and never distilled twice;
-                                 without GitHub, or with --git, commits from git history (--fixes: only those whose message says they fix something)
-                                 --direct: only the commits pushed straight to the default branch, naming no pull request
-                                 (default repo: the GitHub origin; --before <iso> [--after <iso>] [--again] picks a window by hand)
-                                 --from <commit>: look back from that commit instead of the checkout's head: the newest --limit changes
-                                 worth distilling among the 3 x limit commits that end there (--scan n: among n); nothing merged
-                                 after it is read
   mcp [--enable orient,…]        the MCP server on stdio, for an agent's MCP settings (THINKER_REPO pins the repository;
                                  --enable offers tools this checkout switched off, for this server only)
   version [--json]               the version this thinker runs, and its commit when it runs from a checkout
   served [--json]                what this checkout's own log says was served: prompt-hook and file-hook notes, orient and lookup calls
-  spent [--json]                 what this checkout's own log says its model calls spent, and what mining and understanding did
+  spent [--json]                 what this checkout's own log says its model calls spent
   harness [--days n] [--json] [--verbose] [--suggest] [--off <labels>] [--undo [names]] [--answer <labels|none|never> [--via picker|text] [--client c]]
           [--recurring on|off] [--recall on|off] [--suggestions on|off] [--enabled on|off]
                                  off by default, not yet released: --enabled on turns it on for this repository (--undo works either way);
@@ -225,18 +194,11 @@ const HELP = `thinker — knowledge cache for coding agents
   impact export | impact import <file.json>   transfer evidence from CI or another machine
   impact finding <id> --pr n --validity confirmed|dismissed|duplicate|pending --evidence reason
          [--resolution fixed|open|accepted-risk|not-applicable] [--fix sha] [--duplicate-of id]
-  warmup [--terminal | --browser | --skip] [--repos name,name] [--agent name | --app claude|cursor] [--model name] [--yes] [--dry]
-                                 warm up caches from the terminal: open the warm-up page in the browser, or here: the
-                                 ten repositories your agents work in, the top five picked (arrows move, Space toggles,
-                                 Enter starts, Esc skips), each built with thinker setup --build at full depth; the
-                                 installer runs this last. A machine without a display (ssh) is not
-                                 offered the browser. --yes takes the picked ones, --repos names them, --dry only says
-  ui [--port n] [--no-open] [--tab context|cache|warmup]
+  ui [--port n] [--no-open] [--tab context|cache]
                                  open the local page, from any directory, on Context: where the agents' context goes in each
                                  repository and what each part is worth (thinker context); then the caches on this machine
                                  (each with its notes, to archive or restore, its system behaviors, to accept, edit or
-                                 discard, and what is being mined or distilled, with a stop button), and the warm-up page
-                                 that builds caches for the repositories your agents work in; 127.0.0.1 only, Ctrl+C stops it
+                                 discard, and what is being distilled, with a stop button); 127.0.0.1 only, Ctrl+C stops it
   skills [list|scan|audit <id>|review <id>|prefer <id>|dedupe] [--dry] [--again] [--limit n] [--json]
                                  the skill files (SKILL.md) of this checkout as the cache sees them: each has a card that is
                                  served like a note and audited against the code; a skill found out of date is listed with
@@ -276,8 +238,9 @@ const HELP = `thinker — knowledge cache for coding agents
 // run a setup); their flags are the ones HELP lists plus the few every command takes. The other
 // commands keep taking any flag.
 const COMMON_FLAGS = ['repo', 'dry', 'json', 'quiet', 'yes', 'verbose', 'background', 'no-learn', 'serve-only', 'help'];
-const UNLISTED_FLAGS = { setup: ['no-prs', 'slug', 'no-phrase', 'model', 'export'], rewire: ['quiet', 'json'], warmup: ['answer', 'via', 'client'] };
-const STRICT_COMMANDS = ['setup', 'connect', 'uninstall', 'rewire', 'warmup', 'doctor'];
+// setup still takes the flags of the cache build it no longer runs (2026-10-21), so an old script does not stop on them
+const UNLISTED_FLAGS = { setup: ['export', 'build', 'no-build', 'depth', 'agent', 'prs', 'pr', 'no-docs', 'benchmark', 'no-benchmark', 'no-prs', 'slug', 'no-phrase', 'model', 'project', 'directories', 'full-repo', 'areas', 'no-seed'], rewire: ['quiet', 'json'] };
+const STRICT_COMMANDS = ['setup', 'connect', 'uninstall', 'rewire', 'doctor'];
 function helpFlags(c, help = HELP) {
   const lines = help.split('\n');
   const start = lines.findIndex(l => new RegExp(`^  ${c}( |$)`).test(l));
@@ -298,10 +261,10 @@ function unknownFlags(c, given, help = HELP) {
 const CACHE_COMMANDS = ['tools', 'symbols', 'orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'session-work', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback', 'skills', 'instructions', 'context', 'test'];
 
 // One handler per command, in src/commands/; each gets the context below and nothing else of this file.
-const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...skillsCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...testingCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...warmupCommands, ...coverageCommands, ...commitsCommands, ...symbolsCommands, ...switchCommands, ...externalCommands, ...harnessCommands, ...instructionsCommands, ...contextCommands, ...proxyCommands };
+const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...skillsCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...testingCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...coverageCommands, ...symbolsCommands, ...switchCommands, ...externalCommands, ...harnessCommands, ...instructionsCommands, ...contextCommands, ...proxyCommands };
 // Commands that still answer in a repository thinker is switched off for (repo-switch.js): the machine-wide
 // ones, the ones about the install itself, and the switch. `hook` keeps quiet by itself.
-const OFF_COMMANDS = ['version', 'enable', 'disable', 'ui', 'warmup', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'stats', 'ast', 'ranker', 'hook', 'serve', 'proxy', undefined];
+const OFF_COMMANDS = ['version', 'enable', 'disable', 'ui', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'stats', 'ast', 'ranker', 'hook', 'serve', 'proxy', undefined];
 
 async function main() {
   if (flags.help || ['help', '--help', '-h'].includes(cmd)) { out(HELP); return; }
@@ -340,7 +303,7 @@ async function main() {
     if (!store.exists()) store.init();
   }
   // symbol boundaries by tree-sitter where its grammars are installed (`thinker ast install`), else by regex
-  if (!['update', 'upgrade', 'switch', 'branch', 'serve', 'ast', 'usage', 'impact', 'stats', 'telemetry', 'help', 'warmup', 'version', 'served', 'spent', 'guide', 'proxy', 'test', undefined].includes(cmd)) await initAst();
+  if (!['update', 'upgrade', 'switch', 'branch', 'serve', 'ast', 'usage', 'impact', 'stats', 'telemetry', 'help', 'version', 'served', 'spent', 'guide', 'proxy', 'test', undefined].includes(cmd)) await initAst();
 
   const handler = COMMANDS[cmd];
   if (!handler) { out(HELP); return; }

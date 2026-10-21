@@ -29,7 +29,7 @@ test('--help prints the usage and runs nothing, on setup as on any command', t =
     const r = run(...args);
     assert.equal(r.status, 0, `${args.join(' ')}: ${r.stderr}`);
     assert.match(r.stdout, /^thinker — knowledge cache for coding agents/, args.join(' '));
-    assert.match(r.stdout, /\n  setup \[--build/);
+    assert.match(r.stdout, /\n  setup \[--clients/);
   }
   assert.equal(snapshot(), before, 'no file was written in the home or the repository');
 });
@@ -43,7 +43,7 @@ test('a flag setup does not take is refused before anything runs; the flags it t
   assert.match(r.stderr, /nothing was run/);
   assert.equal(r.stdout, '');
   assert.equal(snapshot(), before);
-  for (const [c, flag] of [['connect', '--no-such'], ['uninstall', '--purge-all'], ['warmup', '--repo-list'], ['doctor', '--fixx'], ['rewire', '--everywhere']]) {
+  for (const [c, flag] of [['connect', '--no-such'], ['uninstall', '--purge-all'], ['doctor', '--fixx'], ['rewire', '--everywhere']]) {
     const x = run(c, flag);
     assert.equal(x.status, 2, `${c} ${flag}`);
     assert.match(x.stderr, new RegExp(`${c} does not take ${flag}`));
