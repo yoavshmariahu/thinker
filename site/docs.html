@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Documentation — thinker</title>
-  <meta name="description" content="Think ahead. Save context. Thinker gives coding agents the context each task needs. It learns from your merged pull requests, sessions and skills, injects the context that fits each task, and keeps itself fresh as the code changes, so tasks finish faster, on fewer tokens, with fewer pitfalls.">
+  <meta name="description" content="Think ahead. Save context. Thinker shows where your coding agents' context goes, part by part: what each instruction section, skill and tool costs a session and how often sessions act on it. Compress, trim or switch off what they never use, and let a cache of notes learned from your sessions give the agent the context each task needs.">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='10' cy='22' r='6' fill='%23000'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%23000' fill-opacity='0.75'/%3E%3Ccircle cx='22' cy='10' r='6' fill='%23000' fill-opacity='0.5'/%3E%3C/svg%3E">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -622,6 +622,12 @@
         </ul>
       </div>
       <div class="sidebar-group">
+        <div class="sidebar-heading">Where the context goes</div>
+        <ul class="sidebar-nav">
+          <li class="sidebar-item"><a href="#context">The Context page</a></li>
+        </ul>
+      </div>
+      <div class="sidebar-group">
         <div class="sidebar-heading">The knowledge cache</div>
         <ul class="sidebar-nav">
           <li class="sidebar-item"><a href="#notes">What a note is</a></li>
@@ -664,12 +670,12 @@
       <section id="overview">
         <h1 class="headline">Think ahead. Save context.</h1>
         <p class="lead">
-          Your coding agent rediscovers your codebase on every task: where things live, how the parts connect, which change broke what last time. Thinker remembers it instead, and hands the agent what it needs as it works.
+          Every model call your coding agent makes re-reads the same things: the instruction file, the skill list, every MCP server's tool definitions, every tool result so far. Most of it is never acted on. Thinker shows you where the context goes, part by part, and lets you cut the parts your sessions do not use.
         </p>
         <ul class="value-list">
-          <li><strong>It injects the right context and skills, as the agent works.</strong> Thinker learns from your merged pull requests, your agent sessions and your skill files, and keeps short notes pinned to the exact code they describe. On each request it ranks them and serves only the ones that fit, with pointers into the code, so the agent starts at the right place instead of searching for it.</li>
-          <li><strong>It keeps the cache fresh on its own.</strong> Every session grades the notes it was served: a note the agent acted on gains confidence, a note the trace contradicts is corrected, an unused one decays and is archived. A note whose code changed is held back and re-verified before it is served again. New pull requests become notes as they merge.</li>
-          <li><strong>Tasks finish faster, on fewer tokens, with fewer pitfalls.</strong> The agent spends less of its budget rebuilding a picture of the repository, and the traps the history already knows about are in front of it before it touches the code.</li>
+          <li><strong>See it.</strong> The <a href="#context">Context page</a> reads your agents' own session transcripts and shows input tokens a session split into instruction files, skills, MCP servers, plugins, built-in tools and tool outputs, for one repository or all of them. Each section, skill and tool stands beside what it costs and how often sessions acted on it, with the waste flagged.</li>
+          <li><strong>Cut it.</strong> Compress or remove instruction sections as a diff you apply; keep only the sections that matter in a trimmed copy for this checkout; switch unused skills and tools off from the next session, with a backup; compress long tool outputs before the agent reads them. Every cut is shown first and undone with one command.</li>
+          <li><strong>Remember instead.</strong> The <a href="#notes">knowledge cache</a>: what your agent works out in a session becomes a short note pinned to the code it describes, served on the requests it fits and re-checked when that code changes, so the agent reads less to find its way.</li>
         </ul>
 
         <div class="outcomes">
@@ -710,6 +716,53 @@
         </div>
         <p>
           Everything lives under <code>.thinker/</code> in the repository. Notes are keyed to the exact definitions they describe by content hash, so the cache knows when the code under a note has moved and never serves a claim it cannot stand behind.
+        </p>
+      </section>
+
+      <div class="part-label">Where the context goes</div>
+
+      <section id="context">
+        <h2>The Context page</h2>
+        <p>
+          <code>thinker ui</code> opens on it; <code>thinker context</code> prints the same report in the terminal (<code>--days 7</code>, <code>--json</code>). Everything is read from the agents' own session transcripts on this machine. Nothing is sent anywhere, and the report changes nothing by itself: every cut is a choice you make, shown first, undone with one command.
+        </p>
+        <h3>What it shows</h3>
+        <p>
+          <strong>Input tokens over time</strong>, as stacked columns by day or week, total or per session, split into the parts the agent reads on every model call. A part's cost a session is its tokens times the session's model calls: a 4k-token instruction file read by 40 calls is 160k input tokens, and that is the number the page sorts by.
+        </p>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Part</th><th>What it is</th><th>Read from</th></tr></thead>
+            <tbody>
+              <tr><td>Instruction files</td><td><code>AGENTS.md</code>, or <code>CLAUDE.md</code> where there is no <code>AGENTS.md</code>, section by section</td><td>Claude Code, Codex, Cursor and Gemini CLI sessions</td></tr>
+              <tr><td>Custom tools</td><td>The skills listed in every session, MCP servers and plugins, with their descriptions and tool definitions</td><td>Claude Code in full; Codex's skill catalog and MCP namespaces; Cursor's MCP servers</td></tr>
+              <tr><td>Built-in tools</td><td>The agent's own tool definitions, re-sent with every call</td><td>Claude Code</td></tr>
+              <tr><td>Tool outputs</td><td>What each tool's results added to the conversation, re-read by every call after them</td><td>Claude Code</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          <strong>One part at a time, as cards.</strong> Each instruction section, skill and tool beside its cost (tokens a call, input tokens a session) and its use. A section is <em>applied</em> when a session touched its files, ran its command or read the code it names, free, from the transcript; <em>relevant</em> and <em>followed</em> come from a model reading one session against the sections, which costs tokens, so it runs when you press <strong>Judge 5 more sessions</strong> or on a sample of sessions as they end once you turn that on (<code>instructions.value.judge</code> in the configuration). A skill is <em>read</em> when a session opened it, and the sampled outcome check says whether the sessions that read it kept its rules, and how often one broke them without reading it. A tool is <em>used</em> when a session called it. <strong>Waste</strong> is high or medium for a part the sessions used in under half of them and that costs a large share of its kind; the saving beside it is what cutting it would save at most.
+        </p>
+        <h3>What you can cut</h3>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Cut</th><th>On the page</th><th>From the terminal</th><th>Undo</th></tr></thead>
+            <tbody>
+              <tr><td>Shorten an instruction section</td><td>Pick sections, <strong>Compress</strong>: a model rewrites them to about a third, keeping the rules, commands and paths. The diff is shown; <strong>Apply</strong> writes it to the file in your working tree, uncommitted</td><td><code>thinker instructions --compress &lt;ids&gt; [--apply]</code></td><td><code>git checkout</code> the file</td></tr>
+              <tr><td>Drop an instruction section</td><td>Pick sections, <strong>Remove</strong>; the same diff and Apply</td><td><code>thinker instructions --remove &lt;ids&gt; [--apply]</code></td><td><code>git checkout</code> the file</td></tr>
+              <tr><td>Give this checkout a shorter file</td><td>Keep the sections that matter here; the team's file is untouched and the agents here read a trimmed local copy</td><td><code>thinker instructions --core "Title, Title"</code></td><td><strong>Remove the trimmed copy</strong>, or <code>thinker instructions --off</code></td></tr>
+              <tr><td>Switch a skill, MCP server or plugin off</td><td>Pick them, <strong>Switch off</strong>: off for this repository from the next session, in the agent's own settings, with a backup. A skill switched off still runs as <code>/name</code></td><td><code>thinker harness --off "&lt;label&gt;"</code></td><td><strong>Turn back on</strong>, or <code>thinker harness --undo</code></td></tr>
+              <tr><td>Switch a built-in tool off</td><td>The same, under Built-in tools</td><td><code>thinker context --switch-off &lt;labels&gt; --builtin</code></td><td><code>thinker context --switch-on &lt;keys&gt;</code></td></tr>
+              <tr><td>Compress tool outputs</td><td>Per tool, <strong>High</strong>, <strong>Moderate</strong> or <strong>No compression</strong>: a whole-file read becomes the lines around what the session searched for, a test run its counts and distinct failures, a big search its hits per file, long output cut to a cap. Claude Code only, through its tool hook</td><td><code>thinker context --output-compression &lt;tools&gt; --level high|moderate|off</code></td><td>The same, <code>--level off</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          Compress and Remove edit the team's file in your working tree and nothing else: no commit, no pull request, and Apply refuses when the file changed since the preview. Switching a tool off turns thinker's harness on for that repository, which is what reads and writes the agent's settings; <code>thinker harness</code> lists what is off and <code>--undo</code> restores every file from its backup.
+        </p>
+        <p>
+          Tokens are counted from the transcripts, at about four characters a token, times the model calls the transcript records. The outputs' cost is each result's tokens times the model calls left after it; a compaction, which drops old results, is not seen, so that part is an upper estimate. The waste flags and savings are measurements of use, not a promise: cutting a section saves its tokens, and whether the agent then misses it is what <em>followed</em> and <em>missed</em> are there to show. No benchmark is claimed for the cuts; the <button type="button" onclick="openModal()">benchmarks</button> are about the cache.
         </p>
       </section>
 
@@ -924,7 +977,7 @@ thinker skills scan                 <span class="code-comment"># card new or cha
       <section id="usage">
         <h2>Usage and the holdout</h2>
         <p>
-          <code>thinker usage</code> summarizes how the cache has been used on this machine: notes served and how, what the sessions did with them, what learning and maintenance cost in tokens, and an estimate of the reads avoided. <code>--here</code> limits it to this repository, <code>--days 7</code> to a period, <code>--json</code> gives the data. The same numbers, with the notes your agents saw most, are in the Usage view of <a href="#local-page"><code>thinker ui</code></a>.
+          <code>thinker usage</code> summarizes how the cache has been used on this machine: notes served and how, what the sessions did with them, what learning and maintenance cost in tokens, and an estimate of the reads avoided. <code>--here</code> limits it to this repository, <code>--days 7</code> to a period, <code>--json</code> gives the data. The same numbers, with the notes your agents saw most, are under Cache in <a href="#local-page"><code>thinker ui</code></a>; where the context itself goes is the <a href="#context">Context page</a>.
         </p>
         <p>
           One number in it is measured rather than estimated. The hooks serve nothing in 15% of prompts, chosen by a hash of the session id and the turn's number, and what every turn cost is recorded from the session's transcript. The holdout section compares the prompts that got notes with the ones that had notes withheld, as cost per prompt overall and per model, once twenty prompts stand on each side. This is what the notes do for your own work, on your own repository, by your own agent. <code>holdout</code> in the config changes the share or turns it off.
@@ -936,16 +989,17 @@ thinker skills scan                 <span class="code-comment"># card new or cha
       <section id="local-page">
         <h2>The local page</h2>
         <p>
-          <code>thinker ui</code> opens a page in your browser, from any directory, with two views and the warm-up view behind the Cache one. It is where <a href="#install">setup happens</a>: the installer opens it on the warm-up view (the page stops by itself after half an hour unused, once no build is queued).
+          <code>thinker ui</code> opens a page in your browser, from any directory, on the <a href="#context">Context</a> view, with the Cache view beside it and the warm-up view behind that one. It is where <a href="#install">setup happens</a>: the installer opens it on the warm-up view (the page stops by itself after half an hour unused, once no build is queued).
         </p>
-        <pre><code>thinker ui                          <span class="code-comment"># opens the page; Ctrl+C stops it</span>
+        <pre><code>thinker ui                          <span class="code-comment"># opens the page on Context; Ctrl+C stops it</span>
+thinker ui --tab cache              <span class="code-comment"># the caches on this machine</span>
 thinker ui --tab warmup             <span class="code-comment"># straight to the warm-up page</span>
 thinker ui --port 4800 --no-open    <span class="code-comment"># a fixed port, without opening a browser</span></code></pre>
         <div class="table-scroll">
           <table>
             <thead><tr><th>View</th><th>What it shows</th></tr></thead>
             <tbody>
-              <tr><td>Usage</td><td>What <code>thinker usage</code> reports, over 7 days, 30 days or all time, for one repository or all of them: notes served, what agents acted on, what was learned, the tokens it cost, the holdout comparison, and the notes your agents saw most</td></tr>
+              <tr><td>Context</td><td>Where the agents' context goes, over 7 or 30 days, for one repository or all of them: input tokens a session by part, then each instruction section, skill and tool with its cost, use and waste, and the cuts (<a href="#context">The Context page</a>)</td></tr>
               <tr><td>Cache</td><td>Every repository on this machine with a cache, as a card: notes, fresh and stale, behaviors, hits, last use, and what is being mined or distilled right now, as a progress bar ("mining 3/20 PRs", "distilling 1/4 sessions") with a stop button. Open one for its notes, filtered by status and kind, searched and sorted by hits or age, with the code each points at and where it came from (archive a note or restore it to serving), and below them the behaviors read from its design documents, to accept, edit or discard</td></tr>
               <tr><td>Warm up (from the Cache view, and the first view after install)</td><td>The git repositories your agents worked in over the last 30 days, most recent first, found from their own session records, with a build estimate each (time and tokens, never dollars). Pick repositories, full or shallow, whole or by directory, and the agent and model; the builds run one at a time and show on the Cache page</td></tr>
             </tbody>
@@ -964,7 +1018,10 @@ thinker ui --port 4800 --no-open    <span class="code-comment"># a fixed port, w
             <tbody>
               <tr><td><code>thinker setup [--build | --no-build]</code></td><td>Set one repository up from the terminal, as the local page does: connect the agents, then offer to build the cache from merged pull requests</td></tr>
               <tr><td><code>thinker connect</code></td><td>Wire the agents on this machine into their own settings, once; setup and the installer run it first</td></tr>
-              <tr><td><code>thinker ui [--tab warmup] [--port n] [--no-open]</code></td><td>The <a href="#local-page">local page</a>: set repositories up, usage, and the notes in each cache</td></tr>
+              <tr><td><code>thinker ui [--tab context | cache | warmup] [--port n] [--no-open]</code></td><td>The <a href="#local-page">local page</a>: where the context goes, the caches and their notes, setting repositories up</td></tr>
+              <tr><td><code>thinker context [--days n] [--json] [--judge n]</code></td><td>The <a href="#context">Context page</a>'s report in the terminal; <code>--judge n</code> has a model read n recent sessions for which sections bore on them</td></tr>
+              <tr><td><code>thinker instructions [--core | --compress | --remove]</code></td><td>The sections of <code>AGENTS.md</code> and their tokens; keep some in a trimmed local copy, or shorten or drop one as a diff</td></tr>
+              <tr><td><code>thinker harness [--off | --undo]</code></td><td>The skills, MCP servers and plugins loaded into every session against what the sessions use; switch some off, or back on</td></tr>
               <tr><td><code>thinker orient "&lt;task&gt;"</code>, <code>lookup</code></td><td>The MCP tools from the command line</td></tr>
               <tr><td><code>thinker tools [enable | disable] find drilldown</code></td><td>Two code tools for agents (definitions by their words; a definition whole with its callers and callees), off unless enabled</td></tr>
               <tr><td><code>thinker benchmark [pr | run | report]</code></td><td>Paired agent runs with and without the cache, on your repository</td></tr>
@@ -1085,7 +1142,8 @@ export THINKER_TELEMETRY=off
           <h3>How can I tell if Thinker is helping my agents?</h3>
           <ul>
             <li><strong>At the end of each turn</strong> one line says what was served and the code it pointed at. It does not say "saved": whether the agent acted on a note is known only once the session is assessed.</li>
-            <li><strong><code>thinker usage</code></strong>, and the Usage view of <code>thinker ui</code>, show notes served, what the sessions did with them (confirmed, contradicted, unused), what learning and maintenance cost in tokens, and an estimate of the reads avoided.</li>
+            <li><strong>The <a href="#context">Context page</a></strong>, and <code>thinker context</code>, show where your agents' context goes: what each instruction section, skill and tool costs a session and how often sessions acted on it, so what you cut is measured on your own sessions.</li>
+            <li><strong><code>thinker usage</code></strong>, and the usage under Cache in <code>thinker ui</code>, show notes served, what the sessions did with them (confirmed, contradicted, unused), what learning and maintenance cost in tokens, and an estimate of the reads avoided.</li>
             <li><strong>The holdout is measured, not estimated.</strong> 15% of prompts are served nothing, chosen by a hash of the session and the turn, and what every turn cost is read from the session's transcript. Once twenty prompts stand on each side, the holdout section compares the cost per prompt: tool calls and tokens with notes against without, on your repository, by your agent.</li>
           </ul>
           <p>

@@ -1097,6 +1097,9 @@ helps in agent sessions.
 `thinker context` and the page's Context tab show one report (`context-view.js:contextView`): where the agents'
 context goes in a repository, part by part, with what each part costs a session (its tokens × the median model
 calls of a session here) and how much the sessions used it. Measurement only; nothing is served or rewritten.
+The tab is the page's front door since 2026-10-21 (`thinker ui` opens on it when a repository has a cache,
+`--tab cache|warmup` for the others), and the README, `docs/context.md` and the site lead with it: seeing where
+the context goes and cutting what is wasted first, the cache second.
 
 - **Instruction file sections** (`instruction-value.js`): every instruction file (`instructionFiles`): the root
   AGENTS.md (or CLAUDE.md where there is none; Claude Code's sessions are left out where CLAUDE.md has text of its

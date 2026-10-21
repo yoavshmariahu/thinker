@@ -35,8 +35,11 @@ the agent starts a background subagent that answers them through thinker's `warm
 The offer is made once per repository on this machine, not again in another clone or worktree,
 and nothing else repeats it; `thinker warmup` is there any time.
 
-**Tools your sessions never use** (Claude Code and its desktop app, Codex; `thinker harness`). Off by default and not yet released: nothing below
-happens, and the local page shows none of it, until `thinker harness --enabled on` in a repository. Once on, it is
+**Tools your sessions never use** (Claude Code and its desktop app, Codex; `thinker harness`). The
+[Context page](context.md) shows every skill, MCP server and plugin loaded into your sessions with its cost
+and use, and switching one off there turns the harness on for that repository. The rest of this paragraph,
+the question asked in your prompts, is off by default and not yet released: nothing below
+happens until `thinker harness --enabled on` in a repository (or a switch-off on the Context page). Once on, it is
 the step after the warm-up, in `thinker warmup` and on the page: for each repository with at least 10 sessions
 recorded (`HARNESS.firstSessions`), the sources worth switching off, all picked, switched off only when the person
 confirms. Claude Code records in each session's
@@ -50,7 +53,7 @@ off for this checkout (`enabledPlugins` and `skillOverrides` in `.claude/setting
 or, for an MCP server, for the repository and its worktrees (`disabledMcpServers` in its entry of
 `~/.claude.json`, what `/mcp disable` writes). A skill switched off still runs as `/name`. What each file said
 before is kept under `~/.thinker/state/harness-backups/`, and `thinker harness --undo` turns everything back on.
-The report and `thinker ui` (Usage) then show what it saved, read from the sessions started since: a source
+The report and `thinker ui` (the Cache view's usage) then show what it saved, read from the sessions started since: a source
 absent from a session saved its tokens there, once in the context and again in each model call; one still
 loaded is shown as such, not counted.
 
@@ -88,8 +91,9 @@ for scripts and advanced use; `--yes` skips the harness menu.
 ## Setting up on the local page
 
 `thinker ui` serves a page from your own machine (127.0.0.1 only, with a token minted
-for that run) and opens it in the browser. It works from any directory, and the
-installer opens it for you the first time.
+for that run) and opens it in the browser, on the [Context page](context.md) once a
+repository has a cache, and on the warm-up view until then. It works from any
+directory, and the installer opens it for you the first time.
 
 **1. Pick repositories.** The warm-up view lists the git repositories your agents
 worked in over the last 30 days, most recent first, found from the agents' own session
@@ -137,9 +141,10 @@ a **Stop** button; a queued one shows its estimate and a **Remove** button. Stop
 every note saved so far. If a build does not finish, its card names the log to read,
 `~/.thinker/state/warmup-<repository>.log`.
 
-**After setup.** The same page is where you look at the result: the Usage view (notes
-served, what agents did with them, tokens spent, the holdout comparison) and the Cache
-view (each repository's notes, with the code they point at, to archive or restore).
+**After setup.** The same page is where you look at the result: the Context view (where
+the agents' context goes and what to cut, [context.md](context.md)) and the Cache view
+(each repository's notes, with the code they point at, to archive or restore, and the
+usage: notes served, what agents did with them, tokens spent, the holdout comparison).
 The page stops by itself after half an hour unused, once no build is queued;
 `thinker ui` opens it again.
 

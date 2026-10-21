@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>thinker</title>
-  <meta name="description" content="Think ahead. Save context. Thinker gives coding agents the context each task needs. It learns from your merged pull requests, sessions and skills, injects the context that fits each task, and keeps itself fresh as the code changes, so tasks finish faster, on fewer tokens, with fewer pitfalls.">
+  <meta name="description" content="Think ahead. Save context. Thinker shows where your coding agents' context goes, part by part: what each instruction section, skill and tool costs a session and how often sessions act on it. Compress, trim or switch off what they never use, and let a cache of notes learned from your sessions give the agent the context each task needs.">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='10' cy='22' r='6' fill='%23000'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%23000' fill-opacity='0.75'/%3E%3Ccircle cx='22' cy='10' r='6' fill='%23000' fill-opacity='0.5'/%3E%3C/svg%3E">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
@@ -492,6 +492,16 @@
 
     .ci-link:hover { text-decoration: underline; }
 
+    p.pitch {
+      font-size: 0.95rem;
+      color: #555555;
+      max-width: 580px;
+      line-height: 1.55;
+      margin: -0.5rem 0 1.75rem;
+    }
+    p.pitch a { color: #2563eb; text-decoration: none; }
+    p.pitch a:hover { text-decoration: underline; }
+
     .supported-agents {
       margin-top: 1.25rem;
       font-size: 0.85rem;
@@ -792,6 +802,7 @@
   <main>
     <h1>thinker</h1>
     <p class="subtitle">Think ahead. Save context.</p>
+    <p class="pitch">Every model call re-reads the instruction file, the skill list, every MCP server's tool definitions and every tool result so far. Thinker shows what each part costs your sessions and how often they act on it, then compresses, trims or switches off what they don't use. Your sessions, read on your machine. <a href="docs.html#context">How the Context page works &rarr;</a></p>
 
     <div class="install-container">
 

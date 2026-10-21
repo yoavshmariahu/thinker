@@ -2,23 +2,24 @@
 
 ![Pixel-art blue sky with white clouds](docs/images/sky.png)
 
-Your coding agent rediscovers your codebase on every task: where things live, how the
-parts connect, which change broke what last time. `thinker` remembers it instead.
+Every model call your coding agent makes re-reads the same things: the instruction file, the
+skill list, every MCP server's tool definitions, every tool result so far. Most of it is never
+acted on. `thinker` shows you where the context goes, part by part, and lets you cut the parts
+your sessions do not use.
 
-- **Learns from your sessions.** What your agent works out in a session becomes a short
-  note pinned to the exact code it describes; merged pull requests and skill files can be
-  read in too, when you ask.
-- **Serves only what fits.** Each request gets the notes that match it, with pointers into
-  the code, so the agent starts in the right place.
-- **Keeps itself fresh.** A note whose code changed is re-checked before it is served again;
-  sessions confirm, correct or retire the notes they were shown.
+- **See it.** `thinker ui` opens on the Context page: input tokens a session, split into
+  instruction files, skills, MCP servers, plugins, built-in tools and tool outputs, over the last
+  7 or 30 days, for one repository or all of them. Each section, skill and tool beside what it
+  costs and how often sessions acted on it, the waste flagged.
+- **Cut it.** Compress or remove instruction sections as a diff you apply; keep only the sections
+  that matter in a trimmed copy for this checkout; switch unused skills and tools off from the next
+  session, with a backup; compress long tool outputs before the agent reads them. Each cut is shown
+  first and undone with one command.
+- **Remember instead.** The cache behind the Cache tab: what your agent works out in a session
+  becomes a short note pinned to the code it describes, served on the requests it fits and re-checked
+  when that code changes, so the agent reads less to find its way.
 
-<p align="center">
-  <b>18% fewer tokens per task</b> &nbsp;·&nbsp; <b>10% less wall time per task</b><br>
-  <sub>on real coding tasks from open-source repositories, same model with and without the cache</sub>
-</p>
-
-Website, docs and benchmarks: [zerotime.dev](https://zerotime.dev).
+Website and docs: [zerotime.dev](https://zerotime.dev).
 
 ## Install
 
@@ -26,12 +27,26 @@ Website, docs and benchmarks: [zerotime.dev](https://zerotime.dev).
 npx @zerotimedev/thinker
 ```
 
-The installer wires thinker into the coding agents on the machine. From then on every git
-repository has a cache that grows from your sessions; `thinker warmup` reads a repository's
-merged pull requests into it when you want a head start ([how setup works](docs/setup.md)).
+The installer wires thinker into the coding agents on the machine and opens the local page. The
+Context page reads your sessions from the agents' own transcripts; nothing else is needed. The
+cache grows from your sessions in every git repository from then on, and `thinker warmup` reads a
+repository's merged pull requests into it when you want a head start ([setup](docs/setup.md)).
 
 Requires git, Node 20+ and a logged-in coding agent: Claude Code, Codex, Cursor, Gemini CLI
 and [others](docs/agent-integrations.md). `thinker update` keeps it current in the background.
+
+## Everyday commands
+
+```bash
+thinker ui              # local page: where the context goes, then the caches and their notes
+thinker context         # the Context page's report in the terminal (--days 7, --json)
+thinker instructions    # compress, remove or keep sections of AGENTS.md; a trimmed local copy
+thinker harness         # the skills and tools loaded into every session, and what to switch off
+thinker usage --here    # what the cache cost and what it saved
+```
+
+Otherwise, work with your agent as usual. Everything stays on your machine, in the repository's
+`.thinker/` folder, and model calls go through the agent you already use.
 
 ## Uninstall
 
@@ -42,56 +57,21 @@ rm -rf ~/.thinker                  # the app, the ranking model and the usage lo
 
 To keep thinker but switch it off for one repository, run `thinker disable` there.
 
-## Everyday commands
-
-```bash
-thinker ui              # local page: repositories, usage, the notes in each cache
-thinker usage --here    # what the cache cost and what it saved
-thinker skills          # the skill files as the cache sees them
-thinker benchmark       # compare your agent with and without the cache
-```
-
-Otherwise, work with your agent as usual: the notes arrive on their own. Everything stays
-in the repository's `.thinker/` folder, and model calls go through the agent you already use.
-
 ## Results
 
-**Coding agents: input tokens and wall time per task.** Real tasks from merged pull requests,
-same model with and without thinker.
-
-```
-Claude Fable       without thinker  ████████████████████  1.25M
-                   with thinker     ████████████████░░░░  1.02M   18% less tokens
-
-Gemini 3.8 Flash   without thinker  ████████████████████  16.6M
-                   with thinker     ████████████████░░░░  13.4M   19% less tokens
-
-GPT-6 Astra        without thinker  ████████████████████  473k
-                   with thinker     ████████████████░░░░  384k    19% less tokens
-```
-
-```
-Claude Fable       without thinker  ████████████████████  2.7 min
-                   with thinker     █████████████████░░░  2.3 min  14% less time
-
-Gemini 3.8 Flash   without thinker  ████████████████████  13.1 min
-                   with thinker     ██████████████████░░  11.9 min 8.5% less time
-
-GPT-6 Astra        without thinker  ████████████████████  152 s
-                   with thinker     ███████████████████░  141 s    7% less time
-```
-
-Each model saw different tasks, so the rows are not a model ranking; one run per
-arm. Bug detection is not claimed: on held-out bugs the cache did not change what a
-reviewer caught (research/regression-heldout on the `agent/heldout-regression` branch). Method, uncertainty and per-task results: [research/bench-history/RESULTS.md](research/bench-history/RESULTS.md).
+The cache is measured on real tasks from merged pull requests, same model with and without it:
+18% fewer input tokens and 10% less wall time per task across Claude Fable, Gemini 3.8 Flash and
+GPT-6 Astra, one run per arm, different tasks per model. Method, uncertainty and per-task results:
+[research/bench-history/RESULTS.md](research/bench-history/RESULTS.md). The Context page's cuts are
+measured on your own sessions, as the tokens they would save; no benchmark is claimed for them yet.
 
 ## Learn more
 
-- [Setup, updates and telemetry](docs/setup.md): setting up on the local page, build depth and cost, large repositories, the local cache, updates, test mode, telemetry and opting out
-- [Usage, savings and learning](docs/usage.md): `thinker stats` and `usage`, the holdout comparison, how sessions are learned from
+- [Where the context goes](docs/context.md): the Context page and `thinker context`, what each number is, every cut and its undo
+- [Setup, updates and telemetry](docs/setup.md): the local page, build depth and cost, updates, test mode, telemetry and opting out
+- [Usage, savings and learning](docs/usage.md): `thinker usage`, the holdout comparison, how sessions are learned from
 - [Skills](docs/skills.md): skill cards, the audit, what sessions say about a skill, duplicates
 - [Delivery outcomes](docs/delivery-outcomes.md): `thinker impact`, tokens and fixes per merged PR
-- [ONBOARDING.md](ONBOARDING.md): setting up your local cache
 - [AGENTS.md](AGENTS.md): how thinker works inside, per-agent support, repository layout
 
 ## License
