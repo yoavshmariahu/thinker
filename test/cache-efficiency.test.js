@@ -111,3 +111,26 @@ test('the distiller is shown the notes on the files the session touched, and an 
   assert.equal(got.history.at(-1).reason, 'extended by a new session');
   fs.rmSync(repo, { recursive: true, force: true });
 });
+
+test('a distilled note brings its phrasings and search text, stamped current, so maintenance does not phrase it again', async () => {
+  const { phraseKey, searchText } = await import('../src/note-search.js');
+  const repo = gitRepo();
+  const store = new Store(repo).init();
+  const base = { kind: 'rule', answers: ['what must fetchRows return'], deps: [{ path: 'src/a.js', symbol: 'fetchRows' }], tags: [], confidence: 0.9 };
+  const search = 'fetchRows in src/a.js must return one row; callers index the result directly.';
+  const s = saveNotes(store, [
+    { ...base, title: 'fetchRows returns exactly one row', body: 'src/a.js:fetchRows returns 1; callers rely on it', says: ['the list shows only one entry', 'x'], search },
+    { ...base, title: 'Build script runs npm build', answers: ['how to build'], body: 'build.sh runs npm run build', deps: [{ path: 'build.sh' }], says: [], search: 'short' },
+  ], { source: { type: 'agent' } });
+  assert.equal(s.saved.length, 2);
+  const [a, b] = s.saved.map(n => store.get(n.id));
+  assert.equal(a.search, search); assert.deepEqual(a.says, ['the list shows only one entry'], 'too-short lines dropped');
+  assert.equal(a.saysFor, phraseKey(a)); assert.equal(searchText(a), search, 'the cross-encoder reads it at once');
+  // the maintenance filter (maintain.js) picks only the note without a usable description
+  const needs = n => !n.says?.length || !n.search || n.saysFor !== phraseKey(n);
+  assert.equal(needs(a), false); assert.equal(needs(b), true);
+  // a later rewrite of the body leaves the description stale, and maintenance phrases it again
+  store.put({ ...a, body: a.body + ' and sorts them' });
+  assert.equal(needs(store.get(a.id)), true);
+  fs.rmSync(repo, { recursive: true, force: true });
+});

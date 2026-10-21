@@ -980,9 +980,13 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   request tells the agent not to do ("do not run the test suite"), which
   would otherwise bring up the notes on running tests (`rank.js:subject`).
 - Phrasings: notes are written in the words of the code, requests in those
-  of the product. `thinker phrase` adds to each note up to five lines of how
-  a user would put it (`says`), written by a small model from the note alone;
-  ranking counts them with the title and answers. Notes whose text changed
+  of the product. A note distilled from a session comes with up to five lines
+  of how a user would put it (`says`) and its `search` text, written by the
+  distiller in the same call and stamped current (`distill.js:withPhrasing`,
+  2026-10-21: the separate phrasing call was 1.4M tokens a week here).
+  `thinker phrase` and maintenance write them, by a small model from the note
+  alone, for a note without them or whose text changed since (a verification's
+  rewrite, a note from before); ranking counts them with the title and answers. Notes whose text changed
   since are done again; about 3k tokens a note with Haiku.
 - `rerank: "haiku"` in `.thinker/config.json` hands the
   eight best candidates to a small model, which keeps those that bear on the
