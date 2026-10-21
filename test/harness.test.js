@@ -11,6 +11,7 @@ import http from 'node:http';
 import { createUiServer } from '../src/ui/server.js';
 import { switchOffNow, setHarnessSettings, harnessSettings, projectKey, harnessRecall, sessionHarness, harnessUsage, harnessAdvice, harnessSavings, harnessView, skillCosts, serverKey, scheduleHarnessSuggestion, harnessOffer, harnessPending, answerHarness, undoHarness, readHarnessState, harnessNever, SIGNATURE , harnessFirstLook, switchOffFirstLook} from '../src/harness.js';
 import { unusedTools } from '../src/commands/warmup.js';
+import { setDiskCache } from '../src/disk-cache.js';
 
 const tmp = p => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), p)));
 const long = n => 'x'.repeat(n);
@@ -509,4 +510,18 @@ test('the warm-up step counts as the first look: the question waits its two week
   assert.equal(harnessFirstLook([store.repo], { usageFn: () => usage }).length, 1);
   assert.ok(readHarnessState(store).firstLookAt);
   assert.equal(scheduleHarnessSuggestion(store, { now: Date.now() + 86400_000, home: th, usage }), null);
+});
+
+test('what a transcript loaded is kept on disk by its size and mtime: the same answer from the cache, read again when it grows', t => {
+  const d = tmp('thinker-harness-'); t.after(() => { setDiskCache(undefined); fs.rmSync(d, { recursive: true, force: true }); });
+  setDiskCache(path.join(d, 'cache'));
+  const f = path.join(d, 's.jsonl');
+  fs.writeFileSync(f, [...loadedLines(), call('mcp__artemis__get_experiment')].map(j => JSON.stringify(j)).join('\n') + '\n');
+  const fresh = sessionHarness(f), cached = sessionHarness(f);
+  assert.ok(fs.readdirSync(path.join(d, 'cache', 'session-harness', 'v1')).length, 'an entry was written');
+  assert.deepEqual(cached, fresh, 'Maps and Sets come back as they were');
+  assert.ok(cached.loaded instanceof Map && cached.used instanceof Set && cached.texts instanceof Map);
+  assert.ok(cached.used.has('mcp:artemis') && !cached.used.has('skill:mine'));
+  fs.appendFileSync(f, JSON.stringify(call('Skill', { skill: 'mine' })) + '\n');
+  assert.ok(sessionHarness(f).used.has('skill:mine'), 'the grown transcript is read again');
 });

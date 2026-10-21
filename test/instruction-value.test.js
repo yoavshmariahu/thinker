@@ -180,6 +180,18 @@ test('the context view puts sections, skills and tools side by side, with the ke
   assert.deepEqual(v.instructions.sections.filter(s => s.kept).map(s => s.id), ['api-views']);
 });
 
+test('a repository with no instruction file still has a context view: empty instructions, the tools and skills as before', t => {
+  const { store } = fixture(t);
+  fs.rmSync(path.join(store.repo, 'AGENTS.md'));
+  const usage = { sessions: 2, calls: { claude: 5 }, builtinTools: false, sources: [{ key: 'mcp:rea', name: 'rea', kind: 'mcp', scope: 'user', loaded: 2, used: 0, tokens: 1000, skills: [] }] };
+  const v = contextView(store, { sessions: [], usage, log: [] });
+  assert.equal(v.instructions.file, null);
+  assert.deepEqual(v.instructions.sections, []);
+  assert.deepEqual(v.totals.instructions, { tokens: 0, perSession: 0 });
+  assert.deepEqual(v.tools.map(s => s.name), ['rea']);
+  assert.deepEqual(v.timeline, []);
+});
+
 test('a tool output costs its tokens once for each model call after it, scaled to the calls the session made', async () => {
   const { sessionOutputs, toolKey } = await import('../src/tool-outputs.js');
   const ev = (name, chars) => ({ t: 'tool', name, input: {}, result: 'x'.repeat(chars) });

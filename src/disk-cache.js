@@ -23,6 +23,19 @@ function root() {
 
 export const cacheKey = (...parts) => crypto.createHash('sha256').update(parts.join('\0')).digest('hex').slice(0, 32);
 
+// A result read from files (a transcript and its subagents'), kept under one key by the files' size and
+// mtime: the entry is rewritten when a file changes, so a transcript that grows every turn has one entry, not
+// one a size. `thaw` turns the stored JSON back into the value (Maps and Sets); the fresh value goes through
+// `freeze` and `thaw` too, so both paths return the same shape.
+export function cachedByFiles(cache, key, files, compute, { freeze = v => v, thaw = v => v } = {}) {
+  const stamp = files.map(f => { try { const s = fs.statSync(f); return `${f}\t${s.size}\t${Math.round(s.mtimeMs)}`; } catch { return `${f}\t-`; } }).join('\n');
+  const hit = cache.get(key);
+  if (hit && hit.stamp === stamp) return thaw(hit.value);
+  const value = freeze(compute());
+  cache.set(key, { stamp, value });
+  return thaw(value);
+}
+
 // name: what is cached; version: bumped when the shape or meaning of its values changes.
 export function diskCache(name, version) {
   const dir = () => { const r = root(); return r && path.join(r, name, `v${version}`); };

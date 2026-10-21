@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { diskCache, cacheKey, setDiskCache } from '../src/disk-cache.js';
+import { diskCache, cacheKey, setDiskCache, cachedByFiles } from '../src/disk-cache.js';
 import { hashText, hashDepAt } from '../src/deps.js';
 
 function cacheDir(t) {
@@ -89,4 +89,23 @@ test('a hash at a commit is kept for a full commit id only, and a failure is nev
   const absent = 'f'.repeat(40);
   assert.equal(hashDepAt(repo, dep, absent).missing, true);
   assert.equal(files(dir).filter(f => f.startsWith('dep-at-commit')).length, 1);
+});
+
+test('a result read from files is kept by their size and mtime under one key, and thawed the same way fresh or cached', t => {
+  const dir = cacheDir(t), c = diskCache('by-files', 1);
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-byfiles-')); t.after(() => fs.rmSync(d, { recursive: true, force: true }));
+  const f = path.join(d, 'a.txt'); fs.writeFileSync(f, 'one\ntwo\n');
+  let reads = 0;
+  const read = () => cachedByFiles(c, cacheKey('x', f), [f], () => { reads++; return new Set(fs.readFileSync(f, 'utf8').split('\n').filter(Boolean)); }, { freeze: v => [...v], thaw: v => new Set(v) });
+  assert.deepEqual(read(), new Set(['one', 'two']));
+  assert.deepEqual(read(), new Set(['one', 'two']));
+  assert.equal(reads, 1, 'the second call is the cached entry');
+  assert.equal(files(dir).length, 1);
+  fs.appendFileSync(f, 'three\n');
+  assert.deepEqual(read(), new Set(['one', 'two', 'three']), 'a grown file is read again');
+  assert.equal(reads, 2);
+  assert.equal(files(dir).length, 1, 'one entry per key, rewritten, not one per size');
+  setDiskCache(null);
+  assert.deepEqual(read(), new Set(['one', 'two', 'three']), 'with no cache directory it reads every time');
+  assert.equal(reads, 3);
 });

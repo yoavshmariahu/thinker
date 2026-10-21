@@ -18,6 +18,7 @@ import { codexSessionHarness, codexHarnessUsage, codexHarnessConfig, codexConfig
 import { desktopRecords, desktopSessionsDir, desktopSessionHarness, desktopUsed, DESKTOP_SECTIONS, CONNECTOR_TOOL } from './harness-desktop.js';
 import { cursorHarnessUsage, cursorSnapshots, editCursorMcp } from './harness-cursor.js';
 import { findSessions } from './transcripts.js';
+import { diskCache, cacheKey, cachedByFiles } from './disk-cache.js';
 import { Store } from './store.js';
 import { estTokens } from './rank.js';
 import { thinkerHome } from './update.js';
@@ -89,15 +90,29 @@ export function skillCosts(content, names) {
 
 // One Claude Code transcript (and its subagents'): what it loaded, with the tokens of each source,
 // and what it called. Lines are filtered by text before parsing; a transcript runs to megabytes.
+// What was read is kept on this machine by the files' size and mtime (disk-cache.js:cachedByFiles): the
+// Context and Harness pages read every transcript of the window on each request, a gigabyte and five
+// seconds on a busy repository, and only the live session's file changes between two requests.
+const HARNESS_CACHE = diskCache('session-harness', 1);
+const TEXT_CHARS = 4000; // a source's text in the cache: the cards keep at most CARD_CHARS of it
+const transcriptFiles = file => {
+  const files = [file];
+  try { const sub = path.join(file.replace(/\.jsonl$/, ''), 'subagents'); for (const f of fs.readdirSync(sub)) if (f.endsWith('.jsonl')) files.push(path.join(sub, f)); } catch {}
+  return files;
+};
+const freezeHarness = h => ({ ...h, loaded: [...h.loaded], used: [...h.used], texts: [...h.texts].map(([k, t]) => [k, String(t).slice(0, TEXT_CHARS)]) });
+const thawHarness = v => ({ ...v, loaded: new Map(v.loaded), used: new Set(v.used), texts: new Map(v.texts) });
 export function sessionHarness(file) {
+  const files = transcriptFiles(file);
+  return cachedByFiles(HARNESS_CACHE, cacheKey('claude', file), files, () => readSessionHarness(files), { freeze: freezeHarness, thaw: thawHarness });
+}
+function readSessionHarness(files) {
   // what a source costs is counted once per thing listed: a session resumed or compacted lists it again
   const names = new Map(), instr = new Map(), skills = new Map(), used = new Set(), texts = new Map(), calls = new Set(), alias = new Map();
   // the files edited and the skills opened, in order (skill-suggest.js reads them)
   const edited = [], skillOpens = [];
   let cwd = null, start = null;
   const once = (key, item, tokens) => { if (!names.has(key)) names.set(key, new Map()); names.get(key).set(item, tokens); };
-  const files = [file];
-  try { const sub = path.join(file.replace(/\.jsonl$/, ''), 'subagents'); for (const f of fs.readdirSync(sub)) if (f.endsWith('.jsonl')) files.push(path.join(sub, f)); } catch {}
   files.forEach((f, fi) => {
     let text = ''; try { text = fs.readFileSync(f, 'utf8'); } catch { return; }
     for (const line of text.split('\n')) {

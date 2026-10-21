@@ -189,7 +189,7 @@ cache at twice the input price and never read again.
 | `src/ops.js` | core operations on notes (serve, merge, assess, link) |
 | `src/deps.js` | dependency extraction and symbol-level content hashing |
 | `src/ast.js` | symbol boundaries by tree-sitter (Python, JS/TS, Go, Rust), on by default: the parser and its grammars are dependencies; `deps.js` falls back to regex heuristics where they are missing, for other languages, and for a definition with a parse error |
-| `src/disk-cache.js` | results kept on this machine between processes, by a key naming everything they depend on: definitions, symbol and file hashes, hashes at a commit (`~/.thinker/cache`) |
+| `src/disk-cache.js` | results kept on this machine between processes, by a key naming everything they depend on: definitions, symbol and file hashes, hashes at a commit, and what each transcript loaded and called (`harness.js:sessionHarness`, `harness-codex.js:codexSessionHarness`, by the file's size and mtime, `cachedByFiles`: the Context and Harness pages read every transcript of the window on each request, a gigabyte and five seconds on this repository before, under 0.3 s after) (`~/.thinker/cache`) |
 | `src/codegraph.js` | one hop of the call graph: references and blast radius of a symbol (`fanout`), callers, callees, definitions, outlines, and `findSymbols` (the definitions carrying the words of a query); behind `find`, `drilldown` and the `[n call sites in m files]` tags on pointers. From the code graph when the checkout is indexed, else from `git grep` |
 | `src/rank.js` | BM25 ranking, relevance gate, budget packing |
 | `src/distill.js` | transcript → notes and per-note assessments |
