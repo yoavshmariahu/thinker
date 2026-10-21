@@ -734,22 +734,22 @@
         <div class="loop">
           <div class="loop-step">
             <span class="step-badge">1</span>
-            <h4>Learn</h4>
-            <p>Pick repositories on the local page; each cache is built from merged pull requests, fixes first, and skill files get cards.</p>
+            <h4>See</h4>
+            <p>Thinker reads your agents' own session transcripts and shows where the context goes: what each instruction section, skill, tool and tool output costs a session, and how often sessions act on it.</p>
           </div>
           <div class="loop-step">
             <span class="step-badge">2</span>
-            <h4>Inject</h4>
-            <p>Hooks rank the notes against each request and hand the agent the ones that fit, plus the rules on each file it edits.</p>
+            <h4>Cut</h4>
+            <p>Compress or remove the sections no session uses, keep a trimmed copy for this checkout, switch unused skills and tools off, compress long tool results. Each cut is shown first and undone with one command.</p>
           </div>
           <div class="loop-step">
             <span class="step-badge">3</span>
-            <h4>Keep fresh</h4>
-            <p>Sessions grade what was served and add what they learned. A note whose code changed is held back and re-verified. Nothing is run by hand.</p>
+            <h4>Remember</h4>
+            <p>What a session works out becomes a short note pinned to the code it describes, served on the requests it fits and re-verified when that code changes, so the agent reads less to find its way.</p>
           </div>
         </div>
         <p>
-          Everything lives under <code>.thinker/</code> in the repository. Notes are keyed to the exact definitions they describe by content hash, so the cache knows when the code under a note has moved and never serves a claim it cannot stand behind.
+          Everything lives on your machine: the report is read from the transcripts the agents already write, and the notes sit under <code>.thinker/</code> in the repository, keyed to the exact definitions they describe by content hash, so the cache knows when the code under a note has moved and never serves a claim it cannot stand behind.
         </p>
       </section>
 
