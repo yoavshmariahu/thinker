@@ -671,7 +671,16 @@ Each session both consumes and improves the cache:
    notice says how many were merged. Checked before it was turned on: on mlflow's mined
    cache 14 pairs, of whose notes past sessions on its 11 tasks were shown 2, so a paired
    run there could not have told the two apart; no agent-session experiment was run.
-6. Maintenance runs by itself (`maintain.js:maintain`): the catch-up run that
+6. Since 2026-10-21 background upkeep is small: verification is one batch every three days
+   (`verifyEveryDays`), of the stale notes served in the last three days (`verifyServedDays`), at most
+   50 (`verifyPerRun`); a note a session contradicted is verified at the next run. A note nobody was
+   served in 14 days, made longer ago than that, is deleted (`maintain.js:deleteUnused`,
+   `deleteUnusedDays`; behaviors, skill cards and notes a person wrote stay, and a note committed to the
+   repository is archived instead). After an update, `thinker rewire` stops what an older version left
+   running that the new defaults no longer do: a mining batch, the unmined-commits question, queued jobs
+   other than distillation, catch-up and maintenance (`retire-background.js`), unless the repository's
+   config turns mining on. What follows describes the run as it was before.
+   Maintenance runs by itself (`maintain.js:maintain`): the catch-up run that
    the prompt hooks start at most every ten minutes ends with one maintenance
    run, and so do the git `post-commit` and `post-merge` hooks that `setup` and the
    installer put in place (`--no-git-hook` leaves it out). A batch runs at most

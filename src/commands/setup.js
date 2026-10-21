@@ -1,3 +1,5 @@
+import { retireBackground } from '../retire-background.js';
+import { Store } from '../store.js';
 import { DEPTHS, DEFAULT_PRS } from '../setup/estimate.js';
 // Setting a repository and this machine up: setup, uninstall, the tree-sitter parser (ast), and
 // updating thinker itself (update, upgrade, switch, branch).
@@ -163,7 +165,11 @@ async function rewireCommand(ctx) {
     }
   };
   refresh(null, 'user', USER_SCOPE_CLIENTS);
-  for (const r of repos) { summary.repos++; refresh(r, 'repo', CLIENTS); }
+  for (const r of repos) {
+    summary.repos++; refresh(r, 'repo', CLIENTS);
+    // the background work an older version started that the new defaults no longer do (retire-background.js)
+    try { const done = retireBackground(new Store(r), { dry }); if (done.length && !quiet && !flags.json) out(`${r}: ${dry ? 'would stop' : 'stopped'} old background work: ${done.join('; ')}`); } catch (e) { failed(`${r} (background)`, e); }
+  }
   if (!dry && summary.changed) store.log({ op: 'rewire', repos: summary.changed, files: summary.files.length });
   // agents the checkouts wire but the user's own settings do not yet: wired there now (clients.js:connectFromCheckouts)
   if (!flags.here) {
