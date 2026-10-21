@@ -21,13 +21,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { sections } from './instructions-core.js';
-import { deriveTriggers, sectionFires } from './instruction-sections.js';
+import { deriveTriggers, sectionFires, globRegex as triggerGlob } from './instruction-sections.js';
 import { parseTranscript, findSessions } from './transcripts.js';
 import { complete, DEFAULT_DISTILL_MODEL } from './llm.js';
 import { tokensOf } from './model-usage.js';
 import { isTestMode } from './test-mode.js';
 import { withinDailyCap } from './maintain.js';
-import { outcomeSampled, sessionDiff } from './skill-outcome.js';
+import { outcomeSampled, sessionDiff, ruleGlobs, globRegex } from './skill-outcome.js';
+import { execFileSync } from 'node:child_process';
 import { checkouts } from './harness.js';
 
 export const VALUE = { share: 0.25, keepSessions: 500, diffChars: 30_000, sectionsChars: 60_000, commands: 60 };
@@ -57,19 +58,57 @@ const readsFile = (src, client) => src.onlyClients ? src.onlyClients.includes(cl
 const slug = s => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
 const sha = s => createHash('sha256').update(String(s)).digest('hex').slice(0, 16);
 
+// Every instruction file of the repository, with when a session reads it: the root file (above) in every session
+// of the agents that read it; an AGENTS.md or CLAUDE.md in a directory below, when the session opens a file in
+// that directory (Claude Code loads them lazily; Codex reads only those on the path to where it was started, the
+// root's); a .claude/rules file with `paths:` when the session opens a matching file, one without at the start
+// (Claude Code alone reads .claude/rules). A CLAUDE.md that is its directory's AGENTS.md counts once.
+export function instructionFiles(repo) {
+  const root = instructionFile(repo), out = root ? [{ ...root, kind: 'root' }] : [];
+  let listed = []; try { listed = execFileSync('git', ['-C', repo, 'ls-files', '--', '*AGENTS.md', '*CLAUDE.md', '.claude/rules/*.md', '.claude/rules/**/*.md'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\n').filter(Boolean); } catch {}
+  const read = f => { try { return fs.readFileSync(path.join(repo, f), 'utf8'); } catch { return null; } };
+  for (const f of [...new Set(listed)].sort()) {
+    if (f === 'AGENTS.md' || f === 'CLAUDE.md') continue;
+    const text = read(f); if (text == null || !text.trim()) continue;
+    if (f.startsWith('.claude/rules/')) { const globs = ruleGlobs(text); out.push({ file: f, text, kind: 'rule', globs, onlyClients: ['claude'] }); continue; }
+    const dir = path.dirname(f), base = path.basename(f);
+    if (base !== 'AGENTS.md' && base !== 'CLAUDE.md') continue;
+    if (base === 'CLAUDE.md') { const a = read(path.join(dir, 'AGENTS.md')); if (a != null && (a === text || /^@?AGENTS\.md\s*$/.test(text.trim()))) continue; }
+    out.push({ file: f, text, kind: 'nested', dir, onlyClients: ['claude'] });
+  }
+  return out;
+}
+// Whether a session read a file: by its agent, and for a nested file or a rule, by the files it opened.
+export function fileLoaded(f, client, touched) {
+  if (!readsFile(f, client)) return false;
+  if (f.kind === 'nested') return touched.some(p => p.startsWith(f.dir + '/'));
+  if (f.kind === 'rule' && f.globs?.length) { const res = f.globs.map(globRegex); return touched.some(p => res.some(r => r.test(p))); }
+  return true;
+}
+const touchedFiles = activity => [...new Set([...activity.read, ...activity.edited, ...activity.calls.flatMap(c => c.files)])];
+// a section's id: the root file's as before, another file's prefixed by its path
+export const sectionId = (file, s) => { const id = slug(s.parent ? `${s.parent} ${s.title}` : s.title); return file.kind === 'root' ? id : `${slug(file.file)}--${id}`; };
+
 // The sections with an id, their tokens and their triggers; the triggers kept by the section's text, since
 // deriving them greps the repository.
-export function valueSections(store, src = instructionFile(store.repo)) {
-  if (!src) return [];
+export function valueSections(store, files = instructionFiles(store.repo)) {
+  if (!Array.isArray(files)) files = files ? [{ ...files, kind: 'root' }] : [];
+  if (!files.length) return [];
   const file = path.join(store.dir, 'state', 'instruction-triggers.json');
   let cache = {}; try { cache = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
   let changed = false;
-  const out = sections(src.text).filter(s => s.text.split('\n').slice(1).join('\n').trim()).map(s => {
-    const id = slug(s.parent ? `${s.parent} ${s.title}` : s.title), key = sha(s.text);
-    if (!cache[key]) { cache[key] = deriveTriggers(store.repo, { title: s.title, text: s.text }); changed = true; }
-    const t = cache[key];
+  // a file without headings (a rule, a short nested file) is one section, titled by its path
+  const split = f => { const ss = sections(f.text); return ss.length ? ss.filter(s => s.text.split('\n').slice(1).join('\n').trim()) : [{ title: f.file, parent: null, level: 2, text: f.text.replace(/^---\n[\s\S]*?\n---\n?/, '').trim(), tokens: Math.ceil(f.text.length / 4), whole: true }]; };
+  const out = files.flatMap(f => split(f).map(s => ({ s, f }))).map(({ s, f }) => {
+    const id = sectionId(f, s), key = sha(s.text);
+    // a nested file or a rule already says where it applies (its directory, its paths): that is its trigger, and
+    // grepping a large repository for every name it holds (PostHog has 129 such files) is not needed
+    let t;
+    if (f.kind === 'nested') t = { paths: [`^${f.dir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/`], edits: [], code: [], cmd: null };
+    else if (f.kind === 'rule') t = { paths: (f.globs || []).map(triggerGlob), edits: [], code: [], cmd: null };
+    else { if (!cache[key]) { cache[key] = deriveTriggers(store.repo, { title: s.title, text: s.text }); changed = true; } t = cache[key]; }
     const any = t.paths?.length || t.edits?.length || t.code?.length || t.codeRe?.length || t.cmd;
-    return { id, title: s.title, parent: s.parent, tokens: s.tokens, text: s.text, triggers: t, triggered: Boolean(any) };
+    return { id, file: f.file, fileKind: f.kind, title: s.title, parent: s.parent, whole: !!s.whole, tokens: s.tokens, text: s.text, triggers: t, triggered: Boolean(any) };
   });
   if (changed) {
     const keep = new Set(out.map(s => sha(s.text)));
@@ -128,14 +167,16 @@ function writeValueState(store, st) {
 }
 
 // A session's record: read again when its transcript grew or the sections changed; the verdicts kept.
-function sessionRecord(store, st, s, secs, srcHash) {
+function sessionRecord(store, st, s, secs, srcHash, files) {
   let size = 0; try { size = fs.statSync(s.file).size; } catch { return null; }
   const prev = st.sessions[s.session];
   if (prev && prev.size === size && prev.src === srcHash) return prev;
   let parsed; try { parsed = parseTranscript(s.file); } catch { return null; }
   if (!parsed.events.some(e => e.t === 'tool' || e.t === 'prompt')) return null;
   const activity = sessionActivity(store.repo, parsed.events);
-  const rec = { client: s.client, file: s.file, mtime: s.mtime, size, src: srcHash, turns: parsed.stats?.turns || 0, applied: appliedSections(secs, activity), edited: activity.edited.length, ...(prev?.judged ? { judged: prev.judged } : {}) };
+  const touched = touchedFiles(activity);
+  const loaded = (files || []).filter(f => fileLoaded(f, s.client, touched)).map(f => f.file);
+  const rec = { client: s.client, file: s.file, mtime: s.mtime, size, src: srcHash, turns: parsed.stats?.turns || 0, loaded, applied: appliedSections(secs.filter(x => loaded.includes(x.file)), activity), edited: activity.edited.length, ...(prev?.judged ? { judged: prev.judged } : {}) };
   st.sessions[s.session] = rec;
   return rec;
 }
@@ -191,12 +232,15 @@ export async function judgeSession(store, { secs, activity, diff = '', model, co
 
 // Judge one session now and keep the verdicts on its record. `force` judges a session judged before.
 export async function judgeSessionFile(store, file, { session, client = null, phase = 'learning', completeFn = complete, force = false, now = Date.now() } = {}) {
-  const src = instructionFile(store.repo);
-  if (!src) return { skipped: 'no-file' };
-  const secs = valueSections(store, src), srcHash = sha(src.text), st = readValueState(store);
+  const files = instructionFiles(store.repo);
+  if (!files.length) return { skipped: 'no-file' };
+  const all = valueSections(store, files), srcHash = sha(files.map(f => f.file + f.text).join('\0')), st = readValueState(store);
   let mtime = now; try { mtime = fs.statSync(file).mtimeMs; } catch {}
   const id = session || path.basename(file).replace(/\.jsonl?$/, '');
-  const rec = sessionRecord(store, st, { file, session: id, client, mtime }, secs, srcHash);
+  const rec = sessionRecord(store, st, { file, session: id, client, mtime }, all, srcHash, files);
+  // the judge is shown the sections of the files this session read
+  const secs = all.filter(x => (rec?.loaded || [files[0].file]).includes(x.file));
+  const src = files[0];
   if (!rec) return { skipped: 'empty' };
   if (rec.judged && !force) return { skipped: 'judged' };
   if (phase !== 'init' && !withinDailyCap(store).ok) { store.log({ op: 'instruction-value', session: id, skipped: 'daily-cap' }); return { skipped: 'daily-cap' }; }
@@ -222,10 +266,11 @@ export async function instructionValueCheck(store, file, { session, phase, compl
 // A session written to in the last IDLE_MS is still running (this one, or another agent's): judged once it is quiet.
 export const IDLE_MS = 20 * 60_000;
 export async function judgeRecent(store, { n = 5, days = 30, completeFn = complete, sessions, onEach, now = Date.now() } = {}) {
-  const src = instructionFile(store.repo);
-  if (!src) return { judged: 0, skipped: 'no-file' };
+  const files = instructionFiles(store.repo);
+  if (!files.length) return { judged: 0, skipped: 'no-file' };
   const st = readValueState(store);
   sessions ??= findRepoSessions(store.repo, days);
+  const src = files[0];
   let judged = 0, tokens = 0;
   // a sample spread over the window (by a hash of the session id), not the newest sessions alone
   const order = s => parseInt(createHash('sha1').update(String(s.session)).digest('hex').slice(0, 8), 16);
@@ -249,45 +294,55 @@ const median = xs => { const a = xs.filter(n => Number.isFinite(n) && n > 0).sor
 // Per section over the window: tokens, what it costs a session (tokens × the median model calls), the sessions
 // that read it, how many it bore on (applied), and the judged verdicts with the share followed.
 export function instructionValue(store, { days = 30, sessions } = {}) {
-  const src = instructionFile(store.repo);
-  if (!src) return { file: null, sections: [], sessions: 0 };
-  const secs = valueSections(store, src), srcHash = sha(src.text), st = readValueState(store);
+  const files = instructionFiles(store.repo);
+  if (!files.length) return { file: null, files: [], sections: [], sessions: 0 };
+  const secs = valueSections(store, files), srcHash = sha(files.map(f => f.file + f.text).join('\0')), st = readValueState(store);
   sessions ??= findRepoSessions(store.repo, days);
   const recs = [];
   for (const s of sessions) {
-    if (!readsFile(src, s.client)) continue;
-    const r = sessionRecord(store, st, s, secs, srcHash);
+    if (!files.some(f => readsFile(f, s.client))) continue;
+    const r = sessionRecord(store, st, s, secs, srcHash, files);
     if (r) recs.push(r);
   }
   writeValueState(store, st);
-  const calls = median(recs.map(r => r.turns)), judged = recs.filter(r => r.judged);
+  // sessions recorded before the files were counted read the root file only
+  const loadedIn = r => r.loaded || [files[0].file];
+  const reading = recs.filter(r => loadedIn(r).length);
+  const calls = median(reading.map(r => r.turns)), n = reading.length;
   const rows = secs.map(s => {
-    const applied = recs.filter(r => r.applied[s.id]).length;
+    // a section counts in the sessions that read its file: what it costs is averaged over every session
+    const mine = reading.filter(r => loadedIn(r).includes(s.file)), judged = mine.filter(r => r.judged);
+    const applied = mine.filter(r => r.applied[s.id]).length;
     const v = { followed: 0, violated: 0, applicable: 0 };
     for (const r of judged) { const x = r.judged.verdicts[s.id]; if (x) v[x.verdict]++; }
     const bore = v.followed + v.violated + v.applicable;
     const decided = v.followed + v.violated;
+    const perSession = Math.round(s.tokens * Math.max(1, calls) * (n ? mine.length / n : 0));
     return {
-      id: s.id, title: s.title, parent: s.parent, tokens: s.tokens, perSession: s.tokens * Math.max(1, calls),
-      sessions: recs.length, triggered: s.triggered, applied, judged: judged.length, ...v,
+      id: s.id, file: s.file, fileKind: s.fileKind, title: s.title, parent: s.parent, whole: s.whole, tokens: s.tokens, perSession, loadedIn: mine.length,
+      sessions: mine.length, triggered: s.triggered, applied, judged: judged.length, ...v,
       // a share of the sessions judged that the section bore on, and of those it decided, how many it was followed in
       bore, boreShare: judged.length ? bore / judged.length : null, success: decided ? v.followed / decided : null,
-      value: valueOf({ sessions: recs.length, applied, triggered: s.triggered, judged: judged.length, bore, followed: v.followed, violated: v.violated }),
-      ...use({ sessions: recs.length, applied, triggered: s.triggered, judged: judged.length, followed: v.followed }, s.tokens * Math.max(1, calls)),
+      value: valueOf({ sessions: mine.length, applied, triggered: s.triggered, judged: judged.length, bore, followed: v.followed, violated: v.violated }),
+      ...use({ sessions: mine.length, applied, triggered: s.triggered, judged: judged.length, followed: v.followed }, perSession),
       text: s.text,
     };
   });
+  const judged = reading.filter(r => r.judged), recsAll = recs;
   // the waste flag: a section used in under half the sessions whose cost there is a large share of the file's
   const fileCost = rows.reduce((a, r) => a + r.perSession, 0);
   for (const r of rows) Object.assign(r, wasteLevel(r, fileCost));
   const flagged = rows.filter(r => r.waste === 'high' || r.waste === 'medium');
   const savings = { perSession: flagged.reduce((a, r) => a + r.wasted, 0), sections: flagged.length };
   savings.share = fileCost ? savings.perSession / fileCost : 0;
-  savings.window = savings.perSession * recs.length;
-  const fileTokens = Math.ceil(src.text.length / 4);
-  // per session, for the trend: the file's tokens read by each of its model calls (today's file: an earlier size is not kept)
-  const timeline = recs.filter(r => r.turns).map(r => ({ t: r.mtime, client: r.client, calls: r.turns, tokens: fileTokens }));
-  return { file: src.file, tokens: fileTokens, sessions: recs.length, judged: judged.length, calls, judge: valueConfig(store), sections: rows, timeline, savings };
+  savings.window = savings.perSession * n;
+  const tok = f => Math.ceil(f.text.length / 4), fileTokens = tok(files[0]);
+  // per session, for the trend: the tokens of the files it read, read again by each of its model calls (today's
+  // files: an earlier size is not kept)
+  const timeline = reading.filter(r => r.turns).map(r => ({ t: r.mtime, client: r.client, calls: r.turns, tokens: files.filter(f => loadedIn(r).includes(f.file)).reduce((a, f) => a + tok(f), 0) }));
+  const fileRows = files.map(f => ({ file: f.file, kind: f.kind, tokens: tok(f), loadedIn: reading.filter(r => loadedIn(r).includes(f.file)).length, ...(f.globs?.length ? { globs: f.globs } : {}), ...(f.dir ? { dir: f.dir } : {}) }));
+  const label = files.length === 1 ? files[0].file : `${files[0].file} + ${files.length - 1} more`;
+  return { file: label, files: fileRows, tokens: fileTokens, sessions: n, judged: judged.length, calls, judge: valueConfig(store), sections: rows, timeline, savings };
 }
 
 // How often sessions acted on a section, and the tokens spent on it in the sessions that did not: from the judge's

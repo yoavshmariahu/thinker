@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { sections } from './instructions-core.js';
-import { instructionFile } from './instruction-value.js';
+import { instructionFiles } from './instruction-value.js';
 import { complete, DEFAULT_DISTILL_MODEL } from './llm.js';
 import { tokensOf } from './model-usage.js';
 
@@ -73,40 +73,71 @@ const stateFile = store => path.join(store.dir, 'state', 'instruction-edits.json
 const readEdits = store => { try { return JSON.parse(fs.readFileSync(stateFile(store), 'utf8')); } catch { return {}; } };
 const writeEdits = (store, e) => { fs.mkdirSync(path.dirname(stateFile(store)), { recursive: true }); fs.writeFileSync(stateFile(store), JSON.stringify(e)); };
 
-// The diff of a change to one or several sections (the model's calls side by side for compress), kept for
-// `applyEdit` under `key` (the id of a single section, else "bulk"). Writes nothing to the file.
+// Which file a section id is in: another file's ids carry its path (instruction-value.js:sectionId), the root's not.
+export function resolveId(files, id) {
+  for (const f of files.slice(1)) { const pre = `${slug(f.file)}--`; if (id.startsWith(pre)) return { f, bare: id.slice(pre.length) }; }
+  return files[0] ? { f: files[0], bare: id } : null;
+}
+// A file with no "##" headings (a rule, a short nested file) is one section: its whole text below the front matter.
+function wholeFile(f) {
+  const fm = (f.text.match(/^---\n[\s\S]*?\n---\n?/) || [''])[0];
+  return { fm, body: f.text.slice(fm.length).replace(/\n+$/, '') };
+}
+
+// The diff of a change to one or several sections, in one file or several (the model's calls side by side for
+// compress), kept for `applyEdit` under `key` (the id of a single section, else "bulk"). Writes nothing.
 export async function previewEdit(store, ids, action, opts = {}) {
   ids = [...new Set((Array.isArray(ids) ? ids : String(ids).split(',')).map(s => String(s).trim()).filter(Boolean))];
   if (!ids.length) return { error: 'no section chosen' };
-  const src = instructionFile(store.repo);
-  if (!src) return { error: 'no AGENTS.md or CLAUDE.md here' };
-  const props = await Promise.all(ids.map(id => proposeSection(store, src.text, id, action, opts)));
-  const bad = props.find(p => p.error); if (bad) return bad;
-  // every location is in the original text and sections do not overlap: replaced from the last one up
-  const lines = src.text.split('\n');
-  for (const p of [...props].sort((a, b) => b.loc.start - a.loc.start)) lines.splice(p.loc.start, p.loc.end - p.loc.start, ...(p.next ? [...p.next.split('\n'), ''] : []));
-  const newText = lines.join('\n').replace(/\n{3,}/g, '\n\n');
+  const files = instructionFiles(store.repo);
+  if (!files.length) return { error: 'no instruction file here' };
+  const byFile = new Map();
+  for (const id of ids) { const r = resolveId(files, id); if (!r) return { error: `no section "${id}"` }; if (!byFile.has(r.f.file)) byFile.set(r.f.file, { f: r.f, items: [] }); byFile.get(r.f.file).items.push({ id, bare: r.bare }); }
+  const out = [], sections = [];
+  let modelTokens = 0;
+  for (const { f, items } of byFile.values()) {
+    const whole = !sections_(f.text).length;
+    if (whole) {
+      // the file is the section: removed, it is deleted; compressed, its front matter is kept
+      const { fm, body } = wholeFile(f);
+      let next = '';
+      if (action === 'compress') { const p = await proposeSection(store, `## ${f.file}\n\n${body}`, slug(f.file), action, opts); if (p.error) return p; next = p.next.replace(/^## .*\n+/, ''); modelTokens += p.tokens || 0; }
+      out.push({ file: f.file, from: sha(f.text), text: action === 'remove' ? null : `${fm}${next}\n` });
+      sections.push({ id: items[0].id, file: f.file, title: f.file, diff: lineDiff(body, next), tokensBefore: tok(body), tokensAfter: tok(next) });
+      continue;
+    }
+    const props = await Promise.all(items.map(x => proposeSection(store, f.text, x.bare, action, opts)));
+    const bad = props.find(p => p.error); if (bad) return bad;
+    // every location is in the original text and sections do not overlap: replaced from the last one up
+    const lines = f.text.split('\n');
+    for (const p of [...props].sort((a, b) => b.loc.start - a.loc.start)) lines.splice(p.loc.start, p.loc.end - p.loc.start, ...(p.next ? [...p.next.split('\n'), ''] : []));
+    out.push({ file: f.file, from: sha(f.text), text: lines.join('\n').replace(/\n{3,}/g, '\n\n') });
+    props.forEach((p, i) => { modelTokens += p.tokens || 0; sections.push({ id: items[i].id, file: f.file, title: p.loc.section.title, diff: lineDiff(p.old, p.next), tokensBefore: tok(p.old), tokensAfter: tok(p.next) }); });
+  }
   const key = ids.length === 1 ? ids[0] : 'bulk';
   const edits = readEdits(store);
-  edits[key] = { file: src.file, from: sha(src.text), text: newText, action, ids, at: new Date().toISOString() };
+  edits[key] = { files: out, action, ids, at: new Date().toISOString() };
   writeEdits(store, edits);
-  const tok = s => Math.ceil(String(s).length / 4);
-  const sections = props.map((p, i) => ({ id: ids[i], title: p.loc.section.title, diff: lineDiff(p.old, p.next), tokensBefore: tok(p.old), tokensAfter: tok(p.next) }));
-  return { key, action, file: src.file, sections, title: sections[0].title, diff: sections.length === 1 ? sections[0].diff : null,
-    tokensBefore: sections.reduce((a, x) => a + x.tokensBefore, 0), tokensAfter: sections.reduce((a, x) => a + x.tokensAfter, 0),
-    modelTokens: props.reduce((a, p) => a + (p.tokens || 0), 0) || null };
+  const names = out.map(x => x.file);
+  return { key, action, file: names.length === 1 ? names[0] : `${names.length} files`, files: names, sections, title: sections[0].title, diff: sections.length === 1 ? sections[0].diff : null,
+    tokensBefore: sections.reduce((a, x) => a + x.tokensBefore, 0), tokensAfter: sections.reduce((a, x) => a + x.tokensAfter, 0), modelTokens: modelTokens || null };
 }
+const tok = s => Math.ceil(String(s).length / 4);
+const sections_ = text => sections(text);
 
-// Write the previewed change to the working tree, when the file is still what the preview was made from.
+// Write the previewed change to the working tree, when every file is still what the preview was made from. A
+// file whose one section was removed is deleted.
 export function applyEdit(store, id) {
   const edits = readEdits(store), e = edits[id];
   if (!e) return { error: 'preview the change first' };
-  const file = path.join(store.repo, e.file);
-  let now; try { now = fs.readFileSync(file, 'utf8'); } catch { return { error: `${e.file} is gone` }; }
-  if (sha(now) !== e.from) { delete edits[id]; writeEdits(store, edits); return { error: `${e.file} changed since the preview; preview again` }; }
-  fs.writeFileSync(file, e.text);
+  const list = e.files || [{ file: e.file, from: e.from, text: e.text }];
+  for (const x of list) {
+    let now; try { now = fs.readFileSync(path.join(store.repo, x.file), 'utf8'); } catch { return { error: `${x.file} is gone` }; }
+    if (sha(now) !== x.from) { delete edits[id]; writeEdits(store, edits); return { error: `${x.file} changed since the preview; preview again` }; }
+  }
+  for (const x of list) { const p = path.join(store.repo, x.file); if (x.text == null) fs.rmSync(p, { force: true }); else fs.writeFileSync(p, x.text); }
   delete edits[id]; writeEdits(store, edits);
-  store.log({ op: 'instruction-edit', file: e.file, sections: e.ids || [id], action: e.action });
-  const what = (e.ids || [id]).length === 1 ? 'it' : `${e.ids.length} sections`;
-  return { said: `${e.action === 'remove' ? 'Removed' : 'Compressed'} ${what} in ${e.file} (uncommitted: git diff ${e.file} to review, git checkout ${e.file} to undo)` };
+  store.log({ op: 'instruction-edit', files: list.map(x => x.file), sections: e.ids || [id], action: e.action });
+  const what = (e.ids || [id]).length === 1 ? 'it' : `${e.ids.length} sections`, where = list.length === 1 ? list[0].file : `${list.length} files`;
+  return { said: `${e.action === 'remove' ? 'Removed' : 'Compressed'} ${what} in ${where} (uncommitted: git diff to review, git checkout to undo)` };
 }

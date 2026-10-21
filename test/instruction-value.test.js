@@ -277,3 +277,37 @@ test('switching a tool off from the tab turns the harness on here, and built-in 
   const h = store.config().harness;
   assert.equal(h.enabled, true); assert.equal(h.builtinTools, true);
 });
+
+test('nested instruction files and rules count in the sessions that read them, and can be compressed or removed', async t => {
+  const { instructionFiles, instructionValue } = await import('../src/instruction-value.js');
+  const { previewEdit, applyEdit } = await import('../src/instruction-edit.js');
+  const { repo, store } = fixture(t);
+  fs.mkdirSync(path.join(repo, 'web'), { recursive: true }); fs.mkdirSync(path.join(repo, '.claude/rules'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'web/AGENTS.md'), '# Web\n\n## Components\n\nUse function components.\n');
+  fs.writeFileSync(path.join(repo, 'web/CLAUDE.md'), '@AGENTS.md\n');
+  fs.writeFileSync(path.join(repo, 'web/app.js'), 'x\n');
+  fs.writeFileSync(path.join(repo, '.claude/rules/api.md'), '---\npaths:\n  - "src/api/**"\n---\nValidate every request body.\n');
+  fs.writeFileSync(path.join(repo, '.claude/rules/always.md'), 'Be brief.\n');
+  execFileSync('git', ['-C', repo, 'add', '-A']);
+  const files = instructionFiles(repo);
+  assert.deepEqual(files.map(f => [f.file, f.kind]), [['AGENTS.md', 'root'], ['.claude/rules/always.md', 'rule'], ['.claude/rules/api.md', 'rule'], ['web/AGENTS.md', 'nested']], "web/CLAUDE.md is web/AGENTS.md: once");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-ivalue-tr-')); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  // one session in src/api (the api rule loads), one in web/ (the nested file loads)
+  const sessions = [transcript(dir, 'api', [['Read', { file_path: path.join(repo, 'src/api/views.js') }]]), transcript(dir, 'web', [['Read', { file_path: path.join(repo, 'web/app.js') }]])];
+  const v = instructionValue(store, { sessions });
+  assert.equal(v.file, 'AGENTS.md + 3 more'); assert.equal(v.sessions, 2);
+  const f = Object.fromEntries(v.files.map(x => [x.file, x.loadedIn]));
+  assert.deepEqual(f, { 'AGENTS.md': 2, '.claude/rules/always.md': 2, '.claude/rules/api.md': 1, 'web/AGENTS.md': 1 });
+  const comp = v.sections.find(s => s.file === 'web/AGENTS.md'), root = v.sections.find(s => s.id === 'api-views');
+  assert.equal(comp.id, 'web-agents-md--components'); assert.equal(comp.loadedIn, 1);
+  assert.equal(comp.perSession, Math.round(comp.tokens * v.calls * 0.5), 'its cost averaged over every session');
+  assert.equal(root.loadedIn, 2);
+  // a rule with no headings is one section; removed, the file goes
+  const rule = v.sections.find(s => s.file === '.claude/rules/api.md');
+  assert.equal(rule.whole, true);
+  const p = await previewEdit(store, [rule.id, comp.id], 'remove');
+  assert.equal(p.files.length, 2);
+  assert.match(applyEdit(store, p.key).said, /2 sections in 2 files/);
+  assert.equal(fs.existsSync(path.join(repo, '.claude/rules/api.md')), false);
+  assert.ok(!fs.readFileSync(path.join(repo, 'web/AGENTS.md'), 'utf8').includes('## Components'));
+});

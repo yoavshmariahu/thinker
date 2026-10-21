@@ -33,10 +33,11 @@ async function contextCommand({ store, flags, out }) {
   out(`  built-in tools    ~${formatTokens(t.builtin.perSession)} a session (~${formatTokens(t.builtin.tokens)} in every call)`);
   out(`  tool outputs      ~${formatTokens(t.outputs.perSession)} a session (each result read again by the calls after it; an estimate)\n`);
   if (iv.file) {
+    if ((iv.files || []).length > 1) out(`Instruction files: ${iv.files.map(f => `${f.file} (${f.kind === 'root' ? 'every session' : `${f.loadedIn} sessions`})`).join(', ')}.`);
     out(`${iv.file}: ${iv.sessions} sessions read it, ${iv.judged} judged${iv.judge.judge ? ` (a ${Math.round(100 * iv.judge.share)}% sample is judged at session end)` : ' (`thinker context --judge n` judges recent ones)'}.`);
     out(`  ${pad('tokens', 6)} ${pad('a session', 9)} ${pad('applied', 8)} ${pad('relevant', 8)} ${pad('followed', 8)}  value        section`);
     for (const s of [...iv.sections].sort((a, b) => b.perSession - a.perSession)) {
-      out(`  ${pad(s.tokens, 6)} ${pad(formatTokens(s.perSession), 9)} ${pad(s.triggered ? `${s.applied}/${s.sessions}` : '-', 8)} ${pad(s.judged ? `${s.bore}/${s.judged}` : '-', 8)} ${pad(pct(s.success), 8)}  ${s.value.padEnd(12)} ${s.kept ? '* ' : ''}${s.parent ? `${s.parent}: ` : ''}${s.title}`);
+      out(`  ${pad(s.tokens, 6)} ${pad(formatTokens(s.perSession), 9)} ${pad(s.triggered ? `${s.applied}/${s.sessions}` : '-', 8)} ${pad(s.judged ? `${s.bore}/${s.judged}` : '-', 8)} ${pad(pct(s.success), 8)}  ${s.value.padEnd(12)} ${s.kept ? '* ' : ''}${s.fileKind && s.fileKind !== 'root' ? `${s.file} · ` : ''}${s.parent ? `${s.parent}: ` : ''}${s.title}`);
     }
     out(`  applied: the session touched the section's files, commands or code; relevant: judged sessions where it mattered to the work; followed: % of judged sessions that followed rather than broke it${iv.coreOn ? '; * kept in the trimmed copy' : ''}.\n`);
   }
