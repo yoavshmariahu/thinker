@@ -1,6 +1,7 @@
 # Usage, savings and learning
 
-What the cache costs, what it saves, and how it learns from your sessions. Back to the [README](../README.md).
+What the cache costs, what it saves, and how it learns from your sessions. Where the agents'
+context goes, and what to cut, is the [Context page](context.md). Back to the [README](../README.md).
 
 ## Cache usage and savings
 

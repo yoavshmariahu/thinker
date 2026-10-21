@@ -539,7 +539,8 @@
           <h3>How can I tell if Thinker is helping my agents?</h3>
           <ul>
             <li><b>At the end of each turn</b> one line says what was served and the code it pointed at. It does not say "saved": whether the agent acted on a note is known only once the session is assessed.</li>
-            <li><b>The Usage view here</b>, and <code>thinker usage</code>, show notes served, what the sessions did with them (confirmed, contradicted, unused), what learning and maintenance cost in tokens, and an estimate of the reads avoided.</li>
+            <li><b>The Context view here</b>, and <code>thinker context</code>, show where your agents' context goes: what each instruction section, skill and tool costs a session and how often sessions acted on it, so what you cut is measured on your own sessions.</li>
+            <li><b>The usage under Cache here</b>, and <code>thinker usage</code>, show notes served, what the sessions did with them (confirmed, contradicted, unused), what learning and maintenance cost in tokens, and an estimate of the reads avoided.</li>
             <li><b>The holdout is measured, not estimated.</b> 15% of prompts are served nothing, chosen by a hash of the session and the turn, and what every turn cost is read from the session's transcript. Once twenty prompts stand on each side, the holdout section compares the cost per prompt: tool calls and tokens with notes against without, on your repository, by your agent.</li>
             <li><b><code>thinker benchmark pr</code></b> runs a recent merged pull request with and without the cache and compares time, turns, tool calls and tokens; both answers are saved under <code>.thinker/benchmarks/</code> so you can judge their quality.</li>
           </ul>
@@ -1412,10 +1413,11 @@ function loadTools() {
   };
 }
 
-// first view: the tab the URL names, else usage; the warm-up page when nothing has a cache yet
+// first view: the tab the URL names, else Context (where the agents' context goes is the front door, since
+// 2026-10-21); the warm-up page when nothing has a cache yet
 (async () => {
   let tab = H().get('tab');
-  if (!tab) { try { await fetchRepos(); tab = REPOS.length || skipped() ? 'cache' : 'warmup'; } catch { tab = 'cache'; } }
+  if (!tab) { try { await fetchRepos(); tab = REPOS.length || skipped() ? 'context' : 'warmup'; } catch { tab = 'context'; } }
   show(tab);
 })();
 </script>

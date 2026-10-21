@@ -231,8 +231,9 @@ const HELP = `thinker — knowledge cache for coding agents
                                  Enter starts, Esc skips), each built with thinker setup --build at full depth; the
                                  installer runs this last. A machine without a display (ssh) is not
                                  offered the browser. --yes takes the picked ones, --repos names them, --dry only says
-  ui [--port n] [--no-open] [--tab usage|cache|warmup]
-                                 open the local page, from any directory: usage by repository, the caches on this machine
+  ui [--port n] [--no-open] [--tab context|cache|warmup]
+                                 open the local page, from any directory, on Context: where the agents' context goes in each
+                                 repository and what each part is worth (thinker context); then the caches on this machine
                                  (each with its notes, to archive or restore, its system behaviors, to accept, edit or
                                  discard, and what is being mined or distilled, with a stop button), and the warm-up page
                                  that builds caches for the repositories your agents work in; 127.0.0.1 only, Ctrl+C stops it
