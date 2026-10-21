@@ -64,6 +64,7 @@ function staleRepo() {
   const dir = repoWith(['src/api']);
   const store = new Store(dir).init();
   fs.mkdirSync(path.join(dir, '.thinker', 'state'), { recursive: true });
+  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ ...store.config(), maintain: { prs: true } }));  // mining is off by default since 2026-10-21
   return { dir, store };
 }
 

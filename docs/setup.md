@@ -22,9 +22,11 @@ young cache costs a session nothing. The MCP tools are there from the start; a s
 started outside a repository (a container, a desktop app) binds to the repository of the
 first call that names the agent's working directory. The first session in a repository
 also writes what `thinker setup` would there (the git hooks that keep the cache fresh after a
-commit or merge, Codex's trust in the project, Cursor's rule), and when the repository has
-merged pull requests or enough commits to read, the agent is told once to offer you a
-warm-up; on a yes it runs `thinker warmup --repos <checkout> --yes --terminal` itself. Inside a
+commit or merge, Codex's trust in the project, Cursor's rule). The cache grows from the
+sessions there; reading the repository's history into it is a step you take by hand
+(`thinker warmup`, or `thinker setup --build` inside the repository). Until 2026-10-21 the agent
+was told once to offer you a warm-up; now it is only where `warmup: { offer: true }` is set in
+`.thinker/config.json`: on a yes it runs `thinker warmup --repos <checkout> --yes --terminal` itself. Inside a
 desktop app (Claude Desktop, the Codex app, Cursor), and wherever no agent CLI is signed in (a
 desktop app's login does not sign in its CLI), Claude Code, Codex and Cursor read through the
 session instead, on the app's own login and model: the build starts in the background with its model calls queued in `.thinker/state`, and
@@ -67,7 +69,8 @@ of the chosen directories first, as much as one subagent's context holds (about 
 later suggestion continues where it stopped.
 
 Warming a cache reads the repository's merged pull requests into it, so the first
-session there already finds notes. The installer ends with `thinker warmup`, which asks
+session there already finds notes. It is optional, and nothing starts it for you: run
+`thinker warmup` (until 2026-10-21 the installer ended by running it), which asks
 where to choose the repositories: the local page in your browser, or the terminal, which
 shows the ten most recently used with the top five picked (arrows move, Space toggles a
 row, Enter continues, Esc skips), each at full depth around your areas with `thinker setup --build`. Before
@@ -124,7 +127,7 @@ own process. A build reads the repository's merged pull requests, fixes first, a
 distills them into notes; it does not explore the code. Then it links the notes and writes the search phrasings the ranker uses, and last, as
 an optional stage (`--no-docs` skips it), reads the design documents checked in (READMEs
 beside the code) for the rules they state, at most eight a build; maintenance reads the
-rest over time. On a terminal the build shows one progress bar: the share done, the
+rest over time where `maintain: { docs: true }` is set. On a terminal the build shows one progress bar: the share done, the
 time left, and what is being mined or read. Closing the browser tab does not stop a
 running build.
 

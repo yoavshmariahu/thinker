@@ -521,7 +521,7 @@
             <li><b>Never stale.</b> Every serving re-hashes the dependencies of every note against your working tree. A note whose code changed is held back, re-verified in the background, and served again once it is fresh.</li>
             <li><b>Once per session</b>, not for one-word turns, and not at all when nothing fits.</li>
           </ul>
-          <p>The cache keeps itself: each session is distilled once when it ends, newly merged pull requests are mined as they land, and a maintenance run every four hours re-verifies stale notes and archives the ones sessions never acted on.</p>
+          <p>The cache grows from your sessions: each is distilled once when it ends, and a maintenance run every four hours re-verifies a few stale notes, phrases the new ones and archives the ones sessions never acted on. Newly merged pull requests are not mined in the background unless <code>maintain: { prs: true }</code> is set in <code>.thinker/config.json</code>; <code>thinker mine-prs</code> reads them by hand.</p>
         </div>
         <div class="faq-item">
           <h3>Why does mining take so long? Can I skip it?</h3>

@@ -5,8 +5,9 @@
 Your coding agent rediscovers your codebase on every task: where things live, how the
 parts connect, which change broke what last time. `thinker` remembers it instead.
 
-- **Learns from your history.** Merged pull requests, agent sessions and skill files become
-  short notes pinned to the exact code they describe.
+- **Learns from your sessions.** What your agent works out in a session becomes a short
+  note pinned to the exact code it describes; merged pull requests and skill files can be
+  read in too, when you ask.
 - **Serves only what fits.** Each request gets the notes that match it, with pointers into
   the code, so the agent starts in the right place.
 - **Keeps itself fresh.** A note whose code changed is re-checked before it is served again;
@@ -25,9 +26,9 @@ Website, docs and benchmarks: [zerotime.dev](https://zerotime.dev).
 npx @zerotimedev/thinker
 ```
 
-The installer wires thinker into the coding agents on the machine and offers to warm up
-caches from your merged pull requests. From then on every git repository has a cache that
-grows from your sessions ([how setup works](docs/setup.md)).
+The installer wires thinker into the coding agents on the machine. From then on every git
+repository has a cache that grows from your sessions; `thinker warmup` reads a repository's
+merged pull requests into it when you want a head start ([how setup works](docs/setup.md)).
 
 Requires git, Node 20+ and a logged-in coding agent: Claude Code, Codex, Cursor, Gemini CLI
 and [others](docs/agent-integrations.md). `thinker update` keeps it current in the background.
