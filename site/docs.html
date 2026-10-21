@@ -596,6 +596,40 @@
       .bench-model { grid-column: 1 / -1; }
       .bench-delta { font-size: 0.85rem; }
     }
+    /* Context page figures (dummy data, labelled as examples) */
+    .ctx-figure { margin: 1.25rem 0 1.75rem; padding: 1rem 1.1rem 0.9rem; border: 1px solid #e5e7eb; border-radius: 12px; background: #fcfcfb; }
+    .ctx-figure figcaption { font-size: 0.88rem; color: #111; margin-bottom: 0.6rem; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem 0.6rem; }
+    .ctx-example { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; border: 1px solid #d1d5db; border-radius: 999px; padding: 0.05rem 0.45rem; }
+    .ctx-sub { font-size: 0.78rem; color: #6b7280; font-weight: 400; }
+    .ctx-legend { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; font-size: 0.78rem; color: #52514e; margin-bottom: 0.4rem; }
+    .ctx-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 0.35rem; vertical-align: -1px; }
+    .ctx-chart { width: 100%; height: auto; display: block; }
+    .ctx-chart .ctx-tick { font-size: 11px; fill: #6b7280; }
+    .ctx-chart .ctx-total { font-size: 11px; fill: #111; font-weight: 600; }
+    .ctx-note { font-size: 0.8rem; color: #6b7280; line-height: 1.5; margin: 0.6rem 0 0; }
+    .ctx-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin: 0; }
+    .ctx-table th { text-align: left; font-weight: 600; color: #6b7280; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.35rem 0.5rem; border-bottom: 1px solid #e5e7eb; }
+    .ctx-table td { padding: 0.42rem 0.5rem; border-bottom: 1px solid #f1f5f9; color: #111; white-space: nowrap; }
+    .ctx-table .num, .ctx-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .ctx-table tr.ctx-high td { background: #fff7ed; }
+    .ctx-table tr.ctx-medium td { background: #fefce8; }
+    .ctx-table input { margin: 0 0.3rem 0 0; vertical-align: -1px; }
+    .ctx-bar { display: inline-block; width: 90px; height: 6px; background: #e5e7eb; border-radius: 3px; margin-right: 0.5rem; vertical-align: middle; overflow: hidden; }
+    .ctx-bar i { display: block; height: 100%; background: #2a78d6; border-radius: 3px; }
+    .ctx-pill { font-size: 0.68rem; border-radius: 999px; padding: 0.1rem 0.5rem; font-weight: 600; }
+    .ctx-pill.high { background: #fde7d6; color: #9a3412; }
+    .ctx-pill.medium { background: #fef3c7; color: #92400e; }
+    .ctx-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; font-size: 0.8rem; color: #52514e; margin-top: 0.7rem; }
+    .ctx-actions span:first-child { margin-right: auto; }
+    .ctx-btn { background: #111; color: #fff; border-radius: 6px; padding: 0.3rem 0.75rem; font-size: 0.78rem; font-weight: 600; }
+    .ctx-btn.ghost { background: transparent; color: #111; border: 1px solid #d1d5db; }
+    .ctx-split { display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem; }
+    .ctx-split > div { min-width: 0; }
+    .ctx-head { font-size: 0.8rem; color: #111; margin-bottom: 0.4rem; }
+    .ctx-head .ctx-sub { display: block; margin-top: 0.1rem; }
+    .ctx-pre { margin: 0; padding: 0.6rem 0.7rem; color: #111; font-size: 0.72rem; line-height: 1.5; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; overflow-x: auto; white-space: pre; }
+    .ctx-dim { color: #6b7280; }
+    @media (max-width: 720px) { .ctx-split { grid-template-columns: 1fr; } .ctx-table td, .ctx-table th { white-space: normal; } }
   </style>
   <link rel="stylesheet" href="/message.css">
   <script src="/message.js" defer></script>
@@ -730,6 +764,12 @@
         <p>
           <strong>Input tokens over time</strong>, as stacked columns by day or week, total or per session, split into the parts the agent reads on every model call. A part's cost a session is its tokens times the session's model calls: a 4k-token instruction file read by 40 calls is 160k input tokens, and that is the number the page sorts by.
         </p>
+        <figure class="ctx-figure">
+          <figcaption><b>Input tokens a session, by week</b> <span class="ctx-example">example</span></figcaption>
+          <div class="ctx-legend"><span><i style="background:#2a78d6"></i>Instruction files</span><span><i style="background:#eb6834"></i>Custom tools</span><span><i style="background:#1baf7a"></i>Built-in tools</span><span><i style="background:#eda100"></i>Tool outputs</span></div>
+          <svg class="ctx-chart" viewBox="0 0 720 236" role="img" aria-labelledby="ctx-chart-title" aria-describedby="ctx-chart-desc"><title id="ctx-chart-title">Example: input tokens a session by week, stacked by part</title><desc id="ctx-chart-desc">Six weekly columns; the sum falls from about 790k to 520k tokens a session after the cuts in week 41.</desc><line x1="52" y1="150.5" x2="712" y2="150.5" stroke="#e5e7eb" stroke-width="1"/><text x="44" y="154.5" text-anchor="end" class="ctx-tick">200k</text><line x1="52" y1="105.0" x2="712" y2="105.0" stroke="#e5e7eb" stroke-width="1"/><text x="44" y="109.0" text-anchor="end" class="ctx-tick">400k</text><line x1="52" y1="59.5" x2="712" y2="59.5" stroke="#e5e7eb" stroke-width="1"/><text x="44" y="63.5" text-anchor="end" class="ctx-tick">600k</text><line x1="52" y1="14.0" x2="712" y2="14.0" stroke="#e5e7eb" stroke-width="1"/><text x="44" y="18.0" text-anchor="end" class="ctx-tick">800k</text><line x1="52" y1="196" x2="712" y2="196" stroke="#d1d5db" stroke-width="1"/><rect x="78.0" y="159.6" width="58" height="34.4" fill="#2a78d6"><title>W37 · Instruction files: 160k tokens a session</title></rect><rect x="78.0" y="111.8" width="58" height="45.8" fill="#eb6834"><title>W37 · Custom tools: 210k tokens a session</title></rect><rect x="78.0" y="98.2" width="58" height="11.7" fill="#1baf7a"><title>W37 · Built-in tools: 60k tokens a session</title></rect><path d="M78.0,96.2 V33.9 Q78.0,29.9 82.0,29.9 H132.0 Q136.0,29.9 136.0,33.9 V96.2 Z" fill="#eda100"><title>W37 · Tool outputs: 300k tokens a session</title></path><text x="107.0" y="22.9" text-anchor="middle" class="ctx-total">730k</text><text x="107.0" y="214" text-anchor="middle" class="ctx-tick">W37</text><rect x="188.0" y="161.9" width="58" height="32.1" fill="#2a78d6"><title>W38 · Instruction files: 150k tokens a session</title></rect><rect x="188.0" y="111.8" width="58" height="48.1" fill="#eb6834"><title>W38 · Custom tools: 220k tokens a session</title></rect><rect x="188.0" y="98.2" width="58" height="11.7" fill="#1baf7a"><title>W38 · Built-in tools: 60k tokens a session</title></rect><path d="M188.0,96.2 V24.8 Q188.0,20.8 192.0,20.8 H242.0 Q246.0,20.8 246.0,24.8 V96.2 Z" fill="#eda100"><title>W38 · Tool outputs: 340k tokens a session</title></path><text x="217.0" y="13.8" text-anchor="middle" class="ctx-total">770k</text><text x="217.0" y="214" text-anchor="middle" class="ctx-tick">W38</text><rect x="298.0" y="161.9" width="58" height="32.1" fill="#2a78d6"><title>W39 · Instruction files: 150k tokens a session</title></rect><rect x="298.0" y="109.5" width="58" height="50.3" fill="#eb6834"><title>W39 · Custom tools: 230k tokens a session</title></rect><rect x="298.0" y="95.9" width="58" height="11.7" fill="#1baf7a"><title>W39 · Built-in tools: 60k tokens a session</title></rect><path d="M298.0,93.9 V29.4 Q298.0,25.4 302.0,25.4 H352.0 Q356.0,25.4 356.0,29.4 V93.9 Z" fill="#eda100"><title>W39 · Tool outputs: 310k tokens a session</title></path><text x="327.0" y="18.4" text-anchor="middle" class="ctx-total">750k</text><text x="327.0" y="214" text-anchor="middle" class="ctx-tick">W39</text><rect x="408.0" y="164.2" width="58" height="29.9" fill="#2a78d6"><title>W40 · Instruction files: 140k tokens a session</title></rect><rect x="408.0" y="111.8" width="58" height="50.3" fill="#eb6834"><title>W40 · Custom tools: 230k tokens a session</title></rect><rect x="408.0" y="98.2" width="58" height="11.7" fill="#1baf7a"><title>W40 · Built-in tools: 60k tokens a session</title></rect><path d="M408.0,96.2 V20.3 Q408.0,16.3 412.0,16.3 H462.0 Q466.0,16.3 466.0,20.3 V96.2 Z" fill="#eda100"><title>W40 · Tool outputs: 360k tokens a session</title></path><text x="437.0" y="9.3" text-anchor="middle" class="ctx-total">790k</text><text x="437.0" y="214" text-anchor="middle" class="ctx-tick">W40</text><rect x="518.0" y="174.4" width="58" height="19.6" fill="#2a78d6"><title>W41 · Instruction files: 95k tokens a session</title></rect><rect x="518.0" y="147.1" width="58" height="25.3" fill="#eb6834"><title>W41 · Custom tools: 120k tokens a session</title></rect><rect x="518.0" y="133.4" width="58" height="11.7" fill="#1baf7a"><title>W41 · Built-in tools: 60k tokens a session</title></rect><path d="M518.0,131.4 V73.7 Q518.0,69.7 522.0,69.7 H572.0 Q576.0,69.7 576.0,73.7 V131.4 Z" fill="#eda100"><title>W41 · Tool outputs: 280k tokens a session</title></path><text x="547.0" y="62.7" text-anchor="middle" class="ctx-total">555k</text><text x="547.0" y="214" text-anchor="middle" class="ctx-tick">W41</text><rect x="628.0" y="175.5" width="58" height="18.5" fill="#2a78d6"><title>W42 · Instruction files: 90k tokens a session</title></rect><rect x="628.0" y="150.5" width="58" height="23.0" fill="#eb6834"><title>W42 · Custom tools: 110k tokens a session</title></rect><rect x="628.0" y="136.8" width="58" height="11.7" fill="#1baf7a"><title>W42 · Built-in tools: 60k tokens a session</title></rect><path d="M628.0,134.8 V81.7 Q628.0,77.7 632.0,77.7 H682.0 Q686.0,77.7 686.0,81.7 V134.8 Z" fill="#eda100"><title>W42 · Tool outputs: 260k tokens a session</title></path><text x="657.0" y="70.7" text-anchor="middle" class="ctx-total">520k</text><text x="657.0" y="214" text-anchor="middle" class="ctx-tick">W42</text></svg>
+          <p class="ctx-note">The sum is what every model call re-reads, times the calls. Here two MCP servers and three sections of <code>AGENTS.md</code> were cut in week 41.</p>
+        </figure>
         <div class="table-scroll">
           <table>
             <thead><tr><th>Part</th><th>What it is</th><th>Read from</th></tr></thead>
@@ -744,25 +784,59 @@
         <p>
           <strong>One part at a time, as cards.</strong> Each instruction section, skill and tool beside its cost (tokens a call, input tokens a session) and its use. A section is <em>applied</em> when a session touched its files, ran its command or read the code it names, free, from the transcript; <em>relevant</em> and <em>followed</em> come from a model reading one session against the sections, which costs tokens, so it runs when you press <strong>Judge 5 more sessions</strong> or on a sample of sessions as they end once you turn that on (<code>instructions.value.judge</code> in the configuration). A skill is <em>read</em> when a session opened it, and the sampled outcome check says whether the sessions that read it kept its rules, and how often one broke them without reading it. A tool is <em>used</em> when a session called it. <strong>Waste</strong> is high or medium for a part the sessions used in under half of them and that costs a large share of its kind; the saving beside it is what cutting it would save at most.
         </p>
-        <h3>What you can cut</h3>
-        <div class="table-scroll">
-          <table>
-            <thead><tr><th>Cut</th><th>On the page</th><th>From the terminal</th><th>Undo</th></tr></thead>
-            <tbody>
-              <tr><td>Shorten an instruction section</td><td>Pick sections, <strong>Compress</strong>: a model rewrites them to about a third, keeping the rules, commands and paths. The diff is shown; <strong>Apply</strong> writes it to the file in your working tree, uncommitted</td><td><code>thinker instructions --compress &lt;ids&gt; [--apply]</code></td><td><code>git checkout</code> the file</td></tr>
-              <tr><td>Drop an instruction section</td><td>Pick sections, <strong>Remove</strong>; the same diff and Apply</td><td><code>thinker instructions --remove &lt;ids&gt; [--apply]</code></td><td><code>git checkout</code> the file</td></tr>
-              <tr><td>Give this checkout a shorter file</td><td>Keep the sections that matter here; the team's file is untouched and the agents here read a trimmed local copy</td><td><code>thinker instructions --core "Title, Title"</code></td><td><strong>Remove the trimmed copy</strong>, or <code>thinker instructions --off</code></td></tr>
-              <tr><td>Switch a skill, MCP server or plugin off</td><td>Pick them, <strong>Switch off</strong>: off for this repository from the next session, in the agent's own settings, with a backup. A skill switched off still runs as <code>/name</code></td><td><code>thinker harness --off "&lt;label&gt;"</code></td><td><strong>Turn back on</strong>, or <code>thinker harness --undo</code></td></tr>
-              <tr><td>Switch a built-in tool off</td><td>The same, under Built-in tools</td><td><code>thinker context --switch-off &lt;labels&gt; --builtin</code></td><td><code>thinker context --switch-on &lt;keys&gt;</code></td></tr>
-              <tr><td>Compress tool outputs</td><td>Per tool, <strong>High</strong>, <strong>Moderate</strong> or <strong>No compression</strong>: a whole-file read becomes the lines around what the session searched for, a test run its counts and distinct failures, a big search its hits per file, long output cut to a cap. Claude Code only, through its tool hook</td><td><code>thinker context --output-compression &lt;tools&gt; --level high|moderate|off</code></td><td>The same, <code>--level off</code></td></tr>
-            </tbody>
-          </table>
-        </div>
+        <h3>Cut what no session acts on</h3>
         <p>
-          Compress and Remove edit the team's file in your working tree and nothing else: no commit, no pull request, and Apply refuses when the file changed since the preview. Switching a tool off turns thinker's harness on for that repository, which is what reads and writes the agent's settings; <code>thinker harness</code> lists what is off and <code>--undo</code> restores every file from its backup.
+          Each section of the instruction file beside what it costs a call, how many sessions acted on it and what it cost this week. The ones no session uses are flagged; pick them and have a model compress them to a third, or remove them, as a diff you apply. Skills, MCP servers and plugins get the same treatment on their own cards: <strong>Switch off</strong> takes one out of the next session's context, in the agent's own settings, with a backup (<code>thinker harness --undo</code> puts it back; a skill switched off still runs as <code>/name</code>).
         </p>
+        <figure class="ctx-figure">
+          <figcaption><b>AGENTS.md this week</b> <span class="ctx-example">example</span> <span class="ctx-sub">48 sessions · 4,320 tokens a call · 13.3M input tokens on the file, 9.2M of it on sections no session acted on</span></figcaption>
+          <table class="ctx-table">
+            <thead><tr><th>Section</th><th class="num">Tokens a call</th><th>Sessions that acted on it</th><th class="num">This week</th><th></th></tr></thead>
+            <tbody><tr><td><input type="checkbox" aria-label="Pick Repository layout"> Repository layout</td><td class="num">420</td><td><span class="ctx-bar"><i style="width:92%"></i></span>92%</td><td class="num">1.1M</td><td></td></tr><tr><td><input type="checkbox" aria-label="Pick Running the tests"> Running the tests</td><td class="num">310</td><td><span class="ctx-bar"><i style="width:71%"></i></span>71%</td><td class="num">0.78M</td><td></td></tr><tr class="ctx-high"><td><input type="checkbox" aria-label="Pick Release process" checked> Release process</td><td class="num">1,460</td><td><span class="ctx-bar"><i style="width:4%"></i></span>4%</td><td class="num">3.6M</td><td><span class="ctx-pill high">high waste</span></td></tr><tr class="ctx-high"><td><input type="checkbox" aria-label="Pick Deploy to staging" checked> Deploy to staging</td><td class="num">980</td><td><span class="ctx-bar"><i style="width:0%"></i></span>0%</td><td class="num">2.5M</td><td><span class="ctx-pill high">high waste</span></td></tr><tr class="ctx-high"><td><input type="checkbox" aria-label="Pick Legacy API notes" checked> Legacy API notes</td><td class="num">1,220</td><td><span class="ctx-bar"><i style="width:3%"></i></span>3%</td><td class="num">3M</td><td><span class="ctx-pill high">high waste</span></td></tr><tr><td><input type="checkbox" aria-label="Pick Commit conventions"> Commit conventions</td><td class="num">240</td><td><span class="ctx-bar"><i style="width:58%"></i></span>58%</td><td class="num">0.6M</td><td></td></tr><tr class="ctx-medium"><td><input type="checkbox" aria-label="Pick Database migrations"> Database migrations</td><td class="num">690</td><td><span class="ctx-bar"><i style="width:19%"></i></span>19%</td><td class="num">1.7M</td><td><span class="ctx-pill medium">medium waste</span></td></tr></tbody>
+          </table>
+          <div class="ctx-actions"><span>3 sections picked · 3,660 tokens a call, 9.2M this week</span><span class="ctx-btn">Compress</span><span class="ctx-btn ghost">Remove</span></div>
+          <p class="ctx-note">Both show the diff first; Apply writes it to the file in your working tree, uncommitted. <code>thinker instructions --core</code> keeps picked sections in a trimmed copy for this checkout instead, leaving the team's file alone.</p>
+        </figure>
+        <h3>Compress what the agent reads back</h3>
         <p>
-          Tokens are counted from the transcripts, at about four characters a token, times the model calls the transcript records. The outputs' cost is each result's tokens times the model calls left after it; a compaction, which drops old results, is not seen, so that part is an upper estimate. The waste flags and savings are measurements of use, not a promise: cutting a section saves its tokens, and whether the agent then misses it is what <em>followed</em> and <em>missed</em> are there to show. No benchmark is claimed for the cuts; the <button type="button" onclick="openModal()">benchmarks</button> are about the cache.
+          A tool result stays in the conversation, so every model call after it reads it again: a whole file read is paid for twenty times over. Compression keeps the lines around what the session searched for, a test run's counts and distinct failures, a search's hits per file, and names what it left out so the agent can ask for any range.
+        </p>
+        <figure class="ctx-figure">
+          <figcaption><b>A tool result, before and after compression</b> <span class="ctx-example">example</span></figcaption>
+          <div class="ctx-split">
+            <div>
+              <div class="ctx-head">Read <code>src/billing/invoice.py</code> <span class="ctx-sub">612 lines · ~7.1k tokens, re-read by the 23 calls after it</span></div>
+<pre class="ctx-pre">  1  import decimal
+  2  from dataclasses import dataclass
+  3  from .money import Money, round_half_even
+  …
+140  def apply_refund_cap(invoice, refund):
+141      cap = invoice.total * REFUND_CAP
+142      if refund.amount > cap:
+143          raise RefundTooLarge(refund, cap)
+  …
+612      return Invoice(lines=lines, total=total)</pre>
+            </div>
+            <div>
+              <div class="ctx-head">The same result, moderate compression <span class="ctx-sub">48 lines · ~0.9k tokens</span></div>
+<pre class="ctx-pre">lines 128–181 of 612, round "refund_cap":
+128  REFUND_CAP = decimal.Decimal("0.5")
+  …
+140  def apply_refund_cap(invoice, refund):
+141      cap = invoice.total * REFUND_CAP
+142      if refund.amount > cap:
+143          raise RefundTooLarge(refund, cap)
+  …
+<span class="ctx-dim">omitted 1–127: imports, Money, Invoice, InvoiceLine
+omitted 182–455: build_invoice, add_line, total
+omitted 456–612: to_pdf, send
+read any range: Read with offset and limit</span></pre>
+            </div>
+          </div>
+          <p class="ctx-note">Switched on per tool from the page (High, Moderate, or none) or with <code>thinker context --output-compression</code>; Claude Code only, through its tool hook. A short file, or one with nothing to centre on, passes whole.</p>
+        </figure>
+        <p>
+          Tokens are counted from the transcripts, at about four characters a token, times the model calls the transcript records. The outputs' cost is each result's tokens times the model calls left after it; a compaction, which drops old results, is not seen, so that part is an upper estimate. The waste flags and savings are measurements of use, not a promise: cutting a section saves its tokens, and whether the agent then misses it is what <em>followed</em> and <em>missed</em> are there to show. No benchmark is claimed for the cuts; the <a href="#overview" onclick="openModal(); return false;">benchmarks</a> are about the cache.
         </p>
       </section>
 
