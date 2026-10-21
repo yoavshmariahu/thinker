@@ -400,25 +400,12 @@
   <nav>
     <div class="brand"><span class="wordmark">thinker</span><span class="brand-sub">local</span></div>
     <div class="nav-right">
-      <button class="nav-link" data-tab="usage">Usage</button>
       <button class="nav-link" data-tab="context">Context</button>
       <button class="nav-link" data-tab="cache">Cache<span class="count" id="wait-count" hidden></span></button>
     </div>
   </nav>
 
   <main>
-    <!-- Usage -->
-    <section id="tab-usage" hidden>
-      <div class="kicker">On this machine</div>
-      <h1>How the cache is working for you</h1>
-      <p class="lede">What was served to your agents, what they acted on, what was learned, and what it cost in tokens. Read from your local log; nothing leaves this machine.</p>
-      <div class="controls">
-        <select class="sel" id="u-repo" aria-label="Repository"><option value="all">All repositories</option></select>
-        <div class="seg" id="days-seg"><button data-days="7">7 days</button><button data-days="30" class="on">30 days</button><button data-days="0">All time</button></div>
-      </div>
-      <div id="usage-body" class="section"><div class="empty"><span class="spinner"></span>Reading the log…</div></div>
-    </section>
-
     <!-- Context: where the agents' context goes in one repository, and what each part is worth (context-view.js, as `thinker context`) -->
     <section id="tab-context" hidden>
       <div class="ctx-top"><div><h1>Context Overview</h1>
@@ -435,10 +422,14 @@
     <!-- Cache: every repository with a cache, then one repository's notes and behaviors -->
     <section id="tab-cache" hidden>
       <div id="cache-overview">
-        <div class="kicker">The cache</div>
-        <h1>Your repositories</h1>
-        <p class="lede">Every git repository on this machine with a cache, what each holds, and what is being mined or distilled right now. Open one to read its notes and the behaviors every change must keep.</p>
-        <div class="controls"><button class="btn ghost" id="to-warmup">Warm up more repositories</button></div>
+        <div class="ctx-top"><div><h1>Cache</h1>
+        <p class="lede">What the cache served your agents, what it holds, and what it saved</p></div>
+        <div class="controls">
+          <select class="sel" id="u-repo" aria-label="Repository"><option value="all">All repositories</option></select>
+          <div class="seg" id="days-seg"><button data-days="7">7 days</button><button data-days="30" class="on">30 days</button><button data-days="0">All time</button></div>
+        </div></div>
+        <div id="usage-body"><div class="empty"><span class="spinner"></span>Reading the log…</div></div>
+        <div class="section-head" style="margin-top:2rem"><div><div class="kicker">Every git repository on this machine with a cache</div><div class="section-title">Your repositories</div></div><button class="btn ghost" id="to-warmup">Warm up more repositories</button></div>
         <div class="rgrid" id="r-grid"><div class="empty" style="grid-column:1/-1"><span class="spinner"></span>Reading the caches…</div></div>
       </div>
 
@@ -608,11 +599,11 @@ $('#back').onclick = () => { DREPO = ''; show('cache'); };
 $('#w-back').onclick = () => { DREPO = ''; show('cache'); };
 function show(tab) {
   document.querySelectorAll('.nav-link').forEach(b => b.classList.toggle('active', b.dataset.tab === (tab === 'warmup' || tab === 'tools' ? 'cache' : tab)));
-  $('#tab-usage').hidden = tab !== 'usage'; $('#tab-context').hidden = tab !== 'context'; $('#tab-cache').hidden = tab !== 'cache'; $('#tab-warmup').hidden = tab !== 'warmup'; $('#tab-tools').hidden = tab !== 'tools';
+  if (tab === 'usage') tab = 'cache';
+  $('#tab-context').hidden = tab !== 'context'; $('#tab-cache').hidden = tab !== 'cache'; $('#tab-warmup').hidden = tab !== 'warmup'; $('#tab-tools').hidden = tab !== 'tools';
   TAB = tab;
   history.replaceState(null, '', `#t=${TOKEN}&tab=${tab}${tab === 'cache' && DREPO ? `&repo=${encodeURIComponent(DREPO)}` : ''}`);
-  if (tab === 'usage') loadUsage();
-  else if (tab === 'context') loadContext();
+  if (tab === 'context') loadContext();
   else if (tab === 'warmup') loadWarmup();
   else if (tab === 'tools') loadTools();
   else if (DREPO) openRepo(DREPO);
@@ -623,7 +614,7 @@ function show(tab) {
 let days = 30;
 document.querySelectorAll('#days-seg button').forEach(b => b.onclick = () => { days = Number(b.dataset.days); segOn('#days-seg', b); loadUsage(); });
 function segOn(sel, on) { document.querySelectorAll(sel + ' button').forEach(b => b.classList.toggle('on', b === on)); }
-$('#u-repo').onchange = e => { REPO = e.target.value; e.target.blur(); loadUsage(); };
+$('#u-repo').onchange = e => { REPO = e.target.value; e.target.blur(); loadRepos(); };
 function fillRepoFilter() {
   if (REPO !== 'all' && !REPOS.some(r => r.id === REPO)) REPO = 'all';
   $('#u-repo').innerHTML = `<option value="all"${REPO === 'all' ? ' selected' : ''}>All repositories</option>` + REPOS.map(r => `<option value="${esc(r.id)}"${r.id === REPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
@@ -640,86 +631,20 @@ async function loadUsage() {
 function card(kicker, num, label, rows, gain) {
   return `<div class="card"><div class="kicker">${kicker}</div><div class="metric-num${gain ? ' gain' : ''}">${num}</div><div class="metric-label">${label}</div>${rows && rows.length ? `<ul class="metric-rows">${rows.map(([a, b]) => `<li><span>${esc(a)}</span><span>${esc(b)}</span></li>`).join('')}</ul>` : ''}</div>`;
 }
-function pairRow(name, sub, a, b, fmtv) {
-  const max = Math.max(a, b) || 1, d = a ? Math.round(100 * (b - a) / a) : 0;
-  return `<div class="bench-row"><div><div class="bench-model-name">${esc(name)}</div><div class="bench-model-sub">${esc(sub)}</div></div>
-    <div class="bench-bars"><div class="bar before"><i style="--w:${100 * a / max}%"></i>${fmtv(a)}</div><div class="bar after"><i style="--w:${100 * b / max}%"></i>${fmtv(b)}</div></div>
-    <div class="bench-delta${d >= 0 ? ' flat' : ''}">${d > 0 ? '+' : d < 0 ? '−' : ''}${Math.abs(d)}%</div></div>`;
-}
+// The three numbers at the top of the Cache page, for every repository or the one picked, over the range: what was
+// served (cache hits), what the cache holds and learned (notes), and the tokens it saved (measured against held-out
+// prompts where there are enough of them, else the estimate from the servings sessions acted on).
 function renderUsage(u) {
   const as = u.assessed || {}, judged = (as.confirmed || 0) + (as.contradicted || 0) + (as.unused || 0);
   const served = Object.values(u.servings || {}).reduce((a, b) => a + b, 0);
-  const learned = (u.learned?.notes || 0) + (u.learned?.prNotes || 0);
   const v = u.verified || {};
-  let h = `<div class="cards">
-    ${card('Notes served', fmt(served), `${fmt(u.notesServed)} distinct notes, for ${fmt(u.answered)} of ${fmt(u.requests)} requests`, [['At the prompt', fmt(u.servings?.prompt || 0)], ['While editing a file', fmt(u.servings?.file || 0)], ['Asked for by the agent', fmt(u.servings?.lookup || 0)]])}
-    ${card('Acted on', pct(as.confirmed || 0, judged), `of the servings sessions were judged on: the agent used the note`, [['Acted on', fmt(as.confirmed || 0)], ['Corrected by the session', fmt(as.contradicted || 0)], ['Not used', fmt(as.unused || 0)]], true)}
-    ${card('Learned', fmt(learned), `new notes, from your sessions and merged pull requests`, [['From sessions', fmt(u.learned?.notes || 0)], ['From pull requests', fmt(u.learned?.prNotes || 0)], [ALL() ? 'Notes in the caches' : 'Notes in this cache', fmt(u.notesInCache)]])}
-    ${card('Kept current', fmt((v.still_valid || 0) + (v.update || 0) + (v.invalid || 0)), `re-checks after the code under a note changed`, [['Still valid', fmt(v.still_valid || 0)], ['Rewritten', fmt(v.update || 0)], ['Retired', fmt(v.invalid || 0)]])}
-    ${card('Model usage', fmt(u.spending.tokens), `tokens for learning and upkeep, through your own agent`, Object.entries(u.spending.byPhase || {}).filter(([, x]) => x.tokens).sort((a, b) => b[1].tokens - a[1].tokens).slice(0, 4).map(([k, x]) => [k, fmt(x.tokens)]))}
-    ${card('Reading saved', fmt(u.saved.tokens), `tokens of code the agents did not have to read, estimated from servings they acted on`, [], true)}
+  const ho = u.holdout, measured = ho?.enough && ho.saved?.inputTokens != null;
+  const saved = measured ? ho.saved.inputTokens : u.saved?.tokens || 0;
+  $('#usage-body').innerHTML = `<div class="cards">
+    ${card('Cache hits', fmt(served), `notes served, for ${fmt(u.answered)} of ${fmt(u.requests)} requests`, [['At the prompt', fmt(u.servings?.prompt || 0)], ['While editing a file', fmt(u.servings?.file || 0)], ['Asked for by the agent', fmt(u.servings?.lookup || 0)], ['Acted on', judged ? pct(as.confirmed || 0, judged) : '–']])}
+    ${card('Notes', fmt(u.notesInCache || 0), ALL() ? 'notes in the caches' : 'notes in this cache', [['Learned from sessions', fmt(u.learned?.notes || 0)], ['Learned from pull requests', fmt(u.learned?.prNotes || 0)], ['Kept current', fmt((v.still_valid || 0) + (v.update || 0))], ['Retired', fmt(v.invalid || 0)]])}
+    ${card('Tokens saved', fmt(Math.max(0, saved)), measured ? 'input tokens, measured against prompts that had the notes withheld' : 'tokens of code the agents did not have to read, estimated from servings they acted on', [[measured ? 'Measured' : 'Estimated', measured ? `${fmt(ho.served.prompts)} prompts with notes, ${fmt(ho.heldOut.prompts)} held out` : 'too few held out yet'], ['Spent learning and upkeep', fmt(u.spending?.tokens || 0)], ['Net after spending', u.saved?.netAfterSpend != null ? fmt(u.saved.netAfterSpend) : '–']], true)}
   </div>`;
-  const ho = u.holdout;
-  h += `<div class="section"><div class="section-head"><div><div class="kicker">Measured on your own prompts</div><div class="section-title">With notes, against prompts that had them withheld</div></div></div><div class="panel">`;
-  if (ho && ho.enough && ho.served?.prompts && ho.heldOut?.prompts) {
-    const per = (s, f) => Math.round(s.perPrompt?.[f] || 0);
-    const saved = ho.saved?.inputTokens;
-    h += `<div class="bench-legend"><span><i class="swatch before"></i>notes withheld</span><span><i class="swatch"></i>with notes</span></div><div class="bench-rows">
-      ${pairRow('Tool calls', 'per prompt', per(ho.heldOut, 'toolCalls'), per(ho.served, 'toolCalls'), fmt)}
-      ${pairRow('Input tokens', 'per prompt', per(ho.heldOut, 'inputTokens'), per(ho.served, 'inputTokens'), fmt)}
-    </div><div class="note-line">${fmt(ho.served.prompts)} prompts with notes, ${fmt(ho.heldOut.prompts)} held out, in ${fmt(ho.sessions || 0)} sessions.${saved != null ? ` About ${fmt(Math.abs(saved))} input tokens ${saved >= 0 ? 'less' : 'more'} across the served prompts than at the held-out cost per prompt.` : ''} A share of prompts is served nothing on purpose so this can be measured; a turn's cost is what its session's transcript grew by.</div>`;
-  } else {
-    h += `<div class="note-line" style="margin-top:0">Not enough prompts yet: the comparison appears once twenty prompts stand on each side (${ho?.served?.prompts || 0} with notes, ${ho?.heldOut?.prompts || 0} held out so far).</div>`;
-  }
-  h += `</div></div>`;
-  if (u.top?.length) h += `<div class="section"><div class="section-head"><div><div class="kicker">Most served</div><div class="section-title">The notes your agents saw most</div></div></div><div class="panel"><table><thead><tr><th>Note</th>${ALL() ? '<th>Repository</th>' : ''}<th class="num">Served</th></tr></thead><tbody>${u.top.map(t => `<tr><td>${esc(t.title)}</td>${ALL() ? `<td class="muted">${esc(String(t.repo || '').replace(/^github\.com\//, ''))}</td>` : ''}<td class="num">${t.served}</td></tr>`).join('')}</tbody></table></div></div>`;
-  if (ALL() && u.repos?.length) h += `<div class="section"><div class="section-head"><div><div class="kicker">By repository</div><div class="section-title">Where thinker is working</div></div></div><div class="panel"><table><thead><tr><th>Repository</th><th class="num">Requests</th><th class="num">Served</th><th class="num">Learned</th><th class="num">Tokens</th></tr></thead><tbody>${u.repos.map(r => `<tr><td>${esc(String(r.repo).replace(/^github\.com\//, ''))}</td><td class="num">${fmt(r.requests)}</td><td class="num">${fmt(r.served)}</td><td class="num">${fmt(r.learned)}</td><td class="num">${fmt(r.tokens)}</td></tr>`).join('')}</tbody></table></div></div>`;
-  h += `<div class="section" id="harness-body"><div class="empty"><span class="spinner"></span>Reading what Claude Code, Codex or Cursor loads…</div></div>`;
-  $('#usage-body').innerHTML = h;
-  loadHarness();
-}
-
-// ---- what Claude Code, Codex or Cursor loads into every session, and what switching it off saved (harness.js:harnessView) ----
-const HKIND = { plugin: 'plugin', mcp: 'MCP server', connector: 'claude.ai connector', skill: 'skill', skills: 'skills', desktop: 'desktop app' };
-const hkind = s => s.kind === 'connector' && s.scope === 'desktop' ? 'desktop connector' : HKIND[s.kind] || s.kind;
-function savedRows(sv, repoName) {
-  return sv.sources.map(s => `<tr><td>${({ codex: 'Codex: ', cursor: 'Cursor: ' })[s.client] || ''}${esc(s.name)} <span class="muted">${esc(hkind(s))}</span>${repoName ? `<div class="muted">${esc(repoName)}</div>` : ''}</td><td class="muted">${esc(s.at.slice(0, 10))}</td><td class="num">${s.absent}/${s.sessions}${s.stillLoaded ? ` <span class="pill bad" title="still loaded in ${s.stillLoaded} session(s): the switch did not take effect there">${s.stillLoaded} still loaded</span>` : ''}</td><td class="num">${fmt(s.tokens)}</td><td class="num">${fmt(s.inputTokens)}</td>${repoName ? '' : `<td><button class="btn text" data-hundo="${esc(s.key || s.name)}">Turn back on</button></td>`}</tr>`).join('');
-}
-const SAVED_HEAD = `<thead><tr><th>Switched off</th><th>Since</th><th class="num">Absent from sessions</th><th class="num">Context saved</th><th class="num">Input tokens saved</th></tr></thead>`;
-async function loadHarness() {
-  const el = $('#harness-body'); if (!el) return;
-  try {
-    const v = await api(`/api/harness?repo=${encodeURIComponent(REPO)}${days ? `&days=${days}` : ''}`);
-    // off until released (harness.js:harnessOn): the page shows nothing of it
-    if (v.enabled === false) { el.remove(); return; }
-    let h = `<div class="section-head"><div><div class="kicker">Recorded in Claude Code and Codex transcripts and Cursor's tool inventory</div><div class="section-title">Tools loaded into every session</div></div></div>`;
-    if (ALL()) {
-      if (!(v.repos || []).length) { el.remove(); return; }
-      const tot = (v.repos || []).reduce((a, r) => ({ t: a.t + r.saved.tokens, i: a.i + r.saved.inputTokens }), { t: 0, i: 0 });
-      h += (v.repos || []).length
-        ? `<div class="cards">${card('Context saved', fmt(tot.t), 'tokens of tools switched off by thinker, in the sessions started since', [], true)}${card('Input tokens saved', fmt(tot.i), 'the same context, read again in each model call of those sessions', [], true)}</div><div class="panel"><table>${SAVED_HEAD}<tbody>${v.repos.map(r => savedRows(r.saved, r.repoName)).join('')}</tbody></table></div>`
-        : `<div class="note-line" style="margin-top:0">Nothing is switched off yet. Pick a repository above to see what Claude Code, Codex or Cursor loads there, switch off what it never uses, and set how thinker asks.</div>`;
-      el.innerHTML = h; return;
-    }
-    const st = v.settings || {};
-    const tog = (k, label, sub) => `<label style="display:flex;gap:.55rem;align-items:flex-start;margin:.35rem 0"><input type="checkbox" data-hset="${k}"${st[k] ? ' checked' : ''}><span><b style="font-weight:500">${label}</b><div class="muted">${sub}</div></span></label>`;
-    h += `<div class="panel">${tog('recurring', 'Ask me every two weeks', 'every two weeks, your next Claude Code, Codex or Cursor prompt here asks which unused tools to switch off')}${tog('recall', 'Tell the agent when a request needs a switched-off tool', 'one line, and how to bring it back (an experiment: off by default)')}${tog('suggestions', 'Suggestions on this machine', 'off: thinker never asks, in any repository')}</div>`;
-    if (v.saved.sources.length) h += `<div class="cards" style="margin-top:1rem">${card('Context saved', fmt(v.saved.tokens), `tokens, in the ${v.saved.sessions} session${v.saved.sessions === 1 ? '' : 's'} started since these were switched off`, [], true)}${card('Input tokens saved', fmt(v.saved.inputTokens), 'the same context, read again in each model call of those sessions', [], true)}</div>
-      <div class="panel"><table>${SAVED_HEAD.replace('</tr>', '<th></th></tr>')}<tbody>${savedRows(v.saved)}</tbody></table><div class="controls" style="margin-top:.8rem"><button class="btn ghost" data-hundo="">Turn all back on</button></div></div>`;
-    const waste = v.advice.reduce((a, s) => a + s.tokens, 0);
-    const reread = v.advice.reduce((a, s) => a + (s.input || s.tokens), 0);
-    h += `<div class="panel" style="margin-top:1rem">${v.sessions ? `<table><thead><tr><th></th><th>Loaded into every session</th><th class="num">Sessions that used it</th><th class="num">Tokens a session</th></tr></thead><tbody>${v.sources.slice(0, 20).map(s => { const a = v.advice.find(x => x.key === s.key); return `<tr><td>${a ? `<input type="checkbox" data-hoff="${esc(a.label)}" checked>` : ''}</td><td>${({ codex: 'Codex: ', cursor: 'Cursor: ' })[s.client] || ''}${esc(s.name)} <span class="muted">${esc(hkind(s))}${s.scope && !['connector', 'desktop'].includes(s.kind) ? ` · ${esc(s.scope)}` : ''}</span>${s.off ? ' <span class="pill off">off now</span>' : a ? ' <span class="pill wait">unused</span>' : ''}</td><td class="num">${s.used}/${s.loaded}</td><td class="num">${fmt(s.tokens)}</td></tr>`; }).join('')}</tbody></table>
-      <div class="note-line">${v.sessions} Claude Code, Codex or Cursor sessions here over ${v.days} days. ${v.advice.length ? `${v.advice.length} loaded and almost never used: about ${fmt(waste)} tokens across these listings; the amount per session depends on the agent.${reread > waste ? ` Every model call reads them again: ~${fmt(reread)} input tokens in a typical session (~${v.calls?.claude || v.calls?.codex} model calls), mostly prompt-cache reads.` : ''} Switched off, ${st.recall ? 'thinker tells the agent when a request needs one and how to bring it back; ' : ''}skills still run as /name, and Turn back on undoes it. Codex switches apply to new sessions in this trusted checkout. Claude skills remain available as /name; Claude MCP switches cover the repository’s worktrees.` : 'No supported source meets the suggestion threshold.'}</div>
-      ${v.advice.length ? `<div class="controls"><button class="btn" id="h-off">Switch off selected</button>${st.suggestions ? `<button class="btn ghost" id="h-ask"${v.pending ? ' disabled' : ''}>${v.pending ? 'Asked in your next prompt' : 'Ask me in my next Claude Code, Codex or Cursor prompt'}</button>` : ''}</div>` : ''}`
-      : `<div class="note-line" style="margin-top:0">No Claude Code, Codex or Cursor session here in the last ${v.days} days records what it loaded.</div>`}</div>`;
-    el.innerHTML = h;
-    const repo = REPOS.find(r => r.id === REPO)?.id || '';
-    const act = async (btn, p, body, msg) => { if (btn) btn.disabled = true; try { const r = await api(p, { repo, ...body }); toast(msg || (r.said && !r.said.startsWith('{') ? r.said : 'Saved')); loadHarness(); } catch (err) { toast(err.message, true); if (btn) btn.disabled = false; } };
-    el.querySelectorAll('[data-hset]').forEach(c => c.onchange = () => act(c, '/api/harness/settings', { [c.dataset.hset]: c.checked }, 'Saved'));
-    el.querySelectorAll('[data-hundo]').forEach(b => b.onclick = () => act(b, '/api/harness/undo', b.dataset.hundo ? { names: [b.dataset.hundo] } : {}));
-    $('#h-off')?.addEventListener('click', e => { const labels = [...el.querySelectorAll('[data-hoff]:checked')].map(c => c.dataset.hoff); if (!labels.length) return toast('Nothing selected', true); act(e.target, '/api/harness/off', { labels }); });
-    $('#h-ask')?.addEventListener('click', e => act(e.target, '/api/harness/suggest', {}, 'Your next Claude Code, Codex or Cursor prompt here asks which to switch off'));
-  } catch (e) { el.innerHTML = `<div class="empty">Could not read what Claude Code, Codex or Cursor loads: ${esc(e.message)}</div>`; }
 }
 
 // ---- where the context goes in one repository (context-view.js:contextView, as `thinker context`) ----
@@ -1094,7 +1019,8 @@ async function loadRepos() {
     await fetchRepos();
     // a warm-up still waiting for its repository's first cache file shows up as a card of its own
     const jobCards = JOBS.filter(j => ['queued', 'running'].includes(j.status) && !REPOS.some(r => r.checkout === j.checkout)).map(j => `<div class="rcard none"><div class="rtop"><div style="min-width:0"><div class="rname">${esc(j.name)}</div><div class="rpath mono">${esc(home(j.checkout))}</div></div></div><div class="rstats"></div><span class="pill">starting</span>${progress({ id: '', job: j })}</div>`);
-    const cards = REPOS.map(rcard).concat(jobCards);
+    loadUsage();
+    const cards = REPOS.filter(r => ALL() || r.id === REPO).map(rcard).concat(ALL() ? jobCards : []);
     $('#r-grid').innerHTML = cards.length ? cards.join('') : `<div class="empty" style="grid-column:1/-1">No caches yet. A cache starts with the first agent session in a git repository, or warm one up now.</div>`;
     wireGrid();
   } catch (e) { $('#r-grid').innerHTML = `<div class="empty" style="grid-column:1/-1">Could not read the caches: ${esc(e.message)}</div>`; }
@@ -1489,7 +1415,7 @@ function loadTools() {
 // first view: the tab the URL names, else usage; the warm-up page when nothing has a cache yet
 (async () => {
   let tab = H().get('tab');
-  if (!tab) { try { await fetchRepos(); tab = REPOS.length || skipped() ? 'usage' : 'warmup'; } catch { tab = 'usage'; } }
+  if (!tab) { try { await fetchRepos(); tab = REPOS.length || skipped() ? 'cache' : 'warmup'; } catch { tab = 'cache'; } }
   show(tab);
 })();
 </script>
