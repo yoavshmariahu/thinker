@@ -30,8 +30,15 @@ export const DEFAULTS = {
   // distillModel, Sonnet (the default since 2026-10-15) among them, gets DAILY_TOKENS_COSTLY unless the
   // config says otherwise
   dailyTokens: 10_000_000,
-  verifyPerRun: 3,  // stale notes re-verified per run, most served first (10 until 2026-10-21)
-  verifyServedDays: 14, // only notes served this recently are re-verified ahead of time (0: all); the rest wait to be served
+  // Verification is one batch every `verifyEveryDays` (2026-10-21; a few notes every four hours until then), of the
+  // stale notes served in the last `verifyServedDays` (0: all), most served first, at most `verifyPerRun`. A stale note
+  // waits for the batch: the prompt hooks hold it back meanwhile (ops.js:orient freshOnly).
+  verifyEveryDays: 3,
+  verifyPerRun: 50,
+  verifyServedDays: 3,
+  // a note nobody has been served in this many days (and older than that) is deleted, archived ones too; a desired
+  // behavior, a skill card and a note a person wrote are kept (0: never delete)
+  deleteUnusedDays: 14,
   verifyChurn: 3,   // a note re-verified this many times in a week is left stale and reported (0: never)
   phrasePerRun: 8,  // notes given phrasings per run (one model call)
   // distill pull requests merged since maintenance first ran here, walk the focus areas' history (areas.js)
@@ -144,6 +151,27 @@ export function pickStale(notes, cfg, { counts = new Map(), now = Date.now() } =
   return { stale, churning };
 }
 
+// Notes nobody has been served in `days`, made longer ago than that, deleted. A desired behavior (a person's), a skill
+// card (rewritten from its file) and a note a person added are kept; a note committed to the repository is archived
+// instead (its file is the team's). Logged as op "delete-unused" with the ids.
+export function deleteUnused(store, { days = DEFAULTS.deleteUnusedDays, dry = false, now = Date.now() } = {}) {
+  const cutoff = now - days * 86400_000;
+  const out = [];
+  for (const n of store.list()) {
+    if (['behavior', 'skill'].includes(n.kind) || n.source?.type === 'human') continue;
+    const made = Date.parse(n.created || ''), used = Date.parse(n.lastUsed || '');
+    if (!Number.isFinite(made) || made > cutoff) continue;
+    if (Number.isFinite(used) && used > cutoff) continue;
+    out.push(n.id);
+    if (dry) continue;
+    // a note committed to the repository is the team's file: archived here (this checkout's state), never deleted
+    if (store.isShared(n.id)) { if (!n.archived) archiveNotes(store, { ids: [n.id] }); }
+    else store.remove(n.id);
+  }
+  if (out.length && !dry) store.log({ op: 'delete-unused', days, ids: out });
+  return out;
+}
+
 function stateFile(store) { return path.join(store.dir, 'state', 'maintain.json'); }
 function readState(store) { try { return JSON.parse(fs.readFileSync(stateFile(store), 'utf8')); } catch { return {}; } }
 
@@ -190,8 +218,17 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
     if (!dry) { try { takeContradictions(store); } catch { r.errors++; } }
     // 2. Re-hashing is free, even when the model budget is exhausted.
     const notes = (fns.refresh || refresh)(store, store.list(), { narrow: true, persist: !dry }); // --dry writes nothing, statuses included
-    if (afford()) {
-      const { stale, churning } = pickStale(notes, cfg, { counts: cfg.verifyChurn > 0 ? (fns.verifyCounts || verifyCounts)(store, now) : new Map(), now });
+    // 1e. notes nobody was served in two weeks are deleted (deleteUnused): free, and they cost upkeep for nothing
+    if (cfg.deleteUnusedDays > 0) { try { r.deleted = deleteUnused(store, { days: cfg.deleteUnusedDays, dry, now }).length; } catch { r.errors++; } }
+    // the verification batch is due every `verifyEveryDays`, or at once for a note a session contradicted
+    const lastBatch = Date.parse(state.verifiedAt || '');
+    // (a dry run previews the next batch, due or not)
+    const batchDue = dry || !(cfg.verifyEveryDays > 0) || !Number.isFinite(lastBatch) || now - lastBatch >= cfg.verifyEveryDays * 86400_000;
+    if (!batchDue) r.verifyNext = new Date(lastBatch + cfg.verifyEveryDays * 86400_000).toISOString();
+    if (afford() && (batchDue || notes.some(n => n.contradicted && n.status === 'stale'))) {
+      const picked = pickStale(notes, cfg, { counts: cfg.verifyChurn > 0 ? (fns.verifyCounts || verifyCounts)(store, now) : new Map(), now });
+      const stale = batchDue ? picked.stale : picked.stale.filter(n => n.contradicted), churning = picked.churning;
+      if (batchDue && !dry) state.verifiedAt = new Date(now).toISOString();
       r.churning = churning.map(n => n.id);
       for (const n of stale) {
         if (!afford()) { r.capped = true; break; }

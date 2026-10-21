@@ -10,6 +10,7 @@ import { phraseKey } from '../src/note-search.js';
 import { maintain, maintenanceNotice, renderMaintain, spentToday, withinDailyCap, reportCapped, postCommitHook, pickStale, DEFAULTS, DAILY_TOKENS_COSTLY, MAINTENANCE_INTERVAL_MS } from '../src/maintain.js';
 
 // a git repo with one note whose dependency is then changed, so the note is stale
+const servedAt = (store, id, t) => store.put({ ...store.get(id), uses: (store.get(id).uses || 0) + 1, lastUsed: new Date(t).toISOString() });
 function staleRepo() {
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-maintain-')));
   fs.mkdirSync(path.join(dir, 'src'));
@@ -62,7 +63,8 @@ test('maintain verifies stale notes, phrases unphrased ones, and reports once', 
 // grows from the sessions, and a repository that wants them says so in its config.
 test('by default maintenance verifies and phrases only: no mining, no documents, no skills, no duplicate pass', () => withEnv(async () => {
   assert.equal(DEFAULTS.prs, false); assert.equal(DEFAULTS.docs, false); assert.equal(DEFAULTS.skills, false); assert.equal(DEFAULTS.dedupe, false);
-  assert.equal(DEFAULTS.verifyPerRun, 3);
+  // one verification batch every three days, of the notes served in those days; unused notes deleted after two weeks
+  assert.equal(DEFAULTS.verifyEveryDays, 3); assert.equal(DEFAULTS.verifyServedDays, 3); assert.equal(DEFAULTS.verifyPerRun, 50); assert.equal(DEFAULTS.deleteUnusedDays, 14);
   const { dir, store } = staleRepo();
   const called = [];
   const fns = { spentToday: () => 0, verify: async () => ({ verdict: 'still_valid', tokens: 0 }), phrase: async (s, n) => ({ done: n, tokens: 0 }),
@@ -71,7 +73,9 @@ test('by default maintenance verifies and phrases only: no mining, no documents,
     dedupe: async () => { called.push('dedupe'); return { merged: [] }; }, commitsOffer: () => { called.push('commits'); return 1; } };
   await maintain(store, dir, { fns });
   fs.rmSync(path.join(dir, '.thinker', 'state', 'maintain.lock'), { force: true });
-  const r = await maintain(store, dir, { fns, now: Date.now() + MAINTENANCE_INTERVAL_MS });
+  const t2 = Date.now() + 3 * 86400_000;
+  for (const n of store.list()) if (n.lastUsed) servedAt(store, n.id, t2 - 1000);
+  const r = await maintain(store, dir, { fns, now: t2 });
   assert.deepEqual(called, []);
   assert.equal(r.verified, 1); assert.equal(r.prs, 0); assert.equal(r.docs, 0); assert.equal(r.skills, 0); assert.equal(r.merged, 0);
   assert.equal(JSON.parse(fs.readFileSync(path.join(dir, '.thinker', 'state', 'maintain.json'), 'utf8')).prsAfter, undefined, 'no mining window is opened');
@@ -174,7 +178,9 @@ test('maintenance re-verifies only notes served lately, and leaves a churning no
   assert.deepEqual(verified, []); assert.deepEqual(run.churning, [a.id]);
   assert.match(renderMaintain(run), /1 churning left stale/);
   assert.match(maintenanceNotice(store), /1 note repeatedly stale; narrow pointers or retire them/);
-  run = await maintain(store, dir, { fns, now: Date.now() + MAINTENANCE_INTERVAL_MS });
+  const t2 = Date.now() + 3 * 86400_000;
+  servedAt(store, a.id, t2 - 1000);
+  run = await maintain(store, dir, { fns, now: t2 });
   assert.deepEqual(run.churning, [a.id]);
   assert.doesNotMatch(maintenanceNotice(store), /left stale/, 'named once, not on every run');
   fs.rmSync(dir, { recursive: true, force: true });
@@ -250,11 +256,16 @@ test('four-hour batches persist across callers; dry previews do not move the dea
     assert.equal((await maintain(reopened, dir, { fns, dry: true, now: now + 1 })).verified, 1);
     assert.equal(fs.readFileSync(stateFile, 'utf8'), before);
     assert.equal(calls, 1, 'dry never calls the verifier');
-    assert.equal((await maintain(reopened, dir, { fns, now: now + MAINTENANCE_INTERVAL_MS })).verified, 1);
+    // the next batch is a verification batch only three days after the last one
+    const later = await maintain(reopened, dir, { fns, now: now + MAINTENANCE_INTERVAL_MS });
+    assert.equal(later.verified, 0); assert.ok(later.verifyNext);
+    assert.equal(calls, 1);
+    servedAt(reopened, a.id, now + 3 * 86400_000 - 1000);
+    assert.equal((await maintain(reopened, dir, { fns, now: now + 3 * 86400_000 })).verified, 1);
     assert.equal(calls, 2);
     // A code change reverted before the next batch needs no model call.
     fs.writeFileSync(path.join(dir, 'src/a.py'), 'def foo():\n    return 1\n');
-    assert.equal((await maintain(reopened, dir, { fns, now: now + 2 * MAINTENANCE_INTERVAL_MS })).verified, 0);
+    assert.equal((await maintain(reopened, dir, { fns, now: now + 6 * 86400_000 + MAINTENANCE_INTERVAL_MS })).verified, 0);
     assert.equal(calls, 2);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }));
@@ -279,4 +290,23 @@ test('a failed maintenance batch stays failed through cooldown until a due batch
     assert.equal((await maintain(store, dir, { now: now + MAINTENANCE_INTERVAL_MS, fns })).errors, 0);
     assert.deepEqual(await maintain(store, dir, { now: now + MAINTENANCE_INTERVAL_MS + 1, fns }), { skipped: 'not-due' });
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}));
+
+test('notes nobody was served in two weeks are deleted; behaviors, skill cards, human notes and committed notes stay', () => withEnv(async () => {
+  const { deleteUnused } = await import('../src/maintain.js');
+  const { dir, store, a, b } = staleRepo();
+  const day = 86400_000, now = Date.now(), old = new Date(now - 20 * day).toISOString();
+  store.put({ ...a, created: old, lastUsed: new Date(now - 2 * day).toISOString() });        // served lately: kept
+  store.put({ ...b, created: old, lastUsed: new Date(now - 15 * day).toISOString() });       // last served 15 days ago: deleted
+  const c = createNote(store, { title: 'Never served helper', kind: 'rule', answers: ['x'], body: 'src/b.py:bar returns 2', deps: [{ path: 'src/b.py', symbol: 'bar' }] }).note;
+  store.put({ ...c, created: old });                                                          // never served, old: deleted
+  const h = createNote(store, { title: 'Human note', kind: 'rule', answers: ['y'], body: 'src/a.py:foo', deps: [{ path: 'src/a.py', symbol: 'foo' }] }, { source: { type: 'human' } }).note;
+  store.put({ ...h, created: old });                                                          // a person's: kept
+  const young = createNote(store, { title: 'New note', kind: 'rule', answers: ['z'], body: 'src/a.py:foo', deps: [{ path: 'src/a.py', symbol: 'foo' }] }).note; // made today: kept
+  assert.deepEqual(deleteUnused(store, { dry: true, now }).sort(), [b.id, c.id].sort());
+  assert.ok(store.get(b.id), 'dry deletes nothing');
+  assert.deepEqual(deleteUnused(store, { now }).sort(), [b.id, c.id].sort());
+  assert.equal(store.get(b.id), null); assert.equal(store.get(c.id), null);
+  assert.ok(store.get(a.id) && store.get(h.id) && store.get(young.id));
+  fs.rmSync(dir, { recursive: true, force: true });
 }));
