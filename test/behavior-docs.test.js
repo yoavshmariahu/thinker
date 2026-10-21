@@ -153,8 +153,9 @@ test('a changed document is followed: an edited behavior keeps its link, a rewor
   assert.equal(listBehaviors(store).length, 2);
 });
 
-test('maintenance reads new and changed design documents and says so once', async t => {
+test('maintenance reads new and changed design documents and says so once, where the config turns it on', async t => {
   const { store, repo } = fixture(t);
+  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ ...store.config(), maintain: { docs: true } }));  // off by default since 2026-10-21
   const limits = [];
   const r = await maintain(store, repo, { fns: { spentToday: () => 0, verify: async () => ({}), phrase: async () => ({ done: [] }),
     docs: async ({ limit }) => { limits.push(limit); return { saved: [{ id: 'a' }, { id: 'b' }], unstated: [{ id: 'c' }], tokens: 300 }; } } });

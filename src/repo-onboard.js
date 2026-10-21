@@ -8,6 +8,10 @@
 // the agent's own question tool shows three options (warm up, no, don't ask again), and in Codex, whose
 // question tool is off outside plan mode, thinker's MCP tool shows them through elicitation (mcp.js:warmup).
 // Either way the answer comes back to `answerWarmup`, which acts on it and logs it.
+// Since 2026-10-21 the offer is made only where a repository's config asks for it (`warmup: { offer:
+// true }`; THINKER_OFFERS=on, the tests' switch, makes it too): the cache grows from the sessions, and
+// reading history is a step a person takes by hand (`thinker warmup`, `thinker setup --build`), never
+// one the agent is told to propose (the owner's decision, with the cut of background learning).
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
@@ -125,10 +129,14 @@ export function minedCount(store) {
 // (`answerWarmup`), which runs the warm-up on a yes: it names this checkout, takes the defaults and asks
 // nothing (warmup.js: --repos, --yes, --terminal), and reads through the agent's own login. Nothing is
 // offered on a machine where the person chose "Don't ask again".
+export function warmupOffersOn(store, env = process.env) {
+  if (env.THINKER_OFFERS === 'on') return true;
+  try { return store.config().warmup?.offer === true; } catch { return false; }
+}
 export function warmupOffer(store, { client, home } = {}) {
   if (['windsurf', 'goose', 'augment'].includes(client)) return '';
   store = offerStore(store);
-  if (!store) return '';
+  if (!store || !warmupOffersOn(store)) return '';
   let est = warmupDue(store, { home }), failed = null;
   if (est) { if (!markOffered(store, est, { client, home })) return ''; }
   else {

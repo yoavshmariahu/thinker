@@ -152,7 +152,8 @@ function agentTurn() {
 // server and no hooks never got it (2026-10-16: a device whose 14 requests all came through MCP, two cold
 // caches, no offer). orient made it alone until orient went off by default (2026-10-18); lookup makes it now
 // as well. Once per repository either way (repo-onboard.js:markOffered), so where the hook made it this adds
-// nothing. Never in a benchmark or test session (THINKER_TEST=1; THINKER_OFFERS=on restores it, for the tests).
+// nothing. Never in a benchmark or test session (THINKER_TEST=1; THINKER_OFFERS=on restores it, for the tests), and
+// since 2026-10-21 only where the repository's config asks for the offer (repo-onboard.js:warmupOffersOn).
 function mcpWarmupOffer() {
   if (isTestMode() && process.env.THINKER_OFFERS !== 'on') return '';
   try { return warmupOffer(store, { client: subagentHarness(clientName()) || clientName() }) || ''; } catch { return ''; }

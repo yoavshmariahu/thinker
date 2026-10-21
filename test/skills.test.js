@@ -169,6 +169,7 @@ test('maintenance cards new skill files and counts a skill found out of date apa
   await scanSkills(store, { completeFn: cardModel });
   const card = store.list().find(n => n.skill?.name === 'testing-billing');
   card.uses = 1; card.lastUsed = new Date().toISOString(); store.put(card);
+  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ ...store.config(), maintain: { skills: true } }));  // the scan is off by default since 2026-10-21
   write('src/billing/charge.js', 'export function charge(order) {\n  return { order };\n}\n');
   git(['add', '.']); git(['commit', '-q', '-m', 'two']);
   const verified = [];

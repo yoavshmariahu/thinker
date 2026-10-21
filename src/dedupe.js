@@ -25,10 +25,10 @@ import { gitHead } from './store.js';
 
 export const DEDUPE_DEFAULTS = { threshold: 0.75, perRun: 3 };
 
-// The pass runs unless maintenance's config says `dedupe: false`; THINKER_DEDUPE=on|off overrides the config.
+// The pass runs where maintenance's config says `dedupe: true` (off by default since 2026-10-21); THINKER_DEDUPE=on|off overrides the config.
 export function dedupeOn(cfg, env = process.env) {
   if (/^(off|0|false)$/i.test(env.THINKER_DEDUPE || '')) return false;
-  return /^(on|1|true)$/i.test(env.THINKER_DEDUPE || '') || cfg.dedupe !== false;
+  return /^(on|1|true)$/i.test(env.THINKER_DEDUPE || '') || cfg.dedupe === true;
 }
 
 const eligible = n => !n.archived && n.status !== 'invalid' && n.status !== 'broken' && n.kind !== 'skill' && n.kind !== 'behavior';

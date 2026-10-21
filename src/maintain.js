@@ -1,6 +1,10 @@
 // Background maintenance of the cache: what a user would otherwise have to remember to
-// run. It re-verifies stale notes, writes phrasings for notes that lack them, and distills
-// pull requests merged since it first ran. It starts from the catch-up learning run (at most every ten minutes, from the
+// run. It re-verifies a few stale notes and writes phrasings for notes that lack them.
+// Since 2026-10-21 that is all it does by default (the owner's decision: the cache was not
+// paying for its background spend, and few people were running it): the notes come from the
+// sessions, and the steps that read history or documents (pull requests and commits, the
+// focus areas' history, design documents, skill files, the duplicate pass) are off until a
+// repository's config turns them on. It starts from the catch-up learning run (at most every ten minutes, from the
 // prompt hooks) and from the git post-commit hook. Batches run at most once every four hours,
 // on the next activity after they are due, and are bounded by daily caps on the
 // tokens learning and maintenance may use, so it can run unattended. A cap counts the
@@ -22,18 +26,21 @@ import { pruneState } from './state-prune.js';
 export const DEFAULTS = {
   enabled: true,    // `maintain: { enabled: false }` in .thinker/config.json switches it off
   // tokens of reported generative model usage per day, learning and maintenance together; 0: no cap.
-  // 50M is about $5 a day at Haiku 5.5 or GPT-6 Luna list prices; a costlier distillModel, Sonnet
-  // (the default since 2026-10-15) among them, gets DAILY_TOKENS_COSTLY unless the config says otherwise
-  dailyTokens: 50_000_000,
-  verifyPerRun: 10, // stale notes re-verified per run, most served first
+  // 10M is about $1 a day at Haiku 5.5 or GPT-6 Luna list prices (50M until 2026-10-21); a costlier
+  // distillModel, Sonnet (the default since 2026-10-15) among them, gets DAILY_TOKENS_COSTLY unless the
+  // config says otherwise
+  dailyTokens: 10_000_000,
+  verifyPerRun: 3,  // stale notes re-verified per run, most served first (10 until 2026-10-21)
   verifyServedDays: 14, // only notes served this recently are re-verified ahead of time (0: all); the rest wait to be served
   verifyChurn: 3,   // a note re-verified this many times in a week is left stale and reported (0: never)
   phrasePerRun: 8,  // notes given phrasings per run (one model call)
-  prs: true,        // distill pull requests merged since maintenance first ran here
+  // distill pull requests merged since maintenance first ran here, walk the focus areas' history (areas.js)
+  // and ask about unmined commits (commits-offer.js): off since 2026-10-21; `maintain: { prs: true }` turns it on
+  prs: false,
   prsPerRun: 3,
-  docs: true,       // read design documents that are new or changed into behaviors (behavior-docs.js)
+  docs: false,      // read design documents that are new or changed into behaviors (behavior-docs.js); off since 2026-10-21
   docsPerRun: 3,
-  skills: true,     // card the skill files (SKILL.md) that are new or changed, and settle duplicates (skills.js)
+  skills: false,    // card the skill files (SKILL.md) that are new or changed, and settle duplicates (skills.js); off since 2026-10-21
   skillsPerRun: 3,
   // the weekly suggestion of directories to cover (coverage.js): a new cache-building strategy, off until an experiment
   // shows it helps (AGENTS.md); `maintain: { coverage: true }` in .thinker/config.json turns it on for a repository
@@ -41,10 +48,10 @@ export const DEFAULTS = {
   // the question of tools to switch off (harness.js), every two weeks: on with the harness itself (harness.enabled,
   // off until it is released); `maintain: { harness: false }` turns the question off for a repository
   harness: true,
-  // merge notes that say the same thing in different words (dedupe.js). On by default without an experiment,
-  // at the owner's decision on 2026-10-19 (a small upkeep pass); `maintain: { dedupe: false }` or
-  // THINKER_DEDUPE=off turns it off
-  dedupe: true,
+  // merge notes that say the same thing in different words (dedupe.js): one model call a pair. On by default
+  // from 2026-10-19 to 2026-10-21, off since with the other background spend; `maintain: { dedupe: true }` or
+  // THINKER_DEDUPE=on turns it on
+  dedupe: false,
   dedupePerRun: DEDUPE_DEFAULTS.perRun,       // candidate pairs judged per run (one model call each)
   dedupeThreshold: DEDUPE_DEFAULTS.threshold, // cosine of the local embeddings, for notes resting on a file in common
   archive: true,    // take notes the sessions showed are not worth serving out of serving and upkeep (ops.js:archiveNotes; `archive` in the config sets the rules)
@@ -52,8 +59,9 @@ export const DEFAULTS = {
 export const MAINTENANCE_INTERVAL_MS = 4 * 60 * 60_000;
 const LOCK_MS = 15 * 60_000;
 
-// The daily default for a distillation model that is not in the cheap class (Haiku, Luna, Flash).
-export const DAILY_TOKENS_COSTLY = 2_000_000;
+// The daily default for a distillation model that is not in the cheap class (Haiku, Luna, Flash):
+// about forty session distillations (2M until 2026-10-21).
+export const DAILY_TOKENS_COSTLY = 1_000_000;
 const CHEAP_MODEL = /haiku|luna|flash/i;
 export function maintainConfig(store) {
   const cfg = store.config();
@@ -199,7 +207,7 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
         } catch { r.errors++; }
       }
     } else r.capped = true;
-    // 2b. notes that say the same thing in different words, merged (dedupe.js; off by default); before the
+    // 2b. notes that say the same thing in different words, merged (dedupe.js; off unless maintain.dedupe); before the
     // phrasings, so a merged note is phrased for its new text in this run
     if (dedupeOn(cfg) && afford()) {
       try {

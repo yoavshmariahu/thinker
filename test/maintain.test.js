@@ -46,10 +46,10 @@ test('maintain verifies stale notes, phrases unphrased ones, and reports once', 
   assert.deepEqual(verified, [a.id], 'only the stale note is sent to the model');
   assert.equal(r.verified, 1); assert.equal(r.updated, 1); assert.equal(r.retired, 0);
   assert.deepEqual(phrased.sort(), [a.id, b.id].sort(), 'both notes lack phrasings');
-  assert.equal(r.prs, 0, 'the first run only marks where PR mining starts');
+  assert.equal(r.prs, 0, 'mining is off unless the config turns it on');
   assert.equal(r.tokens, 15000);
   const state = JSON.parse(fs.readFileSync(path.join(dir, '.thinker', 'state', 'maintain.json'), 'utf8'));
-  assert.ok(state.prsAfter);
+  assert.equal(state.prsAfter, undefined, 'mining is off by default, so no window opens');
   // the user hears about it once
   const notice = maintenanceNotice(store);
   assert.match(notice, /1 checked, 1 updated; 2 phrased/);
@@ -58,8 +58,29 @@ test('maintain verifies stale notes, phrases unphrased ones, and reports once', 
   fs.rmSync(dir, { recursive: true, force: true });
 }));
 
-test('maintain mines pull requests merged since its first run', () => withEnv(async () => {
+// Since 2026-10-21 the steps that read history, documents and skill files are off by default: the cache
+// grows from the sessions, and a repository that wants them says so in its config.
+test('by default maintenance verifies and phrases only: no mining, no documents, no skills, no duplicate pass', () => withEnv(async () => {
+  assert.equal(DEFAULTS.prs, false); assert.equal(DEFAULTS.docs, false); assert.equal(DEFAULTS.skills, false); assert.equal(DEFAULTS.dedupe, false);
+  assert.equal(DEFAULTS.verifyPerRun, 3);
   const { dir, store } = staleRepo();
+  const called = [];
+  const fns = { spentToday: () => 0, verify: async () => ({ verdict: 'still_valid', tokens: 0 }), phrase: async (s, n) => ({ done: n, tokens: 0 }),
+    minePrs: async () => { called.push('prs'); return { saved: 1 }; }, mineAreaHistory: async () => { called.push('walk'); return { saved: 1 }; },
+    docs: async () => { called.push('docs'); return { saved: [{ id: 'a' }] }; }, skills: async () => { called.push('skills'); return { saved: [{ id: 'a' }] }; },
+    dedupe: async () => { called.push('dedupe'); return { merged: [] }; }, commitsOffer: () => { called.push('commits'); return 1; } };
+  await maintain(store, dir, { fns });
+  fs.rmSync(path.join(dir, '.thinker', 'state', 'maintain.lock'), { force: true });
+  const r = await maintain(store, dir, { fns, now: Date.now() + MAINTENANCE_INTERVAL_MS });
+  assert.deepEqual(called, []);
+  assert.equal(r.verified, 1); assert.equal(r.prs, 0); assert.equal(r.docs, 0); assert.equal(r.skills, 0); assert.equal(r.merged, 0);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, '.thinker', 'state', 'maintain.json'), 'utf8')).prsAfter, undefined, 'no mining window is opened');
+  fs.rmSync(dir, { recursive: true, force: true });
+}));
+
+test('maintain mines pull requests merged since its first run, where the config turns mining on', () => withEnv(async () => {
+  const { dir, store } = staleRepo();
+  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ ...store.config(), maintain: { prs: true } }));
   const calls = [];
   const fns = { spentToday: () => 0, verify: async () => ({ verdict: 'still_valid', cost: 0 }), phrase: async (s, n) => ({ done: n, cost: 0 }), minePrs: async o => { calls.push(o); return { saved: 2, cost: 0.1 }; } };
   await maintain(store, dir, { fns });
@@ -139,7 +160,7 @@ test('maintenance re-verifies only notes served lately, and leaves a churning no
   assert.deepEqual(r.stale.map(n => n.id), ['served-today']);
   assert.deepEqual(r.churning.map(n => n.id), ['churner']);
   // verifyServedDays 0: every stale note is a candidate, most served first; verifyChurn 0: nothing is held back
-  r = pickStale(notes, { ...DEFAULTS, verifyServedDays: 0, verifyChurn: 0 }, { counts, now });
+  r = pickStale(notes, { ...DEFAULTS, verifyServedDays: 0, verifyChurn: 0, verifyPerRun: 10 }, { counts, now });
   assert.deepEqual(r.stale.map(n => n.id), ['churner', 'served-today', 'served-last-month', 'never-served']);
   assert.deepEqual(r.churning, []);
   // the cap still applies
