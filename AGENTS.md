@@ -1098,9 +1098,15 @@ helps in agent sessions.
 context goes in a repository, part by part, with what each part costs a session (its tokens × the median model
 calls of a session here) and how much the sessions used it. Measurement only; nothing is served or rewritten.
 
-- **Instruction file sections** (`instruction-value.js`): AGENTS.md (or CLAUDE.md where there is no AGENTS.md;
-  Claude Code's sessions are left out where CLAUDE.md has text of its own) split as `instructions-core.js:sections`
-  does. *Applied*, free on every session: the session touched the section's files, ran the command it is about, or
+- **Instruction file sections** (`instruction-value.js`): every instruction file (`instructionFiles`): the root
+  AGENTS.md (or CLAUDE.md where there is none; Claude Code's sessions are left out where CLAUDE.md has text of its
+  own) in every session; an AGENTS.md or CLAUDE.md in a directory below (a CLAUDE.md that is its AGENTS.md counted
+  once) in the sessions that opened a file there, Claude Code's only; a `.claude/rules` file with `paths:` in those
+  that opened a matching file, one without in every Claude Code session. Each is split as
+  `instructions-core.js:sections` does (a file without headings is one section; ids of files other than the root
+  carry their path), and a section's cost is averaged over every session, counting only those that read its
+  file. A nested file or a rule takes its directory or its paths as its trigger, with no grep of the repository
+  (PostHog: 72 files, 454 sections). *Applied*, free on every session: the session touched the section's files, ran the command it is about, or
   read code it names (`instruction-sections.js:deriveTriggers` / `sectionFires`, replayed from the transcript).
   *Relevant* and *Followed*, from a model call per session that reads what the session asked, ran, read and changed
   against the sections and names those relevant to the work, each followed, violated or relevant with nothing to
@@ -1122,7 +1128,8 @@ left after it), then one part at a time as cards: each section, skill or tool be
 5% or 2% of its kind's; the saving shown is that cost, at most). "All repositories" merges every repository's report
 (`context-view.js:mergeViews`).
 
-Sections are changed by the person, in the team's file, as a local diff: picked sections are removed, or compressed
+Sections are changed by the person, in the team's files, as a local diff (a rule or headingless file whose one
+section is removed is deleted): picked sections are removed, or compressed
 by a model asked for a third of the length (`instruction-edit.js`, `thinker instructions --remove|--compress <ids>
 [--apply]`, the tab's Compress and Remove). The diff is shown first; Apply writes exactly that text to the working
 tree, uncommitted, and refuses when the file changed since the preview. No commit, no pull request.
