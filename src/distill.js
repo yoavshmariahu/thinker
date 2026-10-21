@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { phraseKey } from './note-search.js';
 import { complete } from './llm.js';
 import { tokensOf } from './model-usage.js';
 import { createNote, KINDS, kindOf, looksLikeCorrection } from './ops.js';
@@ -111,8 +112,10 @@ const NOTE_SCHEMA = {
           tags: { type: 'array', items: { type: 'string' } },
           confidence: { type: 'number' },
           extends: { type: 'string', description: 'id of an existing note this one completes or corrects; the body is then the full merged text. Empty for a new note.' },
+          says: { type: 'array', items: { type: 'string' }, description: 'up to 5 ways a user or product manager would report the fault or ask for the change this note bears on, in product language' },
+          search: { type: 'string', description: 'a compact search description of the note, written from the note alone (see the rules)' },
         },
-        required: ['title', 'kind', 'answers', 'body', 'deps', 'tags', 'confidence'],
+        required: ['title', 'kind', 'answers', 'body', 'deps', 'tags', 'confidence', 'says', 'search'],
       },
     },
   },
@@ -154,6 +157,8 @@ Rules:
 - applies: for rule notes, one line stating when the rule applies and when it does not (e.g. "only for options with multiple=True; arguments use a different path"). Generic lessons without such constraints are useless.
 - answers: 2-5 short question phrasings a future agent might ask that this note answers (used for retrieval).
 - confidence: 0.9+ only when the agent read the actual code; 0.6-0.8 for things inferred from grep hits or partial reads.
+- says: up to 5 short lines (6-16 words each), each a way a user or a product manager could report the fault or ask for the change this note bears on: what they see on screen, what they clicked, what went wrong, what they want instead. Plain product language, no identifiers or file names, different words in each line; only lines the note really supports (one is better than five that stray).
+- search: a compact search description of the note, written from the note alone and never longer than it: one sentence for a short note, at most four for the longest. The first names the topic and the concrete rule or mechanism; then only what the note states: constraints and exceptions, the kinds of coding task it bears on, and the paths, symbols, commands or config keys it names. No invented facts, no generic keywords; keep negative constraints. (The cross-encoder that picks notes for a request reads this text.)
 - Typical yield is 0 or 1 note; 2-3 only when the session clearly established distinct things, never more than 3. Most turns of a session only apply what is already known: 0 notes is the right answer for them. When in doubt, leave it out: a missing note costs one search later, a weak one is served to every later task it resembles.
 - Not news: do not write what changed ("X now does Y", "merged to main", "was added in this session"). Write the rule or the map a later task needs, in the present tense, as if it had always been so.
 - Not the state of one machine or one day: which copy is installed, a leftover file or hook, a credential, what a log or a dashboard showed, how the agent's own harness asked for permission. These are not facts about the repository's code.
@@ -245,7 +250,9 @@ export async function distillEvents(events, { model = 'sonnet', repoHint = '', s
       ? `\n\nReturn ${discover ? 'reusable notes, if any,' : 'notes: [],'} and only assessments supported by explicit evidence. Omit unknown notes; never infer unused from this selection.`
       : `\n\nProduce the notes JSON and one assessment per injected note.`;
   } else prompt += `\n\nProduce the notes JSON.`;
-  const res = await complete({ system, prompt, model, schema, maxTokens: compact ? (discover ? 3000 : 1500) : 6000, thinkingTokens: 0, structuredRetries: 1, accounting });
+  // a note now carries its phrasings and search text (~250 tokens more each): room for three of them and the
+  // assessments, as claude -p fails outright when an answer reaches its cap
+  const res = await complete({ system, prompt, model, schema, maxTokens: compact ? (discover ? 4000 : 1500) : 6000, thinkingTokens: 0, structuredRetries: 1, accounting });
   const notes = (discover ? (res.json?.notes || []) : []).slice().sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0)).slice(0, MAX_NOTES);
   return { notes, assessments: (res.json?.assessments || []).filter(a => servedIds.has(a.id) && ['confirmed', 'contradicted', 'unused'].includes(a.verdict) && (!compact || (['confirmed', 'contradicted'].includes(a.verdict) && String(a.evidence || '').trim()))), cost: res.cost, tokens: tokensOf(res), usage: res.usage, traceChars: trace.length, evidence: trace };
 }
@@ -256,6 +263,17 @@ function jaccard(a, b) {
   return i / (A.size + B.size - i || 1);
 }
 
+
+// The phrasings and search text the distiller wrote with the note, stamped for the note's text as saved, so
+// maintenance's separate phrasing call (ops.js:phraseNotes) skips it; a note without them, or whose text changes
+// later (a verification's rewrite), is phrased there as before. Same limits as phraseNotes.
+export function withPhrasing(note, n) {
+  const says = [...new Set((Array.isArray(n.says) ? n.says : []).map(x => String(x).trim()).filter(x => x.length > 8))].slice(0, 5);
+  const search = String(n.search || '').trim().slice(0, 1500);
+  if (search.length < 40) return note;
+  Object.assign(note, { ...(says.length ? { says } : {}), search, saysFor: phraseKey(note) });
+  return note;
+}
 
 // Save distilled notes, merging near-duplicates (same topic → keep higher confidence, refresh deps).
 export function saveNotes(store, notes, { source, kinds = KINDS }) {
@@ -274,13 +292,13 @@ export function saveNotes(store, notes, { source, kinds = KINDS }) {
         const r = createNote(store, { ...n, id: dup.id }, { source, reuseId: true });
         if (r.error) { skipped.push({ title: n.title, reason: r.error }); store.put(dup); continue; }
         r.note.uses = dup.uses || 0; r.note.created = dup.created; r.note.attest = dup.attest; r.note.history = [...(dup.history || []), { at: new Date().toISOString(), reason: named ? 'extended by a new session' : 'merged from new session', prevBody: dup.body }].slice(-5);
-        store.put(r.note); merged.push(r.note);
+        store.put(withPhrasing(r.note, n)); merged.push(r.note);
       } else skipped.push({ title: n.title, reason: `duplicate of ${dup.id}` });
       continue;
     }
     const r = createNote(store, n, { source });
     if (r.error) skipped.push({ title: n.title, reason: r.error });
-    else { saved.push(r.note); existing.push(r.note); }
+    else { store.put(withPhrasing(r.note, n)); saved.push(r.note); existing.push(r.note); }
   }
   return { saved, merged, skipped };
 }
