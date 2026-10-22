@@ -3,17 +3,31 @@
 // The report changes nothing; --judge n spends model calls on the newest sessions not judged yet, so the
 // sections' verdicts fill in without waiting for the sampled check. The controls are the commands they name:
 // `thinker instructions --core` for the sections, `thinker harness --off` for skills and tools. --refresh keeps
-// the report for the page (context-snapshot.js), which starts it in the background.
+// the report for the page (context-snapshot.js), which starts it in the background. --machine is the report over
+// the repositories the agents worked in lately, merged, with what to cut first (context-machine.js): what the
+// installer prints, from the sessions that ran before thinker was installed; it needs no repository.
 import { contextView, switchSources, setOutputCompression } from '../context-view.js';
 import { judgeRecent, findRepoSessions } from '../instruction-value.js';
 import { formatTokens } from '../model-usage.js';
 import { refreshSnapshots, writeSnapshot } from '../context-snapshot.js';
+import { machineContext, recommendations, renderMachineReport, MACHINE_REPOS, MACHINE_TOP } from '../context-machine.js';
 
 const pct = x => x == null ? '   -' : `${String(Math.round(100 * x)).padStart(3)}%`;
 const pad = (s, n) => String(s).padStart(n);
 
 async function contextCommand({ store, flags, out }) {
   const days = Number(flags.days) || 30;
+  if (flags.machine) {
+    const limit = Math.max(1, Number(flags.repos) || MACHINE_REPOS), top = Math.max(1, Number(flags.top) || MACHINE_TOP);
+    const quiet = flags.quiet || flags.json;
+    if (!quiet) out(`Reading the agents' sessions of the last ${days} days, the ${limit} most active repositories first…`);
+    const r = machineContext(store, { days, limit, onRepo: x => { if (!quiet) out(`  ${x.name}: ${x.sessions} session${x.sessions === 1 ? '' : 's'}`); } });
+    const recs = recommendations(r.view, { top });
+    if (flags.json) { out(JSON.stringify({ ...r, recommendations: recs }, null, 2)); return; }
+    if (!quiet) out('');
+    for (const l of renderMachineReport(r, recs)) out(l);
+    return;
+  }
   // the tab's actions: switch tools off or back on, set a tool's output compression
   const list = v => String(v).split(',').map(x => x.trim()).filter(Boolean);
   if (typeof flags['switch-off'] === 'string') { out(switchSources(store, { labels: list(flags['switch-off']), builtin: !!flags.builtin })); return; }

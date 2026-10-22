@@ -1,13 +1,15 @@
 # Setting up Thinker
 
-Run the installer anywhere. It wires your agents, asking nothing, and opens
-the local page (`thinker ui`) on its warm-up view. Setup happens on that page:
-pick the repositories your agents worked in lately to build a cache for, full
-or shallow, whole or by directory, choose the agent and model, and press
-**Start building**. The builds run one at a time with their progress on the
-Cache view. Every other git repository gets an empty cache with its first
-session. [docs/setup.md](docs/setup.md#setting-up-on-the-local-page) walks
-through the page.
+Run the installer anywhere. It wires your agents, asking nothing, then reads
+the agents' own transcripts of the last 30 days in the repositories they worked
+in most and prints where their context goes and what to cut first: the sections
+of AGENTS.md, the skills and the tools that cost the most in the sessions that
+did not use them (`thinker context --machine` prints the same report any time).
+On a machine with a display it then opens the local page (`thinker ui`) on that
+report, over every repository, where the suggestions are reviewed and applied.
+Nothing is built: every git repository gets an empty cache with its first
+session, and the cache grows from the sessions there.
+[docs/setup.md](docs/setup.md#install-and-start) has the details.
 
 The rest of this file is about `thinker setup`, which does the same for one
 repository from the terminal: for a machine without a browser, or a script.

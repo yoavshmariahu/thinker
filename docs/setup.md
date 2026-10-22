@@ -6,13 +6,24 @@ The details behind the install line in the [README](../README.md).
 
 Run `npx @zerotimedev/thinker`. It runs the installer carried in the npm package of that
 name (published with each release) and passes its options through. The installer does
-two things in the terminal and asks nothing there:
+three things in the terminal and asks nothing there:
 
 1. It installs the [latest GitHub release](https://github.com/yoavshmariahu/thinker/releases)
    of the tool under `~/.thinker`.
 2. It wires thinker into the agents on this machine, once, in their own settings
    (hooks and the MCP server, for Claude Code, Codex, Gemini CLI and Cursor, their
    desktop apps included). `thinker connect` does this step alone.
+3. It reads the agents' own transcripts of the last 30 days in the five repositories they
+   worked in most and prints where their context goes (instruction files, skills and MCP
+   servers, built-in tools, tool outputs; per model call and per session) and what to cut
+   first: the sections, skills and tools that cost the most in the sessions that did not
+   use them, with the saving each is worth at most. No cache and no model call are
+   involved, so the report is there from the first minute. `thinker context --machine`
+   prints it again from any directory (`--repos n`, `--top n`, `--json`); each repository's
+   report is kept for the page. On a machine with a display (not over ssh, not in CI) the
+   installer then opens the local page on that report over every repository, where the
+   suggestions are reviewed and applied (`--no-ui` leaves it closed; `thinker ui --tab
+   context --all` opens it later). See [Context](context.md) for what the report measures.
 
 From then on thinker runs in every git repository on this machine: a cache starts,
 empty, with the first agent session in a repository (kept out of `git status` through
