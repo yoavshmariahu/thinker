@@ -43,7 +43,7 @@ test('scheduleContextSuggestion: kept for the next prompt, at most weekly, after
   assert.equal(c.length, 5); assert.equal(contextSuggestPending(store), true);
   const said = contextSuggestOffer(store, { now: now + 86400_000, env: {}, ui: () => 'http://127.0.0.1:4848/#t=abc', repoId: 'github.com/o/r' });
   assert.match(said, /^<thinker-context-suggestions>/);
-  assert.match(said, /http:\/\/127\.0\.0\.1:4848\/#t=abc&tab=context&view=suggested&repo=github\.com%2Fo%2Fr/);
+  assert.match(said, /http:\/\/127\.0\.0\.1:4848\/#t=abc&tab=context&view=all&repo=github\.com%2Fo%2Fr/);
   assert.match(said, /1\. AGENTS\.md · Releases: ~1\.2M input tokens over the last 30 days; .*Suggested: Compress \(or: remove\)/);
   assert.match(said, /Do not make any of these changes yourself/);
   assert.equal(contextSuggestOffer(store, { env: {}, ui: () => 'x' }), '', 'said once');
@@ -182,4 +182,63 @@ test('history written before ids gets them, and an old switch-off can still be r
   const [e] = changeHistory(store);
   assert.ok(e.id); assert.equal(e.revertible, true);
   assert.equal(JSON.parse(fs.readFileSync(f, 'utf8')).history[0].id, e.id, 'kept');
+});
+
+test('allChanges: every part as a row with its actions, whatever its waste; off ones turn back on, outputs take a level', async () => {
+  const { allChanges, pickChanges } = await import('../src/context-suggest.js');
+  const cs = allChanges(view());
+  assert.deepEqual(cs.map(c => c.key).sort(), ['claude:builtin:Workflow', 'claude:skill:deploy', 'claude:skill:x', 'output:Bash:pytest', 'output:Read', 'section:AGENTS.md:Ports', 'section:AGENTS.md:Releases', 'section:AGENTS.md:Tests', 'section:AGENTS.md:Unknown'].sort());
+  const by = k => cs.find(c => c.key === k);
+  assert.deepEqual(by('section:AGENTS.md:Unknown').options.map(o => o.act), ['compress', 'remove']); assert.equal(by('section:AGENTS.md:Unknown').saving, 0);
+  assert.deepEqual(by('claude:skill:x').options.map(o => o.act), ['on'], 'switched off: back on');
+  assert.deepEqual(by('output:Bash:pytest').options.map(o => o.act), ['compress', 'high']);
+  assert.deepEqual(by('output:Read').options.map(o => o.act), ['high', 'uncompress'], 'already moderate');
+  assert.equal(cs.some(c => c.key === 'output:mcp:x'), false, 'nothing thinker can compress is not a change');
+  // an MCP server takes the moderate level alone (diet.js:mcpLevel): no high in its row
+  const mcp = allChanges(view({ outputs: { sessions: 40, tools: [{ name: 'mcp:y', compressible: true, compression: null, saveModerate: 1000, perSession: 5000 }, { name: 'mcp:z', compressible: true, compression: 'moderate', saveModerate: 1000, perSession: 5000 }] } }));
+  assert.deepEqual(mcp.filter(c => c.kind === 'output').map(c => [c.key, c.options.map(o => o.act)]), [['output:mcp:y', ['compress']], ['output:mcp:z', ['uncompress']]]);
+  // the page names a row by its key, as a list: `output:Read` is a key, not a choice with an action after its colon
+  assert.deepEqual(pickChanges(cs, ['output:Read'], { 'output:Read': 'uncompress' }).map(c => [c.key, c.chosen]), [['output:Read', 'uncompress']]);
+  assert.equal(pickChanges(cs, 'output:Read').length, 0, 'the string form reads it as output + Read');
+});
+
+test('approve from a row: turn back on, a compression level, and each reverted to what it was', async () => {
+  const { allChanges, approveChanges, revertDecision, changeHistory } = await import('../src/context-suggest.js');
+  const store = repo(), cs = allChanges(view()), by = k => cs.find(c => c.key === k);
+  const cfg = () => JSON.parse(fs.readFileSync(path.join(store.dir, 'config.json'), 'utf8')).diet?.tools || {};
+  // Read is moderate: high, then reverted back to moderate; pytest off: high, reverted to off
+  const { setOutputCompression } = await import('../src/context-view.js');
+  setOutputCompression(store, ['Read'], 'moderate');
+  let said = await approveChanges(store, [{ ...by('output:Read'), chosen: 'high' }, { ...by('output:Bash:pytest'), chosen: 'high' }]);
+  assert.deepEqual(said, ['Read output: Compressed (high) from the next tool call', 'pytest output: Compressed (high) from the next tool call']);
+  assert.deepEqual(cfg(), { Read: 'high', 'Bash:pytest': 'high' });
+  const h = changeHistory(store);
+  assert.match((await revertDecision(store, h.find(e => e.key === 'output:Read').id)).said, /moderate compression again/);
+  assert.match((await revertDecision(store, h.find(e => e.key === 'output:Bash:pytest').id)).said, /compression off/);
+  assert.deepEqual(cfg(), { Read: 'moderate' });
+  said = await approveChanges(store, [{ ...by('output:Read'), chosen: 'uncompress' }]);
+  assert.match(said[0], /Compression off from the next tool call/); assert.deepEqual(cfg(), {});
+  // nothing switched off here to turn back on: the harness says so, nothing is recorded
+  said = await approveChanges(store, [by('claude:skill:x')]);
+  assert.equal(said.length, 1); assert.equal(changeHistory(store).filter(e => e.key === 'claude:skill:x').length, 0);
+});
+
+test('applyReviewed: a section written after its diff was read is recorded with the file as it was, so Revert puts it back', async () => {
+  const { allChanges, applyReviewed, revertDecision, changeHistory, currentChanges } = await import('../src/context-suggest.js');
+  const store = repo(), cs = allChanges(view()), f = path.join(store.repo, 'AGENTS.md');
+  fs.writeFileSync(f, '# A\n\n## Releases\n\nlong text\n\n## Ports\n\nmore\n');
+  const edit = { applyEdit: (s, key) => { assert.equal(key, 'bulk'); fs.writeFileSync(f, '# A\n\n## Releases\n\nshort\n\n## Ports\n\nless\n'); return { said: 'Compressed 2 sections in AGENTS.md' }; } };
+  const picked = cs.filter(c => ['section:AGENTS.md:Releases', 'section:AGENTS.md:Ports'].includes(c.key));
+  const r = await applyReviewed(store, picked, 'bulk', ['AGENTS.md'], { edit });
+  assert.equal(r.said, 'Compressed 2 sections in AGENTS.md');
+  const [e] = changeHistory(store);
+  assert.equal(e.decision, 'applied after review'); assert.equal(e.revertible, true); assert.equal(e.days, 30);
+  assert.match(e.title, /^2 sections: Releases, Ports$/); assert.deepEqual(e.keys, picked.map(c => c.key));
+  assert.equal(e.saving, 39_000, 'the sections\' savings together');
+  assert.equal(currentChanges(store, view()).some(c => c.key === 'section:AGENTS.md:Releases'), false, 'decided: not suggested for a month');
+  assert.match((await revertDecision(store, e.id)).said, /written back as it was/);
+  assert.equal(fs.readFileSync(f, 'utf8'), '# A\n\n## Releases\n\nlong text\n\n## Ports\n\nmore\n');
+  // the real applyEdit refuses without a preview, and nothing is recorded then
+  assert.match((await applyReviewed(store, [picked[0]], 'nope', ['AGENTS.md'])).error, /preview the change first/);
+  assert.equal(changeHistory(store).length, 1);
 });
