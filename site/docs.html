@@ -809,7 +809,7 @@
             <tbody>
               <tr><td>Cost</td><td>Tokens per call, and input tokens a session: the tokens times the session's model calls.</td></tr>
               <tr><td>Used</td><td>A <em>section</em> is applied when a session touched its files, ran its command or read the code it names, read free from the transcript. Relevant and followed come from a model reading one session against the sections; that costs tokens, so it runs when you press <strong>Judge 5 more sessions</strong>, or on a sample of sessions as they end once <code>instructions.value.judge</code> is on. A <em>skill</em> is read when a session opened it, and the sampled outcome check adds whether sessions that read it kept its rules and how often one broke them without reading it. A <em>tool</em> is used when a session called it.</td></tr>
-              <tr><td>Wasted</td><td>What the part cost in the sessions that did not use it (an output: what moderate compression would have cut). High waste from 5% of what its kind costs, medium from 2%. A cut saves that at most: a session that needed the part would go without.</td></tr>
+              <tr><td>Wasted</td><td>What the part cost in the sessions that did not use it (an output: what its results cost after the agent last used them, an estimate from the edits and file calls that followed). High waste from 5% of what its kind costs, medium from 2%. A cut saves that at most: a session that needed the part would go without. For an output it is the size of the problem; compression cuts only what is past its cap.</td></tr>
             </tbody>
           </table>
         </div>

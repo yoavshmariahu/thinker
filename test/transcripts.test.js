@@ -34,6 +34,22 @@ test('Claude Code transcript', () => {
   // the model is that of the whole session, even when only the tail is read
   assert.equal(parseTranscript(f, { fromLine: 3 }).events.length, 1);
   assert.equal(parseTranscript(f, { fromLine: 3 }).model, 'claude-opus-5-5');
+  assert.deepEqual(r.compactions, []);
+});
+
+test('a Claude Code compaction is recorded as the index of the first event after it', () => {
+  const f = write([
+    { type: 'user', cwd: '/r', message: { content: 'read a' } },
+    { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'a', name: 'Read', input: { file_path: 'a.js' } }] } },
+    { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'a', content: 'x = 1' }] } },
+    { type: 'system', subtype: 'compact_boundary', content: 'Conversation compacted', compactMetadata: { trigger: 'auto', preTokens: 160000 } },
+    { type: 'user', isCompactSummary: true, isMeta: true, message: { content: 'This session is being continued…' } },
+    { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'b', name: 'Read', input: { file_path: 'b.js' } }] } },
+    { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'b', content: 'y = 2' }] } },
+  ]);
+  const r = parseTranscript(f);
+  assert.deepEqual(r.compactions, [2]);
+  assert.deepEqual(shape(r.events), ['prompt:read a', 'Read:a.js=x = 1', 'Read:b.js=y = 2']);
 });
 
 test('a screenshot in a tool result is costed by its pixels, not its base64', t => {

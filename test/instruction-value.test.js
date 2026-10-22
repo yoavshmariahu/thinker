@@ -198,7 +198,8 @@ test('a tool output costs its tokens once for each model call after it, scaled t
   const events = [ev('Read', 400), ev('Bash', 40), ev('mcp__rea__q', 80), { t: 'say', text: 'done' }];
   // one call a model call: the Read is read by the three calls after it (two tools, then the answer)
   const one = sessionOutputs(events);
-  assert.deepEqual(one.Read, { calls: 1, tokens: 100, input: 300, saveModerate: 0, saveHigh: 0 }, 'under both caps: nothing to save');
+  // never used again (no edit copies it, no later call names its file): every read but the first is unneeded
+  assert.deepEqual(one.Read, { calls: 1, tokens: 100, input: 300, unneeded: 200, saveModerate: 0, saveHigh: 0 }, 'under both caps: nothing to save');
   const big = sessionOutputs([ev('Bash', 8000), { t: 'say', text: 'x' }]);
   assert.deepEqual([big.Bash.tokens, big.Bash.saveModerate, big.Bash.saveHigh], [2000, 0, 1000], 'past the high cap of 1k tokens');
   assert.equal(one['mcp:rea'].input, 20, 'an MCP server is one row, its last result read once');
@@ -209,7 +210,7 @@ test('a tool output costs its tokens once for each model call after it, scaled t
   assert.equal(toolKey('mcp__claude-in-chrome__navigate'), 'mcp:claude-in-chrome');
   // a screenshot costs what the parser read from its pixels, never its base64; the caps cut text alone
   const shot = sessionOutputs([{ t: 'tool', name: 'mcp__claude-in-chrome__computer', input: {}, result: '[image]', images: 1, imageTokens: 1500 }, { t: 'say', text: 'x' }]);
-  assert.deepEqual(shot['mcp:claude-in-chrome'], { calls: 1, tokens: 1502, input: 1502, saveModerate: 0, saveHigh: 0 });
+  assert.deepEqual(shot['mcp:claude-in-chrome'], { calls: 1, tokens: 1502, input: 1502, unneeded: 0, saveModerate: 0, saveHigh: 0 });
   const mcpText = sessionOutputs([ev('mcp__rea__q', 16000), { t: 'say', text: 'x' }]);
   assert.deepEqual([mcpText['mcp:rea'].tokens, mcpText['mcp:rea'].saveModerate, mcpText['mcp:rea'].saveHigh], [4000, 1000, 1000], 'an MCP server past the cap is a saving, the moderate one at either level');
 });

@@ -180,7 +180,7 @@ class Stats {
 
 // Claude Code and Cursor share the Anthropic message shape; Cursor puts the role at the top level.
 function parseMessages(rows, fromLine) {
-  const events = [], results = new Map(), models = new ModelTally(), stats = new Stats(), messageUsage = new Map();
+  const events = [], results = new Map(), models = new ModelTally(), stats = new Stats(), messageUsage = new Map(), compactions = [];
   let cwd = null;
   rows.forEach((j, i) => {
     if (!j) return;
@@ -188,6 +188,9 @@ function parseMessages(rows, fromLine) {
     if (j.type === 'assistant' || j.role === 'assistant') { messageUsage.set(j.message?.id || j.id || `row-${i}`, j.message?.usage ?? j.usage); for (const b of Array.isArray(j.message?.content) ? j.message.content : []) if (b.type === 'tool_use') stats.toolCalls++; }
     if (i < fromLine) return;
     if (j.cwd && !cwd) cwd = j.cwd;
+    // Claude Code's compaction: everything before this line left the model's context (tool-outputs.js counts a result
+    // until then); `compactions` holds the index of the first event after each
+    if (j.type === 'system' && j.subtype === 'compact_boundary') { compactions.push(events.length); return; }
     // streamed output of headless runs: Cursor `agent -p`, Gemini `gemini -p`
     if (j.type === 'tool_call' && j.tool_call) {
       if (j.subtype !== 'completed') return;
@@ -218,7 +221,7 @@ function parseMessages(rows, fromLine) {
     }
   });
   for (const usage of messageUsage.values()) stats.turn(usage);
-  return { events: attachResults(events, results), cwd, model: models.model, stats: stats.value };
+  return { events: attachResults(events, results), cwd, model: models.model, stats: stats.value, compactions };
 }
 
 function parseCodex(rows, fromLine) {

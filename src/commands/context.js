@@ -72,7 +72,7 @@ async function contextCommand({ store, flags, out }) {
   out(`  instruction files ~${formatTokens(t.instructions.perSession)} a session (~${formatTokens(t.instructions.tokens)} tokens in every model call)`);
   out(`  custom tools      ~${formatTokens(t.custom.perSession)} a session (skills, MCP servers, plugins: ~${formatTokens(t.custom.tokens)} in every call)`);
   out(`  built-in tools    ~${formatTokens(t.builtin.perSession)} a session (~${formatTokens(t.builtin.tokens)} in every call)`);
-  out(`  tool outputs      ~${formatTokens(t.outputs.perSession)} a session (each result read again by the calls after it; an estimate)\n`);
+  out(`  tool outputs      ~${formatTokens(t.outputs.perSession)} a session (each result read again by the calls after it${t.outputs.wasted != null ? `; ~${formatTokens(t.outputs.wasted)} of it after the agent last used the result` : ''}; an estimate)\n`);
   // the five highest-leverage changes, as the page's Top changes view and the weekly summary in a session give them
   if (top.length) {
     out(`Top changes (up to ~${formatTokens(top.reduce((a, c) => a + c.total, 0))} input tokens over the last ${days} days together):`);
@@ -97,8 +97,8 @@ async function contextCommand({ store, flags, out }) {
     out('');
   }
   if (v.outputs.tools.length) {
-    out('Tool outputs: input tokens a session, calls a session, tokens per call.');
-    for (const o of v.outputs.tools.slice(0, flags.verbose ? undefined : 12)) out(`  ${pad(formatTokens(o.perSession), 9)} ${pad(o.calls.toFixed(1), 6)} calls ${pad(formatTokens(o.perCall), 6)}  ${o.name}`);
+    out('Tool outputs: input tokens a session, of it read after the agent last used the result (wasted), calls a session, tokens per call.');
+    for (const o of v.outputs.tools.slice(0, flags.verbose ? undefined : 12)) out(`  ${pad(formatTokens(o.perSession), 9)} ${pad(o.wasted == null ? '-' : formatTokens(o.wasted), 9)} ${pad(o.calls.toFixed(1), 6)} calls ${pad(formatTokens(o.perCall), 6)}  ${o.name}`);
     out('');
   }
   if (v.tools.length) {

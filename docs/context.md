@@ -40,9 +40,13 @@ read by 40 calls is 160k input tokens. That is the number the page shows and sor
   { value: { judge: true } }` in `.thinker/config.json`). A skill is *read* when a session opened it,
   and the sampled outcome check says whether sessions that read it kept its rules, and how often one
   broke them without reading it. A tool is *used* when a session called it.
-- *Wasted*: what the part cost in the sessions that did not use it (an output: what moderate
-  compression would have cut). High waste from 5% of what its kind costs, medium from 2%. That is what
-  cutting it would save at most; a session that needed it would go without.
+- *Wasted*: what the part cost in the sessions that did not use it. For a tool output, what its
+  results cost after the agent last used them: the last call of the same turn that edited with text
+  copied from the result or touched the same file, an estimate from the transcript. High waste from 5%
+  of what its kind costs, medium from 2%. For a section, skill or tool that is what cutting it would save
+  at most; a session that needed it would go without. For an output it is the size of the problem, not
+  of the saving: compression cuts only the part of a result past its cap, and the row's detail says how
+  much that is.
 
 **All repositories** merges every repository's report: the timeline side by side, tools merged by
 name, averages weighted by sessions.

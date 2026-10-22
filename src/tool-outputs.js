@@ -2,13 +2,14 @@
 // again. Per session and per tool (Read, Bash, Grep, an MCP server…): the calls, the tokens the results added, and
 // the input tokens they cost, each result's tokens times the model calls left after it. An estimate: tokens are
 // characters / 4, the calls left are the tool calls left scaled to the session's model calls (several tool calls can
-// share one), and a compaction, which drops old results, is not seen. For the Context tab (context-view.js).
-// Kept per session in .thinker/state/tool-outputs.json, by the transcript's size.
+// share one), and a result is counted until the session ends or a compaction drops it (Claude Code records its
+// compactions; the other agents' are not seen). For the Context tab (context-view.js). Kept per session in
+// .thinker/state/tool-outputs.json, by the transcript's size.
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseTranscript } from './transcripts.js';
 
-const KEEP = 1000, VERSION = 6;
+const KEEP = 1000, VERSION = 7;
 // what each level's cap leaves of an output, in tokens (diet.js:DIET_LEVELS outputChars / 4): the part of a
 // compressible tool's result past it is a saving at least (the other trims, round search hits and file windows, come on top);
 // an MCP server has the moderate level alone (diet.js:mcpLevel), so its high saving is its moderate one
@@ -41,16 +42,29 @@ export const toolKey = (name, input) => {
   return String(name || 'unknown');
 };
 
+// the files a tool call is about, by name: the path-like words of its input (`sed -n 1,80p src/a.js`, an Edit's file_path)
+const filesOf = input => new Set((JSON.stringify(input || '').match(/[\w./~-]+\.[a-z]{1,5}\b/gi) || []).map(p => p.replace(/^.*\//, '')).filter(p => p.length > 3));
+
 // `turns`: the session's model calls, when the transcript counts them; the calls left after a result are its share of
-// those (agents make several tool calls in one model call), else one a tool call
-export function sessionOutputs(events, turns = 0) {
-  const tools = events.filter(e => e.t === 'tool'), n = tools.length, by = {};
-  const scale = turns > 0 && n > 0 ? Math.min(1, turns / (n + 1)) : 1;
+// those (agents make several tool calls in one model call), else one a tool call. `compactions`: the event indices where
+// the transcript records a compaction (transcripts.js), after which the results before it are read no more.
+// `unneeded` is the cost of reading a result again after the agent last used it: the last call of the same turn that
+// edited with text copied from it or named a file its own call named; with no such call, every read but the first.
+// An estimate: it misses a result the agent used from memory, and takes a later call on `index.js` for use of this one.
+export function sessionOutputs(events, turns = 0, compactions = []) {
+  const tools = [], turnOf = [], bounds = [], cuts = [...compactions].sort((a, b) => a - b);
+  let turn = 0, c = 0;
+  events.forEach((e, k) => { while (c < cuts.length && cuts[c] <= k) { bounds.push(tools.length); c++; } if (e.t === 'prompt') turn++; else if (e.t === 'tool') { tools.push(e); turnOf.push(turn); } });
+  while (c < cuts.length) { bounds.push(tools.length); c++; }
+  const n = tools.length, by = {}, scale = turns > 0 && n > 0 ? Math.min(1, turns / (n + 1)) : 1;
+  const inputs = tools.map(e => ({ files: filesOf(e.input), old: typeof e.input?.old_string === 'string' && e.input.old_string.length >= 20 ? e.input.old_string : null }));
   tools.forEach((e, i) => {
     // a screenshot costs its pixels, not its base64 (transcripts.js:imageTokens); the caps cut text alone
-    const key = toolKey(e.name, e.input), text = Math.ceil(String(e.result || '').length / 4), tokens = text + (e.imageTokens || 0), r = (by[key] ||= { calls: 0, tokens: 0, input: 0, saveModerate: 0, saveHigh: 0 });
-    const reads = Math.max(1, (n - i) * scale);
-    r.calls++; r.tokens += tokens; r.input += Math.round(tokens * reads);
+    const key = toolKey(e.name, e.input), result = String(e.result || ''), text = Math.ceil(result.length / 4), tokens = text + (e.imageTokens || 0), r = (by[key] ||= { calls: 0, tokens: 0, input: 0, unneeded: 0, saveModerate: 0, saveHigh: 0 });
+    const end = bounds.find(b => b > i) ?? n, reads = Math.max(1, (end - i) * scale);
+    let last = i;
+    for (let j = i + 1; j < end && turnOf[j] === turnOf[i]; j++) { const q = inputs[j]; if ((q.old && result.includes(q.old)) || (inputs[i].files.size && [...q.files].some(f => inputs[i].files.has(f)))) last = j; }
+    r.calls++; r.tokens += tokens; r.input += Math.round(tokens * reads); r.unneeded += Math.round(tokens * Math.max(0, (end - last - 1) * scale));
     const mcp = key.startsWith('mcp:');
     if (key === 'Read' || key === 'Bash' || key.startsWith('Bash:') || mcp) { r.saveModerate += Math.round(Math.max(0, text - CAP.moderate) * reads); r.saveHigh += Math.round(Math.max(0, text - CAP[mcp ? 'moderate' : 'high']) * reads); }
   });
@@ -67,7 +81,7 @@ export function toolOutputs(store, sessions) {
     let r = st[s.session];
     if (!r || r.size !== size || r.v !== VERSION) {
       let parsed; try { parsed = parseTranscript(s.file); } catch { continue; }
-      r = st[s.session] = { v: VERSION, size, mtime: s.mtime, by: sessionOutputs(parsed.events, parsed.stats?.turns || 0) };
+      r = st[s.session] = { v: VERSION, size, mtime: s.mtime, by: sessionOutputs(parsed.events, parsed.stats?.turns || 0, parsed.compactions || []) };
       changed = true;
     }
     if (Object.keys(r.by).length) recs.push({ ...r, t: s.mtime });
@@ -80,13 +94,14 @@ export function toolOutputs(store, sessions) {
   // per tool, averaged over the sessions that made any tool call
   const n = recs.length, rows = new Map();
   for (const r of recs) for (const [k, x] of Object.entries(r.by)) {
-    const row = rows.get(k) || { name: k, sessions: 0, calls: 0, tokens: 0, input: 0, saveModerate: 0, saveHigh: 0 };
-    row.sessions++; row.calls += x.calls; row.tokens += x.tokens; row.input += x.input; row.saveModerate += x.saveModerate || 0; row.saveHigh += x.saveHigh || 0; rows.set(k, row);
+    const row = rows.get(k) || { name: k, sessions: 0, calls: 0, tokens: 0, input: 0, unneeded: 0, saveModerate: 0, saveHigh: 0 };
+    row.sessions++; row.calls += x.calls; row.tokens += x.tokens; row.input += x.input; row.unneeded += x.unneeded || 0; row.saveModerate += x.saveModerate || 0; row.saveHigh += x.saveHigh || 0; rows.set(k, row);
   }
-  const tools = [...rows.values()].map(r => ({ name: r.name, usedIn: r.sessions, calls: r.calls / (n || 1), tokens: Math.round(r.tokens / (n || 1)), perSession: Math.round(r.input / (n || 1)), perCall: Math.round(r.tokens / (r.calls || 1)), saveModerate: Math.round(r.saveModerate / (n || 1)), saveHigh: Math.round(r.saveHigh / (n || 1)) })).sort((a, b) => b.perSession - a.perSession);
+  // `wasted`: the input tokens a session spent reading the tool's results after the agent last used them (sessionOutputs)
+  const tools = [...rows.values()].map(r => ({ name: r.name, usedIn: r.sessions, calls: r.calls / (n || 1), tokens: Math.round(r.tokens / (n || 1)), perSession: Math.round(r.input / (n || 1)), perCall: Math.round(r.tokens / (r.calls || 1)), wasted: Math.round(r.unneeded / (n || 1)), saveModerate: Math.round(r.saveModerate / (n || 1)), saveHigh: Math.round(r.saveHigh / (n || 1)) })).sort((a, b) => b.perSession - a.perSession);
   return {
     sessions: n, tools,
-    tokens: tools.reduce((a, t) => a + t.tokens, 0), perSession: tools.reduce((a, t) => a + t.perSession, 0),
+    tokens: tools.reduce((a, t) => a + t.tokens, 0), perSession: tools.reduce((a, t) => a + t.perSession, 0), wasted: tools.reduce((a, t) => a + t.wasted, 0),
     timeline: recs.map(r => ({ t: r.t, outputs: Object.values(r.by).reduce((a, x) => a + x.input, 0) })),
   };
 }

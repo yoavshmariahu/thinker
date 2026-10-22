@@ -90,7 +90,7 @@ export function contextView(store, { days = 30, sessions, usage, log } = {}) {
       instructions: { tokens: iv.tokens || 0, perSession: (iv.tokens || 0) * Math.max(1, iv.calls || 1) },
       skills: { tokens: sum(skills, 'tokens'), perSession: sum(skills, 'perSession') },
       tools: { tokens: sum(tools, 'tokens'), perSession: sum(tools, 'perSession') },
-      outputs: { tokens: outputs.tokens, perSession: outputs.perSession },
+      outputs: { tokens: outputs.tokens, perSession: outputs.perSession, wasted: outputs.wasted },
       // what the person added to the agent, one part: skills, MCP servers, plugins
       custom: (() => { const xs = [...skills, ...tools.filter(r => r.group !== 'builtin')]; return { tokens: sum(xs, 'tokens'), perSession: sum(xs, 'perSession'), count: xs.filter(x => !x.off).length }; })(),
       // the tools by kind, as the Context tab's bar and tables split them
@@ -129,7 +129,7 @@ export function mergeViews(list) {
   const tag = x => r => ({ ...r, repo: x.repo, repoName: x.name });
   const tools = merge(views.flatMap(v => v.tools), r => `${r.client}:${r.key}`, 'loaded', ['loaded', 'used'], ['tokens', 'perSession']).map(r => ({ ...r, usedShare: r.loaded ? r.used / r.loaded : null })).sort((a, b) => b.perSession - a.perSession);
   const skills = merge(views.flatMap(v => v.skills), r => `${r.client}:${r.key}`, 'loaded', ['loaded', 'used'], ['tokens', 'perSession']);
-  const outs = merge(views.flatMap(v => v.outputs.tools.map(t => ({ ...t, n: v.outputs.sessions }))), r => r.name, 'n', ['usedIn', 'n'], ['tokens', 'perSession', 'perCall']).map(t => ({ ...t, calls: w(views.flatMap(v => v.outputs.tools.filter(x => x.name === t.name).map(x => ({ ...x, n: v.outputs.sessions }))), 'calls', 'n') })).sort((a, b) => b.perSession - a.perSession);
+  const outs = merge(views.flatMap(v => v.outputs.tools.map(t => ({ ...t, n: v.outputs.sessions }))), r => r.name, 'n', ['usedIn', 'n'], ['tokens', 'perSession', 'perCall', 'wasted', 'saveModerate', 'saveHigh']).map(t => ({ ...t, calls: w(views.flatMap(v => v.outputs.tools.filter(x => x.name === t.name).map(x => ({ ...x, n: v.outputs.sessions }))), 'calls', 'n') })).sort((a, b) => b.perSession - a.perSession);
   const ivs = list.map(x => ({ x, iv: x.view.instructions })).filter(({ iv }) => iv.file);
   const ivSessions = ivs.reduce((a, { iv }) => a + iv.sessions, 0);
   const window = ivs.reduce((a, { iv }) => a + (iv.savings?.window || 0), 0);
