@@ -1285,7 +1285,8 @@ run, which has not been made.
 
 ## Report
 
-**The page's two tabs are Save and Report (2026-10-22, the owner's layout).** The Context tab became Save (the
+**The page's two tabs are Find Savings and View Report (2026-10-22, the owner's layout; shown so since that evening, the
+tab ids and `--tab save|report` unchanged; "Save" and "Report" below are those tabs).** The Context tab became Save (the
 page to find savings: the same tables, the stacked-column chart of input by day or week removed) and the Cache
 tab (the usage cards, the repositories, one repository's notes and behaviors) was replaced by Report; the notes
 and the behaviors are reached through the CLI (`thinker list`, `show`, `archive`, `system`), and the page's

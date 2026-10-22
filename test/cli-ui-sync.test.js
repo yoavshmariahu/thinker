@@ -196,8 +196,8 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   for (const f of ['report.js', 'ui/page.html']) { assert.match(read(f), /\$ saved/); assert.match(read(f), /Tokens saved|tokens saved/); }
   assert.match(read('report.js'), /changeHistory\(store\)\.filter\(e => Date\.parse\(e\.at\) >= from\)/);
   // the page's tabs: Save (was Context, the chart gone) and Report (was Cache); the old names still open them
-  assert.match(read('ui/page.html'), /data-tab="save">Save</);
-  assert.match(read('ui/page.html'), /data-tab="report">Report</);
+  assert.match(read('ui/page.html'), /data-tab="save">Find Savings</);
+  assert.match(read('ui/page.html'), /data-tab="report">View Report</);
   assert.match(read('ui/page.html'), /if \(tab === 'cache'\) tab = 'report';/);
   assert.doesNotMatch(read('ui/page.html'), /renderTrend|tr-stack|api\/cache|api\/behaviors|api\/usage/);
   assert.match(read('cli.js'), /ui \[--port n\] \[--no-open\] \[--tab save\|report\]/);

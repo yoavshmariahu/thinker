@@ -177,7 +177,7 @@ async function uiCommand(ctx) {
   out('\n' + box([
     `${c.yellow('*')} ${c.magenta('~')} ${c.yellow('*')}  ${c.bold(c.cyan('Thinker'))} ${c.dim('· local')}`,
     '',
-    `Where your agents' context goes, and what a session costs here week by week, at ${c.cyan(`http://127.0.0.1:${port}`)}`,
+    `Find Savings (where your agents' context goes) and View Report (what a session costs here week by week), at ${c.cyan(`http://127.0.0.1:${port}`)}`,
     c.dim('On this machine only. Press Ctrl+C to stop.'),
   ], { width: 74 }) + '\n');
   if (!flags['no-open'] && process.stdout.isTTY) openBrowser(url);

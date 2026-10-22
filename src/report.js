@@ -1,4 +1,4 @@
-// The Report page (`thinker report`, the page's Report tab): what a session costs here, week by week, as the average
+// The Report page (`thinker report`, the page's View Report tab; the Find Savings tab is `save`, the tab ids stay): what a session costs here, week by week, as the average
 // over the sessions of each week, by the part of the context the tokens went to and by the model that read them,
 // with a cost view at list prices (prices.js). Read from the agents' own transcripts over the last REPORT_WEEKS
 // weeks (Monday to Sunday, the current week so far last): each session's model and reported usage
@@ -177,7 +177,7 @@ export function renderReport(v, { cost = false, total = false } = {}) {
   const W = 11, line = (name, cells, bold) => `  ${(bold ? name.toUpperCase() : name).slice(0, 30).padEnd(30)}${cells.map((c, w) => (avg(c, w) ? `${fmtv(avg(c, w))}${mark(cells, w)}` : '').padStart(W)).join('')}`;
   const head = `  ${''.padEnd(30)}${v.columns.map(c => `wk ${label(c.t)}`.padStart(W)).join('')}`;
   L.push(`${total ? 'Total' : 'Average'} ${cost ? 'cost' : 'tokens'} ${total ? 'over the week\'s sessions' : 'per session'}, by week (${v.columns.map(c => c.sessions).join(', ')} sessions)${cost ? `, at list prices of ${v.pricedOn}` : ''}`);
-  L.push('', 'By part of the context (the four the Save page measures and controls; --json holds the whole breakdown)', head);
+  L.push('', 'By part of the context (the four the Find Savings page measures and controls; --json holds the whole breakdown)', head);
   for (const p of v.parts) L.push(line(p.name, p.cells));
   L.push(line('Total of these', v.totals, true));
   L.push('', 'By model', head);
@@ -186,7 +186,7 @@ export function renderReport(v, { cost = false, total = false } = {}) {
   L.push(`  ▲ ▼: up or down by 5% or more against the first week, doubled past 50%; a zero is left blank. A model row is its share of the ${total ? 'week' : 'average session'}; its sessions:` + ` ${v.models.map(m => `${m.model} ${m.cells.map(c => c.sessions).join('/')}`).join(', ')}.`);
   if (v.unpriced.length) L.push(`  No list price for ${v.unpriced.join(', ')}: their sessions are left out of the cost average.`);
   L.push('', 'Actions in the window');
-  if (!v.actions.length) L.push('  none: what you apply on the Save page is listed here with its date');
+  if (!v.actions.length) L.push('  none: what you apply on the Find Savings page is listed here with its date');
   for (const a of v.actions) L.push(`  ${a.at.slice(0, 10)}  ${(a.revertedAt ? 'reverted' : a.decision).padEnd(22)} ${a.title}${a.repoName ? ` (${a.repoName})` : ''}`);
   const c = v.cache;
   L.push('', 'The cache', `  $ saved          ${formatDollars(c.dollarsSaved)}${c.unpricedTokens ? ` (+${formatTokens(c.unpricedTokens)} tokens on unpriced models)` : ''}`, `  tokens saved     ${formatTokens(Math.max(0, c.tokensSaved))} ${c.measured ? 'input tokens, against prompts with the notes withheld' : 'tokens of code the agents did not read'}`, `  cache hits       ${formatTokens(c.hits)} notes served, for ${formatTokens(c.answered)} of ${formatTokens(c.requests)} requests`, `  acted on         ${c.acted == null ? '–' : `${Math.round(100 * c.acted)}%`} of ${formatTokens(c.judged)} servings the sessions were judged on`);

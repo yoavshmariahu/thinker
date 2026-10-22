@@ -83,13 +83,13 @@ promise: cutting a section saves its tokens, and whether the agent then misses i
 
 ## The Report beside it
 
-The page's other view, Report (`thinker report`), is the same measurement over time: what a session
+The page's other view, View Report (`thinker report`; the first view is Find Savings), is the same measurement over time: what a session
 costs here, week by week over the last six, as the average over each week's sessions. One table by
 part of the context (the instruction files, custom tools, built-in tools, tool outputs, the rest of the
 input, the output), one by model under its provider with subtotals, totals under both; each cell is shaded by its
 number against the table, the highest the darkest red and the lowest the darkest green, and a toggle shows each week's sum instead of
 the average per session. A toggle prices the same tokens at the
 providers' list rates, so a switch of model shows in the trend. Under the tables: the actions taken on
-Save in those weeks, by date, to read the weeks against, and the cache's four numbers, its saving in
+Find Savings in those weeks, by date, to read the weeks against, and the cache's four numbers, its saving in
 dollars first. The cache itself (the notes learned from your sessions, served to the agent as it works) is
 the command line's: `thinker list`, `show`, `archive`, `system` ([usage and learning](usage.md)).
