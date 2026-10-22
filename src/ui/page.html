@@ -778,7 +778,7 @@ const SWITCH = [['off', 'Switch off', 'for this repository, from the next sessio
 const ACTIONS = {
   instructions: [['compress', 'Compress', 'a model rewrites them to a third, keeping the rules'], ['remove', 'Remove', 'take them out of the file']],
   custom: SWITCH, builtin: SWITCH,
-  outputs: [['high', 'High compression', 'keep the least: a narrow window round search hits, one hit a file, long output cut to ~1k tokens'], ['moderate', 'Moderate compression', 'trim whole-file reads, test runs and big searches; long output cut to ~3k tokens (an MCP result: its text, screenshots kept)'], ['off', 'No compression', 'results reach the agent whole']],
+  outputs: [['high', 'High compression', 'keep the least: a narrow window round search hits, one hit a file, long output cut to ~1k tokens (an MCP server stays at moderate: a tighter cap cuts what the agent uses)'], ['moderate', 'Moderate compression', 'trim whole-file reads, test runs and big searches; long output cut to ~3k tokens (an MCP result: its text, screenshots kept)'], ['off', 'No compression', 'results reach the agent whole']],
 };
 const pickBox = (view, k, data, { disabled = '' } = {}) => `<label class="row-sel"${disabled ? ` title="${esc(disabled)}"` : ' title="select for Actions"'}><input type="checkbox" data-pick="${view}" data-k="${esc(k)}" data-d="${esc(JSON.stringify(data))}"${disabled ? ' disabled' : PICKS[view].has(k) ? ' checked' : ''}></label>`;
 // each view's sort, and its header: title on the left, sorting in the middle, the count and Actions on the right

@@ -1215,7 +1215,12 @@ string was refused (2026-10-18 smoke sessions). An MCP server's tools (`diet.too
 row; since 2026-10-22) get the level's length cap on the text of a result (`diet.js:capMcpResult`): the hook sees the
 result as a string, a list of content blocks or an object holding one, the text past the cap becomes its head and
 tail in the same shape, and an image block (a screenshot) is kept untouched; the answer carries `updatedMCPToolOutput`
-beside `updatedToolOutput`, the field Claude Code reads for an MCP tool without a schema check. Measured on this
+beside `updatedToolOutput`, the field Claude Code reads for an MCP tool without a schema check. An MCP server takes
+the moderate level alone (`diet.js:mcpLevel`; the tab and `setDietLevel` store moderate for a high asked, and a high
+stored before reads as moderate): over 30 days of this machine's Claude Code sessions (838 with MCP calls), the tokens
+an agent went on to quote from a large MCP result sat anywhere in it, and the high cap kept 28–58% of them against
+65–99% for moderate; a JSON-aware trim (arrays and strings cut) and a window round the request's terms both kept
+less than the plain cap, so neither is built. Measured on this
 machine's last 30 days (56 sessions with claude-in-chrome): the browser's text results are a few hundred characters
 a call, and its cost is the screenshots, about 1.5k tokens each; the transcript parser costs an image by its pixels
 (`transcripts.js:imageTokens`, Anthropic's pixels / 750 with the long edge scaled to 1568), where before `textOf`

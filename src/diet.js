@@ -48,10 +48,14 @@ export const DIET_LEVELS = {
 export const COMPRESSIBLE = ['Bash', 'Read'];
 export const compressible = name => COMPRESSIBLE.includes(name) || String(name).startsWith('Bash:') || String(name).startsWith('mcp:');
 export const isMcp = name => String(name).startsWith('mcp__');
+// An MCP server takes the moderate level alone (2026-10-22): over 30 days of this machine's sessions the high cap
+// kept 28–58% of the tokens the agent went on to use from a large MCP result, moderate 65–99%; what is used sits
+// anywhere in the result, so a tighter cap is a loss, not a saving. A level set before is read as moderate.
+export const mcpLevel = level => level ? 'moderate' : null;
 export const toolLevel = (cfg, name, input) => {
   if (!cfg.tools) return cfg.enabled ? 'moderate' : null;
   if (name === 'Bash' && input?.command) { const own = cfg.tools[`Bash:${bashProgram(input.command)}`]; if (own) return own; }
-  if (isMcp(name)) return cfg.tools[toolKey(name)] || null;
+  if (isMcp(name)) return mcpLevel(cfg.tools[toolKey(name)]);
   return cfg.tools[name] || null;
 };
 
@@ -60,7 +64,7 @@ export function setDietLevel(store, tools, level) {
   let c = {}; try { c = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
   const d = c.diet && typeof c.diet === 'object' ? c.diet : {};
   d.tools ||= {};
-  for (const t of tools) { if (!compressible(t)) continue; if (level === 'high' || level === 'moderate') d.tools[t] = level; else delete d.tools[t]; }
+  for (const t of tools) { if (!compressible(t)) continue; if (level === 'high' || level === 'moderate') d.tools[t] = t.startsWith('mcp:') ? mcpLevel(level) : level; else delete d.tools[t]; }
   d.enabled = Object.keys(d.tools).length > 0;
   c.diet = d;
   fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, JSON.stringify(c, null, 2) + '\n');
