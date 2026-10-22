@@ -1322,12 +1322,16 @@ the repository; `thinker skills seed <transcripts...>` seeds from chosen ones (a
 `thinker skills suggest <file>` previews. The offline checks are in
 `bench/worktrees/eval-support/skill-protocol/` (local). No agent session has been run with it.
 
-**Built-in tools in the harness question (off until an experiment, 2026-10-20).** With `harness: { builtinTools: true }`
+**Built-in tools in the harness advice (off until an experiment, 2026-10-20).** With `harness: { builtinTools: true }`
 in `.thinker/config.json` (or `THINKER_HARNESS_BUILTIN_TOOLS=on`; `=off` wins over the config), the harness counts
 Claude Code's own tools as sources beside plugins, skills and MCP servers: their definitions from the transcript's
 `prompt_snapshot` attachment, a call by name as a use (`harness.js:sessionHarness`, `builtinKey`). One called in under
-a tenth of the sessions is offered like any source and goes off as a bare name in `permissions.deny` of
-`.claude/settings.local.json`; `--undo` takes it out. Checked with `claude -p` 2.1.304 (2026-10-20): `permissions.deny`
+a tenth of the sessions is advised like any source (`thinker harness`, the Context tab's Built-in tools, where a row
+shows the tool's own description) and goes off as a bare name in `permissions.deny` of
+`.claude/settings.local.json`; `--undo` takes it out. Never an option of the in-prompt question (2026-10-22, the
+owner's call: a picker's line has no room for what denying a tool costs, no subagents or no `/loop`, and the
+question offered eight tools by their token counts alone); the question counts it among the "more" it sends to
+the page. Checked with `claude -p` 2.1.304 (2026-10-20): `permissions.deny`
 and `--disallowedTools` both take the definition out of the prompt, Workflow, ScheduleWakeup and ReportFindings
 together ~4k tokens a call. Never offered (`CORE_TOOLS`): the file and shell tools, Skill, AskUserQuestion (the question goes through it), and
 ToolSearch, whose absence puts every deferred definition inline (+29k tokens a call); an allow-list (`--tools`) does the same, so the switch

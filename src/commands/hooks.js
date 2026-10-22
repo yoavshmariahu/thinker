@@ -21,7 +21,7 @@ import { claudeCardActive } from '../claude-card.js';
 import { setupRepo } from '../repo-onboard.js';
 import { coverageOffer, recordAccess } from '../coverage.js';
 import { harnessOffer, harnessRecall, harnessIndex, harnessOn } from '../harness.js';
-import { contextSuggestOffer } from '../context-suggest.js';
+import { contextSuggestOffer, ensureUi, suggestionsUrl } from '../context-suggest.js';
 import { skillSuggestOn, skillSuggestLines, hookSkillFacts } from '../skill-suggest.js';
 import { snapshotCursorInventory } from '../harness-cursor.js';
 import { sectionsForEvent, sectionsConfig } from '../instruction-sections.js';
@@ -160,7 +160,7 @@ async function hookCommand(ctx) {
       // the names of the switched-off skills, once a session (harness.js:harnessIndex; off until an experiment), not an offer either
       const index = harnessHere ? harnessIndex(store, { session, client }) : '';
       // the week's five highest-leverage context changes, with the local page started and its link (context-suggest.js)
-      const offer = [offersOn ? (coverageOffer(store, { client }) || harnessOffer(store, { client }) || contextSuggestOffer(store, { repoId: repoId(store.repo) })) : '', work, index, recall].filter(Boolean).join('\n\n');
+      const offer = [offersOn ? (coverageOffer(store, { client }) || harnessOffer(store, { client, ui: s => { const u = ensureUi(s); return u ? suggestionsUrl(u, repoId(store.repo)) : null; } }) || contextSuggestOffer(store, { repoId: repoId(store.repo) })) : '', work, index, recall].filter(Boolean).join('\n\n');
       // Every git repository has a cache, started on first use and empty until it learns; the hooks serve
       // from it once it holds a few notes (ops.js:SERVE_MIN_NOTES). A prompt served nothing is still a
       // request: `thinker usage` and the telemetry count a machine as active by its requests, and a cache in
