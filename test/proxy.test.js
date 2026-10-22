@@ -4,7 +4,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { startProxy, transformRequest, proxyConfig, proxyReport, heldOut, usageTap, EDIT_TYPE, EDIT_BETA, PROXY_DEFAULTS } from '../src/proxy.js';
+import { startProxy, transformRequest, proxyConfig, proxyReport, heldOut, usageTap, clearEdit, turnToolUses, EDIT_TYPE, EDIT_BETA, PROXY_DEFAULTS } from '../src/proxy.js';
 
 const BETA = `oauth-2025-04-20,${EDIT_BETA},claude-code-20250219`;
 const body = (extra = {}) => Buffer.from(JSON.stringify({ model: 'claude-opus-5-5', messages: [{ role: 'user', content: 'hi' }],
@@ -75,6 +75,32 @@ test('appends the clearing edit after the agent\'s own and streams the answer th
     assert.equal(row.clearedUses, 4);
     assert.ok(!JSON.stringify(row).includes('hi'), 'no request content in the log');
   } finally { px.server.close(); up.server.close(); }
+});
+
+test('keep turn: the clear leaves the current turn\'s tool uses, never under keep-min', () => {
+  const tu = id => ({ type: 'tool_use', id, name: 'Bash', input: { command: 'ls' } });
+  const tr = id => ({ type: 'tool_result', tool_use_id: id, content: 'x' });
+  const messages = [
+    { role: 'user', content: 'first request' },
+    { role: 'assistant', content: [tu('a'), tu('b')] }, { role: 'user', content: [tr('a'), tr('b')] },
+    { role: 'assistant', content: [tu('c')] }, { role: 'user', content: [tr('c'), { type: 'text', text: '<system-reminder>a hook rode along</system-reminder>' }] },
+    { role: 'user', content: [{ type: 'text', text: 'second request' }] },
+    { role: 'assistant', content: [tu('d')] }, { role: 'user', content: [tr('d')] },
+    { role: 'assistant', content: [tu('e'), tu('f'), tu('g'), tu('h')] }, { role: 'user', content: [tr('e'), tr('f'), tr('g'), tr('h')] },
+  ];
+  assert.equal(turnToolUses(messages), 5, 'the second turn\'s: a text block beside a tool result starts no turn');
+  assert.equal(turnToolUses(messages.slice(0, 5)), 3);
+  assert.equal(turnToolUses([]), 0);
+  const cfg = proxyConfig({ keep: 'turn', 'keep-min': '3' }, {});
+  assert.equal(cfg.keep, 'turn');
+  assert.equal(cfg.keepMin, 3);
+  assert.equal(clearEdit(cfg, messages).keep.value, 5);
+  assert.equal(clearEdit(cfg, messages.slice(0, 3)).keep.value, 3, 'a turn of two tool uses keeps the minimum');
+  assert.equal(clearEdit(proxyConfig({}, { THINKER_PROXY_KEEP: 'turn' }), messages).keep.value, 5, 'from the environment too');
+  assert.equal(clearEdit(proxyConfig({ keep: '2' }, {}), messages).keep.value, 2, 'a count is a count');
+  const t = transformRequest('POST', '/v1/messages', { 'anthropic-beta': BETA }, Buffer.from(JSON.stringify({ model: 'm', messages })), cfg);
+  assert.equal(t.keep, 5);
+  assert.equal(JSON.parse(t.body).context_management.edits[0].keep.value, 5);
 });
 
 test('forwards the bytes as they came when the edit cannot or should not be added', async () => {
@@ -186,6 +212,10 @@ test('flags win over the environment, the environment over the defaults', () => 
   assert.equal(cfg.port, 7000);
   assert.equal(cfg.upstream, 'https://api.anthropic.com');
   assert.equal(proxyConfig({}, {}).trigger, PROXY_DEFAULTS.trigger);
+  // the default policy keeps the current turn's tool uses, three at least (the owner's decision on the replay, 2026-10-22)
+  assert.equal(PROXY_DEFAULTS.keep, 'turn');
+  assert.equal(proxyConfig({}, {}).keep, 'turn');
+  assert.equal(proxyConfig({}, {}).keepMin, 3);
 });
 
 test('a plain JSON answer is read too', () => {

@@ -22,7 +22,19 @@ import crypto from 'node:crypto';
 
 export const EDIT_TYPE = 'clear_tool_uses_20250919';
 export const EDIT_BETA = 'context-management-2025-06-27';
-export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 100000, keep: 3, clearAtLeast: 80000, holdout: 0 };
+// `keep`: how many of the newest tool uses a clear leaves, a count or `turn` (2026-10-22): the tool uses of the
+// request's current turn, never under `keepMin`. The Context tab's measurement behind `turn`: on this repository's
+// sessions 88% of what tool results cost is reading them again after the agent last used them, 82% after the turn
+// that fetched them ended, and only 8% is a result used again later in its own turn (tool-outputs.js:sessionOutputs).
+// A count clears results the agent is still working from in a long turn, and the model was seen to read the file
+// again; `turn` clears only what earlier turns fetched, so it clears less and should cost the agent nothing. The
+// server's edit takes a count alone, so the proxy works the count out from the request's messages on every call.
+// `turn` is the default since 2026-10-22, the owner's decision on the replay alone (proxy-replay.js, 3,317 Claude Code
+// sessions of this machine over 30 days): at this trigger it saves 1.44% of the billed-equivalent tokens against the
+// count's 1.58%, with 17 sessions costlier against 20, and by construction never clears a result of the turn in hand;
+// what the replay cannot see, the agent reading again what was cleared, is the experiment still to run
+// (research/output-lifetime-2026-10-22). The proxy itself stays off until then: nothing points an agent at it.
+export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 100000, keep: 'turn', keepMin: 3, clearAtLeast: 80000, holdout: 0 };
 
 const num = v => (v == null || v === '' || Number.isNaN(Number(v)) ? undefined : Number(v));
 
@@ -30,21 +42,38 @@ const num = v => (v == null || v === '' || Number.isNaN(Number(v)) ? undefined :
 export function proxyConfig(flags = {}, env = process.env) {
   const pick = (flag, name) => num(flags[flag]) ?? num(env[name]);
   const cfg = { ...PROXY_DEFAULTS };
-  for (const [key, flag, name] of [['trigger', 'trigger', 'THINKER_PROXY_TRIGGER'], ['keep', 'keep', 'THINKER_PROXY_KEEP'],
+  for (const [key, flag, name] of [['trigger', 'trigger', 'THINKER_PROXY_TRIGGER'], ['keep', 'keep', 'THINKER_PROXY_KEEP'], ['keepMin', 'keep-min', 'THINKER_PROXY_KEEP_MIN'],
     ['clearAtLeast', 'clear-at-least', 'THINKER_PROXY_CLEAR_AT_LEAST'], ['holdout', 'holdout', 'THINKER_PROXY_HOLDOUT']]) {
     const v = pick(flag, name);
     if (v !== undefined) cfg[key] = v;
   }
+  if (String(flags.keep ?? env.THINKER_PROXY_KEEP ?? '').trim() === 'turn') cfg.keep = 'turn';
   cfg.upstream = flags.upstream || env.THINKER_PROXY_UPSTREAM || cfg.upstream;
   cfg.port = pick('port', 'THINKER_PROXY_PORT');
   return cfg;
 }
 
-export function clearEdit(cfg) {
+// The tool uses of the request's current turn: those in the assistant messages after the last user message that
+// carries text and no tool result, which is the person's request (a hook's context and the system reminders ride in
+// the user message that holds the tool result they follow, so they do not start a turn).
+export function turnToolUses(messages) {
+  let start = 0;
+  messages.forEach((m, i) => {
+    if (m?.role !== 'user') return;
+    const blocks = Array.isArray(m.content) ? m.content : [{ type: 'text' }];
+    if (blocks.some(b => b?.type === 'text') && !blocks.some(b => b?.type === 'tool_result')) start = i;
+  });
+  let n = 0;
+  for (const m of messages.slice(start)) if (m?.role === 'assistant' && Array.isArray(m.content)) n += m.content.filter(b => b?.type === 'tool_use').length;
+  return n;
+}
+export const keepValue = (cfg, messages) => cfg.keep === 'turn' ? Math.max(cfg.keepMin ?? 0, turnToolUses(messages || [])) : cfg.keep;
+
+export function clearEdit(cfg, messages) {
   return {
     type: EDIT_TYPE,
     trigger: { type: 'input_tokens', value: cfg.trigger },
-    keep: { type: 'tool_uses', value: cfg.keep },
+    keep: { type: 'tool_uses', value: keepValue(cfg, messages) },
     clear_at_least: { type: 'input_tokens', value: cfg.clearAtLeast },
   };
 }
@@ -73,8 +102,9 @@ export function transformRequest(method, url, headers, body, cfg) {
   const edits = Array.isArray(cm.edits) ? cm.edits : [];
   if (edits.some(e => e && e.type === EDIT_TYPE)) return { body, reason: 'agent-clears' };
   // the API applies edits in order; the thinking edit Claude Code sends stays first
-  j.context_management = { ...cm, edits: [...edits, clearEdit(cfg)] };
-  return { body: Buffer.from(JSON.stringify(j)), injected: true, model: j.model };
+  const edit = clearEdit(cfg, j.messages);
+  j.context_management = { ...cm, edits: [...edits, edit] };
+  return { body: Buffer.from(JSON.stringify(j)), injected: true, model: j.model, keep: edit.keep.value };
 }
 
 // Usage and applied edits, read from the response as it streams past (server-sent events) or from a
@@ -155,7 +185,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
           ures.on('end', () => {
             res.end();
             if (tap) log({ at: new Date().toISOString(), op: 'proxy', session: sessionOf(req.headers), model: t.model, status: ures.statusCode,
-              injected: !!t.injected, ...(t.injected ? {} : { reason: t.reason }), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...tap.result() });
+              injected: !!t.injected, ...(t.injected ? { keep: t.keep } : { reason: t.reason }), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...tap.result() });
           });
           ures.on('error', () => res.destroy());
         });
