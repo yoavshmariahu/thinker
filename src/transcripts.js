@@ -60,11 +60,51 @@ export function textOf(v) {
   }
   if (Array.isArray(v)) return v.map(textOf).filter(Boolean).join('\n');
   if (typeof v === 'object') {
+    // an image block (a screenshot) is not text: its base64 would read as 20k tokens of output (imageTokensOf)
+    if (isImage(v)) return '[image]';
     const t = first(v, ['text', 'output', 'stdout', 'aggregated_output', 'content', 'result', 'llmContent', 'returnDisplay', 'message']);
     if (t != null) return textOf(t);
     return JSON.stringify(v);
   }
   return String(v);
+}
+// --- images in a tool result ---------------------------------------------------------------------------
+// What a screenshot costs the model: its pixels / 750 (Anthropic's rule), the long edge scaled to 1568 at most, so
+// about 1,600 tokens at the largest; one whose size cannot be read from its header is counted as a typical
+// screenshot. The base64 is 60 times that in characters, which is what the output accounting counted before
+// (2026-10-22: the Context tab put claude-in-chrome first at 8k tokens a call, against about 1.5k).
+export const IMAGE_TOKENS_UNKNOWN = 1200, IMAGE_TOKENS_MAX = 1600, IMAGE_EDGE = 1568;
+const isImage = v => v && typeof v === 'object' && (v.type === 'image' || v.type === 'image_url') && !Array.isArray(v.content);
+export function imageDims(b64) {
+  try {
+    const head = Buffer.from(String(b64).slice(0, 400), 'base64');
+    if (head[0] === 0x89 && head[1] === 0x50) return { w: head.readUInt32BE(16), h: head.readUInt32BE(20) };
+    if (head[0] === 0xff && head[1] === 0xd8) {
+      const all = Buffer.from(String(b64), 'base64');
+      for (let i = 2; i + 9 < all.length;) {
+        if (all[i] !== 0xff) { i++; continue; }
+        const m = all[i + 1];
+        if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) return { h: all.readUInt16BE(i + 5), w: all.readUInt16BE(i + 7) };
+        i += 2 + all.readUInt16BE(i + 2);
+      }
+    }
+  } catch {}
+  return null;
+}
+export function imageTokens(block) {
+  const d = imageDims(block?.source?.data || '');
+  if (!d || !d.w || !d.h) return IMAGE_TOKENS_UNKNOWN;
+  const scale = Math.min(1, IMAGE_EDGE / Math.max(d.w, d.h));
+  return Math.min(IMAGE_TOKENS_MAX, Math.round(d.w * scale * d.h * scale / 750));
+}
+// the images in a tool result, and what they cost: {images, imageTokens}, or null when there is none
+export function imageTokensOf(v) {
+  if (v == null) return null;
+  if (typeof v === 'string') { if (v.startsWith('{"content":[')) { try { return imageTokensOf(JSON.parse(v).content); } catch {} } return null; }
+  if (Array.isArray(v)) { let images = 0, tokens = 0; for (const x of v) { const r = imageTokensOf(x); if (r) { images += r.images; tokens += r.imageTokens; } } return images ? { images, imageTokens: tokens } : null; }
+  if (typeof v !== 'object') return null;
+  if (isImage(v)) return { images: 1, imageTokens: imageTokens(v) };
+  return imageTokensOf(first(v, ['content', 'output', 'result']));
 }
 const tool = (name, input, result, id) => {
   if (name === 'CallDynamicTool' && input && typeof input === 'object' && input.toolName) {
@@ -73,7 +113,7 @@ const tool = (name, input, result, id) => {
     input = input.arguments || {};
   }
   const n = toolName(name);
-  return { t: 'tool', id, name: n, input: toolInput(n, input), result: textOf(result) };
+  return { t: 'tool', id, name: n, input: toolInput(n, input), result: textOf(result), ...(imageTokensOf(result) || {}) };
 };
 // what agents wrap around the user's words
 const cleanPrompt = s => String(s || '').replace(/<(timestamp|environment_context|system[-_]reminder|thinker-cache|thinker-code|thinker-learning|thinker-new-repository|thinker-coverage-suggestion|open_and_recently_viewed_files|attached_files|available_subagent_types|available_subagent_models|dynamic_tool_catalog|agent_skills|user_info|git_status|agent_transcripts|rules|summary_content)>[\s\S]*?<\/\1>/g, '').replace(/<\/?user_query>/g, '').trim();
@@ -97,8 +137,10 @@ export function detectFormat(text) {
   return 'claude';
 }
 
+// a result kept by its call id: the text, and the images it carries (imageTokensOf)
+const keepResult = (results, id, raw) => results.set(id, { text: textOf(raw), ...(imageTokensOf(raw) || {}) });
 function attachResults(events, results) {
-  for (const e of events) if (e.t === 'tool' && !e.result && e.id != null) e.result = results.get(e.id) || '';
+  for (const e of events) if (e.t === 'tool' && !e.result && e.id != null) { const r = results.get(e.id); if (r) { e.result = r.text || ''; if (r.images) { e.images = r.images; e.imageTokens = r.imageTokens; } } else e.result = ''; }
   return events;
 }
 
@@ -154,7 +196,7 @@ function parseMessages(rows, fromLine) {
       return;
     }
     if (j.type === 'tool_use' && (j.tool_name || j.name)) { events.push(tool(j.tool_name || j.name, j.parameters ?? j.input, '', j.tool_id ?? j.id)); return; }
-    if (j.type === 'tool_result') { results.set(j.tool_id ?? j.tool_use_id, textOf(j.output ?? j.content)); return; }
+    if (j.type === 'tool_result') { keepResult(results, j.tool_id ?? j.tool_use_id, j.output ?? j.content); return; }
     if (j.type === 'message' && typeof j.content === 'string') {
       if (j.role === 'user') { const t = cleanPrompt(j.content); if (t) events.push({ t: 'prompt', text: t }); }
       else if (j.delta && events.at(-1)?.t === 'say') events.at(-1).text += j.content;
@@ -172,7 +214,7 @@ function parseMessages(rows, fromLine) {
       if (b.type === 'text' && role === 'user' && !j.isMeta) { const t = cleanPrompt(b.text); if (t) events.push({ t: 'prompt', text: t }); }
       else if (b.type === 'text' && role === 'assistant') events.push({ t: 'say', text: b.text });
       else if (b.type === 'tool_use') events.push(tool(b.name, b.input, '', b.id));
-      else if (b.type === 'tool_result') results.set(b.tool_use_id, textOf(b.content));
+      else if (b.type === 'tool_result') keepResult(results, b.tool_use_id, b.content);
     }
   });
   for (const usage of messageUsage.values()) stats.turn(usage);
@@ -205,7 +247,7 @@ function parseCodex(rows, fromLine) {
         const input = p.arguments ?? p.input ?? p.action ?? {};
         if (p.name === 'wait' || p.name === 'update_plan') return;
         events.push(tool(p.name || 'shell', input, '', p.call_id));
-      } else if (p.type === 'function_call_output' || p.type === 'custom_tool_call_output' || p.type === 'local_shell_call_output') results.set(p.call_id, textOf(p.output));
+      } else if (p.type === 'function_call_output' || p.type === 'custom_tool_call_output' || p.type === 'local_shell_call_output') keepResult(results, p.call_id, p.output);
     }
     // `codex exec --json` stream
     else if (j.type === 'item.completed' && j.item) {

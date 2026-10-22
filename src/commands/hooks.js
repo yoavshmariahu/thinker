@@ -256,12 +256,12 @@ async function hookCommand(ctx) {
       if (s) parts.push(s);
     }
     // the context diet (diet.js; off until an experiment): the result replaced before the model reads it
-    let updated;
+    let updated, updatedMcp = false;
     const diet = client === 'claude' ? dietConfig(store) : null;
     if (diet?.enabled) {
       const name = toolName(ev.tool_name), input = toolInput(name, ev.tool_input);
       try { rememberTerms(store, session, { name, input }); } catch {}
-      try { const d = dietResult(store, { session, repo, cwd: ev.cwd, name, input, response: ev.tool_response, cfg: diet, turn: t.turn || undefined, client }); if (d) updated = d.output; } catch {}
+      try { const d = dietResult(store, { session, repo, cwd: ev.cwd, name, input, response: ev.tool_response, cfg: diet, turn: t.turn || undefined, client }); if (d) { updated = d.output; updatedMcp = !!d.mcp; } } catch {}
     }
     if ((client === 'claude' || flags.late) && !t.holdout && servesNotes(store)) {
       const name = toolName(ev.tool_name), command = toolInput(name, ev.tool_input).command || '';
@@ -294,7 +294,7 @@ async function hookCommand(ctx) {
     }
     const card = noticeCard(store, { client, session, ...t, notes: peekTurn(store, session).map(id => store.get(id)).filter(Boolean) });
     if (card) parts.push(card);
-    if (parts.length || updated !== undefined) out(toolOutput(client, parts.join('\n\n'), { updated }));
+    if (parts.length || updated !== undefined) out(toolOutput(client, parts.join('\n\n'), { updated, mcp: updatedMcp }));
   } else if (pos[0] === 'stop') {
     if (!store.exists()) return;
     const workerSession = isWorkerPrompt(ev.prompt) || (() => {

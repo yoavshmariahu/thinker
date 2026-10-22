@@ -157,5 +157,5 @@ export function switchSources(store, { labels = [], keys = [], on = false, built
 export function setOutputCompression(store, tools, level) {
   const can = tools.filter(compressible), cannot = tools.filter(t => !compressible(t));
   const now = setDietLevel(store, can, level === 'off' ? null : level);
-  return `${can.length ? `${level === 'off' ? 'Compression off' : `${level === 'high' ? 'High' : 'Moderate'} compression`} for ${can.join(', ')} in Claude Code sessions from the next tool call.` : ''}${cannot.length ? ` thinker cannot compress ${cannot.join(', ')} yet (only Bash commands and Read).` : ''}`.trim() || JSON.stringify(now);
+  return `${can.length ? `${level === 'off' ? 'Compression off' : `${level === 'high' ? 'High' : 'Moderate'} compression`} for ${can.join(', ')} in Claude Code sessions from the next tool call.` : ''}${cannot.length ? ` thinker cannot compress ${cannot.join(', ')} yet (Bash commands, Read and MCP servers).` : ''}`.trim() || JSON.stringify(now);
 }

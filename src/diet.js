@@ -19,7 +19,7 @@ import { outlineText } from './codegraph.js';
 import { sessionState, locked } from './ops.js';
 import { classifyTestCommand, parseTestOutput, summarize, stripAnsi, testsConfig, logPathFor, pruneLogs } from './testing.js';
 import { textOf } from './transcripts.js';
-import { bashProgram } from './tool-outputs.js';
+import { bashProgram, toolKey } from './tool-outputs.js';
 
 export const DIET = {
   enabled: false,
@@ -41,13 +41,17 @@ export const DIET_LEVELS = {
   moderate: { outputChars: 12000 },
   high: { window: 15, cap: 0.35, searchChars: 3000, perFile: 1, maxFiles: 15, testChars: 1000, outputChars: 4000 },
 };
-// the tools whose results the diet can replace (Claude Code's PostToolUse, checked against each one's output shape)
+// the tools whose results the diet can replace (Claude Code's PostToolUse, checked against each one's output shape),
+// and any MCP server's tools (`mcp:<server>`, 2026-10-22: the text of a result capped at the level's length, through
+// `updatedMCPToolOutput`, which Claude Code passes through unchecked; images in it are left as they are).
 // A shell command can have its own level by its program (`Bash:sed`), else Bash's.
 export const COMPRESSIBLE = ['Bash', 'Read'];
-export const compressible = name => COMPRESSIBLE.includes(name) || String(name).startsWith('Bash:');
+export const compressible = name => COMPRESSIBLE.includes(name) || String(name).startsWith('Bash:') || String(name).startsWith('mcp:');
+export const isMcp = name => String(name).startsWith('mcp__');
 export const toolLevel = (cfg, name, input) => {
   if (!cfg.tools) return cfg.enabled ? 'moderate' : null;
   if (name === 'Bash' && input?.command) { const own = cfg.tools[`Bash:${bashProgram(input.command)}`]; if (own) return own; }
+  if (isMcp(name)) return cfg.tools[toolKey(name)] || null;
   return cfg.tools[name] || null;
 };
 
@@ -223,15 +227,36 @@ export function capOutput(text, chars) {
   return gone > 0 ? [...head, `[... ${gone} lines left out by thinker's output compression; run a narrower command to see them]`, ...tail].join('\n') : text;
 }
 
+// An MCP tool's result, its text capped at `chars`: the hook sees it as a string, an array of content blocks (text
+// and image), or an object holding one; the text blocks past the cap become one capped block, in the same shape,
+// and any other block (a screenshot) is kept. null when the text is within the cap.
+export function capMcpResult(response, chars) {
+  if (typeof response === 'string') { const c = capOutput(response, chars); return c === response ? null : { output: c, before: response.length, after: c.length }; }
+  const blocks = Array.isArray(response) ? response : Array.isArray(response?.content) ? response.content : null;
+  if (!blocks) return null;
+  const texts = blocks.filter(b => b && typeof b === 'object' && b.type === 'text' && typeof b.text === 'string');
+  const before = texts.reduce((a, b) => a + b.text.length, 0);
+  if (before <= chars) return null;
+  const c = capOutput(texts.map(b => b.text).join('\n'), chars);
+  let placed = false;
+  const out = blocks.flatMap(b => texts.includes(b) ? (placed ? [] : (placed = true, [{ ...b, text: c }])) : [b]);
+  return { output: Array.isArray(response) ? out : { ...response, content: out }, before, after: c.length };
+}
+
 export function dietResult(store, { session, repo, cwd, name, input = {}, response, cfg, turn, client = 'claude' }) {
   cfg = cfg || dietConfig(store);
-  if (!cfg.enabled || !response || typeof response !== 'object') return null;
+  if (!cfg.enabled || !response || (typeof response !== 'object' && !(isMcp(name) && typeof response === 'string'))) return null;
   // only the tools given a level, at that level's settings
   const level = toolLevel(cfg, name, input);
   if (!level) return null;
   cfg = { ...cfg, ...DIET_LEVELS[level], level };
-  const log = r => { if (r) store.log({ op: 'diet', kind: r.kind, session, turn, client, file: r.file, before: r.before, after: r.after }); return r; };
+  const log = r => { if (r) store.log({ op: 'diet', kind: r.kind, session, turn, client, file: r.file, tool: r.tool, before: r.before, after: r.after }); return r; };
   const skip = (kind, file, why, n) => { store.log({ op: 'diet-skip', kind, session, turn, client, file, why, lines: n }); return null; };
+  if (isMcp(name)) {
+    if (!cfg.outputChars) return null;
+    const c = capMcpResult(response, cfg.outputChars);
+    return c ? log({ kind: 'cap', tool: toolKey(name), mcp: true, before: c.before, after: c.after, output: c.output }) : null;
+  }
   if (name === 'Read') {
     const f = response.file; if (!f || typeof f.content !== 'string' || input.offset || input.limit) return null;
     const file = rel(repo, f.filePath || input.file_path, cwd); if (!file) return null;

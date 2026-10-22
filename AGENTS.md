@@ -1202,7 +1202,16 @@ search output over `searchChars` becomes its hits grouped per file. A file under
 whose kept lines reach `cap` of it passes whole, logged as `diet-skip` with the reason; a trim is logged as `diet`
 with the sizes. Claude Code numbers a Read result itself from the file's first line, so a trimmed Read keeps every
 line in place (a marker then empty lines for an omitted range); a numbered text came out numbered twice and a plain
-string was refused (2026-10-18 smoke sessions). Why: on a 60-call Opus session re-reading the accumulated context was
+string was refused (2026-10-18 smoke sessions). An MCP server's tools (`diet.tools['mcp:<server>']`, the Context tab's
+row; since 2026-10-22) get the level's length cap on the text of a result (`diet.js:capMcpResult`): the hook sees the
+result as a string, a list of content blocks or an object holding one, the text past the cap becomes its head and
+tail in the same shape, and an image block (a screenshot) is kept untouched; the answer carries `updatedMCPToolOutput`
+beside `updatedToolOutput`, the field Claude Code reads for an MCP tool without a schema check. Measured on this
+machine's last 30 days (56 sessions with claude-in-chrome): the browser's text results are a few hundred characters
+a call, and its cost is the screenshots, about 1.5k tokens each; the transcript parser costs an image by its pixels
+(`transcripts.js:imageTokens`, Anthropic's pixels / 750 with the long edge scaled to 1568), where before `textOf`
+stringified the block and the Context tab counted a screenshot as 20k tokens and put the server first. Shrinking or
+dropping screenshots changes what the agent sees of the page and is its own experiment, not built. Why: on a 60-call Opus session re-reading the accumulated context was
 over half the bill and the fixed prefix a tenth, and nothing thinker serves ever leaves the context; replaying 442
 bare sessions (research notes, 2026-10-18) the hit-centred region held the agent's next edit 20 of 23 times and every
 gold hunk 149 of 166, but a third of whole-file reads had no term to centre on and most of the rest needed over half
