@@ -12,8 +12,9 @@
 // gets from the URL it was opened with, and the Host header must name this server, so another page
 // in the browser (or a DNS rebinding) can neither read the cache nor change a behavior.
 import { harnessView, harnessSavings, harnessOn, scheduleHarnessSuggestion, undoHarness, switchOffNow, setHarnessSettings } from '../harness.js';
-import { mergeViews, switchSources, setOutputCompression } from '../context-view.js';
-import { snapshotView, refreshing, dropSnapshots } from '../context-snapshot.js';
+import { contextView, mergeViews, switchSources, setOutputCompression } from '../context-view.js';
+import { snapshotView, lastSnapshot, refreshing, dropSnapshots, REFRESH_MS } from '../context-snapshot.js';
+import { approveChanges, dismissChanges, recordReviewed, revertDecision, pickChanges, currentChanges, changeHistory } from '../context-suggest.js';
 import { judgeRecent } from '../instruction-value.js';
 import { setCore } from '../instructions-core.js';
 import { previewEdit, applyEdit } from '../instruction-edit.js';
@@ -157,6 +158,12 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
     return { ...r, stats: cacheStats(r.checkout), pending };
   };
   const harnessCache = new Map();
+  const changesView = (st, d) => {
+    const s = lastSnapshot(st, d);
+    if (!s) return snapshotView(st, d).view;
+    if ((!s.current || Date.now() - s.at > REFRESH_MS) && !refreshing(st)) refreshFn(st.repo);
+    return s.view;
+  };
   const server = http.createServer(async (req, res) => {
     lastRequest = Date.now();
     const url = new URL(req.url, 'http://127.0.0.1');
@@ -217,6 +224,16 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
         }
         return json(res, 200, { ...view, asOf: Number.isFinite(at) ? at : Date.now(), refreshing: !!busy });
       }
+      // Context's Top suggested and History (context-suggest.js): the top changes of the kept report less the ones decided lately, and the
+      // decisions so far, for one repository or each of them
+      if (req.method === 'GET' && url.pathname === '/api/changes') {
+        // the last report kept, made again in the background when it no longer holds or is old; made now only when
+        // there is none (context-snapshot.js:lastSnapshot)
+        const d = Number(url.searchParams.get('days')) || 7;
+        const stores = storesFor(want); if (!stores) return json(res, 400, { error: 'unknown repository' });
+        const xs = stores.flatMap(([r, st]) => { try { const v = changesView(st, d); return [{ r, changes: currentChanges(st, v).map(c => ({ ...c, repo: r.id, repoName: r.name })), history: changeHistory(st).map(h => ({ ...h, repo: r.id, repoName: r.name })) }]; } catch { return []; } });
+        return json(res, 200, { days: d, changes: xs.flatMap(x => x.changes).sort((a, b) => (b.total ?? 0) - (a.total ?? 0)).slice(0, want === 'all' ? 10 : 5), history: xs.flatMap(x => x.history).sort((a, b) => b.at.localeCompare(a.at)) });
+      }
       if (req.method === 'GET' && url.pathname === '/api/behaviors') {
         const stores = storesFor(want); if (!stores) return json(res, 400, { error: 'unknown repository' });
         const tag = r => b => ({ ...b, repo: r.id, repoName: r.name });
@@ -236,6 +253,9 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
       if (!st) return json(res, 400, { error: 'unknown repository' });
       let r;
       if (url.pathname.startsWith('/api/harness/') || url.pathname.startsWith('/api/context/')) { harnessCache.clear(); dropSnapshots(st); }
+      // a decision on Top suggested or History keeps the report: the change it settles leaves the list by the history, and the
+      // files an approval writes (config, settings, AGENTS.md) make the Context tab read a new one (context-snapshot.js)
+      if (url.pathname.startsWith('/api/changes/')) harnessCache.clear();
       if (url.pathname === '/api/behaviors/accept') r = acceptPending(st, b.id, { mutability: b.mutability || 'mutable', edit: b.title || b.body ? { title: b.title, body: b.body } : null });
       else if (url.pathname === '/api/behaviors/discard') r = discardPending(st, b.id);
       else if (url.pathname === '/api/cache/review') {
@@ -257,6 +277,19 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
       // `thinker instructions --remove|--compress <id>` (the diff) and `--apply` (written to the working tree)
       else if (url.pathname === '/api/context/edit') { const x = await previewEdit(st, Array.isArray(b.ids) ? b.ids : String(b.id || ''), b.action === 'compress' ? 'compress' : 'remove'); if (x.error) r = x; else return json(res, 200, { ok: true, preview: x }); }
       else if (url.pathname === '/api/context/apply') r = applyEdit(st, String(b.id || ''));
+      // `thinker context --approve|--dismiss <keys>`: the top changes picked, their suggested action made or left
+      // (context-suggest.js); a section's reviewed diff applied (`thinker instructions --compress <id> --apply`) and recorded
+      // `thinker context --revert <n>`: a decision taken back (context-suggest.js:revertDecision)
+      else if (url.pathname === '/api/changes/revert') { r = await revertDecision(st, String(b.id || '')); if (!r.error && !refreshing(st)) refreshFn(st.repo); }
+      else if (['/api/changes/approve', '/api/changes/dismiss', '/api/changes/apply'].includes(url.pathname)) {
+        const keys = Array.isArray(b.keys) ? b.keys : [String(b.key || '')];
+        const picked = pickChanges(currentChanges(st, changesView(st, Number(b.days) || 7)), keys.join(','), b.acts && typeof b.acts === 'object' ? b.acts : {});
+        if (!picked.length) r = { error: 'that change is no longer suggested; reload the page' };
+        else if (url.pathname.endsWith('/approve')) r = { said: (await approveChanges(st, picked)).join(' ') };
+        else if (url.pathname.endsWith('/dismiss')) r = { said: dismissChanges(st, picked).join(' ') };
+        else { const a = applyEdit(st, String(b.edit || '')); if (!a.error) recordReviewed(st, picked[0], a.said); r = a; }
+        if (!url.pathname.endsWith('/dismiss') && !refreshing(st)) refreshFn(st.repo);
+      }
       // `thinker context --switch-off <labels> [--builtin]` / `--switch-on <keys>` and `--output-compression <tools> --level`
       else if (url.pathname === '/api/context/switch') r = { said: switchSources(st, { labels: Array.isArray(b.labels) ? b.labels : [], keys: Array.isArray(b.keys) ? b.keys : [], on: !!b.on, builtin: !!b.builtin }) };
       else if (url.pathname === '/api/context/compression') r = { said: setOutputCompression(st, Array.isArray(b.tools) ? b.tools : [], ['high', 'moderate'].includes(b.level) ? b.level : 'off') };

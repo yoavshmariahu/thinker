@@ -113,3 +113,20 @@ test('the Context tab and `thinker context` show one report, and its controls ar
   await p.post('/api/context/core', { repo: id, keep: null });
   assert.equal(fs.existsSync(path.join(dir, 'AGENTS.override.md')), false);
 });
+
+test('Top suggested and History on the Context tab are `thinker context --approve|--dismiss|--revert|--history`', () => {
+  // both doors pick from the same ranking less the decisions (context-suggest.js:currentChanges) and act through the same functions
+  for (const [f, st] of [['commands/context.js', 'store'], ['ui/server.js', 'st']]) {
+    assert.match(read(f), new RegExp(`currentChanges\\(${st}, `));
+    assert.match(read(f), /\bapproveChanges\b/);
+    assert.match(read(f), /\bdismissChanges\b/);
+    assert.match(read(f), /\brevertDecision\b/);
+    assert.match(read(f), /\bchangeHistory\b/);
+  }
+  assert.match(read('ui/server.js'), /\/api\/changes\/approve/);
+  assert.match(read('ui/server.js'), /\/api\/changes\/revert/);
+  // the page's 7-day window is the command's suggested one (SUGGEST.days) and the session's summary links to that tab
+  assert.match(read('ui/page.html'), /\/api\/changes\?repo=\$\{encodeURIComponent\(want\)\}&days=7/);
+  assert.match(read('context-suggest.js'), /days: 7,/);
+  assert.match(read('context-suggest.js'), /tab=context&view=suggested/);
+});

@@ -50,6 +50,9 @@ export const DEFAULTS = {
   // the question of tools to switch off (harness.js), every two weeks: on with the harness itself (harness.enabled,
   // off until it is released); `maintain: { harness: false }` turns the question off for a repository
   harness: true,
+  // the week's five highest-leverage context changes (context-suggest.js), passed on at the next prompt with a link to
+  // the local page; no model call, nothing changed but by the person on the page. `maintain: { contextSuggest: false }`
+  contextSuggest: true,
   // merge notes that say the same thing in different words (dedupe.js): one model call a pair. On by default
   // from 2026-10-19 to 2026-10-21, off since with the other background spend; `maintain: { dedupe: true }` or
   // THINKER_DEDUPE=on turns it on
@@ -279,6 +282,10 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
     // No model call; the prompt hook asks it, and a setting changes only on the person's answer.
     if (cfg.harness !== false && !dry) {
       try { const { scheduleHarnessSuggestion } = await (fns.harness ? { scheduleHarnessSuggestion: fns.harness } : import('./harness.js')); const picks = scheduleHarnessSuggestion(store, { now }); if (picks) r.harnessSuggested = picks.length; } catch { r.errors++; }
+    }
+    // 9. at most weekly, the five highest-leverage changes the Context view finds (context-suggest.js), for the next prompt
+    if (cfg.contextSuggest !== false && !dry) {
+      try { const { scheduleContextSuggestion } = await (fns.contextSuggest ? { scheduleContextSuggestion: fns.contextSuggest } : import('./context-suggest.js')); const c = await scheduleContextSuggestion(store, { now }); if (c) r.contextSuggested = c.length; } catch { r.errors++; }
     }
     const u = state.unreported || {};
     // a behavior found broken during this run was written to the state file by the verification itself
