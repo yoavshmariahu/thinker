@@ -559,7 +559,7 @@ function card(kicker, num, label, rows, gain) {
   return `<div class="card"><div class="kicker">${kicker}</div><div class="metric-num${gain ? ' gain' : ''}">${num}</div><div class="metric-label">${label}</div>${rows && rows.length ? `<ul class="metric-rows">${rows.map(([a, b]) => `<li><span>${esc(a)}</span><span>${esc(b)}</span></li>`).join('')}</ul>` : ''}</div>`;
 }
 // The two cards at the top of the Cache page, for every repository or the one picked, over the range: what was
-// served (cache hits), and what the cache holds, learned, saved and cost (notes). The saving is measured against
+// served (cache hits), and what the notes saved, with what the cache holds, learned and cost (notes). The saving is measured against
 // held-out prompts where there are enough of them, else counted from the servings sessions acted on.
 function renderUsage(u) {
   const as = u.assessed || {}, judged = (as.confirmed || 0) + (as.contradicted || 0) + (as.unused || 0);
@@ -574,7 +574,7 @@ function renderUsage(u) {
   const spent = u.spending?.agentTokens ?? u.spending?.tokens ?? 0;
   $('#usage-body').innerHTML = `<div class="cards two">
     ${card('Cache hits', fmt(served), `notes served, for ${fmt(u.answered)} of ${fmt(u.requests)} requests`, [['At the prompt', fmt(u.servings?.prompt || 0)], ['While editing a file', fmt(u.servings?.file || 0)], ['Asked for by the agent', fmt(u.servings?.lookup || 0)], ['Acted on', judged ? pct(as.confirmed || 0, judged) : '–']])}
-    ${card('Notes', fmt(u.notesInCache || 0), ALL() ? 'notes in the caches' : 'notes in this cache', [['Learned from sessions', fmt(u.learned?.notes || 0)], ['Kept current', fmt((v.still_valid || 0) + (v.update || 0))], ['Retired', fmt(v.invalid || 0)], ['Tokens saved', fmt(Math.max(0, saved))], ['Cache upkeep, in agent tokens', fmt(spent)]])}
+    ${card('Notes', fmt(Math.max(0, saved)), 'tokens saved', [[ALL() ? 'Notes in the caches' : 'Notes in this cache', fmt(u.notesInCache || 0)], ['Learned from sessions', fmt(u.learned?.notes || 0)], ['Kept current', fmt((v.still_valid || 0) + (v.update || 0))], ['Retired', fmt(v.invalid || 0)], ['Cache upkeep, in agent tokens', fmt(spent)]], true)}
   </div>`;
 }
 
