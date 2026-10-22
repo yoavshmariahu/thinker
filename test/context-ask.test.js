@@ -45,7 +45,7 @@ test('in the terminal: the summary, the choice, the cuts with the page\'s addres
   await tick();
   assert.ok(out.some(l => /^Where your agents' context goes, from 10 sessions/.test(l)), 'the summary came first');
   assert.ok(out.some(l => /^Cut first/.test(l)), 'then the cuts');
-  assert.ok(out.some(l => l.includes('http://127.0.0.1:7777/#tab=context&view=all')), 'and the page\'s address');
+  assert.ok(out.some(l => l.includes('http://127.0.0.1:7777/#tab=save&view=all')), 'and the page\'s address');
   assert.ok(!out.some(l => /thinker instructions --remove|thinker harness --off/.test(l)), 'no commands to type');
   const drawn = stdout.writes.join('');
   assert.ok(drawn.includes('Switch off the built-in tool "Artifact" in 2 repositories'), drawn);
