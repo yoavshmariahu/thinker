@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { normalizeModelUsage, streamModelUsage, logModelUsage } from '../src/model-usage.js';
+import { normalizeModelUsage, streamModelUsage, logModelUsage, relativeRate, weightedTokens } from '../src/model-usage.js';
 import { Store } from '../src/store.js';
 import { summarize, renderUsage } from '../src/usage.js';
 import { complete, cliOutputCap } from '../src/llm.js';
@@ -74,6 +74,46 @@ test('spending separates init, learning and legacy costs without double counting
   assert.equal(u.saved.spendComplete, false);
   assert.equal(u.distillation.noChanges, 1);
   assert.match(renderUsage(u), /Partial accounting/);
+});
+
+test('the net weighs model work by its model, cached input and output, and leaves removed features out', () => {
+  assert.deepEqual(relativeRate('claude-haiku-5-5'), { input: 0.025, output: 0.125, cacheRead: 0.0025, cacheWrite: 0.03125 });
+  assert.equal(relativeRate('claude-opus-5-5').input, 1);
+  assert.equal(relativeRate('opus').input, 1);
+  assert.equal(relativeRate('claude-opus-5').input, 1.25);
+  assert.equal(relativeRate('claude-sonnet-4-6').input, 0.75);
+  assert.equal(relativeRate('sonnet').input, 0.5);
+  assert.equal(relativeRate('claude-fable-5-1').input, 2.5);
+  assert.equal(relativeRate('gpt-6-luna'), null);
+  // input counts cache reads and writes: 100 fresh, 800 read, 100 written, 10 out
+  assert.equal(weightedTokens({ inputTokens: 1000, cacheReadTokens: 800, cacheWriteTokens: 100, outputTokens: 10 }, relativeRate('claude-opus-5-5')), 100 + 40 + 125 + 50);
+
+  const store = new Store(tmp()).init();
+  store.log({ op: 'orient', session: 'a', served: ['n'], tokens: 0, est: [[1, 10000]] });
+  store.log({ op: 'attest', session: 'a', model: 'claude-opus-5-5', applied: [{ id: 'n', verdict: 'confirmed' }] });
+  // 40,000 Haiku 5.5 input tokens are 1,000 of Opus 5.5's
+  store.log({ op: 'model', purpose: 'distill', provider: 'claude', model: 'claude-haiku-5-5', tokens: { inputTokens: 40000, outputTokens: 0, totalTokens: 40000 } });
+  // an unpriced model one for one
+  store.log({ op: 'model', purpose: 'verify', provider: 'codex', model: 'gpt-6-luna', tokens: { inputTokens: 500, outputTokens: 0, totalTokens: 500 } });
+  // a removed feature: history, not what the cache costs now
+  store.log({ op: 'model', purpose: 'jev-reconcile', provider: 'typesafe', model: 'jev', tokens: { inputTokens: 9000, outputTokens: 0, totalTokens: 9000 } });
+  const u = summarize(store);
+  assert.equal(u.spending.totalTokens, 49500);
+  assert.equal(u.saved.netAfterSpend, 10000 - 49500);
+  assert.equal(u.spending.weighted.agentTokens, 1500);
+  assert.equal(u.spending.weighted.retiredTokens, 9000);
+  assert.equal(u.spending.weighted.unpricedCalls, 1);
+  assert.equal(u.saved.netAfterWeightedSpend, 8500);
+  assert.match(renderUsage(u), /weighted\s+8,500 tokens, with that work as 1,500 tokens of the agents' model/);
+});
+
+// in tokens of the agents' model: the same Haiku work is half as much beside a Fable saving
+test('the weighted spend is in tokens of the model the saving was made on', () => {
+  const store = new Store(tmp()).init();
+  store.log({ op: 'orient', session: 'a', served: ['n'], tokens: 0, est: [[1, 10000]] });
+  store.log({ op: 'attest', session: 'a', model: 'claude-fable-5-1', applied: [{ id: 'n', verdict: 'confirmed' }] });
+  store.log({ op: 'model', purpose: 'distill', provider: 'claude', model: 'claude-haiku-5-5', tokens: { inputTokens: 40000, outputTokens: 0, totalTokens: 40000 } });
+  assert.equal(summarize(store).spending.weighted.agentTokens, 400);
 });
 
 test('distill persists provider usage, including dry runs and failures', () => {

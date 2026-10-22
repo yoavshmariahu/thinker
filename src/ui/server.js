@@ -48,7 +48,7 @@ export function usageView(store, { days, scope = 'here', notesInCache } = {}) {
     servings: u.servings || {}, notesServed: u.notesServed || 0, notesInCache: notesInCache ?? count(),
     tokensServed: u.tokensServed || 0,
     assessed: u.assessed || {}, learned: u.learned || {}, verified: u.verified || {},
-    spending: { ...tok(u.spending), byPhase: Object.fromEntries(Object.entries(u.spending?.byPhase || {}).map(([k, v]) => [k, tok(v)])) },
+    spending: { ...tok(u.spending), agentTokens: u.spending?.weighted?.agentTokens ?? null, retiredTokens: u.spending?.weighted?.retiredTokens || 0, byPhase: Object.fromEntries(Object.entries(u.spending?.byPhase || {}).map(([k, v]) => [k, tok(v)])) },
     saved: { tokens: u.saved?.tokens || 0, servings: u.saved?.servings || 0, calls: u.saved?.calls || 0 },
     holdout: u.holdout ? { served: u.holdout.served, heldOut: u.holdout.heldOut, sessions: u.holdout.sessions || 0, enough: !!u.holdout.enough, deltaPct: u.holdout.deltaPct || {}, saved: u.holdout.saved || {} } : null,
     repos: (u.repos || []).map(r => ({ repo: r.repo, requests: r.requests || 0, served: r.served || 0, learned: r.learned || 0, notes: r.notes || 0, tokens: r.spending?.totalTokens || 0 })),
