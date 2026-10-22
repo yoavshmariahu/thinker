@@ -61,7 +61,8 @@
 
     .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.85rem; }
     @media (max-width: 860px) { .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-    @media (max-width: 520px) { .cards { grid-template-columns: 1fr; } }
+    .cards.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    @media (max-width: 520px) { .cards, .cards.two { grid-template-columns: 1fr; } }
     .card { background: #fafafa; border: 1px solid #e5e7eb; border-radius: 10px; padding: 1.1rem 1.2rem 1rem; min-width: 0; }
     .metric-num { font-size: 1.85rem; font-weight: 700; letter-spacing: -0.035em; line-height: 1; color: #111; font-variant-numeric: tabular-nums; }
     .metric-num.gain { color: #15803d; }
@@ -557,9 +558,9 @@ async function loadUsage() {
 function card(kicker, num, label, rows, gain) {
   return `<div class="card"><div class="kicker">${kicker}</div><div class="metric-num${gain ? ' gain' : ''}">${num}</div><div class="metric-label">${label}</div>${rows && rows.length ? `<ul class="metric-rows">${rows.map(([a, b]) => `<li><span>${esc(a)}</span><span>${esc(b)}</span></li>`).join('')}</ul>` : ''}</div>`;
 }
-// The three numbers at the top of the Cache page, for every repository or the one picked, over the range: what was
-// served (cache hits), what the cache holds and learned (notes), and the tokens it saved (measured against held-out
-// prompts where there are enough of them, else the estimate from the servings sessions acted on).
+// The two cards at the top of the Cache page, for every repository or the one picked, over the range: what was
+// served (cache hits), and what the cache holds, learned, saved and cost (notes). The saving is measured against
+// held-out prompts where there are enough of them, else counted from the servings sessions acted on.
 function renderUsage(u) {
   const as = u.assessed || {}, judged = (as.confirmed || 0) + (as.contradicted || 0) + (as.unused || 0);
   const served = Object.values(u.servings || {}).reduce((a, b) => a + b, 0);
@@ -571,10 +572,9 @@ function renderUsage(u) {
   // Shown beside the saving, not subtracted from it: the saving is a lower bound of reading avoided (one read
   // per file, never re-sent), the upkeep every call in full, and a difference of the two read as a verdict.
   const spent = u.spending?.agentTokens ?? u.spending?.tokens ?? 0;
-  $('#usage-body').innerHTML = `<div class="cards">
+  $('#usage-body').innerHTML = `<div class="cards two">
     ${card('Cache hits', fmt(served), `notes served, for ${fmt(u.answered)} of ${fmt(u.requests)} requests`, [['At the prompt', fmt(u.servings?.prompt || 0)], ['While editing a file', fmt(u.servings?.file || 0)], ['Asked for by the agent', fmt(u.servings?.lookup || 0)], ['Acted on', judged ? pct(as.confirmed || 0, judged) : '–']])}
-    ${card('Notes', fmt(u.notesInCache || 0), ALL() ? 'notes in the caches' : 'notes in this cache', [['Learned from sessions', fmt(u.learned?.notes || 0)], ['Kept current', fmt((v.still_valid || 0) + (v.update || 0))], ['Retired', fmt(v.invalid || 0)]])}
-    ${card('Tokens saved', fmt(Math.max(0, saved)), measured ? 'input tokens, measured against prompts that had the notes withheld' : 'tokens of code the agents did not have to read, estimated from servings they acted on', [[measured ? 'Measured' : 'Estimated', measured ? `${fmt(ho.served.prompts)} prompts with notes, ${fmt(ho.heldOut.prompts)} held out` : 'too few held out yet'], ['Cache upkeep, in agent tokens', fmt(spent)]], true)}
+    ${card('Notes', fmt(u.notesInCache || 0), ALL() ? 'notes in the caches' : 'notes in this cache', [['Learned from sessions', fmt(u.learned?.notes || 0)], ['Kept current', fmt((v.still_valid || 0) + (v.update || 0))], ['Retired', fmt(v.invalid || 0)], ['Tokens saved', fmt(Math.max(0, saved))], ['Cache upkeep, in agent tokens', fmt(spent)]])}
   </div>`;
 }
 

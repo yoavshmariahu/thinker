@@ -440,8 +440,9 @@ from thinker's own estimated savings. Operation summaries marked `metered` are n
 charged again. `usage --json` exposes `spending` by phase, purpose, model and repository,
 plus `saved.netAfterSpend` (estimated reading avoided minus notes injected minus reported
 model tokens). Missing counters/costs stay unknown. Since 2026-10-21 there is also
-`saved.netAfterWeightedSpend`, which the page's Tokens saved card shows: the same work as tokens of the
-agents' model (`spending.weighted.agentTokens`), each call weighed by its model's relative rate per token
+`saved.netAfterWeightedSpend`, with the same work as tokens of the agents' model
+(`spending.weighted.agentTokens`, the page's "Cache upkeep" row of the Notes card, shown beside the tokens
+saved and never subtracted from them on the page: the saving is a lower bound, the upkeep every call), each call weighed by its model's relative rate per token
 (`model-usage.js:relativeRate`, Opus 5.5 input = 1, from Anthropic's list; output 5×, cache reads a tenth or
 less) over the input rate of the models the saving was made on, so a Haiku distillation counts for a
 fortieth of an Opus read; a model without a rate counts one for one, and the purposes of removed features
