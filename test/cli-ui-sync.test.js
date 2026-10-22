@@ -167,7 +167,7 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('commands/report.js'), /reportView\(store, \{ weeks \}\)/);
   assert.match(read('ui/server.js'), /reportView\(one, \{ weeks \}\)/);
   assert.match(read('ui/server.js'), /mergeReports\(repos\(\)\.flatMap/);
-  // five weeks, and a cell is trending at the same 5% against the first week in the command's ▲ ▼ and the page's red and green;
+  // five weeks; the command's ▲ ▼ mark a 5% change against the first week;
   // the page's Total toggle is the command's --total
   assert.match(read('ui/page.html'), /p = w \? avg\(cells\[0\], 0\) : null/);
   assert.match(read('commands/report.js'), /total: Boolean\(flags\.total\)/);
@@ -175,9 +175,10 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('report.js'), /export const REPORT_WEEKS = 5;/);
   assert.match(read('ui/page.html'), /\/api\/report\?repo=\$\{encodeURIComponent\(REPO\)\}&weeks=5/);
   assert.match(read('report.js'), /export const TREND_MIN = 0\.05;/);
-  assert.match(read('ui/page.html'), /const TREND_MIN = 0\.05;/);
-  // the page's shade is relative to the table's largest rise and fall
-  assert.match(read('ui/page.html'), /const extremes = rows =>/);
+  // the page shades a cell by its value against its row's other weeks (its highest red, its lowest green); the command
+  // marks the change against the first week
+  assert.match(read('ui/page.html'), /const SHADE_MIN = 0\.1;/);
+  assert.match(read('ui/page.html'), /const vals = cells\.map\(\(c, i\) => avg\(c, i\)\)\.filter\(Boolean\)/);
   assert.match(read('report.js'), /change\(avg\(cells\[0\], 0\), avg\(cells\[w\], w\)\)/);
   // the decisions table is one function on both pages, the Report's over its window alone
   assert.match(read('ui/page.html'), /historyFigure\(hs, \{ many, caption: 'Decisions'/);

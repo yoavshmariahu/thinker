@@ -86,8 +86,8 @@ promise: cutting a section saves its tokens, and whether the agent then misses i
 The page's other view, Report (`thinker report`), is the same measurement over time: what a session
 costs here, week by week over the last five, as the average over each week's sessions. One table by
 part of the context (the instruction files, custom tools, built-in tools, tool outputs, the rest of the
-input, the output), one by model under its provider with subtotals, totals under both; a cell that moved
-5% or more against the first week is shaded red (up) or green (down), darker the larger the change, and a toggle shows each week's sum instead of
+input, the output), one by model under its provider with subtotals, totals under both; each row is shaded by its
+own numbers, its highest week the darkest red and its lowest the darkest green, and a toggle shows each week's sum instead of
 the average per session. A toggle prices the same tokens at the
 providers' list rates, so a switch of model shows in the trend. Under the tables: the actions taken on
 Save in those weeks, by date, to read the weeks against, and the cache's four numbers, its saving in

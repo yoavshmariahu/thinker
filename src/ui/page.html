@@ -771,7 +771,8 @@ document.querySelectorAll('#r-mode button').forEach(b => b.onclick = () => { RMO
 $('#r-repo').onchange = e => { REPO = e.target.value; e.target.blur(); loadReport(); };
 document.querySelectorAll('#r-measure button').forEach(b => b.onclick = () => { RMEASURE = b.dataset.m; segOn('#r-measure', b); if (RPT) renderReport(RPT); });
 // a cell is trending when it moved this much against the first week of the window (report.js:TREND_MIN): red up, green down
-const TREND_MIN = 0.05;
+// how far from the row's middle a value must sit before it is shaded (a share of the row's range)
+const SHADE_MIN = 0.1;
 // a dollar figure as prices.js:formatDollars makes it
 const money = d => d == null ? '–' : (d < 0 ? '−' : '') + '$' + (Math.abs(d) >= 10000 ? (Math.abs(d) / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : Math.abs(d) >= 100 ? String(Math.round(Math.abs(d))) : Math.abs(d) >= 10 ? Math.abs(d).toFixed(1) : Math.abs(d) >= 0.01 || d === 0 ? Math.abs(d).toFixed(2) : Math.abs(d).toFixed(3));
 async function loadReport() {
@@ -792,30 +793,35 @@ function renderReport(v) {
   // a cell: the week's sum over its sessions (the priced ones in the cost view), or that sum itself (Total); null where the week has none
   const avg = (c, w) => { const col = v.columns[w]; return sum ? (cost ? c.cost : c.tokens) : cost ? (col.priced ? c.cost / col.priced : null) : (col.sessions ? c.tokens / col.sessions : null); };
   const fv = x => x == null ? '<span class="muted">–</span>' : cost ? money(x) : fmt(x);
-  // a cell against the first column: shaded red for a rise and green for a fall, the shade relative to the whole table (its
-  // largest rise is the darkest red, its largest fall the darkest green, the rest in proportion); under 5% unshaded; a zero
-  // is left blank; the shade alone says how much, no percentage (the owner's ask)
-  const delta = (cells, w) => { const a = avg(cells[w], w), p = w ? avg(cells[0], 0) : null; return a && p ? (a - p) / p : null; };
-  const extremes = rows => { let up = 0, down = 0; for (const cells of rows) for (let w = 1; w < cells.length; w++) { const d = delta(cells, w); if (d > up) up = d; if (d != null && -d > down) down = -d; } return { up, down }; };
-  const shade = (d, ex) => { const t = d > 0 ? d / (ex.up || d) : -d / (ex.down || -d), a = (0.1 + 0.55 * Math.min(1, t)).toFixed(2); return d > 0 ? `rgba(239,68,68,${a})` : `rgba(34,197,94,${a})`; };
-  const tcell = (cells, w, title, ex) => {
+  // a cell is shaded by its value against the other weeks of its row (the owner's ask, 2026-10-22): the row's lowest week
+  // is the darkest green, its highest the darkest red, the rest in proportion with the middle unshaded; a zero is left
+  // blank; the shade alone says how much, no percentage
+  const shade = (v, vals) => {
+    const lo = Math.min(...vals), hi = Math.max(...vals);
+    if (hi <= lo) return '';
+    const d = (v - lo) / (hi - lo) - 0.5;
+    if (Math.abs(d) < SHADE_MIN) return '';
+    const a = (0.1 + 0.55 * Math.min(1, Math.abs(d) * 2)).toFixed(2);
+    return d > 0 ? ` class="rep-up" style="background:rgba(239,68,68,${a})"` : ` class="rep-down" style="background:rgba(34,197,94,${a})"`;
+  };
+  const tcell = (cells, w, title) => {
     const a = avg(cells[w], w), at = title ? ` title="${esc(title)}"` : '';
     if (!a) return `<td class="num"${at}></td>`;
-    const d = delta(cells, w), t = d != null && d >= TREND_MIN ? 'up' : d != null && d <= -TREND_MIN ? 'down' : '';
-    return `<td class="num${t ? ` rep-${t}` : ''}"${t ? ` style="background:${shade(d, ex)}"` : ''}${at}>${fv(a)}</td>`;
+    const vals = cells.map((c, i) => avg(c, i)).filter(Boolean), sh = shade(a, vals);
+    return sh ? `<td${sh.replace('class="', 'class="num ')}${at}>${fv(a)}</td>` : `<td class="num"${at}>${fv(a)}</td>`;
   };
-  const row = (name, cells, { cls = '', sub = '', titles, data = '', ex } = {}) => `<tr class="${cls}"${data}><td class="ctx-name">${name}${sub ? `<span class="ctx-kind">${sub}</span>` : ''}</td>${cells.map((c, w) => tcell(cells, w, titles ? titles(c, w) : '', ex)).join('')}</tr>`;
+  const row = (name, cells, { cls = '', sub = '', titles, data = '' } = {}) => `<tr class="${cls}"${data}><td class="ctx-name">${name}${sub ? `<span class="ctx-kind">${sub}</span>` : ''}</td>${cells.map((c, w) => tcell(cells, w, titles ? titles(c, w) : '')).join('')}</tr>`;
   const head = nameHead => `<thead><tr><th>${nameHead}</th>${v.columns.map(c => `<th class="num">Week of ${dlabel(c.t)}<small>${c.sessions} session${c.sessions === 1 ? '' : 's'}${cost && c.priced !== c.sessions ? `, ${c.priced} priced` : ''}</small></th>`).join('')}</tr></thead>`;
-  const unit = cost ? 'cost at list prices' : 'tokens', first = v.columns[0] ? `the week of ${dlabel(v.columns[0].t)}` : 'the first week';
+  const unit = cost ? 'cost at list prices' : 'tokens';
   const sessions = v.columns.reduce((a, c) => a + c.sessions, 0), unmeasured = v.columns.reduce((a, c) => a + c.unmeasured, 0);
   const sub = `${sessions} session${sessions === 1 ? '' : 's'} over ${v.weeks} weeks${unmeasured ? `, ${unmeasured} more whose agent reported no usage (Cursor) left out` : ''}${v.all ? ` · ${v.repos.length} repositories` : ''}`;
   const parts = `<figure class="ctx-figure"><figcaption><b>By part of the context</b> <span class="ctx-sub">${sub}</span></figcaption>
-    <table class="ctx-table rep-table">${head('Part')}<tbody>${(ex => v.parts.map(p => row(esc(p.name), p.cells, { ex })).join('') + row('Total', v.totals, { cls: 'rep-total', ex }))(extremes([...v.parts.map(p => p.cells), v.totals]))}</tbody></table>
-    <p class="ctx-note">${sum ? `Total ${unit} over each week's sessions` : `Average ${unit} per session, the week's sum over its sessions`}. <b>Red</b>: up ${Math.round(100 * TREND_MIN)}% or more against ${first}, the first column; <b>green</b>: down as much. The shade is relative to the table: its largest rise is the darkest red, its largest fall the darkest green, the rest in proportion; a zero is left blank. The parts are the Context view's estimates from each session's transcript (its instruction files, the skills and tools loaded, its tool outputs, each read again by every model call), scaled down to the session's measured input where they overshoot it; <b>Other input</b> is the rest of the input, the conversation itself; <b>Output</b> is what the model wrote.${cost ? ` Cost prices the tokens at the providers' list rates of ${esc(v.pricedOn)} (fresh input, cache reads and writes, output, each at its rate): what they would cost on a metered key; a subscription pays differently.` : ''}</p></figure>`;
+    <table class="ctx-table rep-table">${head('Part')}<tbody>${v.parts.map(p => row(esc(p.name), p.cells)).join('')}${row('Total', v.totals, { cls: 'rep-total' })}</tbody></table>
+    <p class="ctx-note">${sum ? `Total ${unit} over each week's sessions` : `Average ${unit} per session, the week's sum over its sessions`}. Each row is shaded by its own numbers: its highest week is the darkest <b>red</b>, its lowest the darkest <b>green</b>, the rest in proportion with the middle left plain; a zero is left blank. The parts are the Context view's estimates from each session's transcript (its instruction files, the skills and tools loaded, its tool outputs, each read again by every model call), scaled down to the session's measured input where they overshoot it; <b>Other input</b> is the rest of the input, the conversation itself; <b>Output</b> is what the model wrote.${cost ? ` Cost prices the tokens at the providers' list rates of ${esc(v.pricedOn)} (fresh input, cache reads and writes, output, each at its rate): what they would cost on a metered key; a subscription pays differently.` : ''}</p></figure>`;
   const fold = p => RFOLD.has(p), modelsOf = p => v.models.filter(m => m.provider === p);
   const mtitle = m => (c, w) => `${c.sessions} session${c.sessions === 1 ? '' : 's'} on ${m.model} this week${c.sessions ? `, ${cost ? (c.priced ? money(c.cost / c.priced) : '–') : fmt(c.tokens / c.sessions)} per session of its own` : ''}`;
   const models = `<figure class="ctx-figure"><figcaption><b>By model</b> <span class="ctx-sub">each model's share of the ${sum ? 'week' : 'average session'}, its provider's subtotal above its models</span></figcaption>
-    <table class="ctx-table rep-table">${head('Provider · model')}<tbody>${(ex => v.providers.map(p => row(`<button class="rep-fold" data-fold="${esc(p.name)}" aria-expanded="${!fold(p.name)}">${fold(p.name) ? '▸' : '▾'}</button> ${esc(p.name)}`, p.cells, { cls: 'rep-sub', sub: `${modelsOf(p.name).length} model${modelsOf(p.name).length === 1 ? '' : 's'}`, ex }) + (fold(p.name) ? '' : modelsOf(p.name).map(m => row(`<span class="rep-indent">${esc(m.model)}</span>`, m.cells, { cls: m.priced ? '' : 'ctx-off', sub: m.priced ? '' : 'no list price', titles: mtitle(m), ex })).join(''))).join('') + row('Total', v.totals, { cls: 'rep-total', ex }))(extremes([...v.providers.map(p => p.cells), ...v.models.map(m => m.cells), v.totals]))}</tbody></table>
+    <table class="ctx-table rep-table">${head('Provider · model')}<tbody>${v.providers.map(p => row(`<button class="rep-fold" data-fold="${esc(p.name)}" aria-expanded="${!fold(p.name)}">${fold(p.name) ? '▸' : '▾'}</button> ${esc(p.name)}`, p.cells, { cls: 'rep-sub', sub: `${modelsOf(p.name).length} model${modelsOf(p.name).length === 1 ? '' : 's'}` }) + (fold(p.name) ? '' : modelsOf(p.name).map(m => row(`<span class="rep-indent">${esc(m.model)}</span>`, m.cells, { cls: m.priced ? '' : 'ctx-off', sub: m.priced ? '' : 'no list price', titles: mtitle(m) })).join(''))).join('')}${row('Total', v.totals, { cls: 'rep-total' })}</tbody></table>
     <p class="ctx-note">A model's row is its share of the ${sum ? 'week' : 'average session that week (its tokens over every session of the week)'}, so the rows add up to the total and a switch of model shows as one row falling while another rises; hover a cell for the sessions on that model and the average per session of its own.${v.unpriced.length ? ` No list price for ${v.unpriced.map(esc).join(', ')}: their sessions are left out of the cost average.` : ''}</p></figure>`;
   // the decisions taken on the Save page in these weeks, the same table as Save's History (context-suggest.js:changeHistory)
   const acts = v.actions.map(a => ({ ...a, repo: a.repo || REPO }));
