@@ -148,7 +148,8 @@ async function uiCommand(ctx) {
   const ui = createUiServer(store);
   const listening = await ui.listen(flags.port !== undefined ? Number(flags.port) : DEFAULT_PORT);
   const { port } = listening;
-  const tab = typeof flags.tab === 'string' ? `&tab=${encodeURIComponent(flags.tab)}` : '';
+  // --all: the Context tab over all repositories (the installer opens the page so)
+  const tab = (typeof flags.tab === 'string' ? `&tab=${encodeURIComponent(flags.tab)}` : '') + (flags.all ? '&repo=all' : '');
   if (flags['from-setup']) {
     openBrowser(`${listening.url}&from=setup${tab}`);
     await new Promise(resolve => { const t = setInterval(() => { if (ui.idleMs() > UI_IDLE_MS) { clearInterval(t); resolve(); } }, 60 * 1000); });

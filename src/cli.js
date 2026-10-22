@@ -170,6 +170,7 @@ const HELP = `thinker — knowledge cache for coding agents
                                  --remove / --compress <section id> show the diff of taking a section out or having a model shorten it;
                                  --apply writes it to AGENTS.md in the working tree, uncommitted (also the Context tab's buttons)
   context [--days n] [--json] [--verbose] [--refresh] [--judge n] [--switch-off <labels> [--builtin]] [--switch-on <keys>] [--output-compression <tools> --level high|moderate|off]
+          [--machine [--repos n] [--top n]]
                                  where the agents' context goes here and what each part is worth: every section of AGENTS.md (its
                                  tokens, the sessions it applied to, and the judged share it bore on and was followed), every skill
                                  (read in, kept its rules), every other tool loaded; --judge n judges n recent sessions now (model
@@ -177,6 +178,9 @@ const HELP = `thinker — knowledge cache for coding agents
                                  --refresh keeps the report for the page, which reads it instead of the transcripts (it runs this in the background)
                                  --switch-off turns the harness on here and switches those tools off (--builtin: built-in tools too);
                                  --switch-on turns them back on; --output-compression sets how much of a tool's results Claude Code keeps
+                                 --machine, from any directory: the same report over the repositories the agents worked in lately (the
+                                 5 most active, --repos n), merged, with what to cut first (5 suggestions, --top n); the installer prints
+                                 it, from the sessions that ran before thinker was installed, and keeps each report for the page
   guide                          the cache usage guidance an install writes into an agent's instructions
   export [file.tgz] [--dir d]    back the cache up to a .tgz; --dir writes every note whole, one <id>.json each, into d
   hook <prompt|pre|tool|stop [--nudge]> [--client c]   hook entrypoints (JSON on stdin): prompt = notes for the request,
@@ -195,8 +199,8 @@ const HELP = `thinker — knowledge cache for coding agents
   impact export | impact import <file.json>   transfer evidence from CI or another machine
   impact finding <id> --pr n --validity confirmed|dismissed|duplicate|pending --evidence reason
          [--resolution fixed|open|accepted-risk|not-applicable] [--fix sha] [--duplicate-of id]
-  ui [--port n] [--no-open] [--tab context|cache] [--refresh]
-                                 open the local page, from any directory, on Context: where the agents' context goes in each
+  ui [--port n] [--no-open] [--tab context|cache] [--all] [--refresh]
+                                 open the local page, from any directory, on Context (--all: over all repositories): where the agents' context goes in each
                                  repository and what each part is worth (thinker context); then the caches on this machine
                                  (each with its notes, to archive or restore, its system behaviors, to accept, edit or
                                  discard, and what is being distilled, with a stop button); 127.0.0.1 only, Ctrl+C stops it;
@@ -300,7 +304,8 @@ async function main() {
   }
   // every git repository has a cache: one is started on first use (store.init keeps it out of git
   // status). Outside a git repository there is nowhere to keep one.
-  if (CACHE_COMMANDS.includes(cmd)) {
+  // `context --machine` reads the repositories the agents worked in, from any directory
+  if (CACHE_COMMANDS.includes(cmd) && !(cmd === 'context' && flags.machine)) {
     if (!isGitCheckout(repo)) { process.stderr.write(`thinker: ${repo} is not a git repository, so there is no cache here. Run thinker inside a git checkout.\n`); process.exit(1); }
     if (!store.exists()) store.init();
   }

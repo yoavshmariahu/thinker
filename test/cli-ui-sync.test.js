@@ -80,6 +80,18 @@ test('the Context tab and `thinker context` show one report, and its controls ar
   assert.match(read('ui/server.js'), /\[cliPath, 'context', '--refresh'/);
   assert.match(read('context-snapshot.js'), /contextView\(store, \{ days: d \}\)/);
   assert.match(read('commands/context.js'), /refreshSnapshots\(store\)/);
+  // the installer's report (context-machine.js) is the page's All repositories: one merge, and the reports it
+  // keeps are the snapshots the page reads; the page opens on it (`thinker ui --tab context --all`)
+  const machine = read('context-machine.js'), install = fs.readFileSync(path.join(SRC, '..', 'install.sh'), 'utf8');
+  assert.match(install, /"\$thinker" context --machine/);
+  assert.match(install, /ui --from-setup --tab context --all/);
+  assert.match(read('commands/context.js'), /machineContext\(store, \{ days, limit/);
+  assert.match(machine, /mergeViews\(views\)/); assert.match(read('ui/server.js'), /mergeViews\(xs\.map/);
+  assert.match(machine, /writeSnapshot\(st, d, v/); assert.match(machine, /refreshCheckouts\(store/);
+  assert.match(read('commands/cache.js'), /flags\.all \? '&repo=all'/);
+  assert.match(read('ui/page.html'), /H\(\)\.get\('repo'\) === 'all' \? 'all'/);
+  // setup prints the same report for its one repository
+  assert.match(read('setup.js'), /renderMachineReport\(\{ days: 30/);
   // keeping sections is `thinker instructions --core`; judging is `thinker context --judge n`; a switch is `thinker harness --off`
   assert.match(read('commands/instructions.js'), /setCore\(store, keep/);
   assert.match(read('ui/server.js'), /\/api\/context\/core'\) \{[^\n]*setCore\(st/);

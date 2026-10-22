@@ -72,6 +72,21 @@ export async function runSetup({
     out(now.runtime && now.model ? `  ${c.green('✓')} Ranking model ready ${c.dim(`(${now.modelName})`)}` : `  ${c.yellow('○')} Ranking model not in place ${c.dim(now.runtime ? '(fetch failed; thinker ranker fetch)' : '(runtime missing: npm ci in the app directory, or thinker update)')}; notes are ranked by words alone until then`);
   } catch (e) { out(`  ${c.yellow('○')} Ranking model not fetched: ${String(e.message).split('\n')[0].slice(0, 120)}`); }
 
+  // Where the agents' context goes in this repository, from its sessions so far: the report the installer prints
+  // over the machine (context-machine.js), here for the one repository, kept for the page. Nothing to build and
+  // no model call; nothing is printed where no session ran yet.
+  try {
+    const { contextView } = await import('./context-view.js');
+    const { recommendations, renderMachineReport } = await import('./context-machine.js');
+    const { writeSnapshot } = await import('./context-snapshot.js');
+    const view = contextView(store, { days: 30 });
+    if (view.sessions) {
+      writeSnapshot(store, 30, view);
+      out('');
+      for (const l of renderMachineReport({ days: 30, repos: [{ name: path.basename(repo), sessions: view.sessions }], view }, recommendations(view))) out(`  ${l}`);
+    }
+  } catch (e) { out(`  ${c.yellow('○')} Context report not made: ${String(e.message).split('\n')[0].slice(0, 120)}`); }
+
   // The desired behaviors come from the design documents (behavior-docs.js); setup asks the person nothing
   // about them and only counts the drafts waiting for a decision.
   const { pendingBehaviors } = await import('./behavior-workbench.js');

@@ -577,7 +577,8 @@ function renderUsage(u) {
 }
 
 // ---- where the context goes in one repository (context-view.js:contextView, as `thinker context`) ----
-let CREPO = '', cdays = 30;
+// `thinker ui --tab context --all` (the installer) asks for every repository at once
+let CREPO = H().get('tab') === 'context' && H().get('repo') === 'all' ? 'all' : '', cdays = 30;
 document.querySelectorAll('#c-days-seg button').forEach(b => b.onclick = () => { cdays = Number(b.dataset.days); segOn('#c-days-seg', b); loadContext(); });
 $('#c-repo').onchange = e => { CREPO = e.target.value; e.target.blur(); loadContext(); };
 document.querySelectorAll('#tr-measure button').forEach(b => b.onclick = () => { CMEASURE = b.dataset.m; segOn('#tr-measure', b); renderTrend(); });

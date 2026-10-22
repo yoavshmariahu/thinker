@@ -27,10 +27,10 @@ Website and docs: [zerotime.dev](https://zerotime.dev).
 npx @zerotimedev/thinker
 ```
 
-The installer wires thinker into the coding agents on the machine and opens the local page. The
-Context page reads your sessions from the agents' own transcripts; nothing else is needed. The
-cache grows from your sessions in every git repository from then on, and `thinker warmup` reads a
-repository's merged pull requests into it when you want a head start ([setup](docs/setup.md)).
+The installer wires thinker into the coding agents on the machine, then reads your recent sessions
+from the agents' own transcripts and prints where their context goes and what to cut first, and
+opens the local page on that report to review and apply it; nothing else is needed. The cache grows
+from your sessions in every git repository from then on ([setup](docs/setup.md)).
 
 Requires git, Node 20+ and a logged-in coding agent: Claude Code, Codex, Cursor, Gemini CLI
 and [others](docs/agent-integrations.md). `thinker update` keeps it current in the background.
