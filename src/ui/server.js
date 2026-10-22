@@ -41,14 +41,15 @@ export const DEFAULT_PORT = 4848;
 export function usageView(store, { days, scope = 'here', notesInCache } = {}) {
   const u = summarize(store, { days, all: scope !== 'here' });
   const tok = o => o ? { calls: o.calls || 0, tokens: o.totalTokens || 0, failed: o.failed || 0 } : { calls: 0, tokens: 0, failed: 0 };
-  const count = () => { try { return store.list().filter(n => n.status !== 'invalid').length; } catch { return 0; } };
+  // active notes, as machine.js:cacheStats counts them for every repository: not retired, not archived, not behaviors
+  const count = () => { try { return store.list().filter(n => n.status !== 'invalid' && !n.archived && !isBehavior(n)).length; } catch { return 0; } };
   return {
     scope: u.scope, from: u.from, to: u.to, days: days || null,
     requests: u.requests || 0, answered: u.answered || 0, sessions: u.sessions || 0,
     servings: u.servings || {}, notesServed: u.notesServed || 0, notesInCache: notesInCache ?? count(),
     tokensServed: u.tokensServed || 0,
     assessed: u.assessed || {}, learned: u.learned || {}, verified: u.verified || {},
-    spending: { ...tok(u.spending), agentTokens: u.spending?.weighted?.agentTokens ?? null, retiredTokens: u.spending?.weighted?.retiredTokens || 0, byPhase: Object.fromEntries(Object.entries(u.spending?.byPhase || {}).map(([k, v]) => [k, tok(v)])) },
+    spending: { ...tok(u.spending), byPhase: Object.fromEntries(Object.entries(u.spending?.byPhase || {}).map(([k, v]) => [k, tok(v)])) },
     saved: { tokens: u.saved?.tokens || 0, servings: u.saved?.servings || 0, calls: u.saved?.calls || 0 },
     holdout: u.holdout ? { served: u.holdout.served, heldOut: u.holdout.heldOut, sessions: u.holdout.sessions || 0, enough: !!u.holdout.enough, deltaPct: u.holdout.deltaPct || {}, saved: u.holdout.saved || {} } : null,
     repos: (u.repos || []).map(r => ({ repo: r.repo, requests: r.requests || 0, served: r.served || 0, learned: r.learned || 0, notes: r.notes || 0, tokens: r.spending?.totalTokens || 0 })),
