@@ -12,7 +12,8 @@
 // gets from the URL it was opened with, and the Host header must name this server, so another page
 // in the browser (or a DNS rebinding) can neither read the cache nor change a behavior.
 import { harnessView, harnessSavings, harnessOn, scheduleHarnessSuggestion, undoHarness, switchOffNow, setHarnessSettings } from '../harness.js';
-import { contextView, mergeViews, switchSources, setOutputCompression } from '../context-view.js';
+import { mergeViews, switchSources, setOutputCompression } from '../context-view.js';
+import { snapshotView, refreshing, dropSnapshots } from '../context-snapshot.js';
 import { judgeRecent } from '../instruction-value.js';
 import { setCore } from '../instructions-core.js';
 import { previewEdit, applyEdit } from '../instruction-edit.js';
@@ -104,7 +105,9 @@ const readBody = req => new Promise((resolve, reject) => {
   req.on('end', () => { try { resolve(s ? JSON.parse(s) : {}); } catch (e) { reject(e); } });
 });
 
-export function createUiServer(store, { token = crypto.randomBytes(16).toString('hex'), home = thinkerHome(), transcriptsHome, cliPath = path.join(HERE, '..', 'cli.js') } = {}) {
+export function createUiServer(store, { token = crypto.randomBytes(16).toString('hex'), home = thinkerHome(), transcriptsHome, cliPath = path.join(HERE, '..', 'cli.js'), refreshFn } = {}) {
+  // an old Context report is made again by `thinker context --refresh` in the checkout, in the background
+  refreshFn ||= checkout => { try { const p = spawn(process.execPath, [cliPath, 'context', '--refresh', '--quiet', '--repo', checkout], { cwd: checkout, stdio: 'ignore', detached: true }); p.on('error', () => {}); p.unref(); } catch {} };
   const page = fs.readFileSync(path.join(HERE, 'page.html'), 'utf8');
   let port = 0, known = null, lastRequest = Date.now();
   const repos = () => known ||= machineRepos(store, { home: transcriptsHome });
@@ -164,16 +167,23 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
         harnessCache.set(k, { at: Date.now(), view });
         return json(res, 200, view);
       }
-      // where the context goes in one repository (context-view.js:contextView, as `thinker context`), kept a minute like the harness
+      // where the context goes in one repository (context-view.js:contextView, as `thinker context`), from the report
+      // kept in the checkout (context-snapshot.js): made now only when there is none, made again in the background
+      // when it is old, the page told when it was made and whether a newer one is coming
       if (req.method === 'GET' && url.pathname === '/api/context') {
-        const d = Number(url.searchParams.get('days')) || 30, k = `context:${want}:${d}`, hit = harnessCache.get(k);
-        if (hit && Date.now() - hit.at < 60_000) return json(res, 200, hit.view);
-        let view;
+        const d = Number(url.searchParams.get('days')) || 30;
+        const read = st => { const s = snapshotView(st, d); if (s.stale && !refreshing(st)) refreshFn(st.repo); return { ...s, refreshing: s.stale || refreshing(st) }; };
+        let view, at, busy;
         // every repository on the machine, merged (context-view.js:mergeViews); a repository that fails to read is left out
-        if (want === 'all') view = mergeViews(repos().flatMap(r => { try { return [{ repo: r.id, name: r.name, view: contextView(open(r.checkout), { days: d }) }]; } catch { return []; } }));
-        else { const one = storeFor(want); if (!one) return json(res, 400, { error: 'unknown repository' }); view = contextView(one, { days: d }); }
-        harnessCache.set(k, { at: Date.now(), view });
-        return json(res, 200, view);
+        if (want === 'all') {
+          const xs = repos().flatMap(r => { try { return [{ r, s: read(open(r.checkout)) }]; } catch { return []; } });
+          view = mergeViews(xs.map(({ r, s }) => ({ repo: r.id, name: r.name, view: s.view })));
+          at = Math.min(...xs.map(x => x.s.at)); busy = xs.some(x => x.s.refreshing);
+        } else {
+          const one = storeFor(want); if (!one) return json(res, 400, { error: 'unknown repository' });
+          ({ view, at, refreshing: busy } = read(one));
+        }
+        return json(res, 200, { ...view, asOf: Number.isFinite(at) ? at : Date.now(), refreshing: !!busy });
       }
       if (req.method === 'GET' && url.pathname === '/api/behaviors') {
         const stores = storesFor(want); if (!stores) return json(res, 400, { error: 'unknown repository' });
@@ -193,7 +203,7 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
       const st = storeFor(String(b.repo || ''));
       if (!st) return json(res, 400, { error: 'unknown repository' });
       let r;
-      if (url.pathname.startsWith('/api/harness/') || url.pathname.startsWith('/api/context/')) harnessCache.clear();
+      if (url.pathname.startsWith('/api/harness/') || url.pathname.startsWith('/api/context/')) { harnessCache.clear(); dropSnapshots(st); }
       if (url.pathname === '/api/behaviors/accept') r = acceptPending(st, b.id, { mutability: b.mutability || 'mutable', edit: b.title || b.body ? { title: b.title, body: b.body } : null });
       else if (url.pathname === '/api/behaviors/discard') r = discardPending(st, b.id);
       else if (url.pathname === '/api/cache/review') {
@@ -219,7 +229,7 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
       else if (url.pathname === '/api/context/switch') r = { said: switchSources(st, { labels: Array.isArray(b.labels) ? b.labels : [], keys: Array.isArray(b.keys) ? b.keys : [], on: !!b.on, builtin: !!b.builtin }) };
       else if (url.pathname === '/api/context/compression') r = { said: setOutputCompression(st, Array.isArray(b.tools) ? b.tools : [], ['high', 'moderate'].includes(b.level) ? b.level : 'off') };
       // `thinker context --judge n`, in the background: model calls, through the person's agent or the desktop session
-      else if (url.pathname === '/api/context/judge') { const n = Math.min(20, Math.max(1, Number(b.n) || 5)); judgeRecent(st, { n }).then(x => { harnessCache.clear(); st.log({ op: 'instruction-value', via: 'ui', judged: x.judged }); }).catch(e => st.log({ op: 'instruction-value', via: 'ui', failed: String(e.message || e).slice(0, 160) })); r = { said: `Judging ${n} sessions in the background` }; }
+      else if (url.pathname === '/api/context/judge') { const n = Math.min(20, Math.max(1, Number(b.n) || 5)); judgeRecent(st, { n }).then(x => { harnessCache.clear(); dropSnapshots(st); st.log({ op: 'instruction-value', via: 'ui', judged: x.judged }); }).catch(e => st.log({ op: 'instruction-value', via: 'ui', failed: String(e.message || e).slice(0, 160) })); r = { said: `Judging ${n} sessions in the background` }; }
       else if (url.pathname === '/api/harness/settings') { const v = k => typeof b[k] === 'boolean' ? b[k] : undefined; r = { said: JSON.stringify(setHarnessSettings(st, { recurring: v('recurring') ?? v('weekly'), recall: v('recall'), suggestions: v('suggestions') })) }; }
       else if (url.pathname === '/api/behaviors/edit') r = editBehavior(st, b.id, { title: b.title, body: b.body, mutability: b.mutability });
       else return json(res, 404, { error: 'not found' });

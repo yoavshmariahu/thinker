@@ -126,6 +126,8 @@ export async function runMaintain(ctx, { quiet, dry }) {
     docs: provider() ? async ({ limit }) => (await import('../behavior-docs.js')).deriveDocBehaviors(store, { limit, phase: 'maintenance' }) : undefined,
     skills: provider() ? ({ limit }) => scanSkills(store, { limit, phase: 'maintenance' }) : undefined,
   } });
+  // the Context tab's report made again while nobody waits for it (context-snapshot.js); no model call
+  if (!dry && !r.skipped && process.env.THINKER_TEST !== '1') { try { (await import('../context-snapshot.js')).refreshSnapshots(store); } catch {} }
   if (!quiet || (process.env.THINKER_LLM === 'session' && r.errors)) out(renderMaintain(r));
   if (process.env.THINKER_LLM === 'session' && r.errors) process.exitCode = 1;
 }
