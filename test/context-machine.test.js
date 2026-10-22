@@ -120,3 +120,53 @@ test('suggestions are the flagged parts, costliest first, tools switched off lef
   const lines = renderMachineReport({ days: 30, repos: [{ name: 'r', sessions: 8 }], view: { ...view, totals: { instructions: { tokens: 1, perSession: 2 }, custom: { tokens: 3, perSession: 4 }, builtin: { tokens: 5, perSession: 6 }, outputs: { tokens: 7, perSession: 8 } } } }, top);
   assert.ok(lines.some(l => /about ~12k tokens a session in these 2, ~15k over all 5 flagged/.test(l)), lines.join('\n'));
 });
+
+// the installer's picker (setup/context-ask.js): the suggestions as the changes the page's rows make, in their repositories
+test('machineChanges: a section never applied is removed in its repository, a tool in every repository; applyMachinePicks goes through approveChanges per repository', async t => {
+  const { machineChanges, pickLine, pickNote, applyMachinePicks } = await import('../src/context-machine.js');
+  const { changeHistory } = await import('../src/context-suggest.js');
+  const { home, th, store } = machine(t);
+  const a = repo(t), b = repo(t, { agents: null });
+  session(home, a, 's1'); session(home, a, 's2'); session(home, b, 's3');
+  const r = machineContext(store, { home, thinkerHome: th });
+  assert.equal(r.views.length, 2); assert.equal(r.views[0].checkout, a);
+  const recs = recommendations(r.view);
+  const picks = machineChanges(r, recs);
+  const sec = picks.find(p => p.kind === 'section');
+  assert.ok(sec, 'the section is a pick');
+  assert.equal(sec.act, 'remove', 'applied in 0 of 2 sessions by its triggers: removed');
+  assert.deepEqual(sec.targets.map(x => x.checkout), [a], 'in its own repository only');
+  assert.equal(sec.targets[0].change.chosen, 'remove'); assert.equal(sec.targets[0].change.key, `section:AGENTS.md:${sec.id}`);
+  assert.equal(pickLine(sec), `Remove the AGENTS.md section "API views" in ${path.basename(a)}`);
+  assert.match(pickNote(sec), /tokens a session, applied in 0 of 2 sessions$/);
+  // a section the judge saw, or one applied somewhere, is compressed; a tool is switched off in every repository that has it
+  const views = [
+    { repo: 'r1', name: 'r1', checkout: '/c1', view: { days: 30, instructions: { sections: [{ id: 'j', title: 'J', file: 'AGENTS.md', text: 't', waste: 'medium', wasted: 1000, tokens: 100, perSession: 2000, usedShare: 0.4 }] }, skills: [], tools: [{ key: 'Artifact', name: 'Artifact', client: 'claude', group: 'builtin', label: 'tool:Artifact', text: '', perSession: 10000, usedShare: 0.1, used: 1, loaded: 10, waste: 'high', wasted: 9000 }], outputs: { tools: [] } } },
+    { repo: 'r2', name: 'r2', checkout: '/c2', view: { days: 30, instructions: { sections: [] }, skills: [], tools: [{ key: 'Artifact', name: 'Artifact', client: 'claude', group: 'builtin', label: 'tool:Artifact', text: '', perSession: 10000, usedShare: 0, used: 0, loaded: 5, waste: 'high', wasted: 10000 }, { key: 'mcp:x', name: 'x', client: 'claude', group: 'mcp', kind: 'mcp', text: '', perSession: 500, usedShare: 0, used: 0, loaded: 5, waste: 'high', wasted: 500 }], outputs: { tools: [] } } },
+  ];
+  const recs2 = { items: [
+    { kind: 'section', id: 'j', title: 'J', file: 'AGENTS.md', repo: 'r1', repoId: 'r1', wasted: 1000, perSession: 2000, used: 2, of: 5, by: 'judge' },
+    { kind: 'tool', group: 'builtin', key: 'Artifact', title: 'Artifact', client: 'claude', repos: 2, wasted: 9000, perSession: 10000, used: 1, of: 15, by: 'called' },
+    { kind: 'tool', group: 'mcp', key: 'mcp:x', title: 'x', client: 'claude', repos: 1, wasted: 500, perSession: 500, used: 0, of: 5, by: 'called' },
+  ] };
+  const p2 = machineChanges({ views }, recs2);
+  assert.deepEqual(p2.map(p => [p.title, p.act, p.targets.map(x => x.checkout)]), [['J', 'compress', ['/c1']], ['Artifact', 'off', ['/c1', '/c2']], ['x', 'off', []]], 'the MCP server nothing switches off has no target');
+  assert.equal(pickLine(p2[2]), 'Switch off the MCP server "x"');
+  assert.deepEqual(await applyMachinePicks([p2[2]]), [], 'and nothing to apply');
+  assert.equal(pickLine(p2[1]), 'Remove the built-in tool "Artifact" in 2 repositories'.replace('Remove', 'Switch off'));
+  assert.match(pickNote(p2[0]), /followed in 2 of 5 sessions, a model call$/);
+  // applied: the removal in repository a through approveChanges, recorded in that repository's history, nothing in b
+  const said = await applyMachinePicks([sec]);
+  assert.equal(said.length, 1); assert.match(said[0], /^AGENTS\.md · API views: Removed: ~\d+ → ~\d+ tokens in AGENTS\.md, uncommitted$/);
+  assert.ok(!fs.readFileSync(path.join(a, 'AGENTS.md'), 'utf8').includes('API views'), 'the section is gone from the working tree');
+  assert.equal(changeHistory(new Store(a)).length, 1); assert.equal(changeHistory(new Store(a))[0].decision, 'approved');
+  assert.equal(changeHistory(new Store(b)).length, 0);
+  // several repositories: each line named, each store its own; a failure is a line, not a throw
+  const calls = [];
+  const approve = async (st, changes) => { calls.push([st.repo, changes.map(c => c.chosen)]); if (st.repo === c2) throw new Error('boom'); return changes.map(c => `${c.title}: off`); };
+  const c1 = repo(t), c2 = repo(t);
+  const two = { ...p2[1], targets: p2[1].targets.map((x, i) => ({ ...x, checkout: i ? c2 : c1 })) };
+  const lines = await applyMachinePicks([two], { approve });
+  assert.deepEqual(calls.map(([d, acts]) => acts), [['off'], ['off']]);
+  assert.deepEqual(lines, [`r1: Artifact tool: off`, `r2: boom`]);
+});

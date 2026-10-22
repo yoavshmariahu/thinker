@@ -4,9 +4,12 @@ Run the installer anywhere. It wires your agents, asking nothing, then reads
 the agents' own transcripts of the last 30 days in the repositories they worked
 in most and prints where their context goes and what to cut first: the sections
 of AGENTS.md, the skills and the tools that cost the most in the sessions that
-did not use them (`thinker context --machine` prints the same report any time).
-On a machine with a display it then opens the local page (`thinker ui`) on that
-report, over every repository, where the suggestions are reviewed and applied.
+did not use them. It asks where to see them: in the browser (the local page,
+`thinker ui`, over every repository) or in the terminal, where the suggestions
+are a list to pick from (compress or remove a section, switch off a skill or
+tool) and apply at once, with the page's address for the detail (`thinker
+context --machine --ask` asks again any time; without `--ask` it prints the
+report).
 Nothing is built: every git repository gets an empty cache with its first
 session, and the cache grows from the sessions there.
 [docs/setup.md](docs/setup.md#install-and-start) has the details.
@@ -34,7 +37,8 @@ uses your agent to write notes from your sessions; `--no-learn` disables it. Fla
 build an older setup ran (`--build`, `--prs`, `--depth`, `--areas`) are accepted and ignored.
 
 The completion message shows the next step: start a new agent session in this repository.
-The first setup of a repository opens the local page; `--no-ui` leaves it closed.
+The first setup of a repository asks whether to see its Context report in the browser or the
+terminal; `--no-ui` keeps it in the terminal.
 
 ## First-run benchmark
 

@@ -84,6 +84,12 @@ test('visual formatting helpers: stripAnsi, box, stepBanner', () => {
 
   const bannerText = banner();
   assert.match(bannerText, /Thinker/);
+  assert.match(bannerText, /Think ahead\. Save context\./);
+  assert.match(bannerText, /context compression, knowledge caching/);
+  // the installer draws the same box in shell
+  const sh = fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'install.sh'), 'utf8');
+  assert.ok(sh.includes('Think ahead. Save context.') && sh.includes('context compression, knowledge caching,'), 'install.sh banner matches');
+  assert.ok(!sh.includes('knowledge cache for coding & review agents'));
 
   const step = stepBanner(1, 3, 'Connect Harness CLIs', 'Test subtitle');
   assert.match(step, /1\/3/);

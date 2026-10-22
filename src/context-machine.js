@@ -11,6 +11,7 @@ import { refreshCheckouts } from './ui/server.js';
 import { wasteLevel } from './instruction-value.js';
 import { formatTokens } from './model-usage.js';
 import { thinkerHome } from './update.js';
+import { allChanges, approveChanges, ACTS } from './context-suggest.js';
 
 // the most active repositories read on an install: each one takes a second or four
 export const MACHINE_REPOS = 5;
@@ -33,14 +34,16 @@ export function machineContext(store, { home, days = 30, limit = MACHINE_REPOS, 
       for (const d of new Set([...SNAPSHOT_DAYS, days])) { const v = contextView(st, { days: d }); writeSnapshot(st, d, v, { now }); if (d === days) view = v; }
       // the sessions read: the harness reader counts those with a tool listing, the instruction reader every transcript
       repos.push({ id: r.id, name: r.name, checkout: r.checkout, sessions: Math.max(view.sessions || 0, view.instructions?.sessions || 0), transcripts: r.sessions });
-      views.push({ repo: r.id, name: r.name, view });
+      views.push({ repo: r.id, name: r.name, checkout: r.checkout, view });
       onRepo?.(repos[repos.length - 1]);
     } catch (e) { skipped.push({ name: r.name, checkout: r.checkout, error: String(e?.message || e).split('\n')[0] }); }
   }
   // the page's repository list, so it opens on these without looking again (ui/server.js:keptCheckouts)
   try { if (repos.length) refreshCheckouts(store, { home: th, transcriptsHome: home, now }); } catch {}
   const view = views.length ? mergeViews(views) : null;
-  return { days, repos, skipped, more: Math.max(0, active.length - limit), view };
+  // `views`: each repository's own report beside the merged one, for the picker (machineChanges): a change is made
+  // in its repository, and a merged row has lost the label the switch-off needs
+  return { days, repos, skipped, more: Math.max(0, active.length - limit), view, views };
 }
 
 // What to cut first: the parts of the context the sessions did not use, costliest first. The same flag the
@@ -55,7 +58,7 @@ export function recommendations(view, { top = MACHINE_TOP } = {}) {
     if (s.waste !== 'high' && s.waste !== 'medium') continue;
     // the share is the judge's (followed of judged) once enough sessions are judged, else the triggers' (applied of all)
     const judge = s.usedBy === 'judge';
-    items.push({ kind: 'section', id: s.id, title: `${s.parent ? `${s.parent}: ` : ''}${s.title}`, file: s.file, repo: s.repoName || null, perSession: s.perSession, wasted: s.wasted, usedShare: s.usedShare, used: judge ? s.followed : s.applied, of: judge ? s.judged : s.sessions, by: judge ? 'judge' : 'triggers' });
+    items.push({ kind: 'section', id: s.id, title: `${s.parent ? `${s.parent}: ` : ''}${s.title}`, file: s.file, repo: s.repoName || null, repoId: s.repo || null, perSession: s.perSession, wasted: s.wasted, usedShare: s.usedShare, used: judge ? s.followed : s.applied, of: judge ? s.judged : s.sessions, by: judge ? 'judge' : 'triggers' });
   }
   // skills and tools: in a merged view `usedShare` is the sum over repositories and `wasted` the first one's, so
   // both are made again here, against the kind's cost as contextView does (skills; built-in tools; the custom
@@ -100,8 +103,13 @@ export function recommendationLine(x) {
 }
 
 // The report as the installer and `thinker context --machine` print it: the parts of the context per model
-// call and per session, then the suggestions, then where to review and apply them.
-export function renderMachineReport({ days, repos, skipped = [], more = 0, view }, recs) {
+// call and per session (the summary), then the suggestions, then where to review and apply them. `actions: false`
+// leaves that last line out: the installer's picker (setup/context-ask.js) offers the actions itself and names the
+// page instead of commands.
+export function renderMachineReport(r, recs, { actions = true } = {}) {
+  return [...renderMachineSummary(r), ...renderMachineCuts(r, recs, { actions })];
+}
+export function renderMachineSummary({ days, repos, skipped = [], more = 0, view }) {
   const lines = [];
   if (!view) {
     lines.push(`No agent sessions on this machine in the last ${days} days to read; the Context report fills in as you work (thinker ui).`);
@@ -114,6 +122,11 @@ export function renderMachineReport({ days, repos, skipped = [], more = 0, view 
   lines.push(`  in every model call: instruction files ~${formatTokens(t.instructions.tokens)} tokens, skills and MCP servers ~${formatTokens(t.custom.tokens)}, built-in tools ~${formatTokens(t.builtin?.tokens || 0)}`);
   lines.push(`  a session, read again by each of its model calls: instruction files ~${formatTokens(t.instructions.perSession)}, skills and MCP servers ~${formatTokens(t.custom.perSession)}, built-in tools ~${formatTokens(t.builtin?.perSession || 0)}, tool outputs ~${formatTokens(t.outputs.perSession)} (an estimate)`);
   for (const s of skipped) lines.push(`  ${s.name}: could not be read (${s.error})`);
+  return lines;
+}
+export function renderMachineCuts({ view }, recs, { actions = true } = {}) {
+  if (!view) return [];
+  const lines = [];
   if (!recs.items.length) {
     lines.push('Nothing to cut yet: every section, skill and tool whose use can be told was used in most sessions, or there are too few sessions to say.');
   } else {
@@ -122,6 +135,62 @@ export function renderMachineReport({ days, repos, skipped = [], more = 0, view 
     const shown = recs.items.reduce((a, x) => a + x.wasted, 0);
     lines.push(`  about ~${formatTokens(shown)} tokens a session in these ${recs.items.length}${recs.flagged > recs.items.length ? `, ~${formatTokens(recs.potential)} over all ${recs.flagged} flagged` : ''}.`);
   }
-  lines.push(`Review and apply in the browser: thinker ui (Context${view.all ? ', All repositories' : ''}). By hand: thinker instructions --remove|--compress <section>${view.all ? ' in the repository' : ''}; thinker harness --off "<skill or tool>".`);
+  if (actions) lines.push(`Review and apply in the browser: thinker ui (Context${view.all ? ', All repositories' : ''}). By hand: thinker instructions --remove|--compress <section>${view.all ? ' in the repository' : ''}; thinker harness --off "<skill or tool>".`);
   return lines;
+}
+
+// The suggestions as the installer's picker offers them (setup/context-ask.js): each one resolved to the change the
+// Context tab's row would make (context-suggest.js:allChanges) in the repository it belongs to, with the action
+// proposed. A section is removed when its triggers fired in none of the sessions (nothing touched its files,
+// commands or code) and compressed otherwise, the judge's verdicts included: a rule followed in few of the sessions it
+// bore on is still a rule. A skill or tool is switched off; a merged row applies to every repository read, as the
+// page's All does. A suggestion nothing can act on (a tool no setting switches off) comes back with no `targets`: the
+// picker shows it, disabled, so the list matches the report.
+export function machineChanges({ views = [] }, recs) {
+  const repos = views.map(x => ({ ...x, changes: allChanges(x.view) }));
+  const picks = [];
+  for (const x of recs.items || []) {
+    const act = x.kind === 'section' ? (x.by === 'triggers' && x.used === 0 && x.of > 0 ? 'remove' : 'compress') : 'off';
+    const key = x.kind === 'section' ? `section:${x.file}:${x.id}` : `${x.client}:${x.key}`;
+    const targets = [];
+    for (const v of repos) {
+      if (x.kind === 'section' && x.repoId && v.repo !== x.repoId) continue;
+      const change = v.changes.find(c => c.key === key && c.options?.some(o => o.act === act));
+      if (change) targets.push({ repo: v.repo, name: v.name, checkout: v.checkout, change: { ...change, chosen: act } });
+      if (x.kind === 'section' && targets.length) break;
+    }
+    picks.push({ ...x, act, targets });
+  }
+  return picks;
+}
+// one pick as the picker's row: the action and what it acts on, where
+export function pickLine(p) {
+  const kind = p.kind === 'section' ? `${p.file || 'AGENTS.md'} section` : p.kind === 'tool' ? groupName[p.group] || 'tool' : what[p.kind];
+  const client = p.client && p.client !== 'claude' ? `${p.client} ` : '';
+  const where = p.targets.length > 1 ? ` in ${p.targets.length} repositories` : p.targets[0]?.name ? ` in ${p.targets[0].name}` : '';
+  return `${ACTS[p.act]?.text || p.act} the ${client}${kind} "${p.title}"${where}`;
+}
+// what the row costs and how often it was used, beside the line
+export function pickNote(p) {
+  const use = p.of ? `${p.by === 'triggers' ? 'applied' : p.by === 'judge' ? 'followed' : p.by} in ${p.used} of ${p.of} sessions` : 'use unknown';
+  return `~${formatTokens(p.wasted)} tokens a session, ${use}${p.act === 'compress' ? ', a model call' : ''}`;
+}
+// The picks made, each in its repository, through the function behind the page's Apply and `thinker context
+// --approve` (context-suggest.js:approveChanges): a section compressed by a model or removed, written to the working
+// tree uncommitted, a skill or tool switched off there; every decision in that repository's History with its undo.
+// Returns one line per change, named by repository when more than one was touched.
+export async function applyMachinePicks(picks, { edit, approve = approveChanges } = {}) {
+  const byCheckout = new Map();
+  for (const p of picks) for (const t of p.targets) {
+    if (!byCheckout.has(t.checkout)) byCheckout.set(t.checkout, { name: t.name, changes: [] });
+    byCheckout.get(t.checkout).changes.push(t.change);
+  }
+  const said = [], many = byCheckout.size > 1;
+  for (const [checkout, g] of byCheckout) {
+    let lines;
+    try { const st = new Store(checkout); if (!st.exists()) st.init(); lines = await approve(st, g.changes, { edit }); }
+    catch (e) { lines = [String(e?.message || e).split('\n')[0]]; }
+    for (const l of lines) said.push(many ? `${g.name}: ${l}` : l);
+  }
+  return said;
 }

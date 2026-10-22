@@ -72,6 +72,11 @@ test('CLI and page expose the shared Claude Code, Codex and Cursor harness repor
   assert.match(read('context-suggest.js'), /setOutputCompression\(store, \[c\.name\], level\)/);
   assert.match(read('ui/page.html'), /cursor: 'Cursor'/);
   assert.match(read('commands/context.js'), /switchSources\(store, \{ keys: list\(flags\['switch-on'\]\), on: true \}\)/);
+  // the installer's picker (setup/context-ask.js, `thinker context --machine --ask`) applies its picks through the same
+  // approveChanges, in each change's repository (context-machine.js:applyMachinePicks), and install.sh runs that command
+  assert.match(read('context-machine.js'), /approve = approveChanges/);
+  assert.match(read('setup/context-ask.js'), /apply = applyMachinePicks/);
+  assert.match(fs.readFileSync(path.join(SRC, '..', 'install.sh'), 'utf8'), /context --machine --ask/);
   assert.match(read('commands/hooks.js'), /harnessHere = \['claude', 'codex', 'cursor'\]\.includes\(client\)[\s\S]*harnessHere \? await harnessRecall/);
   assert.match(read('commands/hooks.js'), /snapshotCursorInventory\(/);
 });
@@ -84,17 +89,19 @@ test('the Context tab and `thinker context` show one report, and its controls ar
   assert.match(read('context-snapshot.js'), /contextView\(store, \{ days: d \}\)/);
   assert.match(read('commands/context.js'), /refreshSnapshots\(store\)/);
   // the installer's report (context-machine.js) is the page's All repositories: one merge, and the reports it
-  // keeps are the snapshots the page reads; the page opens on it (`thinker ui --tab context --all`)
+  // keeps are the snapshots the page reads; the browser choice of the installer's question opens the page on it
+  // (`thinker ui --tab context --all`, setup/context-ask.js:openContextPage)
   const machine = read('context-machine.js'), install = fs.readFileSync(path.join(SRC, '..', 'install.sh'), 'utf8');
   assert.match(install, /"\$thinker" context --machine/);
-  assert.match(install, /ui --from-setup --tab context --all/);
+  assert.match(read('setup/context-ask.js'), /'ui', '--from-setup', '--tab', 'context', \.\.\.\(all \? \['--all'\]/);
   assert.match(read('commands/context.js'), /machineContext\(store, \{ days, limit/);
   assert.match(machine, /mergeViews\(views\)/); assert.match(read('ui/server.js'), /mergeViews\(xs\.map/);
   assert.match(machine, /writeSnapshot\(st, d, v/); assert.match(machine, /refreshCheckouts\(store/);
   assert.match(read('commands/cache.js'), /flags\.all \? 'repo=all'/);
   assert.match(read('ui/page.html'), /H\(\)\.get\('repo'\) === 'all' \? 'all'/);
-  // setup prints the same report for its one repository
-  assert.match(read('setup.js'), /renderMachineReport\(\{ days: 30/);
+  // setup asks the same question over the same report for its one repository (setup/context-ask.js)
+  assert.match(read('setup.js'), /askMachineReport\(\{ r, recs: recommendations\(view\)/);
+  assert.match(read('setup/context-ask.js'), /renderMachineReport\(r, recs\)/);
   // keeping sections is `thinker instructions --core`; judging is `thinker context --judge n`; a switch is `thinker harness --off`
   assert.match(read('commands/instructions.js'), /setCore\(store, keep/);
   assert.match(read('ui/server.js'), /\/api\/context\/core'\) \{[^\n]*setCore\(st/);

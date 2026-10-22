@@ -40,7 +40,8 @@ export function box(lines, { title = '', width = 76, borderColor = 'cyan' } = {}
   return [bColor(topBorder), ...formattedLines, bColor(bottomBorder)].join('\n');
 }
 
-export const HEADLINE = 'A knowledge cache for coding agents';
+export const HEADLINE = 'Think ahead. Save context.';
+export const TAGLINE = ['Thinker helps you save tokens with context compression, knowledge caching,', 'and leaner agent instructions, skills and MCP servers.'];
 
 // The opening of `thinker setup` (and of the installer, which draws the same box in shell).
 export function banner() {
@@ -49,8 +50,7 @@ export function banner() {
     c.bold(HEADLINE),
     c.magenta('~'.repeat(HEADLINE.length)),
     '',
-    c.dim('Learns from your merged fixes, flags the change that would undo one,'),
-    c.dim('and hands your coding agents what the repository already knows.'),
+    ...TAGLINE.map(l => c.dim(l)),
   ], { width: 74 });
 }
 
