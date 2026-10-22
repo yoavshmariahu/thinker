@@ -80,14 +80,14 @@ export function cacheView(store) {
 
 // The repositories with a cache on this machine: this one, and every checkout the agents' transcripts
 // or the machine's log name that has a .thinker folder. A repository with several checkouts (clones,
-// worktrees) is read from the one holding the most notes, this one when they tie.
-export function machineRepos(store, { home } = {}) {
+// worktrees) is read from the one holding the most notes, this one when they tie. `checkouts`: the ones
+// found before (keptCheckouts), instead of looking again.
+export function machineRepos(store, { home, checkouts } = {}) {
   const here = isGitCheckout(store.repo) && store.exists() ? store.repo : null;
   const byOrigin = new Map();
   const add = c => { const o = repoId(c); if (!byOrigin.has(o)) byOrigin.set(o, new Set()); byOrigin.get(o).add(c); };
   if (here) add(here);
-  let found = []; try { found = discoverRepos(store, { home }); } catch {}
-  for (const r of found) for (const c of r.checkouts) if (fs.existsSync(path.join(c, '.thinker'))) add(c);
+  for (const c of checkouts || discoverCheckouts(store, { home })) if (fs.existsSync(path.join(c, '.thinker'))) add(c);
   const count = c => { try { return new Store(c, { readonly: true }).list().length; } catch { return -1; } };
   const out = [];
   for (const [id, checkouts] of byOrigin) {
@@ -99,18 +99,49 @@ export function machineRepos(store, { home } = {}) {
   return out.sort((a, b) => b.current - a.current || a.name.localeCompare(b.name));
 }
 
+// Finding the checkouts reads every agent's project folders and the machine's log: two to four seconds on this
+// machine (6,000 Claude Code project folders, most of them benchmark runs), before the page shows anything. So
+// they are kept under thinker's home (state/machine-checkouts.json) and the page reads them, starting `thinker ui
+// --refresh` in the background when they are older than REPOS_REFRESH_MS; which checkout stands for a repository,
+// and whether it is this one, is worked out live from them.
+export const REPOS_REFRESH_MS = 10 * 60_000;
+const checkoutsFile = home => path.join(home, 'state', 'machine-checkouts.json');
+export function discoverCheckouts(store, { home } = {}) {
+  let found = []; try { found = discoverRepos(store, { home }); } catch {}
+  return found.flatMap(r => r.checkouts).filter(c => fs.existsSync(path.join(c, '.thinker')));
+}
+// `transcriptsHome`: where the agents' transcripts were read (tests name one); a list read elsewhere is not used
+export function keptCheckouts({ home = thinkerHome(), transcriptsHome } = {}) {
+  try { const s = JSON.parse(fs.readFileSync(checkoutsFile(home), 'utf8')); return s.transcripts === (transcriptsHome || null) && Array.isArray(s.checkouts) ? s : null; } catch { return null; }
+}
+export function refreshCheckouts(store, { home = thinkerHome(), transcriptsHome, now = Date.now() } = {}) {
+  const checkouts = discoverCheckouts(store, { home: transcriptsHome }), f = checkoutsFile(home), tmp = `${f}.${process.pid}.tmp`;
+  try { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(tmp, JSON.stringify({ at: now, transcripts: transcriptsHome || null, checkouts })); fs.renameSync(tmp, f); }
+  catch { try { fs.rmSync(tmp, { force: true }); } catch {} }
+  return checkouts;
+}
+
 const json = (res, code, body) => { res.writeHead(code, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); res.end(JSON.stringify(body)); };
 const readBody = req => new Promise((resolve, reject) => {
   let s = ''; req.on('data', d => { s += d; if (s.length > 1e6) { reject(new Error('body too large')); req.destroy(); } });
   req.on('end', () => { try { resolve(s ? JSON.parse(s) : {}); } catch (e) { reject(e); } });
 });
 
-export function createUiServer(store, { token = crypto.randomBytes(16).toString('hex'), home = thinkerHome(), transcriptsHome, cliPath = path.join(HERE, '..', 'cli.js'), refreshFn } = {}) {
+export function createUiServer(store, { token = crypto.randomBytes(16).toString('hex'), home = thinkerHome(), transcriptsHome, cliPath = path.join(HERE, '..', 'cli.js'), refreshFn, refreshReposFn } = {}) {
+  refreshReposFn ||= () => { try { const p = spawn(process.execPath, [cliPath, 'ui', '--refresh'], { cwd: store.repo, stdio: 'ignore', detached: true }); p.on('error', () => {}); p.unref(); } catch {} };
   // an old Context report is made again by `thinker context --refresh` in the checkout, in the background
   refreshFn ||= checkout => { try { const p = spawn(process.execPath, [cliPath, 'context', '--refresh', '--quiet', '--repo', checkout], { cwd: checkout, stdio: 'ignore', detached: true }); p.on('error', () => {}); p.unref(); } catch {} };
   const page = fs.readFileSync(path.join(HERE, 'page.html'), 'utf8');
   let port = 0, known = null, lastRequest = Date.now();
-  const repos = () => known ||= machineRepos(store, { home: transcriptsHome });
+  // the checkouts found before, looked for again in the background when old (once a while per process)
+  let refreshedAt = 0;
+  const listRepos = () => {
+    const kept = keptCheckouts({ home, transcriptsHome });
+    if (!kept) return machineRepos(store, { home: transcriptsHome, checkouts: refreshCheckouts(store, { home, transcriptsHome }) });
+    if (Date.now() - kept.at > REPOS_REFRESH_MS && Date.now() - refreshedAt > REPOS_REFRESH_MS) { refreshedAt = Date.now(); refreshReposFn(); }
+    return machineRepos(store, { home: transcriptsHome, checkouts: kept.checkouts });
+  };
+  const repos = () => known ||= listRepos();
   const opened = new Map();
   const open = checkout => { if (!opened.has(checkout)) opened.set(checkout, new Store(checkout)); return opened.get(checkout); };
   // '' is this repository (when it is one); an id must be one machineRepos listed
@@ -140,7 +171,7 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
     try {
       // which repository: '' (this one), 'all', or one of machineRepos by id
       const want = String(url.searchParams.get('repo') || '');
-      if (req.method === 'GET' && url.pathname === '/api/repos') { known = machineRepos(store, { home: transcriptsHome }); return json(res, 200, { repos: known.map(withStats) }); }
+      if (req.method === 'GET' && url.pathname === '/api/repos') { known = listRepos(); return json(res, 200, { repos: known.map(withStats) }); }
       if (req.method === 'GET' && url.pathname === '/api/activity') {
         const byRepo = {};
         for (const r of repos()) byRepo[r.id] = activity(path.join(r.checkout, '.thinker'));

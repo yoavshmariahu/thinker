@@ -86,9 +86,11 @@ export function discoverRepos(store, { home, sinceMs, now = Date.now() } = {}) {
     const r = by.get(checkout);
     r.lastUsed = Math.max(r.lastUsed, t || 0); r.sessions += sessions;
   };
-  for (const { dir, t } of agentWorkDirs({ home, sinceMs, now })) { const c = checkoutOf(dir); if (c) touch(c, t, 1); }
+  // the log names a few hundred paths over tens of thousands of lines: each is resolved once
+  const seen = new Map(), checkout = p => { if (!seen.has(p)) seen.set(p, checkoutOf(p)); return seen.get(p); };
+  for (const { dir, t } of agentWorkDirs({ home, sinceMs, now })) { const c = checkout(dir); if (c) touch(c, t, 1); }
   let events = []; try { events = readLog(store, { all: true }); } catch {}
-  for (const e of events) { if (!e.repo || !path.isAbsolute(e.repo)) continue; const c = checkoutOf(e.repo); if (c) touch(c, Date.parse(e.t) || 0, 0); }
+  for (const e of events) { if (!e.repo || !path.isAbsolute(e.repo)) continue; const c = checkout(e.repo); if (c) touch(c, Date.parse(e.t) || 0, 0); }
   const here = checkoutOf(store.repo); if (here) touch(here, 0, 0);
   const groups = new Map();
   for (const r of by.values()) { const id = repoId(r.checkout); if (!groups.has(id)) groups.set(id, []); groups.get(id).push(r); }

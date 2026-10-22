@@ -141,7 +141,9 @@ export function areasLine(store, { json = false } = {}) {
 const UI_IDLE_MS = 30 * 60 * 1000;
 async function uiCommand(ctx) {
   const { flags, store, out } = ctx;
-  const { createUiServer, openBrowser, DEFAULT_PORT } = await import('../ui/server.js');
+  const { createUiServer, openBrowser, DEFAULT_PORT, refreshCheckouts } = await import('../ui/server.js');
+  // the checkouts the page lists, looked for again (ui/server.js:refreshCheckouts); the page runs this in the background
+  if (flags.refresh) { const cs = refreshCheckouts(store); if (!flags.quiet) out(`${cs.length} checkouts with a cache kept for the page.`); return; }
   const { box, c } = await import('../setup/ui.js');
   const ui = createUiServer(store);
   const listening = await ui.listen(flags.port !== undefined ? Number(flags.port) : DEFAULT_PORT);

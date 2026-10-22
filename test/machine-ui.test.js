@@ -11,7 +11,7 @@ import { Store } from '../src/store.js';
 import { batchProgress } from '../src/progress.js';
 import { activity, cancelActivity, latestBatch, batchEta } from '../src/activity.js';
 import { agentWorkDirs, discoverRepos, cacheStats } from '../src/machine.js';
-import { createUiServer, machineRepos } from '../src/ui/server.js';
+import { createUiServer, machineRepos, keptCheckouts, REPOS_REFRESH_MS } from '../src/ui/server.js';
 
 const tmp = p => fs.mkdtempSync(path.join(os.tmpdir(), p));
 function repo(t, name = 'thinker-machine-') {
@@ -103,4 +103,38 @@ test('usage for all repositories works from a directory that is no checkout', as
   assert.equal(JSON.parse(r.body).notesInCache, 0);
   assert.equal((await call(port, '/api/repos', { token: 'a'.repeat(32) })).status, 200);
   assert.ok(!fs.existsSync(path.join(cwd, '.thinker')), 'nothing created outside a checkout');
+});
+
+test('the page keeps the checkouts it found, reads them back, and looks again in the background when they are old', async t => {
+  const { dir } = repo(t);
+  new Store(dir).init();
+  const th = tmp('thinker-th-'), home = tmp('thinker-ui-home-'), token = 'a'.repeat(32);
+  t.after(() => { fs.rmSync(th, { recursive: true, force: true }); fs.rmSync(home, { recursive: true, force: true }); });
+  const claude = path.join(th, '.claude', 'projects', dir.replace(/[/.]/g, '-')); fs.mkdirSync(claude, { recursive: true });
+  fs.writeFileSync(path.join(claude, 's1.jsonl'), JSON.stringify({ type: 'user', cwd: dir, message: 'hi' }) + '\n');
+  process.env.THINKER_LOG = 'local'; t.after(() => { delete process.env.THINKER_LOG; });
+  const cwd = tmp('thinker-ui-nogit-');
+  const serve = async () => {
+    const spawned = [];
+    const ui = createUiServer(new Store(cwd), { token, home, transcriptsHome: th, refreshReposFn: () => spawned.push(1) });
+    const { port } = await ui.listen(0); t.after(() => ui.close());
+    return { spawned, repos: async () => JSON.parse((await call(port, '/api/repos', { token })).body).repos.map(r => r.checkout) };
+  };
+  const a = await serve();
+  assert.deepEqual(await a.repos(), [dir]);
+  assert.deepEqual(keptCheckouts({ home, transcriptsHome: th }).checkouts, [dir]);
+  // a new server reads the list back: the transcript gone, the repository is still listed, nothing started
+  fs.rmSync(claude, { recursive: true });
+  const b = await serve();
+  assert.deepEqual(await b.repos(), [dir]);
+  assert.equal(b.spawned.length, 0);
+  // old: still listed, looked for again in the background, once
+  const f = path.join(home, 'state', 'machine-checkouts.json'), kept = JSON.parse(fs.readFileSync(f, 'utf8'));
+  fs.writeFileSync(f, JSON.stringify({ ...kept, at: Date.now() - REPOS_REFRESH_MS - 1 }));
+  const c = await serve();
+  assert.deepEqual(await c.repos(), [dir]);
+  await c.repos();
+  assert.equal(c.spawned.length, 1);
+  // a list read from other transcripts is not used
+  assert.equal(keptCheckouts({ home, transcriptsHome: tmp('thinker-th-other-') }), null);
 });
