@@ -1165,7 +1165,10 @@ and which is the current one, is still worked out on each load.
 
 The tab (Context Overview) shows the input tokens by day or week as stacked columns (instruction files, custom
 tools, built-in tools, tool outputs; `tool-outputs.js` estimates the outputs: each result's tokens × the model calls
-left after it), then one part at a time as cards: each section, skill or tool beside its cost, use and a waste level
+left after it, until a compaction Claude Code recorded drops it; its Wasted is the reads after the agent last used
+the result, the last call of the same turn that edited with text copied from it or named the same file (2026-10-22:
+until then the column showed what the moderate cap would cut, and `sed` read as 17M wasted of 277M on this repository
+when 83% of its cost came after its last use; across all outputs here 88%, 98% of all input tokens being cache reads)), then one part at a time as cards: each section, skill or tool beside its cost, use and a waste level
 (`instruction-value.js:wasteLevel`: high or medium for a part relevant to under half the sessions whose cost there is
 5% or 2% of its kind's; the saving shown is that cost, at most). "All repositories" merges every repository's report
 (`context-view.js:mergeViews`).

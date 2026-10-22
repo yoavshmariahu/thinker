@@ -91,8 +91,9 @@ function partChanges(view, { all = false } = {}) {
     why: `used in ${s.used} of ${s.loaded} sessions; ~${formatTokens(s.tokens)} tokens in every model call`, action: 'switch it off here',
     builtin: s.group === 'builtin', sessions: s.loaded || 0, options: switchOpts(s),
   });
-  // an output's waste level as instruction-value.js:wasteLevel gives a section's: what compressing it would cut, as a
-  // share of what every tool's output costs a session
+  // the summary ranks an output by what compressing it would cut, as a share of what every tool's output costs a
+  // session, since that is what its action saves; the page's Wasted column shows the output's reads after its last
+  // use (tool-outputs.js:sessionOutputs), which no cap recovers
   const outCost = view.totals?.outputs?.perSession || (view.outputs?.tools || []).reduce((a, t) => a + (t.perSession || 0), 0);
   const outWaste = cut => { const sh = outCost ? cut / outCost : 0; return sh >= WASTE.high ? 'high' : sh >= WASTE.medium ? 'medium' : 'low'; };
   // the summary suggests one level (moderate); a row offers the levels an output can be set to, the next step up first
@@ -103,7 +104,7 @@ function partChanges(view, { all = false } = {}) {
     title: `${t.name.replace(/^Bash:/, '')} output`, saving: t.saveModerate,
     // how much smaller compressing makes this tool's results here: the part past the length cap, from these
     // transcripts (tool-outputs.js); trimming reads and searches round what the agent looked for cuts more
-    why: `~${formatTokens(t.perCall)} tokens a call, read again by every call after it; compressed, ${pctLess(t.saveModerate, t.perSession)}`, action: 'compress its output (Claude Code)',
+    why: `~${formatTokens(t.perCall)} tokens a call, read again by every call after it${t.wasted != null ? ` (~${formatTokens(t.wasted)} a session after the agent last used the result)` : ''}; compressed, ${pctLess(t.saveModerate, t.perSession)}`, action: 'compress its output (Claude Code)',
     sessions: view.outputs?.sessions || 0, options: levelOpts(t),
   });
   // the first option is the suggestion; `total` is what it could have saved over the report's window: its saving a
