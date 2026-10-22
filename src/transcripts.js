@@ -33,7 +33,7 @@ export function toolName(name) {
   const n = String(name || '');
   for (const [re, canon] of TOOL_NAMES) if (re.test(n)) return canon;
   return n
-    .replace(/^mcp:(orient|lookup|find|drilldown|remember|behavior|feedback|warmup|coverage|warmup_next|warmup_answer)$/i, (_, t) => `mcp__thinker__${t.toLowerCase()}`)
+    .replace(/^mcp:(orient|lookup|find|drilldown|remember|behavior|feedback|warmup|coverage|learn_next|warmup_next|warmup_answer)$/i, (_, t) => `mcp__thinker__${t.toLowerCase()}`)
     .replace(/^mcp_+(?:user[-_])?thinker_+/i, 'mcp__thinker__');
 }
 

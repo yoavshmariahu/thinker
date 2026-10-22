@@ -1,5 +1,5 @@
 // The session provider: a build's model call waits in the queue until the session's subagent answers it
-// through warmup_next and warmup_answer (session-llm.js).
+// through learn_next (session-llm.js).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -17,7 +17,7 @@ test('a model call round-trips through the queue, and a malformed answer is refu
   const call = viaSession({ system: 'Turn the PR into notes.', prompt: 'PR #1: fix', schema: SCHEMA }, { dir, pollMs: 10 });
   const { request } = await nextRequest(dir, { waitMs: 2000, pollMs: 10 });
   assert.equal(request.prompt, 'PR #1: fix');
-  assert.match(requestText(request), /warmup_answer: id ".+" and answer, one JSON object/);
+  assert.match(requestText(request), /calling learn_next with id ".+" and answer, one JSON object/);
   // taken: a second taker finds nothing
   assert.deepEqual(await nextRequest(dir, { waitMs: 50, pollMs: 10 }), { waiting: true });
   assert.match(answerRequest(dir, request.id, 'no idea').error, /not JSON/);
@@ -59,6 +59,7 @@ test('worker detection recognizes the worker instruction, not documentation or q
   const prompt = subagentPrompt('/tmp/a repo');
   assert.equal(isWorkerPrompt(prompt), true);
   assert.equal(isWorkerPrompt('  \n' + prompt), true);
+  assert.equal(isWorkerPrompt('Why does learn_next suppress learning?'), false);
   assert.equal(isWorkerPrompt('Why do warmup_next and warmup_answer suppress learning?'), false);
   assert.equal(isWorkerPrompt('# AGENTS.md\nA worker uses warmup_next / warmup_answer.'), false);
   assert.equal(isWorkerPrompt('# AGENTS.md\nExample worker prompt:\n' + prompt), false);

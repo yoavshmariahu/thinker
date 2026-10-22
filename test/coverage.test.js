@@ -161,7 +161,7 @@ test('inside a desktop app, or with no agent CLI signed in, the build reads thro
   assert.equal(checked, false);
   assert.match(app.said, /runs in Claude Desktop, so the build reads through it/);
   assert.match(app.said, /run_in_background/, 'the agent is told to start a background subagent');
-  assert.match(app.said, /warmup_next/, 'and given the prompt that works the queue');
+  assert.match(app.said, /learn_next/, 'and given the prompt that works the queue');
   const a = app.ran.args;
   assert.deepEqual(a.slice(1, 5), ['understand', '--areas', 'src/api', '--whole']);
   assert.equal(a[a.indexOf('--max-code') + 1], String(COVERAGE.sessionCode));

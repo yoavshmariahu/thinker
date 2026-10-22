@@ -75,7 +75,11 @@ test('CLI and page expose the shared Claude Code, Codex and Cursor harness repor
 
 test('the Context tab and `thinker context` show one report, and its controls are the commands', async t => {
   assert.match(read('commands/context.js'), /contextView\(store/);
-  assert.match(read('ui/server.js'), /contextView\(one/);
+  // the page reads the report kept by `thinker context --refresh`, which it starts in the background (context-snapshot.js)
+  assert.match(read('ui/server.js'), /snapshotView\(st, d\)/);
+  assert.match(read('ui/server.js'), /\[cliPath, 'context', '--refresh'/);
+  assert.match(read('context-snapshot.js'), /contextView\(store, \{ days: d \}\)/);
+  assert.match(read('commands/context.js'), /refreshSnapshots\(store\)/);
   // keeping sections is `thinker instructions --core`; judging is `thinker context --judge n`; a switch is `thinker harness --off`
   assert.match(read('commands/instructions.js'), /setCore\(store, keep/);
   assert.match(read('ui/server.js'), /\/api\/context\/core'\) \{[^\n]*setCore\(st/);

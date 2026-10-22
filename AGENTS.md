@@ -62,7 +62,7 @@ app (Claude Desktop, the Codex app, Cursor) and wherever no agent CLI is signed 
 Those sessions have no CLI login to read through: the work goes through the
 session itself, as the warm-up does (`repo-onboard.js:startSessionWarmup`,
 `session-llm.js`: model calls queued in `.thinker/state`, a background subagent
-answering them through `warmup_next` / `warmup_answer`). A feature that only says
+answering them through `learn_next`). A feature that only says
 "sign in a CLI" in a desktop app is not done. Tests cover the desktop-app path
 (`appFn`, a missing CLI login) beside the CLI one.
 
@@ -1139,6 +1139,15 @@ the context goes and cutting what is wasted first, the cache second.
   log line now records which checked skills the session read) the share of reading sessions that kept the skill's
   rules, and misses (broken without being read).
 - **Other tools**: MCP servers, plugins, built-in tools, as `thinker harness` reads them.
+
+The report reads every transcript of the window (one to four seconds a repository here, about fifteen for All
+repositories), so the page does not make it on a visit: it reads the copy kept in the checkout's state
+(`context-snapshot.js`, `.thinker/state/context-view-<days>.json`, 7 and 30 days), written by `thinker context
+--refresh`, by `thinker context` itself and after each maintenance run. A copy older than ten minutes is shown
+with when it was measured and the page starts `thinker context --refresh` in the background and shows the new
+figures when they land (not while rows are picked). A copy made by other code, or before a change to
+`.thinker/config.json`, Claude's settings or the instruction files, is not read; an action from the tab drops it.
+From the copy the tab answers in about 10 ms (one repository) and 20 ms (All).
 
 The tab (Context Overview) shows the input tokens by day or week as stacked columns (instruction files, custom
 tools, built-in tools, tool outputs; `tool-outputs.js` estimates the outputs: each result's tokens × the model calls

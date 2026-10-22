@@ -354,7 +354,7 @@
     <!-- Context: where the agents' context goes in one repository, and what each part is worth (context-view.js, as `thinker context`) -->
     <section id="tab-context" hidden>
       <div class="ctx-top"><div><h1>Context Overview</h1>
-      <p class="lede">Track where your agents are spending tokens</p></div>
+      <p class="lede">Track where your agents are spending tokens <span class="muted" id="c-asof"></span></p></div>
       <div class="controls">
         <select class="sel" id="c-repo" aria-label="Repository"></select>
         <div class="seg" id="c-days-seg"><button data-days="7">7 days</button><button data-days="30" class="on">30 days</button></div>
@@ -590,8 +590,29 @@ async function loadContext() {
     $('#c-repo').innerHTML = `<option value="all"${CREPO === 'all' ? ' selected' : ''}>All repositories</option>` + REPOS.map(r => `<option value="${esc(r.id)}"${r.id === CREPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
     if (CREPO === 'all') $('#context-body').innerHTML = `<div class="empty"><span class="spinner"></span>Reading every repository's transcripts (the first time takes a while)…</div>`;
     if (!CREPO) { el.innerHTML = `<div class="empty">No repository with a cache on this machine yet.</div>`; return; }
-    renderContext(await api(`/api/context?repo=${encodeURIComponent(CREPO)}&days=${cdays}`));
+    const v = await api(`/api/context?repo=${encodeURIComponent(CREPO)}&days=${cdays}`);
+    renderContext(v); contextAsOf(v);
   } catch (e) { el.innerHTML = `<div class="empty">Could not read the context: ${esc(e.message)}</div>`; }
+}
+// The report is kept and made again in the background (context-snapshot.js): the page says when it was measured
+// and, while a newer one is being made, checks back and shows it, unless the person has picked rows to act on.
+let CPOLL = null;
+const sinceMeasured = t => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 48 * 60 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`; };
+function contextAsOf(v) {
+  const el = $('#c-asof'); clearTimeout(CPOLL);
+  if (el) el.textContent = `· measured ${sinceMeasured(v.asOf)}${v.refreshing ? ', updating…' : ''}`;
+  if (!v.refreshing) return;
+  const want = [CREPO, cdays], tries = (v.tries || 0) + 1;
+  if (tries > 24) { if (el) el.textContent = `· measured ${sinceMeasured(v.asOf)}`; return; }
+  CPOLL = setTimeout(async () => {
+    if (CREPO !== want[0] || cdays !== want[1]) return;
+    let n; try { n = await api(`/api/context?repo=${encodeURIComponent(CREPO)}&days=${cdays}`); } catch { return; }
+    if (CREPO !== want[0] || cdays !== want[1]) return;
+    const picked = Object.values(PICKS).some(m => m.size);
+    if (n.asOf > v.asOf && !picked) { renderContext(n); contextAsOf(n); }
+    else if (n.asOf > v.asOf) { if (el) el.textContent = `· newer figures ready, shown on reload`; }
+    else contextAsOf({ ...v, refreshing: n.refreshing, tries });
+  }, 5000);
 }
 let CVIEW = 'instructions', CTX = null, CMEASURE = 'total', CBUCKET = null, CHIDDEN = new Set();
 const cbucket = () => CBUCKET || (cdays <= 7 ? 'day' : 'week');
