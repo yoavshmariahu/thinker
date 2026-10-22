@@ -175,7 +175,9 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('report.js'), /export const REPORT_WEEKS = 5;/);
   assert.match(read('ui/page.html'), /\/api\/report\?repo=\$\{encodeURIComponent\(REPO\)\}&weeks=5/);
   assert.match(read('report.js'), /export const TREND_MIN = 0\.05;/);
-  assert.match(read('ui/page.html'), /const TREND_MIN = 0\.05, TREND_FULL = 1;/);
+  assert.match(read('ui/page.html'), /const TREND_MIN = 0\.05;/);
+  // the page's shade is relative to the table's largest rise and fall
+  assert.match(read('ui/page.html'), /const extremes = rows =>/);
   assert.match(read('report.js'), /change\(avg\(cells\[0\], 0\), avg\(cells\[w\], w\)\)/);
   // the decisions table is one function on both pages, the Report's over its window alone
   assert.match(read('ui/page.html'), /historyFigure\(hs, \{ many, caption: 'Decisions'/);
