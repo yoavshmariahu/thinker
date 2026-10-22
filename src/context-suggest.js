@@ -57,7 +57,7 @@ const pctLess = (cut, of) => { const p = of ? 100 * cut / of : 0; return p < 1 ?
 const flagged = r => !r.off && (r.waste === 'high' || r.waste === 'medium') && r.wasted > 0;
 
 // Every change the report flags, by what it saves a session, the five largest. A section, skill or tool is flagged
-// when it is used in under half the sessions and costly (instruction-value.js:wasteLevel), and saves at most its cost
+// when its cost in the sessions that did not use it is a share of its kind's (instruction-value.js:wasteLevel), and saves at most its cost
 // in the sessions that did not use it; an output thinker can compress and does not, what moderate compression's cap
 // alone would have cut from it (tool-outputs.js).
 export function topChanges(view, { max = SUGGEST.max, minSaving = SUGGEST.minSaving } = {}) {
@@ -203,14 +203,15 @@ export function ensureUi(store, { home = thinkerHome(), spawnFn = spawn, waitMs 
   const f = uiFile(home), running = () => { const u = readJson(f); return u?.url && u.pid && alive(u.pid) ? u.url : null; };
   const now = running(); if (now) return now;
   try {
-    const child = spawnFn(process.execPath, [CLI, 'ui', '--background'], { cwd: store.repo, detached: true, stdio: 'ignore', env: { ...process.env, THINKER_UI_TOKEN: randomBytes(16).toString('hex') } });
+    const child = spawnFn(process.execPath, [CLI, 'ui', '--background'], { cwd: store.repo, detached: true, stdio: 'ignore' });
     child.on?.('error', () => {}); child.unref?.();
   } catch { return null; }
   for (let t = 0; t < waitMs; t += 100) { sleep(100); const u = running(); if (u) return u; }
   return null;
 }
-// the address of the Context tab's All for this repository
-export const suggestionsUrl = (url, repoId) => `${url}&tab=context&view=all${repoId ? `&repo=${encodeURIComponent(repoId)}` : ''}`;
+// the address of the Context tab's All for this repository (a page started by an older version keeps its key in
+// the address; it is dropped, that version's server takes the Host check alone)
+export const suggestionsUrl = (url, repoId) => `${String(url).replace(/#.*$/, '')}#tab=context&view=all${repoId ? `&repo=${encodeURIComponent(repoId)}` : ''}`;
 
 // a session no person is at: `claude -p`, the Agent SDK
 const unattended = (env = process.env) => /^sdk-/.test(env.CLAUDE_CODE_ENTRYPOINT || '');

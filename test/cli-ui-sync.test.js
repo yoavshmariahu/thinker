@@ -40,10 +40,9 @@ function page(t, dir) {
   fs.writeFileSync(path.join(claude, 's1.jsonl'), JSON.stringify({ type: 'user', cwd: dir, message: 'hi' }) + '\n');
   const spawned = [];
   const spawnFn = (cmd, args, opts) => { const c = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { detached: true, stdio: 'ignore' }); spawned.push({ args, opts, pid: c.pid }); return c; };
-  const token = 'a'.repeat(32);
-  const ui = createUiServer(new Store(dir), { token, home, transcriptsHome: th, cliPath: '/x/cli.js', spawnFn });
+  const ui = createUiServer(new Store(dir), { home, transcriptsHome: th, cliPath: '/x/cli.js', spawnFn });
   const call = (port, p, body) => new Promise((resolve, reject) => {
-    const req = http.request({ host: '127.0.0.1', port, path: p, method: body ? 'POST' : 'GET', headers: { host: `127.0.0.1:${port}`, 'x-thinker-token': token, ...(body ? { 'content-type': 'application/json' } : {}) } }, res => {
+    const req = http.request({ host: '127.0.0.1', port, path: p, method: body ? 'POST' : 'GET', headers: { host: `127.0.0.1:${port}`, ...(body ? { 'content-type': 'application/json' } : {}) } }, res => {
       let s = ''; res.on('data', d => s += d); res.on('end', () => resolve({ status: res.statusCode, body: s }));
     });
     req.on('error', reject); if (body) req.write(JSON.stringify(body)); req.end();
@@ -92,7 +91,7 @@ test('the Context tab and `thinker context` show one report, and its controls ar
   assert.match(read('commands/context.js'), /machineContext\(store, \{ days, limit/);
   assert.match(machine, /mergeViews\(views\)/); assert.match(read('ui/server.js'), /mergeViews\(xs\.map/);
   assert.match(machine, /writeSnapshot\(st, d, v/); assert.match(machine, /refreshCheckouts\(store/);
-  assert.match(read('commands/cache.js'), /flags\.all \? '&repo=all'/);
+  assert.match(read('commands/cache.js'), /flags\.all \? 'repo=all'/);
   assert.match(read('ui/page.html'), /H\(\)\.get\('repo'\) === 'all' \? 'all'/);
   // setup prints the same report for its one repository
   assert.match(read('setup.js'), /renderMachineReport\(\{ days: 30/);

@@ -41,9 +41,9 @@ test('scheduleContextSuggestion: kept for the next prompt, at most weekly, after
   assert.equal(await scheduleContextSuggestion(store, { now: now + 3600_000, view: view() }), null, 'not again the same day');
   const c = await scheduleContextSuggestion(store, { now: now + 86400_000, view: view() });
   assert.equal(c.length, 5); assert.equal(contextSuggestPending(store), true);
-  const said = contextSuggestOffer(store, { now: now + 86400_000, env: {}, ui: () => 'http://127.0.0.1:4848/#t=abc', repoId: 'github.com/o/r' });
+  const said = contextSuggestOffer(store, { now: now + 86400_000, env: {}, ui: () => 'http://127.0.0.1:4848/', repoId: 'github.com/o/r' });
   assert.match(said, /^<thinker-context-suggestions>/);
-  assert.match(said, /http:\/\/127\.0\.0\.1:4848\/#t=abc&tab=context&view=all&repo=github\.com%2Fo%2Fr/);
+  assert.match(said, /http:\/\/127\.0\.0\.1:4848\/#tab=context&view=all&repo=github\.com%2Fo%2Fr/);
   assert.match(said, /1\. AGENTS\.md · Releases: ~1\.2M input tokens over the last 30 days; .*Suggested: Compress \(or: remove\)/);
   assert.match(said, /Do not make any of these changes yourself/);
   assert.equal(contextSuggestOffer(store, { env: {}, ui: () => 'x' }), '', 'said once');
@@ -65,13 +65,13 @@ test('contextSuggestOffer: no person at an SDK session; without the page, it nam
 test('ensureUi: reuses a running page, else starts one and waits for its address', () => {
   const store = repo(), home = tmp('thinker-csugg-home-'), f = uiFile(home);
   fs.mkdirSync(path.dirname(f), { recursive: true });
-  fs.writeFileSync(f, JSON.stringify({ pid: process.pid, url: 'http://127.0.0.1:1/#t=live' }));
+  fs.writeFileSync(f, JSON.stringify({ pid: process.pid, url: 'http://127.0.0.1:1/' }));
   let spawned = 0;
-  assert.equal(ensureUi(store, { home, spawnFn: () => { spawned++; return {}; } }), 'http://127.0.0.1:1/#t=live');
+  assert.equal(ensureUi(store, { home, spawnFn: () => { spawned++; return {}; } }), 'http://127.0.0.1:1/');
   assert.equal(spawned, 0);
-  fs.writeFileSync(f, JSON.stringify({ pid: 999_999_9, url: 'http://127.0.0.1:1/#t=dead' }));
-  const url = ensureUi(store, { home, waitMs: 1000, spawnFn: (bin, args, opts) => { spawned++; assert.deepEqual(args.slice(1), ['ui', '--background']); assert.ok(opts.env.THINKER_UI_TOKEN); fs.writeFileSync(f, JSON.stringify({ pid: process.pid, url: 'http://127.0.0.1:2/#t=new' })); return {}; } });
-  assert.equal(url, 'http://127.0.0.1:2/#t=new'); assert.equal(spawned, 1);
+  fs.writeFileSync(f, JSON.stringify({ pid: 999_999_9, url: 'http://127.0.0.1:1/' }));
+  const url = ensureUi(store, { home, waitMs: 1000, spawnFn: (bin, args, opts) => { spawned++; assert.deepEqual(args.slice(1), ['ui', '--background']); fs.writeFileSync(f, JSON.stringify({ pid: process.pid, url: 'http://127.0.0.1:2/' })); return {}; } });
+  assert.equal(url, 'http://127.0.0.1:2/'); assert.equal(spawned, 1);
   fs.rmSync(f);
   assert.equal(ensureUi(store, { home, waitMs: 200, spawnFn: () => ({}) }), null, 'nothing came up');
   assert.equal(SUGGEST.max, 5);

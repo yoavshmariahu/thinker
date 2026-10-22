@@ -26,7 +26,7 @@ function repo(t, name = 'thinker-machine-') {
   return { dir, git };
 }
 const call = (port, p, { token, body } = {}) => new Promise((resolve, reject) => {
-  const req = http.request({ host: '127.0.0.1', port, path: p, method: body ? 'POST' : 'GET', headers: { host: `127.0.0.1:${port}`, 'x-thinker-token': token, ...(body ? { 'content-type': 'application/json' } : {}) } }, res => {
+  const req = http.request({ host: '127.0.0.1', port, path: p, method: body ? 'POST' : 'GET', headers: { host: `127.0.0.1:${port}`, ...(body ? { 'content-type': 'application/json' } : {}) } }, res => {
     let s = ''; res.on('data', d => s += d); res.on('end', () => resolve({ status: res.statusCode, body: s }));
   });
   req.on('error', reject); if (body) req.write(JSON.stringify(body)); req.end();
@@ -95,13 +95,13 @@ test('a running batch is the cache\'s activity, with its count, and stopping it 
 test('usage for all repositories works from a directory that is no checkout', async t => {
   const cwd = tmp('thinker-ui-nogit-');
   process.env.THINKER_LOG = 'local'; t.after(() => { delete process.env.THINKER_LOG; });
-  const ui = createUiServer(new Store(cwd), { token: 'a'.repeat(32), home: tmp('thinker-ui-home-'), transcriptsHome: tmp('thinker-ui-th-') });
+  const ui = createUiServer(new Store(cwd), { home: tmp('thinker-ui-home-'), transcriptsHome: tmp('thinker-ui-th-') });
   const { port } = await ui.listen(0);
   t.after(() => ui.close());
-  const r = await call(port, '/api/usage?repo=all', { token: 'a'.repeat(32) });
+  const r = await call(port, '/api/usage?repo=all', {});
   assert.equal(r.status, 200, r.body);
   assert.equal(JSON.parse(r.body).notesInCache, 0);
-  assert.equal((await call(port, '/api/repos', { token: 'a'.repeat(32) })).status, 200);
+  assert.equal((await call(port, '/api/repos', {})).status, 200);
   assert.ok(!fs.existsSync(path.join(cwd, '.thinker')), 'nothing created outside a checkout');
 });
 

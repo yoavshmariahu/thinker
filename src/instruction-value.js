@@ -355,15 +355,16 @@ export function use({ sessions, applied, triggered, judged, followed = 0 }, perS
   return { usedShare: share, usedBy: by, wasted: share == null ? null : Math.round(perSession * (1 - share)) };
 }
 
-// High, medium or low waste: what the section costs in the sessions it was not used, as a share of what the whole
-// file costs a session, for a section used in under half of them. The saving is that cost, at most: what the
-// sessions would not have read without the section (a session that needed it would go without). Unknown while there is nothing to say how often it is used.
-export const WASTE = { high: 0.05, medium: 0.02, used: 0.5 };
-export function wasteLevel(r, fileCost) {
+// Wasted is what a part cost in the sessions that did not use it. High waste: 5% or more of what its kind (the file,
+// the skills, the tools) costs a session; medium: 2%; else low. That is the whole rule (until 2026-10-22 a part used in
+// half the sessions or more was never flagged, whatever it cost in the rest; dropped, the owner found the two-part rule
+// hard to read). The saving is that cost, at most: a session that needed the part would go without. Unknown while
+// there is nothing to say how often it is used.
+export const WASTE = { high: 0.05, medium: 0.02 };
+export function wasteLevel(r, kindCost) {
   if (r.wasted == null) return { waste: 'unknown', wasteShare: null };
-  const share = fileCost ? r.wasted / fileCost : 0;
-  const waste = r.usedShare >= WASTE.used ? 'low' : share >= WASTE.high ? 'high' : share >= WASTE.medium ? 'medium' : 'low';
-  return { waste, wasteShare: share };
+  const share = kindCost ? r.wasted / kindCost : 0;
+  return { waste: share >= WASTE.high ? 'high' : share >= WASTE.medium ? 'medium' : 'low', wasteShare: share };
 }
 
 // A plain label for the table: `used` when sessions acted on it, `rare` when it bore on almost none, `unknown`
