@@ -567,12 +567,14 @@ function renderUsage(u) {
   const ho = u.holdout, measured = ho?.enough && ho.saved?.inputTokens != null;
   const saved = measured ? ho.saved.inputTokens : u.saved?.tokens || 0;
   // learning and upkeep in tokens of the agents' model (usage.js: by each call's model, cached input and
-  // output weighed as they are priced, removed features left out), so a cheap model's tokens count for less
+  // output weighed as they are priced, removed features left out), so a cheap model's tokens count for less.
+  // Shown beside the saving, not subtracted from it: the saving is a lower bound of reading avoided (one read
+  // per file, never re-sent), the upkeep every call in full, and a difference of the two read as a verdict.
   const spent = u.spending?.agentTokens ?? u.spending?.tokens ?? 0;
   $('#usage-body').innerHTML = `<div class="cards">
     ${card('Cache hits', fmt(served), `notes served, for ${fmt(u.answered)} of ${fmt(u.requests)} requests`, [['At the prompt', fmt(u.servings?.prompt || 0)], ['While editing a file', fmt(u.servings?.file || 0)], ['Asked for by the agent', fmt(u.servings?.lookup || 0)], ['Acted on', judged ? pct(as.confirmed || 0, judged) : '–']])}
     ${card('Notes', fmt(u.notesInCache || 0), ALL() ? 'notes in the caches' : 'notes in this cache', [['Learned from sessions', fmt(u.learned?.notes || 0)], ['Kept current', fmt((v.still_valid || 0) + (v.update || 0))], ['Retired', fmt(v.invalid || 0)]])}
-    ${card('Tokens saved', fmt(Math.max(0, saved)), measured ? 'input tokens, measured against prompts that had the notes withheld' : 'tokens of code the agents did not have to read, estimated from servings they acted on', [[measured ? 'Measured' : 'Estimated', measured ? `${fmt(ho.served.prompts)} prompts with notes, ${fmt(ho.heldOut.prompts)} held out` : 'too few held out yet'], ['Spent, in agent tokens', fmt(spent)], ['Net after spending', fmt(saved - (measured ? 0 : u.tokensServed || 0) - spent)]], true)}
+    ${card('Tokens saved', fmt(Math.max(0, saved)), measured ? 'input tokens, measured against prompts that had the notes withheld' : 'tokens of code the agents did not have to read, estimated from servings they acted on', [[measured ? 'Measured' : 'Estimated', measured ? `${fmt(ho.served.prompts)} prompts with notes, ${fmt(ho.heldOut.prompts)} held out` : 'too few held out yet'], ['Cache upkeep, in agent tokens', fmt(spent)]], true)}
   </div>`;
 }
 
