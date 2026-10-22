@@ -191,10 +191,16 @@ test('allChanges: every part as a row with its actions, whatever its waste; off 
   const by = k => cs.find(c => c.key === k);
   assert.deepEqual(by('section:AGENTS.md:Unknown').options.map(o => o.act), ['compress', 'remove']); assert.equal(by('section:AGENTS.md:Unknown').saving, 0);
   assert.deepEqual(by('claude:skill:x').options.map(o => o.act), ['on'], 'switched off: back on');
-  assert.deepEqual(by('output:Bash:pytest').options.map(o => o.act), ['compress', 'high']);
-  assert.deepEqual(by('output:Read').options.map(o => o.act), ['high', 'uncompress'], 'already moderate');
+  // one level of compression (moderate): Compress, or No compression once compressed at any level; never High (the owner's
+  // call of 2026-10-22: a person cannot pick between two levels nothing has measured against each other)
+  assert.deepEqual(by('output:Bash:pytest').options.map(o => o.act), ['compress']);
+  assert.deepEqual(by('output:Read').options.map(o => o.act), ['uncompress'], 'already moderate');
+  assert.deepEqual(allChanges(view({ outputs: { sessions: 40, tools: [{ name: 'Read', compressible: true, compression: 'high', saveModerate: 1 }] } })).find(c => c.key === 'output:Read').options.map(o => o.act), ['uncompress'], 'set high from the command line: still one way back');
+  assert.equal(cs.some(c => c.options.some(o => o.act === 'high')), false);
   assert.equal(cs.some(c => c.key === 'output:mcp:x'), false, 'nothing thinker can compress is not a change');
-  // an MCP server takes the moderate level alone (diet.js:mcpLevel): no high in its row
+  // a built-in tool is switched off from its row like any tool (the page asks first), and is marked as built-in
+  assert.deepEqual(by('claude:builtin:Workflow').options.map(o => o.act), ['off']); assert.equal(by('claude:builtin:Workflow').builtin, true);
+  // an MCP server: the same two states
   const mcp = allChanges(view({ outputs: { sessions: 40, tools: [{ name: 'mcp:y', compressible: true, compression: null, saveModerate: 1000, perSession: 5000 }, { name: 'mcp:z', compressible: true, compression: 'moderate', saveModerate: 1000, perSession: 5000 }] } }));
   assert.deepEqual(mcp.filter(c => c.kind === 'output').map(c => [c.key, c.options.map(o => o.act)]), [['output:mcp:y', ['compress']], ['output:mcp:z', ['uncompress']]]);
   // the page names a row by its key, as a list: `output:Read` is a key, not a choice with an action after its colon
@@ -206,16 +212,25 @@ test('approve from a row: turn back on, a compression level, and each reverted t
   const { allChanges, approveChanges, revertDecision, changeHistory } = await import('../src/context-suggest.js');
   const store = repo(), cs = allChanges(view()), by = k => cs.find(c => c.key === k);
   const cfg = () => JSON.parse(fs.readFileSync(path.join(store.dir, 'config.json'), 'utf8')).diet?.tools || {};
-  // Read is moderate: high, then reverted back to moderate; pytest off: high, reverted to off
+  // pytest off: compressed (moderate), then reverted to off; Read moderate: compression off, reverted to moderate
   const { setOutputCompression } = await import('../src/context-view.js');
   setOutputCompression(store, ['Read'], 'moderate');
-  let said = await approveChanges(store, [{ ...by('output:Read'), chosen: 'high' }, { ...by('output:Bash:pytest'), chosen: 'high' }]);
-  assert.deepEqual(said, ['Read output: Compressed (high) from the next tool call', 'pytest output: Compressed (high) from the next tool call']);
-  assert.deepEqual(cfg(), { Read: 'high', 'Bash:pytest': 'high' });
+  let said = await approveChanges(store, [{ ...by('output:Bash:pytest'), chosen: 'compress' }, { ...by('output:Read'), chosen: 'uncompress' }]);
+  assert.deepEqual(said, ['pytest output: Compressed from the next tool call', 'Read output: Compression off from the next tool call']);
+  assert.deepEqual(cfg(), { 'Bash:pytest': 'moderate' });
   const h = changeHistory(store);
   assert.match((await revertDecision(store, h.find(e => e.key === 'output:Read').id)).said, /moderate compression again/);
   assert.match((await revertDecision(store, h.find(e => e.key === 'output:Bash:pytest').id)).said, /compression off/);
   assert.deepEqual(cfg(), { Read: 'moderate' });
+  // a level the command line set (high) is kept by Revert as it was
+  setOutputCompression(store, ['Bash:pytest'], 'high');
+  const hi = allChanges(view({ outputs: { sessions: 40, tools: [{ name: 'Bash:pytest', compressible: true, compression: 'high', saveModerate: 1, perSession: 10 }] } })).find(c => c.key === 'output:Bash:pytest');
+  assert.deepEqual(hi.options.map(o => o.act), ['uncompress']);
+  await approveChanges(store, [hi]);
+  assert.deepEqual(cfg(), { Read: 'moderate' });
+  assert.match((await revertDecision(store, changeHistory(store)[0].id)).said, /high compression again/);
+  assert.deepEqual(cfg(), { Read: 'moderate', 'Bash:pytest': 'high' });
+  setOutputCompression(store, ['Bash:pytest'], null);
   said = await approveChanges(store, [{ ...by('output:Read'), chosen: 'uncompress' }]);
   assert.match(said[0], /Compression off from the next tool call/); assert.deepEqual(cfg(), {});
   // nothing switched off here to turn back on: the harness says so, nothing is recorded

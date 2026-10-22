@@ -1191,12 +1191,19 @@ would have cut, so an uncompressed MCP server or command can be medium or high w
 first view, All, holds every section, skill, tool and output together; the four after it one kind each; History, last, the
 decisions. The page's address carries nothing: the server refuses an API call another site's page makes (its Origin or
 Sec-Fetch-Site) and any Host but its own (`ui/server.js`); the per-run key in the address went on 2026-10-22, the owner's call. The actions are what `context-suggest.js:allChanges` gives each part (a section: Compress
-or Remove; a skill or tool: Switch off, or Turn back on where thinker switched it off; an output thinker can compress: Moderate
-or High compression, or No compression): the row is sent by its key to `/api/changes/approve`, which resolves it in the kept
+or Remove; a skill or tool: Switch off, or Turn back on where thinker switched it off; an output thinker can compress: Compress, or No
+compression; one level, moderate, since the owner's call of 2026-10-22 that a person cannot pick between two levels nothing has
+measured against each other: the rows offered High for a day, and `--level high` stays on the command line alone, for an
+experiment arm): the row is sent by its key to `/api/changes/approve`, which resolves it in the kept
 report and makes it (`approveChanges`; a skill or tool through `context-view.js:switchSources`, an output through
 `setOutputCompression`), recording the decision with its undo. A section is previewed first (`instruction-edit.js:previewEdit`,
 the diff above the table, Write to <file>) and recorded when written (`applyReviewed`, the file as it was kept for Revert; several
-sections previewed together are one decision). History lists every decision with Revert (`revertDecision`: a tool back on or off
+sections previewed together are one decision). A built-in tool's row is in bold and its Switch off is confirmed in a dialog first (`page.html:confirmDialog`: the tools named,
+`permissions.deny` of `.claude/settings.local.json` as where it is written, Revert and Turn back on as the way back), the one
+change the page asks about twice (2026-10-22, the owner's ask). Every view opens with a Potential savings card
+(`page.html:savingsCard`, back the same day): the flagged rows' cost in the sessions that did not use them (at most) for sections,
+skills and tools, what the moderate cap alone would have cut (at least) for outputs, and All the sum of the four over what
+everything costs a session. History lists every decision with Revert (`revertDecision`: a tool back on or off
 again, an output's compression back to what it was, a section's file written back unless edited since, a dismissal withdrawn);
 kept in `.thinker/state/context-suggest.json` with the undo records beside it. The ranking is still `topChanges`: the flagged
 parts (high or medium waste, saving at most their cost in the sessions that did not use them; an output, what the cap cuts) by

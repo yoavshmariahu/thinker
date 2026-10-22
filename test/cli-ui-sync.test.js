@@ -70,6 +70,21 @@ test('CLI and page expose the shared Claude Code, Codex and Cursor harness repor
   assert.match(read('ui/page.html'), /api\('\/api\/changes\/approve', \{ repo, \.\.\.g, days: cdays \}\)/);
   assert.match(read('context-suggest.js'), /switchSources\(store, \{ keys: \[c\.sourceKey \|\| c\.name\], on: true \}\)/);
   assert.match(read('context-suggest.js'), /setOutputCompression\(store, \[c\.name\], level\)/);
+  // one level of compression from the page (moderate): its rows offer Compress or No compression, never High, which only
+  // `thinker context --output-compression <tools> --level high` sets, for an experiment arm (the owner's call, 2026-10-22)
+  const page = read('ui/page.html');
+  assert.doesNotMatch(page, /\['high', 'High compression'\]/); assert.doesNotMatch(read('context-suggest.js'), /text: 'High compression'/);
+  assert.match(page, /const levelOpts = s => s\.compression \? \[\['uncompress', 'No compression'\]\] : \[\['compress', 'Compress'\]\]/);
+  assert.match(read('commands/context.js'), /\['high', 'moderate'\]\.includes\(flags\.level\)/);
+  // a built-in tool is switched off from its row through the same route, after the page's confirmation names what goes,
+  // where it is written (harness.js: permissions.deny of .claude/settings.local.json) and how it comes back
+  assert.match(page, /bold: s\.kind === 'tool'/);
+  assert.match(page, /confirmDialog\(\{\s*title: `Switch off \$\{builtins\.length/);
+  assert.match(page, /permissions\.deny<\/code> of <code>\.claude\/settings\.local\.json<\/code> in this repository/);
+  assert.match(page, /<b>Revert<\/b> under History, <b>Turn back on<\/b> in the tool's row, or <code>thinker harness --undo<\/code>/);
+  // every view opens with its Potential savings card
+  assert.match(page, /const savingsCard = /);
+  for (const k of ['all', 'instructions', 'custom', 'builtin', 'outputs']) assert.match(page, new RegExp(`savings: sav\\.${k}`), k);
   assert.match(read('ui/page.html'), /cursor: 'Cursor'/);
   assert.match(read('commands/context.js'), /switchSources\(store, \{ keys: list\(flags\['switch-on'\]\), on: true \}\)/);
   assert.match(read('commands/hooks.js'), /harnessHere = \['claude', 'codex', 'cursor'\]\.includes\(client\)[\s\S]*harnessHere \? await harnessRecall/);
