@@ -282,8 +282,11 @@ def process_table():
     return {int(p[0]): (int(p[1]), ' '.join(p[2:])) for line in data.splitlines() if len(p := line.split()) >= 7}
 
 
-def supervised(cmd, *, cwd, env, prefix, seconds, batch, input_text=None, heartbeat=1, allowed_codes=(0,), native_root=None, wiring=False):
-    """Write stdout/stderr while running; bound wall time and clean up descendants."""
+def supervised(cmd, *, cwd, env, prefix, seconds, batch, input_text=None, heartbeat=1, allowed_codes=(0,), native_root=None, wiring=False, elapsed=None):
+    """Write stdout/stderr while running; bound wall time and clean up descendants.
+
+    elapsed: the seconds the deadline is measured in (the wall clock by default); a test passes its own, so
+    the deadline passes at a point of its choosing rather than at a race with the child's start-up."""
     require_running(batch)
     if os.name != 'posix' or not 0 < seconds <= 3600:
         raise GuardError('POSIX process supervision and bounded deadline required')
@@ -316,6 +319,7 @@ def supervised(cmd, *, cwd, env, prefix, seconds, batch, input_text=None, heartb
             native_dest.write_bytes(native_source.read_bytes())
 
     start = time.monotonic()
+    elapsed = elapsed or (lambda: time.monotonic() - start)
     reason, proc, descendants, handlers = None, None, {}, {}
 
     def cancelled(signum, _frame):
@@ -370,7 +374,7 @@ def supervised(cmd, *, cwd, env, prefix, seconds, batch, input_text=None, heartb
                     reason = 'test-policy-violation'
                 elif (Path(batch) / 'STOPPED.json').exists():
                     reason = 'batch-stopped'
-                elif time.monotonic() - start >= seconds:
+                elif elapsed() >= seconds:
                     reason = 'timeout'
                 if native_root and native_source is None and time.monotonic() - start > 60:
                     reason = 'native-trace-unavailable'
