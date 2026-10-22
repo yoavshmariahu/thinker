@@ -26,7 +26,7 @@ function repo(t, name = 'thinker-switch-') {
   return { dir, git };
 }
 const call = (port, p, { token, body } = {}) => new Promise((resolve, reject) => {
-  const req = http.request({ host: '127.0.0.1', port, path: p, method: body ? 'POST' : 'GET', headers: { host: `127.0.0.1:${port}`, 'x-thinker-token': token, ...(body ? { 'content-type': 'application/json' } : {}) } }, res => {
+  const req = http.request({ host: '127.0.0.1', port, path: p, method: body ? 'POST' : 'GET', headers: { host: `127.0.0.1:${port}`, ...(body ? { 'content-type': 'application/json' } : {}) } }, res => {
     let s = ''; res.on('data', d => s += d); res.on('end', () => resolve({ status: res.statusCode, body: s }));
   });
   req.on('error', reject); if (body) req.write(JSON.stringify(body)); req.end();

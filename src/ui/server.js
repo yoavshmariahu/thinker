@@ -8,9 +8,12 @@
 // The page is machine-wide: it needs no repository, and a repository is named by its id (as the log
 // names it) so the page cannot be pointed at a path.
 //
-// It listens on 127.0.0.1 alone. Every API call carries a token minted for this run, which the page
-// gets from the URL it was opened with, and the Host header must name this server, so another page
-// in the browser (or a DNS rebinding) can neither read the cache nor change a behavior.
+// It listens on 127.0.0.1 alone. The Host header must name this server (a DNS rebinding names another),
+// and an API call that a browser marks as coming from another site (its Origin header, or
+// Sec-Fetch-Site: cross-site) is refused, so another page in the browser can neither read the cache nor
+// change a behavior. Until 2026-10-22 every call also carried a key minted for the run, in the page's
+// address; the owner dropped it: a copied address without it was a broken page, and the two checks above
+// keep the same pages out.
 import { harnessView, harnessSavings, harnessOn, scheduleHarnessSuggestion, undoHarness, switchOffNow, setHarnessSettings } from '../harness.js';
 import { contextView, mergeViews, switchSources, setOutputCompression } from '../context-view.js';
 import { snapshotView, lastSnapshot, refreshing, dropSnapshots, REFRESH_MS } from '../context-snapshot.js';
@@ -21,7 +24,6 @@ import { previewEdit, applyEdit } from '../instruction-edit.js';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { summarize } from '../usage.js';
@@ -129,7 +131,7 @@ const readBody = req => new Promise((resolve, reject) => {
   req.on('end', () => { try { resolve(s ? JSON.parse(s) : {}); } catch (e) { reject(e); } });
 });
 
-export function createUiServer(store, { token = crypto.randomBytes(16).toString('hex'), home = thinkerHome(), transcriptsHome, cliPath = path.join(HERE, '..', 'cli.js'), refreshFn, refreshReposFn } = {}) {
+export function createUiServer(store, { home = thinkerHome(), transcriptsHome, cliPath = path.join(HERE, '..', 'cli.js'), refreshFn, refreshReposFn } = {}) {
   refreshReposFn ||= () => { try { const p = spawn(process.execPath, [cliPath, 'ui', '--refresh'], { cwd: store.repo, stdio: 'ignore', detached: true }); p.on('error', () => {}); p.unref(); } catch {} };
   // an old Context report is made again by `thinker context --refresh` in the checkout, in the background
   refreshFn ||= checkout => { try { const p = spawn(process.execPath, [cliPath, 'context', '--refresh', '--quiet', '--repo', checkout], { cwd: checkout, stdio: 'ignore', detached: true }); p.on('error', () => {}); p.unref(); } catch {} };
@@ -174,8 +176,10 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
       return res.end(page);
     }
     if (!url.pathname.startsWith('/api/')) return json(res, 404, { error: 'not found' });
-    const given = String(req.headers['x-thinker-token'] || '');
-    if (given.length !== token.length || !crypto.timingSafeEqual(Buffer.from(given), Buffer.from(token))) return json(res, 401, { error: 'bad token' });
+    // a browser names where a request came from: another site is refused; the page itself (same origin) and a
+    // process on this machine (no Origin) are answered
+    const origin = String(req.headers.origin || ''), site = String(req.headers['sec-fetch-site'] || '');
+    if ((origin && origin !== `http://127.0.0.1:${port}` && origin !== `http://localhost:${port}`) || site === 'cross-site') return json(res, 403, { error: 'wrong origin' });
     try {
       // which repository: '' (this one), 'all', or one of machineRepos by id
       const want = String(url.searchParams.get('repo') || '');
@@ -306,12 +310,12 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
     }
   });
   return {
-    server, token,
+    server,
     listen(want = DEFAULT_PORT) {
       return new Promise((resolve, reject) => {
         const tryPort = p => {
           server.once('error', e => { if (e.code === 'EADDRINUSE' && p !== 0) tryPort(0); else reject(e); });
-          server.listen(p, '127.0.0.1', () => { port = server.address().port; resolve({ port, url: `http://127.0.0.1:${port}/#t=${token}` }); });
+          server.listen(p, '127.0.0.1', () => { port = server.address().port; resolve({ port, url: `http://127.0.0.1:${port}/` }); });
         };
         tryPort(want);
       });

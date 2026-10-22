@@ -31,8 +31,8 @@ read by 40 calls is 160k input tokens. That is the number the page shows and sor
 
 **One part at a time, as cards.** Each instruction section, skill and tool beside:
 
-- *Cost*: tokens a call and input tokens a session.
-- *Used*: how often the sessions acted on it. A section is *applied* when a session touched its
+- *Cost*: tokens per call and input tokens a session.
+- *Used* (the page's Sessions used): how often the sessions acted on it. A section is *applied* when a session touched its
   files, ran its command or read the code it names, free, from the transcript. *Relevant* and
   *followed* come from a model reading one session against the sections and saying which bore on
   the work and whether the agent followed them; that costs tokens, so it runs when you press

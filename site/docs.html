@@ -610,17 +610,14 @@
     .ctx-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin: 0; }
     .ctx-table th { text-align: left; font-weight: 600; color: #6b7280; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.35rem 0.5rem; border-bottom: 1px solid #e5e7eb; }
     .ctx-table td { padding: 0.42rem 0.5rem; border-bottom: 1px solid #f1f5f9; color: #111; white-space: nowrap; }
-    .ctx-table .num, .ctx-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .ctx-table .num, .ctx-table th.num { text-align: center; font-variant-numeric: tabular-nums; }
     .ctx-table tr.ctx-high td { background: #fff7ed; }
     .ctx-table tr.ctx-medium td { background: #fefce8; }
     .ctx-table input { margin: 0 0.3rem 0 0; vertical-align: -1px; }
-    .ctx-bar { display: inline-block; width: 90px; height: 6px; background: #e5e7eb; border-radius: 3px; margin-right: 0.5rem; vertical-align: middle; overflow: hidden; }
-    .ctx-bar i { display: block; height: 100%; background: #2a78d6; border-radius: 3px; }
     .ctx-pill { font-size: 0.68rem; border-radius: 999px; padding: 0.1rem 0.5rem; font-weight: 600; }
     .ctx-pill.high { background: #fde7d6; color: #9a3412; }
     .ctx-pill.medium { background: #fef3c7; color: #92400e; }
-    .ctx-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; font-size: 0.8rem; color: #52514e; margin-top: 0.7rem; }
-    .ctx-actions span:first-child { margin-right: auto; }
+    .ctx-capact { margin-left: auto; display: flex; align-items: center; gap: 0.7rem; }
     .ctx-btn { background: #111; color: #fff; border-radius: 6px; padding: 0.3rem 0.75rem; font-size: 0.78rem; font-weight: 600; }
     .ctx-btn.ghost { background: transparent; color: #111; border: 1px solid #d1d5db; }
     .ctx-split { display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem; }
@@ -810,7 +807,7 @@
           <table>
             <thead><tr><th>Measure</th><th>What it means</th></tr></thead>
             <tbody>
-              <tr><td>Cost</td><td>Tokens a call, and input tokens a session: the tokens times the session's model calls.</td></tr>
+              <tr><td>Cost</td><td>Tokens per call, and input tokens a session: the tokens times the session's model calls.</td></tr>
               <tr><td>Used</td><td>A <em>section</em> is applied when a session touched its files, ran its command or read the code it names, read free from the transcript. Relevant and followed come from a model reading one session against the sections; that costs tokens, so it runs when you press <strong>Judge 5 more sessions</strong>, or on a sample of sessions as they end once <code>instructions.value.judge</code> is on. A <em>skill</em> is read when a session opened it, and the sampled outcome check adds whether sessions that read it kept its rules and how often one broke them without reading it. A <em>tool</em> is used when a session called it.</td></tr>
               <tr><td>Waste</td><td>High or medium for a part the sessions used in under half of them, when what it cost in the sessions that did not use it is 5% or 2% of what its kind costs. The saving beside it is that cost, at most: a session that needed the part would go without.</td></tr>
             </tbody>
@@ -832,13 +829,12 @@
           Pick the sections no session acts on. <strong>Compress</strong> has a model rewrite them to about a third of the length; it is told to keep every rule, command, flag, config key, default and path, and to drop history, measurements, rationale and repetition. <strong>Remove</strong> drops the section; a heading with subsections keeps its heading line.
         </p>
         <figure class="ctx-figure">
-          <figcaption><b>AGENTS.md this week</b> <span class="ctx-example">example</span> <span class="ctx-sub">48 sessions · 4,320 tokens a call · 13.3M input tokens on the file, 9.2M of it on sections no session acted on</span></figcaption>
+          <figcaption><b>AGENTS.md this week</b> <span class="ctx-example">example</span> <span class="ctx-sub">48 sessions · 4,320 tokens per call · 13.3M input tokens on the file, 9.2M of it on sections no session acted on</span><span class="ctx-capact"><span class="ctx-sub">3 sections picked · 3,660 tokens per call, 9.2M this week</span><span class="ctx-btn">Apply</span></span></figcaption>
           <table class="ctx-table">
-            <thead><tr><th>Section</th><th class="num">Tokens a call</th><th>Sessions that acted on it</th><th class="num">This week</th><th></th></tr></thead>
-            <tbody><tr><td><input type="checkbox" aria-label="Pick Repository layout"> Repository layout</td><td class="num">420</td><td><span class="ctx-bar"><i style="width:92%"></i></span>92%</td><td class="num">1.1M</td><td></td></tr><tr><td><input type="checkbox" aria-label="Pick Running the tests"> Running the tests</td><td class="num">310</td><td><span class="ctx-bar"><i style="width:71%"></i></span>71%</td><td class="num">0.78M</td><td></td></tr><tr class="ctx-high"><td><input type="checkbox" aria-label="Pick Release process" checked> Release process</td><td class="num">1,460</td><td><span class="ctx-bar"><i style="width:4%"></i></span>4%</td><td class="num">3.6M</td><td><span class="ctx-pill high">high waste</span></td></tr><tr class="ctx-high"><td><input type="checkbox" aria-label="Pick Deploy to staging" checked> Deploy to staging</td><td class="num">980</td><td><span class="ctx-bar"><i style="width:0%"></i></span>0%</td><td class="num">2.5M</td><td><span class="ctx-pill high">high waste</span></td></tr><tr class="ctx-high"><td><input type="checkbox" aria-label="Pick Legacy API notes" checked> Legacy API notes</td><td class="num">1,220</td><td><span class="ctx-bar"><i style="width:3%"></i></span>3%</td><td class="num">3M</td><td><span class="ctx-pill high">high waste</span></td></tr><tr><td><input type="checkbox" aria-label="Pick Commit conventions"> Commit conventions</td><td class="num">240</td><td><span class="ctx-bar"><i style="width:58%"></i></span>58%</td><td class="num">0.6M</td><td></td></tr><tr class="ctx-medium"><td><input type="checkbox" aria-label="Pick Database migrations"> Database migrations</td><td class="num">690</td><td><span class="ctx-bar"><i style="width:19%"></i></span>19%</td><td class="num">1.7M</td><td><span class="ctx-pill medium">medium waste</span></td></tr></tbody>
+            <thead><tr><th>Section</th><th class="num">Tokens per call</th><th class="num">Sessions used</th><th class="num">This week</th><th></th></tr></thead>
+            <tbody><tr><td><input type="checkbox" aria-label="Pick Repository layout"> Repository layout</td><td class="num">420</td><td class="num">92%</td><td class="num">1.1M</td><td></td></tr><tr><td><input type="checkbox" aria-label="Pick Running the tests"> Running the tests</td><td class="num">310</td><td class="num">71%</td><td class="num">0.78M</td><td></td></tr><tr class="ctx-high"><td><input type="checkbox" aria-label="Pick Release process" checked> Release process</td><td class="num">1,460</td><td class="num">4%</td><td class="num">3.6M</td><td><span class="ctx-pill high">high waste</span></td></tr><tr class="ctx-high"><td><input type="checkbox" aria-label="Pick Deploy to staging" checked> Deploy to staging</td><td class="num">980</td><td class="num">0%</td><td class="num">2.5M</td><td><span class="ctx-pill high">high waste</span></td></tr><tr class="ctx-high"><td><input type="checkbox" aria-label="Pick Legacy API notes" checked> Legacy API notes</td><td class="num">1,220</td><td class="num">3%</td><td class="num">3M</td><td><span class="ctx-pill high">high waste</span></td></tr><tr><td><input type="checkbox" aria-label="Pick Commit conventions"> Commit conventions</td><td class="num">240</td><td class="num">58%</td><td class="num">0.6M</td><td></td></tr><tr class="ctx-medium"><td><input type="checkbox" aria-label="Pick Database migrations"> Database migrations</td><td class="num">690</td><td class="num">19%</td><td class="num">1.7M</td><td><span class="ctx-pill medium">medium waste</span></td></tr></tbody>
           </table>
-          <div class="ctx-actions"><span>3 sections picked · 3,660 tokens a call, 9.2M this week</span><span class="ctx-btn">Compress</span><span class="ctx-btn ghost">Remove</span></div>
-          <p class="ctx-note">Both show the diff first; Apply writes it to the file in your working tree, uncommitted.</p>
+          <p class="ctx-note">Each row's dropdown picks Compress or Remove; Apply shows the diff of the checked rows first, then writes it to the file in your working tree, uncommitted.</p>
         </figure>
         <dl class="how">
           <dt>How</dt><dd>The diff is shown first. <strong>Apply</strong> writes exactly that text to <code>AGENTS.md</code> (or <code>CLAUDE.md</code>) in your working tree, uncommitted, and refuses when the file changed since the preview. No commit and no pull request: review it with <code>git diff</code>, then commit it or drop it.</dd>

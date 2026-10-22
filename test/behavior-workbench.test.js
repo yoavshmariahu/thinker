@@ -68,34 +68,37 @@ test('switching fixed and mutable leaves a stale behavior stale; new words are r
   assert.equal(r.note.source.type, 'human');
 });
 
-function call(port, pathname, { token, host = `127.0.0.1:${port}`, body } = {}) {
+function call(port, pathname, { origin, site, host = `127.0.0.1:${port}`, body } = {}) {
   return new Promise((resolve, reject) => {
-    const req = http.request({ host: '127.0.0.1', port, path: pathname, method: body ? 'POST' : 'GET', headers: { host, ...(token ? { 'x-thinker-token': token } : {}), ...(body ? { 'content-type': 'application/json' } : {}) } }, res => {
+    const req = http.request({ host: '127.0.0.1', port, path: pathname, method: body ? 'POST' : 'GET', headers: { host, ...(origin ? { origin } : {}), ...(site ? { 'sec-fetch-site': site } : {}), ...(body ? { 'content-type': 'application/json' } : {}) } }, res => {
       let s = ''; res.on('data', d => s += d); res.on('end', () => resolve({ status: res.statusCode, body: s }));
     });
     req.on('error', reject); if (body) req.write(JSON.stringify(body)); req.end();
   });
 }
 
-test('the local page answers only this host, with this run\'s token, and acts through the workbench', async t => {
+test('the local page answers only this host and its own origin, and acts through the workbench', async t => {
   const { store } = fixture(t);
   process.env.THINKER_LOG = 'local';
   t.after(() => { delete process.env.THINKER_LOG; });
-  const ui = createUiServer(store, { token: 'a'.repeat(32), home: fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-ui-home-')), transcriptsHome: fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-ui-th-')) });
+  const ui = createUiServer(store, { home: fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-ui-home-')), transcriptsHome: fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-ui-th-')) });
   const { port, url } = await ui.listen(0);
   t.after(() => ui.close());
-  assert.match(url, /^http:\/\/127\.0\.0\.1:\d+\/#t=a{32}$/);
+  assert.match(url, /^http:\/\/127\.0\.0\.1:\d+\/$/, 'a plain address, nothing to carry');
   assert.equal((await call(port, '/')).status, 200);
-  assert.equal((await call(port, '/api/behaviors')).status, 401, 'no token');
-  assert.equal((await call(port, '/api/behaviors', { token: 'b'.repeat(32) })).status, 401, 'wrong token');
-  assert.equal((await call(port, '/api/behaviors', { token: 'a'.repeat(32), host: `evil.example:${port}` })).status, 403, 'another host name');
-  const list = JSON.parse((await call(port, '/api/behaviors', { token: 'a'.repeat(32) })).body);
+  // another site's page in the browser is refused by what the browser says about it; the page itself and a process here are not
+  assert.equal((await call(port, '/api/behaviors', { origin: 'https://evil.example' })).status, 403, 'another origin');
+  assert.equal((await call(port, '/api/behaviors', { origin: `http://127.0.0.1:${port}`, site: 'cross-site' })).status, 403, 'cross-site by the fetch metadata');
+  assert.equal((await call(port, '/api/behaviors', { origin: `http://127.0.0.1:${port}`, site: 'same-origin' })).status, 200, 'the page itself');
+  assert.equal((await call(port, '/api/behaviors', { origin: `http://localhost:${port}`, host: `localhost:${port}` })).status, 200, 'the page by its other name');
+  assert.equal((await call(port, '/api/behaviors', { host: `evil.example:${port}` })).status, 403, 'another host name');
+  const list = JSON.parse((await call(port, '/api/behaviors', {})).body);
   assert.equal(list.pending.length, 2);
-  const acc = await call(port, '/api/behaviors/accept', { token: 'a'.repeat(32), body: { id: 'guard-trims', mutability: 'fixed' } });
+  const acc = await call(port, '/api/behaviors/accept', { body: { id: 'guard-trims', mutability: 'fixed' } });
   assert.equal(acc.status, 200, acc.body);
   assert.equal(store.get('guard-trims').mutability, 'fixed');
-  assert.equal((await call(port, '/api/behaviors/discard', { token: 'a'.repeat(32), body: { id: 'nope' } })).status, 400);
-  const usage = JSON.parse((await call(port, '/api/usage?days=7', { token: 'a'.repeat(32) })).body);
+  assert.equal((await call(port, '/api/behaviors/discard', { body: { id: 'nope' } })).status, 400);
+  const usage = JSON.parse((await call(port, '/api/usage?days=7', {})).body);
   // active notes, as the Cache page counts them since #423: the rule, not the two behaviors
   assert.equal(usage.notesInCache, 1);
   assert.ok(!JSON.stringify(usage).includes('reportedCost'), 'no dollars on the page');
@@ -106,10 +109,10 @@ test('the local page lists the cache, archives and restores a note, and is scope
   const { store } = fixture(t);
   process.env.THINKER_LOG = 'local';
   t.after(() => { delete process.env.THINKER_LOG; });
-  const ui = createUiServer(store, { token: 'a'.repeat(32), home: fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-ui-home-')), transcriptsHome: fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-ui-th-')) });
+  const ui = createUiServer(store, { home: fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-ui-home-')), transcriptsHome: fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-ui-th-')) });
   const { port } = await ui.listen(0);
   t.after(() => ui.close());
-  const get = async p => { const r = await call(port, p, { token: 'a'.repeat(32) }); assert.equal(r.status, 200, r.body); return JSON.parse(r.body); };
+  const get = async p => { const r = await call(port, p, {}); assert.equal(r.status, 200, r.body); return JSON.parse(r.body); };
   const { repos } = await get('/api/repos');
   assert.equal(repos.length, 1);
   assert.ok(repos[0].current);
@@ -122,13 +125,13 @@ test('the local page lists the cache, archives and restores a note, and is scope
   assert.equal(n.repo, repos[0].id);
   assert.deepEqual((await get(`/api/cache?repo=${encodeURIComponent(repos[0].id)}`)).notes.length, 1);
   assert.equal((await get('/api/cache?repo=all')).notes.length, 1);
-  assert.equal((await call(port, '/api/cache?repo=%2Fetc', { token: 'a'.repeat(32) })).status, 400, 'only a listed repository');
-  assert.equal((await call(port, '/api/cache/archive', { token: 'a'.repeat(32), body: { id: 'guard-rejects-empty' } })).status, 400, 'a behavior is not archived from here');
-  assert.equal((await call(port, '/api/cache/archive', { token: 'a'.repeat(32), body: { id: 'other-returns-one', repo: repos[0].id } })).status, 200);
+  assert.equal((await call(port, '/api/cache?repo=%2Fetc', {})).status, 400, 'only a listed repository');
+  assert.equal((await call(port, '/api/cache/archive', { body: { id: 'guard-rejects-empty' } })).status, 400, 'a behavior is not archived from here');
+  assert.equal((await call(port, '/api/cache/archive', { body: { id: 'other-returns-one', repo: repos[0].id } })).status, 200);
   assert.ok(store.get('other-returns-one').archived);
   assert.equal((await get('/api/cache')).notes[0].status, 'archived');
-  assert.equal((await call(port, '/api/cache/archive', { token: 'a'.repeat(32), body: { id: 'other-returns-one' } })).status, 400, 'already archived');
-  assert.equal((await call(port, '/api/cache/restore', { token: 'a'.repeat(32), body: { id: 'other-returns-one' } })).status, 200);
+  assert.equal((await call(port, '/api/cache/archive', { body: { id: 'other-returns-one' } })).status, 400, 'already archived');
+  assert.equal((await call(port, '/api/cache/restore', { body: { id: 'other-returns-one' } })).status, 200);
   assert.ok(!store.get('other-returns-one').archived);
   const all = await get('/api/behaviors?repo=all');
   assert.equal(all.pending.length, 2);

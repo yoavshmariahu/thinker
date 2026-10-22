@@ -97,7 +97,7 @@ async function contextCommand({ store, flags, out }) {
     out('');
   }
   if (v.outputs.tools.length) {
-    out('Tool outputs: input tokens a session, calls a session, tokens a call.');
+    out('Tool outputs: input tokens a session, calls a session, tokens per call.');
     for (const o of v.outputs.tools.slice(0, flags.verbose ? undefined : 12)) out(`  ${pad(formatTokens(o.perSession), 9)} ${pad(o.calls.toFixed(1), 6)} calls ${pad(formatTokens(o.perCall), 6)}  ${o.name}`);
     out('');
   }

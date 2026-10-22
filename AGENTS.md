@@ -1177,11 +1177,16 @@ by a model asked for a third of the length (`instruction-edit.js`, `thinker inst
 tree, uncommitted, and refuses when the file changed since the preview. No commit, no pull request.
 
 **The tables, All and History (2026-10-22, the owner's layout).** Every view of the Context tab is one table in the shape of
-the docs' "AGENTS.md this week" example (`site/docs.html`, `ui/page.html:renderTable`): a row a part with its box, its tokens a
-call, the share of sessions that acted on it as a bar, its cost over the window and a pill where the waste is high or medium;
-See more opens the part's text under the row; a dropdown in the row picks what to do and Apply does it, or Apply picked does it
-for every picked row. The first view, All, holds every section, skill, tool and output together; the four after it one kind
-each; History, last, the decisions. The actions are what `context-suggest.js:allChanges` gives each part (a section: Compress
+the docs' "AGENTS.md this week" example (`site/docs.html`, `ui/page.html:renderTable`): a row a part with its box, its tokens
+per call, the share of sessions that used it, its cost over the window (numbers centered, no bars) and a pill where the waste
+is high or medium; See more opens the part's text under the row; a dropdown in the row picks what to do, and the one Apply at
+the table's top right does it for every checked row (no button per row; History's Revert is per decision). Sorting follows the
+window figures the table shows: most wasted is the waste a session times the sessions the part was in, as the summary ranks.
+An output's waste is what moderate compression would have cut as a share of all output cost, by the same thresholds
+(`instruction-value.js:WASTE`), so an uncompressed MCP server or command can be medium or high waste beside a section. The
+first view, All, holds every section, skill, tool and output together; the four after it one kind each; History, last, the
+decisions. The page's address carries nothing: the server refuses an API call another site's page makes (its Origin or
+Sec-Fetch-Site) and any Host but its own (`ui/server.js`); the per-run key in the address went on 2026-10-22, the owner's call. The actions are what `context-suggest.js:allChanges` gives each part (a section: Compress
 or Remove; a skill or tool: Switch off, or Turn back on where thinker switched it off; an output thinker can compress: Moderate
 or High compression, or No compression): the row is sent by its key to `/api/changes/approve`, which resolves it in the kept
 report and makes it (`approveChanges`; a skill or tool through `context-view.js:switchSources`, an output through

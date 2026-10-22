@@ -145,14 +145,15 @@ async function uiCommand(ctx) {
   // the checkouts the page lists, looked for again (ui/server.js:refreshCheckouts); the page runs this in the background
   if (flags.refresh) { const cs = refreshCheckouts(store); if (!flags.quiet) out(`${cs.length} checkouts with a cache kept for the page.`); return; }
   const { box, c } = await import('../setup/ui.js');
-  // --background (context-suggest.js:ensureUi): the page a session's hook starts, with the token it was given, its
-  // address in THINKER_HOME/state/ui.json while it runs; no browser, gone once idle
+  // --background (context-suggest.js:ensureUi): the page a session's hook starts, its address in
+  // THINKER_HOME/state/ui.json while it runs; no browser, gone once idle
   const background = Boolean(flags.background);
-  const ui = createUiServer(store, background && process.env.THINKER_UI_TOKEN ? { token: process.env.THINKER_UI_TOKEN } : {});
+  const ui = createUiServer(store);
   const listening = await ui.listen(flags.port !== undefined ? Number(flags.port) : DEFAULT_PORT);
   const { port } = listening;
   // --all: the Context tab over all repositories (the installer opens the page so)
-  const tab = (typeof flags.tab === 'string' ? `&tab=${encodeURIComponent(flags.tab)}` : '') + (flags.all ? '&repo=all' : '');
+  const parts = [typeof flags.tab === 'string' ? `tab=${encodeURIComponent(flags.tab)}` : '', flags.all ? 'repo=all' : ''].filter(Boolean);
+  const tab = parts.length ? `#${parts.join('&')}` : '';
   if (background) {
     const { uiFile } = await import('../context-suggest.js');
     const f = uiFile(), mine = () => { try { return JSON.parse(fs.readFileSync(f, 'utf8')).pid === process.pid; } catch { return false; } };
@@ -167,7 +168,7 @@ async function uiCommand(ctx) {
     process.exit(0);
   }
   if (flags['from-setup']) {
-    openBrowser(`${listening.url}&from=setup${tab}`);
+    openBrowser(`${listening.url}#from=setup${parts.length ? `&${parts.join('&')}` : ''}`);
     await new Promise(resolve => { const t = setInterval(() => { if (ui.idleMs() > UI_IDLE_MS) { clearInterval(t); resolve(); } }, 60 * 1000); });
     await ui.close();
     return;

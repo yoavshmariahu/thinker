@@ -280,10 +280,10 @@ test('what switching off saved is read from the sessions started since: absent c
 test('the page shows the same view as the command, and asks and undoes through the same functions', async t => {
   const store = checkout(t);
   process.env.THINKER_LOG = 'local'; t.after(() => { delete process.env.THINKER_LOG; });
-  const ui = createUiServer(store, { token: 'a'.repeat(32), home: tmp('thinker-harness-uih-'), transcriptsHome: tmp('thinker-harness-uit-') });
+  const ui = createUiServer(store, { home: tmp('thinker-harness-uih-'), transcriptsHome: tmp('thinker-harness-uit-') });
   const { port } = await ui.listen(0); t.after(() => ui.close());
   const call = (p, body) => new Promise((resolve, reject) => {
-    const req = http.request({ host: '127.0.0.1', port, path: p, method: body ? 'POST' : 'GET', headers: { host: `127.0.0.1:${port}`, 'x-thinker-token': 'a'.repeat(32), ...(body ? { 'content-type': 'application/json' } : {}) } }, res => { let s = ''; res.on('data', d => s += d); res.on('end', () => resolve({ status: res.statusCode, body: JSON.parse(s || '{}') })); });
+    const req = http.request({ host: '127.0.0.1', port, path: p, method: body ? 'POST' : 'GET', headers: { host: `127.0.0.1:${port}`, ...(body ? { 'content-type': 'application/json' } : {}) } }, res => { let s = ''; res.on('data', d => s += d); res.on('end', () => resolve({ status: res.statusCode, body: JSON.parse(s || '{}') })); });
     req.on('error', reject); if (body) req.write(JSON.stringify(body)); req.end();
   });
   const v = await call('/api/harness');
