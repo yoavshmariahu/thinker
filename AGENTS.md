@@ -1176,22 +1176,29 @@ by a model asked for a third of the length (`instruction-edit.js`, `thinker inst
 [--apply]`, the tab's Compress and Remove). The diff is shown first; Apply writes exactly that text to the working
 tree, uncommitted, and refuses when the file changed since the preview. No commit, no pull request.
 
-**Top suggested and History (2026-10-22).** The report's flagged parts are ranked as changes (`context-suggest.js:topChanges`):
-a section, skill or tool of high or medium waste, saving at most its cost in the sessions that did not use it, and an output
-thinker can compress, saving what the cap cuts; each total is that saving over the sessions of the last 7 days. Each has one
-suggested action, the first of its options (a section: Compress, as the tab's Compress, or Remove; a skill or tool: Switch
-off; an output: Compress, at moderate), with no levels to choose between: none is measured against another. The Context
-tab's first view tab, Top suggested, shows the five largest not decided in the last month (`currentChanges`): Approve makes
-the action picked in the card's dropdown (`approveChanges`; a section is compressed by a model, a result over a third sent
-back once with the limit, `instruction-edit.js:COMPRESS_KEEP`, and written to the working tree, uncommitted), Dismiss leaves
-it for a month. History, the last tab, lists every decision with Revert (`revertDecision`: a tool back on, compression
-off, a section's file written back unless edited since, a dismissal withdrawn); kept in `.thinker/state/context-suggest.json`
-with the undo records beside it. Both read the last report kept (`context-snapshot.js:lastSnapshot`), so a click does not
-wait for the transcripts. `thinker context --approve|--dismiss|--history|--revert` is the same. Once a week, maintenance
-keeps the top five (`scheduleContextSuggestion`, no model call, once there are 10 sessions) and the next prompt's hook starts
-`thinker ui --background` and tells the agent to pass them on in a few lines with the link to that tab, and to make none of
-them itself (`contextSuggestOffer`; not in an SDK session or test mode). On by default, at the owner's request;
-`maintain: { contextSuggest: false }` turns it off. Not measured: whether people act on the summary.
+**The tables, All and History (2026-10-22, the owner's layout).** Every view of the Context tab is one table in the shape of
+the docs' "AGENTS.md this week" example (`site/docs.html`, `ui/page.html:renderTable`): a row a part with its box, its tokens a
+call, the share of sessions that acted on it as a bar, its cost over the window and a pill where the waste is high or medium;
+See more opens the part's text under the row; a dropdown in the row picks what to do and Apply does it, or Apply picked does it
+for every picked row. The first view, All, holds every section, skill, tool and output together; the four after it one kind
+each; History, last, the decisions. The actions are what `context-suggest.js:allChanges` gives each part (a section: Compress
+or Remove; a skill or tool: Switch off, or Turn back on where thinker switched it off; an output thinker can compress: Moderate
+or High compression, or No compression): the row is sent by its key to `/api/changes/approve`, which resolves it in the kept
+report and makes it (`approveChanges`; a skill or tool through `context-view.js:switchSources`, an output through
+`setOutputCompression`), recording the decision with its undo. A section is previewed first (`instruction-edit.js:previewEdit`,
+the diff above the table, Write to <file>) and recorded when written (`applyReviewed`, the file as it was kept for Revert; several
+sections previewed together are one decision). History lists every decision with Revert (`revertDecision`: a tool back on or off
+again, an output's compression back to what it was, a section's file written back unless edited since, a dismissal withdrawn);
+kept in `.thinker/state/context-suggest.json` with the undo records beside it. The ranking is still `topChanges`: the flagged
+parts (high or medium waste, saving at most their cost in the sessions that did not use them; an output, what the cap cuts) by
+their total over the window, with one suggested action each (an output: Compress at moderate; the summary offers no levels since
+none is measured against another). Once a week, maintenance keeps the top five not decided in the last month (`currentChanges`,
+`scheduleContextSuggestion`, no model call, once there are 10 sessions) and the next prompt's hook starts `thinker ui
+--background` and tells the agent to pass them on in a few lines with the link to All, and to make none of them itself
+(`contextSuggestOffer`; not in an SDK session or test mode). `thinker context --approve|--dismiss|--history|--revert` is the
+same over those five. On by default, at the owner's request; `maintain: { contextSuggest: false }` turns it off. Not measured:
+whether people act on the summary. Until this day the first tab was Top suggested, those five as cards with Approve and Dismiss,
+and the other views were cards with an Actions menu over the picked ones.
 
 Other controls are the commands: keeping sections writes the checkout's trimmed copy (`thinker instructions --core`,
 never the team's file); a skill or tool is switched off by `thinker harness --off <label>`, which since this view

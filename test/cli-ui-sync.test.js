@@ -65,9 +65,13 @@ test('CLI and page expose the shared Claude Code, Codex and Cursor harness repor
   assert.match(read('commands/harness.js'), /harnessUsage\(repo/);
   assert.match(read('ui/server.js'), /harnessView\(/);
   assert.match(read('cli.js'), /Claude Code, Codex and Cursor record loading/);
-  // the page switches tools off and back on from the Context tab (context-view.js:switchSources, as `thinker context --switch-off|--switch-on`)
-  assert.match(read('ui/page.html'), /\/api\/context\/switch', act === 'on' \? \{ repo, keys: ds\.map\(d => d\.key\), on: true \}/);
-  assert.match(read('ui/page.html'), /cursor: 'Cursor: '/);
+  // the page switches tools off and back on, and sets an output's compression, from a row's dropdown and Apply: through
+  // /api/changes/approve and context-suggest.js:approveChanges, which calls the same functions as `thinker context
+  // --switch-off|--switch-on|--output-compression`, and records the decision for History's Revert
+  assert.match(read('ui/page.html'), /api\('\/api\/changes\/approve', \{ repo, \.\.\.g, days: cdays \}\)/);
+  assert.match(read('context-suggest.js'), /switchSources\(store, \{ keys: \[c\.sourceKey \|\| c\.name\], on: true \}\)/);
+  assert.match(read('context-suggest.js'), /setOutputCompression\(store, \[c\.name\], level\)/);
+  assert.match(read('ui/page.html'), /cursor: 'Cursor'/);
   assert.match(read('commands/context.js'), /switchSources\(store, \{ keys: list\(flags\['switch-on'\]\), on: true \}\)/);
   assert.match(read('commands/hooks.js'), /harnessHere = \['claude', 'codex', 'cursor'\]\.includes\(client\)[\s\S]*harnessHere \? await harnessRecall/);
   assert.match(read('commands/hooks.js'), /snapshotCursorInventory\(/);
@@ -114,8 +118,12 @@ test('the Context tab and `thinker context` show one report, and its controls ar
   assert.equal(fs.existsSync(path.join(dir, 'AGENTS.override.md')), false);
 });
 
-test('Top suggested and History on the Context tab are `thinker context --approve|--dismiss|--revert|--history`', () => {
-  // both doors pick from the same ranking less the decisions (context-suggest.js:currentChanges) and act through the same functions
+test('All and History on the Context tab are `thinker context --approve|--dismiss|--revert|--history`', () => {
+  // the command picks from the top five less the decisions (context-suggest.js:currentChanges), the page's rows from every
+  // part (allChanges); both act through the same functions, and the page's section Apply records its undo (applyReviewed)
+  assert.match(read('ui/server.js'), /pickChanges\(allChanges\(changesView\(st, /);
+  assert.match(read('ui/server.js'), /\bapplyReviewed\(st, picked, /);
+  assert.match(read('ui/page.html'), /\/api\/changes\/apply', \{ repo, keys: rows\.map\(r => r\.key\), edit: p\.key, files/);
   for (const [f, st] of [['commands/context.js', 'store'], ['ui/server.js', 'st']]) {
     assert.match(read(f), new RegExp(`currentChanges\\(${st}, `));
     assert.match(read(f), /\bapproveChanges\b/);
@@ -128,5 +136,7 @@ test('Top suggested and History on the Context tab are `thinker context --approv
   // the page's 7-day window is the command's suggested one (SUGGEST.days) and the session's summary links to that tab
   assert.match(read('ui/page.html'), /\/api\/changes\?repo=\$\{encodeURIComponent\(want\)\}&days=7/);
   assert.match(read('context-suggest.js'), /days: 7,/);
-  assert.match(read('context-suggest.js'), /tab=context&view=suggested/);
+  assert.match(read('context-suggest.js'), /tab=context&view=all/);
+  // the page's rows carry the keys allChanges gives, so the server finds the part a row's Apply names
+  for (const k of ['`section:${s.file}:${s.id}`', '`${s.client}:${s.key}`', '`output:${s.name}`']) assert.ok(read('ui/page.html').includes(k), k);
 });

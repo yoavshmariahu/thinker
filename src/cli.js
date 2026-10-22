@@ -182,8 +182,9 @@ const HELP = `thinker — knowledge cache for coding agents
                                  5 most active, --repos n), merged, with what to cut first (5 suggestions, --top n); the installer prints
                                  it, from the sessions that ran before thinker was installed, and keeps each report for the page
                                  the top changes with their suggested actions: --approve 1,3|all (3:remove picks another action),
-                                 --dismiss 2, --history lists the decisions, --revert <n> takes one back; also the Context tab's
-                                 Top suggested and History. Once a week the next prompt passes the five on with a link to that tab
+                                 --dismiss 2, --history lists the decisions, --revert <n> takes one back; the Context tab's All
+                                 lists every part with its actions, and History the decisions. Once a week the next prompt passes
+                                 the five on with a link to that tab
                                  (maintain.contextSuggest in .thinker/config.json; false turns it off)
   guide                          the cache usage guidance an install writes into an agent's instructions
   export [file.tgz] [--dir d]    back the cache up to a .tgz; --dir writes every note whole, one <id>.json each, into d

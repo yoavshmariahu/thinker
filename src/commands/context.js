@@ -46,7 +46,7 @@ async function contextCommand({ store, flags, out }) {
   const v = contextView(store, { days, sessions: findRepoSessions(store.repo, days) });
   writeSnapshot(store, days, v); // what the page shows next
   // the top changes (context-suggest.js): approve their suggested actions, dismiss them, or read the decisions so far,
-  // as the Context tab's Top suggested and History do
+  // as the Context tab's rows and History do
   const top = currentChanges(store, v);
   for (const [flag, fn] of [['approve', approveChanges], ['dismiss', dismissChanges]]) {
     if (flags[flag] === undefined) continue;
@@ -77,7 +77,7 @@ async function contextCommand({ store, flags, out }) {
   if (top.length) {
     out(`Top changes (up to ~${formatTokens(top.reduce((a, c) => a + c.total, 0))} input tokens over the last ${days} days together):`);
     top.forEach((c, i) => out(`  ${i + 1}. ${c.title}: ~${formatTokens(c.total)} over ${days} days; ${c.why}\n     suggested: ${c.default ? c.default.text : 'dismiss it, or change it by hand'}${c.options.length > 1 ? ` (or: ${c.options.slice(1).map(o => o.act).join(', ')})` : ''}`));
-    out('  Approve the suggested actions with `thinker context --approve 1,3` (or all; 3:remove picks another action), --dismiss the ones to leave, or use `thinker ui` (Context, Top suggested); --history lists the decisions.\n');
+    out('  Approve the suggested actions with `thinker context --approve 1,3` (or all; 3:remove picks another action), --dismiss the ones to leave, or use `thinker ui` (Context, All); --history lists the decisions.\n');
   }
   if (iv.file) {
     if ((iv.files || []).length > 1) out(`Instruction files: ${iv.files.map(f => `${f.file} (${f.kind === 'root' ? 'every session' : `${f.loadedIn} sessions`})`).join(', ')}.`);

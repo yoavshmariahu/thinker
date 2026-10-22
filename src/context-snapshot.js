@@ -37,7 +37,7 @@ export function readSnapshot(store, days) {
   } catch { return null; }
 }
 
-// { at, view, current } of the last snapshot kept, whether or not it still holds: what Context's Top suggested and History read, so a
+// { at, view, current } of the last snapshot kept, whether or not it still holds: what the Context tab's rows and History read, so a
 // click there does not wait for every transcript to be read again (the person's decisions take the changes they
 // settled out of it: context-suggest.js:currentChanges)
 export function lastSnapshot(store, days) {

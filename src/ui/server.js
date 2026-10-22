@@ -14,7 +14,7 @@
 import { harnessView, harnessSavings, harnessOn, scheduleHarnessSuggestion, undoHarness, switchOffNow, setHarnessSettings } from '../harness.js';
 import { contextView, mergeViews, switchSources, setOutputCompression } from '../context-view.js';
 import { snapshotView, lastSnapshot, refreshing, dropSnapshots, REFRESH_MS } from '../context-snapshot.js';
-import { approveChanges, dismissChanges, recordReviewed, revertDecision, pickChanges, currentChanges, changeHistory } from '../context-suggest.js';
+import { approveChanges, dismissChanges, applyReviewed, revertDecision, pickChanges, currentChanges, allChanges, changeHistory } from '../context-suggest.js';
 import { judgeRecent } from '../instruction-value.js';
 import { setCore } from '../instructions-core.js';
 import { previewEdit, applyEdit } from '../instruction-edit.js';
@@ -224,8 +224,8 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
         }
         return json(res, 200, { ...view, asOf: Number.isFinite(at) ? at : Date.now(), refreshing: !!busy });
       }
-      // Context's Top suggested and History (context-suggest.js): the top changes of the kept report less the ones decided lately, and the
-      // decisions so far, for one repository or each of them
+      // Context's History (context-suggest.js): the decisions so far, for one repository or each of them, and the top changes of the
+      // kept report less the ones decided lately (what the session's summary names; the page's All lists every part from /api/context)
       if (req.method === 'GET' && url.pathname === '/api/changes') {
         // the last report kept, made again in the background when it no longer holds or is old; made now only when
         // there is none (context-snapshot.js:lastSnapshot)
@@ -253,8 +253,8 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
       if (!st) return json(res, 400, { error: 'unknown repository' });
       let r;
       if (url.pathname.startsWith('/api/harness/') || url.pathname.startsWith('/api/context/')) { harnessCache.clear(); dropSnapshots(st); }
-      // a decision on Top suggested or History keeps the report: the change it settles leaves the list by the history, and the
-      // files an approval writes (config, settings, AGENTS.md) make the Context tab read a new one (context-snapshot.js)
+      // a decision on a row or in History keeps the report: the files it writes (config, settings, AGENTS.md) make the Context
+      // tab read a new one (context-snapshot.js)
       if (url.pathname.startsWith('/api/changes/')) harnessCache.clear();
       if (url.pathname === '/api/behaviors/accept') r = acceptPending(st, b.id, { mutability: b.mutability || 'mutable', edit: b.title || b.body ? { title: b.title, body: b.body } : null });
       else if (url.pathname === '/api/behaviors/discard') r = discardPending(st, b.id);
@@ -277,17 +277,18 @@ export function createUiServer(store, { token = crypto.randomBytes(16).toString(
       // `thinker instructions --remove|--compress <id>` (the diff) and `--apply` (written to the working tree)
       else if (url.pathname === '/api/context/edit') { const x = await previewEdit(st, Array.isArray(b.ids) ? b.ids : String(b.id || ''), b.action === 'compress' ? 'compress' : 'remove'); if (x.error) r = x; else return json(res, 200, { ok: true, preview: x }); }
       else if (url.pathname === '/api/context/apply') r = applyEdit(st, String(b.id || ''));
-      // `thinker context --approve|--dismiss <keys>`: the top changes picked, their suggested action made or left
-      // (context-suggest.js); a section's reviewed diff applied (`thinker instructions --compress <id> --apply`) and recorded
+      // `thinker context --approve|--dismiss <keys>` over every part of the report (context-suggest.js:allChanges; the command
+      // numbers the top five, currentChanges): a row's Apply makes the action picked in it (`acts`), Dismiss leaves it a month;
+      // a section's reviewed diff is applied (`thinker instructions --compress <id> --apply`) and recorded with its undo
       // `thinker context --revert <n>`: a decision taken back (context-suggest.js:revertDecision)
       else if (url.pathname === '/api/changes/revert') { r = await revertDecision(st, String(b.id || '')); if (!r.error && !refreshing(st)) refreshFn(st.repo); }
       else if (['/api/changes/approve', '/api/changes/dismiss', '/api/changes/apply'].includes(url.pathname)) {
-        const keys = Array.isArray(b.keys) ? b.keys : [String(b.key || '')];
-        const picked = pickChanges(currentChanges(st, changesView(st, Number(b.days) || 7)), keys.join(','), b.acts && typeof b.acts === 'object' ? b.acts : {});
-        if (!picked.length) r = { error: 'that change is no longer suggested; reload the page' };
+        const keys = (Array.isArray(b.keys) ? b.keys : [b.key]).map(k => String(k || '')).filter(Boolean);
+        const picked = pickChanges(allChanges(changesView(st, Number(b.days) || 7)), keys, b.acts && typeof b.acts === 'object' ? b.acts : {});
+        if (!picked.length) r = { error: 'that part is no longer in the report; reload the page' };
         else if (url.pathname.endsWith('/approve')) r = { said: (await approveChanges(st, picked)).join(' ') };
         else if (url.pathname.endsWith('/dismiss')) r = { said: dismissChanges(st, picked).join(' ') };
-        else { const a = applyEdit(st, String(b.edit || '')); if (!a.error) recordReviewed(st, picked[0], a.said); r = a; }
+        else r = await applyReviewed(st, picked, String(b.edit || ''), Array.isArray(b.files) ? b.files : []);
         if (!url.pathname.endsWith('/dismiss') && !refreshing(st)) refreshFn(st.repo);
       }
       // `thinker context --switch-off <labels> [--builtin]` / `--switch-on <keys>` and `--output-compression <tools> --level`
