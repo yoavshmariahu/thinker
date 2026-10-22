@@ -179,9 +179,11 @@ test('an MCP result is capped in the shape it came: a string, or the text blocks
   // through the hook: only a server given a level, answered with updatedMCPToolOutput beside updatedToolOutput
   const dir = repo(t); const store = new Store(dir).init();
   on(store, { tools: { 'mcp:rea': 'high' } });
-  const ev = { session_id: 'm1', cwd: dir, tool_name: 'mcp__rea__q', tool_input: { q: 'x' }, tool_response: long };
+  const longer = Array.from({ length: 1500 }, (_, i) => `row ${i}`).join('\n');
+  const ev = { session_id: 'm1', cwd: dir, tool_name: 'mcp__rea__q', tool_input: { q: 'x' }, tool_response: longer };
   const o = JSON.parse(hook(dir, 'tool', ev)).hookSpecificOutput;
-  assert.ok(typeof o.updatedMCPToolOutput === 'string' && o.updatedMCPToolOutput.length < 4200 && o.updatedToolOutput === o.updatedMCPToolOutput);
+  // the moderate cap (12k) however the server was set, so the 4k high cap is never applied to an MCP result
+  assert.ok(typeof o.updatedMCPToolOutput === 'string' && o.updatedMCPToolOutput.length > 4200 && o.updatedMCPToolOutput.length < 12200 && o.updatedToolOutput === o.updatedMCPToolOutput);
   assert.ok(logs(store).some(l => l.op === 'diet' && l.kind === 'cap' && l.tool === 'mcp:rea'));
   assert.equal(hook(dir, 'tool', { ...ev, tool_name: 'mcp__other__q' }), '', 'another server passes');
   assert.equal(hook(dir, 'tool', { ...ev, tool_response: [{ type: 'text', text: 'small' }] }), '', 'a result within the cap passes');

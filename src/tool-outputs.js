@@ -10,7 +10,8 @@ import { parseTranscript } from './transcripts.js';
 
 const KEEP = 1000, VERSION = 6;
 // what each level's cap leaves of an output, in tokens (diet.js:DIET_LEVELS outputChars / 4): the part of a
-// compressible tool's result past it is a saving at least (the other trims, round search hits and file windows, come on top)
+// compressible tool's result past it is a saving at least (the other trims, round search hits and file windows, come on top);
+// an MCP server has the moderate level alone (diet.js:mcpLevel), so its high saving is its moderate one
 const CAP = { moderate: 3000, high: 1000 };
 // The program a shell command runs, which is what decides how much it prints: the first command of the line after
 // any `cd`, environment assignments and wrappers (`sudo`, `timeout 60`, `env`), its path left out; for a tool with
@@ -50,7 +51,8 @@ export function sessionOutputs(events, turns = 0) {
     const key = toolKey(e.name, e.input), text = Math.ceil(String(e.result || '').length / 4), tokens = text + (e.imageTokens || 0), r = (by[key] ||= { calls: 0, tokens: 0, input: 0, saveModerate: 0, saveHigh: 0 });
     const reads = Math.max(1, (n - i) * scale);
     r.calls++; r.tokens += tokens; r.input += Math.round(tokens * reads);
-    if (key === 'Read' || key === 'Bash' || key.startsWith('Bash:') || key.startsWith('mcp:')) { r.saveModerate += Math.round(Math.max(0, text - CAP.moderate) * reads); r.saveHigh += Math.round(Math.max(0, text - CAP.high) * reads); }
+    const mcp = key.startsWith('mcp:');
+    if (key === 'Read' || key === 'Bash' || key.startsWith('Bash:') || mcp) { r.saveModerate += Math.round(Math.max(0, text - CAP.moderate) * reads); r.saveHigh += Math.round(Math.max(0, text - CAP[mcp ? 'moderate' : 'high']) * reads); }
   });
   return by;
 }
