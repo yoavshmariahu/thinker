@@ -227,7 +227,13 @@ plugin on a machine without thinker does nothing.
   add thinker@thinker`); Cursor's (`plugins/cursor`, `.cursor-plugin/plugin.json` and scripts under `bin/`,
   listed by `.cursor-plugin/marketplace.json`; installed from the Customize panel, the Cursor CLI loads no
   plugins). Every hook is the same shim (`bin/hook.mjs`): it runs the installed copy's `thinker hook
-  <event> --client <host> --user --plugin`. A plugin's hooks run beside the host's own settings hooks (Claude
+  <event> --client <host> --user --plugin`. On a machine without thinker the first prompt starts the
+  installer once, in the background, for that host alone (`npx -y @zerotimedev/thinker --clients <host>
+  --no-modify-path --no-ui --yes`, so no other agent is wired and no shell file is edited; the owner's
+  decision, 2026-10-22), tells the person through the hook's `systemMessage` (Claude Code and Codex; Cursor
+  shows nothing) and names an install that did not finish once, with its log under `~/.thinker/state/`;
+  `THINKER_PLUGIN_INSTALL=off` never installs. The installer wires the host's settings, so from the next
+  session the plugin yields and the installed copy does the work. A plugin's hooks run beside the host's own settings hooks (Claude
   Code collapses duplicates between its settings files only), so `--plugin` yields where the settings already
   run thinker's prompt hook (`clients.js:pluginYields`): one copy serves. Codex runs plugin lifecycle hooks for
   plugins installed by hand in its desktop app, with the same trust review as its own hooks, and its public
