@@ -144,7 +144,7 @@ CLI. A desktop app's login does not sign in its CLI, and many of its users have
 none installed. Every model call thinker makes for such a session goes through
 the app's own session instead, on its login and model: thinker queues the calls
 (`.thinker/state/session-llm`), and the agent starts a background subagent that
-answers them through thinker's `warmup_next` and `warmup_answer` tools.
+answers them through thinker's `learn_next` tool.
 
 - **Warm-up.** Answering Warm starts the build with the session provider (about
   twelve merged pull requests, what one subagent's context holds); the answer tells

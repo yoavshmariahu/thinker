@@ -115,6 +115,8 @@ test('in a desktop app the queue and retrieval tools follow the cwd of each call
   fs.writeFileSync(path.join(b, 'b.js'), 'export function runWidget() { return 42; }\n');
   const q = path.join(b, '.thinker', 'state', 'session-llm'); fs.mkdirSync(q, { recursive: true });
   fs.writeFileSync(path.join(q, 'r1-abc.req.json'), JSON.stringify({ id: 'r1-abc', system: '', prompt: 'summarize PR 7', schema: null, t: new Date().toISOString() }));
+  // a build that has ended, so the call after the answer reads the queue as done instead of waiting for one
+  fs.writeFileSync(path.join(q, 'build.json'), JSON.stringify({ pid: 2 ** 22 + 12345, started: new Date().toISOString() }));
   const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-no-repo-'));
   t.after(() => fs.rmSync(bare, { recursive: true, force: true }));
   const s = mcpSession(bare, { THINKER_REPO: '', THINKER_NO_LEARN: '0', CLAUDE_CODE_ENTRYPOINT: 'claude-desktop' }, [
@@ -122,9 +124,12 @@ test('in a desktop app the queue and retrieval tools follow the cwd of each call
     { name: 'remember', arguments: { cwd: b, title: 'Run widget test suite', kind: 'howto', answers: ['how to run widget tests'], body: 'Call b.js:runWidget to run widget tests.', deps: [{ path: 'b.js', symbol: 'runWidget' }] } },
     { name: 'lookup', arguments: { query: 'how to run widget tests' } },
     { name: 'lookup', arguments: { query: 'run widget tests', cwd: a } },
-    { name: 'warmup_next', arguments: { cwd: b } },
+    { name: 'learn_next', arguments: { cwd: b } },
+    { name: 'learn_next', arguments: { cwd: b, id: 'r1-abc' } },
+    { name: 'learn_next', arguments: { cwd: b, id: 'r1-abc', answer: 'PR 7 fixes the widget' } },
   ]);
-  assert.ok(s.tools.some(x => x.name === 'warmup_next') && s.tools.some(x => x.name === 'warmup_answer'), 'listed before any repository is bound');
+  assert.ok(s.tools.some(x => x.name === 'learn_next'), 'listed before any repository is bound');
+  assert.ok(!s.tools.some(x => /^warmup_/.test(x.name)), 'one queue tool: the two warm-up-named ones are gone');
   assert.match(s.replies[0], new RegExp(`bound to the repository at ${fs.realpathSync(a)}`));
   assert.match(s.replies[1], new RegExp(`bound to the repository at ${fs.realpathSync(b)}`), 'a call from a second window switches to its repository');
   assert.match(s.replies[1], /Saved note/);
@@ -132,9 +137,13 @@ test('in a desktop app the queue and retrieval tools follow the cwd of each call
   assert.match(s.replies[3], new RegExp(`bound to the repository at ${fs.realpathSync(a)}`), 'passing cwd for the first window switches back');
   assert.match(s.replies[3], /The cache is empty/, 'does not leak notes from repository b into repository a');
   assert.match(s.replies[4], /summarize PR 7/, 'the request of the repository cwd names, not the bound one');
-  assert.ok(fs.existsSync(path.join(q, 'r1-abc.claimed.json')));
+  assert.match(s.replies[4], /calling learn_next with id "r1-abc"/);
+  assert.match(s.replies[5], /Pass both id and answer/, 'an id without an answer takes nothing and saves nothing');
+  assert.match(s.replies[6], /^Saved\. The work is done/, 'the answer is saved and the same call returns what comes next');
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(q, 'r1-abc.res.json'), 'utf8')).text, 'PR 7 fixes the widget');
+  assert.ok(!fs.existsSync(path.join(q, 'r1-abc.claimed.json')));
   // outside an app, unbound, they are not listed
-  assert.ok(!mcpSession(bare, { THINKER_REPO: '', CLAUDE_CODE_ENTRYPOINT: '' }).tools.some(x => x.name === 'warmup_next'));
+  assert.ok(!mcpSession(bare, { THINKER_REPO: '', CLAUDE_CODE_ENTRYPOINT: '' }).tools.some(x => x.name === 'learn_next'));
 });
 
 // install.sh: the tool is installed and the agents are wired up (`thinker connect`, asking nothing); nothing is

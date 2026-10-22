@@ -347,8 +347,10 @@ function registerHarnessTool() {
 }
 
 // Work read through this session (session-llm.js): in a desktop app, learning (session-work.js) or a coverage
-// build (coverage.js). Its subagent takes the model calls with warmup_next and answers with warmup_answer (the
-// names from when a warm-up used them too). Offered in a desktop app from the start, bound or not, or while such work runs,
+// build (coverage.js). Its subagent works the queue through one tool, learn_next: each call hands in the answer to
+// the request it took last (none on the first) and takes the next one, one call a request. Until 2026-10-22 this was
+// two tools named after the warm-up, warmup_next and warmup_answer: two definitions in every desktop-app session and
+// two calls a request. Offered in a desktop app from the start, bound or not, or while such work runs,
 // so a subagent with its own server process finds them too. Each call reads the queue of the repository its
 // `cwd` names: Cursor runs one server for every window (2026-10-16: started the day before in the home
 // directory, bound to another repository), so the bound repository is only the fallback.
@@ -359,26 +361,30 @@ function registerQueueTools() {
   inApp ??= anyDesktopApp();
   if (!(inApp || (store && buildRunning(queueDir(store))))) return;
   const noRepo = text('Pass cwd: the absolute path of the repository whose work you are answering.');
-  queueTools = [server.registerTool('warmup_next', {
-    title: 'Take the next model request of thinker\'s background work',
-    description: 'Only for a subagent told to work thinker\'s queue: returns the next model request of thinker\'s background work (learning or a coverage build) that reads through this session.',
-    inputSchema: { cwd: z.string().optional().describe('Absolute path of the repository') },
-  }, async ({ cwd } = {}) => {
+  queueTools = [server.registerTool('learn_next', {
+    title: 'Work thinker\'s learning queue',
+    description: 'Only for a subagent told to work thinker\'s queue: hands in the answer to the request it took last (none on the first call) and returns the next model request of thinker\'s background work.',
+    inputSchema: {
+      cwd: z.string().optional().describe('Absolute path of the repository'),
+      id: z.string().optional().describe('The id of the request being answered; leave out on the first call'),
+      answer: z.string().optional().describe('The answer to that request: one JSON object when the request gave a schema'),
+    },
+  }, async ({ cwd, id, answer } = {}) => {
     const s = queueStore(cwd); if (!s) return noRepo;
+    let saved = '';
+    if (id != null || answer != null) {
+      if (id == null || answer == null) return text('Pass both id and answer to hand in an answer, or neither to take the next request.');
+      const a = answerRequest(queueDir(s), id, answer);
+      // refused: the same request stays taken, so the subagent answers it again rather than taking another
+      if (a.error) return text(`Refused: ${a.error}. Answer request ${id} again with learn_next.`);
+      saved = 'Saved. ';
+    }
     // under the clients' tool timeouts (Codex: 60s), so an empty wait returns and is called again
     const r = await nextRequest(queueDir(s), { waitMs: 25_000 });
-    if (r.error) return text(`The work could not start (${r.error}). Stop, and reply with that one line.`);
-    if (r.request) return text(requestText(r.request));
-    if (r.waiting) return text('Nothing has come yet: the work is still reading. Call warmup_next again.');
-    return text(`The work is done: the cache holds ${s.list().length} notes. Stop.`);
-  }), server.registerTool('warmup_answer', {
-    title: 'Answer a model request of thinker\'s background work',
-    description: 'Only for a subagent working thinker\'s queue: the answer to the request warmup_next returned.',
-    inputSchema: { id: z.string().describe('The request id'), answer: z.string().describe('The answer: one JSON object when the request gave a schema'), cwd: z.string().optional() },
-  }, async ({ id, answer, cwd }) => {
-    const s = queueStore(cwd); if (!s) return noRepo;
-    const r = answerRequest(queueDir(s), id, answer);
-    return text(r.error ? `Refused: ${r.error}. Answer request ${id} again.` : 'Saved. Call warmup_next for the next request.');
+    if (r.error) return text(`${saved}The work could not start (${r.error}). Stop, and reply with that one line.`);
+    if (r.request) return text(saved + requestText(r.request));
+    if (r.waiting) return text(`${saved}Nothing has come yet: the work is still reading. Call learn_next again, with no answer.`);
+    return text(`${saved}The work is done: the cache holds ${s.list().length} notes. Stop.`);
   })];
 }
 

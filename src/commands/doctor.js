@@ -38,7 +38,7 @@ export function desktopLearningCheck(store, { now = Date.now() } = {}) {
   const failed = jobs.filter(j => j.lastError);
   if (failed.length) return result('warn', `${failed.length} failed job(s) retained for retry; ${failed[0].lastError}; next attempt after ${failed[0].nextAttemptAt || 'the next app prompt'}`);
   if (!running && requests.length) return result('warn', 'the worker stopped with unanswered model requests; queued jobs resume on a later app prompt');
-  if (requests.some(r => !r.claimed)) return result('warn', 'the worker is waiting for an app subagent to take its model request; check that the session started the warmup_next / warmup_answer loop');
+  if (requests.some(r => !r.claimed)) return result('warn', 'the worker is waiting for an app subagent to take its model request; check that the session started the learn_next loop');
   if (running) return result(last ? 'ok' : 'warn', 'the session worker is running; this does not confirm that a new note was learned');
   if (jobs.length) {
     const oldest = Math.min(...jobs.map(j => Date.parse(j.t)).filter(Number.isFinite));
@@ -219,8 +219,8 @@ async function runChecks(ctx) {
     } else add('git hooks', 'warn', 'none: the cache is not refreshed on commit and merge (`thinker setup` installs them)');
     const mcp = await probeMcp(path.join(HERE, 'mcp.js'), repo);
     add('MCP server', mcp.ok && mcp.tools.length ? 'ok' : 'fail', mcp.ok ? (mcp.tools.length ? `starts; tools: ${mcp.tools.join(', ')}` : 'starts but offers no tools') : `does not start: ${mcp.error}`);
-    if (currentApp && mcp.ok && !['warmup_next', 'warmup_answer'].every(t => mcp.tools.includes(t))) {
-      add('desktop queue tools', 'fail', 'the MCP server does not offer warmup_next and warmup_answer in this app; reconnect thinker and restart the host before learning can run');
+    if (currentApp && mcp.ok && !mcp.tools.includes('learn_next')) {
+      add('desktop queue tools', 'fail', 'the MCP server does not offer learn_next in this app; reconnect thinker and restart the host before learning can run');
     }
   }
 
@@ -238,7 +238,7 @@ async function runChecks(ctx) {
   // test the call is made only when THINKER_LLM names the provider.
   const app = currentApp || recentAppSession(store);
   if (app) {
-    add('model', 'ok', `${app}: background learning uses the app session via warmup_next / warmup_answer; no CLI login or model probe required`);
+    add('model', 'ok', `${app}: background learning uses the app session via learn_next; no CLI login or model probe required`);
     if (ctx.NO_LEARN || !ctx.sessionLearning()) add('desktop learning', 'warn', 'learning from sessions is disabled');
     else checks.push(desktopLearningCheck(store));
   } else {

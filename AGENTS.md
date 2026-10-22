@@ -62,7 +62,7 @@ app (Claude Desktop, the Codex app, Cursor) and wherever no agent CLI is signed 
 Those sessions have no CLI login to read through: the work goes through the
 session itself, as the warm-up does (`repo-onboard.js:startSessionWarmup`,
 `session-llm.js`: model calls queued in `.thinker/state`, a background subagent
-answering them through `warmup_next` / `warmup_answer`). A feature that only says
+answering them through `learn_next`). A feature that only says
 "sign in a CLI" in a desktop app is not done. Tests cover the desktop-app path
 (`appFn`, a missing CLI login) beside the CLI one.
 

@@ -2,7 +2,7 @@
 // Codex app, Cursor) does not sign in its CLI, so a background `claude -p` fails "not signed in"
 // (2026-10-15), and no Claude client offers MCP sampling. In its place the build (provider `session`,
 // llm.js) writes each request to a queue in the cache's state directory and waits; a subagent of the
-// session takes them through thinker's warmup_next and answers through warmup_answer (mcp.js).
+// session takes each one and hands in its answer through thinker's learn_next tool (mcp-server.js).
 // The pipeline is unchanged: the same prompts, gates and saving as a CLI build, only the login differs.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -43,13 +43,13 @@ export async function viaSession({ system, prompt, schema }, { dir = process.env
     if (!claimedAt && fs.existsSync(file(dir, id, 'claimed'))) claimedAt = Date.now();
     if (claimedAt ? Date.now() - claimedAt > claimedMs : Date.now() - start > unclaimedMs) {
       for (const s of ['req', 'claimed']) fs.rmSync(file(dir, id, s), { force: true });
-      throw new Error(claimedAt ? 'the agent session took this request and did not answer it' : 'no agent session answered: nothing is working the queue (warmup_next)');
+      throw new Error(claimedAt ? 'the agent session took this request and did not answer it' : 'no agent session answered: nothing is working the queue (learn_next)');
     }
     await sleep(pollMs);
   }
 }
 
-// warmup_next: the oldest waiting request, taken (an atomic rename, so two takers never share one);
+// learn_next, taking: the oldest waiting request, taken (an atomic rename, so two takers never share one);
 // { done } once the build has ended with nothing waiting; { waiting } when none came within waitMs. A subagent
 // may call before its build has started (Cursor started its subagent first, 2026-10-16), so a queue that never
 // had a build waits out waitMs before it reads as done.
@@ -72,11 +72,11 @@ export async function nextRequest(dir, { waitMs = 45_000, pollMs = 500 } = {}) {
   }
 }
 
-// warmup_answer: the answer to a taken request; one that does not parse to the request's schema is
+// learn_next, handing in: the answer to a taken request; one that does not parse to the request's schema is
 // refused with the reason, so the subagent can answer again.
 export function answerRequest(dir, id, answer) {
   const req = readJson(file(dir, String(id), 'claimed'));
-  if (!req) return { error: `no request ${id} is waiting for an answer (take one with warmup_next)` };
+  if (!req) return { error: `no request ${id} is waiting for an answer (take one with learn_next)` };
   let json = null;
   if (req.schema) {
     try { json = typeof answer === 'object' && answer ? answer : extractJson(String(answer), req.schema); }
@@ -94,24 +94,25 @@ export function answerRequest(dir, id, answer) {
 // The request as the subagent reads it.
 export function requestText(r) {
   return `Request ${r.id}.\n\nINSTRUCTIONS:\n${r.system || '(none)'}\n\nINPUT:\n${r.prompt}\n\n` + (r.schema
-    ? `Answer with warmup_answer: id "${r.id}" and answer, one JSON object matching this JSON Schema:\n${JSON.stringify(r.schema)}`
-    : `Answer with warmup_answer: id "${r.id}" and your answer as plain text.`);
+    ? `Answer by calling learn_next with id "${r.id}" and answer, one JSON object matching this JSON Schema:\n${JSON.stringify(r.schema)}`
+    : `Answer by calling learn_next with id "${r.id}" and your answer as plain text.`);
 }
 
 // What the session agent is told to start: a subagent that works the queue until the work ends, learning's
 // (session-work.js) or a coverage build's (coverage.js).
 const WORKER_INTRO = "You answer model requests for thinker's background work";
 export function subagentPrompt(repo) {
-  return `${WORKER_INTRO} (learning or a coverage build) in the repository at ${repo}. Loop: call thinker's warmup_next tool (cwd "${repo}"). It returns a request: instructions, an input (an agent session's record, source code to describe, or notes) and the JSON shape the answer must have. Answer it yourself, from the input alone: do not read files, run commands or use other tools. Call warmup_answer with the request's id and your answer; if it is refused, fix the answer and call again. Repeat. When warmup_next says nothing has come yet, call it again. Stop when warmup_next says the work is done, and reply with one line: how many requests you answered.`;
+  return `${WORKER_INTRO} (learning or a coverage build) in the repository at ${repo}. Loop: call thinker's learn_next tool (cwd "${repo}") with no answer. It returns a request: instructions, an input (an agent session's record, source code to describe, or notes) and the JSON shape the answer must have. Answer it yourself, from the input alone: do not read files, run commands or use other tools. Call learn_next again with the request's id and your answer: it saves the answer and returns the next request. If it refuses the answer, fix it and call again with the same id. When it says nothing has come yet, call it again with no answer. Stop when it says the work is done, and reply with one line: how many requests you answered.`;
 }
 
 // A background subagent spawned with `subagentPrompt` triggers the host's hooks on its own turns and tool
 // calls (Cursor runs `beforeSubmitPrompt`, `postToolUse`, `stop` and `sessionEnd` for subagents too): skip
 // orienting, recording or distilling the queue worker itself so it cannot recurse.
-// Documentation, Cursor's `<dynamic_tool_catalog>`, and normal questions can name both queue tools too.
+// Documentation, Cursor's `<dynamic_tool_catalog>`, and normal questions can name the queue tool too.
+// The two tools before learn_next (warmup_next, warmup_answer) are still recognised, for transcripts of older workers.
 // Only our actual worker instruction starts with this introduction; matching mentions anywhere suppresses notices and learning.
 export const isWorkerPrompt = s => {
   const text = String(s || '').trimStart();
-  return text.startsWith(`${WORKER_INTRO} (`) && /\bwarmup_next\b[\s\S]*\bwarmup_answer\b/.test(text);
+  return text.startsWith(`${WORKER_INTRO} (`) && (/\blearn_next\b/.test(text) || /\bwarmup_next\b[\s\S]*\bwarmup_answer\b/.test(text));
 };
-export const isWorkerTool = n => /(?:^|[:_])warmup_(?:next|answer)$/i.test(String(n || ''));
+export const isWorkerTool = n => /(?:^|[:_])(?:learn_next|warmup_(?:next|answer))$/i.test(String(n || ''));
