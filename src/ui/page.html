@@ -283,6 +283,12 @@
     .hint code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; background: rgba(255,255,255,0.14); padding: 0.1rem 0.35rem; border-radius: 4px; }
     .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid #d4d4d8; border-top-color: #111; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: -2px; margin-right: 0.4rem; }
     @keyframes spin { to { transform: rotate(360deg); } }
+    /* the Context tab's spinner: the logo's three dots, the emphasis moving from one dot to the next */
+    .logo-spin { display: inline-block; width: 28px; height: 28px; vertical-align: -9px; margin-right: 0.6rem; overflow: visible; }
+    .logo-spin circle { fill: #000; fill-opacity: 0.22; transform-box: fill-box; transform-origin: center; animation: dot-emphasis 1.35s ease-in-out infinite; }
+    .logo-spin circle:nth-child(2) { animation-delay: 0.45s; }
+    .logo-spin circle:nth-child(3) { animation-delay: 0.9s; }
+    @keyframes dot-emphasis { 0%, 55%, 100% { fill-opacity: 0.22; transform: scale(1); } 20% { fill-opacity: 1; transform: scale(1.18); } }
     [hidden] { display: none !important; }
 
     /* FAQ: a button in the corner, a modal in the site's look (site/docs.html) */
@@ -343,7 +349,7 @@
         <div class="seg" id="tr-measure"><button data-m="total" class="on">Total</button><button data-m="avg">Per session</button></div>
         <div class="seg" id="tr-bucket"><button data-b="day">Daily</button><button data-b="week" class="on">Weekly</button></div>
       </div></div>
-      <div id="context-body" class="section"><div class="empty"><span class="spinner"></span>Reading the transcripts…</div></div>
+      <div id="context-body" class="section"><div class="empty"><svg class="logo-spin" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="22" r="6"/><circle cx="16" cy="16" r="6"/><circle cx="22" cy="10" r="6"/></svg>Reading the transcripts…</div></div>
     </section>
 
     <!-- Cache: every repository with a cache, then one repository's notes and behaviors -->
@@ -568,14 +574,16 @@ document.querySelectorAll('#tr-bucket button').forEach(b => b.onclick = () => { 
 const share = (a, b) => b ? `${Math.round(100 * a / b)}%` : '–';
 const costBar = (n, max, off) => `<div class="cost${off ? ' off' : ''}"><i style="--w:${max ? 100 * n / max : 0}%"></i>${fmt(n)}</div>`;
 const VALUE_PILL = { used: ['ok', 'used'], situational: ['', 'sometimes'], rare: ['wait', 'rarely'], unknown: ['off', 'too few'] };
+// the logo's three dots as the Context tab's spinner (.logo-spin): the same marks as the favicon
+const LOGO_SPIN = '<svg class="logo-spin" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="22" r="6"/><circle cx="16" cy="16" r="6"/><circle cx="22" cy="10" r="6"/></svg>';
 async function loadContext() {
   const el = $('#context-body');
-  el.innerHTML = `<div class="empty"><span class="spinner"></span>Reading the transcripts…</div>`;
+  el.innerHTML = `<div class="empty">${LOGO_SPIN}Reading the transcripts…</div>`;
   try {
     if (!REPOS.length) await fetchRepos();
     if (!CREPO || (CREPO !== 'all' && !REPOS.some(r => r.id === CREPO))) CREPO = REPO !== 'all' && REPOS.some(r => r.id === REPO) ? REPO : REPOS.find(r => r.current)?.id || REPOS[0]?.id || '';
     $('#c-repo').innerHTML = `<option value="all"${CREPO === 'all' ? ' selected' : ''}>All repositories</option>` + REPOS.map(r => `<option value="${esc(r.id)}"${r.id === CREPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
-    if (CREPO === 'all') $('#context-body').innerHTML = `<div class="empty"><span class="spinner"></span>Reading every repository's transcripts (the first time takes a while)…</div>`;
+    if (CREPO === 'all') $('#context-body').innerHTML = `<div class="empty">${LOGO_SPIN}Reading every repository's transcripts (the first time takes a while)…</div>`;
     if (!CREPO) { el.innerHTML = `<div class="empty">No repository with a cache on this machine yet.</div>`; return; }
     const v = await api(`/api/context?repo=${encodeURIComponent(CREPO)}&days=${cdays}`);
     renderContext(v); contextAsOf(v);
