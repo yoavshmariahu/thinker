@@ -35,6 +35,11 @@ export function weekColumns(now, weeks) {
   return cols.map(start => ({ t: start, end: nextWeek(start) }));
 }
 export const trend = (prev, cur) => prev == null || cur == null || !prev ? null : cur > prev * (1 + TREND_MIN) ? 'up' : cur < prev * (1 - TREND_MIN) ? 'down' : null;
+// the change against the first week as a ratio (0.5: half as much again), null where either side is missing or zero;
+// the page shades a cell by it (darker red the larger the rise, darker green the larger the fall), the command marks
+// a change past TREND_BIG with a double arrow
+export const TREND_BIG = 0.5;
+export const change = (prev, cur) => prev == null || cur == null || !prev ? null : (cur - prev) / prev;
 
 const cell = () => ({ tokens: 0, cost: 0, sessions: 0, priced: 0 });
 const add = (c, tokens, cost, n = 0, p = 0) => { c.tokens += tokens; c.cost += cost || 0; c.sessions += n; c.priced += p; };
@@ -80,8 +85,8 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   const providers = [...new Set(modelRows.map(m => m.provider))].map(name => ({ name, cells: cols.map((_, w) => { const c = cell(); for (const m of modelRows.filter(x => x.provider === name)) add(c, m.cells[w].tokens, m.cells[w].cost, m.cells[w].sessions, m.cells[w].priced); return c; }) }))
     .sort((a, b) => b.cells.reduce((x, c) => x + c.tokens, 0) - a.cells.reduce((x, c) => x + c.tokens, 0));
   modelRows.sort((a, b) => providers.findIndex(p => p.name === a.provider) - providers.findIndex(p => p.name === b.provider) || windowOf(b) - windowOf(a));
-  // the decisions taken on the Save page in the window, newest first, to read the weeks against
-  const actions = changeHistory(store).filter(e => Date.parse(e.at) >= from).map(e => ({ id: e.id, at: e.at, title: e.title, kind: e.kind, act: e.act || null, action: e.action || null, decision: e.decision, revertedAt: e.revertedAt || null, saving: e.saving || 0, repo: null }));
+  // the decisions taken on the Save page in the window, newest first, as History lists them (the page shows the same table)
+  const actions = changeHistory(store).filter(e => Date.parse(e.at) >= from).map(e => ({ ...e, repo: null }));
   return {
     weeks, days, from, to: now, pricedOn: PRICED_ON, columns,
     parts: PARTS.map(([key, name]) => ({ key, name, cells: byPart[key] })), totals,
@@ -144,22 +149,22 @@ export function mergeReports(list) {
 }
 
 // The report as the command prints it: the two tables with their totals, the actions, the cache's numbers.
-// `aggregate`: the week's sum over its sessions instead of the average per session (the page's toggle)
-export function renderReport(v, { cost = false, aggregate = false } = {}) {
+// `total`: the week's sum over its sessions instead of the average per session (the page's Total toggle)
+export function renderReport(v, { cost = false, total = false } = {}) {
   const L = [], label = t => new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  const avg = (c, w) => { const col = v.columns[w]; return aggregate ? (cost ? c.cost : c.tokens) : cost ? (col.priced ? c.cost / col.priced : null) : (col.sessions ? c.tokens / col.sessions : null); };
+  const avg = (c, w) => { const col = v.columns[w]; return total ? (cost ? c.cost : c.tokens) : cost ? (col.priced ? c.cost / col.priced : null) : (col.sessions ? c.tokens / col.sessions : null); };
   const fmtv = x => x == null ? '–' : cost ? formatDollars(x) : formatTokens(x);
-  const mark = (cells, w) => { const t = w ? trend(avg(cells[0], 0), avg(cells[w], w)) : null; return t === 'up' ? '▲' : t === 'down' ? '▼' : ' '; };
-  const W = 10, line = (name, cells, bold) => `  ${(bold ? name.toUpperCase() : name).slice(0, 30).padEnd(30)}${cells.map((c, w) => `${fmtv(avg(c, w))}${mark(cells, w)}`.padStart(W)).join('')}`;
+  const mark = (cells, w) => { const d = w ? change(avg(cells[0], 0), avg(cells[w], w)) : null; return d == null || Math.abs(d) < TREND_MIN ? ' ' : d >= TREND_BIG ? '▲▲' : d > 0 ? '▲' : d <= -TREND_BIG ? '▼▼' : '▼'; };
+  const W = 11, line = (name, cells, bold) => `  ${(bold ? name.toUpperCase() : name).slice(0, 30).padEnd(30)}${cells.map((c, w) => (avg(c, w) ? `${fmtv(avg(c, w))}${mark(cells, w)}` : '').padStart(W)).join('')}`;
   const head = `  ${''.padEnd(30)}${v.columns.map(c => `wk ${label(c.t)}`.padStart(W)).join('')}`;
-  L.push(`${aggregate ? 'Total' : 'Average'} ${cost ? 'cost' : 'tokens'} ${aggregate ? 'over the week\'s sessions' : 'per session'}, by week (${v.columns.map(c => c.sessions).join(', ')} sessions)${cost ? `, at list prices of ${v.pricedOn}` : ''}`);
+  L.push(`${total ? 'Total' : 'Average'} ${cost ? 'cost' : 'tokens'} ${total ? 'over the week\'s sessions' : 'per session'}, by week (${v.columns.map(c => c.sessions).join(', ')} sessions)${cost ? `, at list prices of ${v.pricedOn}` : ''}`);
   L.push('', 'By part of the context', head);
   for (const p of v.parts) L.push(line(p.name, p.cells));
   L.push(line('Total', v.totals, true));
   L.push('', 'By model', head);
   for (const p of v.providers) { L.push(line(p.name, p.cells, true)); for (const m of v.models.filter(x => x.provider === p.name)) L.push(line(`  ${m.model}${m.priced ? '' : ' (unpriced)'}`, m.cells)); }
   L.push(line('Total', v.totals, true));
-  L.push(`  ▲ ▼: up or down by 5% or more against the first week. A model row is its share of the ${aggregate ? 'week' : 'average session'}; its sessions:` + ` ${v.models.map(m => `${m.model} ${m.cells.map(c => c.sessions).join('/')}`).join(', ')}.`);
+  L.push(`  ▲ ▼: up or down by 5% or more against the first week, doubled past 50%; a zero is left blank. A model row is its share of the ${total ? 'week' : 'average session'}; its sessions:` + ` ${v.models.map(m => `${m.model} ${m.cells.map(c => c.sessions).join('/')}`).join(', ')}.`);
   if (v.unpriced.length) L.push(`  No list price for ${v.unpriced.join(', ')}: their sessions are left out of the cost average.`);
   L.push('', 'Actions in the window');
   if (!v.actions.length) L.push('  none: what you apply on the Save page is listed here with its date');

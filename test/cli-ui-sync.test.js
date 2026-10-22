@@ -70,8 +70,28 @@ test('CLI and page expose the shared Claude Code, Codex and Cursor harness repor
   assert.match(read('ui/page.html'), /api\('\/api\/changes\/approve', \{ repo, \.\.\.g, days: cdays \}\)/);
   assert.match(read('context-suggest.js'), /switchSources\(store, \{ keys: \[c\.sourceKey \|\| c\.name\], on: true \}\)/);
   assert.match(read('context-suggest.js'), /setOutputCompression\(store, \[c\.name\], level\)/);
+  // one level of compression from the page (moderate): its rows offer Compress or No compression, never High, which only
+  // `thinker context --output-compression <tools> --level high` sets, for an experiment arm (the owner's call, 2026-10-22)
+  const page = read('ui/page.html');
+  assert.doesNotMatch(page, /\['high', 'High compression'\]/); assert.doesNotMatch(read('context-suggest.js'), /text: 'High compression'/);
+  assert.match(page, /const levelOpts = s => s\.compression \? \[\['uncompress', 'No compression'\]\] : \[\['compress', 'Compress'\]\]/);
+  assert.match(read('commands/context.js'), /\['high', 'moderate'\]\.includes\(flags\.level\)/);
+  // a built-in tool is switched off from its row through the same route, after the page's confirmation names what goes,
+  // where it is written (harness.js: permissions.deny of .claude/settings.local.json) and how it comes back
+  assert.match(page, /bold: s\.kind === 'tool'/);
+  assert.match(page, /confirmDialog\(\{\s*title: `Switch off \$\{builtins\.length/);
+  assert.match(page, /permissions\.deny<\/code> of <code>\.claude\/settings\.local\.json<\/code> in this repository/);
+  assert.match(page, /<b>Revert<\/b> under History, <b>Turn back on<\/b> in the tool's row, or <code>thinker harness --undo<\/code>/);
+  // every view opens with its Potential savings card
+  assert.match(page, /const savingsCard = /);
+  for (const k of ['all', 'instructions', 'custom', 'builtin', 'outputs']) assert.match(page, new RegExp(`savings: sav\\.${k}`), k);
   assert.match(read('ui/page.html'), /cursor: 'Cursor'/);
   assert.match(read('commands/context.js'), /switchSources\(store, \{ keys: list\(flags\['switch-on'\]\), on: true \}\)/);
+  // the installer's picker (setup/context-ask.js, `thinker context --machine --ask`) applies its picks through the same
+  // approveChanges, in each change's repository (context-machine.js:applyMachinePicks), and install.sh runs that command
+  assert.match(read('context-machine.js'), /approve = approveChanges/);
+  assert.match(read('setup/context-ask.js'), /apply = applyMachinePicks/);
+  assert.match(fs.readFileSync(path.join(SRC, '..', 'install.sh'), 'utf8'), /context --machine --ask/);
   assert.match(read('commands/hooks.js'), /harnessHere = \['claude', 'codex', 'cursor'\]\.includes\(client\)[\s\S]*harnessHere \? await harnessRecall/);
   assert.match(read('commands/hooks.js'), /snapshotCursorInventory\(/);
 });
@@ -84,17 +104,19 @@ test('the Save tab and `thinker context` show one report, and its controls are t
   assert.match(read('context-snapshot.js'), /contextView\(store, \{ days: d \}\)/);
   assert.match(read('commands/context.js'), /refreshSnapshots\(store\)/);
   // the installer's report (context-machine.js) is the page's All repositories: one merge, and the reports it
-  // keeps are the snapshots the page reads; the page opens on it (`thinker ui --tab save --all`)
+  // keeps are the snapshots the page reads; the browser choice of the installer's question opens the page on it
+  // (`thinker ui --tab save --all`, setup/context-ask.js:openContextPage)
   const machine = read('context-machine.js'), install = fs.readFileSync(path.join(SRC, '..', 'install.sh'), 'utf8');
   assert.match(install, /"\$thinker" context --machine/);
-  assert.match(install, /ui --from-setup --tab save --all/);
+  assert.match(read('setup/context-ask.js'), /'ui', '--from-setup', '--tab', 'save', \.\.\.\(all \? \['--all'\]/);
   assert.match(read('commands/context.js'), /machineContext\(store, \{ days, limit/);
   assert.match(machine, /mergeViews\(views\)/); assert.match(read('ui/server.js'), /mergeViews\(xs\.map/);
   assert.match(machine, /writeSnapshot\(st, d, v/); assert.match(machine, /refreshCheckouts\(store/);
   assert.match(read('commands/cache.js'), /flags\.all \? 'repo=all'/);
   assert.match(read('ui/page.html'), /H\(\)\.get\('repo'\) === 'all' \? 'all'/);
-  // setup prints the same report for its one repository
-  assert.match(read('setup.js'), /renderMachineReport\(\{ days: 30/);
+  // setup asks the same question over the same report for its one repository (setup/context-ask.js)
+  assert.match(read('setup.js'), /askMachineReport\(\{ r, recs: recommendations\(view\)/);
+  assert.match(read('setup/context-ask.js'), /renderMachineReport\(r, recs\)/);
   // keeping sections is `thinker instructions --core`; judging is `thinker context --judge n`; a switch is `thinker harness --off`
   assert.match(read('commands/instructions.js'), /setCore\(store, keep/);
   assert.match(read('ui/server.js'), /\/api\/context\/core'\) \{[^\n]*setCore\(st/);
@@ -146,15 +168,24 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('ui/server.js'), /reportView\(one, \{ weeks \}\)/);
   assert.match(read('ui/server.js'), /mergeReports\(repos\(\)\.flatMap/);
   // five weeks, and a cell is trending at the same 5% against the first week in the command's ▲ ▼ and the page's red and green;
-  // the page's Aggregate toggle is the command's --aggregate
-  assert.match(read('report.js'), /trend\(avg\(cells\[0\], 0\), avg\(cells\[w\], w\)\)/);
+  // the page's Total toggle is the command's --total
   assert.match(read('ui/page.html'), /p = w \? avg\(cells\[0\], 0\) : null/);
-  assert.match(read('commands/report.js'), /aggregate: Boolean\(flags\.aggregate\)/);
-  assert.match(read('ui/page.html'), /data-mode="sum">Aggregate</);
+  assert.match(read('commands/report.js'), /total: Boolean\(flags\.total\)/);
+  assert.match(read('ui/page.html'), /data-mode="sum">Total</);
   assert.match(read('report.js'), /export const REPORT_WEEKS = 5;/);
   assert.match(read('ui/page.html'), /\/api\/report\?repo=\$\{encodeURIComponent\(REPO\)\}&weeks=5/);
   assert.match(read('report.js'), /export const TREND_MIN = 0\.05;/);
-  assert.match(read('ui/page.html'), /const TREND_MIN = 0\.05;/);
+  assert.match(read('ui/page.html'), /const TREND_MIN = 0\.05, TREND_FULL = 1;/);
+  assert.match(read('report.js'), /change\(avg\(cells\[0\], 0\), avg\(cells\[w\], w\)\)/);
+  // the decisions table is one function on both pages, the Report's over its window alone
+  assert.match(read('ui/page.html'), /historyFigure\(hs, \{ many, caption: 'Decisions'/);
+  // one Sort control in the header, the view's orderings (CSORTS), instead of one in every table's caption
+  assert.match(read('ui/page.html'), /id="c-sort" aria-label="Sort"/);
+  assert.doesNotMatch(read('ui/page.html'), /data-vsort/);
+  // every table on the page shows 20 rows a page
+  assert.match(read('ui/page.html'), /const TABLE_PAGE = 20, VPAGE = \{\};/);
+  assert.match(read('ui/page.html'), /rows\.slice\(from, from \+ TABLE_PAGE\)/);
+  assert.match(read('ui/page.html'), /historyFigure\(acts, \{ many: Boolean\(v\.all\), caption: 'Actions in the window'/);
   // the cost view is the command's --cost: list prices from prices.js, the unpriced models named on both
   assert.match(read('commands/report.js'), /cost: Boolean\(flags\.cost\)/);
   assert.match(read('report.js'), /listPrice\(r\.model, \{ config \}\)/);

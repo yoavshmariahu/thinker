@@ -72,18 +72,23 @@ export async function runSetup({
     out(now.runtime && now.model ? `  ${c.green('✓')} Ranking model ready ${c.dim(`(${now.modelName})`)}` : `  ${c.yellow('○')} Ranking model not in place ${c.dim(now.runtime ? '(fetch failed; thinker ranker fetch)' : '(runtime missing: npm ci in the app directory, or thinker update)')}; notes are ranked by words alone until then`);
   } catch (e) { out(`  ${c.yellow('○')} Ranking model not fetched: ${String(e.message).split('\n')[0].slice(0, 120)}`); }
 
-  // Where the agents' context goes in this repository, from its sessions so far: the report the installer prints
+  // Where the agents' context goes in this repository, from its sessions so far: the report the installer runs
   // over the machine (context-machine.js), here for the one repository, kept for the page. Nothing to build and
-  // no model call; nothing is printed where no session ran yet.
+  // no model call; nothing is printed where no session ran yet. On a terminal it is the installer's question
+  // (setup/context-ask.js): the page in the browser, or the suggestions here as a list to pick from and apply.
+  let contextAsked = null;
   try {
     const { contextView } = await import('./context-view.js');
-    const { recommendations, renderMachineReport } = await import('./context-machine.js');
+    const { recommendations } = await import('./context-machine.js');
     const { writeSnapshot } = await import('./context-snapshot.js');
+    const { askMachineReport } = await import('./setup/context-ask.js');
     const view = contextView(store, { days: 30 });
     if (view.sessions) {
       writeSnapshot(store, 30, view);
       out('');
-      for (const l of renderMachineReport({ days: 30, repos: [{ name: path.basename(repo), sessions: view.sessions }], view }, recommendations(view))) out(`  ${l}`);
+      const name = path.basename(repo), one = { repo, name, checkout: repo };
+      const r = { days: 30, repos: [{ id: repo, name, checkout: repo, sessions: view.sessions }], views: [{ ...one, view }], view };
+      contextAsked = await askMachineReport({ r, recs: recommendations(view), store, out, browser: Boolean(dashboard), open: () => openDashboardFn({ repo, cliPath }) });
     }
   } catch (e) { out(`  ${c.yellow('○')} Context report not made: ${String(e.message).split('\n')[0].slice(0, 120)}`); }
 
@@ -119,7 +124,9 @@ export async function runSetup({
   // telemetry carries counts only (telemetry.js:buildTelemetryPayload); no note or behavior text leaves the machine
   done.push(c.dim('Notes stay on this machine in .thinker/local/, which git ignores;'), c.dim('nothing needs committing and Thinker uploads none.'));
   out('\n' + finishBox(done, { ok: !needsAttention }) + '\n');
-  if (dashboard && firstSetup && openDashboardFn({ repo, cliPath })) out(`  ${c.dim(`Opening the local page in your browser; open it again any time with ${c.cyan('thinker ui')}.`)}\n`);
+  // the page at the end, as before, unless the person was asked above and chose (the browser opened it already, the
+  // terminal was their answer)
+  if (dashboard && firstSetup && !contextAsked?.mode?.match(/^(browser|terminal)$/) && openDashboardFn({ repo, cliPath })) out(`  ${c.dim(`Opening the local page in your browser; open it again any time with ${c.cyan('thinker ui')}.`)}\n`);
 
   return { connections };
 }

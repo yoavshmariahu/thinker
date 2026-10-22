@@ -61,8 +61,10 @@ Every action shows what it will do before it does it, and each one is a command 
 | Drop an instruction section | pick sections, **Remove**; the same diff and Apply | `thinker instructions --remove <ids> [--apply]` | `git checkout` the file |
 | Give this checkout a shorter file | keep the sections that matter here; the team's file is untouched and the agents here read a trimmed local copy | `thinker instructions --core "Title, Title"` | **Remove the trimmed copy**, or `thinker instructions --off` |
 | Switch a skill, MCP server or plugin off | pick them, **Switch off**: off for this repository from the next session, in the agent's own settings, with a backup; a skill switched off still runs as `/name` | `thinker harness --off "<label>"` | **Turn back on**, or `thinker harness --undo` |
-| Switch a built-in tool off | the same, under Built-in tools | `thinker context --switch-off <labels> --builtin` | `thinker context --switch-on <keys>` |
-| Compress tool outputs | per tool, **High**, **Moderate** or **No compression**: a whole-file read becomes the lines around what the session searched for, a test run its counts and distinct failures, a big search its hits per file, long output cut to a cap; Claude Code only, through its tool hook | `thinker context --output-compression <tools> --level high\|moderate\|off` | the same, `--level off` |
+| Switch a built-in tool off | the same, under Built-in tools (their rows in bold): Apply asks first, naming the tools, where the switch is written and how they come back | `thinker context --switch-off <labels> --builtin` | **Turn back on**, **Revert** under History, or `thinker context --switch-on <keys>` |
+| Compress tool outputs | per tool, **Compress** or **No compression**: a whole-file read becomes the lines around what the session searched for, a test run its counts and distinct failures, a big search its hits per file, long output cut to a cap of about 3k tokens; Claude Code only, through its tool hook | `thinker context --output-compression <tools> --level moderate` (`--level high`, a tighter cap, is for experiments: no agent session has run with it, so the page does not offer it) | the same, `--level off` |
+
+Each view opens with a **Potential savings** card: for sections, skills and tools, what the flagged rows cost in the sessions that did not use them (at most); for outputs, what the cap alone would have cut (at least); All sums them.
 
 Compress and Remove edit the team's file in your working tree and nothing else: no commit, no pull
 request, and Apply refuses when the file changed since the preview. Switching a tool off turns
@@ -85,7 +87,7 @@ The page's other view, Report (`thinker report`), is the same measurement over t
 costs here, week by week over the last five, as the average over each week's sessions. One table by
 part of the context (the instruction files, custom tools, built-in tools, tool outputs, the rest of the
 input, the output), one by model under its provider with subtotals, totals under both; a cell that moved
-5% or more against the first week is red (up) or green (down), and a toggle shows each week's sum instead of
+5% or more against the first week is shaded red (up) or green (down), darker the larger the change, and a toggle shows each week's sum instead of
 the average per session. A toggle prices the same tokens at the
 providers' list rates, so a switch of model shows in the trend. Under the tables: the actions taken on
 Save in those weeks, by date, to read the weeks against, and the cache's four numbers, its saving in

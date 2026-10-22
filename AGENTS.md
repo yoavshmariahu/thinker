@@ -221,7 +221,7 @@ by default: the once-per-session distillation, and a maintenance run that re-ver
 at most 3 stale notes and phrases the new ones. `mine-prs` and `understand` stay,
 unlisted in the help, for Artemis's benchmark caches alone. What the installer does
 show at once is where the agents' context goes, read from their transcripts
-(`context-machine.js`; the Context view below). The paragraphs on the build below are
+(`context-machine.js`; the Context view below): on a terminal it asks whether to see what to cut first in the browser or there, where the suggestions are a multi-select of the actions the page's rows would take, applied through the same `approveChanges` (`setup/context-ask.js`, `thinker context --machine --ask`, 2026-10-22). The paragraphs on the build below are
 history: how it ran until then, kept because the mining code is still what Artemis
 builds caches with. Outside a git repository there is nowhere to keep a cache: the CLI's cache
 commands stop with that message (`cli.js:CACHE_COMMANDS`), the MCP server
@@ -1180,11 +1180,12 @@ by a model asked for a third of the length (`instruction-edit.js`, `thinker inst
 [--apply]`, the tab's Compress and Remove). The diff is shown first; Apply writes exactly that text to the working
 tree, uncommitted, and refuses when the file changed since the preview. No commit, no pull request.
 
-**The tables, All and History (2026-10-22, the owner's layout).** Every view of the Context tab is one table in the shape of
+**The tables, All and History (2026-10-22, the owner's layout).** Every table of the Save page, History included, shows 20 rows a page (`page.html:TABLE_PAGE`, Previous and Next under the table; a pick holds across pages), and the Report's decisions table the same; History lists every decision kept, the Report the window's alone (2026-10-22). Every view of the Context tab is one table in the shape of
 the docs' "AGENTS.md this week" example (`site/docs.html`, `ui/page.html:renderTable`): a row a part with its box, its tokens
 per call, the share of sessions that used it, its cost over the window (numbers centered, no bars) and a pill where the waste
 is high or medium; See more opens the part's text under the row; a dropdown in the row picks what to do, and the one Apply at
-the table's top right does it for every checked row (no button per row; History's Revert is per decision). Sorting follows the
+the table's top right does it for every checked row (no button per row; History's Revert is per decision); the Sort
+control is one, in the page's header beside the repository and the window, with the orderings of the view shown (2026-10-22). Sorting follows the
 window figures the table shows: most wasted is the waste a session times the sessions the part was in, as the summary ranks.
 A Wasted column holds that aggregate (`instruction-value.js:wasteLevel`, one rule since this day: wasted as a share of
 what the kind costs, 5% high, 2% medium, no longer gated on under-half use); an output's is what moderate compression
@@ -1192,12 +1193,19 @@ would have cut, so an uncompressed MCP server or command can be medium or high w
 first view, All, holds every section, skill, tool and output together; the four after it one kind each; History, last, the
 decisions. The page's address carries nothing: the server refuses an API call another site's page makes (its Origin or
 Sec-Fetch-Site) and any Host but its own (`ui/server.js`); the per-run key in the address went on 2026-10-22, the owner's call. The actions are what `context-suggest.js:allChanges` gives each part (a section: Compress
-or Remove; a skill or tool: Switch off, or Turn back on where thinker switched it off; an output thinker can compress: Moderate
-or High compression, or No compression): the row is sent by its key to `/api/changes/approve`, which resolves it in the kept
+or Remove; a skill or tool: Switch off, or Turn back on where thinker switched it off; an output thinker can compress: Compress, or No
+compression; one level, moderate, since the owner's call of 2026-10-22 that a person cannot pick between two levels nothing has
+measured against each other: the rows offered High for a day, and `--level high` stays on the command line alone, for an
+experiment arm): the row is sent by its key to `/api/changes/approve`, which resolves it in the kept
 report and makes it (`approveChanges`; a skill or tool through `context-view.js:switchSources`, an output through
 `setOutputCompression`), recording the decision with its undo. A section is previewed first (`instruction-edit.js:previewEdit`,
 the diff above the table, Write to <file>) and recorded when written (`applyReviewed`, the file as it was kept for Revert; several
-sections previewed together are one decision). History lists every decision with Revert (`revertDecision`: a tool back on or off
+sections previewed together are one decision). A built-in tool's row is in bold and its Switch off is confirmed in a dialog first (`page.html:confirmDialog`: the tools named,
+`permissions.deny` of `.claude/settings.local.json` as where it is written, Revert and Turn back on as the way back), the one
+change the page asks about twice (2026-10-22, the owner's ask). Every view opens with a Potential savings card
+(`page.html:savingsCard`, back the same day): the flagged rows' cost in the sessions that did not use them (at most) for sections,
+skills and tools, what the moderate cap alone would have cut (at least) for outputs, and All the sum of the four over what
+everything costs a session. History lists every decision with Revert (`revertDecision`: a tool back on or off
 again, an output's compression back to what it was, a section's file written back unless edited since, a dismissal withdrawn);
 kept in `.thinker/state/context-suggest.json` with the undo records beside it. The ranking is still `topChanges`: the flagged
 parts (high or medium waste, saving at most their cost in the sessions that did not use them; an output, what the cap cuts) by
@@ -1298,8 +1306,10 @@ the parts add up to the session's tokens. The second table is by model under its
 (`prices.js:providerOf`), each row the model's share of the average session (its tokens over every session of
 the week), so the rows add up to the total and a switch of model shows as one row falling while another rises;
 the provider's subtotal is above its models and folds them. A cell that moved `TREND_MIN` (5%) or more against
-the first week of the window (the first column) is red (up) or green (down), on the page; the command marks it ▲ ▼.
-A Per session / Aggregate toggle (`--aggregate`) shows each week's sum over its sessions instead of the average. A session whose agent reports
+the first week of the window (the first column) is shaded red (up) or green (down) on the page, darker the larger the
+change (full at a doubling or a halving, `TREND_FULL`); the command marks it ▲ ▼, doubled past `TREND_BIG` (50%); a zero
+cell is blank.
+A Per session / Total toggle (`--total`) shows each week's sum over its sessions instead of the average. A session whose agent reports
 no usage (Cursor) is counted in no column and named as left out.
 
 **Cost, the one place dollars are shown.** The Cost toggle (`--cost`) prices each session's tokens at its model's
@@ -1311,8 +1321,9 @@ one scale; a part's cost is its share of the session's input cost. The rule that
 the page says under the toggle that it is a list price, what a metered key would pay and not a subscription. A
 model without a price is left out of the cost average and named as unpriced, never counted at zero.
 
-Under the tables: the decisions taken on Save in the window (`context-suggest.js:changeHistory`), by date, so a
-week's change can be read against what was cut that week; and the four numbers the Cache tab showed
+Under the tables: the decisions taken on Save in the window (`context-suggest.js:changeHistory`, the same table as
+Save's History, `page.html:historyFigure`, with its Revert, over the five weeks alone), so a week's change can be read
+against what was cut that week; and the four numbers the Cache tab showed
 (`report.js:cacheMetrics`, from `usage.js:summarize` over the same window), with the saving in dollars first
 (the tokens saved on each model at that model's input list price: the holdout's figure by model where it is
 measured, else the servings acted on), then tokens saved, cache hits and the share acted on. All repositories is

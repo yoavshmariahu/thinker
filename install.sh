@@ -27,7 +27,7 @@
 #   --late              also serve notes about files as the agent opens them
 #   --mcp               accepted for compatibility: the MCP server is always registered (needs npm)
 #   --no-git-hook       do not install the git post-commit hook (it re-checks and maintains notes after each commit)
-#   --no-ui             do not open the local page (thinker ui) at the end; the report is still printed
+#   --no-ui             do not offer the browser for the Context report; it is shown in the terminal, with its suggestions to pick from
 #   --ref <tag>         release to install, a tag such as v0.1.34 (default latest; --branch also accepted)
 #   --update            update an installed thinker to the latest release and exit
 #   --no-auto-update    do not schedule background auto-updates (every 4 hours)
@@ -230,13 +230,15 @@ main() {
   say ""
   if [ "$fancy" = 1 ]; then
     local sparkle="${yellow}*${reset} ${magenta}~${reset} ${yellow}*${reset}"
-    box "$cyan" "$sparkle  ${bold}${cyan}Thinker${reset}  $sparkle" "${bold}A knowledge cache for coding & review agents${reset}" \
-      "${magenta}~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~${reset}" "" \
-      "${dim}Learns from your merged fixes, flags the change that would undo one,${reset}" \
-      "${dim}and hands your coding agents what the repository already knows.${reset}"
+    # the same headline and lines as `thinker setup` (src/setup/ui.js:HEADLINE, TAGLINE)
+    box "$cyan" "$sparkle  ${bold}${cyan}Thinker${reset}  $sparkle" "${bold}Think ahead. Save context.${reset}" \
+      "${magenta}~~~~~~~~~~~~~~~~~~~~~~~~~~~${reset}" "" \
+      "${dim}Thinker helps you save tokens with context compression, knowledge caching,${reset}" \
+      "${dim}and leaner agent instructions, skills and MCP servers.${reset}"
   else
     say "Thinker"
-    say "A knowledge cache for coding & review agents"
+    say "Think ahead. Save context."
+    say "Thinker helps you save tokens with context compression, knowledge caching, and leaner agent instructions, skills and MCP servers."
   fi
   say ""
   case "$dist" in https://*) ;; *) die "releases must be downloaded over HTTPS" ;; esac
@@ -360,10 +362,19 @@ EOF
   # --- where the agents' context goes, from the sessions already on this machine ----------------------------
   # Nothing to build and no cache needed: the Context report reads the agents' own transcripts of the last 30
   # days, so it is there now, from the sessions that ran before thinker was installed. The most active
-  # repositories are read (each report kept for the page), the first suggestions printed here, and the page
-  # opened on them at the end. `thinker context --machine` prints the same report any time.
+  # repositories are read (each report kept for the page) and the person is asked where to see what to cut
+  # first: in the browser (the page over every repository) or here, where the suggestions are a list to pick
+  # from and apply at once, with the page's address for the detail (setup/context-ask.js). The terminal, not
+  # the piped script, answers; with --yes or no terminal the report is printed. `thinker context --machine
+  # [--ask]` does the same any time.
   say ""
-  "$thinker" context --machine || say "  The Context report could not be made now; thinker context --machine prints it, thinker ui shows it."
+  local xargs=(context --machine --ask)
+  [ "$ui" = 1 ] || xargs+=(--no-browser)
+  if [ "$yes" != 1 ] && [ -r /dev/tty ] && (exec < /dev/tty) 2>/dev/null; then
+    "$thinker" "${xargs[@]}" < /dev/tty || say "  The Context report could not be made now; thinker context --machine prints it, thinker ui shows it."
+  else
+    "$thinker" context --machine || say "  The Context report could not be made now; thinker context --machine prints it, thinker ui shows it."
+  fi
 
   # --- a cache handed over -------------------------------------------------------
   if [ -n "$cache" ]; then
@@ -377,25 +388,18 @@ EOF
   # Every git repository has a cache from here on, and it grows from the sessions there.
   local version; version="$(node -p "require('$home/app/package.json').version" 2>/dev/null || echo '?')"
   path_hint
-  # the page, on the Context view over every repository: a browser on this machine's display only (not over
-  # ssh, not without a display, not in CI or a test), where the report above is reviewed and applied
-  local opened=0
-  if [ "$ui" = 1 ] && [ -t 1 ] && [ -z "${CI:-}" ] && [ -z "${THINKER_TEST:-}" ] && [ -z "${SSH_CONNECTION:-}${SSH_TTY:-}" ] \
-     && { [ "$(uname -s)" = Darwin ] || [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; }; then
-    ( "$thinker" ui --from-setup --tab save --all >/dev/null 2>&1 & ) && opened=1
-  fi
   say ""
   if [ "$fancy" = 1 ]; then
     box "$green" "${green}✓${reset} ${bold}Install complete${reset} ${dim}· Thinker v$version${reset}" "" \
       "Installed into ${home/#$HOME/~} and wired into your agents." \
       "Thinker now runs in every git repository on this machine." \
-      "$([ "$opened" = 1 ] && printf '%s' "Opening the page above in your browser; come back to it with ${cyan}thinker ui${reset}." || printf '%s' "Review and apply the suggestions above: ${cyan}thinker ui${reset}.")" \
+      "Where your agents' context goes, any time: ${cyan}thinker ui${reset}." \
       "${dim}Notes stay on this machine; Thinker uploads none.${reset}" "" \
       "${yellow}*${reset} ${magenta}~${reset} ${yellow}*${reset}  ${bold}all done · happy shipping${reset}  ${yellow}*${reset} ${magenta}~${reset} ${yellow}*${reset}"
   else
     say "Install complete: Thinker v$version, installed into $home and wired into your agents."
     say "Thinker now runs in every git repository on this machine."
-    if [ "$opened" = 1 ]; then say "Opening the page above in your browser; come back to it with thinker ui."; else say "Review and apply the suggestions above: thinker ui."; fi
+    say "Where your agents' context goes, any time: thinker ui."
     say "Notes stay on this machine; Thinker uploads none."
   fi
 }

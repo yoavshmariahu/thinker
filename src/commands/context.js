@@ -5,7 +5,8 @@
 // `thinker instructions --core` for the sections, `thinker harness --off` for skills and tools. --refresh keeps
 // the report for the page (context-snapshot.js), which starts it in the background. --machine is the report over
 // the repositories the agents worked in lately, merged, with what to cut first (context-machine.js): what the
-// installer prints, from the sessions that ran before thinker was installed; it needs no repository.
+// installer runs, from the sessions that ran before thinker was installed; it needs no repository. --ask is the
+// installer's question: browser or terminal, and in the terminal the suggestions to pick from (setup/context-ask.js).
 import { contextView, switchSources, setOutputCompression } from '../context-view.js';
 import { judgeRecent, findRepoSessions } from '../instruction-value.js';
 import { formatTokens } from '../model-usage.js';
@@ -24,8 +25,15 @@ async function contextCommand({ store, flags, out }) {
     if (!quiet) out(`Reading the agents' sessions of the last ${days} days, the ${limit} most active repositories first…`);
     const r = machineContext(store, { days, limit, onRepo: x => { if (!quiet) out(`  ${x.name}: ${x.sessions} session${x.sessions === 1 ? '' : 's'}`); } });
     const recs = recommendations(r.view, { top });
-    if (flags.json) { out(JSON.stringify({ ...r, recommendations: recs }, null, 2)); return; }
+    if (flags.json) { out(JSON.stringify({ ...r, views: undefined, recommendations: recs }, null, 2)); return; }
     if (!quiet) out('');
+    // --ask (the installer, on a terminal): where to see what to cut first, and in the terminal the suggestions as a
+    // list to pick from and apply at once (setup/context-ask.js); without a terminal the report is printed
+    if (flags.ask && !quiet) {
+      const { askMachineReport, canOpenBrowser } = await import('../setup/context-ask.js');
+      await askMachineReport({ r, recs, store, out, browser: !flags['no-browser'] && canOpenBrowser() });
+      return;
+    }
     for (const l of renderMachineReport(r, recs)) out(l);
     return;
   }

@@ -18,12 +18,17 @@ three things in the terminal and asks nothing there:
    servers, built-in tools, tool outputs; per model call and per session) and what to cut
    first: the sections, skills and tools that cost the most in the sessions that did not
    use them, with the saving each is worth at most. No cache and no model call are
-   involved, so the report is there from the first minute. `thinker context --machine`
-   prints it again from any directory (`--repos n`, `--top n`, `--json`); each repository's
-   report is kept for the page. On a machine with a display (not over ssh, not in CI) the
-   installer then opens the local page on that report over every repository, where the
-   suggestions are reviewed and applied (`--no-ui` leaves it closed; `thinker ui --tab
-   context --all` opens it later). See [Context](context.md) for what the report measures.
+   involved, so the report is there from the first minute. On a terminal it asks where to
+   see what to cut first: in the browser, the local page on that report over every
+   repository, or in the terminal, where the suggestions are an arrow-key list to pick
+   from (compress or remove a section, switch off a skill or tool) and apply at once,
+   with the page's address beside them for the detail. A section is edited in its file,
+   uncommitted, for `git diff`; a skill or tool is switched off for that repository; each
+   decision can be reverted from the page's History. On a machine with no display (over
+   ssh, in CI) or with `--no-ui` the browser is not offered; with `--yes` or no terminal
+   the report is printed. `thinker context --machine` prints it again from any directory
+   (`--ask` asks again; `--repos n`, `--top n`, `--json`); each repository's report is kept
+   for the page. See [Context](context.md) for what the report measures.
 
 From then on thinker runs in every git repository on this machine: a cache starts,
 empty, with the first agent session in a repository (kept out of `git status` through
@@ -105,8 +110,8 @@ The page stops by itself after half an hour unused; `thinker ui` opens it again.
 
 `thinker setup` does for one repository what the installer does for the machine, with
 prompts: it connects the agents, fetches the ranking model, and prints where the agents'
-context goes in that repository and what to cut first, from its sessions so far (the first
-setup of a repository opens the page; `--no-ui` leaves it closed). `thinker context` prints
+context goes in that repository and what to cut first, from its sessions so far, asking
+the same browser-or-terminal question as the installer (`--no-ui` keeps it in the terminal). `thinker context` prints
 the report again, and `thinker context --machine` prints it over the repositories the agents
 worked in lately, from any directory. See [ONBOARDING.md](../ONBOARDING.md) for the flags.
 

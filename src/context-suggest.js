@@ -44,13 +44,14 @@ const readJson = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } c
 const writeJson = (f, v) => { fs.mkdirSync(path.dirname(f), { recursive: true }); const tmp = `${f}.thinker-${process.pid}`; fs.writeFileSync(tmp, JSON.stringify(v) + '\n'); fs.renameSync(tmp, f); };
 // What can be done with each kind of change, the suggested action first. One level of compression each, so the person
 // is not asked to choose one nothing has measured against the other: a section as the Context tab compresses it (high,
-// instruction-edit.js), an output at the diet's default level (moderate; high has run in no agent session).
+// instruction-edit.js), an output at the diet's default level (moderate). The diet's high level has run in no agent
+// session and is set from the command line alone (`thinker context --output-compression <tools> --level high`), for an
+// experiment arm; the rows offered it for a day on 2026-10-22 and that was taken back, the owner's call.
 export const ACTS = {
   compress: { act: 'compress', text: 'Compress' },
   remove: { act: 'remove', text: 'Remove' },
   off: { act: 'off', text: 'Switch off' },
   on: { act: 'on', text: 'Turn back on' },
-  high: { act: 'high', text: 'High compression' },
   uncompress: { act: 'uncompress', text: 'No compression' },
 };
 const pctLess = (cut, of) => { const p = of ? 100 * cut / of : 0; return p < 1 ? '<1% smaller' : `~${Math.round(p)}% smaller`; };
@@ -65,7 +66,7 @@ export function topChanges(view, { max = SUGGEST.max, minSaving = SUGGEST.minSav
 }
 // Every part of the report as a change with what can be done to it, by its total: the Context tab's rows. A section
 // can be compressed or removed; a skill or tool switched off, or back on when thinker switched it off; an output
-// thinker can compress set to moderate or high compression, or back to none. Nothing is filtered by waste.
+// thinker can compress compressed (moderate), or set back to none. Nothing is filtered by waste.
 export function allChanges(view) {
   return partChanges(view, { all: true }).sort((a, b) => b.total - a.total || b.saving - a.saving);
 }
@@ -96,9 +97,9 @@ function partChanges(view, { all = false } = {}) {
   // use (tool-outputs.js:sessionOutputs), which no cap recovers
   const outCost = view.totals?.outputs?.perSession || (view.outputs?.tools || []).reduce((a, t) => a + (t.perSession || 0), 0);
   const outWaste = cut => { const sh = outCost ? cut / outCost : 0; return sh >= WASTE.high ? 'high' : sh >= WASTE.medium ? 'medium' : 'low'; };
-  // the summary suggests one level (moderate); a row offers the levels an output can be set to, the next step up first
-  // (diet.js), and back to none; an MCP server takes the moderate level alone (diet.js:mcpLevel)
-  const levelOpts = t => !all ? [ACTS.compress] : t.name.startsWith('mcp:') ? (t.compression ? [ACTS.uncompress] : [ACTS.compress]) : t.compression === 'moderate' ? [ACTS.high, ACTS.uncompress] : t.compression === 'high' ? [ACTS.compress, ACTS.uncompress] : [ACTS.compress, ACTS.high];
+  // one level (moderate, diet.js): Compress, or No compression once the output is compressed at any level (the
+  // command line can set high)
+  const levelOpts = t => t.compression ? [ACTS.uncompress] : [ACTS.compress];
   for (const t of view.outputs?.tools || []) if (all ? t.compressible : (t.compressible && !t.compression && t.saveModerate > 0)) out.push({
     kind: 'output', view: 'outputs', waste: outWaste(t.saveModerate), key: `output:${t.name}`, name: t.name, repo: t.repo, compression: t.compression || null,
     title: `${t.name.replace(/^Bash:/, '')} output`, saving: t.saveModerate,
@@ -252,11 +253,11 @@ export async function approveChanges(store, changes, { edit } = {}) {
   const make = async c => {
     if (!c.default) return { error: 'nothing switches it off' };
     if (c.kind === 'output') {
-      // Compress is moderate (the diet's default); the undo sets the level back to what it was
-      const level = c.default.act === 'high' ? 'high' : c.default.act === 'uncompress' ? 'off' : 'moderate';
+      // Compress is moderate (the diet's default, and the page's only level); the undo sets the level back to what it was
+      const level = c.default.act === 'uncompress' ? 'off' : 'moderate';
       const r = setOutputCompression(store, [c.name], level);
-      const ok = level === 'off' ? /^Compression off for/.test(r) : new RegExp(`^${level === 'high' ? 'High' : 'Moderate'} compression for`).test(r);
-      return ok ? { result: level === 'off' ? 'Compression off from the next tool call' : `Compressed${level === 'high' ? ' (high)' : ''} from the next tool call`, undo: { kind: 'output', name: c.name, level: c.compression || 'off' } } : { error: r };
+      const ok = level === 'off' ? /^Compression off for/.test(r) : /^Moderate compression for/.test(r);
+      return ok ? { result: level === 'off' ? 'Compression off from the next tool call' : 'Compressed from the next tool call', undo: { kind: 'output', name: c.name, level: c.compression || 'off' } } : { error: r };
     }
     if (c.default.act === 'on') {
       const r = switchSources(store, { keys: [c.sourceKey || c.name], on: true });

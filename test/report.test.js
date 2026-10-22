@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
-import { reportView, mergeReports, renderReport, trend, weekColumns, weekStart, cacheMetrics, PARTS } from '../src/report.js';
+import { reportView, mergeReports, renderReport, trend, change, weekColumns, weekStart, cacheMetrics, PARTS } from '../src/report.js';
 import { listPrice, providerOf, costOf, formatDollars } from '../src/prices.js';
 
 function fixture(t) {
@@ -44,6 +44,7 @@ test('weeks run Monday to Sunday, the current week last; a cell trends at 5%', (
   assert.equal(cols[3].end, cols[4].t);
   assert.equal(cols[0].t, weekStart(NOW - 28 * DAY));
   assert.equal(trend(100, 106), 'up'); assert.equal(trend(100, 104), null); assert.equal(trend(100, 94), 'down'); assert.equal(trend(null, 5), null); assert.equal(trend(0, 5), null);
+  assert.equal(change(100, 150), 0.5); assert.equal(change(0, 5), null); assert.equal(change(200, 100), -0.5);
 });
 
 test('list prices: Anthropic from the relative rates, the other providers from the table, the config on top', () => {
@@ -113,7 +114,7 @@ test('the report averages each week over its sessions, by part and by model unde
   assert.match(text, /By part of the context/); assert.match(text, /TOTAL/); assert.match(text, /ANTHROPIC/); assert.match(text, /claude-opus-5-5/);
   assert.match(text, /mystery-9 \(unpriced\)/); assert.match(text, /Workflow tool/); assert.match(text, /\$ saved\s+\$0\.00/);
   assert.match(renderReport(v, { cost: true }).join('\n'), /list prices/);
-  assert.match(renderReport(v, { aggregate: true }).join('\n'), /Total tokens over the week's sessions/);
+  assert.match(renderReport(v, { total: true }).join('\n'), /Total tokens over the week's sessions/);
   // every repository's report merged: the sums and the sessions add, the actions name their repository
   const m = mergeReports([{ repo: 'a', name: 'A', view: v }, { repo: 'b', name: 'B', view: v }]);
   assert.deepEqual(m.columns.map(c => c.sessions), [0, 0, 0, 4, 4]);

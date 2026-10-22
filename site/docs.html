@@ -611,12 +611,12 @@
     .ctx-table th { text-align: left; font-weight: 600; color: #6b7280; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.35rem 0.5rem; border-bottom: 1px solid #e5e7eb; }
     .ctx-table td { padding: 0.42rem 0.5rem; border-bottom: 1px solid #f1f5f9; color: #111; white-space: nowrap; }
     .ctx-table .num, .ctx-table th.num { text-align: center; font-variant-numeric: tabular-nums; }
-    .ctx-table tr.ctx-high td { background: #fff7ed; }
+    .ctx-table tr.ctx-high td { background: #fef2f2; }
     .ctx-table tr.ctx-medium td { background: #fefce8; }
     .ctx-table input { margin: 0 0.3rem 0 0; vertical-align: -1px; }
     .ctx-pill { font-size: 0.68rem; border-radius: 999px; padding: 0.1rem 0.5rem; font-weight: 600; }
-    .ctx-pill.high { background: #fde7d6; color: #9a3412; }
-    .ctx-pill.medium { background: #fef3c7; color: #92400e; }
+    .ctx-pill.high { background: #fee2e2; color: #991b1b; }
+    .ctx-pill.medium { background: #fef9c3; color: #854d0e; }
     .ctx-capact { margin-left: auto; display: flex; align-items: center; gap: 0.7rem; }
     .ctx-btn { background: #111; color: #fff; border-radius: 6px; padding: 0.3rem 0.75rem; font-size: 0.78rem; font-weight: 600; }
     .ctx-btn.ghost { background: transparent; color: #111; border: 1px solid #d1d5db; }
@@ -856,7 +856,7 @@
 
         <h3>Switch skills, MCP servers, plugins and built-in tools off</h3>
         <p>
-          A skill's description, an MCP server's tool definitions and a plugin's are loaded into every session whether or not anything uses them. <strong>Switch off</strong> takes one out of the next session's context for this repository. A skill switched off still runs when you type <code>/name</code>. Claude Code's own tool definitions go the same way, from the Built-in tools cards; the file, shell and search tools are never offered.
+          A skill's description, an MCP server's tool definitions and a plugin's are loaded into every session whether or not anything uses them. <strong>Switch off</strong> takes one out of the next session's context for this repository. A skill switched off still runs when you type <code>/name</code>. Claude Code's own tool definitions go the same way, from the Built-in tools table (their rows in bold), after a confirmation that names the tools, where the switch is written and how they come back; the file, shell and search tools are never offered.
         </p>
         <dl class="how">
           <dt>How</dt><dd>The setting in the agent's own files that hides the source, written for this repository alone. Claude Code: <code>skillOverrides</code> (<code>user-invocable-only</code>), <code>enabledPlugins</code>, <code>disabledMcpjsonServers</code> and, for a built-in tool, <code>permissions.deny</code> in <code>.claude/settings.local.json</code>; or <code>disabledMcpServers</code> in this repository's entry of <code>~/.claude.json</code>, what <code>/mcp disable</code> writes. Codex: <code>enabled = false</code> in the checkout's <code>.codex/config.toml</code>, a skill by its path in <code>~/.codex/config.toml</code>. Cursor: the server's entry in <code>~/.cursor/mcp.json</code>, for every repository. Every file is backed up first under <code>~/.thinker/state/harness-backups/</code>.</dd>
@@ -901,11 +901,11 @@ omitted 456–612: to_pdf, send
 read any range: Read with offset and limit</span></pre>
             </div>
           </div>
-          <p class="ctx-note">Switched on per tool from the page (High, Moderate, or none) or with <code>thinker context --output-compression</code>; Claude Code only, through its tool hook. A short file, or one with nothing to centre on, passes whole.</p>
+          <p class="ctx-note">Switched on per tool from the page (<strong>Compress</strong>, or none) or with <code>thinker context --output-compression</code>; Claude Code only, through its tool hook. A short file, or one with nothing to centre on, passes whole.</p>
         </figure>
         <dl class="how">
-          <dt>How</dt><dd>Claude Code's tool hook may replace a result before the model reads it; nothing thinker serves ever leaves the context again, so this is the one place tokens are taken out instead of added. Three shapes are trimmed. A whole-file read becomes the lines around the session's recent search patterns and the request's identifiers, every omitted range named with the definitions it holds and a last line saying how to read it. A test run becomes its counts and each distinct failure once, the full log kept under <code>.thinker/state/tests/</code>. A large search becomes its hits grouped per file. Any other output past the level's cap is cut to it. <strong>Moderate</strong> keeps 40 lines each side of a hit and caps at about 3k tokens; <strong>High</strong> keeps 15 and caps at about 1k. A file under 120 lines, one with no hit, or one where the kept lines reach 60% of it passes whole.</dd>
-          <dt>Command</dt><dd><code>thinker context --output-compression &lt;tools&gt; --level high|moderate|off</code>, per tool: <code>Read</code>, <code>Bash</code>, or a shell program by name (<code>Bash:sed</code>)</dd>
+          <dt>How</dt><dd>Claude Code's tool hook may replace a result before the model reads it; nothing thinker serves ever leaves the context again, so this is the one place tokens are taken out instead of added. Three shapes are trimmed. A whole-file read becomes the lines around the session's recent search patterns and the request's identifiers, every omitted range named with the definitions it holds and a last line saying how to read it. A test run becomes its counts and each distinct failure once, the full log kept under <code>.thinker/state/tests/</code>. A large search becomes its hits grouped per file. Any other output past the cap is cut to it: 40 lines each side of a hit, about 3k tokens of plain output. (A tighter level exists on the command line, <code>--level high</code>, for experiments; no agent session has run with it, so the page does not offer it.) A file under 120 lines, one with no hit, or one where the kept lines reach 60% of it passes whole.</dd>
+          <dt>Command</dt><dd><code>thinker context --output-compression &lt;tools&gt; --level moderate|off</code>, per tool: <code>Read</code>, <code>Bash</code>, or a shell program by name (<code>Bash:sed</code>)</dd>
           <dt>Undo</dt><dd>The same with <code>--level off</code>, or <strong>No compression</strong> on the page. It is a setting in <code>.thinker/config.json</code>; nothing already in a conversation changes.</dd>
           <dt>Agents</dt><dd>Claude Code only.</dd>
         </dl>
@@ -931,7 +931,7 @@ read any range: Read with offset and limit</span></pre>
       <section id="install">
         <h2>Install and set up</h2>
         <p>
-          The install command from the landing page installs the tool under <code>~/.thinker</code> and wires it into the agents on this machine, once, in their own settings, asking nothing in the terminal. Then it reads the agents' own transcripts of the last 30 days in the five repositories they worked in most and prints where their context goes and what to cut first: the sections of <code>AGENTS.md</code>, the skills and the tools that cost the most in the sessions that did not use them, with the saving each is worth at most (<code>thinker context --machine</code> prints the same report any time). On a machine with a display it then opens the <a href="#local-page">local page</a> on that report over every repository, where the suggestions are reviewed and applied. From then on every git repository gets a cache that grows from your sessions; nothing is built.
+          The install command from the landing page installs the tool under <code>~/.thinker</code> and wires it into the agents on this machine, once, in their own settings, asking nothing in the terminal. Then it reads the agents' own transcripts of the last 30 days in the five repositories they worked in most and prints where their context goes and what to cut first: the sections of <code>AGENTS.md</code>, the skills and the tools that cost the most in the sessions that did not use them, with the saving each is worth at most, and asks where to see them: in the browser, the <a href="#local-page">local page</a> on that report over every repository, or in the terminal, where the suggestions are a list to pick from (compress or remove a section, switch off a skill or tool) and apply at once, with the page's address for the detail (<code>thinker context --machine --ask</code> asks again any time). From then on every git repository gets a cache that grows from your sessions; nothing is built.
         </p>
         <pre><code><span class="code-comment"># Open the local page again any time</span>
 thinker ui
@@ -1120,7 +1120,7 @@ thinker ui --port 4800 --no-open    <span class="code-comment"># a fixed port, w
               <tr><td><code>thinker connect</code></td><td>Wire the agents on this machine into their own settings, once; setup and the installer run it first</td></tr>
               <tr><td><code>thinker ui [--tab save | report] [--all] [--port n] [--no-open]</code></td><td>The <a href="#local-page">local page</a>: where the context goes and what to cut (<code>--all</code>: over every repository), and what a session costs here week by week</td></tr>
               <tr><td><code>thinker report [--weeks n] [--cost] [--json]</code></td><td>The Report view in the terminal: the average tokens a session cost, week by week, by part of the context and by model under its provider; <code>--cost</code> the same at list prices; then the actions taken on Save and the cache's numbers</td></tr>
-              <tr><td><code>thinker context [--days n] [--json] [--judge n] [--switch-off &lt;labels&gt;] [--output-compression &lt;tools&gt; --level high|moderate|off]</code></td><td>The <a href="#context">Context page</a>'s report in the terminal; <code>--judge n</code> has a model read n recent sessions for which sections bore on them; the two switches are the page's <a href="#cuts">cuts</a> for tools and outputs</td></tr>
+              <tr><td><code>thinker context [--days n] [--json] [--judge n] [--switch-off &lt;labels&gt;] [--output-compression &lt;tools&gt; --level moderate|off]</code></td><td>The <a href="#context">Context page</a>'s report in the terminal; <code>--judge n</code> has a model read n recent sessions for which sections bore on them; the two switches are the page's <a href="#cuts">cuts</a> for tools and outputs</td></tr>
               <tr><td><code>thinker instructions [--core | --compress | --remove]</code></td><td>The sections of <code>AGENTS.md</code> and their tokens; keep some in a trimmed local copy, or shorten or drop one as a diff</td></tr>
               <tr><td><code>thinker harness [--off | --undo]</code></td><td>The skills, MCP servers and plugins loaded into every session against what the sessions use; switch some off, or back on</td></tr>
               <tr><td><code>thinker orient "&lt;task&gt;"</code>, <code>lookup</code></td><td>The MCP tools from the command line</td></tr>
@@ -1156,7 +1156,7 @@ thinker ui --port 4800 --no-open    <span class="code-comment"># a fixed port, w
               <tr><td><code>learn</code></td><td><code>{"sessions": false}</code> stops distilling sessions; pull requests and re-verification go on</td></tr>
               <tr><td><code>maintain</code></td><td><code>enabled</code>, <code>dailyTokens</code> (10,000,000 with a Haiku-class distillation model, 1,000,000 otherwise), <code>verifyEveryDays</code> (3), <code>verifyPerRun</code> (50), <code>verifyServedDays</code> (3), <code>deleteUnusedDays</code> (14), <code>phrasePerRun</code> (8); off by default: <code>prs</code> (with <code>prsPerRun</code>, 3), <code>docs</code> (with <code>docsPerRun</code>, 3), <code>skills</code>, <code>dedupe</code></td></tr>
               <tr><td><code>instructions</code></td><td><code>{"value": {"judge": true, "share": 0.25}}</code> has a model judge a sample of sessions as they end, for the Context page's <em>relevant</em> and <em>followed</em>; <code>{"core": {"keep": ["Title"]}}</code> is the trimmed copy, written by <code>thinker instructions --core</code></td></tr>
-              <tr><td><code>diet</code></td><td>Tool output compression, written from the Context page or <code>thinker context --output-compression</code>: <code>{"tools": {"Read": "moderate", "Bash": "high"}}</code></td></tr>
+              <tr><td><code>diet</code></td><td>Tool output compression, written from the Context page or <code>thinker context --output-compression</code>: <code>{"tools": {"Read": "moderate", "Bash": "moderate"}}</code></td></tr>
               <tr><td><code>harness</code></td><td><code>enabled</code> (switching skills and tools off writes the agent's settings; the page turns it on when you switch one off), <code>builtinTools</code> (offer Claude Code's built-in tools too)</td></tr>
               <tr><td><code>archive</code></td><td><code>kinds</code> and <code>unservedDays</code> (30), or <code>false</code></td></tr>
               <tr><td><code>holdout</code></td><td>The share of sessions served nothing (0.15; 0 or <code>false</code>: none)</td></tr>
