@@ -42,6 +42,10 @@ export const COMPRESS_SYSTEM = `You shorten one section of a repository's instru
 KEEP, exactly: every instruction the agent must follow (rules, requirements, MUST / MANDATORY / never statements), every command and flag, every config key and default, every path and file:symbol pointer.
 DROP: history (what was tried, when, what changed and why), measurements and benchmark numbers, rationale, examples, explanations of how things work internally unless the agent needs them to act, and repetition.
 Write terse markdown: short bullets, no preamble. Keep the heading line exactly as given. Answer with the new section only.`;
+// Told the bound alone, a model kept more (this repository's "Serving", 6.7k tokens, came back 45% shorter), so a
+// result over a third (and a tenth) is sent back once, with its length and the limit (proposeSection): 67–77% shorter
+// on two sections of this repository's AGENTS.md.
+export const COMPRESS_KEEP = 0.3;
 
 // The proposed text of the section, without writing anything.
 export async function proposeSection(store, text, id, action, { completeFn = complete, model } = {}) {
@@ -50,12 +54,19 @@ export async function proposeSection(store, text, id, action, { completeFn = com
   const old = loc.lines.slice(loc.start, loc.end).join('\n').replace(/\n+$/, '');
   if (action === 'remove') return { loc, old, next: loc.hasChildren ? loc.lines[loc.start] : '' };
   if (action !== 'compress') return { error: `unknown action ${action}` };
-  const res = await completeFn({ system: COMPRESS_SYSTEM, prompt: old, model: model || store.config().distillModel || DEFAULT_DISTILL_MODEL, maxTokens: 4000, thinkingTokens: 0, accounting: { store, phase: 'manual', purpose: 'instruction-compress' } });
-  let next = String(res.text || '').trim().replace(/^```(?:markdown|md)?\n([\s\S]*?)\n```$/, '$1').trim();
+  const ask = prompt => completeFn({ system: COMPRESS_SYSTEM, prompt, model: model || store.config().distillModel || DEFAULT_DISTILL_MODEL, maxTokens: 4000, thinkingTokens: 0, accounting: { store, phase: 'manual', purpose: 'instruction-compress' } });
+  const clean = r => String(r.text || '').trim().replace(/^```(?:markdown|md)?\n([\s\S]*?)\n```$/, '$1').trim();
+  let res = await ask(old), next = clean(res), tokens = tokensOf(res);
   if (!next) return { error: 'the model returned nothing' };
+  const limit = Math.round(tok(old) * COMPRESS_KEEP);
+  if (tok(next) > limit * 1.1) {
+    const again = await ask(`This shortened section is ~${tok(next)} tokens; it must be at most ~${limit}. Shorten it further under the same rules.\n\n${next}`);
+    const n2 = clean(again); tokens = (tokens || 0) + (tokensOf(again) || 0);
+    if (n2 && tok(n2) < tok(next)) next = n2;
+  }
   const heading = loc.lines[loc.start];
   if (next.split('\n')[0].trim() !== heading.trim()) next = `${heading}\n\n${next.replace(/^#{1,4} .*\n+/, '')}`;
-  return { loc, old, next, tokens: tokensOf(res) };
+  return { loc, old, next, tokens };
 }
 
 // A line diff of two short texts (a section): '-' removed, '+' added, ' ' kept.

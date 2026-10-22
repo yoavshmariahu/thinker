@@ -18,7 +18,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 // the readers behind the report: a snapshot made by other code is not this code's report
 let codeKey;
-const code = () => codeKey ||= crypto.createHash('sha256').update(['context-view.js', 'instruction-value.js', 'instruction-sections.js', 'harness.js', 'harness-codex.js', 'tool-outputs.js', 'diet.js', 'instructions-core.js']
+const code = () => codeKey ||= crypto.createHash('sha256').update(['context-view.js', 'instruction-value.js', 'instruction-sections.js', 'harness.js', 'harness-codex.js', 'tool-outputs.js', 'diet.js', 'instructions-core.js', 'context-suggest.js']
   .map(f => { try { return fs.readFileSync(path.join(HERE, f), 'utf8'); } catch { return f; } }).join('\0')).digest('hex').slice(0, 16);
 // where the report's switches and sections come from, by size and mtime
 const INPUTS = ['.thinker/config.json', '.claude/settings.json', '.claude/settings.local.json', 'AGENTS.md', 'CLAUDE.md', 'AGENTS.override.md', 'CLAUDE.local.md', '.cursor/rules'];
@@ -35,6 +35,13 @@ export function readSnapshot(store, days) {
     const s = JSON.parse(fs.readFileSync(file(store, days), 'utf8'));
     return s.code === code() && s.inputs === inputs(store) && s.view ? { at: s.at, view: s.view } : null;
   } catch { return null; }
+}
+
+// { at, view, current } of the last snapshot kept, whether or not it still holds: what Context's Top suggested and History read, so a
+// click there does not wait for every transcript to be read again (the person's decisions take the changes they
+// settled out of it: context-suggest.js:currentChanges)
+export function lastSnapshot(store, days) {
+  try { const s = JSON.parse(fs.readFileSync(file(store, days), 'utf8')); return s.view ? { at: s.at, view: s.view, current: Boolean(readSnapshot(store, days)) } : null; } catch { return null; }
 }
 
 export function writeSnapshot(store, days, view, { now = Date.now() } = {}) {

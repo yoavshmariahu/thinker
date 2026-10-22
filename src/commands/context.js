@@ -11,6 +11,7 @@ import { judgeRecent, findRepoSessions } from '../instruction-value.js';
 import { formatTokens } from '../model-usage.js';
 import { refreshSnapshots, writeSnapshot } from '../context-snapshot.js';
 import { machineContext, recommendations, renderMachineReport, MACHINE_REPOS, MACHINE_TOP } from '../context-machine.js';
+import { approveChanges, dismissChanges, revertDecision, pickChanges, currentChanges, changeHistory } from '../context-suggest.js';
 
 const pct = x => x == null ? '   -' : `${String(Math.round(100 * x)).padStart(3)}%`;
 const pad = (s, n) => String(s).padStart(n);
@@ -44,6 +45,27 @@ async function contextCommand({ store, flags, out }) {
   }
   const v = contextView(store, { days, sessions: findRepoSessions(store.repo, days) });
   writeSnapshot(store, days, v); // what the page shows next
+  // the top changes (context-suggest.js): approve their suggested actions, dismiss them, or read the decisions so far,
+  // as the Context tab's Top suggested and History do
+  const top = currentChanges(store, v);
+  for (const [flag, fn] of [['approve', approveChanges], ['dismiss', dismissChanges]]) {
+    if (flags[flag] === undefined) continue;
+    const picked = pickChanges(top, flags[flag] === true ? '' : flags[flag]);
+    if (!picked.length) { out(`Name the top changes to ${flag}: their numbers (1-${top.length}) or all. \`thinker context\` lists them.`); return; }
+    for (const l of await fn(store, picked)) out(l);
+    return;
+  }
+  if (flags.history) {
+    const h = changeHistory(store);
+    out(h.length ? h.map((e, i) => `${String(i + 1).padStart(3)}. ${e.at.slice(0, 10)}  ${(e.revertedAt ? `${e.decision}, reverted` : e.decision).padEnd(22)} ${e.title}${e.result ? `: ${e.result}` : ''}`).join('\n') + (h.some(e => e.revertible) ? '\n`thinker context --revert <n>` takes a decision back.' : '') : 'No decisions on the suggested changes here yet.');
+    return;
+  }
+  if (flags.revert !== undefined) {
+    const h = changeHistory(store), e = h[Number(flags.revert) - 1] || h.find(x => x.id === String(flags.revert));
+    const r = e ? await revertDecision(store, e.id) : { error: `no decision ${flags.revert}; \`thinker context --history\` lists them` };
+    out(r.error || r.said);
+    return;
+  }
   if (flags.json) { out(JSON.stringify(v, null, 2)); return; }
   const iv = v.instructions, t = v.totals;
   out(`Context per session here, over ${days} days (${v.sessions} sessions; tokens are read again by every model call):`);
@@ -51,6 +73,12 @@ async function contextCommand({ store, flags, out }) {
   out(`  custom tools      ~${formatTokens(t.custom.perSession)} a session (skills, MCP servers, plugins: ~${formatTokens(t.custom.tokens)} in every call)`);
   out(`  built-in tools    ~${formatTokens(t.builtin.perSession)} a session (~${formatTokens(t.builtin.tokens)} in every call)`);
   out(`  tool outputs      ~${formatTokens(t.outputs.perSession)} a session (each result read again by the calls after it; an estimate)\n`);
+  // the five highest-leverage changes, as the page's Top changes view and the weekly summary in a session give them
+  if (top.length) {
+    out(`Top changes (up to ~${formatTokens(top.reduce((a, c) => a + c.total, 0))} input tokens over the last ${days} days together):`);
+    top.forEach((c, i) => out(`  ${i + 1}. ${c.title}: ~${formatTokens(c.total)} over ${days} days; ${c.why}\n     suggested: ${c.default ? c.default.text : 'dismiss it, or change it by hand'}${c.options.length > 1 ? ` (or: ${c.options.slice(1).map(o => o.act).join(', ')})` : ''}`));
+    out('  Approve the suggested actions with `thinker context --approve 1,3` (or all; 3:remove picks another action), --dismiss the ones to leave, or use `thinker ui` (Context, Top suggested); --history lists the decisions.\n');
+  }
   if (iv.file) {
     if ((iv.files || []).length > 1) out(`Instruction files: ${iv.files.map(f => `${f.file} (${f.kind === 'root' ? 'every session' : `${f.loadedIn} sessions`})`).join(', ')}.`);
     out(`${iv.file}: ${iv.sessions} sessions read it, ${iv.judged} judged${iv.judge.judge ? ` (a ${Math.round(100 * iv.judge.share)}% sample is judged at session end)` : ' (`thinker context --judge n` judges recent ones)'}.`);

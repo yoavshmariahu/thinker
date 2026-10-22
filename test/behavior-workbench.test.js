@@ -96,7 +96,8 @@ test('the local page answers only this host, with this run\'s token, and acts th
   assert.equal(store.get('guard-trims').mutability, 'fixed');
   assert.equal((await call(port, '/api/behaviors/discard', { token: 'a'.repeat(32), body: { id: 'nope' } })).status, 400);
   const usage = JSON.parse((await call(port, '/api/usage?days=7', { token: 'a'.repeat(32) })).body);
-  assert.equal(usage.notesInCache, 3);
+  // active notes, as the Cache page counts them since #423: the rule, not the two behaviors
+  assert.equal(usage.notesInCache, 1);
   assert.ok(!JSON.stringify(usage).includes('reportedCost'), 'no dollars on the page');
   assert.equal(usageView(store, {}).spending.tokens, 0);
 });

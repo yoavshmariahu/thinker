@@ -1176,6 +1176,23 @@ by a model asked for a third of the length (`instruction-edit.js`, `thinker inst
 [--apply]`, the tab's Compress and Remove). The diff is shown first; Apply writes exactly that text to the working
 tree, uncommitted, and refuses when the file changed since the preview. No commit, no pull request.
 
+**Top suggested and History (2026-10-22).** The report's flagged parts are ranked as changes (`context-suggest.js:topChanges`):
+a section, skill or tool of high or medium waste, saving at most its cost in the sessions that did not use it, and an output
+thinker can compress, saving what the cap cuts; each total is that saving over the sessions of the last 7 days. Each has one
+suggested action, the first of its options (a section: Compress, as the tab's Compress, or Remove; a skill or tool: Switch
+off; an output: Compress, at moderate), with no levels to choose between: none is measured against another. The Context
+tab's first view tab, Top suggested, shows the five largest not decided in the last month (`currentChanges`): Approve makes
+the action picked in the card's dropdown (`approveChanges`; a section is compressed by a model, a result over a third sent
+back once with the limit, `instruction-edit.js:COMPRESS_KEEP`, and written to the working tree, uncommitted), Dismiss leaves
+it for a month. History, the last tab, lists every decision with Revert (`revertDecision`: a tool back on, compression
+off, a section's file written back unless edited since, a dismissal withdrawn); kept in `.thinker/state/context-suggest.json`
+with the undo records beside it. Both read the last report kept (`context-snapshot.js:lastSnapshot`), so a click does not
+wait for the transcripts. `thinker context --approve|--dismiss|--history|--revert` is the same. Once a week, maintenance
+keeps the top five (`scheduleContextSuggestion`, no model call, once there are 10 sessions) and the next prompt's hook starts
+`thinker ui --background` and tells the agent to pass them on in a few lines with the link to that tab, and to make none of
+them itself (`contextSuggestOffer`; not in an SDK session or test mode). On by default, at the owner's request;
+`maintain: { contextSuggest: false }` turns it off. Not measured: whether people act on the summary.
+
 Other controls are the commands: keeping sections writes the checkout's trimmed copy (`thinker instructions --core`,
 never the team's file); a skill or tool is switched off by `thinker harness --off <label>`, which since this view
 takes any source a setting switches off, not only the advice's (`harness.js:switchable`; `any`), and only where

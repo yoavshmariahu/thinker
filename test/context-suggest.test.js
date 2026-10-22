@@ -1,0 +1,185 @@
+// The Context view's five highest-leverage changes, put to the person in a session (context-suggest.js).
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { Store } from '../src/store.js';
+import { topChanges, scheduleContextSuggestion, contextSuggestOffer, contextSuggestPending, ensureUi, uiFile, SUGGEST } from '../src/context-suggest.js';
+
+const tmp = p => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), p)));
+function repo() {
+  const r = tmp('thinker-csugg-');
+  execFileSync('git', ['init', '-q'], { cwd: r });
+  const s = new Store(r); s.init();
+  return s;
+}
+const section = (id, wasted, waste = 'high') => ({ id, file: 'AGENTS.md', title: id, tokens: 2000, wasted, waste, usedShare: 0.1 });
+const view = (over = {}) => ({
+  days: 30, sessions: 40,
+  instructions: { sessions: 40, sections: [section('Releases', 30_000), section('Ports', 9_000, 'medium'), section('Tests', 50_000, 'low'), section('Unknown', null, 'unknown')] },
+  skills: [{ name: 'deploy', client: 'claude', key: 'skill:deploy', label: 'deploy skill', used: 1, loaded: 40, wasted: 12_000, waste: 'high' }, { name: 'off-one', client: 'claude', key: 'skill:x', used: 0, loaded: 40, wasted: 99_000, waste: 'high', off: true }],
+  tools: [{ name: 'Workflow', kind: 'tool', group: 'builtin', client: 'claude', key: 'builtin:Workflow', label: 'Workflow tool', used: 0, loaded: 40, tokens: 3000, wasted: 20_000, waste: 'high' }],
+  outputs: { sessions: 40, tools: [{ name: 'Bash:pytest', compressible: true, compression: null, saveModerate: 25_000, saveHigh: 40_000, perSession: 100_000, perCall: 9000 }, { name: 'Read', compressible: true, compression: 'moderate', saveModerate: 80_000 }, { name: 'mcp:x', compressible: false, saveModerate: 70_000 }] },
+  ...over,
+});
+
+test('topChanges: the flagged parts by what they save, five at most, nothing off, low, unknown or already compressed', () => {
+  const c = topChanges(view());
+  assert.deepEqual(c.map(x => x.title), ['AGENTS.md · Releases', 'Bash:pytest output'.replace('Bash:', ''), 'Workflow tool', 'deploy skill', 'AGENTS.md · Ports']);
+  assert.deepEqual(c.map(x => x.view), ['instructions', 'outputs', 'builtin', 'custom', 'instructions']);
+  assert.equal(topChanges(view(), { max: 2 }).length, 2);
+  assert.equal(topChanges(view({ instructions: { sections: [section('Tiny', 100)] }, skills: [], tools: [], outputs: { tools: [] } })).length, 0, 'a saving under minSaving is not worth a line');
+});
+
+test('scheduleContextSuggestion: kept for the next prompt, at most weekly, after enough sessions; off by config', async () => {
+  const store = repo(), now = Date.parse('2026-10-22T10:00:00Z');
+  assert.equal(await scheduleContextSuggestion(store, { now, view: view({ sessions: 3 }) }), null, 'too few sessions');
+  assert.equal(contextSuggestPending(store), false);
+  // looked at daily until there is enough
+  assert.equal(await scheduleContextSuggestion(store, { now: now + 3600_000, view: view() }), null, 'not again the same day');
+  const c = await scheduleContextSuggestion(store, { now: now + 86400_000, view: view() });
+  assert.equal(c.length, 5); assert.equal(contextSuggestPending(store), true);
+  const said = contextSuggestOffer(store, { now: now + 86400_000, env: {}, ui: () => 'http://127.0.0.1:4848/#t=abc', repoId: 'github.com/o/r' });
+  assert.match(said, /^<thinker-context-suggestions>/);
+  assert.match(said, /http:\/\/127\.0\.0\.1:4848\/#t=abc&tab=context&view=suggested&repo=github\.com%2Fo%2Fr/);
+  assert.match(said, /1\. AGENTS\.md · Releases: ~1\.2M input tokens over the last 30 days; .*Suggested: Compress \(or: remove\)/);
+  assert.match(said, /Do not make any of these changes yourself/);
+  assert.equal(contextSuggestOffer(store, { env: {}, ui: () => 'x' }), '', 'said once');
+  assert.equal(await scheduleContextSuggestion(store, { now: now + 3 * 86400_000, view: view() }), null, 'weekly');
+  assert.equal((await scheduleContextSuggestion(store, { now: now + 9 * 86400_000, view: view() })).length, 5);
+  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ maintain: { contextSuggest: false } }));
+  assert.equal(contextSuggestOffer(store, { env: {}, ui: () => 'x' }), '', 'off by config');
+  assert.equal(await scheduleContextSuggestion(store, { now: now + 30 * 86400_000, view: view() }), null);
+});
+
+test('contextSuggestOffer: no person at an SDK session; without the page, it names thinker ui', async () => {
+  const store = repo();
+  await scheduleContextSuggestion(store, { view: view(), force: true });
+  assert.equal(contextSuggestOffer(store, { env: { CLAUDE_CODE_ENTRYPOINT: 'sdk-cli' }, ui: () => 'x' }), '');
+  const said = contextSuggestOffer(store, { env: {}, ui: () => null });
+  assert.match(said, /by running `thinker ui`/);
+});
+
+test('ensureUi: reuses a running page, else starts one and waits for its address', () => {
+  const store = repo(), home = tmp('thinker-csugg-home-'), f = uiFile(home);
+  fs.mkdirSync(path.dirname(f), { recursive: true });
+  fs.writeFileSync(f, JSON.stringify({ pid: process.pid, url: 'http://127.0.0.1:1/#t=live' }));
+  let spawned = 0;
+  assert.equal(ensureUi(store, { home, spawnFn: () => { spawned++; return {}; } }), 'http://127.0.0.1:1/#t=live');
+  assert.equal(spawned, 0);
+  fs.writeFileSync(f, JSON.stringify({ pid: 999_999_9, url: 'http://127.0.0.1:1/#t=dead' }));
+  const url = ensureUi(store, { home, waitMs: 1000, spawnFn: (bin, args, opts) => { spawned++; assert.deepEqual(args.slice(1), ['ui', '--background']); assert.ok(opts.env.THINKER_UI_TOKEN); fs.writeFileSync(f, JSON.stringify({ pid: process.pid, url: 'http://127.0.0.1:2/#t=new' })); return {}; } });
+  assert.equal(url, 'http://127.0.0.1:2/#t=new'); assert.equal(spawned, 1);
+  fs.rmSync(f);
+  assert.equal(ensureUi(store, { home, waitMs: 200, spawnFn: () => ({}) }), null, 'nothing came up');
+  assert.equal(SUGGEST.max, 5);
+});
+
+test('approveChanges: each approved change gets its suggested action; pickChanges reads numbers, keys or all', async () => {
+  const { approveChanges, pickChanges } = await import('../src/context-suggest.js');
+  const changes = topChanges(view());
+  assert.deepEqual(changes.map(c => c.default?.act), ['compress', 'compress', 'off', 'off', 'compress']);
+  assert.deepEqual(pickChanges(changes, '1, 3').map(c => c.title), [changes[0].title, changes[2].title]);
+  assert.equal(pickChanges(changes, 'all').length, 5);
+  assert.deepEqual(pickChanges(changes, changes[1].key), [changes[1]]);
+  assert.equal(pickChanges(changes, '').length, 0);
+  const store = repo(), calls = [];
+  const edit = { previewEdit: async (s, id, action, o) => { calls.push(['preview', id, action]); return { key: id, file: 'AGENTS.md', tokensBefore: 2000, tokensAfter: 700 }; }, applyEdit: (s, key) => { calls.push(['apply', key]); return { said: 'ok' }; } };
+  const said = await approveChanges(store, [changes[0], changes[1]], { edit });
+  assert.deepEqual(calls, [['preview', 'Releases', 'compress'], ['apply', 'Releases']]);
+  assert.match(said[0], /Compressed: ~2k → ~700 tokens in AGENTS\.md, uncommitted/);
+  assert.match(said[1], /Compressed from the next tool call/);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(store.dir, 'config.json'), 'utf8')).diet?.tools, { 'Bash:pytest': 'moderate' });
+});
+
+test('decisions: approved and dismissed changes are kept as the history and not suggested again for a month', async () => {
+  const { approveChanges, dismissChanges, recordReviewed, currentChanges, changeHistory } = await import('../src/context-suggest.js');
+  const store = repo(), now = Date.now();
+  const v = { ...view(), suggestions: topChanges(view(), { max: 20 }) };
+  const top = currentChanges(store, v, { now });
+  assert.equal(top.length, 5);
+  dismissChanges(store, [top[2]], { now });
+  const edit = { previewEdit: async () => ({ key: 'Releases', file: 'AGENTS.md', tokensBefore: 2000, tokensAfter: 700 }), applyEdit: () => ({ said: 'ok' }) };
+  await approveChanges(store, [top[0]], { edit });
+  recordReviewed(store, top[4], 'Compressed it in AGENTS.md', { now });
+  const h = changeHistory(store);
+  assert.deepEqual(h.map(e => e.decision), ['applied after review', 'approved', 'dismissed']);
+  assert.match(h[1].result, /^Compressed: ~2k → ~700 tokens/);
+  assert.deepEqual(currentChanges(store, v, { now }).map(c => c.key).filter(k => [top[0], top[2], top[4]].some(t => t.key === k)), [], 'decided ones are left out');
+  assert.equal(currentChanges(store, v, { now: now + 31 * 86400_000 }).length, 5, 'and come back after a month if still flagged');
+});
+
+test('the action picked instead of the suggestion: options, totals over the window, and n:act choices', async () => {
+  const { approveChanges, pickChanges } = await import('../src/context-suggest.js');
+  const cs = topChanges(view());
+  assert.deepEqual(cs.map(c => c.options.map(o => o.act)), [['compress', 'remove'], ['compress'], ['off'], ['off'], ['compress', 'remove']]);
+  assert.equal(cs[0].total, 30_000 * 40); assert.equal(cs[0].days, 30);
+  assert.deepEqual(pickChanges(cs, '1:remove, 2').map(c => c.chosen ?? null), ['remove', null]);
+  assert.equal(pickChanges(cs, '3:remove')[0].chosen, undefined, 'an action the change does not have is ignored');
+  assert.equal(pickChanges(cs, cs[0].key, { [cs[0].key]: 'remove' })[0].chosen, 'remove');
+  const store = repo(), calls = [];
+  const edit = { previewEdit: async (s, id, action) => { calls.push(action); return { key: id, file: 'AGENTS.md', tokensBefore: 2000, tokensAfter: 0 }; }, applyEdit: () => ({ said: 'ok' }) };
+  const said = await approveChanges(store, pickChanges(cs, '1:remove,2'), { edit });
+  assert.deepEqual(calls, ['remove']);
+  assert.match(said[0], /Removed/); assert.match(said[1], /Compressed from the next tool call/);
+});
+
+test('compress: a rewrite over a third of the section is sent back once with the limit', async () => {
+  const { proposeSection, COMPRESS_SYSTEM } = await import('../src/instruction-edit.js');
+  const store = repo(), text = `# T\n\n## Big\n\n${'word '.repeat(400)}\n`;
+  const asked = [];
+  const completeFn = async ({ system, prompt }) => { asked.push({ system, prompt }); return { text: asked.length === 1 ? `## Big\n\n${'word '.repeat(250)}` : `## Big\n\n${'word '.repeat(110)}` }; };
+  const p = await proposeSection(store, text, 'big', 'compress', { completeFn });
+  assert.equal(asked.length, 2); assert.equal(asked[0].system, COMPRESS_SYSTEM);
+  assert.match(asked[1].prompt, /must be at most ~15[01]\./);
+  assert.ok(p.next.length < 700);
+  asked.length = 0;
+  await proposeSection(store, text, 'big', 'compress', { completeFn: async ({ system }) => { asked.push(system); return { text: `## Big\n\n${'word '.repeat(100)}` }; } });
+  assert.equal(asked.length, 1, 'no second call once within the limit');
+});
+
+test('an output change has one action, and its card says how much smaller compressing makes that tool\'s results here', () => {
+  const o = topChanges(view()).find(c => c.kind === 'output');
+  assert.deepEqual(o.options.map(x => x.text), ['Compress']);
+  assert.match(o.why, /compressed, ~25% smaller$/);
+});
+
+test('revert: an output\'s compression goes back off, a section\'s file is written back unless edited since, a dismissal is withdrawn', async () => {
+  const { approveChanges, dismissChanges, revertDecision, changeHistory, currentChanges } = await import('../src/context-suggest.js');
+  const store = repo(), cs = topChanges(view());
+  fs.writeFileSync(path.join(store.repo, 'AGENTS.md'), '# A\n\n## Releases\n\nlong text\n');
+  const edit = { previewEdit: async () => ({ key: 'k', file: 'AGENTS.md', files: ['AGENTS.md'], tokensBefore: 2000, tokensAfter: 700 }), applyEdit: () => { fs.writeFileSync(path.join(store.repo, 'AGENTS.md'), '# A\n\n## Releases\n\nshort\n'); return { said: 'ok' }; } };
+  const said = await approveChanges(store, [cs[0], cs[1]], { edit });
+  assert.deepEqual(said, ['AGENTS.md · Releases: Compressed: ~2k → ~700 tokens in AGENTS.md, uncommitted', 'pytest output: Compressed from the next tool call']);
+  dismissChanges(store, [cs[2]]);
+  let h = changeHistory(store);
+  assert.ok(h.every(e => e.id && e.revertible));
+  const cfg = () => JSON.parse(fs.readFileSync(path.join(store.dir, 'config.json'), 'utf8')).diet?.tools || {};
+  assert.equal(cfg()['Bash:pytest'], 'moderate');
+  assert.match((await revertDecision(store, h.find(e => e.kind === 'output').id)).said, /compression off/);
+  assert.equal(cfg()['Bash:pytest'], undefined);
+  const sec = h.find(e => e.kind === 'section').id;
+  fs.appendFileSync(path.join(store.repo, 'AGENTS.md'), 'my own edit\n');
+  assert.match((await revertDecision(store, sec)).error, /changed since/);
+  fs.writeFileSync(path.join(store.repo, 'AGENTS.md'), '# A\n\n## Releases\n\nshort\n');
+  await revertDecision(store, sec);
+  assert.equal(fs.readFileSync(path.join(store.repo, 'AGENTS.md'), 'utf8'), '# A\n\n## Releases\n\nlong text\n');
+  assert.equal(currentChanges(store, view()).some(c => c.key === cs[2].key), false);
+  await revertDecision(store, h.find(e => e.decision === 'dismissed').id);
+  assert.equal(currentChanges(store, view()).some(c => c.key === cs[2].key), true, 'suggested again');
+  h = changeHistory(store);
+  assert.ok(h.every(e => e.revertedAt && !e.revertible));
+  assert.match((await revertDecision(store, h[0].id)).error, /already reverted/);
+});
+
+test('history written before ids gets them, and an old switch-off can still be reverted by its key', async () => {
+  const { changeHistory } = await import('../src/context-suggest.js');
+  const store = repo(), f = path.join(store.dir, 'state', 'context-suggest.json');
+  fs.mkdirSync(path.dirname(f), { recursive: true });
+  fs.writeFileSync(f, JSON.stringify({ history: [{ at: new Date().toISOString(), key: 'claude:builtin:Artifact', kind: 'tool', title: 'Artifact tool', decision: 'approved', result: 'Switched off' }] }));
+  const [e] = changeHistory(store);
+  assert.ok(e.id); assert.equal(e.revertible, true);
+  assert.equal(JSON.parse(fs.readFileSync(f, 'utf8')).history[0].id, e.id, 'kept');
+});

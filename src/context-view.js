@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { readLog } from './usage.js';
 import { toolOutputs } from './tool-outputs.js';
+import { topChanges } from './context-suggest.js';
 
 // The skills' outcome checks over the window, per skill: sessions checked where it applied, read in, broken after
 // being read, and broken without being read (missed).
@@ -83,7 +84,7 @@ export function contextView(store, { days = 30, sessions, usage, log } = {}) {
     sections: iv.sections.map(s => ({ ...s, kept: kept.has(s.title.toLowerCase()) || (s.parent && kept.has(`${s.parent}: ${s.title}`.toLowerCase())) })),
   };
   const sum = (xs, k) => xs.reduce((a, x) => a + (x.off ? 0 : x[k] || 0), 0);
-  return {
+  const view = {
     days, sessions: usage.sessions, harnessOn: on,
     totals: {
       instructions: { tokens: iv.tokens || 0, perSession: (iv.tokens || 0) * Math.max(1, iv.calls || 1) },
@@ -107,6 +108,9 @@ export function contextView(store, { days = 30, sessions, usage, log } = {}) {
       }),
     ].sort((a, b) => a.t - b.t),
   };
+  // the highest-leverage changes, ranked; the person's decisions take some out (context-suggest.js:currentChanges)
+  view.suggestions = topChanges(view, { max: 20 });
+  return view;
 }
 
 // Every repository's report as one (the Context tab's "All repositories"): the timeline and the instruction
@@ -142,6 +146,8 @@ export function mergeViews(list) {
     },
     skills, tools, outputs: { sessions: views.reduce((a, v) => a + v.outputs.sessions, 0), tools: outs },
     timeline: views.flatMap(v => v.timeline).sort((a, b) => a.t - b.t),
+    // each repository's own, ranked together (a change is made in its repository)
+    suggestions: list.flatMap(x => (x.view.suggestions || []).map(c => ({ ...c, repo: x.repo, repoName: x.name }))).sort((a, b) => b.saving - a.saving),
   };
 }
 

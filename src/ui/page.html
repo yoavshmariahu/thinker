@@ -208,6 +208,29 @@
     .view-switch > .why { font-size: 0.78rem; }
     .ann-act .btn { padding: 0.15rem 0.4rem; font-size: 0.78rem; }
     .md-preview { margin-top: 0.6rem; border: 1px solid #e5e7eb; border-radius: 6px; padding: 0.6rem 0.7rem; background: #fafafa; }
+    .vtabs .vt-end { margin-left: auto; }
+    .ch-ann { grid-template-columns: 1fr; }
+    /* a decision has a suggestion card's two columns (.md-row): what and when on the left, status and Revert on the right */
+    .ch-hist { padding-top: 0.5rem; padding-bottom: 0.5rem; align-items: center; }
+    /* the rows' own padding is the space: the panel adds none above the first or below the last */
+    .ch-hpanel { padding-top: 0; padding-bottom: 0; }
+    .ch-hist .md-ann { position: static; align-self: center; }
+    .ch-htitle { display: flex; align-items: baseline; gap: 0.6rem; min-width: 0; flex: 1; }
+    .ch-last { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+    .ch-last p { margin: 0; }
+    .ch-toggle { background: none; border: 0; padding: 0; font: inherit; font-size: 0.8rem; color: #6b7280; cursor: pointer; white-space: nowrap; flex: none; }
+    .ch-toggle:hover { color: #111; }
+    .ch-toggle span { display: inline-block; width: 0.8em; }
+    .ch-htitle b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ch-htitle .md-parent { margin: 0; white-space: nowrap; }
+    .ch-hright { display: flex; align-items: center; gap: 0.6rem; flex: none; }
+    .ch-hright .btn { padding: 0.28rem 0.7rem; }
+    .ch-hmore { padding: 0.4rem 0 0.2rem; font-size: 0.88rem; }
+    .ch-hmore p { margin: 0.2rem 0; }
+    .ch-ann .sel { width: 100%; }
+    .ch-buttons { display: flex; gap: 0.5rem; }
+    .ch-more { padding: 0.4rem 0 0.2rem; }
+    .ch-more .md-pre { max-height: 32rem; overflow: auto; }
     .diff-head { font-size: 0.82rem; margin-bottom: 0.4rem; }
     .diff { font-size: 0.74rem; line-height: 1.45; white-space: pre-wrap; max-height: 22rem; overflow: auto; margin: 0; }
     .diff span { display: block; }
@@ -528,6 +551,8 @@ document.querySelectorAll('.nav-link').forEach(b => b.onclick = () => { if (b.da
 $('#back').onclick = () => { DREPO = ''; show('cache'); };
 function show(tab) {
   // the warm-up and tools pages are gone (2026-10-21): an old link to them, or any tab the page does not know, opens the Context view
+  // Recent changes became Context's Top suggested and History tabs (2026-10-22): an old link to it opens Top suggested
+  if (tab === 'changes') { tab = 'context'; CVIEW = 'suggested'; }
   if (tab !== 'cache') tab = 'context';
   document.querySelectorAll('.nav-link').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   $('#tab-context').hidden = tab !== 'context'; $('#tab-cache').hidden = tab !== 'cache';
@@ -577,8 +602,9 @@ function renderUsage(u) {
 }
 
 // ---- where the context goes in one repository (context-view.js:contextView, as `thinker context`) ----
-// `thinker ui --tab context --all` (the installer) asks for every repository at once
-let CREPO = H().get('tab') === 'context' && H().get('repo') === 'all' ? 'all' : '', cdays = 30;
+// `thinker ui --tab context --all` (the installer) asks for every repository at once; a session's summary links to Top
+// suggested with its repository (context-suggest.js:suggestionsUrl)
+let CREPO = ['context', 'changes'].includes(H().get('tab')) ? (H().get('repo') === 'all' ? 'all' : H().get('repo') || '') : '', cdays = 30;
 document.querySelectorAll('#c-days-seg button').forEach(b => b.onclick = () => { cdays = Number(b.dataset.days); segOn('#c-days-seg', b); loadContext(); });
 $('#c-repo').onchange = e => { CREPO = e.target.value; e.target.blur(); loadContext(); };
 document.querySelectorAll('#tr-measure button').forEach(b => b.onclick = () => { CMEASURE = b.dataset.m; segOn('#tr-measure', b); renderTrend(); });
@@ -619,7 +645,7 @@ function contextAsOf(v) {
     else contextAsOf({ ...v, refreshing: n.refreshing, tries });
   }, 5000);
 }
-let CVIEW = 'instructions', CTX = null, CMEASURE = 'total', CBUCKET = null, CHIDDEN = new Set();
+let CVIEW = ['suggested', 'history', 'instructions', 'custom', 'builtin', 'outputs'].includes(H().get('view')) ? H().get('view') : 'suggested', CTX = null, CMEASURE = 'total', CBUCKET = null, CHIDDEN = new Set();
 const cbucket = () => CBUCKET || (cdays <= 7 ? 'day' : 'week');
 // the parts of a session's input, in the palette's fixed order (dataviz slots 1-6, validated adjacent on white)
 const PARTS = [
@@ -858,8 +884,12 @@ function renderContext(v) {
   document.querySelectorAll('#tr-bucket button').forEach(b => b.classList.toggle('on', b.dataset.b === cbucket()));
   let h = `<div class="panel"><div class="tr-stats" id="tr-legend"></div><div id="trend"></div></div>`;
   // one part at a time under the chart: its cards, each annotated with what it costs and how much it was of use
-  const VIEWS = [['instructions', 'Instruction files'], ['custom', 'Custom tools'], ['builtin', 'Built-in tools'], ['outputs', 'Tool outputs']];
-  h += `<div class="vtabs" id="c-view" role="tablist">${VIEWS.map(([k, name]) => `<button role="tab" data-view="${k}" aria-selected="${CVIEW === k}"${CVIEW === k ? ' class="on"' : ''}><span class="vt-name">${name}</span><span class="vt-num">${fmt(t[k]?.perSession || 0)} <span>a session</span></span></button>`).join('')}</div>`;
+  // Top suggested and History (context-suggest.js, filled by loadChanges), then the parts
+  // History last, at the row's far right (.vt-end)
+  const VIEWS = [['suggested', 'Top suggested'], ['instructions', 'Instruction files'], ['custom', 'Custom tools'], ['builtin', 'Built-in tools'], ['outputs', 'Tool outputs'], ['history', 'History']];
+  h += `<div class="vtabs" id="c-view" role="tablist">${VIEWS.map(([k, name]) => `<button role="tab" data-view="${k}" aria-selected="${CVIEW === k}" class="${[CVIEW === k ? 'on' : '', k === 'history' ? 'vt-end' : ''].join(' ').trim()}"><span class="vt-name">${name}</span><span class="vt-num" id="vt-${k}">${k === 'suggested' || k === 'history' ? '<span class="spinner"></span>' : `${fmt(t[k]?.perSession || 0)} <span>a session</span>`}</span></button>`).join('')}</div>`;
+  h += `<div class="cview" data-view="suggested"${CVIEW === 'suggested' ? '' : ' hidden'} id="c-suggested"><div class="empty"><span class="spinner"></span>Reading…</div></div>`;
+  h += `<div class="cview" data-view="history"${CVIEW === 'history' ? '' : ' hidden'} id="c-history"><div class="empty"><span class="spinner"></span>Reading…</div></div>`;
   h += `<div class="cview" data-view="instructions"${CVIEW === 'instructions' ? '' : ' hidden'}>`;
   h += viewHead('instructions', esc(iv.file || 'No instruction file'), 'Instruction files, section by section', iv.file ? [['file', 'File order'], ['used', 'Most acted on'], ['wasted', 'Most wasted']] : null) + (iv.file ? savingsLine(iv) : '') + `<div class="section"><div class="panel">`;
   if (!iv.file) h += `<div class="note-line" style="margin-top:0">No AGENTS.md or CLAUDE.md in this repository.</div>`;
@@ -911,6 +941,7 @@ function renderContext(v) {
   el.querySelectorAll('#c-view button').forEach(b => b.onclick = () => { CVIEW = b.dataset.view; el.querySelectorAll('#c-view button').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-selected', String(x === b)); }); el.querySelectorAll('.cview').forEach(x => x.hidden = x.dataset.view !== CVIEW); });
   el.querySelectorAll('.cview .md-sec').forEach(sec => { const more = sec.querySelector('.md-more'); if (more && !more.onclick) more.onclick = () => { const open = sec.classList.toggle('open'); more.textContent = open ? 'Show less' : 'Show all'; }; });
   renderTrend();
+  loadChanges();
   if (iv.file) renderDoc(iv);
   renderSkills(v);
   // the Actions menu: a floating list under its button (on the body, so no panel clips it); a choice, a click
@@ -924,6 +955,79 @@ function renderContext(v) {
   el.querySelectorAll('[data-off]').forEach(c => c.onchange = () => c.closest('tr').classList.toggle('row-off', !c.checked));
   el.querySelectorAll('[data-hoff-apply]').forEach(btn => btn.addEventListener('click', e => { const labels = [...el.querySelectorAll('[data-off]:not(:checked)')].map(c => c.dataset.off); if (!labels.length) return toast('Turn off a tool first', true); act(e.target, '/api/harness/off', { labels }); }));
   el.querySelectorAll('[data-hundo-all]').forEach(btn => btn.addEventListener('click', e => act(e.target, '/api/harness/undo', {})));
+}
+
+// ---- Top suggested and History (context-suggest.js, as `thinker context --approve|--dismiss|--revert|--history`) ----
+// Each change with its suggested action, preset in its dropdown: Approve makes it, Dismiss leaves it for a month. History
+// lists every decision with a Revert. Both read the kept report (ui/server.js /api/changes), so they come back at once.
+const CH_KIND = { section: 'Instruction section', skill: 'Skill', tool: 'Tool', output: 'Tool output' };
+// what a decision did, in a word, for its line in the history: the action approved (entries written before `act` was
+// kept name it in their suggested action), or dismissed, or reverted
+const CH_DONE = { off: 'Switched off', compress: 'Compressed', remove: 'Removed' };
+const doneOf = e => e.revertedAt ? ['off', 'Reverted'] : e.decision === 'dismissed' ? ['off', 'Dismissed']
+  : ['ok', CH_DONE[e.act] || (/^switch/i.test(e.action || '') ? CH_DONE.off : /^remove/i.test(e.action || '') ? CH_DONE.remove : /compress/i.test(e.action || '') ? CH_DONE.compress : 'Approved')];
+const detailOf = c => (c.kind === 'output'
+  ? `<p class="muted">Compression trims this tool's long results before the model reads them, in Claude Code sessions here: whole-file reads to the lines round what the agent searched for, test runs to their failures, big searches to their hits. Long output is cut to about 3k tokens. Set it back to no compression in the Context view's Tool outputs to undo it.</p>`
+  : c.kind === 'section'
+    ? `<p class="muted">Compress has a model rewrite the section to about a third of its length, keeping its rules, commands and paths; Remove takes it out. Either is written to your working tree, uncommitted: <code>git diff</code> to read it, <code>git checkout</code> to undo it.</p>`
+    : `<p class="muted">Switching it off takes its definition out of every session in this repository from the next one on${c.kind === 'skill' ? '; the skill still runs when you type /name' : ''}. <code>thinker harness --undo</code> turns it back on.</p>`)
+  + (c.text ? `<pre class="md-pre" style="white-space:pre-wrap">${esc(c.text)}</pre>` : '');
+async function loadChanges() {
+  const want = CREPO;
+  if (!want) return;
+  let d; try { d = await api(`/api/changes?repo=${encodeURIComponent(want)}&days=7`); } catch (e) { for (const id of ['#c-suggested', '#c-history']) { const x = $(id); if (x) x.innerHTML = `<div class="empty">Could not read the changes: ${esc(e.message)}</div>`; } return; }
+  if (CREPO !== want || !$('#c-suggested')) return;
+  renderChanges(d);
+}
+function renderChanges(d) {
+  const sug = $('#c-suggested'), hist = $('#c-history'), cs = d.changes || [], total = cs.reduce((a, c) => a + c.total, 0), many = CREPO === 'all';
+  const over = `over the past ${d.days} days`;
+  // the head the other tabs have (viewHead): Approve all where their Actions button is
+  let h = `<div class="view-head"><div><div class="kicker">Suggested now</div><div class="section-title">${cs.length ? `${cs.length} change${cs.length === 1 ? '' : 's'}: ${fmt(total)} input tokens ${over}` : 'Nothing to suggest'}</div></div>${cs.some(c => c.options.length) ? `<div class="view-act"><button class="btn btn-lg" data-ch-all>Approve all</button></div>` : ''}</div><div class="section"><div class="panel">`;
+  if (!cs.length) h += `<div class="note-line" style="margin-top:0">No part of the context here is both rarely used and costly, or you have decided on each one in the last month.</div>`;
+  else {
+    h += `<div class="note-line" style="margin-top:0">Ranked by the input tokens each part cost ${over} in the sessions that did not use it: what the change would have saved, at most, since a session that needed it would go without. Each card's action is preset to the suggestion; pick another before you approve. A section compressed or removed is written to your working tree, uncommitted, for <code>git diff</code>; <b>Dismiss</b> leaves a change for a month.</div>`;
+    h += cs.map((c, i) => `<div class="md-row ch-card"><div class="md-sec"><div class="md-body"><div class="md-parent">${i + 1} · ${CH_KIND[c.kind] || c.kind}${many ? ` · ${esc(c.repoName)}` : ''}</div><div class="md-h md-h3">${esc(c.title)}</div><div class="ch-last"><p class="muted">${esc(c.why)}.</p><button class="ch-toggle" data-ch-expand="${i}" aria-expanded="false">Show more <span>▸</span></button></div><div class="ch-more" data-ch-more="${i}" hidden>${detailOf(c)}</div></div></div>
+      <aside class="md-ann ch-ann"><div class="ann-cost">${(([cls, label]) => `<span class="pill ${cls}">${label} · ${fmt(c.total)}</span>`)(WASTE_PILL[c.waste] || ['off', 'Waste'])}<div class="why">wasted ${over}</div></div>
+        ${c.options.length ? `<select class="sel" data-ch-act="${i}" aria-label="Action">${c.options.map(o => `<option value="${o.act}">${esc(o.text)}</option>`).join('')}</select>` : '<div class="why">Nothing thinker can switch: change it by hand, or dismiss it.</div>'}
+        <div class="ch-buttons">${c.options.length ? `<button class="btn" data-ch-approve="${i}">Approve</button>` : ''}<button class="btn ghost" data-ch-dismiss="${i}">Dismiss</button></div></aside></div>`).join('');
+  }
+  h += `</div></div>`;
+  sug.innerHTML = h;
+  const hs = d.history || [];
+  // a decision is one line (when, what, its status and Revert); Details opens what was done and what it was worth
+  const when = t => new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+  const histDetail = e => [
+    e.result && e.decision !== 'dismissed' ? `<p>${esc(e.result.replace(/ `?thinker harness --undo`? turns.*$/, ''))}</p>` : '',
+    e.action ? `<p class="muted">Suggested: ${esc(e.action)}</p>` : '',
+    e.total ? `<p class="muted">Worth ~${fmt(e.total)} input tokens over the past 7 days when it was suggested${e.saving ? ` (~${fmt(e.saving)} a session)` : ''}.</p>` : e.saving ? `<p class="muted">Worth ~${fmt(e.saving)} input tokens a session when it was suggested.</p>` : '',
+    `<p class="muted">${e.decision === 'dismissed' ? 'Dismissed' : 'Approved'} ${when(e.at)}${e.revertedAt ? `; reverted ${when(e.revertedAt)}` : ''}.</p>`,
+  ].join('');
+  h = `<div class="view-head"><div><div class="kicker">History</div><div class="section-title">${hs.length ? `${hs.length} decision${hs.length === 1 ? '' : 's'}` : 'Decisions'}</div></div></div><div class="section"><div class="panel ch-hpanel">` + (hs.length ? hs.map((e, i) => { const [cls, label] = doneOf(e); return `<div class="md-row ch-hist"><div class="md-sec"><div class="md-body"><div class="ch-last"><div class="ch-htitle"><b>${esc(e.title)}</b><span class="md-parent">${new Date(e.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · ${CH_KIND[e.kind] || e.kind}${many ? ` · ${esc(e.repoName)}` : ''}</span></div><button class="ch-toggle" data-ch-hexp="${i}" aria-expanded="false">Show more <span>▸</span></button></div><div class="ch-hmore" data-ch-hmore="${i}" hidden>${histDetail(e)}</div></div></div><aside class="md-ann ch-ann"><div class="ch-hright"><span class="pill ${cls}">${label}</span>${e.revertible ? `<button class="btn ghost" data-ch-revert="${i}">Revert</button>` : ''}</div></aside></div>`; }).join('') : `<div class="note-line" style="margin-top:0">No decisions yet. What you approve or dismiss is listed here.</div>`) + `</div></div>`;
+  hist.innerHTML = h;
+  $('#vt-suggested').innerHTML = cs.length ? `−${fmt(total)} <span>over 7 days</span>` : '0 <span>to do</span>';
+  $('#vt-history').innerHTML = `${hs.length} <span>decision${hs.length === 1 ? '' : 's'}</span>`;
+  const el = $('#context-body');
+  const actOf = i => el.querySelector(`[data-ch-act="${i}"]`)?.value;
+  // a button says what it is doing while it works: compressing a section is a model call of several seconds
+  const busy = (btn, text) => { btn.disabled = true; btn.dataset.label = btn.textContent; btn.innerHTML = `<span class="spinner"></span>${text}`; };
+  const idle = btn => { btn.disabled = false; btn.textContent = btn.dataset.label || btn.textContent; };
+  const approve = async (btn, items) => {
+    busy(btn, items.some(([c, act]) => c.kind === 'section' && act !== 'remove') ? 'Compressing…' : 'Approving…');
+    try {
+      const byRepo = new Map(); for (const [c, act] of items) { if (!byRepo.has(c.repo)) byRepo.set(c.repo, { keys: [], acts: {} }); const g = byRepo.get(c.repo); g.keys.push(c.key); g.acts[c.key] = act; }
+      const said = []; for (const [repo, g] of byRepo) said.push((await api('/api/changes/approve', { repo, ...g, days: d.days })).said);
+      toast(said.join(' ') || 'Done'); loadContext();
+    } catch (err) { toast(err.message, true); idle(btn); }
+  };
+  el.querySelectorAll('[data-ch-approve]').forEach(b => b.onclick = () => { const i = Number(b.dataset.chApprove); approve(b, [[cs[i], actOf(i)]]); });
+  el.querySelector('[data-ch-all]')?.addEventListener('click', e => approve(e.target, cs.map((c, i) => [c, actOf(i)]).filter(([c]) => c.options.length)));
+  el.querySelectorAll('[data-ch-dismiss]').forEach(b => b.onclick = async () => { const c = cs[Number(b.dataset.chDismiss)]; busy(b, 'Dismissing…'); try { toast((await api('/api/changes/dismiss', { repo: c.repo, keys: [c.key], days: d.days })).said); loadChanges(); } catch (err) { toast(err.message, true); idle(b); } });
+  el.querySelectorAll('[data-ch-hexp]').forEach(b => b.onclick = () => toggle(b, el.querySelector(`[data-ch-hmore="${b.dataset.chHexp}"]`)));
+  el.querySelectorAll('[data-ch-revert]').forEach(b => b.onclick = async () => { const e = hs[Number(b.dataset.chRevert)]; busy(b, 'Reverting…'); try { toast((await api('/api/changes/revert', { repo: e.repo, id: e.id })).said); loadContext(); } catch (err) { toast(err.message, true); idle(b); } });
+  // one toggle for cards and decisions: Show more ▸ / Show less ▾, at the far right of the body's last line
+  const toggle = (b, more) => { const open = more.hidden; more.hidden = !open; b.setAttribute('aria-expanded', String(open)); b.innerHTML = open ? 'Show less <span>▾</span>' : 'Show more <span>▸</span>'; };
+  el.querySelectorAll('[data-ch-expand]').forEach(b => b.onclick = () => toggle(b, el.querySelector(`[data-ch-more="${b.dataset.chExpand}"]`)));
 }
 
 // ---- the caches on this machine --------------------------------------------------------------
