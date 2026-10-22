@@ -782,7 +782,7 @@ async function loadReport() {
     if (!REPOS.length) await fetchRepos();
     if (REPO !== 'all' && !REPOS.some(r => r.id === REPO)) REPO = REPOS.find(r => r.current)?.id || 'all';
     $('#r-repo').innerHTML = `<option value="all"${REPO === 'all' ? ' selected' : ''}>All repositories</option>` + REPOS.map(r => `<option value="${esc(r.id)}"${r.id === REPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
-    const v = await api(`/api/report?repo=${encodeURIComponent(REPO)}&weeks=5`);
+    const v = await api(`/api/report?repo=${encodeURIComponent(REPO)}&weeks=6`);
     if (v.empty) { el.innerHTML = '<div class="empty">No repository with a cache on this machine yet.</div>'; return; }
     renderReport(v);
   } catch (e) { el.innerHTML = `<div class="empty">Could not read the report: ${esc(e.message)}</div>`; }

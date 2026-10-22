@@ -101,6 +101,6 @@ test('the local page answers only this host and its own origin; notes and behavi
   assert.ok(repos[0].current);
   assert.equal((await call(port, '/api/report?repo=%2Fetc', {})).status, 400, 'only a listed repository');
   const r = JSON.parse((await call(port, `/api/report?repo=${encodeURIComponent(repos[0].id)}`, {})).body);
-  assert.equal(r.columns.length, 5);
+  assert.equal(r.columns.length, 6);
   assert.equal(r.cache.hits, 0);
 });

@@ -188,7 +188,7 @@ cache at twice the input price and never read again.
 | `src/guard.js` | anchoring guard: names identifiers in the request that the served notes do not cover |
 | `src/update.js` | CLI self-update and daily automatic background updates (LaunchAgent / cron / invocation) |
 | `src/usage.js` | summary of the usage log and the estimate of saved calls and tokens, in tokens (never dollars) |
-| `src/report.js`, `src/prices.js`, `src/commands/report.js` | the Report page: the average a session cost each week over the last five, by part of the context and by model under its provider, in tokens or at list prices (`prices.js`, the one place dollars are shown); the actions taken on Save in the window and the cache's numbers under it; `thinker report` and the page's Report tab (see [Report](#report)) |
+| `src/report.js`, `src/prices.js`, `src/commands/report.js` | the Report page: the average a session cost each week over the last six, by part of the context and by model under its provider, in tokens or at list prices (`prices.js`, the one place dollars are shown); the actions taken on Save in the window and the cache's numbers under it; `thinker report` and the page's Report tab (see [Report](#report)) |
 | `src/store.js`, `src/llm.js` | note storage; model access through any installed agent |
 | `src/server/` | `thinker-server`, the team's central cache: HTTP API (`index.js`), per-repository stores with a change journal and a clone of the repository (`repos.js`), tokens (`auth.js`), the worker that reviews the pull requests CI asks about (`worker.js`); the server learns nothing itself |
 | `infra/sync/` | the server on EC2: CloudFormation stack, bootstrap script, deploy script |
@@ -1293,7 +1293,7 @@ and the behaviors are reached through the CLI (`thinker list`, `show`, `archive`
 `tab=changes`, `tab=cache`) opens the view that replaced it.
 
 `thinker report` and the Report tab show one report (`report.js:reportView`): what a session costs here, week by
-week over the last five (`REPORT_WEEKS`, Monday to Sunday, the current week so far last), as the average over
+week over the last six (`REPORT_WEEKS`, Monday to Sunday, the current week so far last), as the average over
 each week's sessions. Per session the transcript gives the model and the usage the agent reported
 (`transcripts.js:Stats`, kept with the tool outputs' record in `.thinker/state/tool-outputs.json` since its version
 8, `tool-outputs.js:sessionUsage`), and the Context view's readers give the parts, joined by session id (the
@@ -1323,7 +1323,7 @@ the page says under the toggle that it is a list price, what a metered key would
 model without a price is left out of the cost average and named as unpriced, never counted at zero.
 
 Under the tables: the decisions taken on Save in the window (`context-suggest.js:changeHistory`, the same table as
-Save's History, `page.html:historyFigure`, with its Revert, over the five weeks alone), so a week's change can be read
+Save's History, `page.html:historyFigure`, with its Revert, over the six weeks alone), so a week's change can be read
 against what was cut that week; and the four numbers the Cache tab showed
 (`report.js:cacheMetrics`, from `usage.js:summarize` over the same window), with the saving in dollars first
 (the tokens saved on each model at that model's input list price: the holdout's figure by model where it is

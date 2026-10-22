@@ -167,12 +167,12 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('commands/report.js'), /reportView\(store, \{ weeks \}\)/);
   assert.match(read('ui/server.js'), /reportView\(one, \{ weeks \}\)/);
   assert.match(read('ui/server.js'), /mergeReports\(repos\(\)\.flatMap/);
-  // five weeks; the command's ▲ ▼ mark a 5% change against the first week;
+  // six weeks; the command's ▲ ▼ mark a 5% change against the first week;
   // the page's Total toggle is the command's --total
   assert.match(read('commands/report.js'), /total: Boolean\(flags\.total\)/);
   assert.match(read('ui/page.html'), /data-mode="sum">Total</);
-  assert.match(read('report.js'), /export const REPORT_WEEKS = 5;/);
-  assert.match(read('ui/page.html'), /\/api\/report\?repo=\$\{encodeURIComponent\(REPO\)\}&weeks=5/);
+  assert.match(read('report.js'), /export const REPORT_WEEKS = 6;/);
+  assert.match(read('ui/page.html'), /\/api\/report\?repo=\$\{encodeURIComponent\(REPO\)\}&weeks=6/);
   assert.match(read('report.js'), /export const TREND_MIN = 0\.05;/);
   // the page shades a cell by its value against every cell of its table (the highest red, the lowest green), a total row
   // against its own weeks; the command marks the change against the first week

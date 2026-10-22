@@ -77,12 +77,12 @@ test('the report averages each week over its sessions, by part and by model unde
     { id: 'h0', at: new Date(NOW - 60 * DAY).toISOString(), title: 'old one', kind: 'section', key: 'section:AGENTS.md:old', act: 'remove', decision: 'approved' },
   ] }));
   const v = reportView(store, { now: NOW, sessions });
-  assert.equal(v.columns.length, 5);
-  assert.deepEqual(v.columns.map(c => c.sessions), [0, 0, 0, 2, 2]);
-  assert.deepEqual(v.columns.map(c => c.priced), [0, 0, 0, 1, 2], 'the unpriced model counts in the sessions, not the cost');
+  assert.equal(v.columns.length, 6);
+  assert.deepEqual(v.columns.map(c => c.sessions), [0, 0, 0, 0, 2, 2]);
+  assert.deepEqual(v.columns.map(c => c.priced), [0, 0, 0, 0, 1, 2], 'the unpriced model counts in the sessions, not the cost');
   assert.equal(v.columns[4].unmeasured, 1, 'the Cursor session reports no usage');
   // this week: two Opus sessions of 1,000 input (two turns of 500, cache reads included) and 100 output each
-  const last = 4, avg = (cells, w) => cells[w].tokens / v.columns[w].sessions;
+  const last = 5, avg = (cells, w) => cells[w].tokens / v.columns[w].sessions;
   assert.equal(avg(v.totals, last), 1100);
   assert.equal(avg(v.parts.find(p => p.key === 'output').cells, last), 100);
   const inputParts = v.parts.filter(p => p.key !== 'output').reduce((a, p) => a + p.cells[last].tokens, 0);
@@ -91,21 +91,21 @@ test('the report averages each week over its sessions, by part and by model unde
   assert.ok(v.parts.find(p => p.key === 'instructions').cells[last].tokens > 0, 'the instruction file, in every call');
   assert.deepEqual(v.parts.map(p => p.key), PARTS.map(([k]) => k));
   // last week: one gpt-6-astra session (4,020 tokens) and one on an unpriced model (202)
-  assert.equal(avg(v.totals, 3), (4020 + 202) / 2);
+  assert.equal(avg(v.totals, 4), (4020 + 202) / 2);
   assert.deepEqual(v.unpriced, ['mystery-9']);
   // by model: the biggest provider first, each model's share of the average session, the provider's subtotal the sum
   assert.deepEqual(v.providers.map(p => p.name), ['OpenAI', 'Anthropic']);
   const opus = v.models.find(m => m.model === 'claude-opus-5-5'), astra = v.models.find(m => m.model === 'gpt-6-astra');
   assert.equal(opus.provider, 'Anthropic'); assert.equal(opus.cells[last].sessions, 2); assert.equal(opus.cells[last].tokens, 2200);
   assert.equal(v.providers.find(p => p.name === 'Anthropic').cells[last].tokens, 2200);
-  assert.equal(v.providers.find(p => p.name === 'OpenAI').cells[3].tokens, astra.cells[3].tokens + v.models.find(m => m.model === 'mystery-9').cells[3].tokens);
+  assert.equal(v.providers.find(p => p.name === 'OpenAI').cells[4].tokens, astra.cells[4].tokens + v.models.find(m => m.model === 'mystery-9').cells[4].tokens);
   assert.equal(v.models.find(m => m.model === 'mystery-9').priced, false);
   // cost: an Opus session is 400 fresh at $4, 600 cache reads at $0.20, 100 output at $20 per million
   const sessionCost = (400 * 4 + 600 * 0.2 + 100 * 20) / 1e6;
   assert.ok(Math.abs(v.totals[last].cost - 2 * sessionCost) < 1e-9);
   assert.ok(Math.abs(v.parts.reduce((a, p) => a + p.cells[last].cost, 0) - 2 * sessionCost) < 1e-9, 'the parts\' cost adds up to the sessions\' cost');
   assert.ok(Math.abs(v.parts.find(p => p.key === 'output').cells[last].cost - 2 * 100 * 20 / 1e6) < 1e-12);
-  assert.ok(Math.abs(v.totals[3].cost - costOf({ input: 4000, output: 20 }, listPrice('gpt-6-astra'))) < 1e-9, 'the unpriced session adds no cost');
+  assert.ok(Math.abs(v.totals[4].cost - costOf({ input: 4000, output: 20 }, listPrice('gpt-6-astra'))) < 1e-9, 'the unpriced session adds no cost');
   // the actions in the window, the cache's numbers over it
   assert.deepEqual(v.actions.map(a => a.id), ['h1']);
   assert.equal(v.cache.hits, 0); assert.equal(v.cache.dollarsSaved, 0); assert.equal(v.cache.acted, null);
@@ -117,7 +117,7 @@ test('the report averages each week over its sessions, by part and by model unde
   assert.match(renderReport(v, { total: true }).join('\n'), /Total tokens over the week's sessions/);
   // every repository's report merged: the sums and the sessions add, the actions name their repository
   const m = mergeReports([{ repo: 'a', name: 'A', view: v }, { repo: 'b', name: 'B', view: v }]);
-  assert.deepEqual(m.columns.map(c => c.sessions), [0, 0, 0, 4, 4]);
+  assert.deepEqual(m.columns.map(c => c.sessions), [0, 0, 0, 0, 4, 4]);
   assert.equal(m.totals[last].tokens, 4400);
   assert.equal(m.models.find(x => x.model === 'claude-opus-5-5').cells[last].sessions, 4);
   assert.deepEqual(m.actions.map(a => a.repoName), ['A', 'B']);

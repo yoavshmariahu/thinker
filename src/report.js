@@ -18,7 +18,7 @@ import { summarize } from './usage.js';
 import { listPrice, providerOf, costOf, formatDollars, PRICED_ON } from './prices.js';
 import { formatTokens } from './model-usage.js';
 
-export const REPORT_WEEKS = 5;
+export const REPORT_WEEKS = 6;
 // a cell is trending when it moved this much against the first week of the window (the page colours it: red up, green down)
 export const TREND_MIN = 0.05;
 export const PARTS = [
