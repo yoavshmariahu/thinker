@@ -43,7 +43,7 @@ test('scheduleContextSuggestion: kept for the next prompt, at most weekly, after
   assert.equal(c.length, 5); assert.equal(contextSuggestPending(store), true);
   const said = contextSuggestOffer(store, { now: now + 86400_000, env: {}, ui: () => 'http://127.0.0.1:4848/', repoId: 'github.com/o/r' });
   assert.match(said, /^<thinker-context-suggestions>/);
-  assert.match(said, /http:\/\/127\.0\.0\.1:4848\/#tab=context&view=all&repo=github\.com%2Fo%2Fr/);
+  assert.match(said, /http:\/\/127\.0\.0\.1:4848\/#tab=save&view=all&repo=github\.com%2Fo%2Fr/);
   assert.match(said, /1\. AGENTS\.md · Releases: ~1\.2M input tokens over the last 30 days; .*Suggested: Compress \(or: remove\)/);
   assert.match(said, /Do not make any of these changes yourself/);
   assert.equal(contextSuggestOffer(store, { env: {}, ui: () => 'x' }), '', 'said once');

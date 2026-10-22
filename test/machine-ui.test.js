@@ -92,15 +92,15 @@ test('a running batch is the cache\'s activity, with its count, and stopping it 
   await new Promise(res => child.on('exit', res));
 });
 
-test('usage for all repositories works from a directory that is no checkout', async t => {
+test('the report for all repositories works from a directory that is no checkout', async t => {
   const cwd = tmp('thinker-ui-nogit-');
   process.env.THINKER_LOG = 'local'; t.after(() => { delete process.env.THINKER_LOG; });
   const ui = createUiServer(new Store(cwd), { home: tmp('thinker-ui-home-'), transcriptsHome: tmp('thinker-ui-th-') });
   const { port } = await ui.listen(0);
   t.after(() => ui.close());
-  const r = await call(port, '/api/usage?repo=all', {});
+  const r = await call(port, '/api/report?repo=all', {});
   assert.equal(r.status, 200, r.body);
-  assert.equal(JSON.parse(r.body).notesInCache, 0);
+  assert.equal(JSON.parse(r.body).empty, true, 'no repository with a cache: an empty report');
   assert.equal((await call(port, '/api/repos', {})).status, 200);
   assert.ok(!fs.existsSync(path.join(cwd, '.thinker')), 'nothing created outside a checkout');
 });

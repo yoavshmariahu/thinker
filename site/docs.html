@@ -935,7 +935,7 @@ read any range: Read with offset and limit</span></pre>
         </p>
         <pre><code><span class="code-comment"># Open the local page again any time</span>
 thinker ui
-thinker ui --tab context --all      <span class="code-comment"># the Context view over every repository, as the installer opens it</span>
+thinker ui --tab save --all         <span class="code-comment"># the Save view over every repository, as the installer opens it</span>
 
 <span class="code-comment"># No browser, or a script: set one repository up from the terminal</span>
 thinker setup                       <span class="code-comment"># connects the agents and prints the repository's own report; --no-ui keeps the page closed</span></code></pre>
@@ -1090,11 +1090,11 @@ thinker skills scan                 <span class="code-comment"># card new or cha
       <section id="local-page">
         <h2>The local page</h2>
         <p>
-          <code>thinker ui</code> opens a page in your browser, from any directory, on the <a href="#context">Context</a> view, with the Cache view beside it. The <a href="#install">installer</a> opens it on the Context view over every repository (the page stops by itself after half an hour unused).
+          <code>thinker ui</code> opens a page in your browser, from any directory, on the <a href="#context">Save</a> view, where the agents' context goes and what to cut, with the Report view beside it: what a session costs here week by week, the average over each week's sessions by part of the context and by model, in tokens or at the providers' list prices, with the actions taken on Save and the cache's numbers under it (<code>thinker report</code> prints the same). The <a href="#install">installer</a> opens it on the Save view over every repository (the page stops by itself after half an hour unused).
         </p>
         <pre><code>thinker ui                          <span class="code-comment"># opens the page on Context; Ctrl+C stops it</span>
-thinker ui --tab cache              <span class="code-comment"># the caches on this machine</span>
-thinker ui --tab context --all      <span class="code-comment"># the Context view over every repository</span>
+thinker ui --tab report             <span class="code-comment"># what a session costs here, week by week</span>
+thinker ui --tab save --all         <span class="code-comment"># the Save view over every repository</span>
 thinker ui --port 4800 --no-open    <span class="code-comment"># a fixed port, without opening a browser</span></code></pre>
         <div class="table-scroll">
           <table>
@@ -1118,7 +1118,8 @@ thinker ui --port 4800 --no-open    <span class="code-comment"># a fixed port, w
             <tbody>
               <tr><td><code>thinker setup [--no-ui]</code></td><td>Set one repository up from the terminal: connect the agents, then print where the agents' context goes there and what to cut first</td></tr>
               <tr><td><code>thinker connect</code></td><td>Wire the agents on this machine into their own settings, once; setup and the installer run it first</td></tr>
-              <tr><td><code>thinker ui [--tab context | cache] [--all] [--port n] [--no-open]</code></td><td>The <a href="#local-page">local page</a>: where the context goes (<code>--all</code>: over every repository), the caches and their notes</td></tr>
+              <tr><td><code>thinker ui [--tab save | report] [--all] [--port n] [--no-open]</code></td><td>The <a href="#local-page">local page</a>: where the context goes and what to cut (<code>--all</code>: over every repository), and what a session costs here week by week</td></tr>
+              <tr><td><code>thinker report [--weeks n] [--cost] [--json]</code></td><td>The Report view in the terminal: the average tokens a session cost, week by week, by part of the context and by model under its provider; <code>--cost</code> the same at list prices; then the actions taken on Save and the cache's numbers</td></tr>
               <tr><td><code>thinker context [--days n] [--json] [--judge n] [--switch-off &lt;labels&gt;] [--output-compression &lt;tools&gt; --level high|moderate|off]</code></td><td>The <a href="#context">Context page</a>'s report in the terminal; <code>--judge n</code> has a model read n recent sessions for which sections bore on them; the two switches are the page's <a href="#cuts">cuts</a> for tools and outputs</td></tr>
               <tr><td><code>thinker instructions [--core | --compress | --remove]</code></td><td>The sections of <code>AGENTS.md</code> and their tokens; keep some in a trimmed local copy, or shorten or drop one as a diff</td></tr>
               <tr><td><code>thinker harness [--off | --undo]</code></td><td>The skills, MCP servers and plugins loaded into every session against what the sessions use; switch some off, or back on</td></tr>

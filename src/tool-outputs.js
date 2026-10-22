@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseTranscript } from './transcripts.js';
 
-const KEEP = 1000, VERSION = 7;
+const KEEP = 1000, VERSION = 8;
 // what each level's cap leaves of an output, in tokens (diet.js:DIET_LEVELS outputChars / 4): the part of a
 // compressible tool's result past it is a saving at least (the other trims, round search hits and file windows, come on top);
 // an MCP server has the moderate level alone (diet.js:mcpLevel), so its high saving is its moderate one
@@ -72,7 +72,11 @@ export function sessionOutputs(events, turns = 0, compactions = []) {
 }
 
 const stateFile = store => path.join(store.dir, 'state', 'tool-outputs.json');
-export function toolOutputs(store, sessions) {
+// One record per session, kept by the transcript's size: the outputs by tool (sessionOutputs), and, since version 8,
+// the model the session ran on and what it cost as the agent reported it (transcripts.js:Stats), read by the Report
+// page (report.js:sessionUsage) from the same parse.
+const usageOf = st => st && st.inputTokens != null ? { input: st.inputTokens, output: st.outputTokens ?? 0, cacheRead: st.cacheReadTokens ?? 0, cacheWrite: st.cacheWriteTokens ?? 0, turns: st.turns || 0 } : null;
+function sessionRecords(store, sessions) {
   let st = {}; try { st = JSON.parse(fs.readFileSync(stateFile(store), 'utf8')); } catch {}
   const recs = [];
   let changed = false;
@@ -81,16 +85,25 @@ export function toolOutputs(store, sessions) {
     let r = st[s.session];
     if (!r || r.size !== size || r.v !== VERSION) {
       let parsed; try { parsed = parseTranscript(s.file); } catch { continue; }
-      r = st[s.session] = { v: VERSION, size, mtime: s.mtime, by: sessionOutputs(parsed.events, parsed.stats?.turns || 0, parsed.compactions || []) };
+      r = st[s.session] = { v: VERSION, size, mtime: s.mtime, model: parsed.model || null, usage: usageOf(parsed.stats), by: sessionOutputs(parsed.events, parsed.stats?.turns || 0, parsed.compactions || []) };
       changed = true;
     }
-    if (Object.keys(r.by).length) recs.push({ ...r, t: s.mtime });
+    recs.push({ ...r, session: s.session, client: s.client, t: s.mtime });
   }
   if (changed) {
     const ids = Object.keys(st).sort((a, b) => (st[a].mtime || 0) - (st[b].mtime || 0));
     for (const id of ids.slice(0, Math.max(0, ids.length - KEEP))) delete st[id];
     try { fs.mkdirSync(path.dirname(stateFile(store)), { recursive: true }); fs.writeFileSync(stateFile(store), JSON.stringify(st)); } catch {}
   }
+  return recs;
+}
+// every session of the window with its model, its reported usage (null where the agent reported none: Cursor) and
+// what its tool outputs cost in input tokens
+export function sessionUsage(store, sessions) {
+  return sessionRecords(store, sessions).map(r => ({ session: r.session, t: r.t, client: r.client, model: r.model || null, usage: r.usage || null, outputs: Object.values(r.by).reduce((a, x) => a + x.input, 0) }));
+}
+export function toolOutputs(store, sessions) {
+  const recs = sessionRecords(store, sessions).filter(r => Object.keys(r.by).length);
   // per tool, averaged over the sessions that made any tool call
   const n = recs.length, rows = new Map();
   for (const r of recs) for (const [k, x] of Object.entries(r.by)) {
@@ -102,6 +115,6 @@ export function toolOutputs(store, sessions) {
   return {
     sessions: n, tools,
     tokens: tools.reduce((a, t) => a + t.tokens, 0), perSession: tools.reduce((a, t) => a + t.perSession, 0), wasted: tools.reduce((a, t) => a + t.wasted, 0),
-    timeline: recs.map(r => ({ t: r.t, outputs: Object.values(r.by).reduce((a, x) => a + x.input, 0) })),
+    timeline: recs.map(r => ({ t: r.t, session: r.session, outputs: Object.values(r.by).reduce((a, x) => a + x.input, 0) })),
   };
 }

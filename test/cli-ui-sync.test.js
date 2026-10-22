@@ -76,7 +76,7 @@ test('CLI and page expose the shared Claude Code, Codex and Cursor harness repor
   assert.match(read('commands/hooks.js'), /snapshotCursorInventory\(/);
 });
 
-test('the Context tab and `thinker context` show one report, and its controls are the commands', async t => {
+test('the Save tab and `thinker context` show one report, and its controls are the commands', async t => {
   assert.match(read('commands/context.js'), /contextView\(store/);
   // the page reads the report kept by `thinker context --refresh`, which it starts in the background (context-snapshot.js)
   assert.match(read('ui/server.js'), /snapshotView\(st, d\)/);
@@ -84,10 +84,10 @@ test('the Context tab and `thinker context` show one report, and its controls ar
   assert.match(read('context-snapshot.js'), /contextView\(store, \{ days: d \}\)/);
   assert.match(read('commands/context.js'), /refreshSnapshots\(store\)/);
   // the installer's report (context-machine.js) is the page's All repositories: one merge, and the reports it
-  // keeps are the snapshots the page reads; the page opens on it (`thinker ui --tab context --all`)
+  // keeps are the snapshots the page reads; the page opens on it (`thinker ui --tab save --all`)
   const machine = read('context-machine.js'), install = fs.readFileSync(path.join(SRC, '..', 'install.sh'), 'utf8');
   assert.match(install, /"\$thinker" context --machine/);
-  assert.match(install, /ui --from-setup --tab context --all/);
+  assert.match(install, /ui --from-setup --tab save --all/);
   assert.match(read('commands/context.js'), /machineContext\(store, \{ days, limit/);
   assert.match(machine, /mergeViews\(views\)/); assert.match(read('ui/server.js'), /mergeViews\(xs\.map/);
   assert.match(machine, /writeSnapshot\(st, d, v/); assert.match(machine, /refreshCheckouts\(store/);
@@ -135,7 +135,32 @@ test('All and History on the Context tab are `thinker context --approve|--dismis
   // the page's 7-day window is the command's suggested one (SUGGEST.days) and the session's summary links to that tab
   assert.match(read('ui/page.html'), /\/api\/changes\?repo=\$\{encodeURIComponent\(want\)\}&days=7/);
   assert.match(read('context-suggest.js'), /days: 7,/);
-  assert.match(read('context-suggest.js'), /tab=context&view=all/);
+  assert.match(read('context-suggest.js'), /tab=save&view=all/);
   // the page's rows carry the keys allChanges gives, so the server finds the part a row's Apply names
   for (const k of ['`section:${s.file}:${s.id}`', '`${s.client}:${s.key}`', '`output:${s.name}`']) assert.ok(read('ui/page.html').includes(k), k);
+});
+
+test('the Report tab and `thinker report` show one report: the same weeks, parts, prices and trend rule', () => {
+  // both doors read report.js:reportView; the page's All repositories is mergeReports, as the command has no All
+  assert.match(read('commands/report.js'), /reportView\(store, \{ weeks \}\)/);
+  assert.match(read('ui/server.js'), /reportView\(one, \{ weeks \}\)/);
+  assert.match(read('ui/server.js'), /mergeReports\(repos\(\)\.flatMap/);
+  // five weeks, and a cell is trending at the same 5% in the command's ▲ ▼ and the page's red and green
+  assert.match(read('report.js'), /export const REPORT_WEEKS = 5;/);
+  assert.match(read('ui/page.html'), /\/api\/report\?repo=\$\{encodeURIComponent\(REPO\)\}&weeks=5/);
+  assert.match(read('report.js'), /export const TREND_MIN = 0\.05;/);
+  assert.match(read('ui/page.html'), /const TREND_MIN = 0\.05;/);
+  // the cost view is the command's --cost: list prices from prices.js, the unpriced models named on both
+  assert.match(read('commands/report.js'), /cost: Boolean\(flags\.cost\)/);
+  assert.match(read('report.js'), /listPrice\(r\.model, \{ config \}\)/);
+  assert.match(read('ui/page.html'), /v\.unpriced\.map\(esc\)/);
+  // the same four numbers under both, the dollars first (report.js:cacheMetrics), and the actions from context-suggest.js
+  for (const f of ['report.js', 'ui/page.html']) { assert.match(read(f), /\$ saved/); assert.match(read(f), /Tokens saved|tokens saved/); }
+  assert.match(read('report.js'), /changeHistory\(store\)\.filter\(e => Date\.parse\(e\.at\) >= from\)/);
+  // the page's tabs: Save (was Context, the chart gone) and Report (was Cache); the old names still open them
+  assert.match(read('ui/page.html'), /data-tab="save">Save</);
+  assert.match(read('ui/page.html'), /data-tab="report">Report</);
+  assert.match(read('ui/page.html'), /if \(tab === 'cache'\) tab = 'report';/);
+  assert.doesNotMatch(read('ui/page.html'), /renderTrend|tr-stack|api\/cache|api\/behaviors|api\/usage/);
+  assert.match(read('cli.js'), /ui \[--port n\] \[--no-open\] \[--tab save\|report\]/);
 });

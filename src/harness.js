@@ -272,7 +272,7 @@ function claudeUsage(repo, { days = 30, home = os.homedir(), sessions } = {}) {
       if (k.startsWith('skill:') && group(k) !== k) row(group(k)).skills.add(k.slice(6));
       if (h.texts.has(k)) row(group(k)).texts[k] = h.texts.get(k).slice(0, CARD_CHARS);
     }
-    timeline.push({ t: s.mtime, client: 'claude', calls: h.calls, parts: partsOf(tokens) });
+    timeline.push({ t: s.mtime, session: s.session, client: 'claude', calls: h.calls, parts: partsOf(tokens) });
     for (const [k, t] of tokens) {
       const r = row(k); r.loaded++; r.tokens += t;
       if (used.has(k)) { r.used++; if (!r.lastUsed || s.mtime > r.lastUsed) r.lastUsed = s.mtime; }

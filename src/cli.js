@@ -26,6 +26,7 @@ import { commands as externalCommands } from './commands/external.js';
 import { commands as harnessCommands } from './commands/harness.js';
 import { commands as instructionsCommands } from './commands/instructions.js';
 import { commands as contextCommands } from './commands/context.js';
+import { commands as reportCommands } from './commands/report.js';
 import { commands as proxyCommands } from './commands/proxy.js';
 import { commands as testingCommands } from './commands/testing.js';
 import { isDisabledRepo, OFF_MESSAGE } from './repo-switch.js';
@@ -186,6 +187,10 @@ const HELP = `thinker — knowledge cache for coding agents
                                  lists every part with its actions, and History the decisions. Once a week the next prompt passes
                                  the five on with a link to that tab
                                  (maintain.contextSuggest in .thinker/config.json; false turns it off)
+  report [--weeks n] [--cost] [--json]   the Report page in the terminal: the average tokens a session cost here, week by week over the
+                                 last 5, by part of the context (instruction files, custom and built-in tools, tool outputs, the rest)
+                                 and by model under its provider; --cost the same at the providers' list prices; then the decisions
+                                 taken on the Save page in the window and the cache's numbers, its saving in dollars first
   guide                          the cache usage guidance an install writes into an agent's instructions
   export [file.tgz] [--dir d]    back the cache up to a .tgz; --dir writes every note whole, one <id>.json each, into d
   hook <prompt|pre|tool|stop [--nudge]> [--client c]   hook entrypoints (JSON on stdin): prompt = notes for the request,
@@ -204,12 +209,12 @@ const HELP = `thinker — knowledge cache for coding agents
   impact export | impact import <file.json>   transfer evidence from CI or another machine
   impact finding <id> --pr n --validity confirmed|dismissed|duplicate|pending --evidence reason
          [--resolution fixed|open|accepted-risk|not-applicable] [--fix sha] [--duplicate-of id]
-  ui [--port n] [--no-open] [--tab context|cache] [--all] [--refresh]
-                                 open the local page, from any directory, on Context (--all: over all repositories): where the agents' context goes in each
-                                 repository and what each part is worth (thinker context); then the caches on this machine
-                                 (each with its notes, to archive or restore, its system behaviors, to accept, edit or
-                                 discard, and what is being distilled, with a stop button); 127.0.0.1 only, Ctrl+C stops it;
-                                 --refresh looks for the repositories again and keeps the list the page reads (it runs this itself)
+  ui [--port n] [--no-open] [--tab save|report] [--all] [--refresh]
+                                 open the local page, from any directory, on Save (--all: over all repositories): where the agents' context goes in each
+                                 repository and what each part is worth, with the cuts (thinker context); then Report, what a
+                                 session costs here week by week, by part and by model, in tokens or at list prices (thinker report);
+                                 127.0.0.1 only, Ctrl+C stops it; --refresh looks for the repositories again and keeps the list the
+                                 page reads (it runs this itself)
   skills [list|scan|audit <id>|review <id>|prefer <id>|dedupe] [--dry] [--again] [--limit n] [--json]
                                  the skill files (SKILL.md) of this checkout as the cache sees them: each has a card that is
                                  served like a note and audited against the code; a skill found out of date is listed with
@@ -274,10 +279,10 @@ function unknownFlags(c, given, help = HELP) {
 // Commands that read or maintain a cache, and so need a git checkout to keep it in. Not `setup`,
 // `mine-prs`, `import`, `add`, `record`, `distill`: those build one. Not `hook` (quiet outside a
 // checkout) and not `ui`, the machine-wide page.
-const CACHE_COMMANDS = ['tools', 'symbols', 'orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'session-work', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback', 'skills', 'instructions', 'context', 'test'];
+const CACHE_COMMANDS = ['tools', 'symbols', 'orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'session-work', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback', 'skills', 'instructions', 'context', 'report', 'test'];
 
 // One handler per command, in src/commands/; each gets the context below and nothing else of this file.
-const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...skillsCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...testingCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...coverageCommands, ...symbolsCommands, ...switchCommands, ...externalCommands, ...harnessCommands, ...instructionsCommands, ...contextCommands, ...proxyCommands };
+const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...skillsCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...testingCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...coverageCommands, ...symbolsCommands, ...switchCommands, ...externalCommands, ...harnessCommands, ...instructionsCommands, ...contextCommands, ...reportCommands, ...proxyCommands };
 // Commands that still answer in a repository thinker is switched off for (repo-switch.js): the machine-wide
 // ones, the ones about the install itself, and the switch. `hook` keeps quiet by itself.
 const OFF_COMMANDS = ['version', 'enable', 'disable', 'ui', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'stats', 'ast', 'ranker', 'hook', 'serve', 'proxy', undefined];
@@ -320,7 +325,7 @@ async function main() {
     if (!store.exists()) store.init();
   }
   // symbol boundaries by tree-sitter where its grammars are installed (`thinker ast install`), else by regex
-  if (!['update', 'upgrade', 'switch', 'branch', 'serve', 'ast', 'usage', 'impact', 'stats', 'telemetry', 'help', 'version', 'served', 'spent', 'guide', 'proxy', 'test', undefined].includes(cmd)) await initAst();
+  if (!['update', 'upgrade', 'switch', 'branch', 'serve', 'ast', 'usage', 'impact', 'stats', 'telemetry', 'help', 'version', 'served', 'spent', 'guide', 'proxy', 'test', 'report', undefined].includes(cmd)) await initAst();
 
   const handler = COMMANDS[cmd];
   if (!handler) { out(HELP); return; }

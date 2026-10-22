@@ -382,7 +382,7 @@ EOF
   local opened=0
   if [ "$ui" = 1 ] && [ -t 1 ] && [ -z "${CI:-}" ] && [ -z "${THINKER_TEST:-}" ] && [ -z "${SSH_CONNECTION:-}${SSH_TTY:-}" ] \
      && { [ "$(uname -s)" = Darwin ] || [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; }; then
-    ( "$thinker" ui --from-setup --tab context --all >/dev/null 2>&1 & ) && opened=1
+    ( "$thinker" ui --from-setup --tab save --all >/dev/null 2>&1 & ) && opened=1
   fi
   say ""
   if [ "$fancy" = 1 ]; then

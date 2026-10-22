@@ -79,8 +79,14 @@ promise: cutting a section saves its tokens, and whether the agent then misses i
 *followed* and *missed* columns are there to show. No benchmark is claimed for the cuts; the
 [benchmark results](../research/bench-history/RESULTS.md) are about the cache.
 
-## The cache beside it
+## The Report beside it
 
-The Cache tab holds thinker's other half: notes learned from your sessions and merged pull requests,
-served to the agent as it works, so it reads less to find its way ([usage and learning](usage.md),
-[setup](setup.md)). The two meet in the same number: the input tokens a session spends.
+The page's other view, Report (`thinker report`), is the same measurement over time: what a session
+costs here, week by week over the last five, as the average over each week's sessions. One table by
+part of the context (the instruction files, custom tools, built-in tools, tool outputs, the rest of the
+input, the output), one by model under its provider with subtotals, totals under both; a cell that moved
+5% or more against the week before is red (up) or green (down). A toggle prices the same tokens at the
+providers' list rates, so a switch of model shows in the trend. Under the tables: the actions taken on
+Save in those weeks, by date, to read the weeks against, and the cache's four numbers, its saving in
+dollars first. The cache itself (the notes learned from your sessions, served to the agent as it works) is
+the command line's: `thinker list`, `show`, `archive`, `system` ([usage and learning](usage.md)).

@@ -212,7 +212,7 @@ export function ensureUi(store, { home = thinkerHome(), spawnFn = spawn, waitMs 
 }
 // the address of the Context tab's All for this repository (a page started by an older version keeps its key in
 // the address; it is dropped, that version's server takes the Host check alone)
-export const suggestionsUrl = (url, repoId) => `${String(url).replace(/#.*$/, '')}#tab=context&view=all${repoId ? `&repo=${encodeURIComponent(repoId)}` : ''}`;
+export const suggestionsUrl = (url, repoId) => `${String(url).replace(/#.*$/, '')}#tab=save&view=all${repoId ? `&repo=${encodeURIComponent(repoId)}` : ''}`;
 
 // a session no person is at: `claude -p`, the Agent SDK
 const unattended = (env = process.env) => /^sdk-/.test(env.CLAUDE_CODE_ENTRYPOINT || '');

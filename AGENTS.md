@@ -19,8 +19,8 @@ The page (`src/ui/`) is a second door to the same commands, never a second
 implementation. A default the page shows (the model, the agent, a report's window)
 is the constant the command reads (`DEFAULT_DISTILL_MODEL` in `src/llm.js`,
 `buildAgent` in `src/setup/agents.js`), and a report the page shows is the one the
-command prints (`thinker context` and the Context tab, `thinker context --machine` and
-its All repositories). An action the page takes runs the command line with the flags
+command prints (`thinker context` and the Save tab, `thinker context --machine` and
+its All repositories, `thinker report` and the Report tab). An action the page takes runs the command line with the flags
 the person would have typed. `test/cli-ui-sync.test.js` checks both doors; a new default
 or flag gets a line there before it ships.
 
@@ -188,6 +188,7 @@ cache at twice the input price and never read again.
 | `src/guard.js` | anchoring guard: names identifiers in the request that the served notes do not cover |
 | `src/update.js` | CLI self-update and daily automatic background updates (LaunchAgent / cron / invocation) |
 | `src/usage.js` | summary of the usage log and the estimate of saved calls and tokens, in tokens (never dollars) |
+| `src/report.js`, `src/prices.js`, `src/commands/report.js` | the Report page: the average a session cost each week over the last five, by part of the context and by model under its provider, in tokens or at list prices (`prices.js`, the one place dollars are shown); the actions taken on Save in the window and the cache's numbers under it; `thinker report` and the page's Report tab (see [Report](#report)) |
 | `src/store.js`, `src/llm.js` | note storage; model access through any installed agent |
 | `src/server/` | `thinker-server`, the team's central cache: HTTP API (`index.js`), per-repository stores with a change journal and a clone of the repository (`repos.js`), tokens (`auth.js`), the worker that reviews the pull requests CI asks about (`worker.js`); the server learns nothing itself |
 | `infra/sync/` | the server on EC2: CloudFormation stack, bootstrap script, deploy script |
@@ -1273,6 +1274,49 @@ on the clear), later requests reading the cleared tokens no more. On this reposi
 see the agent's reaction to the placeholders, which is what separates the policies; the Artemis arms `proxy-turn` and
 `proxy-keep3` (defined 2026-10-22, `~/.artemis/scratch/proxy-arm/arm.sh`, port from the arm's env) are ready for that
 run, which has not been made.
+
+## Report
+
+**The page's two tabs are Save and Report (2026-10-22, the owner's layout).** The Context tab became Save (the
+page to find savings: the same tables, the stacked-column chart of input by day or week removed) and the Cache
+tab (the usage cards, the repositories, one repository's notes and behaviors) was replaced by Report; the notes
+and the behaviors are reached through the CLI (`thinker list`, `show`, `archive`, `system`), and the page's
+`/api/usage`, `/api/cache`, `/api/behaviors` and `/api/activity` went with it. An old link (`tab=context`,
+`tab=changes`, `tab=cache`) opens the view that replaced it.
+
+`thinker report` and the Report tab show one report (`report.js:reportView`): what a session costs here, week by
+week over the last five (`REPORT_WEEKS`, Monday to Sunday, the current week so far last), as the average over
+each week's sessions. Per session the transcript gives the model and the usage the agent reported
+(`transcripts.js:Stats`, kept with the tool outputs' record in `.thinker/state/tool-outputs.json` since its version
+8, `tool-outputs.js:sessionUsage`), and the Context view's readers give the parts, joined by session id (the
+timeline rows of `instruction-value.js`, `harness.js` and `tool-outputs.js` carry `session` since this day):
+the instruction files read, the custom tools (skills, MCP servers, plugins) and built-in tools loaded, each times
+the session's model calls, and the tool outputs read again by every call after them. The parts are scaled down
+to the session's measured input where their sum overshoots it (they are estimates with different multipliers);
+what is left of the input is "Other input", the conversation itself, and "Output" is what the model wrote, so
+the parts add up to the session's tokens. The second table is by model under its provider
+(`prices.js:providerOf`), each row the model's share of the average session (its tokens over every session of
+the week), so the rows add up to the total and a switch of model shows as one row falling while another rises;
+the provider's subtotal is above its models and folds them. A cell that moved `TREND_MIN` (5%) or more against
+the week before is red (up) or green (down), on the page; the command marks it ▲ ▼. A session whose agent reports
+no usage (Cursor) is counted in no column and named as left out.
+
+**Cost, the one place dollars are shown.** The Cost toggle (`--cost`) prices each session's tokens at its model's
+list rates (`prices.js:listPrice`: fresh input, cache reads, cache writes and output each at its rate; Anthropic's
+from `model-usage.js:relativeRate` at Opus 5.5's input price, OpenAI's and Google's as published on
+`PRICED_ON`; `prices` in `.thinker/config.json` adds or overrides one), so sessions on different models compare on
+one scale; a part's cost is its share of the session's input cost. The rule that nothing is given in dollars
+(2026-10-04) stands everywhere else; the owner asked for this view on 2026-10-22 to weigh model use by price, and
+the page says under the toggle that it is a list price, what a metered key would pay and not a subscription. A
+model without a price is left out of the cost average and named as unpriced, never counted at zero.
+
+Under the tables: the decisions taken on Save in the window (`context-suggest.js:changeHistory`), by date, so a
+week's change can be read against what was cut that week; and the four numbers the Cache tab showed
+(`report.js:cacheMetrics`, from `usage.js:summarize` over the same window), with the saving in dollars first
+(the tokens saved on each model at that model's input list price: the holdout's figure by model where it is
+measured, else the servings acted on), then tokens saved, cache hits and the share acted on. All repositories is
+every repository's report merged (`mergeReports`: the sums and the session counts add). The server keeps a report
+a minute per repository and window; the readers' own caches make a repository's report about a second here.
 
 ## Internal server
 

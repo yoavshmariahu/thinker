@@ -39,9 +39,8 @@
     }
     .nav-link:hover { color: #000; background: #f5f5f5; }
     .nav-link.active { color: #000; background: #fff; border-color: #e5e7eb; }
-    .count { display: inline-block; margin-left: 0.35rem; min-width: 1.2rem; padding: 0 0.35rem; border-radius: 999px; background: #111; color: #fff; font-size: 0.78rem; line-height: 1.2rem; text-align: center; }
 
-    /* both tabs take the width of the window: the Context tab holds a document beside its annotations, the Cache tab its tables */
+    /* both tabs take the width of the window: Save holds a document beside its annotations, Report its tables */
     main { max-width: 1440px; margin: 0 auto; padding: 2.25rem 2rem 4rem; }
     h1 { font-size: 1.9rem; font-weight: 700; letter-spacing: -0.04em; line-height: 1.15; }
     .lede { font-size: 1rem; color: #6b7280; line-height: 1.55; margin-top: 0.5rem; max-width: 680px; }
@@ -51,7 +50,6 @@
     .section-title { font-size: 1.05rem; font-weight: 600; letter-spacing: -0.02em; }
     .muted { color: #6b7280; }
     .gain { color: #15803d; font-weight: 600; }
-    .loss { color: #b45309; font-weight: 600; }
 
     .controls { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; margin-top: 1.4rem; }
     .seg { display: inline-flex; border: 1px solid #e5e7eb; border-radius: 8px; padding: 2px; background: #fafafa; }
@@ -72,84 +70,12 @@
     .metric-rows li { display: flex; justify-content: space-between; gap: 0.75rem; font-size: 0.82rem; color: #6b7280; font-variant-numeric: tabular-nums; }
     .metric-rows li span:last-child { color: #111; font-weight: 600; white-space: nowrap; }
 
-    /* paired bars, as in the site's benchmark modal */
-    .bench-legend { display: flex; gap: 1.1rem; font-size: 0.78rem; color: #6b7280; margin-bottom: 0.75rem; }
-    .swatch { display: inline-block; width: 14px; height: 8px; border-radius: 2px; background: #111; margin-right: 0.35rem; vertical-align: middle; }
-    .swatch.before { background: #b4b4bb; }
-    .bench-rows { display: flex; flex-direction: column; gap: 0.9rem; }
-    .bench-row { display: grid; grid-template-columns: 150px minmax(0, 1fr) 120px; gap: 0 1rem; align-items: center; }
-    .bench-model-name { font-size: 0.86rem; font-weight: 600; letter-spacing: -0.01em; }
-    .bench-model-sub { font-size: 0.78rem; color: #9ca3af; margin-top: 0.1rem; }
-    .bench-bars { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-    .bar { display: grid; grid-template-columns: minmax(0, 1fr) 4.6rem; align-items: center; gap: 0.5rem; height: 16px; font-size: 0.78rem; color: #444; font-variant-numeric: tabular-nums; white-space: nowrap; }
-    .bar i { display: block; height: 10px; width: var(--w); max-width: 100%; border-radius: 0 4px 4px 0; background: #111; }
-    .bar.before i { background: #b4b4bb; }
-    .bar.after { color: #111; font-weight: 600; }
-    .bench-delta { text-align: right; font-size: 0.95rem; font-weight: 700; letter-spacing: -0.02em; color: #15803d; font-variant-numeric: tabular-nums; white-space: nowrap; }
-    .bench-delta.flat { color: #6b7280; }
-    .panel { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 1.2rem 1.3rem; }
-    .note-line { font-size: 0.8rem; color: #6b7280; line-height: 1.5; margin-top: 0.9rem; }
-
     table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
     th { text-align: left; font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; padding: 0.5rem 0.6rem; border-bottom: 1px solid #e5e7eb; }
     td { padding: 0.55rem 0.6rem; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
     td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
-    /* repository cards: the cache overview, one repository per row (name, its numbers, the notes pill;
-       what runs against it on a full-width line below) */
-    .rgrid { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 1.4rem; }
-    .rcard { background: #fafafa; border: 1px solid #e5e7eb; border-radius: 10px; padding: 0.7rem 1rem; min-width: 0; cursor: pointer; transition: border-color 0.15s ease, background 0.15s ease; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 2fr) auto; gap: 0.5rem 1.2rem; align-items: center; }
-    .rcard:hover { border-color: #111; background: #fff; }
-    .rcard.none { cursor: default; background: #fff; border-style: dashed; }
-    .rcard.none:hover { border-color: #e5e7eb; }
-    .rcard > .prog, .rcard > .prog-line { grid-column: 1 / -1; }
-    @media (max-width: 700px) { .rcard { grid-template-columns: minmax(0, 1fr) auto; } .rcard > .rstats { grid-column: 1 / -1; } }
-    .rtop { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.6rem; min-width: 0; }
-    .rname { font-size: 0.95rem; font-weight: 600; letter-spacing: -0.02em; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .rtop .pill, .wtop input { flex-shrink: 0; }
-    .rname small { font-weight: 400; color: #9ca3af; font-size: 0.78rem; }
-    .rpath { font-size: 0.72rem; color: #9ca3af; margin-top: 0.15rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .rstats { display: flex; flex-wrap: wrap; gap: 0.3rem 0.9rem; font-size: 0.78rem; color: #6b7280; font-variant-numeric: tabular-nums; }
-    .rstats b { color: #111; font-weight: 600; }
-    .prog { display: flex; flex-direction: column; gap: 0.3rem; }
-    .track { height: 6px; border-radius: 3px; background: #e5e7eb; overflow: hidden; position: relative; }
-    .track i { display: block; height: 100%; width: var(--w, 0%); background: #111; border-radius: 3px; transition: width 0.4s ease; }
-    .prog-line { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; font-size: 0.76rem; color: #444; }
-    .prog-line .eta { color: #111; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
-    .prog-line .pct { color: #6b7280; font-variant-numeric: tabular-nums; }
-    .prog-line .stop { border: 1px solid #d4d4d8; background: #fff; color: #991b1b; border-radius: 5px; padding: 0.1rem 0.5rem; font-size: 0.72rem; cursor: pointer; }
-    .prog-line .stop:hover { border-color: #991b1b; background: #fef2f2; }
-    .prog-line .stop:disabled { opacity: 0.5; cursor: default; }
-    .back { background: none; border: none; color: #6b7280; font-size: 0.85rem; cursor: pointer; padding: 0; margin-bottom: 1rem; }
-    .back:hover { color: #111; }
-
-    .pill.off { background: #f4f4f5; border-color: #d4d4d8; color: #52525b; }
-
-    /* behaviors */
-    .chips { display: flex; gap: 0.4rem; flex-wrap: wrap; }
-    .chip { border: 1px solid #e5e7eb; background: #fff; color: #444; border-radius: 999px; padding: 0.32rem 0.75rem; font-size: 0.78rem; cursor: pointer; transition: all 0.15s ease; }
-    .chip:hover { background: #f5f5f5; color: #000; }
-    .chip.on { background: #111; border-color: #111; color: #fff; }
-    .search { border: 1px solid #e5e7eb; border-radius: 8px; padding: 0.42rem 0.7rem; font-size: 0.82rem; min-width: 220px; outline: none; }
-    .search:focus { border-color: #111; }
-    .list { display: flex; flex-direction: column; gap: 0.85rem; margin-top: 1rem; }
-    .bcard { background: #fafafa; border: 1px solid #e5e7eb; border-radius: 10px; padding: 1.1rem 1.25rem; }
-    .bcard.waiting { background: #fff; border-color: #d4d4d8; box-shadow: 0 1px 0 rgba(0,0,0,0.02); }
-    .bcard-top { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; }
-    .btitle { font-size: 1rem; font-weight: 600; letter-spacing: -0.02em; line-height: 1.35; }
-    .bbody { font-size: 0.92rem; color: #333; line-height: 1.6; margin-top: 0.55rem; white-space: pre-wrap; overflow-wrap: anywhere; }
-    .bbody code, .meta code { font-size: 0.8em; background: #f0f0f2; border-radius: 4px; padding: 0.05rem 0.3rem; }
-    .meta { font-size: 0.84rem; color: #6b7280; margin-top: 0.75rem; line-height: 1.55; overflow-wrap: anywhere; }
-    .meta b { color: #444; font-weight: 600; }
-    .pill { display: inline-block; font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; border-radius: 999px; padding: 0.18rem 0.55rem; white-space: nowrap; border: 1px solid #e5e7eb; color: #444; background: #fff; }
-    .pill.fixed { background: #111; color: #fff; border-color: #111; }
-    .pill.wait { background: #fef9c3; border-color: #fde68a; color: #854d0e; }
-    .pill.bad { background: #fee2e2; border-color: #fecaca; color: #991b1b; }
-    .pill.ok { background: #dcfce7; border-color: #bbf7d0; color: #166534; }
-    .cost { display: grid; grid-template-columns: minmax(3rem, 1fr) 3.6rem; align-items: center; gap: 0.4rem; min-width: 8rem; font-size: 0.78rem; font-variant-numeric: tabular-nums; }
-    .cost i { display: block; height: 8px; width: var(--w); max-width: 100%; border-radius: 0 3px 3px 0; background: #111; }
-    .cost.off i { background: #d4d4d8; }
-    /* the Context tables, as the docs' example (site/docs.html "AGENTS.md this week"): a figure holding a caption with the
+    /* the Save tables, as the docs' example (site/docs.html "AGENTS.md this week"): a figure holding a caption with the
        window's figures, the table, a line for what is picked, and a note */
     .ctx-figure { margin: 1rem 0 0; padding: 1rem 1.1rem 0.9rem; border: 1px solid #e5e7eb; border-radius: 12px; background: #fcfcfb; }
     .ctx-figure figcaption { font-size: 0.88rem; color: #111; margin-bottom: 0.6rem; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem 0.6rem; }
@@ -168,6 +94,16 @@
     .ctx-table tr.ctx-picked td { background: #eff6ff; }
     .ctx-table tr.ctx-off td { color: #6b7280; }
     .ctx-table input[type=checkbox] { margin: 0 0.3rem 0 0; vertical-align: -1px; accent-color: #111; }
+    /* the Report tables: a trending cell is coloured against the week before, a provider's subtotal is bold with its models indented */
+    .rep-table th small { display: block; font-weight: 400; text-transform: none; letter-spacing: 0; color: #9ca3af; }
+    .rep-table td.num small { display: block; font-size: 0.68rem; font-weight: 500; }
+    .rep-table td.rep-up { background: #fee2e2; color: #991b1b; }
+    .rep-table td.rep-down { background: #dcfce7; color: #166534; }
+    .rep-table tr.rep-sub td { font-weight: 600; background: #f8f8f7; }
+    .rep-table tr.rep-total td { font-weight: 700; border-top: 2px solid #111; border-bottom: 0; }
+    .rep-indent { display: inline-block; padding-left: 1.4rem; }
+    .rep-fold { background: none; border: 0; padding: 0; font: inherit; color: #6b7280; cursor: pointer; width: 1rem; }
+    .rep-fold:hover { color: #111; }
     .ctx-kind { display: block; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; margin-top: 0.1rem; }
     .ctx-more { background: none; border: 0; padding: 0; margin-left: 0.5rem; font: inherit; font-size: 0.74rem; color: #6b7280; cursor: pointer; white-space: nowrap; }
     .ctx-more:hover { color: #111; text-decoration: underline; }
@@ -212,72 +148,12 @@
     @media (max-width: 760px) { .ctx-table td, .ctx-table th { white-space: normal; } .ctx-table td.ctx-name { min-width: 0; } }
     .ctx-top { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem 2rem; flex-wrap: wrap; margin-bottom: 1rem; }
     .ctx-top .controls { margin-top: 0; }
-    .tr-stats { display: flex; flex-wrap: wrap; gap: 0.8rem 1.3rem; margin-bottom: 1.1rem; }
-    .tr-stat .kicker { display: flex; align-items: center; gap: 0.35rem; margin-bottom: 0.15rem; }
-    .tr-stat .sw { width: 9px; height: 9px; border-radius: 2px; }
-    .tr-num { font-size: 1.25rem; font-weight: 600; font-variant-numeric: tabular-nums; }
-    .tr-num .muted { font-size: 0.8rem; font-weight: 400; }
-    .tr-stat:first-child .tr-num { font-size: 1.5rem; }
-    button.tr-stat { background: none; border: 0; padding: 0.15rem 0.3rem; margin: -0.15rem -0.3rem; text-align: left; cursor: pointer; border-radius: 6px; font: inherit; color: inherit; }
-    button.tr-stat:hover { background: #f4f4f5; }
-    button.tr-stat.hidden-part { opacity: 0.4; }
-    button.tr-stat.hidden-part .tr-num { text-decoration: line-through; }
-    .trend { display: grid; grid-template-columns: 3.2rem minmax(0, 1fr); height: 210px; }
-    .tr-y { display: flex; flex-direction: column; justify-content: space-between; font-size: 0.72rem; color: #6b7280; text-align: right; padding-right: 0.5rem; transform: translateY(0.45em); font-variant-numeric: tabular-nums; }
-    .tr-plot { position: relative; border-bottom: 1px solid #d4d4d8; }
-    .tr-grid { position: absolute; left: 0; right: 0; border-top: 1px solid #f0f0f0; }
-    .tr-cols { position: absolute; inset: 0; display: flex; gap: 6px; align-items: flex-end; padding: 0 2px; }
-    .tr-col { flex: 1 1 0; height: 100%; display: flex; align-items: flex-end; cursor: default; }
-    .tr-col:hover .tr-stack { opacity: 0.85; }
-    .tr-col.has-active .tr-stack { opacity: 1; }
-    .tr-col.has-active .tr-stack i { opacity: 0.35; }
-    .tr-col.has-active .tr-stack i.active { opacity: 1; }
-    .tr-tip [data-k] { padding: 0.05rem 0.25rem; margin: 0.1rem -0.25rem 0; border-radius: 3px; }
-    .tr-tip [data-k].active { background: #f4f4f5; font-weight: 600; }
-    .tr-stack { width: 100%; max-width: 3rem; margin: 0 auto; display: flex; flex-direction: column-reverse; gap: 2px; }
-    .tr-stack i { display: block; min-height: 1px; }
-    .tr-stack i:last-child { border-radius: 4px 4px 0 0; }
-    .tr-x { display: flex; gap: 6px; margin-left: 3.2rem; padding: 0.3rem 2px 0; font-size: 0.72rem; color: #6b7280; }
-    .tr-x span { flex: 1 1 0; text-align: center; white-space: nowrap; overflow: visible; }
-    #trend { position: relative; }
-    .tr-tip { position: absolute; top: 0; width: 190px; background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,.08); padding: 0.5rem 0.6rem; font-size: 0.76rem; pointer-events: none; z-index: 2; }
-    .tr-tip div { display: flex; align-items: center; gap: 0.35rem; margin-top: 0.15rem; }
-    .tr-tip .num { margin-left: auto; font-variant-numeric: tabular-nums; }
-    .tr-tip .sw { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
-    .tr-tip-total { border-top: 1px solid #eee; padding-top: 0.2rem; font-weight: 600; }
-    .stack { display: flex; gap: 2px; height: 22px; }
-    .stack i { display: block; min-width: 2px; }
-    .stack i:first-child { border-radius: 4px 0 0 4px; }
-    .stack i:last-child { border-radius: 0 4px 4px 0; }
-    .stack i:hover { opacity: 0.85; }
-    .stack-legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0.6rem 1.2rem; margin-top: 0.9rem; font-size: 0.86rem; }
-    .stack-legend > div { display: flex; gap: 0.5rem; align-items: flex-start; }
-    .stack-legend .sw { flex-shrink: 0; width: 10px; height: 10px; border-radius: 2px; margin-top: 0.3rem; }
-    .stack-legend .num { font-variant-numeric: tabular-nums; }
-    .stack-legend .why { color: #6b7280; font-size: 0.78rem; }
-    .issues { margin: 0.3rem 0 0.3rem 1.1rem; padding: 0; }
-    .issues li { margin: 0.15rem 0; }
-    .pills { display: flex; gap: 0.35rem; flex-wrap: wrap; justify-content: flex-end; }
-    .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.95rem; }
     .btn { border: 1px solid #000; background: #000; color: #fff; padding: 0.45rem 0.95rem; font-size: 0.82rem; font-weight: 500; border-radius: 6px; cursor: pointer; transition: all 0.15s ease; line-height: 1.25; }
     .btn:hover { background: #222; }
-    .btn.big { padding: 0.65rem 1.3rem; font-size: 0.9rem; }
     .btn.ghost { background: #fff; color: #111; border-color: #d4d4d8; }
     .btn.ghost:hover { border-color: #111; }
-    .btn.text { background: transparent; border-color: transparent; color: #991b1b; }
-    .btn.text:hover { background: #fef2f2; }
     .btn:disabled { opacity: 0.5; cursor: default; }
-    .field { display: flex; flex-direction: column; gap: 0.3rem; margin-top: 0.75rem; }
-    .field label { font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; }
-    .field input, .field textarea, .field select { border: 1px solid #d4d4d8; border-radius: 8px; padding: 0.55rem 0.7rem; font-size: 0.88rem; line-height: 1.5; outline: none; background: #fff; color: #111; }
-    .field textarea { min-height: 120px; resize: vertical; font-size: 0.85rem; }
-    .field input:focus, .field textarea:focus, .field select:focus { border-color: #111; }
     .empty { text-align: center; color: #6b7280; font-size: 0.88rem; padding: 2.2rem 1rem; border: 1px dashed #e5e7eb; border-radius: 10px; }
-    .describe { margin-top: 1.4rem; }
-    .bbody.clamp { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
-    .more { font-size: 0.78rem; color: #6b7280; margin-top: 0.3rem; cursor: pointer; background: none; border: none; padding: 0; }
-    .more:hover { color: #111; }
-
     .toast { position: fixed; bottom: 1.4rem; left: 50%; transform: translateX(-50%) translateY(20px); background: #111; color: #fff; font-size: 0.84rem; padding: 0.6rem 1rem; border-radius: 8px; opacity: 0; transition: all 0.2s ease; pointer-events: none; z-index: 50; }
     .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
     .toast.err { background: #991b1b; }
@@ -286,7 +162,7 @@
     .hint code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; background: rgba(255,255,255,0.14); padding: 0.1rem 0.35rem; border-radius: 4px; }
     .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid #d4d4d8; border-top-color: #111; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: -2px; margin-right: 0.4rem; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    /* the Context tab's spinner: the logo's three dots, the emphasis moving from one dot to the next */
+    /* the Save tab's spinner: the logo's three dots, the emphasis moving from one dot to the next */
     .logo-spin { display: inline-block; width: 28px; height: 28px; vertical-align: -9px; margin-right: 0.6rem; overflow: visible; }
     .logo-spin circle { fill: #000; fill-opacity: 0.22; transform-box: fill-box; transform-origin: center; animation: dot-emphasis 1.35s ease-in-out infinite; }
     .logo-spin circle:nth-child(2) { animation-delay: 0.45s; }
@@ -321,11 +197,6 @@
       nav { padding: 0.85rem 1rem; }
       main { padding: 1.5rem 1rem 3rem; }
       h1 { font-size: 1.5rem; }
-      .bench-row { grid-template-columns: minmax(0, 1fr) 104px; row-gap: 0.35rem; }
-      .bench-row > div:first-child { grid-column: 1 / -1; }
-      .bcard-top { flex-direction: column; }
-      .pills { justify-content: flex-start; }
-      .search { min-width: 0; width: 100%; }
       .brand-sub { display: none; }
       .modal-overlay { padding: 0.75rem; }
       .modal-header, .modal-body { padding-left: 1.1rem; padding-right: 1.1rem; }
@@ -336,68 +207,33 @@
   <nav>
     <div class="brand"><span class="wordmark">thinker</span><span class="brand-sub">local</span></div>
     <div class="nav-right">
-      <button class="nav-link" data-tab="context">Context</button>
-      <button class="nav-link" data-tab="cache">Cache<span class="count" id="wait-count" hidden></span></button>
+      <button class="nav-link" data-tab="save">Save</button>
+      <button class="nav-link" data-tab="report">Report</button>
     </div>
   </nav>
 
   <main>
-    <!-- Context: where the agents' context goes in one repository, and what each part is worth (context-view.js, as `thinker context`) -->
-    <section id="tab-context" hidden>
-      <div class="ctx-top"><div><h1>Context Overview</h1>
-      <p class="lede">Track where your agents are spending tokens <span class="muted" id="c-asof"></span></p></div>
+    <!-- Save: where the agents' context goes in one repository, what each part is worth, and the cuts (context-view.js, as `thinker context`) -->
+    <section id="tab-save" hidden>
+      <div class="ctx-top"><div><h1>Save</h1>
+      <p class="lede">Find where your agents' context goes to waste, and cut it <span class="muted" id="c-asof"></span></p></div>
       <div class="controls">
         <select class="sel" id="c-repo" aria-label="Repository"></select>
         <div class="seg" id="c-days-seg"><button data-days="7">7 days</button><button data-days="30" class="on">30 days</button></div>
-        <div class="seg" id="tr-measure"><button data-m="total" class="on">Total</button><button data-m="avg">Per session</button></div>
-        <div class="seg" id="tr-bucket"><button data-b="day">Daily</button><button data-b="week" class="on">Weekly</button></div>
       </div></div>
       <div id="context-body" class="section"><div class="empty"><svg class="logo-spin" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="22" r="6"/><circle cx="16" cy="16" r="6"/><circle cx="22" cy="10" r="6"/></svg>Reading the transcripts…</div></div>
     </section>
 
-    <!-- Cache: every repository with a cache, then one repository's notes and behaviors -->
-    <section id="tab-cache" hidden>
-      <div id="cache-overview">
-        <div class="ctx-top"><div><h1>Cache</h1>
-        <p class="lede">What the cache served your agents, what it holds, and what it saved</p></div>
-        <div class="controls">
-          <select class="sel" id="u-repo" aria-label="Repository"><option value="all">All repositories</option></select>
-          <div class="seg" id="days-seg"><button data-days="7">7 days</button><button data-days="30" class="on">30 days</button><button data-days="0">All time</button></div>
-        </div></div>
-        <div id="usage-body"><div class="empty"><span class="spinner"></span>Reading the log…</div></div>
-        <div class="section-head" style="margin-top:2rem"><div><div class="kicker">Every git repository on this machine with a cache</div><div class="section-title">Your repositories</div></div></div>
-        <div class="rgrid" id="r-grid"><div class="empty" style="grid-column:1/-1"><span class="spinner"></span>Reading the caches…</div></div>
-      </div>
-
-      <div id="cache-detail" hidden>
-        <button class="back" id="back">← All repositories</button>
-        <div class="kicker">Cache</div>
-        <h1 id="d-title"></h1>
-        <p class="lede">The notes your agents are served: what each says, the code it points at, where it came from and how often it was used. A <b>stale</b> note's code changed and it waits for a re-check; it is never served as fact. <b>Archived</b> notes are not served, and are kept for lookup by id. A <b>skill</b> card stands for a SKILL.md file; one found <b>out of date</b> lists what contradicts the code and is neither served nor re-checked until the file changes or you mark it reviewed.</p>
-        <div id="d-activity"></div>
-        <div class="controls">
-          <div class="chips" id="c-chips"></div>
-        </div>
-        <div class="cards section" id="c-stats" style="margin-top:1.4rem"></div>
-        <div class="controls" style="margin-top:1.2rem">
-          <div class="seg" id="sort-seg"><button data-sort="hits" class="on">Most hits</button><button data-sort="new">Newest</button><button data-sort="old">Oldest</button></div>
-          <div class="seg" id="kind-seg"><button data-kind="" class="on">All kinds</button><button data-kind="rule">Rules</button><button data-kind="map">Maps</button><button data-kind="howto">How-tos</button><button data-kind="skill">Skills</button></div>
-          <input class="search" id="c-search" placeholder="Search notes">
-        </div>
-        <div class="list" id="c-list"><div class="empty"><span class="spinner"></span>Reading the cache…</div></div>
-
-        <div class="section" id="behaviors">
-          <div class="section-head"><div><div class="kicker">System behaviors</div><div class="section-title">The rules every change must keep</div></div></div>
-          <p class="lede" style="margin-top:0">A behavior says what your system must always (or never) do, and where the code upholds it. An agent editing the code a behavior rests on is handed it first. They come from the design documents checked into the repository and are yours to edit or discard. A <b>mutable</b> behavior is revised when merged code changes it; a <b>fixed</b> one never is. Proposed behaviors are not requirements until you accept them.</p>
-          <div class="controls">
-            <div class="chips" id="chips"></div>
-            <input class="search" id="search" placeholder="Search behaviors">
-          </div>
-          <div class="list" id="b-list"></div>
-        </div>
-      </div>
+    <!-- Report: what a session costs here week by week, by part and by model, the actions taken and the cache's numbers (report.js, as `thinker report`) -->
+    <section id="tab-report" hidden>
+      <div class="ctx-top"><div><h1>Report</h1>
+      <p class="lede">What a session costs here, week by week: the average over each week's sessions, by where the tokens went and by the model that read them</p></div>
+      <div class="controls">
+        <select class="sel" id="r-repo" aria-label="Repository"></select>
+        <div class="seg" id="r-measure"><button data-m="tokens" class="on">Tokens</button><button data-m="cost">Cost</button></div>
+      </div></div>
+      <div id="report-body" class="section"><div class="empty"><svg class="logo-spin" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="22" r="6"/><circle cx="16" cy="16" r="6"/><circle cx="22" cy="10" r="6"/></svg>Reading the transcripts…</div></div>
     </section>
-
   </main>
   <div class="toast" id="toast"></div>
   <div class="hint" id="hint" role="status">Open this dashboard with <code>thinker ui</code></div>
@@ -451,15 +287,15 @@
 
         <div class="faq-item">
           <h3>Can Thinker cut what my agents load into every session?</h3>
-          <p>It shows you what to cut, and you decide. The Context view here and <code>thinker context</code> list every section of your instruction files, every skill and every tool with what it costs a session and how many sessions it bore on. A section you pick can be removed or compressed by a model: the diff is shown first, and Apply writes it to your working tree, uncommitted, for you to review and commit like any change. Nothing is cut on its own.</p>
+          <p>It shows you what to cut, and you decide. The Save view here and <code>thinker context</code> list every section of your instruction files, every skill and every tool with what it costs a session and how many sessions it bore on. A section you pick can be removed or compressed by a model: the diff is shown first, and Apply writes it to your working tree, uncommitted, for you to review and commit like any change. Nothing is cut on its own.</p>
         </div>
 
         <div class="faq-item">
           <h3>How can I tell if Thinker is helping my agents?</h3>
           <ul>
             <li><b>At the end of each turn</b> one line says what was served and the code it pointed at. It does not say "saved": whether the agent acted on a note is known only once the session is assessed.</li>
-            <li><b>The Context view here</b>, and <code>thinker context</code>, show where your agents' context goes: what each instruction section, skill and tool costs a session and how often sessions acted on it, so what you cut is measured on your own sessions.</li>
-            <li><b><code>thinker usage</code></b>, and the usage under Cache here, show notes served, what the sessions did with them (confirmed, contradicted, unused), what learning and maintenance cost in tokens, and an estimate of the reads avoided.</li>
+            <li><b>The Save view here</b>, and <code>thinker context</code>, show where your agents' context goes: what each instruction section, skill and tool costs a session and how often sessions acted on it, so what you cut is measured on your own sessions.</li>
+            <li><b><code>thinker usage</code></b>, and the cache's numbers under Report here, show notes served, what the sessions did with them (confirmed, contradicted, unused), what learning and maintenance cost in tokens, and an estimate of the reads avoided.</li>
             <li><b>The holdout is measured, not estimated.</b> 15% of prompts are served nothing, chosen by a hash of the session and the turn, and what every turn cost is read from the session's transcript. Once twenty prompts stand on each side, the holdout section compares the cost per prompt: tool calls and tokens with notes against without, on your repository, by your agent.</li>
           </ul>
           <p>A note served is not a note used. Read the confirmed and unused counts rather than the hit rate; a cache that serves often and is rarely acted on is costing tokens, and maintenance archives such notes over time.</p>
@@ -478,27 +314,17 @@ const api = async (p, body) => {
 };
 const $ = s => document.querySelector(s);
 const H = () => new URLSearchParams(location.hash.slice(1));
-// the repositories with a cache (/api/repos); REPO filters the usage page, DREPO is the one open on the cache page
-let REPOS = [], REPO = 'all', DREPO = H().get('repo') || '';
+// the repositories with a cache (/api/repos); REPO is the one picked for Report, CREPO for Save
+let REPOS = [], REPO = H().get('tab') === 'report' ? (H().get('repo') || 'all') : 'all';
 // setup opens the page once (from=setup); a hint in the corner says how to come back to it, then fades
 if (H().get('from') === 'setup') {
   setTimeout(() => $('#hint').classList.add('show'), 600);
   setTimeout(() => $('#hint').classList.remove('show'), 8600);
 }
-const ALL = () => REPO === 'all';
-let TAB = 'cache';
+let TAB = 'save';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-// path:Symbol pointers in a body read as code
-const rich = s => esc(s).replace(/(`[^`]+`)/g, m => `<code>${m.slice(1, -1)}</code>`).replace(/(^|[\s(])([\w./-]+\.[a-z]{1,5}:[\w$]+(?:\.[\w$]+)*)/g, '$1<code>$2</code>');
 // a negative count keeps its sign in front of the same short form (−26M, not -25669680)
 const fmt = n => n < 0 ? '−' + fmt(-n) : n >= 1e9 ? (n / 1e9).toFixed(n >= 1e10 ? 0 : 1) + 'B' : n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(n >= 1e4 ? 0 : 1) + 'k' : String(Math.round(n || 0));
-const pct = (a, b) => b ? Math.round(100 * a / b) + '%' : '—';
-const dur = s => !s ? '—' : s < 60 ? `${Math.round(s)}s` : s < 3600 ? `${Math.round(s / 60)} min` : `${(s / 3600).toFixed(1)} h`;
-const home = p => String(p || '').replace(/^\/Users\/[^/]+|^\/home\/[^/]+/, '~');
-// owner/name: the name stands alone, the owner goes with the path
-const rname = n => esc(String(n).slice(String(n).lastIndexOf('/') + 1));
-const owner = n => { const i = String(n).lastIndexOf('/'); return i < 0 ? '' : String(n).slice(0, i); };
-const ago = iso => { if (!iso) return 'no recent sessions'; const d = (Date.now() - Date.parse(iso)) / 86400_000; return d < 1 ? 'used today' : d < 2 ? 'used yesterday' : d < 30 ? `used ${Math.floor(d)} days ago` : `used ${Math.floor(d / 30)} months ago`; };
 let toastTimer;
 function toast(msg, err) { const t = $('#toast'); t.textContent = msg; t.className = 'toast show' + (err ? ' err' : ''); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.className = 'toast', 2600); }
 
@@ -512,72 +338,32 @@ faqOverlay.onclick = e => { if (e.target === faqOverlay) closeFaq(); };
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && faqOverlay.classList.contains('active')) closeFaq(); });
 
 // tabs
-document.querySelectorAll('.nav-link').forEach(b => b.onclick = () => { if (b.dataset.tab === 'cache') DREPO = ''; show(b.dataset.tab); });
-$('#back').onclick = () => { DREPO = ''; show('cache'); };
+document.querySelectorAll('.nav-link').forEach(b => b.onclick = () => show(b.dataset.tab));
 function show(tab) {
-  // the warm-up and tools pages are gone (2026-10-21): an old link to them, or any tab the page does not know, opens the Context view
-  // Recent changes became Context's All and History tabs (2026-10-22): an old link to it opens All
-  if (tab === 'changes') { tab = 'context'; CVIEW = 'all'; }
-  if (tab !== 'cache') tab = 'context';
+  // the Context tab is Save and the Cache tab is Report since 2026-10-22; an old link (context, changes, cache) and any
+  // tab the page does not know open the view that replaced it
+  if (tab === 'changes') { tab = 'save'; CVIEW = 'all'; }
+  if (tab === 'cache') tab = 'report';
+  if (tab !== 'report') tab = 'save';
   document.querySelectorAll('.nav-link').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-  $('#tab-context').hidden = tab !== 'context'; $('#tab-cache').hidden = tab !== 'cache';
+  $('#tab-save').hidden = tab !== 'save'; $('#tab-report').hidden = tab !== 'report';
   TAB = tab;
-  history.replaceState(null, '', `#tab=${tab}${tab === 'cache' && DREPO ? `&repo=${encodeURIComponent(DREPO)}` : ''}`);
-  if (tab === 'context') loadContext();
-  else if (DREPO) openRepo(DREPO);
-  else { $('#cache-overview').hidden = false; $('#cache-detail').hidden = true; loadRepos(); }
+  history.replaceState(null, '', `#tab=${tab}`);
+  if (tab === 'save') loadContext(); else loadReport();
 }
-
-// ---- usage -------------------------------------------------------------------------------
-let days = 30;
-document.querySelectorAll('#days-seg button').forEach(b => b.onclick = () => { days = Number(b.dataset.days); segOn('#days-seg', b); loadUsage(); });
 function segOn(sel, on) { document.querySelectorAll(sel + ' button').forEach(b => b.classList.toggle('on', b === on)); }
-$('#u-repo').onchange = e => { REPO = e.target.value; e.target.blur(); loadRepos(); };
-function fillRepoFilter() {
-  if (REPO !== 'all' && !REPOS.some(r => r.id === REPO)) REPO = 'all';
-  $('#u-repo').innerHTML = `<option value="all"${REPO === 'all' ? ' selected' : ''}>All repositories</option>` + REPOS.map(r => `<option value="${esc(r.id)}"${r.id === REPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
-}
-
-async function loadUsage() {
-  $('#usage-body').innerHTML = `<div class="empty"><span class="spinner"></span>Reading the log…</div>`;
-  try {
-    if (!REPOS.length) await fetchRepos();
-    renderUsage(await api(`/api/usage?repo=${encodeURIComponent(REPO)}${days ? `&days=${days}` : ''}`));
-  }
-  catch (e) { $('#usage-body').innerHTML = `<div class="empty">Could not read usage: ${esc(e.message)}</div>`; }
-}
 function card(kicker, num, label, rows, gain) {
   return `<div class="card"><div class="kicker">${kicker}</div><div class="metric-num${gain ? ' gain' : ''}">${num}</div><div class="metric-label">${label}</div>${rows && rows.length ? `<ul class="metric-rows">${rows.map(([a, b]) => `<li><span>${esc(a)}</span><span>${esc(b)}</span></li>`).join('')}</ul>` : ''}</div>`;
 }
-// The four numbers at the top of the Cache page, for every repository or the one picked, over the range, each
-// a number alone: the tokens the notes saved (measured against held-out prompts where there are enough of them,
-// else counted from the servings sessions acted on), the notes served, the share of judged servings the session
-// acted on, and the notes that can be served. What learning cost is in `thinker usage` (usage.js, by model).
-function renderUsage(u) {
-  const as = u.assessed || {}, judged = (as.confirmed || 0) + (as.contradicted || 0) + (as.unused || 0);
-  const served = Object.values(u.servings || {}).reduce((a, b) => a + b, 0);
-  const ho = u.holdout, measured = ho?.enough && ho.saved?.inputTokens != null;
-  const saved = measured ? ho.saved.inputTokens : u.saved?.tokens || 0;
-  $('#usage-body').innerHTML = `<div class="cards four">
-    ${card('Tokens saved', fmt(Math.max(0, saved)), measured ? 'input tokens, against prompts with the notes withheld' : 'tokens of code the agents did not read', null, true)}
-    ${card('Cache hits', fmt(served), `notes served, for ${fmt(u.answered)} of ${fmt(u.requests)} requests`)}
-    ${card('Acted on', judged ? pct(as.confirmed || 0, judged) : '–', `of ${fmt(judged)} servings the sessions were judged on`)}
-    ${card('Active notes', fmt(u.notesInCache || 0), ALL() ? 'in the caches, ready to serve' : 'in this cache, ready to serve')}
-  </div>`;
-}
 
-// ---- where the context goes in one repository (context-view.js:contextView, as `thinker context`) ----
-// `thinker ui --tab context --all` (the installer) asks for every repository at once; a session's summary links to All
+
+// ---- Save: where the context goes in one repository (context-view.js:contextView, as `thinker context`) ----
+// `thinker ui --tab save --all` (the installer) asks for every repository at once; a session's summary links to All
 // with its repository (context-suggest.js:suggestionsUrl)
-let CREPO = ['context', 'changes'].includes(H().get('tab')) ? (H().get('repo') === 'all' ? 'all' : H().get('repo') || '') : '', cdays = 30;
+let CREPO = ['save', 'context', 'changes'].includes(H().get('tab')) ? (H().get('repo') === 'all' ? 'all' : H().get('repo') || '') : '', cdays = 30;
 document.querySelectorAll('#c-days-seg button').forEach(b => b.onclick = () => { cdays = Number(b.dataset.days); segOn('#c-days-seg', b); loadContext(); });
 $('#c-repo').onchange = e => { CREPO = e.target.value; e.target.blur(); loadContext(); };
-document.querySelectorAll('#tr-measure button').forEach(b => b.onclick = () => { CMEASURE = b.dataset.m; segOn('#tr-measure', b); renderTrend(); });
-document.querySelectorAll('#tr-bucket button').forEach(b => b.onclick = () => { CBUCKET = b.dataset.b; segOn('#tr-bucket', b); renderTrend(); });
-const share = (a, b) => b ? `${Math.round(100 * a / b)}%` : '–';
-const costBar = (n, max, off) => `<div class="cost${off ? ' off' : ''}"><i style="--w:${max ? 100 * n / max : 0}%"></i>${fmt(n)}</div>`;
-const VALUE_PILL = { used: ['ok', 'used'], situational: ['', 'sometimes'], rare: ['wait', 'rarely'], unknown: ['off', 'too few'] };
-// the logo's three dots as the Context tab's spinner (.logo-spin): the same marks as the favicon
+// the logo's three dots as the Save tab's spinner (.logo-spin): the same marks as the favicon
 const LOGO_SPIN = '<svg class="logo-spin" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="22" r="6"/><circle cx="16" cy="16" r="6"/><circle cx="22" cy="10" r="6"/></svg>';
 async function loadContext() {
   const el = $('#context-body');
@@ -613,61 +399,8 @@ function contextAsOf(v) {
   }, 5000);
 }
 // an old link to Top suggested (view=suggested) opens All, which lists every part
-let CVIEW = ['all', 'history', 'instructions', 'custom', 'builtin', 'outputs'].includes(H().get('view')) ? H().get('view') : 'all', CTX = null, CMEASURE = 'total', CBUCKET = null, CHIDDEN = new Set();
-const cbucket = () => CBUCKET || (cdays <= 7 ? 'day' : 'week');
-// the parts of a session's input, in the palette's fixed order (dataviz slots 1-6, validated adjacent on white)
-const PARTS = [
-  ['instructions', 'Instruction files', '#2a78d6'], ['custom', 'Custom tools', '#eb6834'], ['builtin', 'Built-in tools', '#1baf7a'], ['outputs', 'Tool outputs', '#eda100'],
-];
-const dayKey = t => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
-const weekKey = t => { const d = new Date(dayKey(t)); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); };
+let CVIEW = ['all', 'history', 'instructions', 'custom', 'builtin', 'outputs'].includes(H().get('view')) ? H().get('view') : 'all', CTX = null;
 const dlabel = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-// Input tokens by day or week, stacked by part: the sum over the sessions of each, or that sum over its sessions
-// (each side over its own sessions: the instruction file and the loaded tools are read from different records).
-function mark(col, k) {
-  col.classList.toggle('has-active', !!k);
-  col.querySelectorAll('.tr-stack i').forEach(i => i.classList.toggle('active', i.dataset.k === k));
-  document.querySelectorAll('#trend .tr-tip [data-k]').forEach(r => r.classList.toggle('active', r.dataset.k === k));
-}
-function renderTrend() {
-  const v = CTX, el = $('#trend'); if (!v || !el) return;
-  const bucket = cbucket(), key = bucket === 'day' ? dayKey : weekKey, step = bucket === 'day' ? 1 : 7;
-  const end = key(Date.now()), start = key(Date.now() - (v.days - 1) * 86400_000), cols = [];
-  for (let t = start; t <= end; ) { cols.push({ t, sum: {}, n: {} }); const d = new Date(t); d.setDate(d.getDate() + step); t = d.getTime(); }
-  const byT = new Map(cols.map(c => [c.t, c]));
-  for (const r of v.timeline) {
-    const c = byT.get(key(r.t)); if (!c) continue;
-    // each part over the sessions that recorded it: the parts come from different readers
-    for (const [k] of PARTS) if (r[k] != null) { c.n[k] = (c.n[k] || 0) + 1; c.sum[k] = (c.sum[k] || 0) + r[k]; }
-  }
-  const val = (c, k) => { const n = c.sum[k] || 0; return CMEASURE === 'avg' ? (n ? n / (c.n[k] || 1) : 0) : n; };
-  // the parts with data; a part clicked away in the legend is left out of the columns and the total
-  const present = PARTS.filter(([k]) => cols.some(c => val(c, k) > 0)), live = present.filter(([k]) => !CHIDDEN.has(k));
-  const tot = c => live.reduce((a, [k]) => a + val(c, k), 0), max = Math.max(1, ...cols.map(tot));
-  const nice = (() => { const m = 10 ** Math.floor(Math.log10(max)), f = max / m; return ([1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].find(x => f <= x) || 10) * m; })();
-  const ticks = [0, 0.25, 0.5, 0.75, 1].map(f => f * nice);
-  const sessionsIn = c => Math.max(0, ...Object.values(c.n));
-  el.innerHTML = `<div class="trend"><div class="tr-y">${ticks.slice().reverse().map(t => `<span>${fmt(t)}</span>`).join('')}</div><div class="tr-plot">${ticks.map(t => `<i class="tr-grid" style="bottom:${100 * t / nice}%"></i>`).join('')}<div class="tr-cols">${cols.map((c, i) => `<div class="tr-col" data-i="${i}"><div class="tr-stack" style="height:${100 * tot(c) / nice}%">${live.map(([k, , color]) => val(c, k) ? `<i data-k="${k}" style="flex:${val(c, k)} 1 0;background:${color}"></i>` : '').join('')}</div></div>`).join('')}</div></div></div>
-    <div class="tr-x">${cols.map((c, i) => `<span>${cols.length <= 10 || i % Math.ceil(cols.length / 8) === 0 ? dlabel(c.t) : ''}</span>`).join('')}</div><div class="tr-tip" hidden></div>`;
-  // hover: one column's parts, its total and its sessions
-  const tip = el.querySelector('.tr-tip');
-  el.querySelectorAll('.tr-col').forEach(col => {
-    col.onmouseenter = () => { const c = cols[col.dataset.i]; tip.hidden = false; tip.innerHTML = `<b>${bucket === 'day' ? dlabel(c.t) : `Week of ${dlabel(c.t)}`}</b> · ${sessionsIn(c)} session${sessionsIn(c) === 1 ? '' : 's'}${live.slice().reverse().map(([k, name, color]) => `<div data-k="${k}"><span class="sw" style="background:${color}"></span>${name} <span class="num">${fmt(val(c, k))}</span></div>`).join('')}<div class="tr-tip-total">Total <span class="num">${fmt(tot(c))}</span></div>`; // beside the bar, never over it: to its left, or to its right where the left has no room
-      const bar = col.querySelector('.tr-stack').getBoundingClientRect(), p = el.getBoundingClientRect(), w = 190, gap = 8;
-      const left = bar.left - p.left - w - gap; tip.style.left = `${left >= 0 ? left : Math.min(p.width - w, bar.right - p.left + gap)}px`; };
-    col.onmouseleave = () => { tip.hidden = true; mark(col, null); };
-    // the part under the pointer: that segment stands out in its column, and its line on the card
-    col.querySelectorAll('.tr-stack i').forEach(seg => { seg.onmouseenter = () => mark(col, seg.dataset.k); seg.onmouseleave = () => mark(col, null); });
-  });
-  // the header total and the legend: over the whole window
-  const sumAll = k => v.timeline.reduce((a, r) => a + (r[k] || 0), 0);
-  const nOf = k => v.timeline.filter(r => r[k] != null).length;
-  const whole = k => CMEASURE === 'avg' ? (sumAll(k) ? sumAll(k) / (nOf(k) || 1) : 0) : sumAll(k);
-  const grand = live.reduce((a, [k]) => a + whole(k), 0);
-  const label = CMEASURE === 'avg' ? 'Per session' : 'Total';
-  $('#tr-legend').innerHTML = `<div class="tr-stat"><div class="kicker">${label}</div><div class="tr-num">${fmt(grand)}</div></div>` + present.map(([k, name, color]) => `<button class="tr-stat${CHIDDEN.has(k) ? ' hidden-part' : ''}" data-part="${k}" title="${CHIDDEN.has(k) ? 'show' : 'hide'} ${name} in the chart"><div class="kicker"><span class="sw" style="background:${color}"></span>${name}</div><div class="tr-num">${fmt(whole(k))}${CHIDDEN.has(k) ? '' : ` <span class="muted">${grand ? Math.round(100 * whole(k) / grand) : 0}%</span>`}</div></button>`).join('');
-  $('#tr-legend').querySelectorAll('[data-part]').forEach(b => b.onclick = () => { const k = b.dataset.part; CHIDDEN.has(k) ? CHIDDEN.delete(k) : CHIDDEN.add(k); renderTrend(); });
-}
 // a small markdown reader for the team's own file: headings, lists, code, tables as text, inline code, bold, links' text
 function md(text) {
   const inline = t => esc(t).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
@@ -860,9 +593,8 @@ async function previewSections(view, items) {
 function renderContext(v) {
   const el = $('#context-body'), iv = v.instructions, t = v.totals;
   CTX = v;
-  document.querySelectorAll('#tr-bucket button').forEach(b => b.classList.toggle('on', b.dataset.b === cbucket()));
-  let h = `<div class="panel"><div class="tr-stats" id="tr-legend"></div><div id="trend"></div></div>`;
-  // one table at a time under the chart: every part on All, then one kind each; History last, at the row's far right
+  let h = '';
+  // one table at a time: every part on All, then one kind each; History last, at the row's far right
   const all = contextRows(v), of = view => all.filter(r => r.view === view), perSession = rs => rs.reduce((a, r) => a + (r.off ? 0 : r.perSession), 0);
   const VIEWS = [['all', 'All'], ['instructions', 'Instruction files'], ['custom', 'Custom tools'], ['builtin', 'Built-in tools'], ['outputs', 'Tool outputs'], ['history', 'History']];
   const num = k => k === 'history' ? '<span class="spinner"></span>' : `${fmt(k === 'all' ? perSession(all) : t[k]?.perSession || 0)} <span>a session</span>`;
@@ -885,7 +617,6 @@ function renderContext(v) {
   el.innerHTML = h;
   for (const [k] of VIEWS) if (k !== 'history') wireTable(el.querySelector(`#c-${k}`), k, k === 'all' ? all : of(k));
   el.querySelectorAll('#c-view button').forEach(b => b.onclick = () => { CVIEW = b.dataset.view; el.querySelectorAll('#c-view button').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-selected', String(x === b)); }); el.querySelectorAll('.cview').forEach(x => x.hidden = x.dataset.view !== CVIEW); });
-  renderTrend();
   loadChanges();
   const act = async (btn, p, body, msg) => { if (btn) btn.disabled = true; try { const r = await api(p, { repo: CREPO, ...body }); toast(msg || (r.said && !String(r.said).startsWith('{') ? r.said : 'Saved')); loadContext(); } catch (err) { toast(err.message, true); if (btn) btn.disabled = false; } };
   $('#c-whole')?.addEventListener('click', e => act(e.target, '/api/context/core', { keep: null }));
@@ -932,271 +663,78 @@ function renderHistory(d) {
   hist.querySelectorAll('[data-more]').forEach(b => b.onclick = () => { const x = hist.querySelector(`[data-detail="${b.dataset.more}"]`), open = x.hidden; x.hidden = !open; b.setAttribute('aria-expanded', String(open)); b.textContent = open ? 'See less' : 'See more'; });
   hist.querySelectorAll('[data-revert]').forEach(b => b.onclick = async () => { const e = hs[Number(b.dataset.revert)]; busy(b, 'Reverting…'); try { toast((await api('/api/changes/revert', { repo: e.repo, id: e.id })).said); loadContext(); } catch (err) { toast(err.message, true); idle(b); } });
 }
-// ---- the caches on this machine --------------------------------------------------------------
-let ACT = {};
+// ---- the repositories with a cache on this machine ----
 async function fetchRepos() {
   const r = await api('/api/repos');
   REPOS = r.repos;
-  ACT = Object.fromEntries(REPOS.map(x => [x.id, x.stats?.activity || null]));
-  fillRepoFilter(); waitCount();
 }
-function waitCount() { const c = $('#wait-count'), n = REPOS.reduce((a, r) => a + (r.pending || 0), 0); c.hidden = !n; c.textContent = n; }
-// what is running against a cache: the distilling or verifying batch with its count and the ETA at its pace so
-// far; the item in hand (`detail`) only on the repository's own page
-const left = s => s == null ? '' : s <= 0 ? 'finishing' : `about ${dur(Math.max(5, s))} left`;
-function progress(r, { detail = false } = {}) {
-  const a = ACT[r.id];
-  if (!a) return '';
-  return `<div class="prog" data-id="${esc(r.id)}"><div class="track"><i style="--w:${a.total ? Math.round(100 * a.completed / a.total) : 0}%"></i></div>
-    <div class="prog-line"><span>${esc(a.status)}${a.saved ? ` · ${a.saved} note${a.saved === 1 ? '' : 's'}` : ''}${detail && a.current ? ` · ${esc(a.current)}` : ''}</span><span><span class="eta">${left(a.etaSeconds)}</span> <button class="stop" data-stop-pid="${a.pid}" data-repo="${esc(r.id)}">Stop</button></span></div></div>`;
-}
-function rcard(r) {
-  const s = r.stats || {};
-  return `<div class="rcard" data-id="${esc(r.id)}" title="${esc(r.checkout)}">
-    <div class="rtop"><div style="min-width:0"><div class="rname">${rname(r.name)}</div><div class="rpath mono">${owner(r.name) ? esc(owner(r.name)) + ' · ' : ''}${esc(home(r.checkout))}</div></div></div>
-    <div class="rstats"><span><b>${fmt(s.fresh || 0)}</b> fresh</span>${s.stale ? `<span><b>${fmt(s.stale)}</b> stale</span>` : ''}<span><b>${fmt(s.behaviors || 0)}</b> behaviors${r.pending ? ` <b>+${r.pending}</b> proposed` : ''}</span><span><b>${fmt(s.hits || 0)}</b> hits</span><span>${esc(ago(s.lastUsed))}</span></div>
-    <span class="pill${s.notes ? ' ok' : ''}">${fmt(s.notes || 0)} notes</span>${r.disabled ? '<span class="pill off" title="thinker is switched off for this repository; thinker enable turns it back on">off</span>' : ''}
-    ${progress(r)}</div>`;
-}
-async function loadRepos() {
+
+// ---- Report (report.js:reportView, as `thinker report`): the average a session cost each week, by part and by model ----
+let RPT = null, RMEASURE = 'tokens', RFOLD = new Set();
+$('#r-repo').onchange = e => { REPO = e.target.value; e.target.blur(); loadReport(); };
+document.querySelectorAll('#r-measure button').forEach(b => b.onclick = () => { RMEASURE = b.dataset.m; segOn('#r-measure', b); if (RPT) renderReport(RPT); });
+// a cell is trending when it moved this much against the week before (report.js:TREND_MIN): red up, green down
+const TREND_MIN = 0.05;
+// a dollar figure as prices.js:formatDollars makes it
+const money = d => d == null ? '–' : (d < 0 ? '−' : '') + '$' + (Math.abs(d) >= 10000 ? (Math.abs(d) / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : Math.abs(d) >= 100 ? String(Math.round(Math.abs(d))) : Math.abs(d) >= 10 ? Math.abs(d).toFixed(1) : Math.abs(d) >= 0.01 || d === 0 ? Math.abs(d).toFixed(2) : Math.abs(d).toFixed(3));
+async function loadReport() {
+  const el = $('#report-body');
+  el.innerHTML = `<div class="empty">${LOGO_SPIN}Reading the transcripts…</div>`;
   try {
-    await fetchRepos();
-    loadUsage();
-    const cards = REPOS.filter(r => ALL() || r.id === REPO).map(rcard);
-    $('#r-grid').innerHTML = cards.length ? cards.join('') : `<div class="empty" style="grid-column:1/-1">No caches yet. A cache starts with the first agent session in a git repository and grows from the sessions.</div>`;
-    wireGrid();
-  } catch (e) { $('#r-grid').innerHTML = `<div class="empty" style="grid-column:1/-1">Could not read the caches: ${esc(e.message)}</div>`; }
+    if (!REPOS.length) await fetchRepos();
+    if (REPO !== 'all' && !REPOS.some(r => r.id === REPO)) REPO = REPOS.find(r => r.current)?.id || 'all';
+    $('#r-repo').innerHTML = `<option value="all"${REPO === 'all' ? ' selected' : ''}>All repositories</option>` + REPOS.map(r => `<option value="${esc(r.id)}"${r.id === REPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
+    const v = await api(`/api/report?repo=${encodeURIComponent(REPO)}&weeks=5`);
+    if (v.empty) { el.innerHTML = '<div class="empty">No repository with a cache on this machine yet.</div>'; return; }
+    renderReport(v);
+  } catch (e) { el.innerHTML = `<div class="empty">Could not read the report: ${esc(e.message)}</div>`; }
 }
-function wireGrid() {
-  document.querySelectorAll('#r-grid .rcard[data-id]').forEach(el => el.onclick = e => { if (e.target.closest('button')) return; DREPO = el.dataset.id; show('cache'); });
-  wireStops();
+function renderReport(v) {
+  RPT = v;
+  const cost = RMEASURE === 'cost', el = $('#report-body');
+  // a cell: the week's sum over its sessions (the priced ones in the cost view), null where the week has none
+  const avg = (c, w) => { const col = v.columns[w]; return cost ? (col.priced ? c.cost / col.priced : null) : (col.sessions ? c.tokens / col.sessions : null); };
+  const fv = x => x == null ? '<span class="muted">–</span>' : cost ? money(x) : fmt(x);
+  const tcell = (cells, w, title) => {
+    const a = avg(cells[w], w), p = w ? avg(cells[w - 1], w - 1) : null;
+    const t = p && a != null ? (a > p * (1 + TREND_MIN) ? 'up' : a < p * (1 - TREND_MIN) ? 'down' : '') : '', d = p && a != null ? Math.round(100 * (a - p) / p) : null;
+    return `<td class="num${t ? ` rep-${t}` : ''}"${title ? ` title="${esc(title)}"` : ''}>${fv(a)}${t ? `<small>${d > 0 ? '+' : ''}${d}%</small>` : ''}</td>`;
+  };
+  const row = (name, cells, { cls = '', sub = '', titles, data = '' } = {}) => `<tr class="${cls}"${data}><td class="ctx-name">${name}${sub ? `<span class="ctx-kind">${sub}</span>` : ''}</td>${cells.map((c, w) => tcell(cells, w, titles ? titles(c, w) : '')).join('')}</tr>`;
+  const head = nameHead => `<thead><tr><th>${nameHead}</th>${v.columns.map(c => `<th class="num">Week of ${dlabel(c.t)}<small>${c.sessions} session${c.sessions === 1 ? '' : 's'}${cost && c.priced !== c.sessions ? `, ${c.priced} priced` : ''}</small></th>`).join('')}</tr></thead>`;
+  const unit = cost ? 'cost at list prices' : 'tokens';
+  const sessions = v.columns.reduce((a, c) => a + c.sessions, 0), unmeasured = v.columns.reduce((a, c) => a + c.unmeasured, 0);
+  const sub = `${sessions} session${sessions === 1 ? '' : 's'} over ${v.weeks} weeks${unmeasured ? `, ${unmeasured} more whose agent reported no usage (Cursor) left out` : ''}${v.all ? ` · ${v.repos.length} repositories` : ''}`;
+  const parts = `<figure class="ctx-figure"><figcaption><b>By part of the context</b> <span class="ctx-sub">${sub}</span></figcaption>
+    <table class="ctx-table rep-table">${head('Part')}<tbody>${v.parts.map(p => row(esc(p.name), p.cells)).join('')}${row('Total', v.totals, { cls: 'rep-total' })}</tbody></table>
+    <p class="ctx-note">Average ${unit} per session, the week's sum over its sessions. <b>Red</b>: up ${Math.round(100 * TREND_MIN)}% or more against the week before; <b>green</b>: down as much. The parts are the Context view's estimates from each session's transcript (its instruction files, the skills and tools loaded, its tool outputs, each read again by every model call), scaled down to the session's measured input where they overshoot it; <b>Other input</b> is the rest of the input, the conversation itself; <b>Output</b> is what the model wrote.${cost ? ` Cost prices the tokens at the providers' list rates of ${esc(v.pricedOn)} (fresh input, cache reads and writes, output, each at its rate): what they would cost on a metered key; a subscription pays differently.` : ''}</p></figure>`;
+  const fold = p => RFOLD.has(p), modelsOf = p => v.models.filter(m => m.provider === p);
+  const mtitle = m => (c, w) => `${c.sessions} session${c.sessions === 1 ? '' : 's'} on ${m.model} this week${c.sessions ? `, ${cost ? (c.priced ? money(c.cost / c.priced) : '–') : fmt(c.tokens / c.sessions)} per session of its own` : ''}`;
+  const models = `<figure class="ctx-figure"><figcaption><b>By model</b> <span class="ctx-sub">each model's share of the average session, its provider's subtotal above its models</span></figcaption>
+    <table class="ctx-table rep-table">${head('Provider · model')}<tbody>${v.providers.map(p => row(`<button class="rep-fold" data-fold="${esc(p.name)}" aria-expanded="${!fold(p.name)}">${fold(p.name) ? '▸' : '▾'}</button> ${esc(p.name)}`, p.cells, { cls: 'rep-sub', sub: `${modelsOf(p.name).length} model${modelsOf(p.name).length === 1 ? '' : 's'}` }) + (fold(p.name) ? '' : modelsOf(p.name).map(m => row(`<span class="rep-indent">${esc(m.model)}</span>`, m.cells, { cls: m.priced ? '' : 'ctx-off', sub: m.priced ? '' : 'no list price', titles: mtitle(m) })).join(''))).join('')}${row('Total', v.totals, { cls: 'rep-total' })}</tbody></table>
+    <p class="ctx-note">A model's row is its share of the average session that week (its tokens over every session of the week), so the rows add up to the total and a switch of model shows as one row falling while another rises; hover a cell for the sessions on that model and the average per session of its own.${v.unpriced.length ? ` No list price for ${v.unpriced.map(esc).join(', ')}: their sessions are left out of the cost average.` : ''}</p></figure>`;
+  // the decisions taken on the Save page in the window, to read the weeks against (context-suggest.js:changeHistory)
+  const when = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const done = a => a.revertedAt ? ['off', 'Reverted'] : a.decision === 'dismissed' ? ['off', 'Dismissed'] : ['ok', { off: 'Switched off', on: 'Turned back on', compress: 'Compressed', remove: 'Removed', high: 'High compression', uncompress: 'Compression off' }[a.act] || 'Applied'];
+  const actions = `<figure class="ctx-figure"><figcaption><b>Actions in the window</b> <span class="ctx-sub">what was applied on the Save page, by date, to read the weeks against</span></figcaption>
+    ${v.actions.length ? `<table class="ctx-table"><thead><tr><th>Date</th><th>Change</th><th>Worth</th><th></th></tr></thead><tbody>${v.actions.map(a => { const [cls, label] = done(a); return `<tr class="${a.revertedAt ? 'ctx-off' : ''}"><td class="num">${when(a.at)}${a.revertedAt ? `<small>reverted ${when(a.revertedAt)}</small>` : ''}</td><td class="ctx-name"><b>${esc(a.title)}</b><span class="ctx-kind">${esc([{ section: 'Instruction section', skill: 'Skill', tool: 'Tool', output: 'Tool output' }[a.kind] || a.kind, a.repoName].filter(Boolean).join(' · '))}</span></td><td class="num">${a.saving ? `${fmt(a.saving)} <span class="muted">a session</span>` : '–'}</td><td><span class="ctx-pill ${cls}">${label}</span></td></tr>`; }).join('')}</tbody></table>` : '<div class="empty">No actions in these weeks. What you apply on the Save page is listed here with its date.</div>'}</figure>`;
+  // the cache's numbers over the same window (usage.js:summarize), its saving in dollars first
+  const c = v.cache;
+  const cards = `<div class="section"><div class="kicker">The cache, over the same ${v.weeks} weeks</div><div class="cards four" style="margin-top:0.6rem">
+    ${card('$ saved', money(Math.max(0, c.dollarsSaved)), `${c.measured ? 'the input tokens saved against held-out prompts' : 'the code the agents did not read'}, at each model's list input price${c.unpricedTokens ? `; ${fmt(c.unpricedTokens)} tokens on unpriced models not counted` : ''}`, null, true)}
+    ${card('Tokens saved', fmt(Math.max(0, c.tokensSaved)), c.measured ? 'input tokens, against prompts with the notes withheld' : 'tokens of code the agents did not read', null, true)}
+    ${card('Cache hits', fmt(c.hits), `notes served, for ${fmt(c.answered)} of ${fmt(c.requests)} requests`)}
+    ${card('Acted on', c.acted == null ? '–' : `${Math.round(100 * c.acted)}%`, `of ${fmt(c.judged)} servings the sessions were judged on`)}
+  </div></div>`;
+  el.innerHTML = parts + models + actions + cards;
+  el.querySelectorAll('[data-fold]').forEach(b => b.onclick = () => { const p = b.dataset.fold; RFOLD.has(p) ? RFOLD.delete(p) : RFOLD.add(p); renderReport(v); });
 }
-function wireStops() {
-  document.querySelectorAll('[data-stop-pid]').forEach(btn => btn.onclick = async () => {
-    btn.disabled = true;
-    try {
-      const r = await api('/api/activity/cancel', { repo: btn.dataset.repo, pid: Number(btn.dataset.stopPid) }); toast(`Stopped ${r.kind} at ${r.completed}/${r.total}; the notes saved so far stay`);
-      await refreshActivity(true);
-    } catch (e) { btn.disabled = false; toast(e.message, true); }
-  });
-}
-// every few seconds while the cache page is open: the bars move, and a batch that ended reloads the cards
-let prevAct = '';
-async function refreshActivity(force) {
-  if (TAB !== 'cache' && !force) return;
-  try {
-    const r = await api('/api/activity');
-    ACT = r.repos;
-    const key = JSON.stringify(Object.entries(ACT).map(([k, a]) => k + (a ? a.pid : '')));
-    if (force || (prevAct && key !== prevAct)) { prevAct = key; if (DREPO) { await fetchRepos(); renderActivity(); } else await loadRepos(); return; }
-    prevAct = key;
-    if (DREPO) renderActivity();
-    else document.querySelectorAll('#r-grid .rcard[data-id]').forEach(el => { const r = REPOS.find(x => x.id === el.dataset.id); if (!r) return; const old = el.querySelector('.prog, .prog-line'); const h = progress(r); if (old) old.outerHTML = h; else if (h) el.insertAdjacentHTML('beforeend', h); });
-    wireStops();
-  } catch {}
-}
-setInterval(() => refreshActivity(false), 3000);
-
-// ---- one repository: its notes, then its behaviors ------------------------------------------
-async function openRepo(id) {
-  $('#cache-overview').hidden = true; $('#cache-detail').hidden = false;
-  if (!REPOS.length) { try { await fetchRepos(); } catch {} }
-  const r = REPOS.find(x => x.id === id);
-  if (!r) { DREPO = ''; return show('cache'); }
-  $('#d-title').textContent = r.name;
-  renderActivity();
-  loadCache(); loadBehaviors();
-}
-function renderActivity() {
-  const r = REPOS.find(x => x.id === DREPO); if (!r) return;
-  const h = progress(r, { detail: true });
-  $('#d-activity').innerHTML = h ? `<div class="panel" style="margin-top:1.2rem;padding:0.9rem 1.1rem">${h}</div>` : '';
-  wireStops();
-}
-const rq = () => `repo=${encodeURIComponent(DREPO)}`;
-let C = { notes: [] }, cFilter = 'serving', cKind = '', cQuery = '', expanded = new Set();
-const C_FILTERS = [
-  ['serving', 'Served', n => n.status === 'fresh' || n.status === 'stale'],
-  ['fresh', 'Fresh', n => n.status === 'fresh'],
-  ['stale', 'Stale', n => n.status === 'stale'],
-  ['broken', 'Out of date', n => n.status === 'broken'],
-  ['archived', 'Archived', n => n.status === 'archived'],
-  ['retired', 'Retired', n => n.status === 'retired'],
-  ['all', 'All', () => true],
-];
-const C_MAX = 200;
-let cSort = 'hits';
-document.querySelectorAll('#sort-seg button').forEach(b => b.onclick = () => { cSort = b.dataset.sort; segOn('#sort-seg', b); renderCache(); });
-const ageDays = n => n.created ? Math.max(0, (Date.now() - Date.parse(n.created)) / 86400_000) : null;
-const age = d => d == null ? 'age unknown' : d < 1 ? 'today' : d < 14 ? `${Math.floor(d)} day${Math.floor(d) === 1 ? '' : 's'}` : d < 60 ? `${Math.floor(d / 7)} weeks` : d < 730 ? `${Math.floor(d / 30)} months` : `${Math.floor(d / 365)} years`;
-const median = xs => { const v = xs.filter(x => x != null).sort((a, b) => a - b); return v.length ? v[Math.floor(v.length / 2)] : null; };
-const SORTS = {
-  hits: (a, b) => b.uses - a.uses || String(b.lastUsed || '').localeCompare(String(a.lastUsed || '')) || a.title.localeCompare(b.title),
-  new: (a, b) => String(b.created || '').localeCompare(String(a.created || '')),
-  old: (a, b) => String(a.created || '9').localeCompare(String(b.created || '9')),
-};
-$('#c-search').oninput = e => { cQuery = e.target.value.toLowerCase(); renderCache(); };
-document.querySelectorAll('#kind-seg button').forEach(b => b.onclick = () => { cKind = b.dataset.kind; segOn('#kind-seg', b); renderCache(); });
-const day = s => s ? String(s).slice(0, 10) : '';
-
-async function loadCache() {
-  if (!C.notes.length || C.repoKey !== DREPO) { $('#c-list').innerHTML = `<div class="empty"><span class="spinner"></span>Reading the cache…</div>`; $('#c-stats').innerHTML = ''; }
-  try { C = await api(`/api/cache?${rq()}`); C.repoKey = DREPO; renderCache(); }
-  catch (e) { $('#c-list').innerHTML = `<div class="empty">Could not read the cache: ${esc(e.message)}</div>`; }
-}
-function renderCache() {
-  const byKind = C.notes.filter(n => !cKind || n.kind === cKind);
-  $('#c-chips').innerHTML = C_FILTERS.map(([k, label, f]) => `<button class="chip${k === cFilter ? ' on' : ''}" data-f="${k}">${label} · ${byKind.filter(f).length}</button>`).join('');
-  document.querySelectorAll('#c-chips .chip').forEach(c => c.onclick = () => { cFilter = c.dataset.f; renderCache(); });
-  const f = C_FILTERS.find(x => x[0] === cFilter)[2];
-  const shown = byKind.filter(f).filter(n => !cQuery || (n.title + ' ' + n.body + ' ' + n.pointers.join(' ')).toLowerCase().includes(cQuery))
-    .sort(SORTS[cSort]);
-  const inView = byKind.filter(f), hits = inView.reduce((a, n) => a + n.uses, 0), hit = inView.filter(n => n.uses > 0).length, ages = inView.map(ageDays);
-  const fresh7 = inView.filter(n => { const d = ageDays(n); return d != null && d < 7; }).length;
-  $('#c-stats').innerHTML = inView.length ? `
-    ${card('Notes', fmt(inView.length), 'in this view', [['Rules', fmt(inView.filter(n => n.kind === 'rule').length)], ['Maps', fmt(inView.filter(n => n.kind === 'map').length)], ['How-tos', fmt(inView.filter(n => n.kind === 'howto').length)], ['Skills', fmt(inView.filter(n => n.kind === 'skill').length)]])}
-    ${card('Cache hits', fmt(hits), 'times these notes were served to an agent', [['Notes served at least once', `${fmt(hit)} (${pct(hit, inView.length)})`], ['Never served', fmt(inView.length - hit)], ['Hits per served note', hit ? (hits / hit).toFixed(1) : '—']])}
-    ${card('Age', age(median(ages)), 'median age, since each note was written', [['Written this week', fmt(fresh7)], ['Newest', age(Math.min(...ages.filter(x => x != null)))], ['Oldest', age(Math.max(...ages.filter(x => x != null)))]])}` : '';
-  if (!shown.length) {
-    $('#c-list').innerHTML = `<div class="empty">${C.notes.length ? 'No notes here.' : 'The cache is empty: it grows from your sessions.'}</div>`;
-    return;
-  }
-  $('#c-list').innerHTML = shown.slice(0, C_MAX).map(ncard).join('') + (shown.length > C_MAX ? `<div class="note-line">Showing ${C_MAX} of ${shown.length}, most used first. Search to narrow them down.</div>` : '');
-  wireCache();
-}
-function npills(n) {
-  const st = { fresh: '<span class="pill ok">Fresh</span>', stale: '<span class="pill wait">Stale</span>', broken: '<span class="pill bad">Out of date</span>', archived: '<span class="pill">Archived</span>', retired: '<span class="pill bad">Retired</span>' }[n.status];
-  return `${st}<span class="pill">${esc(n.kind)}</span>`;
-}
-function ncard(n) {
-  const open = expanded.has(n.repo + '|' + n.id), long = n.body.length > 360, d = ageDays(n);
-  const meta = [
-    n.pointers.length ? `<b>Points at</b> ${n.pointers.map(p => `<code>${esc(p)}</code>`).join(' ')}` : '',
-    `<b>${fmt(n.uses)} hit${n.uses === 1 ? '' : 's'}</b>${n.lastUsed ? `, last on ${day(n.lastUsed)}` : n.uses ? '' : ', never served yet'} · <b>Age</b> ${age(d)} · <b>Confidence</b> ${Math.round(100 * n.confidence)}%`,
-    `<b>From</b> ${esc(n.source || 'unknown')}${n.created ? ` · <b>Written</b> ${day(n.created)}` : ''}${n.verified ? ` · <b>Verified</b> ${day(n.verified)}` : ''}${n.scope === 'repo' ? ' · committed with the repository' : ''}`,
-    n.status === 'stale' && n.changed.length ? `<b>Code changed</b> ${n.changed.map(esc).join(', ')} · re-checked on the next maintenance run, or <code>thinker verify ${esc(n.id)}</code>` : '',
-    n.status === 'archived' ? `<b>Archived</b> ${day(n.archived?.at)}${n.archived?.reason ? `: ${esc(n.archived.reason)}` : ''}` : '',
-    n.status === 'retired' && n.invalidReason ? `<b>Retired</b> ${esc(n.invalidReason)}` : '',
-    n.skill ? `<b>Skill</b> <code>${esc(n.skill.name)}</code> in <code>${esc(n.skill.file)}</code>` : '',
-    n.broken ? `<b>Out of date</b> since ${day(n.broken.at)}${n.broken.source ? ` (found by ${n.broken.source === 'session' ? 'a session' : 'the audit'})` : ''}${n.broken.reason ? `: ${esc(n.broken.reason)}` : ''}` + (n.broken.issues.length ? `<ul class="issues">${n.broken.issues.map(i => `<li><b>${esc(i.claim)}</b>${i.actual ? ` — ${esc(i.actual)}` : ''}${i.pointer ? ` <code>${esc(i.pointer)}</code>` : ''}</li>`).join('')}</ul>` : '<br>') + `Not served or re-checked until the skill file changes or you mark it reviewed.` : '',
-  ].filter(Boolean).join('<br>');
-  const act = n.status === 'archived' ? `<button class="btn ghost" data-act="restore">Restore to serving</button>`
-    : n.status === 'broken' ? `<button class="btn ghost" data-act="review">Mark reviewed: serve and re-check again</button>`
-    : n.status === 'retired' ? '' : `<button class="btn ghost" data-act="archive">Archive</button>`;
-  return `<div class="bcard" data-id="${esc(n.id)}" data-repo="${esc(n.repo)}"><div class="bcard-top"><div class="btitle">${esc(n.title)}</div><div class="pills">${npills(n)}</div></div>
-    <div class="bbody${long && !open ? ' clamp' : ''}" data-act="expand">${rich(n.body)}</div>${long ? `<button class="more" data-act="expand">${open ? 'Show less' : 'Show more'}</button>` : ''}
-    <div class="meta">${meta}</div>${act ? `<div class="actions">${act}</div>` : ''}</div>`;
-}
-function wireCache() {
-  document.querySelectorAll('#c-list .bcard').forEach(el => {
-    const id = el.dataset.id, repo = el.dataset.repo, key = repo + '|' + id;
-    el.querySelectorAll('[data-act]').forEach(btn => btn.onclick = async () => {
-      const act = btn.dataset.act;
-      if (act === 'expand') { expanded.has(key) ? expanded.delete(key) : expanded.add(key); return renderCache(); }
-      btn.disabled = true;
-      try {
-        await api(`/api/cache/${act}`, { id, repo });
-        toast(act === 'archive' ? 'Archived: no longer served' : act === 'review' ? 'Reviewed: the skill is served and re-checked again' : 'Restored: served again');
-        await loadCache();
-      } catch (e) { btn.disabled = false; toast(e.message, true); }
-    });
-  });
-}
-
-// ---- behaviors ---------------------------------------------------------------------------
-let B = { active: [], pending: [] }, filter = 'waiting', query = '', editing = null;
-const FILTERS = [
-  ['waiting', 'Proposed', b => b.waiting],
-  ['active', 'Active', b => !b.waiting],
-  ['fixed', 'Fixed', b => !b.waiting && b.mutability === 'fixed'],
-  ['mutable', 'Mutable', b => !b.waiting && b.mutability !== 'fixed'],
-  ['attention', 'Broken or unverified', b => !b.waiting && (b.state === 'violated' || b.state === 'unverified')],
-  ['all', 'All', () => true],
-];
-$('#search').oninput = e => { query = e.target.value.toLowerCase(); renderBehaviors(); };
-
-async function loadBehaviors() {
-  $('#b-list').innerHTML = `<div class="empty"><span class="spinner"></span>Reading behaviors…</div>`;
-  try {
-    const r = await api(`/api/behaviors?${rq()}`);
-    B = r;
-    const n = r.pending.length;
-    if (filter === 'waiting' && !n) filter = 'active';
-    renderBehaviors();
-  } catch (e) { $('#b-list').innerHTML = `<div class="empty">Could not read behaviors: ${esc(e.message)}</div>`; }
-}
-const bkey = b => (b.waiting ? 'p:' : 'a:') + b.repo + '|' + b.id;
-function all() { return [...B.pending.map(b => ({ ...b, waiting: true })), ...B.active.map(b => ({ ...b, waiting: false }))]; }
-function renderBehaviors() {
-  const items = all();
-  $('#chips').innerHTML = FILTERS.map(([k, label, f]) => `<button class="chip${k === filter ? ' on' : ''}" data-f="${k}">${label} · ${items.filter(f).length}</button>`).join('');
-  document.querySelectorAll('#chips .chip').forEach(c => c.onclick = () => { filter = c.dataset.f; editing = null; renderBehaviors(); });
-  const f = FILTERS.find(x => x[0] === filter)[2];
-  const shown = items.filter(f).filter(b => !query || (b.title + ' ' + b.body).toLowerCase().includes(query));
-  if (!shown.length) {
-    $('#b-list').innerHTML = `<div class="empty">${filter === 'waiting' ? 'No proposed behaviors.' : 'No behaviors here yet. <code>thinker system docs</code> reads them from the design documents (READMEs) checked into the repository. To add one, state the rule in a README beside the code or in a design file.'}</div>`;
-    return;
-  }
-  $('#b-list').innerHTML = shown.map(bcard).join('');
-  wire();
-}
-function pills(b) {
-  if (b.waiting) return `<span class="pill wait">Proposed · ${b.origin === 'draft' ? 'build draft' : 'agent proposal'}</span>`;
-  const st = b.state === 'violated' ? `<span class="pill bad">Violated</span>` : b.state === 'unverified' ? `<span class="pill wait">Unverified</span>` : `<span class="pill ok">Holds</span>`;
-  return `${st}<span class="pill${b.mutability === 'fixed' ? ' fixed' : ''}">${b.mutability === 'fixed' ? 'Fixed' : 'Mutable'}</span>`;
-}
-function bcard(b) {
-  const key = bkey(b);
-  if (editing === key) return `<div class="bcard${b.waiting ? ' waiting' : ''}" data-key="${esc(key)}">
-    <div class="kicker">${b.waiting ? 'Edit, then accept' : 'Edit behavior'}</div>
-    <div class="field"><label>Title</label><input data-in="title" value="${esc(b.title)}"></div>
-    <div class="field"><label>What it requires, and where the code upholds it (path:Symbol)</label><textarea data-in="body">${esc(b.body)}</textarea></div>
-    <div class="field"><label>When merged code changes it</label><select data-in="mutability"><option value="mutable"${b.mutability !== 'fixed' ? ' selected' : ''}>Mutable · the behavior is revised to match</option><option value="fixed"${b.mutability === 'fixed' ? ' selected' : ''}>Fixed · the behavior is never revised</option></select></div>
-    <div class="actions"><button class="btn" data-act="save">${b.waiting ? 'Save and accept' : 'Save'}</button><button class="btn ghost" data-act="cancel">Cancel</button></div></div>`;
-  const meta = [
-    b.pointers?.length ? `<b>Upheld at</b> ${b.pointers.map(p => `<code>${esc(p)}</code>`).join(' ')}` : '',
-    b.waiting ? `<b>${b.origin === 'draft' ? 'Drafted from' : 'From'}</b> ${esc(b.evidence)}` : `<b>Origin</b> ${esc(b.origin)}`,
-    b.waiting && b.reason ? `<b>Why</b> ${esc(b.reason)}` : '',
-    !b.waiting && b.quote ? (b.unstated ? `<b>The document no longer says</b> “${esc(b.quote)}” · keep it as yours by editing it, or discard it` : `<b>The document says</b> “${esc(b.quote)}”`) : '',
-    !b.waiting && b.state === 'violated' ? `<b>Broken since</b> ${esc(b.since || '?')}: ${esc(b.reason)}` : '',
-    !b.waiting && b.state === 'unverified' ? `<b>Code changed</b> ${esc(b.reason)} · re-checked on the next maintenance run, or <code>thinker verify</code>` : '',
-  ].filter(Boolean).join('<br>');
-  const actions = b.waiting
-    ? `<button class="btn" data-act="accept">Accept</button><button class="btn ghost" data-act="fixed">Accept as fixed</button><button class="btn ghost" data-act="edit">Edit</button><button class="btn text" data-act="discard">Discard</button>`
-    : `<button class="btn ghost" data-act="edit">Edit</button><button class="btn ghost" data-act="toggle">${b.mutability === 'fixed' ? 'Make mutable' : 'Make fixed'}</button>${b.fromDoc ? '<button class="btn text" data-act="discard">Discard</button>' : ''}`;
-  return `<div class="bcard${b.waiting ? ' waiting' : ''}" data-key="${esc(key)}"><div class="bcard-top"><div class="btitle">${esc(b.title)}</div><div class="pills">${pills(b)}</div></div>
-    <div class="bbody">${rich(b.body)}</div><div class="meta">${meta}</div><div class="actions">${actions}</div></div>`;
-}
-function wire() {
-  document.querySelectorAll('#b-list .bcard').forEach(el => {
-    const key = el.dataset.key, b = all().find(x => bkey(x) === key);
-    el.querySelectorAll('[data-act]').forEach(btn => btn.onclick = async () => {
-      const act = btn.dataset.act;
-      if (act === 'edit') { editing = key; return renderBehaviors(); }
-      if (act === 'cancel') { editing = null; return renderBehaviors(); }
-      btn.disabled = true;
-      try {
-        if (act === 'accept' || act === 'fixed') { await api('/api/behaviors/accept', { id: b.id, repo: b.repo, mutability: act === 'fixed' ? 'fixed' : 'mutable' }); toast(act === 'fixed' ? 'Accepted as fixed: never revised by merged code' : 'Accepted: agents editing that code are handed it'); }
-        else if (act === 'discard') { await api('/api/behaviors/discard', { id: b.id, repo: b.repo }); toast('Discarded'); }
-        else if (act === 'toggle') { await api('/api/behaviors/edit', { id: b.id, repo: b.repo, mutability: b.mutability === 'fixed' ? 'mutable' : 'fixed' }); toast(b.mutability === 'fixed' ? 'Now mutable' : 'Now fixed'); }
-        else if (act === 'save') {
-          const v = k => el.querySelector(`[data-in="${k}"]`).value;
-          if (b.waiting) await api('/api/behaviors/accept', { id: b.id, repo: b.repo, title: v('title'), body: v('body'), mutability: v('mutability') });
-          else await api('/api/behaviors/edit', { id: b.id, repo: b.repo, title: v('title'), body: v('body'), mutability: v('mutability') });
-          toast(b.waiting ? 'Saved and accepted' : 'Saved');
-        }
-        editing = null; await loadBehaviors(); fetchRepos().catch(() => {});
-      } catch (e) { btn.disabled = false; toast(e.message, true); }
-    });
-  });
-}
-
-// first view: the tab the URL names, else Context (where the agents' context goes is the front door, since
+// first view: the tab the URL names, else Save (where the agents' context goes is the front door, since
 // 2026-10-21)
 // the view tabs stick under the nav: its height is measured into --nav-h, not assumed
 const navHeight = () => document.documentElement.style.setProperty('--nav-h', `${document.querySelector('nav').getBoundingClientRect().height}px`);
 navHeight(); addEventListener('resize', navHeight);
-show(H().get('tab') || 'context');
+show(H().get('tab') || 'save');
 </script>
 </body>
 </html>

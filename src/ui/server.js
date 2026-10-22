@@ -1,23 +1,24 @@
-// `thinker ui`: a local page for the person, on this machine only. Three views: how the cache has been
-// used (usage.js:summarize, in tokens, never dollars), filtered by repository; the caches on the
-// machine (machine.js), one card per repository with what runs against it (activity.js) and, inside
-// one, its notes (archive or restore, ops.js:archiveNotes) and the desired behaviors of the system,
-// where the ones waiting for a decision can be accepted, edited or discarded (behavior-workbench.js).
-// The warm-up page that queued cache builds here was removed on 2026-10-21: caches grow from the sessions.
+// `thinker ui`: a local page for the person, on this machine only. Two views: Save, where the agents' context goes in
+// a repository and what each part is worth, with the cuts (context-view.js, as `thinker context`), and Report, what a
+// session costs here week by week, by part of the context and by model, in tokens or at list prices, with the
+// decisions taken on Save and the cache's numbers under it (report.js, as `thinker report`). The Cache view (the
+// usage cards, the repositories, the notes and the behaviors) was replaced by Report on 2026-10-22, at the owner's
+// decision; the notes and behaviors are the CLI's (`thinker list`, `show`, `archive`, `system`).
 //
 // The page is machine-wide: it needs no repository, and a repository is named by its id (as the log
 // names it) so the page cannot be pointed at a path.
 //
 // It listens on 127.0.0.1 alone. The Host header must name this server (a DNS rebinding names another),
 // and an API call that a browser marks as coming from another site (its Origin header, or
-// Sec-Fetch-Site: cross-site) is refused, so another page in the browser can neither read the cache nor
-// change a behavior. Until 2026-10-22 every call also carried a key minted for the run, in the page's
+// Sec-Fetch-Site: cross-site) is refused, so another page in the browser can neither read the report nor
+// change a setting. Until 2026-10-22 every call also carried a key minted for the run, in the page's
 // address; the owner dropped it: a copied address without it was a broken page, and the two checks above
 // keep the same pages out.
 import { harnessView, harnessSavings, harnessOn, scheduleHarnessSuggestion, undoHarness, switchOffNow, setHarnessSettings } from '../harness.js';
 import { contextView, mergeViews, switchSources, setOutputCompression } from '../context-view.js';
 import { snapshotView, lastSnapshot, refreshing, dropSnapshots, REFRESH_MS } from '../context-snapshot.js';
 import { approveChanges, dismissChanges, applyReviewed, revertDecision, pickChanges, currentChanges, allChanges, changeHistory } from '../context-suggest.js';
+import { reportView, mergeReports, REPORT_WEEKS } from '../report.js';
 import { judgeRecent } from '../instruction-value.js';
 import { setCore } from '../instructions-core.js';
 import { previewEdit, applyEdit } from '../instruction-edit.js';
@@ -26,61 +27,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { summarize } from '../usage.js';
 import { Store, repoId, isGitCheckout } from '../store.js';
-import { refresh, archiveNotes } from '../ops.js';
-import { reviewSkill } from '../skills.js';
-import { isBehavior } from '../behavior.js';
-import { pendingBehaviors, activeBehaviors, acceptPending, discardPending, editBehavior } from '../behavior-workbench.js';
-import { discoverRepos, cacheStats, displayName } from '../machine.js';
-import { activity, cancelActivity } from '../activity.js';
+import { discoverRepos, displayName } from '../machine.js';
 import { thinkerHome } from '../update.js';
 import { isDisabledRepo } from '../repo-switch.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_PORT = 4848;
-
-// Only what the page shows: counts and tokens. The provider-reported cost stays out (no dollars).
-export function usageView(store, { days, scope = 'here', notesInCache } = {}) {
-  const u = summarize(store, { days, all: scope !== 'here' });
-  const tok = o => o ? { calls: o.calls || 0, tokens: o.totalTokens || 0, failed: o.failed || 0 } : { calls: 0, tokens: 0, failed: 0 };
-  // active notes, as machine.js:cacheStats counts them for every repository: not retired, not archived, not behaviors
-  const count = () => { try { return store.list().filter(n => n.status !== 'invalid' && !n.archived && !isBehavior(n)).length; } catch { return 0; } };
-  return {
-    scope: u.scope, from: u.from, to: u.to, days: days || null,
-    requests: u.requests || 0, answered: u.answered || 0, sessions: u.sessions || 0,
-    servings: u.servings || {}, notesServed: u.notesServed || 0, notesInCache: notesInCache ?? count(),
-    tokensServed: u.tokensServed || 0,
-    assessed: u.assessed || {}, learned: u.learned || {}, verified: u.verified || {},
-    spending: { ...tok(u.spending), byPhase: Object.fromEntries(Object.entries(u.spending?.byPhase || {}).map(([k, v]) => [k, tok(v)])) },
-    saved: { tokens: u.saved?.tokens || 0, servings: u.saved?.servings || 0, calls: u.saved?.calls || 0 },
-    holdout: u.holdout ? { served: u.holdout.served, heldOut: u.holdout.heldOut, sessions: u.holdout.sessions || 0, enough: !!u.holdout.enough, deltaPct: u.holdout.deltaPct || {}, saved: u.holdout.saved || {} } : null,
-    repos: (u.repos || []).map(r => ({ repo: r.repo, requests: r.requests || 0, served: r.served || 0, learned: r.learned || 0, notes: r.notes || 0, tokens: r.spending?.totalTokens || 0 })),
-    top: (u.top || []).filter(t => t.title && t.title !== '(removed)').slice(0, 8).map(t => ({ id: t.id, title: t.title, served: t.served, repo: t.repo })),
-  };
-}
-
-// The notes in the cache, behaviors aside (they have their own view). Staleness is recomputed against
-// the working tree but not written: a GET leaves the cache as it was.
-export function cacheView(store) {
-  let notes = []; try { notes = refresh(store, store.list().filter(n => !isBehavior(n)), { persist: false }); } catch {}
-  return {
-    notes: notes.map(n => ({
-      id: n.id, title: n.title, kind: n.kind, body: n.body || '',
-      status: n.status === 'invalid' ? 'retired' : n.status === 'broken' ? 'broken' : n.archived ? 'archived' : n.status === 'stale' ? 'stale' : 'fresh',
-      // a skill card (skills.js): the file it stands for, and what the audit or a session found wrong with it
-      skill: n.kind === 'skill' ? { name: n.skill?.name || '', file: n.skill?.file || '' } : null,
-      broken: n.status === 'broken' && n.broken ? { at: n.broken.at || null, reason: n.broken.reason || '', source: n.broken.source || '', issues: (n.broken.issues || []).map(i => ({ claim: i.claim || '', actual: i.actual || '', pointer: i.pointer || '' })) } : null,
-      archived: n.archived ? { at: n.archived.at, reason: n.archived.reason } : null,
-      changed: n.status === 'stale' ? (n.stale?.changed || []).map(c => typeof c === 'string' ? c : `${c.path}${c.symbol ? ':' + c.symbol : ''}${c.reason ? ' (' + c.reason + ')' : ''}`) : [],
-      invalidReason: n.status === 'invalid' ? n.invalidReason || '' : '',
-      pointers: (n.deps || []).map(d => `${d.path}${d.symbol ? ':' + d.symbol : ''}`),
-      source: n.source?.ref || n.source?.type || '', scope: store.isShared(n.id) ? 'repo' : 'local',
-      confidence: n.confidence ?? 0.7, uses: n.uses || 0, lastUsed: n.lastUsed || null,
-      created: n.created || null, verified: n.verified || null,
-    })),
-  };
-}
 
 // The repositories with a cache on this machine: this one, and every checkout the agents' transcripts
 // or the machine's log name that has a .thinker folder. A repository with several checkouts (clones,
@@ -155,11 +108,7 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
     if (id === 'all') return repos().flatMap(r => { try { return [[r, open(r.checkout)]]; } catch { return []; } });
     const r = entry(id); return r ? [[r, open(r.checkout)]] : null;
   };
-  const withStats = r => {
-    let pending = 0; try { pending = pendingBehaviors(open(r.checkout)).length; } catch {}
-    return { ...r, stats: cacheStats(r.checkout), pending };
-  };
-  const harnessCache = new Map();
+  const harnessCache = new Map(), reportCache = new Map();
   const changesView = (st, d) => {
     const s = lastSnapshot(st, d);
     if (!s) return snapshotView(st, d).view;
@@ -183,21 +132,17 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
     try {
       // which repository: '' (this one), 'all', or one of machineRepos by id
       const want = String(url.searchParams.get('repo') || '');
-      if (req.method === 'GET' && url.pathname === '/api/repos') { known = listRepos(); return json(res, 200, { repos: known.map(withStats) }); }
-      if (req.method === 'GET' && url.pathname === '/api/activity') {
-        const byRepo = {};
-        for (const r of repos()) byRepo[r.id] = activity(path.join(r.checkout, '.thinker'));
-        return json(res, 200, { repos: byRepo });
-      }
-      if (req.method === 'GET' && url.pathname === '/api/usage') {
-        const days = Number(url.searchParams.get('days')) || undefined;
-        if (want === 'all') { const notesInCache = repos().reduce((a, r) => a + (cacheStats(r.checkout)?.notes || 0), 0); return json(res, 200, usageView(store, { days, scope: 'all', notesInCache })); }
-        const one = storeFor(want); if (!one) return json(res, 400, { error: 'unknown repository' });
-        return json(res, 200, usageView(one, { days, scope: 'here' }));
-      }
-      if (req.method === 'GET' && url.pathname === '/api/cache') {
-        const stores = storesFor(want); if (!stores) return json(res, 400, { error: 'unknown repository' });
-        return json(res, 200, { notes: stores.flatMap(([r, st]) => cacheView(st).notes.map(n => ({ ...n, repo: r.id, repoName: r.name }))) });
+      if (req.method === 'GET' && url.pathname === '/api/repos') { known = listRepos(); return json(res, 200, { repos: known }); }
+      // the Report tab (report.js:reportView, as `thinker report`): one repository, or every repository's report merged
+      if (req.method === 'GET' && url.pathname === '/api/report') {
+        const weeks = Math.max(1, Math.min(26, Number(url.searchParams.get('weeks')) || REPORT_WEEKS)), k = `report:${want}:${weeks}`, hit = reportCache.get(k);
+        if (hit && Date.now() - hit.at < 60_000) return json(res, 200, hit.view);
+        let view;
+        if (want === 'all') view = mergeReports(repos().flatMap(r => { try { return [{ repo: r.id, name: r.name, view: reportView(open(r.checkout), { weeks }) }]; } catch { return []; } })) || mergeReports([]);
+        else { const one = storeFor(want); if (!one) return json(res, 400, { error: 'unknown repository' }); view = reportView(one, { weeks }); }
+        if (!view) return json(res, 200, { empty: true });
+        reportCache.set(k, { at: Date.now(), view });
+        return json(res, 200, view);
       }
       // what Claude Code loads into every session here and what switching it off saved (harness.js:harnessView, as `thinker harness`)
       if (req.method === 'GET' && url.pathname === '/api/harness') {
@@ -238,42 +183,18 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
         const xs = stores.flatMap(([r, st]) => { try { const v = changesView(st, d); return [{ r, changes: currentChanges(st, v).map(c => ({ ...c, repo: r.id, repoName: r.name })), history: changeHistory(st).map(h => ({ ...h, repo: r.id, repoName: r.name })) }]; } catch { return []; } });
         return json(res, 200, { days: d, changes: xs.flatMap(x => x.changes).sort((a, b) => (b.total ?? 0) - (a.total ?? 0)).slice(0, want === 'all' ? 10 : 5), history: xs.flatMap(x => x.history).sort((a, b) => b.at.localeCompare(a.at)) });
       }
-      if (req.method === 'GET' && url.pathname === '/api/behaviors') {
-        const stores = storesFor(want); if (!stores) return json(res, 400, { error: 'unknown repository' });
-        const tag = r => b => ({ ...b, repo: r.id, repoName: r.name });
-        return json(res, 200, {
-          active: stores.flatMap(([r, st]) => activeBehaviors(st).map(tag(r))),
-          pending: stores.flatMap(([r, st]) => pendingBehaviors(st).map(tag(r))),
-        });
-      }
       if (req.method !== 'POST') return json(res, 405, { error: 'method not allowed' });
       const b = await readBody(req);
-      if (url.pathname === '/api/activity/cancel') {
-        const r0 = entry(String(b.repo || '')); if (!r0) return json(res, 400, { error: 'unknown repository' });
-        const r = cancelActivity(path.join(r0.checkout, '.thinker'), Number(b.pid));
-        return r.error ? json(res, 400, r) : json(res, 200, r);
-      }
       const st = storeFor(String(b.repo || ''));
       if (!st) return json(res, 400, { error: 'unknown repository' });
       let r;
       if (url.pathname.startsWith('/api/harness/') || url.pathname.startsWith('/api/context/')) { harnessCache.clear(); dropSnapshots(st); }
+      reportCache.clear();
       // a decision on a row or in History keeps the report: the files it writes (config, settings, AGENTS.md) make the Context
       // tab read a new one (context-snapshot.js)
       if (url.pathname.startsWith('/api/changes/')) harnessCache.clear();
-      if (url.pathname === '/api/behaviors/accept') r = acceptPending(st, b.id, { mutability: b.mutability || 'mutable', edit: b.title || b.body ? { title: b.title, body: b.body } : null });
-      else if (url.pathname === '/api/behaviors/discard') r = discardPending(st, b.id);
-      else if (url.pathname === '/api/cache/review') {
-        // a person looked at a skill found out of date: back into serving and audit (skills.js:reviewSkill)
-        const n = st.get(b.id);
-        if (!n) r = { error: 'no such note' }; else r = reviewSkill(st, b.id);
-      }
-      else if (url.pathname === '/api/cache/archive' || url.pathname === '/api/cache/restore') {
-        const n = st.get(b.id), restore = url.pathname.endsWith('restore');
-        if (!n || isBehavior(n)) r = { error: 'no such note' };
-        else if (!archiveNotes(st, { ids: [b.id], restore }).length) r = { error: restore ? 'the note is not archived' : 'the note is already archived' };
-      }
       // the page's door to `thinker harness --suggest` and `--undo`: the same functions, for the repository it shows
-      else if (url.pathname === '/api/harness/suggest') { const picks = scheduleHarnessSuggestion(st, { force: true }); r = picks?.length ? { queued: picks.length } : { error: 'nothing here is worth switching off' }; }
+      if (url.pathname === '/api/harness/suggest') { const picks = scheduleHarnessSuggestion(st, { force: true }); r = picks?.length ? { queued: picks.length } : { error: 'nothing here is worth switching off' }; }
       else if (url.pathname === '/api/harness/undo') r = { said: undoHarness(st, { names: Array.isArray(b.names) ? b.names : null }) };
       else if (url.pathname === '/api/harness/off') r = Array.isArray(b.labels) && b.labels.length ? { said: switchOffNow(st, b.labels.join(','), { via: 'ui', any: true }) } : { error: 'nothing chosen' };
       // `thinker instructions --core "<Title>, …"` (a list) and `--off` (null)
@@ -301,7 +222,6 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
       // `thinker context --judge n`, in the background: model calls, through the person's agent or the desktop session
       else if (url.pathname === '/api/context/judge') { const n = Math.min(20, Math.max(1, Number(b.n) || 5)); judgeRecent(st, { n }).then(x => { harnessCache.clear(); dropSnapshots(st); st.log({ op: 'instruction-value', via: 'ui', judged: x.judged }); }).catch(e => st.log({ op: 'instruction-value', via: 'ui', failed: String(e.message || e).slice(0, 160) })); r = { said: `Judging ${n} sessions in the background` }; }
       else if (url.pathname === '/api/harness/settings') { const v = k => typeof b[k] === 'boolean' ? b[k] : undefined; r = { said: JSON.stringify(setHarnessSettings(st, { recurring: v('recurring') ?? v('weekly'), recall: v('recall'), suggestions: v('suggestions') })) }; }
-      else if (url.pathname === '/api/behaviors/edit') r = editBehavior(st, b.id, { title: b.title, body: b.body, mutability: b.mutability });
       else return json(res, 404, { error: 'not found' });
       if (r?.error) return json(res, 400, { error: r.error });
       return json(res, 200, { ok: true, id: r?.note?.id, draft: r?.draft, queued: r?.queued, said: r?.said });
