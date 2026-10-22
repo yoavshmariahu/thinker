@@ -61,7 +61,7 @@ test('Droid, Qwen Code, Kiro, Cline, Kilo, Auggie and Goose are wired in their o
     const o = { scope: 'user', cli: CLI, mcpEntry: entry, hooks: true, learn: true, late: true, mcp: true };
     for (const c of NEW) installClient(c, o);
 
-    // Droid: no hooks.json, so its settings.json carries the hooks; MCP in mcp.json; AGENTS.md
+    // Droid: no hooks.json, so its settings.json carries the hooks; MCP in mcp.json; no instructions (2026-10-22)
     const droid = json(at('.factory', 'settings.json'));
     assert.equal(droid.model, 'x');
     assert.match(droid.hooks.UserPromptSubmit[0].hooks[0].command, / hook prompt --client droid --user --record$/);
@@ -70,19 +70,16 @@ test('Droid, Qwen Code, Kiro, Cline, Kilo, Auggie and Goose are wired in their o
     assert.equal(droid.hooks.Stop.length, 2, 'the person\'s Stop hook stays');
     assert.ok(droid.hooks.SessionEnd);
     assert.deepEqual(json(at('.factory', 'mcp.json')).mcpServers.thinker, { type: 'stdio', command: 'node', args: [MCP], env: {} });
-    assert.match(fs.readFileSync(at('.factory', 'AGENTS.md'), 'utf8'), /thinker:workflow:start/);
-    // Qwen Code: hooks and MCP in settings.json, QWEN.md
+    // Qwen Code: hooks and MCP in settings.json
     const qwen = json(at('.qwen', 'settings.json'));
     assert.ok(qwen.mcpServers.other && qwen.mcpServers.thinker);
     assert.match(qwen.hooks.UserPromptSubmit[0].hooks[0].command, /--client qwen --user/);
-    assert.match(fs.readFileSync(at('.qwen', 'QWEN.md'), 'utf8'), /thinker:workflow:start/);
     // Kiro: the V3 engine's global hooks file
     const kiro = json(at('.kiro', 'hooks', 'thinker.json'));
     assert.equal(kiro.version, 'v1');
     assert.deepEqual(kiro.hooks.map(h => h.trigger), ['UserPromptSubmit', 'PostToolUse', 'Stop', 'SessionEnd']);
     assert.match(kiro.hooks[0].action.command, /hook prompt --client kiro --user --record$/);
     assert.ok(json(at('.kiro', 'settings', 'mcp.json')).mcpServers.thinker);
-    assert.match(fs.readFileSync(at('.kiro', 'steering', 'thinker.md'), 'utf8'), /thinker:workflow:start/);
     // Cline: executables per event; the person's own TaskComplete is left alone
     const ups = at('Documents', 'Cline', 'Hooks', 'UserPromptSubmit');
     assert.ok(fs.statSync(ups).mode & 0o100, 'executable');

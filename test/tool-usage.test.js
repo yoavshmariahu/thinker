@@ -21,70 +21,31 @@ const env = { ...process.env, THINKER_LOG: 'local', THINKER_HOLDOUT: 'off', THIN
 const hook = (dir, kind, input, ...flags) => execFileSync('node', [CLI, 'hook', kind, '--repo', dir, ...flags], { input: JSON.stringify(input), encoding: 'utf8', env });
 const logOps = dir => fs.readFileSync(path.join(dir, '.thinker/log.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l).op);
 
-// find and drilldown are off unless the repository turned them on (cache-guidance.js:disabledTools).
-const enableCodeTools = store => fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ ...store.config(), disabledTools: [] }));
 // the hooks serve from a cache once it holds SERVE_MIN_NOTES (ops.js); these caches hold one note
 const serveFromOne = store => fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ ...store.config(), minNotes: 1 }));
 
-test('with the code tools off, as shipped, the bundle comes without an intro and names neither tool', () => {
+// Since 2026-10-22 the bundle is the notes under one line saying what they are: no tool intro, no list of other titles
+// for lookup, and no tool named, with the code tools on or off (the agent's MCP tools are gone).
+test('the bundle is one header line and the notes, naming no tool, with the code tools on or off', () => {
   const dir = gitRepo(); const store = new Store(dir).init(); serveFromOne(store);
   createNote(store, { title: 'fetchRows reads the rows table', kind: 'rule', answers: ['how are rows fetched', 'where does fetchRows read the rows from'], body: 'src/a.js:fetchRows reads the rows table; nothing else may', deps: [{ path: 'src/a.js', symbol: 'fetchRows' }] });
-  const first = hook(dir, 'prompt', { session_id: 'off1', prompt: 'where does fetchRows read the rows from' });
-  assert.ok(first.startsWith('<thinker-cache>'), 'no tool intro');
-  assert.match(first, /fetchRows reads the rows table/);
-  assert.doesNotMatch(first, /<thinker-tools>|\bfind\b|\bdrilldown\b/);
+  for (const [session, config] of [['off1', {}], ['on1', { disabledTools: [] }]]) {
+    fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ ...store.config(), ...config }));
+    const out = hook(dir, 'prompt', { session_id: session, prompt: 'where does fetchRows read the rows from' });
+    const bundle = out.slice(out.indexOf('<thinker-cache>'));
+    assert.match(bundle, /^<thinker-cache>\nNotes from earlier sessions, checked against the current code just now\. Use what fits this request; a note is a map, not a plan\.\n\n/);
+    assert.match(bundle, /fetchRows reads the rows table/);
+    assert.doesNotMatch(out, /<thinker-tools>|\b(orient|lookup|drilldown|remember|feedback)\b|ToolSearch|mcp__thinker/);
+  }
   assert.equal(logOps(dir).filter(op => op === 'intro').length, 0);
-  // one tool on: it alone is introduced
-  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ ...store.config(), disabledTools: ['find'] }));
-  const one = hook(dir, 'prompt', { session_id: 'off2', prompt: 'where does fetchRows read the rows from' });
-  assert.match(one, /<thinker-tools>[\s\S]*drilldown \(definitions whole, line-numbered/);
-  assert.doesNotMatch(one, /\bfind\b/);
-  assert.match(one, /ToolSearch `select:mcp__thinker__drilldown`/);
+  // a follow-up the cache has nothing new for: nothing is said
+  assert.equal(hook(dir, 'prompt', { session_id: 'off1', prompt: 'now change saveRows as well' }).trim(), '');
 });
 
-// In two weeks of real sessions `find` was called 3 times over MCP: agents grepped instead. Claude Code
-// defers MCP tools until they are searched for, so the first bundle of a session names the tools and
-// the search, once. A session the cache serves nothing gets no intro either (the Click canary of
-// 2026-10-07: the intro and the workflow text were the whole cost of a session the notes did not help).
-// It does not tell the agent to run a review: that is done when asked for.
-test('the first served bundle of a session introduces find and drilldown, with the ToolSearch that loads them in Claude Code; once; never alone', () => {
-  const dir = gitRepo(); const store = new Store(dir).init();
-  enableCodeTools(store); serveFromOne(store);
-  // an empty cache: nothing to orient on, so no notes and no intro; with find on, only the code the request names
-  const empty = hook(dir, 'prompt', { session_id: 's0', prompt: 'where does fetchRows read the rows from' });
-  assert.doesNotMatch(empty, /thinker-cache|thinker-tools/, 'an empty cache injects no notes and no intro');
-  assert.match(empty, /^<thinker-code>[\s\S]*src\/a\.js:fetchRows/);
-  assert.equal(hook(dir, 'prompt', { session_id: 's0b', prompt: 'where are the rows read from' }).trim(), '', 'naming no definition, it injects nothing');
+test('an edit brings no review nudge', () => {
+  const dir = gitRepo(); const store = new Store(dir).init(); serveFromOne(store);
   createNote(store, { title: 'fetchRows reads the rows table', kind: 'rule', answers: ['how are rows fetched', 'where does fetchRows read the rows from'], body: 'src/a.js:fetchRows reads the rows table; nothing else may', deps: [{ path: 'src/a.js', symbol: 'fetchRows' }] });
-  // a note for the request: the intro opens the bundle
-  const first = hook(dir, 'prompt', { session_id: 's1', prompt: 'where does fetchRows read the rows from' });
-  assert.match(first, /<thinker-tools>[\s\S]*<thinker-cache>/);
-  assert.match(first, /find \(where code is defined, by the words it would use/);
-  assert.match(first, /they do not replace one batched search/);
-  assert.doesNotMatch(first, /before the first grep|instead of grepping/);
-  assert.match(first, /ToolSearch `select:mcp__thinker__find,mcp__thinker__drilldown`/);
-  assert.ok(!/review/i.test(first), 'review is not named: it is run when asked for');
-  // nothing for the follow-up: nothing is said, the intro included
-  const second = hook(dir, 'prompt', { session_id: 's1', prompt: 'now change saveRows as well' });
-  assert.equal(second.trim(), '', 'said once per session, and never without a note');
-  const other = hook(dir, 'prompt', { session_id: 's2', prompt: 'where does fetchRows read the rows from' });
-  assert.match(other, /<thinker-tools>/);
-  // Codex is not told to search for its tools
-  const codex = hook(dir, 'prompt', { session_id: 's3', prompt: 'where does fetchRows read the rows from' }, '--client', 'codex');
-  assert.match(codex, /<thinker-tools>/);
-  assert.ok(!codex.includes('ToolSearch'), 'Codex offers its MCP tools directly');
-  assert.equal(logOps(dir).filter(op => op === 'intro').length, 3);
-});
-
-test('with notes served, the intro comes with the bundle; an edit brings late notes and no review nudge', () => {
-  const dir = gitRepo(); const store = new Store(dir).init();
-  enableCodeTools(store); serveFromOne(store);
-  createNote(store, { title: 'fetchRows reads the rows table', kind: 'rule', answers: ['how are rows fetched', 'where does fetchRows read the rows from'], body: 'src/a.js:fetchRows reads the rows table; nothing else may', deps: [{ path: 'src/a.js', symbol: 'fetchRows' }] });
-  const prompt = hook(dir, 'prompt', { session_id: 'e1', prompt: 'where does fetchRows read the rows from' });
-  assert.match(prompt, /<thinker-tools>[\s\S]*<thinker-cache>/);
-  assert.match(prompt, /fetchRows reads the rows table/);
-  const read = hook(dir, 'tool', { session_id: 'e1', tool_name: 'Read', tool_input: { file_path: path.join(dir, 'src/a.js') } });
-  assert.ok(!read.includes('<thinker-review>'), 'reading is not editing');
+  assert.match(hook(dir, 'prompt', { session_id: 'e1', prompt: 'where does fetchRows read the rows from' }), /fetchRows reads the rows table/);
   const edit = hook(dir, 'tool', { session_id: 'e1', tool_name: 'Edit', tool_input: { file_path: path.join(dir, 'src/a.js') } });
   assert.ok(!edit.includes('<thinker-review>'), 'no review nudge: a review runs when asked for');
   assert.equal(logOps(dir).filter(op => op === 'review-nudge').length, 0);
@@ -99,47 +60,22 @@ function serverSays(dir, ...args) {
       + JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n' + msg(2, 'tools/list'),
   });
   const replies = r.stdout.split('\n').filter(Boolean).map(l => JSON.parse(l));
-  return { instructions: replies.find(m => m.id === 1).result.instructions, tools: replies.find(m => m.id === 2).result.tools };
+  return { instructions: replies.find(m => m.id === 1).result.instructions, tools: replies.find(m => m.id === 2).result?.tools || [] };
 }
 
-test('the server neither offers nor mentions a code tool that is off; thinker tools turns them on', () => {
+// The agent's tools (orient, lookup, find, drilldown, remember, behavior, feedback) and the server's instructions
+// were taken out on 2026-10-22; `thinker tools` still switches the code the prompt hook hands over (find).
+test('the server offers the agent no tools and no instructions, whatever the repository switched on', () => {
   const dir = gitRepo(); const store = new Store(dir).init();
-  const off = serverSays(dir);
-  assert.deepEqual(off.tools.map(t => t.name).filter(n => ['orient', 'lookup', 'find', 'drilldown'].includes(n)), ['lookup']);
-  // no instruction and no tool description sends the agent to a tool that is not there
-  assert.doesNotMatch(off.instructions, /\bfind\b|\bdrilldown\b|\borient\b/);
-  for (const t of off.tools) assert.doesNotMatch(t.description, /\borient\b/, `${t.name} names orient, which is off`);
-  // ("find the code that upholds the rule" in a description is the verb, not the tool)
-  for (const t of off.tools) assert.doesNotMatch(t.description, /drilldown|`find`|\bfind (lists|takes|for code)|(call|use|with) find\b|thinker__find/, `${t.name} names a tool that is off`);
-
+  const agentTools = ['orient', 'lookup', 'find', 'drilldown', 'remember', 'behavior', 'feedback'];
   const cli = (...args) => execFileSync('node', [CLI, ...args, '--repo', dir], { encoding: 'utf8', env });
-  assert.match(cli('tools'), /orient: off\nfind: off\ndrilldown: off/);
-  assert.match(cli('tools', 'enable', 'find', 'drilldown'), /find: on\ndrilldown: on/);
-  assert.deepEqual(store.config().disabledTools, []);
-  const on = serverSays(dir);
-  assert.ok(['find', 'drilldown'].every(n => on.tools.some(t => t.name === n)));
-  assert.match(on.instructions, /find when you do not know where the code is; drilldown when you need a definition whole/);
-  assert.match(cli('tools', 'disable', 'find'), /find: off\ndrilldown: on/);
-  assert.deepEqual(serverSays(dir).tools.map(t => t.name).filter(n => ['find', 'drilldown'].includes(n)), ['drilldown']);
-  // orient is off by default and switches the same way, kept as enabledTools beside the code tools' list
-  assert.match(cli('tools'), /orient: off/);
-  assert.match(cli('tools', 'enable', 'orient'), /orient: on\nfind: off\ndrilldown: on/);
+  for (const says of [() => serverSays(dir), () => { cli('tools', 'enable', 'orient', 'find', 'drilldown'); return serverSays(dir); }, () => serverSays(dir, 'mcp', '--enable', 'orient')]) {
+    const { instructions, tools } = says();
+    assert.equal(instructions, undefined);
+    assert.deepEqual(tools.filter(t => agentTools.includes(t.name)), []);
+  }
+  assert.match(cli('tools'), /orient: on\nfind: on\ndrilldown: on/);
   assert.deepEqual(store.config().enabledTools, ['orient']);
-  assert.deepEqual(store.config().disabledTools, ['find']);
-  const withOrient = serverSays(dir);
-  assert.ok(withOrient.tools.some(t => t.name === 'orient'));
-  assert.match(withOrient.instructions, /Call orient once with the task/);
-  assert.match(cli('tools', 'disable', 'orient'), /orient: off/);
-  assert.equal(store.config().enabledTools, undefined);
-  assert.ok(!serverSays(dir).tools.some(t => t.name === 'orient'));
-  // a list written by 0.1.65, which could switch orient but never wrote enabledTools, does not keep it on
-  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ ...store.config(), disabledTools: [] }));
-  assert.match(cli('tools'), /orient: off\nfind: on\ndrilldown: on/);
-  // an experiment arm names its tools in the server's own command: `thinker mcp --enable orient` (mcp-server.js:toolsOff)
-  const armed = serverSays(dir, 'mcp', '--enable', 'orient');
-  assert.ok(armed.tools.some(t => t.name === 'orient'));
-  assert.match(armed.instructions, /Call orient once with the task/);
-  assert.match(cli('tools'), /orient: off/, 'the checkout is left as it was');
 });
 
 // Every git repository has a cache (cli.js, hooks.js: store.init on first use), empty until it learns.
@@ -205,7 +141,7 @@ test('with find on, the prompt hook hands over the definitions the request names
   const ask = prompt => hook(dir, 'prompt', { prompt, session_id: 's-' + Math.random(), hook_event_name: 'UserPromptSubmit' }, '--client', 'claude');
   // off by default: an empty cache says nothing, as before
   assert.doesNotMatch(ask('why does fetchRows return 1?'), /thinker-code/);
-  enableCodeTools(store);
+  fs.writeFileSync(path.join(store.dir, "config.json"), JSON.stringify({ ...store.config(), disabledTools: [] }));
   const out = ask('why does fetchRows return 1, and what does RowStore.row_count count?');
   assert.match(out, /<thinker-code>[\s\S]*src\/a\.js:fetchRows \(L1–L3[\s\S]*1  export function fetchRows\(\) \{/, 'an empty cache still hands over the code');
   assert.match(out, /src\/b\.py:RowStore\.row_count \(L2–L3/, 'Class.member resolves to the member');

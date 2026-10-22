@@ -115,7 +115,7 @@ test('install writes each client\'s config and keeps what was there', () => {
   assert.equal(cur.version, 1);
   assert.ok(cur.hooks.beforeSubmitPrompt[0].command.includes('--client cursor'));
   assert.ok(read(dir, '.cursor/mcp.json').mcpServers.thinker);
-  assert.ok(fs.readFileSync(path.join(dir, '.cursor/rules/thinker.mdc'), 'utf8').includes('alwaysApply: true'));
+  assert.ok(!fs.existsSync(path.join(dir, '.cursor/rules/thinker.mdc')), 'no always-applied rule since 2026-10-22');
   assert.ok(fs.readFileSync(path.join(dir, '.git/info/exclude'), 'utf8').includes('.cursor/hooks.json'));
 
   uninstallClients(dir);
@@ -139,7 +139,7 @@ test('Cursor MCP opt-out does not write or approve an MCP server', () => {
 test('prompt hook output matches what each client accepts', () => {
   const dir = repo();
   const codex = hook(dir, 'prompt', 'codex', { session_id: 's1', prompt: PROMPT, cwd: dir });
-  // the bundle alone: the tool intro (ops.js:sessionIntro) is only for a repository that turned the code tools on
+  // the bundle alone: no tool intro since 2026-10-22
   assert.ok(codex.startsWith('<thinker-cache>') && !codex.includes('<thinker-tools>') && codex.includes('RateLimiter.allow'));
   assert.ok(!codex.includes('🧠'), 'the prompt hook says nothing to the user; the stop hook sums the turn');
 
@@ -484,7 +484,7 @@ test('Windsurf respects preferred Devin hook location and preserves unrelated ho
   installClient('windsurf', { ...opts(dir), learn: true });
   assert.ok(read(dir, '.devin/hooks.json').hooks.pre_user_prompt);
   assert.equal(inferWiring(dir, 'windsurf').shared, false);
-  assert.ok(fs.existsSync(path.join(dir, '.devin/rules/thinker.md')));
+  assert.ok(!fs.existsSync(path.join(dir, '.devin/rules/thinker.md')), 'no rule since 2026-10-22');
   assert.equal(fs.existsSync(path.join(dir, '.windsurf/hooks.json')), false);
   uninstallClients(dir);
   assert.deepEqual(read(dir, '.devin/hooks.json').hooks.pre_read_code, [{ command: 'other' }]);
@@ -752,19 +752,17 @@ test('pi, OpenCode, Copilot and Windsurf are wired machine-wide: in the agents\'
     const pi = fs.readFileSync(at('.pi', 'agent', 'extensions', 'thinker.js'), 'utf8');
     assert.match(pi, /"repo":null/, 'no checkout pinned: the session\'s directory at run time');
     assert.match(fs.readFileSync(at('.config', 'opencode', 'plugins', 'thinker.js'), 'utf8'), /opencodePlugin/);
-    assert.match(fs.readFileSync(at('.config', 'opencode', 'AGENTS.md'), 'utf8'), /thinker:workflow:start/);
     const copilot = JSON.parse(fs.readFileSync(at('.copilot', 'hooks', 'thinker.json'), 'utf8'));
     assert.equal(copilot.version, 1);
     assert.match(copilot.hooks.userPromptSubmitted[0].command, / hook prompt --client copilot --user --record$/);
     const servers = JSON.parse(fs.readFileSync(at('.copilot', 'mcp-config.json'), 'utf8')).mcpServers;
     assert.deepEqual(servers.thinker, { type: 'local', command: 'node', args: entry.args, env: {}, tools: ['*'] });
     assert.ok(servers.other);
-    assert.match(fs.readFileSync(at('.copilot', 'copilot-instructions.md'), 'utf8'), /thinker:workflow:start/);
     assert.match(JSON.parse(fs.readFileSync(at('.codeium', 'windsurf', 'hooks.json'), 'utf8')).hooks.pre_user_prompt[0].command, / --client windsurf --user/);
-    assert.match(fs.readFileSync(at('.codeium', 'windsurf', 'memories', 'global_rules.md'), 'utf8'), /thinker:workflow:start/);
     for (const c of ['pi', 'opencode', 'copilot', 'windsurf']) {
       const w = inferWiring(null, c, { scope: 'user' });
-      assert.ok(w && w.hooks && w.mcp && w.learn, c); assert.deepEqual(w.custom, [], c);
+      // Windsurf has no MCP: its `mcp` was the workflow in its global rules, which no install writes since 2026-10-22
+      assert.ok(w && w.hooks && (w.mcp || c === 'windsurf') && w.learn, c); assert.deepEqual(w.custom, [], c);
       const r = refreshWiring(null, { scope: 'user', cli: CLI, mcpEntry: entry, clients: [c] });
       assert.deepEqual([r.changed, r.skipped], [[], []], c);
     }

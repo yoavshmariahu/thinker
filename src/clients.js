@@ -38,8 +38,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { guidance } from './integrations/runner.js';
-import { agentWorkflow, disabledTools } from './cache-guidance.js';
 import { updateInstructions, hasInstructions } from './agent-instructions.js';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { gitHookPath } from './store.js';
@@ -839,10 +837,7 @@ export function refreshWiring(repo, { cli, mcpEntry, dry = false, clients = CLIE
       r.clients.push(client);
     }
     if (scope === 'repo') {
-      if (clients.includes('cursor') && !inferWiring(repo, 'cursor') && fs.existsSync(path.join(repo, '.thinker'))) {
-        const w = inferWiring(null, 'cursor', { scope: 'user' });
-        if (w?.mcp && w.scripts.every(ours) && !w.custom.length) installCursorRule(repo, { learn: w.learn });
-      }
+      if (clients.includes('cursor') && !dry) removeCursorRule(repo);
       const gitCli = gitHooksOurs(repo);
       if (gitCli && ours(gitCli)) {
         const learn = /maintain/.test(readText(gitHookPath(repo, 'post-commit')));
@@ -1172,17 +1167,8 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
       generated.push(file);
       done.push(`${client}: hooks in ${file}${wind ? '; recording only, retrieval uses the always-on rule' : '; prompt notes delivered after the first tool result'}`);
     }
-    if ((client === 'windsurf' && (hooks || mcp)) || (client === 'copilot' && mcp)) {
-      const file = client === 'windsurf' ? (fs.existsSync(path.join(repo, '.devin/rules')) ? '.devin/rules/thinker.md' : '.windsurf/rules/thinker.md') : '.github/instructions/thinker.instructions.md';
-      const front = client === 'windsurf' ? 'trigger: always_on' : 'applyTo: "**"';
-      const text = `---\n${front}\n---\n<!-- thinker -->\n${guidance({ cli, repo, learn, disabled: repoDisabledTools(repo) })}\n`;
-      const before = readText(path.join(repo, file));
-      if (before && !before.includes('<!-- thinker -->')) throw new Error(`Refusing to overwrite ${file}`);
-      fs.mkdirSync(path.dirname(path.join(repo, file)), { recursive: true });
-      if (before !== text) fs.writeFileSync(path.join(repo, file), text);
-      generated.push(file);
-      done.push(`${client}: CLI retrieval guidance in ${file}; no global MCP configuration changed`);
-    }
+    // the CLI retrieval guidance these two had as an always-on rule went with the workflow block (2026-10-22)
+    for (const file of RULE_FILES[client] || []) if (readText(path.join(repo, file)).includes('<!-- thinker -->')) { fs.unlinkSync(path.join(repo, file)); done.push(`${client}: removed ${file}`); }
     if (client === 'copilot' && mcp) {
       const file = MCP_FILES.copilot;
       mergeJson(path.join(repo, file), c => ({ ...c, mcpServers: { ...(c.mcpServers || {}), thinker: mcpServerEntry('copilot', mcpEntry) } }));
@@ -1266,8 +1252,8 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
     if (mcp) {
       mergeJson(f.mcp, c => ({ ...c, mcpServers: { ...(c.mcpServers || {}), thinker: mcpEntry } }));
       generated.push(f.mcp);
-      if (f.rule) { installCursorRule(repo, { learn }); generated.push(f.rule); }
-      done.push(`Cursor: registered MCP server in ${rel(f.mcp)}${f.rule ? ` and added the rule ${rel(f.rule)}` : ''}`);
+      if (f.rule && removeCursorRule(repo)) done.push(`Cursor: removed the rule ${rel(f.rule)}`);
+      done.push(`Cursor: registered MCP server in ${rel(f.mcp)}`);
     }
     if (hooks) {
       const entries = [
@@ -1374,34 +1360,20 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
     done.push(`Kilo: installed ${rel(f.ext)}`);
   }
 
-  if (hooks || mcp) {
-    const candidates = instructionFiles(client, o);
-    const file = candidates.find(f => fs.existsSync(f)) || candidates.at(-1);
-    if (file) {
-      const existed = fs.existsSync(file);
-      if (updateInstructions(file, agentWorkflow({ cli, repo: scope === 'repo' ? repo : undefined, mcp: !!mcp && client !== 'windsurf', disabled: scope === 'repo' ? repoDisabledTools(repo) : undefined }))) done.push(`${client}: Thinker workflow in ${rel(file)}`);
-      // Do not hide an existing user instruction file from version control.
-      if (!existed) localFiles([file]);
-    }
-  }
+  // The workflow block thinker wrote into the agent's instruction files until 2026-10-22 is taken out: the agent's
+  // tools it named are gone and the hook's bundle says what the notes are. Run on install and by `rewire` after
+  // every update, so a machine set up before loses it on its next update.
+  for (const file of instructionFiles(client, o)) { try { if (updateInstructions(file, null)) done.push(`${client}: removed the Thinker workflow from ${rel(file)}`); } catch {} }
   return done;
 }
 
-// The tools a checkout has switched off (orient and both code tools, unless its config says otherwise). A machine-wide
-// instruction file serves every repository, so it names none of them; the server's own instructions
-// and the prompt hook name the ones a repository turned on.
-function repoDisabledTools(repo) {
-  try { return disabledTools(JSON.parse(fs.readFileSync(path.join(repo, '.thinker', 'config.json'), 'utf8'))); } catch { return disabledTools(); }
-}
-
-// The always-applied rule that points Cursor's agent at the MCP tools: a checkout file, since
-// Cursor keeps user rules in its settings, not in a file.
-export function installCursorRule(repo, { learn = true } = {}) {
-  const rule = wiringFiles('cursor', { repo }).rule;
-  const text = `---\ndescription: Use Thinker for repository exploration and learning\nalwaysApply: true\n---\n${agentWorkflow({ disabled: repoDisabledTools(repo) })}\n`;
-  fs.mkdirSync(path.dirname(rule), { recursive: true });
-  if (readText(rule) !== text) fs.writeFileSync(rule, text);
-  return rule;
+// The always-applied rule that pointed Cursor's agent at the MCP tools (`.cursor/rules/thinker.mdc`, a copy of the
+// workflow block) until 2026-10-22: removed where thinker wrote it. Returns whether it was there.
+export function removeCursorRule(repo) {
+  const rule = repo && wiringFiles('cursor', { repo }).rule;
+  if (!rule || !/^---\ndescription: Use Thinker for repository exploration/.test(readText(rule))) return false;
+  fs.rmSync(rule, { force: true });
+  return true;
 }
 
 // Take thinker's hook entries (and, with `mcp`, its MCP entry) out of one JSON file; the file

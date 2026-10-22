@@ -6,7 +6,7 @@ import { noticeCard } from '../notice-card.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
-import { MORE_NOTES_INTRO, cacheBundleIntro, disabledTools } from '../cache-guidance.js';
+import { cacheBundleIntro, disabledTools } from '../cache-guidance.js';
 import { pruneInstalls, prunedLines, refreshWiring, stripRepoWiring, repoRunsHooks, normalizeHookEvent, hookClient, sessionOf, toolFiles, seenFiles, seenHits, searchedIdentifier, promptOutput, toolOutput, stopOutput, preToolOutput, rewritesCommands, PRE_TOOL_CLIENTS, parkPending, takePending, orientedFile } from '../clients.js';
 import { testsConfig, classifyTestCommand, wrappedCommand, wrapperBin, NUDGE_REASON } from '../testing.js';
 import { dietConfig, dietResult, rememberTerms } from '../diet.js';
@@ -14,7 +14,7 @@ import { parseTranscript, batchDue } from '../distill.js';
 import { Store, findRepoRoot } from '../store.js';
 import { isDisabledRepo } from '../repo-switch.js';
 import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '../maintain.js';
-import { codeForRequest, orient, HOOK_BUDGET, servesNotes, rememberTask, outcome, looksLikeCorrection, lateNotes, onSightNotes, onSightConfig, onSightOutlines, onSightOutlineConfig, completenessNudge, nudgedForTest, peekTurn, takeTurn, beginTurn, holdoutTurn, sessionIntro, linkAgentSession, isHarnessEvent } from '../ops.js';
+import { codeForRequest, orient, HOOK_BUDGET, servesNotes, rememberTask, outcome, looksLikeCorrection, lateNotes, onSightNotes, onSightConfig, onSightOutlines, onSightOutlineConfig, completenessNudge, nudgedForTest, peekTurn, takeTurn, beginTurn, holdoutTurn, isHarnessEvent } from '../ops.js';
 import { recordEvent, traceFile, toolName, toolInput, textOf } from '../transcripts.js';
 import { turnNotice, turnFooterMarkdown, weeklyNotice } from '../usage.js';
 import { claudeCardActive } from '../claude-card.js';
@@ -26,10 +26,21 @@ import { snapshotCursorInventory } from '../harness-cursor.js';
 import { sectionsForEvent, sectionsConfig } from '../instruction-sections.js';
 import { syncCore } from '../instructions-core.js';
 import { thinkerHome } from '../update.js';
-import { desktopApp, subagentHarness, ancestorPids } from '../app-host.js';
+import { desktopApp, subagentHarness } from '../app-host.js';
 import { enqueueJob, markAppSession, pendingJobs, startSessionWork } from '../session-work.js';
 import { isWorkerPrompt, isWorkerTool } from '../session-llm.js';
 import { ensureShellPath } from '../shell-path.js';
+
+// Whether the wiring checks are due where `file` keeps their stamp: a different copy or version of thinker than the
+// last check, or a day since it. The stamp is written before the check, so a check that fails waits a day too.
+const WIRING_CHECK_MS = 24 * 3600_000;
+export function wiringDue(file, cli, { now = Date.now() } = {}) {
+  let version = ''; try { version = JSON.parse(fs.readFileSync(path.join(path.dirname(cli), '..', 'package.json'), 'utf8')).version; } catch {}
+  const key = `${cli}@${version}`;
+  try { const st = JSON.parse(fs.readFileSync(file, 'utf8')); if (st.key === key && now - Date.parse(st.at) < WIRING_CHECK_MS) return false; } catch {}
+  try { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, JSON.stringify({ key, at: new Date(now).toISOString() })); } catch {}
+  return true;
+}
 
 async function hookCommand(ctx) {
   const { pos, flags, out, readStdin, sessionLearning, HERE, NO_LEARN } = ctx;
@@ -99,14 +110,20 @@ async function hookCommand(ctx) {
       // what Cursor loaded into this chat, which its transcript does not record (harness-cursor.js)
       if (client === 'cursor' && harnessOn(store) && (!isTestMode() || process.env.THINKER_HOME)) { try { snapshotCursorInventory({ session, roots: [...(ev.workspace_roots || []), repo], transcript: ev.transcript_path, thinkerHome: thinkerHome() }); } catch {} }
       if (flags.record && store.exists()) { recordEvent(store.dir, session, { t: 'prompt', text: ev.prompt }); learnInBackground(ctx, client); }
-      // another, older copy of thinker still wired into this checkout fires on every prompt too: take its entries out
-      if (store.exists()) { try { const pruned = pruneInstalls(repo, { cli, mcpEntry: mcpEntry(), olderOnly: true }); if (pruned.length) { store.log({ op: 'prune', removed: pruned }); reportPruned(store, prunedLines(pruned)); } } catch {} }
-      // and the entries of this copy are rewritten when this version writes them differently (a new event, a changed command):
-      // the checkout's, and, from a hook at user scope, the user's own
-      if (store.exists()) { try { const w = refreshWiring(repo, { cli, mcpEntry: mcpEntry() }); if (w.changed.length) { store.log({ op: 'rewire', repos: 1, files: w.changed }); reportPruned(store, [`rewrote ${w.changed.join(', ')} for this version of thinker`]); } } catch {} }
-      // thinker on PATH for bash too, once per machine, on an install from before the installer wrote it there (shell-path.js)
-      if (store.exists() && !isTestMode()) { try { const d = ensureShellPath(); if (d?.length) store.log({ op: 'shell-path', files: d }); } catch {} }
-      if (store.exists() && userScope) { try { const w = refreshWiring(null, { scope: 'user', cli, mcpEntry: ctx.userMcpEntry() }); if (w.changed.length) { store.log({ op: 'rewire', scope: 'user', files: w.changed }); reportPruned(store, [`rewrote ${w.changed.join(', ')} for this version of thinker`]); } } catch {} }
+      // The wiring checks (an older copy's entries, this copy's entries in this version's shape, thinker on PATH)
+      // run once for each copy and version of thinker in a checkout, and again after a day: on every prompt they
+      // were about 0.6 s of git and file reads, and the hook was being cut off at its 15 s limit on a loaded
+      // machine (2026-10-22). `thinker update` runs `rewire` for every checkout as it is.
+      if (store.exists() && wiringDue(path.join(store.dir, 'state', 'wiring-checked.json'), cli)) {
+        // another, older copy of thinker still wired into this checkout fires on every prompt too: take its entries out
+        try { const pruned = pruneInstalls(repo, { cli, mcpEntry: mcpEntry(), olderOnly: true }); if (pruned.length) { store.log({ op: 'prune', removed: pruned }); reportPruned(store, prunedLines(pruned)); } } catch {}
+        // and the entries of this copy are rewritten when this version writes them differently (a new event, a changed command)
+        try { const w = refreshWiring(repo, { cli, mcpEntry: mcpEntry() }); if (w.changed.length) { store.log({ op: 'rewire', repos: 1, files: w.changed }); reportPruned(store, [`rewrote ${w.changed.join(', ')} for this version of thinker`]); } } catch {}
+        // thinker on PATH for bash too, once per machine, on an install from before the installer wrote it there (shell-path.js)
+        if (!isTestMode()) { try { const d = ensureShellPath(); if (d?.length) store.log({ op: 'shell-path', files: d }); } catch {} }
+      }
+      // from a hook at user scope, the user's own files, checked once per copy and version for the machine
+      if (store.exists() && userScope && wiringDue(path.join(thinkerHome(), 'state', 'wiring-checked-user.json'), cli)) { try { const w = refreshWiring(null, { scope: 'user', cli, mcpEntry: ctx.userMcpEntry() }); if (w.changed.length) { store.log({ op: 'rewire', scope: 'user', files: w.changed }); reportPruned(store, [`rewrote ${w.changed.join(', ')} for this version of thinker`]); } } catch {} }
       // Goose's hooks only record: what they print never reaches the model, so nothing is oriented or counted as served
       if (client === 'goose') return;
       // Once per session, what the code tools are and how to reach them: only with the first bundle that
@@ -117,10 +134,6 @@ async function hookCommand(ctx) {
       const { turn, holdout } = store.exists() ? beginTurn(store, session) : { turn: 0, holdout: false };
       // the request's identifiers, for the context diet (diet.js; off until an experiment)
       if (store.exists() && client === 'claude' && dietConfig(store).enabled) rememberTerms(store, session, { prompt: ev.prompt });
-      // the agent's process is among this hook's nearest ancestors: the MCP server finds the session (and so the
-      // turn and its holdout) through it (ops.js:agentSession)
-      if (store.exists()) linkAgentSession(store, session, ancestorPids());
-      const introOk = store.exists() && !['windsurf', 'pi', 'copilot'].includes(client) && !holdout;
       const emit = text => { if (client === 'cursor' || (client === 'cline' && !parks)) said = text; else if (parks) parkPending(store.dir, session, text); else out(promptOutput(client, text)); };
       if (!store.exists() || client === 'windsurf') return;
       // the first session in a repository: what `thinker setup` would write for it (repo-onboard.js)
@@ -168,12 +181,10 @@ async function hookCommand(ctx) {
       // a held-out turn is served nothing by the hooks, and what it would have been served is logged (ops.js:beginTurn)
       const r = await orient(store, { task: ev.prompt || '', session: session === 'unknown' ? undefined : session, client, budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout, turn: turn || undefined });
       if (!r.included.length) { const code = codeFor([]); if (offer || code) emit([offer, code].filter(Boolean).join('\n\n')); return; }
-      const intro = introOk ? sessionIntro(store, { session, client }) : '';
-      const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}${n.status === 'stale' ? ' ⚠ STALE' : ''}  (id: ${n.id})`).join('\n')}` : '';
-      const header = cacheBundleIntro({ stale: r.included.some(n => n.status === 'stale'), disabled: disabledTools(store.config()) });
-      const text = `<thinker-cache>\n${header}\n\n${r.text}${more}${cursorFootnote(r.included)}\n</thinker-cache>`;
+      // the titles of the notes not served went with lookup, which took their ids (2026-10-22)
+      const text = `<thinker-cache>\n${cacheBundleIntro()}\n\n${r.text}${cursorFootnote(r.included)}\n</thinker-cache>`;
       const card = noticeCard(store, { client, session, turn, holdout, notes: r.included });
-      emit([offer, intro, text, codeFor(r.included), card].filter(Boolean).join('\n\n'));
+      emit([offer, text, codeFor(r.included), card].filter(Boolean).join('\n\n'));
     })();
     if (client === 'cursor' || client === 'cline') out(promptOutput(client, said));
   } else if (pos[0] === 'pre') {

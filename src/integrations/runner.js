@@ -1,5 +1,4 @@
 import { execFile } from 'node:child_process';
-import { agentWorkflow } from '../cache-guidance.js';
 // An unavailable cache must not interrupt the host agent. Bound time and output,
 // use argv rather than a shell, and inherit experiment/learning controls.
 export function hookRunner(config) {
@@ -16,8 +15,5 @@ export function hookRunner(config) {
     child.stdin.on('error', () => {});
     child.stdin.end(JSON.stringify(event));
   });
-}
-export function guidance(config) {
-  return agentWorkflow({ ...config, mcp: false });
 }
 
