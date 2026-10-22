@@ -68,7 +68,7 @@ measured on your own sessions, as the tokens they would save; no benchmark is cl
 ## Learn more
 
 - [Where the context goes](docs/context.md): the Context page and `thinker context`, what each number is, every cut and its undo
-- [Setup, updates and telemetry](docs/setup.md): the local page, build depth and cost, updates, test mode, telemetry and opting out
+- [Setup, updates and telemetry](docs/setup.md): the local page, updates, test mode, telemetry and opting out
 - [Usage, savings and learning](docs/usage.md): `thinker usage`, the holdout comparison, how sessions are learned from
 - [Skills](docs/skills.md): skill cards, the audit, what sessions say about a skill, duplicates
 - [Delivery outcomes](docs/delivery-outcomes.md): `thinker impact`, tokens and fixes per merged PR

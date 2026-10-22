@@ -173,7 +173,7 @@ test('inside a desktop app, or with no agent CLI signed in, the build reads thro
   assert.match(nologin.said, /No agent CLI is signed in on this machine, so the build reads through this session/);
   assert.match(nologin.said, /spawn_agent/);
   assert.equal(nologin.ran.o.env.THINKER_LLM, 'session');
-  // a session build already running (a warm-up): nothing more is queued over it
+  // a session build already running: nothing more is queued over it
   const busy = new Store(repo()).init(); activity(busy, ['src/api/a.js']); scheduleSuggestion(busy, { now: T0, home });
   fs.mkdirSync(path.join(busy.dir, 'state', 'session-llm'), { recursive: true });
   fs.writeFileSync(path.join(busy.dir, 'state', 'session-llm', 'build.json'), JSON.stringify({ pid: process.pid }));

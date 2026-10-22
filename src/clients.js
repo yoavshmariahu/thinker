@@ -1053,7 +1053,7 @@ export function trustCodex(repo) {
   fs.writeFileSync(file, text);
   return [`Codex: marked this repository as trusted${n ? ` and thinker's ${n} hooks as reviewed` : ''} in ${file}`];
 }
-// Codex's subagents ([features] multi_agent): a warm-up in the Codex app reads through a subagent of the
+// Codex's subagents ([features] multi_agent): learning in the Codex app reads through a subagent of the
 // session (repo-onboard.js:SUBAGENT_TOOLS). On by default since Codex 0.160; set outright for older versions
 // and for a config that turned it off. Other keys of [features] (hooks) are kept.
 export function codexSubagentsOn(text) { return /^\[features\][^\[]*^\s*multi_agent\s*=\s*true\b/m.test(text); }

@@ -32,7 +32,7 @@ export function batchEta(b, startedMs, now = Date.now()) {
 }
 
 // The newest batch of one kind started at or after `sinceMs`, finished or not, with when it started
-// and ended: a warm-up build's stage is read from its mining batch (ui/server.js:jobProgress).
+// and ended: a build's stage is read from its mining batch (ui/server.js:jobProgress).
 export function latestBatch(storeDir, kind, sinceMs = 0) {
   const dir = path.join(storeDir, 'state');
   let names = []; try { names = fs.readdirSync(dir); } catch { return null; }

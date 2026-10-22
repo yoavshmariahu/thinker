@@ -16,13 +16,12 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 
 **The command line and the local page stay in sync (MANDATORY RULE):**
 The page (`src/ui/`) is a second door to the same commands, never a second
-implementation. A default the page shows (the model, the depth, the pull-request
-count, the areas a build reads, the agent) is the constant the command reads:
-`DEFAULT_DISTILL_MODEL` in `src/llm.js`, `DEFAULT_DEPTH` and `DEFAULT_PRS` in
-`src/setup/estimate.js`, `activityAreas` in `src/areas.js`, `buildAgent` in
-`src/setup/agents.js`. A job the page queues runs the command line with the flags
-the person would have typed, so `thinker setup --build --yes` and the warm-up page
-build the same cache. `test/cli-ui-sync.test.js` checks both doors; a new default
+implementation. A default the page shows (the model, the agent, a report's window)
+is the constant the command reads (`DEFAULT_DISTILL_MODEL` in `src/llm.js`,
+`buildAgent` in `src/setup/agents.js`), and a report the page shows is the one the
+command prints (`thinker context` and the Context tab, `thinker context --machine` and
+its All repositories). An action the page takes runs the command line with the flags
+the person would have typed. `test/cli-ui-sync.test.js` checks both doors; a new default
 or flag gets a line there before it ships.
 
 **Pull requests in this repository (MANDATORY RULE):**
@@ -45,11 +44,11 @@ our repository policy guard or require PRs in their repositories.
 
 
 **Every model-backed feature works in the desktop apps (MANDATORY RULE, 2026-10-16):**
-Anything thinker starts that calls a model for the person (a warm-up, learning, a
+Anything thinker starts that calls a model for the person (learning, a
 coverage build, verification, a new kind of build) must also run inside a desktop
 app (Claude Desktop, the Codex app, Cursor) and wherever no agent CLI is signed in.
 Those sessions have no CLI login to read through: the work goes through the
-session itself, as the warm-up does (`repo-onboard.js:startSessionWarmup`,
+session itself, as learning does (`session-work.js`,
 `session-llm.js`: model calls queued in `.thinker/state`, a background subagent
 answering them through `learn_next`). A feature that only says
 "sign in a CLI" in a desktop app is not done. Tests cover the desktop-app path
@@ -94,7 +93,7 @@ update that runs the new code (`install.sh --update` does it by hand).
 Always set `THINKER_TEST=1` when running tests, benchmarks, evaluation
 harnesses, scratch experiments, or their setup/install steps (`npm test` sets it).
 This single mode blocks production telemetry and automatic background work, keeps
-default usage logs local, and silences machine-wide hooks. It also makes no warm-up or coverage offer
+default usage logs local, and silences machine-wide hooks. It also makes no coverage offer
 to the agent, from the hooks or from `orient` over MCP (2026-10-18: an offer in a benchmark session is noise
 in its context, and the eval runner marked the session invalid for it); `THINKER_OFFERS=on` restores them,
 for the tests of the offers only. `THINKER_TELEMETRY=off`
@@ -208,28 +207,22 @@ it into the agents on this machine (`thinker connect`, below). Every git
 repository on the machine has a cache from then on:
 the first hook, MCP server or cache command in a checkout starts one, empty
 (`store.js:init`, kept out of `git status` through `.git/info/exclude`), and it
-grows from the sessions there. Nothing is opt-in but the warm-up: building a
-cache from merged pull requests, a step a person takes by hand with `thinker warmup`
-or `thinker setup --build`. **Background learning was cut to the sessions on
-2026-10-21 (the owner's decision: the cache's background spend was not paying for
-itself, and few people were running it):** the installer no longer ends by running
-`thinker warmup`, the hooks and the MCP server no longer tell the agent to offer a
-warm-up (`repo-onboard.js:warmupOffersOn`; `warmup: { offer: true }` in
-`.thinker/config.json` brings the offer back for a repository, and `THINKER_OFFERS=on`
-for the tests), and maintenance mines no pull requests or commits, walks no area
-history, reads no design documents or skill files and merges no duplicates unless
-the repository's `maintain` config turns each on (`maintain.js:DEFAULTS`). What is
-left on by default: the once-per-session distillation, and a maintenance run that
-re-verifies at most 3 stale notes and phrases the new ones. Everything below this
-paragraph about warm-ups describes the by-hand path, `thinker warmup`
-(`commands/warmup.js`): browser or terminal, then the ten repositories the
-agents work in (`machine.js:warmupCandidates`) with the top five picked (`setup/ui.js:multiSelect`: arrows, Space, Enter;
-Esc skips; a plain Y/n without a TTY), each built
-with `thinker setup --build` at full depth around the person's areas
-(`setup/project.js`, `--yes`). A machine without a display (ssh,
-`headless`) is offered the terminal alone: the page binds 127.0.0.1 of the
-machine it runs on, and until 2026-10-12 the installer launched it blind there.
-Outside a git repository there is nowhere to keep a cache: the CLI's cache
+grows from the sessions there. Nothing is built, and nothing is opt-in. **Background
+learning was cut to the sessions on 2026-10-21 (the owner's decision: the cache's
+background spend was not paying for itself, and few people were running it;
+`d84af6795`):** the warm-up that read a repository's merged pull requests into the cache
+went entirely (the command, the page's tab and its build queue, the offer the hooks and
+the MCP server made, the installer's and setup's `--build`, which are accepted and
+ignored), and maintenance mines no pull requests or commits, walks no area history,
+reads no design documents or skill files and merges no duplicates unless the
+repository's `maintain` config turns each on (`maintain.js:DEFAULTS`). What is left on
+by default: the once-per-session distillation, and a maintenance run that re-verifies
+at most 3 stale notes and phrases the new ones. `mine-prs` and `understand` stay,
+unlisted in the help, for Artemis's benchmark caches alone. What the installer does
+show at once is where the agents' context goes, read from their transcripts
+(`context-machine.js`; the Context view below). The paragraphs on the build below are
+history: how it ran until then, kept because the mining code is still what Artemis
+builds caches with. Outside a git repository there is nowhere to keep a cache: the CLI's cache
 commands stop with that message (`cli.js:CACHE_COMMANDS`), the MCP server
 offers no tools and says so in its instructions, and the hooks are quiet. A
 prompt an empty cache has nothing for is logged as a request all the same
@@ -273,7 +266,7 @@ is set up and learns from sessions. Outside a terminal the answer is no.
 Declining, or having no authenticated agent, no longer stops setup: step 1 has
 already run and the footer says how to build later.
 
-The build itself (`thinker setup --build`, or the installer with `--build`):
+The build itself (`thinker setup --build`, or the installer with `--build`; history, see above):
 
 1. distills up to 60 merged pull requests of the GitHub `origin` into fix
    records, invariants and conventions (`--prs n`; needs `gh`);
@@ -313,15 +306,15 @@ people they would spend money they would not. In a terminal `setup`
 asks before spending (`--yes` skips the question). The hooks and MCP entry live in the agents' own settings. Team wiring with
 `--shared` is no longer supported.
 
-To mine more pull requests later, run `thinker mine-prs` (or `thinker learn
---prs`, which distills new sessions first). With no arguments it takes the
+To mine more pull requests later (for a benchmark cache: unlisted since 2026-10-21), run `thinker mine-prs` (`thinker learn
+--prs` is gone). With no arguments it takes the
 GitHub `origin`, mines what was merged since the last run and then goes
 further back in history, 20 at a time (`--limit n`). Without GitHub, or
 with `--git`, it mines commits from git history; `--fixes` keeps only those
 whose message says they fix something (`prs.js:FIX_LIKE`), the records a
 reviewing agent draws on most; a repository whose work lands by direct commits has
-few pull requests, and this one had 8 to mine against 17 fix commits. With GitHub, the
-build, the warm-up and maintenance read merged pull requests alone, so a change pushed
+few pull requests, and this one had 8 to mine against 17 fix commits. With GitHub, mining
+read merged pull requests alone, so a change pushed
 straight to the default branch is never mined there (188 of this repository's 551
 first-parent commits since 2026-09-19 name no pull request). So those commits are listed
 beside the pull requests, unless `mining: { commits: false }` in `.thinker/config.json`
@@ -348,7 +341,8 @@ learning loop](#the-learning-loop)); `mine-prs` is for history before that.
 
 ## Project cache builds
 
-`thinker.project.json` at the repository root stores `{version: 1, name,
+History: the project file narrows the mining commands, which left the product on 2026-10-21; nothing a person runs
+reads it now. `thinker.project.json` at the repository root stores `{version: 1, name,
 directories: [repo-relative paths]}`. `src/project.js` validates paths and reads
 it for cache-building commands only. `thinker project init <dirs...> --name ...`
 creates it without initializing a cache. Interactive setup (`src/setup/project.js`)
@@ -795,9 +789,7 @@ session link for the MCP tools (`linkAgentSession`, a `ps` per prompt) went with
   orient` turns it on, kept as `enabledTools` in `.thinker/config.json`). Off, the
   server does not offer it, and the usage guide, the bundle header, the workflow
   block and the tool descriptions say to work from the code instead of calling it;
-  the prompt hook serves the notes, `lookup` stays, and `lookup` makes the warm-up
-  offer `orient` made to an agent with thinker's server and no hooks
-  (`mcp-server.js:mcpWarmupOffer`). On the MLflow fair-11 set with GPT-6 Astra
+  the prompt hook serves the notes, `lookup` stays. On the MLflow fair-11 set with GPT-6 Astra
   (Artemis `mlflow-fair11-astra-mined200-full-2026-10-18`) the orient-first arm
   called it every session, got nothing back in 12 of 22, and cost 43k input
   tokens and 2.1 tool calls more than the bare agent; the hook alone was level
@@ -1131,7 +1123,7 @@ helps in agent sessions.
 context goes in a repository, part by part, with what each part costs a session (its tokens × the median model
 calls of a session here) and how much the sessions used it. Measurement only; nothing is served or rewritten.
 The tab is the page's front door since 2026-10-21 (`thinker ui` opens on it when a repository has a cache,
-`--tab cache|warmup` for the others), and the README, `docs/context.md` and the site lead with it: seeing where
+`--tab cache` for the other, `--all` for every repository at once), and the README, `docs/context.md` and the site lead with it: seeing where
 the context goes and cutting what is wasted first, the cache second.
 
 - **Instruction file sections** (`instruction-value.js`): every instruction file (`instructionFiles`): the root
@@ -1341,7 +1333,7 @@ readable; new behaviors stay local.
   `thinker system accept <id>`. Distillation and PR mining are not offered the kind
   (`distill.js:distillSpec`, `prs.js`), archiving never takes one
   (`ops.js:archiveReason`).
-- **Build proposals.** `thinker setup --build` drafts up to twelve
+- **Build proposals** (history: the build ran until 2026-10-21). `thinker setup --build` drafted up to twelve
   high-signal PR/document rule notes into desired behavior
   candidates in `.thinker/local/behavior-proposals.json`. The model sees each
   note's source and current symbol code; outputs are restricted to the note's

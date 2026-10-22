@@ -673,7 +673,6 @@
         <div class="sidebar-heading">The knowledge cache</div>
         <ul class="sidebar-nav">
           <li class="sidebar-item"><a href="#notes">What a note is</a></li>
-          <li class="sidebar-item"><a href="#build">Building the cache</a></li>
           <li class="sidebar-item"><a href="#keeping-current">Keeping it current</a></li>
           <li class="sidebar-item"><a href="#skills">Skills</a></li>
         </ul>
@@ -936,46 +935,14 @@ read any range: Read with offset and limit</span></pre>
       <section id="install">
         <h2>Install and set up</h2>
         <p>
-          The install command from the landing page installs the tool under <code>~/.thinker</code> and wires it into the agents on this machine, once, in their own settings, asking nothing in the terminal. From then on the <a href="#context">Context page</a> reads your sessions and every git repository gets a cache that grows from them. Warming a cache from a repository's history is the one step you take by hand, in the browser: <code>thinker ui --tab warmup</code> opens the <a href="#local-page">local page</a> on its warm-up view.
-        </p>
-        <ol>
-          <li><strong>Pick repositories.</strong> The page lists the git repositories your agents worked in over the last 30 days, most recent first, found from the agents' own session records, each with a build estimate in tokens and minutes. The five you used most recently are picked for you; one that already has a cache is marked and left unpicked.</li>
-          <li><strong>Choose how much to read.</strong> Per repository: <strong>Full</strong> (the newest 60 merged pull requests) or <strong>Shallow</strong> (the newest 30% of them), the whole repository or only the directories you pick. A switch on each row turns thinker off for a repository no model should read.</li>
-          <li><strong>Choose the agent and model.</strong> The bar at the top lists the agent CLIs on the machine, says whether each is signed in, and adds up the tokens and time of everything picked. A build runs through that agent's own login.</li>
-          <li><strong>Press Start building</strong>, or Skip for now. The builds run one at a time in the background, and closing the tab does not stop them. The Cache view shows each one's stage ("mining 12/60 PRs"), the notes saved so far, the time left and a Stop button; stopping keeps every note saved so far.</li>
-        </ol>
-        <p>
-          Every other git repository gets an empty cache with its first session and grows from there, so skipping a build costs nothing but a slower start.
+          The install command from the landing page installs the tool under <code>~/.thinker</code> and wires it into the agents on this machine, once, in their own settings, asking nothing in the terminal. Then it reads the agents' own transcripts of the last 30 days in the five repositories they worked in most and prints where their context goes and what to cut first: the sections of <code>AGENTS.md</code>, the skills and the tools that cost the most in the sessions that did not use them, with the saving each is worth at most (<code>thinker context --machine</code> prints the same report any time). On a machine with a display it then opens the <a href="#local-page">local page</a> on that report over every repository, where the suggestions are reviewed and applied. From then on every git repository gets a cache that grows from your sessions; nothing is built.
         </p>
         <pre><code><span class="code-comment"># Open the local page again any time</span>
 thinker ui
-thinker ui --tab warmup             <span class="code-comment"># straight to the warm-up view</span>
+thinker ui --tab context --all      <span class="code-comment"># the Context view over every repository, as the installer opens it</span>
 
-<span class="code-comment"># No browser, or a script: build one repository's cache from the terminal.
-# A build reads merged pull requests (--prs n, default 60); it does not explore the code</span>
-thinker setup --build</code></pre>
-        <p>
-          <strong>What a build reads.</strong> By default, <strong>your areas</strong>: the directories your own commits touched in the last six months
-          (your merged pull requests when the commits carry another identity), the top five, so the cache is warm where you work. Setup
-          shows them and offers <strong>Whole repository</strong> (the generic build) and <strong>Specify project directories</strong> instead;
-          the warm-up page starts each repository on your areas too, with the directory picker to change them. The choice is kept as
-          <code>areas</code> in <code>.thinker/config.json</code>, which maintenance reads to keep warming the same places: new merges inside the
-          areas, and their older history a few changes a run until each area has had its <code>walk</code> (100 changes).
-          <code>thinker usage</code> shows the areas and how many notes point into each. A named project saves
-          <code>thinker.project.json</code> and estimates the build for your selection.
-        </p>
-        <pre><code><span class="code-comment"># Or save a project before onboarding</span>
-thinker project init apps/web packages/ui --name "Web app"
-thinker setup --build --yes</code></pre>
-        <p>
-          <code>setup</code> and <code>mine-prs</code> reuse the saved project.
-          Use <code>--project other.project.json</code> for another selection or <code>--full-repo</code> for one full-repository run.
-          Paths are relative to the repository root. History mining focuses on the selected directories;
-          retrieval and ongoing learning still use the whole repository cache.
-        </p>
-        <p>
-          Building runs through your agent's own login: roughly 700k to 900k tokens and about ten minutes with the defaults (60 merged pull requests). The estimate is shown in tokens and minutes before anything runs, never in dollars, since most agents run on subscriptions.
-        </p>
+<span class="code-comment"># No browser, or a script: set one repository up from the terminal</span>
+thinker setup                       <span class="code-comment"># connects the agents and prints the repository's own report; --no-ui keeps the page closed</span></code></pre>
         <div class="callout tip">
           <strong>The wiring is machine-wide, the cache is per repository.</strong> Hooks and the MCP server are present in every git checkout, and each checkout keeps its own cache under <code>.thinker/</code>, started on first use and excluded from <code>git status</code> through <code>.git/info/exclude</code>. Outside a git repository your agents are served nothing and learn nothing.
         </div>
@@ -1044,22 +1011,6 @@ thinker setup --build --yes</code></pre>
         </p>
       </section>
 
-      <section id="build">
-        <h2>Building the cache</h2>
-        <p>
-          A build, started from the <a href="#install">warm-up view</a> or with <code>thinker setup --build</code>, fills the cache from merged pull requests, and shows what it will cost in tokens and minutes before spending anything. Stopping it (the Stop button, or Ctrl-C in the terminal) keeps every note saved so far; the cache keeps growing from your sessions.
-        </p>
-        <ul>
-          <li><strong>Merged pull requests, fixes first.</strong> Up to 60 of them are distilled into rules: what the symptom was, what the fix changed, and what a later change must not undo. Every pull request looked at is recorded in <code>.thinker/prs.json</code>, so none is distilled twice.</li>
-        </ul>
-        <pre><code>thinker setup --build --prs 100              <span class="code-comment"># more history</span>
-thinker mine-prs                             <span class="code-comment"># later: go further back through merged pull requests, 20 at a time</span>
-thinker mine-prs --git --fixes               <span class="code-comment"># no GitHub: fix commits from git history</span></code></pre>
-        <p>
-          A build also reads the design documents checked into the repository (READMEs beside the code, design files) and saves the rules they state as <code>behavior</code> notes, which an agent editing the code they rest on is handed like any other rule. <code>thinker system</code> lists them. Without a build, the cache starts empty and grows from your sessions.
-        </p>
-      </section>
-
       <section id="keeping-current">
         <h2>Keeping it current</h2>
         <p>
@@ -1068,7 +1019,7 @@ thinker mine-prs --git --fixes               <span class="code-comment"># no Git
         <h3>It learns from every session</h3>
         <ul>
           <li><strong>Each session is distilled once, when it ends</strong>, through the agent's own login: up to three new notes, and a verdict on every note it was served. <code>confirmed</code> (the agent acted on it) raises confidence; <code>contradicted</code> (the trace shows a claim was wrong) corrects the body and keeps the history; <code>unused</code> lets it decay. Near-duplicates are merged. A quiet session with nothing to learn from is skipped.</li>
-          <li><strong>Newly merged pull requests</strong> are mined as they land, fixes first, when <code>maintain.prs</code> is on in the configuration; by default history is read when you ask, with a build or <code>thinker mine-prs</code>.</li>
+          <li><strong>Newly merged pull requests</strong> are mined as they land, fixes first, when <code>maintain.prs</code> is on in the configuration (off by default: the cache grows from the sessions).</li>
           <li><strong>Agents and people</strong> add notes too: the <code>remember</code> tool and <code>thinker add</code>.</li>
         </ul>
         <h3>It knows when a note is stale</h3>
@@ -1156,11 +1107,11 @@ thinker skills scan                 <span class="code-comment"># card new or cha
       <section id="local-page">
         <h2>The local page</h2>
         <p>
-          <code>thinker ui</code> opens a page in your browser, from any directory, on the <a href="#context">Context</a> view, with the Cache view beside it and the warm-up view behind that one. It is where <a href="#install">setup happens</a>: the installer opens it on the warm-up view (the page stops by itself after half an hour unused, once no build is queued).
+          <code>thinker ui</code> opens a page in your browser, from any directory, on the <a href="#context">Context</a> view, with the Cache view beside it. The <a href="#install">installer</a> opens it on the Context view over every repository (the page stops by itself after half an hour unused).
         </p>
         <pre><code>thinker ui                          <span class="code-comment"># opens the page on Context; Ctrl+C stops it</span>
 thinker ui --tab cache              <span class="code-comment"># the caches on this machine</span>
-thinker ui --tab warmup             <span class="code-comment"># straight to the warm-up page</span>
+thinker ui --tab context --all      <span class="code-comment"># the Context view over every repository</span>
 thinker ui --port 4800 --no-open    <span class="code-comment"># a fixed port, without opening a browser</span></code></pre>
         <div class="table-scroll">
           <table>
@@ -1168,7 +1119,6 @@ thinker ui --port 4800 --no-open    <span class="code-comment"># a fixed port, w
             <tbody>
               <tr><td>Context</td><td>Where the agents' context goes, over 7 or 30 days, for one repository or all of them: input tokens a session by part, then each instruction section, skill and tool with its cost, use and waste, and the cuts (<a href="#context">The Context page</a>)</td></tr>
               <tr><td>Cache</td><td>Every repository on this machine with a cache, as a card: notes, fresh and stale, behaviors, hits, last use, and what is being mined or distilled right now, as a progress bar ("mining 3/20 PRs", "distilling 1/4 sessions") with a stop button. Open one for its notes, filtered by status and kind, searched and sorted by hits or age, with the code each points at and where it came from (archive a note or restore it to serving), and below them the behaviors read from its design documents, to accept, edit or discard</td></tr>
-              <tr><td>Warm up (from the Cache view, and the first view after install)</td><td>The git repositories your agents worked in over the last 30 days, most recent first, found from their own session records, with a build estimate each (time and tokens, never dollars). Pick repositories, full or shallow, whole or by directory, and the agent and model; the builds run one at a time and show on the Cache page</td></tr>
             </tbody>
           </table>
         </div>
@@ -1183,9 +1133,9 @@ thinker ui --port 4800 --no-open    <span class="code-comment"># a fixed port, w
           <table>
             <thead><tr><th>Command</th><th>What it does</th></tr></thead>
             <tbody>
-              <tr><td><code>thinker setup [--build | --no-build]</code></td><td>Set one repository up from the terminal, as the local page does: connect the agents, then offer to build the cache from merged pull requests</td></tr>
+              <tr><td><code>thinker setup [--no-ui]</code></td><td>Set one repository up from the terminal: connect the agents, then print where the agents' context goes there and what to cut first</td></tr>
               <tr><td><code>thinker connect</code></td><td>Wire the agents on this machine into their own settings, once; setup and the installer run it first</td></tr>
-              <tr><td><code>thinker ui [--tab context | cache | warmup] [--port n] [--no-open]</code></td><td>The <a href="#local-page">local page</a>: where the context goes, the caches and their notes, setting repositories up</td></tr>
+              <tr><td><code>thinker ui [--tab context | cache] [--all] [--port n] [--no-open]</code></td><td>The <a href="#local-page">local page</a>: where the context goes (<code>--all</code>: over every repository), the caches and their notes</td></tr>
               <tr><td><code>thinker context [--days n] [--json] [--judge n] [--switch-off &lt;labels&gt;] [--output-compression &lt;tools&gt; --level high|moderate|off]</code></td><td>The <a href="#context">Context page</a>'s report in the terminal; <code>--judge n</code> has a model read n recent sessions for which sections bore on them; the two switches are the page's <a href="#cuts">cuts</a> for tools and outputs</td></tr>
               <tr><td><code>thinker instructions [--core | --compress | --remove]</code></td><td>The sections of <code>AGENTS.md</code> and their tokens; keep some in a trimmed local copy, or shorten or drop one as a diff</td></tr>
               <tr><td><code>thinker harness [--off | --undo]</code></td><td>The skills, MCP servers and plugins loaded into every session against what the sessions use; switch some off, or back on</td></tr>
@@ -1196,7 +1146,6 @@ thinker ui --port 4800 --no-open    <span class="code-comment"># a fixed port, w
               <tr><td><code>thinker system [docs | add | edit | rm | md]</code></td><td>The behaviors read from the design documents, and whether the code upholds each</td></tr>
               <tr><td><code>thinker usage [--here] [--days n]</code></td><td>How the cache has been used, what it cost, and the holdout comparison</td></tr>
               <tr><td><code>thinker impact [--pr n]</code></td><td>Agent work connected to the pull requests it went into</td></tr>
-              <tr><td><code>thinker mine-prs [--git --fixes]</code></td><td>Distill merged pull requests (or fix commits) into notes; nothing is mined twice</td></tr>
               <tr><td><code>thinker learn</code></td><td>Distill every session a supported agent ran here that has not been distilled yet</td></tr>
               <tr><td><code>thinker maintain [--dry]</code></td><td>One maintenance run by hand: re-verify, mine, phrase, archive</td></tr>
               <tr><td><code>thinker check</code>, <code>thinker verify</code></td><td>Mark stale notes against the working tree; re-verify them with a small model</td></tr>
@@ -1205,7 +1154,7 @@ thinker ui --port 4800 --no-open    <span class="code-comment"># a fixed port, w
               <tr><td><code>thinker export</code>, <code>thinker import</code></td><td>Back the local cache up; restore one, checked against this checkout</td></tr>
               <tr><td><code>thinker ranker</code>, <code>thinker ast</code></td><td>Ranking mode and local fallback status, and whether the tree-sitter parser is loaded</td></tr>
               <tr><td><code>thinker update</code>, <code>thinker rewire</code></td><td>Update the CLI (every 4 hours in the background); rewrite every checkout's hooks for the installed version</td></tr>
-              <tr><td><code>thinker disable</code> · <code>thinker enable</code></td><td>Switch thinker off for this repository, machine-wide, or back on (for sensitive content; also on the warm-up page)</td></tr>
+              <tr><td><code>thinker disable</code> · <code>thinker enable</code></td><td>Switch thinker off for this repository, machine-wide, or back on (for sensitive content)</td></tr>
               <tr><td><code>thinker uninstall [--purge] [--user]</code></td><td>Remove a repository's hooks and MCP registration (<code>--purge</code> removes notes; <code>--user</code> the machine-wide wiring)</td></tr>
             </tbody>
           </table>

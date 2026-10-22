@@ -451,7 +451,7 @@ export function scheduleHarnessSuggestion(store, { now = Date.now(), home, force
     }
     return null;
   }
-  // a repository never looked at with enough sessions (an existing install, a warm-up skipped) is looked at
+  // a repository never looked at with enough sessions (an existing install) is looked at
   // daily, and asked the first time the data is there; after that, every two weeks
   if (!force && st.checkedAt && now - Date.parse(st.checkedAt) < (st.firstLookAt ? HARNESS.everyDays : HARNESS.waitDays) * DAY) return null;
   usage ??= harnessUsage(store.repo);

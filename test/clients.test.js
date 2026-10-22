@@ -538,7 +538,7 @@ test('connect wires the agents into their own settings, once per machine: no --r
     assert.equal(toml.match(/\[mcp_servers\.thinker\]/g).length, 1);
     assert.ok(!toml.includes('THINKER_REPO'), 'no pinned repository');
     // Codex reviews the user's hooks too: their hashes, keyed by the user's hooks.json; and its subagents
-    // are turned on, which a warm-up in the Codex app reads through
+    // are turned on, which learning in the Codex app reads through
     const marked = trustCodexUser();
     assert.equal(marked.length, 2); assert.match(marked[0], /turned on subagents/);
     const trusted = fs.readFileSync(path.join(home.CODEX_HOME, 'config.toml'), 'utf8');

@@ -150,7 +150,7 @@ async function runChecks(ctx) {
       },
     });
   }
-  // Codex's subagents, which a warm-up in the Codex app reads through: turned on, not reported, as the PATH line
+  // Codex's subagents, which learning in the Codex app reads through: turned on, not reported, as the PATH line
   if (detected.includes('codex') && !unwired.includes('codex')) {
     let turned = []; try { turned = enableCodexSubagents(); } catch (e) { add('codex subagents', 'warn', `could not turn them on: ${e.message}`); }
     if (turned.length) add('codex subagents', 'ok', 'turned on ([features] multi_agent = true in ~/.codex/config.toml)');
@@ -198,7 +198,7 @@ async function runChecks(ctx) {
     try { notes = store.list(); } catch (e) { add('notes', 'fail', e.message); }
     try { for (const f of fs.readdirSync(store.notesDir)) if (f.endsWith('.json')) { try { JSON.parse(fs.readFileSync(path.join(store.notesDir, f), 'utf8')); } catch { bad++; } } } catch {}
     add('repository', 'ok', `set up in ${repo}`);
-    add('notes', bad ? 'warn' : 'ok', `${notes.length} note${notes.length === 1 ? '' : 's'}${bad ? `; ${bad} file${bad === 1 ? '' : 's'} in ${store.notesDir} unreadable` : notes.length ? '' : ' (the cache grows from your sessions; `thinker warmup` here reads the repository\'s history into it)'}`);
+    add('notes', bad ? 'warn' : 'ok', `${notes.length} note${notes.length === 1 ? '' : 's'}${bad ? `; ${bad} file${bad === 1 ? '' : 's'} in ${store.notesDir} unreadable` : notes.length ? '' : ' (the cache grows from your sessions)'}`);
     if (configOk) wiringCheck('checkout wiring', repo, 'repo');
     // the checkout's own CLAUDE.local.md still carries a workflow block the user's CLAUDE.md also carries
     const twice = staleRepoInstructions(repo);

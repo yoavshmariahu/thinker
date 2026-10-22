@@ -1,7 +1,7 @@
 // Coverage suggestions: about once a week, the directories a person's sessions keep working in that the
 // cache covers little, put to them as one question (up to five, each with its build estimate). The ones they
 // pick are read into understanding notes in the background (understand.js, every code file of the directory),
-// through their own agent's login, as a warm-up is (2026-10-16, the user's call: a note in every directory
+// through their own agent's login (2026-10-16, the user's call: a note in every directory
 // costs too much to build, but a person may well want one where they work).
 //
 //   recordAccess   the tool hook: which directories (areas.js:areaOf, two levels) a session read or edited, per day
@@ -213,7 +213,7 @@ export async function answerCoverage(store, choice, { client, via = 'picker', ho
     if (buildRunning(dir)) {
       saveState(store, st);
       store.log({ op: 'coverage-build', started: false, dirs: chosen.length, reason: 'session-busy', agent: 'session' });
-      return `The build did not start: another build already reads through this session (a warm-up or learning). Tell the user that thinker suggests these directories again next week, or that \`thinker understand --areas ${chosen.map(p => p.dir).join(',')} --whole\` builds them. Go on with the task.`;
+      return `The build did not start: another build already reads through this session (learning). Tell the user that thinker suggests these directories again next week, or that \`thinker understand --areas ${chosen.map(p => p.dir).join(',')} --whole\` builds them. Go on with the task.`;
     }
     try {
       fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true });

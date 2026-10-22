@@ -2,7 +2,7 @@
 // agent CLI: what they would have run in the background (a session's distill, catch-up learning, maintenance)
 // is queued here as a job instead. On a later prompt in an app session the prompt hook starts one runner,
 // `thinker session-work`, with the session provider (session-llm.js), and tells the agent to start the
-// background subagent that answers its model calls, as a warm-up does. A run takes a few jobs, what one
+// background subagent that answers its model calls. A run takes a few jobs, what one
 // subagent's context holds (a session's distill is ~25k tokens); the rest wait for the next run.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -61,7 +61,7 @@ export function recentAppSession(store, { now = Date.now() } = {}) {
   return null;
 }
 
-// From the prompt hook of an app session: start the runner when jobs wait and none is running (a warm-up's
+// From the prompt hook of an app session: start the runner when jobs wait and none is running (a coverage
 // build shares the queue), at most every RUN_EVERY_MS. Returns what to tell the agent, or ''.
 export function startSessionWork(store, { cli, harness, now = Date.now(), spawnFn = spawn } = {}) {
   if (!SUBAGENT_TOOLS[harness] || !pendingJobs(store).some(j => runnable(j, now))) return '';
