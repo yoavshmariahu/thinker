@@ -12,5 +12,6 @@
     "knowledge-cache"
   ],
   "hooks": "./hooks/hooks.json",
-  "logo": "./assets/logo.png"
+  "logo": "./assets/logo.png",
+  "commands": "./commands"
 }

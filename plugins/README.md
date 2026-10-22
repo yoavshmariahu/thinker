@@ -2,14 +2,13 @@
 
 One plugin per host, each a pointer to the thinker installed on this machine (`~/.thinker/app`): the
 plugin's hooks run the installed copy's `thinker hook`, so the notes, the learning and the updates are the
-installed copy's. Nothing of thinker runs from a plugin. On a machine without thinker, the first prompt
-starts the installer once, in the background, for this host alone (`npx -y @zerotimedev/thinker --clients
-<host> --no-modify-path --no-ui --yes`: no other agent is wired, no shell file is edited) and tells the person
-through the hook's `systemMessage` (Claude Code and Codex show it; Cursor has no such field, so there it
-installs quietly); an install that did not finish is named once, with its log under `~/.thinker/state/`.
-`THINKER_PLUGIN_INSTALL=off` never installs. Where the host's own settings run thinker's hooks (`thinker
-connect`, which the installer runs), the plugin yields (`--plugin`): one copy, never a note twice. So after
-the install the plugin is idle, and the installed copy does the work from the next session on.
+installed copy's. Nothing of thinker runs from a plugin. The hooks are for the cache and nothing else: on a
+machine without thinker they do nothing. Installing is the plugin's command, run by the person:
+`/thinker:install` in Claude Code (`commands/install.md`), the `thinker-install` skill in Codex, the
+`install` command in Cursor. Each runs `npx -y @zerotimedev/thinker --clients <host> --no-modify-path --no-ui
+--yes`: that host alone is wired, no other agent is touched, no shell file is edited. The installer writes the
+host's own settings hooks, and where those run thinker's hooks the plugin yields (`--plugin`): one copy, never
+a note twice, and the installed copy does the work from the next session on.
 
 | host | plugin | marketplace file | install |
 |---|---|---|---|
