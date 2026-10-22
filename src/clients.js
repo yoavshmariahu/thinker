@@ -836,8 +836,14 @@ export function refreshWiring(repo, { cli, mcpEntry, dry = false, clients = CLIE
       }
       r.clients.push(client);
     }
+    // The workflow block and thinker's rule files went on 2026-10-22: taken out wherever they are, whether or not
+    // the agent is wired at this scope. Since the wiring went machine-wide a checkout is rarely wired itself, and
+    // its CLAUDE.local.md, AGENTS.md, GEMINI.md or .opencode/thinker.md kept the block an older setup wrote there.
+    // Only the marked block goes (agent-instructions.js:updateInstructions); the rest of the file stays.
+    for (const client of clients) for (const file of instructionFiles(client, o)) { try { updateInstructions(file, null); } catch {} }
     if (scope === 'repo') {
-      if (clients.includes('cursor') && !dry) removeCursorRule(repo);
+      for (const client of clients) for (const file of RULE_FILES[client] || []) { const f = path.join(repo, file); if (readText(f).includes('<!-- thinker -->')) fs.rmSync(f, { force: true }); }
+      if (clients.includes('cursor')) removeCursorRule(repo);
       const gitCli = gitHooksOurs(repo);
       if (gitCli && ours(gitCli)) {
         const learn = /maintain/.test(readText(gitHookPath(repo, 'post-commit')));
