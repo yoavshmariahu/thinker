@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseTranscript } from './transcripts.js';
 
-const KEEP = 1000, VERSION = 8;
+const KEEP = 1000, VERSION = 10;
 // what each level's cap leaves of an output, in tokens (diet.js:DIET_LEVELS outputChars / 4): the part of a
 // compressible tool's result past it is a saving at least (the other trims, round search hits and file windows, come on top);
 // an MCP server has the moderate level alone (diet.js:mcpLevel), so its high saving is its moderate one
@@ -73,9 +73,10 @@ export function sessionOutputs(events, turns = 0, compactions = []) {
 
 const stateFile = store => path.join(store.dir, 'state', 'tool-outputs.json');
 // One record per session, kept by the transcript's size: the outputs by tool (sessionOutputs), and, since version 8,
-// the model the session ran on and what it cost as the agent reported it (transcripts.js:Stats), read by the Report
-// page (report.js:sessionUsage) from the same parse.
-const usageOf = st => st && st.inputTokens != null ? { input: st.inputTokens, output: st.outputTokens ?? 0, cacheRead: st.cacheReadTokens ?? 0, cacheWrite: st.cacheWriteTokens ?? 0, turns: st.turns || 0 } : null;
+// the model the session ran on and what it cost as the agent reported it (transcripts.js:Stats; since version 9 with
+// what the conversation itself cost, `carried`; version 10 with the notes and the instruction payload), read by the Report page (report.js:sessionUsage) from the same parse.
+// `carried`: what the conversation itself cost in input tokens, by kind (transcripts.js:parseClaude; Claude Code alone)
+const usageOf = st => st && st.inputTokens != null ? { input: st.inputTokens, output: st.outputTokens ?? 0, cacheRead: st.cacheReadTokens ?? 0, cacheWrite: st.cacheWriteTokens ?? 0, turns: st.turns || 0, carried: st.carried || null } : null;
 function sessionRecords(store, sessions) {
   let st = {}; try { st = JSON.parse(fs.readFileSync(stateFile(store), 'utf8')); } catch {}
   const recs = [];

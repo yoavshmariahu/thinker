@@ -5,7 +5,9 @@
 // (tool-outputs.js:sessionUsage, from transcripts.js:Stats), and the parts the Context view estimates for it (the
 // instruction files it read: instruction-value.js; the skills, MCP servers, plugins and built-in tools loaded:
 // harness.js; its tool outputs read again by every call after them: tool-outputs.js), scaled down to the session's
-// measured input where their sum overshoots it, the rest of the input being the conversation itself ("other").
+// measured input where their sum overshoots it; and, from the transcript itself, what the conversation costs
+// (transcripts.js:parseClaude `carried`: the system prompt, the agent's tool calls, its thinking kept in the context,
+// the prompts and replies), the rest of the input being Claude Code's own notes and the listings ("other").
 // Under the tables: the decisions taken on the Context view in the window (context-suggest.js:changeHistory), so a
 // week's change can be read against what was cut that week, and the cache's four numbers (usage.js:summarize) with
 // its saving priced at the models it was made on. A session whose agent reports no usage (Cursor) is counted in no
@@ -21,8 +23,17 @@ import { formatTokens } from './model-usage.js';
 export const REPORT_WEEKS = 6;
 // a cell is trending when it moved this much against the first week of the window (the page colours it: red up, green down)
 export const TREND_MIN = 0.05;
+// the parts of a session's input: the four the Save page measures (instruction-value.js, harness.js, tool-outputs.js),
+// then what the conversation itself costs, read from the transcript (transcripts.js:parseClaude `carried`): the system
+// prompt, the agent's own tool calls (the edits and commands it wrote, read again by every call after), its thinking
+// kept in the context, the prompts with their reminders and the agent's text, Claude Code's own notes between turns
+// (environment updates, reminders, tool schemas loaded on demand, listings); `other` is what is left of the measured
+// input (estimation slack, mostly the four characters a token the text parts are counted at); `output` is what the
+// model wrote. The instruction files are the larger of the transcript's payload (the root file with the person's global
+// file and memory, where the transcript carries it from the first call) and the Save page's estimate of the root file.
 export const PARTS = [
-  ['instructions', 'Instruction files'], ['custom', 'Custom tools'], ['builtin', 'Built-in tools'], ['outputs', 'Tool outputs'],
+  ['instructions', 'Instruction files'], ['system', 'System prompt'], ['custom', 'Custom tools'], ['builtin', 'Built-in tools'], ['outputs', 'Tool outputs'],
+  ['agentCalls', "Agent's tool calls"], ['thinking', 'Thinking kept'], ['prompts', 'Prompts and replies'], ['notes', "Claude Code's notes"],
   ['other', 'Other input'], ['output', 'Output'],
 ];
 const DAY = 86400_000;
@@ -67,7 +78,7 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
     const input = u.input, output = u.output || 0;
     col.sessions++; if (cost != null) col.priced++; else unpriced.add(r.model || 'unknown');
     // the parts as estimated, scaled to the measured input where they overshoot it; what is left is the conversation
-    const p = parts.get(r.session) || {}, est = { instructions: p.instructions || 0, custom: p.custom || 0, builtin: p.builtin || 0, outputs: p.outputs || 0 };
+    const p = parts.get(r.session) || {}, c = u.carried || {}, est = { instructions: Math.max(c.instructions || 0, p.instructions || 0), system: c.system || 0, custom: p.custom || 0, builtin: p.builtin || 0, outputs: p.outputs || 0, agentCalls: c.agentCalls || 0, thinking: c.thinking || 0, prompts: (c.prompts || 0) + (c.agentText || 0), notes: c.notes || 0 };
     const sum = Object.values(est).reduce((a, b) => a + b, 0), scale = sum > input && sum > 0 ? input / sum : 1;
     const inCost = cost == null ? null : (cost - (price ? output * price.output / 1e6 : 0)) / Math.max(1, input);
     for (const k of Object.keys(est)) { const tk = est[k] * scale; add(byPart[k][w], tk, inCost == null ? 0 : tk * inCost); }

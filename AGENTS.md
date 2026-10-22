@@ -1299,10 +1299,23 @@ each week's sessions. Per session the transcript gives the model and the usage t
 8, `tool-outputs.js:sessionUsage`), and the Context view's readers give the parts, joined by session id (the
 timeline rows of `instruction-value.js`, `harness.js` and `tool-outputs.js` carry `session` since this day):
 the instruction files read, the custom tools (skills, MCP servers, plugins) and built-in tools loaded, each times
-the session's model calls, and the tool outputs read again by every call after them. The parts are scaled down
-to the session's measured input where their sum overshoots it (they are estimates with different multipliers);
-what is left of the input is "Other input", the conversation itself, and "Output" is what the model wrote, so
-the parts add up to the session's tokens. The second table is by model under its provider
+the session's model calls, and the tool outputs read again by every call after them; and the transcript itself gives
+what the conversation costs (`transcripts.js:parseClaude`, `stats.carried`, Claude Code alone; kept with the
+session's record since tool-outputs state version 10): the system prompt (the prompt snapshot) once a call, and, each
+read again by every call after it since the last compaction, the agent's tool calls (the input of each `tool_use`),
+its thinking (Claude Code keeps every turn's in the context, `clear_thinking keep: all`; counted by the usage's
+`output_tokens_details.thinking_tokens`, else by the signature at 4.3 characters a token), and the prompts with their
+reminders and the agent's text, and Claude Code's own notes (every other attachment row: environment updates,
+reminders, the schemas of tools loaded on demand, listings; the skill listing is the harness's). Where the transcript
+carries the instruction payload (the `instructions` attachment: the root file with the person's global file and
+memory) it is the instruction part, exact, instead of the Save page's estimate of the root file alone. Measured on
+this repository's 30 longest recent sessions (2026-10-22, from the
+`api-request` records Claude Code 2.1.308 writes): tool results 27%, instruction files 14%, the agent's tool calls
+12%, user text 11%, thinking 11%, Claude Code's own system messages 5%, tool definitions 4%, the system prompt 2%. The
+parts are scaled down to the session's measured input where their sum overshoots it (they are estimates with different
+multipliers); what is left of the input is "Other input" (estimation slack, mostly the four characters a token the text parts
+are counted at against about 3.3 for code and JSON), and "Output" is what the model wrote, so the parts add up to the
+session's tokens. The second table is by model under its provider
 (`prices.js:providerOf`), each row the model's share of the average session (its tokens over every session of
 the week), so the rows add up to the total and a switch of model shows as one row falling while another rises;
 the provider's subtotal is above its models and folds them. On the page each cell is shaded by its number against every

@@ -23,8 +23,10 @@ function fixture(t) {
 // A Claude Code transcript with one tool call, on `model`, reporting `usage` on each of its two model turns
 function transcript(dir, name, { model, usage, mtime, client = 'claude' }) {
   const rows = [
+    { type: 'attachment', attachment: { type: 'prompt_snapshot', systemPrompt: ['You are an agent.'] } },
+    { type: 'attachment', attachment: { type: 'environment', text: 'cwd is here' } },
     { type: 'user', message: { role: 'user', content: 'tidy a' } },
-    { type: 'assistant', message: { id: 'm1', role: 'assistant', model, usage, content: [{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'cat src/a.js' } }] } },
+    { type: 'assistant', message: { id: 'm1', role: 'assistant', model, usage: usage && { ...usage, output_tokens_details: { thinking_tokens: 40 } }, content: [{ type: 'thinking', thinking: '', signature: 'x'.repeat(172) }, { type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'cat src/a.js' } }] } },
     { type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't1', content: 'export const a = 1;\n' }] } },
     { type: 'assistant', message: { id: 'm2', role: 'assistant', model, usage, content: [{ type: 'text', text: 'done' }] } },
   ];
@@ -89,6 +91,13 @@ test('the report averages each week over its sessions, by part and by model unde
   assert.equal(inputParts, 2000, 'the input parts add up to the measured input');
   assert.ok(v.parts.find(p => p.key === 'outputs').cells[last].tokens > 0, 'the tool output read again by the call after it');
   assert.ok(v.parts.find(p => p.key === 'instructions').cells[last].tokens > 0, 'the instruction file, in every call');
+  // the conversation's own cost, from the transcript: the second call reads the first turn's thinking (40 tokens by the
+  // usage), the prompt and the tool call before it; the system prompt once a call
+  assert.equal(v.parts.find(p => p.key === 'thinking').cells[last].tokens, 2 * 40);
+  assert.ok(v.parts.find(p => p.key === 'prompts').cells[last].tokens > 0);
+  assert.ok(v.parts.find(p => p.key === 'agentCalls').cells[last].tokens > 0);
+  assert.equal(v.parts.find(p => p.key === 'system').cells[last].tokens, 2 * 2 * Math.ceil('["You are an agent."]'.length / 4));
+  assert.equal(v.parts.find(p => p.key === 'notes').cells[last].tokens, 2 * 2 * Math.ceil(JSON.stringify({ type: 'environment', text: 'cwd is here' }).length / 4), 'an environment note, read by both calls');
   assert.deepEqual(v.parts.map(p => p.key), PARTS.map(([k]) => k));
   // last week: one gpt-6-astra session (4,020 tokens) and one on an unpriced model (202)
   assert.equal(avg(v.totals, 4), (4020 + 202) / 2);
