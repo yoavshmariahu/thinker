@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { parseTranscript, detectFormat, toolName, hydrate, recordEvent, findSessions } from '../src/transcripts.js';
+import { parseTranscript, detectFormat, toolName, hydrate, recordEvent, findSessions, textOf, imageDims, imageTokens, imageTokensOf, IMAGE_TOKENS_UNKNOWN } from '../src/transcripts.js';
 import { exploreCount, condense } from '../src/distill.js';
 import { extractJson } from '../src/llm.js';
 import { installClient } from '../src/clients.js';
@@ -34,6 +34,29 @@ test('Claude Code transcript', () => {
   // the model is that of the whole session, even when only the tail is read
   assert.equal(parseTranscript(f, { fromLine: 3 }).events.length, 1);
   assert.equal(parseTranscript(f, { fromLine: 3 }).model, 'claude-opus-5-5');
+});
+
+test('a screenshot in a tool result is costed by its pixels, not its base64', t => {
+  const png = (w, h) => { const b = Buffer.alloc(33); b.write('\x89PNG\r\n\x1a\n', 0, 'binary'); b.writeUInt32BE(13, 8); b.write('IHDR', 12); b.writeUInt32BE(w, 16); b.writeUInt32BE(h, 20); return b.toString('base64'); };
+  const image = (w, h) => ({ type: 'image', source: { type: 'base64', media_type: 'image/png', data: png(w, h) + 'A'.repeat(80_000) } });
+  assert.equal(textOf(image(10, 10)), '[image]');
+  assert.deepEqual(imageDims(png(1568, 779)), { w: 1568, h: 779 });
+  assert.equal(imageTokens(image(1568, 779)), 1600, 'a full-width screenshot: the most an image costs');
+  assert.equal(imageTokens(image(941, 467)), Math.round(941 * 467 / 750));
+  assert.equal(imageTokens(image(3136, 1558)), 1600, 'scaled to the long edge first');
+  assert.equal(imageTokens({ type: 'image', source: { data: 'not-an-image' } }), IMAGE_TOKENS_UNKNOWN);
+  assert.deepEqual(imageTokensOf([{ type: 'text', text: 'clicked' }, image(941, 467), image(941, 467)]), { images: 2, imageTokens: 2 * Math.round(941 * 467 / 750) });
+  assert.equal(imageTokensOf([{ type: 'text', text: 'x' }]), null);
+  assert.equal(imageTokensOf('plain'), null);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-tr-')); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const f = path.join(dir, 's.jsonl');
+  fs.writeFileSync(f, [
+    { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'c1', name: 'mcp__claude-in-chrome__computer', input: { action: 'screenshot' } }] } },
+    { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'c1', content: [{ type: 'text', text: 'shot taken' }, image(941, 467)] }] } },
+  ].map(j => JSON.stringify(j)).join('\n'));
+  const ev = parseTranscript(f).events.find(e => e.t === 'tool');
+  assert.equal(ev.result, 'shot taken\n[image]');
+  assert.deepEqual([ev.images, ev.imageTokens], [1, Math.round(941 * 467 / 750)]);
 });
 
 test('what the hooks inject is not the prompt: notes and code blocks are dropped', () => {

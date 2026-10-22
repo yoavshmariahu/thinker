@@ -8,7 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
-import { DIET, dietConfig, dietResult, trimFile, groupSearch, promptTerms, searchTerms, rememberTerms, trimTestOutput } from '../src/diet.js';
+import { DIET, dietConfig, dietResult, trimFile, groupSearch, promptTerms, searchTerms, rememberTerms, trimTestOutput, capMcpResult } from '../src/diet.js';
 import { toolOutput } from '../src/clients.js';
 
 process.env.THINKER_TELEMETRY = 'off';
@@ -163,7 +163,32 @@ test('the hooks: the prompt remembers the request, the tool hook answers Claude 
   assert.equal(hook(dir, 'tool', { ...ev, session_id: 'h3' }, { THINKER_CLIENT: 'codex' }).includes('updatedToolOutput'), false);
 });
 
+test('an MCP result is capped in the shape it came: a string, or the text blocks of a list with its images kept', t => {
+  const long = Array.from({ length: 600 }, (_, i) => `row ${i}`).join('\n');
+  assert.equal(capMcpResult('short', 4000), null);
+  const s = capMcpResult(long, 1000);
+  assert.ok(typeof s.output === 'string' && s.output.length < 1200 && /left out by thinker/.test(s.output) && s.before === long.length);
+  const image = { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AAAA' } };
+  const list = capMcpResult([{ type: 'text', text: long }, image, { type: 'text', text: 'tail' }], 1000);
+  assert.equal(list.output.length, 2, 'the text blocks become one, the image stays');
+  assert.deepEqual(list.output[1], image);
+  assert.ok(list.output[0].type === 'text' && list.output[0].text.endsWith('tail') && list.output[0].text.length < 1200);
+  assert.equal(capMcpResult([{ type: 'text', text: 'ok' }, image], 1000), null, 'an image alone is never cut');
+  const obj = capMcpResult({ content: [{ type: 'text', text: long }], isError: false }, 1000);
+  assert.equal(obj.output.isError, false); assert.equal(obj.output.content.length, 1);
+  // through the hook: only a server given a level, answered with updatedMCPToolOutput beside updatedToolOutput
+  const dir = repo(t); const store = new Store(dir).init();
+  on(store, { tools: { 'mcp:rea': 'high' } });
+  const ev = { session_id: 'm1', cwd: dir, tool_name: 'mcp__rea__q', tool_input: { q: 'x' }, tool_response: long };
+  const o = JSON.parse(hook(dir, 'tool', ev)).hookSpecificOutput;
+  assert.ok(typeof o.updatedMCPToolOutput === 'string' && o.updatedMCPToolOutput.length < 4200 && o.updatedToolOutput === o.updatedMCPToolOutput);
+  assert.ok(logs(store).some(l => l.op === 'diet' && l.kind === 'cap' && l.tool === 'mcp:rea'));
+  assert.equal(hook(dir, 'tool', { ...ev, tool_name: 'mcp__other__q' }), '', 'another server passes');
+  assert.equal(hook(dir, 'tool', { ...ev, tool_response: [{ type: 'text', text: 'small' }] }), '', 'a result within the cap passes');
+});
+
 test('toolOutput carries the replacement beside the context only for Claude Code', () => {
+  assert.deepEqual(JSON.parse(toolOutput('claude', '', { updated: 'y', mcp: true })), { hookSpecificOutput: { hookEventName: 'PostToolUse', updatedToolOutput: 'y', updatedMCPToolOutput: 'y' } });
   assert.deepEqual(JSON.parse(toolOutput('claude', 'ctx', { updated: { stdout: 'x' } })), { hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: 'ctx', updatedToolOutput: { stdout: 'x' } } });
   assert.deepEqual(JSON.parse(toolOutput('claude', '', { updated: { stdout: 'x' } })), { hookSpecificOutput: { hookEventName: 'PostToolUse', updatedToolOutput: { stdout: 'x' } } });
   assert.deepEqual(JSON.parse(toolOutput('claude', 'ctx')), { hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: 'ctx' } });

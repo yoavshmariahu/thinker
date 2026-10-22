@@ -246,8 +246,9 @@ export function preToolOutput(client, { command, reason }) {
   if (!PRE_TOOL_CLIENTS.includes(client)) return '';
   return JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { command }, additionalContext: reason } });
 }
-// `updated` (Claude Code only): the tool's result replaced before the model reads it (diet.js)
-export function toolOutput(client, text, { updated } = {}) {
+// `updated` (Claude Code only): the tool's result replaced before the model reads it (diet.js); for an MCP tool
+// (`mcp`) it goes as `updatedMCPToolOutput` too, the field Claude Code reads for those without a schema check
+export function toolOutput(client, text, { updated, mcp = false } = {}) {
   // Kiro ignores what a PostToolUse hook prints, Goose reads it as a decision
   if (client === 'windsurf' || client === 'kiro' || client === 'goose') return '';
   if (client === 'pi' || client === 'opencode' || client === 'kilo') return text;
@@ -256,7 +257,7 @@ export function toolOutput(client, text, { updated } = {}) {
   if (client === 'cursor') return JSON.stringify({ additional_context: text });
   const o = { hookEventName: client === 'gemini' ? 'AfterTool' : 'PostToolUse' };
   if (text) o.additionalContext = text;
-  if (updated !== undefined && client === 'claude') o.updatedToolOutput = updated;
+  if (updated !== undefined && client === 'claude') { o.updatedToolOutput = updated; if (mcp) o.updatedMCPToolOutput = updated; }
   return JSON.stringify({ hookSpecificOutput: o });
 }
 

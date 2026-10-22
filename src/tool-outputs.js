@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseTranscript } from './transcripts.js';
 
-const KEEP = 1000, VERSION = 5;
+const KEEP = 1000, VERSION = 6;
 // what each level's cap leaves of an output, in tokens (diet.js:DIET_LEVELS outputChars / 4): the part of a
 // compressible tool's result past it is a saving at least (the other trims, round search hits and file windows, come on top)
 const CAP = { moderate: 3000, high: 1000 };
@@ -46,10 +46,11 @@ export function sessionOutputs(events, turns = 0) {
   const tools = events.filter(e => e.t === 'tool'), n = tools.length, by = {};
   const scale = turns > 0 && n > 0 ? Math.min(1, turns / (n + 1)) : 1;
   tools.forEach((e, i) => {
-    const key = toolKey(e.name, e.input), tokens = Math.ceil(String(e.result || '').length / 4), r = (by[key] ||= { calls: 0, tokens: 0, input: 0, saveModerate: 0, saveHigh: 0 });
+    // a screenshot costs its pixels, not its base64 (transcripts.js:imageTokens); the caps cut text alone
+    const key = toolKey(e.name, e.input), text = Math.ceil(String(e.result || '').length / 4), tokens = text + (e.imageTokens || 0), r = (by[key] ||= { calls: 0, tokens: 0, input: 0, saveModerate: 0, saveHigh: 0 });
     const reads = Math.max(1, (n - i) * scale);
     r.calls++; r.tokens += tokens; r.input += Math.round(tokens * reads);
-    if (key === 'Read' || key === 'Bash' || key.startsWith('Bash:')) { r.saveModerate += Math.round(Math.max(0, tokens - CAP.moderate) * reads); r.saveHigh += Math.round(Math.max(0, tokens - CAP.high) * reads); }
+    if (key === 'Read' || key === 'Bash' || key.startsWith('Bash:') || key.startsWith('mcp:')) { r.saveModerate += Math.round(Math.max(0, text - CAP.moderate) * reads); r.saveHigh += Math.round(Math.max(0, text - CAP.high) * reads); }
   });
   return by;
 }

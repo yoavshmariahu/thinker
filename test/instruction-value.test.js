@@ -207,6 +207,11 @@ test('a tool output costs its tokens once for each model call after it, scaled t
   assert.equal(two.Read.input, 150);
   assert.equal(two['mcp:rea'].input, 20);
   assert.equal(toolKey('mcp__claude-in-chrome__navigate'), 'mcp:claude-in-chrome');
+  // a screenshot costs what the parser read from its pixels, never its base64; the caps cut text alone
+  const shot = sessionOutputs([{ t: 'tool', name: 'mcp__claude-in-chrome__computer', input: {}, result: '[image]', images: 1, imageTokens: 1500 }, { t: 'say', text: 'x' }]);
+  assert.deepEqual(shot['mcp:claude-in-chrome'], { calls: 1, tokens: 1502, input: 1502, saveModerate: 0, saveHigh: 0 });
+  const mcpText = sessionOutputs([ev('mcp__rea__q', 16000), { t: 'say', text: 'x' }]);
+  assert.deepEqual([mcpText['mcp:rea'].tokens, mcpText['mcp:rea'].saveModerate, mcpText['mcp:rea'].saveHigh], [4000, 1000, 3000], 'an MCP server past the caps is a saving');
 });
 
 test('waste: high or medium only for a section used in under half the sessions that costs a share of the file', async () => {
@@ -265,16 +270,18 @@ test('bash outputs by program; compression per tool or per command, high keeping
   assert.equal(bashProgram('git -C x log --oneline'), 'git log');
   assert.equal(bashProgram('for f in *; do cat $f; done'), 'shell loop');
   assert.equal(toolKey('Bash', { command: 'sed -n 1,200p a.py' }), 'Bash:sed');
-  assert.ok(compressible('Bash:sed') && compressible('Read') && !compressible('mcp:rea'));
+  assert.ok(compressible('Bash:sed') && compressible('Read') && compressible('mcp:rea') && !compressible('Grep'));
   const { store } = fixture(t);
-  setDietLevel(store, ['Bash:sed', 'Read', 'mcp:rea'], 'high');
+  setDietLevel(store, ['Bash:sed', 'Read', 'mcp:rea', 'Grep'], 'high');
   setDietLevel(store, ['Bash'], 'moderate');
   const cfg = dietConfig(store);
-  assert.equal(cfg.enabled, true); assert.deepEqual(cfg.tools, { 'Bash:sed': 'high', Read: 'high', Bash: 'moderate' }, 'an MCP server is never set');
+  assert.equal(cfg.enabled, true); assert.deepEqual(cfg.tools, { 'Bash:sed': 'high', Read: 'high', 'mcp:rea': 'high', Bash: 'moderate' }, 'an MCP server by its key; a tool the diet cannot replace is never set');
   assert.equal(toolLevel(cfg, 'Bash', { command: 'sed -n 1p a' }), 'high', "a command's own level first");
   assert.equal(toolLevel(cfg, 'Bash', { command: 'ls' }), 'moderate', "else Bash's");
   assert.equal(toolLevel(cfg, 'Grep', {}), null);
-  setDietLevel(store, ['Bash:sed', 'Read', 'Bash'], null);
+  assert.equal(toolLevel(cfg, 'mcp__rea__q', {}), 'high', "an MCP tool takes its server's level");
+  assert.equal(toolLevel(cfg, 'mcp__other__q', {}), null);
+  setDietLevel(store, ['Bash:sed', 'Read', 'Bash', 'mcp:rea'], null);
   assert.equal(dietConfig(store).enabled, false, 'nothing set: off');
   const long = Array.from({ length: 400 }, (_, i) => `line ${i}`).join('\n');
   const c = capOutput(long, 1000);
