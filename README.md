@@ -15,7 +15,7 @@ your sessions do not use.
   that matter in a trimmed copy for this checkout; switch unused skills and tools off from the next
   session, with a backup; compress long tool outputs before the agent reads them. Each cut is shown
   first and undone with one command.
-- **See the trend.** The Report tab: what a session costs here week by week, by part of the context
+- **See the trend.** The View Report tab: what a session costs here week by week, by part of the context
   and by model, in tokens or at list prices, with the actions you took and what the cache saved.
 - **Remember instead.** The cache: what your agent works out in a session
   becomes a short note pinned to the code it describes, served on the requests it fits and re-checked
@@ -41,7 +41,7 @@ and [others](docs/agent-integrations.md). `thinker update` keeps it current in t
 ## Everyday commands
 
 ```bash
-thinker ui              # local page: Save (where the context goes, and the cuts), Report (what a session costs, by week)
+thinker ui              # local page: Find Savings (where the context goes, and the cuts), View Report (what a session costs, by week)
 thinker context         # the Context page's report in the terminal (--days 7, --json)
 thinker instructions    # compress, remove or keep sections of AGENTS.md; a trimmed local copy
 thinker harness         # the skills and tools loaded into every session, and what to switch off

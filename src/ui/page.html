@@ -218,15 +218,15 @@
   <nav>
     <div class="brand"><span class="wordmark">thinker</span><span class="brand-sub">local</span></div>
     <div class="nav-right">
-      <button class="nav-link" data-tab="save">Save</button>
-      <button class="nav-link" data-tab="report">Report</button>
+      <button class="nav-link" data-tab="save">Find Savings</button>
+      <button class="nav-link" data-tab="report">View Report</button>
     </div>
   </nav>
 
   <main>
     <!-- Save: where the agents' context goes in one repository, what each part is worth, and the cuts (context-view.js, as `thinker context`) -->
     <section id="tab-save" hidden>
-      <div class="ctx-top"><div><h1>Save</h1>
+      <div class="ctx-top"><div><h1>Find Savings</h1>
       <p class="lede">Find where your agents' context goes to waste, and cut it <span class="muted" id="c-asof"></span></p></div>
       <div class="controls">
         <select class="sel" id="c-repo" aria-label="Repository"></select>
@@ -238,7 +238,7 @@
 
     <!-- Report: what a session costs here week by week, by part and by model, the actions taken and the cache's numbers (report.js, as `thinker report`) -->
     <section id="tab-report" hidden>
-      <div class="ctx-top"><div><h1>Report</h1>
+      <div class="ctx-top"><div><h1>View Report</h1>
       <p class="lede">What a session costs here, week by week: the average over each week's sessions, by where the tokens went and by the model that read them</p></div>
       <div class="controls">
         <select class="sel" id="r-repo" aria-label="Repository"></select>
@@ -307,15 +307,15 @@
 
         <div class="faq-item">
           <h3>Can Thinker cut what my agents load into every session?</h3>
-          <p>It shows you what to cut, and you decide. The Save view here and <code>thinker context</code> list every section of your instruction files, every skill and every tool with what it costs a session and how many sessions it bore on. A section you pick can be removed or compressed by a model: the diff is shown first, and Apply writes it to your working tree, uncommitted, for you to review and commit like any change. Nothing is cut on its own.</p>
+          <p>It shows you what to cut, and you decide. The Find Savings view here and <code>thinker context</code> list every section of your instruction files, every skill and every tool with what it costs a session and how many sessions it bore on. A section you pick can be removed or compressed by a model: the diff is shown first, and Apply writes it to your working tree, uncommitted, for you to review and commit like any change. Nothing is cut on its own.</p>
         </div>
 
         <div class="faq-item">
           <h3>How can I tell if Thinker is helping my agents?</h3>
           <ul>
             <li><b>At the end of each turn</b> one line says what was served and the code it pointed at. It does not say "saved": whether the agent acted on a note is known only once the session is assessed.</li>
-            <li><b>The Save view here</b>, and <code>thinker context</code>, show where your agents' context goes: what each instruction section, skill and tool costs a session and how often sessions acted on it, so what you cut is measured on your own sessions.</li>
-            <li><b><code>thinker usage</code></b>, and the cache's numbers under Report here, show notes served, what the sessions did with them (confirmed, contradicted, unused), what learning and maintenance cost in tokens, and an estimate of the reads avoided.</li>
+            <li><b>The Find Savings view here</b>, and <code>thinker context</code>, show where your agents' context goes: what each instruction section, skill and tool costs a session and how often sessions acted on it, so what you cut is measured on your own sessions.</li>
+            <li><b><code>thinker usage</code></b>, and the cache's numbers under View Report here, show notes served, what the sessions did with them (confirmed, contradicted, unused), what learning and maintenance cost in tokens, and an estimate of the reads avoided.</li>
             <li><b>The holdout is measured, not estimated.</b> 15% of prompts are served nothing, chosen by a hash of the session and the turn, and what every turn cost is read from the session's transcript. Once twenty prompts stand on each side, the holdout section compares the cost per prompt: tool calls and tokens with notes against without, on your repository, by your agent.</li>
           </ul>
           <p>A note served is not a note used. Read the confirmed and unused counts rather than the hit rate; a cache that serves often and is rarely acted on is costing tokens, and maintenance archives such notes over time.</p>
@@ -373,7 +373,7 @@ function confirmDialog({ title, body, ok = 'Confirm' }) {
 // tabs
 document.querySelectorAll('.nav-link').forEach(b => b.onclick = () => show(b.dataset.tab));
 function show(tab) {
-  // the Context tab is Save and the Cache tab is Report since 2026-10-22; an old link (context, changes, cache) and any
+  // the Context tab is Find Savings (`save`) and the Cache tab is View Report (`report`) since 2026-10-22; an old link (context, changes, cache) and any
   // tab the page does not know open the view that replaced it
   if (tab === 'changes') { tab = 'save'; CVIEW = 'all'; }
   if (tab === 'cache') tab = 'report';
@@ -818,7 +818,7 @@ function renderReport(v) {
   const sub = `${sessions} session${sessions === 1 ? '' : 's'} over ${v.weeks} weeks${unmeasured ? `, ${unmeasured} more whose agent reported no usage (Cursor) left out` : ''}${v.all ? ` · ${v.repos.length} repositories` : ''}`;
   const parts = `<figure class="ctx-figure"><figcaption><b>By part of the context</b> <span class="ctx-sub">${sub}</span></figcaption>
     <table class="ctx-table rep-table">${head('Part')}<tbody>${(scale => v.parts.map(p => row(esc(p.name), p.cells, { scale })).join(''))(valuesOf(v.parts.map(p => p.cells)))}${row('Total of these', v.totals, { cls: 'rep-total' })}</tbody></table>
-    <p class="ctx-note">${sum ? `Total ${unit} over each week's sessions` : `Average ${unit} per session, the week's sum over its sessions`}. Each cell is shaded by its number against every cell of the table: the highest is the darkest <b>red</b>, the lowest the darkest <b>green</b>, the rest in proportion with the middle left plain; a total or subtotal row is shaded against its own weeks; a zero is left blank. The four parts the Save page measures and controls, as it estimates them from each session's transcript: the instruction files, the skills and tools loaded, Claude Code's own tools, the tool outputs, each read again by every model call. The rest of a session's input (the conversation itself: the agent's tool calls and thinking kept in the context, the prompts, Claude Code's notes) is not shown here; the total under the model table is the whole session.${cost ? ` Cost prices the tokens at the providers' list rates of ${esc(v.pricedOn)} (fresh input, cache reads and writes, output, each at its rate): what they would cost on a metered key; a subscription pays differently.` : ''}</p></figure>`;
+    <p class="ctx-note">${sum ? `Total ${unit} over each week's sessions` : `Average ${unit} per session, the week's sum over its sessions`}. Each cell is shaded by its number against every cell of the table: the highest is the darkest <b>red</b>, the lowest the darkest <b>green</b>, the rest in proportion with the middle left plain; a total or subtotal row is shaded against its own weeks; a zero is left blank. The four parts the Find Savings page measures and controls, as it estimates them from each session's transcript: the instruction files, the skills and tools loaded, Claude Code's own tools, the tool outputs, each read again by every model call. The rest of a session's input (the conversation itself: the agent's tool calls and thinking kept in the context, the prompts, Claude Code's notes) is not shown here; the total under the model table is the whole session.${cost ? ` Cost prices the tokens at the providers' list rates of ${esc(v.pricedOn)} (fresh input, cache reads and writes, output, each at its rate): what they would cost on a metered key; a subscription pays differently.` : ''}</p></figure>`;
   const fold = p => RFOLD.has(p), modelsOf = p => v.models.filter(m => m.provider === p), mscale = valuesOf(v.models.map(m => m.cells));
   const mtitle = m => (c, w) => `${c.sessions} session${c.sessions === 1 ? '' : 's'} on ${m.model} this week${c.sessions ? `, ${cost ? (c.priced ? money(c.cost / c.priced) : '–') : fmt(c.tokens / c.sessions)} per session of its own` : ''}`;
   const models = `<figure class="ctx-figure"><figcaption><b>By model</b> <span class="ctx-sub">each model's share of the ${sum ? 'week' : 'average session'}, its provider's subtotal above its models</span></figcaption>
@@ -826,7 +826,7 @@ function renderReport(v) {
     <p class="ctx-note">A model's row is its share of the ${sum ? 'week' : 'average session that week (its tokens over every session of the week)'}, so the rows add up to the total and a switch of model shows as one row falling while another rises; hover a cell for the sessions on that model and the average per session of its own.${v.unpriced.length ? ` No list price for ${v.unpriced.map(esc).join(', ')}: their sessions are left out of the cost average.` : ''}</p></figure>`;
   // the decisions taken on the Save page in these weeks, the same table as Save's History (context-suggest.js:changeHistory)
   const acts = v.actions.map(a => ({ ...a, repo: a.repo || REPO }));
-  const actions = historyFigure(acts, { many: Boolean(v.all), caption: 'Actions in the window', sub: `what was applied on the Save page in these ${v.weeks} weeks, to read them against`, empty: 'No actions in these weeks. What you apply on the Save page is listed here with its date.', key: 'report' });
+  const actions = historyFigure(acts, { many: Boolean(v.all), caption: 'Actions in the window', sub: `what was applied on the Find Savings page in these ${v.weeks} weeks, to read them against`, empty: 'No actions in these weeks. What you apply on the Find Savings page is listed here with its date.', key: 'report' });
   // the cache's numbers over the same window (usage.js:summarize), its saving in dollars first
   const c = v.cache;
   const cards = `<div class="section"><div class="kicker">The cache, over the same ${v.weeks} weeks</div><div class="cards four" style="margin-top:0.6rem">

@@ -67,7 +67,7 @@ off for this checkout (`enabledPlugins` and `skillOverrides` in `.claude/setting
 or, for an MCP server, for the repository and its worktrees (`disabledMcpServers` in its entry of
 `~/.claude.json`, what `/mcp disable` writes). A skill switched off still runs as `/name`. What each file said
 before is kept under `~/.thinker/state/harness-backups/`, and `thinker harness --undo` turns everything back on.
-The report and `thinker ui` (the Report view's cache numbers) then show what it saved, read from the sessions started since: a source
+The report and `thinker ui` (the View Report view's cache numbers) then show what it saved, read from the sessions started since: a source
 absent from a session saved its tokens there, once in the context and again in each model call; one still
 loaded is shown as such, not counted.
 
