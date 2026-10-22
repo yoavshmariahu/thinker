@@ -41,7 +41,8 @@ export const DEFAULT_PORT = 4848;
 export function usageView(store, { days, scope = 'here', notesInCache } = {}) {
   const u = summarize(store, { days, all: scope !== 'here' });
   const tok = o => o ? { calls: o.calls || 0, tokens: o.totalTokens || 0, failed: o.failed || 0 } : { calls: 0, tokens: 0, failed: 0 };
-  const count = () => { try { return store.list().filter(n => n.status !== 'invalid').length; } catch { return 0; } };
+  // active notes, as machine.js:cacheStats counts them for every repository: not retired, not archived, not behaviors
+  const count = () => { try { return store.list().filter(n => n.status !== 'invalid' && !n.archived && !isBehavior(n)).length; } catch { return 0; } };
   return {
     scope: u.scope, from: u.from, to: u.to, days: days || null,
     requests: u.requests || 0, answered: u.answered || 0, sessions: u.sessions || 0,

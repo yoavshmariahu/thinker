@@ -78,3 +78,40 @@ export function addSpend(total, e) {
   const cost = e.op === 'mine-prs' && e.cost === 0 ? null : count(e.cost);
   if (cost !== null) total.reportedCost += cost; else total.unknownCostCalls++;
 }
+
+// What a token of model work is worth beside a token of the agent's reading, for the net figure
+// alone: the saving lands on the agent's model (Fable, Opus), the learning runs on Haiku or Sonnet,
+// a cache read costs a tenth of fresh input and an output token five times it. Relative list prices
+// per input token, Claude Opus 5.5 = 1 (Anthropic's table of 2026-10-06); ratios, never shown as
+// money. A model not listed (another provider's, an alias nobody priced) is null and is counted one
+// token for one, as before.
+const RATES = [
+  [/fable|mythos/, 2.5, 0.0625],
+  [/opus-5-5|opus-5\.5|^opus$/, 1, 0.05],
+  [/opus/, 1.25, 0.125],
+  [/sonnet-[34]/, 0.75, 0.075],
+  [/sonnet/, 0.5, 0.05],
+  [/haiku-[34]/, 0.25, 0.025],
+  [/haiku/, 0.025, 0.0025],
+];
+export function relativeRate(model) {
+  const m = String(model || '').toLowerCase().replace(/^(claude|anthropic|cursor)\//, '');
+  const hit = RATES.find(([re]) => re.test(m));
+  if (!hit) return null;
+  const [, input, cacheRead] = hit;
+  return { input, output: input * 5, cacheRead, cacheWrite: input * 1.25 };
+}
+
+// One call's tokens at that rate, in Opus 5.5 input tokens. Input includes cache reads and writes
+// (normalizeModelUsage), so fresh input is what is left of it.
+export function weightedTokens(tokens, rate) {
+  const n = k => count(tokens?.[k]) || 0;
+  const read = n('cacheReadTokens'), write = n('cacheWriteTokens');
+  const fresh = Math.max(0, n('inputTokens') - read - write);
+  return fresh * rate.input + read * rate.cacheRead + write * rate.cacheWrite + n('outputTokens') * rate.output;
+}
+
+// Purposes of features since removed (Jev, review, its repair passes, exploration, the slimming
+// prompt): their spend is history, not what keeping the cache costs now.
+const RETIRED = /^(jev-|review$|repair$|mine-prs-repair$|explore$|route$|instructions-slim$)/;
+export const retiredPurpose = purpose => RETIRED.test(String(purpose || ''));

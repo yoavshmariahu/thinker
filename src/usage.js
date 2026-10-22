@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { isTestMode } from './test-mode.js';
-import { emptySpend, addSpend, formatTokens } from './model-usage.js';
+import { emptySpend, addSpend, formatTokens, normalizeModelUsage, relativeRate, weightedTokens, retiredPurpose } from './model-usage.js';
 export { formatTokens };
 import { estTokens } from './rank.js';
 import { Store, logFile, adoptLocalLog, repoId } from './store.js';
@@ -193,7 +193,8 @@ export function summarize(store, { days, all = false } = {}) {
     // passed while such a report stood since its last one (passedWhileFlagged)
     verifyChecks: { flaggedAfterPass: 0, passedWhileFlagged: 0 },
     feedback: { useful: 0, notUseful: 0 }, corrections: 0,
-    spending: { ...emptySpend(), byPurpose: {}, byPhase: {}, byModel: {}, legacyRecords: 0 },
+    spending: { ...emptySpend(), byPurpose: {}, byPhase: {}, byModel: {}, legacyRecords: 0,
+      weighted: { units: 0, pricedCalls: 0, unpricedTokens: 0, unpricedCalls: 0, retiredTokens: 0 } },
     distillation: { runs: 0, noNewNotes: 0, noChanges: 0 },
     distillationPerformance: { attempts: 0, succeeded: 0, failed: 0, durationMs: 0, durationSamples: 0, spending: emptySpend() },
     clients: {
@@ -252,6 +253,14 @@ export function summarize(store, { days, all = false } = {}) {
         addSpend(u.spending[group][key], e);
       }
       if (e.op !== 'model') u.spending.legacyRecords++;
+      // the same call weighed against the agent's reading (relativeRate), leaving out removed features
+      const w = u.spending.weighted, t = e.tokens && typeof e.tokens === 'object' ? e.tokens : normalizeModelUsage(e.provider, e.usage);
+      if (retiredPurpose(purpose)) w.retiredTokens += t.totalTokens || 0;
+      else {
+        const rate = relativeRate(e.model);
+        if (rate) { w.units += weightedTokens(t, rate); w.pricedCalls++; }
+        else if (t.totalTokens) { w.unpricedTokens += t.totalTokens; w.unpricedCalls++; }
+      }
     }
     if (e.op === 'distill') {
       u.distillation.runs++;
@@ -361,6 +370,15 @@ export function summarize(store, { days, all = false } = {}) {
   u.saved.net = u.saved.tokens - u.tokensServed;
   // Keep the old serving-only net for consumers; expose the full token comparison separately.
   u.saved.netAfterSpend = u.saved.net - u.spending.totalTokens;
+  // The spend in tokens of the agents' model: priced calls by their rate over the agents' input rate
+  // (the saving's models, weighted by what each saved; Opus 5.5 where none is priced), the rest one for one.
+  const w = u.spending.weighted;
+  let ws = 0, wr = 0;
+  for (const [m, x] of Object.entries(u.saved.byModel)) { const r = relativeRate(m); if (r) { ws += x.tokens; wr += x.tokens * r.input; } }
+  w.agentRate = ws ? wr / ws : 1;
+  w.agentTokens = Math.round(w.units / w.agentRate + w.unpricedTokens);
+  delete w.units;
+  u.saved.netAfterWeightedSpend = u.saved.net - w.agentTokens;
   u.saved.spendComplete = u.spending.calls > 0 && u.spending.unknownTokenCalls === 0 && u.spending.legacyRecords === 0;
   u.unreadable = [...unreadable];
   u.top = [...count.values()].sort((a, b) => b.n - a.n).slice(0, 5).map(c => ({ id: c.id, repo: c.origin, served: c.n, title: storeOf(c.repo).get(c.id)?.title || '(removed)' }));
@@ -559,6 +577,9 @@ export function renderUsage(u, { days } = {}) {
     L.push(`  after cache work  ${num(u.saved.netAfterSpend)} tokens = estimated reading avoided − notes added − ${num(spending.totalTokens)} reported build/maintenance tokens`);
     L.push(`                  ${u.saved.spendComplete ? 'Reported tokens only' : 'Partial accounting; unreported spending is not subtracted'}. Tokens of different models, and cached input, are counted alike;`);
     L.push(`                  an avoided read is also not re-sent on every later turn, which this leaves out.`);
+    const w = spending.weighted;
+    L.push(`  weighted          ${num(u.saved.netAfterWeightedSpend)} tokens, with that work as ${num(w.agentTokens)} tokens of the agents' model: each call weighed by its`);
+    L.push(`                  model's rate per token beside the agents' (output 5×, cache reads a tenth or less)${w.unpricedCalls ? `, ${num(w.unpricedCalls)} calls on models without a rate one for one` : ''}${w.retiredTokens ? `; ${num(w.retiredTokens)} tokens of removed features left out` : ''}.`);
   }
   if (machine) {
     const home = process.env.HOME || '';
