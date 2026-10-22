@@ -9,9 +9,10 @@
     /* The public site's look (site/index.html, site/docs.html): white, near-black text, system type,
        gray kickers, #fafafa cards with a #e5e7eb hairline, green for gains, the paired bars. */
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html { font-size: 17px; }
+    /* overflow-x on html alone: on body it made body the scroll container of the sticky nav and tabs, and neither stuck */
+    html { font-size: 17px; overflow-x: hidden; }
     html, body {
-      min-height: 100%; width: 100%; overflow-x: hidden;
+      min-height: 100%; width: 100%;
       background: #ffffff; color: #111111;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
@@ -190,7 +191,8 @@
     .md-pre { font-size: 0.75rem; background: #f8f8f8; padding: 0.5rem 0.6rem; border-radius: 4px; overflow-x: auto; white-space: pre; }
     .md-h { font-weight: 600; margin: 0.2rem 0 0.4rem; }
     .md-h1, .md-h2 { font-size: 1.02rem; } .md-h3 { font-size: 0.94rem; } .md-h4 { font-size: 0.88rem; }
-    .vtabs { display: flex; gap: 0.4rem; margin: 1.8rem 0 0.2rem; border-bottom: 1px solid #e5e7eb; overflow-x: auto; }
+    /* the view tabs stay under the nav while a long table scrolls; the nav's height is measured into --nav-h */
+    .vtabs { display: flex; gap: 0.4rem; margin: 1.8rem 0 0.2rem; border-bottom: 1px solid #e5e7eb; overflow-x: auto; position: sticky; top: var(--nav-h, 0px); z-index: 9; background: #fff; }
     .vtabs button { background: none; border: 0; border-bottom: 3px solid transparent; margin-bottom: -1px; padding: 0.55rem 1.1rem 0.6rem; cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 0.15rem; color: #6b7280; font: inherit; white-space: nowrap; }
     .vtabs button:hover { color: #111; }
     .vtabs button.on { color: #111; border-bottom-color: #111; }
@@ -1190,6 +1192,9 @@ function wire() {
 
 // first view: the tab the URL names, else Context (where the agents' context goes is the front door, since
 // 2026-10-21)
+// the view tabs stick under the nav: its height is measured into --nav-h, not assumed
+const navHeight = () => document.documentElement.style.setProperty('--nav-h', `${document.querySelector('nav').getBoundingClientRect().height}px`);
+navHeight(); addEventListener('resize', navHeight);
 show(H().get('tab') || 'context');
 </script>
 </body>
