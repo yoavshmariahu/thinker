@@ -195,11 +195,12 @@ const HELP = `thinker — knowledge cache for coding agents
   impact export | impact import <file.json>   transfer evidence from CI or another machine
   impact finding <id> --pr n --validity confirmed|dismissed|duplicate|pending --evidence reason
          [--resolution fixed|open|accepted-risk|not-applicable] [--fix sha] [--duplicate-of id]
-  ui [--port n] [--no-open] [--tab context|cache]
+  ui [--port n] [--no-open] [--tab context|cache] [--refresh]
                                  open the local page, from any directory, on Context: where the agents' context goes in each
                                  repository and what each part is worth (thinker context); then the caches on this machine
                                  (each with its notes, to archive or restore, its system behaviors, to accept, edit or
-                                 discard, and what is being distilled, with a stop button); 127.0.0.1 only, Ctrl+C stops it
+                                 discard, and what is being distilled, with a stop button); 127.0.0.1 only, Ctrl+C stops it;
+                                 --refresh looks for the repositories again and keeps the list the page reads (it runs this itself)
   skills [list|scan|audit <id>|review <id>|prefer <id>|dedupe] [--dry] [--again] [--limit n] [--json]
                                  the skill files (SKILL.md) of this checkout as the cache sees them: each has a card that is
                                  served like a note and audited against the code; a skill found out of date is listed with

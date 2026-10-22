@@ -1144,7 +1144,12 @@ repositories), so the page does not make it on a visit: it reads the copy kept i
 with when it was measured and the page starts `thinker context --refresh` in the background and shows the new
 figures when they land (not while rows are picked). A copy made by other code, or before a change to
 `.thinker/config.json`, Claude's settings or the instruction files, is not read; an action from the tab drops it.
-From the copy the tab answers in about 10 ms (one repository) and 20 ms (All).
+From the copy the tab answers in about 10 ms (one repository) and 20 ms (All). The repositories the page lists are kept the
+same way: finding their checkouts reads every agent's project folder and the machine's log (two to four seconds
+here, 6,000 Claude Code project folders), so the checkouts found are kept in thinker's home
+(`state/machine-checkouts.json`, `ui/server.js:keptCheckouts`) and looked for again by `thinker ui --refresh`, which
+the page starts in the background when the list is older than ten minutes; which checkout stands for a repository,
+and which is the current one, is still worked out on each load.
 
 The tab (Context Overview) shows the input tokens by day or week as stacked columns (instruction files, custom
 tools, built-in tools, tool outputs; `tool-outputs.js` estimates the outputs: each result's tokens × the model calls
