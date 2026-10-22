@@ -117,6 +117,34 @@ test('an update takes the old workflow out of the user\'s instruction files, onc
   assert.equal(fs.existsSync(only), false);
 });
 
+// Since the wiring went machine-wide a checkout is rarely wired itself, so the block an older setup wrote into its files
+// is taken out whether or not an agent is wired there, as are the user's files of an agent wired nowhere.
+test('rewire takes the old workflow and rules out of a checkout and home no agent is wired in', t => {
+  const config = fixture(t), repo = config.repo;
+  const previous = { HOME: process.env.HOME, CODEX_HOME: process.env.CODEX_HOME, CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR };
+  const home = fixture(t).repo;
+  Object.assign(process.env, { HOME: home, CODEX_HOME: path.join(home, '.codex'), CLAUDE_CONFIG_DIR: path.join(home, '.claude') });
+  t.after(() => { for (const [k, v] of Object.entries(previous)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } });
+  const put = (f, text) => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, text); };
+  const kept = ['CLAUDE.local.md', 'AGENTS.md', 'GEMINI.md'].map(f => path.join(repo, f));
+  for (const f of kept) put(f, OLD_BLOCK + 'team rules\n');
+  const gone = [path.join(repo, '.opencode/thinker.md'), path.join(repo, '.cursor/rules/thinker.mdc'), path.join(repo, '.windsurf/rules/thinker.md')];
+  put(gone[0], OLD_BLOCK); put(gone[1], OLD_RULE); put(gone[2], '---\ntrigger: always_on\n---\n<!-- thinker -->\nold\n');
+  const user = [path.join(home, '.claude/CLAUDE.md'), path.join(home, '.codex/AGENTS.md')];
+  for (const f of user) put(f, OLD_BLOCK + 'mine\n');
+  const args = { cli, mcpEntry };
+  const dry = refreshWiring(repo, { ...args, dry: true });
+  assert.ok(dry.changed.includes('AGENTS.md') && dry.changed.includes('.cursor/rules/thinker.mdc'), dry.changed.join(', '));
+  assert.equal(read(kept[1]), OLD_BLOCK + 'team rules\n', 'a dry run writes nothing');
+  assert.ok(fs.existsSync(gone[1]));
+  refreshWiring(repo, args);
+  for (const f of kept) assert.equal(read(f), 'team rules\n', f);
+  for (const f of gone) assert.equal(fs.existsSync(f), false, f);
+  refreshWiring(null, { ...args, scope: 'user' });
+  for (const f of user) assert.equal(read(f), 'mine\n', f);
+  assert.deepEqual(refreshWiring(repo, args).changed, []);
+});
+
 test('the bundle header is one line naming no tool, and the guide names none either', () => {
   const header = cacheBundleIntro();
   assert.equal(header.split('\n').length, 1);
