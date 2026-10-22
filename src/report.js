@@ -31,11 +31,16 @@ export const TREND_MIN = 0.05;
 // input (estimation slack, mostly the four characters a token the text parts are counted at); `output` is what the
 // model wrote. The instruction files are the larger of the transcript's payload (the root file with the person's global
 // file and memory, where the transcript carries it from the first call) and the Save page's estimate of the root file.
-export const PARTS = [
+// The whole breakdown is computed and kept in the view (`breakdown`, `thinker report --json`); the tables show the four
+// parts the Save page measures and controls (PARTS), their total under them, and the whole session's tokens under the
+// model table (`sessionTotals`). The other kinds are written up in research/context-breakdown-2026-10-22.md, for the
+// work on cutting them (the owner's decision, 2026-10-22).
+export const BREAKDOWN = [
   ['instructions', 'Instruction files'], ['system', 'System prompt'], ['custom', 'Custom tools'], ['builtin', 'Built-in tools'], ['outputs', 'Tool outputs'],
   ['agentCalls', "Agent's tool calls"], ['thinking', 'Thinking kept'], ['prompts', 'Prompts and replies'], ['notes', "Claude Code's notes"],
   ['other', 'Other input'], ['output', 'Output'],
 ];
+export const PARTS = BREAKDOWN.filter(([k]) => ['instructions', 'custom', 'builtin', 'outputs'].includes(k));
 const DAY = 86400_000;
 // the Monday that starts the week of t, local time
 export function weekStart(t) { const d = new Date(t); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); }
@@ -68,7 +73,7 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   for (const r of rows) part(r.session).outputs = r.outputs;
   const week = t => cols.findIndex(c => t >= c.t && t < c.end);
   const columns = cols.map(c => ({ t: c.t, sessions: 0, priced: 0, unmeasured: 0 }));
-  const byPart = Object.fromEntries(PARTS.map(([k]) => [k, cols.map(cell)]));
+  const byPart = Object.fromEntries(BREAKDOWN.map(([k]) => [k, cols.map(cell)]));
   const models = new Map(), unpriced = new Set();
   for (const r of rows) {
     const w = week(r.t); if (w < 0) continue;
@@ -89,7 +94,8 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
     if (!models.has(key)) models.set(key, { model: key, provider: providerOf(r.model, r.client), priced: Boolean(price), cells: cols.map(cell) });
     add(models.get(key).cells[w], input + output, cost, 1, cost == null ? 0 : 1);
   }
-  const totals = cols.map((_, w) => { const c = cell(); for (const [k] of PARTS) add(c, byPart[k][w].tokens, byPart[k][w].cost); return c; });
+  const totalOf = keys => cols.map((_, w) => { const c = cell(); for (const k of keys) add(c, byPart[k][w].tokens, byPart[k][w].cost); return c; });
+  const totals = totalOf(PARTS.map(([k]) => k)), sessionTotals = totalOf(BREAKDOWN.map(([k]) => k));
   // the models by provider, the biggest provider first and the biggest model within it
   const windowOf = m => m.cells.reduce((a, c) => a + c.tokens, 0);
   const modelRows = [...models.values()].sort((a, b) => a.provider.localeCompare(b.provider) || windowOf(b) - windowOf(a));
@@ -100,7 +106,8 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   const actions = changeHistory(store).filter(e => Date.parse(e.at) >= from).map(e => ({ ...e, repo: null }));
   return {
     weeks, days, from, to: now, pricedOn: PRICED_ON, columns,
-    parts: PARTS.map(([key, name]) => ({ key, name, cells: byPart[key] })), totals,
+    parts: PARTS.map(([key, name]) => ({ key, name, cells: byPart[key] })), totals, sessionTotals,
+    breakdown: BREAKDOWN.map(([key, name]) => ({ key, name, cells: byPart[key] })),
     providers, models: modelRows, unpriced: [...unpriced],
     actions, cache: cacheMetrics(store, { days, config }),
   };
@@ -151,7 +158,8 @@ export function mergeReports(list) {
     all: true, weeks: first.weeks, days: first.days, from: first.from, to: first.to, pricedOn: first.pricedOn,
     columns: Array.from({ length: n }, (_, w) => ({ t: first.columns[w].t, sessions: views.reduce((a, v) => a + v.columns[w].sessions, 0), priced: views.reduce((a, v) => a + v.columns[w].priced, 0), unmeasured: views.reduce((a, v) => a + v.columns[w].unmeasured, 0) })),
     parts: PARTS.map(([key, name]) => ({ key, name, cells: sumCells(views.map(v => v.parts.find(p => p.key === key)?.cells || [])) })),
-    totals: sumCells(views.map(v => v.totals)),
+    breakdown: BREAKDOWN.map(([key, name]) => ({ key, name, cells: sumCells(views.map(v => (v.breakdown || []).find(p => p.key === key)?.cells || [])) })),
+    totals: sumCells(views.map(v => v.totals)), sessionTotals: sumCells(views.map(v => v.sessionTotals)),
     providers, models: modelRows, unpriced: [...new Set(views.flatMap(v => v.unpriced))],
     actions: list.flatMap(x => x.view.actions.map(a => ({ ...a, repo: x.repo, repoName: x.name }))).sort((a, b) => b.at.localeCompare(a.at)),
     cache: { dollarsSaved: sum('dollarsSaved'), unpricedTokens: sum('unpricedTokens'), measured: cache.some(c => c.measured), tokensSaved: sum('tokensSaved'), hits: sum('hits'), requests: sum('requests'), answered: sum('answered'), acted: judged ? confirmed / judged : null, judged },
@@ -169,12 +177,12 @@ export function renderReport(v, { cost = false, total = false } = {}) {
   const W = 11, line = (name, cells, bold) => `  ${(bold ? name.toUpperCase() : name).slice(0, 30).padEnd(30)}${cells.map((c, w) => (avg(c, w) ? `${fmtv(avg(c, w))}${mark(cells, w)}` : '').padStart(W)).join('')}`;
   const head = `  ${''.padEnd(30)}${v.columns.map(c => `wk ${label(c.t)}`.padStart(W)).join('')}`;
   L.push(`${total ? 'Total' : 'Average'} ${cost ? 'cost' : 'tokens'} ${total ? 'over the week\'s sessions' : 'per session'}, by week (${v.columns.map(c => c.sessions).join(', ')} sessions)${cost ? `, at list prices of ${v.pricedOn}` : ''}`);
-  L.push('', 'By part of the context', head);
+  L.push('', 'By part of the context (the four the Save page measures and controls; --json holds the whole breakdown)', head);
   for (const p of v.parts) L.push(line(p.name, p.cells));
-  L.push(line('Total', v.totals, true));
+  L.push(line('Total of these', v.totals, true));
   L.push('', 'By model', head);
   for (const p of v.providers) { L.push(line(p.name, p.cells, true)); for (const m of v.models.filter(x => x.provider === p.name)) L.push(line(`  ${m.model}${m.priced ? '' : ' (unpriced)'}`, m.cells)); }
-  L.push(line('Total', v.totals, true));
+  L.push(line('Total (the whole session)', v.sessionTotals, true));
   L.push(`  ▲ ▼: up or down by 5% or more against the first week, doubled past 50%; a zero is left blank. A model row is its share of the ${total ? 'week' : 'average session'}; its sessions:` + ` ${v.models.map(m => `${m.model} ${m.cells.map(c => c.sessions).join('/')}`).join(', ')}.`);
   if (v.unpriced.length) L.push(`  No list price for ${v.unpriced.join(', ')}: their sessions are left out of the cost average.`);
   L.push('', 'Actions in the window');

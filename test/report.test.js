@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
-import { reportView, mergeReports, renderReport, trend, change, weekColumns, weekStart, cacheMetrics, PARTS } from '../src/report.js';
+import { reportView, mergeReports, renderReport, trend, change, weekColumns, weekStart, cacheMetrics, PARTS, BREAKDOWN } from '../src/report.js';
 import { listPrice, providerOf, costOf, formatDollars } from '../src/prices.js';
 
 function fixture(t) {
@@ -85,22 +85,26 @@ test('the report averages each week over its sessions, by part and by model unde
   assert.equal(v.columns[5].unmeasured, 1, 'the Cursor session reports no usage');
   // this week: two Opus sessions of 1,000 input (two turns of 500, cache reads included) and 100 output each
   const last = 5, avg = (cells, w) => cells[w].tokens / v.columns[w].sessions;
-  assert.equal(avg(v.totals, last), 1100);
-  assert.equal(avg(v.parts.find(p => p.key === 'output').cells, last), 100);
-  const inputParts = v.parts.filter(p => p.key !== 'output').reduce((a, p) => a + p.cells[last].tokens, 0);
+  assert.equal(avg(v.sessionTotals, last), 1100, 'the whole session, under the model table');
+  const bd = k => v.breakdown.find(p => p.key === k);
+  assert.equal(avg(bd('output').cells, last), 100);
+  const inputParts = v.breakdown.filter(p => p.key !== 'output').reduce((a, p) => a + p.cells[last].tokens, 0);
   assert.equal(inputParts, 2000, 'the input parts add up to the measured input');
   assert.ok(v.parts.find(p => p.key === 'outputs').cells[last].tokens > 0, 'the tool output read again by the call after it');
   assert.ok(v.parts.find(p => p.key === 'instructions').cells[last].tokens > 0, 'the instruction file, in every call');
   // the conversation's own cost, from the transcript: the second call reads the first turn's thinking (40 tokens by the
   // usage), the prompt and the tool call before it; the system prompt once a call
-  assert.equal(v.parts.find(p => p.key === 'thinking').cells[last].tokens, 2 * 40);
-  assert.ok(v.parts.find(p => p.key === 'prompts').cells[last].tokens > 0);
-  assert.ok(v.parts.find(p => p.key === 'agentCalls').cells[last].tokens > 0);
-  assert.equal(v.parts.find(p => p.key === 'system').cells[last].tokens, 2 * 2 * Math.ceil('["You are an agent."]'.length / 4));
-  assert.equal(v.parts.find(p => p.key === 'notes').cells[last].tokens, 2 * 2 * Math.ceil(JSON.stringify({ type: 'environment', text: 'cwd is here' }).length / 4), 'an environment note, read by both calls');
+  assert.equal(bd('thinking').cells[last].tokens, 2 * 40);
+  assert.ok(bd('prompts').cells[last].tokens > 0);
+  assert.ok(bd('agentCalls').cells[last].tokens > 0);
+  assert.equal(bd('system').cells[last].tokens, 2 * 2 * Math.ceil('["You are an agent."]'.length / 4));
+  assert.equal(bd('notes').cells[last].tokens, 2 * 2 * Math.ceil(JSON.stringify({ type: 'environment', text: 'cwd is here' }).length / 4), 'an environment note, read by both calls');
   assert.deepEqual(v.parts.map(p => p.key), PARTS.map(([k]) => k));
+  assert.deepEqual(v.parts.map(p => p.key), ['instructions', 'custom', 'builtin', 'outputs'], 'the tables show the four the Save page controls');
+  assert.deepEqual(v.breakdown.map(p => p.key), BREAKDOWN.map(([k]) => k));
+  assert.equal(v.totals[last].tokens, v.parts.reduce((a, p) => a + p.cells[last].tokens, 0), 'the parts table totals the four');
   // last week: one gpt-6-astra session (4,020 tokens) and one on an unpriced model (202)
-  assert.equal(avg(v.totals, 4), (4020 + 202) / 2);
+  assert.equal(avg(v.sessionTotals, 4), (4020 + 202) / 2);
   assert.deepEqual(v.unpriced, ['mystery-9']);
   // by model: the biggest provider first, each model's share of the average session, the provider's subtotal the sum
   assert.deepEqual(v.providers.map(p => p.name), ['OpenAI', 'Anthropic']);
@@ -111,10 +115,10 @@ test('the report averages each week over its sessions, by part and by model unde
   assert.equal(v.models.find(m => m.model === 'mystery-9').priced, false);
   // cost: an Opus session is 400 fresh at $4, 600 cache reads at $0.20, 100 output at $20 per million
   const sessionCost = (400 * 4 + 600 * 0.2 + 100 * 20) / 1e6;
-  assert.ok(Math.abs(v.totals[last].cost - 2 * sessionCost) < 1e-9);
-  assert.ok(Math.abs(v.parts.reduce((a, p) => a + p.cells[last].cost, 0) - 2 * sessionCost) < 1e-9, 'the parts\' cost adds up to the sessions\' cost');
-  assert.ok(Math.abs(v.parts.find(p => p.key === 'output').cells[last].cost - 2 * 100 * 20 / 1e6) < 1e-12);
-  assert.ok(Math.abs(v.totals[4].cost - costOf({ input: 4000, output: 20 }, listPrice('gpt-6-astra'))) < 1e-9, 'the unpriced session adds no cost');
+  assert.ok(Math.abs(v.sessionTotals[last].cost - 2 * sessionCost) < 1e-9);
+  assert.ok(Math.abs(v.breakdown.reduce((a, p) => a + p.cells[last].cost, 0) - 2 * sessionCost) < 1e-9, 'the breakdown\'s cost adds up to the sessions\' cost');
+  assert.ok(Math.abs(bd('output').cells[last].cost - 2 * 100 * 20 / 1e6) < 1e-12);
+  assert.ok(Math.abs(v.sessionTotals[4].cost - costOf({ input: 4000, output: 20 }, listPrice('gpt-6-astra'))) < 1e-9, 'the unpriced session adds no cost');
   // the actions in the window, the cache's numbers over it
   assert.deepEqual(v.actions.map(a => a.id), ['h1']);
   assert.equal(v.cache.hits, 0); assert.equal(v.cache.dollarsSaved, 0); assert.equal(v.cache.acted, null);
@@ -127,7 +131,7 @@ test('the report averages each week over its sessions, by part and by model unde
   // every repository's report merged: the sums and the sessions add, the actions name their repository
   const m = mergeReports([{ repo: 'a', name: 'A', view: v }, { repo: 'b', name: 'B', view: v }]);
   assert.deepEqual(m.columns.map(c => c.sessions), [0, 0, 0, 0, 4, 4]);
-  assert.equal(m.totals[last].tokens, 4400);
+  assert.equal(m.sessionTotals[last].tokens, 4400);
   assert.equal(m.models.find(x => x.model === 'claude-opus-5-5').cells[last].sessions, 4);
   assert.deepEqual(m.actions.map(a => a.repoName), ['A', 'B']);
   assert.equal(mergeReports([]), null);
