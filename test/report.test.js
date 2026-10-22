@@ -80,7 +80,7 @@ test('the report averages each week over its sessions, by part and by model unde
   assert.equal(v.columns.length, 6);
   assert.deepEqual(v.columns.map(c => c.sessions), [0, 0, 0, 0, 2, 2]);
   assert.deepEqual(v.columns.map(c => c.priced), [0, 0, 0, 0, 1, 2], 'the unpriced model counts in the sessions, not the cost');
-  assert.equal(v.columns[4].unmeasured, 1, 'the Cursor session reports no usage');
+  assert.equal(v.columns[5].unmeasured, 1, 'the Cursor session reports no usage');
   // this week: two Opus sessions of 1,000 input (two turns of 500, cache reads included) and 100 output each
   const last = 5, avg = (cells, w) => cells[w].tokens / v.columns[w].sessions;
   assert.equal(avg(v.totals, last), 1100);
