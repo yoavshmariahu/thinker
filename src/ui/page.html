@@ -100,7 +100,6 @@
     .ctx-table input[type=checkbox] { margin: 0 0.3rem 0 0; vertical-align: -1px; accent-color: #111; }
     /* the Report tables: a trending cell is coloured against the first week, a provider's subtotal is bold with its models indented */
     .rep-table th small { display: block; font-weight: 400; text-transform: none; letter-spacing: 0; color: #9ca3af; }
-    .rep-table td.num small { display: block; font-size: 0.68rem; font-weight: 500; }
     .rep-table td.rep-up { color: #7f1d1d; }
     .rep-table td.rep-down { color: #14532d; }
     .rep-table tr.rep-sub td { font-weight: 600; background: #f8f8f7; }
@@ -795,7 +794,7 @@ function renderReport(v) {
   const fv = x => x == null ? '<span class="muted">–</span>' : cost ? money(x) : fmt(x);
   // a cell against the first column: shaded red for a rise and green for a fall, the shade relative to the whole table (its
   // largest rise is the darkest red, its largest fall the darkest green, the rest in proportion); under 5% unshaded; a zero
-  // is left blank
+  // is left blank; the shade alone says how much, no percentage (the owner's ask)
   const delta = (cells, w) => { const a = avg(cells[w], w), p = w ? avg(cells[0], 0) : null; return a && p ? (a - p) / p : null; };
   const extremes = rows => { let up = 0, down = 0; for (const cells of rows) for (let w = 1; w < cells.length; w++) { const d = delta(cells, w); if (d > up) up = d; if (d != null && -d > down) down = -d; } return { up, down }; };
   const shade = (d, ex) => { const t = d > 0 ? d / (ex.up || d) : -d / (ex.down || -d), a = (0.1 + 0.55 * Math.min(1, t)).toFixed(2); return d > 0 ? `rgba(239,68,68,${a})` : `rgba(34,197,94,${a})`; };
@@ -803,7 +802,7 @@ function renderReport(v) {
     const a = avg(cells[w], w), at = title ? ` title="${esc(title)}"` : '';
     if (!a) return `<td class="num"${at}></td>`;
     const d = delta(cells, w), t = d != null && d >= TREND_MIN ? 'up' : d != null && d <= -TREND_MIN ? 'down' : '';
-    return `<td class="num${t ? ` rep-${t}` : ''}"${t ? ` style="background:${shade(d, ex)}"` : ''}${at}>${fv(a)}${t ? `<small>${d > 0 ? '+' : ''}${Math.round(100 * d)}%</small>` : ''}</td>`;
+    return `<td class="num${t ? ` rep-${t}` : ''}"${t ? ` style="background:${shade(d, ex)}"` : ''}${at}>${fv(a)}</td>`;
   };
   const row = (name, cells, { cls = '', sub = '', titles, data = '', ex } = {}) => `<tr class="${cls}"${data}><td class="ctx-name">${name}${sub ? `<span class="ctx-kind">${sub}</span>` : ''}</td>${cells.map((c, w) => tcell(cells, w, titles ? titles(c, w) : '', ex)).join('')}</tr>`;
   const head = nameHead => `<thead><tr><th>${nameHead}</th>${v.columns.map(c => `<th class="num">Week of ${dlabel(c.t)}<small>${c.sessions} session${c.sessions === 1 ? '' : 's'}${cost && c.priced !== c.sessions ? `, ${c.priced} priced` : ''}</small></th>`).join('')}</tr></thead>`;

@@ -1308,7 +1308,8 @@ the week), so the rows add up to the total and a switch of model shows as one ro
 the provider's subtotal is above its models and folds them. A cell that moved `TREND_MIN` (5%) or more against
 the first week of the window (the first column) is shaded red (up) or green (down) on the page, the shade relative to
 the table (its largest rise the darkest red, its largest fall the darkest green, the rest in proportion;
-`page.html:extremes`); the command marks it ▲ ▼, doubled past `TREND_BIG` (50%); a zero cell is blank.
+`page.html:extremes`), with no percentage written in the cell; the command marks it ▲ ▼, doubled past `TREND_BIG`
+(50%); a zero cell is blank.
 A Per session / Total toggle (`--total`) shows each week's sum over its sessions instead of the average. A session whose agent reports
 no usage (Cursor) is counted in no column and named as left out.
 
