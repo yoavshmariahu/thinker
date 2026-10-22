@@ -212,6 +212,10 @@ test('flags win over the environment, the environment over the defaults', () => 
   assert.equal(cfg.port, 7000);
   assert.equal(cfg.upstream, 'https://api.anthropic.com');
   assert.equal(proxyConfig({}, {}).trigger, PROXY_DEFAULTS.trigger);
+  // the default policy keeps the current turn's tool uses, three at least (the owner's decision on the replay, 2026-10-22)
+  assert.equal(PROXY_DEFAULTS.keep, 'turn');
+  assert.equal(proxyConfig({}, {}).keep, 'turn');
+  assert.equal(proxyConfig({}, {}).keepMin, 3);
 });
 
 test('a plain JSON answer is read too', () => {

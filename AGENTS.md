@@ -1252,10 +1252,15 @@ show the agent does not read again what was trimmed.
 `thinker proxy` (`proxy.js`) is a local pass-through for Claude Code (`ANTHROPIC_BASE_URL`) that appends the API's
 `clear_tool_uses_20250919` edit to each request, so the server drops the oldest tool results from the context on its
 side once they amount to `--clear-at-least` (80k) and the context passes `--trigger` (100k); a client-side rewrite of
-history is refused by the preserved-thinking check on current models. What a clear keeps is `--keep`: a count of the
-newest tool uses (3), or, since 2026-10-22, `turn`: the tool uses of the request's current turn (`proxy.js:turnToolUses`,
-never under `--keep-min` 3), worked out from the request's messages on every call, so only results fetched by earlier
-turns are cleared. Why `turn`: the Context tab's Wasted for outputs (above) says 88% of what tool results cost here is
+history is refused by the preserved-thinking check on current models. What a clear keeps is `--keep`: `turn`, the
+default since 2026-10-22, the tool uses of the request's current turn (`proxy.js:turnToolUses`, never under
+`--keep-min` 3), worked out from the request's messages on every call, so only results fetched by earlier turns are
+cleared; or a count of the newest tool uses (`--keep 3`, the default before). The default was chosen on the replay alone,
+the owner's decision (machine-wide, 3,317 Claude Code sessions over 30 days, 1.69B billed-equivalent tokens: `turn` saves
+1.44% against the count's 1.58%, 17 sessions costlier against 20; `--keep-min 1` 1.57% and 16; a 60k trigger saves no
+more and makes twice the sessions costlier, 150k saves less; sessions under 60 requests lose a little under every
+policy and the 79 sessions over 120 requests, half the tokens, save 2.8–3.3%; ceiling 8.1%). What the replay cannot see
+is still the experiment's. Why `turn`: the Context tab's Wasted for outputs (above) says 88% of what tool results cost here is
 reading them after the agent last used them, 82% after their turn ended, 8% a result used again later in its own turn;
 a count clears results the agent is still working from in a long turn, and the pilot saw the model read files again
 after the placeholders appeared. `thinker proxy replay [--days n] [--policies spec] [--repo path]` (`proxy-replay.js`)

@@ -260,8 +260,9 @@ plugin on a machine without thinker does nothing.
   [--clear-at-least n]`): for Claude Code pointed at it with `ANTHROPIC_BASE_URL`, each request carries the
   API's `clear_tool_uses` edit, so the server drops old tool results from the context on its side once they
   amount to `--clear-at-least` (80k tokens) and the context has reached `--trigger` (100k). `--keep` says
-  what a clear leaves: a count of the newest tool uses (3), or `turn`, the tool uses of the request's current
-  turn (never under `--keep-min`, 3), so only results fetched by earlier turns are cleared. `thinker proxy
+  what a clear leaves: `turn`, the default since 2026-10-22, the tool uses of the request's current turn
+  (never under `--keep-min`, 3), so only results fetched by earlier turns are cleared; or a count of the
+  newest tool uses (`--keep 3`, the default before). `thinker proxy
   replay [--days n] [--policies spec] [--repo path]` costs the policies over a checkout's Claude Code sessions
   with no model call (`src/proxy-replay.js`; research/output-lifetime-2026-10-22). Off until an experiment.
 

@@ -69,8 +69,28 @@ By length: under 60 requests nothing is saved (124 sessions, −0.3% to 0%); 60 
 negative for every policy (the cache rewrite costs more than the clear saves before the session ends); 120
 requests and over, 61 sessions holding 80% of the tokens, saves 2.6% to 3.0% against a ceiling of 11.7%.
 
-So: offline, `turn` at the shipped trigger is level with `keep 3` (2.2% against 2.4%, two fewer sessions
-costlier) and a lower trigger is worse. The gap to the ceiling is the price of a clear: writing a 100k+
+Machine-wide, every Claude Code session of the last 30 days over 20 KB (3,317 sessions, 1.69B billed-equivalent
+tokens, scratch `replay-all.mjs` over `replay()`):
+
+| policy | keep | trigger / clear | saving | costlier | over 120 requests (79 sessions, 879M) |
+|---|---|---|---|---|---|
+| count | 3 | 100k / 80k | 1.58% | 20 | 3.08%, 12 costlier |
+| turn | turn (min 3) | 100k / 80k | 1.44% | 17 | 2.83%, 11 |
+| turn | turn (min 1) | 100k / 80k | 1.57% | 16 | 3.09%, 10 |
+| count | 3 | 60k / 60k | 1.59% | 54 | 3.30%, 17 |
+| turn | turn (min 3) | 60k / 60k | 1.30% | 34 | 2.76%, 18 |
+| count | 3 | 150k / 100k | 1.06% | 11 | 2.08%, 9 |
+| ceiling | | | 8.1% | | 11.8% |
+
+Under 60 requests (3,105 sessions, a third of the tokens) every policy loses a little (−0.1% to −0.2%); 60 to
+119 is flat; the saving is in the 79 sessions over 120 requests, which hold half the tokens.
+
+**Decision (2026-10-22, the owner, on the replay alone):** `turn` with keep-min 3 is the proxy's default
+(`proxy.js:PROXY_DEFAULTS`). Offline it is level with the count (0.14 points less saving, three fewer sessions
+costlier) and by construction never clears a result of the turn in hand, which is the effect the replay cannot
+price. The proxy itself stays off: nothing points an agent at it until the experiment below.
+
+So: offline, `turn` at the shipped trigger is level with `keep 3` and a lower trigger is worse. The gap to the ceiling is the price of a clear: writing a 100k+
 prefix again at 2x against saving a tenth of 80k on each later request pays only with 20+ requests to go.
 Whatever separates the two policies is the agent's reaction, which only a live run shows. The 2026-10-20
 replay over 1,700 sessions machine-wide found 9.2% for `keep 3`; this repository's sessions carry smaller

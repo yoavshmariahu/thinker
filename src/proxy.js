@@ -29,7 +29,12 @@ export const EDIT_BETA = 'context-management-2025-06-27';
 // A count clears results the agent is still working from in a long turn, and the model was seen to read the file
 // again; `turn` clears only what earlier turns fetched, so it clears less and should cost the agent nothing. The
 // server's edit takes a count alone, so the proxy works the count out from the request's messages on every call.
-export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 100000, keep: 3, keepMin: 3, clearAtLeast: 80000, holdout: 0 };
+// `turn` is the default since 2026-10-22, the owner's decision on the replay alone (proxy-replay.js, 3,317 Claude Code
+// sessions of this machine over 30 days): at this trigger it saves 1.44% of the billed-equivalent tokens against the
+// count's 1.58%, with 17 sessions costlier against 20, and by construction never clears a result of the turn in hand;
+// what the replay cannot see, the agent reading again what was cleared, is the experiment still to run
+// (research/output-lifetime-2026-10-22). The proxy itself stays off until then: nothing points an agent at it.
+export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 100000, keep: 'turn', keepMin: 3, clearAtLeast: 80000, holdout: 0 };
 
 const num = v => (v == null || v === '' || Number.isNaN(Number(v)) ? undefined : Number(v));
 
