@@ -8,7 +8,8 @@
   },
   "files": [
     "install.mjs",
-    "install.sh"
+    "install.sh",
+    "pi/"
   ],
   "engines": {
     "node": ">=20"
@@ -18,5 +19,13 @@
     "url": "git+https://github.com/yoavshmariahu/thinker.git"
   },
   "homepage": "https://github.com/yoavshmariahu/thinker#readme",
-  "license": "MIT"
+  "license": "MIT",
+  "pi": {
+    "extensions": [
+      "./pi/thinker.js"
+    ],
+    "skills": [],
+    "prompts": [],
+    "themes": []
+  }
 }

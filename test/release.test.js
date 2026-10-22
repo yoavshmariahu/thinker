@@ -19,6 +19,7 @@ function fixture(t) {
   for (const d of ['scripts', 'src', 'npm']) fs.mkdirSync(path.join(repo, d));
   fs.copyFileSync(path.join(ROOT, 'scripts/pack.sh'), path.join(repo, 'scripts/pack.sh'));
   for (const f of ['package.json', 'install.mjs', 'README.md']) fs.copyFileSync(path.join(ROOT, 'npm', f), path.join(repo, 'npm', f));
+  fs.cpSync(path.join(ROOT, 'npm', 'pi'), path.join(repo, 'npm', 'pi'), { recursive: true }); // the pi package's extension, packed with the installer
   const pkg = { name: 'thinker', version: '0.1.0', bin: { thinker: './src/cli.js', 'thinker-server': './src/server.js' } };
   fs.writeFileSync(path.join(repo, 'package.json'), JSON.stringify(pkg));
   fs.writeFileSync(path.join(repo, 'package-lock.json'), JSON.stringify({ version: '0.1.0', packages: { '': { version: '0.1.0' } } }));

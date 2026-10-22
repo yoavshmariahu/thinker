@@ -1433,6 +1433,14 @@ from 7 to 11 of 15, and an input-class checklist to 12 of 15.
 | Cursor | added to each prompt (`additional_context`), with first-tool fallback for `agent -p` and the `orient` tool | yes | yes (approved by setup) | `~/.cursor/hooks.json`, `~/.cursor/mcp.json`, and `.cursor/rules/thinker.mdc` in the checkout |
 | Pi, Windsurf, Copilot CLI (and Copilot in VS Code), OpenCode, Factory Droid, Qwen Code, Kiro CLI, Cline, Kilo Code, Auggie, Goose | see `docs/agent-integrations.md` (Auggie has no prompt hook, Kiro's V3 engine alone reads global hooks, Goose's hooks only record) | | | each agent's own files, machine-wide |
 
+- Three more doors to the same hooks (2026-10-22; docs/agent-integrations.md, "Plugins, the pi package and
+  the proxy"): host plugins for Claude Code, Codex and Cursor under `plugins/`, each a shim running the
+  installed copy's `thinker hook … --plugin`, which yields where the host's settings already run the hooks
+  (`clients.js:pluginYields`), with a marketplace file per host at the repository root; the pi package
+  (`npm/pi/thinker.js` in `@zerotimedev/thinker`), a pointer to the installed copy that yields to
+  `connect`'s extension; and `thinker proxy --notes` (`proxy-notes.js`), the notes in the last user turn of
+  an Anthropic or OpenAI chat request for an agent with no prompt hook (Goose, Aider), replayed at the same
+  turn on every later request of the conversation so the prompt cache holds, off until an experiment.
 - The desktop apps run the same engines as the CLIs and read the same user
   settings. The Claude desktop app's Code tab reads hooks and MCP servers from
   the user's and the project's files alike; the Codex desktop app reads MCP

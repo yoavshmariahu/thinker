@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { cacheBundleIntro, disabledTools } from '../cache-guidance.js';
-import { pruneInstalls, prunedLines, refreshWiring, stripRepoWiring, repoRunsHooks, normalizeHookEvent, hookClient, sessionOf, toolFiles, seenFiles, seenHits, searchedIdentifier, promptOutput, toolOutput, stopOutput, preToolOutput, rewritesCommands, PRE_TOOL_CLIENTS, parkPending, takePending, orientedFile } from '../clients.js';
+import { pluginYields, pruneInstalls, prunedLines, refreshWiring, stripRepoWiring, repoRunsHooks, normalizeHookEvent, hookClient, sessionOf, toolFiles, seenFiles, seenHits, searchedIdentifier, promptOutput, toolOutput, stopOutput, preToolOutput, rewritesCommands, PRE_TOOL_CLIENTS, parkPending, takePending, orientedFile } from '../clients.js';
 import { testsConfig, classifyTestCommand, wrappedCommand, wrapperBin, NUDGE_REASON } from '../testing.js';
 import { dietConfig, dietResult, rememberTerms } from '../diet.js';
 import { parseTranscript, batchDue } from '../distill.js';
@@ -56,6 +56,8 @@ async function hookCommand(ctx) {
   if (process.env.THINKER_HOOK_DEBUG) fs.appendFileSync(process.env.THINKER_HOOK_DEBUG, JSON.stringify({ hook: pos[0], client, ev }) + '\n');
   // Cursor also runs the Claude Code hooks it imports; its own hooks do the work
   if (client === 'cursor-import') return;
+  // a host plugin's hook yields to the host's own settings where they run thinker's hooks (clients.js:pluginYields)
+  if (flags.plugin && pluginYields(client)) return;
   // the pre hook runs before every shell command: it decides as early as it can
   if (pos[0] === 'pre' && !PRE_TOOL_CLIENTS.includes(client)) return;
   // A hook at user scope (--user: the agent's own settings, read in every checkout) takes the

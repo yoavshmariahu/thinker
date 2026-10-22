@@ -1,0 +1,7 @@
+{
+  "name": "thinker",
+  "interface": { "displayName": "thinker" },
+  "plugins": [
+    { "name": "thinker", "source": { "source": "local", "path": "./plugins/codex" }, "policy": { "installation": "AVAILABLE" }, "category": "productivity" }
+  ]
+}
