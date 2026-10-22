@@ -1248,6 +1248,27 @@ gold hunk 149 of 166, but a third of whole-file reads had no term to centre on a
 the file, so the whole diet is worth about 15–20% of tool output, roughly a tenth of a session. The experiment has to
 show the agent does not read again what was trimmed.
 
+**Clearing old tool results through the proxy (off until an experiment; `research/output-lifetime-2026-10-22`).**
+`thinker proxy` (`proxy.js`) is a local pass-through for Claude Code (`ANTHROPIC_BASE_URL`) that appends the API's
+`clear_tool_uses_20250919` edit to each request, so the server drops the oldest tool results from the context on its
+side once they amount to `--clear-at-least` (80k) and the context passes `--trigger` (100k); a client-side rewrite of
+history is refused by the preserved-thinking check on current models. What a clear keeps is `--keep`: a count of the
+newest tool uses (3), or, since 2026-10-22, `turn`: the tool uses of the request's current turn (`proxy.js:turnToolUses`,
+never under `--keep-min` 3), worked out from the request's messages on every call, so only results fetched by earlier
+turns are cleared. Why `turn`: the Context tab's Wasted for outputs (above) says 88% of what tool results cost here is
+reading them after the agent last used them, 82% after their turn ended, 8% a result used again later in its own turn;
+a count clears results the agent is still working from in a long turn, and the pilot saw the model read files again
+after the placeholders appeared. `thinker proxy replay [--days n] [--policies spec] [--repo path]` (`proxy-replay.js`)
+costs the policies over a checkout's Claude Code sessions with no model call: each request's recorded usage in
+billed-equivalent tokens (cache read 0.1, one-hour write 2, output 5), a clear writing the cache again from the first
+cleared result on with the system prompt still read (the pilot's log: 192.8k read before, 11.8k read and 104.2k written
+on the clear), later requests reading the cleared tokens no more. On this repository's 227 sessions: `keep 3` saves
+2.4%, `turn` at the same trigger 2.2% with two fewer sessions costlier, a 60k trigger 1.9%, against a ceiling of 10.6%
+(the reads after last use at the cache-read weight); nothing under 60 requests, 2.6–3.0% over 120. The replay cannot
+see the agent's reaction to the placeholders, which is what separates the policies; the Artemis arms `proxy-turn` and
+`proxy-keep3` (defined 2026-10-22, `~/.artemis/scratch/proxy-arm/arm.sh`, port from the arm's env) are ready for that
+run, which has not been made.
+
 ## Internal server
 
 `src/server/` and `infra/sync/` remain internal infrastructure: the team's note

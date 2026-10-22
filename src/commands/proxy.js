@@ -3,7 +3,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { proxyConfig, startProxy, proxyReport } from '../proxy.js';
+import { replay, renderReplay, parsePolicies } from '../proxy-replay.js';
 import { NoteInjector, PROXY_CLIENT } from '../proxy-notes.js';
+import { findSessions } from '../transcripts.js';
 import { orient, beginTurn, servesNotes, HOOK_BUDGET } from '../ops.js';
 import { cacheBundleIntro } from '../cache-guidance.js';
 import { Store, findRepoRoot } from '../store.js';
@@ -42,7 +44,21 @@ async function proxyCommand({ pos, flags, out, repo }) {
     }
     return;
   }
-  if (sub !== 'serve') { out('usage: thinker proxy [serve] --port n | thinker proxy report [--days n] [--json]'); process.exitCode = 2; return; }
+  // the policies replayed over this checkout's Claude Code sessions, no model call (proxy-replay.js)
+  if (sub === 'replay') {
+    const target = flags.repo ? path.resolve(String(flags.repo)) : repo;
+    if (!target) { out('thinker proxy replay: run it in a git checkout, or name one with --repo (its Claude Code sessions are replayed).'); process.exitCode = 2; return; }
+    let policies; try { policies = parsePolicies(flags.policies); } catch (e) { out(`thinker proxy replay: ${e.message}`); process.exitCode = 2; return; }
+    const days = Number(flags.days) || 30;
+    const files = findSessions(target, { sinceMs: days * 864e5 }).filter(s => s.client === 'claude').map(s => s.file);
+    const r = replay(files, policies);
+    if (flags.json) { out(JSON.stringify(r, null, 2)); return; }
+    if (!r.all.sessions) { out(`No Claude Code sessions of ${target} in the last ${days} days.`); return; }
+    out(`Claude Code sessions of ${target}, last ${days} days, replayed with the API clearing old tool results as each policy asks (no model call; the model's reaction to the placeholders is not in these numbers, an experiment is).`);
+    out(renderReplay(r, formatTokens));
+    return;
+  }
+  if (sub !== 'serve') { out('usage: thinker proxy [serve] --port n | thinker proxy report [--days n] [--json] | thinker proxy replay [--days n] [--policies spec] [--json]'); process.exitCode = 2; return; }
   const cfg = proxyConfig(flags);
   if (!cfg.port) { out('thinker proxy: name a port (--port n, or THINKER_PROXY_PORT).'); process.exitCode = 2; return; }
   // --notes, or proxy: { notes: true } in the checkout's config: the notes of this checkout (--repo names another)
@@ -57,7 +73,7 @@ async function proxyCommand({ pos, flags, out, repo }) {
   } else if (wanted) { out(`thinker proxy: --notes needs a git checkout (${candidate || 'none'}).`); process.exitCode = 2; return; }
   const server = startProxy(cfg, {
     logFile, notes,
-    onListen: a => out(`thinker proxy on http://127.0.0.1:${a.port} -> ${cfg.upstream}: clears tool results past ${cfg.trigger} input tokens, keeping ${cfg.keep}, at least ${cfg.clearAtLeast} at a time${cfg.holdout ? `, ${cfg.holdout * 100}% of sessions held out` : ''}.` +
+    onListen: a => out(`thinker proxy on http://127.0.0.1:${a.port} -> ${cfg.upstream}: clears tool results past ${cfg.trigger} input tokens, keeping ${cfg.keep === 'turn' ? `the current turn's (at least ${cfg.keepMin})` : cfg.keep}, at least ${cfg.clearAtLeast} at a time${cfg.holdout ? `, ${cfg.holdout * 100}% of sessions held out` : ''}.` +
       (notes ? `\nServes the notes of ${notesRepo} to agents with no prompt hook (Anthropic and OpenAI chat requests; one carrying a Claude Code session is left to its hooks).` : '') +
       `\nPoint the agent at it: ANTHROPIC_BASE_URL=http://127.0.0.1:${a.port}${notes ? ` (Goose: ANTHROPIC_HOST; an OpenAI-compatible client: OPENAI_BASE_URL=http://127.0.0.1:${a.port}/v1)` : ''}`),
   });

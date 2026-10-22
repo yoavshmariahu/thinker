@@ -256,6 +256,14 @@ plugin on a machine without thinker does nothing.
   carrying a Claude Code session id is left to its hooks. Not reached: an agent whose calls go through its
   vendor's servers (Windsurf, Auggie). Not covered: learning, since the proxy records no session. Off until
   an experiment, like the rest of the proxy.
+- **Clearing old tool results through the proxy** (`thinker proxy --port n [--keep n|turn] [--trigger n]
+  [--clear-at-least n]`): for Claude Code pointed at it with `ANTHROPIC_BASE_URL`, each request carries the
+  API's `clear_tool_uses` edit, so the server drops old tool results from the context on its side once they
+  amount to `--clear-at-least` (80k tokens) and the context has reached `--trigger` (100k). `--keep` says
+  what a clear leaves: a count of the newest tool uses (3), or `turn`, the tool uses of the request's current
+  turn (never under `--keep-min`, 3), so only results fetched by earlier turns are cleared. `thinker proxy
+  replay [--days n] [--policies spec] [--repo path]` costs the policies over a checkout's Claude Code sessions
+  with no model call (`src/proxy-replay.js`; research/output-lifetime-2026-10-22). Off until an experiment.
 
 ## Why these additions
 
