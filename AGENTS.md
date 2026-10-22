@@ -1298,7 +1298,8 @@ the parts add up to the session's tokens. The second table is by model under its
 (`prices.js:providerOf`), each row the model's share of the average session (its tokens over every session of
 the week), so the rows add up to the total and a switch of model shows as one row falling while another rises;
 the provider's subtotal is above its models and folds them. A cell that moved `TREND_MIN` (5%) or more against
-the week before is red (up) or green (down), on the page; the command marks it ▲ ▼. A session whose agent reports
+the first week of the window (the first column) is red (up) or green (down), on the page; the command marks it ▲ ▼.
+A Per session / Aggregate toggle (`--aggregate`) shows each week's sum over its sessions instead of the average. A session whose agent reports
 no usage (Cursor) is counted in no column and named as left out.
 
 **Cost, the one place dollars are shown.** The Cost toggle (`--cost`) prices each session's tokens at its model's

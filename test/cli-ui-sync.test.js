@@ -145,7 +145,12 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('commands/report.js'), /reportView\(store, \{ weeks \}\)/);
   assert.match(read('ui/server.js'), /reportView\(one, \{ weeks \}\)/);
   assert.match(read('ui/server.js'), /mergeReports\(repos\(\)\.flatMap/);
-  // five weeks, and a cell is trending at the same 5% in the command's ▲ ▼ and the page's red and green
+  // five weeks, and a cell is trending at the same 5% against the first week in the command's ▲ ▼ and the page's red and green;
+  // the page's Aggregate toggle is the command's --aggregate
+  assert.match(read('report.js'), /trend\(avg\(cells\[0\], 0\), avg\(cells\[w\], w\)\)/);
+  assert.match(read('ui/page.html'), /p = w \? avg\(cells\[0\], 0\) : null/);
+  assert.match(read('commands/report.js'), /aggregate: Boolean\(flags\.aggregate\)/);
+  assert.match(read('ui/page.html'), /data-mode="sum">Aggregate</);
   assert.match(read('report.js'), /export const REPORT_WEEKS = 5;/);
   assert.match(read('ui/page.html'), /\/api\/report\?repo=\$\{encodeURIComponent\(REPO\)\}&weeks=5/);
   assert.match(read('report.js'), /export const TREND_MIN = 0\.05;/);

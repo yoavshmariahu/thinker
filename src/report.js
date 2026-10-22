@@ -19,7 +19,7 @@ import { listPrice, providerOf, costOf, formatDollars, PRICED_ON } from './price
 import { formatTokens } from './model-usage.js';
 
 export const REPORT_WEEKS = 5;
-// a cell is trending when it moved this much against the week before (the page colours it: red up, green down)
+// a cell is trending when it moved this much against the first week of the window (the page colours it: red up, green down)
 export const TREND_MIN = 0.05;
 export const PARTS = [
   ['instructions', 'Instruction files'], ['custom', 'Custom tools'], ['builtin', 'Built-in tools'], ['outputs', 'Tool outputs'],
@@ -144,21 +144,22 @@ export function mergeReports(list) {
 }
 
 // The report as the command prints it: the two tables with their totals, the actions, the cache's numbers.
-export function renderReport(v, { cost = false } = {}) {
+// `aggregate`: the week's sum over its sessions instead of the average per session (the page's toggle)
+export function renderReport(v, { cost = false, aggregate = false } = {}) {
   const L = [], label = t => new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  const avg = (c, w) => { const col = v.columns[w]; return cost ? (col.priced ? c.cost / col.priced : null) : (col.sessions ? c.tokens / col.sessions : null); };
+  const avg = (c, w) => { const col = v.columns[w]; return aggregate ? (cost ? c.cost : c.tokens) : cost ? (col.priced ? c.cost / col.priced : null) : (col.sessions ? c.tokens / col.sessions : null); };
   const fmtv = x => x == null ? '–' : cost ? formatDollars(x) : formatTokens(x);
-  const mark = (cells, w) => { const t = w ? trend(avg(cells[w - 1], w - 1), avg(cells[w], w)) : null; return t === 'up' ? '▲' : t === 'down' ? '▼' : ' '; };
+  const mark = (cells, w) => { const t = w ? trend(avg(cells[0], 0), avg(cells[w], w)) : null; return t === 'up' ? '▲' : t === 'down' ? '▼' : ' '; };
   const W = 10, line = (name, cells, bold) => `  ${(bold ? name.toUpperCase() : name).slice(0, 30).padEnd(30)}${cells.map((c, w) => `${fmtv(avg(c, w))}${mark(cells, w)}`.padStart(W)).join('')}`;
   const head = `  ${''.padEnd(30)}${v.columns.map(c => `wk ${label(c.t)}`.padStart(W)).join('')}`;
-  L.push(`Average ${cost ? 'cost' : 'tokens'} per session, by week (${v.columns.map(c => c.sessions).join(', ')} sessions)${cost ? `, at list prices of ${v.pricedOn}` : ''}`);
+  L.push(`${aggregate ? 'Total' : 'Average'} ${cost ? 'cost' : 'tokens'} ${aggregate ? 'over the week\'s sessions' : 'per session'}, by week (${v.columns.map(c => c.sessions).join(', ')} sessions)${cost ? `, at list prices of ${v.pricedOn}` : ''}`);
   L.push('', 'By part of the context', head);
   for (const p of v.parts) L.push(line(p.name, p.cells));
   L.push(line('Total', v.totals, true));
   L.push('', 'By model', head);
   for (const p of v.providers) { L.push(line(p.name, p.cells, true)); for (const m of v.models.filter(x => x.provider === p.name)) L.push(line(`  ${m.model}${m.priced ? '' : ' (unpriced)'}`, m.cells)); }
   L.push(line('Total', v.totals, true));
-  L.push('  ▲ ▼: up or down by 5% or more against the week before. A model row is its share of the average session; its sessions:' + ` ${v.models.map(m => `${m.model} ${m.cells.map(c => c.sessions).join('/')}`).join(', ')}.`);
+  L.push(`  ▲ ▼: up or down by 5% or more against the first week. A model row is its share of the ${aggregate ? 'week' : 'average session'}; its sessions:` + ` ${v.models.map(m => `${m.model} ${m.cells.map(c => c.sessions).join('/')}`).join(', ')}.`);
   if (v.unpriced.length) L.push(`  No list price for ${v.unpriced.join(', ')}: their sessions are left out of the cost average.`);
   L.push('', 'Actions in the window');
   if (!v.actions.length) L.push('  none: what you apply on the Save page is listed here with its date');

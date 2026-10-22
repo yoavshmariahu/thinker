@@ -85,7 +85,8 @@ The page's other view, Report (`thinker report`), is the same measurement over t
 costs here, week by week over the last five, as the average over each week's sessions. One table by
 part of the context (the instruction files, custom tools, built-in tools, tool outputs, the rest of the
 input, the output), one by model under its provider with subtotals, totals under both; a cell that moved
-5% or more against the week before is red (up) or green (down). A toggle prices the same tokens at the
+5% or more against the first week is red (up) or green (down), and a toggle shows each week's sum instead of
+the average per session. A toggle prices the same tokens at the
 providers' list rates, so a switch of model shows in the trend. Under the tables: the actions taken on
 Save in those weeks, by date, to read the weeks against, and the cache's four numbers, its saving in
 dollars first. The cache itself (the notes learned from your sessions, served to the agent as it works) is

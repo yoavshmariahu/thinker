@@ -113,6 +113,7 @@ test('the report averages each week over its sessions, by part and by model unde
   assert.match(text, /By part of the context/); assert.match(text, /TOTAL/); assert.match(text, /ANTHROPIC/); assert.match(text, /claude-opus-5-5/);
   assert.match(text, /mystery-9 \(unpriced\)/); assert.match(text, /Workflow tool/); assert.match(text, /\$ saved\s+\$0\.00/);
   assert.match(renderReport(v, { cost: true }).join('\n'), /list prices/);
+  assert.match(renderReport(v, { aggregate: true }).join('\n'), /Total tokens over the week's sessions/);
   // every repository's report merged: the sums and the sessions add, the actions name their repository
   const m = mergeReports([{ repo: 'a', name: 'A', view: v }, { repo: 'b', name: 'B', view: v }]);
   assert.deepEqual(m.columns.map(c => c.sessions), [0, 0, 0, 4, 4]);

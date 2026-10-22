@@ -230,6 +230,7 @@
       <p class="lede">What a session costs here, week by week: the average over each week's sessions, by where the tokens went and by the model that read them</p></div>
       <div class="controls">
         <select class="sel" id="r-repo" aria-label="Repository"></select>
+        <div class="seg" id="r-mode"><button data-mode="avg" class="on">Per session</button><button data-mode="sum">Aggregate</button></div>
         <div class="seg" id="r-measure"><button data-m="tokens" class="on">Tokens</button><button data-m="cost">Cost</button></div>
       </div></div>
       <div id="report-body" class="section"><div class="empty"><svg class="logo-spin" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="22" r="6"/><circle cx="16" cy="16" r="6"/><circle cx="22" cy="10" r="6"/></svg>Reading the transcripts…</div></div>
@@ -670,10 +671,11 @@ async function fetchRepos() {
 }
 
 // ---- Report (report.js:reportView, as `thinker report`): the average a session cost each week, by part and by model ----
-let RPT = null, RMEASURE = 'tokens', RFOLD = new Set();
+let RPT = null, RMEASURE = 'tokens', RMODE = 'avg', RFOLD = new Set();
+document.querySelectorAll('#r-mode button').forEach(b => b.onclick = () => { RMODE = b.dataset.mode; segOn('#r-mode', b); if (RPT) renderReport(RPT); });
 $('#r-repo').onchange = e => { REPO = e.target.value; e.target.blur(); loadReport(); };
 document.querySelectorAll('#r-measure button').forEach(b => b.onclick = () => { RMEASURE = b.dataset.m; segOn('#r-measure', b); if (RPT) renderReport(RPT); });
-// a cell is trending when it moved this much against the week before (report.js:TREND_MIN): red up, green down
+// a cell is trending when it moved this much against the first week of the window (report.js:TREND_MIN): red up, green down
 const TREND_MIN = 0.05;
 // a dollar figure as prices.js:formatDollars makes it
 const money = d => d == null ? '–' : (d < 0 ? '−' : '') + '$' + (Math.abs(d) >= 10000 ? (Math.abs(d) / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : Math.abs(d) >= 100 ? String(Math.round(Math.abs(d))) : Math.abs(d) >= 10 ? Math.abs(d).toFixed(1) : Math.abs(d) >= 0.01 || d === 0 ? Math.abs(d).toFixed(2) : Math.abs(d).toFixed(3));
@@ -691,28 +693,28 @@ async function loadReport() {
 }
 function renderReport(v) {
   RPT = v;
-  const cost = RMEASURE === 'cost', el = $('#report-body');
-  // a cell: the week's sum over its sessions (the priced ones in the cost view), null where the week has none
-  const avg = (c, w) => { const col = v.columns[w]; return cost ? (col.priced ? c.cost / col.priced : null) : (col.sessions ? c.tokens / col.sessions : null); };
+  const cost = RMEASURE === 'cost', sum = RMODE === 'sum', el = $('#report-body');
+  // a cell: the week's sum over its sessions (the priced ones in the cost view), or that sum itself (Aggregate); null where the week has none
+  const avg = (c, w) => { const col = v.columns[w]; return sum ? (cost ? c.cost : c.tokens) : cost ? (col.priced ? c.cost / col.priced : null) : (col.sessions ? c.tokens / col.sessions : null); };
   const fv = x => x == null ? '<span class="muted">–</span>' : cost ? money(x) : fmt(x);
   const tcell = (cells, w, title) => {
-    const a = avg(cells[w], w), p = w ? avg(cells[w - 1], w - 1) : null;
+    const a = avg(cells[w], w), p = w ? avg(cells[0], 0) : null;
     const t = p && a != null ? (a > p * (1 + TREND_MIN) ? 'up' : a < p * (1 - TREND_MIN) ? 'down' : '') : '', d = p && a != null ? Math.round(100 * (a - p) / p) : null;
     return `<td class="num${t ? ` rep-${t}` : ''}"${title ? ` title="${esc(title)}"` : ''}>${fv(a)}${t ? `<small>${d > 0 ? '+' : ''}${d}%</small>` : ''}</td>`;
   };
   const row = (name, cells, { cls = '', sub = '', titles, data = '' } = {}) => `<tr class="${cls}"${data}><td class="ctx-name">${name}${sub ? `<span class="ctx-kind">${sub}</span>` : ''}</td>${cells.map((c, w) => tcell(cells, w, titles ? titles(c, w) : '')).join('')}</tr>`;
   const head = nameHead => `<thead><tr><th>${nameHead}</th>${v.columns.map(c => `<th class="num">Week of ${dlabel(c.t)}<small>${c.sessions} session${c.sessions === 1 ? '' : 's'}${cost && c.priced !== c.sessions ? `, ${c.priced} priced` : ''}</small></th>`).join('')}</tr></thead>`;
-  const unit = cost ? 'cost at list prices' : 'tokens';
+  const unit = cost ? 'cost at list prices' : 'tokens', first = v.columns[0] ? `the week of ${dlabel(v.columns[0].t)}` : 'the first week';
   const sessions = v.columns.reduce((a, c) => a + c.sessions, 0), unmeasured = v.columns.reduce((a, c) => a + c.unmeasured, 0);
   const sub = `${sessions} session${sessions === 1 ? '' : 's'} over ${v.weeks} weeks${unmeasured ? `, ${unmeasured} more whose agent reported no usage (Cursor) left out` : ''}${v.all ? ` · ${v.repos.length} repositories` : ''}`;
   const parts = `<figure class="ctx-figure"><figcaption><b>By part of the context</b> <span class="ctx-sub">${sub}</span></figcaption>
     <table class="ctx-table rep-table">${head('Part')}<tbody>${v.parts.map(p => row(esc(p.name), p.cells)).join('')}${row('Total', v.totals, { cls: 'rep-total' })}</tbody></table>
-    <p class="ctx-note">Average ${unit} per session, the week's sum over its sessions. <b>Red</b>: up ${Math.round(100 * TREND_MIN)}% or more against the week before; <b>green</b>: down as much. The parts are the Context view's estimates from each session's transcript (its instruction files, the skills and tools loaded, its tool outputs, each read again by every model call), scaled down to the session's measured input where they overshoot it; <b>Other input</b> is the rest of the input, the conversation itself; <b>Output</b> is what the model wrote.${cost ? ` Cost prices the tokens at the providers' list rates of ${esc(v.pricedOn)} (fresh input, cache reads and writes, output, each at its rate): what they would cost on a metered key; a subscription pays differently.` : ''}</p></figure>`;
+    <p class="ctx-note">${sum ? `Total ${unit} over each week's sessions` : `Average ${unit} per session, the week's sum over its sessions`}. <b>Red</b>: up ${Math.round(100 * TREND_MIN)}% or more against ${first}, the first column; <b>green</b>: down as much. The parts are the Context view's estimates from each session's transcript (its instruction files, the skills and tools loaded, its tool outputs, each read again by every model call), scaled down to the session's measured input where they overshoot it; <b>Other input</b> is the rest of the input, the conversation itself; <b>Output</b> is what the model wrote.${cost ? ` Cost prices the tokens at the providers' list rates of ${esc(v.pricedOn)} (fresh input, cache reads and writes, output, each at its rate): what they would cost on a metered key; a subscription pays differently.` : ''}</p></figure>`;
   const fold = p => RFOLD.has(p), modelsOf = p => v.models.filter(m => m.provider === p);
   const mtitle = m => (c, w) => `${c.sessions} session${c.sessions === 1 ? '' : 's'} on ${m.model} this week${c.sessions ? `, ${cost ? (c.priced ? money(c.cost / c.priced) : '–') : fmt(c.tokens / c.sessions)} per session of its own` : ''}`;
-  const models = `<figure class="ctx-figure"><figcaption><b>By model</b> <span class="ctx-sub">each model's share of the average session, its provider's subtotal above its models</span></figcaption>
+  const models = `<figure class="ctx-figure"><figcaption><b>By model</b> <span class="ctx-sub">each model's share of the ${sum ? 'week' : 'average session'}, its provider's subtotal above its models</span></figcaption>
     <table class="ctx-table rep-table">${head('Provider · model')}<tbody>${v.providers.map(p => row(`<button class="rep-fold" data-fold="${esc(p.name)}" aria-expanded="${!fold(p.name)}">${fold(p.name) ? '▸' : '▾'}</button> ${esc(p.name)}`, p.cells, { cls: 'rep-sub', sub: `${modelsOf(p.name).length} model${modelsOf(p.name).length === 1 ? '' : 's'}` }) + (fold(p.name) ? '' : modelsOf(p.name).map(m => row(`<span class="rep-indent">${esc(m.model)}</span>`, m.cells, { cls: m.priced ? '' : 'ctx-off', sub: m.priced ? '' : 'no list price', titles: mtitle(m) })).join(''))).join('')}${row('Total', v.totals, { cls: 'rep-total' })}</tbody></table>
-    <p class="ctx-note">A model's row is its share of the average session that week (its tokens over every session of the week), so the rows add up to the total and a switch of model shows as one row falling while another rises; hover a cell for the sessions on that model and the average per session of its own.${v.unpriced.length ? ` No list price for ${v.unpriced.map(esc).join(', ')}: their sessions are left out of the cost average.` : ''}</p></figure>`;
+    <p class="ctx-note">A model's row is its share of the ${sum ? 'week' : 'average session that week (its tokens over every session of the week)'}, so the rows add up to the total and a switch of model shows as one row falling while another rises; hover a cell for the sessions on that model and the average per session of its own.${v.unpriced.length ? ` No list price for ${v.unpriced.map(esc).join(', ')}: their sessions are left out of the cost average.` : ''}</p></figure>`;
   // the decisions taken on the Save page in the window, to read the weeks against (context-suggest.js:changeHistory)
   const when = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   const done = a => a.revertedAt ? ['off', 'Reverted'] : a.decision === 'dismissed' ? ['off', 'Dismissed'] : ['ok', { off: 'Switched off', on: 'Turned back on', compress: 'Compressed', remove: 'Removed', high: 'High compression', uncompress: 'Compression off' }[a.act] || 'Applied'];
