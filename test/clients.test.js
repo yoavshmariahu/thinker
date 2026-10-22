@@ -139,7 +139,7 @@ test('Cursor MCP opt-out does not write or approve an MCP server', () => {
 test('prompt hook output matches what each client accepts', () => {
   const dir = repo();
   const codex = hook(dir, 'prompt', 'codex', { session_id: 's1', prompt: PROMPT, cwd: dir });
-  // the bundle alone: the tool intro (ops.js:sessionIntro) is only for a repository that turned the code tools on
+  // the bundle alone: no tool intro since 2026-10-22
   assert.ok(codex.startsWith('<thinker-cache>') && !codex.includes('<thinker-tools>') && codex.includes('RateLimiter.allow'));
   assert.ok(!codex.includes('🧠'), 'the prompt hook says nothing to the user; the stop hook sums the turn');
 
