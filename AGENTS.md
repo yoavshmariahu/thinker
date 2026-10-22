@@ -38,7 +38,7 @@ our repository policy guard or require PRs in their repositories.
   the pull request, then merge through GitHub and bring local `main` up to date
   from the merged remote branch.
 - Do not bypass a pre-push guard or disable hooks to push `main`.
-- GitHub server-side enforcement for this private repository requires GitHub Pro
+- GitHub server-side enforcement for this repository (private when this was written; public since) requires GitHub Pro
   (the API currently returns 403 on the account's plan). Until enabled, the local
   guard and this policy enforce the workflow on this checkout, not on every client.
 

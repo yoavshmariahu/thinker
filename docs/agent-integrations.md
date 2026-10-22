@@ -238,7 +238,10 @@ plugin on a machine without thinker does nothing.
   run thinker's prompt hook (`clients.js:pluginYields`): one copy serves. Codex runs plugin lifecycle hooks for
   plugins installed by hand in its desktop app, with the same trust review as its own hooks, and its public
   directory takes no plugin with hooks; all three are from the hosts' documentation, none has been run live
-  yet. The marketplaces live in this repository, which is private: a marketplace add needs access to it.
+  yet. The marketplaces live in this repository, which is public, so `claude plugin marketplace add
+  yoavshmariahu/thinker` works for anyone (run live on 2026-10-22: added and installed; the plugin yields
+  only once the installed copy carries `--plugin`, from the release after 0.2.0). The listing icon the
+  directories want is `icon.png` beside each manifest (the site's mark, three circles, 1024 px).
 - **The pi package** (`npm/pi/thinker.js`, shipped in `@zerotimedev/thinker` through its `pi` field):
   `pi install npm:@zerotimedev/thinker` adds an extension that loads the installed copy's
   `src/integrations/pi.js` on the first event and serves every checkout as `thinker connect`'s extension
