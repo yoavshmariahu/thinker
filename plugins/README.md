@@ -8,7 +8,7 @@ on a machine without thinker does nothing. Where the host's own settings already
 
 | host | plugin | marketplace file | install |
 |---|---|---|---|
-| Claude Code | `claude-code/` (`.claude-plugin/plugin.json`, `hooks/hooks.json`) | `.claude-plugin/marketplace.json` | `claude plugin marketplace add yoavshmariahu/thinker` then `claude plugin install thinker@thinker` |
+| Claude Code | `claude-code/` (`.claude-plugin/plugin.json` and `icon.png`, `hooks/hooks.json`) | `.claude-plugin/marketplace.json` | `claude plugin marketplace add yoavshmariahu/thinker` then `claude plugin install thinker@thinker` |
 | Codex | `codex/` (`plugin.json`, `hooks/hooks.json`) | `.agents/plugins/marketplace.json` | `codex plugin marketplace add yoavshmariahu/thinker` then `codex plugin add thinker@thinker` |
 | Cursor | `cursor/` (`.cursor-plugin/plugin.json`, `hooks/hooks.json`, the scripts under `bin/`) | `.cursor-plugin/marketplace.json` | from Cursor's Customize panel once listed; the CLI loads no plugins |
 
