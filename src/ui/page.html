@@ -524,8 +524,8 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && faqOverlay
 document.querySelectorAll('.nav-link').forEach(b => b.onclick = () => { if (b.dataset.tab === 'cache') DREPO = ''; show(b.dataset.tab); });
 $('#back').onclick = () => { DREPO = ''; show('cache'); };
 function show(tab) {
-  // the warm-up and tools pages are gone (2026-10-21): an old link to them opens the caches
-  if (tab !== 'context') tab = 'cache';
+  // the warm-up and tools pages are gone (2026-10-21): an old link to them, or any tab the page does not know, opens the Context view
+  if (tab !== 'cache') tab = 'context';
   document.querySelectorAll('.nav-link').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   $('#tab-context').hidden = tab !== 'context'; $('#tab-cache').hidden = tab !== 'cache';
   TAB = tab;
