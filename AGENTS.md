@@ -1313,9 +1313,13 @@ this repository's 30 longest recent sessions (2026-10-22, from the
 `api-request` records Claude Code 2.1.308 writes): tool results 27%, instruction files 14%, the agent's tool calls
 12%, user text 11%, thinking 11%, Claude Code's own system messages 5%, tool definitions 4%, the system prompt 2%. The
 parts are scaled down to the session's measured input where their sum overshoots it (they are estimates with different
-multipliers); what is left of the input is "Other input" (estimation slack, mostly the four characters a token the text parts
-are counted at against about 3.3 for code and JSON), and "Output" is what the model wrote, so the parts add up to the
-session's tokens. The second table is by model under its provider
+multipliers); what is left of the input is "Other input", and "Output" is what the model wrote, so the whole adds up to
+the session's tokens. **The tables show the four parts the Save page measures and controls** (instruction files, custom
+tools, built-in tools, tool outputs; `report.js:PARTS`) with their own total, and the whole session's tokens under the
+model table (`sessionTotals`); the rest is computed all the same (`BREAKDOWN`, `thinker report --json`) and written up
+with its numbers, the unit calibration (the model reports 1.44 tokens for every four characters: at chars/4 the parts
+cover 74% of a long session's input, the residual is the unit, not a missing part) and the cuts to consider in
+`research/context-breakdown-2026-10-22.md` (the owner's decision, 2026-10-22). The second table is by model under its provider
 (`prices.js:providerOf`), each row the model's share of the average session (its tokens over every session of
 the week), so the rows add up to the total and a switch of model shows as one row falling while another rises;
 the provider's subtotal is above its models and folds them. On the page each cell is shaded by its number against every
