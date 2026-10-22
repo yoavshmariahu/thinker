@@ -57,7 +57,7 @@ const pctLess = (cut, of) => { const p = of ? 100 * cut / of : 0; return p < 1 ?
 const flagged = r => !r.off && (r.waste === 'high' || r.waste === 'medium') && r.wasted > 0;
 
 // Every change the report flags, by what it saves a session, the five largest. A section, skill or tool is flagged
-// when it is used in under half the sessions and costly (instruction-value.js:wasteLevel), and saves at most its cost
+// when its cost in the sessions that did not use it is a share of its kind's (instruction-value.js:wasteLevel), and saves at most its cost
 // in the sessions that did not use it; an output thinker can compress and does not, what moderate compression's cap
 // alone would have cut from it (tool-outputs.js).
 export function topChanges(view, { max = SUGGEST.max, minSaving = SUGGEST.minSaving } = {}) {

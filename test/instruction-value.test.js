@@ -214,7 +214,7 @@ test('a tool output costs its tokens once for each model call after it, scaled t
   assert.deepEqual([mcpText['mcp:rea'].tokens, mcpText['mcp:rea'].saveModerate, mcpText['mcp:rea'].saveHigh], [4000, 1000, 1000], 'an MCP server past the cap is a saving, the moderate one at either level');
 });
 
-test('waste: high or medium only for a section used in under half the sessions that costs a share of the file', async () => {
+test('waste: high or medium by what a section cost in the sessions that did not use it, as a share of the file', async () => {
   const { wasteLevel, use } = await import('../src/instruction-value.js');
   // acted on in 1 of 10 judged sessions, 100k a session: wastes 90k
   const r = use({ sessions: 20, applied: 0, triggered: false, judged: 10, followed: 1 }, 100_000);
@@ -222,7 +222,8 @@ test('waste: high or medium only for a section used in under half the sessions t
   assert.equal(wasteLevel(r, 1_000_000).waste, 'high', '9% of the file');
   assert.equal(wasteLevel(r, 3_000_000).waste, 'medium', '3% of the file');
   assert.equal(wasteLevel(r, 10_000_000).waste, 'low', 'under 2%');
-  assert.equal(wasteLevel({ usedShare: 0.6, wasted: 400_000 }, 1_000_000).waste, 'low', 'used in most sessions: never flagged');
+  assert.equal(wasteLevel({ usedShare: 0.6, wasted: 400_000 }, 1_000_000).waste, 'high', 'used in most sessions, but 40% of the file in the rest');
+  assert.equal(wasteLevel({ usedShare: 0.9, wasted: 10_000 }, 1_000_000).waste, 'low', '1% of the file');
   assert.equal(wasteLevel({ usedShare: null, wasted: null }, 1_000_000).waste, 'unknown');
 });
 

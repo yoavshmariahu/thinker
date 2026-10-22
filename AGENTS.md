@@ -1182,8 +1182,9 @@ per call, the share of sessions that used it, its cost over the window (numbers 
 is high or medium; See more opens the part's text under the row; a dropdown in the row picks what to do, and the one Apply at
 the table's top right does it for every checked row (no button per row; History's Revert is per decision). Sorting follows the
 window figures the table shows: most wasted is the waste a session times the sessions the part was in, as the summary ranks.
-An output's waste is what moderate compression would have cut as a share of all output cost, by the same thresholds
-(`instruction-value.js:WASTE`), so an uncompressed MCP server or command can be medium or high waste beside a section. The
+A Wasted column holds that aggregate (`instruction-value.js:wasteLevel`, one rule since this day: wasted as a share of
+what the kind costs, 5% high, 2% medium, no longer gated on under-half use); an output's is what moderate compression
+would have cut, so an uncompressed MCP server or command can be medium or high waste beside a section. The
 first view, All, holds every section, skill, tool and output together; the four after it one kind each; History, last, the
 decisions. The page's address carries nothing: the server refuses an API call another site's page makes (its Origin or
 Sec-Fetch-Site) and any Host but its own (`ui/server.js`); the per-run key in the address went on 2026-10-22, the owner's call. The actions are what `context-suggest.js:allChanges` gives each part (a section: Compress

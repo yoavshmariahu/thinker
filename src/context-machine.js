@@ -44,8 +44,8 @@ export function machineContext(store, { home, days = 30, limit = MACHINE_REPOS, 
 }
 
 // What to cut first: the parts of the context the sessions did not use, costliest first. The same flag the
-// Context tab shows on each card (instruction-value.js:wasteLevel): a section, skill or tool used in under half
-// the sessions whose cost in the sessions that did not use it is a share of its kind's. `wasted` is that cost,
+// Context tab shows on each row (instruction-value.js:wasteLevel): a section, skill or tool whose cost in the
+// sessions that did not use it is a share of its kind's (5% high, 2% medium). `wasted` is that cost,
 // tokens a session, and the saving at most. Sections carry the free signal only (applied by their triggers, or
 // judged where sessions were); a section naming no file or command is unknown and not listed.
 export function recommendations(view, { top = MACHINE_TOP } = {}) {
