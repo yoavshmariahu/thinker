@@ -1305,9 +1305,10 @@ what is left of the input is "Other input", the conversation itself, and "Output
 the parts add up to the session's tokens. The second table is by model under its provider
 (`prices.js:providerOf`), each row the model's share of the average session (its tokens over every session of
 the week), so the rows add up to the total and a switch of model shows as one row falling while another rises;
-the provider's subtotal is above its models and folds them. On the page each row is shaded by its own numbers (the owner's
-asks of 2026-10-22, the last of several): its highest week the darkest red, its lowest the darkest green, the rest in
-proportion with the middle plain (`SHADE_MIN`, a tenth of the row's range), no percentage in the cell; the command marks
+the provider's subtotal is above its models and folds them. On the page each cell is shaded by its number against every
+cell of its table (the owner's asks of 2026-10-22, the last of several): the highest the darkest red, the lowest the
+darkest green, the rest in proportion with the middle plain (`SHADE_MIN`, a tenth of the range), in light shades; a
+total or subtotal row is scaled against its own weeks; no percentage in the cell; the command marks
 a cell `TREND_MIN` (5%) or more against the first week ▲ ▼, doubled past `TREND_BIG` (50%); a zero cell is blank.
 A Per session / Total toggle (`--total`) shows each week's sum over its sessions instead of the average. A session whose agent reports
 no usage (Cursor) is counted in no column and named as left out.
