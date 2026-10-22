@@ -180,6 +180,8 @@
     .ctx-act .btn { padding: 0.26rem 0.65rem; font-size: 0.76rem; }
     .ctx-act .why { color: #9ca3af; cursor: help; }
     .ctx-detail td { white-space: normal; background: #fff; padding: 0.5rem 0.8rem 0.8rem 2.1rem; }
+    /* the detail cell spans every column: at width 0 its text (a code block, a long line) counts for nothing in the auto layout, so opening it moves no column */
+    .ctx-detail td > div { width: 0; min-width: 100%; }
     .ctx-detail .why { font-size: 0.76rem; color: #6b7280; margin-top: 0.4rem; }
     .ctx-preview { margin-bottom: 0.8rem; }
     .md-body { font-size: 0.86rem; line-height: 1.5; color: #222; }
