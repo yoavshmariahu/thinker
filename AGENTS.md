@@ -220,7 +220,7 @@ by default: the once-per-session distillation, and a maintenance run that re-ver
 at most 3 stale notes and phrases the new ones. `mine-prs` and `understand` stay,
 unlisted in the help, for Artemis's benchmark caches alone. What the installer does
 show at once is where the agents' context goes, read from their transcripts
-(`context-machine.js`; the Context view below). The paragraphs on the build below are
+(`context-machine.js`; the Context view below): on a terminal it asks whether to see what to cut first in the browser or there, where the suggestions are a multi-select of the actions the page's rows would take, applied through the same `approveChanges` (`setup/context-ask.js`, `thinker context --machine --ask`, 2026-10-22). The paragraphs on the build below are
 history: how it ran until then, kept because the mining code is still what Artemis
 builds caches with. Outside a git repository there is nowhere to keep a cache: the CLI's cache
 commands stop with that message (`cli.js:CACHE_COMMANDS`), the MCP server

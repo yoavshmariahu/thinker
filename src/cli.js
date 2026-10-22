@@ -170,7 +170,7 @@ const HELP = `thinker — knowledge cache for coding agents
                                  --remove / --compress <section id> show the diff of taking a section out or having a model shorten it;
                                  --apply writes it to AGENTS.md in the working tree, uncommitted (also the Context tab's buttons)
   context [--days n] [--json] [--verbose] [--refresh] [--judge n] [--switch-off <labels> [--builtin]] [--switch-on <keys>] [--output-compression <tools> --level high|moderate|off]
-          [--machine [--repos n] [--top n]]
+          [--machine [--repos n] [--top n] [--ask [--no-browser]]]
                                  where the agents' context goes here and what each part is worth: every section of AGENTS.md (its
                                  tokens, the sessions it applied to, and the judged share it bore on and was followed), every skill
                                  (read in, kept its rules), every other tool loaded; --judge n judges n recent sessions now (model
@@ -179,8 +179,10 @@ const HELP = `thinker — knowledge cache for coding agents
                                  --switch-off turns the harness on here and switches those tools off (--builtin: built-in tools too);
                                  --switch-on turns them back on; --output-compression sets how much of a tool's results Claude Code keeps
                                  --machine, from any directory: the same report over the repositories the agents worked in lately (the
-                                 5 most active, --repos n), merged, with what to cut first (5 suggestions, --top n); the installer prints
-                                 it, from the sessions that ran before thinker was installed, and keeps each report for the page
+                                 5 most active, --repos n), merged, with what to cut first (5 suggestions, --top n); the installer runs
+                                 it, from the sessions that ran before thinker was installed, and keeps each report for the page;
+                                 --ask (a terminal) asks whether to see it in the browser or here, where the suggestions are a list
+                                 to pick from and apply at once (--no-browser: the terminal without the question)
                                  the top changes with their suggested actions: --approve 1,3|all (3:remove picks another action),
                                  --dismiss 2, --history lists the decisions, --revert <n> takes one back; the Context tab's All
                                  lists every part with its actions, and History the decisions. Once a week the next prompt passes

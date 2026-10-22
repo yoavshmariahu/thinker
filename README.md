@@ -28,8 +28,9 @@ npx @zerotimedev/thinker
 ```
 
 The installer wires thinker into the coding agents on the machine, then reads your recent sessions
-from the agents' own transcripts and prints where their context goes and what to cut first, and
-opens the local page on that report to review and apply it; nothing else is needed. The cache grows
+from the agents' own transcripts and shows where their context goes and what to cut first, in the
+browser or in the terminal, where the suggestions are a list to pick from and apply at once; nothing
+else is needed. The cache grows
 from your sessions in every git repository from then on ([setup](docs/setup.md)).
 
 Requires git, Node 20+ and a logged-in coding agent: Claude Code, Codex, Cursor, Gemini CLI
