@@ -2,7 +2,7 @@
 // removed them: on this repository 775 files by 2026-10-17, 209 of them finished distill batches. Maintenance
 // runs this (maintain.js). What goes, by file name:
 // - batch detail files (activity.js: pr-mining-*, distilling-sessions-*): finished or their writer gone, after
-//   a day; the newest of each kind always stays (a warm-up's stage is read from it: ui/server.js:jobProgress)
+//   a day; the newest of each kind always stays (a build's stage is read from it: ui/server.js:jobProgress)
 // - a session's own state (session-<id>.json and .lock: holdout turns, late notes; trace-<id>.jsonl: its
 //   recorded trace; oriented-<turn>; <id>.json and rollout-*.json: how far its transcript was distilled),
 //   untouched for a month: catch-up learning looks two days back, and a session resumed after a month is
@@ -21,7 +21,7 @@ const finished = file => { try { return /"event":"(finish|cancelled)"/.test(fs.r
 export function pruneState(storeDir, { now = Date.now(), days = PRUNE_DAYS, dry = false } = {}) {
   const dir = path.join(storeDir, 'state');
   let names = []; try { names = fs.readdirSync(dir); } catch { return []; }
-  // the newest batch of each kind stays, whatever its age: a warm-up's stage is read from it
+  // the newest batch of each kind stays, whatever its age: a build's stage is read from it
   const newest = {};
   for (const n of names) { const m = /^(pr-mining|distilling-sessions)-(\d+)-/.exec(n); if (m && !(Number(newest[m[1]]?.[1]) >= Number(m[2]))) newest[m[1]] = [n, m[2]]; }
   const keep = new Set(Object.values(newest).map(x => x[0]));

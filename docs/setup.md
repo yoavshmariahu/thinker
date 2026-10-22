@@ -30,27 +30,23 @@ empty, with the first agent session in a repository (kept out of `git status` th
 `.git/info/exclude`) and grows from your sessions. The hooks start serving from it once
 it holds a few notes (three; `minNotes` in `.thinker/config.json` changes that), so a
 young cache costs a session nothing. The MCP server offers the agent no tools (since
-2026-10-22): it carries thinker's own questions and, in a desktop app, its learning queue. The first session in a repository
-also writes what `thinker setup` would there (the git hooks that keep the cache fresh after a
-commit or merge, Codex's trust in the project, Cursor's rule). The cache grows from the
-sessions there; reading the repository's history into it is a step you take by hand
-(`thinker warmup`, or `thinker setup --build` inside the repository). Until 2026-10-21 the agent
-was told once to offer you a warm-up; now it is only where `warmup: { offer: true }` is set in
-`.thinker/config.json`: on a yes it runs `thinker warmup --repos <checkout> --yes --terminal` itself. Inside a
-desktop app (Claude Desktop, the Codex app, Cursor), and wherever no agent CLI is signed in (a
-desktop app's login does not sign in its CLI), Claude Code, Codex and Cursor read through the
-session instead, on the app's own login and model: the build starts in the background with its model calls queued in `.thinker/state`, and
-the agent starts a background subagent that answers them through thinker's `learn_next`
-tool, about twelve merged pull requests, the share one subagent's context holds.
-The offer is made once per repository on this machine, not again in another clone or worktree,
-and nothing else repeats it; `thinker warmup` is there any time.
+2026-10-22): it carries thinker's own questions and, in a desktop app, its learning queue.
+The first session in a repository also writes what `thinker setup` would there: the git
+hooks that keep the cache fresh after a commit or merge, and Codex's trust in the project.
+Nothing reads the repository's history into the cache: the notes come from the sessions
+there, each distilled once when it ends, through the agent's own login. Inside a desktop
+app (Claude Desktop, the Codex app, Cursor), and wherever no agent CLI is signed in (a
+desktop app's login does not sign in its CLI), Claude Code, Codex and Cursor learn through
+the session instead, on the app's own login and model: the model calls are queued in
+`.thinker/state`, and the agent starts a background subagent that answers them through
+thinker's `learn_next` tool.
 
 **Tools your sessions never use** (Claude Code and its desktop app, Codex; `thinker harness`). The
 [Context page](context.md) shows every skill, MCP server and plugin loaded into your sessions with its cost
 and use, and switching one off there turns the harness on for that repository. The rest of this paragraph,
 the question asked in your prompts, is off by default and not yet released: nothing below
-happens until `thinker harness --enabled on` in a repository (or a switch-off on the Context page). Once on, it is
-the step after the warm-up, in `thinker warmup` and on the page: for each repository with at least 10 sessions
+happens until `thinker harness --enabled on` in a repository (or a switch-off on the Context page). Once on,
+`thinker harness --suggest` and the page do the same: for each repository with at least 10 sessions
 recorded (`HARNESS.firstSessions`), the sources worth switching off, all picked, switched off only when the person
 confirms. Claude Code records in each session's
 transcript what it loaded: every MCP server's tool names and instructions, and the skill list. `thinker harness`
@@ -77,100 +73,45 @@ background through your own agent's login: every code file in the directory, int
 works now (`thinker understand --areas <dir> --whole`). No directory chosen means not now (those wait a
 month); "never" stops the suggestions on this machine. `thinker coverage` shows the activity and coverage
 behind them. Inside a desktop app, and wherever no agent CLI is signed in, the build reads through the
-session as a warm-up does: a background subagent answers its model calls, so it reads the most changed code
+session: a background subagent answers its model calls, so it reads the most changed code
 of the chosen directories first, as much as one subagent's context holds (about 100k tokens of code), and a
 later suggestion continues where it stopped.
 
-Warming a cache reads the repository's merged pull requests into it, so the first
-session there already finds notes. It is optional, and nothing starts it for you: run
-`thinker warmup` (until 2026-10-21 the installer ended by running it), which asks
-where to choose the repositories: the local page in your browser, or the terminal, which
-shows the ten most recently used with the top five picked (arrows move, Space toggles a
-row, Enter continues, Esc skips), each at full depth around your areas with `thinker setup --build`. Before
-building, choose the harness with ↑/↓ and Enter. Thinker automatically uses Sonnet for
-Claude Code and Cursor, Luna for Codex, or Gemini Flash for Gemini. One selection applies
-to every repository picked. Over ssh, or
-on a machine with no display, only the terminal is offered: the page serves 127.0.0.1 of
-the machine it runs on. `thinker warmup` runs again any time, and inside a repository lists that one first; `thinker warmup --skip`
-and `--yes` answer without asking. Use `--agent codex --model gpt-6-sol`, for example,
-to specify both without the menus. Depth and directories can also be chosen on the page.
-Direct `thinker setup --build` uses the same automatic model after harness selection.
-Explicit `--model`, `THINKER_LLM_MODEL`, and repository model settings remain available
-for scripts and advanced use; `--yes` skips the harness menu.
-
-## Setting up on the local page
+## The local page
 
 `thinker ui` serves a page from your own machine (127.0.0.1 only, with a token minted
-for that run) and opens it in the browser, on the [Context page](context.md) once a
-repository has a cache, and on the warm-up view until then. It works from any
-directory, and the installer opens it for you the first time.
+for that run) and opens it in the browser, on the [Context page](context.md). It works
+from any directory. The installer opens it on the Context view over every repository;
+`thinker ui --tab context --all` does the same later.
 
-**1. Pick repositories.** The warm-up view lists the git repositories your agents
-worked in over the last 30 days, most recent first, found from the agents' own session
-records, along with the ones thinker has seen before. The five you used most recently
-are picked for you. One that already has a cache is marked and left unpicked. Each row
-shows when the repository was last used, how many sessions ran there, and an estimate
-of the build in tokens and minutes.
+- **Context** is where the agents' context goes and what to cut ([context.md](context.md)):
+  input tokens a session by part, then each instruction section, skill and tool with its
+  cost, use and waste, for one repository or all of them, over 7 or 30 days. Sections are
+  compressed or removed as a diff you apply; skills and tools are switched off.
+- **Cache** shows every repository on this machine with a cache as a card: its notes, fresh
+  and stale, with the code they point at, to archive or restore; its behaviors, to accept,
+  edit or discard; what is being distilled right now, with a Stop button; and the usage:
+  notes served, what agents did with them, tokens spent, the holdout comparison.
+- A repository with sensitive content is turned off with `thinker disable` inside it, and
+  `thinker enable` turns it back on. Thinker then does nothing there, in every clone and
+  worktree.
 
-**2. Choose how much to read, per repository.**
-
-- **Full** reads the newest 60 merged pull requests. **Shallow** reads the newest 30%
-  of them, for a quicker, cheaper start.
-- **Directories**: a build reads around where you are most active, the directories
-  your own commits touch (the row says **Your areas**), so the cache is warm where you
-  work rather than wherever the newest pull requests happen to be. Pick other
-  directories for a large repository where you work in one part, or clear the
-  selection to read the whole repository (the generic build). Maintenance keeps
-  warming the same areas afterwards.
-- The **switch** on a row turns thinker off for that repository, in every clone and
-  worktree: for one with sensitive content that no model should read. `thinker disable`
-  and `thinker enable` do the same from the terminal.
-
-**3. Choose the harness.** The bar at the top lists the agent CLIs found on the
-machine and says whether each is signed in. The model is selected automatically and
-shown beside the harness. A build runs through that agent's own
-login; no other account or key is needed. The bar adds up the tokens and time of
-everything picked.
-
-**4. Press Start building,** or **Skip for now**. Skipping builds nothing: every cache
-still grows from your sessions, and the warm-up view stays one click away ("Warm up
-more repositories" on the Cache view, or `thinker ui --tab warmup`).
-
-**What a build does.** The builds run one at a time, in the background, each as its
-own process. A build reads the repository's merged pull requests, fixes first, and
-distills them into notes; it does not explore the code. Then it links the notes and writes the search phrasings the ranker uses, and last, as
-an optional stage (`--no-docs` skips it), reads the design documents checked in (READMEs
-beside the code) for the rules they state, at most eight a build; maintenance reads the
-rest over time where `maintain: { docs: true }` is set. On a terminal the build shows one progress bar: the share done, the
-time left, and what is being mined or read. Closing the browser tab does not stop a
-running build.
-
-**Watching and stopping.** The Cache view shows each repository as a card. A running
-build shows its stage ("mining 12/60 PRs"), the notes saved so far, the time left and
-a **Stop** button; a queued one shows its estimate and a **Remove** button. Stopping keeps
-every note saved so far. If a build does not finish, its card names the log to read,
-`~/.thinker/state/warmup-<repository>.log`.
-
-**After setup.** The same page is where you look at the result: the Context view (where
-the agents' context goes and what to cut, [context.md](context.md)) and the Cache view
-(each repository's notes, with the code they point at, to archive or restore, and the
-usage: notes served, what agents did with them, tokens spent, the holdout comparison).
-The page stops by itself after half an hour unused, once no build is queued;
-`thinker ui` opens it again.
+The page stops by itself after half an hour unused; `thinker ui` opens it again.
 
 ### From the terminal instead
 
-`thinker setup` does for one repository what the page does, with prompts:
-`thinker setup --build [--depth shallow]` builds its cache, `--no-build` only wires
-the repository and lets the cache grow from sessions. Use it on a machine without a
-browser, or in a script (`--yes` skips the prompts). See
-[ONBOARDING.md](../ONBOARDING.md) for the flags.
+`thinker setup` does for one repository what the installer does for the machine, with
+prompts: it connects the agents, fetches the ranking model, and prints where the agents'
+context goes in that repository and what to cut first, from its sessions so far (the first
+setup of a repository opens the page; `--no-ui` leaves it closed). `thinker context` prints
+the report again, and `thinker context --machine` prints it over the repositories the agents
+worked in lately, from any directory. See [ONBOARDING.md](../ONBOARDING.md) for the flags.
 
 Then work with your agent as usual. The notes that bear on each request are
 chosen on your machine by a small local ranking model; no extra account or key
 is needed.
 
-To check the value on your own repository after setup, run the paired onboarding benchmark on a question the cache covers or a recent PR change:
+To check the value on your own repository once the cache holds notes, run the paired benchmark on a question the cache covers or a recent PR change:
 
 ```bash
 # Pick a question the cache covers (Enter takes the first), or type your own
@@ -195,8 +136,7 @@ Notes:
 - **Requirements.** git, curl, tar, Node 20+, and at least one of the agents above, logged in.
 - **What it does.** Installs the tool under `~/.thinker` and wires it into the
   agents found on the machine (their own settings; `thinker uninstall --user`
-  takes it out again). Caches are built from the local page, for the repositories
-  you pick there.
+  takes it out again).
 - **Code parsing.** A note is tied to the functions and classes it describes, and
   goes stale when one of them changes. For Python, JavaScript, TypeScript, Go
   and Rust thinker finds those definitions with a tree-sitter parser, which
@@ -204,52 +144,8 @@ Notes:
   whether it is loaded. Other languages, and code the parser cannot read, use
   a text heuristic. What it works out is cached under `~/.thinker/cache`, so
   the first run after an install or update is slower than the rest.
-- **Usage.** Building runs through roughly 700k to 900k tokens of your agent's
-  usage with the defaults (60 merged pull requests) and takes about ten
-  minutes. The estimate, in tokens and minutes, is printed before anything runs;
-  nothing is given in dollars, since the agent's login is often a subscription.
-- **Already have a cache?** Use `--cache <file|url>` instead of `--build`.
-  See [ONBOARDING.md](../ONBOARDING.md) for all options.
-
-## Large repositories: choose your project
-
-On the local page, pick directories on the repository's row. From the terminal,
-during `thinker setup`, choose **Full repo** or **Specify project directories**.
-For a project, enter a name and comma-separated directories such as
-`apps/web, packages/ui`. Thinker saves `thinker.project.json` in the repository
-root and estimates the build using those directories.
-
-You can also create the selection without running setup:
-
-```bash
-thinker project init apps/web packages/ui --name "Web app"
-thinker setup --build       # build using the saved project
-```
-
-The project file is small and editable:
-
-```json
-{
-  "version": 1,
-  "name": "Web app",
-  "directories": ["apps/web", "packages/ui"]
-}
-```
-
-Paths are relative to the repository root. `setup` and `mine-prs` use
-this file automatically; `--project other.project.json` selects another file,
-and `--full-repo` uses the whole repository for one run. A build reads
-merged changes only: it does not explore the code, and there is no command that
-does. Setup estimates usage from the number of pull requests before building.
-`thinker project show` prints the selection.
-The file can be committed or kept personal using `.git/info/exclude`.
-
-Project builds mine the changes touching the selected directories.
-GitHub history is scanned in bounded batches; `thinker mine-prs` continues
-through older history on later runs. All notes go into the same local
-repository cache: retrieval and ongoing learning remain repository-wide.
-File and symbol dependencies already connect notes to relevant paths for retrieval;
-the project file adds no retrieval filter.
+- **Already have a cache?** `--cache <file|url>` at install imports one (an
+  export made with `thinker export`). See [ONBOARDING.md](../ONBOARDING.md) for all options.
 
 ## Your local cache
 

@@ -397,7 +397,7 @@ never paths or settings. `clients.detected` is empty when no supported agent is 
 sent `["claude"]`, the setup fallback). The **Harnesses** and **Devices without a supported agent** cards
 read this block; a device whose latest report predates it is left out of both.
 
-Updated clients include `raw_json.warmup`, 30-day counts of the warm-up offers the hooks
+Clients until 2026-10-21 sent `raw_json.warmup` (gone with the warm-up, `d84af6795`; older rows keep it), 30-day counts of the warm-up offers the hooks
 made (`offers`; `offersToColdCaches` went to a cache that held notes from sessions but had
 read fewer than `warmMined` merged changes), the repositories offered (`offeredRepositories`)
 and those where a warm-up then started from any path (`offeredThenStarted`), and the asked-for

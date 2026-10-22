@@ -21,56 +21,24 @@ Personal backups use `thinker export backup.tgz` and
 
 ## Setup flow (`thinker setup`)
 
-Setup has two steps:
+Setup has one step, **Connect your agents**: it detects the installed coding agents and
+configures their hooks and MCP servers in the agents' own settings, once per machine
+(`thinker connect` does this step alone, anywhere); the repository gets its git hooks and
+Codex's trust. Codex's hook-review marks are written without asking (`--no-trust` leaves
+them). Only detected or explicitly selected agents appear in the connection summary. Then
+it fetches the ranking model and, when sessions ran in the repository, prints where the
+agents' context goes there and what to cut first, as the installer does for the machine.
 
-1. **Connect your agents.** Detects installed coding agents and configures their hooks and MCP servers in the agents' own settings, once per machine (`thinker connect` does this step alone, anywhere); the repository gets its git hooks, Cursor's rule and Codex's trust. Codex's hook-review marks are written without asking (`--no-trust` leaves them). Only detected or explicitly selected agents appear in the connection summary.
-2. **Choose how to start.** Learn from future sessions (the default), or build a cache now from code and merged pull requests. Choose **Full repo** or **Specify project directories**. For a project, enter a name and comma-separated repository-relative directories; setup saves `thinker.project.json`. Setup shows estimated build time and token usage for the selection before asking whether to build. Outside a terminal, building requires an explicit flag such as `--build`.
+Nothing is built: the cache starts empty and grows from your sessions. Ongoing learning
+uses your agent to write notes from your sessions; `--no-learn` disables it. Flags of the
+build an older setup ran (`--build`, `--prs`, `--depth`, `--areas`) are accepted and ignored.
 
-Ongoing learning uses your agent to write notes from your sessions and merged
-pull requests. Use `--no-learn` to disable it.
-
-The completion message shows the next step: start a new agent session in this repository. You can build later with `thinker setup --build`.
-
-A paired PR benchmark runs during setup only when requested with `--benchmark` or `--pr <number>`. Its results are saved in `.thinker/benchmarks/`.
-
-## Choosing directories in a large repository
-
-The scope menu uses arrow keys and Enter:
-
-```text
-What should Thinker build a cache for?
-  Full repo
-  Specify project directories
-```
-
-Choose the second option to enter, for example, `apps/web, packages/ui` and a
-project name. Missing directories are reported so you can correct them. The
-selection is saved even if you choose to build later. On later interactive setup
-runs, the saved project is selected by default; choosing Full repo saves that
-preference. `--no-build` skips the scope menu.
-
-For scripts or a noninteractive install, create the file first:
-
-```bash
-thinker project init apps/web packages/ui --name "Web app"
-thinker setup --build --yes
-```
-
-Or save the selection directly with
-`thinker setup --directories apps/web,packages/ui --name "Web app" --build --yes`.
-`--yes` and noninteractive builds reuse the saved selection (or use the full
-repo when no file exists). `--project other.project.json` chooses another file;
-`--full-repo` overrides a saved project for this run. Directory paths always
-start at the repository root, including when running from a subdirectory.
-
-The project only chooses what to build. It does not hide existing notes or
-restrict retrieval or ongoing learning. The repository retains one
-cache, with notes linked to their source files and symbols. See
-[the project file format](README.md#large-repositories-choose-your-project).
+The completion message shows the next step: start a new agent session in this repository.
+The first setup of a repository opens the local page; `--no-ui` leaves it closed.
 
 ## First-run benchmark
 
-After the cache is built or imported, you can benchmark on a recent PR change or any repository question anytime:
+Once the cache holds notes (or one was imported), you can benchmark on a recent PR change or any repository question anytime:
 
 ```bash
 # 1. Pick a question the cache covers (Enter takes the first), or type your own
@@ -95,7 +63,7 @@ If the cache does not have sufficiently relevant notes for the question,
 Thinker stops before making either agent call, confirms that no model usage was
 spent, and prints up to three replacement commands drawn from distinct cached
 topics. Copy one of the suggested commands and try again. If there are no
-usable topics yet, run `thinker setup` to build the cache first.
+usable topics yet, the cache has not learned enough: it grows from your sessions.
 
 This is a quick repository-specific signal, not a statistically conclusive
 benchmark or an automatic correctness grade. Use `--agent codex` (or

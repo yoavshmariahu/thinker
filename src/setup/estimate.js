@@ -17,7 +17,7 @@ export const TOKENS_PER_PR = 14_000;
 // valuable third of a full one, not a different build.
 export const SHALLOW_SHARE = 0.3;
 export const DEPTHS = ['full', 'shallow'];
-// The build's defaults, read by the command line and the warm-up page alike (test/cli-ui-sync.test.js)
+// The build's defaults, read by the command line and the page alike (test/cli-ui-sync.test.js)
 export const DEFAULT_DEPTH = 'full';
 export const DEFAULT_PRS = 60;
 export function depthLimits({ depth = DEFAULT_DEPTH, prs = DEFAULT_PRS } = {}) {

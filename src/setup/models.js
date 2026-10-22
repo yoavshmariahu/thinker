@@ -1,4 +1,4 @@
-// Harness selection determines the model in terminal setup, warm-up and the local page.
+// Harness selection determines the model in terminal setup and the local page.
 import { DEFAULT_DISTILL_MODEL, resolveModel } from '../llm.js';
 import { c } from './ui.js';
 

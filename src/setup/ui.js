@@ -102,7 +102,7 @@ export function spinner(label, { stream = process.stdout, enabled = spinnerEnabl
 
 // Whether `out` writes to the terminal: console.log, or the CLI's own writer (cli.js tags it with
 // its stream). A test's collecting `out` is neither, and gets no spinner or bar. Before 2026-10-12
-// only console.log counted, and the CLI passed its own writer, so a real `thinker setup --build`
+// only console.log counted, and the CLI passed its own writer, so a real `thinker setup`
 // never showed a spinner: each stage sat on a static line until it was done.
 export const onTerminal = out => out === console.log || Boolean(out?.stream);
 export const terminalStream = out => out?.stream || process.stdout;
@@ -400,10 +400,10 @@ export async function selectMenu({
   return defaultItem;
 }
 
-// The arrow-key multi-select (`thinker warmup`): ↑/↓ move, Space toggles a row, a picks every row that can be
+// The arrow-key multi-select: ↑/↓ move, Space toggles a row, a picks every row that can be
 // picked, n clears, Enter confirms, Esc confirms nothing. Items: { label, picked, disabled, note }; a disabled
 // row is shown and cannot be toggled. Resolves the picked items, or null for Esc / Ctrl+C. Without a TTY the
-// caller asks a plain question instead (warmup.js).
+// caller asks a plain question instead.
 export async function multiSelect({ header = '', hint = '↑/↓ move, Space toggles, Enter starts, Esc skips', items = [], out = console.log, stdin = process.stdin, stdout = process.stdout, clearOnSelect = true } = {}) {
   if (!items.length) return [];
   const picked = items.map(it => Boolean(it.picked) && !it.disabled);

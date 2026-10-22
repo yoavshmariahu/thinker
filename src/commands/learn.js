@@ -306,7 +306,7 @@ export async function minePrs(ctx, slug, { from, scan, before, after, again, lim
   const rec = minedPrs(store, scopeKey);
   if (directories) for (const id of minedPrs(store, recSlug).mined) rec.mined.add(id);
   const fetchLimit = Math.min(Math.max(limit * 3, 60), 250);
-  // --direct: only the commits that name no pull request (commits-offer.js: the ones a PR-only warm-up never read)
+  // --direct: only the commits that name no pull request (the ones PR-only mining never read)
   const listFn = direct ? (s, o) => listMergedCommits(repo, { ...o, directories, directOnly: true })
     : useGit ? (s, o) => listMergedCommits(repo, { ...o, directories })
     : commitsOn(store.config().mining) ? listMergedChanges(repo, { directories }) : listMergedPrs;

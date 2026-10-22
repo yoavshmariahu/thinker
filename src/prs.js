@@ -18,7 +18,7 @@ export function listMergedPrs(slug, { before, after, limit = 100 }) {
 
 // Direct commits beside the merged pull requests (on by default without an experiment, at the owner's
 // decision, 2026-10-19): on a GitHub
-// repository the pull requests are all a build, the warm-up or maintenance read, and a change pushed
+// repository the pull requests are all mining and maintenance read, and a change pushed
 // straight to the default branch was never mined (a third of this repository's first-parent history
 // since 2026-09-19 names no pull request). Unless `mining: { commits: false }` in .thinker/config.json
 // (or THINKER_MINE_COMMITS=off) says otherwise, the commits that name no pull request are listed with

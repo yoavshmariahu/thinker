@@ -18,7 +18,7 @@
 // schema is given.
 
 // The model distillation and mining fall back to when neither the call nor the repository's config names
-// one; the warm-up page shows the same default (test/cli-ui-sync.test.js).
+// one; the page shows the same default (test/cli-ui-sync.test.js).
 export const DEFAULT_DISTILL_MODEL = 'sonnet';
 import { spawn } from 'node:child_process';
 import os from 'node:os';

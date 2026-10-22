@@ -1,8 +1,8 @@
 // The desktop apps a session can run in, and how their agents start a subagent. Inside an app (Claude Desktop,
 // the Codex app, Cursor) thinker runs no agent CLI: a desktop app's login does not sign in its CLI, and many
 // of their users have none. Every model call goes through the app's own session instead, a background
-// subagent answering thinker's queue (session-llm.js): the warm-up (repo-onboard.js:answerWarmup) and
-// learning (session-work.js).
+// subagent answering thinker's queue (session-llm.js) for learning (session-work.js) and a coverage build
+// (coverage.js).
 import { execFileSync } from 'node:child_process';
 import { isTestMode } from './test-mode.js';
 

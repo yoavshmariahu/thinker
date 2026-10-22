@@ -135,9 +135,6 @@ the app's own session instead, on its login and model: thinker queues the calls
 (`.thinker/state/session-llm`), and the agent starts a background subagent that
 answers them through thinker's `learn_next` tool.
 
-- **Warm-up.** Answering Warm starts the build with the session provider (about
-  twelve merged pull requests, what one subagent's context holds); the answer tells
-  the agent to start the subagent. No CLI login is checked.
 - **Learning.** The hooks queue what they would have run in the background (a
   session's distill, catch-up learning, maintenance) as jobs in
   `.thinker/state/session-jobs`. On a later prompt in an app session, at most every
@@ -157,7 +154,7 @@ answers them through thinker's `learn_next` tool.
   `thinker doctor` on machines wired before.
 
 Outside the apps, where no agent CLI is signed in, Claude Code, Codex and Cursor
-warm up through the session the same way.
+learn through the session the same way.
 
 `thinker doctor` recognizes a desktop app or recent app activity in the repository.
 It checks pending learning jobs, retained failures, the live worker and unanswered

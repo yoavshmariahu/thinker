@@ -29,7 +29,7 @@ export function buildRunning(dir) {
 
 // provider `session`: one request in, its answer out, or an error once nobody took it in time
 export async function viaSession({ system, prompt, schema }, { dir = process.env[QUEUE_ENV], pollMs = 1000, unclaimedMs = UNCLAIMED_MS, claimedMs = CLAIMED_MS } = {}) {
-  if (!dir) throw new Error(`the session provider needs ${QUEUE_ENV}: it is started by a warm-up answered in an agent session`);
+  if (!dir) throw new Error(`the session provider needs ${QUEUE_ENV}: it is started by learning answered in an agent session (session-work.js)`);
   fs.mkdirSync(dir, { recursive: true });
   const id = `${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
   writeAtomic(file(dir, id, 'req'), { id, system: system || '', prompt, schema: schema || null, t: new Date().toISOString() });
