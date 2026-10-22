@@ -30,8 +30,8 @@ was told once to offer you a warm-up; now it is only where `warmup: { offer: tru
 desktop app (Claude Desktop, the Codex app, Cursor), and wherever no agent CLI is signed in (a
 desktop app's login does not sign in its CLI), Claude Code, Codex and Cursor read through the
 session instead, on the app's own login and model: the build starts in the background with its model calls queued in `.thinker/state`, and
-the agent starts a background subagent that answers them through thinker's `warmup_next` and
-`warmup_answer` tools, about twelve merged pull requests, the share one subagent's context holds.
+the agent starts a background subagent that answers them through thinker's `learn_next`
+tool, about twelve merged pull requests, the share one subagent's context holds.
 The offer is made once per repository on this machine, not again in another clone or worktree,
 and nothing else repeats it; `thinker warmup` is there any time.
 

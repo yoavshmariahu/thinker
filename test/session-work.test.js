@@ -39,7 +39,7 @@ test('an app session\'s prompt hook starts one runner with the session provider 
   enqueueJob(store, 'learn', ['learn', '--quiet']);
   assert.equal(startSessionWork(store, { cli: '/x/cli.js', harness: null, spawnFn }), '', 'a client with no subagents: nothing');
   const said = startSessionWork(store, { cli: '/x/cli.js', harness: 'claude', spawnFn });
-  assert.match(said, /run_in_background/); assert.match(said, /warmup_next/); assert.match(said, /not a CLI/);
+  assert.match(said, /run_in_background/); assert.match(said, /learn_next/); assert.match(said, /not a CLI/);
   assert.deepEqual(spawned[0].args.slice(1), ['session-work', '--repo', store.repo]);
   assert.equal(spawned[0].env.THINKER_LLM, 'session'); assert.equal(spawned[0].env.THINKER_SESSION_QUEUE, path.join(store.dir, 'state', 'session-llm'));
   // running (its pid is alive): not again; nor within the half hour once it has ended
@@ -157,16 +157,16 @@ test('hooks ignore the queue-worker subagent itself and only queue distill at se
   const hook = (what, ev) => execFileSync('node', [CLI, 'hook', what, '--client', 'cursor', '--record', '--repo', store.repo], { input: JSON.stringify(ev), encoding: 'utf8', env });
   const workerPrompt = subagentPrompt(store.repo);
   assert.deepEqual(JSON.parse(hook('prompt', { conversation_id: 'w-sub', prompt: workerPrompt })), { continue: true });
-  hook('tool', { conversation_id: 'w-sub', tool_name: 'MCP:warmup_next', tool_input: { cwd: store.repo }, tool_output: 'Nothing has come yet' });
+  hook('tool', { conversation_id: 'w-sub', tool_name: 'MCP:learn_next', tool_input: { cwd: store.repo }, tool_output: 'Nothing has come yet' });
   assert.deepEqual(JSON.parse(hook('stop', { conversation_id: 'w-sub', hook_event_name: 'sessionEnd', prompt: workerPrompt })), {});
   assert.equal(fs.existsSync(path.join(store.dir, 'state', 'trace-w-sub.jsonl')), false, 'worker session leaves no trace');
   assert.deepEqual(pendingJobs(store).filter(j => j.key.includes('w-sub')), [], 'worker session is never queued for distillation');
 
   // Regular user session: turn-end `stop` does not queue an unbatched per-turn distill; `sessionEnd` does,
-  // even when Cursor injected <dynamic_tool_catalog> listing warmup_next and warmup_answer
+  // even when Cursor injected <dynamic_tool_catalog> listing learn_next
   const tr = path.join(store.dir, 'u-main.jsonl');
   fs.writeFileSync(tr, [
-    JSON.stringify({ role: 'user', message: { content: [{ type: 'text', text: '<dynamic_tool_catalog><namespace name="user-thinker" tools="orient, lookup, warmup_next, warmup_answer" /></dynamic_tool_catalog>\n<user_query>\ninvestigate src/a.js\n</user_query>' }] } }),
+    JSON.stringify({ role: 'user', message: { content: [{ type: 'text', text: '<dynamic_tool_catalog><namespace name="user-thinker" tools="orient, lookup, learn_next" /></dynamic_tool_catalog>\n<user_query>\ninvestigate src/a.js\n</user_query>' }] } }),
     JSON.stringify({ role: 'assistant', message: { content: [{ type: 'tool_use', id: '1', name: 'Read', input: { path: 'src/a.js' } }, { type: 'text', text: 'done' }] } }),
   ].join('\n') + '\n');
   hook('prompt', { conversation_id: 'u-main', prompt: 'investigate src/a.js' });
