@@ -170,7 +170,7 @@ export function codexHarnessUsage(repo, sessions, options = {}) {
       const g = grouped.get(k); g.tokens += tokens; g.used ||= used.has(key) || (plugin && usedPlugins.has(plugin.id)); g.texts[key] = h.texts.get(key)?.slice(0, 1200); g.evidenceKeys.push(key);
       if (kind === 'plugin' && key.startsWith('skill:')) g.skills.push(raw);
     }
-    timeline.push({ t: s.mtime, client: 'codex', calls: h.calls, parts: partsOf(new Map([...grouped.values()].map((g, i) => [`${g.kind}:${i}`, g.tokens]))) });
+    timeline.push({ t: s.mtime, session: s.session, client: 'codex', calls: h.calls, parts: partsOf(new Map([...grouped.values()].map((g, i) => [`${g.kind}:${i}`, g.tokens]))) });
     for (const [key, g] of grouped) {
       if (!rows.has(key)) rows.set(key, { ...g, tokens: 0, loaded: 0, used: 0, lastUsed: null });
       const r = rows.get(key); r.loaded++; r.tokens += g.tokens; if (g.used) { r.used++; r.lastUsed = Math.max(r.lastUsed || 0, s.mtime); }

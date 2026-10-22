@@ -67,7 +67,7 @@ off for this checkout (`enabledPlugins` and `skillOverrides` in `.claude/setting
 or, for an MCP server, for the repository and its worktrees (`disabledMcpServers` in its entry of
 `~/.claude.json`, what `/mcp disable` writes). A skill switched off still runs as `/name`. What each file said
 before is kept under `~/.thinker/state/harness-backups/`, and `thinker harness --undo` turns everything back on.
-The report and `thinker ui` (the Cache view's usage) then show what it saved, read from the sessions started since: a source
+The report and `thinker ui` (the Report view's cache numbers) then show what it saved, read from the sessions started since: a source
 absent from a session saved its tokens there, once in the context and again in each model call; one still
 loaded is shown as such, not counted.
 
@@ -90,7 +90,7 @@ later suggestion continues where it stopped.
 `thinker ui` serves a page from your own machine (127.0.0.1 only, with a token minted
 for that run) and opens it in the browser, on the [Context page](context.md). It works
 from any directory. The installer opens it on the Context view over every repository;
-`thinker ui --tab context --all` does the same later.
+`thinker ui --tab save --all` does the same later.
 
 - **Context** is where the agents' context goes and what to cut ([context.md](context.md)):
   input tokens a session by part, then each instruction section, skill and tool with its

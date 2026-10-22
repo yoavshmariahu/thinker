@@ -10,7 +10,7 @@ import { hashDep } from '../src/deps.js';
 import { createNote } from '../src/ops.js';
 import { pendingBehaviors, activeBehaviors, acceptPending, discardPending, editBehavior } from '../src/behavior-workbench.js';
 import { listBehaviorProposals } from '../src/behavior-proposals.js';
-import { createUiServer, usageView } from '../src/ui/server.js';
+import { createUiServer } from '../src/ui/server.js';
 
 const GUARD = `export function guard(input) {\n  if (!input) throw new Error('input required');\n  return input.trim();\n}\n\nexport function other() {\n  return 1;\n}\n`;
 
@@ -77,7 +77,7 @@ function call(port, pathname, { origin, site, host = `127.0.0.1:${port}`, body }
   });
 }
 
-test('the local page answers only this host and its own origin, and acts through the workbench', async t => {
+test('the local page answers only this host and its own origin; notes and behaviors are the command line\'s since the Report tab replaced Cache', async t => {
   const { store } = fixture(t);
   process.env.THINKER_LOG = 'local';
   t.after(() => { delete process.env.THINKER_LOG; });
@@ -87,54 +87,20 @@ test('the local page answers only this host and its own origin, and acts through
   assert.match(url, /^http:\/\/127\.0\.0\.1:\d+\/$/, 'a plain address, nothing to carry');
   assert.equal((await call(port, '/')).status, 200);
   // another site's page in the browser is refused by what the browser says about it; the page itself and a process here are not
-  assert.equal((await call(port, '/api/behaviors', { origin: 'https://evil.example' })).status, 403, 'another origin');
-  assert.equal((await call(port, '/api/behaviors', { origin: `http://127.0.0.1:${port}`, site: 'cross-site' })).status, 403, 'cross-site by the fetch metadata');
-  assert.equal((await call(port, '/api/behaviors', { origin: `http://127.0.0.1:${port}`, site: 'same-origin' })).status, 200, 'the page itself');
-  assert.equal((await call(port, '/api/behaviors', { origin: `http://localhost:${port}`, host: `localhost:${port}` })).status, 200, 'the page by its other name');
-  assert.equal((await call(port, '/api/behaviors', { host: `evil.example:${port}` })).status, 403, 'another host name');
-  const list = JSON.parse((await call(port, '/api/behaviors', {})).body);
-  assert.equal(list.pending.length, 2);
-  const acc = await call(port, '/api/behaviors/accept', { body: { id: 'guard-trims', mutability: 'fixed' } });
-  assert.equal(acc.status, 200, acc.body);
-  assert.equal(store.get('guard-trims').mutability, 'fixed');
-  assert.equal((await call(port, '/api/behaviors/discard', { body: { id: 'nope' } })).status, 400);
-  const usage = JSON.parse((await call(port, '/api/usage?days=7', {})).body);
-  // active notes, as the Cache page counts them since #423: the rule, not the two behaviors
-  assert.equal(usage.notesInCache, 1);
-  assert.ok(!JSON.stringify(usage).includes('reportedCost'), 'no dollars on the page');
-  assert.equal(usageView(store, {}).spending.tokens, 0);
-});
-
-test('the local page lists the cache, archives and restores a note, and is scoped by repository', async t => {
-  const { store } = fixture(t);
-  process.env.THINKER_LOG = 'local';
-  t.after(() => { delete process.env.THINKER_LOG; });
-  const ui = createUiServer(store, { home: fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-ui-home-')), transcriptsHome: fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-ui-th-')) });
-  const { port } = await ui.listen(0);
-  t.after(() => ui.close());
-  const get = async p => { const r = await call(port, p, {}); assert.equal(r.status, 200, r.body); return JSON.parse(r.body); };
-  const { repos } = await get('/api/repos');
+  assert.equal((await call(port, '/api/repos', { origin: 'https://evil.example' })).status, 403, 'another origin');
+  assert.equal((await call(port, '/api/repos', { origin: `http://127.0.0.1:${port}`, site: 'cross-site' })).status, 403, 'cross-site by the fetch metadata');
+  assert.equal((await call(port, '/api/repos', { origin: `http://127.0.0.1:${port}`, site: 'same-origin' })).status, 200, 'the page itself');
+  assert.equal((await call(port, '/api/repos', { origin: `http://localhost:${port}`, host: `localhost:${port}` })).status, 200, 'the page by its other name');
+  assert.equal((await call(port, '/api/repos', { host: `evil.example:${port}` })).status, 403, 'another host name');
+  // the Cache tab's doors are gone (2026-10-22): the notes and the behaviors are reached through the CLI
+  for (const p of ['/api/behaviors', '/api/cache', '/api/usage']) assert.ok([404, 405].includes((await call(port, p, {})).status), p);
+  assert.equal((await call(port, '/api/behaviors/accept', { body: { id: 'guard-trims', mutability: 'fixed' } })).status, 404);
+  assert.equal(store.get('guard-trims').mutability, 'mutable', 'untouched');
+  const { repos } = JSON.parse((await call(port, '/api/repos', {})).body);
   assert.equal(repos.length, 1);
   assert.ok(repos[0].current);
-  const cache = await get('/api/cache');
-  assert.deepEqual(cache.notes.map(n => n.id), ['other-returns-one'], 'behaviors have their own view');
-  const n = cache.notes[0];
-  assert.equal(n.status, 'fresh');
-  assert.deepEqual(n.pointers, ['src/guard.js:other']);
-  assert.equal(n.source, 'o/r#7');
-  assert.equal(n.repo, repos[0].id);
-  assert.deepEqual((await get(`/api/cache?repo=${encodeURIComponent(repos[0].id)}`)).notes.length, 1);
-  assert.equal((await get('/api/cache?repo=all')).notes.length, 1);
-  assert.equal((await call(port, '/api/cache?repo=%2Fetc', {})).status, 400, 'only a listed repository');
-  assert.equal((await call(port, '/api/cache/archive', { body: { id: 'guard-rejects-empty' } })).status, 400, 'a behavior is not archived from here');
-  assert.equal((await call(port, '/api/cache/archive', { body: { id: 'other-returns-one', repo: repos[0].id } })).status, 200);
-  assert.ok(store.get('other-returns-one').archived);
-  assert.equal((await get('/api/cache')).notes[0].status, 'archived');
-  assert.equal((await call(port, '/api/cache/archive', { body: { id: 'other-returns-one' } })).status, 400, 'already archived');
-  assert.equal((await call(port, '/api/cache/restore', { body: { id: 'other-returns-one' } })).status, 200);
-  assert.ok(!store.get('other-returns-one').archived);
-  const all = await get('/api/behaviors?repo=all');
-  assert.equal(all.pending.length, 2);
-  assert.ok(all.active.every(b => b.repo === repos[0].id));
-  assert.equal((await get('/api/usage?repo=all')).scope, 'machine');
+  assert.equal((await call(port, '/api/report?repo=%2Fetc', {})).status, 400, 'only a listed repository');
+  const r = JSON.parse((await call(port, `/api/report?repo=${encodeURIComponent(repos[0].id)}`, {})).body);
+  assert.equal(r.columns.length, 6);
+  assert.equal(r.cache.hits, 0);
 });

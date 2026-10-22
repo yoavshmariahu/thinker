@@ -19,8 +19,8 @@ The page (`src/ui/`) is a second door to the same commands, never a second
 implementation. A default the page shows (the model, the agent, a report's window)
 is the constant the command reads (`DEFAULT_DISTILL_MODEL` in `src/llm.js`,
 `buildAgent` in `src/setup/agents.js`), and a report the page shows is the one the
-command prints (`thinker context` and the Context tab, `thinker context --machine` and
-its All repositories). An action the page takes runs the command line with the flags
+command prints (`thinker context` and the Save tab, `thinker context --machine` and
+its All repositories, `thinker report` and the Report tab). An action the page takes runs the command line with the flags
 the person would have typed. `test/cli-ui-sync.test.js` checks both doors; a new default
 or flag gets a line there before it ships.
 
@@ -188,6 +188,7 @@ cache at twice the input price and never read again.
 | `src/guard.js` | anchoring guard: names identifiers in the request that the served notes do not cover |
 | `src/update.js` | CLI self-update and daily automatic background updates (LaunchAgent / cron / invocation) |
 | `src/usage.js` | summary of the usage log and the estimate of saved calls and tokens, in tokens (never dollars) |
+| `src/report.js`, `src/prices.js`, `src/commands/report.js` | the Report page: the average a session cost each week over the last six, by part of the context and by model under its provider, in tokens or at list prices (`prices.js`, the one place dollars are shown); the actions taken on Save in the window and the cache's numbers under it; `thinker report` and the page's Report tab (see [Report](#report)) |
 | `src/store.js`, `src/llm.js` | note storage; model access through any installed agent |
 | `src/server/` | `thinker-server`, the team's central cache: HTTP API (`index.js`), per-repository stores with a change journal and a clone of the repository (`repos.js`), tokens (`auth.js`), the worker that reviews the pull requests CI asks about (`worker.js`); the server learns nothing itself |
 | `infra/sync/` | the server on EC2: CloudFormation stack, bootstrap script, deploy script |
@@ -1179,11 +1180,12 @@ by a model asked for a third of the length (`instruction-edit.js`, `thinker inst
 [--apply]`, the tab's Compress and Remove). The diff is shown first; Apply writes exactly that text to the working
 tree, uncommitted, and refuses when the file changed since the preview. No commit, no pull request.
 
-**The tables, All and History (2026-10-22, the owner's layout).** Every view of the Context tab is one table in the shape of
+**The tables, All and History (2026-10-22, the owner's layout).** Every table of the Save page, History included, shows 20 rows a page (`page.html:TABLE_PAGE`, Previous and Next under the table; a pick holds across pages), and the Report's decisions table the same; History lists every decision kept, the Report the window's alone (2026-10-22). Every view of the Context tab is one table in the shape of
 the docs' "AGENTS.md this week" example (`site/docs.html`, `ui/page.html:renderTable`): a row a part with its box, its tokens
 per call, the share of sessions that used it, its cost over the window (numbers centered, no bars) and a pill where the waste
 is high or medium; See more opens the part's text under the row; a dropdown in the row picks what to do, and the one Apply at
-the table's top right does it for every checked row (no button per row; History's Revert is per decision). Sorting follows the
+the table's top right does it for every checked row (no button per row; History's Revert is per decision); the Sort
+control is one, in the page's header beside the repository and the window, with the orderings of the view shown (2026-10-22). Sorting follows the
 window figures the table shows: most wasted is the waste a session times the sessions the part was in, as the summary ranks.
 A Wasted column holds that aggregate (`instruction-value.js:wasteLevel`, one rule since this day: wasted as a share of
 what the kind costs, 5% high, 2% medium, no longer gated on under-half use); an output's is what moderate compression
@@ -1280,6 +1282,71 @@ on the clear), later requests reading the cleared tokens no more. On this reposi
 see the agent's reaction to the placeholders, which is what separates the policies; the Artemis arms `proxy-turn` and
 `proxy-keep3` (defined 2026-10-22, `~/.artemis/scratch/proxy-arm/arm.sh`, port from the arm's env) are ready for that
 run, which has not been made.
+
+## Report
+
+**The page's two tabs are Save and Report (2026-10-22, the owner's layout).** The Context tab became Save (the
+page to find savings: the same tables, the stacked-column chart of input by day or week removed) and the Cache
+tab (the usage cards, the repositories, one repository's notes and behaviors) was replaced by Report; the notes
+and the behaviors are reached through the CLI (`thinker list`, `show`, `archive`, `system`), and the page's
+`/api/usage`, `/api/cache`, `/api/behaviors` and `/api/activity` went with it. An old link (`tab=context`,
+`tab=changes`, `tab=cache`) opens the view that replaced it.
+
+`thinker report` and the Report tab show one report (`report.js:reportView`): what a session costs here, week by
+week over the last six (`REPORT_WEEKS`, Monday to Sunday, the current week so far last), as the average over
+each week's sessions. Per session the transcript gives the model and the usage the agent reported
+(`transcripts.js:Stats`, kept with the tool outputs' record in `.thinker/state/tool-outputs.json` since its version
+8, `tool-outputs.js:sessionUsage`), and the Context view's readers give the parts, joined by session id (the
+timeline rows of `instruction-value.js`, `harness.js` and `tool-outputs.js` carry `session` since this day):
+the instruction files read, the custom tools (skills, MCP servers, plugins) and built-in tools loaded, each times
+the session's model calls, and the tool outputs read again by every call after them; and the transcript itself gives
+what the conversation costs (`transcripts.js:parseClaude`, `carried` beside the stats, Claude Code alone; kept with the
+session's record since tool-outputs state version 10): the system prompt (the prompt snapshot) once a call, and, each
+read again by every call after it since the last compaction, the agent's tool calls (the input of each `tool_use`),
+its thinking (Claude Code keeps every turn's in the context, `clear_thinking keep: all`; counted by the usage's
+`output_tokens_details.thinking_tokens`, else by the signature at 4.3 characters a token), and the prompts with their
+reminders and the agent's text, and Claude Code's own notes (every other attachment row: environment updates,
+reminders, the schemas of tools loaded on demand, listings; the skill listing is the harness's). Where the transcript
+carries the instruction payload (the `instructions` attachment: the root file with the person's global file and
+memory) it is the instruction part, exact, instead of the Save page's estimate of the root file alone. Measured on
+this repository's 30 longest recent sessions (2026-10-22, from the
+`api-request` records Claude Code 2.1.308 writes): tool results 27%, instruction files 14%, the agent's tool calls
+12%, user text 11%, thinking 11%, Claude Code's own system messages 5%, tool definitions 4%, the system prompt 2%. The
+parts are scaled down to the session's measured input where their sum overshoots it (they are estimates with different
+multipliers); what is left of the input is "Other input", and "Output" is what the model wrote, so the whole adds up to
+the session's tokens. **The tables show the four parts the Save page measures and controls** (instruction files, custom
+tools, built-in tools, tool outputs; `report.js:PARTS`) with their own total, and the whole session's tokens under the
+model table (`sessionTotals`); the rest is computed all the same (`BREAKDOWN`, `thinker report --json`) and written up
+with its numbers, the unit calibration (the model reports 1.44 tokens for every four characters: at chars/4 the parts
+cover 74% of a long session's input, the residual is the unit, not a missing part) and the cuts to consider in
+`research/context-breakdown-2026-10-22.md` (the owner's decision, 2026-10-22). The second table is by model under its provider
+(`prices.js:providerOf`), each row the model's share of the average session (its tokens over every session of
+the week), so the rows add up to the total and a switch of model shows as one row falling while another rises;
+the provider's subtotal is above its models and folds them. On the page each cell is shaded by its number against every
+cell of its table (the owner's asks of 2026-10-22, the last of several): the highest the darkest red, the lowest the
+darkest green, the rest in proportion with the middle plain (`SHADE_MIN`, a tenth of the range), in light shades; a
+total or subtotal row is scaled against its own weeks; no percentage in the cell; the command marks
+a cell `TREND_MIN` (5%) or more against the first week ▲ ▼, doubled past `TREND_BIG` (50%); a zero cell is blank.
+A Per session / Total toggle (`--total`) shows each week's sum over its sessions instead of the average. A session whose agent reports
+no usage (Cursor) is counted in no column and named as left out.
+
+**Cost, the one place dollars are shown.** The Cost toggle (`--cost`) prices each session's tokens at its model's
+list rates (`prices.js:listPrice`: fresh input, cache reads, cache writes and output each at its rate; Anthropic's
+from `model-usage.js:relativeRate` at Opus 5.5's input price, OpenAI's and Google's as published on
+`PRICED_ON`; `prices` in `.thinker/config.json` adds or overrides one), so sessions on different models compare on
+one scale; a part's cost is its share of the session's input cost. The rule that nothing is given in dollars
+(2026-10-04) stands everywhere else; the owner asked for this view on 2026-10-22 to weigh model use by price, and
+the page says under the toggle that it is a list price, what a metered key would pay and not a subscription. A
+model without a price is left out of the cost average and named as unpriced, never counted at zero.
+
+Under the tables: the decisions taken on Save in the window (`context-suggest.js:changeHistory`, the same table as
+Save's History, `page.html:historyFigure`, with its Revert, over the six weeks alone), so a week's change can be read
+against what was cut that week; and the four numbers the Cache tab showed
+(`report.js:cacheMetrics`, from `usage.js:summarize` over the same window), with the saving in dollars first
+(the tokens saved on each model at that model's input list price: the holdout's figure by model where it is
+measured, else the servings acted on), then tokens saved, cache hits and the share acted on. All repositories is
+every repository's report merged (`mergeReports`: the sums and the session counts add). The server keeps a report
+a minute per repository and window; the readers' own caches make a repository's report about a second here.
 
 ## Internal server
 

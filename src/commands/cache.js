@@ -133,8 +133,8 @@ export function areasLine(store, { json = false } = {}) {
   return `Focus areas (${a.source === 'activity' ? 'from your commits, refreshed daily' : a.source === 'prs' ? 'from your pull requests, refreshed daily' : 'chosen'}): ${a.directories.map(d => `${d} (${by[d]} ${by[d] === 1 ? 'note' : 'notes'})`).join(', ')}\n  older history read: ${Math.min(a.walked, walk)} of ${walk} changes${a.walked >= walk ? ' (warm)' : ''}`;
 }
 
-// `thinker ui`: the local page (ui/server.js) until Ctrl+C, from any directory: the Context tab first (where the
-// agents' context goes, context-view.js), then the caches on this machine with their notes and behaviors.
+// `thinker ui`: the local page (ui/server.js) until Ctrl+C, from any directory: the Save tab first (where the
+// agents' context goes and the cuts, context-view.js), then Report (what a session costs here week by week, report.js).
 // --from-setup is how setup opens it (setup/steps.js:openDashboard): detached, with no terminal to press Ctrl+C in, so it opens the
 // browser itself (--tab names the page to land on), shows the page's how-to-come-back hint, and exits once no
 // request has come for UI_IDLE_MS.
@@ -151,7 +151,7 @@ async function uiCommand(ctx) {
   const ui = createUiServer(store);
   const listening = await ui.listen(flags.port !== undefined ? Number(flags.port) : DEFAULT_PORT);
   const { port } = listening;
-  // --all: the Context tab over all repositories (the installer opens the page so)
+  // --all: the Save tab over all repositories (the installer opens the page so); an old --tab context|cache opens the view that replaced it
   const parts = [typeof flags.tab === 'string' ? `tab=${encodeURIComponent(flags.tab)}` : '', flags.all ? 'repo=all' : ''].filter(Boolean);
   const tab = parts.length ? `#${parts.join('&')}` : '';
   if (background) {
@@ -177,7 +177,7 @@ async function uiCommand(ctx) {
   out('\n' + box([
     `${c.yellow('*')} ${c.magenta('~')} ${c.yellow('*')}  ${c.bold(c.cyan('Thinker'))} ${c.dim('· local')}`,
     '',
-    `Where your agents' context goes and the caches on this machine, at ${c.cyan(`http://127.0.0.1:${port}`)}`,
+    `Where your agents' context goes, and what a session costs here week by week, at ${c.cyan(`http://127.0.0.1:${port}`)}`,
     c.dim('On this machine only. Press Ctrl+C to stop.'),
   ], { width: 74 }) + '\n');
   if (!flags['no-open'] && process.stdout.isTTY) openBrowser(url);

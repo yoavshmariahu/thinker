@@ -168,9 +168,9 @@ test('the question has at most five options, each saying what the source is and 
   const picks = scheduleHarnessSuggestion(store, { now: T0, home: th, usage: harnessUsage(store.repo, { home: h, sessions }) });
   assert.equal(picks.length, 5);
   assert.equal(readHarnessState(store).pending.more, 2);
-  const ask = harnessOffer(store, { client: 'claude', home: th, now: T0, ui: () => 'http://127.0.0.1:1/#tab=context&view=all' });
+  const ask = harnessOffer(store, { client: 'claude', home: th, now: T0, ui: () => 'http://127.0.0.1:1/#tab=save&view=all' });
   assert.equal((ask.match(/^\d+\. label /gm) || []).length, 5, 'five options');
-  assert.match(ask, /2 more that thinker could switch off here are on thinker's page at http:\/\/127\.0\.0\.1:1\/#tab=context&view=all, each with what it is\./);
+  assert.match(ask, /2 more that thinker could switch off here are on thinker's page at http:\/\/127\.0\.0\.1:1\/#tab=save&view=all, each with what it is\./);
   assert.doesNotMatch(ask, /built-in tools among them/);
   const first = picks[0].name, i = Number(first.slice(3));
   assert.ok(ask.includes(`label "${first} skill": Draws chart number ${i} for reports. Used in none of the 10 sessions here that carried it; ~`), 'what it is, then its use');

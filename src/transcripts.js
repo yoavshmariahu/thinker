@@ -181,11 +181,44 @@ class Stats {
 // Claude Code and Cursor share the Anthropic message shape; Cursor puts the role at the top level.
 function parseMessages(rows, fromLine) {
   const events = [], results = new Map(), models = new ModelTally(), stats = new Stats(), messageUsage = new Map(), compactions = [];
-  let cwd = null;
+  // What the conversation itself costs in input tokens, by kind (the Report's parts beside the tool outputs, report.js):
+  // every model call reads again all that came before it since the last compaction, so each kind's running size is
+  // added to `carried` once per message that reports usage (Claude Code writes a row per content block of a message).
+  // Prompts: the person's text and the reminders in user messages (chars / 4); the agent's text and the input of its
+  // tool calls; its thinking, which Claude Code keeps in the context (`clear_thinking keep: all`), by the thinking tokens
+  // the usage reports (`output_tokens_details.thinking_tokens`), else by its signature (about 4.3 characters a token);
+  // the system prompt, from the prompt snapshot, once a call; the instruction payload (the instructions attachment:
+  // AGENTS.md or CLAUDE.md with the person's global file and memory, exact where the Save page estimates the root file
+  // alone) once a call; and Claude Code's own notes (every other attachment: environment updates, reminders, the
+  // schemas of tools loaded on demand, listings), each read again by the calls after it.
+  const carried = { prompts: 0, agentText: 0, agentCalls: 0, thinking: 0, notes: 0, system: 0, instructions: 0 }, run = { prompts: 0, agentText: 0, agentCalls: 0, thinking: 0, notes: 0 }, counted = new Set();
+  let cwd = null, systemTokens = 0, instructionTokens = 0;
+  const est = v => Math.ceil(JSON.stringify(v ?? '').length / 4);
+  // attachments the other parts already count: the system prompt, the instruction payload, the skill listing (harness.js)
+  const COUNTED = new Set(['prompt_snapshot', 'instructions', 'skill_listing']);
   rows.forEach((j, i) => {
     if (!j) return;
+    if (j.type === 'attachment' && j.attachment?.type === 'prompt_snapshot') systemTokens = est(j.attachment.systemPrompt);
+    else if (j.type === 'attachment' && j.attachment?.type === 'instructions') instructionTokens = est(j.attachment);
+    else if (j.type === 'attachment' && j.attachment && !COUNTED.has(j.attachment.type)) run.notes += est(j.attachment);
+    if (j.type === 'system' && j.subtype === 'compact_boundary') for (const k of Object.keys(run)) run[k] = 0;
     if (j.type === 'assistant' || j.role === 'assistant') models.add(j.message?.model ?? j.model);
-    if (j.type === 'assistant' || j.role === 'assistant') { messageUsage.set(j.message?.id || j.id || `row-${i}`, j.message?.usage ?? j.usage); for (const b of Array.isArray(j.message?.content) ? j.message.content : []) if (b.type === 'tool_use') stats.toolCalls++; }
+    if (j.type === 'assistant' || j.role === 'assistant') {
+      const id = j.message?.id || j.id || `row-${i}`, u = j.message?.usage ?? j.usage;
+      messageUsage.set(id, u);
+      if (u && !counted.has(id) && ((u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0)) > 0) {
+        counted.add(id);
+        for (const k of Object.keys(run)) carried[k] += run[k];
+        carried.system += systemTokens; carried.instructions += instructionTokens;
+        run.thinking += u.output_tokens_details?.thinking_tokens ?? 0;
+      }
+      for (const b of Array.isArray(j.message?.content) ? j.message.content : []) {
+        if (b.type === 'tool_use') { stats.toolCalls++; run.agentCalls += est(b.input); }
+        else if (b.type === 'text') run.agentText += est(b.text);
+        else if (b.type === 'thinking' && u?.output_tokens_details?.thinking_tokens == null) run.thinking += Math.ceil(String(b.signature || '').length / 4.3);
+      }
+    }
+    if (j.type === 'user' && j.message) { const c = j.message.content; if (typeof c === 'string') run.prompts += est(c); else for (const b of Array.isArray(c) ? c : []) if (b.type === 'text') run.prompts += est(b.text); }
     if (i < fromLine) return;
     if (j.cwd && !cwd) cwd = j.cwd;
     // Claude Code's compaction: everything before this line left the model's context (tool-outputs.js counts a result
@@ -221,7 +254,8 @@ function parseMessages(rows, fromLine) {
     }
   });
   for (const usage of messageUsage.values()) stats.turn(usage);
-  return { events: attachResults(events, results), cwd, model: models.model, stats: stats.value, compactions };
+  // `carried` beside the stats, not in them: the stop hook logs the stats on every session line (commands/hooks.js)
+  return { events: attachResults(events, results), cwd, model: models.model, stats: stats.value, carried, compactions };
 }
 
 function parseCodex(rows, fromLine) {
