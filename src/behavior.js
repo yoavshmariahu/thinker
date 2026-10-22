@@ -11,8 +11,8 @@ import path from 'node:path';
 import { createNote, refresh, MUTABILITY } from './ops.js';
 
 export const isBehavior = n => n?.kind === 'behavior';
-// A behavior from a person, a pull request or a document stands; one an agent saved (remember) is a
-// proposal until `thinker system accept` makes it a person's.
+// A behavior from a person, a pull request or a document stands; one an agent saved (with the `remember`
+// tool, until 2026-10-21) is a proposal until `thinker system accept` makes it a person's.
 export const proposed = n => !['human', 'pr', 'doc'].includes(n?.source?.type);
 // holds / violated / unverified (its enforcement changed and no verification has looked yet) / retired
 export function behaviorState(n) {

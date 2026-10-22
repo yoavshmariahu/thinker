@@ -6,7 +6,7 @@ Use the Thinker MCP tools (if they are listed as deferred, load them with the ho
 - Read an injected <thinker-cache> bundle first: keep the notes that answer the request, ignore the rest, and check a STALE claim against the code. When none was injected, or none bears on the task, `orient` once.
 - A note's file:symbol pointers say where the code is: read it there with ordinary search and reads. `lookup` answers one question a note left open.
 - Then edit and test. Do not keep retrieving notes.
-- Save a reusable rule, call path or gotcha with `remember` while the evidence is in context, with its reason and file:symbol deps; not a task summary. Correct a wrong note with `feedback` (its id, useful: false, the corrected body).
+- Correct a wrong note with `feedback` (its id, useful: false, the corrected body).
 <!-- thinker:workflow:end -->
 
 # thinker: internals and working context
@@ -181,7 +181,7 @@ cache at twice the input price and never read again.
 |---|---|
 | `src/cli.js` | the `thinker` command: argument parsing, the help text, the prelude every command shares (update notice, background update and telemetry, the not-set-up check, the parser), and a table of handlers |
 | `src/commands/` | one module per group of commands, each handler taking the dispatcher's context (`store`, `repo`, `flags`, `pos`, `out`, …): `notes.js` (orient, lookup, find, drilldown, system, list, show, add, rm, archive, phrase, rehash, relink), `cache.js` (review, export, import, serve, health, stats, usage), `learn.js` (learn, maintain, distill, record, outcome, verify, check, mine-prs, and the PR-mining helpers), `hooks.js` (the hook entrypoints and the background catch-up they start), `setup.js` (setup, uninstall, ast, update/upgrade/switch/branch), `telemetry.js`, `benchmark.js`, `shared.js` (helpers several of them need) |
-| `src/mcp.js` | MCP server exposing `orient`, `lookup`, `find`, `drilldown`, `remember`, `feedback` |
+| `src/mcp.js` | MCP server exposing `orient`, `lookup`, `find`, `drilldown`, `feedback` |
 | `src/setup.js`, `src/setup/` | the guided `setup` flow (`runSetup`), with its parts under `src/setup/`: `ui.js` (colors, boxes, the arrow-key menu), `agents.js` (which agent CLIs are installed and logged in, and the menu that picks one), `estimate.js` (what a cache build will cost), `steps.js` (wiring the clients, building the cache), `pr-benchmark.js` (the optional PR change benchmark); everything is re-exported from `setup.js` |
 | `src/clients.js` | adapters for Claude Code, Codex, Gemini CLI, Cursor, Pi, Windsurf Cascade, Copilot CLI (and Copilot in VS Code), OpenCode, Factory Droid, Qwen Code, Kiro CLI, Cline, Kilo Code, Auggie and Goose: config files and hook formats; native extension handlers in `src/integrations/`; coverage in `docs/agent-integrations.md` |
 | `src/transcripts.js` | session transcripts of every agent as one event form; the hook-recorded trace; finding sessions |
@@ -605,9 +605,12 @@ rests on, each with a content hash), `source` (agent / human / pr / doc),
    is told that a rule about things changing together must name the
    mechanism (a generator, registry, schema, mirror or test), not list the
    files one session touched, since git history holds that already.
-2. **Agent-authored**: the `remember` MCP tool, for agents that finish
-   working something out.
-3. **Human**: `thinker add note.json`.
+2. **Human**: `thinker add note.json`, or asking the agent in a session to
+   remember something, which the distiller then keeps. The `remember` MCP tool,
+   for an agent to save a note itself, was removed on 2026-10-21: no guidance
+   asked for it after 2026-10-08, and the 16 notes it saved here were confirmed
+   5 times in all, 11 of them stale or invalid, against what the distillation
+   of the same session writes anyway.
 
 ## The learning loop
 
@@ -759,7 +762,7 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
 ## Serving
 
 - MCP server (`thinker serve`, registered in `.mcp.json` by `thinker setup`)
-  with tools `orient(task, file?, budget?)`, `lookup(query)`, `remember(...)`,
+  with tools `orient(task, file?, budget?)`, `lookup(query)`,
   `feedback(id, useful, correction?)`, and, where a repository turned them on,
   `find(query, path?)` and `drilldown(pointer)`.
 - The code tools are off by default since 2026-10-10 (`cache-guidance.js:disabledTools`,
@@ -1203,7 +1206,7 @@ distillation assesses (always assessed, `learning-evidence.js`), a contradiction
 (`learning-pending.js`) and marks the skill broken (`ops.js:attest`), and a session older than the
 skill's present text is not counted (`skillFileTime`). Duplicates: `skills.js:dedupeSkills`, with
 `skills.prefer` in the config as the pin. Skill cards are never distilled (`distillSpec`,
-`distillKinds`, `saveNotes`) or written through `remember`. See docs/skills.md.
+`distillKinds`, `saveNotes`) or written by an agent. See docs/skills.md.
 
 **Skills suggested by the file (off until an experiment, 2026-10-19).** With `harness: { skillSuggest: true }`
 in `.thinker/config.json` (or `THINKER_HARNESS_SKILL_SUGGEST=on`; `=off` wins over the config), the tool
@@ -1293,9 +1296,9 @@ readable; new behaviors stay local.
 - **Who writes one.** A person: `thinker system add file.json [--fixed]`, or
   `thinker system promote <id> [--fixed]` for a note that already states a
   rule (`thinker system propose` lists the rule notes, the ones the sessions
-  acted on first). An agent may save one with
-  `remember` (kind `behavior`); it is listed as *proposed* until `thinker
-  system accept <id>`. Distillation and PR mining are not offered the kind
+  acted on first). A build's drafts, and behaviors agents saved with the
+  `remember` tool before it was removed, are listed as *proposed* until
+  `thinker system accept <id>`. Distillation and PR mining are not offered the kind
   (`distill.js:distillSpec`, `prs.js`), archiving never takes one
   (`ops.js:archiveReason`).
 - **Build proposals.** `thinker setup --build` drafts up to twelve
@@ -1526,7 +1529,7 @@ path below. Nothing in it is tied to one vendor:
 - **Any other agent.** Pipe events to `thinker record <session>` as JSON lines
   (`{"t":"prompt","text":…}`, `{"t":"tool","name":…,"input":…,"result":…}`,
   `{"t":"say","text":…}`), then run `thinker learn`. Agents that speak MCP can
-  also save notes with the `remember` tool.
+  also correct notes with the `feedback` tool.
 
 ### What was run live, on 2026-09-27
 
@@ -1550,7 +1553,7 @@ constructed input only. Seen in the live runs:
   output. So thinker installs both the editor's and the CLI's events, takes
   shell output from `afterShellExecution`, re-reads files when distilling,
   and `setup` approves the MCP server (`agent mcp enable thinker`) so the
-  agent can call `orient` at the start and `remember` at the end. In the
+  agent can call `orient` at the start. In the
   test session it did both unprompted.
 
 ## Jev, tried and removed

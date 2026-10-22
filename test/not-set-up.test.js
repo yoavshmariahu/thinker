@@ -119,15 +119,16 @@ test('in a desktop app the queue and retrieval tools follow the cwd of each call
   t.after(() => fs.rmSync(bare, { recursive: true, force: true }));
   const s = mcpSession(bare, { THINKER_REPO: '', THINKER_NO_LEARN: '0', CLAUDE_CODE_ENTRYPOINT: 'claude-desktop' }, [
     { name: 'lookup', arguments: { query: 'tests', cwd: a } },
-    { name: 'remember', arguments: { cwd: b, title: 'Run widget test suite', kind: 'howto', answers: ['how to run widget tests'], body: 'Call b.js:runWidget to run widget tests.', deps: [{ path: 'b.js', symbol: 'runWidget' }] } },
+    { name: 'behavior', arguments: { cwd: b, action: 'add', title: 'Run widget test suite', body: 'Call b.js:runWidget to run widget tests.', deps: [{ path: 'b.js', symbol: 'runWidget' }] } },
     { name: 'lookup', arguments: { query: 'how to run widget tests' } },
     { name: 'lookup', arguments: { query: 'run widget tests', cwd: a } },
     { name: 'warmup_next', arguments: { cwd: b } },
   ]);
   assert.ok(s.tools.some(x => x.name === 'warmup_next') && s.tools.some(x => x.name === 'warmup_answer'), 'listed before any repository is bound');
+  assert.ok(!s.tools.some(x => x.name === 'remember'), 'remember was removed on 2026-10-21: the distillation writes the notes');
   assert.match(s.replies[0], new RegExp(`bound to the repository at ${fs.realpathSync(a)}`));
   assert.match(s.replies[1], new RegExp(`bound to the repository at ${fs.realpathSync(b)}`), 'a call from a second window switches to its repository');
-  assert.match(s.replies[1], /Saved note/);
+  assert.match(s.replies[1], /Saved behavior/);
   assert.match(s.replies[2], /Run widget test suite/, 'subsequent calls without cwd stay on the newly bound repository');
   assert.match(s.replies[3], new RegExp(`bound to the repository at ${fs.realpathSync(a)}`), 'passing cwd for the first window switches back');
   assert.match(s.replies[3], /The cache is empty/, 'does not leak notes from repository b into repository a');

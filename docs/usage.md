@@ -63,9 +63,8 @@ cached input are counted alike. Older logs omitted tokens and setup exploration,
 so historical totals cannot establish full payback. A limited date range also excludes
 setup spending outside that period.
 
-Session learning uses the working agent's `remember` and `feedback` tools first:
-save a reusable finding while its evidence is already in context. Background
-learning selects at most 12,000 characters of source evidence from the transcript:
+Session learning is the background distillation of each session; the agent's
+`feedback` tool can also correct a note it found wrong. The distillation selects at most 12,000 characters of source evidence from the transcript:
 the first request, the last answer, failures and corrections with what followed
 them, and the most recent tool calls. Routine exploration and cache hits alone do not
 trigger discovery. Notes are assessed only when discussed explicitly or when a
