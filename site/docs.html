@@ -681,7 +681,7 @@
         <div class="sidebar-heading">Efficient coding</div>
         <ul class="sidebar-nav">
           <li class="sidebar-item"><a href="#in-a-session">In a session</a></li>
-          <li class="sidebar-item"><a href="#tools">Tools the agent can call</a></li>
+          <li class="sidebar-item"><a href="#tools">The MCP server</a></li>
         </ul>
       </div>
       <div class="sidebar-group">
@@ -1020,7 +1020,7 @@ thinker setup                       <span class="code-comment"># connects the ag
         <ul>
           <li><strong>Each session is distilled once, when it ends</strong>, through the agent's own login: up to three new notes, and a verdict on every note it was served. <code>confirmed</code> (the agent acted on it) raises confidence; <code>contradicted</code> (the trace shows a claim was wrong) corrects the body and keeps the history; <code>unused</code> lets it decay. Near-duplicates are merged. A quiet session with nothing to learn from is skipped.</li>
           <li><strong>Newly merged pull requests</strong> are mined as they land, fixes first, when <code>maintain.prs</code> is on in the configuration (off by default: the cache grows from the sessions).</li>
-          <li><strong>Agents and people</strong> add notes too: the <code>remember</code> tool and <code>thinker add</code>.</li>
+          <li><strong>People</strong> add notes too: <code>thinker add</code> takes one you wrote, and telling your agent to remember something makes it a note when the session is distilled.</li>
         </ul>
         <h3>It knows when a note is stale</h3>
         <ul>
@@ -1071,22 +1071,9 @@ thinker skills scan                 <span class="code-comment"># card new or cha
       </section>
 
       <section id="tools">
-        <h2>Tools the agent can call</h2>
+        <h2>The MCP server</h2>
         <p>
-          Beyond what the hooks serve, the MCP server gives the agent the cache on demand:
-        </p>
-        <div class="table-scroll">
-          <table>
-            <thead><tr><th>Tool</th><th>What it does</th></tr></thead>
-            <tbody>
-              <tr><td><code>orient</code></td><td>Up to five notes for a task, with the code behind the main pointers, and the notes it did not serve listed by title</td></tr>
-              <tr><td><code>lookup</code></td><td>One specific question, or a note by id</td></tr>
-              <tr><td><code>remember</code>, <code>feedback</code></td><td>Save a note the agent worked out; confirm or correct one it was served</td></tr>
-            </tbody>
-          </table>
-        </div>
-        <p>
-          The same tools exist on the command line (<code>thinker orient "&lt;task&gt;"</code>, <code>lookup</code>). Two code tools, <code>find</code> and <code>drilldown</code>, are off by default: agents are neither offered them nor told about them unless <code>thinker tools enable find drilldown</code> turns them on in a repository.
+          The notes reach the agent through the hooks alone. The MCP server offers the agent no tools (since 2026-10-22; the <code>orient</code>, <code>lookup</code>, <code>remember</code> and <code>feedback</code> tools are gone): it carries thinker's own questions and, in a desktop app, its learning queue. For a person the command line keeps <code>thinker lookup "&lt;question&gt;"</code>, <code>thinker find</code> and <code>thinker drilldown</code>.
         </p>
       </section>
 
@@ -1317,7 +1304,7 @@ export THINKER_TELEMETRY=off
           <ul>
             <li><strong>There is no build step.</strong> <code>thinker setup</code> connects your agents and nothing else; every git repository starts with an empty cache, and the hooks serve from it once it holds a few notes.</li>
             <li><strong>The spend is bounded.</strong> One model call per session, through your agent's login, and learning and maintenance together stop at a daily token cap (<code>maintain.dailyTokens</code> in <code>.thinker/config.json</code>).</li>
-            <li><strong>You can add your own.</strong> <code>thinker add</code> takes a note you wrote, and an agent can save one with the <code>remember</code> tool.</li>
+            <li><strong>You can add your own.</strong> <code>thinker add</code> takes a note you wrote, and telling your agent to remember something makes it a note when the session is distilled.</li>
             <li><strong>You can stop it.</strong> <code>{ "learn": { "sessions": false } }</code> in the config stops learning from sessions in a repository; <code>THINKER_NO_LEARN=1</code> stops all learning.</li>
           </ul>
         </div>
