@@ -770,7 +770,7 @@ let RPT = null, RMEASURE = 'tokens', RMODE = 'avg', RFOLD = new Set();
 document.querySelectorAll('#r-mode button').forEach(b => b.onclick = () => { RMODE = b.dataset.mode; segOn('#r-mode', b); if (RPT) renderReport(RPT); });
 $('#r-repo').onchange = e => { REPO = e.target.value; e.target.blur(); loadReport(); };
 document.querySelectorAll('#r-measure button').forEach(b => b.onclick = () => { RMEASURE = b.dataset.m; segOn('#r-measure', b); if (RPT) renderReport(RPT); });
-// a cell is trending when it moved this much against the first week of the window (report.js:TREND_MIN): red up, green down
+// the shade of a Report cell (SHADE_MIN below); the command's ▲ ▼ against the first week are report.js:TREND_MIN
 // how far from the row's middle a value must sit before it is shaded (a share of the row's range)
 const SHADE_MIN = 0.1;
 // a dollar figure as prices.js:formatDollars makes it

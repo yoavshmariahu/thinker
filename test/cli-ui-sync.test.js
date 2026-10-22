@@ -169,7 +169,6 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('ui/server.js'), /mergeReports\(repos\(\)\.flatMap/);
   // five weeks; the command's ▲ ▼ mark a 5% change against the first week;
   // the page's Total toggle is the command's --total
-  assert.match(read('ui/page.html'), /p = w \? avg\(cells\[0\], 0\) : null/);
   assert.match(read('commands/report.js'), /total: Boolean\(flags\.total\)/);
   assert.match(read('ui/page.html'), /data-mode="sum">Total</);
   assert.match(read('report.js'), /export const REPORT_WEEKS = 5;/);
