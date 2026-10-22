@@ -453,7 +453,7 @@
           <ul>
             <li><b>There is no build step.</b> <code>thinker setup</code> connects your agents and nothing else; every git repository starts with an empty cache, and the hooks serve from it once it holds a few notes.</li>
             <li><b>The spend is bounded.</b> One model call per session, through your agent's login, and learning and maintenance together stop at a daily token cap (<code>maintain.dailyTokens</code> in <code>.thinker/config.json</code>).</li>
-            <li><b>You can add your own.</b> <code>thinker add</code> takes a note you wrote, and an agent can save one with the <code>remember</code> tool.</li>
+            <li><b>You can add your own.</b> <code>thinker add</code> takes a note you wrote, and telling your agent to remember something makes it a note when the session is distilled.</li>
             <li><b>You can stop it.</b> <code>{ "learn": { "sessions": false } }</code> in the config stops learning from sessions in a repository; <code>THINKER_NO_LEARN=1</code> stops all learning.</li>
           </ul>
         </div>

@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Store, findRepoRoot } from './store.js';
-import { orient, lookup, drilldown, find, createNote, feedback, snippetsOn, KINDS, agentSession, holdoutTurn, peekTurn } from './ops.js';
+import { orient, lookup, drilldown, find, feedback, snippetsOn, KINDS, agentSession, holdoutTurn, peekTurn } from './ops.js';
 import { listBehaviors, behaviorsSummary, addBehavior } from './behavior.js';
 import { editBehavior, removeBehavior } from './behavior-workbench.js';
 import { ensureTelemetryScheduled, reportTelemetrySchedule } from './telemetry-schedule.js';
@@ -53,8 +53,8 @@ let repo = pinned ? findRepoRoot(pinned) : checkoutOf(process.cwd()) || checkout
 // A repository switched off machine-wide (repo-switch.js) is served the same way: no tools, no notes.
 const switchedOff = !!repo && isDisabledRepo(repo);
 const off = process.env.THINKER_MCP === 'off' || switchedOff;
-// Learning off (THINKER_NO_LEARN=1): the agent's own learning tools, remember and feedback, are not offered,
-// so their schemas cost nothing; behavior stays, since it acts only on what the person asks for.
+// Learning off (THINKER_NO_LEARN=1): the agent's own learning tool, feedback, is not offered,
+// so its schema costs nothing; behavior stays, since it acts only on what the person asks for.
 const noLearn = /^(1|true|yes)$/i.test(process.env.THINKER_NO_LEARN || '');
 // Every git repository has a cache: a machine-wide registration starts one (empty, growing from the
 // sessions) in the checkout the client runs in. Started outside one, the server binds late: to the
@@ -144,7 +144,7 @@ function registerTools() {
   // a tool that is switched off is not offered at all: nothing can call it and fail (bound late, the
   // repository's own choice of code tools is not known yet: the defaults apply)
   const off = toolsOff(store ? store.config() : {});
-  if (noLearn) for (const t of ['remember', 'feedback']) off.add(t);
+  if (noLearn) off.add('feedback');
   const cwd = { cwd: z.string().optional().describe('Absolute path of your working directory, once: the server binds to its repository (it was started outside one)') };
   let active = Promise.resolve();
   const retrieval = (name, spec, handler) => off.has(name) ? undefined : server.registerTool(name, late ? { ...spec, inputSchema: { ...spec.inputSchema, ...cwd } } : spec, (args, extra) => {
@@ -238,33 +238,15 @@ function registerTools() {
 
   // `review` was a tool here until 2026-10-06, then a command until 2026-10-11: on held-out bugs it never
   // beat the user's own coding agent reviewing with the cache alongside (research/regression-heldout).
-  retrieval('remember', {
-    title: 'Save a reusable note',
-    description: 'Save what you had to work out and a future agent would re-derive: where something happens, a call path, what changes together, how to build/test/run, a convention, a gotcha, or why something is the way it is. Not a summary of a file. Name files and symbols, and list the files/symbols it depends on: the note goes stale when they change. Kinds: rule (an invariant, convention, trap, fix not to undo, or reason), map (where, call path, module map), howto, behavior (a desired behavior of the system; from an agent, a proposal until a person accepts it).',
-    inputSchema: {
-      title: z.string().describe('Short, specific title'),
-      kind: z.enum(KINDS.filter(k => k !== 'skill')), // a skill card comes from its file (thinker skills scan)
-      mutability: z.enum(['fixed', 'mutable']).optional().describe('kind behavior: fixed, or mutable (default)'),
-      answers: z.array(z.string()).describe('Questions this note answers, for retrieval'),
-      body: z.string().describe('3-12 lines with file:symbol pointers; the non-obvious parts'),
-      applies: z.string().optional().describe('When it applies and when not'),
-      deps: z.array(z.object({ path: z.string().describe('repo-relative path'), symbol: z.string().optional().describe('function/class name inside the file, if the note depends on that symbol specifically') })).min(1),
-      tags: z.array(z.string()).optional(),
-      confidence: z.number().min(0).max(1).optional().describe('Default 0.7; >=0.9 only when read in the code'),
-    },
-  }, async (input) => {
-    const r = createNote(store, input, { source: { type: 'agent', ref: process.env.THINKER_SESSION || 'mcp' } });
-    if (r.error) return text(`Not saved: ${r.error}. Dropped deps: ${JSON.stringify(r.dropped)}`);
-    const warn = r.dropped.length ? ` (dropped/downgraded deps: ${r.dropped.map(d => `${d.path}${d.symbol ? ':' + d.symbol : ''} – ${d.reason}`).join('; ')})` : '';
-    return text(`Saved note ${r.note.id} with ${r.note.deps.length} tracked dependencies${warn}.`);
-  });
+  // `remember` was a tool here until 2026-10-21: nothing asked agents to call it after 2026-10-08, the 16 notes
+  // it saved on this repository were confirmed 5 times in all, 11 of them stale or invalid, and the session's
+  // distillation reads the same trace. A person's "remember this" is in that trace (distill.js:DISTILL_SYSTEM).
 
   // What the person asks their agent for is theirs: in force at once, as a behavior they wrote (the
-  // same functions as `thinker ui` and `thinker system add|edit|rm`). An agent's own idea goes
-  // through remember with kind behavior and waits for a person.
+  // same functions as `thinker ui` and `thinker system add|edit|rm`). An agent's own idea is not saved.
   retrieval('behavior', {
     title: 'Add, change or remove a system behavior',
-    description: 'Only when the person asks you, in this conversation, to add, change or remove a desired behavior of the system: a rule every change must keep, which review checks changes against. It is in force at once, as theirs. Never call it on your own initiative: suggest a rule with remember, kind behavior. add: title, body, deps. edit: id and what changes. remove: id.',
+    description: 'Only when the person asks you, in this conversation, to add, change or remove a desired behavior of the system: a rule every change must keep, which review checks changes against. It is in force at once, as theirs. Never call it on your own initiative. add: title, body, deps. edit: id and what changes. remove: id.',
     inputSchema: {
       action: z.enum(['add', 'edit', 'remove']),
       id: z.string().optional().describe('edit/remove: the behavior id'),

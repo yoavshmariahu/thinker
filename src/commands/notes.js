@@ -135,7 +135,7 @@ async function showCommand(ctx) {
   const n = store.get(pos[0]); if (!n) { out('no such note'); process.exit(1); }
   out(flags.json ? JSON.stringify(n, null, 2) : renderNote(n) + `\nsource: ${JSON.stringify(n.source)}  verified: ${n.verified}  status: ${n.status}  attest: ${JSON.stringify(n.attest || {})}  related: ${(n.related || []).join(', ') || '-'}`);
   const sup = store.superseded(pos[0]);
-  if (sup && !flags.json) out(`\nsuperseded: a pull replaced this note while this checkout had an unshared change to it (${Object.keys(sup.pending).join(', ')}). Kept in .thinker/local/shared/${pos[0]}.json; put it back with feedback or remember if it still holds.` + (sup.pending.body ? `\n--- unshared body ---\n${sup.pending.body}` : ''));
+  if (sup && !flags.json) out(`\nsuperseded: a pull replaced this note while this checkout had an unshared change to it (${Object.keys(sup.pending).join(', ')}). Kept in .thinker/local/shared/${pos[0]}.json; put it back with feedback or thinker add if it still holds.` + (sup.pending.body ? `\n--- unshared body ---\n${sup.pending.body}` : ''));
   return;
 }
 

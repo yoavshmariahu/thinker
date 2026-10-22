@@ -1,6 +1,6 @@
 // Defining the desired behaviors of a system together with a person: what is waiting for a decision,
 // and the decisions. Two things wait: drafts the build wrote from the strongest rule notes
-// (behavior-proposals.js, a file beside the notes) and behaviors an agent saved with `remember`
+// (behavior-proposals.js, a file beside the notes) and behaviors an agent saved with `remember` before it was removed
 // (behavior.js:proposed). Neither is a requirement until a person accepts it, as written or
 // edited. `thinker system` (the terminal) and `thinker ui` (the local page) are the two ways
 // in; both call only what is here.
