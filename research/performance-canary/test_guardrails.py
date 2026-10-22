@@ -1,3 +1,4 @@
+import fcntl
 import importlib.util
 import json
 import os
@@ -6,6 +7,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from unittest.mock import patch
@@ -217,11 +219,22 @@ class Guards(unittest.TestCase):
         self.assertIsNone(r['reason']); self.assertIn('live', r['stdout'])
 
     def test_timeout_kills_grandchild_and_preserves_partial_output(self):
-        code = "import subprocess,sys,time; subprocess.Popen([sys.executable,'-c',\"import time,pathlib; time.sleep(1); pathlib.Path('escaped').write_text('bad')\"]); print('partial',flush=True); time.sleep(30)"
-        r = self.execute(code, .3)
+        # No race with the clock: the deadline passes only once the child has printed and its grandchild holds a lock
+        # (`ready`), and the test then waits on that lock, which only the grandchild's death releases.
+        grand = "import fcntl,pathlib,time; f=open('lock','a'); fcntl.flock(f,fcntl.LOCK_EX); pathlib.Path('ready').write_text('1'); time.sleep(3600)"
+        code = f"import subprocess,sys,time; print('partial',flush=True); subprocess.Popen([sys.executable,'-c',{grand!r}]); time.sleep(3600)"
+        ready, t0 = self.out / 'ready', time.monotonic()
+        # 20 s bounds a failure (a grandchild that never gets ready); it is not reached when the test passes
+        r = self.execute(code, 60, elapsed=lambda: 60 if ready.exists() or time.monotonic() - t0 > 20 else 0)
+        self.assertTrue(ready.exists(), 'the grandchild started and took its lock before the deadline')
         self.assertEqual(r['reason'], 'timeout'); self.assertIn('partial', r['stdout'])
-        time.sleep(1.1); self.assertFalse((self.out / 'escaped').exists())
         self.assertTrue((self.out / 'STOPPED.json').exists())
+        got = threading.Event()
+        def take():
+            with open(self.out / 'lock', 'a') as f:
+                fcntl.flock(f, fcntl.LOCK_EX); got.set()
+        threading.Thread(target=take, daemon=True).start()
+        self.assertTrue(got.wait(20), 'the grandchild outlived the timeout: its lock is still held')
 
     def test_normal_exit_cleans_orphans(self):
         code = "import subprocess,sys; subprocess.Popen([sys.executable,'-c',\"import time,pathlib; time.sleep(.8); pathlib.Path('orphan').write_text('bad')\"]); print('done',flush=True)"
