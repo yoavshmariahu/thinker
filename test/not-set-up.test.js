@@ -64,55 +64,27 @@ const mcpSession = (cwd, extra = {}, calls = []) => {
   return { init: lines.find(l => l.id === 1), tools: lines.find(l => l.id === 2)?.result?.tools ?? [], replies };
 };
 
-test('the MCP server offers its tools in a git repository without .thinker and starts the cache there', t => {
+// The server keeps no agent tools since 2026-10-22: it starts the cache where it runs and answers thinker's own
+// questions and the desktop app's learning queue.
+test('the MCP server in a git repository without .thinker starts the cache there and offers the agent no tools', t => {
   const dir = fresh(t);
   const s = mcpSession(dir, { THINKER_REPO: dir });
-  assert.ok(s.init.result.instructions.includes('cache of notes about this repository'), s.init.result.instructions.slice(0, 120));
-  assert.ok(s.tools.some(x => x.name === 'lookup'));
-  assert.ok(!s.tools.some(x => x.name === 'orient'), 'orient is off by default');
+  assert.equal(s.init.result.instructions, undefined);
+  assert.deepEqual(s.tools.map(x => x.name), []);
   assert.ok(fs.existsSync(path.join(dir, '.thinker')));
-});
-
-// The user's machine-wide MCP entry pins no repository: the server takes it from the directory the
-// client starts it in. Started outside a git repository (a container or a desktop app may start it
-// at /, and Claude Code declares no MCP roots to ask for), it offers its tools all the same and binds
-// to the repository of the first call that names the agent's working directory (mcp.js:bind).
-test('the MCP server takes the repository from its working directory, or from the first call when started outside one', t => {
-  const dir = fresh(t);
-  fs.mkdirSync(path.join(dir, 'sub'));
-  const set = mcpSession(path.join(dir, 'sub'), { THINKER_REPO: '' });
-  assert.ok(set.init.result.instructions.includes(`cache of notes about this repository (${fs.realpathSync(dir)})`), set.init.result.instructions.slice(0, 120));
-  assert.ok(set.tools.some(x => x.name === 'lookup'));
-  assert.ok(!set.tools.find(x => x.name === 'lookup').inputSchema.properties.cwd, 'bound at start: no cwd to pass');
+  // started outside a repository: nothing is created there
   const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-no-repo-'));
   t.after(() => fs.rmSync(bare, { recursive: true, force: true }));
-  const none = mcpSession(bare, { THINKER_REPO: '' }, [
-    { name: 'lookup', arguments: { query: 'how do I run tests' } },
-    { name: 'lookup', arguments: { query: 'how do I run tests', cwd: path.join(dir, 'sub') } },
-    { name: 'lookup', arguments: { query: 'tests' } },
-  ]);
-  assert.match(none.init.result.instructions, /started outside one \(.*\): on the first call pass cwd/);
-  assert.ok(none.init.result.instructions.length <= 2048);
-  const lookupTool = none.tools.find(x => x.name === 'lookup');
-  assert.ok(lookupTool, 'the tools are offered before a repository is known');
-  assert.ok(lookupTool.inputSchema.properties.cwd, 'each takes the working directory');
-  assert.match(none.replies[0], /not bound to a repository yet.*Call again with cwd/, 'a call naming no directory is asked for one');
-  assert.ok(!fs.existsSync(path.join(bare, '.thinker')), 'nothing is created outside a repository');
-  assert.match(none.replies[1], new RegExp(`bound to the repository at ${fs.realpathSync(dir)} from here on`), 'the first call naming a directory binds the server');
-  assert.match(none.replies[1], /cache is empty/);
-  assert.ok(fs.existsSync(path.join(dir, '.thinker', 'config.json')), 'and starts the cache there');
-  assert.doesNotMatch(none.replies[2], /bound to the repository|not bound/, 'the next call needs no cwd and no announcement');
-  // the project directory the client's environment names binds the server at start
-  const named = mcpSession(bare, { THINKER_REPO: '', CLAUDE_PROJECT_DIR: dir });
-  assert.ok(named.init.result.instructions.includes(`cache of notes about this repository (${fs.realpathSync(dir)})`), named.init.result.instructions.slice(0, 120));
+  const none = mcpSession(bare, { THINKER_REPO: '', CLAUDE_CODE_ENTRYPOINT: '' });
+  assert.deepEqual(none.tools.map(x => x.name), []);
+  assert.ok(!fs.existsSync(path.join(bare, '.thinker')));
 });
 
 // A desktop app may run one server for every window: Cursor's started in the home directory and bound to the
-// first repository a call named (2026-10-16). Its queue tools are listed from the start, and each call reads
-// the queue or cache of the repository its cwd names, so a second window switches to its own repository.
-test('in a desktop app the queue and retrieval tools follow the cwd of each call across repositories', t => {
+// first repository a call named (2026-10-16). Its queue tool is listed from the start, and each call reads
+// the queue of the repository its cwd names.
+test('in a desktop app the queue tool follows the cwd of each call', t => {
   const a = fresh(t), b = fresh(t);
-  fs.writeFileSync(path.join(b, 'b.js'), 'export function runWidget() { return 42; }\n');
   const q = path.join(b, '.thinker', 'state', 'session-llm'); fs.mkdirSync(q, { recursive: true });
   fs.writeFileSync(path.join(q, 'r1-abc.req.json'), JSON.stringify({ id: 'r1-abc', system: '', prompt: 'summarize PR 7', schema: null, t: new Date().toISOString() }));
   // a build that has ended, so the call after the answer reads the queue as done instead of waiting for one
@@ -120,30 +92,19 @@ test('in a desktop app the queue and retrieval tools follow the cwd of each call
   const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-no-repo-'));
   t.after(() => fs.rmSync(bare, { recursive: true, force: true }));
   const s = mcpSession(bare, { THINKER_REPO: '', THINKER_NO_LEARN: '0', CLAUDE_CODE_ENTRYPOINT: 'claude-desktop' }, [
-    { name: 'lookup', arguments: { query: 'tests', cwd: a } },
-    { name: 'behavior', arguments: { cwd: b, action: 'add', title: 'Run widget test suite', body: 'Call b.js:runWidget to run widget tests.', deps: [{ path: 'b.js', symbol: 'runWidget' }] } },
-    { name: 'lookup', arguments: { query: 'how to run widget tests' } },
-    { name: 'lookup', arguments: { query: 'run widget tests', cwd: a } },
     { name: 'learn_next', arguments: { cwd: b } },
     { name: 'learn_next', arguments: { cwd: b, id: 'r1-abc' } },
     { name: 'learn_next', arguments: { cwd: b, id: 'r1-abc', answer: 'PR 7 fixes the widget' } },
   ]);
-  assert.ok(s.tools.some(x => x.name === 'learn_next'), 'listed before any repository is bound');
-  assert.ok(!s.tools.some(x => /^warmup_/.test(x.name)), 'one queue tool: the two warm-up-named ones are gone');
-  assert.ok(!s.tools.some(x => x.name === 'remember'), 'remember was removed on 2026-10-21: the distillation writes the notes');
-  assert.match(s.replies[0], new RegExp(`bound to the repository at ${fs.realpathSync(a)}`));
-  assert.match(s.replies[1], new RegExp(`bound to the repository at ${fs.realpathSync(b)}`), 'a call from a second window switches to its repository');
-  assert.match(s.replies[1], /Saved behavior/);
-  assert.match(s.replies[2], /Run widget test suite/, 'subsequent calls without cwd stay on the newly bound repository');
-  assert.match(s.replies[3], new RegExp(`bound to the repository at ${fs.realpathSync(a)}`), 'passing cwd for the first window switches back');
-  assert.match(s.replies[3], /The cache is empty/, 'does not leak notes from repository b into repository a');
-  assert.match(s.replies[4], /summarize PR 7/, 'the request of the repository cwd names, not the bound one');
-  assert.match(s.replies[4], /calling learn_next with id "r1-abc"/);
-  assert.match(s.replies[5], /Pass both id and answer/, 'an id without an answer takes nothing and saves nothing');
-  assert.match(s.replies[6], /^Saved\. The work is done/, 'the answer is saved and the same call returns what comes next');
+  assert.deepEqual(s.tools.map(x => x.name), ['learn_next'], 'listed before any repository is bound, and nothing else');
+  assert.match(s.replies[0], /summarize PR 7/, 'the request of the repository cwd names');
+  assert.match(s.replies[0], /calling learn_next with id "r1-abc"/);
+  assert.match(s.replies[1], /Pass both id and answer/, 'an id without an answer takes nothing and saves nothing');
+  assert.match(s.replies[2], /^Saved\. The work is done/, 'the answer is saved and the same call returns what comes next');
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(q, 'r1-abc.res.json'), 'utf8')).text, 'PR 7 fixes the widget');
   assert.ok(!fs.existsSync(path.join(q, 'r1-abc.claimed.json')));
-  // outside an app, unbound, they are not listed
+  assert.ok(!fs.existsSync(path.join(a, '.thinker', 'state', 'session-llm', 'r1-abc.res.json')));
+  // outside an app, unbound, it is not listed
   assert.ok(!mcpSession(bare, { THINKER_REPO: '', CLAUDE_CODE_ENTRYPOINT: '' }).tools.some(x => x.name === 'learn_next'));
 });
 

@@ -14,7 +14,6 @@ import { tokensOf } from './model-usage.js';
 import { anchoringGuard, explicitIdents } from './guard.js';
 import { denseEnabled, denseScores, ceConfig, ceRerank } from './dense.js';
 import { phraseKey } from './note-search.js';
-import { disabledTools } from './cache-guidance.js';
 
 export { KINDS, KIND_ALIAS, kindOf, MUTABILITY };
 export { phraseKey };
@@ -428,31 +427,6 @@ export function sessionState(store, session) {
   const f = path.join(store.dir, 'state', `session-${String(session).replace(/[^\w-]/g, '')}.json`);
   let st = { late: [], turn: [], nudged: false }; try { st = { ...st, ...JSON.parse(fs.readFileSync(f, 'utf8')) }; } catch {}
   return { st, save: () => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify(st)); } };
-}
-// Once per session, at the first prompt: what thinker's code tools are and how to reach them. In two
-// weeks of real sessions `find` was called 3 times over MCP while agents grepped: Claude Code defers
-// MCP tools until they are searched for, and nothing named the search. On two Grafana tasks under
-// Gemini (research/bench-history/RESULTS.md, "Tool intro") the intro got `find` called where it never was. The intro
-// also told the agent to run `review` before reporting done, and a first-edit nudge repeated it:
-// taken out on 2026-10-05 at the user's decision (a review is run when asked for, not by default),
-// after those runs showed the agent polling a slow review for minutes instead of working. A bare
-// mention that review exists went the same day: with it, the agent still called review at the end
-// of both reruns and lost three minutes to each timed-out call (research/bench-history/RESULTS.md). Since 2026-10-07
-// the prompt hook sends it only with the first bundle that serves a note (commands/hooks.js): a
-// session the cache has nothing for pays nothing for thinker.
-export function sessionIntro(store, { session, client }) {
-  if (!session || session === 'unknown') return '';
-  // nothing to introduce while the code tools are off (cache-guidance.js:disabledTools)
-  const off = disabledTools(store.config()), on = ['find', 'drilldown'].filter(t => !off.has(t));
-  if (!on.length) return '';
-  const { st, save } = sessionState(store, session);
-  if (st.introduced) return '';
-  st.introduced = true; save();
-  store.log({ op: 'intro', session, client });
-  // beside the agent's own search, not ahead of it (cache-guidance.js:SWITCHABLE_TOOLS, 2026-10-07 sessions)
-  const load = client === 'claude' ? ` In Claude Code ${on.length > 1 ? 'they are' : 'it is'} deferred: load ${on.length > 1 ? 'them' : 'it'} with ToolSearch \`select:${on.map(t => `mcp__thinker__${t}`).join(',')}\` when you first need ${on.length > 1 ? 'one' : 'it'}.` : '';
-  const what = { find: 'find (where code is defined, by the words it would use, as path:Symbol:L12 pointers; for one identifier, with its code)', drilldown: 'drilldown (definitions whole, line-numbered, with callers and callees)' };
-  return `<thinker-tools>\nthinker's tools for this checkout, over MCP: ${on.map(t => what[t]).join(' and ')}. For code you cannot place or a definition you need whole; they do not replace one batched search or reading the file you will edit.${load}\n</thinker-tools>`;
 }
 // The notes served since the turn's stop hook last ran, for the summary it shows the user.
 export function trackTurn(store, session, ids) {
@@ -918,7 +892,7 @@ export function drilldown(store, { pointer, pointers, client, budget = 2500 } = 
 // when it is one definition in the checkout, as line-numbered code within `room` lines; a long class as its
 // head and the outline of its members. In Claude Code the code tools are deferred and were never loaded
 // (0 calls in 12 Sonnet sessions, 0 in 24 Opus ones, 2026-10-16), so code reaches the agent here or not at
-// all. Identifiers a served note already rests on are left to the note. Offered with `find` (disabledTools).
+// all. Identifiers a served note already rests on are left to the note. Offered with `find` (cache-guidance.js:disabledTools).
 export function codeForRequest(store, task, { notes = [], max = 2, room = 60 } = {}) {
   const repo = store.repo, items = [];
   const covered = new Set(notes.flatMap(n => (n.deps || []).filter(d => d.symbol).map(d => `${d.path}|${d.symbol.split('.').pop()}`)));
@@ -1212,11 +1186,7 @@ export { renderNote, estTokens, Store };
 // turn, as a hash of the session id and the turn's number (beginTurn), and kept in the session
 // state so that the tool and stop hooks of the same turn agree on it (holdoutTurn). Notes served
 // on an earlier turn stay in the agent's context, so a held-out turn after a served one is partly
-// treated; that understates the difference, never inflates it. The agent's own `orient` and `lookup`
-// over MCP are held out with the turn too: until 2026-10-17 they were not, and the guidance tells an
-// agent that got no bundle to orient, so a held-out turn was served the withheld notes one call later
-// (the control measured the hook against the tool, not notes against none). The server learns the turn
-// from the session the prompt hook linked to the agent's process (linkAgentSession, agentSession).
+// treated; that understates the difference, never inflates it.
 // `holdout` in .thinker/config.json is the share (0 or false: none); THINKER_HOLDOUT overrides it
 // (`0`, `off`, or a share).
 export const HOLDOUT_DEFAULT = 0.15;
@@ -1261,28 +1231,6 @@ export function beginTurn(store, session) {
     save();
     return { turn: st.turnNo, holdout: st.heldOut };
   });
-}
-// The MCP server is told no session: the prompt hook names it, by the pids of its nearest ancestors,
-// one of which is the agent process that also started the server (state/agents/<pid>, holding the
-// session id). The server reads its own nearest ancestors, nearest first, so a pid every session shares
-// further up (the desktop app's own process) is never reached before the agent's. A link older than a
-// day is not trusted (the pid may have been reused), and links older than two days are removed.
-const AGENT_LINK_MS = 24 * 3600_000;
-const agentsDir = store => path.join(store.dir, 'state', 'agents');
-export function linkAgentSession(store, session, pids, { now = Date.now() } = {}) {
-  if (!session || session === 'unknown' || !pids?.length) return;
-  try {
-    const dir = agentsDir(store); fs.mkdirSync(dir, { recursive: true });
-    for (const p of pids) fs.writeFileSync(path.join(dir, String(p)), String(session));
-    for (const n of fs.readdirSync(dir)) { const f = path.join(dir, n); try { if (now - fs.statSync(f).mtimeMs > 2 * AGENT_LINK_MS) fs.rmSync(f, { force: true }); } catch {} }
-  } catch {}
-}
-export function agentSession(store, pids, { now = Date.now() } = {}) {
-  for (const p of pids || []) {
-    const f = path.join(agentsDir(store), String(p));
-    try { if (now - fs.statSync(f).mtimeMs < AGENT_LINK_MS) return fs.readFileSync(f, 'utf8').trim() || null; } catch {}
-  }
-  return null;
 }
 // The turn the tool and stop hooks are in, as the prompt hook left it; turn 0 when no prompt hook ran.
 export function holdoutTurn(store, session) {

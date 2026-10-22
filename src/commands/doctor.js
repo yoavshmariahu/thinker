@@ -218,7 +218,8 @@ async function runChecks(ctx) {
       add('git hooks', 'warn', `the ${foreign.map(x => `${x.h} hook at ${x.f}`).join(' and ')} ${foreign.length === 1 ? 'is' : 'are'} not thinker's${hooksPath ? ` (core.hooksPath=${hooksPath})` : ''}, and setup leaves such hooks alone; to refresh the cache after commits, add this line to the post-commit hook: ${line}`);
     } else add('git hooks', 'warn', 'none: the cache is not refreshed on commit and merge (`thinker setup` installs them)');
     const mcp = await probeMcp(path.join(HERE, 'mcp.js'), repo);
-    add('MCP server', mcp.ok && mcp.tools.length ? 'ok' : 'fail', mcp.ok ? (mcp.tools.length ? `starts; tools: ${mcp.tools.join(', ')}` : 'starts but offers no tools') : `does not start: ${mcp.error}`);
+    // no tools is how it starts outside a desktop app since 2026-10-22: the agent's tools went, and the rest are offered while they have work
+    add('MCP server', mcp.ok ? 'ok' : 'fail', mcp.ok ? `starts${mcp.tools.length ? `; tools: ${mcp.tools.join(', ')}` : ''}` : `does not start: ${mcp.error}`);
     if (currentApp && mcp.ok && !mcp.tools.includes('learn_next')) {
       add('desktop queue tools', 'fail', 'the MCP server does not offer learn_next in this app; reconnect thinker and restart the host before learning can run');
     }

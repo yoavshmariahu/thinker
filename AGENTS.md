@@ -1,14 +1,3 @@
-<!-- thinker:workflow:start -->
-## Using Thinker while working
-
-Use the Thinker MCP tools (if they are listed as deferred, load them with the host's tool search) as a map to the code, then do the work. If they are unavailable, continue with ordinary tools.
-
-- Read an injected <thinker-cache> bundle first: keep the notes that answer the request, ignore the rest, and check a STALE claim against the code. When none was injected, or none bears on the task, `orient` once.
-- A note's file:symbol pointers say where the code is: read it there with ordinary search and reads. `lookup` answers one question a note left open.
-- Then edit and test. Do not keep retrieving notes.
-- Correct a wrong note with `feedback` (its id, useful: false, the corrected body).
-<!-- thinker:workflow:end -->
-
 # thinker: internals and working context
 
 Reference for agents and contributors working on this repository. The
@@ -181,7 +170,7 @@ cache at twice the input price and never read again.
 |---|---|
 | `src/cli.js` | the `thinker` command: argument parsing, the help text, the prelude every command shares (update notice, background update and telemetry, the not-set-up check, the parser), and a table of handlers |
 | `src/commands/` | one module per group of commands, each handler taking the dispatcher's context (`store`, `repo`, `flags`, `pos`, `out`, …): `notes.js` (orient, lookup, find, drilldown, system, list, show, add, rm, archive, phrase, rehash, relink), `cache.js` (review, export, import, serve, health, stats, usage), `learn.js` (learn, maintain, distill, record, outcome, verify, check, mine-prs, and the PR-mining helpers), `hooks.js` (the hook entrypoints and the background catch-up they start), `setup.js` (setup, uninstall, ast, update/upgrade/switch/branch), `telemetry.js`, `benchmark.js`, `shared.js` (helpers several of them need) |
-| `src/mcp.js` | MCP server exposing `orient`, `lookup`, `find`, `drilldown`, `feedback` |
+| `src/mcp.js` | MCP server: no agent tools since 2026-10-22; the answer tools of thinker's own questions (coverage, harness) and the desktop app's learning queue (`learn_next`), each offered while it has work |
 | `src/setup.js`, `src/setup/` | the guided `setup` flow (`runSetup`), with its parts under `src/setup/`: `ui.js` (colors, boxes, the arrow-key menu), `agents.js` (which agent CLIs are installed and logged in, and the menu that picks one), `estimate.js` (what a cache build will cost), `steps.js` (wiring the clients, building the cache), `pr-benchmark.js` (the optional PR change benchmark); everything is re-exported from `setup.js` |
 | `src/clients.js` | adapters for Claude Code, Codex, Gemini CLI, Cursor, Pi, Windsurf Cascade, Copilot CLI (and Copilot in VS Code), OpenCode, Factory Droid, Qwen Code, Kiro CLI, Cline, Kilo Code, Auggie and Goose: config files and hook formats; native extension handlers in `src/integrations/`; coverage in `docs/agent-integrations.md` |
 | `src/transcripts.js` | session transcripts of every agent as one event form; the hook-recorded trace; finding sessions |
@@ -761,10 +750,31 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
 
 ## Serving
 
+**The hook alone (2026-10-22, the owner's decision).** Notes reach the agent through the prompt hook (and
+the edit hook's late notes), and nothing else: the agent's MCP tools (`orient`, `lookup`, `find`,
+`drilldown`, `remember`, `behavior`, `feedback`) and the server's instructions were taken out, with the
+workflow block thinker wrote into the agents' instruction files (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`,
+Cursor's `.cursor/rules/thinker.mdc`, Windsurf's and Copilot's rules, Pi's extension text), the
+once-a-session tool intro and the list of other titles under the bundle. In the month to that day the
+machine's log held 5,478 hook servings against 764 MCP orient, lookup, find and drilldown calls, 565 of them
+from benchmark arms; since 2026-10-10 the real repositories made about 96, most in this one. Every line of
+the workflow was read on every turn of every session. The bundle is the notes under one line
+(`cache-guidance.js:cacheBundleIntro`). An install takes the old block and rules out on its next update
+(`clients.js:installClient`, run by `rewire`; `removeCursorRule`), leaving the person's own text. The CLI
+commands (`thinker lookup`, `find`, `drilldown`, `feedback`, `system`) stay, for a person; `thinker mcp
+--enable` is still accepted for Artemis arms and enables nothing. The bullets below that describe the
+tools are history.
+
+The prompt hook was also cut off at its 15-second limit on a loaded machine (2026-10-22: 4–6 s a prompt
+on an idle one, about 0.6 s of it the wiring checks, 0.3 s two `ps` walks): the wiring checks (prune,
+`refreshWiring` of the checkout and of the user's files, the shell PATH) run once per copy and version of
+thinker per checkout and per machine, and again after a day (`commands/hooks.js:wiringDue`), and the
+session link for the MCP tools (`linkAgentSession`, a `ps` per prompt) went with them.
+
 - MCP server (`thinker serve`, registered in `.mcp.json` by `thinker setup`)
   with tools `orient(task, file?, budget?)`, `lookup(query)`,
   `feedback(id, useful, correction?)`, and, where a repository turned them on,
-  `find(query, path?)` and `drilldown(pointer)`.
+  `find(query, path?)` and `drilldown(pointer)` (removed 2026-10-22, above).
 - The code tools are off by default since 2026-10-10 (`cache-guidance.js:disabledTools`,
   `thinker tools enable|disable find|drilldown`, kept as `disabledTools` in
   `.thinker/config.json`). On the held-out mitmproxy canary a Codex agent told to

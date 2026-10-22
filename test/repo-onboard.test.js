@@ -26,34 +26,20 @@ function gitRepo(commits) {
   return dir;
 }
 
-test('Cursor gets its always-on rule, kept out of git status', () => {
+// Cursor's always-applied rule (a copy of the workflow block) is no longer written, and a prompt takes out the one
+// an older thinker wrote (2026-10-22)
+const OLD_RULE = '---\ndescription: Use Thinker for repository exploration and learning\nalwaysApply: true\n---\nold\n';
+test('Cursor gets no always-on rule, and a prompt takes out the one an older thinker wrote', t => {
   const dir = gitRepo(2);
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   hook(dir, 'prompt', { conversation_id: 'c1', prompt: 'hello' }, 'cursor');
-  assert.ok(fs.existsSync(path.join(dir, '.cursor/rules/thinker.mdc')));
-  const status = execFileSync('git', ['status', '--porcelain', '--untracked-files=all'], { cwd: dir, encoding: 'utf8' });
-  assert.ok(!status.includes('.cursor'), status);
-  assert.deepEqual(ops(dir).find(e => e.op === 'repo-setup').done, ['git hooks', 'cursor rule']);
-});
-
-test('Cursor is set up after another agent has already set up the repository, once', t => {
-  const dir = gitRepo(2);
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  hook(dir, 'prompt', { session_id: 'first', prompt: 'hello' });
-  assert.ok(fs.existsSync(path.join(dir, '.thinker/state/repo-setup')));
-  for (let i = 0; i < 2; i++) hook(dir, 'prompt', { conversation_id: `cursor-${i}`, prompt: 'hello' }, 'cursor');
-  assert.ok(fs.existsSync(path.join(dir, '.cursor/rules/thinker.mdc')));
-  assert.deepEqual(ops(dir).filter(e => e.op === 'repo-setup').map(e => e.done), [['git hooks'], ['cursor rule']]);
-});
-
-test('a failed agent-specific setup retries on the next prompt', t => {
-  const dir = gitRepo(2);
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  fs.writeFileSync(path.join(dir, '.cursor'), 'blocks directory creation');
-  hook(dir, 'prompt', { conversation_id: 'blocked', prompt: 'hello' }, 'cursor');
-  assert.ok(!fs.existsSync(path.join(dir, '.thinker/state/repo-setup-cursor')));
-  fs.unlinkSync(path.join(dir, '.cursor'));
-  hook(dir, 'prompt', { conversation_id: 'retry', prompt: 'hello' }, 'cursor');
-  assert.ok(fs.existsSync(path.join(dir, '.cursor/rules/thinker.mdc')));
+  assert.ok(!fs.existsSync(path.join(dir, '.cursor/rules/thinker.mdc')));
+  assert.deepEqual(ops(dir).find(e => e.op === 'repo-setup').done, ['git hooks']);
+  const old = gitRepo(2);
+  t.after(() => fs.rmSync(old, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(old, '.cursor/rules'), { recursive: true }); fs.writeFileSync(path.join(old, '.cursor/rules/thinker.mdc'), OLD_RULE);
+  hook(old, 'prompt', { conversation_id: 'c2', prompt: 'hello' }, 'cursor');
+  assert.ok(!fs.existsSync(path.join(old, '.cursor/rules/thinker.mdc')));
 });
 
 test('the desktop app a session runs in: Claude Desktop by its env or its process, the Codex app and Cursor by their process; a terminal CLI is none', () => {

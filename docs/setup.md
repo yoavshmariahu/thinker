@@ -18,9 +18,8 @@ From then on thinker runs in every git repository on this machine: a cache start
 empty, with the first agent session in a repository (kept out of `git status` through
 `.git/info/exclude`) and grows from your sessions. The hooks start serving from it once
 it holds a few notes (three; `minNotes` in `.thinker/config.json` changes that), so a
-young cache costs a session nothing. The MCP tools are there from the start; a server
-started outside a repository (a container, a desktop app) binds to the repository of the
-first call that names the agent's working directory. The first session in a repository
+young cache costs a session nothing. The MCP server offers the agent no tools (since
+2026-10-22): it carries thinker's own questions and, in a desktop app, its learning queue. The first session in a repository
 also writes what `thinker setup` would there (the git hooks that keep the cache fresh after a
 commit or merge, Codex's trust in the project, Cursor's rule). The cache grows from the
 sessions there; reading the repository's history into it is a step you take by hand
@@ -313,7 +312,7 @@ THINKER_TEST=1 node bench/your-benchmark.js
 
 Test mode blocks production telemetry and automatic updates, learning and verification. Usage logs default to the checkout, and machine-wide agent hooks
 stay quiet. Explicit commands such as `distill`, `verify`, and `maintain` still work;
-MCP tools remain available. Existing per-feature controls still work when an experiment
+The MCP server still starts. Existing per-feature controls still work when an experiment
 needs them. Set `THINKER_HOOKS=on` only when testing machine-wide hook serving;
 automatic background work stays disabled. Explicit `THINKER_HOME` or `THINKER_LOG`
 settings override the default log location.

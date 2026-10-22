@@ -5,10 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { Store } from '../src/store.js';
-import { beginTurn, trackTurn, peekTurn, createNote, linkAgentSession } from '../src/ops.js';
+import { beginTurn, trackTurn, peekTurn, createNote } from '../src/ops.js';
 import { noticeCard, noticeCardOn } from '../src/notice-card.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -97,50 +95,3 @@ test('normal Codex prompt supplies the reference; tools update it and stop never
   assert.doesNotMatch(hook('tool', { tool_name: 'Read', tool_input: { file_path: 'code.js' } }), /visualize/);
 });
 
-test('real MCP lookup includes a usable local reference automatically, misses and disabled mode do not', async t => {
-  const store = fixture(t);
-  store.put({ ...one, id: 'cache-card-fixture', kind: 'rule', body: 'Code is here.' });
-  for (const enabled of ['1', '0']) {
-    const client = new Client({ name: 'codex-mcp-client', version: '1.0.0' });
-    const transport = new StdioClientTransport({ command: process.execPath, args: [path.join(root, 'src/mcp-server.js')], cwd: store.repo, env: { ...env, THINKER_REPO: store.repo, THINKER_NOTICE_CARD: enabled }, stderr: 'pipe' });
-    try {
-      await client.connect(transport);
-      const result = await client.callTool({ name: 'lookup', arguments: { query: 'cache-card-fixture' } });
-      assert.ok(!result.isError);
-      const text = result.content.map(c => c.text || '').join('\n');
-      if (enabled === '1') assert.match(fs.readFileSync(ref(text), 'utf8'), /1 note retrieved · 1 file · Estimated tokens saved: ~1k/);
-      else assert.doesNotMatch(text, /thinker-notice|visualize/);
-      const miss = await client.callTool({ name: 'lookup', arguments: { query: 'zzz-nothing-matches-zzzz' } });
-      assert.doesNotMatch(JSON.stringify(miss), /thinker-notice|visualize/);
-    } finally { await client.close(); }
-  }
-});
-
-
-test('linked MCP lookups accumulate in the same turn card and obey holdout', async t => {
-  const store = fixture(t), session = 'linked-chat';
-  store.put({ ...one, kind: 'rule', body: 'Code is here.' });
-  store.put({ ...two, kind: 'rule', body: 'Code is here too.' });
-  linkAgentSession(store, session, [process.pid]);
-  beginTurn(store, session);
-  const client = new Client({ name: 'codex-mcp-client', version: '1.0.0' });
-  const transport = new StdioClientTransport({ command: process.execPath, args: [path.join(root, 'src/mcp-server.js')], cwd: store.repo, env: { ...env, THINKER_REPO: store.repo }, stderr: 'pipe' });
-  try {
-    await client.connect(transport);
-    const call = query => client.callTool({ name: 'lookup', arguments: { query } });
-    const first = await call(one.id);
-    const file = ref(first.content.map(c => c.text || '').join('\n'));
-    assert.deepEqual(peekTurn(store, session), [one.id]);
-    const second = await call(two.id);
-    assert.doesNotMatch(JSON.stringify(second), /visualize/);
-    assert.match(fs.readFileSync(file, 'utf8'), /2 notes this turn · 1 file/);
-    assert.deepEqual(peekTurn(store, session), [one.id, two.id]);
-    fs.writeFileSync(path.join(store.dir, 'config.json'), '{"holdout":1}');
-    // Set the held-out turn explicitly: config names may evolve independently of card presentation.
-    const stateFile = path.join(store.dir, 'state', `session-${session}.json`);
-    const state = JSON.parse(fs.readFileSync(stateFile));
-    fs.writeFileSync(stateFile, JSON.stringify({ ...state, turnNo: 2, turn: [], heldOut: true }));
-    assert.doesNotMatch(JSON.stringify(await call(one.id)), /thinker-notice|visualize/);
-    assert.deepEqual(peekTurn(store, session), []);
-  } finally { await client.close(); }
-});

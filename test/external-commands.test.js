@@ -40,7 +40,7 @@ test('version: the package version, and the commit from a checkout', () => {
 });
 
 test('guide: prints the usage guidance an install writes', () => {
-  assert.match(run(['guide', '--repo', checkout()]), /Use thinker as a map to the code/);
+  assert.match(run(['guide', '--repo', checkout()]), /Use thinker's notes as a map to the code/);
 });
 
 test('mcp: the server answers initialize on stdio', async () => {

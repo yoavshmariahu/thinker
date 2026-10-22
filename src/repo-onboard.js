@@ -6,8 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { installGitHooks } from './git-hooks.js';
-import { trustCodex, installCursorRule } from './clients.js';
-import { excludeFromGit } from './store.js';
+import { trustCodex } from './clients.js';
 import { isTestMode } from './test-mode.js';
 import { SUBAGENT_TOOLS, subagentHarness, desktopApp } from './app-host.js';
 export { SUBAGENT_TOOLS, subagentHarness, desktopApp };
@@ -35,9 +34,8 @@ export function setupRepo(store, { client, cli, learn = true }) {
   };
   step('repo-setup', 'git hooks', () => installGitHooks(store.repo, cli, learn));
   if (client === 'codex' && !isTestMode()) step('repo-setup-codex', 'codex trust', () => trustCodex(store.repo));
-  if (client === 'cursor') step('repo-setup-cursor', 'cursor rule', () => {
-    installCursorRule(store.repo, { learn }); excludeFromGit(store.repo, ['.cursor/rules/thinker.mdc']);
-  });
+  // Cursor's always-applied rule, which a step here wrote until 2026-10-22, is taken out by the prompt hook's
+  // wiring check (clients.js:removeCursorRule)
   if (!done.length) return null;
   store.log({ op: 'repo-setup', client, done });
   return done;

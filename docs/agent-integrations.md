@@ -17,27 +17,16 @@ Project trust and hook enablement remain controlled by the host. New generated p
 are locally excluded from git; existing instruction files retain their visibility. `thinker uninstall`
 removes Thinker's entries and preserves other integrations.
 
-## Instructions available before exploration
+## No instructions, no agent tools
 
-Setup and `connect` install a short workflow alongside the tools: use injected notes,
-ask specific questions with `lookup`, save reusable discoveries, and
-correct wrong notes. The code tools `find` and `drilldown` are off unless a repository
-turns them on with `thinker tools enable find drilldown`; while off they are neither
-offered nor mentioned to the agent. `orient` is off by default too (`thinker tools
-enable orient` turns it on): the prompt hook's notes and `lookup` remain. No client's rule
-names it; Windsurf, which runs no prompt hook, reaches notes through the CLI `lookup`. Ordinary searches and reads remain available
-when Thinker's tools cannot answer the question.
-
-| Client | Persistent workflow location |
-| --- | --- |
-| Claude Code | `~/.claude/CLAUDE.md` (respects `CLAUDE_CONFIG_DIR`) |
-| Codex | `$CODEX_HOME/AGENTS.md`, or existing `AGENTS.override.md` (`CODEX_HOME` defaults to `~/.codex`) |
-| Gemini/Agy | `~/.gemini/GEMINI.md` |
-| Cursor | `.cursor/rules/thinker.mdc`, always applied |
-| Pi | Native extension supplies the workflow before the agent starts |
-| Windsurf Cascade | `.windsurf/rules/thinker.md`, or the existing `.devin/rules/` location |
-| Copilot CLI | `.github/instructions/thinker.instructions.md` |
-| OpenCode | `.opencode/thinker.md`, added to `instructions` by the plugin |
+Since 2026-10-22 thinker writes nothing into the agents' instruction files and offers the agent no MCP
+tools: the notes reach it through the prompt hook, under one line saying what they are. The workflow block
+earlier versions wrote (in `~/.claude/CLAUDE.md`, `$CODEX_HOME/AGENTS.md`, `~/.gemini/GEMINI.md`, Cursor's
+`.cursor/rules/thinker.mdc`, Windsurf's and Copilot's rules and the other agents' global files) is taken out
+by the next `thinker update` (its `rewire`) and by the prompt hook's wiring check, leaving the rest of each
+file as it was. The MCP server stays registered: it answers thinker's own questions (coverage, harness) and,
+in a desktop app, carries the learning queue (`learn_next`). Windsurf, which runs no prompt hook, gets no
+notes.
 | Factory Droid | `~/.factory/AGENTS.md` |
 | Qwen Code | `~/.qwen/QWEN.md` (respects `QWEN_HOME`) |
 | Kiro CLI | `~/.kiro/steering/thinker.md` |
@@ -109,10 +98,10 @@ follow every instruction.
 | Claude Code | Prompt hook | Post-tool hook | Native transcript | MCP |
 | Codex CLI | Prompt hook | Post-tool hook | Hook trace | MCP |
 | Gemini CLI | BeforeAgent | AfterTool | Hook trace | MCP |
-| Cursor | Prompt hook (`additional_context`; first tool call under `agent -p`) | Post-tool hook | Hook trace | MCP + rule |
-| Pi | before_agent_start extension | tool_result extension | Prompt, tools, final answer; shutdown flush | CLI guidance in extension |
-| Windsurf Cascade | None (no prompt hook); the always-on rule offers the CLI lookup | Agent-directed CLI lookup | Prompt, reads, edits, commands, MCP results, response | CLI rule |
-| GitHub Copilot CLI | First successful tool after prompt; CLI instruction fallback | postToolUse | Prompt, tools/errors, stop/end | CLI instruction; optional manual MCP |
+| Cursor | Prompt hook (`additional_context`; first tool call under `agent -p`) | Post-tool hook | Hook trace | MCP |
+| Pi | before_agent_start extension | tool_result extension | Prompt, tools, final answer; shutdown flush | none |
+| Windsurf Cascade | None (no prompt hook) | None | Prompt, reads, edits, commands, MCP results, response | none |
+| GitHub Copilot CLI | First successful tool after prompt | postToolUse | Prompt, tools/errors, stop/end | optional manual MCP |
 | OpenCode | chat.message plugin | tool.execute.after plugin | Prompt, successful tools, idle/end | MCP registered by plugin |
 | Copilot in VS Code (Local) | First tool call after the prompt (its UserPromptSubmit takes no context) | PostToolUse `hookSpecificOutput` | Prompt, tools, stop | MCP through the Copilot CLI's `mcp-config.json` (VS Code discovers it) |
 | Factory Droid | UserPromptSubmit, plain stdout (`~/.factory/hooks.json`, else the `hooks` of `settings.json`) | PostToolUse | Prompt, tools, stop/end | MCP (`~/.factory/mcp.json`) |

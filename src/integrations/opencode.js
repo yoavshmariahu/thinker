@@ -1,12 +1,10 @@
-import path from 'node:path';
 import { hookRunner } from './runner.js';
 export function opencodePlugin(config, run = hookRunner(config)) {
-  // installed machine-wide (no config.repo): the session's checkout is the plugin's worktree, and the
-  // workflow is in OpenCode's global rules (~/.config/opencode/AGENTS.md) rather than a checkout file
+  // installed machine-wide (no config.repo): the session's checkout is the plugin's worktree. No instructions are
+  // added: the workflow file this pointed OpenCode at went on 2026-10-22, with the agent's MCP tools.
   return async ({ client, directory, worktree } = {}) => { const cwd = config.repo || worktree || directory || process.cwd(); return {
     ...((config.mcp || config.hooks) ? { config: async c => {
       if (config.mcp) c.mcp = { ...c.mcp, thinker: { type: 'local', command: [config.mcpEntry.command, ...config.mcpEntry.args], environment: config.mcpEntry.env || {}, enabled: true } };
-      if (config.repo) c.instructions = [...new Set([...(c.instructions || []), path.join(config.repo, '.opencode/thinker.md')])];
     } } : {}),
     ...(config.hooks ? {
       'chat.message': async (input, output) => {
