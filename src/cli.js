@@ -235,9 +235,11 @@ const HELP = `thinker — knowledge cache for coding agents
                                  the checkouts wire (update runs it; the prompt hook does it for its own checkout)
   stats [--here] [--days n] [--json]
                                  machine-wide overview: activity, agents, learning, tokens and repositories; current checkout cache details
-  proxy [serve] --port n [--upstream url] [--trigger n] [--keep n] [--clear-at-least n] [--holdout share]
+  proxy [serve] --port n [--upstream url] [--notes] [--repo path] [--trigger n] [--keep n] [--clear-at-least n] [--holdout share]
                                  (off until an experiment) a local pass-through for Claude Code (ANTHROPIC_BASE_URL) that asks
-                                 the API to clear old tool results on its side; proxy report [--days n] [--json] sums its log
+                                 the API to clear old tool results on its side; --notes serves this checkout's notes to an agent
+                                 with no prompt hook (Goose, Aider: Anthropic and OpenAI chat requests; off until an experiment);
+                                 proxy report [--days n] [--json] sums its log
   telemetry [--send] [--json] [--force] [--event name] [--schedule] [--unschedule] [--status]
                                  cache effectiveness and size metrics sent to the metrics service;
                                  --schedule / --unschedule manages hourly background telemetry

@@ -593,6 +593,13 @@ const codexMcpScript = text => {
 // would not have written as it stands.
 const hasLearningStop = (hooks, events) => events.some(event => ourGroups(hooks, event).some(group => !/ --no-distill\b/.test(commandOf(group) || '')));
 
+// A host plugin's hook (plugins/<host>/bin/hook.mjs, which runs `thinker hook … --plugin`) yields where the
+// host's own settings already run thinker's prompt hook: a plugin's hooks and the settings' both run
+// (Claude Code merges them and collapses duplicates between settings files only), and one copy serves.
+export function pluginYields(client) {
+  try { return Boolean(inferWiring(null, client, { scope: 'user' }).hooks); } catch { return false; }
+}
+
 export function inferWiring(repo, client, { scope = 'repo' } = {}) {
   const f = wiringFiles(client, { scope, repo });
   const scripts = new Set(), hookScripts = new Set(), custom = [];

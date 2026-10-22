@@ -57,6 +57,7 @@ chmod +x "$dist/install.sh"
 rm -rf "$dist/npm" && mkdir -p "$dist/npm"
 cp npm/install.mjs npm/README.md LICENSE "$dist/npm/"
 cp "$dist/install.sh" "$dist/npm/install.sh"
+cp -R npm/pi "$dist/npm/pi"   # the pi package's extension (npm/pi/thinker.js)
 node --input-type=module - "$dist/npm/package.json" <<'JS'
 import fs from 'node:fs';
 const pkg = JSON.parse(fs.readFileSync('npm/package.json', 'utf8'));

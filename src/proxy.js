@@ -114,7 +114,8 @@ export function usageTap() {
 
 const HOP = ['connection', 'keep-alive', 'proxy-connection', 'transfer-encoding', 'upgrade', 'host', 'content-length', 'accept-encoding'];
 
-export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen } = {}) {
+// `notes`: a proxy-notes.js NoteInjector; the notes for an agent with no prompt hook go into the last user turn
+export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes = null } = {}) {
   const up = new URL(cfg.upstream);
   const lib = up.protocol === 'http:' ? http : https;
   const agent = new lib.Agent({ keepAlive: true, maxSockets: 256 });
@@ -125,11 +126,13 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen } = {}) 
   const server = http.createServer((req, res) => {
     const chunks = [];
     req.on('data', c => chunks.push(c));
-    req.on('end', () => {
+    req.on('end', async () => {
       const raw = Buffer.concat(chunks);
       const t0 = process.hrtime.bigint();
       let t;
       try { t = transformRequest(req.method, req.url, req.headers, raw, cfg); } catch { t = { body: raw, reason: 'error' }; }
+      let n = null;
+      if (notes) { try { n = await notes.transform(req.method, req.url, req.headers, t.body); } catch { n = null; } if (n) { t.body = n.body; t.notes = n; if (t.reason === 'other') t.reason = 'notes'; } }
       const headers = {};
       for (const [k, v] of Object.entries(req.headers)) if (!HOP.includes(k)) headers[k] = v;
       headers.host = up.host;
@@ -152,7 +155,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen } = {}) 
           ures.on('end', () => {
             res.end();
             if (tap) log({ at: new Date().toISOString(), op: 'proxy', session: sessionOf(req.headers), model: t.model, status: ures.statusCode,
-              injected: !!t.injected, ...(t.injected ? {} : { reason: t.reason }), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...tap.result() });
+              injected: !!t.injected, ...(t.injected ? {} : { reason: t.reason }), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...tap.result() });
           });
           ures.on('error', () => res.destroy());
         });

@@ -213,6 +213,42 @@ can force continuation, but that starts another model turn. Thinker does not do
 that just to show a notice. Their callbacks still clear turn state and perform
 learning when enabled. There is no claim of a visible stop notice in those hosts.
 
+## Plugins, the pi package and the proxy
+
+Three more doors to the same hooks, each a pointer to the thinker installed on the machine
+(`npx @zerotimedev/thinker`, in `~/.thinker/app`); nothing of thinker runs from any of them, and a
+plugin on a machine without thinker does nothing.
+
+- **Host plugins** (`plugins/`, since 2026-10-22): one per host. Claude Code's (`plugins/claude-code`,
+  `.claude-plugin/plugin.json` and `hooks/hooks.json`, listed by `.claude-plugin/marketplace.json` at the
+  repository root: `claude plugin marketplace add yoavshmariahu/thinker`, then `claude plugin install
+  thinker@thinker`); Codex's (`plugins/codex`, the portable `plugin.json` and `hooks/hooks.json`, listed by
+  `.agents/plugins/marketplace.json`: `codex plugin marketplace add yoavshmariahu/thinker`, `codex plugin
+  add thinker@thinker`); Cursor's (`plugins/cursor`, `.cursor-plugin/plugin.json` and scripts under `bin/`,
+  listed by `.cursor-plugin/marketplace.json`; installed from the Customize panel, the Cursor CLI loads no
+  plugins). Every hook is the same shim (`bin/hook.mjs`): it runs the installed copy's `thinker hook
+  <event> --client <host> --user --plugin`. A plugin's hooks run beside the host's own settings hooks (Claude
+  Code collapses duplicates between its settings files only), so `--plugin` yields where the settings already
+  run thinker's prompt hook (`clients.js:pluginYields`): one copy serves. Codex runs plugin lifecycle hooks for
+  plugins installed by hand in its desktop app, with the same trust review as its own hooks, and its public
+  directory takes no plugin with hooks; all three are from the hosts' documentation, none has been run live
+  yet. The marketplaces live in this repository, which is private: a marketplace add needs access to it.
+- **The pi package** (`npm/pi/thinker.js`, shipped in `@zerotimedev/thinker` through its `pi` field):
+  `pi install npm:@zerotimedev/thinker` adds an extension that loads the installed copy's
+  `src/integrations/pi.js` on the first event and serves every checkout as `thinker connect`'s extension
+  does. Where that extension is in place (`~/.pi/agent/extensions/thinker.js`) the package stays quiet;
+  without an installed thinker it says so once a session through pi's own notice.
+- **Notes through the proxy** (`thinker proxy --notes [--repo path]`, or `proxy: { notes: true }` in
+  `.thinker/config.json`; `src/proxy-notes.js`): for an agent that runs no prompt hook but honours a base
+  URL (Goose's `ANTHROPIC_HOST`, Aider's `ANTHROPIC_BASE_URL` and `OPENAI_BASE_URL`, any OpenAI-compatible
+  client; `--upstream` names the provider). Each request is the whole conversation: its last user turn is
+  the prompt, served once per conversation as the hook serves it (fresh notes, once, the holdout turn,
+  logged as client `proxy`) and put in front of that message's text; every later request of the
+  conversation gets the same text at the same turn, so the prompt cache keeps its prefix. A request
+  carrying a Claude Code session id is left to its hooks. Not reached: an agent whose calls go through its
+  vendor's servers (Windsurf, Auggie). Not covered: learning, since the proxy records no session. Off until
+  an experiment, like the rest of the proxy.
+
 ## Why these additions
 
 Pi and Windsurf were explicitly requested. Copilot and OpenCode are the next
