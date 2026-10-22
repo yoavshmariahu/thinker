@@ -254,7 +254,8 @@ function parseMessages(rows, fromLine) {
     }
   });
   for (const usage of messageUsage.values()) stats.turn(usage);
-  return { events: attachResults(events, results), cwd, model: models.model, stats: { ...stats.value, carried }, compactions };
+  // `carried` beside the stats, not in them: the stop hook logs the stats on every session line (commands/hooks.js)
+  return { events: attachResults(events, results), cwd, model: models.model, stats: stats.value, carried, compactions };
 }
 
 function parseCodex(rows, fromLine) {

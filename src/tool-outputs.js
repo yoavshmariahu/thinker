@@ -76,7 +76,7 @@ const stateFile = store => path.join(store.dir, 'state', 'tool-outputs.json');
 // the model the session ran on and what it cost as the agent reported it (transcripts.js:Stats; since version 9 with
 // what the conversation itself cost, `carried`; version 10 with the notes and the instruction payload), read by the Report page (report.js:sessionUsage) from the same parse.
 // `carried`: what the conversation itself cost in input tokens, by kind (transcripts.js:parseClaude; Claude Code alone)
-const usageOf = st => st && st.inputTokens != null ? { input: st.inputTokens, output: st.outputTokens ?? 0, cacheRead: st.cacheReadTokens ?? 0, cacheWrite: st.cacheWriteTokens ?? 0, turns: st.turns || 0, carried: st.carried || null } : null;
+const usageOf = (st, carried) => st && st.inputTokens != null ? { input: st.inputTokens, output: st.outputTokens ?? 0, cacheRead: st.cacheReadTokens ?? 0, cacheWrite: st.cacheWriteTokens ?? 0, turns: st.turns || 0, carried: carried || null } : null;
 function sessionRecords(store, sessions) {
   let st = {}; try { st = JSON.parse(fs.readFileSync(stateFile(store), 'utf8')); } catch {}
   const recs = [];
@@ -86,7 +86,7 @@ function sessionRecords(store, sessions) {
     let r = st[s.session];
     if (!r || r.size !== size || r.v !== VERSION) {
       let parsed; try { parsed = parseTranscript(s.file); } catch { continue; }
-      r = st[s.session] = { v: VERSION, size, mtime: s.mtime, model: parsed.model || null, usage: usageOf(parsed.stats), by: sessionOutputs(parsed.events, parsed.stats?.turns || 0, parsed.compactions || []) };
+      r = st[s.session] = { v: VERSION, size, mtime: s.mtime, model: parsed.model || null, usage: usageOf(parsed.stats, parsed.carried), by: sessionOutputs(parsed.events, parsed.stats?.turns || 0, parsed.compactions || []) };
       changed = true;
     }
     recs.push({ ...r, session: s.session, client: s.client, t: s.mtime });

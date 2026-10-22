@@ -1300,7 +1300,7 @@ each week's sessions. Per session the transcript gives the model and the usage t
 timeline rows of `instruction-value.js`, `harness.js` and `tool-outputs.js` carry `session` since this day):
 the instruction files read, the custom tools (skills, MCP servers, plugins) and built-in tools loaded, each times
 the session's model calls, and the tool outputs read again by every call after them; and the transcript itself gives
-what the conversation costs (`transcripts.js:parseClaude`, `stats.carried`, Claude Code alone; kept with the
+what the conversation costs (`transcripts.js:parseClaude`, `carried` beside the stats, Claude Code alone; kept with the
 session's record since tool-outputs state version 10): the system prompt (the prompt snapshot) once a call, and, each
 read again by every call after it since the last compaction, the agent's tool calls (the input of each `tool_use`),
 its thinking (Claude Code keeps every turn's in the context, `clear_thinking keep: all`; counted by the usage's
