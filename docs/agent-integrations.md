@@ -391,7 +391,10 @@ is on with the harness (`--recurring off` turns it off).
 The question and the report give what a source costs a session: its tokens, which every
 model call reads again, times the model calls of a typical session here (the median, per
 agent), mostly as prompt-cache reads. Cursor records no model calls, so its sources are
-given by size alone.
+given by size alone. The question carries at most five sources, each with what it is in
+its own words, its use among the sessions that carried it, and what off means; built-in
+tools are never among them (switch one off from the Context tab, which shows its
+description), and the question names the page for everything it left out.
 Codex suggestions use its available question tool or prose, and wait for an
 explicit answer. To support another harness, add evidence parsing, native scoped
 config changes, restoration, and post-change evidence together; a generic hook

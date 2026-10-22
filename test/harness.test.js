@@ -157,6 +157,43 @@ test('skills too small to ask about one by one are one option together', t => {
   assert.deepEqual(local.skillOverrides, { tiny0: 'user-invocable-only', tiny1: 'user-invocable-only', tiny2: 'user-invocable-only' });
 });
 
+test('the question has at most five options, each saying what the source is and what off means, and names the page for the rest', t => {
+  const dir = tmp('thinker-harness-'); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const store = checkout(t), h = home(t), th = tmp('thinker-harness-th-'); t.after(() => fs.rmSync(th, { recursive: true, force: true }));
+  // seven skills too big to bundle, each with a first sentence of its own
+  const names = Array.from({ length: 7 }, (_, i) => `big${i}`);
+  const listing = names.map((n, i) => `- ${n}: Draws chart number ${i} for reports. ${long(2400)}`).join('\n');
+  const lines = () => [{ type: 'attachment', cwd: '/r', attachment: { type: 'skill_listing', content: listing, names } }];
+  const sessions = [...Array(10).keys()].map(i => { const f = path.join(dir, `m${i}.jsonl`); fs.writeFileSync(f, lines().map(j => JSON.stringify(j)).join('\n') + '\n'); return { client: 'claude', file: f, session: `m${i}`, mtime: Date.now() }; });
+  const picks = scheduleHarnessSuggestion(store, { now: T0, home: th, usage: harnessUsage(store.repo, { home: h, sessions }) });
+  assert.equal(picks.length, 5);
+  assert.equal(readHarnessState(store).pending.more, 2);
+  const ask = harnessOffer(store, { client: 'claude', home: th, now: T0, ui: () => 'http://127.0.0.1:1/#tab=context&view=all' });
+  assert.equal((ask.match(/^\d+\. label /gm) || []).length, 5, 'five options');
+  assert.match(ask, /2 more that thinker could switch off here are on thinker's page at http:\/\/127\.0\.0\.1:1\/#tab=context&view=all, each with what it is\./);
+  assert.doesNotMatch(ask, /built-in tools among them/);
+  const first = picks[0].name, i = Number(first.slice(3));
+  assert.ok(ask.includes(`label "${first} skill": Draws chart number ${i} for reports. Used in none of the 10 sessions here that carried it; ~`), 'what it is, then its use');
+  assert.ok(ask.includes(`Off, it still runs when you type /${first}; \`thinker harness --undo ${first}\` turns it back on.`), 'what off means, and the undo');
+  assert.match(ask, /word for word/);
+  assert.doesNotMatch(ask, /\n\d+\. label[^\n]*\n\d+\. label[^\n]*xxxxx/, 'no listing text past the first sentence');
+});
+
+test('a built-in tool is left out of the question and counted for the page, with the page link when there is one', t => {
+  const dir = tmp('thinker-harness-'); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const store = checkout(t), h = home(t), th = tmp('thinker-harness-th-'); t.after(() => fs.rmSync(th, { recursive: true, force: true }));
+  const snapshot = { type: 'attachment', cwd: '/r', attachment: { type: 'prompt_snapshot', tools: [{ name: 'Workflow', description: `Runs a workflow script. ${long(2000)}`, input_schema: { type: 'object' } }] } };
+  const sessions = [...Array(10).keys()].map(i => session(dir, `w${i}`, [snapshot, call('mcp__artemis__get_experiment')]));
+  const usage = harnessUsage(store.repo, { home: h, sessions, builtinTools: true });
+  assert.ok(harnessAdvice(usage).some(a => a.key === 'tool:Workflow'), 'the advice names it');
+  const picks = scheduleHarnessSuggestion(store, { now: T0, home: th, usage });
+  assert.equal(picks.some(p => p.kind === 'tool'), false, 'the question never carries it');
+  assert.equal(readHarnessState(store).pending.moreTools, 1);
+  const ask = harnessOffer(store, { client: 'claude', home: th, now: T0 });
+  assert.doesNotMatch(ask, /Workflow/);
+  assert.match(ask, /1 more that thinker could switch off here, built-in tools among them, are on thinker's page \(run `thinker ui`, Context tab, All\)/);
+});
+
 test('a plugin no setting names goes off as <name>@inline as well as skill by skill, and --undo restores both', t => {
   // Claude Code 2.1.303 ignores skillOverrides for a plugin's own skills (measured 2026-10-19); the
   // overrides still reach the claude.ai skills synced under the same prefix
@@ -193,14 +230,16 @@ test('a built-in tool never called goes off by permissions.deny, only under harn
   assert.deepEqual(harnessAdvice(harnessUsage(store.repo, { home: h, sessions, builtinTools: false })).filter(a => a.kind === 'tool'), [], 'off by default');
   const usage = harnessUsage(store.repo, { home: h, sessions, builtinTools: true });
   assert.deepEqual(harnessAdvice(usage).filter(a => a.kind === 'tool').map(a => a.name), ['Workflow'], 'Agent is called in 3 of 10');
-  const picks = scheduleHarnessSuggestion(store, { now: T0, home: th, usage });
-  const pick = picks.find(p => p.name === 'Workflow');
+  // never an option of the in-prompt question (its line has no room for what denying a tool costs): switched off from
+  // the Context tab or `thinker context --switch-off`, which is switchOffNow with any
+  assert.deepEqual(scheduleHarnessSuggestion(store, { now: T0, home: th, usage }), [], 'nothing but tools: no question');
+  assert.equal(readHarnessState(store).pending, undefined);
   const local = path.join(store.repo, '.claude', 'settings.local.json');
   fs.mkdirSync(path.dirname(local), { recursive: true });
   fs.writeFileSync(local, JSON.stringify({ permissions: { deny: ['Bash(rm:*)'] } }));
-  answerHarness(store, 'Workflow tool', { home: th, userHome: h, now: T0 });
+  assert.match(switchOffNow(store, 'Workflow tool', { home: th, userHome: h, now: T0, usage, any: true }), /Switched off/);
   assert.deepEqual(JSON.parse(fs.readFileSync(local, 'utf8')).permissions.deny, ['Bash(rm:*)', 'Workflow']);
-  assert.equal(harnessUsage(store.repo, { home: h, sessions, builtinTools: true }).sources.find(s => s.key === pick.key).off, true, 'a denied tool reads as off');
+  assert.equal(harnessUsage(store.repo, { home: h, sessions, builtinTools: true }).sources.find(s => s.key === 'tool:Workflow').off, true, 'a denied tool reads as off');
   assert.match(readHarnessState(store).applied[0].cards[0].back, /thinker harness --undo Workflow/);
   assert.match(undoHarness(store, { home: th, userHome: h, now: T0 }), /Turned back on, from the next session on: Workflow/);
   assert.deepEqual(JSON.parse(fs.readFileSync(local, 'utf8')).permissions.deny, ['Bash(rm:*)']);

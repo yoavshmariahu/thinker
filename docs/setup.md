@@ -54,7 +54,10 @@ reads the last 30 days of this repository's sessions and lists each MCP server, 
 per session and how many sessions used it. `--suggest` (and by itself every two weeks; a repository never looked at
 with 10 sessions recorded is asked as soon as it has them; `maintain: { harness: false }` in `.thinker/config.json`
 turns it off) has your next Claude Code prompt here ask you,
-in one multiple-choice question signed 🧠 Thinker, which of the unused ones to switch off. The ones you pick go
+in one multiple-choice question signed 🧠 Thinker, which of the unused ones to switch off: at most five, each
+option saying what the source is (the first sentence of its own listing), how many of the sessions that carried
+it used it, what it costs, and what off means and how it comes back; the rest, built-in tools always among them,
+are on the page (`thinker ui`, Context, All), which the question links to. The ones you pick go
 off for this checkout (`enabledPlugins` and `skillOverrides` in `.claude/settings.local.json`, kept out of git)
 or, for an MCP server, for the repository and its worktrees (`disabledMcpServers` in its entry of
 `~/.claude.json`, what `/mcp disable` writes). A skill switched off still runs as `/name`. What each file said

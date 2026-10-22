@@ -129,7 +129,7 @@ test('the question says what a source costs over a session\'s model calls, and h
   assert.equal(usage.calls.claude, 10);
   scheduleHarnessSuggestion(store, { now: T0, home: th, usage });
   const ask = harnessOffer(store, { client: 'claude', home: th, now: T0, env: DESKTOP });
-  assert.match(ask, /read again by each of the ~10 model calls of a session here/);
+  assert.match(ask, /~644 tokens in every session, ~6\.4k input tokens over its ~10 model calls/);
   assert.match(ask, /each model call reads them again: ~\d+(\.\d)?k input tokens in a typical session/);
   assert.match(ask, /thinker tells the agent it is off and how to bring it back/, 'recall is on with the harness');
   answerHarness(store, 'Claude-Docs connector', { client: 'claude', home: th, userHome: h, now: T0 });
