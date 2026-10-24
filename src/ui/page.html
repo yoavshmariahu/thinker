@@ -270,14 +270,14 @@
       <div id="context-body" class="section"><div class="empty"><svg class="logo-spin" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="22" r="6"/><circle cx="16" cy="16" r="6"/><circle cx="22" cy="10" r="6"/></svg>Reading the transcripts…</div></div>
     </section>
 
-    <!-- Report: what a prompt (one call to the model) costs here week by week, by part and by model, the cache's numbers (report.js, as `thinker report`) -->
+    <!-- Report: what a prompt (one call to the model) costs here week by week, by part, by model and by token type, the cache's numbers (report.js, as `thinker report`) -->
     <section id="tab-report" hidden>
-      <div class="ctx-top"><div><h1>View Report</h1>
-      <p class="lede">What a prompt costs here, week by week: the average over each week's prompts (one call to the model each), by where the tokens went and by the model that read them <span class="muted" id="r-asof"></span></p></div>
+      <div class="ctx-top"><div><h1>View Report</h1></div>
       <div class="controls">
         <select class="sel" id="r-repo" aria-label="Repository"></select>
         <div class="seg" id="r-mode"><button data-mode="avg" class="on">Per prompt</button><button data-mode="sum">Total</button></div>
         <div class="seg" id="r-measure"><button data-m="tokens" class="on">Tokens</button><button data-m="cost">Cost</button></div>
+        <div class="seg" id="r-view"><button data-view="values" class="on">Values</button><button data-view="share">Share</button></div>
       </div></div>
       <div id="report-body" class="section"><div class="empty"><svg class="logo-spin" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="22" r="6"/><circle cx="16" cy="16" r="6"/><circle cx="22" cy="10" r="6"/></svg>Reading the report…</div></div>
     </section>
@@ -922,8 +922,11 @@ async function fetchRepos() {
   const r = await api('/api/repos');
   REPOS = r.repos;
 }
-// ---- Report (report.js:reportView, as `thinker report`): the average a prompt (one call to the model) cost each week, by part and by model ----
-let RPT = null, RMEASURE = 'tokens', RMODE = 'avg', RFOLD = new Set();
+// ---- Report (report.js:reportView, as `thinker report`): the average a prompt (one call to the model) cost each week, by token type, by part and by model ----
+let RPT = null, RMEASURE = 'tokens', RMODE = 'avg', RVIEW = 'values', RFOLD = new Set();
+// Values / Share is the command's --share (report.js:renderReport): every row but the whole-session total as its share of that
+// total in the week, so the relative contributions and their trend can be read; the total rows keep their values
+document.querySelectorAll('#r-view button').forEach(b => b.onclick = () => { RVIEW = b.dataset.view; segOn('#r-view', b); if (RPT) renderReport(RPT); });
 document.querySelectorAll('#r-mode button').forEach(b => b.onclick = () => { RMODE = b.dataset.mode; segOn('#r-mode', b); if (RPT) renderReport(RPT); });
 $('#r-repo').onchange = e => { REPO = e.target.value; e.target.blur(); loadReport(); };
 document.querySelectorAll('#r-measure button').forEach(b => b.onclick = () => { RMEASURE = b.dataset.m; segOn('#r-measure', b); if (RPT) renderReport(RPT); });
@@ -944,15 +947,15 @@ async function loadReport() {
     renderReport(v); reportAsOf(v);
   } catch (e) { el.innerHTML = `<div class="empty">Could not read the report: ${esc(e.message)}</div>`; }
 }
-// The report is kept and made again in the background (report-snapshot.js), like the Save page's: the page says when
-// it was measured and, while a newer one is being made, checks back and shows it.
+// The report is kept and made again in the background (report-snapshot.js), like the Save page's: while a newer one is
+// being made the page checks back and shows it. It says nothing of when it was measured, and nothing under its tables
+// (the owner's ask, 2026-10-24: the Report is its tables).
 let RPOLL = null;
 function reportAsOf(v) {
-  const el = $('#r-asof'); clearTimeout(RPOLL);
-  if (el) el.textContent = `· measured ${sinceMeasured(v.asOf)}${v.refreshing ? ', updating…' : ''}`;
+  clearTimeout(RPOLL);
   if (!v.refreshing) return;
   const want = REPO, tries = (v.tries || 0) + 1;
-  if (tries > 24) { if (el) el.textContent = `· measured ${sinceMeasured(v.asOf)}`; return; }
+  if (tries > 24) return;
   RPOLL = setTimeout(async () => {
     if (REPO !== want || TAB !== 'report') return;
     let n; try { n = await api(`/api/report?repo=${encodeURIComponent(REPO)}&weeks=6`); } catch { return; }
@@ -963,13 +966,17 @@ function reportAsOf(v) {
 }
 function renderReport(v) {
   RPT = v;
-  const cost = RMEASURE === 'cost', sum = RMODE === 'sum', el = $('#report-body');
+  const cost = RMEASURE === 'cost', sum = RMODE === 'sum', share = RVIEW === 'share', el = $('#report-body');
   // a cell: the week's sum over its prompts (the priced sessions' in the cost view), or that sum itself (Total); null where the week has none
   const avg = (c, w) => { const col = v.columns[w]; return sum ? (cost ? c.cost : c.tokens) : cost ? (col.pricedPrompts ? c.cost / col.pricedPrompts : null) : (col.prompts ? c.tokens / col.prompts : null); };
-  const fv = x => x == null ? '<span class="muted">–</span>' : cost ? money(x) : fmt(x);
-  // a cell is shaded by its value against every cell of its table (the owner's ask, 2026-10-22): the table's lowest value
-  // is the darkest green, its highest the darkest red, the rest in proportion with the middle unshaded, in light shades; a
-  // total or subtotal row is scaled against its own weeks alone; a zero is left blank; the shade alone says how much
+  // what a cell shows: its value, or under Share its value over the whole session's (the base), the total rows their value
+  const base = share ? v.sessionTotals : null;
+  const val = (cells, w, b) => { const a = avg(cells[w], w); if (!a || !b) return a; const t = avg(b[w], w); return t ? a / t : null; };
+  const sharePct = x => { const p = 100 * x; return p >= 10 ? `${Math.round(p)}%` : p >= 1 ? `${p.toFixed(1)}%` : p >= 0.01 ? `${p.toFixed(2)}%` : '<0.01%'; };
+  const fv = (x, b) => x == null ? '<span class="muted">–</span>' : b ? sharePct(x) : cost ? money(x) : fmt(x);
+  // a cell is shaded by its value against its own row's weeks (the owner's ask, 2026-10-24; against every cell of its table
+  // from 2026-10-22 until then): the row's lowest value is the darkest green, its highest the darkest red, the rest in
+  // proportion with the middle unshaded, in light shades; a zero is left blank; the shade alone says how much
   const shade = (v, vals) => {
     const lo = Math.min(...vals), hi = Math.max(...vals);
     if (hi <= lo) return '';
@@ -978,26 +985,32 @@ function renderReport(v) {
     const a = (0.05 + 0.3 * Math.min(1, Math.abs(d) * 2)).toFixed(2);
     return d > 0 ? ` class="rep-up" style="background:rgba(239,68,68,${a})"` : ` class="rep-down" style="background:rgba(34,197,94,${a})"`;
   };
-  const valuesOf = rows => rows.flatMap(cells => cells.map((c, i) => avg(c, i))).filter(Boolean);
-  const tcell = (cells, w, title, scale) => {
-    const a = avg(cells[w], w), at = title ? ` title="${esc(title)}"` : '';
+  // the shade follows what is shown: under Share a row is scaled over its shares
+  const rowValues = (cells, b) => cells.map((c, i) => val(cells, i, b)).filter(Boolean);
+  const tcell = (cells, w, title, b) => {
+    const a = val(cells, w, b), at = title ? ` title="${esc(title)}"` : '';
     if (!a) return `<td class="num"${at}></td>`;
-    const sh = shade(a, scale || valuesOf([cells]));
-    return sh ? `<td${sh.replace('class="', 'class="num ')}${at}>${fv(a)}</td>` : `<td class="num"${at}>${fv(a)}</td>`;
+    const sh = shade(a, rowValues(cells, b));
+    return sh ? `<td${sh.replace('class="', 'class="num ')}${at}>${fv(a, b)}</td>` : `<td class="num"${at}>${fv(a, b)}</td>`;
   };
-  const row = (name, cells, { cls = '', sub = '', titles, data = '', scale } = {}) => `<tr class="${cls}"${data}><td class="ctx-name">${name}${sub ? `<span class="ctx-kind">${sub}</span>` : ''}</td>${cells.map((c, w) => tcell(cells, w, titles ? titles(c, w) : '', scale)).join('')}</tr>`;
+  // a row: `total` keeps its values under Share (the whole-session rows); every other row is shown over the base
+  const row = (name, cells, { cls = '', sub = '', titles, data = '', total = false } = {}) => { const b = total ? null : base; return `<tr class="${cls}"${data}><td class="ctx-name">${name}${sub ? `<span class="ctx-kind">${sub}</span>` : ''}</td>${cells.map((c, w) => tcell(cells, w, titles ? titles(c, w) : '', b)).join('')}</tr>`; };
   const head = nameHead => `<thead><tr><th>${nameHead}</th>${v.columns.map(c => `<th class="num">Week of ${dlabel(c.t)}<small>${fmt(c.prompts || 0)} prompt${c.prompts === 1 ? '' : 's'}, ${c.sessions} session${c.sessions === 1 ? '' : 's'}${cost && c.priced !== c.sessions ? `, ${c.priced} priced` : ''}</small></th>`).join('')}</tr></thead>`;
   const unit = cost ? 'cost at list prices' : 'tokens';
   const sessions = v.columns.reduce((a, c) => a + c.sessions, 0), prompts = v.columns.reduce((a, c) => a + (c.prompts || 0), 0), unmeasured = v.columns.reduce((a, c) => a + c.unmeasured, 0);
   const sub = `${fmt(prompts)} prompts in ${sessions} session${sessions === 1 ? '' : 's'} over ${v.weeks} weeks${unmeasured ? `, ${unmeasured} more whose agent reported no usage (Cursor) left out` : ''}${v.all ? ` · ${v.repos.length} repositories` : ''}`;
-  const parts = `<figure class="ctx-figure"><figcaption><b>By part of the context</b> <span class="ctx-sub">${sub}</span></figcaption>
-    <table class="ctx-table rep-table">${head('Part')}<tbody>${(scale => v.parts.map(p => row(esc(p.name), p.cells, { scale })).join(''))(valuesOf(v.parts.map(p => p.cells)))}${row('Total of these', v.totals, { cls: 'rep-total' })}</tbody></table>
-    <p class="ctx-note">${sum ? `Total ${unit} over each week's sessions` : `Average ${unit} <b>per prompt</b>, one call to the model: the week's sum over its prompts, so a long session weighs by its calls`}. Each cell is shaded by its number against every cell of the table: the highest is the darkest <b>red</b>, the lowest the darkest <b>green</b>, the rest in proportion with the middle left plain; a total or subtotal row is shaded against its own weeks; a zero is left blank. The four parts the Find Savings page measures and controls, as it estimates them from each session's transcript: the instruction files, the skills and tools loaded, Claude Code's own tools, the tool outputs, each read again by every model call. The rest of a session's input (the conversation itself: the agent's tool calls and thinking kept in the context, the prompts, Claude Code's notes) is not shown here; the total under the model table is the whole session.${cost ? ` Cost prices the tokens at the providers' list rates of ${esc(v.pricedOn)} (fresh input, cache reads and writes, output, each at its rate): what they would cost on a metered key; a subscription pays differently.` : ''}</p></figure>`;
-  const fold = p => RFOLD.has(p), modelsOf = p => v.models.filter(m => m.provider === p), mscale = valuesOf(v.models.map(m => m.cells));
+  // the three tables add up to the same whole session (report.js: tokenTypes, parts with others, models); a kept report from
+  // before the token types has none (report-snapshot.js remakes it in the background)
+  const types = v.tokenTypes || [], others = v.others || [];
+  const tokenTypes = `<figure class="ctx-figure"><figcaption><b>By token type</b> <span class="ctx-sub">${sub}</span></figcaption>
+    <table class="ctx-table rep-table">${head('Token type')}<tbody>${types.map(p => row(esc(p.name), p.cells)).join('')}${row('Total (the whole session)', v.sessionTotals, { cls: 'rep-total', total: true })}</tbody></table></figure>`;
+  const parts = `<figure class="ctx-figure"><figcaption><b>By part of the context</b> <span class="ctx-sub">where the same tokens went</span></figcaption>
+    <table class="ctx-table rep-table">${head('Part')}<tbody>${[...v.parts.map(p => row(esc(p.name), p.cells)), ...others.map(p => row(esc(p.name), p.cells))].join('')}${row('Total (the whole session)', v.sessionTotals, { cls: 'rep-total', total: true })}</tbody></table></figure>`;
+  const fold = p => RFOLD.has(p), modelsOf = p => v.models.filter(m => m.provider === p);
   const mtitle = m => (c, w) => `${fmt(c.prompts || 0)} prompts in ${c.sessions} session${c.sessions === 1 ? '' : 's'} on ${m.model} this week${c.prompts ? `, ${cost ? (c.pricedPrompts ? money(c.cost / c.pricedPrompts) : '–') : fmt(c.tokens / c.prompts)} per prompt of its own` : ''}`;
   const models = `<figure class="ctx-figure"><figcaption><b>By model</b> <span class="ctx-sub">each model's share of the ${sum ? 'week' : 'average prompt'}, its provider's subtotal above its models</span></figcaption>
-    <table class="ctx-table rep-table">${head('Provider · model')}<tbody>${v.providers.map(p => row(`<button class="rep-fold" data-fold="${esc(p.name)}" aria-expanded="${!fold(p.name)}">${fold(p.name) ? '▸' : '▾'}</button> ${esc(p.name)}`, p.cells, { cls: 'rep-sub', sub: `${modelsOf(p.name).length} model${modelsOf(p.name).length === 1 ? '' : 's'}` }) + (fold(p.name) ? '' : modelsOf(p.name).map(m => row(`<span class="rep-indent">${esc(m.model)}</span>`, m.cells, { cls: m.priced ? '' : 'ctx-off', sub: m.priced ? '' : 'no list price', titles: mtitle(m), scale: mscale })).join(''))).join('')}${row('Total', v.sessionTotals, { cls: 'rep-total' })}</tbody></table>
-    <p class="ctx-note">A model's row is its share of the ${sum ? 'week' : 'average prompt that week (its tokens over every prompt of the week)'}, so the rows add up to the total and a switch of model shows as one row falling while another rises; hover a cell for the prompts on that model and the average per prompt of its own.${v.unpriced.length ? ` No list price for ${v.unpriced.map(esc).join(', ')}: their sessions are left out of the cost average.` : ''}</p></figure>`;
+    <table class="ctx-table rep-table">${head('Provider · model')}<tbody>${v.providers.map(p => row(`<button class="rep-fold" data-fold="${esc(p.name)}" aria-expanded="${!fold(p.name)}">${fold(p.name) ? '▸' : '▾'}</button> ${esc(p.name)}`, p.cells, { cls: 'rep-sub', sub: `${modelsOf(p.name).length} model${modelsOf(p.name).length === 1 ? '' : 's'}` }) + (fold(p.name) ? '' : modelsOf(p.name).map(m => row(`<span class="rep-indent">${esc(m.model)}</span>`, m.cells, { cls: m.priced ? '' : 'ctx-off', sub: m.priced ? '' : 'no list price', titles: mtitle(m) })).join(''))).join('')}${row('Total (the whole session)', v.sessionTotals, { cls: 'rep-total', total: true })}</tbody></table></figure>`;
+  // the cache's numbers over the same window (usage.js:summarize), its saving in dollars first
   const c = v.cache;
   const cards = `<div class="section"><div class="kicker">The cache, over the same ${v.weeks} weeks</div><div class="cards four" style="margin-top:0.6rem">
     ${card('$ saved', money(Math.max(0, c.dollarsSaved)), `${c.measured ? 'the input tokens saved against held-out prompts' : 'the code the agents did not read'}, at each model's list input price${c.unpricedTokens ? `; ${fmt(c.unpricedTokens)} tokens on unpriced models not counted` : ''}`, null, true)}
@@ -1005,7 +1018,7 @@ function renderReport(v) {
     ${card('Cache hits', fmt(c.hits), `notes served, for ${fmt(c.answered)} of ${fmt(c.requests)} requests`)}
     ${card('Acted on', c.acted == null ? '–' : `${Math.round(100 * c.acted)}%`, `of ${fmt(c.judged)} servings the sessions were judged on`)}
   </div></div>`;
-  el.innerHTML = parts + models + cards;
+  el.innerHTML = parts + models + tokenTypes + cards; // the token types the last table (the owner's order, 2026-10-24)
   wireHistory(el.querySelector('[data-history]'), acts, loadReport, () => renderReport(v));
   el.querySelectorAll('[data-fold]').forEach(b => b.onclick = () => { const p = b.dataset.fold; RFOLD.has(p) ? RFOLD.delete(p) : RFOLD.add(p); renderReport(v); });
 }

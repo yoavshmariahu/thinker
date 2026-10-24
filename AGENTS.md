@@ -1374,18 +1374,25 @@ this repository's 30 longest recent sessions (2026-10-22, from the
 12%, user text 11%, thinking 11%, Claude Code's own system messages 5%, tool definitions 4%, the system prompt 2%. The
 parts are scaled down to the session's measured input where their sum overshoots it (they are estimates with different
 multipliers); what is left of the input is "Other input", and "Output" is what the model wrote, so the whole adds up to
-the session's tokens. **The tables show the four parts the Save page measures and controls** (instruction files, custom
-tools, built-in tools, tool outputs; `report.js:PARTS`) with their own total, and the whole session's tokens under the
-model table (`sessionTotals`); the rest is computed all the same (`BREAKDOWN`, `thinker report --json`) and written up
+the session's tokens. **Three tables, one total (2026-10-24, the owner's ask).** First the four parts the Save page measures and controls
+(instruction files, custom tools, built-in tools, tool outputs; `report.js:PARTS`) with the rest of the input as one row
+(`OTHERS`: Other input, the conversation itself, the breakdown's other input kinds summed) and the output under them; then
+the models; last the tokens by type (`report.js:TOKEN_TYPES`: the input read fresh, the input written to the prompt cache,
+the input read back from it, and the output, as the model reported them for each call and `transcripts.js:Stats` sums
+them; in the cost view each at its own list rate, the formula of `prices.js:costOf`). Every table ends on the whole session (`sessionTotals`), so
+the three add up to the same figure (a usage record whose cache reads and writes exceed its input is clamped so the types
+still do). A Values / Share toggle (`--share`, the same day) shows every row but the whole-session total as its share of that
+total in the week (`report.js:formatShare`), the totals keeping their values, so the relative contributions and their trend
+can be read; the shading follows the shares. Until that day the parts table showed the four alone with their own total; the rest is computed all the same (`BREAKDOWN`, `thinker report --json`) and written up
 with its numbers, the unit calibration (the model reports 1.44 tokens for every four characters: at chars/4 the parts
 cover 74% of a long session's input, the residual is the unit, not a missing part) and the cuts to consider in
 `research/context-breakdown-2026-10-22.md` (the owner's decision, 2026-10-22). The second table is by model under its provider
-(`prices.js:providerOf`), each row the model's share of the average session (its tokens over every session of
+(`prices.js:providerOf`), each row the model's share of the average prompt (its tokens over every prompt of
 the week), so the rows add up to the total and a switch of model shows as one row falling while another rises;
-the provider's subtotal is above its models and folds them. On the page each cell is shaded by its number against every
-cell of its table (the owner's asks of 2026-10-22, the last of several): the highest the darkest red, the lowest the
-darkest green, the rest in proportion with the middle plain (`SHADE_MIN`, a tenth of the range), in light shades; a
-total or subtotal row is scaled against its own weeks; no percentage in the cell; the command marks
+the provider's subtotal is above its models and folds them. On the page each cell is shaded by its number against its own
+row's weeks (by row since 2026-10-24, the owner's ask; against every cell of its table from 2026-10-22 until then): the
+row's highest the darkest red, its lowest the darkest green, the rest in proportion with the middle plain (`SHADE_MIN`,
+a tenth of the range), in light shades; no percentage in the cell; the command marks
 a cell `TREND_MIN` (5%) or more against the first week ▲ ▼, doubled past `TREND_BIG` (50%); a zero cell is blank.
 A Per session / Total toggle (`--total`) shows each week's sum over its sessions instead of the average. A session whose agent reports
 no usage (Cursor) is counted in no column and named as left out.
