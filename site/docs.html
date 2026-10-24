@@ -1015,7 +1015,7 @@ thinker skills scan                 <span class="code-comment"># card new or cha
           <thead><tr><th>View</th><th>What it does</th></tr></thead>
           <tbody>
             <tr><td><a href="#context">Find Savings</a></td><td>See context cost and use over 7 or 30 days, for one repository or all. Apply cuts, and follow them under Recent activity, whose badge counts what still needs you.</td></tr>
-            <tr><td>View Report</td><td>Track average session tokens or list-price costs over six weeks, by context part and model. Review your changes and the cache's savings below.</td></tr>
+            <tr><td>View Report</td><td>Track average session tokens or list-price costs over six weeks, by context part, model and token type. Review your changes and the cache's savings below.</td></tr>
           </tbody>
         </table></div>
         <pre><code>thinker ui --tab save --all         <span class="code-comment"># Find Savings across repositories</span>
@@ -1034,7 +1034,7 @@ thinker ui --port 4800 --no-open     <span class="code-comment"># fixed port, wi
               <tr><td><code>thinker setup [--no-ui]</code></td><td>Set one repository up from the terminal: connect the agents, then print where the agents' context goes there and what to cut first</td></tr>
               <tr><td><code>thinker connect</code></td><td>Wire the agents on this machine into their own settings, once; setup and the installer run it first</td></tr>
               <tr><td><code>thinker ui [--tab save | report] [--all] [--port n] [--no-open]</code></td><td>The <a href="#local-page">local page</a>: where the context goes and what to cut (<code>--all</code>: over every repository), and what a session costs here week by week</td></tr>
-              <tr><td><code>thinker report [--weeks n] [--cost] [--json]</code></td><td>The View Report view in the terminal: the average tokens a session cost, week by week, by part of the context and by model under its provider; <code>--cost</code> the same at list prices; then the actions taken on Find Savings and the cache's numbers</td></tr>
+              <tr><td><code>thinker report [--weeks n] [--cost] [--json]</code></td><td>The View Report view in the terminal: the average tokens a session cost, week by week, by token type, by part of the context and by model under its provider; <code>--cost</code> the same at list prices; then the actions taken on Find Savings and the cache's numbers</td></tr>
               <tr><td><code>thinker context [--days n] [--json] [--judge n] [--switch-off &lt;labels&gt;] [--output-compression &lt;tools&gt; --level moderate|off]</code></td><td>The <a href="#context">Find Savings view</a>'s report in the terminal; <code>--judge n</code> has a model read n recent sessions for which sections bore on them; the two switches are the page's <a href="#cuts">cuts</a> for tools and outputs</td></tr>
               <tr><td><code>thinker instructions [--compress | --remove &lt;ids&gt; [--pr]]</code></td><td>The sections of <code>AGENTS.md</code> and their tokens; shorten or drop some as a diff, and open a pull request with it</td></tr>
               <tr><td><code>thinker harness [--off | --undo]</code></td><td>The skills, MCP servers and plugins loaded into every session against what the sessions use; switch some off, or back on</td></tr>
