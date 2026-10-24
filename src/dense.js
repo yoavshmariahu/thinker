@@ -109,7 +109,14 @@ export const CE_MODEL = 'Xenova/ms-marco-MiniLM-L-6-v2';
 // serving strategy: off until an experiment shows it helps (AGENTS.md); `ce.understanding: { enabled: true }`
 // or THINKER_CE_UNDERSTANDING=on turns it on.
 export const UNDERSTANDING_POOL = { enabled: false, views: 'multi', floor: 0, fallbackFloor: -4, maxNotes: 1, budget: 600 };
-export const CE_DEFAULTS = { enabled: true, floor: 0, maxNotes: 2, k: 8, queryTokens: 120, fallbackFloor: null, views: 'search', understanding: UNDERSTANDING_POOL };
+// deadlineMs: the prompt hook's budget, measured from the start of its process (ops.js:orient `deadline`). The
+// cross-encoder is skipped when the hook reaches it past the deadline and abandoned when it has not answered by
+// it, and the lexical ranking is served either way (`ceDeadline: skipped | timeout` on the orient line). Why: on
+// 2026-10-24, with four test suites running at once (load average 90 on 8 cores), the hook took 13 s of wall
+// clock for 3.8 s of CPU and was cut off at Claude Code's 15 s limit; the lexical path took 0.45 s of CPU. 8 s
+// leaves the host's limit a margin on every client (15 s on Claude Code and Codex). null: no deadline.
+export const CE_DEADLINE_MS = 8000;
+export const CE_DEFAULTS = { enabled: true, floor: 0, maxNotes: 2, k: 8, queryTokens: 120, fallbackFloor: null, views: 'search', deadlineMs: CE_DEADLINE_MS, understanding: UNDERSTANDING_POOL };
 export function ceConfig(store) {
   const c = store?.config?.().ce; const cfg = { ...CE_DEFAULTS, ...(c === false ? { enabled: false } : c && typeof c === 'object' ? c : {}) };
   const e = process.env;
@@ -120,6 +127,8 @@ export function ceConfig(store) {
   if (e.THINKER_CE_QUERY_TOKENS) cfg.queryTokens = Number(e.THINKER_CE_QUERY_TOKENS);
   if (e.THINKER_CE_FALLBACK !== undefined && e.THINKER_CE_FALLBACK !== '') cfg.fallbackFloor = /^(off|none|false)$/i.test(e.THINKER_CE_FALLBACK) ? null : Number(e.THINKER_CE_FALLBACK);
   if (e.THINKER_CE_VIEWS) cfg.views = e.THINKER_CE_VIEWS;
+  if (e.THINKER_CE_DEADLINE !== undefined && e.THINKER_CE_DEADLINE !== '') cfg.deadlineMs = /^(off|none|false|0)$/i.test(e.THINKER_CE_DEADLINE) ? null : Number(e.THINKER_CE_DEADLINE);
+  if (cfg.deadlineMs === false || cfg.deadlineMs === 0 || !(cfg.deadlineMs == null || Number.isFinite(cfg.deadlineMs))) cfg.deadlineMs = null;
   if (cfg.fallbackFloor === false) cfg.fallbackFloor = null;
   const u = c && typeof c === 'object' && c.understanding && typeof c.understanding === 'object' ? c.understanding : {};
   cfg.understanding = { ...UNDERSTANDING_POOL, ...u };
@@ -127,6 +136,17 @@ export function ceConfig(store) {
   return cfg;
 }
 export const ceEnabled = store => ceConfig(store).enabled;
+// `work` within `ms`: { value } when it settles in time, { timedOut: true } when it does not. The work is not
+// stopped (an ONNX inference in flight cannot be), only no longer waited for: a hook that got this answer writes
+// its output and exits (commands/hooks.js), which ends the inference with the process.
+export function withDeadline(work, ms) {
+  if (!(ms > 0)) return Promise.resolve({ timedOut: true });
+  if (!Number.isFinite(ms)) return Promise.resolve(work).then(value => ({ value }));
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => resolve({ timedOut: true }), ms);
+    Promise.resolve(work).then(value => { clearTimeout(timer); resolve({ value }); }, e => { clearTimeout(timer); reject(e); });
+  });
+}
 let ce = null;
 async function loadCe() {
   if (ce) return ce;

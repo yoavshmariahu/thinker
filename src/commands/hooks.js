@@ -3,6 +3,7 @@ import { gitContext, tryImpact } from '../impact-journal.js';
 // The hook entrypoints the agents call (clients.js installs them): prompt, tool and stop, with the
 // background catch-up they start. JSON on stdin, the client's answer on stdout.
 import { noticeCard } from '../notice-card.js';
+import { ceConfig } from '../dense.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
@@ -42,6 +43,11 @@ export function wiringDue(file, cli, { now = Date.now() } = {}) {
   try { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, JSON.stringify({ key, at: new Date(now).toISOString() })); } catch {}
   return true;
 }
+
+// The output is written to a pipe, which macOS flushes asynchronously: the exit waits for it (end's callback
+// runs once every chunk written before it is out). Nothing after the output is lost: the background work the
+// hook starts is detached and unref'd, and the log is appended synchronously (store.js:log).
+function exitAfterOutput() { process.stdout.end(() => process.exit(0)); }
 
 async function hookCommand(ctx) {
   const { pos, flags, readStdin, sessionLearning, HERE, NO_LEARN } = ctx;
@@ -122,6 +128,9 @@ async function hookCommand(ctx) {
       if (isWorkerPrompt(ev.prompt)) { if (client === 'cursor' || client === 'cline' || client === 'agy') out(promptOutput(client, '')); return; }
       // Cursor answers once, in JSON: {continue}, with the bundle as additional_context (clients.js:promptOutput)
       let said = '';
+      // the cross-encoder was abandoned at the deadline (ops.js:orient): the hook exits once it has written, since the
+      // inference in flight would otherwise keep the process alive past the host's limit
+      let exitNow = false;
       await (async () => {
         if (store.exists() && session !== 'unknown') tryImpact(store, { op: 'impact-observation', session, ...gitContext(repo) });
         if (parks || client === 'cursor' || client === 'agy') takePending(store.dir, session);
@@ -199,7 +208,8 @@ async function hookCommand(ctx) {
         if (session !== 'unknown' && looksLikeCorrection(ev.prompt)) outcome(store, { session, turn: turn > 1 ? turn - 1 : undefined, positive: false, reason: 'correction prompt: ' + String(ev.prompt).slice(0, 80) });
         if (session !== 'unknown') rememberTask(store, session, ev.prompt);
         // a held-out turn is served nothing by the hooks, and what it would have been served is logged (ops.js:beginTurn)
-        const r = await orient(store, { task: ev.prompt || '', session: session === 'unknown' ? undefined : session, client, budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout, turn: turn || undefined });
+        const r = await orient(store, { task: ev.prompt || '', session: session === 'unknown' ? undefined : session, client, budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout, turn: turn || undefined, deadline: ceConfig(store).deadlineMs ?? undefined });
+        if (r.ceTimedOut) exitNow = true;
         if (!r.included.length) { const code = codeFor([]); if (offer || code) emit([offer, code].filter(Boolean).join('\n\n')); return; }
         // the titles of the notes not served went with lookup, which took their ids (2026-10-22)
         const text = `<thinker-cache>\n${cacheBundleIntro()}\n\n${r.text}${cursorFootnote(r.included)}\n</thinker-cache>`;
@@ -207,6 +217,7 @@ async function hookCommand(ctx) {
         emit([offer, text, codeFor(r.included), card].filter(Boolean).join('\n\n'));
       })();
       if (client === 'cursor' || client === 'cline' || client === 'agy') out(promptOutput(client, said));
+      if (exitNow) exitAfterOutput();
     } else if (pos[0] === 'pre') {
     // Before a shell command runs: a test run is answered with the same run through `thinker test`,
     // which keeps the log in a file and prints the failures grouped by cause (testing.js). Off
@@ -259,7 +270,7 @@ async function hookCommand(ctx) {
       const claim = () => { try { fs.mkdirSync(path.dirname(turn), { recursive: true }); fs.writeFileSync(turn, '', { flag: 'wx' }); return true; } catch { return false; } };
       if (!p && !mcpCall && ev.transcript_path && fs.existsSync(ev.transcript_path) && servesNotes(store) && claim()) {
         const task = parseTranscript(ev.transcript_path).events.filter(e => e.t === 'prompt').pop()?.text;
-        if (task && !isWorkerPrompt(task)) { const { turn, holdout } = beginTurn(store, session); const r = await orient(store, { task, session, client: 'cursor', budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout, turn: turn || undefined }); if (r.included.length) p = `<thinker-cache>\nNotes about this repo from earlier sessions; their code dependencies were re-hashed just now.\n\n${r.text}${cursorFootnote(r.included)}\n</thinker-cache>`; }
+        if (task && !isWorkerPrompt(task)) { const { turn, holdout } = beginTurn(store, session); const r = await orient(store, { task, session, client: 'cursor', budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout, turn: turn || undefined, deadline: ceConfig(store).deadlineMs ?? undefined }); if (r.included.length) p = `<thinker-cache>\nNotes about this repo from earlier sessions; their code dependencies were re-hashed just now.\n\n${r.text}${cursorFootnote(r.included)}\n</thinker-cache>`; }
       }
       if (p && !mcpCall) parts.push(p);
     }

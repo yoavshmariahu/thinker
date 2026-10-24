@@ -1,5 +1,6 @@
 // Core operations shared by the MCP server and the CLI.
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -12,7 +13,7 @@ import { servedFields } from './usage.js';
 import { complete } from './llm.js';
 import { tokensOf } from './model-usage.js';
 import { anchoringGuard, explicitIdents } from './guard.js';
-import { denseEnabled, denseScores, ceConfig, ceRerank } from './dense.js';
+import { denseEnabled, denseScores, ceConfig, ceRerank, withDeadline } from './dense.js';
 import { phraseKey } from './note-search.js';
 
 export { KINDS, KIND_ALIAS, kindOf, MUTABILITY };
@@ -252,7 +253,7 @@ export function codeSnippets(repo, notes, budget, { perNote = 2, max = 4, maxLin
 // what would have been served is logged as `withheld`, and nothing is served or marked served.
 // rerankModel (`rerank` in .thinker/config.json): a small model keeps, of the eight best candidates,
 // those that bear on the request; its choice is final. links: pull in one note linked from the best hit.
-export async function orient(store, { task, file, session, client, budget = HOOK_BUDGET, maxNotes = 2, relFloor = 0, refreshFirst = true, recordUsage = true, rerankModel = store.config().rerank, links = true, snippets = false, once = false, freshOnly = false, holdout = false, turn = undefined }) {
+export async function orient(store, { task, file, session, client, budget = HOOK_BUDGET, maxNotes = 2, relFloor = 0, refreshFirst = true, recordUsage = true, rerankModel = store.config().rerank, links = true, snippets = false, once = false, freshOnly = false, holdout = false, turn = undefined, deadline = undefined }) {
   const start = Date.now();
   let notes = store.list();
   const cached = notes.length;
@@ -296,14 +297,31 @@ export async function orient(store, { task, file, session, client, budget = HOOK
   // the understanding pool's pick (dense.js:UNDERSTANDING_POOL), when it is on: whatever the other notes hold
   let understood = [];
   const pool = (freshOnly ? poolRanked.filter(r => r.note.status !== 'stale') : poolRanked).filter(r => r.score > 0 && (r.rel > 0 || r.aff > 0));
+  // The hook's deadline (dense.js:CE_DEADLINE_MS), in ms since its process started: the cross-encoder runs only
+  // within what is left of it. Reached past it (a loaded machine: Node took 0.6 s to start and the lexical
+  // ranking 7 s of wall clock on 2026-10-24), the model is not loaded (`skipped`); not answered by it, the
+  // inference is no longer waited for (`timeout`) and the hook exits once it has written (`ceTimedOut`). Either
+  // way the lexical ranking is served as with the cross-encoder off, and the orient line says so with the
+  // machine's load average. A caller without a deadline (the agent's orient, a long-lived server) is unchanged.
+  let ceDeadline = null, ceTimedOut = false;
+  const withinDeadline = async run => {
+    const left = deadline == null ? Infinity : deadline - performance.now();
+    if (left <= 0) { ceDeadline = ceDeadline || 'skipped'; return null; } // a step abandoned before keeps `timeout`
+    const r = await withDeadline(run(), left);
+    if (r.timedOut) { ceDeadline = 'timeout'; ceTimedOut = true; return null; }
+    return r.value;
+  };
   if (pooled && pool.length) {
-    try { understood = await ceRerank(pool, task, { ...ceCfg, ...ceCfg.understanding }); } catch (e) { store.log({ op: 'ce-error', error: String(e.message).slice(0, 200) }); }
+    try { understood = (await withinDeadline(() => ceRerank(pool, task, { ...ceCfg, ...ceCfg.understanding }))) || []; } catch (e) { store.log({ op: 'ce-error', error: String(e.message).slice(0, 200) }); }
   }
   if (ceCfg.enabled && ranked.length && maxNotes <= 2) {
     if (freshOnly) ranked = ranked.filter(r => r.note.status !== 'stale');
-    try { ranked = await ceRerank(ranked, task, ceCfg); chosen = true; ce = ranked.map(r => Number(r.ce.toFixed(2))); if (ranked.some(r => r.fallback)) ce.push('fallback'); maxNotes = Math.min(maxNotes, ceCfg.maxNotes || maxNotes); }
-    catch (e) { store.log({ op: 'ce-error', error: String(e.message).slice(0, 200) }); } // no runtime or model: the lexical ranking serves as before
+    try {
+      const re = await withinDeadline(() => ceRerank(ranked, task, ceCfg));
+      if (re) { ranked = re; chosen = true; ce = ranked.map(r => Number(r.ce.toFixed(2))); if (ranked.some(r => r.fallback)) ce.push('fallback'); maxNotes = Math.min(maxNotes, ceCfg.maxNotes || maxNotes); }
+    } catch (e) { store.log({ op: 'ce-error', error: String(e.message).slice(0, 200) }); } // no runtime or model: the lexical ranking serves as before
   }
+  const deadlineFields = ceDeadline ? { ceDeadline, sinceStartMs: Math.round(performance.now()), load: Number(os.loadavg()[0].toFixed(1)) } : {};
   if (rerankModel && ranked.length) { try { ranked = await rerank(store, ranked, task, file, rerankModel); chosen = true; } catch (e) { store.log({ op: 'rerank-error', error: String(e.message) }); } }
   // what would have been served had staleness not held it back
   const held = freshOnly ? [...new Set([...heldByLexical, ...ranked.slice(0, maxNotes).filter(r => r.note.status === 'stale').map(r => r.note)])] : [];
@@ -333,19 +351,20 @@ export async function orient(store, { task, file, session, client, budget = HOOK
   // marked served, so a later turn in the same session is held out the same way
   if (holdout) {
     const withheld = packed.included.map(n => n.id);
-    if (recordUsage) store.log({ op: 'orient', session, turn, client: client || 'cli', dense: dense ? 'minilm' : undefined, ce: ce || undefined, understood: understood.length ? understood.map(r => Number(r.ce.toFixed(2))) : undefined, task: String(task).slice(0, 200), file, served: [], holdout: true, withheld, durationMs: Date.now() - start });
-    return { text: '', included: [], omitted: [], tokens: 0, holdout: true, withheld: packed.included };
+    if (recordUsage) store.log({ op: 'orient', session, turn, client: client || 'cli', dense: dense ? 'minilm' : undefined, ce: ce || undefined, ...deadlineFields, understood: understood.length ? understood.map(r => Number(r.ce.toFixed(2))) : undefined, task: String(task).slice(0, 200), file, served: [], holdout: true, withheld, durationMs: Date.now() - start });
+    return { text: '', included: [], omitted: [], tokens: 0, holdout: true, withheld: packed.included, ceTimedOut };
   }
   if (recordUsage) for (const n of packed.included) { n.uses = (n.uses || 0) + 1; n.lastUsed = new Date().toISOString(); if (session) n.servedIn = [...(n.servedIn || []), session].slice(-30); store.put(n); }
   if (recordUsage && session) trackTurn(store, session, packed.included.map(n => n.id));
   packed.held = held;
+  packed.ceTimedOut = ceTimedOut;
   // anchoring guard: name what the request mentions that the notes do not cover
   if (packed.included.length) {
     try { const g = anchoringGuard(store.repo, String(task), packed.included, { explicitOnly: true, max: 3 }); if (g.text) { packed.text += '\n\n' + g.text; packed.tokens += estTokens(g.text); packed.uncovered = g.uncovered.map(u => u.ident); } } catch {}
   }
   addSnippets(store, packed, budget, snippets);
   const empty = packed.included.length ? undefined : emptyReason({ cached, notes, lexical, ranked, ce, freshOnly });
-  if (recordUsage) store.log({ op: 'orient', session, turn, client: client || 'cli', empty, dense: dense ? 'minilm' : undefined, ce: ce || undefined, understood: understood.length ? understood.map(r => Number(r.ce.toFixed(2))) : undefined, task: String(task).slice(0, 200), file, served: packed.included.map(n => n.id), uncovered: packed.uncovered, snippets: packed.snippets?.length || undefined, stale: packed.included.filter(n => n.status === 'stale').map(n => n.id), held: held.length ? held.map(n => n.id) : undefined, durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
+  if (recordUsage) store.log({ op: 'orient', session, turn, client: client || 'cli', empty, dense: dense ? 'minilm' : undefined, ce: ce || undefined, ...deadlineFields, understood: understood.length ? understood.map(r => Number(r.ce.toFixed(2))) : undefined, task: String(task).slice(0, 200), file, served: packed.included.map(n => n.id), uncovered: packed.uncovered, snippets: packed.snippets?.length || undefined, stale: packed.included.filter(n => n.status === 'stale').map(n => n.id), held: held.length ? held.map(n => n.id) : undefined, durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
   return packed;
 }
 
