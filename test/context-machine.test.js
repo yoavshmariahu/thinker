@@ -123,7 +123,7 @@ test('suggestions are the flagged parts, costliest first, tools switched off lef
 
 // the installer's picker (setup/context-ask.js): the suggestions as the changes the page's rows make, in their repositories
 test('machineChanges: a section never applied is removed in its repository, a tool in every repository; applyMachinePicks goes through approveChanges per repository', async t => {
-  const { machineChanges, pickLine, pickNote, applyMachinePicks } = await import('../src/context-machine.js');
+  const { machineChanges, pickLine, pickNote, applyMachinePicks, suggestedPicks } = await import('../src/context-machine.js');
   const { changeHistory } = await import('../src/context-suggest.js');
   const { home, th, store } = machine(t);
   const a = repo(t), b = repo(t, { agents: null });
@@ -137,6 +137,11 @@ test('machineChanges: a section never applied is removed in its repository, a to
   assert.equal(sec.act, 'remove', 'applied in 0 of 2 sessions by its triggers: removed');
   assert.deepEqual(sec.targets.map(x => x.checkout), [a], 'in its own repository only');
   assert.equal(sec.targets[0].change.chosen, 'remove'); assert.equal(sec.targets[0].change.key, `section:AGENTS.md:${sec.id}`);
+  // the page the installer opens pre-checks the same rows with the same actions (suggestedPicks, sent with /api/context)
+  const sp = suggestedPicks(r.view);
+  assert.equal(sp.length, recs.items.length);
+  assert.deepEqual(sp.find(s => s.kind === 'section'), { kind: 'section', key: `section:AGENTS.md:${sec.id}`, repo: r.views[0].repo, act: 'remove' });
+  for (const s of sp.filter(s => s.kind !== 'section')) { assert.equal(s.act, 'off'); assert.equal(s.repo, null); }
   assert.equal(pickLine(sec), `Remove the AGENTS.md section "API views" in ${path.basename(a)}`);
   assert.match(pickNote(sec), /tokens a session, applied in 0 of 2 sessions$/);
   // a section the judge saw, or one applied somewhere, is compressed; a tool is switched off in every repository that has it

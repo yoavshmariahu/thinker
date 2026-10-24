@@ -102,6 +102,10 @@ test('the report for all repositories works from a directory that is no checkout
   assert.equal(r.status, 200, r.body);
   assert.equal(JSON.parse(r.body).empty, true, 'no repository with a cache: an empty report');
   assert.equal((await call(port, '/api/repos', {})).status, 200);
+  // the report carries the suggested savings the installer's page pre-checks (context-machine.js:suggestedPicks)
+  const c = await call(port, '/api/context?repo=all&days=7', {});
+  assert.equal(c.status, 200, c.body);
+  assert.deepEqual(JSON.parse(c.body).suggested, [], 'an array, empty with nothing read');
   assert.ok(!fs.existsSync(path.join(cwd, '.thinker')), 'nothing created outside a checkout');
 });
 

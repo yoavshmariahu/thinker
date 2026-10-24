@@ -349,8 +349,11 @@ const $ = s => document.querySelector(s);
 const H = () => new URLSearchParams(location.hash.slice(1));
 // the repositories with a cache (/api/repos); REPO is the one picked for Report, CREPO for Save
 let REPOS = [], REPO = H().get('tab') === 'report' ? (H().get('repo') || 'all') : 'all';
-// setup opens the page once (from=setup); a hint in the corner says how to come back to it, then fades
-if (H().get('from') === 'setup') {
+// setup opens the page once (from=setup); a hint in the corner says how to come back to it, then fades, and All
+// comes with the suggested savings checked (preselectRows), once
+const FROM_SETUP = H().get('from') === 'setup';
+let PRESELECT = FROM_SETUP;
+if (FROM_SETUP) {
   setTimeout(() => $('#hint').classList.add('show'), 600);
   setTimeout(() => $('#hint').classList.remove('show'), 8600);
 }
@@ -496,6 +499,19 @@ const skillShort = text => {
 };
 // what is picked in each view (its key → the row), kept across renders; each view's sort
 const PICKS = { all: new Map(), instructions: new Map(), custom: new Map(), builtin: new Map(), outputs: new Map() };
+// the action pre-picked in a row's dropdown (view\tkey → act), and whether All's picks are still the installer's
+const PREACT = new Map(); let PRESUGGESTED = false;
+// The page the installer opens (from=setup) comes with the suggested savings checked on All, each row's dropdown on
+// the suggested action: the rows the installer's terminal picker lists (context-machine.js:suggestedPicks, sent as
+// `suggested` with the report), so both doors offer the same picks. Nothing is applied until the person presses Apply;
+// a changed check is theirs from then on.
+function preselectRows(rows, suggested) {
+  for (const s of suggested) {
+    const r = rows.find(r => r.key === s.key && (!s.repo || !r.repo || r.repo === s.repo) && r.options.some(([a]) => a === s.act));
+    if (r) { PICKS.all.set(pickKey(r), r); PREACT.set(`all\t${pickKey(r)}`, s.act); }
+  }
+  PRESUGGESTED = PICKS.all.size > 0;
+}
 const VSORT = { all: 'wasted', instructions: 'wasted', custom: 'wasted', builtin: 'wasted', outputs: 'cost' };
 // one ordering for every table, by the figures the table shows over the window: most wasted (its waste a session times
 // the sessions it was in, what the summary ranks by), most costly (the Over N days column), most used (the share), by name;
@@ -539,14 +555,14 @@ function contextRows(v) {
   for (const s of v.skills || []) {
     const k = skillShort(s.text), o = s.outcome;
     rows.push({
-      view: 'custom', kind: 'skill', kindLabel: 'Skill', key: `${s.client}:${s.key}`, repo: repoOf(s), name: s.name, sub: [CLIENT[s.client] || s.client, s.repos > 1 ? `${s.repos} repositories` : ''].filter(Boolean).join(' · '),
+      view: 'custom', kind: 'skill', kindLabel: 'Skill', key: `${s.client}:${s.key}`, repo: repoOf(s), repoIds: s.repoIds, name: s.name, sub: [CLIENT[s.client] || s.client, s.repos > 1 ? `${s.repos} repositories` : ''].filter(Boolean).join(' · '),
       detail: (k.desc ? `<p class="muted">${esc(k.desc)}</p>` : '') + md(k.body) + (o?.read || o?.missed ? `<p class="muted">Sampled outcome check: rules kept in ${o.read - Math.min(o.read, o.brokenAfterRead)} of ${o.read} sessions that read it; missed (broken without reading it) ${o.missed || 0} times.</p>` : ''),
       tokens: s.tokens, perSession: s.perSession, sessions: s.loaded || 0, acted: s.loaded ? s.used / s.loaded : null, actedBy: `${s.used} of ${s.loaded} sessions opened it`,
       wasted: s.off ? null : s.wasted, waste: s.waste, off: Boolean(s.off), options: switchOpts(s), disabled: s.off || s.label ? '' : 'no setting switches this one off',
     });
   }
   for (const s of v.tools || []) rows.push({
-    view: s.group === 'builtin' ? 'builtin' : 'custom', kind: 'tool', kindLabel: KIND[s.kind] || s.kind || 'tool', key: `${s.client}:${s.key}`, repo: repoOf(s), name: s.name,
+    view: s.group === 'builtin' ? 'builtin' : 'custom', kind: 'tool', kindLabel: KIND[s.kind] || s.kind || 'tool', key: `${s.client}:${s.key}`, repo: repoOf(s), repoIds: s.repoIds, name: s.name,
     // Claude Code's own tools in bold (not the desktop app's entries, which nothing switches off): switching one off is a
     // bigger step than a skill, and the Apply asks first
     bold: s.kind === 'tool', sub: [CLIENT[s.client] || s.client, s.repos > 1 ? `${s.repos} repositories` : ''].filter(Boolean).join(' · '),
@@ -609,7 +625,7 @@ function renderTable(view, rows, { title, sub, note, nameHead, savings }) {
       <td class="num">${fmt(r.perSession * r.sessions)}</td>
       <td class="num">${r.wasted == null ? '<span class="muted">–</span>' : fmt(windowWaste(r))}</td>
       <td>${pt ? r.pr?.url ? `<a class="ctx-pill ${pc}" href="${esc(r.pr.url)}" target="_blank" rel="noopener">${esc(pt)}</a>` : `<span class="ctx-pill ${pc}">${esc(pt)}</span>` : ''}</td>
-      <td class="ctx-actcell"><div class="ctx-act">${r.options.length ? `<select class="sel" data-act="${i}" aria-label="Action">${r.options.map(([a, t]) => `<option value="${a}">${t}</option>`).join('')}</select>` : `<span class="why" title="${esc(r.disabled)}">—</span>`}</div></td></tr>
+      <td class="ctx-actcell"><div class="ctx-act">${r.options.length ? `<select class="sel" data-act="${i}" aria-label="Action">${r.options.map(([a, t]) => `<option value="${a}"${PREACT.get(`${view}\t${pickKey(r)}`) === a ? ' selected' : ''}>${t}</option>`).join('')}</select>` : `<span class="why" title="${esc(r.disabled)}">—</span>`}</div></td></tr>
       <tr class="ctx-detail" data-detail="${i}" hidden><td colspan="7"><div class="md-body">${r.detail}</div><div class="why">${fmt(r.perSession)} input tokens a session · acted on: ${esc(r.actedBy)}${r.wasted != null ? ` · ${r.kind === 'output' ? 'read again after the agent last used it:' : 'wasted in the sessions that did not use it:'} ~${fmt(r.wasted)} a session, ${fmt(windowWaste(r))} over ${CTX?.days || cdays} days` : ''}</div></td></tr>`;
   }).join('');
   return `<figure class="ctx-figure"><figcaption><b>${title}</b> <span class="ctx-sub">${sub}</span><span class="ctx-capact"><span class="ctx-sub" data-seln="${view}"></span><button class="btn" data-apply-picked="${view}" disabled title="Apply the action picked in each checked row">Apply</button></span></figcaption>
@@ -621,14 +637,15 @@ function renderTable(view, rows, { title, sub, note, nameHead, savings }) {
 function bulkState() {
   for (const [view, m] of Object.entries(PICKS)) {
     const rs = [...m.values()], days = CTX?.days || cdays;
-    document.querySelectorAll(`[data-seln="${view}"]`).forEach(l => l.textContent = rs.length ? `${rs.length} picked · ${fmt(rs.reduce((a, r) => a + (r.tokens || 0), 0))} tokens per call, ${fmt(rs.reduce((a, r) => a + r.perSession * r.sessions, 0))} over ${days} days` : 'Check rows, pick their actions');
+    const pre = view === 'all' && PRESUGGESTED && rs.length;
+    document.querySelectorAll(`[data-seln="${view}"]`).forEach(l => l.textContent = rs.length ? `${rs.length} ${pre ? 'suggested savings checked for you' : 'picked'} · ${fmt(rs.reduce((a, r) => a + (r.tokens || 0), 0))} tokens per call, ${fmt(rs.reduce((a, r) => a + r.perSession * r.sessions, 0))} over ${days} days${pre ? ' · review the actions, then Apply, or uncheck' : ''}` : 'Check rows, pick their actions');
     document.querySelectorAll(`[data-apply-picked="${view}"]`).forEach(b => b.disabled = !rs.length);
   }
 }
 // the rows a view shows (by index) and what its table does: picks, See more, Apply, the sort
 function wireTable(root, view, rows) {
   const sorted = sortRows(rows, VSORT[view]);
-  root.querySelectorAll(`[data-pick="${view}"]`).forEach(c => { c.onchange = () => { const r = sorted[Number(c.dataset.i)]; c.checked ? PICKS[view].set(pickKey(r), r) : PICKS[view].delete(pickKey(r)); c.closest('tr').classList.toggle('ctx-picked', c.checked); bulkState(); }; });
+  root.querySelectorAll(`[data-pick="${view}"]`).forEach(c => { c.onchange = () => { const r = sorted[Number(c.dataset.i)]; c.checked ? PICKS[view].set(pickKey(r), r) : PICKS[view].delete(pickKey(r)); c.closest('tr').classList.toggle('ctx-picked', c.checked); if (view === 'all') PRESUGGESTED = false; bulkState(); }; });
   root.querySelectorAll('[data-more]').forEach(b => b.onclick = () => { const d = root.querySelector(`[data-detail="${b.dataset.more}"]`), open = d.hidden; d.hidden = !open; b.setAttribute('aria-expanded', String(open)); b.textContent = open ? 'See less' : 'See more'; });
   const actOf = i => root.querySelector(`[data-act="${i}"]`)?.value;
   root.querySelector('[data-apply-picked]')?.addEventListener('click', e => {
@@ -654,10 +671,12 @@ async function applyRows(view, items, btn) {
   if (btn) busy(btn, secs.some(x => x.act === 'compress') ? 'Compressing…' : 'Applying…');
   try {
     if (rest.length) {
-      // in All repositories a merged tool applies to every repository
+      // in All repositories a merged skill or tool applies to each repository it came from (context-view.js:mergeViews
+      // `repoIds`), an output to every repository
       const byRepo = new Map();
-      for (const { r, act } of rest) for (const repo of r.repo ? [r.repo] : (CTX?.repos || []).map(x => x.repo)) { if (!byRepo.has(repo)) byRepo.set(repo, { keys: [], acts: {} }); const g = byRepo.get(repo); g.keys.push(r.key); g.acts[r.key] = act; }
-      const said = []; for (const [repo, g] of byRepo) said.push((await api('/api/changes/approve', { repo, ...g, days: cdays })).said);
+      for (const { r, act } of rest) for (const repo of r.repo ? [r.repo] : r.repoIds?.length ? r.repoIds : (CTX?.repos || []).map(x => x.repo)) { if (!byRepo.has(repo)) byRepo.set(repo, { keys: [], acts: {} }); const g = byRepo.get(repo); g.keys.push(r.key); g.acts[r.key] = act; }
+      // one repository failing (a checkout gone since the report) is said in its line; the others are still made
+      const said = []; for (const [repo, g] of byRepo) { try { said.push((await api('/api/changes/approve', { repo, ...g, days: cdays })).said); } catch (err) { said.push(`${REPOS.find(x => x.id === repo)?.name || repo}: ${err.message}`); } }
       toast(said.join(' ') || 'Done');
     }
     // the diff is in the modal, with its own button: the row's button is a button again
@@ -706,6 +725,8 @@ function renderContext(v) {
   let h = '';
   // one table at a time under the chart: every part on All, then one kind each; History last, at the row's far right
   const all = contextRows(v), of = view => all.filter(r => r.view === view), perSession = rs => rs.reduce((a, r) => a + (r.off ? 0 : r.perSession), 0);
+  // opened by the installer: All's suggested savings come checked, once (the person's checks hold from then on)
+  if (PRESELECT && all.length) { PRESELECT = false; preselectRows(all, v.suggested || []); }
   const VIEWS = [['all', 'All'], ['instructions', 'Instruction files'], ['custom', 'Custom tools'], ['builtin', 'Built-in tools'], ['outputs', 'Tool outputs'], ['history', 'History']];
   const num = k => k === 'history' ? '<span class="spinner"></span>' : `${fmt(k === 'all' ? perSession(all) : t[k]?.perSession || 0)} <span>a session</span>`;
   h += `<div class="vtabs" id="c-view" role="tablist">${VIEWS.map(([k, name]) => `<button role="tab" data-view="${k}" aria-selected="${CVIEW === k}" class="${[CVIEW === k ? 'on' : '', k === 'history' ? 'vt-end' : ''].join(' ').trim()}"><span class="vt-name">${name}</span><span class="vt-num" id="vt-${k}">${num(k)}</span></button>`).join('')}</div>`;

@@ -109,6 +109,13 @@ test('the Save tab and `thinker context` show one report, and its controls are t
   const machine = read('context-machine.js'), install = fs.readFileSync(path.join(SRC, '..', 'install.sh'), 'utf8');
   assert.match(install, /"\$thinker" context --machine/);
   assert.match(read('setup/context-ask.js'), /'ui', '--from-setup', '--tab', 'save', \.\.\.\(all \? \['--all'\]/);
+  // and that page opens with the terminal picker's suggestions checked: the same rows and actions, from one function
+  // (context-machine.js:suggestedPicks, sent with the report as `suggested`; page.html:preselectRows on from=setup)
+  assert.match(machine, /export function suggestedPicks\(view/); assert.match(machine, /const act = suggestedAct\(x\), key = suggestedKey\(x\)/);
+  assert.match(read('ui/server.js'), /suggested: suggestedPicks\(view\)/);
+  assert.match(read('ui/page.html'), /const FROM_SETUP = H\(\)\.get\('from'\) === 'setup'/);
+  assert.match(read('ui/page.html'), /preselectRows\(all, v\.suggested \|\| \[\]\)/);
+  assert.match(read('setup/context-ask.js'), /suggested savings already checked/);
   assert.match(read('commands/context.js'), /machineContext\(store, \{ days, limit/);
   assert.match(machine, /mergeViews\(views\)/); assert.match(read('ui/server.js'), /mergeViews\(xs\.map/);
   assert.match(machine, /writeSnapshot\(st, d, v/); assert.match(machine, /refreshCheckouts\(store/);
