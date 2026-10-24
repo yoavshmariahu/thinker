@@ -140,11 +140,10 @@
     /* what an action changed since it was taken (report.js:actionEffect): a session before against since, the saving green; a cost red */
     /* what a decision saved a session (report.js:actionEffect): a saving green, a cost red */
     .ctx-table td.ctx-saved { font-weight: 600; } /* shaded inline: green for a saving, red for a cost (historyFigure shadeOf) */
-    /* the average prompt over the Saved column (historyFigure promptAvg): the size the savings are read against */
-    .ctx-table tr.ctx-avg-row th { border-bottom: 0; padding-bottom: 0; }
-    .ctx-table th.ctx-avg { text-transform: none; letter-spacing: 0; font-size: 0.8rem; color: #374151; background: #f3f4f6; border-radius: 6px 6px 0 0; padding: 0.4rem 0.6rem; }
-    .ctx-table th.ctx-avg b { font-size: 1rem; color: #111827; margin: 0 0.25rem; }
-    .ctx-table th.ctx-avg .ctx-avg-label { display: block; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; color: #6b7280; }
+    /* the average prompt beside the Decisions title (historyFigure promptAvg): the size the savings are read against, on the caption line */
+    .ctx-figure figcaption .ctx-avg { font-size: 0.8rem; color: #374151; background: #f3f4f6; border-radius: 6px; padding: 0.15rem 0.6rem; gap: 0.35rem; white-space: nowrap; }
+    .ctx-figure figcaption .ctx-avg b { font-size: 0.95rem; color: #111827; }
+    .ctx-figure figcaption .ctx-avg .ctx-avg-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; color: #6b7280; }
     .ctx-table td.ctx-saved .muted { font-weight: 400; }
     .ctx-compare { border-collapse: collapse; margin: 0.4rem 0; font-size: 0.8rem; }
     .ctx-compare th, .ctx-compare td { padding: 0.2rem 0.8rem 0.2rem 0; text-align: right; font-variant-numeric: tabular-nums; }
@@ -799,8 +798,8 @@ const doneOf = e => e.running ? ['busy', `<span class="spinner"></span>${e.job.a
 // what a decision still needs of the person, in a few words (the card at the top of Recent activity)
 const needOf = e => e.running ? null : e.failed ? `retry it, or pick the section again: ${e.job.error}` : e.pending ? `merge or close pull request #${e.pr.number}` : null;
 const HISTORY_PAGE = TABLE_PAGE, HPAGE = {};
-// `promptAvg` (report.js:promptAverage): what a prompt costs on average here, shown in a cell over the Saved column as the
-// size the savings are read against. No text under the table (2026-10-24, the owner's ask): the cells' hovers explain.
+// `promptAvg` (report.js:promptAverage): what a prompt costs on average here, shown on the caption line beside the title as
+// the size the savings are read against (2026-10-24: a header row over Saved took a line of its own). No text under the table (2026-10-24, the owner's ask): the cells' hovers explain.
 function historyFigure(hs, { many, caption, sub, empty, key = 'history', pageSize = HISTORY_PAGE, promptAvg = null }) {
   const pages = Math.max(1, Math.ceil(hs.length / pageSize)), page = Math.min(pages - 1, HPAGE[key] || 0), from = page * pageSize, shown = hs.slice(from, from + pageSize);
   const when = t => new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
@@ -840,8 +839,9 @@ function historyFigure(hs, { many, caption, sub, empty, key = 'history', pageSiz
       <tr class="ctx-detail" data-detail="${i}" hidden><td colspan="8"><div class="md-body">${detail(e)}</div></td></tr>`; }).join('');
   const reverted = hs.filter(e => e.revertedAt).length;
   const pager = pagerOf(key, hs.length, page, pageSize).replace(/data-vpage=/g, 'data-page=');
-  return `<figure class="ctx-figure" data-history><figcaption><b>${caption}</b> <span class="ctx-sub">${sub ? `${sub} · ` : ''}${hs.length} decision${hs.length === 1 ? '' : 's'}${reverted ? ` · ${reverted} reverted` : ''}</span></figcaption>
-    ${hs.length ? `<table class="ctx-table"><thead>${promptAvg ? `<tr class="ctx-avg-row"><th colspan="4"></th><th class="num ctx-avg" title="${esc(`What a prompt (one call to the model) costs here on average: ${fmt(promptAvg.tokens)} input tokens over ${promptAvg.prompts} prompts in ${promptAvg.sessions} sessions. Saved is read against it: its share of the prompt, and the shade of its cell.`)}"><span class="ctx-avg-label">Average prompt</span><b>${fmt(promptAvg.perPrompt)}</b> tokens</th><th colspan="3"></th></tr>` : ''}<tr><th>Change</th><th class="num">Decided</th><th class="num" title="What the changed thing cost a prompt (one call to the model), over the sessions before the decision">Before</th><th class="num" title="What it costs a prompt over the sessions since">After</th><th class="num" title="Before minus after, a prompt, and its share of what a prompt cost before the decision">Saved</th><th>Pull request</th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table>${pager}` : `<div class="empty">${empty}</div>`}
+  const avgStat = promptAvg ? `<span class="ctx-capact ctx-avg" title="${esc(`What a prompt (one call to the model) costs here on average: ${fmt(promptAvg.tokens)} input tokens over ${promptAvg.prompts} prompts in ${promptAvg.sessions} sessions. Saved is read against it: its share of the prompt, and the shade of its cell.`)}"><span class="ctx-avg-label">Average prompt</span><b>${fmt(promptAvg.perPrompt)}</b> tokens</span>` : '';
+  return `<figure class="ctx-figure" data-history><figcaption><b>${caption}</b> <span class="ctx-sub">${sub ? `${sub} · ` : ''}${hs.length} decision${hs.length === 1 ? '' : 's'}${reverted ? ` · ${reverted} reverted` : ''}</span>${avgStat}</figcaption>
+    ${hs.length ? `<table class="ctx-table"><thead><tr><th>Change</th><th class="num">Decided</th><th class="num" title="What the changed thing cost a prompt (one call to the model), over the sessions before the decision">Before</th><th class="num" title="What it costs a prompt over the sessions since">After</th><th class="num" title="Before minus after, a prompt, and its share of what a prompt cost before the decision">Saved</th><th>Pull request</th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table>${pager}` : `<div class="empty">${empty}</div>`}
     </figure>`;
 }
 function wireHistory(root, hs, reload, rerender) {

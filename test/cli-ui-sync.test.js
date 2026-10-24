@@ -275,6 +275,8 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('commands/context.js'), /A prompt here costs \$\{formatTokens\(avg\.perPrompt\)\} tokens on average/);
   assert.match(read('ui/page.html'), /promptAvg: d\.promptAvg \|\| null/);
   assert.match(read('ui/page.html'), /<span class="ctx-avg-label">Average prompt<\/span><b>\$\{fmt\(promptAvg\.perPrompt\)\}<\/b> tokens/);
+  assert.match(read('ui/page.html'), /<\/span>\$\{avgStat\}<\/figcaption>/, 'the average prompt sits on the caption line, not in a header row');
+  assert.doesNotMatch(read('ui/page.html'), /ctx-avg-row/);
   assert.match(read('ui/page.html'), /<th class="num"[^>]*>Before<\/th><th class="num"[^>]*>After<\/th><th class="num"[^>]*>Saved<\/th><th>Pull request<\/th>/);
   assert.doesNotMatch(read('ui/page.html'), /A section's change runs in the background and <b>o/);
   // the cost view is the command's --cost: list prices from prices.js, the unpriced models named on both

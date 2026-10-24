@@ -1412,7 +1412,7 @@ its results cost the session (`tool-outputs.js:sessionUsage` `by`, a compressed 
 over its sessions divided by their prompts, so no row moves with another action or with what the sessions did. Saved is positive
 for a saving and negative for a cost, with its share of what a whole prompt cost before the decision (`whole.before`), not of the
 thing's own size, so a small cut of a large part counts for what it is; the cell is shaded by that share (`page.html` `shadeOf`,
-green or red, a tenth of a prompt the darkest), never coloured text; a cell over the Saved column shows what a prompt costs here
+green or red, a tenth of a prompt the darkest), never coloured text; the caption line shows, beside the Decisions title, what a prompt costs here
 on average (`report.js:promptAverage` over the view's `sessionRows`, `promptAverageHere`, merged for All repositories), the size the
 savings are read against, and `--history` prints the same line first; no text under the table, the hovers explain (the owner's
 asks, 2026-10-24). A Pull request column links the section's PR. The view keeps one row a measured session for all this
