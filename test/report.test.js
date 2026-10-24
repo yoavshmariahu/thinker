@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
-import { reportView, mergeReports, renderReport, trend, change, weekColumns, weekStart, cacheMetrics, PARTS, BREAKDOWN, outputComparison, actionEffect, itemCost, effectSpan, reportTop, withEffects } from '../src/report.js';
+import { reportView, mergeReports, renderReport, trend, change, weekColumns, weekStart, cacheMetrics, PARTS, BREAKDOWN, outputComparison, actionEffect, itemCost, effectSpan, withEffects, promptAverage, mergePromptAverages } from '../src/report.js';
 import { listPrice, providerOf, costOf, formatDollars } from '../src/prices.js';
 
 function fixture(t) {
@@ -131,18 +131,19 @@ test('the report averages each week over its sessions, by part and by model unde
   assert.deepEqual(Object.keys(v.sessionRows[0].parts), ['instructions', 'custom', 'builtin', 'outputs']);
   assert.deepEqual(Object.keys(v.sessionRows[0]).sort(), ['calls', 'files', 'input', 'outputs', 'parts', 'prompts', 'sources', 't']); assert.equal(v.sessionRows[0].prompts, 2);
   // the action in the window with what it alone saved: the Workflow tool was loaded in no fixture session, so before and
-  // since cost 0 a prompt, over 1 session before and 3 since; the Report's top list holds it
+  // since cost 0 a prompt, over 1 session before and 3 since
   const f = v.actions[0].effect;
   assert.deepEqual([f.before.sessions, f.after.sessions, f.before.prompts, f.after.prompts, f.before.perPrompt, f.after.perPrompt, f.delta, f.window, f.few], [1, 3, 2, 6, 0, 0, 0, 0, true]);
-  assert.deepEqual(v.top.map(a => a.id), ['h1']);
+  // what a prompt costs on average over the measured sessions: 4,000 + 200 + 1,000 + 1,000 input over 8 prompts
+  assert.deepEqual(promptAverage(v.sessionRows), { sessions: 4, prompts: 8, tokens: 6200, perPrompt: 775 });
+  assert.equal(promptAverage([]), null);
   // the command's text: the two tables with totals, the marks, the actions and the cache
   const text = renderReport(v).join('\n');
   assert.match(text, /By part of the context/); assert.match(text, /TOTAL/); assert.match(text, /ANTHROPIC/); assert.match(text, /claude-opus-5-5/);
-  assert.match(text, /mystery-9 \(unpriced\)/); assert.match(text, /Workflow tool/); assert.match(text, /\$ saved\s+\$0\.00/); assert.match(text, /per prompt \(one call to the model\), by week \(.*sessions, 0, 0, 0, 0, 4, 4 prompts\)/);
+  assert.match(text, /mystery-9 \(unpriced\)/); assert.match(text, /\$ saved\s+\$0\.00/); assert.match(text, /per prompt \(one call to the model\), by week \(.*sessions, 0, 0, 0, 0, 4, 4 prompts\)/);
   // --total: the improvements over the prompts since
-  assert.match(renderReport(v, { total: true }).join('\n'), /saved since {11}pull request  change/);
-  // Recent improvements: one line an action with before, after, saved a prompt and the pull request
-  assert.match(text, /Recent improvements\n  decided {6}before {3}after  saved a prompt {8}pull request  change\n  \d{4}-\d\d-\d\d {8}0 {7}0  0 \(few\) {15}– {13}Workflow tool\n/);
+  // the decisions are not on the Report (they are Recent activity's and `thinker context --history`'s)
+  assert.doesNotMatch(text, /Recent improvements|Saved with thinker|Workflow tool/);
   assert.doesNotMatch(text, /Saved with thinker/);
   assert.match(renderReport(v, { cost: true }).join('\n'), /list prices/);
   assert.match(renderReport(v, { total: true }).join('\n'), /Total tokens over the week's sessions/);
@@ -152,7 +153,8 @@ test('the report averages each week over its sessions, by part and by model unde
   assert.equal(m.sessionTotals[last].tokens, 4400); assert.equal(m.columns[last].prompts, 8); assert.equal(m.sessionTotals[last].prompts, 8);
   assert.equal(m.models.find(x => x.model === 'claude-opus-5-5').cells[last].sessions, 4);
   assert.deepEqual(m.actions.map(a => a.repoName), ['A', 'B']);
-  assert.deepEqual(m.top.map(a => a.repoName), ['A', 'B'], 'the top list over every repository');
+  assert.deepEqual(mergePromptAverages([promptAverage(v.sessionRows), promptAverage(v.sessionRows), null]), { sessions: 8, prompts: 16, tokens: 12400, perPrompt: 775 });
+  assert.equal(mergePromptAverages([null]), null);
   assert.equal(mergeReports([]), null);
 });
 
@@ -187,7 +189,7 @@ test('outputComparison: a compressed tool against itself before, the saving a se
   assert.equal(outputComparison(rows, 'Read'), null);
 });
 
-test('actionEffect: what one decision saved, attributed to the thing it changed alone; reportTop the five in effect that saved most', () => {
+test('actionEffect: what one decision saved, attributed to the thing it changed alone; withEffects over a history', () => {
   const T0 = Date.parse('2026-10-01T00:00:00Z'), H = 3600_000;
   const row = (h, x) => ({ t: T0 + h * H, input: 10000, prompts: 1, parts: { instructions: 0, custom: 0, builtin: 0, outputs: 0 }, calls: 10, files: ['AGENTS.md'], sources: {}, outputs: {}, ...x });
   const rows = [row(0, { sources: { 'claude:tool:Workflow': 4000 }, outputs: { 'Bash:grep': 9000 } }), row(1, { sources: { 'claude:tool:Workflow': 4000 }, files: [] }), row(10, { outputs: { 'Bash:grep': 1000 } }), row(11, { calls: 20 }), row(20, { sources: { 'claude:tool:Workflow': 2000 } })];
@@ -235,14 +237,6 @@ test('actionEffect: what one decision saved, attributed to the thing it changed 
   assert.equal(actionEffect({ ...sec, at: at(25) }, rows, now), null);
   assert.equal(actionEffect(sec, [], now), null);
   assert.equal(actionEffect({ ...sec, tokens: null }, rows, now), null);
-  // the Report's five: in effect only (never reverted, dismissed, pending or failed), the ones that saved most first, the
-  // unmeasured after them by their estimate, newest first among equals
-  const hs = withEffects([
-    { ...tool, id: 'tool' }, { ...sec, id: 'sec' }, { ...sec, id: 'rev', revertedAt: at(15) }, { ...sec, id: 'dis', decision: 'dismissed' }, { ...sec, id: 'pend', pr: { state: 'open' } },
-    { ...sec, id: 'late', at: at(25), total: 50 }, { ...sec, id: 'later', at: at(26), total: 900 }, { ...tool, id: 'tool2', key: 'claude:tool:Other', at: at(2) },
-  ], rows, now);
-  assert.deepEqual(reportTop(hs, { now }).map(e => e.id), ['tool', 'sec', 'tool2', 'later', 'late']);
-  assert.deepEqual(reportTop(hs, { now, max: 2 }).map(e => e.id), ['tool', 'sec']);
   // the same thing decided twice: the first is measured until the second is in effect (hours 5 to 15: two sessions since)
   const twice = withEffects([{ ...tool, id: 'first' }, { ...tool, id: 'second', at: at(15) }, { ...tool, id: 'dis', at: at(12), decision: 'dismissed' }], rows, now);
   assert.equal(twice.find(e => e.id === 'first').effect.after.sessions, 2, 'hours 10 and 11'); assert.equal(twice.find(e => e.id === 'second').effect.after.sessions, 1, 'hour 20');

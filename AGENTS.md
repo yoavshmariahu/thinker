@@ -1399,27 +1399,24 @@ one scale; a part's cost is its share of the session's input cost. The rule that
 the page says under the toggle that it is a list price, what a metered key would pay and not a subscription. A
 model without a price is left out of the cost average and named as unpriced, never counted at zero.
 
-Under the tables, **Recent improvements (2026-10-24, the owner's asks: before and after a session as columns, each row
-attributed to its own change, a pull request column, no summary cards, no See more or Revert there)**: the five actions in
-effect that saved most (`report.js:reportTop`, `top`; never a reverted, dismissed, failed or still pending one), one row each
-with Decided, Before, After, Saved and Pull request. Before and After are what the changed thing alone cost a prompt
-(`actionEffect`, `itemCost`): a section its tokens on that side (recorded on the decision from the edit's preview,
-`context-suggest.js:sectionTokens`, `tokens: {before, after}`; 0 after a removal) times the model calls of the sessions that
-read its file; a skill, MCP server, plugin or built-in tool its tokens a call times the calls of the sessions that loaded it
-(`harness.js` timeline `loaded`); a tool's outputs what its results cost the session (`tool-outputs.js:sessionUsage` `by`);
-each summed over the window's measured sessions before the decision, or over those since it was in effect (`effectSpan`:
-until a revert; a merged pull request from its merge), and divided by their prompts, so no row moves with another action or
-with what the sessions did; `window` the delta over the prompts since, `few` under five sessions a side. Saved is positive
-for a saving and negative for a cost, and its share is of what a whole prompt cost before the decision (`whole.before`, the
-sessions' input over their prompts), not of the thing's own size, so a small cut of a large part counts for what it is; the
-Saved cell is shaded, green for a saving and red for a cost, darker with that share (`page.html` `shadeOf`, a tenth of a
-prompt the darkest), never coloured text; the Per prompt
-/ Total toggle reaches the table (`mode`): Total shows the thing over the prompts since the decision at its rate before
-(`since.atBefore`) against as it was (`since.total`), Saved exactly their gap, so the impact reads off the row (the owner's
-asks, 2026-10-24 evening). The view keeps one row a measured session for it
-(`sessionRows`: input, prompts, the four parts, calls, files, sources, outputs; not sent to the page), and the server works the actions
-out live over the kept report. Recent activity and `thinker context --history` show every decision with the same three
-figures (`report-snapshot.js:historyEffects`, over the kept report without making one), with Revert and See more as before; and the four numbers the Cache tab showed
+Under the tables: the four numbers the Cache tab showed. **The decisions are not on the Report (2026-10-24, the owner's
+call: a table of them under a Total toggle compared spans of different lengths).** They are on Recent activity and
+`thinker context --history`, every decision with three columns beside its date, Before, After and Saved (`report.js:actionEffect`,
+`itemCost`; the history read over the kept report by `report-snapshot.js:historyEffects`, no report made): what the changed
+thing alone cost a prompt, one call to the model, over the window's measured sessions before the decision and over those since
+it was in effect (`effectSpan`: until a revert; a merged pull request from its merge; a thing decided again later until the later
+decision). A section's tokens (recorded on the decision from the edit's preview, `context-suggest.js:sectionTokens`, `tokens:
+{before, after}`, 0 after a removal) count in every call of the sessions that read its file; a skill, MCP server, plugin or
+built-in tool its tokens a call in the calls of the sessions that loaded it (`harness.js` timeline `loaded`); a tool's outputs what
+its results cost the session (`tool-outputs.js:sessionUsage` `by`, a compressed tool's key carrying its level); each side the sum
+over its sessions divided by their prompts, so no row moves with another action or with what the sessions did. Saved is positive
+for a saving and negative for a cost, with its share of what a whole prompt cost before the decision (`whole.before`), not of the
+thing's own size, so a small cut of a large part counts for what it is; the cell is shaded by that share (`page.html` `shadeOf`,
+green or red, a tenth of a prompt the darkest), never coloured text; a cell over the Saved column shows what a prompt costs here
+on average (`report.js:promptAverage` over the view's `sessionRows`, `promptAverageHere`, merged for All repositories), the size the
+savings are read against, and `--history` prints the same line first; no text under the table, the hovers explain (the owner's
+asks, 2026-10-24). A Pull request column links the section's PR. The view keeps one row a measured session for all this
+(`sessionRows`: input, prompts, the four parts, calls, files, sources, outputs; not sent to the page)
 (`report.js:cacheMetrics`, from `usage.js:summarize` over the same window), with the saving in dollars first
 (the tokens saved on each model at that model's input list price: the holdout's figure by model where it is
 measured, else the servings acted on), then tokens saved, cache hits and the share acted on. All repositories is

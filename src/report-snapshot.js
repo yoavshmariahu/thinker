@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { reportView, withEffects, REPORT_WEEKS } from './report.js';
+import { reportView, withEffects, REPORT_WEEKS, promptAverage } from './report.js';
 
 export const REFRESH_MS = 10 * 60_000;
 const LOCK_MS = 5 * 60_000;
@@ -78,4 +78,9 @@ export function dropReports(store) {
 // Recent activity and `thinker context --history` show beside Recent improvements. With no kept report the effects are null.
 export function historyEffects(store, history, { weeks = REPORT_WEEKS, now = Date.now() } = {}) {
   return withEffects(history, readReport(store, weeks, { now })?.view?.sessionRows || [], now);
+}
+
+// What a prompt costs on average here (report.js:promptAverage), over the report kept here; null without one.
+export function promptAverageHere(store, { weeks = REPORT_WEEKS, now = Date.now() } = {}) {
+  return promptAverage(readReport(store, weeks, { now })?.view?.sessionRows || []);
 }

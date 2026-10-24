@@ -140,6 +140,11 @@
     /* what an action changed since it was taken (report.js:actionEffect): a session before against since, the saving green; a cost red */
     /* what a decision saved a session (report.js:actionEffect): a saving green, a cost red */
     .ctx-table td.ctx-saved { font-weight: 600; } /* shaded inline: green for a saving, red for a cost (historyFigure shadeOf) */
+    /* the average prompt over the Saved column (historyFigure promptAvg): the size the savings are read against */
+    .ctx-table tr.ctx-avg-row th { border-bottom: 0; padding-bottom: 0; }
+    .ctx-table th.ctx-avg { text-transform: none; letter-spacing: 0; font-size: 0.8rem; color: #374151; background: #f3f4f6; border-radius: 6px 6px 0 0; padding: 0.4rem 0.6rem; }
+    .ctx-table th.ctx-avg b { font-size: 1rem; color: #111827; margin: 0 0.25rem; }
+    .ctx-table th.ctx-avg .ctx-avg-label { display: block; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; color: #6b7280; }
     .ctx-table td.ctx-saved .muted { font-weight: 400; }
     .ctx-compare { border-collapse: collapse; margin: 0.4rem 0; font-size: 0.8rem; }
     .ctx-compare th, .ctx-compare td { padding: 0.2rem 0.8rem 0.2rem 0; text-align: right; font-variant-numeric: tabular-nums; }
@@ -262,7 +267,7 @@
       <div id="context-body" class="section"><div class="empty"><svg class="logo-spin" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="22" r="6"/><circle cx="16" cy="16" r="6"/><circle cx="22" cy="10" r="6"/></svg>Reading the transcripts…</div></div>
     </section>
 
-    <!-- Report: what a prompt (one call to the model) costs here week by week, by part and by model, the recent improvements with what each saved, the cache's numbers (report.js, as `thinker report`) -->
+    <!-- Report: what a prompt (one call to the model) costs here week by week, by part and by model, the cache's numbers (report.js, as `thinker report`) -->
     <section id="tab-report" hidden>
       <div class="ctx-top"><div><h1>View Report</h1>
       <p class="lede">What a prompt costs here, week by week: the average over each week's prompts (one call to the model each), by where the tokens went and by the model that read them <span class="muted" id="r-asof"></span></p></div>
@@ -794,10 +799,9 @@ const doneOf = e => e.running ? ['busy', `<span class="spinner"></span>${e.job.a
 // what a decision still needs of the person, in a few words (the card at the top of Recent activity)
 const needOf = e => e.running ? null : e.failed ? `retry it, or pick the section again: ${e.job.error}` : e.pending ? `merge or close pull request #${e.pr.number}` : null;
 const HISTORY_PAGE = TABLE_PAGE, HPAGE = {};
-// `compact` (the Report's Recent improvements): the rows alone, no See more, no Revert or Retry, no note
-// `mode` (the Report's Per prompt / Total toggle): 'sum' shows the changed thing over the prompts since the decision, at its
-// rate before against as it was, so the gap is the decision's impact; 'avg' a prompt on each side
-function historyFigure(hs, { many, caption, sub, empty, key = 'history', pageSize = HISTORY_PAGE, note = true, compact = false, mode = 'avg' }) {
+// `promptAvg` (report.js:promptAverage): what a prompt costs on average here, shown in a cell over the Saved column as the
+// size the savings are read against. No text under the table (2026-10-24, the owner's ask): the cells' hovers explain.
+function historyFigure(hs, { many, caption, sub, empty, key = 'history', pageSize = HISTORY_PAGE, promptAvg = null }) {
   const pages = Math.max(1, Math.ceil(hs.length / pageSize)), page = Math.min(pages - 1, HPAGE[key] || 0), from = page * pageSize, shown = hs.slice(from, from + pageSize);
   const when = t => new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
   const day = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
@@ -812,11 +816,9 @@ function historyFigure(hs, { many, caption, sub, empty, key = 'history', pageSiz
   // the Saved cell is shaded, green for a saving and red for a cost, darker the larger the share of the whole prompt: a
   // tenth of a prompt is the darkest
   const shadeOf = f => { const a = Math.min(0.6, 0.08 + 5 * Math.abs(f.share || 0)).toFixed(2); return f.delta >= 0 ? `background:rgba(34,197,94,${a})` : `background:rgba(239,68,68,${a})`; };
-  const total = mode === 'sum';
   const effectCells = e => { const f = e.effect; if (!f) return `<td class="num muted">–</td><td class="num muted">–</td><td class="num muted" title="${inEffect(e) ? 'No session since it in the window yet, or the report has not been measured since' : 'Not in effect: nothing to measure'}">${inEffect(e) ? 'measuring' : '–'}</td>`;
-    const [b, a, sv] = total ? [f.since.atBefore, f.since.total, f.window] : [f.before.perPrompt, f.after.perPrompt, f.delta];
-    const sinceT = `over the ${f.since.prompts} prompt${f.since.prompts === 1 ? '' : 's'} of the ${f.after.sessions} session${f.after.sessions === 1 ? '' : 's'} since (${day(f.after.from)} to ${day(f.after.to)})`;
-    return `<td class="num" title="${esc(total ? `What it would have cost ${sinceT} at its rate before the decision: ${fmt(f.before.perPrompt)} a prompt over ${f.before.prompts} prompts of ${f.before.sessions} sessions before` : sideTitle(f.before, 'Before the decision'))}">${fmt(b)}</td><td class="num" title="${esc(total ? `What it cost ${sinceT}` : sideTitle(f.after, 'Since'))}">${fmt(a)}</td><td class="num ctx-saved" style="${shadeOf(f)}" title="${esc(`${f.delta >= 0 ? 'Saved' : 'Cost'} ~${fmt(Math.abs(f.window))} tokens ${sinceT}${f.share == null ? '' : `: ${Math.round(100 * Math.abs(f.share))}% of what a prompt cost before the decision (${fmt(f.whole.before)})`}${f.few ? '; fewer than five sessions on a side, give it a week' : ''}`)}">${sv >= 0 ? '' : '−'}${fmt(Math.abs(sv))}${pct(f)}${f.few ? ' <span class="muted">·few</span>' : ''}</td>`; };
+    const sinceT = `over the ${f.after.prompts} prompt${f.after.prompts === 1 ? '' : 's'} of the ${f.after.sessions} session${f.after.sessions === 1 ? '' : 's'} since (${day(f.after.from)} to ${day(f.after.to)})`;
+    return `<td class="num" title="${esc(sideTitle(f.before, 'Before the decision'))}">${fmt(f.before.perPrompt)}</td><td class="num" title="${esc(sideTitle(f.after, 'Since'))}">${fmt(f.after.perPrompt)}</td><td class="num ctx-saved" style="${shadeOf(f)}" title="${esc(`${f.delta >= 0 ? 'Saved' : 'Cost'} ~${fmt(Math.abs(f.window))} tokens ${sinceT}${f.share == null ? '' : `: ${Math.round(100 * Math.abs(f.share))}% of what a prompt cost before the decision (${fmt(f.whole.before)})`}${f.few ? '; fewer than five sessions on a side, give it a week' : ''}`)}">${f.delta >= 0 ? '' : '−'}${fmt(Math.abs(f.delta))}${pct(f)}${f.few ? ' <span class="muted">·few</span>' : ''}</td>`; };
   const prCell = e => e.pr?.url ? `<td><a class="ctx-prlink" href="${esc(e.pr.url)}" target="_blank" rel="noopener">#${e.pr.number}</a> <span class="muted">${e.pr.state === 'merged' ? 'merged' : e.pr.state === 'open' ? 'pending' : 'closed'}</span></td>` : '<td class="muted">–</td>';
   // the job behind a section's change: under way since, done (with the model's tokens), or failed with the reason
   const jobLine = e => !e.job ? '' : e.running ? `<p class="muted">${e.job.action === 'compress' ? 'A model is compressing it' : 'Being removed'} in the background since ${when(e.job.startedAt)}${e.job.pr ? '; a pull request opens with the change when it is done' : '; the file in the working tree is rewritten when it is done'}.</p>`
@@ -831,17 +833,16 @@ function historyFigure(hs, { many, caption, sub, empty, key = 'history', pageSiz
       : e.job ? '' : `<p class="muted">${e.decision === 'dismissed' ? 'Dismissed' : e.decision === 'applied after review' ? 'Written after its diff was read' : 'Applied'} ${when(e.at)}${e.revertedAt ? `; reverted ${when(e.revertedAt)}` : ''}.</p>`,
   ].join('');
   const rows = shown.map((e, k) => { const i = from + k, [cls, label, raw] = doneOf(e); return `<tr class="${e.revertedAt || e.rejected ? 'ctx-off' : e.attention && !e.running ? 'act-attn' : ''}">
-      <td class="ctx-name"><b>${esc(e.title)}</b>${compact ? '' : `<button class="ctx-more" data-more="${i}" aria-expanded="false">See more</button>`}<span class="ctx-kind">${esc([CH_KIND[e.kind] || e.kind, many ? e.repoName : ''].filter(Boolean).join(' · '))}</span></td>
+      <td class="ctx-name"><b>${esc(e.title)}</b><button class="ctx-more" data-more="${i}" aria-expanded="false">See more</button><span class="ctx-kind">${esc([CH_KIND[e.kind] || e.kind, many ? e.repoName : ''].filter(Boolean).join(' · '))}</span></td>
       <td class="num">${day(e.at)}</td>${effectCells(e)}${prCell(e)}
       <td>${e.pr?.url && e.pending ? `<a class="ctx-pill ${cls}" href="${esc(e.pr.url)}" target="_blank" rel="noopener">${label}</a>` : `<span class="ctx-pill ${cls}">${raw ? label : esc(label)}</span>`}</td>
-      ${compact ? '' : `<td class="ctx-actcell"><div class="ctx-act">${e.retryable ? `<button class="btn" data-retry="${i}">Retry</button>` : e.revertible ? `<button class="btn ghost" data-revert="${i}">${e.pending ? 'Close PR' : 'Revert'}</button>` : ''}</div></td>`}</tr>
-      ${compact ? '' : `<tr class="ctx-detail" data-detail="${i}" hidden><td colspan="8"><div class="md-body">${detail(e)}</div></td></tr>`}`; }).join('');
+      <td class="ctx-actcell"><div class="ctx-act">${e.retryable ? `<button class="btn" data-retry="${i}">Retry</button>` : e.revertible ? `<button class="btn ghost" data-revert="${i}">${e.pending ? 'Close PR' : 'Revert'}</button>` : ''}</div></td></tr>
+      <tr class="ctx-detail" data-detail="${i}" hidden><td colspan="8"><div class="md-body">${detail(e)}</div></td></tr>`; }).join('');
   const reverted = hs.filter(e => e.revertedAt).length;
   const pager = pagerOf(key, hs.length, page, pageSize).replace(/data-vpage=/g, 'data-page=');
   return `<figure class="ctx-figure" data-history><figcaption><b>${caption}</b> <span class="ctx-sub">${sub ? `${sub} · ` : ''}${hs.length} decision${hs.length === 1 ? '' : 's'}${reverted ? ` · ${reverted} reverted` : ''}</span></figcaption>
-    ${hs.length ? `<table class="ctx-table"><thead><tr><th>Change</th><th class="num">Decided</th><th class="num" title="${total ? 'What the changed thing would have cost over the prompts since the decision, at its rate before' : 'What the changed thing cost a prompt (one call to the model), over the sessions before the decision'}">Before</th><th class="num" title="${total ? 'What it cost over the prompts since the decision' : 'What it costs a prompt over the sessions since'}">After</th><th class="num" title="${total ? 'The gap: what the decision saved over the prompts since' : 'Before minus after, a prompt'}">Saved</th><th>Pull request</th><th></th>${compact ? '' : '<th></th>'}</tr></thead><tbody>${rows}</tbody></table>${pager}` : `<div class="empty">${empty}</div>`}
-    ${hs.length ? `<p class="ctx-note">${total ? 'Before and after are what the changed thing alone cost <b>over the prompts since the decision</b>: at its rate a prompt before the decision, and as it was; Saved is the gap, the decision\'s impact so far.' : 'Before and after are what the changed thing alone cost <b>a prompt</b>, one call to the model, over the sessions before the decision and since.'} A section\'s tokens count in every call of the sessions that read its file, a skill\'s or tool\'s tokens in every call of the sessions that loaded it, a tool\'s outputs what its results cost the calls that read them again; every row is attributed to its own change. The share is of what a whole prompt cost before the decision, so a small cut of a large part counts for what it is. Hover a cell for the prompts, sessions and dates behind it.</p>` : ''}
-    ${note && !compact ? `<p class="ctx-note">A section's change runs in the background and <b>opens a pull request</b>: <b>PR pending</b> until it is merged, <b>Rejected</b> once it is closed without merging (the section is suggested again); <b>Close PR</b> closes it and deletes its branch. <b>Failed</b> says why, and <b>Retry</b> runs the same change again. <b>Revert</b> turns a switched-off skill or tool back on, sets an output's compression back, or writes a section's file back as it was (when the file is still what thinker wrote; else git has it). A dismissal reverted is suggested again. Sections changed together are a row each but one change: a Retry, Revert or Close PR on one takes the others with it.</p>` : ''}</figure>`;
+    ${hs.length ? `<table class="ctx-table"><thead>${promptAvg ? `<tr class="ctx-avg-row"><th colspan="4"></th><th class="num ctx-avg" title="${esc(`What a prompt (one call to the model) costs here on average: ${fmt(promptAvg.tokens)} input tokens over ${promptAvg.prompts} prompts in ${promptAvg.sessions} sessions. Saved is read against it: its share of the prompt, and the shade of its cell.`)}"><span class="ctx-avg-label">Average prompt</span><b>${fmt(promptAvg.perPrompt)}</b> tokens</th><th colspan="3"></th></tr>` : ''}<tr><th>Change</th><th class="num">Decided</th><th class="num" title="What the changed thing cost a prompt (one call to the model), over the sessions before the decision">Before</th><th class="num" title="What it costs a prompt over the sessions since">After</th><th class="num" title="Before minus after, a prompt, and its share of what a prompt cost before the decision">Saved</th><th>Pull request</th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table>${pager}` : `<div class="empty">${empty}</div>`}
+    </figure>`;
 }
 function wireHistory(root, hs, reload, rerender) {
   if (!root) return;
@@ -875,7 +876,7 @@ function renderActivity(d) {
   const card = needs.length || running.length
     ? `<div class="attn"><div class="kicker">${needs.length ? `${needs.length} need${needs.length === 1 ? 's' : ''} you` : 'Under way'}</div>${needs.length ? `<ul>${needs.map(e => `<li><b>${name(e)}</b>: ${e.pr?.url ? needOf(e).replace(`#${e.pr.number}`, `<a href="${esc(e.pr.url)}" target="_blank" rel="noopener">#${e.pr.number}</a>`) : esc(needOf(e))}</li>`).join('')}</ul>` : ''}${running.length ? `<div class="why"><span class="spinner"></span>${running.length === 1 ? 'One change is' : `${running.length} changes are`} being made in the background; this page follows ${running.length === 1 ? 'it' : 'them'}.</div>` : ''}</div>`
     : `<div class="attn ok"><div class="why">Nothing needs you: no change under way or failed, no pull request waiting.</div></div>`;
-  el.innerHTML = card + historyFigure(hs, { many, caption: 'Decisions', sub: many ? 'every repository' : '', empty: 'No decisions yet. What you apply on Find Savings is listed here, with what came of it.', key: 'activity' });
+  el.innerHTML = card + historyFigure(hs, { many, caption: 'Decisions', sub: many ? 'every repository' : '', empty: 'No decisions yet. What you apply on Find Savings is listed here, with what came of it.', key: 'activity', promptAvg: d.promptAvg || null });
   wireHistory(el.querySelector('[data-history]'), hs, loadActivity, () => renderActivity(d));
   badge(d);
 }
@@ -977,10 +978,6 @@ function renderReport(v) {
   const models = `<figure class="ctx-figure"><figcaption><b>By model</b> <span class="ctx-sub">each model's share of the ${sum ? 'week' : 'average prompt'}, its provider's subtotal above its models</span></figcaption>
     <table class="ctx-table rep-table">${head('Provider · model')}<tbody>${v.providers.map(p => row(`<button class="rep-fold" data-fold="${esc(p.name)}" aria-expanded="${!fold(p.name)}">${fold(p.name) ? '▸' : '▾'}</button> ${esc(p.name)}`, p.cells, { cls: 'rep-sub', sub: `${modelsOf(p.name).length} model${modelsOf(p.name).length === 1 ? '' : 's'}` }) + (fold(p.name) ? '' : modelsOf(p.name).map(m => row(`<span class="rep-indent">${esc(m.model)}</span>`, m.cells, { cls: m.priced ? '' : 'ctx-off', sub: m.priced ? '' : 'no list price', titles: mtitle(m), scale: mscale })).join(''))).join('')}${row('Total', v.sessionTotals, { cls: 'rep-total' })}</tbody></table>
     <p class="ctx-note">A model's row is its share of the ${sum ? 'week' : 'average prompt that week (its tokens over every prompt of the week)'}, so the rows add up to the total and a switch of model shows as one row falling while another rises; hover a cell for the prompts on that model and the average per prompt of its own.${v.unpriced.length ? ` No list price for ${v.unpriced.map(esc).join(', ')}: their sessions are left out of the cost average.` : ''}</p></figure>`;
-  // Recent improvements (report.js:reportTop): the five actions in effect that saved most, each with what it alone saved
-  // a prompt and its pull request; the whole list, with Revert, is Recent activity
-  const acts = (v.top || []).map(a => ({ ...a, repo: a.repo || REPO }));
-  const actions = historyFigure(acts, { many: Boolean(v.all), caption: 'Recent improvements', sub: `the actions in effect that saved most in these ${v.weeks} weeks · every decision, with Revert, under Recent activity`, empty: 'No improvement in effect yet. What you apply on the Find Savings page is listed here once it is, with what it saved a prompt.', key: 'report', compact: true, note: false, mode: RMODE });
   const c = v.cache;
   const cards = `<div class="section"><div class="kicker">The cache, over the same ${v.weeks} weeks</div><div class="cards four" style="margin-top:0.6rem">
     ${card('$ saved', money(Math.max(0, c.dollarsSaved)), `${c.measured ? 'the input tokens saved against held-out prompts' : 'the code the agents did not read'}, at each model's list input price${c.unpricedTokens ? `; ${fmt(c.unpricedTokens)} tokens on unpriced models not counted` : ''}`, null, true)}
@@ -988,7 +985,7 @@ function renderReport(v) {
     ${card('Cache hits', fmt(c.hits), `notes served, for ${fmt(c.answered)} of ${fmt(c.requests)} requests`)}
     ${card('Acted on', c.acted == null ? '–' : `${Math.round(100 * c.acted)}%`, `of ${fmt(c.judged)} servings the sessions were judged on`)}
   </div></div>`;
-  el.innerHTML = parts + models + actions + cards;
+  el.innerHTML = parts + models + cards;
   wireHistory(el.querySelector('[data-history]'), acts, loadReport, () => renderReport(v));
   el.querySelectorAll('[data-fold]').forEach(b => b.onclick = () => { const p = b.dataset.fold; RFOLD.has(p) ? RFOLD.delete(p) : RFOLD.add(p); renderReport(v); });
 }

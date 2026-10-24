@@ -9,9 +9,7 @@
 // measured input where their sum overshoots it; and, from the transcript itself, what the conversation costs
 // (transcripts.js:parseClaude `carried`: the system prompt, the agent's tool calls, its thinking kept in the context,
 // the prompts and replies), the rest of the input being Claude Code's own notes and the listings ("other").
-// Under the tables: Recent improvements (`top`, reportTop): the five actions in effect that saved most, each with what it
-// alone saved (actionEffect: the thing it changed costed a prompt before the decision against since, from the view's
-// `sessionRows`) and its pull request; and the cache's four numbers (usage.js:summarize) with
+// Under the tables: the cache's four numbers (usage.js:summarize) with
 // its saving priced at the models it was made on. A session whose agent reports no usage (Cursor) is counted in no
 // column. Measurement only; nothing is served or written.
 import { findRepoSessions, instructionValue } from './instruction-value.js';
@@ -127,7 +125,7 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
     parts: PARTS.map(([key, name]) => ({ key, name, cells: byPart[key] })), totals, sessionTotals,
     breakdown: BREAKDOWN.map(([key, name]) => ({ key, name, cells: byPart[key] })),
     providers, models: modelRows, unpriced: [...unpriced],
-    actions, top: reportTop(actions, { now }), outputRows: outRows, cache: cacheMetrics(store, { days, config }),
+    actions, outputRows: outRows, cache: cacheMetrics(store, { days, config }),
   };
 }
 
@@ -185,6 +183,18 @@ export function actionEffect(e, sessionRows = [], now = Date.now(), { until = nu
   // it was (`total`, after.total); `window` is exactly their gap (the Total view's Saved is its Before minus its After)
   return { from: span.from, to: e.revertedAt ? span.to : null, before: b, after: a, delta, share: whole.before ? delta / whole.before : null, whole, since: { prompts: a.prompts, atBefore: Math.round(b.total / b.prompts * a.prompts), total: a.total }, window: Math.round(b.total / b.prompts * a.prompts) - a.total, few: b.sessions < 5 || a.sessions < 5 };
 }
+// What a prompt costs on average over the view's measured sessions (`sessionRows`): their input over their prompts. Shown
+// over the Saved column of Recent activity, the size the savings are read against.
+export function promptAverage(sessionRows = []) {
+  const prompts = sessionRows.reduce((a, r) => a + Math.max(1, r.prompts || 0), 0), tokens = sessionRows.reduce((a, r) => a + r.input, 0);
+  return prompts ? { sessions: sessionRows.length, prompts, tokens, perPrompt: Math.round(tokens / prompts) } : null;
+}
+// Several repositories' averages as one (All repositories): the tokens and prompts add.
+export function mergePromptAverages(list) {
+  list = list.filter(Boolean); if (!list.length) return null;
+  const sum = k => list.reduce((a, x) => a + x[k], 0), prompts = sum('prompts');
+  return { sessions: sum('sessions'), prompts, tokens: sum('tokens'), perPrompt: prompts ? Math.round(sum('tokens') / prompts) : 0 };
+}
 // The history with what each decision saved (actionEffect over the view's session rows), as both doors list it. A decision
 // on a thing decided again later (sed compressed on Tuesday, then again on Thursday) is measured until the later one is in
 // effect, so the two rows share no session.
@@ -192,21 +202,11 @@ export function withEffects(history, sessionRows = [], now = Date.now()) {
   const later = e => history.filter(o => o !== e && o.key === e.key && Date.parse(o.at) > Date.parse(e.at)).map(o => effectSpan(o, now)?.from).filter(t => t != null);
   return history.map(e => { const ts = later(e); return { ...e, effect: actionEffect(e, sessionRows, now, { until: ts.length ? Math.min(...ts) : null }) }; });
 }
-// The decisions taken on the Find Savings page since `from`, newest first, as Recent activity lists them, each with what it
-// saved (`effect`). Read apart from the view: the page serves a kept report (report-snapshot.js) and reads these live over
-// it, so a decision taken a moment ago is in the window at once.
+// The decisions taken on the Find Savings page since `from`, newest first, each with what it saved (`effect`): the view's
+// `actions`, for `thinker report --json`.
 export function reportActions(store, from, sessionRows = [], now = Date.now()) {
   return withEffects(changeHistory(store).filter(e => Date.parse(e.at) >= from), sessionRows, now).map(e => ({ ...e, repo: null }));
 }
-// Recent improvements (the Report's table, `TOP_ACTIONS`): the actions in effect (effectSpan; never a reverted, dismissed,
-// failed or still pending one), the ones that saved most first by what they saved over the prompts since (`window`), then
-// the unmeasured by their estimate when decided (`total`); the newest first among equals.
-export const TOP_ACTIONS = 5;
-export function reportTop(actions, { now = Date.now(), max = TOP_ACTIONS } = {}) {
-  const value = e => e.effect ? e.effect.window : -Infinity;
-  return actions.filter(e => effectSpan(e, now) && !e.revertedAt).sort((a, b) => (value(b) - value(a)) || ((b.effect ? 0 : b.total || b.saving || 0) - (a.effect ? 0 : a.total || a.saving || 0)) || b.at.localeCompare(a.at)).slice(0, max);
-}
-
 // The four numbers the Cache page showed (usage.js:summarize), over the report's window: what the notes saved in
 // dollars (the tokens saved on each model at that model's input price; the holdout's figure by model where it is
 // measured, else the servings acted on), the same in tokens, the cache hits, and the share of judged servings the
@@ -256,13 +256,14 @@ export function mergeReports(list) {
     totals: sumCells(views.map(v => v.totals)), sessionTotals: sumCells(views.map(v => v.sessionTotals)),
     providers, models: modelRows, unpriced: [...new Set(views.flatMap(v => v.unpriced))],
     actions: list.flatMap(x => x.view.actions.map(a => ({ ...a, repo: x.repo, repoName: x.name }))).sort((a, b) => b.at.localeCompare(a.at)),
-    top: reportTop(list.flatMap(x => x.view.actions.map(a => ({ ...a, repo: x.repo, repoName: x.name })))),
     cache: { dollarsSaved: sum('dollarsSaved'), unpricedTokens: sum('unpricedTokens'), measured: cache.some(c => c.measured), tokensSaved: sum('tokensSaved'), hits: sum('hits'), requests: sum('requests'), answered: sum('answered'), acted: judged ? confirmed / judged : null, judged },
     repos: list.map(x => ({ repo: x.repo, name: x.name })),
   };
 }
 
-// The report as the command prints it: the two tables with their totals, the recent improvements with what each saved, the cache's numbers.
+// The report as the command prints it: the two tables with their totals, the cache's numbers. The decisions are not here
+// (2026-10-24, the owner's call: in the Total view they compared spans of different lengths): Recent activity and `thinker
+// context --history` carry them with what each saved (actionEffect, over the view's `sessionRows`).
 // `total`: the week's sum over its sessions instead of the average per prompt (the page's Total toggle)
 export function renderReport(v, { cost = false, total = false } = {}) {
   const L = [], label = t => new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -281,21 +282,6 @@ export function renderReport(v, { cost = false, total = false } = {}) {
   L.push(line('Total (the whole session)', v.sessionTotals, true));
   L.push(`  ▲ ▼: up or down by 5% or more against the first week, doubled past 50%; a zero is left blank. A model row is its share of the ${total ? 'week' : 'average prompt'}; its sessions:` + ` ${v.models.map(m => `${m.model} ${m.cells.map(c => c.sessions).join('/')}`).join(', ')}.`);
   if (v.unpriced.length) L.push(`  No list price for ${v.unpriced.join(', ')}: their sessions are left out of the cost average.`);
-  // Recent improvements: the five actions in effect that saved most, each with the cost of the thing it changed a prompt
-  // before against since, attributed to it alone, and its pull request
-  // saved is positive, a cost negative; the share is of what a whole prompt cost before the decision
-  const pct = x => x.share == null || !Math.round(100 * Math.abs(x.share)) ? '' : ` (${Math.round(100 * Math.abs(x.share))}%)`;
-  L.push('', 'Recent improvements');
-  if (!v.top.length) L.push('  none in effect: what you apply on the Find Savings page is listed here once it is');
-  else L.push(`  ${'decided'.padEnd(11)}${'before'.padStart(8)}${'after'.padStart(8)}  ${(total ? 'saved since' : 'saved a prompt').padEnd(22)}${'pull request'.padEnd(14)}change`);
-  for (const a of v.top) {
-    const f = a.effect, pr = a.pr ? `#${a.pr.number} ${a.pr.state}` : '–';
-    // --total: the thing over the prompts since the decision, at the before rate against as it was, and the gap
-    const [b, aft, sv] = f ? total ? [f.since.atBefore, f.since.total, f.window] : [f.before.perPrompt, f.after.perPrompt, f.delta] : [];
-    const cells = f ? `${formatTokens(b).padStart(8)}${formatTokens(aft).padStart(8)}  ${`${sv >= 0 ? '' : '−'}${formatTokens(Math.abs(sv))}${pct(f)}${f.few ? ' (few)' : ''}`.padEnd(22)}` : `${'–'.padStart(8)}${'–'.padStart(8)}  ${'measuring'.padEnd(22)}`;
-    L.push(`  ${a.at.slice(0, 10).padEnd(11)}${cells}${pr.padEnd(14)}${a.title}${a.repoName ? ` (${a.repoName})` : ''}`);
-  }
-  if (v.top.length) L.push(`  Before and after: what the changed thing alone cost ${total ? 'over the prompts since the decision, at its rate before the decision against as it was; saved is the gap' : 'a prompt (one call to the model), over the sessions before the decision and since; --total shows it over the prompts since'}. The share is of what a whole prompt cost before the decision.`);
   const c = v.cache;
   L.push('', 'The cache', `  $ saved          ${formatDollars(c.dollarsSaved)}${c.unpricedTokens ? ` (+${formatTokens(c.unpricedTokens)} tokens on unpriced models)` : ''}`, `  tokens saved     ${formatTokens(Math.max(0, c.tokensSaved))} ${c.measured ? 'input tokens, against prompts with the notes withheld' : 'tokens of code the agents did not read'}`, `  cache hits       ${formatTokens(c.hits)} notes served, for ${formatTokens(c.answered)} of ${formatTokens(c.requests)} requests`, `  acted on         ${c.acted == null ? '–' : `${Math.round(100 * c.acted)}%`} of ${formatTokens(c.judged)} servings the sessions were judged on`);
   return L;

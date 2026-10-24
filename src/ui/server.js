@@ -20,8 +20,8 @@ import { harnessView, harnessSavings, harnessOn, scheduleHarnessSuggestion, undo
 import { contextView, mergeViews, switchSources, setOutputCompression } from '../context-view.js';
 import { snapshotView, lastSnapshot, refreshing, dropSnapshots, REFRESH_MS } from '../context-snapshot.js';
 import { approveChanges, dismissChanges, startSectionJob, retryJob, revertDecision, pickChanges, allChanges, changeHistory, refreshPrStates } from '../context-suggest.js';
-import { mergeReports, reportActions, reportTop, REPORT_WEEKS } from '../report.js';
-import { reportSnapshot, refreshing as reportRefreshing, historyEffects } from '../report-snapshot.js';
+import { mergeReports, reportActions, mergePromptAverages, REPORT_WEEKS } from '../report.js';
+import { reportSnapshot, refreshing as reportRefreshing, historyEffects, promptAverageHere } from '../report-snapshot.js';
 import { prAvailable } from '../instruction-pr.js';
 import http from 'node:http';
 import fs from 'node:fs';
@@ -167,16 +167,15 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
           const xs = repos().flatMap(r => { try { const st = open(r.checkout); return [{ r, st, s: read(st) }]; } catch { return []; } });
           if (!xs.length) return json(res, 200, { empty: true });
           view = mergeReports(xs.map(({ r, s }) => ({ repo: r.id, name: r.name, view: s.view })));
-          // the decisions and what each saved, read live over each kept report (report.js:reportActions), the five that saved most first
+          // the decisions and what each saved, read live over each kept report (report.js:reportActions)
           view.actions = xs.flatMap(({ r, st, s }) => reportActions(st, view.from, s.view.sessionRows || []).map(a => ({ ...a, repo: r.id, repoName: r.name }))).sort((a, b) => b.at.localeCompare(a.at));
-          view.top = reportTop(view.actions);
           at = Math.min(...xs.map(x => x.s.at)); busy = xs.some(x => x.s.refreshing);
           if (xs.some(x => x.s.stale && !reportRefreshing(x.st))) refreshReportFn(null);
         } else {
           const one = storeFor(want); if (!one) return json(res, 400, { error: 'unknown repository' });
           const s = read(one);
           const actions = reportActions(one, s.view.from, s.view.sessionRows || []);
-          view = { ...s.view, actions, top: reportTop(actions) }; at = s.at; busy = s.refreshing;
+          view = { ...s.view, actions }; at = s.at; busy = s.refreshing;
           if (s.stale && !reportRefreshing(one)) refreshReportFn(one.repo);
         }
         const { sessionRows, ...sent } = view; // the session rows stay on this side: the page reads the actions costed
@@ -230,10 +229,12 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
         const stores = storesFor(want); if (!stores) return json(res, 400, { error: 'unknown repository' });
         // a pending pull request is asked after on GitHub first (context-suggest.js:refreshPrStates, a minute apart at most)
         const xs = [];
-        // each decision with what it saved, over the report kept in its checkout (report-snapshot.js:historyEffects)
-        for (const [r, st] of stores) { try { await refreshPrStates(st); xs.push(...historyEffects(st, changeHistory(st)).map(h => ({ ...h, repo: r.id, repoName: r.name }))); } catch {} }
+        // each decision with what it saved, over the report kept in its checkout (report-snapshot.js:historyEffects), and what
+        // a prompt costs on average there (promptAverageHere), the size the savings are read against
+        const avgs = [];
+        for (const [r, st] of stores) { try { await refreshPrStates(st); xs.push(...historyEffects(st, changeHistory(st)).map(h => ({ ...h, repo: r.id, repoName: r.name }))); avgs.push(promptAverageHere(st)); } catch {} }
         const history = xs.sort((a, b) => b.at.localeCompare(a.at));
-        return json(res, 200, { history, attention: history.filter(h => h.attention).length, running: history.filter(h => h.running).length });
+        return json(res, 200, { history, promptAvg: mergePromptAverages(avgs), attention: history.filter(h => h.attention).length, running: history.filter(h => h.running).length });
       }
       if (req.method !== 'POST') return json(res, 405, { error: 'method not allowed' });
       const b = await readBody(req);

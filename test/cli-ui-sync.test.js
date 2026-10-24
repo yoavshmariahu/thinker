@@ -198,7 +198,7 @@ test('over the wire: a section\'s Apply records the decision running and starts 
   const pg = page(t, dir), p = await pg.start();
   const id = (await p.get('/api/repos')).repos[0].id;
   await p.get(`/api/context?repo=${encodeURIComponent(id)}&days=7`); // the report the server resolves the rows in
-  assert.deepEqual(await p.get(`/api/activity?repo=${encodeURIComponent(id)}`), { history: [], attention: 0, running: 0 });
+  assert.deepEqual(await p.get(`/api/activity?repo=${encodeURIComponent(id)}`), { history: [], promptAvg: null, attention: 0, running: 0 });
   // Apply on two rows, one compressed and one removed: one job each, the command started detached in the checkout
   const r = await p.post('/api/changes/start', { repo: id, keys: ['section:AGENTS.md:tests', 'section:AGENTS.md:style'], acts: { 'section:AGENTS.md:tests': 'compress', 'section:AGENTS.md:style': 'remove' }, days: 7 });
   assert.equal(r.status, 200, JSON.stringify(r));
@@ -263,23 +263,20 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   // every table on the page shows 20 rows a page
   assert.match(read('ui/page.html'), /const TABLE_PAGE = 20, VPAGE = \{\};/);
   assert.match(read('ui/page.html'), /rows\.slice\(from, from \+ TABLE_PAGE\)/);
-  // Recent improvements on both doors (report.js:reportTop over the kept report's sessionRows): the five actions in effect
-  // that saved most, each with before, after and saved a prompt attributed to the thing it changed alone (actionEffect)
-  // and its pull request; the page's table compact (no See more, no Revert); Recent activity and `thinker context
-  // --history` show every decision with the same figures (report-snapshot.js:historyEffects)
-  assert.match(read('report.js'), /top: reportTop\(actions, \{ now \}\)/);
-  assert.match(read('report.js'), /L\.push\('', 'Recent improvements'\)/);
-  assert.match(read('ui/server.js'), /view\.top = reportTop\(view\.actions\)/);
+  // the decisions are not on the Report (2026-10-24, the owner's call): Recent activity and `thinker context --history` show
+  // every decision with before, after and saved a prompt, attributed to the thing it changed alone (report.js:actionEffect
+  // over the kept report, report-snapshot.js:historyEffects), under a cell over Saved with what a prompt costs on average
+  // here (promptAverageHere), the size the savings are read against; no text under the table
+  assert.doesNotMatch(read('report.js'), /Recent improvements|reportTop/);
+  assert.doesNotMatch(read('ui/page.html'), /Recent improvements|Saved with thinker|compact: true/);
   assert.match(read('ui/server.js'), /historyEffects\(st, changeHistory\(st\)\)/);
+  assert.match(read('ui/server.js'), /promptAvg: mergePromptAverages\(avgs\)/);
   assert.match(read('commands/context.js'), /historyEffects\(store, changeHistory\(store\)\)/);
-  assert.match(read('ui/page.html'), /historyFigure\(acts, \{ many: Boolean\(v\.all\), caption: 'Recent improvements'[^\n]*compact: true/);
+  assert.match(read('commands/context.js'), /A prompt here costs \$\{formatTokens\(avg\.perPrompt\)\} tokens on average/);
+  assert.match(read('ui/page.html'), /promptAvg: d\.promptAvg \|\| null/);
+  assert.match(read('ui/page.html'), /<span class="ctx-avg-label">Average prompt<\/span><b>\$\{fmt\(promptAvg\.perPrompt\)\}<\/b> tokens/);
   assert.match(read('ui/page.html'), /<th class="num"[^>]*>Before<\/th><th class="num"[^>]*>After<\/th><th class="num"[^>]*>Saved<\/th><th>Pull request<\/th>/);
-  assert.doesNotMatch(read('ui/page.html'), /Saved with thinker/);
-  // the Per prompt / Total toggle reaches the improvements on both doors: Total shows the thing over the prompts since the
-  // decision, at its rate before against as it was (report.js `since`)
-  assert.match(read('ui/page.html'), /compact: true, note: false, mode: RMODE \}/);
-  assert.match(read('ui/page.html'), /total \? \[f\.since\.atBefore, f\.since\.total, f\.window\] : \[f\.before\.perPrompt, f\.after\.perPrompt, f\.delta\]/);
-  assert.match(read('report.js'), /total \? \[f\.since\.atBefore, f\.since\.total, f\.window\] : \[f\.before\.perPrompt, f\.after\.perPrompt, f\.delta\]/);
+  assert.doesNotMatch(read('ui/page.html'), /A section's change runs in the background and <b>o/);
   // the cost view is the command's --cost: list prices from prices.js, the unpriced models named on both
   assert.match(read('commands/report.js'), /cost: Boolean\(flags\.cost\)/);
   assert.match(read('report.js'), /listPrice\(r\.model, \{ config \}\)/);
