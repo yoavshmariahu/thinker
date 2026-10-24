@@ -6,7 +6,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 async function instructionsCommand({ store, repo, flags, out }) {
-  // --remove / --compress <section id>: the diff of that change; --apply writes it to the working tree (instruction-edit.js)
+  // --remove / --compress <section id>: the diff of that change; --pr opens a pull request with it (instruction-pr.js), --apply
+  // writes it to the working tree (instruction-edit.js)
   for (const action of ['remove', 'compress']) {
     if (typeof flags[action] !== 'string') continue;
     // one section id, or several separated by commas
@@ -18,8 +19,10 @@ async function instructionsCommand({ store, repo, flags, out }) {
       out('');
     }
     if (r.sections.length > 1) out(`In all: ~${r.tokensBefore} → ~${r.tokensAfter} tokens in every model call.`);
+    // --pr: a commit on a branch of its own, pushed, and a pull request (instruction-pr.js); --apply: the working tree
+    if (flags.pr) { const { openEditPr } = await import('../instruction-pr.js'); const pr = await openEditPr(store, r.key); out(pr.said || pr.error); return; }
     const ap = flags.apply ? applyEdit(store, r.key) : null;
-    out(ap ? (ap.said || ap.error) : `Nothing written. Add --apply to write it to ${r.file} (uncommitted; git diff to review).`);
+    out(ap ? (ap.said || ap.error) : `Nothing written. Add --pr to open a pull request with it, or --apply to write it to ${r.file} (uncommitted; git diff to review).`);
     return;
   }
   if (flags.off) { const r = setCore(store, null); out(r.state === 'removed' ? `Removed ${OVERRIDE}${r.claude === 'removed' ? ' and CLAUDE.local.md' : ''} (and any Cursor rule thinker wrote): agents here read ${SOURCE} whole again.` : r.state === 'theirs' ? `${OVERRIDE} here is not thinker's; left as it is.` : `Nothing to remove: thinker keeps no ${OVERRIDE} here.`); return; }

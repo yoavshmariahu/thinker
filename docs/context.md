@@ -57,7 +57,7 @@ Every action shows what it will do before it does it, and each one is a command 
 
 | cut | on the page | from the terminal | undo |
 |---|---|---|---|
-| Shorten an instruction section | pick sections, **Compress**: a model rewrites them to about a third, keeping the rules, commands and paths; the diff is shown, **Apply** writes it to the file in your working tree, uncommitted | `thinker instructions --compress <ids> [--apply]` | `git checkout` the file |
+| Shorten an instruction section | pick sections, **Compress**: a model rewrites them to about a third, keeping the rules, commands and paths; the diff is shown, and **Open a pull request** pushes a branch with the change and opens the pull request | `thinker instructions --compress <ids> [--pr \| --apply]` | **Close PR** under History (or close it on GitHub) |
 | Drop an instruction section | pick sections, **Remove**; the same diff and Apply | `thinker instructions --remove <ids> [--apply]` | `git checkout` the file |
 | Give this checkout a shorter file | keep the sections that matter here; the team's file is untouched and the agents here read a trimmed local copy | `thinker instructions --core "Title, Title"` | **Remove the trimmed copy**, or `thinker instructions --off` |
 | Switch a skill, MCP server or plugin off | pick them, **Switch off**: off for this repository from the next session, in the agent's own settings, with a backup; a skill switched off still runs as `/name` | `thinker harness --off "<label>"` | **Turn back on**, or `thinker harness --undo` |
@@ -66,8 +66,13 @@ Every action shows what it will do before it does it, and each one is a command 
 
 Each view opens with a **Potential savings** card: for sections, skills and tools, what the flagged rows cost in the sessions that did not use them (at most); for outputs, what the cap alone would have cut (at least); All sums them.
 
-Compress and Remove edit the team's file in your working tree and nothing else: no commit, no pull
-request, and Apply refuses when the file changed since the preview. Switching a tool off turns
+Compress and Remove make a pull request: the change is one commit on a branch of its own, built from
+the default branch and pushed to the origin, so nothing in your working tree changes, whatever branch
+it is on. History links the pull request and shows the decision as **PR pending** until it is merged;
+closed without merging it is **Rejected** and the sections are suggested again, since nothing was
+followed through on. Without a GitHub origin or `gh` logged in, the page says so and the diff is
+written to the file in your working tree instead, uncommitted (`--apply`), and Apply refuses when the
+file changed since the preview. Switching a tool off turns
 thinker's harness on for that repository, which is what reads and writes the agent's settings
 (`thinker harness` lists what is off and `--undo` restores every file from its backup).
 

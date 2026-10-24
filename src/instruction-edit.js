@@ -1,8 +1,10 @@
-// A change to the team's instruction file, made by the person from the Context tab or `thinker instructions`:
+// A change to the team's instruction file, made by the person from the Find Savings page or `thinker instructions`:
 // a section removed, or compressed (a model rewrites it shorter, keeping every rule, command and path). Nothing is
-// written until the person has seen the diff: `previewEdit` keeps the proposed file in .thinker/state, and
-// `applyEdit` writes exactly that text to the working tree, uncommitted, when the file has not changed since. The
-// person reviews it with `git diff` and commits it, or `git checkout` drops it. No commit, no pull request.
+// written until the person has seen the diff: `previewEdit` keeps the proposed file in .thinker/state, with each
+// section's old and new text, and then either `applyEdit` writes exactly that text to the working tree, uncommitted,
+// when the file has not changed since (the person reviews it with `git diff` and commits it, or `git checkout` drops
+// it), or instruction-pr.js:openEditPr makes it a commit on a branch of its own and a pull request, which is what the
+// page does where the origin is on GitHub and `gh` is logged in.
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -113,7 +115,7 @@ export async function previewEdit(store, ids, action, opts = {}) {
       const { fm, body } = wholeFile(f);
       let next = '';
       if (action === 'compress') { const p = await proposeSection(store, `## ${f.file}\n\n${body}`, slug(f.file), action, opts); if (p.error) return p; next = p.next.replace(/^## .*\n+/, ''); modelTokens += p.tokens || 0; }
-      out.push({ file: f.file, from: sha(f.text), text: action === 'remove' ? null : `${fm}${next}\n` });
+      out.push({ file: f.file, from: sha(f.text), text: action === 'remove' ? null : `${fm}${next}\n`, edits: null });
       sections.push({ id: items[0].id, file: f.file, title: f.file, diff: lineDiff(body, next), tokensBefore: tok(body), tokensAfter: tok(next) });
       continue;
     }
@@ -122,12 +124,13 @@ export async function previewEdit(store, ids, action, opts = {}) {
     // every location is in the original text and sections do not overlap: replaced from the last one up
     const lines = f.text.split('\n');
     for (const p of [...props].sort((a, b) => b.loc.start - a.loc.start)) lines.splice(p.loc.start, p.loc.end - p.loc.start, ...(p.next ? [...p.next.split('\n'), ''] : []));
-    out.push({ file: f.file, from: sha(f.text), text: lines.join('\n').replace(/\n{3,}/g, '\n\n') });
+    // each section's old and new text as well, so the change can be applied to another version of the file (instruction-pr.js:textOnBase)
+    out.push({ file: f.file, from: sha(f.text), text: lines.join('\n').replace(/\n{3,}/g, '\n\n'), edits: props.map(p => ({ title: p.loc.section.title, old: p.old, next: p.next })) });
     props.forEach((p, i) => { modelTokens += p.tokens || 0; sections.push({ id: items[i].id, file: f.file, title: p.loc.section.title, diff: lineDiff(p.old, p.next), tokensBefore: tok(p.old), tokensAfter: tok(p.next) }); });
   }
   const key = ids.length === 1 ? ids[0] : 'bulk';
   const edits = readEdits(store);
-  edits[key] = { files: out, action, ids, at: new Date().toISOString() };
+  edits[key] = { files: out, action, ids, at: new Date().toISOString(), sections: sections.map(x => ({ id: x.id, file: x.file, title: x.title, tokensBefore: x.tokensBefore, tokensAfter: x.tokensAfter })) };
   writeEdits(store, edits);
   const names = out.map(x => x.file);
   return { key, action, file: names.length === 1 ? names[0] : `${names.length} files`, files: names, sections, title: sections[0].title, diff: sections.length === 1 ? sections[0].diff : null,
@@ -135,6 +138,10 @@ export async function previewEdit(store, ids, action, opts = {}) {
 }
 const tok = s => Math.ceil(String(s).length / 4);
 const sections_ = text => sections(text);
+
+// A kept preview by its key, and one dropped once it was made (written, or made a pull request)
+export const editRecord = (store, id) => readEdits(store)[id] || null;
+export function dropEdit(store, id) { const edits = readEdits(store); if (!(id in edits)) return; delete edits[id]; writeEdits(store, edits); }
 
 // Write the previewed change to the working tree, when every file is still what the preview was made from. A
 // file whose one section was removed is deleted.

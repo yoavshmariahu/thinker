@@ -12,7 +12,7 @@ import { judgeRecent, findRepoSessions } from '../instruction-value.js';
 import { formatTokens } from '../model-usage.js';
 import { refreshSnapshots, writeSnapshot } from '../context-snapshot.js';
 import { machineContext, recommendations, renderMachineReport, MACHINE_REPOS, MACHINE_TOP } from '../context-machine.js';
-import { approveChanges, dismissChanges, revertDecision, pickChanges, currentChanges, changeHistory } from '../context-suggest.js';
+import { approveChanges, dismissChanges, revertDecision, pickChanges, currentChanges, changeHistory, refreshPrStates } from '../context-suggest.js';
 
 const pct = x => x == null ? '   -' : `${String(Math.round(100 * x)).padStart(3)}%`;
 const pad = (s, n) => String(s).padStart(n);
@@ -64,8 +64,11 @@ async function contextCommand({ store, flags, out }) {
     return;
   }
   if (flags.history) {
+    // a pending pull request is asked after on GitHub first (context-suggest.js:refreshPrStates)
+    await refreshPrStates(store);
     const h = changeHistory(store);
-    out(h.length ? h.map((e, i) => `${String(i + 1).padStart(3)}. ${e.at.slice(0, 10)}  ${(e.revertedAt ? `${e.decision}, reverted` : e.decision).padEnd(22)} ${e.title}${e.result ? `: ${e.result}` : ''}`).join('\n') + (h.some(e => e.revertible) ? '\n`thinker context --revert <n>` takes a decision back.' : '') : 'No decisions on the suggested changes here yet.');
+    const state = e => e.pr ? `PR #${e.pr.number} ${e.pr.state === 'open' ? 'pending' : e.pr.state === 'merged' ? 'merged' : 'rejected'}` : e.revertedAt ? `${e.decision}, reverted` : e.decision;
+    out(h.length ? h.map((e, i) => `${String(i + 1).padStart(3)}. ${e.at.slice(0, 10)}  ${state(e).padEnd(22)} ${e.title}${e.result ? `: ${e.result}` : ''}${e.pr?.url ? `  ${e.pr.url}` : ''}`).join('\n') + (h.some(e => e.revertible) ? '\n`thinker context --revert <n>` takes a decision back (a pending pull request is closed).' : '') : 'No decisions on the suggested changes here yet.');
     return;
   }
   if (flags.revert !== undefined) {
