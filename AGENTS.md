@@ -33,10 +33,12 @@ our repository policy guard or require PRs in their repositories.
   commits directly to remote `main`, including fast-forward pushes.
 - **The `tests` workflow is disabled** since 2026-10-07, at the owner's request
   (`disabled_manually`; `gh workflow enable tests` reverses it). No test check will
-  report on a pull request, so do not wait for one: run the full suite locally
+  report on a pull request, so do not wait for one: run the tests locally
   (`npm test`, which sets `THINKER_TEST=1`) before pushing and state the result in
   the pull request, then merge through GitHub and bring local `main` up to date
-  from the merged remote branch.
+  from the merged remote branch. `npm test` runs the test files the change reaches,
+  not the whole suite (below); the whole suite (`npm test -- --all`) is for a change
+  to the test run itself or when the selection's reasons look wrong.
 - Do not bypass a pre-push guard or disable hooks to push `main`.
 - GitHub server-side enforcement for this repository (private when this was written; public since) requires GitHub Pro
   (the API currently returns 403 on the account's plan). Until enabled, the local
@@ -65,7 +67,21 @@ Offline replays of retrieval against labelled targets are a first step, not the
 evidence: the outcome is measured in agent sessions. Turning the switch on by
 default is its own pull request that cites the experiment.
 
-Requires Node 20+. Tests: `npm test` (`node --test test/*.test.js`).
+Requires Node 20+. Tests: `npm test` (`scripts/test.sh`, `node --test` under `THINKER_TEST=1`).
+**Test selection (2026-10-24):** `npm test` runs only the test files the change against
+`origin/main` reaches (`scripts/select-tests.mjs`: committed since the merge base, the working
+tree and untracked files; the import graph of every JavaScript file with `import`, `export …
+from`, `import()`, `require()` and `new URL(…, import.meta.url)` edges, plus, for a test file,
+the repository paths it names with a directory in them, `'src/cli.js'` for the tests that spawn
+the command, and `join(x, '..', 'install.sh')`-style reaches above it). A test file runs when it
+changed or its closure holds a changed file; a changed code file no test reaches is named on
+stderr. The whole suite runs when `package.json`, the lockfile, `scripts/test.sh` or the selector
+changed (a version-only bump is not that), when nothing changed against the base, or with
+`npm test -- --all`; named files run as given (`npm test -- test/rank.test.js`); `TEST_BASE=HEAD npm test`
+selects against the working tree alone (on a branch that changed the runner, as this one did). Replayed over the
+40 commits before it: 64 of 116 files on average, since the 55 tests that spawn `src/cli.js`
+reach most of `src/` through the handlers' static imports; a change to a leaf module runs
+20–40. `scripts/select-tests.mjs --why` prints which changed file selected each test.
 
 **Releases are GitHub releases on tags (since 0.1.35):** a release is the tag
 `vX.Y.Z` on a commit of `main`, with `thinker.tgz`, `version.json` (version,
