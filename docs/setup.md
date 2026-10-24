@@ -4,32 +4,36 @@ The details behind the install line in the [README](../README.md).
 
 ## Install and start
 
-Run `npx @zerotimedev/thinker`. It runs the installer carried in the npm package of that
-name (published with each release) and passes its options through. The installer does
-three things in the terminal and asks nothing there:
+```bash
+npx @zerotimedev/thinker
+```
 
-1. It installs the [latest GitHub release](https://github.com/yoavshmariahu/thinker/releases)
-   of the tool under `~/.thinker`.
-2. It wires thinker into the agents on this machine, once, in their own settings
-   (hooks and the MCP server, for Claude Code, Codex, Gemini CLI and Cursor, their
-   desktop apps included). `thinker connect` does this step alone.
-3. It reads the agents' own transcripts of the last 30 days in the five repositories they
-   worked in most and prints where their context goes (instruction files, skills and MCP
-   servers, built-in tools, tool outputs; per model call and per session) and what to cut
-   first: the sections, skills and tools that cost the most in the sessions that did not
-   use them, with the saving each is worth at most. No cache and no model call are
-   involved, so the report is there from the first minute. On a terminal it asks where to
-   see what to cut first: in the browser, the local page on that report over every
-   repository with those suggestions already checked (review their actions and press
-   Apply, or uncheck any), or in the terminal, where the suggestions are an arrow-key list to pick
-   from (compress or remove a section, switch off a skill or tool) and apply at once,
-   with the page's address beside them for the detail. A section is edited in its file,
-   uncommitted, for `git diff`; a skill or tool is switched off for that repository; each
-   decision can be reverted from the page's History. On a machine with no display (over
-   ssh, in CI) or with `--no-ui` the browser is not offered; with `--yes` or no terminal
-   the report is printed. `thinker context --machine` prints it again from any directory
-   (`--ask` asks again; `--repos n`, `--top n`, `--json`); each repository's report is kept
-   for the page. See [Context](context.md) for what the report measures.
+The installer connects your coding agents and shows suggested savings from recent sessions.
+Choose the browser or terminal, review the suggestions, and apply the cuts you want.
+Requires Node 20+, bash, git, curl, tar and a [supported agent](agent-integrations.md).
+
+In the browser, **Find Savings** opens with suggestions checked. Review their actions and
+uncheck anything you want to keep. Instruction changes are previewed as a diff, then opened
+as a pull request for you to review and merge. Without a GitHub origin or authenticated `gh`,
+they are written to your working tree, uncommitted. Skills and tools are switched off for
+that repository. [See each action and its undo](context.md#what-you-can-cut).
+
+In the terminal, use the arrow-key list to pick suggestions and apply them together.
+Instruction changes are written to the working tree for `git diff`. Run
+`thinker context --machine --ask` to revisit the suggestions.
+
+### What the installer does
+
+1. Downloads the latest GitHub release into `~/.thinker`.
+2. Connects your agents in their own settings. `thinker connect` runs this step alone.
+3. Reads the last 30 days of sessions in your five most active repositories to estimate
+   context costs and suggest cuts. Generating this first report needs no model call.
+
+Use `--no-ui` to stay in the terminal. Over SSH or in CI, the browser is not offered.
+With `--yes` or no terminal, the report is printed. Installer options pass through:
+`npx @zerotimedev/thinker --no-ui`.
+
+### How learning starts
 
 From then on thinker runs in every git repository on this machine: a cache starts,
 empty, with the first agent session in a repository (kept out of `git status` through
@@ -63,7 +67,7 @@ turns it off) has your next Claude Code prompt here ask you,
 in one multiple-choice question signed 🧠 Thinker, which of the unused ones to switch off: at most five, each
 option saying what the source is (the first sentence of its own listing), how many of the sessions that carried
 it used it, what it costs, and what off means and how it comes back; the rest, built-in tools always among them,
-are on the page (`thinker ui`, Context, All), which the question links to. The ones you pick go
+are on the page (`thinker ui`, Find Savings, All), which the question links to. The ones you pick go
 off for this checkout (`enabledPlugins` and `skillOverrides` in `.claude/settings.local.json`, kept out of git)
 or, for an MCP server, for the repository and its worktrees (`disabledMcpServers` in its entry of
 `~/.claude.json`, what `/mcp disable` writes). A skill switched off still runs as `/name`. What each file said
@@ -88,24 +92,21 @@ later suggestion continues where it stopped.
 
 ## The local page
 
-`thinker ui` serves a page from your own machine (127.0.0.1 only, with a token minted
-for that run) and opens it in the browser, on the [Context page](context.md). It works
-from any directory. The installer opens it on the Context view over every repository;
-`thinker ui --tab save --all` does the same later.
+Run `thinker ui` from any directory. It opens two views:
 
-- **Context** is where the agents' context goes and what to cut ([context.md](context.md)):
-  input tokens a session by part, then each instruction section, skill and tool with its
-  cost, use and waste, for one repository or all of them, over 7 or 30 days. Sections are
-  compressed or removed as a diff you apply; skills and tools are switched off.
-- **Cache** shows every repository on this machine with a cache as a card: its notes, fresh
-  and stale, with the code they point at, to archive or restore; its behaviors, to accept,
-  edit or discard; what is being distilled right now, with a Stop button; and the usage:
-  notes served, what agents did with them, tokens spent, the holdout comparison.
-- A repository with sensitive content is turned off with `thinker disable` inside it, and
-  `thinker enable` turns it back on. Thinker then does nothing there, in every clone and
-  worktree.
+- **Find Savings** shows which instructions, skills and tools consume context, how often
+  sessions use them, and what you can cut. Choose one repository or all, over 7 or 30 days.
+- **View Report** tracks session tokens or list-price costs over six weeks, by context part
+  and model, with your changes and the cache's savings below. `thinker report` prints the same report.
 
-The page stops by itself after half an hour unused; `thinker ui` opens it again.
+```bash
+thinker ui --tab save --all   # Find Savings across repositories
+thinker ui --tab report       # weekly report
+```
+
+The page listens on 127.0.0.1 with a token for that run and stops after half an hour unused.
+For the measurements, actions and undo commands, see [Find Savings](context.md).
+To turn thinker off in a repository, run `thinker disable`; `thinker enable` turns it back on.
 
 ### From the terminal instead
 

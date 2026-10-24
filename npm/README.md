@@ -1,18 +1,22 @@
 # @zerotimedev/thinker
 
-Installs [thinker](https://github.com/yoavshmariahu/thinker). Think ahead. Save context: a knowledge cache that gives your coding agents the context each task needs.
+[Thinker](https://zerotime.dev) helps your coding agent use fewer tokens.
+Find wasted context, review what to cut, and reuse what your agent learns about your code.
 
 ```bash
 npx @zerotimedev/thinker
 ```
 
-The package carries thinker's installer and runs it. It downloads the latest thinker release, verifies it
-against the release's sha256, installs it into `~/.thinker`, wires it into the coding agents on
-the machine, prints where your agents' context goes and what to cut first, and opens the local page on that report. The installer's options pass through, for example
-`npx @zerotimedev/thinker --uninstall`.
+The installer connects your coding agents and shows suggested savings from your recent sessions.
+Review them in your browser or terminal, then keep coding as usual.
 
-Requires bash, git, curl, tar and Node 20+. After the install, `thinker update` and the daily
-auto-update keep the tool current; npm is not involved again.
+Requires bash, git, curl, tar and Node 20+. [Setup and privacy](https://zerotime.dev/docs#install).
+
+## Installer details
+
+The package downloads the latest GitHub release, verifies its SHA-256 and installs it under
+`~/.thinker`. Thinker keeps itself updated; npm is not needed again.
+Installer options pass through, for example `npx @zerotimedev/thinker --uninstall`.
 
 ## As a pi package
 
