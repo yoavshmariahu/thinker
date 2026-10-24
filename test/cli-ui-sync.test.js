@@ -278,6 +278,8 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('report-snapshot.js'), /export function keptRows/);
   assert.match(read('ui/server.js'), /if \(keptRows\(st\)\.stale\) \{ measuring = true; if \(!reportRefreshing\(st\)\) refreshReportFn\(st\.repo\); \}/);
   assert.match(read('ui/page.html'), /function activityCheckBack/);
+  // the page's script parses (2026-10-24: a second `let APOLL` left the whole page blank, which no test caught)
+  for (const [, src] of read('ui/page.html').matchAll(/<script>([\s\S]*?)<\/script>/g)) assert.doesNotThrow(() => new Function(src));
   assert.match(read('commands/context.js'), /thinker report --refresh` makes the report they are read from/);
   assert.match(read('ui/page.html'), /<span class="ctx-avg-label">Average prompt<\/span><b>\$\{fmt\(promptAvg\.perPrompt\)\}<\/b> tokens/);
   assert.match(read('ui/page.html'), /<\/span>\$\{avgStat\}<\/figcaption>/, 'the average prompt sits on the caption line, not in a header row');

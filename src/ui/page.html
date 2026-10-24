@@ -869,11 +869,11 @@ async function loadActivity() {
   } catch (e) { el.innerHTML = `<div class="empty">Could not read the activity: ${esc(e.message)}</div>`; }
 }
 // while the report the savings are read from is being made again (`measuring`), check back and show it (as reportAsOf does)
-let APOLL = null;
+let AMPOLL = null;
 function activityCheckBack(d) {
-  clearTimeout(APOLL); if (!d.measuring) return;
+  clearTimeout(AMPOLL); if (!d.measuring) return;
   const want = AREPO, tries = (d.tries || 0) + 1; if (tries > 24) return;
-  APOLL = setTimeout(async () => {
+  AMPOLL = setTimeout(async () => {
     if (AREPO !== want || TAB !== 'activity') return;
     let n; try { n = await api(`/api/activity?repo=${encodeURIComponent(AREPO)}`); } catch { return; }
     if (AREPO !== want || TAB !== 'activity') return;
