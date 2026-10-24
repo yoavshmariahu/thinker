@@ -1345,8 +1345,34 @@ against what was cut that week; and the four numbers the Cache tab showed
 (`report.js:cacheMetrics`, from `usage.js:summarize` over the same window), with the saving in dollars first
 (the tokens saved on each model at that model's input list price: the holdout's figure by model where it is
 measured, else the servings acted on), then tokens saved, cache hits and the share acted on. All repositories is
-every repository's report merged (`mergeReports`: the sums and the session counts add). The server keeps a report
-a minute per repository and window; the readers' own caches make a repository's report about a second here.
+every repository's report merged (`mergeReports`: the sums and the session counts add).
+
+**The page does not work the figures out on a visit (2026-10-24).** Until then every visit to the tab ran `reportView`
+for every repository, and the Report over all repositories took three to four seconds here, again a minute later:
+`usage.js:summarize` alone was two seconds on this repository, half of it the store's safety check run on every note
+read (`store.js:assertSafeNotesPath`, five lstats and two realpaths a read; now checked again only when `.thinker` or
+`.thinker/local` changed, by their mtimes) and a sixth of a second parsing the 14 MB machine log, once per
+repository (now once a process, by the file's size and mtime, `usage.js:parse`); a session's model read from its
+transcript for the summary is kept on disk (`transcripts.js:sessionModel`, `disk-cache.js`). The report itself is
+kept in the checkout like the Context report (`report-snapshot.js`, `.thinker/state/report-<weeks>.json`): `thinker
+report` and `thinker report --refresh` write it, the page reads it and starts `thinker report --refresh --all` in the
+background (every repository in one process) when a kept report is older than `REFRESH_MS` (ten minutes) or was made
+by other code, and says "measured n min ago, updating…" and checks back, as the Save page does. The decisions under
+the tables are read live (`report.js:reportActions`), so one taken on Find Savings a moment ago shows at once; the
+cache's numbers follow the refresh. The Save page's report follows the same rule now: a kept report the code or the
+instruction files have outgrown is shown at once and made again behind it (`context-snapshot.js:lastSnapshot`); the
+transcripts are read on a visit only when there is no kept report at all, or an action dropped it. The background
+refreshes run one at a time (`ui/server.js:serialSpawner`): All repositories started a dozen node processes at once.
+The page picks a repository's checkout by a count of its note files (`store.js:count`), not by reading them.
+A session's transcript is read once for the instruction sections as well (`instruction-value.js:sessionRecord`): what
+the sections need of it is kept on this machine (`disk-cache.js`, `session-activity`: per tool call the files it named,
+its command, the files it edited and which of the code names the sections mention its output held,
+`instruction-sections.js:codeHits`, never the output), and a change to the instruction files is matched against
+that; the transcript is read again only when it grew, or the sections name code they did not name before
+(`coversCode`). Until then every edit of `AGENTS.md`, including the Find Savings page's own Compress and Remove, made
+the next visit re-read every transcript of the window: 340 sessions here, 70 s with the machine under load, and the
+page waited on it. Measured on this repository with the records dropped: 846 ms from the kept activity, 55 ms with the
+records; the kept activity is 18 MB for 348 sessions.
 
 **A section change is a pull request (2026-10-24, the owner's ask).** Writing the compressed or removed section to the
 working tree locked nothing in and threw the page to a view above the table. Now the diff opens in a modal over the

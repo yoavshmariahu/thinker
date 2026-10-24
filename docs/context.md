@@ -97,5 +97,7 @@ number against the table, the highest the darkest red and the lowest the darkest
 the average per session. A toggle prices the same tokens at the
 providers' list rates, so a switch of model shows in the trend. Under the tables: the actions taken on
 Find Savings in those weeks, by date, to read the weeks against, and the cache's four numbers, its saving in
-dollars first. The cache itself (the notes learned from your sessions, served to the agent as it works) is
+dollars first. The report is kept in the checkout and made again in the background when it is older than ten
+minutes (`thinker report --refresh`; `--all` for every repository): the page says when it was measured and shows
+the newer figures when they are ready. The cache itself (the notes learned from your sessions, served to the agent as it works) is
 the command line's: `thinker list`, `show`, `archive`, `system` ([usage and learning](usage.md)).

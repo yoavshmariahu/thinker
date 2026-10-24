@@ -5,7 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
-import { instructionFile, valueSections, sessionActivity, appliedSections, instructionValue, judgeSessionFile, judgeRecent, valueOf, readValueState, IDLE_MS } from '../src/instruction-value.js';
+import { instructionFile, valueSections, sessionActivity, appliedSections, instructionValue, judgeSessionFile, judgeRecent, valueOf, readValueState, coversCode, IDLE_MS } from '../src/instruction-value.js';
+import { setDiskCache } from '../src/disk-cache.js';
 import { contextView, skillOutcomes } from '../src/context-view.js';
 import { retireTrimmedCopy } from '../src/trimmed-copy-retired.js';
 
@@ -93,6 +94,29 @@ test('the report counts applied sessions and the cost of each section a session,
   // a Claude Code session does not count when CLAUDE.md is its own text
   fs.writeFileSync(path.join(repo, 'CLAUDE.md'), '# ours\n');
   assert.equal(instructionValue(store, { sessions }).sessions, 0);
+});
+
+test('a transcript is read once: a change to the instruction file is matched against what was kept of the session', t => {
+  const { repo, store } = fixture(t);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-ivalue-tr-')), cache = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-ivalue-cache-'));
+  t.after(() => { fs.rmSync(dir, { recursive: true, force: true }); fs.rmSync(cache, { recursive: true, force: true }); setDiskCache(undefined); });
+  setDiskCache(cache);
+  const sessions = [transcript(dir, 's1', [['Read', { file_path: path.join(repo, 'src/api/views.js') }, 'export const view = 1;'], ['Bash', { command: 'git commit -m x' }]])];
+  const v1 = instructionValue(store, { sessions });
+  assert.equal(v1.sections.find(s => s.id === 'api-views').applied, 1);
+  // the transcript is replaced by one of the same size that parses as nothing: what was kept of it stands in
+  const text = fs.readFileSync(sessions[0].file, 'utf8'); fs.writeFileSync(sessions[0].file, 'x'.repeat(text.length));
+  fs.appendFileSync(path.join(repo, 'AGENTS.md'), '\n## Style\n\nShort lines.\n');
+  const v2 = instructionValue(store, { sessions });
+  assert.equal(v2.sessions, 1);
+  assert.deepEqual(v2.sections.map(s => [s.id, s.applied]), [['api-views', 1], ['commits-and-pull-requests', 1], ['history', 0], ['style', 0]]);
+  // a transcript that grew is read again (here, into nothing)
+  fs.appendFileSync(sessions[0].file, 'x');
+  assert.equal(instructionValue(store, { sessions }).sessions, 0);
+  // an activity kept for some code names answers for a subset of them, not for a new one
+  assert.equal(coversCode({ names: ['a.b', 'c.d'], res: [] }, { names: ['a.b'], res: [] }), true);
+  assert.equal(coversCode({ names: ['a.b'], res: [] }, { names: ['a.b', 'e.f'], res: [] }), false);
+  assert.equal(coversCode({ names: [], res: [] }, { names: [], res: ['x\\.y'] }), false);
 });
 
 test('the judge keeps verdicts for known sections only, once a session, and the report sums them', async t => {

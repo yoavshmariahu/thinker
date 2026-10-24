@@ -253,13 +253,13 @@
     <!-- Report: what a session costs here week by week, by part and by model, the actions taken and the cache's numbers (report.js, as `thinker report`) -->
     <section id="tab-report" hidden>
       <div class="ctx-top"><div><h1>View Report</h1>
-      <p class="lede">What a session costs here, week by week: the average over each week's sessions, by where the tokens went and by the model that read them</p></div>
+      <p class="lede">What a session costs here, week by week: the average over each week's sessions, by where the tokens went and by the model that read them <span class="muted" id="r-asof"></span></p></div>
       <div class="controls">
         <select class="sel" id="r-repo" aria-label="Repository"></select>
         <div class="seg" id="r-mode"><button data-mode="avg" class="on">Per session</button><button data-mode="sum">Total</button></div>
         <div class="seg" id="r-measure"><button data-m="tokens" class="on">Tokens</button><button data-m="cost">Cost</button></div>
       </div></div>
-      <div id="report-body" class="section"><div class="empty"><svg class="logo-spin" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="22" r="6"/><circle cx="16" cy="16" r="6"/><circle cx="22" cy="10" r="6"/></svg>Reading the transcripts…</div></div>
+      <div id="report-body" class="section"><div class="empty"><svg class="logo-spin" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="22" r="6"/><circle cx="16" cy="16" r="6"/><circle cx="22" cy="10" r="6"/></svg>Reading the report…</div></div>
     </section>
   </main>
   <div class="toast" id="toast"></div>
@@ -851,15 +851,32 @@ const SHADE_MIN = 0.1;
 const money = d => d == null ? '–' : (d < 0 ? '−' : '') + '$' + (Math.abs(d) >= 10000 ? (Math.abs(d) / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : Math.abs(d) >= 100 ? String(Math.round(Math.abs(d))) : Math.abs(d) >= 10 ? Math.abs(d).toFixed(1) : Math.abs(d) >= 0.01 || d === 0 ? Math.abs(d).toFixed(2) : Math.abs(d).toFixed(3));
 async function loadReport() {
   const el = $('#report-body');
-  el.innerHTML = `<div class="empty">${LOGO_SPIN}Reading the transcripts…</div>`;
+  el.innerHTML = `<div class="empty">${LOGO_SPIN}Reading the report…</div>`; clearTimeout(RPOLL);
   try {
     if (!REPOS.length) await fetchRepos();
     if (REPO !== 'all' && !REPOS.some(r => r.id === REPO)) REPO = REPOS.find(r => r.current)?.id || 'all';
     $('#r-repo').innerHTML = `<option value="all"${REPO === 'all' ? ' selected' : ''}>All repositories</option>` + REPOS.map(r => `<option value="${esc(r.id)}"${r.id === REPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
     const v = await api(`/api/report?repo=${encodeURIComponent(REPO)}&weeks=6`);
     if (v.empty) { el.innerHTML = '<div class="empty">No repository with a cache on this machine yet.</div>'; return; }
-    renderReport(v);
+    renderReport(v); reportAsOf(v);
   } catch (e) { el.innerHTML = `<div class="empty">Could not read the report: ${esc(e.message)}</div>`; }
+}
+// The report is kept and made again in the background (report-snapshot.js), like the Save page's: the page says when
+// it was measured and, while a newer one is being made, checks back and shows it.
+let RPOLL = null;
+function reportAsOf(v) {
+  const el = $('#r-asof'); clearTimeout(RPOLL);
+  if (el) el.textContent = `· measured ${sinceMeasured(v.asOf)}${v.refreshing ? ', updating…' : ''}`;
+  if (!v.refreshing) return;
+  const want = REPO, tries = (v.tries || 0) + 1;
+  if (tries > 24) { if (el) el.textContent = `· measured ${sinceMeasured(v.asOf)}`; return; }
+  RPOLL = setTimeout(async () => {
+    if (REPO !== want || TAB !== 'report') return;
+    let n; try { n = await api(`/api/report?repo=${encodeURIComponent(REPO)}&weeks=6`); } catch { return; }
+    if (REPO !== want || TAB !== 'report' || n.empty) return;
+    if (n.asOf > v.asOf) { renderReport(n); reportAsOf(n); }
+    else reportAsOf({ ...v, refreshing: n.refreshing, tries });
+  }, 5000);
 }
 function renderReport(v) {
   RPT = v;

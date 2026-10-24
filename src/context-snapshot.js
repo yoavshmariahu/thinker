@@ -25,7 +25,8 @@ const INPUTS = ['.thinker/config.json', '.claude/settings.json', '.claude/settin
 const inputs = store => INPUTS.map(f => { try { const s = fs.statSync(path.join(store.repo, f)); return `${f}\t${s.size}\t${Math.round(s.mtimeMs)}`; } catch { return `${f}\t-`; } }).join('\n');
 
 // a linked worktree keeps its cache in the main checkout's .thinker but has sessions of its own: named apart
-const tag = store => store.repo === store.home ? '' : `-${crypto.createHash('sha256').update(store.repo).digest('hex').slice(0, 8)}`;
+export const stateTag = store => store.repo === store.home ? '' : `-${crypto.createHash('sha256').update(store.repo).digest('hex').slice(0, 8)}`;
+const tag = stateTag;
 const file = (store, days) => path.join(store.dir, 'state', `context-view-${days}${tag(store)}.json`);
 const lockFile = store => path.join(store.dir, 'state', `context-view${tag(store)}.lock`);
 
