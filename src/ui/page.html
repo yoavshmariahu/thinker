@@ -800,7 +800,7 @@ const needOf = e => e.running ? null : e.failed ? `retry it, or pick the section
 const HISTORY_PAGE = TABLE_PAGE, HPAGE = {};
 // `promptAvg` (report.js:promptAverage): what a prompt costs on average here, shown on the caption line beside the title as
 // the size the savings are read against (2026-10-24: a header row over Saved took a line of its own). No text under the table (2026-10-24, the owner's ask): the cells' hovers explain.
-function historyFigure(hs, { many, caption, sub, empty, key = 'history', pageSize = HISTORY_PAGE, promptAvg = null }) {
+function historyFigure(hs, { many, caption, sub, empty, key = 'history', pageSize = HISTORY_PAGE, promptAvg = null, measuring = false }) {
   const pages = Math.max(1, Math.ceil(hs.length / pageSize)), page = Math.min(pages - 1, HPAGE[key] || 0), from = page * pageSize, shown = hs.slice(from, from + pageSize);
   const when = t => new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
   const day = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
@@ -839,7 +839,7 @@ function historyFigure(hs, { many, caption, sub, empty, key = 'history', pageSiz
       <tr class="ctx-detail" data-detail="${i}" hidden><td colspan="8"><div class="md-body">${detail(e)}</div></td></tr>`; }).join('');
   const reverted = hs.filter(e => e.revertedAt).length;
   const pager = pagerOf(key, hs.length, page, pageSize).replace(/data-vpage=/g, 'data-page=');
-  const avgStat = promptAvg ? `<span class="ctx-capact ctx-avg" title="${esc(`What a prompt (one call to the model) costs here on average: ${fmt(promptAvg.tokens)} input tokens over ${promptAvg.prompts} prompts in ${promptAvg.sessions} sessions. Saved is read against it: its share of the prompt, and the shade of its cell.`)}"><span class="ctx-avg-label">Average prompt</span><b>${fmt(promptAvg.perPrompt)}</b> tokens</span>` : '';
+  const avgStat = !promptAvg && measuring ? '<span class="ctx-capact ctx-avg muted" title="The report the savings are read from is being made; this page checks back">measuring…</span>' : promptAvg ? `<span class="ctx-capact ctx-avg" title="${esc(`What a prompt (one call to the model) costs here on average: ${fmt(promptAvg.tokens)} input tokens over ${promptAvg.prompts} prompts in ${promptAvg.sessions} sessions. Saved is read against it: its share of the prompt, and the shade of its cell.`)}"><span class="ctx-avg-label">Average prompt</span><b>${fmt(promptAvg.perPrompt)}</b> tokens</span>` : '';
   return `<figure class="ctx-figure" data-history><figcaption><b>${caption}</b> <span class="ctx-sub">${sub ? `${sub} · ` : ''}${hs.length} decision${hs.length === 1 ? '' : 's'}${reverted ? ` · ${reverted} reverted` : ''}</span>${avgStat}</figcaption>
     ${hs.length ? `<table class="ctx-table"><thead><tr><th>Change</th><th class="num">Decided</th><th class="num" title="What the changed thing cost a prompt (one call to the model), over the sessions before the decision">Before</th><th class="num" title="What it costs a prompt over the sessions since">After</th><th class="num" title="Before minus after, a prompt, and its share of what a prompt cost before the decision">Saved</th><th>Pull request</th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table>${pager}` : `<div class="empty">${empty}</div>`}
     </figure>`;
@@ -868,7 +868,20 @@ async function loadActivity() {
     renderActivity(await api(`/api/activity?repo=${encodeURIComponent(AREPO)}`));
   } catch (e) { el.innerHTML = `<div class="empty">Could not read the activity: ${esc(e.message)}</div>`; }
 }
+// while the report the savings are read from is being made again (`measuring`), check back and show it (as reportAsOf does)
+let APOLL = null;
+function activityCheckBack(d) {
+  clearTimeout(APOLL); if (!d.measuring) return;
+  const want = AREPO, tries = (d.tries || 0) + 1; if (tries > 24) return;
+  APOLL = setTimeout(async () => {
+    if (AREPO !== want || TAB !== 'activity') return;
+    let n; try { n = await api(`/api/activity?repo=${encodeURIComponent(AREPO)}`); } catch { return; }
+    if (AREPO !== want || TAB !== 'activity') return;
+    if (!n.measuring || n.promptAvg) renderActivity(n); else activityCheckBack({ ...n, tries });
+  }, 5000);
+}
 function renderActivity(d) {
+  activityCheckBack(d);
   ACT = d;
   const el = $('#activity-body'), hs = d.history || [], many = AREPO === 'all';
   const needs = hs.filter(e => e.attention && !e.running), running = hs.filter(e => e.running);
@@ -876,7 +889,7 @@ function renderActivity(d) {
   const card = needs.length || running.length
     ? `<div class="attn"><div class="kicker">${needs.length ? `${needs.length} need${needs.length === 1 ? 's' : ''} you` : 'Under way'}</div>${needs.length ? `<ul>${needs.map(e => `<li><b>${name(e)}</b>: ${e.pr?.url ? needOf(e).replace(`#${e.pr.number}`, `<a href="${esc(e.pr.url)}" target="_blank" rel="noopener">#${e.pr.number}</a>`) : esc(needOf(e))}</li>`).join('')}</ul>` : ''}${running.length ? `<div class="why"><span class="spinner"></span>${running.length === 1 ? 'One change is' : `${running.length} changes are`} being made in the background; this page follows ${running.length === 1 ? 'it' : 'them'}.</div>` : ''}</div>`
     : `<div class="attn ok"><div class="why">Nothing needs you: no change under way or failed, no pull request waiting.</div></div>`;
-  el.innerHTML = card + historyFigure(hs, { many, caption: 'Decisions', sub: many ? 'every repository' : '', empty: 'No decisions yet. What you apply on Find Savings is listed here, with what came of it.', key: 'activity', promptAvg: d.promptAvg || null });
+  el.innerHTML = card + historyFigure(hs, { many, caption: 'Decisions', sub: many ? 'every repository' : '', empty: 'No decisions yet. What you apply on Find Savings is listed here, with what came of it.', key: 'activity', promptAvg: d.promptAvg || null, measuring: !!d.measuring });
   wireHistory(el.querySelector('[data-history]'), hs, loadActivity, () => renderActivity(d));
   badge(d);
 }

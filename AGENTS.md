@@ -1416,7 +1416,12 @@ green or red, a tenth of a prompt the darkest), never coloured text; the caption
 on average (`report.js:promptAverage` over the view's `sessionRows`, `promptAverageHere`, merged for All repositories), the size the
 savings are read against, and `--history` prints the same line first; no text under the table, the hovers explain (the owner's
 asks, 2026-10-24). A Pull request column links the section's PR. The view keeps one row a measured session for all this
-(`sessionRows`: input, prompts, the four parts, calls, files, sources, outputs; not sent to the page)
+(`sessionRows`: input, prompts, the four parts, calls, files, sources, outputs; not sent to the page). **The rows are lent only
+from a report this code made** (`report-snapshot.js:keptRows`): the installed copy's hooks write the same `report.json` from the
+main checkout, and on 2026-10-24 its rows, without the items, had every row of a worktree's page read "measuring" for an hour;
+now `/api/activity` answers `measuring: true` over a report that is none of this code's or old, starts the same background
+refresh as the Report tab, and the page checks back every five seconds (`page.html:activityCheckBack`); `thinker context
+--history` says to run `thinker report --refresh` instead
 (`report.js:cacheMetrics`, from `usage.js:summarize` over the same window), with the saving in dollars first
 (the tokens saved on each model at that model's input list price: the holdout's figure by model where it is
 measured, else the servings acted on), then tokens saved, cache hits and the share acted on. All repositories is

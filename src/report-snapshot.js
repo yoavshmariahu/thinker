@@ -74,13 +74,23 @@ export function dropReports(store) {
   try { fs.rmSync(reportFile(store), { force: true }); } catch {}
 }
 
-// The decisions with what each saved (report.js:actionEffect), read over the report kept here without making one: what
-// Recent activity and `thinker context --history` show beside Recent improvements. With no kept report the effects are null.
-export function historyEffects(store, history, { weeks = REPORT_WEEKS, now = Date.now() } = {}) {
-  return withEffects(history, readReport(store, weeks, { now })?.view?.sessionRows || [], now);
+// The session rows of the report kept here (report.js:reportView `sessionRows`), for the decisions' before and after: only
+// from a report this code made, since another copy of thinker writing the same file (the installed one, from a hook, beside
+// a worktree's: 2026-10-24, every row read "measuring" for an hour) leaves rows without what the effects need, or none.
+// `stale`: the report should be made again (none, other code, or older than REFRESH_MS), which the page starts.
+export function keptRows(store, { weeks = REPORT_WEEKS, now = Date.now() } = {}) {
+  const s = readFile(store).views[String(weeks)];
+  const mine = s?.view && s.code === code();
+  return { rows: mine ? s.view.sessionRows || [] : [], stale: !mine || now - s.at > REFRESH_MS };
 }
 
-// What a prompt costs on average here (report.js:promptAverage), over the report kept here; null without one.
+// The decisions with what each saved (report.js:actionEffect), read over the report kept here without making one: what
+// Recent activity and `thinker context --history` show. With no report of this code's the effects are null.
+export function historyEffects(store, history, { weeks = REPORT_WEEKS, now = Date.now() } = {}) {
+  return withEffects(history, keptRows(store, { weeks, now }).rows, now);
+}
+
+// What a prompt costs on average here (report.js:promptAverage), over the report kept here; null without one of this code's.
 export function promptAverageHere(store, { weeks = REPORT_WEEKS, now = Date.now() } = {}) {
-  return promptAverage(readReport(store, weeks, { now })?.view?.sessionRows || []);
+  return promptAverage(keptRows(store, { weeks, now }).rows);
 }

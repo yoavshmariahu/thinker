@@ -21,7 +21,7 @@ import { contextView, mergeViews, switchSources, setOutputCompression } from '..
 import { snapshotView, lastSnapshot, refreshing, dropSnapshots, REFRESH_MS } from '../context-snapshot.js';
 import { approveChanges, dismissChanges, startSectionJob, retryJob, revertDecision, pickChanges, allChanges, changeHistory, refreshPrStates } from '../context-suggest.js';
 import { mergeReports, reportActions, mergePromptAverages, REPORT_WEEKS } from '../report.js';
-import { reportSnapshot, refreshing as reportRefreshing, historyEffects, promptAverageHere } from '../report-snapshot.js';
+import { reportSnapshot, refreshing as reportRefreshing, historyEffects, promptAverageHere, keptRows } from '../report-snapshot.js';
 import { prAvailable } from '../instruction-pr.js';
 import http from 'node:http';
 import fs from 'node:fs';
@@ -231,10 +231,12 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
         const xs = [];
         // each decision with what it saved, over the report kept in its checkout (report-snapshot.js:historyEffects), and what
         // a prompt costs on average there (promptAverageHere), the size the savings are read against
-        const avgs = [];
-        for (const [r, st] of stores) { try { await refreshPrStates(st); xs.push(...historyEffects(st, changeHistory(st)).map(h => ({ ...h, repo: r.id, repoName: r.name }))); avgs.push(promptAverageHere(st)); } catch {} }
+        // a kept report that is none of this code's, or old, is made again in the background (as the Report tab does), and the
+        // answer says so (`measuring`), so the page checks back instead of showing "measuring" until the Report tab is visited
+        const avgs = []; let measuring = false;
+        for (const [r, st] of stores) { try { await refreshPrStates(st); xs.push(...historyEffects(st, changeHistory(st)).map(h => ({ ...h, repo: r.id, repoName: r.name }))); avgs.push(promptAverageHere(st)); if (keptRows(st).stale) { measuring = true; if (!reportRefreshing(st)) refreshReportFn(st.repo); } } catch {} }
         const history = xs.sort((a, b) => b.at.localeCompare(a.at));
-        return json(res, 200, { history, promptAvg: mergePromptAverages(avgs), attention: history.filter(h => h.attention).length, running: history.filter(h => h.running).length });
+        return json(res, 200, { history, promptAvg: mergePromptAverages(avgs), measuring, attention: history.filter(h => h.attention).length, running: history.filter(h => h.running).length });
       }
       if (req.method !== 'POST') return json(res, 405, { error: 'method not allowed' });
       const b = await readBody(req);

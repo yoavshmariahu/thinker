@@ -8,7 +8,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store } from '../src/store.js';
-import { reportSnapshot, readReport, writeReport, refreshReport, dropReports, refreshing, REFRESH_MS } from '../src/report-snapshot.js';
+import { reportSnapshot, readReport, writeReport, refreshReport, dropReports, refreshing, keptRows, historyEffects, promptAverageHere, REFRESH_MS } from '../src/report-snapshot.js';
 
 function repo(t) {
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-repsnap-')));
@@ -46,6 +46,15 @@ test('a report made by other code is served and marked for a refresh', t => {
   kept.views['6'].code = 'other'; fs.writeFileSync(f, JSON.stringify(kept));
   const s = reportSnapshot(st, 6, { now });
   assert.equal(s.stale, true); assert.deepEqual(s.view, { weeks: 6, columns: [] });
+  // its session rows are not lent to the decisions (another copy's rows lack what the effects need): nothing measured, stale
+  assert.deepEqual(keptRows(st, { now }), { rows: [], stale: true });
+  assert.equal(promptAverageHere(st, { now }), null);
+  assert.equal(historyEffects(st, [{ kind: 'tool', key: 'claude:tool:Workflow', at: new Date(now - 1000).toISOString(), decision: 'approved' }], { now })[0].effect, null);
+  // this code's report lends its rows, and is stale only once old
+  writeReport(st, 6, { weeks: 6, columns: [], sessionRows: [{ t: now - 2000, input: 100, prompts: 2, sources: { 'claude:tool:Workflow': 50 } }, { t: now - 500, input: 100, prompts: 2, sources: {} }] }, { now });
+  assert.deepEqual(keptRows(st, { now }).stale, false); assert.equal(keptRows(st, { now: now + REFRESH_MS + 1 }).stale, true);
+  assert.deepEqual(promptAverageHere(st, { now }), { sessions: 2, prompts: 4, tokens: 200, perPrompt: 50 });
+  assert.equal(historyEffects(st, [{ kind: 'tool', key: 'claude:tool:Workflow', at: new Date(now - 1000).toISOString(), decision: 'approved' }], { now })[0].effect.before.perPrompt, 25);
 });
 
 test('a refresh makes the report again, one run at a time, and a drop removes it', t => {

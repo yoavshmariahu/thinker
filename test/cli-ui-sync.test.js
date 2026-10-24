@@ -198,7 +198,7 @@ test('over the wire: a section\'s Apply records the decision running and starts 
   const pg = page(t, dir), p = await pg.start();
   const id = (await p.get('/api/repos')).repos[0].id;
   await p.get(`/api/context?repo=${encodeURIComponent(id)}&days=7`); // the report the server resolves the rows in
-  assert.deepEqual(await p.get(`/api/activity?repo=${encodeURIComponent(id)}`), { history: [], promptAvg: null, attention: 0, running: 0 });
+  assert.deepEqual(await p.get(`/api/activity?repo=${encodeURIComponent(id)}`), { history: [], promptAvg: null, measuring: true, attention: 0, running: 0 }, 'no report kept yet: measuring, and the refresh started');
   // Apply on two rows, one compressed and one removed: one job each, the command started detached in the checkout
   const r = await p.post('/api/changes/start', { repo: id, keys: ['section:AGENTS.md:tests', 'section:AGENTS.md:style'], acts: { 'section:AGENTS.md:tests': 'compress', 'section:AGENTS.md:style': 'remove' }, days: 7 });
   assert.equal(r.status, 200, JSON.stringify(r));
@@ -274,6 +274,11 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('commands/context.js'), /historyEffects\(store, changeHistory\(store\)\)/);
   assert.match(read('commands/context.js'), /A prompt here costs \$\{formatTokens\(avg\.perPrompt\)\} tokens on average/);
   assert.match(read('ui/page.html'), /promptAvg: d\.promptAvg \|\| null/);
+  // a kept report none of this code's is not read for the savings; the activity API starts the refresh and the page checks back
+  assert.match(read('report-snapshot.js'), /export function keptRows/);
+  assert.match(read('ui/server.js'), /if \(keptRows\(st\)\.stale\) \{ measuring = true; if \(!reportRefreshing\(st\)\) refreshReportFn\(st\.repo\); \}/);
+  assert.match(read('ui/page.html'), /function activityCheckBack/);
+  assert.match(read('commands/context.js'), /thinker report --refresh` makes the report they are read from/);
   assert.match(read('ui/page.html'), /<span class="ctx-avg-label">Average prompt<\/span><b>\$\{fmt\(promptAvg\.perPrompt\)\}<\/b> tokens/);
   assert.match(read('ui/page.html'), /<\/span>\$\{avgStat\}<\/figcaption>/, 'the average prompt sits on the caption line, not in a header row');
   assert.doesNotMatch(read('ui/page.html'), /ctx-avg-row/);
