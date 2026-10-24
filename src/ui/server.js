@@ -20,8 +20,8 @@ import { harnessView, harnessSavings, harnessOn, scheduleHarnessSuggestion, undo
 import { contextView, mergeViews, switchSources, setOutputCompression } from '../context-view.js';
 import { snapshotView, lastSnapshot, refreshing, dropSnapshots, REFRESH_MS } from '../context-snapshot.js';
 import { approveChanges, dismissChanges, startSectionJob, retryJob, revertDecision, pickChanges, allChanges, changeHistory, refreshPrStates } from '../context-suggest.js';
-import { mergeReports, reportActions, savingsSummary, mergeSavings, REPORT_WEEKS } from '../report.js';
-import { reportSnapshot, refreshing as reportRefreshing } from '../report-snapshot.js';
+import { mergeReports, reportActions, mergePromptAverages, REPORT_WEEKS } from '../report.js';
+import { reportSnapshot, refreshing as reportRefreshing, historyEffects, promptAverageHere, keptRows } from '../report-snapshot.js';
 import { prAvailable } from '../instruction-pr.js';
 import http from 'node:http';
 import fs from 'node:fs';
@@ -167,20 +167,19 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
           const xs = repos().flatMap(r => { try { const st = open(r.checkout); return [{ r, st, s: read(st) }]; } catch { return []; } });
           if (!xs.length) return json(res, 200, { empty: true });
           view = mergeReports(xs.map(({ r, s }) => ({ repo: r.id, name: r.name, view: s.view })));
-          // the decisions and what was saved read live over each kept report (report.js:reportActions, savingsSummary)
-          const acts = xs.map(({ r, st, s }) => ({ r, s, actions: reportActions(st, view.from, s.view.outputRows || [], s.view.sessionRows || []) }));
-          view.actions = acts.flatMap(({ r, actions }) => actions.map(a => ({ ...a, repo: r.id, repoName: r.name }))).sort((a, b) => b.at.localeCompare(a.at));
-          view.savings = mergeSavings(acts.map(({ s, actions }) => savingsSummary(actions, s.view.sessionRows || [])));
+          // the decisions and what each saved, read live over each kept report (report.js:reportActions)
+          view.actions = xs.flatMap(({ r, st, s }) => reportActions(st, view.from, s.view.sessionRows || []).map(a => ({ ...a, repo: r.id, repoName: r.name }))).sort((a, b) => b.at.localeCompare(a.at));
           at = Math.min(...xs.map(x => x.s.at)); busy = xs.some(x => x.s.refreshing);
           if (xs.some(x => x.s.stale && !reportRefreshing(x.st))) refreshReportFn(null);
         } else {
           const one = storeFor(want); if (!one) return json(res, 400, { error: 'unknown repository' });
           const s = read(one);
-          const actions = reportActions(one, s.view.from, s.view.outputRows || [], s.view.sessionRows || []);
-          view = { ...s.view, actions, savings: savingsSummary(actions, s.view.sessionRows || []) }; at = s.at; busy = s.refreshing;
+          const actions = reportActions(one, s.view.from, s.view.sessionRows || []);
+          view = { ...s.view, actions }; at = s.at; busy = s.refreshing;
           if (s.stale && !reportRefreshing(one)) refreshReportFn(one.repo);
         }
-        return json(res, 200, { ...view, asOf: Number.isFinite(at) ? at : Date.now(), refreshing: !!busy });
+        const { sessionRows, ...sent } = view; // the session rows stay on this side: the page reads the actions costed
+        return json(res, 200, { ...sent, asOf: Number.isFinite(at) ? at : Date.now(), refreshing: !!busy });
       }
       // what Claude Code loads into every session here and what switching it off saved (harness.js:harnessView, as `thinker harness`)
       if (req.method === 'GET' && url.pathname === '/api/harness') {
@@ -230,9 +229,14 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
         const stores = storesFor(want); if (!stores) return json(res, 400, { error: 'unknown repository' });
         // a pending pull request is asked after on GitHub first (context-suggest.js:refreshPrStates, a minute apart at most)
         const xs = [];
-        for (const [r, st] of stores) { try { await refreshPrStates(st); xs.push(...changeHistory(st).map(h => ({ ...h, repo: r.id, repoName: r.name }))); } catch {} }
+        // each decision with what it saved, over the report kept in its checkout (report-snapshot.js:historyEffects), and what
+        // a prompt costs on average there (promptAverageHere), the size the savings are read against
+        // a kept report that is none of this code's, or old, is made again in the background (as the Report tab does), and the
+        // answer says so (`measuring`), so the page checks back instead of showing "measuring" until the Report tab is visited
+        const avgs = []; let measuring = false;
+        for (const [r, st] of stores) { try { await refreshPrStates(st); xs.push(...historyEffects(st, changeHistory(st)).map(h => ({ ...h, repo: r.id, repoName: r.name }))); avgs.push(promptAverageHere(st)); if (keptRows(st).stale) { measuring = true; if (!reportRefreshing(st)) refreshReportFn(st.repo); } } catch {} }
         const history = xs.sort((a, b) => b.at.localeCompare(a.at));
-        return json(res, 200, { history, attention: history.filter(h => h.attention).length, running: history.filter(h => h.running).length });
+        return json(res, 200, { history, promptAvg: mergePromptAverages(avgs), measuring, attention: history.filter(h => h.attention).length, running: history.filter(h => h.running).length });
       }
       if (req.method !== 'POST') return json(res, 405, { error: 'method not allowed' });
       const b = await readBody(req);

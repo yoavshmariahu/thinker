@@ -198,7 +198,7 @@ test('over the wire: a section\'s Apply records the decision running and starts 
   const pg = page(t, dir), p = await pg.start();
   const id = (await p.get('/api/repos')).repos[0].id;
   await p.get(`/api/context?repo=${encodeURIComponent(id)}&days=7`); // the report the server resolves the rows in
-  assert.deepEqual(await p.get(`/api/activity?repo=${encodeURIComponent(id)}`), { history: [], attention: 0, running: 0 });
+  assert.deepEqual(await p.get(`/api/activity?repo=${encodeURIComponent(id)}`), { history: [], promptAvg: null, measuring: true, attention: 0, running: 0 }, 'no report kept yet: measuring, and the refresh started');
   // Apply on two rows, one compressed and one removed: one job each, the command started detached in the checkout
   const r = await p.post('/api/changes/start', { repo: id, keys: ['section:AGENTS.md:tests', 'section:AGENTS.md:style'], acts: { 'section:AGENTS.md:tests': 'compress', 'section:AGENTS.md:style': 'remove' }, days: 7 });
   assert.equal(r.status, 200, JSON.stringify(r));
@@ -247,6 +247,11 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   // the page's Total toggle is the command's --total
   assert.match(read('commands/report.js'), /total: Boolean\(flags\.total\)/);
   assert.match(read('ui/page.html'), /data-mode="sum">Total</);
+  // the unit is a prompt, one call to the model, on both doors (2026-10-24): the average is the week's sum over its prompts
+  assert.match(read('ui/page.html'), /data-mode="avg" class="on">Per prompt</);
+  assert.match(read('ui/page.html'), /col\.prompts \? c\.tokens \/ col\.prompts : null/);
+  assert.match(read('report.js'), /col\.prompts \? c\.tokens \/ col\.prompts : null/);
+  assert.match(read('report.js'), /per prompt \(one call to the model\)/);
   assert.match(read('report.js'), /export const REPORT_WEEKS = 6;/);
   assert.match(read('ui/page.html'), /\/api\/report\?repo=\$\{encodeURIComponent\(REPO\)\}&weeks=6/);
   assert.match(read('report.js'), /export const TREND_MIN = 0\.05;/);
@@ -263,17 +268,28 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   // every table on the page shows 20 rows a page
   assert.match(read('ui/page.html'), /const TABLE_PAGE = 20, VPAGE = \{\};/);
   assert.match(read('ui/page.html'), /rows\.slice\(from, from \+ TABLE_PAGE\)/);
-  assert.match(read('ui/page.html'), /historyFigure\(acts, \{ many: Boolean\(v\.all\), caption: 'Actions in the window'/);
-  // what was saved with thinker leads the actions on both doors: a session's input tokens before the first action in effect
-  // against since (report.js:savingsSummary, over the view's sessionRows), the server reading it live over the kept report,
-  // and each action with the same comparison for the part it touched (actionEffect)
-  assert.match(read('report.js'), /savings: savingsSummary\(actions, sessionRows\)/);
-  assert.match(read('report.js'), /L\.push\('', 'Saved with thinker'\)/);
-  assert.match(read('ui/server.js'), /savings: savingsSummary\(actions, s\.view\.sessionRows \|\| \[\]\)/);
-  assert.match(read('ui/server.js'), /view\.savings = mergeSavings\(/);
-  assert.match(read('ui/page.html'), /<div class="kicker">Saved with thinker<\/div>/);
-  assert.match(read('ui/page.html'), /effectTable\(e\.effect\)/);
-  assert.match(read('report.js'), /effect: actionEffect\(e, sessionRows, now\)/);
+  // the decisions are not on the Report (2026-10-24, the owner's call): Recent activity and `thinker context --history` show
+  // every decision with before, after and saved a prompt, attributed to the thing it changed alone (report.js:actionEffect
+  // over the kept report, report-snapshot.js:historyEffects), under a cell over Saved with what a prompt costs on average
+  // here (promptAverageHere), the size the savings are read against; no text under the table
+  assert.doesNotMatch(read('report.js'), /Recent improvements|reportTop/);
+  assert.doesNotMatch(read('ui/page.html'), /Recent improvements|Saved with thinker|compact: true/);
+  assert.match(read('ui/server.js'), /historyEffects\(st, changeHistory\(st\)\)/);
+  assert.match(read('ui/server.js'), /promptAvg: mergePromptAverages\(avgs\)/);
+  assert.match(read('commands/context.js'), /historyEffects\(store, changeHistory\(store\)\)/);
+  assert.match(read('commands/context.js'), /A prompt here costs \$\{formatTokens\(avg\.perPrompt\)\} tokens on average/);
+  assert.match(read('ui/page.html'), /promptAvg: d\.promptAvg \|\| null/);
+  // a kept report none of this code's is not read for the savings; the activity API starts the refresh and the page checks back
+  assert.match(read('report-snapshot.js'), /export function keptRows/);
+  assert.match(read('ui/server.js'), /if \(keptRows\(st\)\.stale\) \{ measuring = true; if \(!reportRefreshing\(st\)\) refreshReportFn\(st\.repo\); \}/);
+  assert.match(read('ui/page.html'), /function activityCheckBack/);
+  // the page's script parses (2026-10-24: a second `let APOLL` left the whole page blank, which no test caught)
+  for (const [, src] of read('ui/page.html').matchAll(/<script>([\s\S]*?)<\/script>/g)) assert.doesNotThrow(() => new Function(src));
+  assert.match(read('commands/context.js'), /thinker report --refresh` makes the report they are read from/);
+  assert.match(read('ui/page.html'), /<span class="ctx-avg-label">Average prompt<\/span><b>\$\{fmt\(promptAvg\.perPrompt\)\}<\/b> tokens/);
+  assert.match(read('ui/page.html'), /<tr class="ctx-caprow"><th colspan="4" class="ctx-cap">\$\{capText\}<\/th><th class="num ctx-avgcell">\$\{avgStat\}<\/th>/, 'the caption is the first header row, the average prompt in the cell over Saved');
+  assert.match(read('ui/page.html'), /<th class="num"[^>]*>Before<\/th><th class="num"[^>]*>After<\/th><th class="num"[^>]*>Saved<\/th><th>Pull request<\/th>/);
+  assert.doesNotMatch(read('ui/page.html'), /A section's change runs in the background and <b>o/);
   // the cost view is the command's --cost: list prices from prices.js, an unpriced model marked on both (the command in its
   // row's name, the page in the row's kind: the Report's tables carry no prose under them since 2026-10-24, the owner's ask)
   assert.match(read('commands/report.js'), /cost: Boolean\(flags\.cost\)/);
@@ -286,7 +302,7 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('report.js'), /export const TOKEN_TYPES = \[\['fresh', 'Input, fresh'\], \['cacheWrite', 'Input, written to cache'\], \['cacheRead', 'Input, read from cache'\], \['output', 'Model output'\]\];/);
   assert.match(read('report.js'), /export const OTHERS = \[\['otherInput', 'Other input'\], \['output', 'Model output'\]\];/);
   assert.match(read('report.js'), /'By token type \(as the model reported them/); assert.match(read('ui/page.html'), /<b>By token type<\/b>/);
-  assert.match(read('ui/page.html'), /el\.innerHTML = parts \+ models \+ tokenTypes \+ saved \+ actions \+ cards;/);
+  assert.match(read('ui/page.html'), /el\.innerHTML = parts \+ models \+ tokenTypes \+ cards;/, 'the token types last, no decisions on the Report');
   assert.doesNotMatch(read('ui/page.html'), /Total of these/); assert.doesNotMatch(read('report.js'), /'Total of these'/);
   assert.equal((read('report.js').match(/line\('Total \(the whole session\)', v\.sessionTotals, true\)/g) || []).length, 3);
   assert.equal((read('ui/page.html').match(/row\('Total \(the whole session\)', v\.sessionTotals, \{ cls: 'rep-total', total: true \}\)/g) || []).length, 3);

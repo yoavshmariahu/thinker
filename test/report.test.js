@@ -1,4 +1,4 @@
-// The Report page (report.js, `thinker report`): the average a session cost each week by part and by model, the
+// The Report page (report.js, `thinker report`): the average a prompt (one call to the model) cost each week by part and by model, the
 // cost view at list prices (prices.js), the trend rule, the merge over repositories and the text the command prints.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
-import { reportView, mergeReports, renderReport, trend, change, weekColumns, weekStart, cacheMetrics, PARTS, BREAKDOWN, TOKEN_TYPES, OTHERS, outputComparison, formatShare, actionEffect, actionPart, effectSpan, savingsSummary, mergeSavings } from '../src/report.js';
+import { reportView, mergeReports, renderReport, trend, change, weekColumns, weekStart, cacheMetrics, PARTS, BREAKDOWN, TOKEN_TYPES, OTHERS, outputComparison, formatShare, actionEffect, itemCost, effectSpan, withEffects, promptAverage, mergePromptAverages } from '../src/report.js';
 import { listPrice, providerOf, costOf, formatDollars } from '../src/prices.js';
 
 function fixture(t) {
@@ -83,11 +83,14 @@ test('the report averages each week over its sessions, by part and by model unde
   assert.deepEqual(v.columns.map(c => c.sessions), [0, 0, 0, 0, 2, 2]);
   assert.deepEqual(v.columns.map(c => c.priced), [0, 0, 0, 0, 1, 2], 'the unpriced model counts in the sessions, not the cost');
   assert.equal(v.columns[5].unmeasured, 1, 'the Cursor session reports no usage');
-  // this week: two Opus sessions of 1,000 input (two turns of 500, cache reads included) and 100 output each
-  const last = 5, avg = (cells, w) => cells[w].tokens / v.columns[w].sessions;
-  assert.equal(avg(v.sessionTotals, last), 1100, 'the whole session, under the model table');
+  // this week: two Opus sessions of 1,000 input (two turns of 500, cache reads included) and 100 output each: 550 a prompt
+  // (a prompt is one call to the model, two a session here; the average is the week's sum over its prompts)
+  const last = 5, avg = (cells, w) => cells[w].tokens / v.columns[w].prompts;
+  assert.equal(v.columns[last].prompts, 4); assert.equal(v.columns[last].sessions, 2);
+  assert.equal(avg(v.sessionTotals, last), 550, 'the whole prompt, under the model table');
+  assert.equal(v.sessionTotals[last].prompts, 4, 'a cell carries its prompts');
   const bd = k => v.breakdown.find(p => p.key === k);
-  assert.equal(avg(bd('output').cells, last), 100);
+  assert.equal(avg(bd('output').cells, last), 50);
   const inputParts = v.breakdown.filter(p => p.key !== 'output').reduce((a, p) => a + p.cells[last].tokens, 0);
   assert.equal(inputParts, 2000, 'the input parts add up to the measured input');
   assert.ok(v.parts.find(p => p.key === 'outputs').cells[last].tokens > 0, 'the tool output read again by the call after it');
@@ -105,23 +108,23 @@ test('the report averages each week over its sessions, by part and by model unde
   assert.equal(v.totals[last].tokens, v.parts.reduce((a, p) => a + p.cells[last].tokens, 0), 'the parts table totals the four');
   // the three tables add up to the same whole session: the parts with the rest of the input and the output under them…
   assert.deepEqual(v.others.map(p => p.key), OTHERS.map(([k]) => k));
-  assert.equal(avg(v.others.find(p => p.key === 'output').cells, last), 100);
+  assert.equal(avg(v.others.find(p => p.key === 'output').cells, last), 50, 'a prompt: 100 output over the session\'s two calls');
   assert.equal(v.others.find(p => p.key === 'otherInput').cells[last].tokens, v.breakdown.filter(p => !PARTS.some(([k]) => k === p.key) && p.key !== 'output').reduce((a, p) => a + p.cells[last].tokens, 0));
   for (const w of [4, last]) assert.equal(v.totals[w].tokens + v.others.reduce((a, p) => a + p.cells[w].tokens, 0), v.sessionTotals[w].tokens, 'the parts with the others are the whole session');
   // …and the tokens by type: an Opus session is two turns of 200 fresh, 300 read from the cache, 50 output
   assert.deepEqual(v.tokenTypes.map(p => p.key), TOKEN_TYPES.map(([k]) => k));
   const tt = k => v.tokenTypes.find(p => p.key === k);
-  assert.equal(avg(tt('fresh').cells, last), 400); assert.equal(avg(tt('cacheRead').cells, last), 600); assert.equal(avg(tt('cacheWrite').cells, last), 0); assert.equal(avg(tt('output').cells, last), 100);
+  assert.equal(avg(tt('fresh').cells, last), 200); assert.equal(avg(tt('cacheRead').cells, last), 300); assert.equal(avg(tt('cacheWrite').cells, last), 0); assert.equal(avg(tt('output').cells, last), 50);
   for (const w of [4, last]) assert.equal(v.tokenTypes.reduce((a, p) => a + p.cells[w].tokens, 0), v.sessionTotals[w].tokens, 'the types are the whole session');
   assert.equal(tt('fresh').cells[4].tokens, 4000 + 200, 'the gpt and mystery sessions report no cache reads');
   // last week: one gpt-6-astra session (4,020 tokens) and one on an unpriced model (202)
-  assert.equal(avg(v.sessionTotals, 4), (4020 + 202) / 2);
+  assert.equal(avg(v.sessionTotals, 4), (4020 + 202) / 4);
   assert.deepEqual(v.unpriced, ['mystery-9']);
-  // by model: the biggest provider first, each model's share of the average session, the provider's subtotal the sum
+  // by model: the biggest provider first, each model's share of the average prompt, the provider's subtotal the sum
   assert.deepEqual(v.providers.map(p => p.name), ['OpenAI', 'Anthropic']);
   const opus = v.models.find(m => m.model === 'claude-opus-5-5'), astra = v.models.find(m => m.model === 'gpt-6-astra');
-  assert.equal(opus.provider, 'Anthropic'); assert.equal(opus.cells[last].sessions, 2); assert.equal(opus.cells[last].tokens, 2200);
-  assert.equal(v.providers.find(p => p.name === 'Anthropic').cells[last].tokens, 2200);
+  assert.equal(opus.provider, 'Anthropic'); assert.equal(opus.cells[last].sessions, 2); assert.equal(opus.cells[last].prompts, 4); assert.equal(opus.cells[last].tokens, 2200);
+  assert.equal(v.providers.find(p => p.name === 'Anthropic').cells[last].tokens, 2200); assert.equal(v.providers.find(p => p.name === 'Anthropic').cells[last].prompts, 4);
   assert.equal(v.providers.find(p => p.name === 'OpenAI').cells[4].tokens, astra.cells[4].tokens + v.models.find(m => m.model === 'mystery-9').cells[4].tokens);
   assert.equal(v.models.find(m => m.model === 'mystery-9').priced, false);
   // cost: an Opus session is 400 fresh at $4, 600 cache reads at $0.20, 100 output at $20 per million
@@ -137,21 +140,18 @@ test('the report averages each week over its sessions, by part and by model unde
   // the actions in the window, the cache's numbers over it
   assert.deepEqual(v.actions.map(a => a.id), ['h1']);
   assert.equal(v.cache.hits, 0); assert.equal(v.cache.dollarsSaved, 0); assert.equal(v.cache.acted, null);
-  // one row a measured session, its input and the four parts, for the actions' before and since
+  // one row a measured session: its input, the four parts, and the things it cost (the files read with the calls, each
+  // source loaded, each tool's outputs), for the actions' attribution
   assert.equal(v.sessionRows.length, 4, 'the Cursor session reports no usage and has no row');
   assert.deepEqual(Object.keys(v.sessionRows[0].parts), ['instructions', 'custom', 'builtin', 'outputs']);
-  // what the action changed: the one session before it (gpt-6-astra, 4,000 input) against the three since (200, 1,000, 1,000)
+  assert.deepEqual(Object.keys(v.sessionRows[0]).sort(), ['calls', 'files', 'input', 'outputs', 'parts', 'prompts', 'sources', 't']); assert.equal(v.sessionRows[0].prompts, 2);
+  // the action in the window with what it alone saved: the Workflow tool was loaded in no fixture session, so before and
+  // since cost 0 a prompt, over 1 session before and 3 since
   const f = v.actions[0].effect;
-  assert.equal(f.part, 'builtin'); assert.equal(f.partName, 'Built-in tools');
-  assert.equal(f.before.sessions, 1); assert.equal(f.after.sessions, 3);
-  assert.equal(f.session.before, 4000); assert.equal(f.session.after, Math.round(2200 / 3)); assert.equal(f.session.delta, 4000 - Math.round(2200 / 3));
-  assert.equal(f.window, f.session.delta * 3); assert.equal(f.few, true);
-  // what was saved with thinker: the same two sides, from the first action in effect
-  const sv = v.savings;
-  assert.equal(sv.since, Date.parse(v.actions[0].at)); assert.equal(sv.actions, 1);
-  assert.equal(sv.before.sessions, 1); assert.equal(sv.after.sessions, 3); assert.equal(sv.session.before, 4000); assert.equal(sv.session.after, Math.round(2200 / 3));
-  assert.equal(sv.parts.before, PARTS.reduce((a, [k]) => a + v.sessionRows.find(r => r.input === 4000).parts[k], 0));
-  assert.equal(sv.window, sv.session.delta * 3);
+  assert.deepEqual([f.before.sessions, f.after.sessions, f.before.prompts, f.after.prompts, f.before.perPrompt, f.after.perPrompt, f.delta, f.window, f.few], [1, 3, 2, 6, 0, 0, 0, 0, true]);
+  // what a prompt costs on average over the measured sessions: 4,000 + 200 + 1,000 + 1,000 input over 8 prompts
+  assert.deepEqual(promptAverage(v.sessionRows), { sessions: 4, prompts: 8, tokens: 6200, perPrompt: 775 });
+  assert.equal(promptAverage([]), null);
   // the command's text: the two tables with totals, the marks, the actions and the cache
   const text = renderReport(v).join('\n');
   assert.match(text, /By token type/); assert.match(text, /Input, read from cache/); assert.match(text, /Other input/); assert.doesNotMatch(text, /Total of these/);
@@ -162,22 +162,21 @@ test('the report averages each week over its sessions, by part and by model unde
   const shared = renderReport(v, { share: true }).join('\n'), lines = shared.split('\n');
   assert.match(shared, /each row as its share of the whole session/);
   const typeLines = TOKEN_TYPES.map(([, name]) => lines.find(l => l.trimStart().startsWith(name)));
-  assert.match(typeLines[2], /55%/, 'cache reads are 600 of the 1,100 tokens of an Opus session'); assert.match(typeLines[3], /9\.1%/); assert.match(typeLines[0], /36%/);
+  assert.match(typeLines[2], /55%/, 'cache reads are 600 of the 1,100 tokens of an Opus session, the same share a prompt'); assert.match(typeLines[3], /9\.1%/); assert.match(typeLines[0], /36%/);
   assert.doesNotMatch(typeLines[0], /\d[km]\b/, 'no token count on a shared row');
   const totalLines = lines.filter(l => l.includes('TOTAL (THE WHOLE SESSION)'));
-  assert.equal(totalLines.length, 3); for (const l of totalLines) { assert.doesNotMatch(l, /%/); assert.match(l, /1\.1k/); }
+  assert.equal(totalLines.length, 3); for (const l of totalLines) { assert.doesNotMatch(l, /%/); assert.match(l, /\b550\b/, 'the whole session a prompt: 1,100 over two calls'); }
   assert.match(lines.find(l => l.trimStart().startsWith('ANTHROPIC')), /%/, 'a provider subtotal is a share too');
   assert.equal(formatShare(0.5), '50%'); assert.equal(formatShare(0.0909), '9.1%'); assert.equal(formatShare(0.0031), '0.31%'); assert.equal(formatShare(0.00001), '<0.01%'); assert.match(text, /ANTHROPIC/); assert.match(text, /claude-opus-5-5/);
-  assert.match(text, /mystery-9 \(unpriced\)/); assert.match(text, /Workflow tool/); assert.match(text, /\$ saved\s+\$0\.00/);
-  // the saving leads: a session before against since, then the action with the same comparison for its part
-  assert.match(text, /Saved with thinker\n  a session 4k → 733 input tokens \(−82%\) since \d{4}-\d\d-\d\d, the first of 1 action in effect: saving ~3\.3k a session, ~9\.8k over the 3 sessions since \(few sessions yet\)/);
-  assert.match(text, /Workflow tool\n\s+a session 4k → 733 input tokens \(−82%\) · built-in tools /);
+  assert.match(text, /mystery-9 \(unpriced\)/); assert.match(text, /\$ saved\s+\$0\.00/); assert.match(text, /per prompt \(one call to the model\), by week \(.*sessions, 0, 0, 0, 0, 4, 4 prompts\)/);
+  // the decisions are not on the Report (they are Recent activity's and `thinker context --history`'s)
+  assert.doesNotMatch(text, /Recent improvements|Saved with thinker|Workflow tool/);
   assert.match(renderReport(v, { cost: true }).join('\n'), /list prices/);
   assert.match(renderReport(v, { total: true }).join('\n'), /Total tokens over the week's sessions/);
   // every repository's report merged: the sums and the sessions add, the actions name their repository
   const m = mergeReports([{ repo: 'a', name: 'A', view: v }, { repo: 'b', name: 'B', view: v }]);
   assert.deepEqual(m.columns.map(c => c.sessions), [0, 0, 0, 0, 4, 4]);
-  assert.equal(m.sessionTotals[last].tokens, 4400);
+  assert.equal(m.sessionTotals[last].tokens, 4400); assert.equal(m.columns[last].prompts, 8); assert.equal(m.sessionTotals[last].prompts, 8);
   assert.equal(m.tokenTypes.find(p => p.key === 'cacheRead').cells[last].tokens, 2400); assert.equal(m.others.find(p => p.key === 'output').cells[last].tokens, 400);
   // a kept report from before the token types merges as zeros, and the page renders it without them
   const old = { ...v }; delete old.tokenTypes; delete old.others;
@@ -185,7 +184,8 @@ test('the report averages each week over its sessions, by part and by model unde
   assert.match(renderReport(old).join('\n'), /By token type/);
   assert.equal(m.models.find(x => x.model === 'claude-opus-5-5').cells[last].sessions, 4);
   assert.deepEqual(m.actions.map(a => a.repoName), ['A', 'B']);
-  assert.equal(m.savings.before.sessions, 2); assert.equal(m.savings.after.sessions, 6); assert.equal(m.savings.session.after, Math.round(4400 / 6)); assert.equal(m.savings.actions, 2);
+  assert.deepEqual(mergePromptAverages([promptAverage(v.sessionRows), promptAverage(v.sessionRows), null]), { sessions: 8, prompts: 16, tokens: 12400, perPrompt: 775 });
+  assert.equal(mergePromptAverages([null]), null);
   assert.equal(mergeReports([]), null);
 });
 
@@ -220,19 +220,40 @@ test('outputComparison: a compressed tool against itself before, the saving a se
   assert.equal(outputComparison(rows, 'Read'), null);
 });
 
-test('actionEffect: a session before an action against since, for the part it touched and the whole; the summary from the first action in effect', () => {
+test('actionEffect: what one decision saved, attributed to the thing it changed alone; withEffects over a history', () => {
   const T0 = Date.parse('2026-10-01T00:00:00Z'), H = 3600_000;
-  const row = (h, input, parts) => ({ t: T0 + h * H, input, parts: { instructions: 0, custom: 0, builtin: 0, outputs: 0, ...parts } });
-  const rows = [row(0, 10000, { instructions: 3000 }), row(1, 12000, { instructions: 3000 }), row(10, 8000, { instructions: 1000 }), row(11, 6000, { instructions: 1000 }), row(20, 7000, { instructions: 1000 })];
+  const row = (h, x) => ({ t: T0 + h * H, input: 10000, prompts: 1, parts: { instructions: 0, custom: 0, builtin: 0, outputs: 0 }, calls: 10, files: ['AGENTS.md'], sources: {}, outputs: {}, ...x });
+  const rows = [row(0, { sources: { 'claude:tool:Workflow': 4000 }, outputs: { 'Bash:grep': 9000 } }), row(1, { sources: { 'claude:tool:Workflow': 4000 }, files: [] }), row(10, { outputs: { 'Bash:grep': 1000 } }), row(11, { calls: 20 }), row(20, { sources: { 'claude:tool:Workflow': 2000 } })];
   const at = h => new Date(T0 + h * H).toISOString(), now = T0 + 30 * H;
-  // the kind names the part: a section the instruction files, a skill or MCP server the custom tools, Claude Code's own tool the built-in ones
-  assert.equal(actionPart({ kind: 'section' }), 'instructions'); assert.equal(actionPart({ kind: 'skill' }), 'custom'); assert.equal(actionPart({ kind: 'tool', key: 'claude:mcp:chrome' }), 'custom'); assert.equal(actionPart({ kind: 'tool', key: 'claude:tool:Workflow' }), 'builtin'); assert.equal(actionPart({ kind: 'output' }), 'outputs');
-  const sec = { kind: 'section', key: 'section:AGENTS.md:x', at: at(5), decision: 'applied after review' };
+  // the thing's cost in a session: a section its tokens on that side times the calls where the file was read; a source
+  // what the session loaded it at; a tool's outputs what they cost; a section without recorded tokens cannot be costed
+  const sec = { kind: 'section', key: 'section:AGENTS.md:x', file: 'AGENTS.md', tokens: { before: 300, after: 0 }, at: at(5), decision: 'applied after review' };
+  assert.equal(itemCost(sec, rows[0], 'before'), 3000); assert.equal(itemCost(sec, rows[1], 'before'), 0, 'the file was not read'); assert.equal(itemCost(sec, rows[3], 'after'), 0);
+  assert.equal(itemCost({ ...sec, tokens: { before: 300, after: 100 } }, rows[3], 'after'), 2000);
+  assert.equal(itemCost({ kind: 'section', key: 'section:AGENTS.md:x', at: at(5) }, rows[0], 'before'), null);
+  assert.equal(itemCost({ kind: 'tool', key: 'claude:tool:Workflow' }, rows[0], 'before'), 4000); assert.equal(itemCost({ kind: 'tool', key: 'claude:tool:Workflow' }, rows[2], 'after'), 0);
+  assert.equal(itemCost({ kind: 'output', key: 'output:Bash:grep' }, rows[0], 'before'), 9000);
+  assert.equal(itemCost({ kind: 'output', key: 'output:Bash:grep' }, { outputs: { 'Bash:grep@moderate': 400, 'Bash:grep': 100, 'Bash:grepx': 5 } }, 'after'), 500, 'a compressed tool\'s key carries its level');
+  // the section removed at hour 5 (one prompt a session here): 1,500 a prompt before (3,000 and 0), 0 since, over 3 prompts
   const f = actionEffect(sec, rows, now);
-  assert.deepEqual([f.before.sessions, f.after.sessions], [2, 3]);
-  assert.deepEqual(f.parts, { before: 3000, after: 1000, delta: 2000, share: 2 / 3 });
-  assert.deepEqual(f.session, { before: 11000, after: 7000, delta: 4000, share: 4000 / 11000 });
-  assert.equal(f.window, 12000); assert.equal(f.few, true); assert.equal(f.to, null);
+  assert.deepEqual([f.before.sessions, f.after.sessions, f.before.prompts, f.after.prompts, f.before.perPrompt, f.after.perPrompt, f.delta, f.window, f.few, f.to], [2, 3, 2, 3, 1500, 0, 1500, 4500, true, null]);
+  // the share is of what a whole prompt cost before the decision (10,000 input a prompt here), not of the thing's own size
+  assert.deepEqual([f.whole.before, f.whole.after, f.share], [10000, 10000, 0.15]);
+  // per prompt: the side's sum over its prompts, so a session of many calls weighs by them (the first session 4 prompts: 3,000 over 5)
+  const fp = actionEffect(sec, rows.map((r, i) => i === 0 ? { ...r, prompts: 4 } : r), now);
+  assert.deepEqual([fp.before.prompts, fp.before.perPrompt, fp.window], [5, 600, 1800]);
+  // the totals: a side's sum, and over the prompts since what the thing would have cost at the before rate against as it was
+  assert.deepEqual([f.before.total, f.after.total, f.since], [3000, 0, { prompts: 3, atBefore: 4500, total: 0 }]);
+  // the tool switched off at hour 5: 4,000 a prompt before; since, one of three sessions still loaded it (2,000 → 667)
+  const tool = { kind: 'tool', key: 'claude:tool:Workflow', at: at(5), decision: 'approved' };
+  const g = actionEffect(tool, rows, now);
+  assert.deepEqual([g.before.perPrompt, g.after.perPrompt, g.delta, g.window, g.share], [4000, 667, 3333, 10000, 0.3333]);
+  assert.equal(g.since.atBefore - g.since.total, g.window, 'the window is exactly the gap: 12,000 at the before rate against 2,000');
+  // the output compressed at hour 5: 4,500 a prompt before (9,000 and 0), 333 since
+  const out = actionEffect({ kind: 'output', key: 'output:Bash:grep', at: at(5), decision: 'approved' }, rows, now);
+  assert.deepEqual([out.before.perPrompt, out.after.perPrompt, out.delta], [4500, 333, 4167]);
+  // independent of each other: the section's figure does not move with the tool's
+  assert.equal(actionEffect(sec, rows.map(r => ({ ...r, sources: {} })), now).delta, 1500);
   // reverted: the since side ends at the revert; dismissed, or a pull request not merged: not in effect; merged: from the merge
   assert.equal(actionEffect({ ...sec, revertedAt: at(15) }, rows, now).after.sessions, 2);
   assert.equal(effectSpan({ ...sec, decision: 'dismissed' }, now), null);
@@ -243,18 +264,12 @@ test('actionEffect: a session before an action against since, for the part it to
   assert.equal(effectSpan({ ...sec, decision: 'pull request', job: { state: 'running', pr: true } }, now), null);
   assert.equal(effectSpan({ ...sec, decision: 'applied', job: { state: 'failed', error: 'no model' } }, now), null);
   assert.equal(effectSpan({ ...sec, decision: 'applied', job: { state: 'done', finishedAt: at(7) } }, now).from, T0 + 7 * H);
-  // no session on a side: nothing yet
+  // no session on a side, or a thing that cannot be costed: nothing yet
   assert.equal(actionEffect({ ...sec, at: at(25) }, rows, now), null);
   assert.equal(actionEffect(sec, [], now), null);
-  // the summary: from the earliest action in effect, every session since against every one before; a dismissal counts for nothing
-  const sv = savingsSummary([{ ...sec, at: at(15) }, sec, { ...sec, decision: 'dismissed', at: at(2) }], rows, now);
-  assert.equal(sv.since, T0 + 5 * H); assert.equal(sv.actions, 2);
-  assert.deepEqual([sv.before.sessions, sv.after.sessions], [2, 3]); assert.equal(sv.session.before, 11000); assert.equal(sv.session.after, 7000); assert.equal(sv.parts.delta, 2000); assert.equal(sv.window, 12000);
-  assert.equal(savingsSummary([{ ...sec, decision: 'dismissed' }], rows, now), null);
-  assert.equal(savingsSummary([], rows, now), null);
-  // several repositories: the sessions and tokens add, the earliest action is the start
-  const m = mergeSavings([sv, { ...sv, since: T0, before: { sessions: 2, tokens: 2000, parts: 200 }, after: { sessions: 1, tokens: 1000, parts: 100 } }, null]);
-  assert.equal(m.since, T0); assert.equal(m.actions, 4); assert.equal(m.before.sessions, 4); assert.equal(m.after.sessions, 4);
-  assert.equal(m.session.before, Math.round((22000 + 2000) / 4)); assert.equal(m.session.after, Math.round((21000 + 1000) / 4)); assert.equal(m.window, m.session.delta * 4);
-  assert.equal(mergeSavings([null]), null);
+  assert.equal(actionEffect({ ...sec, tokens: null }, rows, now), null);
+  // the same thing decided twice: the first is measured until the second is in effect (hours 5 to 15: two sessions since)
+  const twice = withEffects([{ ...tool, id: 'first' }, { ...tool, id: 'second', at: at(15) }, { ...tool, id: 'dis', at: at(12), decision: 'dismissed' }], rows, now);
+  assert.equal(twice.find(e => e.id === 'first').effect.after.sessions, 2, 'hours 10 and 11'); assert.equal(twice.find(e => e.id === 'second').effect.after.sessions, 1, 'hour 20');
+  assert.equal(twice.find(e => e.id === 'first').effect.to, null, 'not a revert');
 });

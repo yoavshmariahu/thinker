@@ -138,9 +138,17 @@
     .ctx-pill.ok { background: #dcfce7; color: #166534; }
     .ctx-pill.off { background: #f4f4f5; color: #52525b; }
     /* what an action changed since it was taken (report.js:actionEffect): a session before against since, the saving green; a cost red */
-    .ctx-measured { display: block; margin-top: 0.3rem; font-size: 0.8rem; font-weight: 600; color: #166534; }
-    .ctx-measured.worse { color: #991b1b; }
-    .ctx-measured .muted { font-weight: 400; }
+    /* what a decision saved a session (report.js:actionEffect): a saving green, a cost red */
+    .ctx-table td.ctx-saved { font-weight: 600; } /* shaded inline: green for a saving, red for a cost (historyFigure shadeOf) */
+    /* the caption row of a decisions table (historyFigure): the title as a caption, the average prompt in the cell over Saved */
+    .ctx-table tr.ctx-caprow th { border-bottom: 0; padding: 0 0.5rem 0.6rem 0; vertical-align: baseline; }
+    .ctx-table tr.ctx-caprow th.ctx-cap { font-size: 0.88rem; color: #111; text-transform: none; letter-spacing: 0; font-weight: 400; white-space: normal; }
+    .ctx-table tr.ctx-caprow th.ctx-cap b { font-weight: 600; }
+    .ctx-table tr.ctx-caprow th.ctx-avgcell { text-transform: none; letter-spacing: 0; padding-right: 0.5rem; }
+    .ctx-avg { display: inline-flex; align-items: baseline; gap: 0.35rem; font-size: 0.8rem; color: #374151; background: #f3f4f6; border-radius: 6px; padding: 0.15rem 0.6rem; white-space: nowrap; font-weight: 400; }
+    .ctx-avg b { font-size: 0.95rem; color: #111827; }
+    .ctx-avg .ctx-avg-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; color: #6b7280; }
+    .ctx-table td.ctx-saved .muted { font-weight: 400; }
     .ctx-compare { border-collapse: collapse; margin: 0.4rem 0; font-size: 0.8rem; }
     .ctx-compare th, .ctx-compare td { padding: 0.2rem 0.8rem 0.2rem 0; text-align: right; font-variant-numeric: tabular-nums; }
     .ctx-compare th:first-child, .ctx-compare td:first-child { text-align: left; }
@@ -262,12 +270,12 @@
       <div id="context-body" class="section"><div class="empty"><svg class="logo-spin" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="22" r="6"/><circle cx="16" cy="16" r="6"/><circle cx="22" cy="10" r="6"/></svg>Reading the transcripts…</div></div>
     </section>
 
-    <!-- Report: what a session costs here week by week, by part, by model and by token type, what was saved with thinker and the actions behind it, the cache's numbers (report.js, as `thinker report`) -->
+    <!-- Report: what a prompt (one call to the model) costs here week by week, by part, by model and by token type, the cache's numbers (report.js, as `thinker report`) -->
     <section id="tab-report" hidden>
       <div class="ctx-top"><div><h1>View Report</h1></div>
       <div class="controls">
         <select class="sel" id="r-repo" aria-label="Repository"></select>
-        <div class="seg" id="r-mode"><button data-mode="avg" class="on">Per session</button><button data-mode="sum">Total</button></div>
+        <div class="seg" id="r-mode"><button data-mode="avg" class="on">Per prompt</button><button data-mode="sum">Total</button></div>
         <div class="seg" id="r-measure"><button data-m="tokens" class="on">Tokens</button><button data-m="cost">Cost</button></div>
         <div class="seg" id="r-view"><button data-view="values" class="on">Values</button><button data-view="share">Share</button></div>
       </div></div>
@@ -794,36 +802,32 @@ const doneOf = e => e.running ? ['busy', `<span class="spinner"></span>${e.job.a
 // what a decision still needs of the person, in a few words (the card at the top of Recent activity)
 const needOf = e => e.running ? null : e.failed ? `retry it, or pick the section again: ${e.job.error}` : e.pending ? `merge or close pull request #${e.pr.number}` : null;
 const HISTORY_PAGE = TABLE_PAGE, HPAGE = {};
-function historyFigure(hs, { many, caption, sub, empty, key = 'history', pageSize = HISTORY_PAGE, note = true }) {
+// `promptAvg` (report.js:promptAverage): what a prompt costs on average here, shown on the caption line in the cell over the
+// Saved column, the size the savings are read against (2026-10-24: a header row of its own took a line; the caption is that row). No text under the table (2026-10-24, the owner's ask): the cells' hovers explain.
+function historyFigure(hs, { many, caption, sub, empty, key = 'history', pageSize = HISTORY_PAGE, promptAvg = null, measuring = false }) {
   const pages = Math.max(1, Math.ceil(hs.length / pageSize)), page = Math.min(pages - 1, HPAGE[key] || 0), from = page * pageSize, shown = hs.slice(from, from + pageSize);
   const when = t => new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
   const day = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  // what an action changed, as tokens a session (report.js:actionEffect, on the Report alone): the whole session before it
-  // against since in one line under the title, the saving green or the cost red, and in the detail the part it touched
-  // beside the whole session, both periods side by side; an output's compression also shows the tool's own row
-  // (report.js:outputComparison)
-  const pct = x => x.share == null || !Math.round(100 * Math.abs(x.share)) ? '' : ` (${x.delta >= 0 ? '−' : '+'}${Math.round(100 * Math.abs(x.share))}%)`;
-  const arrow = x => x.before == null || x.after == null ? '–' : `${fmt(x.before)} → ${fmt(x.after)}${pct(x)}`;
+  // what the decision saved, attributed to it alone (report.js:actionEffect): the thing it changed costed a prompt (one call
+  // to the model) before the decision and since, as three columns, the saving green and a cost red; a pull request is its
+  // own column
+  // the share is of what a whole prompt cost before the decision (report.js `share`), so a small cut of a large part reads as
+  // large; saved is positive, a cost negative
+  const pct = x => x.share == null || !Math.round(100 * Math.abs(x.share)) ? '' : ` <span class="muted">(${Math.round(100 * Math.abs(x.share))}%)</span>`;
   const inEffect = e => !e.revertedAt && e.decision !== 'dismissed' && !(e.pr && e.pr.state !== 'merged') && !(e.job && e.job.state !== 'done'); // report.js:effectSpan
-  const measuredLine = (e, onReport) => e.effect ? `<span class="ctx-measured${e.effect.session.delta >= 0 ? '' : ' worse'}">A session ${arrow(e.effect.session)} input tokens <span class="muted">· ${e.effect.session.delta >= 0 ? 'saving' : 'costing'} ~${fmt(Math.abs(e.effect.window))} over the ${e.effect.after.sessions} session${e.effect.after.sessions === 1 ? '' : 's'} since · ${esc(e.effect.partName.toLowerCase())} ${arrow(e.effect.parts)}${e.effect.few ? ' · few sessions yet' : ''}</span></span>`
-    : onReport && inEffect(e) ? '<span class="ctx-measured muted">Measured: nothing yet, no session since it in the window</span>' : '';
-  const effectTable = f => f ? `<table class="ctx-compare"><thead><tr><th>Tokens a session</th><th>Sessions</th><th>${esc(f.partName)}</th><th>The whole session's input</th></tr></thead><tbody>
-      <tr><td>Before (${day(f.before.from)} to ${day(f.before.to)})</td><td>${f.before.sessions}</td><td>${fmt(f.before.part)}</td><td>${fmt(f.before.session)}</td></tr>
-      <tr><td>Since (${day(f.after.from)} to ${day(f.after.to)})</td><td>${f.after.sessions}</td><td>${fmt(f.after.part)}</td><td>${fmt(f.after.session)}</td></tr>
-      <tr class="ctx-delta"><td>${f.session.delta >= 0 ? 'Saved' : 'Cost'} a session</td><td></td><td>${f.parts.delta >= 0 ? '−' : '+'}${fmt(Math.abs(f.parts.delta))}${pct(f.parts)}</td><td>${f.session.delta >= 0 ? '−' : '+'}${fmt(Math.abs(f.session.delta))}${pct(f.session)}</td></tr></tbody></table>
-      <p class="muted">The average over this repository's measured sessions in the window, before the action and since it was in effect. The part is what the action cut, the direct measure; the whole session also moves with what the sessions did.${f.few ? ' Fewer than five sessions on a side: give it a week.' : ''}</p>` : '';
-  const measuredTable = m => m ? `<table class="ctx-compare"><thead><tr><th>The tool's own row</th><th>Sessions</th><th>Calls a session</th><th>Tokens a call</th><th>Input a session</th><th>After last use</th></tr></thead><tbody>
-      <tr><td>Before, no compression (${day(m.before.from)} to ${day(m.before.to)})</td><td>${m.before.sessions}</td><td>${perCall(m.before.calls || 0)}</td><td>${fmt(m.before.perCall)}</td><td>${fmt(m.before.perSession)}</td><td>${m.before.wasted == null ? '–' : fmt(m.before.wasted)}</td></tr>
-      <tr><td>Since, ${esc(m.after.level)} compression (${day(m.after.from)} to ${day(m.after.to)})</td><td>${m.after.sessions}</td><td>${perCall(m.after.calls || 0)}</td><td>${fmt(m.after.perCall)}</td><td>${fmt(m.after.perSession)}</td><td>${m.after.wasted == null ? '–' : fmt(m.after.wasted)}</td></tr>
-      <tr class="ctx-delta"><td>${m.perSession.delta >= 0 ? 'Saved' : 'Cost'}</td><td></td><td></td><td>${m.perCall.delta >= 0 ? '−' : '+'}${fmt(Math.abs(m.perCall.delta))}${pct(m.perCall)}</td><td>${m.perSession.delta >= 0 ? '−' : '+'}${fmt(Math.abs(m.perSession.delta))}${pct(m.perSession)}</td><td></td></tr></tbody></table>
-      <p class="muted">Tokens a call is the size of a result, what compression acts on; input a session is what this tool's results cost over the calls that read them again.${m.few ? ' Fewer than five sessions since: give it a week.' : ''}</p>` : '';
+  const sideTitle = (x, what) => `${what}: ${x.prompts} prompt${x.prompts === 1 ? '' : 's'} over ${x.sessions} session${x.sessions === 1 ? '' : 's'}, ${day(x.from)} to ${day(x.to)}`;
+  // the Saved cell is shaded, green for a saving and red for a cost, darker the larger the share of the whole prompt: a
+  // tenth of a prompt is the darkest
+  const shadeOf = f => { const a = Math.min(0.6, 0.08 + 5 * Math.abs(f.share || 0)).toFixed(2); return f.delta >= 0 ? `background:rgba(34,197,94,${a})` : `background:rgba(239,68,68,${a})`; };
+  const effectCells = e => { const f = e.effect; if (!f) return `<td class="num muted">–</td><td class="num muted">–</td><td class="num muted" title="${inEffect(e) ? 'No session since it in the window yet, or the report has not been measured since' : 'Not in effect: nothing to measure'}">${inEffect(e) ? 'measuring' : '–'}</td>`;
+    const sinceT = `over the ${f.after.prompts} prompt${f.after.prompts === 1 ? '' : 's'} of the ${f.after.sessions} session${f.after.sessions === 1 ? '' : 's'} since (${day(f.after.from)} to ${day(f.after.to)})`;
+    return `<td class="num" title="${esc(sideTitle(f.before, 'Before the decision'))}">${fmt(f.before.perPrompt)}</td><td class="num" title="${esc(sideTitle(f.after, 'Since'))}">${fmt(f.after.perPrompt)}</td><td class="num ctx-saved" style="${shadeOf(f)}" title="${esc(`${f.delta >= 0 ? 'Saved' : 'Cost'} ~${fmt(Math.abs(f.window))} tokens ${sinceT}${f.share == null ? '' : `: ${Math.round(100 * Math.abs(f.share))}% of what a prompt cost before the decision (${fmt(f.whole.before)})`}${f.few ? '; fewer than five sessions on a side, give it a week' : ''}`)}">${f.delta >= 0 ? '' : '−'}${fmt(Math.abs(f.delta))}${pct(f)}${f.few ? ' <span class="muted">·few</span>' : ''}</td>`; };
+  const prCell = e => e.pr?.url ? `<td><a class="ctx-prlink" href="${esc(e.pr.url)}" target="_blank" rel="noopener">#${e.pr.number}</a> <span class="muted">${e.pr.state === 'merged' ? 'merged' : e.pr.state === 'open' ? 'pending' : 'closed'}</span></td>` : '<td class="muted">–</td>';
   // the job behind a section's change: under way since, done (with the model's tokens), or failed with the reason
   const jobLine = e => !e.job ? '' : e.running ? `<p class="muted">${e.job.action === 'compress' ? 'A model is compressing it' : 'Being removed'} in the background since ${when(e.job.startedAt)}${e.job.pr ? '; a pull request opens with the change when it is done' : '; the file in the working tree is rewritten when it is done'}.</p>`
     : e.failed ? `<p><b>Failed</b> ${when(e.job.finishedAt || e.at)}: ${esc(e.job.error || 'no reason recorded')}. Retry runs the same change again${e.job.tries > 1 ? ` (tried ${e.job.tries} times)` : ''}; nothing was changed, and the section is suggested again.</p>`
     : `<p class="muted">${e.job.action === 'compress' ? 'Compressed' : 'Removed'} in the background, ${when(e.job.startedAt)} to ${when(e.job.finishedAt)}${e.job.tokens ? `, ~${fmt(e.job.tokens)} model tokens` : ''}.</p>`;
   const detail = e => [
-    effectTable(e.effect),
-    measuredTable(e.measured),
     jobLine(e),
     e.result && e.decision !== 'dismissed' && !e.failed ? `<p>${esc(e.result.replace(/ `?thinker harness --undo`? turns.*$/, ''))}</p>` : '',
     e.action ? `<p class="muted">Suggested: ${esc(e.action)}</p>` : '',
@@ -832,16 +836,20 @@ function historyFigure(hs, { many, caption, sub, empty, key = 'history', pageSiz
       : e.job ? '' : `<p class="muted">${e.decision === 'dismissed' ? 'Dismissed' : e.decision === 'applied after review' ? 'Written after its diff was read' : 'Applied'} ${when(e.at)}${e.revertedAt ? `; reverted ${when(e.revertedAt)}` : ''}.</p>`,
   ].join('');
   const rows = shown.map((e, k) => { const i = from + k, [cls, label, raw] = doneOf(e); return `<tr class="${e.revertedAt || e.rejected ? 'ctx-off' : e.attention && !e.running ? 'act-attn' : ''}">
-      <td class="ctx-name"><b>${esc(e.title)}</b>${e.pr?.url ? `<a class="ctx-prlink" href="${esc(e.pr.url)}" target="_blank" rel="noopener">#${e.pr.number}</a>` : ''}<button class="ctx-more" data-more="${i}" aria-expanded="false">See more</button><span class="ctx-kind">${esc([CH_KIND[e.kind] || e.kind, many ? e.repoName : ''].filter(Boolean).join(' · '))}</span>${measuredLine(e, key === 'report')}</td>
-      <td class="num">${day(e.at)}</td><td class="num">${e.total ? fmt(e.total) : e.saving ? `${fmt(e.saving)} <span class="muted">a session</span>` : '–'}</td>
+      <td class="ctx-name"><b>${esc(e.title)}</b><button class="ctx-more" data-more="${i}" aria-expanded="false">See more</button><span class="ctx-kind">${esc([CH_KIND[e.kind] || e.kind, many ? e.repoName : ''].filter(Boolean).join(' · '))}</span></td>
+      <td class="num">${day(e.at)}</td>${effectCells(e)}${prCell(e)}
       <td>${e.pr?.url && e.pending ? `<a class="ctx-pill ${cls}" href="${esc(e.pr.url)}" target="_blank" rel="noopener">${label}</a>` : `<span class="ctx-pill ${cls}">${raw ? label : esc(label)}</span>`}</td>
       <td class="ctx-actcell"><div class="ctx-act">${e.retryable ? `<button class="btn" data-retry="${i}">Retry</button>` : e.revertible ? `<button class="btn ghost" data-revert="${i}">${e.pending ? 'Close PR' : 'Revert'}</button>` : ''}</div></td></tr>
-      <tr class="ctx-detail" data-detail="${i}" hidden><td colspan="5"><div class="md-body">${detail(e)}</div></td></tr>`; }).join('');
+      <tr class="ctx-detail" data-detail="${i}" hidden><td colspan="8"><div class="md-body">${detail(e)}</div></td></tr>`; }).join('');
   const reverted = hs.filter(e => e.revertedAt).length;
   const pager = pagerOf(key, hs.length, page, pageSize).replace(/data-vpage=/g, 'data-page=');
-  return `<figure class="ctx-figure" data-history><figcaption><b>${caption}</b> <span class="ctx-sub">${sub ? `${sub} · ` : ''}${hs.length} decision${hs.length === 1 ? '' : 's'}${reverted ? ` · ${reverted} reverted` : ''}</span></figcaption>
-    ${hs.length ? `<table class="ctx-table"><thead><tr><th>Change</th><th class="num">Decided</th><th class="num">Worth</th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table>${pager}` : `<div class="empty">${empty}</div>`}
-    ${note ? `<p class="ctx-note">A section's change runs in the background and <b>opens a pull request</b>: <b>PR pending</b> until it is merged, <b>Rejected</b> once it is closed without merging (the section is suggested again); <b>Close PR</b> closes it and deletes its branch. <b>Failed</b> says why, and <b>Retry</b> runs the same change again. <b>Revert</b> turns a switched-off skill or tool back on, sets an output's compression back, or writes a section's file back as it was (when the file is still what thinker wrote; else git has it). A dismissal reverted is suggested again. Sections changed together are a row each but one change: a Retry, Revert or Close PR on one takes the others with it.</p>` : ''}</figure>`;
+  const avgStat = !promptAvg && measuring ? '<span class="ctx-avg muted" title="The report the savings are read from is being made; this page checks back">measuring…</span>' : promptAvg ? `<span class="ctx-avg" title="${esc(`What a prompt (one call to the model) costs here on average: ${fmt(promptAvg.tokens)} input tokens over ${promptAvg.prompts} prompts in ${promptAvg.sessions} sessions. Saved is read against it: its share of the prompt, and the shade of its cell.`)}"><span class="ctx-avg-label">Average prompt</span><b>${fmt(promptAvg.perPrompt)}</b> tokens</span>` : '';
+  // the caption is the table's first header row when there are rows (the owner's ask, 2026-10-24): the title at the left, the
+  // average prompt in the cell over Saved, one line and no height of its own; the figcaption stays for the empty state
+  const capText = `<b>${caption}</b> <span class="ctx-sub">${sub ? `${sub} · ` : ''}${hs.length} decision${hs.length === 1 ? '' : 's'}${reverted ? ` · ${reverted} reverted` : ''}</span>`;
+  return `<figure class="ctx-figure" data-history>${hs.length ? '' : `<figcaption>${capText}</figcaption>`}
+    ${hs.length ? `<table class="ctx-table"><thead><tr class="ctx-caprow"><th colspan="4" class="ctx-cap">${capText}</th><th class="num ctx-avgcell">${avgStat}</th><th colspan="3"></th></tr><tr><th>Change</th><th class="num">Decided</th><th class="num" title="What the changed thing cost a prompt (one call to the model), over the sessions before the decision">Before</th><th class="num" title="What it costs a prompt over the sessions since">After</th><th class="num" title="Before minus after, a prompt, and its share of what a prompt cost before the decision">Saved</th><th>Pull request</th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table>${pager}` : `<div class="empty">${empty}</div>`}
+    </figure>`;
 }
 function wireHistory(root, hs, reload, rerender) {
   if (!root) return;
@@ -867,7 +875,20 @@ async function loadActivity() {
     renderActivity(await api(`/api/activity?repo=${encodeURIComponent(AREPO)}`));
   } catch (e) { el.innerHTML = `<div class="empty">Could not read the activity: ${esc(e.message)}</div>`; }
 }
+// while the report the savings are read from is being made again (`measuring`), check back and show it (as reportAsOf does)
+let AMPOLL = null;
+function activityCheckBack(d) {
+  clearTimeout(AMPOLL); if (!d.measuring) return;
+  const want = AREPO, tries = (d.tries || 0) + 1; if (tries > 24) return;
+  AMPOLL = setTimeout(async () => {
+    if (AREPO !== want || TAB !== 'activity') return;
+    let n; try { n = await api(`/api/activity?repo=${encodeURIComponent(AREPO)}`); } catch { return; }
+    if (AREPO !== want || TAB !== 'activity') return;
+    if (!n.measuring || n.promptAvg) renderActivity(n); else activityCheckBack({ ...n, tries });
+  }, 5000);
+}
 function renderActivity(d) {
+  activityCheckBack(d);
   ACT = d;
   const el = $('#activity-body'), hs = d.history || [], many = AREPO === 'all';
   const needs = hs.filter(e => e.attention && !e.running), running = hs.filter(e => e.running);
@@ -875,7 +896,7 @@ function renderActivity(d) {
   const card = needs.length || running.length
     ? `<div class="attn"><div class="kicker">${needs.length ? `${needs.length} need${needs.length === 1 ? 's' : ''} you` : 'Under way'}</div>${needs.length ? `<ul>${needs.map(e => `<li><b>${name(e)}</b>: ${e.pr?.url ? needOf(e).replace(`#${e.pr.number}`, `<a href="${esc(e.pr.url)}" target="_blank" rel="noopener">#${e.pr.number}</a>`) : esc(needOf(e))}</li>`).join('')}</ul>` : ''}${running.length ? `<div class="why"><span class="spinner"></span>${running.length === 1 ? 'One change is' : `${running.length} changes are`} being made in the background; this page follows ${running.length === 1 ? 'it' : 'them'}.</div>` : ''}</div>`
     : `<div class="attn ok"><div class="why">Nothing needs you: no change under way or failed, no pull request waiting.</div></div>`;
-  el.innerHTML = card + historyFigure(hs, { many, caption: 'Decisions', sub: many ? 'every repository' : '', empty: 'No decisions yet. What you apply on Find Savings is listed here, with what came of it.', key: 'activity' });
+  el.innerHTML = card + historyFigure(hs, { many, caption: 'Decisions', sub: many ? 'every repository' : '', empty: 'No decisions yet. What you apply on Find Savings is listed here, with what came of it.', key: 'activity', promptAvg: d.promptAvg || null, measuring: !!d.measuring });
   wireHistory(el.querySelector('[data-history]'), hs, loadActivity, () => renderActivity(d));
   badge(d);
 }
@@ -901,7 +922,7 @@ async function fetchRepos() {
   const r = await api('/api/repos');
   REPOS = r.repos;
 }
-// ---- Report (report.js:reportView, as `thinker report`): the average a session cost each week, by token type, by part and by model ----
+// ---- Report (report.js:reportView, as `thinker report`): the average a prompt (one call to the model) cost each week, by token type, by part and by model ----
 let RPT = null, RMEASURE = 'tokens', RMODE = 'avg', RVIEW = 'values', RFOLD = new Set();
 // Values / Share is the command's --share (report.js:renderReport): every row but the whole-session total as its share of that
 // total in the week, so the relative contributions and their trend can be read; the total rows keep their values
@@ -946,8 +967,8 @@ function reportAsOf(v) {
 function renderReport(v) {
   RPT = v;
   const cost = RMEASURE === 'cost', sum = RMODE === 'sum', share = RVIEW === 'share', el = $('#report-body');
-  // a cell: the week's sum over its sessions (the priced ones in the cost view), or that sum itself (Total); null where the week has none
-  const avg = (c, w) => { const col = v.columns[w]; return sum ? (cost ? c.cost : c.tokens) : cost ? (col.priced ? c.cost / col.priced : null) : (col.sessions ? c.tokens / col.sessions : null); };
+  // a cell: the week's sum over its prompts (the priced sessions' in the cost view), or that sum itself (Total); null where the week has none
+  const avg = (c, w) => { const col = v.columns[w]; return sum ? (cost ? c.cost : c.tokens) : cost ? (col.pricedPrompts ? c.cost / col.pricedPrompts : null) : (col.prompts ? c.tokens / col.prompts : null); };
   // what a cell shows: its value, or under Share its value over the whole session's (the base), the total rows their value
   const base = share ? v.sessionTotals : null;
   const val = (cells, w, b) => { const a = avg(cells[w], w); if (!a || !b) return a; const t = avg(b[w], w); return t ? a / t : null; };
@@ -974,10 +995,10 @@ function renderReport(v) {
   };
   // a row: `total` keeps its values under Share (the whole-session rows); every other row is shown over the base
   const row = (name, cells, { cls = '', sub = '', titles, data = '', total = false } = {}) => { const b = total ? null : base; return `<tr class="${cls}"${data}><td class="ctx-name">${name}${sub ? `<span class="ctx-kind">${sub}</span>` : ''}</td>${cells.map((c, w) => tcell(cells, w, titles ? titles(c, w) : '', b)).join('')}</tr>`; };
-  const head = nameHead => `<thead><tr><th>${nameHead}</th>${v.columns.map(c => `<th class="num">Week of ${dlabel(c.t)}<small>${c.sessions} session${c.sessions === 1 ? '' : 's'}${cost && c.priced !== c.sessions ? `, ${c.priced} priced` : ''}</small></th>`).join('')}</tr></thead>`;
+  const head = nameHead => `<thead><tr><th>${nameHead}</th>${v.columns.map(c => `<th class="num">Week of ${dlabel(c.t)}<small>${fmt(c.prompts || 0)} prompt${c.prompts === 1 ? '' : 's'}, ${c.sessions} session${c.sessions === 1 ? '' : 's'}${cost && c.priced !== c.sessions ? `, ${c.priced} priced` : ''}</small></th>`).join('')}</tr></thead>`;
   const unit = cost ? 'cost at list prices' : 'tokens';
-  const sessions = v.columns.reduce((a, c) => a + c.sessions, 0), unmeasured = v.columns.reduce((a, c) => a + c.unmeasured, 0);
-  const sub = `${sessions} session${sessions === 1 ? '' : 's'} over ${v.weeks} weeks${unmeasured ? `, ${unmeasured} more whose agent reported no usage (Cursor) left out` : ''}${v.all ? ` · ${v.repos.length} repositories` : ''}`;
+  const sessions = v.columns.reduce((a, c) => a + c.sessions, 0), prompts = v.columns.reduce((a, c) => a + (c.prompts || 0), 0), unmeasured = v.columns.reduce((a, c) => a + c.unmeasured, 0);
+  const sub = `${fmt(prompts)} prompts in ${sessions} session${sessions === 1 ? '' : 's'} over ${v.weeks} weeks${unmeasured ? `, ${unmeasured} more whose agent reported no usage (Cursor) left out` : ''}${v.all ? ` · ${v.repos.length} repositories` : ''}`;
   // the three tables add up to the same whole session (report.js: tokenTypes, parts with others, models); a kept report from
   // before the token types has none (report-snapshot.js remakes it in the background)
   const types = v.tokenTypes || [], others = v.others || [];
@@ -986,23 +1007,9 @@ function renderReport(v) {
   const parts = `<figure class="ctx-figure"><figcaption><b>By part of the context</b> <span class="ctx-sub">where the same tokens went</span></figcaption>
     <table class="ctx-table rep-table">${head('Part')}<tbody>${[...v.parts.map(p => row(esc(p.name), p.cells)), ...others.map(p => row(esc(p.name), p.cells))].join('')}${row('Total (the whole session)', v.sessionTotals, { cls: 'rep-total', total: true })}</tbody></table></figure>`;
   const fold = p => RFOLD.has(p), modelsOf = p => v.models.filter(m => m.provider === p);
-  const mtitle = m => (c, w) => `${c.sessions} session${c.sessions === 1 ? '' : 's'} on ${m.model} this week${c.sessions ? `, ${cost ? (c.priced ? money(c.cost / c.priced) : '–') : fmt(c.tokens / c.sessions)} per session of its own` : ''}`;
-  const models = `<figure class="ctx-figure"><figcaption><b>By model</b> <span class="ctx-sub">each model's share of the ${sum ? 'week' : 'average session'}, its provider's subtotal above its models</span></figcaption>
+  const mtitle = m => (c, w) => `${fmt(c.prompts || 0)} prompts in ${c.sessions} session${c.sessions === 1 ? '' : 's'} on ${m.model} this week${c.prompts ? `, ${cost ? (c.pricedPrompts ? money(c.cost / c.pricedPrompts) : '–') : fmt(c.tokens / c.prompts)} per prompt of its own` : ''}`;
+  const models = `<figure class="ctx-figure"><figcaption><b>By model</b> <span class="ctx-sub">each model's share of the ${sum ? 'week' : 'average prompt'}, its provider's subtotal above its models</span></figcaption>
     <table class="ctx-table rep-table">${head('Provider · model')}<tbody>${v.providers.map(p => row(`<button class="rep-fold" data-fold="${esc(p.name)}" aria-expanded="${!fold(p.name)}">${fold(p.name) ? '▸' : '▾'}</button> ${esc(p.name)}`, p.cells, { cls: 'rep-sub', sub: `${modelsOf(p.name).length} model${modelsOf(p.name).length === 1 ? '' : 's'}` }) + (fold(p.name) ? '' : modelsOf(p.name).map(m => row(`<span class="rep-indent">${esc(m.model)}</span>`, m.cells, { cls: m.priced ? '' : 'ctx-off', sub: m.priced ? '' : 'no list price', titles: mtitle(m) })).join(''))).join('')}${row('Total (the whole session)', v.sessionTotals, { cls: 'rep-total', total: true })}</tbody></table></figure>`;
-  // what was saved with thinker (report.js:savingsSummary): a session's input tokens before the first action in effect against
-  // since, the saving over the sessions since, and the four parts the Save page controls; then the actions behind it
-  const sv = v.savings, dayOfT = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  const pct = x => x.share == null || !Math.round(100 * Math.abs(x.share)) ? '' : ` (${x.delta >= 0 ? '−' : '+'}${Math.round(100 * Math.abs(x.share))}%)`;
-  const arrow = x => x.before == null || x.after == null ? '–' : `${fmt(x.before)} → ${fmt(x.after)}${pct(x)}`;
-  const saved = `<div class="section"><div class="kicker">Saved with thinker</div>${sv ? `<div class="cards" style="margin-top:0.6rem">
-    ${card('Input tokens a session', `${sv.session.delta >= 0 ? '−' : '+'}${fmt(Math.abs(sv.session.delta))}`, `${arrow(sv.session)}: the average session before ${dayOfT(sv.since)}, the first of ${sv.actions} action${sv.actions === 1 ? '' : 's'} in effect, against since`, null, sv.session.delta >= 0)}
-    ${card(sv.window >= 0 ? 'Saved since' : 'Cost since', fmt(Math.abs(sv.window)), `input tokens over the ${sv.after.sessions} session${sv.after.sessions === 1 ? '' : 's'} since ${dayOfT(sv.since)}, against ${sv.before.sessions} before${sv.few ? ' · few sessions yet: give it a week' : ''}`, null, sv.window >= 0)}
-    ${card('The four parts a session', `${sv.parts.delta >= 0 ? '−' : '+'}${fmt(Math.abs(sv.parts.delta))}`, `${arrow(sv.parts)}: the instruction files, custom and built-in tools and tool outputs together, what the actions cut`, null, sv.parts.delta >= 0)}
-  </div><p class="ctx-note">The parts are the direct measure of what the actions removed; the whole session also moves with what the sessions did, so read the two together. Each action below shows the same comparison for the part it touched.</p>` : `<div class="empty">Nothing measured yet. Once an action taken on the Find Savings page has sessions before and since it in these ${v.weeks} weeks, a session's input tokens before are compared with since, here.</div>`}</div>`;
-  // the decisions taken on the Save page in these weeks, the same table as Recent activity (context-suggest.js:changeHistory),
-  // each with a session before it against since
-  const acts = v.actions.map(a => ({ ...a, repo: a.repo || REPO }));
-  const actions = historyFigure(acts, { many: Boolean(v.all), caption: 'Actions in the window', sub: `what was applied on the Find Savings page in these ${v.weeks} weeks, each with a session's input tokens before it against since; every decision is under Recent activity`, empty: 'No actions in these weeks. What you apply on the Find Savings page is listed here with its date.', key: 'report', note: false });
   // the cache's numbers over the same window (usage.js:summarize), its saving in dollars first
   const c = v.cache;
   const cards = `<div class="section"><div class="kicker">The cache, over the same ${v.weeks} weeks</div><div class="cards four" style="margin-top:0.6rem">
@@ -1011,7 +1018,7 @@ function renderReport(v) {
     ${card('Cache hits', fmt(c.hits), `notes served, for ${fmt(c.answered)} of ${fmt(c.requests)} requests`)}
     ${card('Acted on', c.acted == null ? '–' : `${Math.round(100 * c.acted)}%`, `of ${fmt(c.judged)} servings the sessions were judged on`)}
   </div></div>`;
-  el.innerHTML = parts + models + tokenTypes + saved + actions + cards; // the token types the last table (the owner's order, 2026-10-24)
+  el.innerHTML = parts + models + tokenTypes + cards; // the token types the last table (the owner's order, 2026-10-24)
   wireHistory(el.querySelector('[data-history]'), acts, loadReport, () => renderReport(v));
   el.querySelectorAll('[data-fold]').forEach(b => b.onclick = () => { const p = b.dataset.fold; RFOLD.has(p) ? RFOLD.delete(p) : RFOLD.add(p); renderReport(v); });
 }

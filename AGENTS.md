@@ -1350,9 +1350,11 @@ and the behaviors are reached through the CLI (`thinker list`, `show`, `archive`
 `/api/usage`, `/api/cache`, `/api/behaviors` and `/api/activity` went with it. An old link (`tab=context`,
 `tab=changes`, `tab=cache`) opens the view that replaced it.
 
-`thinker report` and the Report tab show one report (`report.js:reportView`): what a session costs here, week by
-week over the last six (`REPORT_WEEKS`, Monday to Sunday, the current week so far last), as the average over
-each week's sessions. Per session the transcript gives the model and the usage the agent reported
+`thinker report` and the Report tab show one report (`report.js:reportView`): what a prompt costs here, week by
+week over the last six (`REPORT_WEEKS`, Monday to Sunday, the current week so far last). **The unit is a prompt, one call to
+the model (2026-10-24, the owner's ask; a session until then): the week's tokens over its prompts (`transcripts.js` `turns`,
+kept as `prompts` on every cell and column), so a long session weighs by its calls, and the Total toggle (`--total`) is the
+week's sum as before.** A `Per prompt` cell is the ratio of sums, never a mean of per-session means. Per session the transcript gives the model and the usage the agent reported
 (`transcripts.js:Stats`, kept with the tool outputs' record in `.thinker/state/tool-outputs.json` since its version
 8, `tool-outputs.js:sessionUsage`), and the Context view's readers give the parts, joined by session id (the
 timeline rows of `instruction-value.js`, `harness.js` and `tool-outputs.js` carry `session` since this day):
@@ -1385,7 +1387,7 @@ can be read; the shading follows the shares. Until that day the parts table show
 with its numbers, the unit calibration (the model reports 1.44 tokens for every four characters: at chars/4 the parts
 cover 74% of a long session's input, the residual is the unit, not a missing part) and the cuts to consider in
 `research/context-breakdown-2026-10-22.md` (the owner's decision, 2026-10-22). The second table is by model under its provider
-(`prices.js:providerOf`), each row the model's share of the average session (its tokens over every session of
+(`prices.js:providerOf`), each row the model's share of the average prompt (its tokens over every prompt of
 the week), so the rows add up to the total and a switch of model shows as one row falling while another rises;
 the provider's subtotal is above its models and folds them. On the page each cell is shaded by its number against its own
 row's weeks (by row since 2026-10-24, the owner's ask; against every cell of its table from 2026-10-22 until then): the
@@ -1404,20 +1406,29 @@ one scale; a part's cost is its share of the session's input cost. The rule that
 the page says under the toggle that it is a list price, what a metered key would pay and not a subscription. A
 model without a price is left out of the cost average and named as unpriced, never counted at zero.
 
-Under the tables, **what was saved with thinker first (2026-10-24, the owner's ask: the emphasis is tokens a session before
-against since)**: three cards (`report.js:savingsSummary`, `page.html` "Saved with thinker", the same two lines in `thinker
-report`): the average input tokens a session over the window's sessions before the first action in effect against every
-session since it (`25M → 12M (−51%)`), that delta over the sessions since as the tokens saved, and the four parts the Save page
-controls together the same way, the parts being the direct measure of what the actions cut and the whole session moving with the
-work as well, which the page says. Then the decisions taken on Save in the window (`context-suggest.js:changeHistory`, the same
-table as Recent activity, `page.html:historyFigure`, with its Revert, over the six weeks alone), each with the same comparison
-(`report.js:actionEffect`, `effect`): the window's sessions before the decision against those while it was in effect (until its
-revert; a dismissal or an unmerged pull request never was, a merged one from its merge), the whole session's input and the part the
-action touched (`actionPart`: a section the instruction files, a skill or MCP server the custom tools, one of Claude Code's own tools
-the built-in ones, an output the tool outputs), the saving over the sessions since, `few` under five a side; the tool's own row of an
-output's compression (`outputComparison`) stays in the detail. The view keeps one row a measured session (`sessionRows`: its input
-and the four parts as estimated), so the server works the actions and the summary out live over the kept report, and All
-repositories adds the sessions (`mergeSavings`); and the four numbers the Cache tab showed
+Under the tables: the four numbers the Cache tab showed. **The decisions are not on the Report (2026-10-24, the owner's
+call: a table of them under a Total toggle compared spans of different lengths).** They are on Recent activity and
+`thinker context --history`, every decision with three columns beside its date, Before, After and Saved (`report.js:actionEffect`,
+`itemCost`; the history read over the kept report by `report-snapshot.js:historyEffects`, no report made): what the changed
+thing alone cost a prompt, one call to the model, over the window's measured sessions before the decision and over those since
+it was in effect (`effectSpan`: until a revert; a merged pull request from its merge; a thing decided again later until the later
+decision). A section's tokens (recorded on the decision from the edit's preview, `context-suggest.js:sectionTokens`, `tokens:
+{before, after}`, 0 after a removal) count in every call of the sessions that read its file; a skill, MCP server, plugin or
+built-in tool its tokens a call in the calls of the sessions that loaded it (`harness.js` timeline `loaded`); a tool's outputs what
+its results cost the session (`tool-outputs.js:sessionUsage` `by`, a compressed tool's key carrying its level); each side the sum
+over its sessions divided by their prompts, so no row moves with another action or with what the sessions did. Saved is positive
+for a saving and negative for a cost, with its share of what a whole prompt cost before the decision (`whole.before`), not of the
+thing's own size, so a small cut of a large part counts for what it is; the cell is shaded by that share (`page.html` `shadeOf`,
+green or red, a tenth of a prompt the darkest), never coloured text; the caption line, the table's first header row, shows in the cell over Saved what a prompt costs here
+on average (`report.js:promptAverage` over the view's `sessionRows`, `promptAverageHere`, merged for All repositories), the size the
+savings are read against, and `--history` prints the same line first; no text under the table, the hovers explain (the owner's
+asks, 2026-10-24). A Pull request column links the section's PR. The view keeps one row a measured session for all this
+(`sessionRows`: input, prompts, the four parts, calls, files, sources, outputs; not sent to the page). **The rows are lent only
+from a report this code made** (`report-snapshot.js:keptRows`): the installed copy's hooks write the same `report.json` from the
+main checkout, and on 2026-10-24 its rows, without the items, had every row of a worktree's page read "measuring" for an hour;
+now `/api/activity` answers `measuring: true` over a report that is none of this code's or old, starts the same background
+refresh as the Report tab, and the page checks back every five seconds (`page.html:activityCheckBack`); `thinker context
+--history` says to run `thinker report --refresh` instead
 (`report.js:cacheMetrics`, from `usage.js:summarize` over the same window), with the saving in dollars first
 (the tokens saved on each model at that model's input list price: the holdout's figure by model where it is
 measured, else the servings acted on), then tokens saved, cache hits and the share acted on. All repositories is
