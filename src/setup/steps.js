@@ -7,6 +7,8 @@ import { CLIENTS, USER_SCOPE_CLIENTS, detectClients, installClient, removeCursor
 import { thinkerHome } from '../update.js';
 import { findBin } from '../llm.js';
 import { c } from './ui.js';
+import { enableProxyService, wiredLines } from '../proxy-service.js';
+import { isTestMode } from '../test-mode.js';
 
 // --- Step 1: Connect Harness CLIs --------------------------------------------
 
@@ -14,7 +16,7 @@ import { c } from './ui.js';
 // apps that read no project files), and, when `repo` is given, the checkout's own pieces: git
 // hooks, Cursor's rule and Codex's trust in the project. Setup wrote per-checkout files until 2026-10-04; this copy's machine-local
 // ones are taken out of the checkout, since the user's now run there.
-export async function stepConnectClis({ repo = null, cliPath, mcpEntry, userMcpEntry, clients, hooks = true, learn = true, late = false, mcp = true, gitHook = true, noTrust = false, yes = false, out = console.log, home = thinkerHome() }) {
+export async function stepConnectClis({ repo = null, cliPath, mcpEntry, userMcpEntry, clients, hooks = true, learn = true, late = false, mcp = true, gitHook = true, noTrust = false, yes = false, proxy = true, out = console.log, home = thinkerHome() }) {
   const detected = detectClients();
   const targetClients = clients || detected;
   const userEntry = userMcpEntry || { command: mcpEntry.command, args: mcpEntry.args };
@@ -93,14 +95,22 @@ export async function stepConnectClis({ repo = null, cliPath, mcpEntry, userMcpE
   // these alone, the ones left unticked here included
   try { markConnected(home, results.filter(r => r.status !== 'error' && USER_SCOPE_CLIENTS.includes(r.client)).map(r => r.client)); } catch {}
 
+  // the context proxy (proxy-service.js): on by default since 2026-10-24; --no-proxy leaves it off, `thinker proxy off` later
+  if (proxy && !isTestMode()) {
+    try {
+      const p = await enableProxyService({ cli: cliPath, home });
+      results.push({ client: 'proxy', status: 'connected', name: 'Context proxy', logs: [`old tool results cleared from the context by the API (${p.url}${p.listening === false ? ', not listening yet: the next prompt starts it' : ''})`, ...wiredLines(p.wired, p.url)] });
+    } catch (e) { results.push({ client: 'proxy', status: 'error', detail: e.message }); }
+  }
+
   // Display clean CLI connection statuses
   for (const res of results) {
     const meta = clientMeta[res.client];
-    const clientLabel = (meta ? meta.name : res.client).padEnd(20);
+    const clientLabel = (meta ? meta.name : res.name || res.client).padEnd(20);
 
     if (res.status === 'connected') {
       out(`  ${c.green('✓')} ${c.bold(clientLabel)} Connected`);
-      if (['pi', 'windsurf', 'copilot', 'opencode', 'droid', 'qwen', 'kiro', 'cline', 'kilo', 'augment', 'goose'].includes(res.client)) for (const line of res.logs) out(`    ${line}`);
+      if (['pi', 'windsurf', 'copilot', 'opencode', 'droid', 'qwen', 'kiro', 'cline', 'kilo', 'augment', 'goose', 'proxy'].includes(res.client)) for (const line of res.logs) out(`    ${line}`);
     } else if (res.status === 'skipped') {
       out(`  ${c.gray('○')} ${c.dim(clientLabel)} ${c.dim(`Skipped · ${res.detail}`)}`);
     } else {

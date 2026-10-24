@@ -1,5 +1,6 @@
-// `thinker proxy`: the context proxy (proxy.js) in the foreground, and the report of what it did.
-// Nothing points an agent at it yet; that waits for an experiment (ANTHROPIC_BASE_URL by hand until then).
+// `thinker proxy`: the context proxy (proxy.js) in the foreground (`serve`, what the service runs), the service on this
+// machine (`on`, `off`, `status`: proxy-service.js, on by default since 2026-10-24 through `thinker connect`), the report
+// of what it did and the offline replay.
 import fs from 'node:fs';
 import path from 'node:path';
 import { proxyConfig, startProxy, proxyReport } from '../proxy.js';
@@ -11,6 +12,7 @@ import { cacheBundleIntro } from '../cache-guidance.js';
 import { Store, findRepoRoot } from '../store.js';
 import { thinkerHome } from '../update.js';
 import { formatTokens } from '../model-usage.js';
+import { enableProxyService, disableProxyService, serviceState, isListening, wiredLines, serviceArgs, proxyUrl } from '../proxy-service.js';
 
 // The notes for a request, as the prompt hook serves them (commands/hooks.js): once a session, fresh only,
 // the holdout turn opened on the session (ops.js:beginTurn), under the same bundle line.
@@ -28,9 +30,34 @@ export function noteInjectorFor(store) {
 
 export const proxyLogFile = (env = process.env) => env.THINKER_PROXY_LOG || path.join(thinkerHome(), 'state', 'proxy.jsonl');
 
-async function proxyCommand({ pos, flags, out, repo }) {
+async function proxyCommand({ pos, flags, out, repo, HERE }) {
   const sub = pos[0] || 'serve';
   const logFile = proxyLogFile();
+  const cli = path.join(HERE, 'cli.js');
+  if (sub === 'on') {
+    const p = await enableProxyService({ cli });
+    out(`Context proxy on: ${p.url}${p.listening === false ? ' (not listening yet; the next prompt starts it)' : ''}, kept running by ${p.service.type === 'hook' ? 'the prompt hook' : p.service.type}${p.service.reason ? ` (${p.service.reason})` : ''}.`);
+    for (const l of wiredLines(p.wired, p.url)) out(`  ${l}`);
+    for (const u of p.wired.unchanged) if (!u.absent) out(`  ${u.agent}: already pointed at it`);
+    out(`Flags of the service: thinker ${serviceArgs().join(' ')} (proxy: { holdout, trigger, keep, keepMin, clearAtLeast } in ${path.join(thinkerHome(), 'config.json')} changes them; thinker proxy off turns it off).`);
+    return;
+  }
+  if (sub === 'off') {
+    const r = disableProxyService();
+    out('Context proxy off: the agents call the API directly again.');
+    for (const l of wiredLines(r.wired, null)) out(`  ${l}`);
+    if (r.removed.length) out(`  service entry removed: ${r.removed.join(', ')}`);
+    return;
+  }
+  if (sub === 'status') {
+    const s = serviceState();
+    if (!s.enabled) { out(`Context proxy off${s.off ? ` since ${s.off.slice(0, 10)}` : ''} (thinker proxy on turns it on).`); return; }
+    const listening = await isListening(s.port);
+    out(`Context proxy on: ${proxyUrl()}, ${listening ? 'listening' : 'NOT listening (the next prompt starts it)'}; flags: thinker ${serviceArgs().join(' ')}.`);
+    flags.days ||= 30;
+    pos[0] = 'report';
+    return proxyCommand({ pos, flags, out, repo, HERE });
+  }
   if (sub === 'report') {
     const rows = fs.existsSync(logFile) ? fs.readFileSync(logFile, 'utf8').split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean) : [];
     const since = flags.days ? new Date(Date.now() - Number(flags.days) * 864e5).toISOString() : undefined;
@@ -58,7 +85,7 @@ async function proxyCommand({ pos, flags, out, repo }) {
     out(renderReplay(r, formatTokens));
     return;
   }
-  if (sub !== 'serve') { out('usage: thinker proxy [serve] --port n | thinker proxy report [--days n] [--json] | thinker proxy replay [--days n] [--policies spec] [--json]'); process.exitCode = 2; return; }
+  if (sub !== 'serve') { out('usage: thinker proxy on|off|status | thinker proxy [serve] --port n | thinker proxy report [--days n] [--json] | thinker proxy replay [--days n] [--policies spec] [--json]'); process.exitCode = 2; return; }
   const cfg = proxyConfig(flags);
   if (!cfg.port) { out('thinker proxy: name a port (--port n, or THINKER_PROXY_PORT).'); process.exitCode = 2; return; }
   // --notes, or proxy: { notes: true } in the checkout's config: the notes of this checkout (--repo names another)

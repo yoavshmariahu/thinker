@@ -31,6 +31,7 @@ export async function runSetup({
   mcp = true,
   gitHook = true,
   noTrust = false,
+  proxy = true,
   exportFile = null,
   out = console.log,
   dashboard = false,
@@ -59,6 +60,7 @@ export async function runSetup({
     gitHook,
     noTrust,
     yes,
+    proxy,
     out,
   });
 

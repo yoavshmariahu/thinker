@@ -32,6 +32,7 @@ import { desktopApp, subagentHarness } from '../app-host.js';
 import { enqueueJob, markAppSession, pendingJobs, startSessionWork } from '../session-work.js';
 import { isWorkerPrompt, isWorkerTool } from '../session-llm.js';
 import { ensureShellPath } from '../shell-path.js';
+import { ensureProxy } from '../proxy-service.js';
 
 // Whether the wiring checks are due where `file` keeps their stamp: a different copy or version of thinker than the
 // last check, or a day since it. The stamp is written before the check, so a check that fails waits a day too.
@@ -79,6 +80,10 @@ async function hookCommand(ctx) {
     // arm of a benchmark that must see no notes while the wiring is machine-wide.
     const userScope = Boolean(flags.user);
     if (userScope && (process.env.THINKER_HOOKS === 'off' || (isTestMode() && process.env.THINKER_HOOKS !== 'on'))) return;
+    // The context proxy's base URL is in the agent's settings (proxy-service.js): when nothing listens on it (a reboot
+    // with no service manager, a crash), every model call of the session would fail, so the prompt hook starts it
+    // before the call. One connect when it runs, under a millisecond. The one thing a hook does beside the cache's work.
+    if (userScope && pos[0] === 'prompt' && (!isTestMode() || process.env.THINKER_HOME)) { try { const p = await ensureProxy({ cli }); if (p.started && ctx.store?.exists()) ctx.store.log({ op: 'proxy-start', pid: p.pid, listening: p.listening }); } catch {} }
     if (userScope) {
       const cwd = ev.cwd || ev.workspace_roots?.[0] || ev.workspaceRoots?.[0] || ev.workspacePaths?.[0];
       if (cwd) { const r = findRepoRoot(cwd); if (r !== ctx.repo) { const base = ctx; ctx = { ...ctx, repo: r, store: new Store(r), mcpEntry: () => base.mcpEntry(r) }; } }

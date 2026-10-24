@@ -68,13 +68,13 @@ const userMcpEntry = () => ({ command: 'node', args: [path.join(HERE, 'mcp.js')]
 
 const HELP = `thinker — knowledge cache for coding agents
 
-  setup [--clients list|all|auto] [--no-learn] [--no-hooks] [--no-late] [--no-mcp] [--no-git-hook] [--no-trust] [--yes] [--no-ui]
+  setup [--clients list|all|auto] [--no-learn] [--no-hooks] [--no-late] [--no-mcp] [--no-git-hook] [--no-trust] [--no-proxy] [--yes] [--no-ui]
                                  the one command that sets a repository up: connect the agent CLIs (hooks and the MCP
                                  server, clients claude, codex, cursor, gemini, pi, windsurf, copilot, opencode; default auto)
                                  and fetch the ranking model. Nothing is built: the cache starts empty and grows from your
                                  sessions. The first setup of a repository opens the local page (thinker ui) in the browser,
                                  --no-ui leaves it closed
-  connect [--clients list|all|auto] [--no-hooks] [--no-late] [--no-learn] [--no-mcp] [--no-trust] [--yes]
+  connect [--clients list|all|auto] [--no-hooks] [--no-late] [--no-learn] [--no-mcp] [--no-trust] [--no-proxy] [--yes]
                                  wire the agents on this machine into their own settings, once: hooks and the MCP
                                  server. Thinker then runs in every git repository: a cache starts with the first
                                  session there and grows from the sessions. Codex's hook-review
@@ -245,10 +245,13 @@ const HELP = `thinker — knowledge cache for coding agents
                                  the checkouts wire (update runs it; the prompt hook does it for its own checkout)
   stats [--here] [--days n] [--json]
                                  machine-wide overview: activity, agents, learning, tokens and repositories; current checkout cache details
+  proxy on|off|status            the context proxy as a service of this machine (on by default from connect/setup; --no-proxy
+                                 there leaves it off): a local pass-through for the agents that speak the Anthropic Messages
+                                 API at a settable base URL (Claude Code, pi, OpenCode) that asks the API to clear old tool
+                                 results on its side; status also prints the report of the last 30 days
   proxy [serve] --port n [--upstream url] [--notes] [--repo path] [--trigger n] [--keep n|turn] [--keep-min n] [--clear-at-least n] [--holdout share]
-                                 (off until an experiment) a local pass-through for Claude Code (ANTHROPIC_BASE_URL) that asks
-                                 the API to clear old tool results on its side (--keep turn, the default: only those of
-                                 earlier turns; --keep n: all but the newest n);
+                                 the proxy in the foreground (what the service runs; --keep turn, the default: only the
+                                 results of earlier turns are cleared; --keep n: all but the newest n);
                                  --notes serves this checkout's notes to an agent with no prompt hook (Goose, Aider: Anthropic
                                  and OpenAI chat requests; off until an experiment); proxy report [--days n] [--json] sums its
                                  log; proxy replay [--days n] [--policies spec] [--json] costs the policies over this

@@ -77,6 +77,6 @@ test('through the proxy: the upstream sees the bundle, the log counts the notes'
   assert.equal(seen[0].messages[0].content[0].text, '<thinker-cache>task</thinker-cache>');
   assert.equal(seen[1].messages[2].content[0].text, '<thinker-cache>more</thinker-cache>');
   const rows = fs.readFileSync(logFile, 'utf8').trim().split('\n').map(l => JSON.parse(l));
-  assert.deepEqual(rows.map(r => [r.notes, r.notesReplayed, r.reason]), [[1, 0, 'no-beta'], [1, 1, 'no-beta']]);
+  assert.deepEqual(rows.map(r => [r.notes, r.notesReplayed, r.injected, r.betaAdded]), [[1, 0, true, true], [1, 1, true, true]]);
   proxy.s.close(); up.close();
 });

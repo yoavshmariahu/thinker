@@ -16,6 +16,7 @@ import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, un
 import { readLog } from '../usage.js';
 import { isTestMode } from '../test-mode.js';
 import { recordRepair, repairAfterUpdate as rewireAfterUpdate } from '../environment-repair.js';
+import { proxyOn, proxyUrl, wireAgents, restartService, disableProxyService, serviceState, enableProxyService } from '../proxy-service.js';
 
 async function initCommand(ctx) {
   // `init` and `setup` were two ways to set a repository up, and the difference was never clear.
@@ -39,7 +40,7 @@ async function connectCommand(ctx) {
   await stepConnectClis({
     repo: null, cliPath: path.join(HERE, 'cli.js'), mcpEntry: mcpEntry(), userMcpEntry: userMcpEntry(), clients,
     hooks: !flags['no-hooks'], learn: !flags['no-hooks'] && learnOn(), late: !flags['no-late'], mcp: !flags['no-mcp'],
-    noTrust: Boolean(flags['no-trust']), yes: Boolean(flags.yes), out,
+    noTrust: Boolean(flags['no-trust']), yes: Boolean(flags.yes), proxy: !flags['no-proxy'], out,
   });
   out(`\n  thinker runs in every git repository on this machine: a cache starts with the first session there and grows from your sessions.`);
 }
@@ -55,7 +56,7 @@ async function uninstallCommand(ctx) {
   uninstallGitHooks(repo);
   if (flags.purge) fs.rmSync(store.dir, { recursive: true, force: true });
   // --user: the machine-wide wiring in the agents' own settings goes too
-  if (flags.user) uninstallWiring({ scope: 'user' });
+  if (flags.user) { uninstallWiring({ scope: 'user' }); disableProxyService({ keepState: false }); }
   out(`removed thinker hooks and MCP registration from ${repo}${flags.user ? ' and from your own agent settings' : ''}${flags.purge ? ' and deleted .thinker/' : ' (notes kept in .thinker/)'}`);
   await askUninstallFeedback(ctx);
 }
@@ -161,6 +162,18 @@ async function rewireCommand(ctx) {
     }
   };
   refresh(null, 'user', USER_SCOPE_CLIENTS);
+  // the proxy service (proxy-service.js): the agents' files hold its URL, and the running service is started again so
+  // that it runs this version's code (rewire is what `thinker update` runs from the new copy)
+  // an install from before the service (no state at all, never turned off): on once, as connect would do it
+  if (!flags.here && !dry && !isTestMode() && !serviceState().enabled && !serviceState().off) {
+    try { const p = await enableProxyService({ cli }); summary.changed++; summary.files.push(...p.wired.changed.map(x => x.file)); if (!quiet && !flags.json) out(`your settings: context proxy on (${p.url})`); } catch (e) { failed('your settings (proxy)', e); }
+  } else if (proxyOn() && !dry) {
+    try {
+      const w = wireAgents(proxyUrl());
+      if (w.changed.length) { summary.changed++; summary.files.push(...w.changed.map(x => x.file)); if (!quiet && !flags.json) out(`your settings: rewired ${w.changed.map(x => x.file).join(', ')} to the context proxy`); }
+      restartService({ cli });
+    } catch (e) { failed('your settings (proxy)', e); }
+  }
   for (const r of repos) {
     summary.repos++; refresh(r, 'repo', CLIENTS);
     // the background work an older version started that the new defaults no longer do (retire-background.js)
@@ -387,6 +400,7 @@ export async function setup(ctx, { runSetupFn = runSetup } = {}) {
     mcp: !flags['no-mcp'],
     gitHook: !flags['no-git-hook'],
     noTrust: Boolean(flags['no-trust']),
+    proxy: !flags['no-proxy'],
     exportFile: typeof flags.export === 'string' ? flags.export : null,
     out,
     // the local page opens after a repository's first setup, except under tests (a bare `node --test` sets only

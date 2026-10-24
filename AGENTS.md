@@ -204,6 +204,7 @@ cache at twice the input price and never read again.
 | `src/guard.js` | anchoring guard: names identifiers in the request that the served notes do not cover |
 | `src/update.js` | CLI self-update and daily automatic background updates (LaunchAgent / cron / invocation) |
 | `src/usage.js` | summary of the usage log and the estimate of saved calls and tokens, in tokens (never dollars) |
+| `src/proxy.js`, `src/proxy-service.js`, `src/proxy-replay.js`, `src/commands/proxy.js` | the context proxy: a local pass-through for the Messages API that asks the API to clear old tool results (`proxy.js`), run as a service of the machine and written into the agents' base-URL settings by `connect` (`proxy-service.js`; `thinker proxy on|off|status`), and the offline replay of the clearing policies over past sessions (`proxy-replay.js`) |
 | `src/report.js`, `src/prices.js`, `src/commands/report.js` | the Report page: the average a session cost each week over the last six, by part of the context and by model under its provider, in tokens or at list prices (`prices.js`, the one place dollars are shown); the actions taken on Save in the window and the cache's numbers under it; `thinker report` and the page's Report tab (see [Report](#report)) |
 | `src/store.js`, `src/llm.js` | note storage; model access through any installed agent |
 | `src/server/` | `thinker-server`, the team's central cache: HTTP API (`index.js`), per-repository stores with a change journal and a clone of the repository (`repos.js`), tokens (`auth.js`), the worker that reviews the pull requests CI asks about (`worker.js`); the server learns nothing itself |
@@ -1284,7 +1285,20 @@ gold hunk 149 of 166, but a third of whole-file reads had no term to centre on a
 the file, so the whole diet is worth about 15–20% of tool output, roughly a tenth of a session. The experiment has to
 show the agent does not read again what was trimmed.
 
-**Clearing old tool results through the proxy (off until an experiment; `research/output-lifetime-2026-10-22`).**
+**Clearing old tool results through the proxy (on by default since 2026-10-24, the owner's decision; `research/output-lifetime-2026-10-22`).**
+The service (`proxy-service.js`): `thinker connect` (so the installer, `setup`, and `rewire` once on an install from before)
+picks a free port, keeps it in `THINKER_HOME/state/proxy-service.json`, runs `thinker proxy --port <port> --holdout 0.15` under
+launchd (`com.thinker.proxy`, KeepAlive) or a systemd user unit, and writes the URL where the agents that speak the Messages
+API at a settable base URL read it: Claude Code's `env.ANTHROPIC_BASE_URL` in `~/.claude/settings.json` (CLI and IDE
+extensions; the desktop app's Code tab sets the variable itself and ignores the file), pi's `providers.anthropic.baseUrl`
+in `models.json`, OpenCode's `provider.anthropic.options.baseURL` (an `opencode.jsonc` is not rewritten). A base URL of the
+person's own, or Claude Code on Bedrock, Vertex or Foundry, is left alone and named. The prompt hook starts the proxy
+when nothing listens on the port (one connect a prompt), the one exception to the rule that the hooks do nothing but the
+cache's work: a wired URL with no listener would fail every call of the session. `thinker proxy off|on|status`,
+`connect --no-proxy`, `uninstall --user`; `proxy: { holdout, trigger, keep, keepMin, clearAtLeast }` in
+`THINKER_HOME/config.json` sets the service's flags. The 15% holdout is what `thinker proxy report` compares; the
+Artemis experiment below has still not run, so this ships ahead of the rule that a serving strategy waits for one, at the
+owner's decision. Live on 2026-10-24: on, launchd active, every file written, off restored them and closed the port.
 `thinker proxy` (`proxy.js`) is a local pass-through for Claude Code (`ANTHROPIC_BASE_URL`) that appends the API's
 `clear_tool_uses_20250919` edit to each request, so the server drops the oldest tool results from the context on its
 side once they amount to `--clear-at-least` (80k) and the context passes `--trigger` (100k); a client-side rewrite of
@@ -1296,7 +1310,22 @@ the owner's decision (machine-wide, 3,317 Claude Code sessions over 30 days, 1.6
 1.44% against the count's 1.58%, 17 sessions costlier against 20; `--keep-min 1` 1.57% and 16; a 60k trigger saves no
 more and makes twice the sessions costlier, 150k saves less; sessions under 60 requests lose a little under every
 policy and the 79 sessions over 120 requests, half the tokens, save 2.8–3.3%; ceiling 8.1%). What the replay cannot see
-is still the experiment's. Why `turn`: the Context tab's Wasted for outputs (above) says 88% of what tool results cost here is
+is still the experiment's. **Which agents can reach it (2026-10-24, checked on this machine):** the edit needs the
+`context-management-2025-06-27` beta, which Claude Code sends on every request (its `api-request` records) and no other
+agent does, so until that day a request without it passed untouched (`no-beta`) and the proxy cleared for Claude Code
+alone; now the header is added upstream (`proxy.js:withBeta`, logged `betaAdded`), and the API accepted it on an OAuth
+session with the header and block stripped from Claude Code's own requests first. Reaches it: Claude Code 2.1.310 from
+the shell variable and from a settings file's `env` block (`--settings`; the VS Code and JetBrains extensions run the
+same Claude Code and read `~/.claude/settings.json`, not run live). Not the Claude desktop app's Code tab: Desktop sets
+`ANTHROPIC_BASE_URL` itself for a local session and Claude Code ignores the settings-file value there
+(code.claude.com/docs/en/desktop); its only gateway route is the enterprise "third-party inference" configuration,
+which also turns the experimental betas off. Beyond Claude Code, the agents that speak the
+Messages API at a settable base URL: pi (`providers.anthropic.baseUrl` in `models.json`, reached the proxy live;
+this account's OAuth is refused for third-party apps, so no answer came back), OpenCode (`provider.anthropic.options.baseURL`),
+Goose, Aider, Cline, Droid (from their documentation). Cannot: Codex (the Responses API alone since 0.162, `wire_api
+= "chat"` removed, no Anthropic path; its app the same), Cursor (its servers; the editor overrides the OpenAI base
+URL only, the `agent` CLI names no Anthropic URL), Gemini CLI (no Anthropic path), Windsurf, Copilot and Auggie
+(their vendors' servers). Why `turn`: the Context tab's Wasted for outputs (above) says 88% of what tool results cost here is
 reading them after the agent last used them, 82% after their turn ended, 8% a result used again later in its own turn;
 a count clears results the agent is still working from in a long turn, and the pilot saw the model read files again
 after the placeholders appeared. `thinker proxy replay [--days n] [--policies spec] [--repo path]` (`proxy-replay.js`)

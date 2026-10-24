@@ -107,7 +107,10 @@ test('forwards the bytes as they came when the edit cannot or should not be adde
   const cfg = PROXY_DEFAULTS;
   const h = { 'anthropic-beta': BETA, 'x-claude-code-session-id': 's1' };
   const raw = body();
-  assert.equal(transformRequest('POST', '/v1/messages', { 'anthropic-beta': 'oauth-2025-04-20' }, raw, cfg).reason, 'no-beta');
+  // a client that does not send the beta (pi, OpenCode, Goose: anything but Claude Code) gets the edit and the header
+  const third = transformRequest('POST', '/v1/messages', { 'anthropic-beta': 'oauth-2025-04-20' }, raw, cfg);
+  assert.deepEqual([third.injected, third.addBeta], [true, true]);
+  assert.equal(transformRequest('POST', '/v1/messages', h, raw, cfg).addBeta, false);
   assert.equal(transformRequest('POST', '/v1/messages/count_tokens', h, raw, cfg).reason, 'other');
   assert.equal(transformRequest('GET', '/v1/messages', h, raw, cfg).reason, 'other');
   assert.equal(transformRequest('POST', '/v1/messages', h, Buffer.from('{not json'), cfg).reason, 'unparsed');
@@ -118,6 +121,18 @@ test('forwards the bytes as they came when the edit cannot or should not be adde
   // no context_management at all: the edit is added on its own
   const bare = JSON.parse(transformRequest('POST', '/v1/messages', h, Buffer.from(JSON.stringify({ model: 'm', messages: [] })), cfg).body);
   assert.deepEqual(bare.context_management.edits.map(e => e.type), [EDIT_TYPE]);
+});
+
+test('a client without the beta header gets it added upstream, with the edit', async () => {
+  const up = await upstream();
+  const px = await proxyTo(up.url);
+  try {
+    assert.equal((await send(px.port, { headers: { 'anthropic-beta': 'oauth-2025-04-20' }, data: body({ context_management: undefined }) })).status, 200);
+    assert.equal(up.seen[0].headers['anthropic-beta'], `oauth-2025-04-20,${EDIT_BETA}`);
+    assert.deepEqual(JSON.parse(up.seen[0].body).context_management.edits.map(e => e.type), [EDIT_TYPE]);
+    await until(() => rows(px.logFile).length);
+    assert.deepEqual([rows(px.logFile)[0].injected, rows(px.logFile)[0].betaAdded], [true, true]);
+  } finally { px.server.close(); up.server.close(); }
 });
 
 test('a held-out session keeps its side for every request', async () => {
