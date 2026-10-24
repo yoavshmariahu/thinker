@@ -282,8 +282,7 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   for (const [, src] of read('ui/page.html').matchAll(/<script>([\s\S]*?)<\/script>/g)) assert.doesNotThrow(() => new Function(src));
   assert.match(read('commands/context.js'), /thinker report --refresh` makes the report they are read from/);
   assert.match(read('ui/page.html'), /<span class="ctx-avg-label">Average prompt<\/span><b>\$\{fmt\(promptAvg\.perPrompt\)\}<\/b> tokens/);
-  assert.match(read('ui/page.html'), /<\/span>\$\{avgStat\}<\/figcaption>/, 'the average prompt sits on the caption line, not in a header row');
-  assert.doesNotMatch(read('ui/page.html'), /ctx-avg-row/);
+  assert.match(read('ui/page.html'), /<tr class="ctx-caprow"><th colspan="4" class="ctx-cap">\$\{capText\}<\/th><th class="num ctx-avgcell">\$\{avgStat\}<\/th>/, 'the caption is the first header row, the average prompt in the cell over Saved');
   assert.match(read('ui/page.html'), /<th class="num"[^>]*>Before<\/th><th class="num"[^>]*>After<\/th><th class="num"[^>]*>Saved<\/th><th>Pull request<\/th>/);
   assert.doesNotMatch(read('ui/page.html'), /A section's change runs in the background and <b>o/);
   // the cost view is the command's --cost: list prices from prices.js, the unpriced models named on both
