@@ -45,7 +45,7 @@ export function setupRepo(store, { client, cli, learn = true }) {
 // and Copilot CLIs, AskQuestion in Cursor, question in opencode), for the questions thinker has the agent put
 // to the person (coverage.js). Codex has request_user_input, but outside plan mode it is behind a feature that
 // is off (default_mode_request_user_input), so Codex gets thinker's MCP tool, which asks through elicitation.
-export const QUESTION_TOOLS = { claude: 'AskUserQuestion', gemini: 'ask_user', copilot: 'ask_user', cursor: 'AskQuestion', opencode: 'question' };
+export const QUESTION_TOOLS = { claude: 'AskUserQuestion', gemini: 'ask_user', agy: 'ask_question', copilot: 'ask_user', cursor: 'AskQuestion', opencode: 'question' };
 // The answer goes back through thinker's MCP tool where the agent has thinker's server (it took the answer
 // where the shell did not find `thinker`, 2026-10-15), else through the command line, named by path.
-export const MCP_CLIENTS = new Set(['claude', 'codex', 'gemini', 'cursor', 'opencode', 'copilot']); // Copilot's in .github/mcp.json (clients.js:MCP_FILES)
+export const MCP_CLIENTS = new Set(['claude', 'codex', 'gemini', 'agy', 'cursor', 'opencode', 'copilot']); // Copilot's in .github/mcp.json (clients.js:MCP_FILES)
