@@ -2,7 +2,8 @@
 // browser (the page's Context tab over every repository) or here in the terminal. In the terminal the suggestions
 // are an arrow-key multi-select of the actions the page's rows would take (Compress or Remove a section, Switch off a
 // skill or tool), made through the function behind the page's Apply and `thinker context --approve`
-// (context-suggest.js:approveChanges), with the page's address beside them for the detail. Nothing is changed until
+// (context-suggest.js:approveChanges), with the page's address beside them for the detail. In the browser the page
+// opens on All with the same suggestions checked (context-machine.js:suggestedPicks, page.html:preselectRows). Nothing is changed until
 // the person picks rows and presses Enter; Esc, or Enter with nothing picked, skips. Without a terminal to ask in the
 // report is printed as `thinker context --machine` prints it.
 import { spawn } from 'node:child_process';
@@ -49,7 +50,7 @@ export async function askMachineReport({ r, recs, store, out = console.log, brow
   }
   if (where === 'browser') {
     const opened = open({ store });
-    out(opened ? `  Opening the Context page in your browser (every repository, All). It stays open in the background; close the tab when done.` : '  The page could not be started; its suggestions are below.');
+    out(opened ? `  Opening the Find Savings page in your browser (every repository, All) with the suggested savings already checked: review their actions and press Apply, or uncheck them. It stays open in the background; close the tab when done.` : '  The page could not be started; its suggestions are below.');
     if (opened) return { mode: 'browser' };
   }
   for (const l of renderMachineCuts(r, recs, { actions: false })) out(l);

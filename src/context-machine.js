@@ -91,6 +91,19 @@ export function recommendations(view, { top = MACHINE_TOP } = {}) {
   return { items: items.slice(0, top), flagged: items.length, potential: items.reduce((a, x) => a + x.wasted, 0) };
 }
 
+// The action a suggestion proposes, and the key of the Context tab's row it acts on (context-suggest.js:allChanges):
+// a section is removed when its triggers fired in none of the sessions (nothing touched its files, commands or code)
+// and compressed otherwise, the judge's verdicts included: a rule followed in few of the sessions it bore on is still
+// a rule; a skill or tool is switched off. Shared by the installer's picker (machineChanges) and the page the
+// installer opens, which comes with these rows checked (suggestedPicks; ui/server.js /api/context `suggested`).
+export const suggestedAct = x => x.kind === 'section' ? (x.by === 'triggers' && x.used === 0 && x.of > 0 ? 'remove' : 'compress') : 'off';
+export const suggestedKey = x => x.kind === 'section' ? `section:${x.file}:${x.id}` : `${x.client}:${x.key}`;
+// the suggestions as the rows to pre-check on the page opened by the installer (page.html:preselectRows): the row's
+// key, its repository (a section's; a skill or tool is a merged row in All) and the action to pick
+export function suggestedPicks(view, { top = MACHINE_TOP } = {}) {
+  return recommendations(view, { top }).items.map(x => ({ kind: x.kind, key: suggestedKey(x), repo: x.repoId || null, act: suggestedAct(x) }));
+}
+
 const what = { section: 'section', skill: 'skill', tool: 'tool' };
 const groupName = { mcp: 'MCP server', plugins: 'plugin', builtin: 'built-in tool' };
 // one suggestion as a line: what it is, where, what it costs a session, how often it was used
@@ -141,17 +154,13 @@ export function renderMachineCuts({ view }, recs, { actions = true } = {}) {
 
 // The suggestions as the installer's picker offers them (setup/context-ask.js): each one resolved to the change the
 // Context tab's row would make (context-suggest.js:allChanges) in the repository it belongs to, with the action
-// proposed. A section is removed when its triggers fired in none of the sessions (nothing touched its files,
-// commands or code) and compressed otherwise, the judge's verdicts included: a rule followed in few of the sessions it
-// bore on is still a rule. A skill or tool is switched off; a merged row applies to every repository read, as the
-// page's All does. A suggestion nothing can act on (a tool no setting switches off) comes back with no `targets`: the
+// proposed (suggestedAct, suggestedKey above). A merged row applies to every repository read, as the page's All does. A suggestion nothing can act on (a tool no setting switches off) comes back with no `targets`: the
 // picker shows it, disabled, so the list matches the report.
 export function machineChanges({ views = [] }, recs) {
   const repos = views.map(x => ({ ...x, changes: allChanges(x.view) }));
   const picks = [];
   for (const x of recs.items || []) {
-    const act = x.kind === 'section' ? (x.by === 'triggers' && x.used === 0 && x.of > 0 ? 'remove' : 'compress') : 'off';
-    const key = x.kind === 'section' ? `section:${x.file}:${x.id}` : `${x.client}:${x.key}`;
+    const act = suggestedAct(x), key = suggestedKey(x);
     const targets = [];
     for (const v of repos) {
       if (x.kind === 'section' && x.repoId && v.repo !== x.repoId) continue;

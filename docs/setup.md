@@ -20,7 +20,8 @@ three things in the terminal and asks nothing there:
    use them, with the saving each is worth at most. No cache and no model call are
    involved, so the report is there from the first minute. On a terminal it asks where to
    see what to cut first: in the browser, the local page on that report over every
-   repository, or in the terminal, where the suggestions are an arrow-key list to pick
+   repository with those suggestions already checked (review their actions and press
+   Apply, or uncheck any), or in the terminal, where the suggestions are an arrow-key list to pick
    from (compress or remove a section, switch off a skill or tool) and apply at once,
    with the page's address beside them for the detail. A section is edited in its file,
    uncommitted, for `git diff`; a skill or tool is switched off for that repository; each
