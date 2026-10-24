@@ -139,6 +139,8 @@ test('the report averages each week over its sessions, by part and by model unde
   const text = renderReport(v).join('\n');
   assert.match(text, /By part of the context/); assert.match(text, /TOTAL/); assert.match(text, /ANTHROPIC/); assert.match(text, /claude-opus-5-5/);
   assert.match(text, /mystery-9 \(unpriced\)/); assert.match(text, /Workflow tool/); assert.match(text, /\$ saved\s+\$0\.00/); assert.match(text, /per prompt \(one call to the model\), by week \(.*sessions, 0, 0, 0, 0, 4, 4 prompts\)/);
+  // --total: the improvements over the prompts since
+  assert.match(renderReport(v, { total: true }).join('\n'), /saved since {11}pull request  change/);
   // Recent improvements: one line an action with before, after, saved a prompt and the pull request
   assert.match(text, /Recent improvements\n  decided {6}before {3}after  saved a prompt {8}pull request  change\n  \d{4}-\d\d-\d\d {8}0 {7}0  −0 \(few\) {14}– {13}Workflow tool\n/);
   assert.doesNotMatch(text, /Saved with thinker/);
@@ -205,10 +207,13 @@ test('actionEffect: what one decision saved, attributed to the thing it changed 
   // per prompt: the side's sum over its prompts, so a session of many calls weighs by them (the first session 4 prompts: 3,000 over 5)
   const fp = actionEffect(sec, rows.map((r, i) => i === 0 ? { ...r, prompts: 4 } : r), now);
   assert.deepEqual([fp.before.prompts, fp.before.perPrompt, fp.window], [5, 600, 1800]);
+  // the totals: a side's sum, and over the prompts since what the thing would have cost at the before rate against as it was
+  assert.deepEqual([f.before.total, f.after.total, f.since], [3000, 0, { prompts: 3, atBefore: 4500, total: 0 }]);
   // the tool switched off at hour 5: 4,000 a prompt before; since, one of three sessions still loaded it (2,000 → 667)
   const tool = { kind: 'tool', key: 'claude:tool:Workflow', at: at(5), decision: 'approved' };
   const g = actionEffect(tool, rows, now);
-  assert.deepEqual([g.before.perPrompt, g.after.perPrompt, g.delta, g.window], [4000, 667, 3333, 9999]);
+  assert.deepEqual([g.before.perPrompt, g.after.perPrompt, g.delta, g.window], [4000, 667, 3333, 10000]);
+  assert.equal(g.since.atBefore - g.since.total, g.window, 'the window is exactly the gap: 12,000 at the before rate against 2,000');
   // the output compressed at hour 5: 4,500 a prompt before (9,000 and 0), 333 since
   const out = actionEffect({ kind: 'output', key: 'output:Bash:grep', at: at(5), decision: 'approved' }, rows, now);
   assert.deepEqual([out.before.perPrompt, out.after.perPrompt, out.delta], [4500, 333, 4167]);

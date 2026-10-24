@@ -275,6 +275,11 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('ui/page.html'), /historyFigure\(acts, \{ many: Boolean\(v\.all\), caption: 'Recent improvements'[^\n]*compact: true/);
   assert.match(read('ui/page.html'), /<th class="num"[^>]*>Before<\/th><th class="num"[^>]*>After<\/th><th class="num"[^>]*>Saved<\/th><th>Pull request<\/th>/);
   assert.doesNotMatch(read('ui/page.html'), /Saved with thinker/);
+  // the Per prompt / Total toggle reaches the improvements on both doors: Total shows the thing over the prompts since the
+  // decision, at its rate before against as it was (report.js `since`)
+  assert.match(read('ui/page.html'), /compact: true, note: false, mode: RMODE \}/);
+  assert.match(read('ui/page.html'), /total \? \[f\.since\.atBefore, f\.since\.total, f\.window\] : \[f\.before\.perPrompt, f\.after\.perPrompt, f\.delta\]/);
+  assert.match(read('report.js'), /total \? \[f\.since\.atBefore, f\.since\.total, f\.window\] : \[f\.before\.perPrompt, f\.after\.perPrompt, f\.delta\]/);
   // the cost view is the command's --cost: list prices from prices.js, the unpriced models named on both
   assert.match(read('commands/report.js'), /cost: Boolean\(flags\.cost\)/);
   assert.match(read('report.js'), /listPrice\(r\.model, \{ config \}\)/);

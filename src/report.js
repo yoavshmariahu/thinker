@@ -165,7 +165,8 @@ const diff = (before, after) => ({ before, after, delta: before - after, share: 
 // What an action saved, attributed to it alone: the cost of the thing it changed (itemCost) per prompt over the window's
 // sessions before the decision (`before`) and over those since it was in effect (`after`, until its revert), each side the
 // sum over its sessions divided by their prompts, with its sessions, prompts and dates; `delta` before minus since a prompt,
-// positive a saving, `share` of before; `window` the delta over the prompts since; `few` under five sessions a side. null
+// positive a saving, `share` of before; `window` the delta over the prompts since (`since`: the thing over those prompts at
+// the before rate against as it was); `few` under five sessions a side. null
 // while a side has no session, the action is not in effect, or the thing cannot be costed. Independent of every other
 // action: a tool switched off is measured on that tool's tokens, not on what the prompts cost in all.
 export function actionEffect(e, sessionRows = [], now = Date.now(), { until = null } = {}) {
@@ -173,11 +174,13 @@ export function actionEffect(e, sessionRows = [], now = Date.now(), { until = nu
   if (until != null && until < span.to) span.to = until; // a later decision on the same thing takes over from there
   const before = sessionRows.filter(r => r.t < span.from), after = sessionRows.filter(r => r.t >= span.from && r.t < span.to);
   if (!before.length || !after.length) return null;
-  const side = (xs, k) => { const cs = xs.map(r => itemCost(e, r, k)); if (cs.some(c => c == null)) return null; const prompts = xs.reduce((a, r) => a + Math.max(1, r.prompts || 0), 0); return { sessions: xs.length, prompts, from: Math.min(...xs.map(r => r.t)), to: Math.max(...xs.map(r => r.t)), perPrompt: Math.round(cs.reduce((a, c) => a + c, 0) / prompts) }; };
+  const side = (xs, k) => { const cs = xs.map(r => itemCost(e, r, k)); if (cs.some(c => c == null)) return null; const prompts = xs.reduce((a, r) => a + Math.max(1, r.prompts || 0), 0); const total = cs.reduce((a, c) => a + c, 0); return { sessions: xs.length, prompts, from: Math.min(...xs.map(r => r.t)), to: Math.max(...xs.map(r => r.t)), total, perPrompt: Math.round(total / prompts) }; };
   const b = side(before, 'before'), a = side(after, 'after');
   if (!b || !a) return null;
   const d = diff(b.perPrompt, a.perPrompt);
-  return { from: span.from, to: e.revertedAt ? span.to : null, before: b, after: a, delta: d.delta, share: d.share, window: d.delta * a.prompts, few: b.sessions < 5 || a.sessions < 5 };
+  // `since`: the thing over the prompts since the decision, at the before rate (`atBefore`, what it would have cost) and as
+  // it was (`total`, after.total); `window` is exactly their gap (the Total view's Saved is its Before minus its After)
+  return { from: span.from, to: e.revertedAt ? span.to : null, before: b, after: a, delta: d.delta, share: d.share, since: { prompts: a.prompts, atBefore: Math.round(b.total / b.prompts * a.prompts), total: a.total }, window: Math.round(b.total / b.prompts * a.prompts) - a.total, few: b.sessions < 5 || a.sessions < 5 };
 }
 // The history with what each decision saved (actionEffect over the view's session rows), as both doors list it. A decision
 // on a thing decided again later (sed compressed on Tuesday, then again on Thursday) is measured until the later one is in
@@ -280,13 +283,15 @@ export function renderReport(v, { cost = false, total = false } = {}) {
   const pct = x => x.share == null || !Math.round(100 * Math.abs(x.share)) ? '' : ` (${x.delta >= 0 ? '−' : '+'}${Math.round(100 * Math.abs(x.share))}%)`;
   L.push('', 'Recent improvements');
   if (!v.top.length) L.push('  none in effect: what you apply on the Find Savings page is listed here once it is');
-  else L.push(`  ${'decided'.padEnd(11)}${'before'.padStart(8)}${'after'.padStart(8)}  ${'saved a prompt'.padEnd(22)}${'pull request'.padEnd(14)}change`);
+  else L.push(`  ${'decided'.padEnd(11)}${'before'.padStart(8)}${'after'.padStart(8)}  ${(total ? 'saved since' : 'saved a prompt').padEnd(22)}${'pull request'.padEnd(14)}change`);
   for (const a of v.top) {
     const f = a.effect, pr = a.pr ? `#${a.pr.number} ${a.pr.state}` : '–';
-    const cells = f ? `${formatTokens(f.before.perPrompt).padStart(8)}${formatTokens(f.after.perPrompt).padStart(8)}  ${`${f.delta >= 0 ? '−' : '+'}${formatTokens(Math.abs(f.delta))}${pct(f)}${f.few ? ' (few)' : ''}`.padEnd(22)}` : `${'–'.padStart(8)}${'–'.padStart(8)}  ${'measuring'.padEnd(22)}`;
+    // --total: the thing over the prompts since the decision, at the before rate against as it was, and the gap
+    const [b, aft, sv] = f ? total ? [f.since.atBefore, f.since.total, f.window] : [f.before.perPrompt, f.after.perPrompt, f.delta] : [];
+    const cells = f ? `${formatTokens(b).padStart(8)}${formatTokens(aft).padStart(8)}  ${`${sv >= 0 ? '−' : '+'}${formatTokens(Math.abs(sv))}${pct(f)}${f.few ? ' (few)' : ''}`.padEnd(22)}` : `${'–'.padStart(8)}${'–'.padStart(8)}  ${'measuring'.padEnd(22)}`;
     L.push(`  ${a.at.slice(0, 10).padEnd(11)}${cells}${pr.padEnd(14)}${a.title}${a.repoName ? ` (${a.repoName})` : ''}`);
   }
-  if (v.top.length) L.push('  Before and after: what the changed thing alone cost a prompt (one call to the model), over the sessions before the decision and since; saved over the prompts since in `thinker context --history`.');
+  if (v.top.length) L.push(total ? '  Before and after: what the changed thing alone cost over the prompts since the decision, at its rate before the decision against as it was; saved is the gap.' : '  Before and after: what the changed thing alone cost a prompt (one call to the model), over the sessions before the decision and since; --total shows it over the prompts since.');
   const c = v.cache;
   L.push('', 'The cache', `  $ saved          ${formatDollars(c.dollarsSaved)}${c.unpricedTokens ? ` (+${formatTokens(c.unpricedTokens)} tokens on unpriced models)` : ''}`, `  tokens saved     ${formatTokens(Math.max(0, c.tokensSaved))} ${c.measured ? 'input tokens, against prompts with the notes withheld' : 'tokens of code the agents did not read'}`, `  cache hits       ${formatTokens(c.hits)} notes served, for ${formatTokens(c.answered)} of ${formatTokens(c.requests)} requests`, `  acted on         ${c.acted == null ? '–' : `${Math.round(100 * c.acted)}%`} of ${formatTokens(c.judged)} servings the sessions were judged on`);
   return L;
