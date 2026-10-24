@@ -115,20 +115,27 @@ export function contextView(store, { days = 30, sessions, usage, log } = {}) {
 
 // Every repository's report as one (the Context tab's "All repositories"): the timeline and the instruction
 // sections side by side (each section names its repository), the tools merged by name across repositories (counts
-// summed, sizes and costs weighted by the sessions behind them), averages weighted by sessions. No switches: those
-// belong to one repository.
+// summed, sizes and costs weighted by the sessions behind them), averages weighted by sessions. A merged skill or tool
+// names the repositories it came from (`repoIds`) and keeps a switch label where any of them has one, so the page's All
+// can switch it off in each of those repositories as the installer's terminal picker does (context-machine.js:
+// machineChanges); the switch itself is made per repository, by the row's key in that repository's own report.
 export function mergeViews(list) {
   list = list.filter(x => x.view && x.view.sessions + (x.view.instructions?.sessions || 0) > 0);
   const w = (xs, k, by) => { const n = xs.reduce((a, x) => a + (x[by] || 0), 0); return n ? xs.reduce((a, x) => a + (x[k] || 0) * (x[by] || 0), 0) / n : 0; };
   const merge = (rows, key, by, sums, avgs) => {
     const m = new Map();
     for (const r of rows) { const k = key(r); if (!m.has(k)) m.set(k, []); m.get(k).push(r); }
-    return [...m.values()].map(g => ({ ...g[0], ...Object.fromEntries(sums.map(k => [k, g.reduce((a, x) => a + (x[k] || 0), 0)])), ...Object.fromEntries(avgs.map(k => [k, Math.round(w(g, k, by))])), label: null, repos: g.length }));
+    return [...m.values()].map(g => ({
+      ...g[0], ...Object.fromEntries(sums.map(k => [k, g.reduce((a, x) => a + (x[k] || 0), 0)])), ...Object.fromEntries(avgs.map(k => [k, Math.round(w(g, k, by))])),
+      // one repository's row keeps its repository; a merged row names them all and belongs to none
+      repo: g.length === 1 ? g[0].repo ?? null : null, repoName: g.length === 1 ? g[0].repoName ?? null : null, repoIds: g.map(x => x.repo).filter(Boolean),
+      label: g.find(x => x.label)?.label || null, repos: g.length,
+    }));
   };
   const views = list.map(x => x.view), sessions = views.reduce((a, v) => a + v.sessions, 0);
   const tag = x => r => ({ ...r, repo: x.repo, repoName: x.name });
-  const tools = merge(views.flatMap(v => v.tools), r => `${r.client}:${r.key}`, 'loaded', ['loaded', 'used'], ['tokens', 'perSession']).map(r => ({ ...r, usedShare: r.loaded ? r.used / r.loaded : null })).sort((a, b) => b.perSession - a.perSession);
-  const skills = merge(views.flatMap(v => v.skills), r => `${r.client}:${r.key}`, 'loaded', ['loaded', 'used'], ['tokens', 'perSession']);
+  const tools = merge(list.flatMap(x => x.view.tools.map(tag(x))), r => `${r.client}:${r.key}`, 'loaded', ['loaded', 'used'], ['tokens', 'perSession']).map(r => ({ ...r, usedShare: r.loaded ? r.used / r.loaded : null })).sort((a, b) => b.perSession - a.perSession);
+  const skills = merge(list.flatMap(x => x.view.skills.map(tag(x))), r => `${r.client}:${r.key}`, 'loaded', ['loaded', 'used'], ['tokens', 'perSession']);
   const outs = merge(views.flatMap(v => v.outputs.tools.map(t => ({ ...t, n: v.outputs.sessions }))), r => r.name, 'n', ['usedIn', 'n'], ['tokens', 'perSession', 'perCall', 'wasted', 'saveModerate', 'saveHigh']).map(t => ({ ...t, calls: w(views.flatMap(v => v.outputs.tools.filter(x => x.name === t.name).map(x => ({ ...x, n: v.outputs.sessions }))), 'calls', 'n') })).sort((a, b) => b.perSession - a.perSession);
   const ivs = list.map(x => ({ x, iv: x.view.instructions })).filter(({ iv }) => iv.file);
   const ivSessions = ivs.reduce((a, { iv }) => a + iv.sessions, 0);

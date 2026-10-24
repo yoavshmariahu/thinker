@@ -76,7 +76,7 @@ test('Esc skips: nothing applied; the browser choice opens the page and prints n
   stdin.emit('keypress', null, { name: 'return' });     // the first option
   res = await p;
   assert.equal(res.mode, 'browser'); assert.deepEqual(opened, [store]); assert.equal(applied, 0);
-  assert.ok(out.some(l => /Opening the Context page in your browser/.test(l)));
+  assert.ok(out.some(l => /Opening the Find Savings page in your browser .* suggested savings already checked/.test(l)));
   assert.ok(!out.some(l => /^Cut first/.test(l)), 'the list is on the page');
   assert.equal(ASK_WHERE[0].value, 'browser');
   // no browser to offer: straight to the list
