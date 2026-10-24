@@ -1200,7 +1200,7 @@ experiment arm): the row is sent by its key to `/api/changes/approve`, which res
 report and makes it (`approveChanges`; a skill or tool through `context-view.js:switchSources`, an output through
 `setOutputCompression`), recording the decision with its undo. A section is previewed first (`instruction-edit.js:previewEdit`,
 the diff above the table, Write to <file>) and recorded when written (`applyReviewed`, the file as it was kept for Revert; several
-sections previewed together are one decision). A built-in tool's row is in bold and its Switch off is confirmed in a dialog first (`page.html:confirmDialog`: the tools named,
+sections previewed together are one edit and one undo but a row each, since 2026-10-24 at the owner's ask that History bundle nothing: a Revert on one writes the file back and marks the others reverted with it, a Close PR closes the one pull request for all of them). A built-in tool's row is in bold and its Switch off is confirmed in a dialog first (`page.html:confirmDialog`: the tools named,
 `permissions.deny` of `.claude/settings.local.json` as where it is written, Revert and Turn back on as the way back), the one
 change the page asks about twice (2026-10-22, the owner's ask). Every view opens with a Potential savings card
 (`page.html:savingsCard`, back the same day): the flagged rows' cost in the sessions that did not use them (at most) for sections,
