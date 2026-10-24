@@ -219,6 +219,8 @@ test('dietTimeline: the level a tool had at a time, from the diet-settings log, 
   assert.equal(hand.levelAt('Bash:sed', at('2026-10-22T20:00:54.034Z')), null);
   assert.equal(dietTimeline(cfg, []).levelAt('Bash:sed', at('2020-01-01T00:00:00Z')), 'moderate');
   assert.equal(dietTimeline({ enabled: false }, []).levelAt('Bash:sed', at('2026-10-23T00:00:00Z')), null);
+  // the key names the timeline: another snapshot, or another config of now, is another key
+  assert.notEqual(tl.key, hand.key); assert.equal(tl.key, dietTimeline(cfg, log).key); assert.notEqual(tl.key, dietTimeline(cfg, log.slice(1)).key);
   // levelOf as toolLevel sees a call: a program's own level, else Bash's; an MCP server moderate at any level set
   assert.equal(levelOf({ tools: { Bash: 'high' } }, 'Bash:sed'), 'high');
   assert.equal(levelOf({ tools: { 'mcp:x': 'high' } }, 'mcp:x'), 'moderate');

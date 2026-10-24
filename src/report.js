@@ -14,9 +14,10 @@
 // column. Measurement only; nothing is served or written.
 import { findRepoSessions, instructionValue } from './instruction-value.js';
 import { harnessUsage } from './harness.js';
-import { sessionUsage } from './tool-outputs.js';
+import { sessionUsage, toolOutputs } from './tool-outputs.js';
 import { changeHistory } from './context-suggest.js';
-import { summarize } from './usage.js';
+import { summarize, readLog } from './usage.js';
+import { dietConfig, dietTimeline } from './diet.js';
 import { listPrice, providerOf, costOf, formatDollars, PRICED_ON } from './prices.js';
 import { formatTokens } from './model-usage.js';
 
@@ -65,11 +66,14 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   sessions ??= findRepoSessions(store.repo, days);
   sessions = sessions.filter(s => s.mtime >= from);
   const config = (() => { try { return store.config(); } catch { return {}; } })();
+  // the settings timeline of the tool outputs (diet.js:dietTimeline): the usage reader and the outputs reader share one
+  // record a session (tool-outputs.js:sessionRecords), so both bring it
+  const timeline = (() => { try { return dietTimeline(dietConfig(store), readLog(store)); } catch { return { levelAt: null, key: '' }; } })();
   // the parts each session's context went to, by session id (the readers keep their own caches)
   const parts = new Map(), part = id => { if (!parts.has(id)) parts.set(id, {}); return parts.get(id); };
   for (const r of instructionValue(store, { days, sessions }).timeline) if (r.session) part(r.session).instructions = r.tokens * r.calls;
   for (const r of harnessUsage(store.repo, { days, sessions }).timeline || []) if (r.session) { const c = Math.max(1, r.calls), p = r.parts; Object.assign(part(r.session), { custom: ((p.skills || 0) + (p.mcp || 0) + (p.plugins || 0)) * c, builtin: (p.builtin || 0) * c }); }
-  const rows = sessionUsage(store, sessions);
+  const rows = sessionUsage(store, sessions, timeline);
   for (const r of rows) part(r.session).outputs = r.outputs;
   const week = t => cols.findIndex(c => t >= c.t && t < c.end);
   const columns = cols.map(c => ({ t: c.t, sessions: 0, priced: 0, unmeasured: 0 }));
@@ -102,8 +106,10 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   const providers = [...new Set(modelRows.map(m => m.provider))].map(name => ({ name, cells: cols.map((_, w) => { const c = cell(); for (const m of modelRows.filter(x => x.provider === name)) add(c, m.cells[w].tokens, m.cells[w].cost, m.cells[w].sessions, m.cells[w].priced); return c; }) }))
     .sort((a, b) => b.cells.reduce((x, c) => x + c.tokens, 0) - a.cells.reduce((x, c) => x + c.tokens, 0));
   modelRows.sort((a, b) => providers.findIndex(p => p.name === a.provider) - providers.findIndex(p => p.name === b.provider) || windowOf(b) - windowOf(a));
-  // the decisions taken on the Save page in the window, newest first, as History lists them (the page shows the same table)
-  const actions = changeHistory(store).filter(e => Date.parse(e.at) >= from).map(e => ({ ...e, repo: null }));
+  // the decisions taken on the Save page in the window, newest first, as History lists them (the page shows the same table);
+  // an output's compression carries what it measured since (outputComparison)
+  const outRows = (() => { try { return toolOutputs(store, sessions, timeline).tools; } catch { return []; } })();
+  const actions = changeHistory(store).filter(e => Date.parse(e.at) >= from).map(e => ({ ...e, repo: null, measured: e.kind === 'output' && e.decision !== 'dismissed' ? outputComparison(outRows, e.key.replace(/^output:/, '')) : null }));
   return {
     weeks, days, from, to: now, pricedOn: PRICED_ON, columns,
     parts: PARTS.map(([key, name]) => ({ key, name, cells: byPart[key] })), totals, sessionTotals,
@@ -111,6 +117,20 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
     providers, models: modelRows, unpriced: [...unpriced],
     actions, cache: cacheMetrics(store, { days, config }),
   };
+}
+
+// What compressing a tool's output measured: the tool's row under the compression against its row from before
+// (tool-outputs.js:aggregateOutputs, one row a setting, each over the sessions that ran under it), the compressed row
+// the latest one with a level. `perCall` is what compression acts on, the size of a result; `perSession` is what the
+// person pays, the results times the calls that read them again, and moves with how the sessions since used the tool
+// as well. A delta is before minus since, positive a saving; `window` is the session delta over the sessions since.
+// null until both periods have a session in the window.
+export function outputComparison(rows, name) {
+  const mine = rows.filter(r => r.name === name), before = mine.find(r => !r.level), after = mine.filter(r => r.level).sort((a, b) => (b.from || 0) - (a.from || 0))[0];
+  if (!before || !after || !before.sessions || !after.sessions) return null;
+  const pick = r => ({ level: r.level || null, sessions: r.sessions, from: r.from ?? null, to: r.to ?? null, calls: r.calls, perCall: r.perCall, perSession: r.perSession, wasted: r.wasted ?? null });
+  const d = k => ({ before: before[k], after: after[k], delta: before[k] - after[k], share: before[k] ? (before[k] - after[k]) / before[k] : null });
+  return { name, before: pick(before), after: pick(after), perCall: d('perCall'), perSession: d('perSession'), window: (before.perSession - after.perSession) * after.sessions, few: after.sessions < 5 };
 }
 
 // The four numbers the Cache page showed (usage.js:summarize), over the report's window: what the notes saved in
@@ -187,7 +207,16 @@ export function renderReport(v, { cost = false, total = false } = {}) {
   if (v.unpriced.length) L.push(`  No list price for ${v.unpriced.join(', ')}: their sessions are left out of the cost average.`);
   L.push('', 'Actions in the window');
   if (!v.actions.length) L.push('  none: what you apply on the Find Savings page is listed here with its date');
-  for (const a of v.actions) L.push(`  ${a.at.slice(0, 10)}  ${(a.revertedAt ? 'reverted' : a.decision).padEnd(22)} ${a.title}${a.repoName ? ` (${a.repoName})` : ''}`);
+  const pct = x => x.share == null ? '' : ` (${x.delta >= 0 ? '−' : '+'}${Math.round(100 * Math.abs(x.share))}%)`;
+  for (const a of v.actions) {
+    L.push(`  ${a.at.slice(0, 10)}  ${(a.revertedAt ? 'reverted' : a.decision).padEnd(22)} ${a.title}${a.repoName ? ` (${a.repoName})` : ''}`);
+    // what an output's compression measured: a call and a session before and since, the saving over the sessions since
+    const m = a.measured;
+    if (!m) { if (a.kind === 'output' && !a.revertedAt && a.decision !== 'dismissed') L.push(`${''.padEnd(36)}measured: nothing yet, no session has called it since`); continue; }
+    const day = t => t ? new Date(t).toISOString().slice(0, 10) : '?';
+    L.push(`${''.padEnd(36)}measured: ${m.perSession.delta >= 0 ? 'saving' : 'costing'} ~${formatTokens(Math.abs(m.perSession.delta))} input tokens a session${pct(m.perSession)}, ${formatTokens(Math.abs(m.window))} over the ${m.after.sessions} session${m.after.sessions === 1 ? '' : 's'} since${m.few ? ' (few sessions yet)' : ''}`);
+    L.push(`${''.padEnd(36)}a call ${formatTokens(m.perCall.before)} → ${formatTokens(m.perCall.after)}${pct(m.perCall)} · a session ${formatTokens(m.perSession.before)} → ${formatTokens(m.perSession.after)} · before: ${m.before.sessions} sessions ${day(m.before.from)} to ${day(m.before.to)}, since: ${m.after.sessions} ${day(m.after.from)} to ${day(m.after.to)}`);
+  }
   const c = v.cache;
   L.push('', 'The cache', `  $ saved          ${formatDollars(c.dollarsSaved)}${c.unpricedTokens ? ` (+${formatTokens(c.unpricedTokens)} tokens on unpriced models)` : ''}`, `  tokens saved     ${formatTokens(Math.max(0, c.tokensSaved))} ${c.measured ? 'input tokens, against prompts with the notes withheld' : 'tokens of code the agents did not read'}`, `  cache hits       ${formatTokens(c.hits)} notes served, for ${formatTokens(c.answered)} of ${formatTokens(c.requests)} requests`, `  acted on         ${c.acted == null ? '–' : `${Math.round(100 * c.acted)}%`} of ${formatTokens(c.judged)} servings the sessions were judged on`);
   return L;

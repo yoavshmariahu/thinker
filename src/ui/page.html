@@ -127,6 +127,15 @@
     .ctx-pill.medium { background: #fef9c3; color: #854d0e; }
     .ctx-pill.ok { background: #dcfce7; color: #166534; }
     .ctx-pill.off { background: #f4f4f5; color: #52525b; }
+    /* what an action measured since it was taken (report.js:outputComparison): the saving first, green; a cost red */
+    .ctx-measured { display: block; margin-top: 0.3rem; font-size: 0.8rem; font-weight: 600; color: #166534; }
+    .ctx-measured.worse { color: #991b1b; }
+    .ctx-measured .muted { font-weight: 400; }
+    .ctx-compare { border-collapse: collapse; margin: 0.4rem 0; font-size: 0.8rem; }
+    .ctx-compare th, .ctx-compare td { padding: 0.2rem 0.8rem 0.2rem 0; text-align: right; font-variant-numeric: tabular-nums; }
+    .ctx-compare th:first-child, .ctx-compare td:first-child { text-align: left; }
+    .ctx-compare th { font-weight: 600; color: #6b7280; }
+    .ctx-compare tr.ctx-delta td { font-weight: 600; border-top: 1px solid #e5e7eb; }
     .ctx-act { display: flex; align-items: center; justify-content: flex-end; gap: 0.4rem; }
     .ctx-act .sel { padding: 0.22rem 1.4rem 0.22rem 0.5rem; font-size: 0.76rem; max-width: 12rem; }
     .ctx-act .btn { padding: 0.26rem 0.65rem; font-size: 0.76rem; }
@@ -775,14 +784,24 @@ function historyFigure(hs, { many, caption, sub, empty, key = 'history', pageSiz
   const pages = Math.max(1, Math.ceil(hs.length / pageSize)), page = Math.min(pages - 1, HPAGE[key] || 0), from = page * pageSize, shown = hs.slice(from, from + pageSize);
   const when = t => new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
   const day = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  // what an output's compression measured since (report.js:outputComparison): the saving a session in one line under the
+  // title, green, or the cost red, and the two periods side by side in the detail
+  const pct = x => x.share == null ? '' : ` (${x.delta >= 0 ? '−' : '+'}${Math.round(100 * Math.abs(x.share))}%)`;
+  const measuredLine = (m, e) => !m ? (e.kind === 'output' && !e.revertedAt && e.decision !== 'dismissed' ? '<span class="ctx-measured muted">Measured: nothing yet, no session has called it since</span>' : '') : `<span class="ctx-measured${m.perSession.delta >= 0 ? '' : ' worse'}">${m.perSession.delta >= 0 ? 'Saving' : 'Costing'} ~${fmt(Math.abs(m.perSession.delta))} input tokens a session${pct(m.perSession)} <span class="muted">· ${fmt(Math.abs(m.window))} over the ${m.after.sessions} session${m.after.sessions === 1 ? '' : 's'} since${m.few ? ' · few sessions yet' : ''} · a call ${fmt(m.perCall.before)} → ${fmt(m.perCall.after)}${pct(m.perCall)}</span></span>`;
+  const measuredTable = m => m ? `<table class="ctx-compare"><thead><tr><th>Measured</th><th>Sessions</th><th>Calls a session</th><th>Tokens a call</th><th>Input a session</th><th>After last use</th></tr></thead><tbody>
+      <tr><td>Before, no compression (${day(m.before.from)} to ${day(m.before.to)})</td><td>${m.before.sessions}</td><td>${perCall(m.before.calls || 0)}</td><td>${fmt(m.before.perCall)}</td><td>${fmt(m.before.perSession)}</td><td>${m.before.wasted == null ? '–' : fmt(m.before.wasted)}</td></tr>
+      <tr><td>Since, ${esc(m.after.level)} compression (${day(m.after.from)} to ${day(m.after.to)})</td><td>${m.after.sessions}</td><td>${perCall(m.after.calls || 0)}</td><td>${fmt(m.after.perCall)}</td><td>${fmt(m.after.perSession)}</td><td>${m.after.wasted == null ? '–' : fmt(m.after.wasted)}</td></tr>
+      <tr class="ctx-delta"><td>${m.perSession.delta >= 0 ? 'Saved' : 'Cost'}</td><td></td><td></td><td>${m.perCall.delta >= 0 ? '−' : '+'}${fmt(Math.abs(m.perCall.delta))}${pct(m.perCall)}</td><td>${m.perSession.delta >= 0 ? '−' : '+'}${fmt(Math.abs(m.perSession.delta))}${pct(m.perSession)}</td><td></td></tr></tbody></table>
+      <p class="muted">Tokens a call is the size of a result, what compression acts on; input a session is what the results cost over the calls that read them again, and moves with how the sessions used the tool as well.${m.few ? ' Fewer than five sessions since: give it a week.' : ''}</p>` : '';
   const detail = e => [
+    measuredTable(e.measured),
     e.result && e.decision !== 'dismissed' ? `<p>${esc(e.result.replace(/ `?thinker harness --undo`? turns.*$/, ''))}</p>` : '',
     e.action ? `<p class="muted">Suggested: ${esc(e.action)}</p>` : '',
     e.total ? `<p class="muted">Worth ~${fmt(e.total)} input tokens over the ${e.days || 7} days before it was decided${e.saving ? ` (~${fmt(e.saving)} a session)` : ''}.</p>` : e.saving ? `<p class="muted">Worth ~${fmt(e.saving)} input tokens a session when it was decided.</p>` : '',
     `<p class="muted">${e.decision === 'dismissed' ? 'Dismissed' : e.decision === 'applied after review' ? 'Written after its diff was read' : 'Applied'} ${when(e.at)}${e.revertedAt ? `; reverted ${when(e.revertedAt)}` : ''}.</p>`,
   ].join('');
   const rows = shown.map((e, k) => { const i = from + k, [cls, label] = doneOf(e); return `<tr class="${e.revertedAt ? 'ctx-off' : ''}">
-      <td class="ctx-name"><b>${esc(e.title)}</b><button class="ctx-more" data-more="${i}" aria-expanded="false">See more</button><span class="ctx-kind">${esc([CH_KIND[e.kind] || e.kind, many ? e.repoName : ''].filter(Boolean).join(' · '))}</span></td>
+      <td class="ctx-name"><b>${esc(e.title)}</b><button class="ctx-more" data-more="${i}" aria-expanded="false">See more</button><span class="ctx-kind">${esc([CH_KIND[e.kind] || e.kind, many ? e.repoName : ''].filter(Boolean).join(' · '))}</span>${measuredLine(e.measured, e)}</td>
       <td class="num">${day(e.at)}</td><td class="num">${e.total ? fmt(e.total) : e.saving ? `${fmt(e.saving)} <span class="muted">a session</span>` : '–'}</td>
       <td><span class="ctx-pill ${cls}">${label}</span></td>
       <td class="ctx-actcell"><div class="ctx-act">${e.revertible ? `<button class="btn ghost" data-revert="${i}">Revert</button>` : ''}</div></td></tr>

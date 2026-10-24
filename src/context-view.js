@@ -80,7 +80,7 @@ export function contextView(store, { days = 30, sessions, usage, log } = {}) {
   // compress it at all; a row measured under another setting than now's is `past`: kept for the comparison, offered
   // no action, and ranked after the current rows
   const diet = dietConfig(store), timeline = dietTimeline(diet, log);
-  const outputs = toolOutputs(store, sessions, { levelAt: timeline.levelAt });
+  const outputs = toolOutputs(store, sessions, { levelAt: timeline.levelAt, key: timeline.key });
   outputs.tools = outputs.tools.map(t => { const compression = levelOf(diet, t.name); return { ...t, compressible: compressible(t.name), compression, past: (t.level || null) !== (compression || null), since: t.level ? timeline.since(t.name, t.level) : null }; });
   const core = coreConfig(store), kept = new Set(core.keep.map(k => k.toLowerCase()));
   const instructions = {

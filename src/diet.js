@@ -15,6 +15,7 @@
 // overrides it for an experiment arm.
 import fs from 'node:fs';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { outlineText } from './codegraph.js';
 import { sessionState, locked } from './ops.js';
 import { classifyTestCommand, parseTestOutput, summarize, stripAnsi, testsConfig, logPathFor, pruneLogs } from './testing.js';
@@ -87,7 +88,10 @@ export function dietTimeline(cfg, log = []) {
   };
   // when `name` last came to `level` (ms): the start of the latest run of snapshots giving it, null when none does now
   const since = (name, level) => { let t = null; for (const s of snaps) { if (levelOf(s.cfg, name) === level) { t ??= s.at; } else t = null; } return t; };
-  return { levelAt, since, changes: snaps.map(s => s.at) };
+  // `key` names this timeline (the snapshots and the config of now), so a record attributed under another one, or under
+  // none, is made again (tool-outputs.js:sessionRecords)
+  const key = createHash('sha1').update(JSON.stringify(snaps.map(s => [s.at, s.cfg.tools || null, s.cfg.enabled]))).digest('hex').slice(0, 12);
+  return { levelAt, since, changes: snaps.map(s => s.at), key };
 }
 
 export function setDietLevel(store, tools, level) {
