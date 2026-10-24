@@ -262,13 +262,13 @@
     <!-- Report: what a session costs here week by week, by part and by model, the actions taken and the cache's numbers (report.js, as `thinker report`) -->
     <section id="tab-report" hidden>
       <div class="ctx-top"><div><h1>View Report</h1>
-      <p class="lede">What a session costs here, week by week: the average over each week's sessions, by where the tokens went and by the model that read them</p></div>
+      <p class="lede">What a session costs here, week by week: the average over each week's sessions, by where the tokens went and by the model that read them <span class="muted" id="r-asof"></span></p></div>
       <div class="controls">
         <select class="sel" id="r-repo" aria-label="Repository"></select>
         <div class="seg" id="r-mode"><button data-mode="avg" class="on">Per session</button><button data-mode="sum">Total</button></div>
         <div class="seg" id="r-measure"><button data-m="tokens" class="on">Tokens</button><button data-m="cost">Cost</button></div>
       </div></div>
-      <div id="report-body" class="section"><div class="empty"><svg class="logo-spin" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="22" r="6"/><circle cx="16" cy="16" r="6"/><circle cx="22" cy="10" r="6"/></svg>Reading the transcripts…</div></div>
+      <div id="report-body" class="section"><div class="empty"><svg class="logo-spin" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="22" r="6"/><circle cx="16" cy="16" r="6"/><circle cx="22" cy="10" r="6"/></svg>Reading the report…</div></div>
     </section>
   </main>
   <div class="toast" id="toast"></div>
@@ -567,7 +567,7 @@ function contextRows(v) {
     name: s.title, sub: [s.repoName, (s.fileKind && s.fileKind !== 'root') || (iv.files || []).length > 1 ? s.file : null, s.parent].filter(Boolean).join(' · '),
     detail: md(s.text), tokens: s.tokens, perSession: s.perSession, sessions: iv.sessions || 0, acted: s.usedShare,
     actedBy: s.usedShare == null ? 'too few sessions to say' : s.usedBy === 'judge' ? 'judged sessions whose agent followed it' : 'sessions that touched its files, commands or code (until five are judged by the model)',
-    wasted: s.wasted, waste: s.waste, off: Boolean(iv.coreOn && !s.kept), pill: iv.coreOn && !s.kept ? ['off', 'not in the trimmed copy'] : null,
+    wasted: s.wasted, waste: s.waste, off: false, pill: null,
     options: [['compress', 'Compress'], ['remove', 'Remove']], disabled: '',
   }));
   // a section whose change is a pull request not yet merged: pending, with the link, and not to be picked again until the
@@ -780,7 +780,7 @@ function renderContext(v) {
     note: `Every instruction section, skill, tool and tool output the agents' sessions here carried, over ${v.days} days. <b>Sessions used</b>: the share of sessions that used the part (a section the agent followed, or whose files, commands or code it touched; a skill opened; a tool called). <b>Wasted</b>: what it cost in the sessions that did not use it; for an output, what its results cost after the agent last used them. The pill: high waste from 5% of what its kind cost, medium from 2%. Sorted by Wasted. Pick what to do in the row and Apply: a section's diff is shown first and written to your working tree, uncommitted; a skill or tool is switched off for this repository from the next session (a skill still runs as /name); an output is compressed before the model reads it (Claude Code). Every change is listed under History with a Revert. <b>Compress and Remove open a pull request with the change</b> (a branch pushed to the origin, nothing in your working tree touched): the section shows as pending until it is merged, and is suggested again if it is closed. Without a GitHub origin or <code>gh</code>, the file is written to your working tree instead, uncommitted.` }));
   h += vdiv('instructions', (iv.file ? renderTable('instructions', of('instructions'), { nameHead: 'Section', title: esc(iv.file), sub: cap(of('instructions'), iv.sessions || 0, 'on the file'), savings: sav.instructions,
     note: `${(iv.files || []).length > 1 ? `<b>${iv.files.length} instruction files.</b> ${iv.files.map(f => `<code>${esc(f.file)}</code> ${f.kind === 'root' ? 'in every session' : `${f.loadedIn} session${f.loadedIn === 1 ? '' : 's'}, ${f.kind === 'rule' ? (f.globs?.length ? 'when a matching file is opened' : 'at the start, Claude Code') : 'when a file in its directory is opened'}`}`).join(' · ')}. ` : ''}Each session reads the file again on every model call; ${iv.judged} judged${iv.judge?.judge ? ` (a ${Math.round(100 * iv.judge.share)}% sample of sessions is judged by a model as they end)` : ' (judging is off)'}. <b>Compress</b> has a model rewrite a section to about a third, keeping its rules, commands and paths; <b>Remove</b> takes it out. Both show the diff first; Write puts it in the file in your working tree, uncommitted, for you to review and commit. <b>Compress and Remove only edit the instruction file in your working tree: no commit, no pull request, nothing pushed.</b>` })
-    : '<div class="empty">No AGENTS.md or CLAUDE.md in this repository.</div>') + `<div class="controls">${iv.coreOn ? '<button class="btn ghost" id="c-whole">Remove the trimmed copy</button>' : ''}</div>`);
+    : '<div class="empty">No AGENTS.md or CLAUDE.md in this repository.</div>') + '<div class="controls"></div>');
   h += vdiv('custom', renderTable('custom', of('custom'), { nameHead: 'Skill or tool', title: 'Custom tools', sub: cap(of('custom'), v.sessions || 0, 'on them'), savings: sav.custom,
     note: `Every skill's name and description, and every MCP server's and plugin's tool definitions, sit in every session's context whether or not anything uses them; the agent reads a skill file only when it opens the skill. <b>Switch off</b> takes one out of the next session's context for this repository (a skill still runs when you type /name); <b>Turn back on</b> undoes it.` }));
   h += vdiv('builtin', renderTable('builtin', of('builtin'), { nameHead: 'Tool', title: 'Built-in tools', sub: cap(of('builtin'), v.sessions || 0, 'on them'), savings: sav.builtin,
@@ -794,7 +794,6 @@ function renderContext(v) {
   sortControl();
   renderHistory(CHIST);
   const act = async (btn, p, body, msg) => { if (btn) btn.disabled = true; try { const r = await api(p, { repo: CREPO, ...body }); toast(msg || (r.said && !String(r.said).startsWith('{') ? r.said : 'Saved')); loadContext(); } catch (err) { toast(err.message, true); if (btn) btn.disabled = false; } };
-  $('#c-whole')?.addEventListener('click', e => act(e.target, '/api/context/core', { keep: null }));
 }
 
 // the one Sort control in the Save header (beside the repository and the window, the owner's ask of 2026-10-22): the
@@ -851,7 +850,7 @@ function historyFigure(hs, { many, caption, sub, empty, key = 'history', pageSiz
   const pager = pagerOf(key, hs.length, page, pageSize).replace(/data-vpage=/g, 'data-page=');
   return `<figure class="ctx-figure" data-history><figcaption><b>${caption}</b> <span class="ctx-sub">${sub ? `${sub} · ` : ''}${hs.length} decision${hs.length === 1 ? '' : 's'}${reverted ? ` · ${reverted} reverted` : ''}</span></figcaption>
     ${hs.length ? `<table class="ctx-table"><thead><tr><th>Change</th><th class="num">Decided</th><th class="num">Worth</th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table>${pager}` : `<div class="empty">${empty}</div>`}
-    <p class="ctx-note"><b>Revert</b> turns a switched-off skill or tool back on, sets an output's compression back, or writes a section's file back as it was (when the file is still what thinker wrote; else git has it). A dismissal reverted is suggested again. A section change is a pull request: <b>PR pending</b> until it is merged, <b>Rejected</b> once it is closed without merging (the section is suggested again); <b>Close PR</b> closes it and deletes its branch.</p></figure>`;
+    <p class="ctx-note"><b>Revert</b> turns a switched-off skill or tool back on, sets an output's compression back, or writes a section's file back as it was (when the file is still what thinker wrote; else git has it). A dismissal reverted is suggested again. A section change is a pull request: <b>PR pending</b> until it is merged, <b>Rejected</b> once it is closed without merging (the section is suggested again); <b>Close PR</b> closes it and deletes its branch. Sections changed together are a row each but one edit: a Revert or Close PR on one takes the others with it.</p></figure>`;
 }
 function wireHistory(root, hs, reload, rerender) {
   if (!root) return;
@@ -882,15 +881,32 @@ const SHADE_MIN = 0.1;
 const money = d => d == null ? '–' : (d < 0 ? '−' : '') + '$' + (Math.abs(d) >= 10000 ? (Math.abs(d) / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : Math.abs(d) >= 100 ? String(Math.round(Math.abs(d))) : Math.abs(d) >= 10 ? Math.abs(d).toFixed(1) : Math.abs(d) >= 0.01 || d === 0 ? Math.abs(d).toFixed(2) : Math.abs(d).toFixed(3));
 async function loadReport() {
   const el = $('#report-body');
-  el.innerHTML = `<div class="empty">${LOGO_SPIN}Reading the transcripts…</div>`;
+  el.innerHTML = `<div class="empty">${LOGO_SPIN}Reading the report…</div>`; clearTimeout(RPOLL);
   try {
     if (!REPOS.length) await fetchRepos();
     if (REPO !== 'all' && !REPOS.some(r => r.id === REPO)) REPO = REPOS.find(r => r.current)?.id || 'all';
     $('#r-repo').innerHTML = `<option value="all"${REPO === 'all' ? ' selected' : ''}>All repositories</option>` + REPOS.map(r => `<option value="${esc(r.id)}"${r.id === REPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
     const v = await api(`/api/report?repo=${encodeURIComponent(REPO)}&weeks=6`);
     if (v.empty) { el.innerHTML = '<div class="empty">No repository with a cache on this machine yet.</div>'; return; }
-    renderReport(v);
+    renderReport(v); reportAsOf(v);
   } catch (e) { el.innerHTML = `<div class="empty">Could not read the report: ${esc(e.message)}</div>`; }
+}
+// The report is kept and made again in the background (report-snapshot.js), like the Save page's: the page says when
+// it was measured and, while a newer one is being made, checks back and shows it.
+let RPOLL = null;
+function reportAsOf(v) {
+  const el = $('#r-asof'); clearTimeout(RPOLL);
+  if (el) el.textContent = `· measured ${sinceMeasured(v.asOf)}${v.refreshing ? ', updating…' : ''}`;
+  if (!v.refreshing) return;
+  const want = REPO, tries = (v.tries || 0) + 1;
+  if (tries > 24) { if (el) el.textContent = `· measured ${sinceMeasured(v.asOf)}`; return; }
+  RPOLL = setTimeout(async () => {
+    if (REPO !== want || TAB !== 'report') return;
+    let n; try { n = await api(`/api/report?repo=${encodeURIComponent(REPO)}&weeks=6`); } catch { return; }
+    if (REPO !== want || TAB !== 'report' || n.empty) return;
+    if (n.asOf > v.asOf) { renderReport(n); reportAsOf(n); }
+    else reportAsOf({ ...v, refreshing: n.refreshing, tries });
+  }, 5000);
 }
 function renderReport(v) {
   RPT = v;

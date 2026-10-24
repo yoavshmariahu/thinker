@@ -124,17 +124,24 @@ export function sectionCards(store) {
 }
 const hash = s => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
 
-// Which card a tool event fires: { files named or edited, the command, what it printed, whether it edited }.
-export function sectionFires(card, { files = [], command = '', output = '', read = [], edited = [] }) {
+// The code names and patterns among `names` and `res` that a tool event's output holds. Code counts only in what a
+// source file printed, never in documents or skills that quote it. A session's record keeps these in place of the
+// output (instruction-value.js), so the sections can be matched again without the transcript.
+export function codeHits({ output = '', read = [] }, { names = [], res = [] }) {
+  if (!output || !read.some(f => SOURCE.test(f)) || read.some(f => DOC.test(f))) return [];
+  return [...names.filter(c => output.includes(c)), ...res.filter(c => regex(c)?.test(output))];
+}
+
+// Which card a tool event fires: { files named or edited, the command, what it printed (or `hits`, the code names
+// already found in it), whether it edited }.
+export function sectionFires(card, { files = [], command = '', output = '', hits = null, read = [], edited = [] }) {
   const t = card.triggers || {};
   const any = (res, list) => res?.some(p => { const re = regex(p); return !!re && list.some(f => re.test(f)); });
   if (t.cmd && command && regex(t.cmd)?.test(command)) return 'cmd';
   if (any(t.paths, files)) return 'path';
   if (any(t.edits, edited)) return 'edit';
-  // code counts only in what a source file printed, never in documents or skills that quote it
-  if (output && read.some(f => SOURCE.test(f)) && !read.some(f => DOC.test(f))) {
-    if (t.code?.some(c => output.includes(c)) || t.codeRe?.some(c => regex(c)?.test(output))) return 'code';
-  }
+  const found = hits || codeHits({ output, read }, { names: t.code || [], res: t.codeRe || [] });
+  if (t.code?.some(c => found.includes(c)) || t.codeRe?.some(c => found.includes(c))) return 'code';
   return null;
 }
 

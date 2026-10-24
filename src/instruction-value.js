@@ -1,7 +1,7 @@
 // What each section of a repository's instruction file (AGENTS.md, or CLAUDE.md) is worth, measured on the
 // sessions agents ran here: what it costs (its tokens, read again on every model call of every session) against
 // how often it bore on the work and whether the agent acted on it. A measurement for the person, never a rewrite
-// of the team's file: what to keep is theirs to decide (`thinker instructions --core`, instructions-core.js).
+// of the team's file: what to keep is theirs to decide (a change is a pull request, instruction-edit.js).
 //
 //   applied   free, on every session: the session did what the section is about, by the triggers the
 //             section's own text gives (instruction-sections.js:deriveTriggers): it named or edited a file of
@@ -21,8 +21,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { sections } from './instructions-core.js';
-import { deriveTriggers, sectionFires, globRegex as triggerGlob } from './instruction-sections.js';
+import { deriveTriggers, sectionFires, codeHits, globRegex as triggerGlob } from './instruction-sections.js';
+import { diskCache, cacheKey } from './disk-cache.js';
 import { parseTranscript, findSessions } from './transcripts.js';
 import { complete, DEFAULT_DISTILL_MODEL } from './llm.js';
 import { tokensOf } from './model-usage.js';
@@ -31,6 +31,23 @@ import { withinDailyCap } from './maintain.js';
 import { outcomeSampled, sessionDiff, ruleGlobs, globRegex } from './skill-outcome.js';
 import { execFileSync } from 'node:child_process';
 import { checkouts } from './harness.js';
+
+// Leaf sections: a "###" section on its own, a "##" one with the prose before its first "###"; the "#" title apart.
+export function sections(text) {
+  const out = []; let cur = null, parent = null; const head = [];
+  for (const line of String(text).split('\n')) {
+    const m = line.match(/^(#{2,3}) (.+?)\s*$/);
+    if (m) {
+      if (cur) out.push(cur);
+      if (m[1].length === 2) parent = m[2];
+      cur = { title: m[2], parent: m[1].length === 3 ? parent : null, level: m[1].length, lines: [line] };
+    } else if (cur) cur.lines.push(line); else head.push(line);
+  }
+  if (cur) out.push(cur);
+  const all = out.map(s => ({ ...s, text: s.lines.join('\n').trim(), tokens: Math.ceil(s.lines.join('\n').length / 4) }));
+  all.head = head.join('\n').trim();
+  return all;
+}
 
 export const VALUE = { share: 0.25, keepSessions: 500, diffChars: 30_000, sectionsChars: 60_000, commands: 60 };
 // a section bearing on fewer than this share of the sessions that read it, with enough sessions to say so
@@ -167,17 +184,41 @@ function writeValueState(store, st) {
   try { fs.mkdirSync(path.dirname(stateFile(store)), { recursive: true }); fs.writeFileSync(stateFile(store), JSON.stringify(st)); } catch {}
 }
 
-// A session's record: read again when its transcript grew or the sections changed; the verdicts kept.
+// The code names and patterns the sections' triggers look for in what source files printed (instruction-sections.js:
+// codeHits): a session's kept activity holds which of them each tool event's output had, in place of the output.
+const codeNames = secs => { const names = new Set(), res = new Set(); for (const s of secs) { for (const c of s.triggers?.code || []) names.add(c); for (const c of s.triggers?.codeRe || []) res.add(c); } return { names: [...names].sort(), res: [...res].sort() }; };
+// whether an activity kept for the names `had` answers for `want`: every name and pattern wanted was looked for
+export const coversCode = (had, want) => want.names.every(c => had?.names?.includes(c)) && want.res.every(c => had?.res?.includes(c));
+// What the sections need of a session's tool calls, without the outputs: per call the files it named, its command (cut),
+// the files it edited and the code names its output held. A call that named nothing and ran nothing fires no section.
+const compactActivity = (activity, code) => ({
+  read: activity.read, edited: activity.edited,
+  calls: activity.calls.filter(c => c.files.length || c.command).map(c => ({ files: c.files, command: c.command.slice(0, 2000), edited: c.edited, hits: codeHits(c, code) })),
+});
+// kept on this machine by the transcript's size (disk-cache.js; none in the suite unless a test names a directory)
+const ACTIVITY_CACHE = diskCache('session-activity', 1);
+
+// A session's record: its transcript is read once, and what the sections need of it kept (compactActivity); the
+// sections' triggers are matched again from that when the instruction files change, and the transcript is read again
+// only when it grew, or the sections name code they did not name before (its outputs must be searched for it). Until
+// 2026-10-24 any change to the instruction files re-read every transcript of the window on the next visit to the
+// page, gigabytes on this repository, thirty seconds under load. The verdicts are kept across both.
 function sessionRecord(store, st, s, secs, srcHash, files) {
   let size = 0; try { size = fs.statSync(s.file).size; } catch { return null; }
   const prev = st.sessions[s.session];
   if (prev && prev.size === size && prev.src === srcHash) return prev;
-  let parsed; try { parsed = parseTranscript(s.file); } catch { return null; }
-  if (!parsed.events.some(e => e.t === 'tool' || e.t === 'prompt')) return null;
-  const activity = sessionActivity(store.repo, parsed.events);
-  const touched = touchedFiles(activity);
+  const code = codeNames(secs), key = cacheKey('activity', store.repo, s.file);
+  let kept = ACTIVITY_CACHE.get(key);
+  if (!kept || kept.size !== size || !coversCode(kept.code, code)) {
+    let parsed; try { parsed = parseTranscript(s.file); } catch { return null; }
+    const empty = !parsed.events.some(e => e.t === 'tool' || e.t === 'prompt');
+    kept = { size, code, empty, turns: parsed.stats?.turns || 0, activity: empty ? null : compactActivity(sessionActivity(store.repo, parsed.events), code) };
+    ACTIVITY_CACHE.set(key, kept);
+  }
+  if (kept.empty) return null;
+  const activity = kept.activity, touched = touchedFiles(activity);
   const loaded = (files || []).filter(f => fileLoaded(f, s.client, touched)).map(f => f.file);
-  const rec = { client: s.client, file: s.file, mtime: s.mtime, size, src: srcHash, turns: parsed.stats?.turns || 0, loaded, applied: appliedSections(secs.filter(x => loaded.includes(x.file)), activity), edited: activity.edited.length, ...(prev?.judged ? { judged: prev.judged } : {}) };
+  const rec = { client: s.client, file: s.file, mtime: s.mtime, size, src: srcHash, turns: kept.turns, loaded, applied: appliedSections(secs.filter(x => loaded.includes(x.file)), activity), edited: activity.edited.length, ...(prev?.judged ? { judged: prev.judged } : {}) };
   st.sessions[s.session] = rec;
   return rec;
 }

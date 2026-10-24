@@ -131,9 +131,18 @@ export function normalizeClient(client, session = '') {
 // fields added to a serving's log line
 export const servedFields = (store, notes, text) => ({ tokens: estTokens(text || ''), est: notes.map(n => { const s = savingOf(store.repo, n); return [s.calls, s.tokens]; }) });
 
+// The log is parsed once a process for its size and mtime: the page's report over every repository summarized
+// a dozen checkouts, and each one read and parsed the same 14 MB (a sixth of a second each, 2 s in all).
+const parsed = new Map(); // file → { stamp, events }
 const parse = (f, repo) => {
-  let raw = ''; try { raw = fs.readFileSync(f, 'utf8'); } catch {}
-  return raw.split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(e => e && e.t && e.op).map(e => e.repo ? e : { ...e, repo })
+  let stamp; try { const s = fs.statSync(f); stamp = `${s.size}\t${s.mtimeMs}`; } catch { return []; }
+  let hit = parsed.get(f);
+  if (!hit || hit.stamp !== stamp) {
+    let raw = ''; try { raw = fs.readFileSync(f, 'utf8'); } catch {}
+    hit = { stamp, events: raw.split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(e => e && e.t && e.op) };
+    parsed.set(f, hit);
+  }
+  return hit.events.map(e => e.repo ? e : { ...e, repo })
     // which repository: the origin recorded with the event, else that of the checkout it names
     .map(e => ({ ...e, origin: e.origin || repoId(e.repo) }));
 };

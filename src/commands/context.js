@@ -2,7 +2,7 @@
 // (context-view.js): the instruction file's sections, the skills, the other tools loaded into every session.
 // The report changes nothing; --judge n spends model calls on the newest sessions not judged yet, so the
 // sections' verdicts fill in without waiting for the sampled check. The controls are the commands they name:
-// `thinker instructions --core` for the sections, `thinker harness --off` for skills and tools. --refresh keeps
+// `thinker instructions --compress|--remove` for the sections, `thinker harness --off` for skills and tools. --refresh keeps
 // the report for the page (context-snapshot.js), which starts it in the background. --machine is the report over
 // the repositories the agents worked in lately, merged, with what to cut first (context-machine.js): what the
 // installer runs, from the sessions that ran before thinker was installed; it needs no repository. --ask is the
@@ -95,9 +95,9 @@ async function contextCommand({ store, flags, out }) {
     out(`${iv.file}: ${iv.sessions} sessions read it, ${iv.judged} judged${iv.judge.judge ? ` (a ${Math.round(100 * iv.judge.share)}% sample is judged at session end)` : ' (judging is off: instructions.value.judge in .thinker/config.json)'}.`);
     out(`  ${pad('tokens', 6)} ${pad('a session', 9)} ${pad('applied', 8)} ${pad('relevant', 8)} ${pad('followed', 8)}  value        section`);
     for (const s of [...iv.sections].sort((a, b) => b.perSession - a.perSession)) {
-      out(`  ${pad(s.tokens, 6)} ${pad(formatTokens(s.perSession), 9)} ${pad(s.triggered ? `${s.applied}/${s.sessions}` : '-', 8)} ${pad(s.judged ? `${s.bore}/${s.judged}` : '-', 8)} ${pad(pct(s.success), 8)}  ${s.value.padEnd(12)} ${s.kept ? '* ' : ''}${s.fileKind && s.fileKind !== 'root' ? `${s.file} · ` : ''}${s.parent ? `${s.parent}: ` : ''}${s.title}`);
+      out(`  ${pad(s.tokens, 6)} ${pad(formatTokens(s.perSession), 9)} ${pad(s.triggered ? `${s.applied}/${s.sessions}` : '-', 8)} ${pad(s.judged ? `${s.bore}/${s.judged}` : '-', 8)} ${pad(pct(s.success), 8)}  ${s.value.padEnd(12)} ${s.fileKind && s.fileKind !== 'root' ? `${s.file} · ` : ''}${s.parent ? `${s.parent}: ` : ''}${s.title}`);
     }
-    out(`  applied: the session touched the section's files, commands or code; relevant: judged sessions where it mattered to the work; followed: % of judged sessions that followed rather than broke it${iv.coreOn ? '; * kept in the trimmed copy' : ''}.\n`);
+    out(`  applied: the session touched the section's files, commands or code; relevant: judged sessions where it mattered to the work; followed: % of judged sessions that followed rather than broke it.\n`);
   }
   if (v.skills.length) {
     out('Skills: listed in every session, read in some; kept: checked sessions that read it and kept its rules.');
@@ -122,7 +122,7 @@ async function contextCommand({ store, flags, out }) {
     for (const s of v.tools.slice(0, flags.verbose ? undefined : 20)) out(`  ${pad(s.tokens, 6)} ${pad(formatTokens(s.perSession), 9)} used ${pad(`${s.used}/${s.loaded}`, 7)}  ${s.client === 'claude' ? '' : `${s.client}: `}${s.name} ${s.kind}${s.off ? ' (off)' : s.suggested ? ' (rarely used)' : ''}`);
     out('');
   }
-  out(`Keep sections in this checkout's trimmed copy: thinker instructions --core "Title, Title".${v.harnessOn ? ' Switch a skill or tool off here: thinker harness --off "<label>".' : ' Switching skills and tools off needs the harness (thinker harness --enabled on).'}`);
+  out(`Change a section as a pull request: thinker instructions --compress <id> --pr (or --remove).${v.harnessOn ? ' Switch a skill or tool off here: thinker harness --off "<label>".' : ' Switching skills and tools off needs the harness (thinker harness --enabled on).'}`);
 }
 
 export const commands = { context: contextCommand };

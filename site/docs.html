@@ -712,7 +712,7 @@
         </p>
         <ul class="value-list">
           <li><strong>See it.</strong> The <a href="#context">Context page</a> reads your agents' own session transcripts and shows input tokens a session split into instruction files, skills, MCP servers, plugins, built-in tools and tool outputs, for one repository or all of them. Each section, skill and tool stands beside what it costs and how often sessions acted on it, with the waste flagged.</li>
-          <li><strong>Cut it.</strong> Compress or remove instruction sections as a diff you apply; keep only the sections that matter in a trimmed copy for this checkout; switch unused skills and tools off from the next session, with a backup; compress long tool outputs before the agent reads them. Every cut is shown first and undone with one command.</li>
+          <li><strong>Cut it.</strong> Compress or remove instruction sections as a pull request you review; switch unused skills and tools off from the next session, with a backup; compress long tool outputs before the agent reads them. Every cut is shown first and undone with one command.</li>
           <li><strong>Remember instead.</strong> The <a href="#notes">knowledge cache</a>: what your agent works out in a session becomes a short note pinned to the code it describes, served on the requests it fits and re-checked when that code changes, so the agent reads less to find its way.</li>
         </ul>
 
@@ -744,7 +744,7 @@
           <div class="loop-step">
             <span class="step-badge">2</span>
             <h4>Cut</h4>
-            <p>Compress or remove the sections no session uses, keep a trimmed copy for this checkout, switch unused skills and tools off, compress long tool results. Each cut is shown first and undone with one command.</p>
+            <p>Compress or remove the sections no session uses, switch unused skills and tools off, compress long tool results. Each cut is shown first and undone with one command.</p>
           </div>
           <div class="loop-step">
             <span class="step-badge">3</span>
@@ -843,16 +843,6 @@
           <dt>Agents</dt><dd>Every agent that reads the file.</dd>
         </dl>
 
-        <h3>Keep a trimmed copy for this checkout</h3>
-        <p>
-          When the team's file must stay as it is, keep only the sections that matter here and let the agents in this checkout read those. It is a selection of the team's own text, never a rewrite of it.
-        </p>
-        <dl class="how">
-          <dt>How</dt><dd>The kept sections are written verbatim to <code>AGENTS.override.md</code>, which Codex reads in place of <code>AGENTS.md</code>, and to <code>CLAUDE.local.md</code> for Claude Code; a <code>CLAUDE.md</code> that is a copy of or a link to <code>AGENTS.md</code> is skipped through <code>claudeMdExcludes</code> in <code>.claude/settings.local.json</code>, and one with text of its own is left alone. Both copies are kept out of git through <code>.git/info/exclude</code> and rewritten whenever <code>AGENTS.md</code> changes.</dd>
-          <dt>Command</dt><dd><code>thinker instructions --core "Title, Title"</code> (<code>--cursor</code> also for Cursor)</dd>
-          <dt>Undo</dt><dd><strong>Remove the trimmed copy</strong>, or <code>thinker instructions --off</code>: the copies are deleted and the team's file is read again.</dd>
-          <dt>Agents</dt><dd>Codex and Claude Code; Cursor on request. The others have no local replacement that leaves the team's files alone.</dd>
-        </dl>
 
         <h3>Switch skills, MCP servers, plugins and built-in tools off</h3>
         <p>
@@ -921,7 +911,7 @@ read any range: Read with offset and limit</span></pre>
           <li><strong>Use is measured before you cut.</strong> A section applied in 90% of sessions wastes a tenth of its cost at most, and is flagged only when that tenth is still a large share of the file. Start with high waste: large, and used in almost no session. The saving shown is the most a cut can save; a session that needed the part goes without it.</li>
           <li><strong>Compression keeps the rules.</strong> The model that shortens a section is told to keep every instruction, command, flag, default and path and to drop history, numbers and rationale, and you read the diff before Apply. Remove is yours to judge; in doubt, compress.</li>
           <li><strong>A trimmed result says what it left out.</strong> A compressed file read names each omitted range and how to read it back, so the cost of a wrong guess is a second read, not a missed fact. A file the trim would not shorten passes whole, and full test logs stay on disk.</li>
-          <li><strong>Everything undoes with one command.</strong> <code>git checkout</code> for an edited section, <code>thinker instructions --off</code> for the trimmed copy, <code>thinker harness --undo</code> for anything switched off, <code>--level off</code> for compression. The <a href="#faq-cut-files">FAQ</a> lists what each cut writes.</li>
+          <li><strong>Everything undoes with one command.</strong> Close PR for an edited section, <code>thinker harness --undo</code> for anything switched off, <code>--level off</code> for compression. The <a href="#faq-cut-files">FAQ</a> lists what each cut writes.</li>
         </ul>
         <p>
           <strong>What the numbers are.</strong> Tokens are counted from the transcripts at about four characters a token, times the model calls the transcript records. A tool output's cost is its tokens times the calls left after it; a compaction, which drops old results, is not seen, so that part is an upper estimate. The waste flags are measurements of use, not a promise: whether the agent then misses a cut section is what <em>followed</em> and <em>missed</em> are there to show, on your own sessions. No benchmark is claimed for the cuts; the <a href="#overview" onclick="openModal(); return false;">benchmarks</a> are about the cache.
@@ -1121,7 +1111,7 @@ thinker ui --port 4800 --no-open    <span class="code-comment"># a fixed port, w
               <tr><td><code>thinker ui [--tab save | report] [--all] [--port n] [--no-open]</code></td><td>The <a href="#local-page">local page</a>: where the context goes and what to cut (<code>--all</code>: over every repository), and what a session costs here week by week</td></tr>
               <tr><td><code>thinker report [--weeks n] [--cost] [--json]</code></td><td>The View Report view in the terminal: the average tokens a session cost, week by week, by part of the context and by model under its provider; <code>--cost</code> the same at list prices; then the actions taken on Find Savings and the cache's numbers</td></tr>
               <tr><td><code>thinker context [--days n] [--json] [--judge n] [--switch-off &lt;labels&gt;] [--output-compression &lt;tools&gt; --level moderate|off]</code></td><td>The <a href="#context">Context page</a>'s report in the terminal; <code>--judge n</code> has a model read n recent sessions for which sections bore on them; the two switches are the page's <a href="#cuts">cuts</a> for tools and outputs</td></tr>
-              <tr><td><code>thinker instructions [--core | --compress | --remove]</code></td><td>The sections of <code>AGENTS.md</code> and their tokens; keep some in a trimmed local copy, or shorten or drop one as a diff</td></tr>
+              <tr><td><code>thinker instructions [--compress | --remove &lt;ids&gt; [--pr]]</code></td><td>The sections of <code>AGENTS.md</code> and their tokens; shorten or drop some as a diff, and open a pull request with it</td></tr>
               <tr><td><code>thinker harness [--off | --undo]</code></td><td>The skills, MCP servers and plugins loaded into every session against what the sessions use; switch some off, or back on</td></tr>
               <tr><td><code>thinker orient "&lt;task&gt;"</code>, <code>lookup</code></td><td>The MCP tools from the command line</td></tr>
               <tr><td><code>thinker tools [enable | disable] find drilldown</code></td><td>Two code tools for agents (definitions by their words; a definition whole with its callers and callees), off unless enabled</td></tr>
@@ -1155,7 +1145,7 @@ thinker ui --port 4800 --no-open    <span class="code-comment"># a fixed port, w
             <tbody>
               <tr><td><code>learn</code></td><td><code>{"sessions": false}</code> stops distilling sessions; pull requests and re-verification go on</td></tr>
               <tr><td><code>maintain</code></td><td><code>enabled</code>, <code>dailyTokens</code> (10,000,000 with a Haiku-class distillation model, 1,000,000 otherwise), <code>verifyEveryDays</code> (3), <code>verifyPerRun</code> (50), <code>verifyServedDays</code> (3), <code>deleteUnusedDays</code> (14), <code>phrasePerRun</code> (8); off by default: <code>prs</code> (with <code>prsPerRun</code>, 3), <code>docs</code> (with <code>docsPerRun</code>, 3), <code>skills</code>, <code>dedupe</code></td></tr>
-              <tr><td><code>instructions</code></td><td><code>{"value": {"judge": true, "share": 0.25}}</code> has a model judge a sample of sessions as they end, for the Context page's <em>relevant</em> and <em>followed</em>; <code>{"core": {"keep": ["Title"]}}</code> is the trimmed copy, written by <code>thinker instructions --core</code></td></tr>
+              <tr><td><code>instructions</code></td><td><code>{"value": {"judge": true, "share": 0.25}}</code> has a model judge a sample of sessions as they end, for the Context page's <em>relevant</em> and <em>followed</em></td></tr>
               <tr><td><code>diet</code></td><td>Tool output compression, written from the Context page or <code>thinker context --output-compression</code>: <code>{"tools": {"Read": "moderate", "Bash": "moderate"}}</code></td></tr>
               <tr><td><code>harness</code></td><td><code>enabled</code> (switching skills and tools off writes the agent's settings; the page turns it on when you switch one off), <code>builtinTools</code> (offer Claude Code's built-in tools too)</td></tr>
               <tr><td><code>archive</code></td><td><code>kinds</code> and <code>unservedDays</code> (30), or <code>false</code></td></tr>
@@ -1215,7 +1205,7 @@ export THINKER_TELEMETRY=off
           </p>
           <p>Thinker works on that in four places, each measured on your own sessions on the <a href="#context">Context page</a>:</p>
           <ul>
-            <li><strong>Instruction sections</strong> no session acts on: compressed to a third or removed, as a diff you apply, or kept out of a trimmed copy for this checkout.</li>
+            <li><strong>Instruction sections</strong> no session acts on: compressed to a third or removed, as a pull request you review.</li>
             <li><strong>Skills, MCP servers, plugins and built-in tools</strong> sessions never call: switched off for the repository in the agent's own settings.</li>
             <li><strong>Tool outputs</strong>: a whole-file read, a test log or a big search trimmed to what the agent was looking for before the model reads it, so every later call reads less too.</li>
             <li><strong>The cache</strong>: a note that points at the right definition replaces the searches and whole-file reads the agent would have made to find it.</li>
@@ -1233,7 +1223,6 @@ export THINKER_TELEMETRY=off
           <ul>
             <li><strong>Use is measured first.</strong> A section is <em>applied</em> when a session touched its files, ran its command or read the code it names; a judge can add <em>relevant</em> and <em>followed</em>. Only a part used in under half the sessions is flagged, and <strong>high waste</strong> means large and used in almost none. Start there.</li>
             <li><strong>Compress keeps the rules.</strong> The model is told to keep every instruction, command, flag, default and path and to drop history, numbers and rationale, and you read the diff before Apply. If a section holds rules the agent must follow, compress it rather than remove it.</li>
-            <li><strong>The trimmed copy leaves the team's file alone.</strong> It is the kept sections verbatim, in a file git ignores, rewritten when <code>AGENTS.md</code> changes. A teammate's checkout reads the full file as before.</li>
             <li><strong>A switched-off skill still runs</strong> when you type <code>/name</code>; only its listing leaves the context. An MCP server or plugin is off for new sessions in this repository, not removed.</li>
             <li><strong>Afterwards, <em>followed</em> and <em>missed</em></strong> on the cards show whether sessions kept a rule they no longer read. Every cut is undone with one command (<a href="#faq-cut-files">below</a>).</li>
           </ul>
@@ -1265,7 +1254,6 @@ export THINKER_TELEMETRY=off
               <thead><tr><th>Cut</th><th>What is written</th><th>Undo</th></tr></thead>
               <tbody>
                 <tr><td>Compress or remove a section</td><td>A branch <code>thinker/context-…</code> pushed to the origin and a pull request against the default branch; the working tree is untouched. Without GitHub or <code>gh</code>: the new text of <code>AGENTS.md</code> (or <code>CLAUDE.md</code>) in your working tree, uncommitted. The preview is kept under <code>.thinker/state/</code></td><td>Close PR under History, or <code>git checkout</code> the file</td></tr>
-                <tr><td>Trimmed copy for this checkout</td><td><code>AGENTS.override.md</code> and <code>CLAUDE.local.md</code>, out of git through <code>.git/info/exclude</code>; <code>claudeMdExcludes</code> in <code>.claude/settings.local.json</code> when <code>CLAUDE.md</code> is a copy of <code>AGENTS.md</code>; the kept titles in <code>.thinker/config.json</code></td><td><code>thinker instructions --off</code></td></tr>
                 <tr><td>Switch a skill, plugin, MCP server or built-in tool off</td><td>One key in the agent's own settings for this repository: <code>.claude/settings.local.json</code> or this repository's entry in <code>~/.claude.json</code>; the checkout's <code>.codex/config.toml</code> or, for a Codex skill, <code>~/.codex/config.toml</code>; <code>~/.cursor/mcp.json</code>. Each file is backed up first under <code>~/.thinker/state/harness-backups/</code></td><td><code>thinker harness --undo</code>, or <strong>Turn back on</strong></td></tr>
                 <tr><td>Compress tool outputs</td><td><code>diet.tools</code> in <code>.thinker/config.json</code>, a level per tool</td><td><code>--level off</code>, or <strong>No compression</strong></td></tr>
               </tbody>

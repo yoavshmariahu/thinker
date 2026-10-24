@@ -61,7 +61,6 @@ Every action shows what it will do before it does it, and each one is a command 
 |---|---|---|---|
 | Shorten an instruction section | pick sections, **Compress**: a model rewrites them to about a third, keeping the rules, commands and paths; the diff is shown, and **Open a pull request** pushes a branch with the change and opens the pull request | `thinker instructions --compress <ids> [--pr \| --apply]` | **Close PR** under History (or close it on GitHub) |
 | Drop an instruction section | pick sections, **Remove**; the same diff and Apply | `thinker instructions --remove <ids> [--apply]` | `git checkout` the file |
-| Give this checkout a shorter file | keep the sections that matter here; the team's file is untouched and the agents here read a trimmed local copy | `thinker instructions --core "Title, Title"` | **Remove the trimmed copy**, or `thinker instructions --off` |
 | Switch a skill, MCP server or plugin off | pick them, **Switch off**: off for this repository from the next session, in the agent's own settings, with a backup; a skill switched off still runs as `/name` | `thinker harness --off "<label>"` | **Turn back on**, or `thinker harness --undo` |
 | Switch a built-in tool off | the same, under Built-in tools (their rows in bold): Apply asks first, naming the tools, where the switch is written and how they come back | `thinker context --switch-off <labels> --builtin` | **Turn back on**, **Revert** under History, or `thinker context --switch-on <keys>` |
 | Compress tool outputs | per tool, **Compress** or **No compression**: a whole-file read becomes the lines around what the session searched for, a test run its counts and distinct failures, a big search its hits per file, long output cut to a cap of about 3k tokens; Claude Code only, through its tool hook | `thinker context --output-compression <tools> --level moderate` (`--level high`, a tighter cap, is for experiments: no agent session has run with it, so the page does not offer it) | the same, `--level off` |
@@ -106,5 +105,7 @@ number against the table, the highest the darkest red and the lowest the darkest
 the average per session. A toggle prices the same tokens at the
 providers' list rates, so a switch of model shows in the trend. Under the tables: the actions taken on
 Find Savings in those weeks, by date, to read the weeks against, and the cache's four numbers, its saving in
-dollars first. The cache itself (the notes learned from your sessions, served to the agent as it works) is
+dollars first. The report is kept in the checkout and made again in the background when it is older than ten
+minutes (`thinker report --refresh`; `--all` for every repository): the page says when it was measured and shows
+the newer figures when they are ready. The cache itself (the notes learned from your sessions, served to the agent as it works) is
 the command line's: `thinker list`, `show`, `archive`, `system` ([usage and learning](usage.md)).

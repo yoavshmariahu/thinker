@@ -100,7 +100,10 @@ test('the Save tab and `thinker context` show one report, and its controls are t
   assert.match(read('commands/context.js'), /contextView\(store/);
   // the page reads the report kept by `thinker context --refresh`, which it starts in the background (context-snapshot.js)
   assert.match(read('ui/server.js'), /snapshotView\(st, d\)/);
-  assert.match(read('ui/server.js'), /\[cliPath, 'context', '--refresh'/);
+  assert.match(read('ui/server.js'), /child\(\['context', '--refresh'/);
+  // and the Report kept by `thinker report --refresh` (report-snapshot.js), every repository's in one run
+  assert.match(read('ui/server.js'), /child\(\['report', '--refresh', '--all'/);
+  assert.match(read('commands/report.js'), /refreshReport\(st, \{ weeks \}\)/);
   assert.match(read('context-snapshot.js'), /contextView\(store, \{ days: d \}\)/);
   assert.match(read('commands/context.js'), /refreshSnapshots\(store\)/);
   // the installer's report (context-machine.js) is the page's All repositories: one merge, and the reports it
@@ -124,10 +127,12 @@ test('the Save tab and `thinker context` show one report, and its controls are t
   // setup asks the same question over the same report for its one repository (setup/context-ask.js)
   assert.match(read('setup.js'), /askMachineReport\(\{ r, recs: recommendations\(view\)/);
   assert.match(read('setup/context-ask.js'), /renderMachineReport\(r, recs\)/);
-  // keeping sections is `thinker instructions --core`; a switch is `thinker harness --off`; judging more sessions is
-  // `thinker context --judge n` alone (the page's button went on 2026-10-24: a 25% sample is judged as sessions end)
-  assert.match(read('commands/instructions.js'), /setCore\(store, keep/);
-  assert.match(read('ui/server.js'), /\/api\/context\/core'\) \{[^\n]*setCore\(st/);
+  // a switch is `thinker harness --off`; judging more sessions is `thinker context --judge n` alone (the page's button
+  // went on 2026-10-24: a 25% sample is judged as sessions end); the trimmed copy (`--core`, /api/context/core) went
+  // the same day, from both doors
+  assert.doesNotMatch(read('commands/instructions.js'), /setCore/);
+  assert.doesNotMatch(read('ui/server.js'), /api\/context\/core/);
+  assert.doesNotMatch(read('ui/page.html'), /trimmed copy|context\/core/);
   assert.match(read('commands/context.js'), /judgeRecent\(store/);
   assert.doesNotMatch(read('ui/server.js'), /api\/context\/judge/);
   assert.match(read('commands/harness.js'), /switchOffNow\(store, String\(flags.off\), \{ via: 'cli', any: true \}\)/);
@@ -138,13 +143,7 @@ test('the Save tab and `thinker context` show one report, and its controls are t
   const id = (await p.get('/api/repos')).repos[0].id;
   const v = await p.get(`/api/context?repo=${encodeURIComponent(id)}&days=7`);
   assert.deepEqual(v.instructions.sections.map(s => s.title), ['Tests', 'Style']);
-  const r = await p.post('/api/context/core', { repo: id, keep: ['Tests'] });
-  assert.equal(r.status, 200, JSON.stringify(r));
-  assert.deepEqual(new Store(dir).config().instructions.core.keep, ['Tests']);
-  assert.match(fs.readFileSync(path.join(dir, 'AGENTS.override.md'), 'utf8'), /## Tests/);
-  assert.equal((await p.get(`/api/context?repo=${encodeURIComponent(id)}&days=7`)).instructions.sections.find(s => s.title === 'Tests').kept, true);
-  await p.post('/api/context/core', { repo: id, keep: null });
-  assert.equal(fs.existsSync(path.join(dir, 'AGENTS.override.md')), false);
+  assert.ok(v.instructions.sections.every(s => s.kept === undefined && !s.off), 'no trimmed copy to be kept out of');
 });
 
 test('All and History on the Context tab are `thinker context --approve|--dismiss|--revert|--history`', () => {
@@ -173,8 +172,10 @@ test('All and History on the Context tab are `thinker context --approve|--dismis
 test('the Report tab and `thinker report` show one report: the same weeks, parts, prices and trend rule', () => {
   // both doors read report.js:reportView; the page's All repositories is mergeReports, as the command has no All
   assert.match(read('commands/report.js'), /reportView\(store, \{ weeks \}\)/);
-  assert.match(read('ui/server.js'), /reportView\(one, \{ weeks \}\)/);
-  assert.match(read('ui/server.js'), /mergeReports\(repos\(\)\.flatMap/);
+  // the page reads the report kept in each checkout (report-snapshot.js), made by the same function
+  assert.match(read('report-snapshot.js'), /reportView\(store, \{ weeks, now \}\)/);
+  assert.match(read('ui/server.js'), /reportSnapshot\(st, weeks\)/);
+  assert.match(read('ui/server.js'), /mergeReports\(xs\.map/);
   // six weeks; the command's ▲ ▼ mark a 5% change against the first week;
   // the page's Total toggle is the command's --total
   assert.match(read('commands/report.js'), /total: Boolean\(flags\.total\)/);

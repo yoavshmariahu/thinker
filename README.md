@@ -11,10 +11,9 @@ your sessions do not use.
   instruction files, skills, MCP servers, plugins, built-in tools and tool outputs, over the last
   7 or 30 days, for one repository or all of them. Each section, skill and tool beside what it
   costs and how often sessions acted on it, the waste flagged.
-- **Cut it.** Compress or remove instruction sections as a diff you apply; keep only the sections
-  that matter in a trimmed copy for this checkout; switch unused skills and tools off from the next
-  session, with a backup; compress long tool outputs before the agent reads them. Each cut is shown
-  first and undone with one command.
+- **Cut it.** Compress or remove instruction sections as a pull request you review; switch unused
+  skills and tools off from the next session, with a backup; compress long tool outputs before the
+  agent reads them. Each cut is shown first and undone with one command.
 - **See the trend.** The View Report tab: what a session costs here week by week, by part of the context
   and by model, in tokens or at list prices, with the actions you took and what the cache saved.
 - **Remember instead.** The cache: what your agent works out in a session

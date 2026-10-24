@@ -106,16 +106,16 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   const providers = [...new Set(modelRows.map(m => m.provider))].map(name => ({ name, cells: cols.map((_, w) => { const c = cell(); for (const m of modelRows.filter(x => x.provider === name)) add(c, m.cells[w].tokens, m.cells[w].cost, m.cells[w].sessions, m.cells[w].priced); return c; }) }))
     .sort((a, b) => b.cells.reduce((x, c) => x + c.tokens, 0) - a.cells.reduce((x, c) => x + c.tokens, 0));
   modelRows.sort((a, b) => providers.findIndex(p => p.name === a.provider) - providers.findIndex(p => p.name === b.provider) || windowOf(b) - windowOf(a));
-  // the decisions taken on the Save page in the window, newest first, as History lists them (the page shows the same table);
-  // an output's compression carries what it measured since (outputComparison)
+  // the output rows under each compression setting (tool-outputs.js:aggregateOutputs), kept in the view so the page's live
+  // read of the actions (reportActions over a kept report) can say what a compression measured
   const outRows = (() => { try { return toolOutputs(store, sessions, timeline).tools; } catch { return []; } })();
-  const actions = changeHistory(store).filter(e => Date.parse(e.at) >= from).map(e => ({ ...e, repo: null, measured: e.kind === 'output' && e.decision !== 'dismissed' ? outputComparison(outRows, e.key.replace(/^output:/, '')) : null }));
+  const actions = reportActions(store, from, outRows);
   return {
     weeks, days, from, to: now, pricedOn: PRICED_ON, columns,
     parts: PARTS.map(([key, name]) => ({ key, name, cells: byPart[key] })), totals, sessionTotals,
     breakdown: BREAKDOWN.map(([key, name]) => ({ key, name, cells: byPart[key] })),
     providers, models: modelRows, unpriced: [...unpriced],
-    actions, cache: cacheMetrics(store, { days, config }),
+    actions, outputRows: outRows, cache: cacheMetrics(store, { days, config }),
   };
 }
 
@@ -131,6 +131,15 @@ export function outputComparison(rows, name) {
   const pick = r => ({ level: r.level || null, sessions: r.sessions, from: r.from ?? null, to: r.to ?? null, calls: r.calls, perCall: r.perCall, perSession: r.perSession, wasted: r.wasted ?? null });
   const d = k => ({ before: before[k], after: after[k], delta: before[k] - after[k], share: before[k] ? (before[k] - after[k]) / before[k] : null });
   return { name, before: pick(before), after: pick(after), perCall: d('perCall'), perSession: d('perSession'), window: (before.perSession - after.perSession) * after.sessions, few: after.sessions < 5 };
+}
+
+// The decisions taken on the Find Savings page since `from`, newest first, as History lists them (the page shows the same
+// table). Read apart from the view: the page serves a kept report (report-snapshot.js) and reads these live over it, so a
+// decision taken a moment ago is in the window at once.
+// `rows`: the view's `outputRows`; an output's compression among the decisions then carries what it measured since
+// (outputComparison), null with no rows or nothing measured yet.
+export function reportActions(store, from, rows = []) {
+  return changeHistory(store).filter(e => Date.parse(e.at) >= from).map(e => ({ ...e, repo: null, measured: e.kind === 'output' && e.decision !== 'dismissed' && rows.length ? outputComparison(rows, e.key.replace(/^output:/, '')) : null }));
 }
 
 // The four numbers the Cache page showed (usage.js:summarize), over the report's window: what the notes saved in

@@ -18,16 +18,23 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 // the readers behind the report: a snapshot made by other code is not this code's report
 let codeKey;
-const code = () => codeKey ||= crypto.createHash('sha256').update(['context-view.js', 'instruction-value.js', 'instruction-sections.js', 'harness.js', 'harness-codex.js', 'tool-outputs.js', 'diet.js', 'instructions-core.js', 'context-suggest.js']
+const code = () => codeKey ||= crypto.createHash('sha256').update(['context-view.js', 'instruction-value.js', 'instruction-sections.js', 'harness.js', 'harness-codex.js', 'tool-outputs.js', 'diet.js', 'context-suggest.js']
   .map(f => { try { return fs.readFileSync(path.join(HERE, f), 'utf8'); } catch { return f; } }).join('\0')).digest('hex').slice(0, 16);
-// where the report's switches and sections come from, by size and mtime
-const INPUTS = ['.thinker/config.json', '.claude/settings.json', '.claude/settings.local.json', 'AGENTS.md', 'CLAUDE.md', 'AGENTS.override.md', 'CLAUDE.local.md', '.cursor/rules'];
-const inputs = store => INPUTS.map(f => { try { const s = fs.statSync(path.join(store.repo, f)); return `${f}\t${s.size}\t${Math.round(s.mtimeMs)}`; } catch { return `${f}\t-`; } }).join('\n');
+// where the report's switches and sections come from, by content (a directory by its size and mtime): the config is
+// the repository's (store.dir, shared by its worktrees), the rest the checkout's, so a worktree with the same files
+// reads the repository's report and one whose instruction file differs has it made again
+const INPUTS = ['.thinker/config.json', '.claude/settings.json', '.claude/settings.local.json', 'AGENTS.md', 'CLAUDE.md'];
+const inputs = store => INPUTS.map(f => {
+  const p = f.startsWith('.thinker/') ? path.join(store.dir, f.slice('.thinker/'.length)) : path.join(store.repo, f);
+  try { const s = fs.statSync(p); return s.isDirectory() ? `${f}\t${s.size}\t${Math.round(s.mtimeMs)}` : `${f}\t${crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex').slice(0, 16)}`; } catch { return `${f}\t-`; }
+}).join('\n');
 
-// a linked worktree keeps its cache in the main checkout's .thinker but has sessions of its own: named apart
-const tag = store => store.repo === store.home ? '' : `-${crypto.createHash('sha256').update(store.repo).digest('hex').slice(0, 8)}`;
-const file = (store, days) => path.join(store.dir, 'state', `context-view-${days}${tag(store)}.json`);
-const lockFile = store => path.join(store.dir, 'state', `context-view${tag(store)}.lock`);
+// One report per repository: a linked worktree keeps its cache in the main checkout's .thinker (store.dir), and the
+// sessions behind the report are gathered over every checkout of the repository (instruction-value.js:
+// findRepoSessions), so every checkout reads and refreshes the same file. Until 2026-10-24 each worktree kept a
+// file of its own, the same figures worked out again (the owner's decision: worktrees are not a dimension).
+const file = (store, days) => path.join(store.dir, 'state', `context-view-${days}.json`);
+const lockFile = store => path.join(store.dir, 'state', 'context-view.lock');
 
 // { at, view } when a snapshot of this window holds for the code and files as they are; else null
 export function readSnapshot(store, days) {
