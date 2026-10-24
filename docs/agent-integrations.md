@@ -257,8 +257,13 @@ plugin on a machine without thinker does nothing.
   vendor's servers (Windsurf, Auggie). Not covered: learning, since the proxy records no session. Off until
   an experiment, like the rest of the proxy.
 - **Clearing old tool results through the proxy** (`thinker proxy --port n [--keep n|turn] [--trigger n]
-  [--clear-at-least n]`): for Claude Code pointed at it with `ANTHROPIC_BASE_URL`, each request carries the
-  API's `clear_tool_uses` edit, so the server drops old tool results from the context on its side once they
+  [--clear-at-least n]`): for any agent that speaks the Anthropic Messages API at a base URL the person can set
+  (Claude Code's `ANTHROPIC_BASE_URL`, in the shell or in the `env` block of `~/.claude/settings.json`, which the
+  desktop app's Code tab and the IDE extensions read too; pi's `providers.anthropic.baseUrl` in
+  `~/.pi/agent/models.json`; OpenCode's `provider.anthropic.options.baseURL`; Goose's `ANTHROPIC_HOST`; Aider's,
+  Cline's and Droid's Anthropic base URL), each request carries the
+  API's `clear_tool_uses` edit, with the beta header it needs added when the agent does not send it (Claude Code
+  does; the others do not, so until 2026-10-24 the proxy served Claude Code alone), so the server drops old tool results from the context on its side once they
   amount to `--clear-at-least` (80k tokens) and the context has reached `--trigger` (100k). `--keep` says
   what a clear leaves: `turn`, the default since 2026-10-22, the tool uses of the request's current turn
   (never under `--keep-min`, 3), so only results fetched by earlier turns are cleared; or a count of the

@@ -2,6 +2,12 @@
 // to clear old tool results on its side (`clear_tool_uses_20250919`, beta `context-management-2025-06-27`).
 // Off unless someone starts it (`thinker proxy`) and points the agent at it (ANTHROPIC_BASE_URL).
 //
+// Any client of the Messages API (2026-10-24): the edit needs the beta header, which Claude Code sends on every
+// request and no other agent does (pi, OpenCode, Goose, Aider, Cline, Droid: checked on 2026-10-24, pi live). Until
+// then a request without it was forwarded untouched (`no-beta`), so the proxy cleared for Claude Code alone; now the
+// header is added upstream (`withBeta`, logged `betaAdded`) and the edit with it. The agent's own bytes are still
+// not rewritten: a header is added, and a block appended to the body as before.
+//
 // Why the server's edit and not our own: on the models that run the preserved-thinking check (Opus 5.5,
 // Sonnet 5.5, Haiku 5.5, Fable 5.1) a client-side rewrite of an earlier tool_result is an edited history,
 // a 400 on enforced accounts and every later thinking block dropped elsewhere; the server's clearing is not
@@ -93,7 +99,6 @@ const sessionOf = headers => headers['x-claude-code-session-id'] || null;
 // What goes upstream. Anything unexpected forwards the agent's bytes as they came.
 export function transformRequest(method, url, headers, body, cfg) {
   if (method !== 'POST' || !/^\/v1\/messages(\?|$)/.test(url) || !body.length) return { body, reason: 'other' };
-  if (!betaOn(headers)) return { body, reason: 'no-beta' };
   if (heldOut(sessionOf(headers), cfg.holdout)) return { body, reason: 'holdout' };
   let j;
   try { j = JSON.parse(body); } catch { return { body, reason: 'unparsed' }; }
@@ -104,8 +109,10 @@ export function transformRequest(method, url, headers, body, cfg) {
   // the API applies edits in order; the thinking edit Claude Code sends stays first
   const edit = clearEdit(cfg, j.messages);
   j.context_management = { ...cm, edits: [...edits, edit] };
-  return { body: Buffer.from(JSON.stringify(j)), injected: true, model: j.model, keep: edit.keep.value };
+  return { body: Buffer.from(JSON.stringify(j)), injected: true, model: j.model, keep: edit.keep.value, addBeta: !betaOn(headers) };
 }
+// the client's beta header with the edit's beta added
+export const withBeta = value => [value, EDIT_BETA].filter(Boolean).join(',');
 
 // Usage and applied edits, read from the response as it streams past (server-sent events) or from a
 // plain JSON body; the bytes themselves are passed on untouched.
@@ -166,6 +173,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
       const headers = {};
       for (const [k, v] of Object.entries(req.headers)) if (!HOP.includes(k)) headers[k] = v;
       headers.host = up.host;
+      if (t.addBeta) headers['anthropic-beta'] = withBeta(req.headers['anthropic-beta']);
       headers['content-length'] = t.body.length;
       const overheadMs = Number(process.hrtime.bigint() - t0) / 1e6;
       const base = up.pathname.replace(/\/$/, '');
@@ -185,7 +193,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
           ures.on('end', () => {
             res.end();
             if (tap) log({ at: new Date().toISOString(), op: 'proxy', session: sessionOf(req.headers), model: t.model, status: ures.statusCode,
-              injected: !!t.injected, ...(t.injected ? { keep: t.keep } : { reason: t.reason }), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...tap.result() });
+              injected: !!t.injected, ...(t.injected ? { keep: t.keep } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...tap.result() });
           });
           ures.on('error', () => res.destroy());
         });

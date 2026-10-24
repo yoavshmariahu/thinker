@@ -1296,7 +1296,19 @@ the owner's decision (machine-wide, 3,317 Claude Code sessions over 30 days, 1.6
 1.44% against the count's 1.58%, 17 sessions costlier against 20; `--keep-min 1` 1.57% and 16; a 60k trigger saves no
 more and makes twice the sessions costlier, 150k saves less; sessions under 60 requests lose a little under every
 policy and the 79 sessions over 120 requests, half the tokens, save 2.8–3.3%; ceiling 8.1%). What the replay cannot see
-is still the experiment's. Why `turn`: the Context tab's Wasted for outputs (above) says 88% of what tool results cost here is
+is still the experiment's. **Which agents can reach it (2026-10-24, checked on this machine):** the edit needs the
+`context-management-2025-06-27` beta, which Claude Code sends on every request (its `api-request` records) and no other
+agent does, so until that day a request without it passed untouched (`no-beta`) and the proxy cleared for Claude Code
+alone; now the header is added upstream (`proxy.js:withBeta`, logged `betaAdded`), and the API accepted it on an OAuth
+session with the header and block stripped from Claude Code's own requests first. Reaches it: Claude Code 2.1.310 from
+the shell variable and from a settings file's `env` block (`--settings`; the desktop app's Code tab and the IDE
+extensions run the same Claude Code and read `~/.claude/settings.json`, not run live), and the agents that speak the
+Messages API at a settable base URL: pi (`providers.anthropic.baseUrl` in `models.json`, reached the proxy live;
+this account's OAuth is refused for third-party apps, so no answer came back), OpenCode (`provider.anthropic.options.baseURL`),
+Goose, Aider, Cline, Droid (from their documentation). Cannot: Codex (the Responses API alone since 0.162, `wire_api
+= "chat"` removed, no Anthropic path; its app the same), Cursor (its servers; the editor overrides the OpenAI base
+URL only, the `agent` CLI names no Anthropic URL), Gemini CLI (no Anthropic path), Windsurf, Copilot and Auggie
+(their vendors' servers). Why `turn`: the Context tab's Wasted for outputs (above) says 88% of what tool results cost here is
 reading them after the agent last used them, 82% after their turn ended, 8% a result used again later in its own turn;
 a count clears results the agent is still working from in a long turn, and the pilot saw the model read files again
 after the placeholders appeared. `thinker proxy replay [--days n] [--policies spec] [--repo path]` (`proxy-replay.js`)
