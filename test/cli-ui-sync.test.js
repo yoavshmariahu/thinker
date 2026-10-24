@@ -211,8 +211,8 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   // three tables under both doors, each ending on the whole session: the token types (report.js:TOKEN_TYPES, the page reads the
   // rows from the view, so the names live in one place), the parts with the rest of the input and the output under them
   // (report.js:OTHERS), the models, the token types last (2026-10-24)
-  assert.match(read('report.js'), /export const TOKEN_TYPES = \[\['fresh', 'Input, fresh'\], \['cacheWrite', 'Input, written to cache'\], \['cacheRead', 'Input, read from cache'\], \['output', 'Output'\]\];/);
-  assert.match(read('report.js'), /export const OTHERS = \[\['otherInput', 'Other input'\], \['output', 'Output'\]\];/);
+  assert.match(read('report.js'), /export const TOKEN_TYPES = \[\['fresh', 'Input, fresh'\], \['cacheWrite', 'Input, written to cache'\], \['cacheRead', 'Input, read from cache'\], \['output', 'Model output'\]\];/);
+  assert.match(read('report.js'), /export const OTHERS = \[\['otherInput', 'Other input'\], \['output', 'Model output'\]\];/);
   assert.match(read('report.js'), /'By token type \(as the model reported them/); assert.match(read('ui/page.html'), /<b>By token type<\/b>/);
   assert.match(read('ui/page.html'), /el\.innerHTML = parts \+ models \+ tokenTypes \+ actions \+ cards;/);
   assert.doesNotMatch(read('ui/page.html'), /Total of these/); assert.doesNotMatch(read('report.js'), /'Total of these'/);

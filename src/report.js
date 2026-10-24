@@ -41,17 +41,17 @@ export const TREND_MIN = 0.05;
 export const BREAKDOWN = [
   ['instructions', 'Instruction files'], ['system', 'System prompt'], ['custom', 'Custom tools'], ['builtin', 'Built-in tools'], ['outputs', 'Tool outputs'],
   ['agentCalls', "Agent's tool calls"], ['thinking', 'Thinking kept'], ['prompts', 'Prompts and replies'], ['notes', "Claude Code's notes"],
-  ['other', 'Other input'], ['output', 'Output'],
+  ['other', 'Other input'], ['output', 'Model output'],
 ];
 export const PARTS = BREAKDOWN.filter(([k]) => ['instructions', 'custom', 'builtin', 'outputs'].includes(k));
 // the rest of the session under the four parts, so the parts table adds up to the whole session (2026-10-24, the owner's
 // ask): the other input as one row (the conversation: REST_INPUT, the breakdown's other input kinds), and the output
 export const REST_INPUT = BREAKDOWN.map(([k]) => k).filter(k => !PARTS.some(([p]) => p === k) && k !== 'output');
-export const OTHERS = [['otherInput', 'Other input'], ['output', 'Output']];
+export const OTHERS = [['otherInput', 'Other input'], ['output', 'Model output']];
 // the tokens by type, as the model reported them for each call and the transcript sums them (transcripts.js:Stats,
 // model-usage.js): fresh input, at the input rate; input written to the prompt cache and input read from it, each at its
 // rate; and output. The four add up to the whole session, as the parts and the models do: three tables, one total.
-export const TOKEN_TYPES = [['fresh', 'Input, fresh'], ['cacheWrite', 'Input, written to cache'], ['cacheRead', 'Input, read from cache'], ['output', 'Output']];
+export const TOKEN_TYPES = [['fresh', 'Input, fresh'], ['cacheWrite', 'Input, written to cache'], ['cacheRead', 'Input, read from cache'], ['output', 'Model output']];
 const DAY = 86400_000;
 // the Monday that starts the week of t, local time
 export function weekStart(t) { const d = new Date(t); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); }
