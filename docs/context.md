@@ -1,18 +1,17 @@
-# Where the context goes
+# Find Savings
 
-The Context page shows where your coding agents' context goes in a repository, part by part, with what
-each part costs a session and how much the sessions used it, and lets you cut what they do not use.
+See which instructions, skills and tools consume your coding agent's context without helping
+its sessions. Review the suggested cuts, then track the change in **View Report**.
 Back to the [README](../README.md).
 
 ```bash
-thinker ui                 # opens the local page on Context
+thinker ui                 # open Find Savings in your browser
 thinker context            # the same report in the terminal
-thinker context --days 7   # the last week; the page has 7 and 30 days, one repository or all
+thinker context --days 7   # focus on the last week
 ```
 
-Everything is read from the agents' own session transcripts on this machine. Nothing is sent
-anywhere, and the report changes nothing by itself: every cut below is a choice you make, shown
-first, undone with one command.
+Start with a costly item your sessions rarely use. Preview the change before applying it;
+[the action table](#what-you-can-cut) explains what changes and how to undo it.
 
 ## What it shows
 
@@ -59,8 +58,8 @@ Every action shows what it will do before it does it, and each one is a command 
 
 | cut | on the page | from the terminal | undo |
 |---|---|---|---|
-| Shorten an instruction section | pick sections, **Compress**: a model rewrites them to about a third, keeping the rules, commands and paths; the diff is shown, and **Open a pull request** pushes a branch with the change and opens the pull request | `thinker instructions --compress <ids> [--pr \| --apply]` | **Close PR** under History (or close it on GitHub) |
-| Drop an instruction section | pick sections, **Remove**; the same diff and Apply | `thinker instructions --remove <ids> [--apply]` | `git checkout` the file |
+| Shorten an instruction section | pick sections, **Compress**: a model rewrites them to about a third, keeping the rules, commands and paths; the diff is shown, and **Open a pull request** pushes a branch with the change and opens the pull request | `thinker instructions --compress <ids> [--pr \| --apply]` | close the unmerged PR; revert a merged change |
+| Drop an instruction section | pick sections, **Remove**; preview the diff and open a pull request | `thinker instructions --remove <ids> [--pr \| --apply]` | close the unmerged PR; revert a merged change |
 | Switch a skill, MCP server or plugin off | pick them, **Switch off**: off for this repository from the next session, in the agent's own settings, with a backup; a skill switched off still runs as `/name` | `thinker harness --off "<label>"` | **Turn back on**, or `thinker harness --undo` |
 | Switch a built-in tool off | the same, under Built-in tools (their rows in bold): Apply asks first, naming the tools, where the switch is written and how they come back | `thinker context --switch-off <labels> --builtin` | **Turn back on**, **Revert** under History, or `thinker context --switch-on <keys>` |
 | Compress tool outputs | per tool, **Compress** or **No compression**: a whole-file read becomes the lines around what the session searched for, a test run its counts and distinct failures, a big search its hits per file, long output cut to a cap of about 3k tokens; Claude Code only, through its tool hook | `thinker context --output-compression <tools> --level moderate` (`--level high`, a tighter cap, is for experiments: no agent session has run with it, so the page does not offer it) | the same, `--level off` |
