@@ -127,7 +127,7 @@
     .ctx-pill.medium { background: #fef9c3; color: #854d0e; }
     .ctx-pill.ok { background: #dcfce7; color: #166534; }
     .ctx-pill.off { background: #f4f4f5; color: #52525b; }
-    /* what an action measured since it was taken (report.js:outputComparison): the saving first, green; a cost red */
+    /* what an action changed since it was taken (report.js:actionEffect): a session before against since, the saving green; a cost red */
     .ctx-measured { display: block; margin-top: 0.3rem; font-size: 0.8rem; font-weight: 600; color: #166534; }
     .ctx-measured.worse { color: #991b1b; }
     .ctx-measured .muted { font-weight: 400; }
@@ -259,7 +259,7 @@
       <div id="context-body" class="section"><div class="empty"><svg class="logo-spin" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="22" r="6"/><circle cx="16" cy="16" r="6"/><circle cx="22" cy="10" r="6"/></svg>Reading the transcripts…</div></div>
     </section>
 
-    <!-- Report: what a session costs here week by week, by part and by model, the actions taken and the cache's numbers (report.js, as `thinker report`) -->
+    <!-- Report: what a session costs here week by week, by part and by model, what was saved with thinker and the actions behind it, the cache's numbers (report.js, as `thinker report`) -->
     <section id="tab-report" hidden>
       <div class="ctx-top"><div><h1>View Report</h1>
       <p class="lede">What a session costs here, week by week: the average over each week's sessions, by where the tokens went and by the model that read them <span class="muted" id="r-asof"></span></p></div>
@@ -823,16 +823,27 @@ function historyFigure(hs, { many, caption, sub, empty, key = 'history', pageSiz
   const pages = Math.max(1, Math.ceil(hs.length / pageSize)), page = Math.min(pages - 1, HPAGE[key] || 0), from = page * pageSize, shown = hs.slice(from, from + pageSize);
   const when = t => new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
   const day = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  // what an output's compression measured since (report.js:outputComparison): the saving a session in one line under the
-  // title, green, or the cost red, and the two periods side by side in the detail
-  const pct = x => x.share == null ? '' : ` (${x.delta >= 0 ? '−' : '+'}${Math.round(100 * Math.abs(x.share))}%)`;
-  const measuredLine = (m, e) => !m ? (e.kind === 'output' && !e.revertedAt && e.decision !== 'dismissed' ? '<span class="ctx-measured muted">Measured: nothing yet, no session has called it since</span>' : '') : `<span class="ctx-measured${m.perSession.delta >= 0 ? '' : ' worse'}">${m.perSession.delta >= 0 ? 'Saving' : 'Costing'} ~${fmt(Math.abs(m.perSession.delta))} input tokens a session${pct(m.perSession)} <span class="muted">· ${fmt(Math.abs(m.window))} over the ${m.after.sessions} session${m.after.sessions === 1 ? '' : 's'} since${m.few ? ' · few sessions yet' : ''} · a call ${fmt(m.perCall.before)} → ${fmt(m.perCall.after)}${pct(m.perCall)}</span></span>`;
-  const measuredTable = m => m ? `<table class="ctx-compare"><thead><tr><th>Measured</th><th>Sessions</th><th>Calls a session</th><th>Tokens a call</th><th>Input a session</th><th>After last use</th></tr></thead><tbody>
+  // what an action changed, as tokens a session (report.js:actionEffect, on the Report alone): the whole session before it
+  // against since in one line under the title, the saving green or the cost red, and in the detail the part it touched
+  // beside the whole session, both periods side by side; an output's compression also shows the tool's own row
+  // (report.js:outputComparison)
+  const pct = x => x.share == null || !Math.round(100 * Math.abs(x.share)) ? '' : ` (${x.delta >= 0 ? '−' : '+'}${Math.round(100 * Math.abs(x.share))}%)`;
+  const arrow = x => x.before == null || x.after == null ? '–' : `${fmt(x.before)} → ${fmt(x.after)}${pct(x)}`;
+  const inEffect = e => !e.revertedAt && e.decision !== 'dismissed' && !(e.pr && e.pr.state !== 'merged');
+  const measuredLine = (e, onReport) => e.effect ? `<span class="ctx-measured${e.effect.session.delta >= 0 ? '' : ' worse'}">A session ${arrow(e.effect.session)} input tokens <span class="muted">· ${e.effect.session.delta >= 0 ? 'saving' : 'costing'} ~${fmt(Math.abs(e.effect.window))} over the ${e.effect.after.sessions} session${e.effect.after.sessions === 1 ? '' : 's'} since · ${esc(e.effect.partName.toLowerCase())} ${arrow(e.effect.parts)}${e.effect.few ? ' · few sessions yet' : ''}</span></span>`
+    : onReport && inEffect(e) ? '<span class="ctx-measured muted">Measured: nothing yet, no session since it in the window</span>' : '';
+  const effectTable = f => f ? `<table class="ctx-compare"><thead><tr><th>Tokens a session</th><th>Sessions</th><th>${esc(f.partName)}</th><th>The whole session's input</th></tr></thead><tbody>
+      <tr><td>Before (${day(f.before.from)} to ${day(f.before.to)})</td><td>${f.before.sessions}</td><td>${fmt(f.before.part)}</td><td>${fmt(f.before.session)}</td></tr>
+      <tr><td>Since (${day(f.after.from)} to ${day(f.after.to)})</td><td>${f.after.sessions}</td><td>${fmt(f.after.part)}</td><td>${fmt(f.after.session)}</td></tr>
+      <tr class="ctx-delta"><td>${f.session.delta >= 0 ? 'Saved' : 'Cost'} a session</td><td></td><td>${f.parts.delta >= 0 ? '−' : '+'}${fmt(Math.abs(f.parts.delta))}${pct(f.parts)}</td><td>${f.session.delta >= 0 ? '−' : '+'}${fmt(Math.abs(f.session.delta))}${pct(f.session)}</td></tr></tbody></table>
+      <p class="muted">The average over this repository's measured sessions in the window, before the action and since it was in effect. The part is what the action cut, the direct measure; the whole session also moves with what the sessions did.${f.few ? ' Fewer than five sessions on a side: give it a week.' : ''}</p>` : '';
+  const measuredTable = m => m ? `<table class="ctx-compare"><thead><tr><th>The tool's own row</th><th>Sessions</th><th>Calls a session</th><th>Tokens a call</th><th>Input a session</th><th>After last use</th></tr></thead><tbody>
       <tr><td>Before, no compression (${day(m.before.from)} to ${day(m.before.to)})</td><td>${m.before.sessions}</td><td>${perCall(m.before.calls || 0)}</td><td>${fmt(m.before.perCall)}</td><td>${fmt(m.before.perSession)}</td><td>${m.before.wasted == null ? '–' : fmt(m.before.wasted)}</td></tr>
       <tr><td>Since, ${esc(m.after.level)} compression (${day(m.after.from)} to ${day(m.after.to)})</td><td>${m.after.sessions}</td><td>${perCall(m.after.calls || 0)}</td><td>${fmt(m.after.perCall)}</td><td>${fmt(m.after.perSession)}</td><td>${m.after.wasted == null ? '–' : fmt(m.after.wasted)}</td></tr>
       <tr class="ctx-delta"><td>${m.perSession.delta >= 0 ? 'Saved' : 'Cost'}</td><td></td><td></td><td>${m.perCall.delta >= 0 ? '−' : '+'}${fmt(Math.abs(m.perCall.delta))}${pct(m.perCall)}</td><td>${m.perSession.delta >= 0 ? '−' : '+'}${fmt(Math.abs(m.perSession.delta))}${pct(m.perSession)}</td><td></td></tr></tbody></table>
-      <p class="muted">Tokens a call is the size of a result, what compression acts on; input a session is what the results cost over the calls that read them again, and moves with how the sessions used the tool as well.${m.few ? ' Fewer than five sessions since: give it a week.' : ''}</p>` : '';
+      <p class="muted">Tokens a call is the size of a result, what compression acts on; input a session is what this tool's results cost over the calls that read them again.${m.few ? ' Fewer than five sessions since: give it a week.' : ''}</p>` : '';
   const detail = e => [
+    effectTable(e.effect),
     measuredTable(e.measured),
     e.result && e.decision !== 'dismissed' ? `<p>${esc(e.result.replace(/ `?thinker harness --undo`? turns.*$/, ''))}</p>` : '',
     e.action ? `<p class="muted">Suggested: ${esc(e.action)}</p>` : '',
@@ -841,7 +852,7 @@ function historyFigure(hs, { many, caption, sub, empty, key = 'history', pageSiz
       : `<p class="muted">${e.decision === 'dismissed' ? 'Dismissed' : e.decision === 'applied after review' ? 'Written after its diff was read' : 'Applied'} ${when(e.at)}${e.revertedAt ? `; reverted ${when(e.revertedAt)}` : ''}.</p>`,
   ].join('');
   const rows = shown.map((e, k) => { const i = from + k, [cls, label] = doneOf(e); return `<tr class="${e.revertedAt || e.rejected ? 'ctx-off' : ''}">
-      <td class="ctx-name"><b>${esc(e.title)}</b>${e.pr?.url ? `<a class="ctx-prlink" href="${esc(e.pr.url)}" target="_blank" rel="noopener">#${e.pr.number}</a>` : ''}<button class="ctx-more" data-more="${i}" aria-expanded="false">See more</button><span class="ctx-kind">${esc([CH_KIND[e.kind] || e.kind, many ? e.repoName : ''].filter(Boolean).join(' · '))}</span>${measuredLine(e.measured, e)}</td>
+      <td class="ctx-name"><b>${esc(e.title)}</b>${e.pr?.url ? `<a class="ctx-prlink" href="${esc(e.pr.url)}" target="_blank" rel="noopener">#${e.pr.number}</a>` : ''}<button class="ctx-more" data-more="${i}" aria-expanded="false">See more</button><span class="ctx-kind">${esc([CH_KIND[e.kind] || e.kind, many ? e.repoName : ''].filter(Boolean).join(' · '))}</span>${measuredLine(e, key === 'report')}</td>
       <td class="num">${day(e.at)}</td><td class="num">${e.total ? fmt(e.total) : e.saving ? `${fmt(e.saving)} <span class="muted">a session</span>` : '–'}</td>
       <td><span class="ctx-pill ${cls}">${label}</span></td>
       <td class="ctx-actcell"><div class="ctx-act">${e.revertible ? `<button class="btn ghost" data-revert="${i}">${e.pending ? 'Close PR' : 'Revert'}</button>` : ''}</div></td></tr>
@@ -945,9 +956,20 @@ function renderReport(v) {
   const models = `<figure class="ctx-figure"><figcaption><b>By model</b> <span class="ctx-sub">each model's share of the ${sum ? 'week' : 'average session'}, its provider's subtotal above its models</span></figcaption>
     <table class="ctx-table rep-table">${head('Provider · model')}<tbody>${v.providers.map(p => row(`<button class="rep-fold" data-fold="${esc(p.name)}" aria-expanded="${!fold(p.name)}">${fold(p.name) ? '▸' : '▾'}</button> ${esc(p.name)}`, p.cells, { cls: 'rep-sub', sub: `${modelsOf(p.name).length} model${modelsOf(p.name).length === 1 ? '' : 's'}` }) + (fold(p.name) ? '' : modelsOf(p.name).map(m => row(`<span class="rep-indent">${esc(m.model)}</span>`, m.cells, { cls: m.priced ? '' : 'ctx-off', sub: m.priced ? '' : 'no list price', titles: mtitle(m), scale: mscale })).join(''))).join('')}${row('Total', v.sessionTotals, { cls: 'rep-total' })}</tbody></table>
     <p class="ctx-note">A model's row is its share of the ${sum ? 'week' : 'average session that week (its tokens over every session of the week)'}, so the rows add up to the total and a switch of model shows as one row falling while another rises; hover a cell for the sessions on that model and the average per session of its own.${v.unpriced.length ? ` No list price for ${v.unpriced.map(esc).join(', ')}: their sessions are left out of the cost average.` : ''}</p></figure>`;
-  // the decisions taken on the Save page in these weeks, the same table as Save's History (context-suggest.js:changeHistory)
+  // what was saved with thinker (report.js:savingsSummary): a session's input tokens before the first action in effect against
+  // since, the saving over the sessions since, and the four parts the Save page controls; then the actions behind it
+  const sv = v.savings, dayOfT = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const pct = x => x.share == null || !Math.round(100 * Math.abs(x.share)) ? '' : ` (${x.delta >= 0 ? '−' : '+'}${Math.round(100 * Math.abs(x.share))}%)`;
+  const arrow = x => x.before == null || x.after == null ? '–' : `${fmt(x.before)} → ${fmt(x.after)}${pct(x)}`;
+  const saved = `<div class="section"><div class="kicker">Saved with thinker</div>${sv ? `<div class="cards" style="margin-top:0.6rem">
+    ${card('Input tokens a session', `${sv.session.delta >= 0 ? '−' : '+'}${fmt(Math.abs(sv.session.delta))}`, `${arrow(sv.session)}: the average session before ${dayOfT(sv.since)}, the first of ${sv.actions} action${sv.actions === 1 ? '' : 's'} in effect, against since`, null, sv.session.delta >= 0)}
+    ${card(sv.window >= 0 ? 'Saved since' : 'Cost since', fmt(Math.abs(sv.window)), `input tokens over the ${sv.after.sessions} session${sv.after.sessions === 1 ? '' : 's'} since ${dayOfT(sv.since)}, against ${sv.before.sessions} before${sv.few ? ' · few sessions yet: give it a week' : ''}`, null, sv.window >= 0)}
+    ${card('The four parts a session', `${sv.parts.delta >= 0 ? '−' : '+'}${fmt(Math.abs(sv.parts.delta))}`, `${arrow(sv.parts)}: the instruction files, custom and built-in tools and tool outputs together, what the actions cut`, null, sv.parts.delta >= 0)}
+  </div><p class="ctx-note">The parts are the direct measure of what the actions removed; the whole session also moves with what the sessions did, so read the two together. Each action below shows the same comparison for the part it touched.</p>` : `<div class="empty">Nothing measured yet. Once an action taken on the Find Savings page has sessions before and since it in these ${v.weeks} weeks, a session's input tokens before are compared with since, here.</div>`}</div>`;
+  // the decisions taken on the Save page in these weeks, the same table as Save's History (context-suggest.js:changeHistory),
+  // each with a session before it against since
   const acts = v.actions.map(a => ({ ...a, repo: a.repo || REPO }));
-  const actions = historyFigure(acts, { many: Boolean(v.all), caption: 'Actions in the window', sub: `what was applied on the Find Savings page in these ${v.weeks} weeks, to read them against`, empty: 'No actions in these weeks. What you apply on the Find Savings page is listed here with its date.', key: 'report' });
+  const actions = historyFigure(acts, { many: Boolean(v.all), caption: 'Actions in the window', sub: `what was applied on the Find Savings page in these ${v.weeks} weeks, each with a session's input tokens before it against since`, empty: 'No actions in these weeks. What you apply on the Find Savings page is listed here with its date.', key: 'report' });
   // the cache's numbers over the same window (usage.js:summarize), its saving in dollars first
   const c = v.cache;
   const cards = `<div class="section"><div class="kicker">The cache, over the same ${v.weeks} weeks</div><div class="cards four" style="margin-top:0.6rem">
@@ -956,7 +978,7 @@ function renderReport(v) {
     ${card('Cache hits', fmt(c.hits), `notes served, for ${fmt(c.answered)} of ${fmt(c.requests)} requests`)}
     ${card('Acted on', c.acted == null ? '–' : `${Math.round(100 * c.acted)}%`, `of ${fmt(c.judged)} servings the sessions were judged on`)}
   </div></div>`;
-  el.innerHTML = parts + models + actions + cards;
+  el.innerHTML = parts + models + saved + actions + cards;
   wireHistory(el.querySelector('[data-history]'), acts, loadReport, () => renderReport(v));
   el.querySelectorAll('[data-fold]').forEach(b => b.onclick = () => { const p = b.dataset.fold; RFOLD.has(p) ? RFOLD.delete(p) : RFOLD.add(p); renderReport(v); });
 }
