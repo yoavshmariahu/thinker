@@ -259,6 +259,16 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('ui/page.html'), /const TABLE_PAGE = 20, VPAGE = \{\};/);
   assert.match(read('ui/page.html'), /rows\.slice\(from, from \+ TABLE_PAGE\)/);
   assert.match(read('ui/page.html'), /historyFigure\(acts, \{ many: Boolean\(v\.all\), caption: 'Actions in the window'/);
+  // what was saved with thinker leads the actions on both doors: a session's input tokens before the first action in effect
+  // against since (report.js:savingsSummary, over the view's sessionRows), the server reading it live over the kept report,
+  // and each action with the same comparison for the part it touched (actionEffect)
+  assert.match(read('report.js'), /savings: savingsSummary\(actions, sessionRows\)/);
+  assert.match(read('report.js'), /L\.push\('', 'Saved with thinker'\)/);
+  assert.match(read('ui/server.js'), /savings: savingsSummary\(actions, s\.view\.sessionRows \|\| \[\]\)/);
+  assert.match(read('ui/server.js'), /view\.savings = mergeSavings\(/);
+  assert.match(read('ui/page.html'), /<div class="kicker">Saved with thinker<\/div>/);
+  assert.match(read('ui/page.html'), /effectTable\(e\.effect\)/);
+  assert.match(read('report.js'), /effect: actionEffect\(e, sessionRows, now\)/);
   // the cost view is the command's --cost: list prices from prices.js, the unpriced models named on both
   assert.match(read('commands/report.js'), /cost: Boolean\(flags\.cost\)/);
   assert.match(read('report.js'), /listPrice\(r\.model, \{ config \}\)/);

@@ -20,7 +20,7 @@ import { harnessView, harnessSavings, harnessOn, scheduleHarnessSuggestion, undo
 import { contextView, mergeViews, switchSources, setOutputCompression } from '../context-view.js';
 import { snapshotView, lastSnapshot, refreshing, dropSnapshots, REFRESH_MS } from '../context-snapshot.js';
 import { approveChanges, dismissChanges, startSectionJob, retryJob, revertDecision, pickChanges, allChanges, changeHistory, refreshPrStates } from '../context-suggest.js';
-import { mergeReports, reportActions, REPORT_WEEKS } from '../report.js';
+import { mergeReports, reportActions, savingsSummary, mergeSavings, REPORT_WEEKS } from '../report.js';
 import { reportSnapshot, refreshing as reportRefreshing } from '../report-snapshot.js';
 import { prAvailable } from '../instruction-pr.js';
 import http from 'node:http';
@@ -167,13 +167,17 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
           const xs = repos().flatMap(r => { try { const st = open(r.checkout); return [{ r, st, s: read(st) }]; } catch { return []; } });
           if (!xs.length) return json(res, 200, { empty: true });
           view = mergeReports(xs.map(({ r, s }) => ({ repo: r.id, name: r.name, view: s.view })));
-          view.actions = xs.flatMap(({ r, st, s }) => reportActions(st, view.from, s.view.outputRows || []).map(a => ({ ...a, repo: r.id, repoName: r.name }))).sort((a, b) => b.at.localeCompare(a.at));
+          // the decisions and what was saved read live over each kept report (report.js:reportActions, savingsSummary)
+          const acts = xs.map(({ r, st, s }) => ({ r, s, actions: reportActions(st, view.from, s.view.outputRows || [], s.view.sessionRows || []) }));
+          view.actions = acts.flatMap(({ r, actions }) => actions.map(a => ({ ...a, repo: r.id, repoName: r.name }))).sort((a, b) => b.at.localeCompare(a.at));
+          view.savings = mergeSavings(acts.map(({ s, actions }) => savingsSummary(actions, s.view.sessionRows || [])));
           at = Math.min(...xs.map(x => x.s.at)); busy = xs.some(x => x.s.refreshing);
           if (xs.some(x => x.s.stale && !reportRefreshing(x.st))) refreshReportFn(null);
         } else {
           const one = storeFor(want); if (!one) return json(res, 400, { error: 'unknown repository' });
           const s = read(one);
-          view = { ...s.view, actions: reportActions(one, s.view.from, s.view.outputRows || []) }; at = s.at; busy = s.refreshing;
+          const actions = reportActions(one, s.view.from, s.view.outputRows || [], s.view.sessionRows || []);
+          view = { ...s.view, actions, savings: savingsSummary(actions, s.view.sessionRows || []) }; at = s.at; busy = s.refreshing;
           if (s.stale && !reportRefreshing(one)) refreshReportFn(one.repo);
         }
         return json(res, 200, { ...view, asOf: Number.isFinite(at) ? at : Date.now(), refreshing: !!busy });

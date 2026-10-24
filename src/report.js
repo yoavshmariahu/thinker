@@ -8,8 +8,10 @@
 // measured input where their sum overshoots it; and, from the transcript itself, what the conversation costs
 // (transcripts.js:parseClaude `carried`: the system prompt, the agent's tool calls, its thinking kept in the context,
 // the prompts and replies), the rest of the input being Claude Code's own notes and the listings ("other").
-// Under the tables: the decisions taken on the Context view in the window (context-suggest.js:changeHistory), so a
-// week's change can be read against what was cut that week, and the cache's four numbers (usage.js:summarize) with
+// Under the tables: what the person saved with thinker (`savings`, savingsSummary): a session's input tokens before the
+// first action taken on the Find Savings page against since, over the window's sessions, and the decisions of the window
+// (context-suggest.js:changeHistory) each with the same before/since of the part it touched and of the whole session
+// (actionEffect), so what was cut can be read as tokens a session; and the cache's four numbers (usage.js:summarize) with
 // its saving priced at the models it was made on. A session whose agent reports no usage (Cursor) is counted in no
 // column. Measurement only; nothing is served or written.
 import { findRepoSessions, instructionValue } from './instruction-value.js';
@@ -79,6 +81,9 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   const columns = cols.map(c => ({ t: c.t, sessions: 0, priced: 0, unmeasured: 0 }));
   const byPart = Object.fromEntries(BREAKDOWN.map(([k]) => [k, cols.map(cell)]));
   const models = new Map(), unpriced = new Set();
+  // one row a measured session (sessionRows): its input and the four parts as estimated, so the actions can be measured
+  // as tokens a session before and since each (actionEffect), live over a kept report
+  const sessionRows = [];
   for (const r of rows) {
     const w = week(r.t); if (w < 0) continue;
     const col = columns[w];
@@ -91,6 +96,7 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
     const sum = Object.values(est).reduce((a, b) => a + b, 0), scale = sum > input && sum > 0 ? input / sum : 1;
     const inCost = cost == null ? null : (cost - (price ? output * price.output / 1e6 : 0)) / Math.max(1, input);
     for (const k of Object.keys(est)) { const tk = est[k] * scale; add(byPart[k][w], tk, inCost == null ? 0 : tk * inCost); }
+    sessionRows.push({ t: r.t, input, parts: Object.fromEntries(PARTS.map(([k]) => [k, Math.round(est[k] * scale)])) });
     const other = Math.max(0, input - sum * scale);
     add(byPart.other[w], other, inCost == null ? 0 : other * inCost);
     add(byPart.output[w], output, price ? output * price.output / 1e6 : 0);
@@ -109,13 +115,13 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   // the output rows under each compression setting (tool-outputs.js:aggregateOutputs), kept in the view so the page's live
   // read of the actions (reportActions over a kept report) can say what a compression measured
   const outRows = (() => { try { return toolOutputs(store, sessions, timeline).tools; } catch { return []; } })();
-  const actions = reportActions(store, from, outRows);
+  const actions = reportActions(store, from, outRows, sessionRows, now);
   return {
-    weeks, days, from, to: now, pricedOn: PRICED_ON, columns,
+    weeks, days, from, to: now, pricedOn: PRICED_ON, columns, sessionRows,
     parts: PARTS.map(([key, name]) => ({ key, name, cells: byPart[key] })), totals, sessionTotals,
     breakdown: BREAKDOWN.map(([key, name]) => ({ key, name, cells: byPart[key] })),
     providers, models: modelRows, unpriced: [...unpriced],
-    actions, outputRows: outRows, cache: cacheMetrics(store, { days, config }),
+    actions, savings: savingsSummary(actions, sessionRows), outputRows: outRows, cache: cacheMetrics(store, { days, config }),
   };
 }
 
@@ -133,13 +139,62 @@ export function outputComparison(rows, name) {
   return { name, before: pick(before), after: pick(after), perCall: d('perCall'), perSession: d('perSession'), window: (before.perSession - after.perSession) * after.sessions, few: after.sessions < 5 };
 }
 
+// Which of the four parts an action acts on (PARTS): a section the instruction files, a skill or an MCP server the custom
+// tools, one of Claude Code's own tools the built-in tools, an output the tool outputs.
+export const actionPart = e => e.kind === 'section' ? 'instructions' : e.kind === 'output' ? 'outputs' : e.kind === 'tool' && /:tool:/.test(e.key || '') ? 'builtin' : 'custom';
+// From when an action is in effect, and until when: a dismissal and a pull request not merged never were, nor a section's
+// change still running in the background or failed (context-suggest.js:startSectionJob); a merged one from its merge; a
+// change written when its job was done from then; anything else from the decision, until it was reverted.
+export const effectSpan = (e, now) => e.decision === 'dismissed' || (e.job && e.job.state !== 'done') ? null
+  : e.pr ? (e.pr.state === 'merged' && e.pr.at ? { from: Date.parse(e.pr.at), to: now } : null)
+  : { from: Date.parse(e.job?.finishedAt || e.at), to: e.revertedAt ? Date.parse(e.revertedAt) : now };
+const avgOf = (xs, f) => xs.length ? Math.round(xs.reduce((a, x) => a + f(x), 0) / xs.length) : null;
+const diff = (before, after) => ({ before, after, delta: before - after, share: before ? (before - after) / before : null });
+// What an action changed, as tokens a session: the window's sessions before it (`before`) against those since it was in
+// effect (`after`, until its revert), each side the average input tokens a session and the average of the part the action
+// acts on. A delta is before minus since, positive a saving; `window` is the whole session's delta over the sessions since;
+// `few` under five sessions a side. The part is the direct measure (the action removed or shrank it); the whole session
+// also moves with what the sessions did. null while a side has no session, or the action is not in effect.
+export function actionEffect(e, sessionRows = [], now = Date.now()) {
+  const span = effectSpan(e, now); if (!span) return null;
+  const part = actionPart(e);
+  const before = sessionRows.filter(r => r.t < span.from), after = sessionRows.filter(r => r.t >= span.from && r.t < span.to);
+  if (!before.length || !after.length) return null;
+  const side = xs => ({ sessions: xs.length, from: Math.min(...xs.map(r => r.t)), to: Math.max(...xs.map(r => r.t)), session: avgOf(xs, r => r.input), part: avgOf(xs, r => r.parts[part] || 0) });
+  const b = side(before), a = side(after);
+  return { part, partName: PARTS.find(([k]) => k === part)[1], from: span.from, to: e.revertedAt ? span.to : null, before: b, after: a, session: diff(b.session, a.session), parts: diff(b.part, a.part), window: (b.session - a.session) * a.sessions, few: b.sessions < 5 || a.sessions < 5 };
+}
+// What the person saved with thinker over the window: the sessions before the first action in effect against every
+// session since it, as input tokens a session, for the whole session and for the four parts the Find Savings page
+// controls together; `window` the whole session's delta over the sessions since; `actions` how many are in effect. null
+// until an action is in effect with a session on each side.
+export function savingsSummary(actions, sessionRows = [], now = Date.now()) {
+  const live = actions.map(e => ({ e, span: effectSpan(e, now) })).filter(x => x.span && x.span.to > x.span.from);
+  if (!live.length || !sessionRows.length) return null;
+  const since = Math.min(...live.map(x => x.span.from));
+  const before = sessionRows.filter(r => r.t < since), after = sessionRows.filter(r => r.t >= since);
+  if (!before.length || !after.length) return null;
+  const sum = xs => xs.reduce((a, r) => a + r.input, 0), partsOf = xs => xs.reduce((a, r) => a + PARTS.reduce((x, [k]) => x + (r.parts[k] || 0), 0), 0);
+  return mergeSavings([{ since, actions: live.length, before: { sessions: before.length, tokens: sum(before), parts: partsOf(before) }, after: { sessions: after.length, tokens: sum(after), parts: partsOf(after) } }]);
+}
+// Several repositories' savings as one (the page's All repositories): the sessions and their tokens add, the averages are
+// over every session of the machine, `since` the earliest action.
+export function mergeSavings(list) {
+  list = list.filter(Boolean); if (!list.length) return null;
+  const add = k => ({ sessions: list.reduce((a, s) => a + s[k].sessions, 0), tokens: list.reduce((a, s) => a + s[k].tokens, 0), parts: list.reduce((a, s) => a + s[k].parts, 0) });
+  const before = add('before'), after = add('after'), per = (s, k) => s.sessions ? Math.round(s[k] / s.sessions) : null;
+  const session = diff(per(before, 'tokens'), per(after, 'tokens')), parts = diff(per(before, 'parts'), per(after, 'parts'));
+  return { since: Math.min(...list.map(s => s.since)), actions: list.reduce((a, s) => a + s.actions, 0), before, after, session, parts, window: session.delta * after.sessions, few: before.sessions < 5 || after.sessions < 5 };
+}
+
 // The decisions taken on the Find Savings page since `from`, newest first, as History lists them (the page shows the same
-// table). Read apart from the view: the page serves a kept report (report-snapshot.js) and reads these live over it, so a
-// decision taken a moment ago is in the window at once.
-// `rows`: the view's `outputRows`; an output's compression among the decisions then carries what it measured since
-// (outputComparison), null with no rows or nothing measured yet.
-export function reportActions(store, from, rows = []) {
-  return changeHistory(store).filter(e => Date.parse(e.at) >= from).map(e => ({ ...e, repo: null, measured: e.kind === 'output' && e.decision !== 'dismissed' && rows.length ? outputComparison(rows, e.key.replace(/^output:/, '')) : null }));
+// table), each with what it changed as tokens a session (`effect`, actionEffect over `sessionRows`, the view's measured
+// sessions). Read apart from the view: the page serves a kept report (report-snapshot.js) and reads these live over it,
+// so a decision taken a moment ago is in the window at once.
+// `rows`: the view's `outputRows`; an output's compression among the decisions then also carries what the tool's own row
+// measured since (outputComparison), null with no rows or nothing measured yet.
+export function reportActions(store, from, rows = [], sessionRows = [], now = Date.now()) {
+  return changeHistory(store).filter(e => Date.parse(e.at) >= from).map(e => ({ ...e, repo: null, effect: actionEffect(e, sessionRows, now), measured: e.kind === 'output' && e.decision !== 'dismissed' && rows.length ? outputComparison(rows, e.key.replace(/^output:/, '')) : null }));
 }
 
 // The four numbers the Cache page showed (usage.js:summarize), over the report's window: what the notes saved in
@@ -191,12 +246,13 @@ export function mergeReports(list) {
     totals: sumCells(views.map(v => v.totals)), sessionTotals: sumCells(views.map(v => v.sessionTotals)),
     providers, models: modelRows, unpriced: [...new Set(views.flatMap(v => v.unpriced))],
     actions: list.flatMap(x => x.view.actions.map(a => ({ ...a, repo: x.repo, repoName: x.name }))).sort((a, b) => b.at.localeCompare(a.at)),
+    savings: mergeSavings(views.map(v => v.savings)),
     cache: { dollarsSaved: sum('dollarsSaved'), unpricedTokens: sum('unpricedTokens'), measured: cache.some(c => c.measured), tokensSaved: sum('tokensSaved'), hits: sum('hits'), requests: sum('requests'), answered: sum('answered'), acted: judged ? confirmed / judged : null, judged },
     repos: list.map(x => ({ repo: x.repo, name: x.name })),
   };
 }
 
-// The report as the command prints it: the two tables with their totals, the actions, the cache's numbers.
+// The report as the command prints it: the two tables with their totals, what was saved with thinker and the actions behind it, the cache's numbers.
 // `total`: the week's sum over its sessions instead of the average per session (the page's Total toggle)
 export function renderReport(v, { cost = false, total = false } = {}) {
   const L = [], label = t => new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -214,17 +270,30 @@ export function renderReport(v, { cost = false, total = false } = {}) {
   L.push(line('Total (the whole session)', v.sessionTotals, true));
   L.push(`  ▲ ▼: up or down by 5% or more against the first week, doubled past 50%; a zero is left blank. A model row is its share of the ${total ? 'week' : 'average session'}; its sessions:` + ` ${v.models.map(m => `${m.model} ${m.cells.map(c => c.sessions).join('/')}`).join(', ')}.`);
   if (v.unpriced.length) L.push(`  No list price for ${v.unpriced.join(', ')}: their sessions are left out of the cost average.`);
+  // what the person saved with thinker, first: a session before the first action against since, then each action the same
+  // way for the part it touched and for the whole session
+  const arrow = (d, unit = '') => d.before == null || d.after == null ? '–' : `${formatTokens(d.before)} → ${formatTokens(d.after)}${unit}${d.share == null || !Math.round(100 * Math.abs(d.share)) ? '' : ` (${d.delta >= 0 ? '−' : '+'}${Math.round(100 * Math.abs(d.share))}%)`}`;
+  const day = t => t ? new Date(t).toISOString().slice(0, 10) : '?';
+  L.push('', 'Saved with thinker');
+  const sv = v.savings;
+  if (!sv) L.push(`  nothing measured yet: once an action taken on the Find Savings page has sessions before and since it in these ${v.weeks} weeks, a session's input tokens before are compared with since, here`);
+  else {
+    L.push(`  a session ${arrow(sv.session, ' input tokens')} since ${day(sv.since)}, the first of ${sv.actions} action${sv.actions === 1 ? '' : 's'} in effect: ${sv.session.delta >= 0 ? 'saving' : 'costing'} ~${formatTokens(Math.abs(sv.session.delta))} a session, ~${formatTokens(Math.abs(sv.window))} over the ${sv.after.sessions} session${sv.after.sessions === 1 ? '' : 's'} since${sv.few ? ' (few sessions yet)' : ''}`);
+    L.push(`  the four parts the Find Savings page controls ${arrow(sv.parts, ' a session')} · before: ${sv.before.sessions} session${sv.before.sessions === 1 ? '' : 's'} in the window. The parts are what the actions cut; the whole session also moves with what the sessions did.`);
+  }
   L.push('', 'Actions in the window');
   if (!v.actions.length) L.push('  none: what you apply on the Find Savings page is listed here with its date');
   const pct = x => x.share == null ? '' : ` (${x.delta >= 0 ? '−' : '+'}${Math.round(100 * Math.abs(x.share))}%)`;
   for (const a of v.actions) {
     L.push(`  ${a.at.slice(0, 10)}  ${(a.revertedAt ? 'reverted' : a.decision).padEnd(22)} ${a.title}${a.repoName ? ` (${a.repoName})` : ''}`);
-    // what an output's compression measured: a call and a session before and since, the saving over the sessions since
+    // before and since, as tokens a session: the part the action touched, the whole session, the saving over the sessions since
+    const f = a.effect;
+    if (f) L.push(`${''.padEnd(36)}a session ${arrow(f.session, ' input tokens')} · ${f.partName.toLowerCase()} ${arrow(f.parts)} · ${f.session.delta >= 0 ? 'saving' : 'costing'} ~${formatTokens(Math.abs(f.window))} over the ${f.after.sessions} session${f.after.sessions === 1 ? '' : 's'} since, against ${f.before.sessions} before${f.few ? ' (few sessions yet)' : ''}`);
+    else if (!a.revertedAt && effectSpan(a, Date.now())) L.push(`${''.padEnd(36)}measured: nothing yet, no session since it in the window`);
+    // what an output's compression measured on the tool's own row: a call and a session before and since
     const m = a.measured;
-    if (!m) { if (a.kind === 'output' && !a.revertedAt && a.decision !== 'dismissed') L.push(`${''.padEnd(36)}measured: nothing yet, no session has called it since`); continue; }
-    const day = t => t ? new Date(t).toISOString().slice(0, 10) : '?';
-    L.push(`${''.padEnd(36)}measured: ${m.perSession.delta >= 0 ? 'saving' : 'costing'} ~${formatTokens(Math.abs(m.perSession.delta))} input tokens a session${pct(m.perSession)}, ${formatTokens(Math.abs(m.window))} over the ${m.after.sessions} session${m.after.sessions === 1 ? '' : 's'} since${m.few ? ' (few sessions yet)' : ''}`);
-    L.push(`${''.padEnd(36)}a call ${formatTokens(m.perCall.before)} → ${formatTokens(m.perCall.after)}${pct(m.perCall)} · a session ${formatTokens(m.perSession.before)} → ${formatTokens(m.perSession.after)} · before: ${m.before.sessions} sessions ${day(m.before.from)} to ${day(m.before.to)}, since: ${m.after.sessions} ${day(m.after.from)} to ${day(m.after.to)}`);
+    if (!m) continue;
+    L.push(`${''.padEnd(36)}the tool's own row: a call ${formatTokens(m.perCall.before)} → ${formatTokens(m.perCall.after)}${pct(m.perCall)} · a session ${formatTokens(m.perSession.before)} → ${formatTokens(m.perSession.after)}${pct(m.perSession)} · before: ${m.before.sessions} sessions ${day(m.before.from)} to ${day(m.before.to)}, since: ${m.after.sessions} ${day(m.after.from)} to ${day(m.after.to)}${m.few ? ' (few sessions yet)' : ''}`);
   }
   const c = v.cache;
   L.push('', 'The cache', `  $ saved          ${formatDollars(c.dollarsSaved)}${c.unpricedTokens ? ` (+${formatTokens(c.unpricedTokens)} tokens on unpriced models)` : ''}`, `  tokens saved     ${formatTokens(Math.max(0, c.tokensSaved))} ${c.measured ? 'input tokens, against prompts with the notes withheld' : 'tokens of code the agents did not read'}`, `  cache hits       ${formatTokens(c.hits)} notes served, for ${formatTokens(c.answered)} of ${formatTokens(c.requests)} requests`, `  acted on         ${c.acted == null ? '–' : `${Math.round(100 * c.acted)}%`} of ${formatTokens(c.judged)} servings the sessions were judged on`);
