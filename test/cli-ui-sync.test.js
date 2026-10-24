@@ -188,10 +188,10 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('report.js'), /export const REPORT_WEEKS = 6;/);
   assert.match(read('ui/page.html'), /\/api\/report\?repo=\$\{encodeURIComponent\(REPO\)\}&weeks=6/);
   assert.match(read('report.js'), /export const TREND_MIN = 0\.05;/);
-  // the page shades a cell by its value against every cell of its table (the highest red, the lowest green), a total row
-  // against its own weeks; the command marks the change against the first week
+  // the page shades a cell by its value against its own row's weeks (the highest red, the lowest green; by row since
+  // 2026-10-24, by table before); the command marks the change against the first week
   assert.match(read('ui/page.html'), /const SHADE_MIN = 0\.1;/);
-  assert.match(read('ui/page.html'), /valuesOf\(\[\.\.\.v\.parts, \.\.\.others\]\.map\(p => p\.cells\)\)/); assert.match(read('ui/page.html'), /valuesOf\(types\.map\(p => p\.cells\)\)/);
+  assert.match(read('ui/page.html'), /const sh = shade\(a, rowValues\(cells, b\)\);/); assert.doesNotMatch(read('ui/page.html'), /mscale|valuesOf\(/);
   assert.match(read('report.js'), /change\(val\(cells, 0, base\), val\(cells, w, base\)\)/);
   // the decisions table is one function on both pages, the Report's over its window alone
   assert.match(read('ui/page.html'), /historyFigure\(hs, \{ many, caption: 'Decisions'/);

@@ -921,9 +921,9 @@ function renderReport(v) {
   const val = (cells, w, b) => { const a = avg(cells[w], w); if (!a || !b) return a; const t = avg(b[w], w); return t ? a / t : null; };
   const pct = x => { const p = 100 * x; return p >= 10 ? `${Math.round(p)}%` : p >= 1 ? `${p.toFixed(1)}%` : p >= 0.01 ? `${p.toFixed(2)}%` : '<0.01%'; };
   const fv = (x, b) => x == null ? '<span class="muted">–</span>' : b ? pct(x) : cost ? money(x) : fmt(x);
-  // a cell is shaded by its value against every cell of its table (the owner's ask, 2026-10-22): the table's lowest value
-  // is the darkest green, its highest the darkest red, the rest in proportion with the middle unshaded, in light shades; a
-  // total or subtotal row is scaled against its own weeks alone; a zero is left blank; the shade alone says how much
+  // a cell is shaded by its value against its own row's weeks (the owner's ask, 2026-10-24; against every cell of its table
+  // from 2026-10-22 until then): the row's lowest value is the darkest green, its highest the darkest red, the rest in
+  // proportion with the middle unshaded, in light shades; a zero is left blank; the shade alone says how much
   const shade = (v, vals) => {
     const lo = Math.min(...vals), hi = Math.max(...vals);
     if (hi <= lo) return '';
@@ -932,16 +932,16 @@ function renderReport(v) {
     const a = (0.05 + 0.3 * Math.min(1, Math.abs(d) * 2)).toFixed(2);
     return d > 0 ? ` class="rep-up" style="background:rgba(239,68,68,${a})"` : ` class="rep-down" style="background:rgba(34,197,94,${a})"`;
   };
-  // the shade follows what is shown: under Share the scale is over the shares (the rows of a table, the base being the same)
-  const valuesOf = (rows, b = base) => rows.flatMap(cells => cells.map((c, i) => val(cells, i, b))).filter(Boolean);
-  const tcell = (cells, w, title, scale, b) => {
+  // the shade follows what is shown: under Share a row is scaled over its shares
+  const rowValues = (cells, b) => cells.map((c, i) => val(cells, i, b)).filter(Boolean);
+  const tcell = (cells, w, title, b) => {
     const a = val(cells, w, b), at = title ? ` title="${esc(title)}"` : '';
     if (!a) return `<td class="num"${at}></td>`;
-    const sh = shade(a, scale || valuesOf([cells], b));
+    const sh = shade(a, rowValues(cells, b));
     return sh ? `<td${sh.replace('class="', 'class="num ')}${at}>${fv(a, b)}</td>` : `<td class="num"${at}>${fv(a, b)}</td>`;
   };
   // a row: `total` keeps its values under Share (the whole-session rows); every other row is shown over the base
-  const row = (name, cells, { cls = '', sub = '', titles, data = '', scale, total = false } = {}) => { const b = total ? null : base; return `<tr class="${cls}"${data}><td class="ctx-name">${name}${sub ? `<span class="ctx-kind">${sub}</span>` : ''}</td>${cells.map((c, w) => tcell(cells, w, titles ? titles(c, w) : '', scale, b)).join('')}</tr>`; };
+  const row = (name, cells, { cls = '', sub = '', titles, data = '', total = false } = {}) => { const b = total ? null : base; return `<tr class="${cls}"${data}><td class="ctx-name">${name}${sub ? `<span class="ctx-kind">${sub}</span>` : ''}</td>${cells.map((c, w) => tcell(cells, w, titles ? titles(c, w) : '', b)).join('')}</tr>`; };
   const head = nameHead => `<thead><tr><th>${nameHead}</th>${v.columns.map(c => `<th class="num">Week of ${dlabel(c.t)}<small>${c.sessions} session${c.sessions === 1 ? '' : 's'}${cost && c.priced !== c.sessions ? `, ${c.priced} priced` : ''}</small></th>`).join('')}</tr></thead>`;
   const unit = cost ? 'cost at list prices' : 'tokens';
   const sessions = v.columns.reduce((a, c) => a + c.sessions, 0), unmeasured = v.columns.reduce((a, c) => a + c.unmeasured, 0);
@@ -950,13 +950,13 @@ function renderReport(v) {
   // before the token types has none (report-snapshot.js remakes it in the background)
   const types = v.tokenTypes || [], others = v.others || [];
   const tokenTypes = `<figure class="ctx-figure"><figcaption><b>By token type</b> <span class="ctx-sub">${sub}</span></figcaption>
-    <table class="ctx-table rep-table">${head('Token type')}<tbody>${(scale => types.map(p => row(esc(p.name), p.cells, { scale })).join(''))(valuesOf(types.map(p => p.cells)))}${row('Total (the whole session)', v.sessionTotals, { cls: 'rep-total', total: true })}</tbody></table></figure>`;
+    <table class="ctx-table rep-table">${head('Token type')}<tbody>${types.map(p => row(esc(p.name), p.cells)).join('')}${row('Total (the whole session)', v.sessionTotals, { cls: 'rep-total', total: true })}</tbody></table></figure>`;
   const parts = `<figure class="ctx-figure"><figcaption><b>By part of the context</b> <span class="ctx-sub">where the same tokens went</span></figcaption>
-    <table class="ctx-table rep-table">${head('Part')}<tbody>${(scale => [...v.parts.map(p => row(esc(p.name), p.cells, { scale })), ...others.map(p => row(esc(p.name), p.cells, { scale, sub: p.key === 'otherInput' ? 'the conversation itself' : '' }))].join(''))(valuesOf([...v.parts, ...others].map(p => p.cells)))}${row('Total (the whole session)', v.sessionTotals, { cls: 'rep-total', total: true })}</tbody></table></figure>`;
-  const fold = p => RFOLD.has(p), modelsOf = p => v.models.filter(m => m.provider === p), mscale = valuesOf(v.models.map(m => m.cells));
+    <table class="ctx-table rep-table">${head('Part')}<tbody>${[...v.parts.map(p => row(esc(p.name), p.cells)), ...others.map(p => row(esc(p.name), p.cells))].join('')}${row('Total (the whole session)', v.sessionTotals, { cls: 'rep-total', total: true })}</tbody></table></figure>`;
+  const fold = p => RFOLD.has(p), modelsOf = p => v.models.filter(m => m.provider === p);
   const mtitle = m => (c, w) => `${c.sessions} session${c.sessions === 1 ? '' : 's'} on ${m.model} this week${c.sessions ? `, ${cost ? (c.priced ? money(c.cost / c.priced) : '–') : fmt(c.tokens / c.sessions)} per session of its own` : ''}`;
   const models = `<figure class="ctx-figure"><figcaption><b>By model</b> <span class="ctx-sub">each model's share of the ${sum ? 'week' : 'average session'}, its provider's subtotal above its models</span></figcaption>
-    <table class="ctx-table rep-table">${head('Provider · model')}<tbody>${v.providers.map(p => row(`<button class="rep-fold" data-fold="${esc(p.name)}" aria-expanded="${!fold(p.name)}">${fold(p.name) ? '▸' : '▾'}</button> ${esc(p.name)}`, p.cells, { cls: 'rep-sub', sub: `${modelsOf(p.name).length} model${modelsOf(p.name).length === 1 ? '' : 's'}` }) + (fold(p.name) ? '' : modelsOf(p.name).map(m => row(`<span class="rep-indent">${esc(m.model)}</span>`, m.cells, { cls: m.priced ? '' : 'ctx-off', sub: m.priced ? '' : 'no list price', titles: mtitle(m), scale: mscale })).join(''))).join('')}${row('Total (the whole session)', v.sessionTotals, { cls: 'rep-total', total: true })}</tbody></table></figure>`;
+    <table class="ctx-table rep-table">${head('Provider · model')}<tbody>${v.providers.map(p => row(`<button class="rep-fold" data-fold="${esc(p.name)}" aria-expanded="${!fold(p.name)}">${fold(p.name) ? '▸' : '▾'}</button> ${esc(p.name)}`, p.cells, { cls: 'rep-sub', sub: `${modelsOf(p.name).length} model${modelsOf(p.name).length === 1 ? '' : 's'}` }) + (fold(p.name) ? '' : modelsOf(p.name).map(m => row(`<span class="rep-indent">${esc(m.model)}</span>`, m.cells, { cls: m.priced ? '' : 'ctx-off', sub: m.priced ? '' : 'no list price', titles: mtitle(m) })).join(''))).join('')}${row('Total (the whole session)', v.sessionTotals, { cls: 'rep-total', total: true })}</tbody></table></figure>`;
   // the decisions taken on the Save page in these weeks, the same table as Save's History (context-suggest.js:changeHistory)
   const acts = v.actions.map(a => ({ ...a, repo: a.repo || REPO }));
   const actions = historyFigure(acts, { many: Boolean(v.all), caption: 'Actions in the window', sub: `what was applied on the Find Savings page in these ${v.weeks} weeks, to read them against`, empty: 'No actions in these weeks. What you apply on the Find Savings page is listed here with its date.', key: 'report' });

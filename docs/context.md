@@ -101,7 +101,7 @@ costs here, week by week over the last six, as the average over each week's sess
 type of token (input read fresh, input written to the prompt cache, input read back from it, output), one by
 part of the context (the instruction files, custom tools, built-in tools, tool outputs, the rest of the
 input, the output), one by model under its provider with subtotals, the same whole-session total under each; each cell is shaded by its
-number against the table, the highest the darkest red and the lowest the darkest green, and a toggle shows each week's sum instead of
+number against its own row, the row's highest the darkest red and its lowest the darkest green, and a toggle shows each week's sum instead of
 the average per session, another every row but the whole-session total as its share of that total. A toggle prices the same tokens at the
 providers' list rates, so a switch of model shows in the trend. Under the tables: the actions taken on
 Find Savings in those weeks, by date, to read the weeks against, and the cache's four numbers, its saving in
