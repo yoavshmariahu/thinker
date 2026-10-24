@@ -96,8 +96,8 @@ follow every instruction.
 | Client | Request context | File context | Learning capture | Follow-up retrieval |
 | --- | --- | --- | --- | --- |
 | Claude Code | Prompt hook | Post-tool hook | Native transcript | MCP |
-| Codex CLI | Prompt hook | Post-tool hook | Hook trace | MCP |
-| Gemini CLI | BeforeAgent | AfterTool | Hook trace | MCP |
+| Codex CLI | Prompt hook | Post-tool hook | Native transcript (the hook trace where it has no tool events) | MCP |
+| Gemini CLI | BeforeAgent | AfterTool | Native transcript | MCP |
 | Cursor | Prompt hook (`additional_context`; first tool call under `agent -p`) | Post-tool hook | Hook trace | MCP |
 | Pi | before_agent_start extension | tool_result extension | Prompt, tools, final answer; shutdown flush | none |
 | Windsurf Cascade | None (no prompt hook) | None | Prompt, reads, edits, commands, MCP results, response | none |
@@ -107,7 +107,7 @@ follow every instruction.
 | Factory Droid | UserPromptSubmit, plain stdout (`~/.factory/hooks.json`, else the `hooks` of `settings.json`) | PostToolUse | Prompt, tools, stop/end | MCP (`~/.factory/mcp.json`) |
 | Qwen Code | UserPromptSubmit, plain stdout (`~/.qwen/settings.json`) | PostToolUse | Prompt, tools, stop/end | MCP (same file) |
 | Kiro CLI | UserPromptSubmit, plain stdout (V3 engine: `~/.kiro/hooks/thinker.json`) | none: Kiro ignores PostToolUse output | Prompt, tools, stop/end | MCP (`~/.kiro/settings/mcp.json`) |
-| Cline | UserPromptSubmit `contextModification` (extension); none in the CLI, whose prompt hook fires only for its own `[SYSTEM]` nudges (3.0.73) | PostToolUse `contextModification` | Prompt, tools, task complete/cancel, shutdown | MCP (`~/.cline/data/settings/cline_mcp_settings.json`) |
+| Cline | UserPromptSubmit `contextModification` (extension); in the CLI, whose prompt hook fires only for its own `[SYSTEM]` nudges (3.0.73), the first tool call after the prompt | PostToolUse `contextModification` | Prompt, tools, task complete/cancel, shutdown | MCP (`~/.cline/data/settings/cline_mcp_settings.json`) |
 | Kilo Code | OpenCode's plugin (`~/.config/kilo/plugin/thinker.js`): chat.message | tool.execute.after | as OpenCode | MCP registered by plugin |
 | Auggie | none: Auggie has no prompt hook | PostToolUse `hookSpecificOutput` (`.sh` wrappers in `~/.augment/thinker`) | Tools; the prompt from the Stop hook's conversation data | MCP (`~/.augment/settings.json`) |
 | Goose | none: hooks give the model nothing | none | Prompt, tools (no output), stop/end, with learning on | MCP extension in `~/.config/goose/config.yaml` |
@@ -269,7 +269,12 @@ plugin on a machine without thinker does nothing.
   (never under `--keep-min`, 3), so only results fetched by earlier turns are cleared; or a count of the
   newest tool uses (`--keep 3`, the default before). `thinker proxy
   replay [--days n] [--policies spec] [--repo path]` costs the policies over a checkout's Claude Code sessions
-  with no model call (`src/proxy-replay.js`; research/output-lifetime-2026-10-22). Off until an experiment.
+  with no model call (`src/proxy-replay.js`; research/output-lifetime-2026-10-22). **On by default since 2026-10-24**
+  (`src/proxy-service.js`): `thinker connect` keeps the proxy running (launchd on macOS, a systemd user unit on Linux, the
+  prompt hook everywhere, which starts it when nothing listens) and writes its URL for Claude Code (the settings `env`),
+  pi (`models.json`) and OpenCode (`opencode.json`); Goose, Aider, Cline, Droid, Copilot CLI with your own key, Qwen
+  Code on an Anthropic provider and Kilo's CLI take it by hand at the keys above; Codex, Cursor, Gemini CLI, Kiro,
+  Windsurf and Auggie have no Anthropic URL to point at it. `thinker proxy status|off|on`, `connect --no-proxy`.
 
 ## Why these additions
 
