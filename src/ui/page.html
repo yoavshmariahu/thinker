@@ -118,8 +118,11 @@
     .ctx-table input[type=checkbox] { margin: 0 0.3rem 0 0; vertical-align: -1px; accent-color: #111; }
     /* the Report tables: a trending cell is coloured against the first week, a provider's subtotal is bold with its models indented */
     .rep-table th small { display: block; font-weight: 400; text-transform: none; letter-spacing: 0; color: #9ca3af; }
-    .rep-table td.rep-up { color: #7f1d1d; }
-    .rep-table td.rep-down { color: #14532d; }
+    .rep-table td.rep-good { background: #dcfce7; color: #14532d; }
+    .rep-table td.rep-mid { background: #fef9c3; color: #713f12; }
+    .rep-table td.rep-bad { background: #fee2e2; color: #7f1d1d; }
+    .rep-table th.rep-thr, .rep-table td.rep-thr { width: 3.4rem; max-width: 3.4rem; padding-left: 0.15rem; padding-right: 0.15rem; text-align: center; font-variant-numeric: tabular-nums; }
+    .rep-table td.rep-thr { color: #6b7280; font-size: 0.76rem; }
     .rep-table tr.rep-sub td { font-weight: 600; background: #f8f8f7; }
     .rep-table tr.rep-total td { font-weight: 700; border-top: 2px solid #111; border-bottom: 0; }
     .rep-indent { display: inline-block; padding-left: 1.4rem; }
@@ -930,9 +933,7 @@ document.querySelectorAll('#r-view button').forEach(b => b.onclick = () => { RVI
 document.querySelectorAll('#r-mode button').forEach(b => b.onclick = () => { RMODE = b.dataset.mode; segOn('#r-mode', b); if (RPT) renderReport(RPT); });
 $('#r-repo').onchange = e => { REPO = e.target.value; e.target.blur(); loadReport(); };
 document.querySelectorAll('#r-measure button').forEach(b => b.onclick = () => { RMEASURE = b.dataset.m; segOn('#r-measure', b); if (RPT) renderReport(RPT); });
-// the shade of a Report cell (SHADE_MIN below); the command's ▲ ▼ against the first week are report.js:TREND_MIN
-// how far from the scale's middle a value must sit before it is shaded (a share of its range)
-const SHADE_MIN = 0.1;
+// a Report cell's colour is report.js:THRESHOLDS, read from the view (`thresholds`): the command marks the same cells ✓ · ✗
 // a dollar figure as prices.js:formatDollars makes it
 const money = d => d == null ? '–' : (d < 0 ? '−' : '') + '$' + (Math.abs(d) >= 10000 ? (Math.abs(d) / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : Math.abs(d) >= 100 ? String(Math.round(Math.abs(d))) : Math.abs(d) >= 10 ? Math.abs(d).toFixed(1) : Math.abs(d) >= 0.01 || d === 0 ? Math.abs(d).toFixed(2) : Math.abs(d).toFixed(3));
 async function loadReport() {
@@ -974,28 +975,20 @@ function renderReport(v) {
   const val = (cells, w, b) => { const a = avg(cells[w], w); if (!a || !b) return a; const t = avg(b[w], w); return t ? a / t : null; };
   const sharePct = x => { const p = 100 * x; return p >= 10 ? `${Math.round(p)}%` : p >= 1 ? `${p.toFixed(1)}%` : p >= 0.01 ? `${p.toFixed(2)}%` : '<0.01%'; };
   const fv = (x, b) => x == null ? '<span class="muted">–</span>' : b ? sharePct(x) : cost ? money(x) : fmt(x);
-  // a cell is shaded by its value against its own row's weeks (the owner's ask, 2026-10-24; against every cell of its table
-  // from 2026-10-22 until then): the row's lowest value is the darkest green, its highest the darkest red, the rest in
-  // proportion with the middle unshaded, in light shades; a zero is left blank; the shade alone says how much
-  const shade = (v, vals) => {
-    const lo = Math.min(...vals), hi = Math.max(...vals);
-    if (hi <= lo) return '';
-    const d = (v - lo) / (hi - lo) - 0.5;
-    if (Math.abs(d) < SHADE_MIN) return '';
-    const a = (0.05 + 0.3 * Math.min(1, Math.abs(d) * 2)).toFixed(2);
-    return d > 0 ? ` class="rep-up" style="background:rgba(239,68,68,${a})"` : ` class="rep-down" style="background:rgba(34,197,94,${a})"`;
-  };
-  // the shade follows what is shown: under Share a row is scaled over its shares
-  const rowValues = (cells, b) => cells.map((c, i) => val(cells, i, b)).filter(Boolean);
-  const tcell = (cells, w, title, b) => {
-    const a = val(cells, w, b), at = title ? ` title="${esc(title)}"` : '';
-    if (!a) return `<td class="num"${at}></td>`;
-    const sh = shade(a, rowValues(cells, b));
-    return sh ? `<td${sh.replace('class="', 'class="num ')}${at}>${fv(a, b)}</td>` : `<td class="num"${at}>${fv(a, b)}</td>`;
-  };
-  // a row: `total` keeps its values under Share (the whole-session rows); every other row is shown over the base
-  const row = (name, cells, { cls = '', sub = '', titles, data = '', total = false } = {}) => { const b = total ? null : base; return `<tr class="${cls}"${data}><td class="ctx-name">${name}${sub ? `<span class="ctx-kind">${sub}</span>` : ''}</td>${cells.map((c, w) => tcell(cells, w, titles ? titles(c, w) : '', b)).join('')}</tr>`; };
-  const head = nameHead => `<thead><tr><th>${nameHead}</th>${v.columns.map(c => `<th class="num">Week of ${dlabel(c.t)}<small>${fmt(c.prompts || 0)} prompt${c.prompts === 1 ? '' : 's'}, ${c.sessions} session${c.sessions === 1 ? '' : 's'}${cost && c.priced !== c.sessions ? `, ${c.priced} priced` : ''}</small></th>`).join('')}</tr></thead>`;
+  // a part's cell is coloured by its tokens a prompt against the thresholds the view carries (report.js:THRESHOLDS; the
+  // owner's ask of 2026-10-24: flat colours, where a scale by row showed where a row moved and not what needs attention):
+  // green at or under Good, red at or over Bad, yellow between, the same whatever the cell shows (cost, a week's total, a
+  // share). The other rows (the rest of the input, the output, the totals) and the model and token-type tables are not
+  // coloured: no setting changes them. The two thresholds sit beside the part, narrow (rep-thr).
+  const thr = v.thresholds || {}, kTok = n => n % 1000 ? fmt(n) : `${n / 1000}k`;
+  const verdictOf = (key, cells, w) => { const t = key && thr[key], col = v.columns[w], x = t && col.prompts ? cells[w].tokens / col.prompts : 0; return !x ? '' : x <= t.good ? 'rep-good' : x >= t.bad ? 'rep-bad' : 'rep-mid'; };
+  const tcell = (cells, w, title, b, key) => { const a = val(cells, w, b), at = title ? ` title="${esc(title)}"` : '', vd = a ? verdictOf(key, cells, w) : ''; return `<td class="num${vd ? ` ${vd}` : ''}"${at}>${a ? fv(a, b) : ''}</td>`; };
+  const thrCells = key => { const t = key && thr[key]; return `<td class="rep-thr">${t ? `≤ ${kTok(t.good)}` : '–'}</td><td class="rep-thr">${t ? `≥ ${kTok(t.bad)}` : '–'}</td>`; };
+  // a row: `total` keeps its values under Share (the whole-session rows); every other row is shown over the base; `key` names
+  // the part for its colour and thresholds; `thresholds` puts the two threshold cells in (the parts table's rows)
+  const row = (name, cells, { cls = '', sub = '', titles, data = '', total = false, key = null, thresholds = false } = {}) => { const b = total ? null : base; return `<tr class="${cls}"${data}><td class="ctx-name">${name}${sub ? `<span class="ctx-kind">${sub}</span>` : ''}</td>${thresholds ? thrCells(key) : ''}${cells.map((c, w) => tcell(cells, w, titles ? titles(c, w) : '', b, key)).join('')}</tr>`; };
+  const thrHead = `<th class="rep-thr" title="Tokens a prompt at or under which the part is green">Good</th><th class="rep-thr" title="Tokens a prompt at or over which the part is red; yellow between the two">Bad</th>`;
+  const head = (nameHead, thresholds = false) => `<thead><tr><th>${nameHead}</th>${thresholds ? thrHead : ''}${v.columns.map(c => `<th class="num">Week of ${dlabel(c.t)}<small>${fmt(c.prompts || 0)} prompt${c.prompts === 1 ? '' : 's'}, ${c.sessions} session${c.sessions === 1 ? '' : 's'}${cost && c.priced !== c.sessions ? `, ${c.priced} priced` : ''}</small></th>`).join('')}</tr></thead>`;
   const unit = cost ? 'cost at list prices' : 'tokens';
   const sessions = v.columns.reduce((a, c) => a + c.sessions, 0), prompts = v.columns.reduce((a, c) => a + (c.prompts || 0), 0), unmeasured = v.columns.reduce((a, c) => a + c.unmeasured, 0);
   const sub = `${fmt(prompts)} prompts in ${sessions} session${sessions === 1 ? '' : 's'} over ${v.weeks} weeks${unmeasured ? `, ${unmeasured} more whose agent reported no usage (Cursor) left out` : ''}${v.all ? ` · ${v.repos.length} repositories` : ''}`;
@@ -1004,8 +997,8 @@ function renderReport(v) {
   const types = v.tokenTypes || [], others = v.others || [];
   const tokenTypes = `<figure class="ctx-figure"><figcaption><b>By token type</b> <span class="ctx-sub">${sub}</span></figcaption>
     <table class="ctx-table rep-table">${head('Token type')}<tbody>${types.map(p => row(esc(p.name), p.cells)).join('')}${row('Total (the whole session)', v.sessionTotals, { cls: 'rep-total', total: true })}</tbody></table></figure>`;
-  const parts = `<figure class="ctx-figure"><figcaption><b>By part of the context</b> <span class="ctx-sub">where the same tokens went</span></figcaption>
-    <table class="ctx-table rep-table">${head('Part')}<tbody>${[...v.parts.map(p => row(esc(p.name), p.cells)), ...others.map(p => row(esc(p.name), p.cells))].join('')}${row('Total (the whole session)', v.sessionTotals, { cls: 'rep-total', total: true })}</tbody></table></figure>`;
+  const parts = `<figure class="ctx-figure"><figcaption><b>By part of the context</b> <span class="ctx-sub">where the same tokens went · a part is green at or under Good, red at or over Bad, yellow between, in tokens a prompt</span></figcaption>
+    <table class="ctx-table rep-table">${head('Part', true)}<tbody>${[...v.parts.map(p => row(esc(p.name), p.cells, { key: p.key, thresholds: true })), ...others.map(p => row(esc(p.name), p.cells, { thresholds: true }))].join('')}${row('Total (the whole session)', v.sessionTotals, { cls: 'rep-total', total: true, thresholds: true })}</tbody></table></figure>`;
   const fold = p => RFOLD.has(p), modelsOf = p => v.models.filter(m => m.provider === p);
   const mtitle = m => (c, w) => `${fmt(c.prompts || 0)} prompts in ${c.sessions} session${c.sessions === 1 ? '' : 's'} on ${m.model} this week${c.prompts ? `, ${cost ? (c.pricedPrompts ? money(c.cost / c.pricedPrompts) : '–') : fmt(c.tokens / c.prompts)} per prompt of its own` : ''}`;
   const models = `<figure class="ctx-figure"><figcaption><b>By model</b> <span class="ctx-sub">each model's share of the ${sum ? 'week' : 'average prompt'}, its provider's subtotal above its models</span></figcaption>
@@ -1019,7 +1012,6 @@ function renderReport(v) {
     ${card('Acted on', c.acted == null ? '–' : `${Math.round(100 * c.acted)}%`, `of ${fmt(c.judged)} servings the sessions were judged on`)}
   </div></div>`;
   el.innerHTML = parts + models + tokenTypes + cards; // the token types the last table (the owner's order, 2026-10-24)
-  wireHistory(el.querySelector('[data-history]'), acts, loadReport, () => renderReport(v));
   el.querySelectorAll('[data-fold]').forEach(b => b.onclick = () => { const p = b.dataset.fold; RFOLD.has(p) ? RFOLD.delete(p) : RFOLD.add(p); renderReport(v); });
 }
 // first view: the tab the URL names, else Save (where the agents' context goes is the front door, since
