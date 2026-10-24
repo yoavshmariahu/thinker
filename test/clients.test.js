@@ -549,6 +549,9 @@ test('connect wires the agents into their own settings, once per machine: no --r
 
     const gem = JSON.parse(fs.readFileSync(path.join(home.HOME, '.gemini', 'settings.json'), 'utf8'));
     assert.ok(gem.hooks.BeforeAgent[0].hooks[0].command.endsWith('--client gemini --user --record') && gem.mcpServers.thinker);
+    const agyHooks = JSON.parse(fs.readFileSync(path.join(home.HOME, '.gemini', 'config', 'hooks.json'), 'utf8'));
+    assert.ok(agyHooks.thinker.PreInvocation[0].command.endsWith('--client gemini --user --record'));
+    assert.ok(JSON.parse(fs.readFileSync(path.join(home.HOME, '.gemini', 'config', 'mcp_config.json'), 'utf8')).mcpServers.thinker);
     const cur = JSON.parse(fs.readFileSync(path.join(home.HOME, '.cursor', 'hooks.json'), 'utf8'));
     assert.ok(cur.hooks.beforeSubmitPrompt[0].command.endsWith('--client cursor --user --record'));
     assert.ok(JSON.parse(fs.readFileSync(path.join(home.HOME, '.cursor', 'mcp.json'), 'utf8')).mcpServers.thinker);
@@ -579,7 +582,7 @@ test('connect wires the agents into their own settings, once per machine: no --r
     const t2 = fs.readFileSync(path.join(home.CODEX_HOME, 'config.toml'), 'utf8');
     // Codex's subagents stay on: a Codex setting (on by default since 0.160), not thinker's wiring
     assert.equal(t2.trim(), 'model = "gpt-5"\n\n[features]\nmulti_agent = true');
-    assert.ok(!fs.existsSync(path.join(home.HOME, '.gemini', 'settings.json')) && !fs.existsSync(path.join(home.HOME, '.cursor', 'mcp.json')));
+    assert.ok(!fs.existsSync(path.join(home.HOME, '.gemini', 'settings.json')) && !fs.existsSync(path.join(home.HOME, '.gemini', 'config', 'hooks.json')) && !fs.existsSync(path.join(home.HOME, '.gemini', 'config', 'mcp_config.json')) && !fs.existsSync(path.join(home.HOME, '.cursor', 'mcp.json')));
   });
 });
 
@@ -902,4 +905,52 @@ test('Codex still injects and emits a stop notice when AGENTS instructions menti
   assert.equal(notice.decision, undefined);
   assert.ok(fs.existsSync(path.join(dir, '.thinker/state', `trace-${session_id}.jsonl`)), 'normal session trace is preserved');
   assert.ok(!stop().includes('note this turn'), 'the notice is emitted once');
+});
+
+test('Antigravity (agy) hooks orient on PreInvocation, park PostToolUse late notes for the next step, and allow Stop', () => {
+  const dir = repo();
+  const transcript = path.join(dir, 'agy-transcript.jsonl');
+  const conversationId = 'agy-conv-1';
+  const env = { THINKER_HOLDOUT: '0' };
+  const writeTranscript = steps => fs.writeFileSync(transcript, steps.map(s => JSON.stringify(s)).join('\n') + '\n');
+  writeTranscript([
+    { step_index: 2, type: 'USER_INPUT', content: `<USER_REQUEST>\n${PROMPT}\n</USER_REQUEST>` },
+  ]);
+
+  // PreInvocation #1 reads USER_INPUT from transcriptPath and injects the cache bundle
+  const pre1 = JSON.parse(hook(dir, 'prompt', 'gemini', { conversationId, workspacePaths: [dir], transcriptPath: transcript, invocationNum: 1 }, ['--record'], env));
+  assert.match(pre1.injectSteps?.[0]?.systemMessage?.systemMessage || '', /<thinker-cache>[\s\S]*RateLimiter\.allow/);
+
+  // Mid-turn PreInvocation #2 (after a planner tool call) does not re-orient
+  writeTranscript([
+    { step_index: 2, type: 'USER_INPUT', content: `<USER_REQUEST>\n${PROMPT}\n</USER_REQUEST>` },
+    { step_index: 3, type: 'PLANNER_RESPONSE', tool_calls: [{ name: 'view_file', args: { AbsolutePath: path.join(dir, 'src/upload.py') } }] },
+  ]);
+  const pre2 = JSON.parse(hook(dir, 'prompt', 'gemini', { conversationId, workspacePaths: [dir], transcriptPath: transcript, invocationNum: 2 }, ['--record'], env));
+  assert.deepEqual(pre2, {});
+
+  // PostToolUse on editing src/upload.py returns {} and parks the file-anchored invariant note for the next PreInvocation
+  const store = new Store(dir);
+  createNote(store, { title: 'Upload rate limit key invariant', kind: 'invariant', answers: ['stricter rate limiting for the upload endpoint in upload.py'], body: 'In src/upload.py:RateLimiter.allow, reject empty keys before checking upload_endpoint quota.', deps: [{ path: 'src/upload.py', symbol: 'RateLimiter.allow' }], confidence: 0.9 });
+  const postTool = JSON.parse(hook(dir, 'tool', 'gemini', {
+    conversationId,
+    workspacePaths: [dir],
+    transcriptPath: transcript,
+    toolCall: { name: 'edit_file', args: { Path: path.join(dir, 'src/upload.py') }, result: 'ok' },
+  }, ['--record', '--late'], env));
+  assert.deepEqual(postTool, {});
+
+  const pre3 = JSON.parse(hook(dir, 'prompt', 'gemini', { conversationId, workspacePaths: [dir], transcriptPath: transcript, invocationNum: 3 }, ['--record'], env));
+  assert.match(pre3.injectSteps?.[0]?.systemMessage?.systemMessage || '', /Upload rate limit key invariant/);
+
+  // Stop returns {"decision":"allow"} and records the session trace
+  const stopRes = JSON.parse(hook(dir, 'stop', 'gemini', {
+    conversationId,
+    workspacePaths: [dir],
+    transcriptPath: transcript,
+    terminationReason: 'TERMINATION_REASON_UNSPECIFIED',
+    fullyIdle: true,
+  }, ['--record', '--no-distill'], env));
+  assert.deepEqual(stopRes, { decision: 'allow' });
+  assert.ok(fs.existsSync(path.join(dir, '.thinker/state', `trace-${conversationId}.jsonl`)));
 });

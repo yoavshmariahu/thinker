@@ -105,6 +105,7 @@ export function hookClient(flag, ev = {}) {
   const named = flag && flag !== true ? String(flag) : 'claude';
   if (named === 'claude' && ev.cursor_version) return 'cursor-import';
   if (named === 'copilot' && ev.transcript_path && /^[A-Z]/.test(ev.hook_event_name || '') && ev.session_id && !ev.sessionId) return 'vscode';
+  if ((named === 'gemini' || named === 'agy') && (named === 'agy' || ev.conversationId || ev.workspacePaths || ev.transcriptPath || ev.toolCall || ev.invocationNum != null || ev.terminationReason)) return 'agy';
   return named;
 }
 
@@ -112,6 +113,19 @@ export const sessionOf = ev => ev.session_id || ev.conversation_id || ev.convers
 
 // Translate host payloads once, before recording or retrieving anything.
 export function normalizeHookEvent(client, ev, what) {
+  if (client === 'agy') {
+    const tc = ev.toolCall || {}, args = tc.args || {};
+    const names = { run_command: 'Bash', read_file: 'Read', view_file: 'Read', edit_file: 'Edit', write_file: 'Write', grep_search: 'Grep', find_by_name: 'Glob' };
+    return {
+      ...ev,
+      session_id: ev.conversationId || ev.session_id,
+      cwd: ev.workspacePaths?.[0] || ev.cwd,
+      transcript_path: ev.transcriptPath || ev.transcript_path,
+      tool_name: names[tc.name] || tc.name || ev.tool_name,
+      tool_input: tc.name ? { ...args, command: args.CommandLine ?? args.command, file_path: args.Path ?? args.file_path, pattern: args.Query ?? args.pattern } : ev.tool_input,
+      tool_response: ev.error ? `Error: ${ev.error}` : ev.tool_response,
+    };
+  }
   if (client === 'windsurf') {
     const info = ev.tool_info || {};
     const names = { post_read_code: 'Read', post_write_code: 'Edit', post_run_command: 'Bash' };
@@ -216,6 +230,7 @@ export function searchedIdentifier(ev) {
 export function promptOutput(client, text) {
   if (client === 'windsurf' || client === 'goose') return '';
   if (client === 'cline') return JSON.stringify(text ? { cancel: false, contextModification: text } : { cancel: false });
+  if (client === 'agy') return JSON.stringify(text ? { injectSteps: [{ systemMessage: { systemMessage: text } }] } : {});
   if (client === 'gemini') return JSON.stringify({ hookSpecificOutput: { hookEventName: 'BeforeAgent', additionalContext: text } });
   if (client === 'cursor') return JSON.stringify(text ? { continue: true, additional_context: text } : { continue: true });
   return text;
@@ -251,6 +266,7 @@ export function preToolOutput(client, { command, reason }) {
 export function toolOutput(client, text, { updated, mcp = false } = {}) {
   // Kiro ignores what a PostToolUse hook prints, Goose reads it as a decision
   if (client === 'windsurf' || client === 'kiro' || client === 'goose') return '';
+  if (client === 'agy') return '{}';
   if (client === 'pi' || client === 'opencode' || client === 'kilo') return text;
   if (client === 'cline') return JSON.stringify({ cancel: false, contextModification: text });
   if (client === 'copilot') return JSON.stringify({ additionalContext: text });
@@ -270,6 +286,28 @@ export function parkPending(storeDir, session, text) {
 }
 // Cursor: the turns whose context is settled, by its generation id
 export const orientedFile = (storeDir, turn) => path.join(storeDir, 'state', `oriented-${String(turn).replace(/[^\w.-]/g, '_')}`);
+// Antigravity (agy): PreInvocation runs before every model call in a turn; only the first invocation after a new
+// USER_INPUT in the transcript is the turn's prompt.
+export function agyTurnPrompt(storeDir, session, transcriptPath) {
+  if (!transcriptPath || !fs.existsSync(transcriptPath)) return null;
+  let lines;
+  try { lines = fs.readFileSync(transcriptPath, 'utf8').split('\n'); } catch { return null; }
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const l = lines[i].trim();
+    if (!l) continue;
+    let j;
+    try { j = JSON.parse(l); } catch { continue; }
+    if (j.type === 'PLANNER_RESPONSE') return null;
+    if (j.type === 'USER_INPUT') {
+      const f = orientedFile(storeDir, `${session}-${j.step_index ?? i}`);
+      try { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, '', { flag: 'wx' }); } catch { return null; }
+      const raw = String(j.content || '');
+      const m = raw.match(/<USER_REQUEST>([\s\S]*?)<\/USER_REQUEST>/);
+      return (m ? m[1] : raw.replace(/<[^>]+>/g, '')).trim() || null;
+    }
+  }
+  return null;
+}
 export function takePending(storeDir, session) {
   const f = pendingFile(storeDir, session);
   try { const j = JSON.parse(fs.readFileSync(f, 'utf8')); fs.unlinkSync(f); return Date.now() - j.at < 30 * 60_000 ? j.text : ''; } catch { return ''; }
@@ -400,7 +438,9 @@ export function wiringFiles(client, { scope = 'repo', repo } = {}) {
       ? { local: path.join(claudeDir(), 'settings.json'), shared: null, mcp: process.env.CLAUDE_CONFIG_DIR ? path.join(claudeDir(), '.claude.json') : home('.claude.json') }
       : { local: at('.claude', 'settings.local.json'), shared: at('.claude', 'settings.json'), mcp: at('.mcp.json') };
     case 'codex': return user ? { hooks: path.join(codexHome(), 'hooks.json'), toml: path.join(codexHome(), 'config.toml') } : { hooks: at('.codex', 'hooks.json'), toml: at('.codex', 'config.toml') };
-    case 'gemini': return { settings: user ? home('.gemini', 'settings.json') : at('.gemini', 'settings.json') };
+    case 'gemini': return user
+      ? { settings: home('.gemini', 'settings.json'), agyHooks: home('.gemini', 'config', 'hooks.json'), agyMcp: home('.gemini', 'config', 'mcp_config.json') }
+      : { settings: at('.gemini', 'settings.json') };
     case 'cursor': return user
       ? { hooks: home('.cursor', 'hooks.json'), mcp: home('.cursor', 'mcp.json'), rule: null }
       : { hooks: at('.cursor', 'hooks.json'), mcp: at('.cursor', 'mcp.json'), rule: at('.cursor', 'rules', 'thinker.mdc') };
@@ -525,7 +565,7 @@ function jsonWiring(client, o) {
   const f = wiringFiles(client, o);
   if (client === 'claude') return [{ file: f.local, hooks: true }, ...(f.shared ? [{ file: f.shared, hooks: true }] : []), { file: f.mcp, mcp: true }];
   if (client === 'codex') return [{ file: f.hooks, hooks: true }];
-  if (client === 'gemini') return [{ file: f.settings, hooks: true, mcp: true }];
+  if (client === 'gemini') return [{ file: f.settings, hooks: true, mcp: true }, ...(f.agyMcp ? [{ file: f.agyMcp, mcp: true }] : [])];
   if (client === 'cursor') return [{ file: f.hooks, hooks: true, keepVersion: true }, { file: f.mcp, mcp: true }];
   if (client === 'copilot' && f.hooks) return [{ file: f.hooks, hooks: true, keepVersion: true }, { file: f.mcp, mcp: true }];
   if (client === 'windsurf' && f.hooks) return [{ file: f.hooks, hooks: true }];
@@ -536,9 +576,10 @@ function jsonWiring(client, o) {
   return [];
 }
 // The files of a client beyond its JSON wiring: Kiro's hooks file, Cline's hook executables, Auggie's
-// wrapper scripts, Goose's plugin manifest and config.yaml
+// wrapper scripts, Goose's plugin manifest and config.yaml, Antigravity's named hooks file
 function extraFiles(client, o) {
   const f = wiringFiles(client, o);
+  if (client === 'gemini' && f.agyHooks) return [f.agyHooks];
   if (client === 'kiro' && f.hooks) return [f.hooks];
   if (client === 'cline' && f.hookDir) return CLINE_EVENTS.map(e => path.join(f.hookDir, e));
   if (client === 'augment' && f.scripts) return ['tool', 'stop', 'end'].map(n => path.join(f.scripts, `${n}.sh`));
@@ -636,7 +677,22 @@ export function inferWiring(repo, client, { scope = 'repo' } = {}) {
       w.late = ourGroups(cfg.hooks, 'AfterTool').some(g => / --late\b/.test(commandOf(g) || ''));
       for (const ev of ['BeforeAgent', 'AfterTool', 'AfterAgent']) ourGroups(cfg.hooks, ev).forEach(see);
     }
-    if (cfg.mcpServers?.thinker) { w.mcp = true; const sc = mcpScript(cfg.mcpServers.thinker); if (sc) scripts.add(sc); }
+    if (f.agyHooks) {
+      const agy = readJsonOr(f.agyHooks, {}).thinker;
+      if (agy && typeof agy === 'object') {
+        const items = [...(agy.PreInvocation || []), ...(agy.PostToolUse || []), ...(agy.Stop || [])];
+        if (items.length) {
+          w.hooks = true;
+          w.learn ||= (agy.Stop || []).some(g => !/ --no-distill\b/.test(commandOf(g) || ''));
+          w.late ||= (agy.PostToolUse || []).some(g => / --late\b/.test(commandOf(g) || ''));
+          items.forEach(see);
+        }
+      }
+    }
+    for (const file of [f.settings, f.agyMcp].filter(Boolean)) {
+      const m = readJsonOr(file, {}).mcpServers?.thinker;
+      if (m) { w.mcp = true; const sc = mcpScript(m); if (sc) scripts.add(sc); }
+    }
     w.shared = scope === 'repo' && !local(f.settings);
   }
   if (client === 'cursor') {
@@ -911,6 +967,22 @@ function pruneEntries(repo, { scope = 'repo', clients = CLIENTS, mcpEntry, take,
     if (!changed) continue;
     if (Object.keys(next).filter(k => !(e.keepVersion && k === 'version')).length || e.flat) fs.writeFileSync(e.file, JSON.stringify(next, null, 2) + '\n');
     else fs.unlinkSync(e.file);
+  }
+  if (clients.includes('gemini') && scope === 'user') {
+    const file = wiringFiles('gemini', o).agyHooks;
+    if (file && fs.existsSync(file)) {
+      const cur = readJsonOr(file, {}), agy = cur.thinker;
+      if (agy && typeof agy === 'object') {
+        const items = [...(agy.PreInvocation || []), ...(agy.PostToolUse || []), ...(agy.Stop || [])];
+        const hit = items.map(g => take(hookScript(g))).find(Boolean);
+        if (hit) {
+          record(file, hit, 'hooks');
+          const next = { ...cur }; delete next.thinker;
+          if (Object.keys(next).length) fs.writeFileSync(file, JSON.stringify(next, null, 2) + '\n');
+          else fs.unlinkSync(file);
+        }
+      }
+    }
   }
   if (clients.includes('codex')) {
     const file = wiringFiles('codex', o).toml;
@@ -1255,8 +1327,23 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
       }
       return n;
     });
-    if (mcp) done.push(`Gemini CLI: registered MCP server in ${rel(f.settings)}`);
-    if (hooks) done.push(`Gemini CLI: hooks in ${rel(f.settings)}: notes injected on each prompt${late ? ', file-keyed notes while working' : ''}${learned}`);
+    if (f.agyMcp && mcp) mergeJson(f.agyMcp, c => ({ ...c, mcpServers: { ...(c.mcpServers || {}), thinker: mcpEntry } }));
+    if (f.agyHooks) {
+      if (hooks) {
+        // Antigravity (agy) reads ~/.gemini/config/hooks.json: top-level named hook groups, timeouts in seconds
+        const agy = {
+          PreInvocation: [{ type: 'command', command: cmd('prompt', rec), timeout: 15 }],
+          ...(late || learn ? { PostToolUse: [{ matcher: '*', hooks: [{ type: 'command', command: cmd('tool', (late ? ' --late' : '') + rec), timeout: 10 }] }] } : {}),
+          Stop: [{ type: 'command', command: cmd('stop', stopFlags), timeout: 10 }],
+        };
+        mergeJson(f.agyHooks, c => ({ ...c, thinker: agy }));
+      } else if (fs.existsSync(f.agyHooks)) {
+        mergeJson(f.agyHooks, c => { const n = { ...c }; delete n.thinker; return n; });
+        if (!Object.keys(readJsonOr(f.agyHooks, {})).length) fs.unlinkSync(f.agyHooks);
+      }
+    }
+    if (mcp) done.push(`Gemini CLI: registered MCP server in ${rel(f.settings)}${f.agyMcp ? ` and ${rel(f.agyMcp)}` : ''}`);
+    if (hooks) done.push(`Gemini CLI: hooks in ${rel(f.settings)}${f.agyHooks ? ` and ${rel(f.agyHooks)}` : ''}: notes injected on each prompt${late ? ', file-keyed notes while working' : ''}${learned}`);
     if (mcp || hooks) localFiles([f.settings]);
   }
 
@@ -1434,6 +1521,11 @@ export function uninstallWiring({ scope = 'repo', repo } = {}) {
     fs.rmSync(goosePlugin(), { recursive: true, force: true });
     setGooseExtension(wiringFiles('goose', o).yaml, null);
     dropGoosePlugin(wiringFiles('goose', o).yaml);
+    if (gemini.agyHooks && fs.existsSync(gemini.agyHooks)) {
+      mergeJson(gemini.agyHooks, c => { const n = { ...c }; delete n.thinker; return n; });
+      if (!Object.keys(readJsonOr(gemini.agyHooks, {})).length) fs.unlinkSync(gemini.agyHooks);
+    }
+    if (gemini.agyMcp) dropMcpEntry(gemini.agyMcp);
   }
   const stripHooks = (file, keepVersion) => file && stripThinkerHooks(file, { keepVersion, mcp: true });
   if (scope === 'user' && cardDirIn(readJsonOr(claude.local, {}))) mergeJson(claude.local, withoutCardDir);
