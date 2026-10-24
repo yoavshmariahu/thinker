@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
-import { reportView, mergeReports, renderReport, trend, change, weekColumns, weekStart, cacheMetrics, PARTS, BREAKDOWN, outputComparison } from '../src/report.js';
+import { reportView, mergeReports, renderReport, trend, change, weekColumns, weekStart, cacheMetrics, PARTS, BREAKDOWN, TOKEN_TYPES, OTHERS, outputComparison } from '../src/report.js';
 import { listPrice, providerOf, costOf, formatDollars } from '../src/prices.js';
 
 function fixture(t) {
@@ -103,6 +103,17 @@ test('the report averages each week over its sessions, by part and by model unde
   assert.deepEqual(v.parts.map(p => p.key), ['instructions', 'custom', 'builtin', 'outputs'], 'the tables show the four the Save page controls');
   assert.deepEqual(v.breakdown.map(p => p.key), BREAKDOWN.map(([k]) => k));
   assert.equal(v.totals[last].tokens, v.parts.reduce((a, p) => a + p.cells[last].tokens, 0), 'the parts table totals the four');
+  // the three tables add up to the same whole session: the parts with the rest of the input and the output under them…
+  assert.deepEqual(v.others.map(p => p.key), OTHERS.map(([k]) => k));
+  assert.equal(avg(v.others.find(p => p.key === 'output').cells, last), 100);
+  assert.equal(v.others.find(p => p.key === 'otherInput').cells[last].tokens, v.breakdown.filter(p => !PARTS.some(([k]) => k === p.key) && p.key !== 'output').reduce((a, p) => a + p.cells[last].tokens, 0));
+  for (const w of [4, last]) assert.equal(v.totals[w].tokens + v.others.reduce((a, p) => a + p.cells[w].tokens, 0), v.sessionTotals[w].tokens, 'the parts with the others are the whole session');
+  // …and the tokens by type: an Opus session is two turns of 200 fresh, 300 read from the cache, 50 output
+  assert.deepEqual(v.tokenTypes.map(p => p.key), TOKEN_TYPES.map(([k]) => k));
+  const tt = k => v.tokenTypes.find(p => p.key === k);
+  assert.equal(avg(tt('fresh').cells, last), 400); assert.equal(avg(tt('cacheRead').cells, last), 600); assert.equal(avg(tt('cacheWrite').cells, last), 0); assert.equal(avg(tt('output').cells, last), 100);
+  for (const w of [4, last]) assert.equal(v.tokenTypes.reduce((a, p) => a + p.cells[w].tokens, 0), v.sessionTotals[w].tokens, 'the types are the whole session');
+  assert.equal(tt('fresh').cells[4].tokens, 4000 + 200, 'the gpt and mystery sessions report no cache reads');
   // last week: one gpt-6-astra session (4,020 tokens) and one on an unpriced model (202)
   assert.equal(avg(v.sessionTotals, 4), (4020 + 202) / 2);
   assert.deepEqual(v.unpriced, ['mystery-9']);
@@ -118,12 +129,19 @@ test('the report averages each week over its sessions, by part and by model unde
   assert.ok(Math.abs(v.sessionTotals[last].cost - 2 * sessionCost) < 1e-9);
   assert.ok(Math.abs(v.breakdown.reduce((a, p) => a + p.cells[last].cost, 0) - 2 * sessionCost) < 1e-9, 'the breakdown\'s cost adds up to the sessions\' cost');
   assert.ok(Math.abs(bd('output').cells[last].cost - 2 * 100 * 20 / 1e6) < 1e-12);
+  // each type at its rate, the four adding up to the sessions' cost
+  assert.ok(Math.abs(tt('fresh').cells[last].cost - 2 * 400 * 4 / 1e6) < 1e-12); assert.ok(Math.abs(tt('cacheRead').cells[last].cost - 2 * 600 * 0.2 / 1e6) < 1e-12);
+  assert.ok(Math.abs(v.tokenTypes.reduce((a, p) => a + p.cells[last].cost, 0) - 2 * sessionCost) < 1e-9);
+  assert.ok(Math.abs(v.totals[last].cost + v.others.reduce((a, p) => a + p.cells[last].cost, 0) - 2 * sessionCost) < 1e-9);
   assert.ok(Math.abs(v.sessionTotals[4].cost - costOf({ input: 4000, output: 20 }, listPrice('gpt-6-astra'))) < 1e-9, 'the unpriced session adds no cost');
   // the actions in the window, the cache's numbers over it
   assert.deepEqual(v.actions.map(a => a.id), ['h1']);
   assert.equal(v.cache.hits, 0); assert.equal(v.cache.dollarsSaved, 0); assert.equal(v.cache.acted, null);
   // the command's text: the two tables with totals, the marks, the actions and the cache
   const text = renderReport(v).join('\n');
+  assert.match(text, /By token type/); assert.match(text, /Input, read from cache/); assert.match(text, /Other input/); assert.doesNotMatch(text, /Total of these/);
+  assert.equal((text.match(/TOTAL \(THE WHOLE SESSION\)/g) || []).length, 3, 'every table ends on the whole session');
+  assert.ok(text.indexOf('By token type') < text.indexOf('By part of the context'), 'the token types first');
   assert.match(text, /By part of the context/); assert.match(text, /TOTAL/); assert.match(text, /ANTHROPIC/); assert.match(text, /claude-opus-5-5/);
   assert.match(text, /mystery-9 \(unpriced\)/); assert.match(text, /Workflow tool/); assert.match(text, /\$ saved\s+\$0\.00/);
   assert.match(renderReport(v, { cost: true }).join('\n'), /list prices/);
@@ -132,6 +150,11 @@ test('the report averages each week over its sessions, by part and by model unde
   const m = mergeReports([{ repo: 'a', name: 'A', view: v }, { repo: 'b', name: 'B', view: v }]);
   assert.deepEqual(m.columns.map(c => c.sessions), [0, 0, 0, 0, 4, 4]);
   assert.equal(m.sessionTotals[last].tokens, 4400);
+  assert.equal(m.tokenTypes.find(p => p.key === 'cacheRead').cells[last].tokens, 2400); assert.equal(m.others.find(p => p.key === 'output').cells[last].tokens, 400);
+  // a kept report from before the token types merges as zeros, and the page renders it without them
+  const old = { ...v }; delete old.tokenTypes; delete old.others;
+  assert.equal(mergeReports([{ repo: 'a', name: 'A', view: old }]).tokenTypes.find(p => p.key === 'fresh').cells[last].tokens, 0);
+  assert.match(renderReport(old).join('\n'), /By token type/);
   assert.equal(m.models.find(x => x.model === 'claude-opus-5-5').cells[last].sessions, 4);
   assert.deepEqual(m.actions.map(a => a.repoName), ['A', 'B']);
   assert.equal(mergeReports([]), null);

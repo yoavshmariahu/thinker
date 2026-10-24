@@ -98,8 +98,9 @@ promise: cutting a section saves its tokens, and whether the agent then misses i
 
 The page's other view, View Report (`thinker report`; the first view is Find Savings), is the same measurement over time: what a session
 costs here, week by week over the last six, as the average over each week's sessions. One table by
+type of token (input read fresh, input written to the prompt cache, input read back from it, output), one by
 part of the context (the instruction files, custom tools, built-in tools, tool outputs, the rest of the
-input, the output), one by model under its provider with subtotals, totals under both; each cell is shaded by its
+input, the output), one by model under its provider with subtotals, the same whole-session total under each; each cell is shaded by its
 number against the table, the highest the darkest red and the lowest the darkest green, and a toggle shows each week's sum instead of
 the average per session. A toggle prices the same tokens at the
 providers' list rates, so a switch of model shows in the trend. Under the tables: the actions taken on

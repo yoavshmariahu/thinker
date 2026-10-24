@@ -1,5 +1,6 @@
 // The Report page (`thinker report`, the page's View Report tab; the Find Savings tab is `save`, the tab ids stay): what a session costs here, week by week, as the average
-// over the sessions of each week, by the part of the context the tokens went to and by the model that read them,
+// over the sessions of each week, by the type of token (fresh input, cache writes, cache reads, output), by the part of
+// the context the tokens went to and by the model that read them, the three tables adding up to the same whole session,
 // with a cost view at list prices (prices.js). Read from the agents' own transcripts over the last REPORT_WEEKS
 // weeks (Monday to Sunday, the current week so far last): each session's model and reported usage
 // (tool-outputs.js:sessionUsage, from transcripts.js:Stats), and the parts the Context view estimates for it (the
@@ -33,8 +34,9 @@ export const TREND_MIN = 0.05;
 // model wrote. The instruction files are the larger of the transcript's payload (the root file with the person's global
 // file and memory, where the transcript carries it from the first call) and the Save page's estimate of the root file.
 // The whole breakdown is computed and kept in the view (`breakdown`, `thinker report --json`); the tables show the four
-// parts the Save page measures and controls (PARTS), their total under them, and the whole session's tokens under the
-// model table (`sessionTotals`). The other kinds are written up in research/context-breakdown-2026-10-22.md, for the
+// parts the Save page measures and controls (PARTS), under them the rest of the input as one row and the output (OTHERS,
+// since 2026-10-24, so the table adds up to the whole session), and the whole session's tokens (`sessionTotals`) under
+// every table. The other kinds are written up in research/context-breakdown-2026-10-22.md, for the
 // work on cutting them (the owner's decision, 2026-10-22).
 export const BREAKDOWN = [
   ['instructions', 'Instruction files'], ['system', 'System prompt'], ['custom', 'Custom tools'], ['builtin', 'Built-in tools'], ['outputs', 'Tool outputs'],
@@ -42,6 +44,14 @@ export const BREAKDOWN = [
   ['other', 'Other input'], ['output', 'Output'],
 ];
 export const PARTS = BREAKDOWN.filter(([k]) => ['instructions', 'custom', 'builtin', 'outputs'].includes(k));
+// the rest of the session under the four parts, so the parts table adds up to the whole session (2026-10-24, the owner's
+// ask): the other input as one row (the conversation: REST_INPUT, the breakdown's other input kinds), and the output
+export const REST_INPUT = BREAKDOWN.map(([k]) => k).filter(k => !PARTS.some(([p]) => p === k) && k !== 'output');
+export const OTHERS = [['otherInput', 'Other input'], ['output', 'Output']];
+// the tokens by type, as the model reported them for each call and the transcript sums them (transcripts.js:Stats,
+// model-usage.js): fresh input, at the input rate; input written to the prompt cache and input read from it, each at its
+// rate; and output. The four add up to the whole session, as the parts and the models do: three tables, one total.
+export const TOKEN_TYPES = [['fresh', 'Input, fresh'], ['cacheWrite', 'Input, written to cache'], ['cacheRead', 'Input, read from cache'], ['output', 'Output']];
 const DAY = 86400_000;
 // the Monday that starts the week of t, local time
 export function weekStart(t) { const d = new Date(t); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); }
@@ -78,6 +88,7 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   const week = t => cols.findIndex(c => t >= c.t && t < c.end);
   const columns = cols.map(c => ({ t: c.t, sessions: 0, priced: 0, unmeasured: 0 }));
   const byPart = Object.fromEntries(BREAKDOWN.map(([k]) => [k, cols.map(cell)]));
+  const byType = Object.fromEntries(TOKEN_TYPES.map(([k]) => [k, cols.map(cell)]));
   const models = new Map(), unpriced = new Set();
   for (const r of rows) {
     const w = week(r.t); if (w < 0) continue;
@@ -94,12 +105,21 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
     const other = Math.max(0, input - sum * scale);
     add(byPart.other[w], other, inCost == null ? 0 : other * inCost);
     add(byPart.output[w], output, price ? output * price.output / 1e6 : 0);
+    // by type: the input is the reads and writes included (model-usage.js), the fresh part what is left; a record whose
+    // reads and writes exceed its input (none should) is clamped so the four still add up to the session
+    const write = Math.min(u.cacheWrite || 0, input), read = Math.min(u.cacheRead || 0, input - write), fresh = input - read - write;
+    add(byType.fresh[w], fresh, price ? fresh * price.input / 1e6 : 0);
+    add(byType.cacheWrite[w], write, price ? write * price.cacheWrite / 1e6 : 0);
+    add(byType.cacheRead[w], read, price ? read * price.cacheRead / 1e6 : 0);
+    add(byType.output[w], output, price ? output * price.output / 1e6 : 0);
     const key = r.model || 'unknown';
     if (!models.has(key)) models.set(key, { model: key, provider: providerOf(r.model, r.client), priced: Boolean(price), cells: cols.map(cell) });
     add(models.get(key).cells[w], input + output, cost, 1, cost == null ? 0 : 1);
   }
   const totalOf = keys => cols.map((_, w) => { const c = cell(); for (const k of keys) add(c, byPart[k][w].tokens, byPart[k][w].cost); return c; });
   const totals = totalOf(PARTS.map(([k]) => k)), sessionTotals = totalOf(BREAKDOWN.map(([k]) => k));
+  const others = OTHERS.map(([key, name]) => ({ key, name, cells: key === 'output' ? byPart.output : totalOf(REST_INPUT) }));
+  const tokenTypes = TOKEN_TYPES.map(([key, name]) => ({ key, name, cells: byType[key] }));
   // the models by provider, the biggest provider first and the biggest model within it
   const windowOf = m => m.cells.reduce((a, c) => a + c.tokens, 0);
   const modelRows = [...models.values()].sort((a, b) => a.provider.localeCompare(b.provider) || windowOf(b) - windowOf(a));
@@ -112,7 +132,8 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   const actions = reportActions(store, from, outRows);
   return {
     weeks, days, from, to: now, pricedOn: PRICED_ON, columns,
-    parts: PARTS.map(([key, name]) => ({ key, name, cells: byPart[key] })), totals, sessionTotals,
+    tokenTypes,
+    parts: PARTS.map(([key, name]) => ({ key, name, cells: byPart[key] })), others, totals, sessionTotals,
     breakdown: BREAKDOWN.map(([key, name]) => ({ key, name, cells: byPart[key] })),
     providers, models: modelRows, unpriced: [...unpriced],
     actions, outputRows: outRows, cache: cacheMetrics(store, { days, config }),
@@ -186,7 +207,9 @@ export function mergeReports(list) {
   return {
     all: true, weeks: first.weeks, days: first.days, from: first.from, to: first.to, pricedOn: first.pricedOn,
     columns: Array.from({ length: n }, (_, w) => ({ t: first.columns[w].t, sessions: views.reduce((a, v) => a + v.columns[w].sessions, 0), priced: views.reduce((a, v) => a + v.columns[w].priced, 0), unmeasured: views.reduce((a, v) => a + v.columns[w].unmeasured, 0) })),
+    tokenTypes: TOKEN_TYPES.map(([key, name]) => ({ key, name, cells: sumCells(views.map(v => (v.tokenTypes || []).find(p => p.key === key)?.cells || [])) })),
     parts: PARTS.map(([key, name]) => ({ key, name, cells: sumCells(views.map(v => v.parts.find(p => p.key === key)?.cells || [])) })),
+    others: OTHERS.map(([key, name]) => ({ key, name, cells: sumCells(views.map(v => (v.others || []).find(p => p.key === key)?.cells || [])) })),
     breakdown: BREAKDOWN.map(([key, name]) => ({ key, name, cells: sumCells(views.map(v => (v.breakdown || []).find(p => p.key === key)?.cells || [])) })),
     totals: sumCells(views.map(v => v.totals)), sessionTotals: sumCells(views.map(v => v.sessionTotals)),
     providers, models: modelRows, unpriced: [...new Set(views.flatMap(v => v.unpriced))],
@@ -206,9 +229,13 @@ export function renderReport(v, { cost = false, total = false } = {}) {
   const W = 11, line = (name, cells, bold) => `  ${(bold ? name.toUpperCase() : name).slice(0, 30).padEnd(30)}${cells.map((c, w) => (avg(c, w) ? `${fmtv(avg(c, w))}${mark(cells, w)}` : '').padStart(W)).join('')}`;
   const head = `  ${''.padEnd(30)}${v.columns.map(c => `wk ${label(c.t)}`.padStart(W)).join('')}`;
   L.push(`${total ? 'Total' : 'Average'} ${cost ? 'cost' : 'tokens'} ${total ? 'over the week\'s sessions' : 'per session'}, by week (${v.columns.map(c => c.sessions).join(', ')} sessions)${cost ? `, at list prices of ${v.pricedOn}` : ''}`);
-  L.push('', 'By part of the context (the four the Find Savings page measures and controls; --json holds the whole breakdown)', head);
+  L.push('', 'By token type (as the model reported them: fresh input, input written to and read from the prompt cache, output)', head);
+  for (const p of v.tokenTypes || []) L.push(line(p.name, p.cells));
+  L.push(line('Total (the whole session)', v.sessionTotals, true));
+  L.push('', 'By part of the context (the four the Find Savings page measures and controls, the rest of the input as one line; --json holds the whole breakdown)', head);
   for (const p of v.parts) L.push(line(p.name, p.cells));
-  L.push(line('Total of these', v.totals, true));
+  for (const p of v.others || []) L.push(line(p.name, p.cells));
+  L.push(line('Total (the whole session)', v.sessionTotals, true));
   L.push('', 'By model', head);
   for (const p of v.providers) { L.push(line(p.name, p.cells, true)); for (const m of v.models.filter(x => x.provider === p.name)) L.push(line(`  ${m.model}${m.priced ? '' : ' (unpriced)'}`, m.cells)); }
   L.push(line('Total (the whole session)', v.sessionTotals, true));

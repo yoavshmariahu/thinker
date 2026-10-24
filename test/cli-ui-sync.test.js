@@ -186,7 +186,7 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   // the page shades a cell by its value against every cell of its table (the highest red, the lowest green), a total row
   // against its own weeks; the command marks the change against the first week
   assert.match(read('ui/page.html'), /const SHADE_MIN = 0\.1;/);
-  assert.match(read('ui/page.html'), /valuesOf\(v\.parts\.map\(p => p\.cells\)\)/);
+  assert.match(read('ui/page.html'), /valuesOf\(\[\.\.\.v\.parts, \.\.\.others\]\.map\(p => p\.cells\)\)/); assert.match(read('ui/page.html'), /valuesOf\(types\.map\(p => p\.cells\)\)/);
   assert.match(read('report.js'), /change\(avg\(cells\[0\], 0\), avg\(cells\[w\], w\)\)/);
   // the decisions table is one function on both pages, the Report's over its window alone
   assert.match(read('ui/page.html'), /historyFigure\(hs, \{ many, caption: 'Decisions'/);
@@ -197,10 +197,23 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('ui/page.html'), /const TABLE_PAGE = 20, VPAGE = \{\};/);
   assert.match(read('ui/page.html'), /rows\.slice\(from, from \+ TABLE_PAGE\)/);
   assert.match(read('ui/page.html'), /historyFigure\(acts, \{ many: Boolean\(v\.all\), caption: 'Actions in the window'/);
-  // the cost view is the command's --cost: list prices from prices.js, the unpriced models named on both
+  // the cost view is the command's --cost: list prices from prices.js, an unpriced model marked on both (the command in its
+  // row's name, the page in the row's kind: the Report's tables carry no prose under them since 2026-10-24, the owner's ask)
   assert.match(read('commands/report.js'), /cost: Boolean\(flags\.cost\)/);
   assert.match(read('report.js'), /listPrice\(r\.model, \{ config \}\)/);
-  assert.match(read('ui/page.html'), /v\.unpriced\.map\(esc\)/);
+  assert.match(read('report.js'), /\(unpriced\)/); assert.match(read('ui/page.html'), /sub: m\.priced \? '' : 'no list price'/);
+  assert.doesNotMatch(read('ui/page.html'), /class="lede">What a session costs here/); assert.doesNotMatch(read('ui/page.html'), /A model's row is its share/);
+  // three tables under both doors, each ending on the whole session: the token types (report.js:TOKEN_TYPES, the page reads the
+  // rows from the view, so the names live in one place), the parts with the rest of the input and the output under them
+  // (report.js:OTHERS), the models; the token types first (2026-10-24)
+  assert.match(read('report.js'), /export const TOKEN_TYPES = \[\['fresh', 'Input, fresh'\], \['cacheWrite', 'Input, written to cache'\], \['cacheRead', 'Input, read from cache'\], \['output', 'Output'\]\];/);
+  assert.match(read('report.js'), /export const OTHERS = \[\['otherInput', 'Other input'\], \['output', 'Output'\]\];/);
+  assert.match(read('report.js'), /'By token type \(as the model reported them/); assert.match(read('ui/page.html'), /<b>By token type<\/b>/);
+  assert.match(read('ui/page.html'), /el\.innerHTML = tokenTypes \+ parts \+ models \+ actions \+ cards;/);
+  assert.doesNotMatch(read('ui/page.html'), /Total of these/); assert.doesNotMatch(read('report.js'), /'Total of these'/);
+  assert.equal((read('report.js').match(/line\('Total \(the whole session\)', v\.sessionTotals, true\)/g) || []).length, 3);
+  assert.equal((read('ui/page.html').match(/row\('Total \(the whole session\)', v\.sessionTotals, \{ cls: 'rep-total' \}\)/g) || []).length, 3);
+  assert.match(read('ui/page.html'), /\.\.\.others\.map\(p => row\(esc\(p\.name\), p\.cells/); assert.match(read('report.js'), /for \(const p of v\.others \|\| \[\]\) L\.push\(line\(p\.name, p\.cells\)\);/);
   // the same four numbers under both, the dollars first (report.js:cacheMetrics), and the actions from context-suggest.js
   for (const f of ['report.js', 'ui/page.html']) { assert.match(read(f), /\$ saved/); assert.match(read(f), /Tokens saved|tokens saved/); }
   assert.match(read('report.js'), /changeHistory\(store\)\.filter\(e => Date\.parse\(e\.at\) >= from\)/);

@@ -1371,9 +1371,14 @@ this repository's 30 longest recent sessions (2026-10-22, from the
 12%, user text 11%, thinking 11%, Claude Code's own system messages 5%, tool definitions 4%, the system prompt 2%. The
 parts are scaled down to the session's measured input where their sum overshoots it (they are estimates with different
 multipliers); what is left of the input is "Other input", and "Output" is what the model wrote, so the whole adds up to
-the session's tokens. **The tables show the four parts the Save page measures and controls** (instruction files, custom
-tools, built-in tools, tool outputs; `report.js:PARTS`) with their own total, and the whole session's tokens under the
-model table (`sessionTotals`); the rest is computed all the same (`BREAKDOWN`, `thinker report --json`) and written up
+the session's tokens. **Three tables, one total (2026-10-24, the owner's ask).** First the tokens by type (`report.js:TOKEN_TYPES`: the input read
+fresh, the input written to the prompt cache, the input read back from it, and the output, as the model reported them for each
+call and `transcripts.js:Stats` sums them; in the cost view each at its own list rate, the formula of `prices.js:costOf`); then
+the four parts the Save page measures and controls (instruction files, custom tools, built-in tools, tool outputs;
+`report.js:PARTS`) with the rest of the input as one row (`OTHERS`: Other input, the conversation itself, the breakdown's other
+input kinds summed) and the output under them; then the models. Every table ends on the whole session (`sessionTotals`), so
+the three add up to the same figure (a usage record whose cache reads and writes exceed its input is clamped so the types
+still do). Until that day the parts table showed the four alone with their own total; the rest is computed all the same (`BREAKDOWN`, `thinker report --json`) and written up
 with its numbers, the unit calibration (the model reports 1.44 tokens for every four characters: at chars/4 the parts
 cover 74% of a long session's input, the residual is the unit, not a missing part) and the cuts to consider in
 `research/context-breakdown-2026-10-22.md` (the owner's decision, 2026-10-22). The second table is by model under its provider
