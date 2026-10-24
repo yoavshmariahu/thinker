@@ -1301,8 +1301,11 @@ is still the experiment's. **Which agents can reach it (2026-10-24, checked on t
 agent does, so until that day a request without it passed untouched (`no-beta`) and the proxy cleared for Claude Code
 alone; now the header is added upstream (`proxy.js:withBeta`, logged `betaAdded`), and the API accepted it on an OAuth
 session with the header and block stripped from Claude Code's own requests first. Reaches it: Claude Code 2.1.310 from
-the shell variable and from a settings file's `env` block (`--settings`; the desktop app's Code tab and the IDE
-extensions run the same Claude Code and read `~/.claude/settings.json`, not run live), and the agents that speak the
+the shell variable and from a settings file's `env` block (`--settings`; the VS Code and JetBrains extensions run the
+same Claude Code and read `~/.claude/settings.json`, not run live). Not the Claude desktop app's Code tab: Desktop sets
+`ANTHROPIC_BASE_URL` itself for a local session and Claude Code ignores the settings-file value there
+(code.claude.com/docs/en/desktop); its only gateway route is the enterprise "third-party inference" configuration,
+which also turns the experimental betas off. Beyond Claude Code, the agents that speak the
 Messages API at a settable base URL: pi (`providers.anthropic.baseUrl` in `models.json`, reached the proxy live;
 this account's OAuth is refused for third-party apps, so no answer came back), OpenCode (`provider.anthropic.options.baseURL`),
 Goose, Aider, Cline, Droid (from their documentation). Cannot: Codex (the Responses API alone since 0.162, `wire_api

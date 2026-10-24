@@ -259,7 +259,7 @@ plugin on a machine without thinker does nothing.
 - **Clearing old tool results through the proxy** (`thinker proxy --port n [--keep n|turn] [--trigger n]
   [--clear-at-least n]`): for any agent that speaks the Anthropic Messages API at a base URL the person can set
   (Claude Code's `ANTHROPIC_BASE_URL`, in the shell or in the `env` block of `~/.claude/settings.json`, which the
-  desktop app's Code tab and the IDE extensions read too; pi's `providers.anthropic.baseUrl` in
+  IDE extensions read too but the Claude desktop app's Code tab does not, Desktop setting the variable itself; pi's `providers.anthropic.baseUrl` in
   `~/.pi/agent/models.json`; OpenCode's `provider.anthropic.options.baseURL`; Goose's `ANTHROPIC_HOST`; Aider's,
   Cline's and Droid's Anthropic base URL), each request carries the
   API's `clear_tool_uses` edit, with the beta header it needs added when the agent does not send it (Claude Code
