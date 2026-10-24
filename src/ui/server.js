@@ -171,7 +171,10 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
           const one = storeFor(want); if (!one) return json(res, 400, { error: 'unknown repository' });
           ({ view, at, refreshing: busy } = read(one));
         }
-        return json(res, 200, { ...view, asOf: Number.isFinite(at) ? at : Date.now(), refreshing: !!busy });
+        // the suggested savings (context-machine.js:suggestedPicks, the rows the installer's terminal picker lists): the page
+        // the installer opens comes with them checked. Imported here, not at the top: context-machine.js imports this module.
+        const { suggestedPicks } = await import('../context-machine.js');
+        return json(res, 200, { ...view, suggested: suggestedPicks(view), asOf: Number.isFinite(at) ? at : Date.now(), refreshing: !!busy });
       }
       // Context's History (context-suggest.js): the decisions so far, for one repository or each of them, and the top changes of the
       // kept report less the ones decided lately (what the session's summary names; the page's All lists every part from /api/context)

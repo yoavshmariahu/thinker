@@ -262,6 +262,13 @@ test('all repositories: the timeline joined, sections tagged with their reposito
   assert.equal(v.all, true); assert.equal(v.sessions, 4); assert.equal(v.timeline.length, 2);
   assert.deepEqual(v.instructions.sections.map(s => s.repoName), ['A', 'B']);
   assert.equal(v.tools.length, 1); assert.equal(v.tools[0].loaded, 4); assert.equal(v.tools[0].perSession, 400, 'weighted by the sessions that loaded it');
+  // a merged row names its repositories and belongs to none; it keeps a switch label where any repository has one, so
+  // All can switch it off in each of them (the page's Apply, per repository)
+  assert.deepEqual(v.tools[0].repoIds, ['a', 'b']); assert.equal(v.tools[0].repo, null); assert.equal(v.tools[0].label, null);
+  const v2 = mergeViews([{ repo: 'a', name: 'A', view: view(1, { ...tool(1, 100), label: 'mcp:rea' }, { id: 's', perSession: 10 }) }, { repo: 'b', name: 'B', view: view(3, tool(3, 500), { id: 's', perSession: 10 }) }]);
+  assert.equal(v2.tools[0].label, 'mcp:rea');
+  const v3 = mergeViews([{ repo: 'a', name: 'A', view: view(1, tool(1, 100), { id: 's', perSession: 10 }) }]);
+  assert.equal(v3.tools[0].repo, 'a', 'one repository\'s row keeps its repository'); assert.deepEqual(v3.tools[0].repoIds, ['a']);
   assert.equal(v.instructions.savings.window, 100);
   // waste from the merged figures, never above the merged cost: the first repository's row costs 2,000 a session, all of it
   // unused (used in 0 of 2), the second 100 used every time; merged, 2 of 6 sessions used it at a cost of 733 a session
