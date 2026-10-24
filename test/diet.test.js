@@ -8,7 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
-import { DIET, dietConfig, dietResult, trimFile, groupSearch, promptTerms, searchTerms, rememberTerms, trimTestOutput, capMcpResult } from '../src/diet.js';
+import { DIET, dietConfig, dietResult, trimFile, groupSearch, promptTerms, searchTerms, rememberTerms, trimTestOutput, capMcpResult, levelOf, dietTimeline } from '../src/diet.js';
 import { toolOutput } from '../src/clients.js';
 
 process.env.THINKER_TELEMETRY = 'off';
@@ -195,4 +195,35 @@ test('toolOutput carries the replacement beside the context only for Claude Code
   assert.deepEqual(JSON.parse(toolOutput('claude', '', { updated: { stdout: 'x' } })), { hookSpecificOutput: { hookEventName: 'PostToolUse', updatedToolOutput: { stdout: 'x' } } });
   assert.deepEqual(JSON.parse(toolOutput('claude', 'ctx')), { hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: 'ctx' } });
   assert.deepEqual(JSON.parse(toolOutput('gemini', 'ctx', { updated: { stdout: 'x' } })), { hookSpecificOutput: { hookEventName: 'AfterTool', additionalContext: 'ctx' } });
+});
+
+// The settings over time, from the log of every setting made: what a tool's output was compressed at when a call was made
+test('dietTimeline: the level a tool had at a time, from the diet-settings log, the config of now from the last entry on', () => {
+  const log = [
+    { t: '2026-10-22T20:00:54.033Z', op: 'diet-settings', tools: { 'mcp:artemis': 'moderate' } },
+    { t: '2026-10-22T20:00:54.036Z', op: 'diet-settings', tools: { 'mcp:artemis': 'moderate', 'Bash:sed': 'moderate' } },
+    { t: '2026-10-23T09:00:00.000Z', op: 'diet', kind: 'cap', before: 1, after: 1 },
+  ];
+  const cfg = { enabled: true, tools: { 'mcp:artemis': 'moderate', 'Bash:sed': 'moderate' } };
+  const tl = dietTimeline(cfg, log), at = s => Date.parse(s);
+  assert.equal(tl.levelAt('Bash:sed', at('2026-10-22T19:00:00Z')), null, 'none before the first setting');
+  assert.equal(tl.levelAt('Bash:sed', at('2026-10-22T20:00:54.034Z')), null, 'between the two: sed not yet set');
+  assert.equal(tl.levelAt('Bash:sed', at('2026-10-23T00:00:00Z')), 'moderate');
+  assert.equal(tl.levelAt('mcp:artemis', at('2026-10-23T00:00:00Z')), 'moderate');
+  assert.equal(tl.levelAt('Bash:grep', at('2026-10-23T00:00:00Z')), null);
+  assert.equal(tl.since('Bash:sed', 'moderate'), at('2026-10-22T20:00:54.036Z'));
+  assert.equal(tl.since('Bash:sed', null), null, 'not what it is now');
+  // a config edited by hand since the last entry is the truth from that entry on; with no entry at all, for all time
+  const hand = dietTimeline({ enabled: true, tools: { 'Bash:sed': 'high' } }, log);
+  assert.equal(hand.levelAt('Bash:sed', at('2026-10-23T00:00:00Z')), 'high');
+  assert.equal(hand.levelAt('Bash:sed', at('2026-10-22T20:00:54.034Z')), null);
+  assert.equal(dietTimeline(cfg, []).levelAt('Bash:sed', at('2020-01-01T00:00:00Z')), 'moderate');
+  assert.equal(dietTimeline({ enabled: false }, []).levelAt('Bash:sed', at('2026-10-23T00:00:00Z')), null);
+  // the key names the timeline: another snapshot, or another config of now, is another key
+  assert.notEqual(tl.key, hand.key); assert.equal(tl.key, dietTimeline(cfg, log).key); assert.notEqual(tl.key, dietTimeline(cfg, log.slice(1)).key);
+  // levelOf as toolLevel sees a call: a program's own level, else Bash's; an MCP server moderate at any level set
+  assert.equal(levelOf({ tools: { Bash: 'high' } }, 'Bash:sed'), 'high');
+  assert.equal(levelOf({ tools: { 'mcp:x': 'high' } }, 'mcp:x'), 'moderate');
+  assert.equal(levelOf({ enabled: true }, 'Bash:sed'), 'moderate', 'a config without tools: moderate for every compressible tool');
+  assert.equal(levelOf({ enabled: true }, 'Grep'), null);
 });

@@ -23,13 +23,15 @@ test('tool names from every agent map to one vocabulary', () => {
 test('Claude Code transcript', () => {
   const f = write([
     { type: 'user', cwd: '/r', message: { content: 'where is x' } },
-    { type: 'assistant', message: { model: 'claude-opus-5-5', content: [{ type: 'text', text: 'looking' }, { type: 'tool_use', id: 'a', name: 'Read', input: { file_path: 'src/x.py' } }] } },
+    { type: 'assistant', timestamp: '2026-10-22T20:01:02.000Z', message: { model: 'claude-opus-5-5', content: [{ type: 'text', text: 'looking' }, { type: 'tool_use', id: 'a', name: 'Read', input: { file_path: 'src/x.py' } }] } },
     { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'a', content: [{ type: 'text', text: 'def x(): pass' }] }] } },
     { type: 'assistant', message: { model: 'claude-opus-5-5', content: [{ type: 'text', text: 'in src/x.py' }] } },
   ]);
   const r = parseTranscript(f);
   assert.equal(r.format, 'claude');
   assert.deepEqual(shape(r.events), ['prompt:where is x', 'say:looking', 'Read:src/x.py=def x(): pass', 'say:in src/x.py']);
+  // a tool call carries when it was made, so its result is measured under the output compression in force then (tool-outputs.js)
+  assert.equal(r.events.find(e => e.t === 'tool').at, Date.parse('2026-10-22T20:01:02.000Z'));
   assert.equal(r.model, 'claude-opus-5-5');
   // the model is that of the whole session, even when only the tail is read
   assert.equal(parseTranscript(f, { fromLine: 3 }).events.length, 1);

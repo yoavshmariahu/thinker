@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sessionOutputs, toolKey } from '../src/tool-outputs.js';
+import { sessionOutputs, toolKey, aggregateOutputs, recordKey, splitKey } from '../src/tool-outputs.js';
 
 const prompt = text => ({ t: 'prompt', text });
 const sh = (command, result) => ({ t: 'tool', name: 'Bash', input: { command }, result });
@@ -48,4 +48,40 @@ test('several tool calls in one model call scale the reads down', () => {
 test('tool keys: a shell command by its program, an MCP server as one', () => {
   assert.equal(toolKey('Bash', { command: 'cd x && sed -n 1,5p a' }), 'Bash:sed');
   assert.equal(toolKey('mcp__artemis__get_session', {}), 'mcp:artemis');
+});
+
+// A tool's results are measured under the compression setting they ran with: `Bash:sed` for calls made with none,
+// `Bash:sed@moderate` for calls made while it was set to moderate (diet.js:dietTimeline gives levelAt)
+const T0 = Date.parse('2026-10-22T12:00:00Z'), SET = Date.parse('2026-10-22T20:00:00Z');
+const levelAt = (key, at) => key === 'Bash:sed' && at >= SET ? 'moderate' : null;
+test('a call is keyed by the compression its tool had when it was made', () => {
+  const events = [prompt('a'), { ...sh('sed -n 1,40p a.js', body), at: T0 }, { ...sh('sed -n 1,40p b.js', body), at: SET + 1 }, { ...sh('ls', 'x'), at: SET + 2 }];
+  const by = sessionOutputs(events, 0, [], { levelAt });
+  assert.deepEqual(Object.keys(by).sort(), ['Bash:ls', 'Bash:sed', 'Bash:sed@moderate']);
+  assert.equal(by['Bash:sed'].calls, 1); assert.equal(by['Bash:sed@moderate'].calls, 1);
+  // a call without a time is given to the caller's levelAt as undefined: the caller takes the session's time
+  assert.deepEqual(Object.keys(sessionOutputs([prompt('a'), sh('sed -n 1p a', body)], 0, [], { levelAt: (k, at) => at === undefined ? 'high' : null })), ['Bash:sed@high']);
+  assert.deepEqual(splitKey(recordKey('Bash:sed', 'moderate')), { name: 'Bash:sed', level: 'moderate' });
+  assert.deepEqual(splitKey('mcp:artemis'), { name: 'mcp:artemis', level: null });
+});
+
+test('aggregateOutputs: a row per tool and setting, each over the sessions that ran under it, linked to the tool\'s other rows', () => {
+  const rec = (at, by) => ({ at, t: at, by });
+  const sed = (input, unneeded = 0) => ({ calls: 1, tokens: 100, input, unneeded, saveModerate: 0, saveHigh: 0 });
+  // three sessions before the setting, two after; the second session after it called sed twice as one record
+  const recs = [rec(T0, { 'Bash:sed': sed(1000, 800) }), rec(T0 + 1, { 'Bash:sed': sed(2000, 1600) }), rec(T0 + 2, { 'Bash:ls': { calls: 1, tokens: 10, input: 40, unneeded: 30, saveModerate: 0, saveHigh: 0 } }),
+    rec(SET + 1, { 'Bash:sed@moderate': sed(300, 100) }), rec(SET + 2, { 'Bash:sed@moderate': { ...sed(500, 100), calls: 2 } })];
+  const r = aggregateOutputs(recs, { levelAt });
+  const before = r.tools.find(t => t.name === 'Bash:sed' && t.level === null), after = r.tools.find(t => t.name === 'Bash:sed' && t.level === 'moderate');
+  assert.equal(r.sessions, 5);
+  assert.deepEqual([before.sessions, before.usedIn, before.perSession, before.wasted, before.from, before.to], [3, 2, 1000, 800, T0, T0 + 2], 'the three sessions until the setting, two of which called it');
+  assert.deepEqual([after.sessions, after.usedIn, after.perSession, after.wasted, after.calls, after.from, after.to], [2, 2, 400, 100, 1.5, SET + 1, SET + 2], 'the two sessions since');
+  assert.deepEqual(after.others.map(o => [o.level, o.sessions, o.perSession]), [[null, 3, 1000]]);
+  assert.deepEqual(before.others.map(o => [o.level, o.sessions, o.perSession]), [['moderate', 2, 400]]);
+  assert.deepEqual(r.tools.find(t => t.name === 'Bash:ls').others, []);
+  // the totals are over every session, whatever the settings: (1000 + 2000 + 40 + 300 + 500) / 5
+  assert.equal(r.perSession, 768); assert.equal(r.wasted, Math.round((800 + 1600 + 30 + 100 + 100) / 5));
+  // without a timeline, one row a tool over every session, as before
+  const plain = aggregateOutputs(recs.map(x => ({ ...x, by: Object.fromEntries(Object.entries(x.by).map(([k, v]) => [splitKey(k).name, v])) })));
+  assert.deepEqual(plain.tools.filter(t => t.name === 'Bash:sed').map(t => [t.level, t.sessions]), [[null, 5]]);
 });

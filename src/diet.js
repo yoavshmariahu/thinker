@@ -15,6 +15,7 @@
 // overrides it for an experiment arm.
 import fs from 'node:fs';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { outlineText } from './codegraph.js';
 import { sessionState, locked } from './ops.js';
 import { classifyTestCommand, parseTestOutput, summarize, stripAnsi, testsConfig, logPathFor, pruneLogs } from './testing.js';
@@ -58,6 +59,40 @@ export const toolLevel = (cfg, name, input) => {
   if (isMcp(name)) return mcpLevel(cfg.tools[toolKey(name)]);
   return cfg.tools[name] || null;
 };
+// The level a config gives an output row's tool (a toolKey: `Read`, `Bash:sed`, `mcp:artemis`), as toolLevel gives the
+// call: a shell program's own level, else Bash's; an MCP server's read as moderate; a config without `tools` moderate for
+// every compressible tool when on.
+export const levelOf = (cfg, name) => {
+  if (!cfg) return null;
+  if (!cfg.tools) return cfg.enabled && compressible(name) ? 'moderate' : null;
+  if (String(name).startsWith('mcp:')) return mcpLevel(cfg.tools[name]);
+  return cfg.tools[name] || (String(name).startsWith('Bash:') ? cfg.tools.Bash : null) || null;
+};
+// The levels in force over time, so a tool's output is measured under each setting it ran with (tool-outputs.js): a
+// compressed `sed` is another row than `sed` before, and the two are compared, not averaged. The record is the log of
+// every setting made (`op: "diet-settings"`, written by setDietLevel for the page, `thinker context --output-compression`
+// and History's Revert alike), each a snapshot of `tools` at its time. `levelAt(name, at)` is the level `name` had at
+// `at` (ms): the latest snapshot not after it, none before the first (the diet is off until a setting is made). The
+// config of now is the truth from the last snapshot on: a config edited by hand differs from it, and changed at some
+// time after it that nothing recorded; with no snapshot at all (THINKER_LOG off, a config written by hand) it applies to
+// all time, the only record there is.
+export function dietTimeline(cfg, log = []) {
+  const snaps = log.filter(e => e && e.op === 'diet-settings' && e.tools && typeof e.tools === 'object').map(e => ({ at: Date.parse(e.t) || 0, cfg: { tools: e.tools, enabled: Object.keys(e.tools).length > 0 } })).sort((a, b) => a.at - b.at);
+  const now = { tools: cfg?.tools, enabled: Boolean(cfg?.enabled) };
+  if (snaps.length) snaps[snaps.length - 1] = { at: snaps[snaps.length - 1].at, cfg: now };
+  const levelAt = (name, at) => {
+    if (!snaps.length) return levelOf(now, name);
+    let c = null;
+    for (const s of snaps) { if (at != null && s.at > at) break; c = s.cfg; }
+    return levelOf(c, name);
+  };
+  // when `name` last came to `level` (ms): the start of the latest run of snapshots giving it, null when none does now
+  const since = (name, level) => { let t = null; for (const s of snaps) { if (levelOf(s.cfg, name) === level) { t ??= s.at; } else t = null; } return t; };
+  // `key` names this timeline (the snapshots and the config of now), so a record attributed under another one, or under
+  // none, is made again (tool-outputs.js:sessionRecords)
+  const key = createHash('sha1').update(JSON.stringify(snaps.map(s => [s.at, s.cfg.tools || null, s.cfg.enabled]))).digest('hex').slice(0, 12);
+  return { levelAt, since, changes: snaps.map(s => s.at), key };
+}
 
 export function setDietLevel(store, tools, level) {
   const file = path.join(store.dir, 'config.json');

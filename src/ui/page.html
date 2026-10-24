@@ -127,6 +127,15 @@
     .ctx-pill.medium { background: #fef9c3; color: #854d0e; }
     .ctx-pill.ok { background: #dcfce7; color: #166534; }
     .ctx-pill.off { background: #f4f4f5; color: #52525b; }
+    /* what an action measured since it was taken (report.js:outputComparison): the saving first, green; a cost red */
+    .ctx-measured { display: block; margin-top: 0.3rem; font-size: 0.8rem; font-weight: 600; color: #166534; }
+    .ctx-measured.worse { color: #991b1b; }
+    .ctx-measured .muted { font-weight: 400; }
+    .ctx-compare { border-collapse: collapse; margin: 0.4rem 0; font-size: 0.8rem; }
+    .ctx-compare th, .ctx-compare td { padding: 0.2rem 0.8rem 0.2rem 0; text-align: right; font-variant-numeric: tabular-nums; }
+    .ctx-compare th:first-child, .ctx-compare td:first-child { text-align: left; }
+    .ctx-compare th { font-weight: 600; color: #6b7280; }
+    .ctx-compare tr.ctx-delta td { font-weight: 600; border-top: 1px solid #e5e7eb; }
     .ctx-pill.pr { background: #dbeafe; color: #1e40af; } a.ctx-pill { text-decoration: none; }
     .ctx-prlink { font-weight: 400; color: #1e40af; margin-left: 0.35rem; font-size: 0.82rem; }
     .ctx-act { display: flex; align-items: center; justify-content: flex-end; gap: 0.4rem; }
@@ -525,7 +534,10 @@ const VSORT = { all: 'wasted', instructions: 'wasted', custom: 'wasted', builtin
 // the sessions it was in, what the summary ranks by), most costly (the Over N days column), most used (the share), by name;
 // a section also in the file's order, an output by its calls
 const windowCost = r => r.perSession * r.sessions, windowWaste = r => r.wasted == null ? -1 : r.wasted * r.sessions;
-const sortRows = (rows, by) => [...rows].sort(by === 'name' ? (a, b) => a.name.localeCompare(b.name) : by === 'file' ? (a, b) => a.order - b.order : by === 'used' ? (a, b) => (b.acted ?? -1) - (a.acted ?? -1) || windowCost(b) - windowCost(a) : by === 'calls' ? (a, b) => (b.calls || 0) - (a.calls || 0) : by === 'cost' ? (a, b) => windowCost(b) - windowCost(a) : (a, b) => windowWaste(b) - windowWaste(a) || windowCost(b) - windowCost(a));
+// a row measured under an earlier compression setting (`past`, tool-outputs.js) stays below every current row, whatever
+// the order: it is kept for the comparison, not to rank the tool by what it cost before it was compressed
+const sortRows = (rows, by) => [...rows].sort((a, b) => (a.past === true) - (b.past === true) || cmpRows(by)(a, b));
+const cmpRows = by => by === 'name' ? (a, b) => a.name.localeCompare(b.name) : by === 'file' ? (a, b) => a.order - b.order : by === 'used' ? (a, b) => (b.acted ?? -1) - (a.acted ?? -1) || windowCost(b) - windowCost(a) : by === 'calls' ? (a, b) => (b.calls || 0) - (a.calls || 0) : by === 'cost' ? (a, b) => windowCost(b) - windowCost(a) : (a, b) => windowWaste(b) - windowWaste(a) || windowCost(b) - windowCost(a);
 const CSORTS = {
   all: [['wasted', 'Most wasted'], ['cost', 'Most costly'], ['used', 'Most acted on'], ['name', 'By name']],
   instructions: [['wasted', 'Most wasted'], ['file', 'File order'], ['used', 'Most acted on'], ['cost', 'Most costly']],
@@ -545,6 +557,7 @@ const switchOpts = s => s.off ? [['on', 'Turn back on']] : s.label ? [['off', 'S
 // the output is compressed (at any level: the command line can set high, for an experiment)
 const levelOpts = s => s.compression ? [['uncompress', 'No compression']] : [['compress', 'Compress']];
 const perCall = n => n < 10 ? n.toFixed(1) : String(Math.round(n));
+const dayOf = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 // One row per part of the context, in one shape for every table (and all of them on All): what it is, what it costs a
 // call and over the window, the share of sessions that used it, its waste, the detail See more opens, and its actions.
 function contextRows(v) {
@@ -582,14 +595,20 @@ function contextRows(v) {
   // an output's waste: what its results cost after the agent last used them (tool-outputs.js:sessionOutputs), as a
   // share of what every tool's output costs a session, by the thresholds of instruction-value.js:WASTE
   const outWaste = t => { if (t.wasted == null) return null; const sh = outCost ? t.wasted / outCost : 0; return sh >= 0.05 ? 'high' : sh >= 0.02 ? 'medium' : 'low'; };
+  // a tool's rows, one per compression setting it ran with (tool-outputs.js:aggregateOutputs): the current setting's row
+  // takes the actions and the waste pill; a `past` row (measured under an earlier setting) is muted, offered nothing and
+  // sorted last, and each row's detail compares the tool with itself under its other settings
+  const levelName = l => l ? `${l} compression` : 'no compression';
+  const period = s => s.from && s.to ? `${s.sessions} session${s.sessions === 1 ? '' : 's'}, ${dayOf(s.from)} to ${dayOf(s.to)}` : `${s.sessions} session${s.sessions === 1 ? '' : 's'}`;
+  const compare = s => (s.others || []).map(o => { const less = o.perCall ? Math.round(100 * (1 - s.perCall / o.perCall)) : null; return `<p class="muted">${s.past ? 'Now' : 'Before'}, with ${levelName(o.level)} (${period(o)}): about ${fmt(o.perCall)} tokens a call, ${fmt(o.perSession)} input tokens a session${o.wasted != null ? `, ${fmt(o.wasted)} of it after the agent last used the result` : ''}. ${s.past ? 'This row' : 'This setting'} ${less == null ? 'is measured on its own' : less >= 0 ? `costs ${less}% less a call` : `costs ${-less}% more a call`}${s.sessions < 5 ? ' (few sessions yet: give it a week)' : ''}.</p>`; }).join('');
   for (const s of v.outputs?.tools || []) rows.push({
-    view: 'outputs', kind: 'output', kindLabel: s.name.startsWith('mcp:') ? 'MCP server output' : s.name.startsWith('Bash:') ? 'Bash command output' : 'Tool output', key: `output:${s.name}`, repo: repoOf(s),
-    name: s.name.replace(/^(mcp|Bash):/, ''), sub: s.repos > 1 ? `${s.repos} repositories` : '',
-    detail: `<p class="muted">${fmt(s.tokens)} tokens of output a session over ${perCall(s.calls)} calls, about ${fmt(s.perCall)} a call, read again by every model call after it.${s.wasted != null ? ` About ${fmt(s.wasted)} of its ${fmt(s.perSession)} input tokens a session were spent reading results after the agent last used them (an edit copying their text, or a later call on the same file in the same turn; an estimate).` : ''} ${s.compressible ? `Compressed, its long results are cut before the model reads them (Claude Code only): that would have saved at least ${fmt(s.saveModerate || 0)} input tokens a session here.` : 'thinker cannot compress this one yet (Bash commands, Read and MCP servers, in Claude Code).'}</p>`,
-    tokens: s.perCall, perSession: s.perSession, sessions: os, acted: os ? s.usedIn / os : null, actedBy: `called in ${s.usedIn} of ${os} sessions`, calls: s.calls,
-    wasted: s.wasted ?? null, waste: outWaste(s), off: false,
-    pill: s.compression ? [s.compression === 'high' ? 'high' : 'ok', s.compression === 'high' ? 'high compression (command line)' : 'compressed'] : s.compressible ? null : ['off', "can't compress yet"],
-    options: s.compressible ? levelOpts(s) : [], disabled: s.compressible ? '' : 'thinker cannot compress this one yet (Bash commands, Read and MCP servers, in Claude Code)',
+    view: 'outputs', kind: 'output', kindLabel: s.name.startsWith('mcp:') ? 'MCP server output' : s.name.startsWith('Bash:') ? 'Bash command output' : 'Tool output', key: `output:${s.name}` + (s.past ? `@${s.level || 'none'}` : ''), repo: repoOf(s), past: Boolean(s.past), level: s.level || null,
+    name: s.name.replace(/^(mcp|Bash):/, ''), sub: [s.repos > 1 ? `${s.repos} repositories` : '', s.past ? `measured with ${levelName(s.level)}, ${period(s)}` : s.level ? `${levelName(s.level)} since ${dayOf(s.since || s.from)}, ${period(s)}` : (s.others || []).length ? `before compression, ${period(s)}` : ''].filter(Boolean).join(' · '),
+    detail: `<p class="muted">${fmt(s.tokens)} tokens of output a session over ${perCall(s.calls)} calls, about ${fmt(s.perCall)} a call, read again by every model call after it.${s.wasted != null ? ` About ${fmt(s.wasted)} of its ${fmt(s.perSession)} input tokens a session were spent reading results after the agent last used them (an edit copying their text, or a later call on the same file in the same turn; an estimate).` : ''} ${s.past ? `Measured with ${levelName(s.level)} over ${period(s)}; the setting has changed since, and the tool is measured afresh from then as its own row above.` : s.compressible ? s.compression ? `Compressed at the ${s.compression} level since ${dayOf(s.since || s.from)}: this row is measured over the sessions since, not the month before.` : `Compressed, its long results are cut before the model reads them (Claude Code only): that would have saved at least ${fmt(s.saveModerate || 0)} input tokens a session here.` : 'thinker cannot compress this one yet (Bash commands, Read and MCP servers, in Claude Code).'}</p>${compare(s)}`,
+    tokens: s.perCall, perSession: s.perSession, sessions: s.sessions ?? os, acted: (s.sessions ?? os) ? s.usedIn / (s.sessions ?? os) : null, actedBy: `called in ${s.usedIn} of ${s.sessions ?? os} sessions`, calls: s.calls,
+    wasted: s.wasted ?? null, waste: s.past ? null : outWaste(s), off: false,
+    pill: s.past ? ['off', 'earlier setting'] : s.compression ? [s.compression === 'high' ? 'high' : 'ok', s.compression === 'high' ? 'high compression (command line)' : 'compressed'] : s.compressible ? null : ['off', "can't compress yet"],
+    options: s.past ? [] : s.compressible ? levelOpts(s) : [], disabled: s.past ? 'measured under an earlier setting; the current row takes the action' : s.compressible ? '' : 'thinker cannot compress this one yet (Bash commands, Read and MCP servers, in Claude Code)',
   });
   return rows;
 }
@@ -615,7 +634,8 @@ const flaggedSavings = (rows, days, { what, does, ok }) => {
 // an output: the part of each result past the moderate cap, read again by every call after it (tool-outputs.js); the trims
 // round what the agent looked for cut more, so this is a floor
 const outputSavings = (v, days) => {
-  const outs = v.outputs?.tools || [], per = outs.reduce((a, o) => a + (o.saveModerate || 0), 0), cost = v.totals?.outputs?.perSession || outs.reduce((a, o) => a + (o.perSession || 0), 0);
+  // the rows measured under the current settings alone: a tool's row from before it was compressed is no saving left to make
+  const outs = (v.outputs?.tools || []).filter(o => !o.past), per = outs.reduce((a, o) => a + (o.saveModerate || 0), 0), cost = v.totals?.outputs?.perSession || outs.reduce((a, o) => a + (o.perSession || 0), 0);
   return { kicker: 'Potential savings, at least', perSession: per, share: cost ? per / cost : null, window: per * (v.outputs?.sessions || 0), days, text: 'With compression on every Bash command, Read and MCP server: the part of each result past the cap, read again by every call after it. Trimming file reads and search results round what the agent looked for saves more. Claude Code only.', ok: 'No output here is long enough for the cap to cut.' };
 };
 // The table of one view, as the docs' example: a row a part with its box, tokens per call, the share of sessions that used it,
@@ -632,7 +652,7 @@ function renderTable(view, rows, { title, sub, note, nameHead, savings }) {
   const body = rows.slice(from, from + TABLE_PAGE).map((r, k) => {
     const i = from + k;
     const [pc, pt] = r.pill || (r.off ? ['off', 'off'] : WASTE_PILL[r.waste] || []), on = picks.has(pickKey(r));
-    return `<tr class="${[r.off ? 'ctx-off' : r.waste === 'high' ? 'ctx-high' : r.waste === 'medium' ? 'ctx-medium' : '', on ? 'ctx-picked' : ''].join(' ').trim()}" data-row="${i}">
+    return `<tr class="${[r.off || r.past ? 'ctx-off' : r.waste === 'high' ? 'ctx-high' : r.waste === 'medium' ? 'ctx-medium' : '', on ? 'ctx-picked' : ''].join(' ').trim()}" data-row="${i}">
       <td class="ctx-name"><label><input type="checkbox" data-pick="${view}" data-k="${esc(pickKey(r))}" data-i="${i}"${r.options.length ? '' : ' disabled'}${on ? ' checked' : ''} aria-label="Pick ${esc(r.name)}"> ${r.bold ? `<b>${esc(r.name)}</b>` : esc(r.name)}</label><button class="ctx-more" data-more="${i}" aria-expanded="false">See more</button>${(kindOf => kindOf || r.sub ? `<span class="ctx-kind">${esc([kindOf, r.sub].filter(Boolean).join(' · '))}</span>` : '')(view === 'all' || r.kind === 'skill' || r.kind === 'tool' ? r.kindLabel : '')}</td>
       <td class="num">${fmt(r.tokens)}</td>
       <td class="num">${actedCell(r)}</td>
@@ -766,7 +786,7 @@ function renderContext(v) {
   h += vdiv('builtin', renderTable('builtin', of('builtin'), { nameHead: 'Tool', title: 'Built-in tools', sub: cap(of('builtin'), v.sessions || 0, 'on them'), savings: sav.builtin,
     note: `Claude Code's own tool definitions, from the transcripts. <b>Switch off</b> asks first: one switched off goes into <code>permissions.deny</code> of <code>.claude/settings.local.json</code>, so new sessions here cannot call it, and <b>Revert</b> under History or <b>Turn back on</b> brings it back; the file, shell and search tools are never offered.` }));
   h += vdiv('outputs', renderTable('outputs', of('outputs'), { nameHead: 'Tool', title: 'Tool outputs', savings: sav.outputs, sub: (() => { const rs = of('outputs'), os = v.outputs?.sessions || 0; return `${os} session${os === 1 ? '' : 's'} · ${fmt(rs.reduce((a, r) => a + r.perSession * r.sessions, 0))} input tokens of output read again, ${fmt(rs.reduce((a, r) => a + (r.wasted || 0) * r.sessions, 0))} of it after the agent last used the result`; })(),
-    note: `A tool's output stays in the conversation and every later model call reads it again: its tokens × the model calls left after it, until a compaction drops it, estimated from the transcripts. <b>Wasted</b>: the reads after the agent last used the result, its last edit copying text from it or call on the same file in that turn; nearly all of it, since a result is needed for a few calls and read for the rest of the session. Compression trims a result before the model reads it, in Claude Code: whole-file reads to the lines round what the agent searched for, test runs to their failures, big searches to their hits, long output to a cap of about 3k tokens.` }));
+    note: `A tool's output stays in the conversation and every later model call reads it again: its tokens × the model calls left after it, until a compaction drops it, estimated from the transcripts. <b>Wasted</b>: the reads after the agent last used the result, its last edit copying text from it or call on the same file in that turn; nearly all of it, since a result is needed for a few calls and read for the rest of the session. Compression trims a result before the model reads it, in Claude Code: whole-file reads to the lines round what the agent searched for, test runs to their failures, big searches to their hits, long output to a cap of about 3k tokens. A tool whose compression you set is measured afresh from that moment, as its own row over the sessions since; its earlier measurement stays below it, muted, for the comparison, and never ranks above a current row.` }));
   h += vdiv('history', '<div class="empty"><span class="spinner"></span>Reading…</div>');
   el.innerHTML = h;
   for (const [k] of VIEWS) if (k !== 'history') wireTable(el.querySelector(`#c-${k}`), k, k === 'all' ? all : of(k));
@@ -803,7 +823,17 @@ function historyFigure(hs, { many, caption, sub, empty, key = 'history', pageSiz
   const pages = Math.max(1, Math.ceil(hs.length / pageSize)), page = Math.min(pages - 1, HPAGE[key] || 0), from = page * pageSize, shown = hs.slice(from, from + pageSize);
   const when = t => new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
   const day = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  // what an output's compression measured since (report.js:outputComparison): the saving a session in one line under the
+  // title, green, or the cost red, and the two periods side by side in the detail
+  const pct = x => x.share == null ? '' : ` (${x.delta >= 0 ? '−' : '+'}${Math.round(100 * Math.abs(x.share))}%)`;
+  const measuredLine = (m, e) => !m ? (e.kind === 'output' && !e.revertedAt && e.decision !== 'dismissed' ? '<span class="ctx-measured muted">Measured: nothing yet, no session has called it since</span>' : '') : `<span class="ctx-measured${m.perSession.delta >= 0 ? '' : ' worse'}">${m.perSession.delta >= 0 ? 'Saving' : 'Costing'} ~${fmt(Math.abs(m.perSession.delta))} input tokens a session${pct(m.perSession)} <span class="muted">· ${fmt(Math.abs(m.window))} over the ${m.after.sessions} session${m.after.sessions === 1 ? '' : 's'} since${m.few ? ' · few sessions yet' : ''} · a call ${fmt(m.perCall.before)} → ${fmt(m.perCall.after)}${pct(m.perCall)}</span></span>`;
+  const measuredTable = m => m ? `<table class="ctx-compare"><thead><tr><th>Measured</th><th>Sessions</th><th>Calls a session</th><th>Tokens a call</th><th>Input a session</th><th>After last use</th></tr></thead><tbody>
+      <tr><td>Before, no compression (${day(m.before.from)} to ${day(m.before.to)})</td><td>${m.before.sessions}</td><td>${perCall(m.before.calls || 0)}</td><td>${fmt(m.before.perCall)}</td><td>${fmt(m.before.perSession)}</td><td>${m.before.wasted == null ? '–' : fmt(m.before.wasted)}</td></tr>
+      <tr><td>Since, ${esc(m.after.level)} compression (${day(m.after.from)} to ${day(m.after.to)})</td><td>${m.after.sessions}</td><td>${perCall(m.after.calls || 0)}</td><td>${fmt(m.after.perCall)}</td><td>${fmt(m.after.perSession)}</td><td>${m.after.wasted == null ? '–' : fmt(m.after.wasted)}</td></tr>
+      <tr class="ctx-delta"><td>${m.perSession.delta >= 0 ? 'Saved' : 'Cost'}</td><td></td><td></td><td>${m.perCall.delta >= 0 ? '−' : '+'}${fmt(Math.abs(m.perCall.delta))}${pct(m.perCall)}</td><td>${m.perSession.delta >= 0 ? '−' : '+'}${fmt(Math.abs(m.perSession.delta))}${pct(m.perSession)}</td><td></td></tr></tbody></table>
+      <p class="muted">Tokens a call is the size of a result, what compression acts on; input a session is what the results cost over the calls that read them again, and moves with how the sessions used the tool as well.${m.few ? ' Fewer than five sessions since: give it a week.' : ''}</p>` : '';
   const detail = e => [
+    measuredTable(e.measured),
     e.result && e.decision !== 'dismissed' ? `<p>${esc(e.result.replace(/ `?thinker harness --undo`? turns.*$/, ''))}</p>` : '',
     e.action ? `<p class="muted">Suggested: ${esc(e.action)}</p>` : '',
     e.total ? `<p class="muted">Worth ~${fmt(e.total)} input tokens over the ${e.days || 7} days before it was decided${e.saving ? ` (~${fmt(e.saving)} a session)` : ''}.</p>` : e.saving ? `<p class="muted">Worth ~${fmt(e.saving)} input tokens a session when it was decided.</p>` : '',
@@ -811,7 +841,7 @@ function historyFigure(hs, { many, caption, sub, empty, key = 'history', pageSiz
       : `<p class="muted">${e.decision === 'dismissed' ? 'Dismissed' : e.decision === 'applied after review' ? 'Written after its diff was read' : 'Applied'} ${when(e.at)}${e.revertedAt ? `; reverted ${when(e.revertedAt)}` : ''}.</p>`,
   ].join('');
   const rows = shown.map((e, k) => { const i = from + k, [cls, label] = doneOf(e); return `<tr class="${e.revertedAt || e.rejected ? 'ctx-off' : ''}">
-      <td class="ctx-name"><b>${esc(e.title)}</b>${e.pr?.url ? `<a class="ctx-prlink" href="${esc(e.pr.url)}" target="_blank" rel="noopener">#${e.pr.number}</a>` : ''}<button class="ctx-more" data-more="${i}" aria-expanded="false">See more</button><span class="ctx-kind">${esc([CH_KIND[e.kind] || e.kind, many ? e.repoName : ''].filter(Boolean).join(' · '))}</span></td>
+      <td class="ctx-name"><b>${esc(e.title)}</b>${e.pr?.url ? `<a class="ctx-prlink" href="${esc(e.pr.url)}" target="_blank" rel="noopener">#${e.pr.number}</a>` : ''}<button class="ctx-more" data-more="${i}" aria-expanded="false">See more</button><span class="ctx-kind">${esc([CH_KIND[e.kind] || e.kind, many ? e.repoName : ''].filter(Boolean).join(' · '))}</span>${measuredLine(e.measured, e)}</td>
       <td class="num">${day(e.at)}</td><td class="num">${e.total ? fmt(e.total) : e.saving ? `${fmt(e.saving)} <span class="muted">a session</span>` : '–'}</td>
       <td><span class="ctx-pill ${cls}">${label}</span></td>
       <td class="ctx-actcell"><div class="ctx-act">${e.revertible ? `<button class="btn ghost" data-revert="${i}">${e.pending ? 'Close PR' : 'Revert'}</button>` : ''}</div></td></tr>

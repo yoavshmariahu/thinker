@@ -273,6 +273,17 @@ test('applyReviewed: sections written after their diff was read are a row each, 
   assert.equal(changeHistory(store).length, 3);
 });
 
+test('an output measured under an earlier setting is a comparison, not a change; the current row counts its own sessions', async () => {
+  const { allChanges } = await import('../src/context-suggest.js');
+  const v = view({ outputs: { sessions: 40, tools: [
+    { name: 'Bash:sed', level: null, past: true, sessions: 30, compressible: true, compression: 'moderate', saveModerate: 50_000, perSession: 900_000, perCall: 1000 },
+    { name: 'Bash:sed', level: 'moderate', past: false, sessions: 10, compressible: true, compression: 'moderate', saveModerate: 1000, perSession: 400_000, perCall: 600 },
+  ] } });
+  const all = allChanges(v).filter(c => c.kind === 'output');
+  assert.deepEqual(all.map(c => [c.key, c.sessions, c.total, c.options.map(o => o.act)]), [['output:Bash:sed', 10, 10_000, ['uncompress']]]);
+  assert.equal(topChanges(v).some(c => c.kind === 'output'), false, 'nothing to compress: the past row is not offered, the current one is compressed');
+});
+
 test('applyReviewed with pr: the decision is a pull request, pending until merged; closed, it is rejected and suggested again; Close PR is its revert', async () => {
   const { allChanges, applyReviewed, revertDecision, changeHistory, currentChanges, refreshPrStates } = await import('../src/context-suggest.js');
   const store = repo(), cs = allChanges(view()), now = Date.parse('2026-10-24T10:00:00Z');

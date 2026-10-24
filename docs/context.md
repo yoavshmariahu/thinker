@@ -65,6 +65,14 @@ Every action shows what it will do before it does it, and each one is a command 
 | Switch a built-in tool off | the same, under Built-in tools (their rows in bold): Apply asks first, naming the tools, where the switch is written and how they come back | `thinker context --switch-off <labels> --builtin` | **Turn back on**, **Revert** under History, or `thinker context --switch-on <keys>` |
 | Compress tool outputs | per tool, **Compress** or **No compression**: a whole-file read becomes the lines around what the session searched for, a test run its counts and distinct failures, a big search its hits per file, long output cut to a cap of about 3k tokens; Claude Code only, through its tool hook | `thinker context --output-compression <tools> --level moderate` (`--level high`, a tighter cap, is for experiments: no agent session has run with it, so the page does not offer it) | the same, `--level off` |
 
+A tool whose compression you set is measured afresh from that moment: its row counts the sessions since
+the setting alone, and says so (*moderate compression since Oct 22, 15 sessions*). Its measurement from
+before stays as a second, muted row (*measured with no compression, 203 sessions*), with no action, sorted
+after every current row whatever the order, so a tool is never ranked by what it cost before it was
+compressed. Each row's detail compares the two: tokens a call and a session under each setting. The
+settings' dates come from the log of every setting made (`diet-settings`), so a setting the log never saw
+(a config edited by hand) counts from the last one it did.
+
 Each view opens with a **Potential savings** card: for sections, skills and tools, what the flagged rows cost in the sessions that did not use them (at most); for outputs, what the cap alone would have cut (at least); All sums them.
 
 Compress and Remove make a pull request: the change is one commit on a branch of its own, built from

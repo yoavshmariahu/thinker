@@ -1361,7 +1361,7 @@ against what was cut that week; and the four numbers the Cache tab showed
 (`report.js:cacheMetrics`, from `usage.js:summarize` over the same window), with the saving in dollars first
 (the tokens saved on each model at that model's input list price: the holdout's figure by model where it is
 measured, else the servings acted on), then tokens saved, cache hits and the share acted on. All repositories is
-every repository's report merged (`mergeReports`: the sums and the session counts add).
+every repository's report merged (`mergeReports`: the sums and the session counts add). An output's compression among them carries what it measured since (`report.js:outputComparison`, 2026-10-24, the owner's ask): the tool's row under the compression against its row from before (`tool-outputs.js:aggregateOutputs`, one row a setting), the saving a session first and green, or the cost red, with the two periods side by side in the detail and the same two lines under the action in `thinker report`; a call's tokens is what compression acts on, a session's moves with how the sessions used the tool as well.
 
 **The page does not work the figures out on a visit (2026-10-24).** Until then every visit to the tab ran `reportView`
 for every repository, and the Report over all repositories took three to four seconds here, again a minute later:

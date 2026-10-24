@@ -166,13 +166,13 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
           const xs = repos().flatMap(r => { try { const st = open(r.checkout); return [{ r, st, s: read(st) }]; } catch { return []; } });
           if (!xs.length) return json(res, 200, { empty: true });
           view = mergeReports(xs.map(({ r, s }) => ({ repo: r.id, name: r.name, view: s.view })));
-          view.actions = xs.flatMap(({ r, st }) => reportActions(st, view.from).map(a => ({ ...a, repo: r.id, repoName: r.name }))).sort((a, b) => b.at.localeCompare(a.at));
+          view.actions = xs.flatMap(({ r, st, s }) => reportActions(st, view.from, s.view.outputRows || []).map(a => ({ ...a, repo: r.id, repoName: r.name }))).sort((a, b) => b.at.localeCompare(a.at));
           at = Math.min(...xs.map(x => x.s.at)); busy = xs.some(x => x.s.refreshing);
           if (xs.some(x => x.s.stale && !reportRefreshing(x.st))) refreshReportFn(null);
         } else {
           const one = storeFor(want); if (!one) return json(res, 400, { error: 'unknown repository' });
           const s = read(one);
-          view = { ...s.view, actions: reportActions(one, s.view.from) }; at = s.at; busy = s.refreshing;
+          view = { ...s.view, actions: reportActions(one, s.view.from, s.view.outputRows || []) }; at = s.at; busy = s.refreshing;
           if (s.stale && !reportRefreshing(one)) refreshReportFn(one.repo);
         }
         return json(res, 200, { ...view, asOf: Number.isFinite(at) ? at : Date.now(), refreshing: !!busy });
