@@ -249,7 +249,8 @@ function parseMessages(rows, fromLine) {
       if (b.type === 'text' && role === 'user' && j.isMeta && /^Base directory for this skill: /.test(String(b.text || ''))) { const last = events.findLast(e => e.t === 'tool' && e.name === 'Skill'); if (last) last.skillDir = String(b.text).split('\n')[0].slice('Base directory for this skill: '.length).trim(); continue; }
       if (b.type === 'text' && role === 'user' && !j.isMeta) { const t = cleanPrompt(b.text); if (t) events.push({ t: 'prompt', text: t }); }
       else if (b.type === 'text' && role === 'assistant') events.push({ t: 'say', text: b.text });
-      else if (b.type === 'tool_use') events.push(tool(b.name, b.input, '', b.id));
+      // `at`: when the call was made (ms), so a result is measured under the output compression in force then (tool-outputs.js)
+      else if (b.type === 'tool_use') { const ev = tool(b.name, b.input, '', b.id), at = Date.parse(j.timestamp); if (at) ev.at = at; events.push(ev); }
       else if (b.type === 'tool_result') keepResult(results, b.tool_use_id, b.content);
     }
   });

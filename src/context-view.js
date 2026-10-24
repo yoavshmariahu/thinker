@@ -6,14 +6,14 @@
 // checkout's trimmed copy (`thinker instructions --core`, instructions-core.js), a tool is switched off for the
 // repository (`thinker harness --off`), where the harness is on.
 import { harnessUsage, harnessAdvice, harnessOn, labelOf, canSwitchOff, MIN_TOKENS, median, setHarnessSettings, switchOffNow, undoHarness } from './harness.js';
-import { dietConfig, compressible, COMPRESSIBLE, setDietLevel } from './diet.js';
+import { dietConfig, compressible, COMPRESSIBLE, setDietLevel, levelOf, dietTimeline } from './diet.js';
 import { instructionValue, findRepoSessions } from './instruction-value.js';
 import { coreConfig } from './instructions-core.js';
 import { wasteLevel } from './instruction-value.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { readLog } from './usage.js';
-import { toolOutputs } from './tool-outputs.js';
+import { toolOutputs, linkRows } from './tool-outputs.js';
 import { topChanges } from './context-suggest.js';
 
 // The skills' outcome checks over the window, per skill: sessions checked where it applied, read in, broken after
@@ -43,6 +43,7 @@ export function contextView(store, { days = 30, sessions, usage, log } = {}) {
   const on = harnessOn(store);
   const advice = new Set(harnessAdvice(usage).map(s => `${s.client || 'claude'}:${s.key}`));
   const calls = c => usage.calls?.[c || 'claude'] || median(Object.values(usage.calls || {})) || 1;
+  log ||= readLog(store);
   const outcomes = skillOutcomes(store, { days, log });
   const src = s => ({
     key: s.key, name: s.name, kind: s.kind, client: s.client || 'claude', scope: s.scope || null, tokens: s.tokens, perSession: s.tokens * Math.max(1, calls(s.client)),
@@ -74,10 +75,13 @@ export function contextView(store, { days = 30, sessions, usage, log } = {}) {
     for (const r of xs) Object.assign(r, { text: Object.values(sourceOf(r)?.texts || {}).join('\n\n').slice(0, 2400), wasted: r.off ? 0 : Math.round(r.perSession * (1 - (r.usedShare ?? 0))) }, wasteLevel({ usedShare: r.usedShare, wasted: r.off ? null : Math.round(r.perSession * (1 - (r.usedShare ?? 0))) }, g === 'builtin' ? cost : xs.concat(skills).reduce((a, x) => a + (x.off ? 0 : x.perSession), 0)));
   }
   const iv = instructionValue(store, { days, sessions });
-  const outputs = toolOutputs(store, sessions);
-  // each tool's output compression (diet.js): the level set here, and whether thinker can compress it at all
-  const diet = dietConfig(store);
-  outputs.tools = outputs.tools.map(t => ({ ...t, compressible: compressible(t.name), compression: diet.tools ? diet.tools[t.name] || (t.name.startsWith('Bash:') ? diet.tools.Bash : null) || null : diet.enabled && compressible(t.name) ? 'moderate' : null }));
+  // each tool's output measured under each compression setting it ran with (tool-outputs.js:aggregateOutputs, the
+  // settings' times from the log: diet.js:dietTimeline), with the level set now (`compression`) and whether thinker can
+  // compress it at all; a row measured under another setting than now's is `past`: kept for the comparison, offered
+  // no action, and ranked after the current rows
+  const diet = dietConfig(store), timeline = dietTimeline(diet, log);
+  const outputs = toolOutputs(store, sessions, { levelAt: timeline.levelAt });
+  outputs.tools = outputs.tools.map(t => { const compression = levelOf(diet, t.name); return { ...t, compressible: compressible(t.name), compression, past: (t.level || null) !== (compression || null), since: t.level ? timeline.since(t.name, t.level) : null }; });
   const core = coreConfig(store), kept = new Set(core.keep.map(k => k.toLowerCase()));
   const instructions = {
     ...iv, coreOn: core.enabled,
@@ -129,7 +133,12 @@ export function mergeViews(list) {
   const tag = x => r => ({ ...r, repo: x.repo, repoName: x.name });
   const tools = merge(views.flatMap(v => v.tools), r => `${r.client}:${r.key}`, 'loaded', ['loaded', 'used'], ['tokens', 'perSession']).map(r => ({ ...r, usedShare: r.loaded ? r.used / r.loaded : null })).sort((a, b) => b.perSession - a.perSession);
   const skills = merge(views.flatMap(v => v.skills), r => `${r.client}:${r.key}`, 'loaded', ['loaded', 'used'], ['tokens', 'perSession']);
-  const outs = merge(views.flatMap(v => v.outputs.tools.map(t => ({ ...t, n: v.outputs.sessions }))), r => r.name, 'n', ['usedIn', 'n'], ['tokens', 'perSession', 'perCall', 'wasted', 'saveModerate', 'saveHigh']).map(t => ({ ...t, calls: w(views.flatMap(v => v.outputs.tools.filter(x => x.name === t.name).map(x => ({ ...x, n: v.outputs.sessions }))), 'calls', 'n') })).sort((a, b) => b.perSession - a.perSession);
+  // a tool's rows merged by tool and setting, each weighted by the sessions it was measured over; the row is past
+  // when it is past in every repository, and the rows of one tool are linked again over the merged figures
+  const allOuts = views.flatMap(v => v.outputs.tools), span = (xs, f) => { const ts = xs.filter(Number.isFinite); return ts.length ? f(...ts) : null; };
+  const outs = linkRows(merge(allOuts, r => r.key || `${r.name}@${r.level || ''}`, 'sessions', ['usedIn', 'sessions'], ['tokens', 'perSession', 'perCall', 'wasted', 'saveModerate', 'saveHigh'])
+    .map(t => { const g = allOuts.filter(x => x.name === t.name && (x.level || null) === (t.level || null)); return { ...t, calls: w(g, 'calls', 'sessions'), past: g.every(x => x.past), from: span(g.map(x => x.from), Math.min), to: span(g.map(x => x.to), Math.max) }; }))
+    .sort((a, b) => b.perSession - a.perSession);
   const ivs = list.map(x => ({ x, iv: x.view.instructions })).filter(({ iv }) => iv.file);
   const ivSessions = ivs.reduce((a, { iv }) => a + iv.sessions, 0);
   const window = ivs.reduce((a, { iv }) => a + (iv.savings?.window || 0), 0);

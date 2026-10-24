@@ -89,7 +89,7 @@ async function contextCommand({ store, flags, out }) {
   }
   if (iv.file) {
     if ((iv.files || []).length > 1) out(`Instruction files: ${iv.files.map(f => `${f.file} (${f.kind === 'root' ? 'every session' : `${f.loadedIn} sessions`})`).join(', ')}.`);
-    out(`${iv.file}: ${iv.sessions} sessions read it, ${iv.judged} judged${iv.judge.judge ? ` (a ${Math.round(100 * iv.judge.share)}% sample is judged at session end)` : ' (`thinker context --judge n` judges recent ones)'}.`);
+    out(`${iv.file}: ${iv.sessions} sessions read it, ${iv.judged} judged${iv.judge.judge ? ` (a ${Math.round(100 * iv.judge.share)}% sample is judged at session end)` : ' (judging is off: instructions.value.judge in .thinker/config.json)'}.`);
     out(`  ${pad('tokens', 6)} ${pad('a session', 9)} ${pad('applied', 8)} ${pad('relevant', 8)} ${pad('followed', 8)}  value        section`);
     for (const s of [...iv.sections].sort((a, b) => b.perSession - a.perSession)) {
       out(`  ${pad(s.tokens, 6)} ${pad(formatTokens(s.perSession), 9)} ${pad(s.triggered ? `${s.applied}/${s.sessions}` : '-', 8)} ${pad(s.judged ? `${s.bore}/${s.judged}` : '-', 8)} ${pad(pct(s.success), 8)}  ${s.value.padEnd(12)} ${s.kept ? '* ' : ''}${s.fileKind && s.fileKind !== 'root' ? `${s.file} · ` : ''}${s.parent ? `${s.parent}: ` : ''}${s.title}`);
@@ -105,8 +105,13 @@ async function contextCommand({ store, flags, out }) {
     out('');
   }
   if (v.outputs.tools.length) {
+    // a tool compressed since a date is measured over the sessions since, as its own row; its row from before (`past`) is
+    // listed after every current row, marked, for the comparison (tool-outputs.js:aggregateOutputs)
+    const day = t => new Date(t).toISOString().slice(0, 10), level = l => l ? `${l} compression` : 'no compression';
+    const note = o => o.past ? `  (measured with ${level(o.level)}, ${o.sessions} sessions${o.from ? ` ${day(o.from)} to ${day(o.to)}` : ''}; the setting has changed since)` : o.level ? `  (${level(o.level)} since ${day(o.since || o.from)}, ${o.sessions} sessions)` : (o.others || []).length ? `  (before compression, ${o.sessions} sessions)` : '';
     out('Tool outputs: input tokens a session, of it read after the agent last used the result (wasted), calls a session, tokens per call.');
-    for (const o of v.outputs.tools.slice(0, flags.verbose ? undefined : 12)) out(`  ${pad(formatTokens(o.perSession), 9)} ${pad(o.wasted == null ? '-' : formatTokens(o.wasted), 9)} ${pad(o.calls.toFixed(1), 6)} calls ${pad(formatTokens(o.perCall), 6)}  ${o.name}`);
+    const rows = [...v.outputs.tools.filter(o => !o.past), ...v.outputs.tools.filter(o => o.past)];
+    for (const o of rows.slice(0, flags.verbose ? undefined : 12)) out(`  ${pad(formatTokens(o.perSession), 9)} ${pad(o.wasted == null ? '-' : formatTokens(o.wasted), 9)} ${pad(o.calls.toFixed(1), 6)} calls ${pad(formatTokens(o.perCall), 6)}  ${o.name}${note(o)}`);
     out('');
   }
   if (v.tools.length) {

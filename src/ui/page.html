@@ -83,6 +83,14 @@
     .ctx-capact .btn { padding: 0.3rem 0.8rem; font-size: 0.78rem; }
     .ctx-sub { font-size: 0.78rem; color: #6b7280; font-weight: 400; }
     .ctx-note { font-size: 0.8rem; color: #6b7280; line-height: 1.5; margin: 0.6rem 0 0; }
+    /* the ? beside a column header: a popover on hover or keyboard focus */
+    .help { position: relative; display: inline-block; font-weight: 400; }
+    .help-btn { width: 1.1rem; height: 1.1rem; padding: 0; border: 1px solid #c7cbd1; border-radius: 50%; background: #fff; color: #6b7280; font-size: 0.7rem; line-height: 1; cursor: help; vertical-align: middle; }
+    .help-btn:hover, .help-btn:focus { color: #111; border-color: #6b7280; outline: none; }
+    .help-pop { display: none; position: absolute; right: 0; top: 1.5rem; z-index: 40; width: min(26rem, 80vw); background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,0.12); padding: 0.7rem 0.9rem; font-size: 0.78rem; font-weight: 400; color: #374151; line-height: 1.5; text-align: left; white-space: normal; text-transform: none; letter-spacing: normal; }
+    .help-pop ul { margin: 0.4rem 0 0; padding-left: 1.1rem; }
+    .help-pop li { margin: 0.25rem 0; }
+    .help:hover .help-pop, .help:focus-within .help-pop { display: block; }
     /* the Potential savings card at the top of every view */
     .savings { display: flex; flex-direction: column; gap: 0.25rem; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 0.7rem 0.9rem; margin: 0 0 0.8rem; }
     .savings.ok { background: #f0fdf4; border-color: #bbf7d0; }
@@ -471,7 +479,10 @@ const VSORT = { all: 'wasted', instructions: 'wasted', custom: 'wasted', builtin
 // the sessions it was in, what the summary ranks by), most costly (the Over N days column), most used (the share), by name;
 // a section also in the file's order, an output by its calls
 const windowCost = r => r.perSession * r.sessions, windowWaste = r => r.wasted == null ? -1 : r.wasted * r.sessions;
-const sortRows = (rows, by) => [...rows].sort(by === 'name' ? (a, b) => a.name.localeCompare(b.name) : by === 'file' ? (a, b) => a.order - b.order : by === 'used' ? (a, b) => (b.acted ?? -1) - (a.acted ?? -1) || windowCost(b) - windowCost(a) : by === 'calls' ? (a, b) => (b.calls || 0) - (a.calls || 0) : by === 'cost' ? (a, b) => windowCost(b) - windowCost(a) : (a, b) => windowWaste(b) - windowWaste(a) || windowCost(b) - windowCost(a));
+// a row measured under an earlier compression setting (`past`, tool-outputs.js) stays below every current row, whatever
+// the order: it is kept for the comparison, not to rank the tool by what it cost before it was compressed
+const sortRows = (rows, by) => [...rows].sort((a, b) => (a.past === true) - (b.past === true) || cmpRows(by)(a, b));
+const cmpRows = by => by === 'name' ? (a, b) => a.name.localeCompare(b.name) : by === 'file' ? (a, b) => a.order - b.order : by === 'used' ? (a, b) => (b.acted ?? -1) - (a.acted ?? -1) || windowCost(b) - windowCost(a) : by === 'calls' ? (a, b) => (b.calls || 0) - (a.calls || 0) : by === 'cost' ? (a, b) => windowCost(b) - windowCost(a) : (a, b) => windowWaste(b) - windowWaste(a) || windowCost(b) - windowCost(a);
 const CSORTS = {
   all: [['wasted', 'Most wasted'], ['cost', 'Most costly'], ['used', 'Most acted on'], ['name', 'By name']],
   instructions: [['wasted', 'Most wasted'], ['file', 'File order'], ['used', 'Most acted on'], ['cost', 'Most costly']],
@@ -491,6 +502,7 @@ const switchOpts = s => s.off ? [['on', 'Turn back on']] : s.label ? [['off', 'S
 // the output is compressed (at any level: the command line can set high, for an experiment)
 const levelOpts = s => s.compression ? [['uncompress', 'No compression']] : [['compress', 'Compress']];
 const perCall = n => n < 10 ? n.toFixed(1) : String(Math.round(n));
+const dayOf = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 // One row per part of the context, in one shape for every table (and all of them on All): what it is, what it costs a
 // call and over the window, the share of sessions that used it, its waste, the detail See more opens, and its actions.
 function contextRows(v) {
@@ -499,7 +511,7 @@ function contextRows(v) {
     view: 'instructions', kind: 'section', kindLabel: 'Instruction section', key: `section:${s.file}:${s.id}`, id: s.id, repo: s.repo || CREPO, order: i,
     name: s.title, sub: [s.repoName, (s.fileKind && s.fileKind !== 'root') || (iv.files || []).length > 1 ? s.file : null, s.parent].filter(Boolean).join(' · '),
     detail: md(s.text), tokens: s.tokens, perSession: s.perSession, sessions: iv.sessions || 0, acted: s.usedShare,
-    actedBy: s.usedShare == null ? 'too few sessions to say' : s.usedBy === 'judge' ? 'judged sessions whose agent followed it' : 'sessions that touched its files, commands or code (until five are judged)',
+    actedBy: s.usedShare == null ? 'too few sessions to say' : s.usedBy === 'judge' ? 'judged sessions whose agent followed it' : 'sessions that touched its files, commands or code (until five are judged by the model)',
     wasted: s.wasted, waste: s.waste, off: Boolean(iv.coreOn && !s.kept), pill: iv.coreOn && !s.kept ? ['off', 'not in the trimmed copy'] : null,
     options: [['compress', 'Compress'], ['remove', 'Remove']], disabled: '',
   }));
@@ -525,18 +537,30 @@ function contextRows(v) {
   // an output's waste: what its results cost after the agent last used them (tool-outputs.js:sessionOutputs), as a
   // share of what every tool's output costs a session, by the thresholds of instruction-value.js:WASTE
   const outWaste = t => { if (t.wasted == null) return null; const sh = outCost ? t.wasted / outCost : 0; return sh >= 0.05 ? 'high' : sh >= 0.02 ? 'medium' : 'low'; };
+  // a tool's rows, one per compression setting it ran with (tool-outputs.js:aggregateOutputs): the current setting's row
+  // takes the actions and the waste pill; a `past` row (measured under an earlier setting) is muted, offered nothing and
+  // sorted last, and each row's detail compares the tool with itself under its other settings
+  const levelName = l => l ? `${l} compression` : 'no compression';
+  const period = s => s.from && s.to ? `${s.sessions} session${s.sessions === 1 ? '' : 's'}, ${dayOf(s.from)} to ${dayOf(s.to)}` : `${s.sessions} session${s.sessions === 1 ? '' : 's'}`;
+  const compare = s => (s.others || []).map(o => { const less = o.perCall ? Math.round(100 * (1 - s.perCall / o.perCall)) : null; return `<p class="muted">${s.past ? 'Now' : 'Before'}, with ${levelName(o.level)} (${period(o)}): about ${fmt(o.perCall)} tokens a call, ${fmt(o.perSession)} input tokens a session${o.wasted != null ? `, ${fmt(o.wasted)} of it after the agent last used the result` : ''}. ${s.past ? 'This row' : 'This setting'} ${less == null ? 'is measured on its own' : less >= 0 ? `costs ${less}% less a call` : `costs ${-less}% more a call`}${s.sessions < 5 ? ' (few sessions yet: give it a week)' : ''}.</p>`; }).join('');
   for (const s of v.outputs?.tools || []) rows.push({
-    view: 'outputs', kind: 'output', kindLabel: s.name.startsWith('mcp:') ? 'MCP server output' : s.name.startsWith('Bash:') ? 'Bash command output' : 'Tool output', key: `output:${s.name}`, repo: repoOf(s),
-    name: s.name.replace(/^(mcp|Bash):/, ''), sub: s.repos > 1 ? `${s.repos} repositories` : '',
-    detail: `<p class="muted">${fmt(s.tokens)} tokens of output a session over ${perCall(s.calls)} calls, about ${fmt(s.perCall)} a call, read again by every model call after it.${s.wasted != null ? ` About ${fmt(s.wasted)} of its ${fmt(s.perSession)} input tokens a session were spent reading results after the agent last used them (an edit copying their text, or a later call on the same file in the same turn; an estimate).` : ''} ${s.compressible ? `Compressed, its long results are cut before the model reads them (Claude Code only): that would have saved at least ${fmt(s.saveModerate || 0)} input tokens a session here.` : 'thinker cannot compress this one yet (Bash commands, Read and MCP servers, in Claude Code).'}</p>`,
-    tokens: s.perCall, perSession: s.perSession, sessions: os, acted: os ? s.usedIn / os : null, actedBy: `called in ${s.usedIn} of ${os} sessions`, calls: s.calls,
-    wasted: s.wasted ?? null, waste: outWaste(s), off: false,
-    pill: s.compression ? [s.compression === 'high' ? 'high' : 'ok', s.compression === 'high' ? 'high compression (command line)' : 'compressed'] : s.compressible ? null : ['off', "can't compress yet"],
-    options: s.compressible ? levelOpts(s) : [], disabled: s.compressible ? '' : 'thinker cannot compress this one yet (Bash commands, Read and MCP servers, in Claude Code)',
+    view: 'outputs', kind: 'output', kindLabel: s.name.startsWith('mcp:') ? 'MCP server output' : s.name.startsWith('Bash:') ? 'Bash command output' : 'Tool output', key: `output:${s.name}` + (s.past ? `@${s.level || 'none'}` : ''), repo: repoOf(s), past: Boolean(s.past), level: s.level || null,
+    name: s.name.replace(/^(mcp|Bash):/, ''), sub: [s.repos > 1 ? `${s.repos} repositories` : '', s.past ? `measured with ${levelName(s.level)}, ${period(s)}` : s.level ? `${levelName(s.level)} since ${dayOf(s.since || s.from)}, ${period(s)}` : (s.others || []).length ? `before compression, ${period(s)}` : ''].filter(Boolean).join(' · '),
+    detail: `<p class="muted">${fmt(s.tokens)} tokens of output a session over ${perCall(s.calls)} calls, about ${fmt(s.perCall)} a call, read again by every model call after it.${s.wasted != null ? ` About ${fmt(s.wasted)} of its ${fmt(s.perSession)} input tokens a session were spent reading results after the agent last used them (an edit copying their text, or a later call on the same file in the same turn; an estimate).` : ''} ${s.past ? `Measured with ${levelName(s.level)} over ${period(s)}; the setting has changed since, and the tool is measured afresh from then as its own row above.` : s.compressible ? s.compression ? `Compressed at the ${s.compression} level since ${dayOf(s.since || s.from)}: this row is measured over the sessions since, not the month before.` : `Compressed, its long results are cut before the model reads them (Claude Code only): that would have saved at least ${fmt(s.saveModerate || 0)} input tokens a session here.` : 'thinker cannot compress this one yet (Bash commands, Read and MCP servers, in Claude Code).'}</p>${compare(s)}`,
+    tokens: s.perCall, perSession: s.perSession, sessions: s.sessions ?? os, acted: (s.sessions ?? os) ? s.usedIn / (s.sessions ?? os) : null, actedBy: `called in ${s.usedIn} of ${s.sessions ?? os} sessions`, calls: s.calls,
+    wasted: s.wasted ?? null, waste: s.past ? null : outWaste(s), off: false,
+    pill: s.past ? ['off', 'earlier setting'] : s.compression ? [s.compression === 'high' ? 'high' : 'ok', s.compression === 'high' ? 'high compression (command line)' : 'compressed'] : s.compressible ? null : ['off', "can't compress yet"],
+    options: s.past ? [] : s.compressible ? levelOpts(s) : [], disabled: s.past ? 'measured under an earlier setting; the current row takes the action' : s.compressible ? '' : 'thinker cannot compress this one yet (Bash commands, Read and MCP servers, in Claude Code)',
   });
   return rows;
 }
 const pickKey = r => `${r.repo || ''}\t${r.key}`;
+// the ? beside the Sessions used header: how the share is counted for each kind of part (hover or focus opens it)
+const USED_HELP = `<span class="help"><button type="button" class="help-btn" aria-label="How Sessions used is counted">?</button><div class="help-pop" role="tooltip">The share of the sessions that carried the part in which it was used. Counted from the transcripts, differently for each kind:
+<ul><li><b>Instruction section</b>: a model reads a 25% sample of sessions as they end (what was asked, the commands run, the files read and edited, the change) and says which sections bore on the work and whether the agent followed them; once five sessions are judged, the share is the judged sessions whose agent followed the section. Before that it is the sessions that touched the section's files, ran its command or read the code it names, by the section's own words; a section naming nothing shows – until judged.</li>
+<li><b>Skill</b>: the sessions that opened it (a /name invocation or a read of its SKILL.md), of those that loaded it.</li>
+<li><b>Tool</b> (built-in, MCP, connector, plugin): the sessions that called it at least once, of those that loaded its definition.</li>
+<li><b>Tool output</b>: the sessions that called the tool at all; Wasted, not this column, says what its results cost after the agent last used them.</li></ul></div></span>`;
 const actedCell = r => r.acted == null ? '<span class="muted">–</span>' : `${Math.round(100 * r.acted)}%`;
 // The Potential savings card at the top of every view (back on 2026-10-22, the owner's ask): input tokens a session, the share
 // of the view's cost, and the window's total. For a section, skill or tool, what the flagged rows (high or medium waste) cost
@@ -552,7 +576,8 @@ const flaggedSavings = (rows, days, { what, does, ok }) => {
 // an output: the part of each result past the moderate cap, read again by every call after it (tool-outputs.js); the trims
 // round what the agent looked for cut more, so this is a floor
 const outputSavings = (v, days) => {
-  const outs = v.outputs?.tools || [], per = outs.reduce((a, o) => a + (o.saveModerate || 0), 0), cost = v.totals?.outputs?.perSession || outs.reduce((a, o) => a + (o.perSession || 0), 0);
+  // the rows measured under the current settings alone: a tool's row from before it was compressed is no saving left to make
+  const outs = (v.outputs?.tools || []).filter(o => !o.past), per = outs.reduce((a, o) => a + (o.saveModerate || 0), 0), cost = v.totals?.outputs?.perSession || outs.reduce((a, o) => a + (o.perSession || 0), 0);
   return { kicker: 'Potential savings, at least', perSession: per, share: cost ? per / cost : null, window: per * (v.outputs?.sessions || 0), days, text: 'With compression on every Bash command, Read and MCP server: the part of each result past the cap, read again by every call after it. Trimming file reads and search results round what the agent looked for saves more. Claude Code only.', ok: 'No output here is long enough for the cap to cut.' };
 };
 // The table of one view, as the docs' example: a row a part with its box, tokens per call, the share of sessions that used it,
@@ -569,7 +594,7 @@ function renderTable(view, rows, { title, sub, note, nameHead, savings }) {
   const body = rows.slice(from, from + TABLE_PAGE).map((r, k) => {
     const i = from + k;
     const [pc, pt] = r.pill || (r.off ? ['off', 'off'] : WASTE_PILL[r.waste] || []), on = picks.has(pickKey(r));
-    return `<tr class="${[r.off ? 'ctx-off' : r.waste === 'high' ? 'ctx-high' : r.waste === 'medium' ? 'ctx-medium' : '', on ? 'ctx-picked' : ''].join(' ').trim()}" data-row="${i}">
+    return `<tr class="${[r.off || r.past ? 'ctx-off' : r.waste === 'high' ? 'ctx-high' : r.waste === 'medium' ? 'ctx-medium' : '', on ? 'ctx-picked' : ''].join(' ').trim()}" data-row="${i}">
       <td class="ctx-name"><label><input type="checkbox" data-pick="${view}" data-k="${esc(pickKey(r))}" data-i="${i}"${r.options.length ? '' : ' disabled'}${on ? ' checked' : ''} aria-label="Pick ${esc(r.name)}"> ${r.bold ? `<b>${esc(r.name)}</b>` : esc(r.name)}</label><button class="ctx-more" data-more="${i}" aria-expanded="false">See more</button>${(kindOf => kindOf || r.sub ? `<span class="ctx-kind">${esc([kindOf, r.sub].filter(Boolean).join(' · '))}</span>` : '')(view === 'all' || r.kind === 'skill' || r.kind === 'tool' ? r.kindLabel : '')}</td>
       <td class="num">${fmt(r.tokens)}</td>
       <td class="num">${actedCell(r)}</td>
@@ -581,7 +606,7 @@ function renderTable(view, rows, { title, sub, note, nameHead, savings }) {
   }).join('');
   return `<figure class="ctx-figure"><figcaption><b>${title}</b> <span class="ctx-sub">${sub}</span><span class="ctx-capact"><span class="ctx-sub" data-seln="${view}"></span><button class="btn" data-apply-picked="${view}" disabled title="Apply the action picked in each checked row">Apply</button></span></figcaption>
     ${savings ? savingsCard(savings) : ''}<div class="ctx-preview" data-preview="${view}" hidden></div>
-    ${rows.length ? `<table class="ctx-table"><thead><tr><th>${nameHead}</th><th class="num">Tokens per call</th><th class="num">Sessions used</th><th class="num">Over ${days} days</th><th class="num">Wasted</th><th></th><th></th></tr></thead><tbody>${body}</tbody></table>${pagerOf(view, rows.length, page, TABLE_PAGE)}` : '<div class="empty">Nothing recorded here yet.</div>'}
+    ${rows.length ? `<table class="ctx-table"><thead><tr><th>${nameHead}</th><th class="num">Tokens per call</th><th class="num">Sessions used ${USED_HELP}</th><th class="num">Over ${days} days</th><th class="num">Wasted</th><th></th><th></th></tr></thead><tbody>${body}</tbody></table>${pagerOf(view, rows.length, page, TABLE_PAGE)}` : '<div class="empty">Nothing recorded here yet.</div>'}
     ${note ? `<p class="ctx-note">${note}</p>` : ''}</figure>`;
 }
 // beside the Apply: what is picked, what it costs a call and over the window
@@ -678,14 +703,14 @@ function renderContext(v) {
   h += vdiv('all', renderTable('all', all, { nameHead: 'Part', title: 'Everything in the context', sub: cap(all, v.sessions || 0, 'over the window'), savings: sav.all,
     note: `Every instruction section, skill, tool and tool output the agents' sessions here carried, over ${v.days} days. <b>Sessions used</b>: the share of sessions that used the part (a section the agent followed, or whose files, commands or code it touched; a skill opened; a tool called). <b>Wasted</b>: what it cost in the sessions that did not use it; for an output, what its results cost after the agent last used them. The pill: high waste from 5% of what its kind cost, medium from 2%. Sorted by Wasted. Pick what to do in the row and Apply: a section's diff is shown first and written to your working tree, uncommitted; a skill or tool is switched off for this repository from the next session (a skill still runs as /name); an output is compressed before the model reads it (Claude Code). Every change is listed under History with a Revert. <b>Compress and Remove only edit the instruction file in your working tree: no commit, no pull request, nothing pushed.</b>` }));
   h += vdiv('instructions', (iv.file ? renderTable('instructions', of('instructions'), { nameHead: 'Section', title: esc(iv.file), sub: cap(of('instructions'), iv.sessions || 0, 'on the file'), savings: sav.instructions,
-    note: `${(iv.files || []).length > 1 ? `<b>${iv.files.length} instruction files.</b> ${iv.files.map(f => `<code>${esc(f.file)}</code> ${f.kind === 'root' ? 'in every session' : `${f.loadedIn} session${f.loadedIn === 1 ? '' : 's'}, ${f.kind === 'rule' ? (f.globs?.length ? 'when a matching file is opened' : 'at the start, Claude Code') : 'when a file in its directory is opened'}`}`).join(' · ')}. ` : ''}Each session reads the file again on every model call; ${iv.judged} judged${iv.judge?.judge ? `, and a ${Math.round(100 * iv.judge.share)}% sample is judged as sessions end` : ''}. <b>Compress</b> has a model rewrite a section to about a third, keeping its rules, commands and paths; <b>Remove</b> takes it out. Both show the diff first; Write puts it in the file in your working tree, uncommitted, for you to review and commit. <b>Compress and Remove only edit the instruction file in your working tree: no commit, no pull request, nothing pushed.</b>` })
-    : '<div class="empty">No AGENTS.md or CLAUDE.md in this repository.</div>') + `<div class="controls">${iv.coreOn ? '<button class="btn ghost" id="c-whole">Remove the trimmed copy</button>' : ''}${v.all || !iv.file ? '' : '<button class="btn ghost" id="c-judge">Judge 5 more sessions</button>'}</div>`);
+    note: `${(iv.files || []).length > 1 ? `<b>${iv.files.length} instruction files.</b> ${iv.files.map(f => `<code>${esc(f.file)}</code> ${f.kind === 'root' ? 'in every session' : `${f.loadedIn} session${f.loadedIn === 1 ? '' : 's'}, ${f.kind === 'rule' ? (f.globs?.length ? 'when a matching file is opened' : 'at the start, Claude Code') : 'when a file in its directory is opened'}`}`).join(' · ')}. ` : ''}Each session reads the file again on every model call; ${iv.judged} judged${iv.judge?.judge ? ` (a ${Math.round(100 * iv.judge.share)}% sample of sessions is judged by a model as they end)` : ' (judging is off)'}. <b>Compress</b> has a model rewrite a section to about a third, keeping its rules, commands and paths; <b>Remove</b> takes it out. Both show the diff first; Write puts it in the file in your working tree, uncommitted, for you to review and commit. <b>Compress and Remove only edit the instruction file in your working tree: no commit, no pull request, nothing pushed.</b>` })
+    : '<div class="empty">No AGENTS.md or CLAUDE.md in this repository.</div>') + `<div class="controls">${iv.coreOn ? '<button class="btn ghost" id="c-whole">Remove the trimmed copy</button>' : ''}</div>`);
   h += vdiv('custom', renderTable('custom', of('custom'), { nameHead: 'Skill or tool', title: 'Custom tools', sub: cap(of('custom'), v.sessions || 0, 'on them'), savings: sav.custom,
     note: `Every skill's name and description, and every MCP server's and plugin's tool definitions, sit in every session's context whether or not anything uses them; the agent reads a skill file only when it opens the skill. <b>Switch off</b> takes one out of the next session's context for this repository (a skill still runs when you type /name); <b>Turn back on</b> undoes it.` }));
   h += vdiv('builtin', renderTable('builtin', of('builtin'), { nameHead: 'Tool', title: 'Built-in tools', sub: cap(of('builtin'), v.sessions || 0, 'on them'), savings: sav.builtin,
     note: `Claude Code's own tool definitions, from the transcripts. <b>Switch off</b> asks first: one switched off goes into <code>permissions.deny</code> of <code>.claude/settings.local.json</code>, so new sessions here cannot call it, and <b>Revert</b> under History or <b>Turn back on</b> brings it back; the file, shell and search tools are never offered.` }));
   h += vdiv('outputs', renderTable('outputs', of('outputs'), { nameHead: 'Tool', title: 'Tool outputs', savings: sav.outputs, sub: (() => { const rs = of('outputs'), os = v.outputs?.sessions || 0; return `${os} session${os === 1 ? '' : 's'} · ${fmt(rs.reduce((a, r) => a + r.perSession * r.sessions, 0))} input tokens of output read again, ${fmt(rs.reduce((a, r) => a + (r.wasted || 0) * r.sessions, 0))} of it after the agent last used the result`; })(),
-    note: `A tool's output stays in the conversation and every later model call reads it again: its tokens × the model calls left after it, until a compaction drops it, estimated from the transcripts. <b>Wasted</b>: the reads after the agent last used the result, its last edit copying text from it or call on the same file in that turn; nearly all of it, since a result is needed for a few calls and read for the rest of the session. Compression trims a result before the model reads it, in Claude Code: whole-file reads to the lines round what the agent searched for, test runs to their failures, big searches to their hits, long output to a cap of about 3k tokens.` }));
+    note: `A tool's output stays in the conversation and every later model call reads it again: its tokens × the model calls left after it, until a compaction drops it, estimated from the transcripts. <b>Wasted</b>: the reads after the agent last used the result, its last edit copying text from it or call on the same file in that turn; nearly all of it, since a result is needed for a few calls and read for the rest of the session. Compression trims a result before the model reads it, in Claude Code: whole-file reads to the lines round what the agent searched for, test runs to their failures, big searches to their hits, long output to a cap of about 3k tokens. A tool whose compression you set is measured afresh from that moment, as its own row over the sessions since; its earlier measurement stays below it, muted, for the comparison, and never ranks above a current row.` }));
   h += vdiv('history', '<div class="empty"><span class="spinner"></span>Reading…</div>');
   el.innerHTML = h;
   for (const [k] of VIEWS) if (k !== 'history') wireTable(el.querySelector(`#c-${k}`), k, k === 'all' ? all : of(k));
@@ -694,7 +719,6 @@ function renderContext(v) {
   loadChanges();
   const act = async (btn, p, body, msg) => { if (btn) btn.disabled = true; try { const r = await api(p, { repo: CREPO, ...body }); toast(msg || (r.said && !String(r.said).startsWith('{') ? r.said : 'Saved')); loadContext(); } catch (err) { toast(err.message, true); if (btn) btn.disabled = false; } };
   $('#c-whole')?.addEventListener('click', e => act(e.target, '/api/context/core', { keep: null }));
-  $('#c-judge')?.addEventListener('click', e => act(e.target, '/api/context/judge', { n: 5 }, 'Judging 5 more sessions in the background; reload in a few minutes'));
 }
 
 // the one Sort control in the Save header (beside the repository and the window, the owner's ask of 2026-10-22): the

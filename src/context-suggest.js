@@ -100,13 +100,15 @@ function partChanges(view, { all = false } = {}) {
   // one level (moderate, diet.js): Compress, or No compression once the output is compressed at any level (the
   // command line can set high)
   const levelOpts = t => t.compression ? [ACTS.uncompress] : [ACTS.compress];
-  for (const t of view.outputs?.tools || []) if (all ? t.compressible : (t.compressible && !t.compression && t.saveModerate > 0)) out.push({
+  // a row measured under an earlier setting (tool-outputs.js:aggregateOutputs, `past`) is a comparison, not a change:
+  // the tool's current row is the one acted on, measured over the sessions since the setting (its `sessions`)
+  for (const t of view.outputs?.tools || []) if (!t.past && (all ? t.compressible : (t.compressible && !t.compression && t.saveModerate > 0))) out.push({
     kind: 'output', view: 'outputs', waste: outWaste(t.saveModerate), key: `output:${t.name}`, name: t.name, repo: t.repo, compression: t.compression || null,
     title: `${t.name.replace(/^Bash:/, '')} output`, saving: t.saveModerate,
     // how much smaller compressing makes this tool's results here: the part past the length cap, from these
     // transcripts (tool-outputs.js); trimming reads and searches round what the agent looked for cuts more
     why: `~${formatTokens(t.perCall)} tokens a call, read again by every call after it${t.wasted != null ? ` (~${formatTokens(t.wasted)} a session after the agent last used the result)` : ''}; compressed, ${pctLess(t.saveModerate, t.perSession)}`, action: 'compress its output (Claude Code)',
-    sessions: view.outputs?.sessions || 0, options: levelOpts(t),
+    sessions: t.sessions ?? view.outputs?.sessions ?? 0, options: levelOpts(t),
   });
   // the first option is the suggestion; `total` is what it could have saved over the report's window: its saving a
   // session times the sessions that read it (a skill or tool, the sessions it was loaded in)
