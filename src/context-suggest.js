@@ -3,8 +3,8 @@
 // hook starts the local page (`thinker ui`) and tells the agent to pass the five on in a few lines with the link to
 // the Context tab's All. There every part of the context is a row with the actions that can be taken on it (allChanges):
 // a section compressed or removed after its diff is read, a skill or tool switched off or back on, an output's
-// compression set; the person picks one in the row and applies it, and every decision is kept as the page's history
-// with a Revert. `thinker context --approve|--dismiss|--history` is the same over the top five.
+// compression set; the person picks one in the row and applies it, and every decision is kept as the page's Recent
+// activity with a Revert. `thinker context --approve|--dismiss|--history` is the same over the top five.
 // Nothing is changed until the person chooses. Ranking and scheduling make no model call; compressing a section does.
 //
 //   topChanges                    the ranking (context-view.js keeps it on the report)
@@ -13,8 +13,10 @@
 //   scheduleContextSuggestion     maintenance: at most weekly, the five kept in <cache>/state/context-suggest.json
 //   contextSuggestOffer           the prompt hook: once, the summary and the link, for the agent to pass on
 //   approveChanges, dismissChanges, revertDecision   the person's decisions, kept as the history (changeHistory), and taken back
-//   applyReviewed, refreshPrStates   a section's reviewed diff made a pull request (instruction-pr.js), and its state followed:
-//                                    open is pending, merged done, closed without merging rejected and suggested again
+//   startSectionJob, runSectionJob, retryJob   a section's change as a job in the background: recorded at once, made by
+//                                    `thinker instructions … --job`, a pull request when done (instruction-pr.js) or failed with Retry
+//   refreshPrStates               a pull request's state followed: open is pending, merged done, closed without merging rejected
+//                                    and suggested again
 //   ensureUi                      a detached `thinker ui --background` for the machine, reused while it runs
 //
 // `maintain: { contextSuggest: false }` in .thinker/config.json turns it off for a repository.
@@ -124,12 +126,26 @@ const configOn = store => store.config().maintain?.contextSuggest !== false;
 const readState = store => readJson(stateFile(store)) || {};
 // each entry with an id (entries written before ids are given one, once) and whether Revert can take it back; an entry
 // made a pull request carries `pr` {number, url, branch, state, openedAt, at} and is `pending` while the pull request
-// is open, `rejected` once it was closed without merging (refreshPrStates keeps the state)
-export function changeHistory(store) {
+// is open, `rejected` once it was closed without merging (refreshPrStates keeps the state). An entry a background job
+// is making (startSectionJob) carries `job` {state: running | done | failed, pid, startedAt, finishedAt, error} and is
+// `running` or `failed` (then `retryable`); a running job whose process is gone is marked failed here, once.
+// `attention` names what is not complete: a job running or failed, a pull request not merged; Recent activity counts them.
+export function changeHistory(store, { now = Date.now() } = {}) {
   const st = readState(store), h = st.history || [];
-  if (h.some(e => !e.id)) { for (const e of h) e.id ||= randomBytes(6).toString('hex'); writeJson(stateFile(store), st); }
-  return h.map(e => ({ ...e, revertible: !e.revertedAt && Boolean(undoOf(store, e)), ...(e.pr ? { pending: e.pr.state === 'open', rejected: e.pr.state === 'closed' } : {}) }));
+  let dirty = h.some(e => !e.id);
+  for (const e of h) {
+    e.id ||= randomBytes(6).toString('hex');
+    if (e.job?.state === 'running' && jobDied(e.job, now)) { e.job = { ...e.job, state: 'failed', error: e.job.pid ? 'the process ended before it finished' : 'the process did not start', finishedAt: new Date(now).toISOString() }; dirty = true; }
+  }
+  if (dirty) writeJson(stateFile(store), st);
+  return h.map(e => {
+    const running = e.job?.state === 'running', failed = e.job?.state === 'failed', pending = e.pr?.state === 'open';
+    return { ...e, revertible: !e.revertedAt && !running && !failed && Boolean(undoOf(store, e)), ...(e.pr ? { pending, rejected: e.pr.state === 'closed' } : {}), ...(e.job ? { running, failed, retryable: failed && !e.revertedAt } : {}), attention: running ? 'running' : failed && !e.revertedAt ? 'failed' : pending ? 'pr' : null };
+  });
 }
+// a job is dead when its process is gone, or it never recorded one in JOB_START_MS (the spawn failed)
+const JOB_START_MS = 2 * 60_000;
+const jobDied = (job, now) => job.pid ? !alive(job.pid) : now - Date.parse(job.startedAt) > JOB_START_MS;
 // The open pull requests asked after on GitHub (instruction-pr.js:prState), at most every PR_CHECK_MS each: merged or
 // closed is kept with when. Returns how many changed state. A pull request GitHub cannot be asked about keeps its state.
 export const PR_CHECK_MS = 60_000;
@@ -184,7 +200,8 @@ const entriesOf = (store, changes, decision, result, now, undo) => {
 export function currentChanges(store, view, { now = Date.now(), max = SUGGEST.max } = {}) {
   // a dismissal taken back makes its change a suggestion again, and so does a pull request closed without merging:
   // nothing was followed through on
-  const decided = new Set(changeHistory(store).filter(h => now - Date.parse(h.at) < DECIDED_DAYS * DAY && !(h.decision === 'dismissed' && h.revertedAt) && !h.rejected).flatMap(h => h.keys || [h.key]));
+  // a job that failed decided nothing either
+  const decided = new Set(changeHistory(store, { now }).filter(h => now - Date.parse(h.at) < DECIDED_DAYS * DAY && !(h.decision === 'dismissed' && h.revertedAt) && !h.rejected && !h.failed).flatMap(h => h.keys || [h.key]));
   return (view.suggestions || topChanges(view, { max: 20 })).filter(c => !decided.has(c.key)).slice(0, max);
 }
 export function dismissChanges(store, changes, { now = Date.now() } = {}) {
@@ -194,36 +211,89 @@ export function dismissChanges(store, changes, { now = Date.now() } = {}) {
 }
 // a section compressed on the page after its diff was read: the edit applied there, recorded here
 export function recordReviewed(store, change, result, { now = Date.now(), undo = null } = {}) { record(store, [entryOf(store, change, 'applied after review', result, now, undo)]); }
-// The page's Apply on a section after its diff was read (ui/server.js /api/changes/apply). With `pr` the previewed
-// edit becomes a pull request (instruction-pr.js:openEditPr) and the decision is recorded with it: pending until it is
-// merged, rejected if it is closed, Close PR its revert. Otherwise the edit is written to the working tree
-// (instruction-edit.js:applyEdit) and recorded with the files as they were, so History's Revert writes them back.
-// Several sections previewed together are one edit (one pull request, one undo) and a line in History each, since
-// 2026-10-24 (the owner's ask: no actions bundled into one row): reverting any one of them puts the whole file back,
-// or closes the pull request, and marks the others reverted with it.
-export async function applyReviewed(store, changes, editKey, files, { now = Date.now(), edit, pr = false, prs } = {}) {
-  const saving = changes.reduce((s, x) => s + (x.saving || 0), 0);
-  if (pr) {
-    const { openEditPr } = prs || await import('./instruction-pr.js');
-    const r = await openEditPr(store, editKey, { changes, now });
-    if (r.error) return r;
-    const es = entriesOf(store, changes, 'pull request', r.said, now, null);
-    const prRecord = { number: r.number, url: r.url, branch: r.branch, commit: r.commit, base: r.base, state: 'open', openedAt: es[0].at, checkedAt: es[0].at };
-    for (const e of es) e.pr = { ...prRecord };
-    record(store, es);
-    store.log({ op: 'context-approve', changes: changes.length, saving, reviewed: true, pr: r.number });
-    return { said: r.said, pr: prRecord };
-  }
-  const { applyEdit } = edit || await import('./instruction-edit.js');
-  const read = f => { try { return fs.readFileSync(path.join(store.repo, f), 'utf8'); } catch { return null; } };
-  const names = [...new Set((Array.isArray(files) ? files : []).map(String).filter(Boolean))];
-  const before = names.map(read);
-  const a = applyEdit(store, editKey);
-  if (a.error) return a;
-  const undo = names.length ? { kind: 'edit', files: names.map((f, i) => ({ file: f, before: before[i], after: read(f) })) } : null;
-  record(store, entriesOf(store, changes, 'applied after review', a.said, now, undo));
-  store.log({ op: 'context-approve', changes: changes.length, saving, reviewed: true });
-  return a;
+
+// The page's Apply on sections (ui/server.js /api/changes/start) is a job in the background, since 2026-10-24 (the
+// owner's ask: a model call of some seconds is nothing to hold the person's attention with). The decision is recorded
+// at once, a row per section sharing one `group` with `job: {state: 'running'}`, and the command the person would have
+// typed is started detached: `thinker instructions --compress|--remove <ids> --pr --job <group>` (--apply where no pull
+// request can be opened here: instruction-pr.js:prAvailable). The command runs runSectionJob: the model compresses, the
+// change becomes a pull request (instruction-pr.js:openEditPr), recorded on every entry of the group and pending until
+// it is merged (rejected if closed, Close PR its revert), or is written to the working tree with the files as they were,
+// so Revert writes them back; a failure is recorded as such with its reason, and Retry (retryJob) runs the same command
+// again. Recent activity shows the job under way, failed or pending, and counts them for the badge. Several sections
+// applied together are one job, one pull request, one undo, and a line each (the owner's ask, 2026-10-24: no actions
+// bundled into one row): reverting any one of them puts the whole file back, or closes the pull request, and marks the
+// others reverted with it.
+export function startSectionJob(store, changes, action, { pr = false, now = Date.now(), spawnFn = spawn, cliPath = CLI } = {}) {
+  const ids = [...new Set(changes.map(c => c.id).filter(Boolean))];
+  if (!ids.length || !['compress', 'remove'].includes(action)) return { error: 'no section to change' };
+  const group = randomBytes(6).toString('hex'), at = new Date(now).toISOString();
+  const es = changes.map(c => ({ ...entryOf(store, { ...c, default: ACTS[action] }, pr ? 'pull request' : 'applied', null, now, null, { group }), section: c.id, file: c.file, job: { state: 'running', action, pr, startedAt: at, pid: null } }));
+  record(store, es);
+  const args = [cliPath, 'instructions', `--${action}`, ids.join(','), pr ? '--pr' : '--apply', '--job', group];
+  let pid = null;
+  try { const child = spawnFn(process.execPath, args, { cwd: store.repo, detached: true, stdio: 'ignore' }); child.on?.('error', () => {}); child.unref?.(); pid = child.pid || null; }
+  catch (e) { finishJob(store, group, j => ({ ...j, state: 'failed', error: `could not start: ${String(e.message || e).split('\n')[0]}`, finishedAt: at })); return { error: 'could not start the change', group }; }
+  finishJob(store, group, j => ({ ...j, pid }));
+  store.log({ op: 'context-job', group, action, sections: ids.length, pr, state: 'started' });
+  const n = ids.length, word = `${n} section${n === 1 ? '' : 's'}`;
+  return { group, said: action === 'compress' ? `Compressing ${word} in the background: ${pr ? 'a pull request opens with the change when the model is done' : 'the file in your working tree is rewritten when the model is done'}. Follow it under Recent activity.` : `Removing ${word}: ${pr ? 'a pull request opens with the change in a moment' : 'written to your working tree in a moment'}. Follow it under Recent activity.` };
+}
+// every entry of the job rewritten by `fn` over its `job`, and `also` over the entry, from the state as it is now
+function finishJob(store, group, fn, also) {
+  const st = readState(store), es = (st.history || []).filter(e => e.group === group && e.job);
+  for (const e of es) { e.job = fn(e.job); also?.(e); }
+  writeJson(stateFile(store), st);
+  return es;
+}
+// the command's side (`thinker instructions … --job <group>`): the change made and the job's entries finished
+export async function runSectionJob(store, { group, ids, action, pr = false }, { now, edit, prs } = {}) {
+  const es = readState(store).history?.filter(e => e.group === group && e.job) || [];
+  if (!es.length) return { error: `no job ${group} here` };
+  ids = ids?.length ? ids : es.map(e => e.section).filter(Boolean);
+  // a compression takes seconds: the finish is stamped when it comes (a test gives `now`)
+  const stamp = () => new Date(now ?? Date.now()).toISOString();
+  const fail = error => { finishJob(store, group, j => ({ ...j, state: 'failed', error, finishedAt: stamp() })); store.log({ op: 'context-job', group, action, state: 'failed', error }); return { error }; };
+  try {
+    const { previewEdit, applyEdit } = edit || await import('./instruction-edit.js');
+    const p = await previewEdit(store, ids, action);
+    if (p.error) return fail(p.error);
+    const done = { state: 'done', finishedAt: stamp(), tokens: p.modelTokens || null };
+    const saving = es.reduce((s, e) => s + (e.saving || 0), 0);
+    if (pr) {
+      const { openEditPr } = prs || await import('./instruction-pr.js');
+      const r = await openEditPr(store, p.key, { changes: es, now: now ?? Date.now() });
+      if (r.error) return fail(r.error);
+      const prRecord = { number: r.number, url: r.url, branch: r.branch, commit: r.commit, base: r.base, state: 'open', openedAt: done.finishedAt, checkedAt: done.finishedAt };
+      finishJob(store, group, j => ({ ...j, ...done }), e => { e.pr = { ...prRecord }; e.decision = 'pull request'; e.result = r.said; });
+      store.log({ op: 'context-approve', changes: es.length, saving, reviewed: true, pr: r.number, group });
+      return { said: r.said, pr: prRecord };
+    }
+    const read = f => { try { return fs.readFileSync(path.join(store.repo, f), 'utf8'); } catch { return null; } };
+    const names = [...new Set((p.files || [p.file]).map(String).filter(Boolean))], before = names.map(read);
+    const a = applyEdit(store, p.key);
+    if (a.error) return fail(a.error);
+    writeJson(undoFile(store, group), { kind: 'edit', files: names.map((f, i) => ({ file: f, before: before[i], after: read(f) })) });
+    finishJob(store, group, j => ({ ...j, ...done }), e => { e.decision = 'applied'; e.result = a.said; });
+    store.log({ op: 'context-approve', changes: es.length, saving, reviewed: true, group });
+    return a;
+  } catch (err) { return fail(String(err.message || err).split('\n')[0]); }
+}
+// A failed job run again (the page's Retry, `thinker context --retry <n>`): the same command, the entries running again
+export function retryJob(store, id, { now = Date.now(), spawnFn = spawn, cliPath = CLI } = {}) {
+  const e = changeHistory(store, { now }).find(h => h.id === id);
+  if (!e) return { error: 'no such decision' };
+  if (!e.failed) return { error: e.running ? 'still running' : 'nothing to retry' };
+  const group = e.group, es = changeHistory(store, { now }).filter(h => h.group === group && h.job);
+  const ids = es.map(h => h.section).filter(Boolean), { action, pr } = e.job;
+  const at = new Date(now).toISOString();
+  finishJob(store, group, j => ({ state: 'running', action, pr, startedAt: at, pid: null, tries: (j.tries || 1) + 1 }));
+  let pid = null;
+  try { const child = spawnFn(process.execPath, [cliPath, 'instructions', `--${action}`, ids.join(','), pr ? '--pr' : '--apply', '--job', group], { cwd: store.repo, detached: true, stdio: 'ignore' }); child.on?.('error', () => {}); child.unref?.(); pid = child.pid || null; }
+  catch (err) { finishJob(store, group, j => ({ ...j, state: 'failed', error: `could not start: ${String(err.message || err).split('\n')[0]}`, finishedAt: at })); return { error: 'could not start the change' }; }
+  finishJob(store, group, j => ({ ...j, pid }));
+  store.log({ op: 'context-job', group, action, sections: ids.length, pr, state: 'retried' });
+  return { said: `${e.title}: ${action === 'compress' ? 'compressing again in the background' : 'removing again'}${es.length > 1 ? `, with the ${es.length - 1} other section${es.length > 2 ? 's' : ''} of the same change` : ''}` };
 }
 
 // Maintenance: the top five kept for the next prompt, at most weekly, once there are enough sessions to read.

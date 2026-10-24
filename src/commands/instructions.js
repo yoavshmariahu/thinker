@@ -1,5 +1,6 @@
 // `thinker instructions`: the sections of AGENTS.md with their tokens, and a change to some of them as a diff
-// (instruction-edit.js): --remove / --compress <ids>, --pr for a pull request with it, --apply for the working tree.
+// (instruction-edit.js): --remove / --compress <ids>, --pr for a pull request with it, --apply for the working tree;
+// --job <group> is the page's background run of the same (context-suggest.js:runSectionJob).
 import { sections } from '../instruction-value.js';
 import { previewEdit, applyEdit } from '../instruction-edit.js';
 import { retireTrimmedCopy } from '../trimmed-copy-retired.js';
@@ -16,8 +17,18 @@ async function instructionsCommand({ store, repo, flags, out }) {
   // writes it to the working tree (instruction-edit.js)
   for (const action of ['remove', 'compress']) {
     if (typeof flags[action] !== 'string') continue;
+    const ids = flags[action].split(',').map(x => x.trim()).filter(Boolean);
+    // --job <group>: the page's Apply started this command detached (context-suggest.js:startSectionJob); the change is made
+    // and the decision it recorded is finished here (a pull request, the working tree, or failed with the reason), for
+    // Recent activity to show; nothing is printed to a terminal nobody is at
+    if (typeof flags.job === 'string') {
+      const { runSectionJob } = await import('../context-suggest.js');
+      const r = await runSectionJob(store, { group: flags.job, ids, action, pr: Boolean(flags.pr) });
+      out(r.said || r.error);
+      return;
+    }
     // one section id, or several separated by commas
-    const r = await previewEdit(store, flags[action], action);
+    const r = await previewEdit(store, ids, action);
     if (r.error) { out(r.error); return; }
     for (const x of r.sections) {
       out(`${action === 'remove' ? 'Remove' : 'Compress'} "${x.title}" in ${r.file}: ~${x.tokensBefore} → ~${x.tokensAfter} tokens\n`);

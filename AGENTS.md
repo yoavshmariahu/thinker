@@ -1209,32 +1209,33 @@ by a model asked for a third of the length (`instruction-edit.js`, `thinker inst
 [--apply]`, the tab's Compress and Remove). The diff is shown first; Apply writes exactly that text to the working
 tree, uncommitted, and refuses when the file changed since the preview. No commit, no pull request.
 
-**The tables, All and History (2026-10-22, the owner's layout).** Every table of the Save page, History included, shows 20 rows a page (`page.html:TABLE_PAGE`, Previous and Next under the table; a pick holds across pages), and the Report's decisions table the same; History lists every decision kept, the Report the window's alone (2026-10-22). Every view of the Context tab is one table in the shape of
+**The tables, All and Recent activity (2026-10-22, the owner's layout; History became the Recent activity page on 2026-10-24, below).** Every table of the Save page shows 20 rows a page (`page.html:TABLE_PAGE`, Previous and Next under the table; a pick holds across pages), and the decisions tables the same; Recent activity lists every decision kept, the Report the window's alone (2026-10-22). Every view of the Context tab is one table in the shape of
 the docs' "AGENTS.md this week" example (`site/docs.html`, `ui/page.html:renderTable`): a row a part with its box, its tokens
 per call, the share of sessions that used it, its cost over the window (numbers centered, no bars) and a pill where the waste
 is high or medium; See more opens the part's text under the row; a dropdown in the row picks what to do, and the one Apply at
-the table's top right does it for every checked row (no button per row; History's Revert is per decision); the Sort
+the table's top right does it for every checked row (no button per row; Recent activity's Revert is per decision); the Sort
 control is one, in the page's header beside the repository and the window, with the orderings of the view shown (2026-10-22). Sorting follows the
 window figures the table shows: most wasted is the waste a session times the sessions the part was in, as the summary ranks.
 A Wasted column holds that aggregate (`instruction-value.js:wasteLevel`, one rule since this day: wasted as a share of
 what the kind costs, 5% high, 2% medium, no longer gated on under-half use); an output's is what moderate compression
 would have cut, so an uncompressed MCP server or command can be medium or high waste beside a section. The
-first view, All, holds every section, skill, tool and output together; the four after it one kind each; History, last, the
-decisions. The page's address carries nothing: the server refuses an API call another site's page makes (its Origin or
+first view, All, holds every section, skill, tool and output together; the four after it one kind each (History, the
+decisions, was the last view until 2026-10-24). The page's address carries nothing: the server refuses an API call another site's page makes (its Origin or
 Sec-Fetch-Site) and any Host but its own (`ui/server.js`); the per-run key in the address went on 2026-10-22, the owner's call. The actions are what `context-suggest.js:allChanges` gives each part (a section: Compress
 or Remove; a skill or tool: Switch off, or Turn back on where thinker switched it off; an output thinker can compress: Compress, or No
 compression; one level, moderate, since the owner's call of 2026-10-22 that a person cannot pick between two levels nothing has
 measured against each other: the rows offered High for a day, and `--level high` stays on the command line alone, for an
 experiment arm): the row is sent by its key to `/api/changes/approve`, which resolves it in the kept
 report and makes it (`approveChanges`; a skill or tool through `context-view.js:switchSources`, an output through
-`setOutputCompression`), recording the decision with its undo. A section is previewed first (`instruction-edit.js:previewEdit`,
-the diff above the table, Write to <file>) and recorded when written (`applyReviewed`, the file as it was kept for Revert; several
-sections previewed together are one edit and one undo but a row each, since 2026-10-24 at the owner's ask that History bundle nothing: a Revert on one writes the file back and marks the others reverted with it, a Close PR closes the one pull request for all of them). A built-in tool's row is in bold and its Switch off is confirmed in a dialog first (`page.html:confirmDialog`: the tools named,
+`setOutputCompression`), recording the decision with its undo. A section is a job in the background (`startSectionJob`, below;
+until 2026-10-24 its diff was previewed in a modal and written from there); several sections applied together are one job, one
+pull request and one undo but a row each, since 2026-10-24 at the owner's ask that the decisions bundle nothing: a Revert on one
+writes the file back and marks the others reverted with it, a Close PR closes the one pull request for all of them. A built-in tool's row is in bold and its Switch off is confirmed in a dialog first (`page.html:confirmDialog`: the tools named,
 `permissions.deny` of `.claude/settings.local.json` as where it is written, Revert and Turn back on as the way back), the one
 change the page asks about twice (2026-10-22, the owner's ask). Every view opens with a Potential savings card
 (`page.html:savingsCard`, back the same day): the flagged rows' cost in the sessions that did not use them (at most) for sections,
 skills and tools, what the moderate cap alone would have cut (at least) for outputs, and All the sum of the four over what
-everything costs a session. History lists every decision with Revert (`revertDecision`: a tool back on or off
+everything costs a session. Recent activity lists every decision with Revert (`revertDecision`: a tool back on or off
 again, an output's compression back to what it was, a section's file written back unless edited since, a dismissal withdrawn);
 kept in `.thinker/state/context-suggest.json` with the undo records beside it. The ranking is still `topChanges`: the flagged
 parts (high or medium waste, saving at most their cost in the sessions that did not use them; an output, what the cap cuts) by
@@ -1397,7 +1398,7 @@ the page says under the toggle that it is a list price, what a metered key would
 model without a price is left out of the cost average and named as unpriced, never counted at zero.
 
 Under the tables: the decisions taken on Save in the window (`context-suggest.js:changeHistory`, the same table as
-Save's History, `page.html:historyFigure`, with its Revert, over the six weeks alone), so a week's change can be read
+Recent activity, `page.html:historyFigure`, with its Revert, over the six weeks alone), so a week's change can be read
 against what was cut that week; and the four numbers the Cache tab showed
 (`report.js:cacheMetrics`, from `usage.js:summarize` over the same window), with the saving in dollars first
 (the tokens saved on each model at that model's input list price: the holdout's figure by model where it is
@@ -1443,12 +1444,33 @@ pull request with `gh` (`instruction-pr.js:openEditPr`; `prAvailable` says when 
 section's old and new text (`instruction-edit.js:previewEdit`, `edits`), so the change is applied to the base branch's
 file where that differs from the working tree (`textOnBase`), refused where the section is not found there. History
 records the decision as `pull request` with `pr` {number, url, branch, state} (`context-suggest.js:applyReviewed`),
-follows the state on GitHub a minute apart at most (`refreshPrStates`, on every read of `/api/changes` and `thinker
+follows the state on GitHub a minute apart at most (`refreshPrStates`, on every read of `/api/activity` and `thinker
 context --history`): **PR pending** while open (the section's row shows the same pill, linked, and cannot be picked
 again), **Merged**, **Rejected** once closed without merging, and a rejected change is suggested again
 (`currentChanges` leaves it out of the decided set) since nothing was followed through on. **Close PR** is the entry's
 revert (`revertDecision`, `instruction-pr.js:closePr`: closed with a comment, the branch deleted). `thinker instructions
 --compress <id> --pr` is the command.
+
+**The change runs in the background, and Recent activity is its own page (2026-10-24, the owner's ask).** A model call of
+some seconds was nothing to hold the person's attention with: until this day Apply on a section opened a modal with a
+spinner, then the diff, then the button for the pull request. Now Apply records the decision at once, a row per section
+sharing one `group` with `job: {state: running, pid, startedAt}` (`context-suggest.js:startSectionJob`, `/api/changes/start`),
+starts the command the person would have typed detached, `thinker instructions --compress|--remove <ids> --pr --job <group>`
+(`--apply` where no pull request can be opened here, `instruction-pr.js:prAvailable`), and the page says once in a toast
+that it started and where to follow it. The command runs `runSectionJob`: the preview, then the pull request (recorded on
+every entry of the group, pending until merged) or the working tree (the files as they were kept under the group for
+Revert), or `job.state: failed` with the reason; a running job whose process is gone, or that recorded none within two
+minutes, is marked failed when the history is next read (`changeHistory`, `jobDied`). A failed job decided nothing: the
+section is suggested again, and **Retry** (`retryJob`, `/api/changes/retry`, `thinker context --retry <n>`) runs the same
+command again over every section of the change. The diff is read in the pull request, or with `git diff`. Save's rows read
+the same decisions: a section under way says *Compressing…* in its pill and cannot be picked, a failed one says so and can.
+The History view of Save went, and the decisions are the page's third tab, **Recent activity**, at the right of the nav
+(`#tab-activity`, `/api/activity`: the history alone, no report, for one repository or all; `thinker context --history`
+prints the same states): a card at the top names what needs the person, then every decision with Retry, Close PR or Revert
+in its row, and the tab's badge counts what is not complete over every repository (`changeHistory` `attention`: a job
+running or failed, a pull request open), asked for every 30 s and every 5 s while a job runs, so a Save row's pill and the
+activity table move on their own when a job finishes (`page.html:pollActivity`). The Report's decisions table under its
+figures is the same function (`historyFigure`).
 
 ## Internal server
 
