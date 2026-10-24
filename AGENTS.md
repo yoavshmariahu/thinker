@@ -1064,6 +1064,18 @@ session link for the MCP tools (`linkAgentSession`, a `ps` per prompt) went with
   update` and `thinker setup`, and by `thinker ranker fetch`; `thinker ranker`
   says whether both are in place. When either is missing the hook logs
   `ce-error` once and serves the lexical ranking.
+  The hook gives the cross-encoder a deadline (2026-10-24; `ce.deadlineMs`, default
+  `dense.js:CE_DEADLINE_MS` 8,000 ms since the hook's process started, `THINKER_CE_DEADLINE`
+  overrides it, `off` for none): reached past it the model is not loaded, and not answered
+  by it the inference is no longer waited for; the lexical ranking is served either way, as
+  with the cross-encoder off, and the orient line carries `ceDeadline: skipped | timeout`
+  with `sinceStartMs` and the load average. An inference in flight cannot be stopped and
+  would keep the process alive, so a hook that abandoned one exits as soon as its output
+  is written (`commands/hooks.js:exitAfterOutput`). Why: with four test suites running at
+  once (load average 90 on 8 cores) the hook took 13 s of wall clock for 3.8 s of CPU and
+  was cut off at Claude Code's 15 s limit; the lexical path alone was 7.8 s of wall clock
+  for 1.5 s of CPU, 0.45 s on the idle machine. The agent's own `orient` and `lookup`,
+  and the servers, pass no deadline and are unchanged.
   The hook goes from 0.7 s to about 1.0 s. `THINKER_DENSE=minilm` (bi-encoder
   embeddings blended into the score) is the measured negative kept beside
   it. Harness arms `hook-bm25` (CE off), `hook-ce1`, `hook-ce2`, `hook-minilm`.
