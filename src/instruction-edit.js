@@ -8,8 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { sections } from './instructions-core.js';
-import { instructionFiles } from './instruction-value.js';
+import { instructionFiles, sections } from './instruction-value.js';
 import { complete, DEFAULT_DISTILL_MODEL } from './llm.js';
 import { tokensOf } from './model-usage.js';
 

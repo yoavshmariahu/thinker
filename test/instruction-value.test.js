@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
 import { instructionFile, valueSections, sessionActivity, appliedSections, instructionValue, judgeSessionFile, judgeRecent, valueOf, readValueState, IDLE_MS } from '../src/instruction-value.js';
 import { contextView, skillOutcomes } from '../src/context-view.js';
-import { setCore } from '../src/instructions-core.js';
+import { retireTrimmedCopy } from '../src/trimmed-copy-retired.js';
 
 const AGENTS = `# Repo
 
@@ -168,16 +168,29 @@ test('the context view puts sections, skills and tools side by side, with the ke
   assert.deepEqual(v.skills.map(s => [s.name, s.perSession, !!s.label, s.outcome.missed]), [['naming', 1200, true, 1]]);
   assert.deepEqual(v.tools.map(s => s.name), ['rea', 'Workflow']);
   assert.equal(v.totals.tools.perSession, 44000);
-  assert.ok(v.instructions.sections.every(s => !s.kept)); assert.equal(v.instructions.coreOn, false);
+  assert.ok(v.instructions.sections.every(s => s.kept === undefined)); assert.equal(v.instructions.coreOn, undefined);
   // the label `thinker harness --off` takes, for a built-in tool too (switching it off turns built-in tool switching on)
   fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ harness: { enabled: true } }));
   v = contextView(store, { sessions: [], usage, log });
   assert.equal(v.tools.find(s => s.name === 'rea').label, 'rea MCP server');
   assert.ok(v.tools.find(s => s.name === 'Workflow').label);
-  setCore(store, ['API views']);
-  v = contextView(store, { sessions: [], usage, log });
-  assert.equal(v.instructions.coreOn, true);
-  assert.deepEqual(v.instructions.sections.filter(s => s.kept).map(s => s.id), ['api-views']);
+});
+
+test('a trimmed copy an older thinker kept for the checkout is taken out once, and only thinker\'s own files', t => {
+  const { store } = fixture(t), repo = store.repo;
+  const mark = '<!-- thinker: the sections of AGENTS.md kept for this checkout (`thinker instructions --off` removes this file; edit AGENTS.md, not this) -->';
+  fs.writeFileSync(path.join(repo, 'AGENTS.override.md'), `${mark}\n\n## API views\n`);
+  fs.writeFileSync(path.join(repo, 'CLAUDE.local.md'), 'my own notes\n');
+  fs.mkdirSync(path.join(repo, '.claude'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.claude', 'settings.local.json'), JSON.stringify({ claudeMdExcludes: [path.join(repo, 'CLAUDE.md'), '/elsewhere/CLAUDE.md'], skillOverrides: { x: 'off' } }));
+  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ harness: { enabled: true }, instructions: { core: { keep: ['API views'] }, value: { judge: false } } }));
+  const removed = retireTrimmedCopy(store);
+  assert.deepEqual(removed, ['AGENTS.override.md', 'claudeMdExcludes in .claude/settings.local.json', 'instructions.core in .thinker/config.json']);
+  assert.equal(fs.existsSync(path.join(repo, 'AGENTS.override.md')), false);
+  assert.equal(fs.readFileSync(path.join(repo, 'CLAUDE.local.md'), 'utf8'), 'my own notes\n', 'a file of the person\'s stays');
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(repo, '.claude', 'settings.local.json'), 'utf8')), { claudeMdExcludes: ['/elsewhere/CLAUDE.md'], skillOverrides: { x: 'off' } });
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(store.dir, 'config.json'), 'utf8')), { harness: { enabled: true }, instructions: { value: { judge: false } } });
+  assert.deepEqual(retireTrimmedCopy(store), [], 'nothing the second time');
 });
 
 test('a repository with no instruction file still has a context view: empty instructions, the tools and skills as before', t => {

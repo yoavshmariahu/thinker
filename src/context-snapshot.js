@@ -18,10 +18,10 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 // the readers behind the report: a snapshot made by other code is not this code's report
 let codeKey;
-const code = () => codeKey ||= crypto.createHash('sha256').update(['context-view.js', 'instruction-value.js', 'instruction-sections.js', 'harness.js', 'harness-codex.js', 'tool-outputs.js', 'diet.js', 'instructions-core.js', 'context-suggest.js']
+const code = () => codeKey ||= crypto.createHash('sha256').update(['context-view.js', 'instruction-value.js', 'instruction-sections.js', 'harness.js', 'harness-codex.js', 'tool-outputs.js', 'diet.js', 'context-suggest.js']
   .map(f => { try { return fs.readFileSync(path.join(HERE, f), 'utf8'); } catch { return f; } }).join('\0')).digest('hex').slice(0, 16);
 // where the report's switches and sections come from, by size and mtime
-const INPUTS = ['.thinker/config.json', '.claude/settings.json', '.claude/settings.local.json', 'AGENTS.md', 'CLAUDE.md', 'AGENTS.override.md', 'CLAUDE.local.md', '.cursor/rules'];
+const INPUTS = ['.thinker/config.json', '.claude/settings.json', '.claude/settings.local.json', 'AGENTS.md', 'CLAUDE.md'];
 const inputs = store => INPUTS.map(f => { try { const s = fs.statSync(path.join(store.repo, f)); return `${f}\t${s.size}\t${Math.round(s.mtimeMs)}`; } catch { return `${f}\t-`; } }).join('\n');
 
 // a linked worktree keeps its cache in the main checkout's .thinker but has sessions of its own: named apart

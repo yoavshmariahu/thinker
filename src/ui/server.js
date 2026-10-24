@@ -19,7 +19,6 @@ import { contextView, mergeViews, switchSources, setOutputCompression } from '..
 import { snapshotView, lastSnapshot, refreshing, dropSnapshots, REFRESH_MS } from '../context-snapshot.js';
 import { approveChanges, dismissChanges, applyReviewed, revertDecision, pickChanges, currentChanges, allChanges, changeHistory, refreshPrStates } from '../context-suggest.js';
 import { reportView, mergeReports, REPORT_WEEKS } from '../report.js';
-import { setCore } from '../instructions-core.js';
 import { previewEdit, applyEdit } from '../instruction-edit.js';
 import { prAvailable } from '../instruction-pr.js';
 import http from 'node:http';
@@ -202,8 +201,6 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
       if (url.pathname === '/api/harness/suggest') { const picks = scheduleHarnessSuggestion(st, { force: true }); r = picks?.length ? { queued: picks.length } : { error: 'nothing here is worth switching off' }; }
       else if (url.pathname === '/api/harness/undo') r = { said: undoHarness(st, { names: Array.isArray(b.names) ? b.names : null }) };
       else if (url.pathname === '/api/harness/off') r = Array.isArray(b.labels) && b.labels.length ? { said: switchOffNow(st, b.labels.join(','), { via: 'ui', any: true }) } : { error: 'nothing chosen' };
-      // `thinker instructions --core "<Title>, …"` (a list) and `--off` (null)
-      else if (url.pathname === '/api/context/core') { const keep = Array.isArray(b.keep) ? b.keep.map(String).filter(Boolean) : null; const c = setCore(st, keep?.length ? keep : null); r = c.state === 'theirs' ? { error: 'AGENTS.override.md here is not thinker\'s; nothing written' } : { said: keep?.length ? `Kept ${c.kept?.length ?? keep.length} sections for this checkout` : 'Agents here read the whole file again' }; }
       // `thinker instructions --remove|--compress <id>` (the diff) and `--apply` (written to the working tree); with the diff,
       // whether a pull request can be opened from here (instruction-pr.js:prAvailable), for the page's button
       else if (url.pathname === '/api/context/edit') { const x = await previewEdit(st, Array.isArray(b.ids) ? b.ids : String(b.id || ''), b.action === 'compress' ? 'compress' : 'remove'); if (x.error) r = x; else return json(res, 200, { ok: true, preview: x, pr: prAvailable(st.repo) }); }

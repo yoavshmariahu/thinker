@@ -25,7 +25,7 @@ import { contextSuggestOffer, ensureUi, suggestionsUrl } from '../context-sugges
 import { skillSuggestOn, skillSuggestLines, hookSkillFacts } from '../skill-suggest.js';
 import { snapshotCursorInventory } from '../harness-cursor.js';
 import { sectionsForEvent, sectionsConfig } from '../instruction-sections.js';
-import { syncCore } from '../instructions-core.js';
+import { retireTrimmedCopy } from '../trimmed-copy-retired.js';
 import { thinkerHome } from '../update.js';
 import { desktopApp, subagentHarness } from '../app-host.js';
 import { enqueueJob, markAppSession, pendingJobs, startSessionWork } from '../session-work.js';
@@ -165,9 +165,8 @@ async function hookCommand(ctx) {
         // never in a benchmark or test session (THINKER_TEST=1): an offer there is noise in the agent's context and an
         // eval runner marks the session invalid for it (2026-10-18); THINKER_OFFERS=on restores them, for the tests of the offers
         const offersOn = !isTestMode() || process.env.THINKER_OFFERS === 'on';
-        // the trimmed AGENTS.md follows the team's file (instructions-core.js): rewritten when AGENTS.md changed, for the
-        // next session (Codex reads it when a session starts); a hash comparison when nothing did
-        try { syncCore(store); } catch {}
+        // a trimmed copy of AGENTS.md an older version kept for this checkout goes (trimmed-copy-retired.js): four stats
+        try { retireTrimmedCopy(store); } catch {}
         // a switched-off tool this request looks like it needs (harness.js:harnessRecall). Not an offer: a line for the
         // agent, on with the harness, so it runs in test mode too. Gated as an offer, an eval arm had to turn every
         // offer back on to measure it, and the warm-up offer then reached the agent (2026-10-19: a PostHog session

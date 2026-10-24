@@ -3,12 +3,11 @@
 // session that read one kept its rules: the sampled outcome check, skill-outcome.js), and the other tools loaded
 // into every session (MCP servers, plugins, built-in tools: harness.js). One report behind `thinker context` and
 // the page's Context tab, so both show the same rows and the same controls: a section is kept or left out of the
-// checkout's trimmed copy (`thinker instructions --core`, instructions-core.js), a tool is switched off for the
+// team's file by a pull request (instruction-edit.js), a tool is switched off for the
 // repository (`thinker harness --off`), where the harness is on.
 import { harnessUsage, harnessAdvice, harnessOn, labelOf, canSwitchOff, MIN_TOKENS, median, setHarnessSettings, switchOffNow, undoHarness } from './harness.js';
 import { dietConfig, compressible, COMPRESSIBLE, setDietLevel } from './diet.js';
 import { instructionValue, findRepoSessions } from './instruction-value.js';
-import { coreConfig } from './instructions-core.js';
 import { wasteLevel } from './instruction-value.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -78,11 +77,7 @@ export function contextView(store, { days = 30, sessions, usage, log } = {}) {
   // each tool's output compression (diet.js): the level set here, and whether thinker can compress it at all
   const diet = dietConfig(store);
   outputs.tools = outputs.tools.map(t => ({ ...t, compressible: compressible(t.name), compression: diet.tools ? diet.tools[t.name] || (t.name.startsWith('Bash:') ? diet.tools.Bash : null) || null : diet.enabled && compressible(t.name) ? 'moderate' : null }));
-  const core = coreConfig(store), kept = new Set(core.keep.map(k => k.toLowerCase()));
-  const instructions = {
-    ...iv, coreOn: core.enabled,
-    sections: iv.sections.map(s => ({ ...s, kept: kept.has(s.title.toLowerCase()) || (s.parent && kept.has(`${s.parent}: ${s.title}`.toLowerCase())) })),
-  };
+  const instructions = { ...iv };
   const sum = (xs, k) => xs.reduce((a, x) => a + (x.off ? 0 : x[k] || 0), 0);
   const view = {
     days, sessions: usage.sessions, harnessOn: on,
@@ -157,7 +152,7 @@ export function mergeViews(list) {
     totals: Object.fromEntries(Object.keys(views[0]?.totals || {}).map(k => [k, total(k)])),
     instructions: {
       all: true, file: ivs.length ? `${ivs.length} instruction file${ivs.length === 1 ? '' : 's'}` : null, sessions: ivSessions,
-      judged: ivs.reduce((a, { iv }) => a + iv.judged, 0), calls: Math.round(w(ivs.map(({ iv }) => iv), 'calls', 'sessions')), judge: ivs[0]?.iv.judge || { judge: false, share: 0 }, coreOn: false,
+      judged: ivs.reduce((a, { iv }) => a + iv.judged, 0), calls: Math.round(w(ivs.map(({ iv }) => iv), 'calls', 'sessions')), judge: ivs[0]?.iv.judge || { judge: false, share: 0 },
       sections: ivs.flatMap(({ x, iv }) => iv.sections.map(tag(x))),
       savings: { window, perSession: ivSessions ? Math.round(window / ivSessions) : 0, share: fileWindow ? window / fileWindow : 0, sections: ivs.reduce((a, { iv }) => a + (iv.savings?.sections || 0), 0) },
     },

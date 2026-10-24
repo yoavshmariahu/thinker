@@ -1132,7 +1132,7 @@ the context goes and cutting what is wasted first, the cache second.
   own) in every session; an AGENTS.md or CLAUDE.md in a directory below (a CLAUDE.md that is its AGENTS.md counted
   once) in the sessions that opened a file there, Claude Code's only; a `.claude/rules` file with `paths:` in those
   that opened a matching file, one without in every Claude Code session. Each is split as
-  `instructions-core.js:sections` does (a file without headings is one section; ids of files other than the root
+  `instruction-value.js:sections` does (a file without headings is one section; ids of files other than the root
   carry their path), and a section's cost is averaged over every session, counting only those that read its
   file. A nested file or a rule takes its directory or its paths as its trigger, with no grep of the repository
   (PostHog: 72 files, 454 sections). *Applied*, free on every session: the session touched the section's files, ran the command it is about, or
@@ -1218,8 +1218,7 @@ same over those five. On by default, at the owner's request; `maintain: { contex
 whether people act on the summary. Until this day the first tab was Top suggested, those five as cards with Approve and Dismiss,
 and the other views were cards with an Actions menu over the picked ones.
 
-Other controls are the commands: keeping sections writes the checkout's trimmed copy (`thinker instructions --core`,
-never the team's file); a skill or tool is switched off by `thinker harness --off <label>`, which since this view
+Other controls are the commands: a skill or tool is switched off by `thinker harness --off <label>`, which since this view
 takes any source a setting switches off, not only the advice's (`harness.js:switchable`; `any`), and only where
 the harness is on.
 

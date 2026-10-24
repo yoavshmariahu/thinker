@@ -1,7 +1,7 @@
 // What each section of a repository's instruction file (AGENTS.md, or CLAUDE.md) is worth, measured on the
 // sessions agents ran here: what it costs (its tokens, read again on every model call of every session) against
 // how often it bore on the work and whether the agent acted on it. A measurement for the person, never a rewrite
-// of the team's file: what to keep is theirs to decide (`thinker instructions --core`, instructions-core.js).
+// of the team's file: what to keep is theirs to decide (a change is a pull request, instruction-edit.js).
 //
 //   applied   free, on every session: the session did what the section is about, by the triggers the
 //             section's own text gives (instruction-sections.js:deriveTriggers): it named or edited a file of
@@ -21,7 +21,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { sections } from './instructions-core.js';
 import { deriveTriggers, sectionFires, globRegex as triggerGlob } from './instruction-sections.js';
 import { parseTranscript, findSessions } from './transcripts.js';
 import { complete, DEFAULT_DISTILL_MODEL } from './llm.js';
@@ -31,6 +30,23 @@ import { withinDailyCap } from './maintain.js';
 import { outcomeSampled, sessionDiff, ruleGlobs, globRegex } from './skill-outcome.js';
 import { execFileSync } from 'node:child_process';
 import { checkouts } from './harness.js';
+
+// Leaf sections: a "###" section on its own, a "##" one with the prose before its first "###"; the "#" title apart.
+export function sections(text) {
+  const out = []; let cur = null, parent = null; const head = [];
+  for (const line of String(text).split('\n')) {
+    const m = line.match(/^(#{2,3}) (.+?)\s*$/);
+    if (m) {
+      if (cur) out.push(cur);
+      if (m[1].length === 2) parent = m[2];
+      cur = { title: m[2], parent: m[1].length === 3 ? parent : null, level: m[1].length, lines: [line] };
+    } else if (cur) cur.lines.push(line); else head.push(line);
+  }
+  if (cur) out.push(cur);
+  const all = out.map(s => ({ ...s, text: s.lines.join('\n').trim(), tokens: Math.ceil(s.lines.join('\n').length / 4) }));
+  all.head = head.join('\n').trim();
+  return all;
+}
 
 export const VALUE = { share: 0.25, keepSessions: 500, diffChars: 30_000, sectionsChars: 60_000, commands: 60 };
 // a section bearing on fewer than this share of the sessions that read it, with enough sessions to say so
