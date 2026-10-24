@@ -968,7 +968,7 @@ function renderReport(v) {
     ${card('Cache hits', fmt(c.hits), `notes served, for ${fmt(c.answered)} of ${fmt(c.requests)} requests`)}
     ${card('Acted on', c.acted == null ? '–' : `${Math.round(100 * c.acted)}%`, `of ${fmt(c.judged)} servings the sessions were judged on`)}
   </div></div>`;
-  el.innerHTML = tokenTypes + parts + models + actions + cards;
+  el.innerHTML = parts + models + tokenTypes + actions + cards; // the token types last (the owner's order, 2026-10-24)
   wireHistory(el.querySelector('[data-history]'), acts, loadReport, () => renderReport(v));
   el.querySelectorAll('[data-fold]').forEach(b => b.onclick = () => { const p = b.dataset.fold; RFOLD.has(p) ? RFOLD.delete(p) : RFOLD.add(p); renderReport(v); });
 }

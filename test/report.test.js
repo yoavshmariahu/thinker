@@ -141,7 +141,7 @@ test('the report averages each week over its sessions, by part and by model unde
   const text = renderReport(v).join('\n');
   assert.match(text, /By token type/); assert.match(text, /Input, read from cache/); assert.match(text, /Other input/); assert.doesNotMatch(text, /Total of these/);
   assert.equal((text.match(/TOTAL \(THE WHOLE SESSION\)/g) || []).length, 3, 'every table ends on the whole session');
-  assert.ok(text.indexOf('By token type') < text.indexOf('By part of the context'), 'the token types first');
+  assert.ok(text.indexOf('By token type') > text.indexOf('By model'), 'the token types last');
   assert.match(text, /By part of the context/); assert.match(text, /TOTAL/);
   // --share: every row as its share of the whole session, the total rows as they are (the page's Share)
   const shared = renderReport(v, { share: true }).join('\n'), lines = shared.split('\n');

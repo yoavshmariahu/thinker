@@ -237,15 +237,16 @@ export function renderReport(v, { cost = false, total = false, share = false } =
   const head = `  ${''.padEnd(30)}${v.columns.map(c => `wk ${label(c.t)}`.padStart(W)).join('')}`;
   const base = share ? v.sessionTotals : null;
   L.push(`${total ? 'Total' : 'Average'} ${cost ? 'cost' : 'tokens'} ${total ? 'over the week\'s sessions' : 'per session'}, by week (${v.columns.map(c => c.sessions).join(', ')} sessions)${cost ? `, at list prices of ${v.pricedOn}` : ''}${share ? '; each row as its share of the whole session, the totals as they are' : ''}`);
-  L.push('', 'By token type (as the model reported them: fresh input, input written to and read from the prompt cache, output)', head);
-  for (const p of v.tokenTypes || []) L.push(line(p.name, p.cells, false, base));
-  L.push(line('Total (the whole session)', v.sessionTotals, true));
   L.push('', 'By part of the context (the four the Find Savings page measures and controls, the rest of the input as one line; --json holds the whole breakdown)', head);
   for (const p of v.parts) L.push(line(p.name, p.cells, false, base));
   for (const p of v.others || []) L.push(line(p.name, p.cells, false, base));
   L.push(line('Total (the whole session)', v.sessionTotals, true));
   L.push('', 'By model', head);
   for (const p of v.providers) { L.push(line(p.name, p.cells, true, base)); for (const m of v.models.filter(x => x.provider === p.name)) L.push(line(`  ${m.model}${m.priced ? '' : ' (unpriced)'}`, m.cells, false, base)); }
+  L.push(line('Total (the whole session)', v.sessionTotals, true));
+  // the token types last (the owner's order, 2026-10-24)
+  L.push('', 'By token type (as the model reported them: fresh input, input written to and read from the prompt cache, output)', head);
+  for (const p of v.tokenTypes || []) L.push(line(p.name, p.cells, false, base));
   L.push(line('Total (the whole session)', v.sessionTotals, true));
   L.push(`  ▲ ▼: up or down by 5% or more against the first week, doubled past 50%; a zero is left blank. A model row is its share of the ${total ? 'week' : 'average session'}; its sessions:` + ` ${v.models.map(m => `${m.model} ${m.cells.map(c => c.sessions).join('/')}`).join(', ')}.`);
   if (v.unpriced.length) L.push(`  No list price for ${v.unpriced.join(', ')}: their sessions are left out of the cost average.`);
