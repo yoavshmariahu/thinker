@@ -35,9 +35,11 @@ read by 40 calls is 160k input tokens. That is the number the page shows and sor
 - *Used* (the page's Sessions used): how often the sessions acted on it. A section is *applied* when a session touched its
   files, ran its command or read the code it names, free, from the transcript. *Relevant* and
   *followed* come from a model reading one session against the sections and saying which bore on
-  the work and whether the agent followed them; that costs tokens, so it runs when you press
-  **Judge 5 more sessions**, or on a sample of sessions as they end once you turn it on (`instructions:
-  { value: { judge: true } }` in `.thinker/config.json`). A skill is *read* when a session opened it,
+  the work and whether the agent followed them; that costs a model call, so it runs on a 25% sample of
+  sessions as they end (`instructions: { value: { judge: false } }` in `.thinker/config.json` turns it
+  off, `share` changes the sample; `thinker context --judge n` judges n more by hand). Once five sessions
+  are judged the share shown is the judged sessions that followed the section. The **?** beside the
+  column header says how each kind is counted. A skill is *read* when a session opened it,
   and the sampled outcome check says whether sessions that read it kept its rules, and how often one
   broke them without reading it. A tool is *used* when a session called it.
 - *Wasted*: what the part cost in the sessions that did not use it. For a tool output, what its

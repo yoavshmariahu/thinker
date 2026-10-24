@@ -8,8 +8,9 @@
 //             the section's area, ran the command it is about (a commit, a pull request), or read code it names.
 //             Replayed from the transcript's tool events. A section with no trigger is never "applied": the
 //             judge alone says anything about it.
-//   judged    a model call on a share of sessions (`instructions: { value: { judge: true, share } }`, off by
-//             default, or `thinker context --judge n` by hand): shown the sections, what the session asked, the
+//   judged    a model call on a 25% sample of sessions as they end (VALUE.share; `instructions: { value: { judge:
+//             false, share } }` in .thinker/config.json turns it off or changes the share; `thinker context --judge n`
+//             judges n more by hand): shown the sections, what the session asked, the
 //             commands it ran, the files it read and edited and its change, it names the sections that bore on
 //             the session and says of each whether the agent followed it, went against it, or neither showed.
 //             Through llm.js:complete, so a desktop app's session answers it (session-llm.js), within the daily
@@ -38,7 +39,7 @@ export const RARE = { share: 0.1, minSessions: 5 };
 export function valueConfig(store, env = process.env) {
   const c = store.config().instructions?.value || {};
   const v = env.THINKER_INSTRUCTION_JUDGE || '';
-  const judge = /^(0|off|false)$/i.test(v) ? false : /^(1|on|true)$/i.test(v) ? true : !isTestMode(env) && c.judge === true;
+  const judge = /^(0|off|false)$/i.test(v) ? false : /^(1|on|true)$/i.test(v) ? true : !isTestMode(env) && c.judge !== false;
   return { judge, share: Number.isFinite(c.share) ? c.share : VALUE.share, model: c.model || null };
 }
 
