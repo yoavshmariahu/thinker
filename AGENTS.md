@@ -1349,6 +1349,22 @@ measured, else the servings acted on), then tokens saved, cache hits and the sha
 every repository's report merged (`mergeReports`: the sums and the session counts add). The server keeps a report
 a minute per repository and window; the readers' own caches make a repository's report about a second here. An output's compression among them carries what it measured since (`report.js:outputComparison`, 2026-10-24, the owner's ask): the tool's row under the compression against its row from before (`tool-outputs.js:aggregateOutputs`, one row a setting), the saving a session first and green, or the cost red, with the two periods side by side in the detail and the same two lines under the action in `thinker report`; a call's tokens is what compression acts on, a session's moves with how the sessions used the tool as well.
 
+**A section change is a pull request (2026-10-24, the owner's ask).** Writing the compressed or removed section to the
+working tree locked nothing in and threw the page to a view above the table. Now the diff opens in a modal over the
+table (`page.html:previewSections`, `openEditModal`), and its one button makes the previewed edit a commit on a branch of
+its own, built from the default branch with a temporary index so the checkout is untouched, pushed, and opened as a
+pull request with `gh` (`instruction-pr.js:openEditPr`; `prAvailable` says when it cannot be: no GitHub origin, no
+`gh`, not logged in, and then the page offers the working-tree write as before, with the reason). The preview keeps each
+section's old and new text (`instruction-edit.js:previewEdit`, `edits`), so the change is applied to the base branch's
+file where that differs from the working tree (`textOnBase`), refused where the section is not found there. History
+records the decision as `pull request` with `pr` {number, url, branch, state} (`context-suggest.js:applyReviewed`),
+follows the state on GitHub a minute apart at most (`refreshPrStates`, on every read of `/api/changes` and `thinker
+context --history`): **PR pending** while open (the section's row shows the same pill, linked, and cannot be picked
+again), **Merged**, **Rejected** once closed without merging, and a rejected change is suggested again
+(`currentChanges` leaves it out of the decided set) since nothing was followed through on. **Close PR** is the entry's
+revert (`revertDecision`, `instruction-pr.js:closePr`: closed with a comment, the branch deleted). `thinker instructions
+--compress <id> --pr` is the command.
+
 ## Internal server
 
 `src/server/` and `infra/sync/` remain internal infrastructure: the team's note

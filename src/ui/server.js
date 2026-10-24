@@ -17,11 +17,11 @@
 import { harnessView, harnessSavings, harnessOn, scheduleHarnessSuggestion, undoHarness, switchOffNow, setHarnessSettings } from '../harness.js';
 import { contextView, mergeViews, switchSources, setOutputCompression } from '../context-view.js';
 import { snapshotView, lastSnapshot, refreshing, dropSnapshots, REFRESH_MS } from '../context-snapshot.js';
-import { approveChanges, dismissChanges, applyReviewed, revertDecision, pickChanges, currentChanges, allChanges, changeHistory } from '../context-suggest.js';
+import { approveChanges, dismissChanges, applyReviewed, revertDecision, pickChanges, currentChanges, allChanges, changeHistory, refreshPrStates } from '../context-suggest.js';
 import { reportView, mergeReports, REPORT_WEEKS } from '../report.js';
-import { judgeRecent } from '../instruction-value.js';
 import { setCore } from '../instructions-core.js';
 import { previewEdit, applyEdit } from '../instruction-edit.js';
+import { prAvailable } from '../instruction-pr.js';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -183,7 +183,9 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
         // there is none (context-snapshot.js:lastSnapshot)
         const d = Number(url.searchParams.get('days')) || 7;
         const stores = storesFor(want); if (!stores) return json(res, 400, { error: 'unknown repository' });
-        const xs = stores.flatMap(([r, st]) => { try { const v = changesView(st, d); return [{ r, changes: currentChanges(st, v).map(c => ({ ...c, repo: r.id, repoName: r.name })), history: changeHistory(st).map(h => ({ ...h, repo: r.id, repoName: r.name })) }]; } catch { return []; } });
+        // a pending pull request is asked after on GitHub first (context-suggest.js:refreshPrStates, a minute apart at most)
+        const xs = [];
+        for (const [r, st] of stores) { try { await refreshPrStates(st); const v = changesView(st, d); xs.push({ r, changes: currentChanges(st, v).map(c => ({ ...c, repo: r.id, repoName: r.name })), history: changeHistory(st).map(h => ({ ...h, repo: r.id, repoName: r.name })) }); } catch {} }
         return json(res, 200, { days: d, changes: xs.flatMap(x => x.changes).sort((a, b) => (b.total ?? 0) - (a.total ?? 0)).slice(0, want === 'all' ? 10 : 5), history: xs.flatMap(x => x.history).sort((a, b) => b.at.localeCompare(a.at)) });
       }
       if (req.method !== 'POST') return json(res, 405, { error: 'method not allowed' });
@@ -202,12 +204,14 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
       else if (url.pathname === '/api/harness/off') r = Array.isArray(b.labels) && b.labels.length ? { said: switchOffNow(st, b.labels.join(','), { via: 'ui', any: true }) } : { error: 'nothing chosen' };
       // `thinker instructions --core "<Title>, …"` (a list) and `--off` (null)
       else if (url.pathname === '/api/context/core') { const keep = Array.isArray(b.keep) ? b.keep.map(String).filter(Boolean) : null; const c = setCore(st, keep?.length ? keep : null); r = c.state === 'theirs' ? { error: 'AGENTS.override.md here is not thinker\'s; nothing written' } : { said: keep?.length ? `Kept ${c.kept?.length ?? keep.length} sections for this checkout` : 'Agents here read the whole file again' }; }
-      // `thinker instructions --remove|--compress <id>` (the diff) and `--apply` (written to the working tree)
-      else if (url.pathname === '/api/context/edit') { const x = await previewEdit(st, Array.isArray(b.ids) ? b.ids : String(b.id || ''), b.action === 'compress' ? 'compress' : 'remove'); if (x.error) r = x; else return json(res, 200, { ok: true, preview: x }); }
+      // `thinker instructions --remove|--compress <id>` (the diff) and `--apply` (written to the working tree); with the diff,
+      // whether a pull request can be opened from here (instruction-pr.js:prAvailable), for the page's button
+      else if (url.pathname === '/api/context/edit') { const x = await previewEdit(st, Array.isArray(b.ids) ? b.ids : String(b.id || ''), b.action === 'compress' ? 'compress' : 'remove'); if (x.error) r = x; else return json(res, 200, { ok: true, preview: x, pr: prAvailable(st.repo) }); }
       else if (url.pathname === '/api/context/apply') r = applyEdit(st, String(b.id || ''));
       // `thinker context --approve|--dismiss <keys>` over every part of the report (context-suggest.js:allChanges; the command
       // numbers the top five, currentChanges): a row's Apply makes the action picked in it (`acts`), Dismiss leaves it a month;
-      // a section's reviewed diff is applied (`thinker instructions --compress <id> --apply`) and recorded with its undo
+      // a section's reviewed diff is made a pull request (`pr`, as `thinker instructions --compress <id> --pr`) and recorded
+      // with it, or applied (`--apply`) and recorded with its undo
       // `thinker context --revert <n>`: a decision taken back (context-suggest.js:revertDecision)
       else if (url.pathname === '/api/changes/revert') { r = await revertDecision(st, String(b.id || '')); if (!r.error && !refreshing(st)) refreshFn(st.repo); }
       else if (['/api/changes/approve', '/api/changes/dismiss', '/api/changes/apply'].includes(url.pathname)) {
@@ -216,18 +220,16 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
         if (!picked.length) r = { error: 'that part is no longer in the report; reload the page' };
         else if (url.pathname.endsWith('/approve')) r = { said: (await approveChanges(st, picked)).join(' ') };
         else if (url.pathname.endsWith('/dismiss')) r = { said: dismissChanges(st, picked).join(' ') };
-        else r = await applyReviewed(st, picked, String(b.edit || ''), Array.isArray(b.files) ? b.files : []);
+        else r = await applyReviewed(st, picked, String(b.edit || ''), Array.isArray(b.files) ? b.files : [], { pr: Boolean(b.pr) });
         if (!url.pathname.endsWith('/dismiss') && !refreshing(st)) refreshFn(st.repo);
       }
       // `thinker context --switch-off <labels> [--builtin]` / `--switch-on <keys>` and `--output-compression <tools> --level`
       else if (url.pathname === '/api/context/switch') r = { said: switchSources(st, { labels: Array.isArray(b.labels) ? b.labels : [], keys: Array.isArray(b.keys) ? b.keys : [], on: !!b.on, builtin: !!b.builtin }) };
       else if (url.pathname === '/api/context/compression') r = { said: setOutputCompression(st, Array.isArray(b.tools) ? b.tools : [], ['high', 'moderate'].includes(b.level) ? b.level : 'off') };
-      // `thinker context --judge n`, in the background: model calls, through the person's agent or the desktop session
-      else if (url.pathname === '/api/context/judge') { const n = Math.min(20, Math.max(1, Number(b.n) || 5)); judgeRecent(st, { n }).then(x => { harnessCache.clear(); dropSnapshots(st); st.log({ op: 'instruction-value', via: 'ui', judged: x.judged }); }).catch(e => st.log({ op: 'instruction-value', via: 'ui', failed: String(e.message || e).slice(0, 160) })); r = { said: `Judging ${n} sessions in the background` }; }
       else if (url.pathname === '/api/harness/settings') { const v = k => typeof b[k] === 'boolean' ? b[k] : undefined; r = { said: JSON.stringify(setHarnessSettings(st, { recurring: v('recurring') ?? v('weekly'), recall: v('recall'), suggestions: v('suggestions') })) }; }
       else return json(res, 404, { error: 'not found' });
       if (r?.error) return json(res, 400, { error: r.error });
-      return json(res, 200, { ok: true, id: r?.note?.id, draft: r?.draft, queued: r?.queued, said: r?.said });
+      return json(res, 200, { ok: true, id: r?.note?.id, draft: r?.draft, queued: r?.queued, said: r?.said, pr: r?.pr });
     } catch (e) {
       return json(res, 500, { error: String(e.message || e).split('\n')[0].slice(0, 300) });
     }

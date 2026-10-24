@@ -164,18 +164,19 @@ const HELP = `thinker — knowledge cache for coding agents
                                  the next Claude Code, Codex or Cursor prompt here, one question for all of them (every two weeks by itself, as soon as 10 sessions are recorded the first time);
                                  --answer takes the reply, --off switches named ones off without asking; --undo turns them (or the named ones) back on;
                                  --recurring, --recall (a line when a request needs a switched-off tool; on with the harness) and --suggestions set what thinker does; also on the local page
-  instructions [--core "<Title>, <Title>" [--cursor]] [--off] [--remove <id> | --compress <id> [--apply]]
+  instructions [--core "<Title>, <Title>" [--cursor]] [--off] [--remove <id> | --compress <id> [--pr | --apply]]
                                  the sections of AGENTS.md and their tokens; --core keeps the named sections, verbatim, in AGENTS.override.md
                                  (kept out of git, rewritten when AGENTS.md changes), which Codex reads instead of AGENTS.md, and CLAUDE.local.md for
                                  Claude Code; --cursor also for Cursor (hides AGENTS.md from its file tools); --off removes them
                                  --remove / --compress <section id> show the diff of taking a section out or having a model shorten it;
-                                 --apply writes it to AGENTS.md in the working tree, uncommitted (also the Context tab's buttons)
+                                 --pr opens a pull request with it (a branch pushed to the origin; the Find Savings page's Apply),
+                                 --apply writes it to AGENTS.md in the working tree, uncommitted
   context [--days n] [--json] [--verbose] [--refresh] [--judge n] [--switch-off <labels> [--builtin]] [--switch-on <keys>] [--output-compression <tools> --level high|moderate|off]
           [--machine [--repos n] [--top n] [--ask [--no-browser]]]
                                  where the agents' context goes here and what each part is worth: every section of AGENTS.md (its
                                  tokens, the sessions it applied to, and the judged share it bore on and was followed), every skill
                                  (read in, kept its rules), every other tool loaded; --judge n judges n recent sessions now (model
-                                 calls); instructions.value.judge in .thinker/config.json judges a sample at session end; also the page's Context tab
+                                 calls); a 25% sample is judged as sessions end (instructions: { value: { judge: false, share } } in .thinker/config.json)
                                  --refresh keeps the report for the page, which reads it instead of the transcripts (it runs this in the background)
                                  --switch-off turns the harness on here and switches those tools off (--builtin: built-in tools too);
                                  --switch-on turns them back on; --output-compression sets how much of a tool's results Claude Code keeps

@@ -124,11 +124,12 @@ test('the Save tab and `thinker context` show one report, and its controls are t
   // setup asks the same question over the same report for its one repository (setup/context-ask.js)
   assert.match(read('setup.js'), /askMachineReport\(\{ r, recs: recommendations\(view\)/);
   assert.match(read('setup/context-ask.js'), /renderMachineReport\(r, recs\)/);
-  // keeping sections is `thinker instructions --core`; judging is `thinker context --judge n`; a switch is `thinker harness --off`
+  // keeping sections is `thinker instructions --core`; a switch is `thinker harness --off`; judging more sessions is
+  // `thinker context --judge n` alone (the page's button went on 2026-10-24: a 25% sample is judged as sessions end)
   assert.match(read('commands/instructions.js'), /setCore\(store, keep/);
   assert.match(read('ui/server.js'), /\/api\/context\/core'\) \{[^\n]*setCore\(st/);
   assert.match(read('commands/context.js'), /judgeRecent\(store/);
-  assert.match(read('ui/server.js'), /\/api\/context\/judge'\) \{[^\n]*judgeRecent\(st/);
+  assert.doesNotMatch(read('ui/server.js'), /api\/context\/judge/);
   assert.match(read('commands/harness.js'), /switchOffNow\(store, String\(flags.off\), \{ via: 'cli', any: true \}\)/);
   assert.match(read('ui/server.js'), /switchOffNow\(st, b.labels.join\(','\), \{ via: 'ui', any: true \}\)/);
   const dir = repo(t); new Store(dir).init();
@@ -162,7 +163,7 @@ test('All and History on the Context tab are `thinker context --approve|--dismis
   assert.match(read('ui/server.js'), /\/api\/changes\/approve/);
   assert.match(read('ui/server.js'), /\/api\/changes\/revert/);
   // the page's 7-day window is the command's suggested one (SUGGEST.days) and the session's summary links to that tab
-  assert.match(read('ui/page.html'), /\/api\/changes\?repo=\$\{encodeURIComponent\(want\)\}&days=7/);
+  assert.match(read('ui/page.html'), /\/api\/changes\?repo=\$\{encodeURIComponent\(CREPO\)\}&days=7/);
   assert.match(read('context-suggest.js'), /days: 7,/);
   assert.match(read('context-suggest.js'), /tab=save&view=all/);
   // the page's rows carry the keys allChanges gives, so the server finds the part a row's Apply names
