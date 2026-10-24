@@ -320,3 +320,16 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('cli.js'), /ui \[--port n\] \[--no-open\] \[--tab save\|report\|activity\]/);
   assert.match(read('ui/page.html'), /if \(tab === 'save' && H\(\)\.get\('view'\) === 'history'\) tab = 'activity';/);
 });
+
+test('Recent activity rows and `thinker context --history` say what the part is (a built-in tool apart from a custom one) and does, with no See more (2026-10-24)', () => {
+  const page = read('ui/page.html'), hist = page.slice(page.indexOf('function historyFigure'), page.indexOf('function wireHistory'));
+  assert.doesNotMatch(hist, /ctx-more|data-more|data-detail|detail\(e\)/, 'no detail row and no button to open one; the hovers tell');
+  assert.match(hist, /title="\$\{esc\(hintOf\(e\)\)\}"/); assert.match(hist, /title="\$\{esc\(decidedHint\(e\)\)\}"/);
+  assert.match(hist, /e\.what \|\| CH_KIND\[e\.kind\]/); assert.match(hist, /<span class="ctx-about">\$\{esc\(e\.about\)\}<\/span>/);
+  assert.doesNotMatch(read('ui/page.html').slice(page.indexOf('function wireHistory')), /\[data-more\]/);
+  // the command prints the same two, after the title
+  assert.match(read('commands/context.js'), /\$\{e\.title\}\$\{e\.what \? `  \[\$\{e\.what\}\$\{e\.about \? `: \$\{e\.about\}` : ''\}\]` : ''\}/);
+  // both read them from the entry, which changeHistory describes (part-describe.js) for entries written before they were kept
+  assert.match(read('context-suggest.js'), /\.\.\.describeEntry\(e\)/);
+  for (const kind of ['section', 'skill', 'tool', 'output']) assert.match(read('context-suggest.js'), new RegExp(`describePart\\(\\{ kind: '${kind}'`));
+});
