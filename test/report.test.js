@@ -142,7 +142,7 @@ test('the report averages each week over its sessions, by part and by model unde
   // --total: the improvements over the prompts since
   assert.match(renderReport(v, { total: true }).join('\n'), /saved since {11}pull request  change/);
   // Recent improvements: one line an action with before, after, saved a prompt and the pull request
-  assert.match(text, /Recent improvements\n  decided {6}before {3}after  saved a prompt {8}pull request  change\n  \d{4}-\d\d-\d\d {8}0 {7}0  −0 \(few\) {14}– {13}Workflow tool\n/);
+  assert.match(text, /Recent improvements\n  decided {6}before {3}after  saved a prompt {8}pull request  change\n  \d{4}-\d\d-\d\d {8}0 {7}0  0 \(few\) {15}– {13}Workflow tool\n/);
   assert.doesNotMatch(text, /Saved with thinker/);
   assert.match(renderReport(v, { cost: true }).join('\n'), /list prices/);
   assert.match(renderReport(v, { total: true }).join('\n'), /Total tokens over the week's sessions/);
@@ -203,7 +203,9 @@ test('actionEffect: what one decision saved, attributed to the thing it changed 
   assert.equal(itemCost({ kind: 'output', key: 'output:Bash:grep' }, { outputs: { 'Bash:grep@moderate': 400, 'Bash:grep': 100, 'Bash:grepx': 5 } }, 'after'), 500, 'a compressed tool\'s key carries its level');
   // the section removed at hour 5 (one prompt a session here): 1,500 a prompt before (3,000 and 0), 0 since, over 3 prompts
   const f = actionEffect(sec, rows, now);
-  assert.deepEqual([f.before.sessions, f.after.sessions, f.before.prompts, f.after.prompts, f.before.perPrompt, f.after.perPrompt, f.delta, f.share, f.window, f.few, f.to], [2, 3, 2, 3, 1500, 0, 1500, 1, 4500, true, null]);
+  assert.deepEqual([f.before.sessions, f.after.sessions, f.before.prompts, f.after.prompts, f.before.perPrompt, f.after.perPrompt, f.delta, f.window, f.few, f.to], [2, 3, 2, 3, 1500, 0, 1500, 4500, true, null]);
+  // the share is of what a whole prompt cost before the decision (10,000 input a prompt here), not of the thing's own size
+  assert.deepEqual([f.whole.before, f.whole.after, f.share], [10000, 10000, 0.15]);
   // per prompt: the side's sum over its prompts, so a session of many calls weighs by them (the first session 4 prompts: 3,000 over 5)
   const fp = actionEffect(sec, rows.map((r, i) => i === 0 ? { ...r, prompts: 4 } : r), now);
   assert.deepEqual([fp.before.prompts, fp.before.perPrompt, fp.window], [5, 600, 1800]);
@@ -212,7 +214,7 @@ test('actionEffect: what one decision saved, attributed to the thing it changed 
   // the tool switched off at hour 5: 4,000 a prompt before; since, one of three sessions still loaded it (2,000 → 667)
   const tool = { kind: 'tool', key: 'claude:tool:Workflow', at: at(5), decision: 'approved' };
   const g = actionEffect(tool, rows, now);
-  assert.deepEqual([g.before.perPrompt, g.after.perPrompt, g.delta, g.window], [4000, 667, 3333, 10000]);
+  assert.deepEqual([g.before.perPrompt, g.after.perPrompt, g.delta, g.window, g.share], [4000, 667, 3333, 10000, 0.3333]);
   assert.equal(g.since.atBefore - g.since.total, g.window, 'the window is exactly the gap: 12,000 at the before rate against 2,000');
   // the output compressed at hour 5: 4,500 a prompt before (9,000 and 0), 333 since
   const out = actionEffect({ kind: 'output', key: 'output:Bash:grep', at: at(5), decision: 'approved' }, rows, now);

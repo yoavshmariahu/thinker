@@ -65,7 +65,7 @@ async function contextCommand({ store, flags, out }) {
     return;
   }
   // what a decision saved, attributed to it alone (report.js:actionEffect): the changed thing a prompt (one call to the model) before against since
-  const effectLine = e => { const f = e.effect; if (!f) return ''; const pct = f.share == null || !Math.round(100 * Math.abs(f.share)) ? '' : ` (${f.delta >= 0 ? '−' : '+'}${Math.round(100 * Math.abs(f.share))}%)`; return `\n       a prompt ${formatTokens(f.before.perPrompt)} → ${formatTokens(f.after.perPrompt)}: ${f.delta >= 0 ? 'saved' : 'cost'} ${formatTokens(Math.abs(f.delta))}${pct} a prompt, ~${formatTokens(Math.abs(f.window))} over the ${f.after.prompts} prompt${f.after.prompts === 1 ? '' : 's'} of the ${f.after.sessions} session${f.after.sessions === 1 ? '' : 's'} since${f.few ? ' (few sessions yet)' : ''}`; };
+  const effectLine = e => { const f = e.effect; if (!f) return ''; const pct = f.share == null || !Math.round(100 * Math.abs(f.share)) ? '' : ` (${Math.round(100 * Math.abs(f.share))}% of a prompt before)`; return `\n       a prompt ${formatTokens(f.before.perPrompt)} → ${formatTokens(f.after.perPrompt)}: ${f.delta >= 0 ? 'saved' : 'cost'} ${formatTokens(Math.abs(f.delta))}${pct} a prompt, ~${formatTokens(Math.abs(f.window))} over the ${f.after.prompts} prompt${f.after.prompts === 1 ? '' : 's'} of the ${f.after.sessions} session${f.after.sessions === 1 ? '' : 's'} since${f.few ? ' (few sessions yet)' : ''}`; };
   if (flags.history) {
     // a pending pull request is asked after on GitHub first (context-suggest.js:refreshPrStates)
     await refreshPrStates(store);

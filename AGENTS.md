@@ -1409,8 +1409,11 @@ read its file; a skill, MCP server, plugin or built-in tool its tokens a call ti
 (`harness.js` timeline `loaded`); a tool's outputs what its results cost the session (`tool-outputs.js:sessionUsage` `by`);
 each summed over the window's measured sessions before the decision, or over those since it was in effect (`effectSpan`:
 until a revert; a merged pull request from its merge), and divided by their prompts, so no row moves with another action or
-with what the sessions did; `window` the delta over the prompts since, `few` under five sessions a side. The Saved cell is
-shaded, green for a saving and red for a cost, darker with the share (`page.html` `shadeOf`), never coloured text; the Per prompt
+with what the sessions did; `window` the delta over the prompts since, `few` under five sessions a side. Saved is positive
+for a saving and negative for a cost, and its share is of what a whole prompt cost before the decision (`whole.before`, the
+sessions' input over their prompts), not of the thing's own size, so a small cut of a large part counts for what it is; the
+Saved cell is shaded, green for a saving and red for a cost, darker with that share (`page.html` `shadeOf`, a tenth of a
+prompt the darkest), never coloured text; the Per prompt
 / Total toggle reaches the table (`mode`): Total shows the thing over the prompts since the decision at its rate before
 (`since.atBefore`) against as it was (`since.total`), Saved exactly their gap, so the impact reads off the row (the owner's
 asks, 2026-10-24 evening). The view keeps one row a measured session for it
