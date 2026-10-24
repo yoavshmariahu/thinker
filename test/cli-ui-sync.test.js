@@ -100,7 +100,10 @@ test('the Save tab and `thinker context` show one report, and its controls are t
   assert.match(read('commands/context.js'), /contextView\(store/);
   // the page reads the report kept by `thinker context --refresh`, which it starts in the background (context-snapshot.js)
   assert.match(read('ui/server.js'), /snapshotView\(st, d\)/);
-  assert.match(read('ui/server.js'), /\[cliPath, 'context', '--refresh'/);
+  assert.match(read('ui/server.js'), /child\(\['context', '--refresh'/);
+  // and the Report kept by `thinker report --refresh` (report-snapshot.js), every repository's in one run
+  assert.match(read('ui/server.js'), /child\(\['report', '--refresh', '--all'/);
+  assert.match(read('commands/report.js'), /refreshReport\(st, \{ weeks \}\)/);
   assert.match(read('context-snapshot.js'), /contextView\(store, \{ days: d \}\)/);
   assert.match(read('commands/context.js'), /refreshSnapshots\(store\)/);
   // the installer's report (context-machine.js) is the page's All repositories: one merge, and the reports it
@@ -169,8 +172,10 @@ test('All and History on the Context tab are `thinker context --approve|--dismis
 test('the Report tab and `thinker report` show one report: the same weeks, parts, prices and trend rule', () => {
   // both doors read report.js:reportView; the page's All repositories is mergeReports, as the command has no All
   assert.match(read('commands/report.js'), /reportView\(store, \{ weeks \}\)/);
-  assert.match(read('ui/server.js'), /reportView\(one, \{ weeks \}\)/);
-  assert.match(read('ui/server.js'), /mergeReports\(repos\(\)\.flatMap/);
+  // the page reads the report kept in each checkout (report-snapshot.js), made by the same function
+  assert.match(read('report-snapshot.js'), /reportView\(store, \{ weeks, now \}\)/);
+  assert.match(read('ui/server.js'), /reportSnapshot\(st, weeks\)/);
+  assert.match(read('ui/server.js'), /mergeReports\(xs\.map/);
   // six weeks; the command's ▲ ▼ mark a 5% change against the first week;
   // the page's Total toggle is the command's --total
   assert.match(read('commands/report.js'), /total: Boolean\(flags\.total\)/);

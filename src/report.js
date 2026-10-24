@@ -102,8 +102,7 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   const providers = [...new Set(modelRows.map(m => m.provider))].map(name => ({ name, cells: cols.map((_, w) => { const c = cell(); for (const m of modelRows.filter(x => x.provider === name)) add(c, m.cells[w].tokens, m.cells[w].cost, m.cells[w].sessions, m.cells[w].priced); return c; }) }))
     .sort((a, b) => b.cells.reduce((x, c) => x + c.tokens, 0) - a.cells.reduce((x, c) => x + c.tokens, 0));
   modelRows.sort((a, b) => providers.findIndex(p => p.name === a.provider) - providers.findIndex(p => p.name === b.provider) || windowOf(b) - windowOf(a));
-  // the decisions taken on the Save page in the window, newest first, as History lists them (the page shows the same table)
-  const actions = changeHistory(store).filter(e => Date.parse(e.at) >= from).map(e => ({ ...e, repo: null }));
+  const actions = reportActions(store, from);
   return {
     weeks, days, from, to: now, pricedOn: PRICED_ON, columns,
     parts: PARTS.map(([key, name]) => ({ key, name, cells: byPart[key] })), totals, sessionTotals,
@@ -111,6 +110,13 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
     providers, models: modelRows, unpriced: [...unpriced],
     actions, cache: cacheMetrics(store, { days, config }),
   };
+}
+
+// The decisions taken on the Find Savings page since `from`, newest first, as History lists them (the page shows the same
+// table). Read apart from the view: the page serves a kept report (report-snapshot.js) and reads these live over it, so a
+// decision taken a moment ago is in the window at once.
+export function reportActions(store, from) {
+  return changeHistory(store).filter(e => Date.parse(e.at) >= from).map(e => ({ ...e, repo: null }));
 }
 
 // The four numbers the Cache page showed (usage.js:summarize), over the report's window: what the notes saved in

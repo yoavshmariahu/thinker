@@ -188,11 +188,13 @@ const HELP = `thinker — knowledge cache for coding agents
                                  lists every part with its actions, and History the decisions. Once a week the next prompt passes
                                  the five on with a link to that tab
                                  (maintain.contextSuggest in .thinker/config.json; false turns it off)
-  report [--weeks n] [--cost] [--total] [--json]   the Report page in the terminal: the average tokens a session cost here, week by week over the
+  report [--weeks n] [--cost] [--total] [--json] [--refresh [--all]]   the Report page in the terminal: the average tokens a session cost here, week by week over the
                                  last 6, by part of the context (instruction files, custom and built-in tools, tool outputs, the rest)
                                  and by model under its provider; --cost the same at the providers' list prices, --total each week's
                                  sum instead of the average; a cell up or down 5% against the first week is marked; then the decisions
                                  taken on the Find Savings page in the window and the cache's numbers, its saving in dollars first
+                                 --refresh keeps the report for the page, which reads it instead of the log and the transcripts (it runs
+                                 this in the background; --all for every repository the page lists, in one run)
   guide                          the cache usage guidance an install writes into an agent's instructions
   export [file.tgz] [--dir d]    back the cache up to a .tgz; --dir writes every note whole, one <id>.json each, into d
   hook <prompt|pre|tool|stop [--nudge]> [--client c]   hook entrypoints (JSON on stdin): prompt = notes for the request,
@@ -322,7 +324,8 @@ async function main() {
   // every git repository has a cache: one is started on first use (store.init keeps it out of git
   // status). Outside a git repository there is nowhere to keep one.
   // `context --machine` reads the repositories the agents worked in, from any directory
-  if (CACHE_COMMANDS.includes(cmd) && !(cmd === 'context' && flags.machine)) {
+  // `context --machine` and `report --refresh --all` work over the repositories the page lists, from any directory
+  if (CACHE_COMMANDS.includes(cmd) && !(cmd === 'context' && flags.machine) && !(cmd === 'report' && flags.refresh && flags.all)) {
     if (!isGitCheckout(repo)) { process.stderr.write(`thinker: ${repo} is not a git repository, so there is no cache here. Run thinker inside a git checkout.\n`); process.exit(1); }
     if (!store.exists()) store.init();
   }

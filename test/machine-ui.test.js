@@ -109,6 +109,43 @@ test('the report for all repositories works from a directory that is no checkout
   assert.ok(!fs.existsSync(path.join(cwd, '.thinker')), 'nothing created outside a checkout');
 });
 
+test('the page serves the reports kept in the checkouts and has them made again in the background', async t => {
+  const { dir } = repo(t);
+  const st = new Store(dir); st.init();
+  const th = tmp('thinker-th-'), home = tmp('thinker-ui-home-');
+  t.after(() => { fs.rmSync(th, { recursive: true, force: true }); fs.rmSync(home, { recursive: true, force: true }); });
+  const claude = path.join(th, '.claude', 'projects', dir.replace(/[/.]/g, '-')); fs.mkdirSync(claude, { recursive: true });
+  fs.writeFileSync(path.join(claude, 's1.jsonl'), JSON.stringify({ type: 'user', cwd: dir, message: 'hi' }) + '\n');
+  process.env.THINKER_LOG = 'local'; t.after(() => { delete process.env.THINKER_LOG; });
+  const reports = [], contexts = [];
+  const ui = createUiServer(new Store(tmp('thinker-ui-nogit-')), { home, transcriptsHome: th, refreshReportFn: c => reports.push(c), refreshFn: c => contexts.push(c) });
+  const { port } = await ui.listen(0); t.after(() => ui.close());
+  const get = async p => { const r = await call(port, p, {}); assert.equal(r.status, 200, r.body); return JSON.parse(r.body); };
+  // Report: made on the first visit and kept; the next visit reads it back, nothing started
+  const a = await get('/api/report?repo=all');
+  assert.equal(a.refreshing, false); assert.ok(a.asOf > 0); assert.equal(a.columns.length, 6);
+  const f = path.join(st.dir, 'state', 'report.json');
+  assert.ok(fs.existsSync(f));
+  const b = await get('/api/report?repo=all');
+  assert.equal(b.asOf, a.asOf); assert.equal(reports.length, 0);
+  // old: served as it is, every repository's made again in the background in one run (null), asked for once
+  const kept = JSON.parse(fs.readFileSync(f, 'utf8')), oldAt = Date.now() - 11 * 60_000;
+  kept.views['6'].at = oldAt; fs.writeFileSync(f, JSON.stringify(kept));
+  const c = await get('/api/report?repo=all');
+  assert.equal(c.asOf, oldAt); assert.equal(c.refreshing, true); assert.deepEqual(reports, [null]);
+  // one repository: its own refresh
+  const id = (await get('/api/repos')).repos[0].id;
+  const d = await get(`/api/report?repo=${encodeURIComponent(id)}`);
+  assert.equal(d.asOf, oldAt); assert.equal(d.refreshing, true); assert.deepEqual(reports, [null, dir]);
+  // Save: the Context report made on the first visit; once the instruction file changes the kept one no longer holds, and
+  // is shown at once while a refresh runs behind it, instead of the transcripts being read in the request
+  const e = await get('/api/context?repo=all&days=30');
+  assert.equal(e.refreshing, false); assert.equal(contexts.length, 0);
+  fs.writeFileSync(path.join(dir, 'AGENTS.md'), '# R\n\n## Tests\n\nRun `npm test`.\n');
+  const g = await get('/api/context?repo=all&days=30');
+  assert.equal(g.asOf, e.asOf); assert.equal(g.refreshing, true); assert.deepEqual(contexts, [dir]);
+});
+
 test('the page keeps the checkouts it found, reads them back, and looks again in the background when they are old', async t => {
   const { dir } = repo(t);
   new Store(dir).init();

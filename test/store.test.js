@@ -30,6 +30,7 @@ test('note ids cannot escape the notes directory and symlinked note roots are re
   fs.renameSync(path.join(repo, '.thinker', 'notes'), path.join(repo, '.thinker', 'notes-original'));
   fs.symlinkSync(os.tmpdir(), path.join(repo, '.thinker', 'notes'));
   assert.throws(() => store.list(), /symlinked notes directory/);
+  assert.throws(() => store.count(), /symlinked notes directory/);
   assert.throws(() => store.put({ id: 'safe', title: 'x' }), /symlinked notes directory/);
 });
 

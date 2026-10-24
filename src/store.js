@@ -240,9 +240,16 @@ export class Store {
     this.localNotesDir = path.join(this.localDir, 'notes');
     this.overlayDir = path.join(this.localDir, 'shared');
   }
+  // Checked again only when something in .thinker or .thinker/local was added, renamed or removed (a symlink put in
+  // place of a notes directory changes its parent's mtime) or the notes directory in force changed: every read ran
+  // the lstats and realpaths below, and a usage summary that reads a note per served event spent half its time here.
   assertSafeNotesPath() {
+    const want = process.env.THINKER_NOTES_DIR || '';
+    const mt = p => { try { return fs.lstatSync(p).mtimeMs; } catch { return '-'; } };
+    const key = `${want}|${mt(this.dir)}|${mt(this.localDir)}`;
+    if (this.safeKey === key) return;
     try { if (fs.lstatSync(this.dir).isSymbolicLink()) throw new Error('refusing to use a symlinked .thinker directory'); } catch (e) { if (e.code !== 'ENOENT') throw e; }
-    if (!process.env.THINKER_NOTES_DIR) {
+    if (!want) {
       for (const dir of [this.notesDir, this.localDir, this.localNotesDir, this.overlayDir]) {
         try {
           if (fs.lstatSync(dir).isSymbolicLink()) throw new Error('refusing to use a symlinked notes directory');
@@ -252,6 +259,7 @@ export class Store {
         } catch (e) { if (e.code !== 'ENOENT') throw e; }
       }
     }
+    this.safeKey = key;
   }
   init() {
     if (this.readonly) throw new Error('readonly store');
@@ -436,6 +444,13 @@ export class Store {
   // The committed file of a shared note, as it is (local state from before the split included).
   sharedFile(id) { return this.isShared(id) ? readJson(path.join(this.notesDir, id + '.json')) : null; }
 
+  // How many notes are here, from the file names alone (the page ranks a repository's checkouts by it).
+  count() {
+    this.assertSafeNotesPath();
+    const ids = dir => { try { return fs.readdirSync(dir).filter(f => NOTE_FILE.test(f)); } catch { return []; } };
+    if (!this.tiered || !this.#layout()) return ids(this.notesDir).length;
+    return new Set([...ids(this.localNotesDir), ...this.#sharedIds()]).size;
+  }
   list() {
     this.assertSafeNotesPath();
     if (!this.tiered || !this.#layout()) return this.#flat(this.notesDir);

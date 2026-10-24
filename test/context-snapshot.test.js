@@ -50,3 +50,23 @@ test('a refresh writes every window the tab offers, one run at a time, and an ac
   dropSnapshots(st);
   for (const d of SNAPSHOT_DAYS) assert.equal(readSnapshot(st, d), null);
 });
+
+test('a linked worktree reads and refreshes the main checkout\'s report: one file per repository', t => {
+  const st = repo(t), wt = path.join(st.repo, '.worktrees', 'wt');
+  // a worktree shares the main checkout's cache once that has local notes (store.js:cacheCheckout)
+  fs.mkdirSync(path.join(st.dir, 'local', 'notes'), { recursive: true }); fs.writeFileSync(path.join(st.dir, 'local', 'notes', 'n1.json'), '{}');
+  execFileSync('git', ['-c', 'user.email=t@example.com', '-c', 'user.name=T', 'commit', '-qm', 'init', '--allow-empty'], { cwd: st.repo });
+  execFileSync('git', ['worktree', 'add', '-q', wt, '-b', 'wt'], { cwd: st.repo });
+  fs.copyFileSync(path.join(st.repo, 'AGENTS.md'), path.join(wt, 'AGENTS.md'));
+  const ws = new Store(wt);
+  assert.equal(ws.dir, st.dir);
+  snapshotView(st, 30);
+  assert.equal(fs.readdirSync(path.join(st.dir, 'state')).filter(f => f.startsWith('context-view')).length, 1);
+  assert.ok(readSnapshot(ws, 30), 'the worktree reads the same report');
+  assert.deepEqual(refreshSnapshots(ws).written, SNAPSHOT_DAYS);
+  assert.equal(fs.readdirSync(path.join(st.dir, 'state')).filter(f => f.startsWith('context-view')).length, SNAPSHOT_DAYS.length, 'no file of its own');
+  // an instruction file of its own on its branch: the report is made again for it
+  fs.appendFileSync(path.join(wt, 'AGENTS.md'), '\n## Branch\n\nx\n');
+  assert.equal(readSnapshot(ws, 30), null);
+  assert.ok(readSnapshot(st, 30));
+});

@@ -17,6 +17,7 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
+import { diskCache, cacheKey, cachedByFiles } from './disk-cache.js';
 
 // with Droid's (Execute, Create, LS), Kiro's (execute_bash, fs_read, fs_write), Cline's (execute_command,
 // replace_in_file, search_files, list_files), Auggie's (view, str-replace-editor, save-file, launch-process)
@@ -376,6 +377,7 @@ export function parseTranscript(file, { fromLine = 0, format } = {}) {
 // The model of a session whose assessment did not record one (written before that was logged):
 // found by its id among the agents' transcripts of the checkout. One listing per checkout.
 const sessionIndex = new Map();
+const MODEL_CACHE = diskCache('session-model', 1);
 export function sessionModel(repo, session, { sinceMs = 90 * 86400_000 } = {}) {
   if (!repo || !session) return null;
   if (!sessionIndex.has(repo)) {
@@ -386,7 +388,8 @@ export function sessionModel(repo, session, { sinceMs = 90 * 86400_000 } = {}) {
   const key = String(session).replace(/\.jsonl?$/, '').replace(/^trace-/, '');
   const file = sessionIndex.get(repo).get(key) || sessionIndex.get(repo).get((key.match(/([0-9a-f]{8}-[0-9a-f-]{27,})$/) || [])[1]);
   if (!file) return null;
-  try { return parseTranscript(file).model; } catch { return null; }
+  // kept on this machine by the file's size and mtime: a usage summary asks for every session of its window
+  try { return cachedByFiles(MODEL_CACHE, cacheKey('model', file), [file], () => ({ model: parseTranscript(file).model || null })).model; } catch { return null; }
 }
 
 // --- thinker's own trace -------------------------------------------------------
