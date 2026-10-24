@@ -162,7 +162,7 @@ test('All and History on the Context tab are `thinker context --approve|--dismis
   assert.match(read('ui/server.js'), /\/api\/changes\/approve/);
   assert.match(read('ui/server.js'), /\/api\/changes\/revert/);
   // the page's 7-day window is the command's suggested one (SUGGEST.days) and the session's summary links to that tab
-  assert.match(read('ui/page.html'), /\/api\/changes\?repo=\$\{encodeURIComponent\(want\)\}&days=7/);
+  assert.match(read('ui/page.html'), /\/api\/changes\?repo=\$\{encodeURIComponent\(CREPO\)\}&days=7/);
   assert.match(read('context-suggest.js'), /days: 7,/);
   assert.match(read('context-suggest.js'), /tab=save&view=all/);
   // the page's rows carry the keys allChanges gives, so the server finds the part a row's Apply names

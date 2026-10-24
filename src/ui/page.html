@@ -119,6 +119,8 @@
     .ctx-pill.medium { background: #fef9c3; color: #854d0e; }
     .ctx-pill.ok { background: #dcfce7; color: #166534; }
     .ctx-pill.off { background: #f4f4f5; color: #52525b; }
+    .ctx-pill.pr { background: #dbeafe; color: #1e40af; } a.ctx-pill { text-decoration: none; }
+    .ctx-prlink { font-weight: 400; color: #1e40af; margin-left: 0.35rem; font-size: 0.82rem; }
     .ctx-act { display: flex; align-items: center; justify-content: flex-end; gap: 0.4rem; }
     .ctx-act .sel { padding: 0.22rem 1.4rem 0.22rem 0.5rem; font-size: 0.76rem; max-width: 12rem; }
     .ctx-act .btn { padding: 0.26rem 0.65rem; font-size: 0.76rem; }
@@ -127,7 +129,6 @@
     /* the detail cell spans every column: at width 0 its text (a code block, a long line) counts for nothing in the auto layout, so opening it moves no column */
     .ctx-detail td > div { width: 0; min-width: 100%; }
     .ctx-detail .why { font-size: 0.76rem; color: #6b7280; margin-top: 0.4rem; }
-    .ctx-preview { margin-bottom: 0.8rem; }
     .md-body { font-size: 0.86rem; line-height: 1.5; color: #222; }
     .md-body p { margin: 0.35rem 0; }
     .md-body ul { margin: 0.35rem 0; padding-left: 1.2rem; }
@@ -194,7 +195,12 @@
     .modal-card.modal-small { max-width: 540px; }
     .modal-small .modal-body { padding-top: 1rem; font-size: 0.92rem; line-height: 1.55; }
     .modal-small .modal-body p { margin: 0 0 0.7rem; }
-    .modal-foot { display: flex; gap: 0.6rem; padding: 0 1.5rem 1.3rem; }
+    .modal-foot { display: flex; gap: 0.6rem; padding: 0 1.5rem 1.3rem; flex-wrap: wrap; align-items: center; }
+    .modal-foot .why { flex-basis: 100%; }
+    /* the diff of a section change (previewSections): wider, the diffs scrolling inside */
+    .modal-card.modal-wide { max-width: 900px; }
+    .modal-wide .modal-body { padding-top: 0.9rem; }
+    .modal-wide .diff { max-height: 50vh; }
     .faq-item { padding: 1.25rem 0; border-top: 1px solid #f0f0f0; }
     .faq-item:first-child { border-top: none; }
     .faq-item h3 { font-size: 1rem; font-weight: 600; letter-spacing: -0.02em; line-height: 1.35; margin-bottom: 0.6rem; }
@@ -258,6 +264,13 @@
       <div class="modal-foot"><button class="btn" id="confirm-ok" type="button">Confirm</button><button class="btn ghost" id="confirm-cancel" type="button">Cancel</button></div>
     </div>
   </div>
+  <div class="modal-overlay" id="edit-overlay">
+    <div class="modal-card modal-wide" role="dialog" aria-modal="true" aria-labelledby="edit-title">
+      <div class="modal-header"><div><div class="modal-title" id="edit-title"></div><div class="modal-subtitle" id="edit-sub"></div></div><button class="btn-close" id="edit-close" type="button" aria-label="Close">&times;</button></div>
+      <div class="modal-body" id="edit-body"></div>
+      <div class="modal-foot" id="edit-foot"></div>
+    </div>
+  </div>
   <div class="modal-overlay" id="faq-overlay">
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="faq-title">
       <div class="modal-header">
@@ -307,7 +320,7 @@
 
         <div class="faq-item">
           <h3>Can Thinker cut what my agents load into every session?</h3>
-          <p>It shows you what to cut, and you decide. The Find Savings view here and <code>thinker context</code> list every section of your instruction files, every skill and every tool with what it costs a session and how many sessions it bore on. A section you pick can be removed or compressed by a model: the diff is shown first, and Apply writes it to your working tree, uncommitted, for you to review and commit like any change. Nothing is cut on its own.</p>
+          <p>It shows you what to cut, and you decide. The Find Savings view here and <code>thinker context</code> list every section of your instruction files, every skill and every tool with what it costs a session and how many sessions it bore on. A section you pick can be removed or compressed by a model: the diff is shown first, and Apply opens a pull request with it (or, without a GitHub origin or <code>gh</code>, writes it to your working tree, uncommitted). The pull request is yours to merge or close; closed, the section is suggested again. Nothing is cut on its own.</p>
         </div>
 
         <div class="faq-item">
@@ -373,6 +386,19 @@ function confirmDialog({ title, body, ok = 'Confirm' }) {
   });
 }
 
+// The diff of a section change, in a modal over the table (the owner's ask of 2026-10-24: no jump to a view above the
+// table): opened at once with a spinner while the model works, then the diffs and the one button that opens the pull
+// request. The cross, Escape and Cancel close it; a click outside does not, since a compression cost a model call.
+const editOverlay = $('#edit-overlay');
+function openEditModal({ title, sub = '', body, foot }) {
+  $('#edit-title').textContent = title; $('#edit-sub').innerHTML = sub; $('#edit-body').innerHTML = body; $('#edit-foot').innerHTML = foot;
+  editOverlay.classList.add('active'); $('#edit-close').focus();
+}
+function closeEditModal() { editOverlay.classList.remove('active'); $('#edit-body').innerHTML = ''; }
+const editModalOpen = () => editOverlay.classList.contains('active');
+$('#edit-close').onclick = closeEditModal;
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && editModalOpen()) closeEditModal(); });
+
 // tabs
 document.querySelectorAll('.nav-link').forEach(b => b.onclick = () => show(b.dataset.tab));
 function show(tab) {
@@ -409,7 +435,8 @@ async function loadContext() {
     $('#c-repo').innerHTML = `<option value="all"${CREPO === 'all' ? ' selected' : ''}>All repositories</option>` + REPOS.map(r => `<option value="${esc(r.id)}"${r.id === CREPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
     if (CREPO === 'all') $('#context-body').innerHTML = `<div class="empty">${LOGO_SPIN}Reading every repository's transcripts (the first time takes a while)…</div>`;
     if (!CREPO) { el.innerHTML = `<div class="empty">No repository with a cache on this machine yet.</div>`; return; }
-    const v = await api(`/api/context?repo=${encodeURIComponent(CREPO)}&days=${cdays}`);
+    const [v, d] = await Promise.all([api(`/api/context?repo=${encodeURIComponent(CREPO)}&days=${cdays}`), api(`/api/changes?repo=${encodeURIComponent(CREPO)}&days=7`).catch(e => ({ error: e.message, history: [] }))]);
+    CHIST = d;
     renderContext(v); contextAsOf(v);
   } catch (e) { el.innerHTML = `<div class="empty">Could not read the context: ${esc(e.message)}</div>`; }
 }
@@ -427,7 +454,7 @@ function contextAsOf(v) {
     if (CREPO !== want[0] || cdays !== want[1]) return;
     let n; try { n = await api(`/api/context?repo=${encodeURIComponent(CREPO)}&days=${cdays}`); } catch { return; }
     if (CREPO !== want[0] || cdays !== want[1]) return;
-    const picked = Object.values(PICKS).some(m => m.size) || [...document.querySelectorAll('.ctx-preview')].some(b => !b.hidden);
+    const picked = Object.values(PICKS).some(m => m.size) || editModalOpen();
     if (n.asOf > v.asOf && !picked) { renderContext(n); contextAsOf(n); }
     else if (n.asOf > v.asOf) { if (el) el.textContent = `· newer figures ready, shown on reload`; }
     else contextAsOf({ ...v, refreshing: n.refreshing, tries });
@@ -435,6 +462,9 @@ function contextAsOf(v) {
 }
 // an old link to Top suggested (view=suggested) opens All, which lists every part
 let CVIEW = ['all', 'history', 'instructions', 'custom', 'builtin', 'outputs'].includes(H().get('view')) ? H().get('view') : 'all', CTX = null;
+// the decisions (/api/changes), read with the report: History's rows, and the pull request pending on a section
+let CHIST = { history: [] };
+const pendingPr = (repo, key) => (CHIST.history || []).find(e => e.pending && e.pr && (!repo || e.repo === repo) && (e.keys || [e.key]).includes(key))?.pr || null;
 const dlabel = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 // a small markdown reader for the team's own file: headings, lists, code, tables as text, inline code, bold, links' text
 function md(text) {
@@ -519,6 +549,9 @@ function contextRows(v) {
     wasted: s.wasted, waste: s.waste, off: Boolean(iv.coreOn && !s.kept), pill: iv.coreOn && !s.kept ? ['off', 'not in the trimmed copy'] : null,
     options: [['compress', 'Compress'], ['remove', 'Remove']], disabled: '',
   }));
+  // a section whose change is a pull request not yet merged: pending, with the link, and not to be picked again until the
+  // pull request is merged (the next report has the new section) or closed (the section is suggested again)
+  for (const r of rows) { const pr = pendingPr(r.repo, r.key); if (pr) { r.pr = pr; r.pill = ['pr', `PR #${pr.number} pending`]; r.options = []; r.disabled = `pull request #${pr.number} is open for it`; } }
   for (const s of v.skills || []) {
     const k = skillShort(s.text), o = s.outcome;
     rows.push({
@@ -591,12 +624,12 @@ function renderTable(view, rows, { title, sub, note, nameHead, savings }) {
       <td class="num">${actedCell(r)}</td>
       <td class="num">${fmt(r.perSession * r.sessions)}</td>
       <td class="num">${r.wasted == null ? '<span class="muted">–</span>' : fmt(windowWaste(r))}</td>
-      <td>${pt ? `<span class="ctx-pill ${pc}">${esc(pt)}</span>` : ''}</td>
+      <td>${pt ? r.pr?.url ? `<a class="ctx-pill ${pc}" href="${esc(r.pr.url)}" target="_blank" rel="noopener">${esc(pt)}</a>` : `<span class="ctx-pill ${pc}">${esc(pt)}</span>` : ''}</td>
       <td class="ctx-actcell"><div class="ctx-act">${r.options.length ? `<select class="sel" data-act="${i}" aria-label="Action">${r.options.map(([a, t]) => `<option value="${a}"${PREACT.get(`${view}\t${pickKey(r)}`) === a ? ' selected' : ''}>${t}</option>`).join('')}</select>` : `<span class="why" title="${esc(r.disabled)}">—</span>`}</div></td></tr>
       <tr class="ctx-detail" data-detail="${i}" hidden><td colspan="7"><div class="md-body">${r.detail}</div><div class="why">${fmt(r.perSession)} input tokens a session · acted on: ${esc(r.actedBy)}${r.wasted != null ? ` · ${r.kind === 'output' ? 'read again after the agent last used it:' : 'wasted in the sessions that did not use it:'} ~${fmt(r.wasted)} a session, ${fmt(windowWaste(r))} over ${CTX?.days || cdays} days` : ''}</div></td></tr>`;
   }).join('');
   return `<figure class="ctx-figure"><figcaption><b>${title}</b> <span class="ctx-sub">${sub}</span><span class="ctx-capact"><span class="ctx-sub" data-seln="${view}"></span><button class="btn" data-apply-picked="${view}" disabled title="Apply the action picked in each checked row">Apply</button></span></figcaption>
-    ${savings ? savingsCard(savings) : ''}<div class="ctx-preview" data-preview="${view}" hidden></div>
+    ${savings ? savingsCard(savings) : ''}
     ${rows.length ? `<table class="ctx-table"><thead><tr><th>${nameHead}</th><th class="num">Tokens per call</th><th class="num">Sessions used</th><th class="num">Over ${days} days</th><th class="num">Wasted</th><th></th><th></th></tr></thead><tbody>${body}</tbody></table>${pagerOf(view, rows.length, page, TABLE_PAGE)}` : '<div class="empty">Nothing recorded here yet.</div>'}
     ${note ? `<p class="ctx-note">${note}</p>` : ''}</figure>`;
 }
@@ -625,7 +658,7 @@ function wireTable(root, view, rows) {
 }
 // Every checked row's action: a skill, tool or output is changed at once (/api/changes/approve,
 // context-suggest.js:approveChanges, each recorded in History with its undo); a section is previewed first, its diff
-// shown above the table with a Write button (instruction-edit.js), and recorded when written.
+// shown in a modal (instruction-edit.js) with the button that opens the pull request, and recorded when it is.
 async function applyRows(view, items, btn) {
   const secs = items.filter(x => x.r.kind === 'section' && x.act), rest = items.filter(x => x.r.kind !== 'section' && x.act);
   if (!secs.length && !rest.length) return toast('Nothing to apply', true);
@@ -646,32 +679,45 @@ async function applyRows(view, items, btn) {
       const said = []; for (const [repo, g] of byRepo) { try { said.push((await api('/api/changes/approve', { repo, ...g, days: cdays })).said); } catch (err) { said.push(`${REPOS.find(x => x.id === repo)?.name || repo}: ${err.message}`); } }
       toast(said.join(' ') || 'Done');
     }
-    // the diff is on the page, with its own Write: the row's button is a button again
-    if (secs.length) { await previewSections(view, secs); if (btn) idle(btn); }
+    // the diff is in the modal, with its own button: the row's button is a button again
+    if (secs.length) { if (btn) idle(btn); await previewSections(view, secs); }
     else { PICKS[view].clear(); loadContext(); }
   } catch (err) { toast(err.message, true); if (btn) idle(btn); }
 }
-// the picked sections' change, one preview per repository and action, then written together
+// The picked sections' change, one preview per repository and action, in the modal; its button opens one pull request
+// per preview (instruction-pr.js, where the origin is on GitHub and gh is logged in) and the decision is recorded as
+// pending until the pull request is merged; else, with the reason, the file is written to the working tree as before.
 async function previewSections(view, items) {
-  const box = $(`[data-preview="${view}"]`), n = items.length;
+  const n = items.length, compress = items.some(x => x.act === 'compress'), word = `${n} section${n === 1 ? '' : 's'}`;
   const groups = new Map(); for (const { r, act } of items) { const k = `${r.repo}\t${act}`; if (!groups.has(k)) groups.set(k, { repo: r.repo, action: act, rows: [] }); groups.get(k).rows.push(r); }
-  box.hidden = false; box.scrollIntoView({ block: 'nearest' });
-  box.innerHTML = `<div class="md-preview"><div class="why"><span class="spinner"></span>${items.some(x => x.act === 'compress') ? `Asking a model to compress ${n} section${n === 1 ? '' : 's'}…` : 'Working out the change…'}</div></div>`;
+  const title = `${compress ? (items.every(x => x.act === 'compress') ? 'Compress' : 'Change') : 'Remove'} ${word}`;
+  openEditModal({ title, body: `<div class="why"><span class="spinner"></span>${compress ? `Asking a model to compress ${word}…` : 'Working out the change…'}</div>`, foot: '<button class="btn ghost" data-cancel>Cancel</button>' });
+  const cancel = () => { closeEditModal(); loadContext(); };
+  $('#edit-foot [data-cancel]').onclick = cancel;
+  // a later preview (Cancel, then Apply again) takes the modal over: the earlier one's answer is dropped
+  const mine = String(Date.now()); editOverlay.dataset.run = mine;
   try {
     const previews = [];
-    for (const g of groups.values()) previews.push({ ...g, p: (await api('/api/context/edit', { repo: g.repo, ids: g.rows.map(r => r.id), action: g.action })).preview });
+    for (const g of groups.values()) { const x = await api('/api/context/edit', { repo: g.repo, ids: g.rows.map(r => r.id), action: g.action }); previews.push({ ...g, p: x.preview, pr: x.pr }); }
+    if (!editModalOpen() || editOverlay.dataset.run !== mine) return;
     const before = previews.reduce((a, x) => a + x.p.tokensBefore, 0), after = previews.reduce((a, x) => a + x.p.tokensAfter, 0);
     const name = id => REPOS.find(r => r.id === id)?.name || id, files = [...new Set(previews.flatMap(x => x.p.files || [x.p.file]))];
-    box.innerHTML = `<div class="md-preview"><div class="diff-head"><b>${n} section${n === 1 ? '' : 's'}</b> · ~${fmt(before)} → ~${fmt(after)} tokens in every model call (−${fmt(before - after)})</div>
-      ${previews.flatMap(({ repo, action, p }) => p.sections.map(x => `<details class="diff-sec" open><summary>${action === 'compress' ? 'Compress' : 'Remove'} ${groups.size > 1 && CREPO === 'all' ? `<span class="muted">${esc(name(repo))} · </span>` : ''}${esc(x.title)} <span class="muted">~${fmt(x.tokensBefore)} → ~${fmt(x.tokensAfter)}</span></summary><pre class="diff">${x.diff.map(([k, l]) => `<span class="${k === '+' ? 'add' : k === '-' ? 'del' : 'keep'}">${k} ${esc(l) || ' '}</span>`).join('')}</pre></details>`)).join('')}
-      <div class="controls"><button class="btn" data-write>Write to ${files.length === 1 ? esc(files[0]) : `${files.length} files`}</button><button class="btn ghost" data-cancel>Cancel</button><span class="why">Written to the working tree, uncommitted: review with git diff; History's Revert or git checkout undoes it.</span></div></div>`;
-    box.querySelector('[data-cancel]').onclick = () => { box.hidden = true; box.innerHTML = ''; loadContext(); };
-    box.querySelector('[data-write]').onclick = async e => {
-      e.target.disabled = true;
-      try { for (const { repo, rows, p } of previews) await api('/api/changes/apply', { repo, keys: rows.map(r => r.key), edit: p.key, files: p.files || [p.file], days: cdays }); toast(`Written ${n} section${n === 1 ? '' : 's'}: review with git diff`); PICKS[view].clear(); loadContext(); }
-      catch (err) { toast(err.message, true); e.target.disabled = false; }
+    // a pull request for every preview or for none: one repository that cannot have one gets the working tree, and says so
+    const no = previews.find(x => !x.pr?.ok)?.pr, pr = no ? { ok: false, reason: no.reason || 'no git remote' } : previews[0].pr;
+    $('#edit-sub').innerHTML = `~${fmt(before)} → ~${fmt(after)} tokens in every model call (−${fmt(before - after)}) · ${files.map(esc).join(', ')}`;
+    $('#edit-body').innerHTML = previews.flatMap(({ repo, action, p }) => p.sections.map(x => `<details class="diff-sec" open><summary>${action === 'compress' ? 'Compress' : 'Remove'} ${groups.size > 1 && CREPO === 'all' ? `<span class="muted">${esc(name(repo))} · </span>` : ''}${esc(x.title)} <span class="muted">~${fmt(x.tokensBefore)} → ~${fmt(x.tokensAfter)}</span></summary><pre class="diff">${x.diff.map(([k, l]) => `<span class="${k === '+' ? 'add' : k === '-' ? 'del' : 'keep'}">${k} ${esc(l) || ' '}</span>`).join('')}</pre></details>`)).join('');
+    $('#edit-foot').innerHTML = `<button class="btn" data-write>${pr.ok ? `Open a pull request${previews.length > 1 ? ` (${previews.length})` : ''}` : `Write to ${files.length === 1 ? esc(files[0]) : `${files.length} files`}`}</button><button class="btn ghost" data-cancel>Cancel</button>
+      <span class="why">${pr.ok ? `A branch with this commit is pushed to ${esc(pr.slug)} and a pull request opened against <code>${esc(pr.base)}</code>; nothing in your working tree changes. History links it and shows it pending until it is merged; closed without merging, it is marked rejected and the ${n === 1 ? 'section is' : 'sections are'} suggested again.` : `No pull request from here (${esc(pr.reason)}): written to the working tree, uncommitted. Review with git diff; History's Revert or git checkout undoes it.`}</span>`;
+    $('#edit-foot [data-cancel]').onclick = cancel;
+    $('#edit-foot [data-write]').onclick = async e => {
+      busy(e.target, pr.ok ? 'Opening the pull request…' : 'Writing…');
+      try {
+        const said = [];
+        for (const { repo, rows, p } of previews) said.push((await api('/api/changes/apply', { repo, keys: rows.map(r => r.key), edit: p.key, files: p.files || [p.file], days: cdays, pr: pr.ok })).said);
+        toast(pr.ok ? said.join(' ') : `Written ${word}: review with git diff`); closeEditModal(); PICKS[view].clear(); loadContext();
+      } catch (err) { toast(err.message, true); idle(e.target); }
     };
-  } catch (err) { box.innerHTML = `<div class="md-preview"><div class="why">Could not make the change: ${esc(err.message)}</div></div>`; }
+  } catch (err) { if (editModalOpen() && editOverlay.dataset.run === mine) { $('#edit-body').innerHTML = `<div class="why">Could not make the change: ${esc(err.message)}</div>`; $('#edit-foot').innerHTML = '<button class="btn ghost" data-cancel>Close</button>'; $('#edit-foot [data-cancel]').onclick = cancel; } }
 }
 function renderContext(v) {
   const el = $('#context-body'), iv = v.instructions, t = v.totals;
@@ -697,7 +743,7 @@ function renderContext(v) {
   const sumSav = Object.values(sav).reduce((a, s) => ({ perSession: a.perSession + s.perSession, window: a.window + (s.window || 0) }), { perSession: 0, window: 0 });
   sav.all = { ...sumSav, share: perSession(all) ? sumSav.perSession / perSession(all) : null, days: v.days, text: 'Every view\'s card together: the flagged sections, skills and tools in the sessions that did not use them, and what compressing every output would cut at least.', ok: 'Nothing here is flagged, and no output is long enough to cut.' };
   h += vdiv('all', renderTable('all', all, { nameHead: 'Part', title: 'Everything in the context', sub: cap(all, v.sessions || 0, 'over the window'), savings: sav.all,
-    note: `Every instruction section, skill, tool and tool output the agents' sessions here carried, over ${v.days} days. <b>Sessions used</b>: the share of sessions that used the part (a section the agent followed, or whose files, commands or code it touched; a skill opened; a tool called). <b>Wasted</b>: what it cost in the sessions that did not use it; for an output, what its results cost after the agent last used them. The pill: high waste from 5% of what its kind cost, medium from 2%. Sorted by Wasted. Pick what to do in the row and Apply: a section's diff is shown first and written to your working tree, uncommitted; a skill or tool is switched off for this repository from the next session (a skill still runs as /name); an output is compressed before the model reads it (Claude Code). Every change is listed under History with a Revert. <b>Compress and Remove only edit the instruction file in your working tree: no commit, no pull request, nothing pushed.</b>` }));
+    note: `Every instruction section, skill, tool and tool output the agents' sessions here carried, over ${v.days} days. <b>Sessions used</b>: the share of sessions that used the part (a section the agent followed, or whose files, commands or code it touched; a skill opened; a tool called). <b>Wasted</b>: what it cost in the sessions that did not use it; for an output, what its results cost after the agent last used them. The pill: high waste from 5% of what its kind cost, medium from 2%. Sorted by Wasted. Pick what to do in the row and Apply: a section's diff is shown first and written to your working tree, uncommitted; a skill or tool is switched off for this repository from the next session (a skill still runs as /name); an output is compressed before the model reads it (Claude Code). Every change is listed under History with a Revert. <b>Compress and Remove open a pull request with the change</b> (a branch pushed to the origin, nothing in your working tree touched): the section shows as pending until it is merged, and is suggested again if it is closed. Without a GitHub origin or <code>gh</code>, the file is written to your working tree instead, uncommitted.` }));
   h += vdiv('instructions', (iv.file ? renderTable('instructions', of('instructions'), { nameHead: 'Section', title: esc(iv.file), sub: cap(of('instructions'), iv.sessions || 0, 'on the file'), savings: sav.instructions,
     note: `${(iv.files || []).length > 1 ? `<b>${iv.files.length} instruction files.</b> ${iv.files.map(f => `<code>${esc(f.file)}</code> ${f.kind === 'root' ? 'in every session' : `${f.loadedIn} session${f.loadedIn === 1 ? '' : 's'}, ${f.kind === 'rule' ? (f.globs?.length ? 'when a matching file is opened' : 'at the start, Claude Code') : 'when a file in its directory is opened'}`}`).join(' · ')}. ` : ''}Each session reads the file again on every model call; ${iv.judged} judged${iv.judge?.judge ? `, and a ${Math.round(100 * iv.judge.share)}% sample is judged as sessions end` : ''}. <b>Compress</b> has a model rewrite a section to about a third, keeping its rules, commands and paths; <b>Remove</b> takes it out. Both show the diff first; Write puts it in the file in your working tree, uncommitted, for you to review and commit. <b>Compress and Remove only edit the instruction file in your working tree: no commit, no pull request, nothing pushed.</b>` })
     : '<div class="empty">No AGENTS.md or CLAUDE.md in this repository.</div>') + `<div class="controls">${iv.coreOn ? '<button class="btn ghost" id="c-whole">Remove the trimmed copy</button>' : ''}${v.all || !iv.file ? '' : '<button class="btn ghost" id="c-judge">Judge 5 more sessions</button>'}</div>`);
@@ -712,7 +758,7 @@ function renderContext(v) {
   for (const [k] of VIEWS) if (k !== 'history') wireTable(el.querySelector(`#c-${k}`), k, k === 'all' ? all : of(k));
   el.querySelectorAll('#c-view button').forEach(b => b.onclick = () => { CVIEW = b.dataset.view; el.querySelectorAll('#c-view button').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-selected', String(x === b)); }); el.querySelectorAll('.cview').forEach(x => x.hidden = x.dataset.view !== CVIEW); sortControl(); });
   sortControl();
-  loadChanges();
+  renderHistory(CHIST);
   const act = async (btn, p, body, msg) => { if (btn) btn.disabled = true; try { const r = await api(p, { repo: CREPO, ...body }); toast(msg || (r.said && !String(r.said).startsWith('{') ? r.said : 'Saved')); loadContext(); } catch (err) { toast(err.message, true); if (btn) btn.disabled = false; } };
   $('#c-whole')?.addEventListener('click', e => act(e.target, '/api/context/core', { keep: null }));
   $('#c-judge')?.addEventListener('click', e => act(e.target, '/api/context/judge', { n: 5 }, 'Judging 5 more sessions in the background; reload in a few minutes'));
@@ -734,15 +780,9 @@ const CH_KIND = { section: 'Instruction section', skill: 'Skill', tool: 'Tool', 
 // what a decision did, in a word: the action approved (entries written before `act` was kept name it in their
 // suggested action), or dismissed, or reverted
 const CH_DONE = { off: 'Switched off', on: 'Turned back on', compress: 'Compressed', remove: 'Removed', high: 'High compression', uncompress: 'Compression off' };
-const doneOf = e => e.revertedAt ? ['off', 'Reverted'] : e.decision === 'dismissed' ? ['off', 'Dismissed']
+// a pull request by its state: pending while open, merged, rejected once closed without merging (Close PR too)
+const doneOf = e => e.pr ? (e.pr.state === 'merged' ? ['ok', 'Merged'] : e.pr.state === 'closed' ? ['high', 'Rejected'] : ['pr', 'PR pending']) : e.revertedAt ? ['off', 'Reverted'] : e.decision === 'dismissed' ? ['off', 'Dismissed']
   : ['ok', CH_DONE[e.act] || (/^switch/i.test(e.action || '') ? CH_DONE.off : /^remove/i.test(e.action || '') ? CH_DONE.remove : /compress/i.test(e.action || '') ? CH_DONE.compress : 'Applied')];
-async function loadChanges() {
-  const want = CREPO;
-  if (!want) return;
-  let d; try { d = await api(`/api/changes?repo=${encodeURIComponent(want)}&days=7`); } catch (e) { const x = $('#c-history'); if (x) x.innerHTML = `<div class="empty">Could not read the decisions: ${esc(e.message)}</div>`; return; }
-  if (CREPO !== want || !$('#c-history')) return;
-  renderHistory(d);
-}
 // The decisions table, one function for Save's History (every decision kept, HISTORY_PAGE a page) and the Report (the
 // window's alone): what, when, what it was worth, what came of it, and Revert where thinker kept enough to take it back;
 // `reload` is what a Revert refreshes, `rerender` what a page turn redraws.
@@ -755,29 +795,30 @@ function historyFigure(hs, { many, caption, sub, empty, key = 'history', pageSiz
     e.result && e.decision !== 'dismissed' ? `<p>${esc(e.result.replace(/ `?thinker harness --undo`? turns.*$/, ''))}</p>` : '',
     e.action ? `<p class="muted">Suggested: ${esc(e.action)}</p>` : '',
     e.total ? `<p class="muted">Worth ~${fmt(e.total)} input tokens over the ${e.days || 7} days before it was decided${e.saving ? ` (~${fmt(e.saving)} a session)` : ''}.</p>` : e.saving ? `<p class="muted">Worth ~${fmt(e.saving)} input tokens a session when it was decided.</p>` : '',
-    `<p class="muted">${e.decision === 'dismissed' ? 'Dismissed' : e.decision === 'applied after review' ? 'Written after its diff was read' : 'Applied'} ${when(e.at)}${e.revertedAt ? `; reverted ${when(e.revertedAt)}` : ''}.</p>`,
+    e.pr ? `<p class="muted">Pull request <a href="${esc(e.pr.url)}" target="_blank" rel="noopener">#${e.pr.number}</a> opened ${when(e.pr.openedAt || e.at)}${e.pr.state === 'merged' ? `; merged ${when(e.pr.at)}` : e.pr.state === 'closed' ? `; closed without merging ${when(e.pr.at)}: the change was not followed through on, and the ${e.keys?.length > 1 ? 'sections are' : 'section is'} suggested again` : '; pending until it is merged'}.</p>`
+      : `<p class="muted">${e.decision === 'dismissed' ? 'Dismissed' : e.decision === 'applied after review' ? 'Written after its diff was read' : 'Applied'} ${when(e.at)}${e.revertedAt ? `; reverted ${when(e.revertedAt)}` : ''}.</p>`,
   ].join('');
-  const rows = shown.map((e, k) => { const i = from + k, [cls, label] = doneOf(e); return `<tr class="${e.revertedAt ? 'ctx-off' : ''}">
-      <td class="ctx-name"><b>${esc(e.title)}</b><button class="ctx-more" data-more="${i}" aria-expanded="false">See more</button><span class="ctx-kind">${esc([CH_KIND[e.kind] || e.kind, many ? e.repoName : ''].filter(Boolean).join(' · '))}</span></td>
+  const rows = shown.map((e, k) => { const i = from + k, [cls, label] = doneOf(e); return `<tr class="${e.revertedAt || e.rejected ? 'ctx-off' : ''}">
+      <td class="ctx-name"><b>${esc(e.title)}</b>${e.pr?.url ? `<a class="ctx-prlink" href="${esc(e.pr.url)}" target="_blank" rel="noopener">#${e.pr.number}</a>` : ''}<button class="ctx-more" data-more="${i}" aria-expanded="false">See more</button><span class="ctx-kind">${esc([CH_KIND[e.kind] || e.kind, many ? e.repoName : ''].filter(Boolean).join(' · '))}</span></td>
       <td class="num">${day(e.at)}</td><td class="num">${e.total ? fmt(e.total) : e.saving ? `${fmt(e.saving)} <span class="muted">a session</span>` : '–'}</td>
       <td><span class="ctx-pill ${cls}">${label}</span></td>
-      <td class="ctx-actcell"><div class="ctx-act">${e.revertible ? `<button class="btn ghost" data-revert="${i}">Revert</button>` : ''}</div></td></tr>
+      <td class="ctx-actcell"><div class="ctx-act">${e.revertible ? `<button class="btn ghost" data-revert="${i}">${e.pending ? 'Close PR' : 'Revert'}</button>` : ''}</div></td></tr>
       <tr class="ctx-detail" data-detail="${i}" hidden><td colspan="5"><div class="md-body">${detail(e)}</div></td></tr>`; }).join('');
   const reverted = hs.filter(e => e.revertedAt).length;
   const pager = pagerOf(key, hs.length, page, pageSize).replace(/data-vpage=/g, 'data-page=');
   return `<figure class="ctx-figure" data-history><figcaption><b>${caption}</b> <span class="ctx-sub">${sub ? `${sub} · ` : ''}${hs.length} decision${hs.length === 1 ? '' : 's'}${reverted ? ` · ${reverted} reverted` : ''}</span></figcaption>
     ${hs.length ? `<table class="ctx-table"><thead><tr><th>Change</th><th class="num">Decided</th><th class="num">Worth</th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table>${pager}` : `<div class="empty">${empty}</div>`}
-    <p class="ctx-note"><b>Revert</b> turns a switched-off skill or tool back on, sets an output's compression back, or writes a section's file back as it was (when the file is still what thinker wrote; else git has it). A dismissal reverted is suggested again.</p></figure>`;
+    <p class="ctx-note"><b>Revert</b> turns a switched-off skill or tool back on, sets an output's compression back, or writes a section's file back as it was (when the file is still what thinker wrote; else git has it). A dismissal reverted is suggested again. A section change is a pull request: <b>PR pending</b> until it is merged, <b>Rejected</b> once it is closed without merging (the section is suggested again); <b>Close PR</b> closes it and deletes its branch.</p></figure>`;
 }
 function wireHistory(root, hs, reload, rerender) {
   if (!root) return;
   root.querySelectorAll('[data-page]').forEach(b => b.onclick = () => { const [key, n] = b.dataset.page.split(':'); HPAGE[key] = Math.max(0, Number(n)); rerender(); });
   root.querySelectorAll('[data-more]').forEach(b => b.onclick = () => { const x = root.querySelector(`[data-detail="${b.dataset.more}"]`), open = x.hidden; x.hidden = !open; b.setAttribute('aria-expanded', String(open)); b.textContent = open ? 'See less' : 'See more'; });
-  root.querySelectorAll('[data-revert]').forEach(b => b.onclick = async () => { const e = hs[Number(b.dataset.revert)]; busy(b, 'Reverting…'); try { toast((await api('/api/changes/revert', { repo: e.repo, id: e.id })).said); reload(); } catch (err) { toast(err.message, true); idle(b); } });
+  root.querySelectorAll('[data-revert]').forEach(b => b.onclick = async () => { const e = hs[Number(b.dataset.revert)]; busy(b, e.pending ? 'Closing…' : 'Reverting…'); try { toast((await api('/api/changes/revert', { repo: e.repo, id: e.id })).said); reload(); } catch (err) { toast(err.message, true); idle(b); } });
 }
 function renderHistory(d) {
   const hist = $('#c-history'), hs = d.history || [], many = CREPO === 'all';
-  hist.innerHTML = historyFigure(hs, { many, caption: 'Decisions', empty: 'No decisions yet. What you apply from the tables is listed here.', key: 'history' });
+  hist.innerHTML = d.error ? `<div class="empty">Could not read the decisions: ${esc(d.error)}</div>` : historyFigure(hs, { many, caption: 'Decisions', empty: 'No decisions yet. What you apply from the tables is listed here.', key: 'history' });
   $('#vt-history').innerHTML = `${hs.length} <span>decision${hs.length === 1 ? '' : 's'}</span>`;
   wireHistory(hist, hs, loadContext, () => renderHistory(d));
 }

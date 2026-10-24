@@ -257,3 +257,59 @@ test('applyReviewed: a section written after its diff was read is recorded with 
   assert.match((await applyReviewed(store, [picked[0]], 'nope', ['AGENTS.md'])).error, /preview the change first/);
   assert.equal(changeHistory(store).length, 1);
 });
+
+test('applyReviewed with pr: the decision is a pull request, pending until merged; closed, it is rejected and suggested again; Close PR is its revert', async () => {
+  const { allChanges, applyReviewed, revertDecision, changeHistory, currentChanges, refreshPrStates } = await import('../src/context-suggest.js');
+  const store = repo(), cs = allChanges(view()), now = Date.parse('2026-10-24T10:00:00Z');
+  const picked = cs.filter(c => ['section:AGENTS.md:Releases', 'section:AGENTS.md:Ports'].includes(c.key));
+  const opened = [], closed = [];
+  const prs = {
+    openEditPr: async (s, key, o) => { opened.push([key, o.changes.length]); return { number: 7, url: 'https://github.com/o/r/pull/7', branch: 'thinker/context-20261024-abc', commit: 'c0ffee', base: 'main', said: 'Pull request #7 opened: https://github.com/o/r/pull/7' }; },
+    prState: (r, n) => prs.state(n),
+    closePr: (r, n, o) => { closed.push([n, o.branch]); return { ok: true }; },
+    state: () => ({ state: 'open', at: null }),
+  };
+  const r = await applyReviewed(store, picked, 'bulk', ['AGENTS.md'], { now, pr: true, prs });
+  assert.equal(r.said, 'Pull request #7 opened: https://github.com/o/r/pull/7');
+  assert.deepEqual(opened, [['bulk', 2]]);
+  let [e] = changeHistory(store);
+  assert.equal(e.decision, 'pull request'); assert.equal(e.pending, true); assert.equal(e.rejected, false); assert.equal(e.revertible, true, 'Close PR');
+  assert.deepEqual({ ...e.pr, checkedAt: undefined }, { number: 7, url: 'https://github.com/o/r/pull/7', branch: 'thinker/context-20261024-abc', commit: 'c0ffee', base: 'main', state: 'open', openedAt: '2026-10-24T10:00:00.000Z', checkedAt: undefined });
+  assert.equal(currentChanges(store, view(), { now }).some(c => c.key === 'section:AGENTS.md:Releases'), false, 'pending: not suggested');
+  // still open: nothing changes, and GitHub is not asked again within a minute
+  let asked = 0; prs.state = () => { asked++; return { state: 'open' }; };
+  assert.equal(await refreshPrStates(store, { now: now + 61_000, prs }), 0); assert.equal(asked, 1);
+  assert.equal(await refreshPrStates(store, { now: now + 90_000, prs }), 0); assert.equal(asked, 1, 'a minute apart at most');
+  assert.equal(await refreshPrStates(store, { now: now + 90_000, prs, force: true }), 0); assert.equal(asked, 2);
+  // GitHub cannot be asked: the state is kept
+  prs.state = () => null;
+  assert.equal(await refreshPrStates(store, { now: now + 200_000, prs }), 0);
+  assert.equal(changeHistory(store)[0].pending, true);
+  // closed without merging: rejected, suggested again, nothing left to revert
+  prs.state = () => ({ state: 'closed', at: '2026-10-24T11:00:00Z' });
+  assert.equal(await refreshPrStates(store, { now: now + 300_000, prs }), 1);
+  [e] = changeHistory(store);
+  assert.equal(e.rejected, true); assert.equal(e.pending, false); assert.equal(e.revertible, false); assert.equal(e.pr.state, 'closed'); assert.equal(e.pr.at, '2026-10-24T11:00:00Z');
+  assert.match(e.result, /closed without merging: suggested again/);
+  assert.equal(currentChanges(store, view(), { now }).some(c => c.key === 'section:AGENTS.md:Releases'), true, 'rejected: suggested again');
+  assert.match((await revertDecision(store, e.id, { prs })).error, /pull request #7 is closed/);
+  assert.equal(await refreshPrStates(store, { now: now + 400_000, prs }), 0, 'no open pull request left to ask after');
+
+  // a second pull request, merged: done, not suggested; a third, closed from History
+  await applyReviewed(store, [picked[0]], 'releases', ['AGENTS.md'], { now: now + 1000, pr: true, prs });
+  prs.state = () => ({ state: 'merged', at: '2026-10-24T12:00:00Z' });
+  assert.equal(await refreshPrStates(store, { now: now + 100_000, prs }), 1);
+  assert.equal(changeHistory(store)[0].pr.state, 'merged'); assert.equal(changeHistory(store)[0].revertible, false);
+  assert.equal(currentChanges(store, view(), { now }).some(c => c.key === 'section:AGENTS.md:Releases'), false, 'merged: decided');
+  await applyReviewed(store, [picked[1]], 'ports', ['AGENTS.md'], { now: now + 2000, pr: true, prs });
+  const third = changeHistory(store)[0];
+  assert.match((await revertDecision(store, third.id, { now: now + 3000, prs })).said, /pull request #7 closed; suggested again/);
+  assert.deepEqual(closed, [[7, 'thinker/context-20261024-abc']]);
+  const after = changeHistory(store)[0];
+  assert.equal(after.pr.state, 'closed'); assert.equal(after.rejected, true); assert.ok(after.revertedAt);
+  assert.match((await revertDecision(store, third.id, { prs })).error, /already reverted/);
+  // the pull request's failure records nothing
+  prs.openEditPr = async () => ({ error: 'could not push' });
+  assert.equal((await applyReviewed(store, [picked[0]], 'x', ['AGENTS.md'], { pr: true, prs })).error, 'could not push');
+  assert.equal(changeHistory(store).length, 3);
+});

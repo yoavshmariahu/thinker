@@ -13,6 +13,8 @@
 //   scheduleContextSuggestion     maintenance: at most weekly, the five kept in <cache>/state/context-suggest.json
 //   contextSuggestOffer           the prompt hook: once, the summary and the link, for the agent to pass on
 //   approveChanges, dismissChanges, revertDecision   the person's decisions, kept as the history (changeHistory), and taken back
+//   applyReviewed, refreshPrStates   a section's reviewed diff made a pull request (instruction-pr.js), and its state followed:
+//                                    open is pending, merged done, closed without merging rejected and suggested again
 //   ensureUi                      a detached `thinker ui --background` for the machine, reused while it runs
 //
 // `maintain: { contextSuggest: false }` in .thinker/config.json turns it off for a repository.
@@ -118,11 +120,33 @@ const configOn = store => store.config().maintain?.contextSuggest !== false;
 // The decisions on the changes (<cache>/state/context-suggest.json `history`, newest first): approved (its suggested
 // action made), applied after review, or dismissed, with what came of it.
 const readState = store => readJson(stateFile(store)) || {};
-// each entry with an id (entries written before ids are given one, once) and whether Revert can take it back
+// each entry with an id (entries written before ids are given one, once) and whether Revert can take it back; an entry
+// made a pull request carries `pr` {number, url, branch, state, openedAt, at} and is `pending` while the pull request
+// is open, `rejected` once it was closed without merging (refreshPrStates keeps the state)
 export function changeHistory(store) {
   const st = readState(store), h = st.history || [];
   if (h.some(e => !e.id)) { for (const e of h) e.id ||= randomBytes(6).toString('hex'); writeJson(stateFile(store), st); }
-  return h.map(e => ({ ...e, revertible: !e.revertedAt && Boolean(undoOf(store, e)) }));
+  return h.map(e => ({ ...e, revertible: !e.revertedAt && Boolean(undoOf(store, e)), ...(e.pr ? { pending: e.pr.state === 'open', rejected: e.pr.state === 'closed' } : {}) }));
+}
+// The open pull requests asked after on GitHub (instruction-pr.js:prState), at most every PR_CHECK_MS each: merged or
+// closed is kept with when. Returns how many changed state. A pull request GitHub cannot be asked about keeps its state.
+export const PR_CHECK_MS = 60_000;
+export async function refreshPrStates(store, { now = Date.now(), prs, force = false } = {}) {
+  const st = readState(store), open = (st.history || []).filter(e => e.pr?.state === 'open' && (force || !e.pr.checkedAt || now - Date.parse(e.pr.checkedAt) >= PR_CHECK_MS));
+  if (!open.length) return 0;
+  const { prState } = prs || await import('./instruction-pr.js');
+  let changed = 0;
+  for (const e of open) {
+    e.pr.checkedAt = new Date(now).toISOString();
+    const r = prState(store.repo, e.pr.number);
+    if (!r || r.state === 'open') continue;
+    e.pr.state = r.state; e.pr.at = r.at || e.pr.checkedAt; if (r.url) e.pr.url = r.url;
+    e.result = r.state === 'merged' ? `Pull request #${e.pr.number} merged` : `Pull request #${e.pr.number} closed without merging: suggested again`;
+    changed++;
+    store.log({ op: 'context-pr', pr: e.pr.number, state: r.state });
+  }
+  writeJson(stateFile(store), st);
+  return changed;
 }
 function record(store, entries) {
   const st = readState(store);
@@ -132,7 +156,7 @@ function record(store, entries) {
 // what a decision undoes by, kept beside the history (a section's text before and after can be large); a switch-off or
 // compression approved before these were kept is undone by its key
 const undoFile = (store, id) => path.join(store.dir, 'state', 'context-suggest-undo', `${id}.json`);
-const undoOf = (store, e) => e.decision === 'dismissed' ? { kind: 'dismissed' } : (e.id && readJson(undoFile(store, e.id)))
+const undoOf = (store, e) => e.decision === 'dismissed' ? { kind: 'dismissed' } : e.pr ? (e.pr.state === 'open' ? { kind: 'pr', number: e.pr.number, branch: e.pr.branch } : null) : (e.id && readJson(undoFile(store, e.id)))
   || (e.decision === 'approved' && (e.kind === 'tool' || e.kind === 'skill') ? { kind: 'off', key: e.key.replace(/^[^:]+:/, '') }
     : e.decision === 'approved' && e.kind === 'output' ? { kind: 'output', name: e.key.replace(/^output:/, '') } : null);
 const entryOf = (store, c, decision, result, now, undo) => {
@@ -143,8 +167,9 @@ const entryOf = (store, c, decision, result, now, undo) => {
 // The view's changes less the ones decided in the last month, the five largest: what the page, the session's summary
 // and `thinker context` offer
 export function currentChanges(store, view, { now = Date.now(), max = SUGGEST.max } = {}) {
-  // a dismissal taken back makes its change a suggestion again
-  const decided = new Set(changeHistory(store).filter(h => now - Date.parse(h.at) < DECIDED_DAYS * DAY && !(h.decision === 'dismissed' && h.revertedAt)).flatMap(h => h.keys || [h.key]));
+  // a dismissal taken back makes its change a suggestion again, and so does a pull request closed without merging:
+  // nothing was followed through on
+  const decided = new Set(changeHistory(store).filter(h => now - Date.parse(h.at) < DECIDED_DAYS * DAY && !(h.decision === 'dismissed' && h.revertedAt) && !h.rejected).flatMap(h => h.keys || [h.key]));
   return (view.suggestions || topChanges(view, { max: 20 })).filter(c => !decided.has(c.key)).slice(0, max);
 }
 export function dismissChanges(store, changes, { now = Date.now() } = {}) {
@@ -154,17 +179,29 @@ export function dismissChanges(store, changes, { now = Date.now() } = {}) {
 }
 // a section compressed on the page after its diff was read: the edit applied there, recorded here
 export function recordReviewed(store, change, result, { now = Date.now(), undo = null } = {}) { record(store, [entryOf(store, change, 'applied after review', result, now, undo)]); }
-// The page's Apply on a section after its diff was read (ui/server.js /api/changes/apply): the previewed edit written
+// The page's Apply on a section after its diff was read (ui/server.js /api/changes/apply). With `pr` the previewed
+// edit becomes a pull request (instruction-pr.js:openEditPr) and the decision is recorded with it: pending until it is
+// merged, rejected if it is closed, Close PR its revert. Otherwise the edit is written to the working tree
 // (instruction-edit.js:applyEdit) and recorded with the files as they were, so History's Revert writes them back.
 // Several sections previewed together are one edit and one decision: reverting it puts the whole file back.
-export async function applyReviewed(store, changes, editKey, files, { now = Date.now(), edit } = {}) {
+export async function applyReviewed(store, changes, editKey, files, { now = Date.now(), edit, pr = false, prs } = {}) {
+  const c = changes.length === 1 ? changes[0] : { ...changes[0], key: changes.map(x => x.key).join(','), keys: changes.map(x => x.key), title: `${changes.length} sections: ${changes.map(x => x.title.replace(/^.*? · /, '')).join(', ')}`, saving: changes.reduce((s, x) => s + (x.saving || 0), 0), total: changes.reduce((s, x) => s + (x.total || 0), 0) };
+  if (pr) {
+    const { openEditPr } = prs || await import('./instruction-pr.js');
+    const r = await openEditPr(store, editKey, { changes, now });
+    if (r.error) return r;
+    const e = entryOf(store, c, 'pull request', r.said, now, null);
+    e.pr = { number: r.number, url: r.url, branch: r.branch, commit: r.commit, base: r.base, state: 'open', openedAt: e.at, checkedAt: e.at };
+    record(store, [e]);
+    store.log({ op: 'context-approve', changes: changes.length, saving: c.saving || 0, reviewed: true, pr: r.number });
+    return { said: r.said, pr: e.pr };
+  }
   const { applyEdit } = edit || await import('./instruction-edit.js');
   const read = f => { try { return fs.readFileSync(path.join(store.repo, f), 'utf8'); } catch { return null; } };
   const names = [...new Set((Array.isArray(files) ? files : []).map(String).filter(Boolean))];
   const before = names.map(read);
   const a = applyEdit(store, editKey);
   if (a.error) return a;
-  const c = changes.length === 1 ? changes[0] : { ...changes[0], key: changes.map(x => x.key).join(','), keys: changes.map(x => x.key), title: `${changes.length} sections: ${changes.map(x => x.title.replace(/^.*? · /, '')).join(', ')}`, saving: changes.reduce((s, x) => s + (x.saving || 0), 0), total: changes.reduce((s, x) => s + (x.total || 0), 0) };
   const undo = names.length ? { kind: 'edit', files: names.map((f, i) => ({ file: f, before: before[i], after: read(f) })) } : null;
   record(store, [entryOf(store, c, 'applied after review', a.said, now, undo)]);
   store.log({ op: 'context-approve', changes: changes.length, saving: c.saving || 0, reviewed: true });
@@ -286,13 +323,23 @@ export async function approveChanges(store, changes, { edit } = {}) {
 // A decision taken back (the page's Revert, `thinker context --revert <n>`): a switched-off tool or skill is turned back
 // on (harness.js:undoHarness), an output's compression set back to none, a section's file written back as it was when
 // the file is still what the approval wrote (else the person's later edits would go: git has it), a dismissal
-// withdrawn so the change is suggested again. The entry stays in the history, marked reverted.
-export async function revertDecision(store, id, { now = Date.now() } = {}) {
+// withdrawn so the change is suggested again, a pending pull request closed with its branch deleted (the page's Close
+// PR), after which the sections are suggested again. The entry stays in the history, marked reverted.
+export async function revertDecision(store, id, { now = Date.now(), prs } = {}) {
   const st = readState(store), e = (st.history || []).find(h => h.id === id);
   if (!e) return { error: 'no such decision' };
   if (e.revertedAt) return { error: 'already reverted' };
   const u = undoOf(store, e);
-  if (!u) return { error: 'nothing kept to revert this one by' };
+  if (!u) return { error: e.pr ? `pull request #${e.pr.number} is ${e.pr.state}; nothing to take back` : 'nothing kept to revert this one by' };
+  if (u.kind === 'pr') {
+    const { closePr } = prs || await import('./instruction-pr.js');
+    const r = closePr(store.repo, u.number, { branch: u.branch });
+    if (r.error) return { error: r.error };
+    e.pr.state = 'closed'; e.pr.at = new Date(now).toISOString(); e.result = `Pull request #${u.number} closed without merging: suggested again`;
+    e.revertedAt = e.pr.at; writeJson(stateFile(store), st);
+    store.log({ op: 'context-revert', kind: 'pr', pr: u.number });
+    return { said: `${e.title}: pull request #${u.number} closed; suggested again` };
+  }
   if (u.kind === 'off') {
     const { undoHarness } = await import('./harness.js');
     const r = undoHarness(store, { names: [u.key] });

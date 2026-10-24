@@ -164,12 +164,13 @@ const HELP = `thinker — knowledge cache for coding agents
                                  the next Claude Code, Codex or Cursor prompt here, one question for all of them (every two weeks by itself, as soon as 10 sessions are recorded the first time);
                                  --answer takes the reply, --off switches named ones off without asking; --undo turns them (or the named ones) back on;
                                  --recurring, --recall (a line when a request needs a switched-off tool; on with the harness) and --suggestions set what thinker does; also on the local page
-  instructions [--core "<Title>, <Title>" [--cursor]] [--off] [--remove <id> | --compress <id> [--apply]]
+  instructions [--core "<Title>, <Title>" [--cursor]] [--off] [--remove <id> | --compress <id> [--pr | --apply]]
                                  the sections of AGENTS.md and their tokens; --core keeps the named sections, verbatim, in AGENTS.override.md
                                  (kept out of git, rewritten when AGENTS.md changes), which Codex reads instead of AGENTS.md, and CLAUDE.local.md for
                                  Claude Code; --cursor also for Cursor (hides AGENTS.md from its file tools); --off removes them
                                  --remove / --compress <section id> show the diff of taking a section out or having a model shorten it;
-                                 --apply writes it to AGENTS.md in the working tree, uncommitted (also the Context tab's buttons)
+                                 --pr opens a pull request with it (a branch pushed to the origin; the Find Savings page's Apply),
+                                 --apply writes it to AGENTS.md in the working tree, uncommitted
   context [--days n] [--json] [--verbose] [--refresh] [--judge n] [--switch-off <labels> [--builtin]] [--switch-on <keys>] [--output-compression <tools> --level high|moderate|off]
           [--machine [--repos n] [--top n] [--ask [--no-browser]]]
                                  where the agents' context goes here and what each part is worth: every section of AGENTS.md (its
