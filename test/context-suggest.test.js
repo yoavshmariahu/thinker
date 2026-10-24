@@ -238,39 +238,69 @@ test('approve from a row: turn back on, a compression level, and each reverted t
   assert.equal(said.length, 1); assert.equal(changeHistory(store).filter(e => e.key === 'claude:skill:x').length, 0);
 });
 
-test('applyReviewed: sections written after their diff was read are a row each, recorded with the file as it was, so a Revert on one puts it back for all', async () => {
-  const { allChanges, applyReviewed, revertDecision, changeHistory, currentChanges } = await import('../src/context-suggest.js');
-  const store = repo(), cs = allChanges(view()), f = path.join(store.repo, 'AGENTS.md');
+test('a section job without a pull request: recorded running at once, the command started detached, the file written with its undo; a Revert on one row puts it back for all; a dead or failed job is failed, retried by the same command', async () => {
+  const { allChanges, startSectionJob, runSectionJob, retryJob, revertDecision, changeHistory, currentChanges } = await import('../src/context-suggest.js');
+  const store = repo(), cs = allChanges(view()), f = path.join(store.repo, 'AGENTS.md'), now = Date.parse('2026-10-24T10:00:00Z');
   fs.writeFileSync(f, '# A\n\n## Releases\n\nlong text\n\n## Ports\n\nmore\n');
-  const edit = { applyEdit: (s, key) => { assert.equal(key, 'bulk'); fs.writeFileSync(f, '# A\n\n## Releases\n\nshort\n\n## Ports\n\nless\n'); return { said: 'Compressed 2 sections in AGENTS.md' }; } };
   const picked = cs.filter(c => ['section:AGENTS.md:Releases', 'section:AGENTS.md:Ports'].includes(c.key));
-  const r = await applyReviewed(store, picked, 'bulk', ['AGENTS.md'], { edit });
-  assert.equal(r.said, 'Compressed 2 sections in AGENTS.md');
-  // one line item a section, never "2 sections: …": each with its own title and saving, sharing the edit's undo
-  const hs = changeHistory(store);
+  // Apply: the entries are recorded running and `thinker instructions --compress Releases,Ports --apply --job <group>` is started detached
+  const spawned = [];
+  const spawnFn = (cmd, args, opts) => { spawned.push({ cmd, args, opts }); return { pid: process.pid, on() {}, unref() {} }; };
+  const r = startSectionJob(store, picked, 'compress', { pr: false, now, spawnFn, cliPath: '/x/cli.js' });
+  assert.match(r.said, /^Compressing 2 sections in the background: the file in your working tree is rewritten when the model is done\. Follow it under Recent activity\.$/);
+  assert.equal(spawned.length, 1); assert.equal(spawned[0].cmd, process.execPath);
+  assert.deepEqual(spawned[0].args, ['/x/cli.js', 'instructions', '--compress', 'Releases,Ports', '--apply', '--job', r.group]);
+  assert.equal(spawned[0].opts.cwd, store.repo); assert.equal(spawned[0].opts.detached, true);
+  // one line item a section, never "2 sections: …": each with its own title and saving, sharing the job
+  let hs = changeHistory(store, { now });
   assert.equal(hs.length, 2);
-  assert.deepEqual(hs.map(e => e.key), picked.map(c => c.key));
-  assert.deepEqual(hs.map(e => e.saving), picked.map(c => c.saving));
-  for (const e of hs) { assert.equal(e.decision, 'applied after review'); assert.equal(e.revertible, true); assert.equal(e.days, 30); assert.equal(e.keys, undefined); assert.doesNotMatch(e.title, /sections:/); }
-  assert.equal(hs[0].group, hs[1].group); assert.ok(hs[0].group);
-  assert.equal(currentChanges(store, view()).some(c => c.key === 'section:AGENTS.md:Releases'), false, 'decided: not suggested for a month');
-  assert.equal(currentChanges(store, view()).some(c => c.key === 'section:AGENTS.md:Ports'), false);
+  assert.deepEqual(hs.map(e => e.key), picked.map(c => c.key)); assert.deepEqual(hs.map(e => e.section), ['Releases', 'Ports']); assert.deepEqual(hs.map(e => e.saving), picked.map(c => c.saving));
+  for (const e of hs) { assert.equal(e.running, true); assert.equal(e.attention, 'running'); assert.equal(e.revertible, false); assert.equal(e.retryable, false); assert.equal(e.group, r.group); assert.equal(e.job.pid, process.pid); assert.equal(e.decision, 'applied'); assert.equal(e.act, 'compress'); assert.equal(e.action, 'Compress'); assert.doesNotMatch(e.title, /sections:/); }
+  assert.equal(currentChanges(store, view(), { now }).some(c => c.key === 'section:AGENTS.md:Releases'), false, 'under way: not suggested');
+  // the command's side (`--job`): the preview, the file written, the entries finished with the file as it was for Revert
+  const edit = { previewEdit: async (s, ids, action) => { assert.deepEqual(ids, ['Releases', 'Ports']); assert.equal(action, 'compress'); return { key: 'bulk', files: ['AGENTS.md'], file: 'AGENTS.md', modelTokens: 1234 }; }, applyEdit: (s, key) => { assert.equal(key, 'bulk'); fs.writeFileSync(f, '# A\n\n## Releases\n\nshort\n\n## Ports\n\nless\n'); return { said: 'Compressed 2 sections in AGENTS.md' }; } };
+  const done = await runSectionJob(store, { group: r.group, ids: ['Releases', 'Ports'], action: 'compress', pr: false }, { now: now + 9000, edit });
+  assert.equal(done.said, 'Compressed 2 sections in AGENTS.md');
+  hs = changeHistory(store, { now });
+  for (const e of hs) { assert.equal(e.running, false); assert.equal(e.failed, false); assert.equal(e.attention, null); assert.equal(e.revertible, true); assert.equal(e.job.state, 'done'); assert.equal(e.job.tokens, 1234); assert.equal(e.job.finishedAt, '2026-10-24T10:00:09.000Z'); assert.equal(e.result, 'Compressed 2 sections in AGENTS.md'); assert.equal(e.days, 30); }
+  assert.equal(currentChanges(store, view(), { now }).some(c => c.key === 'section:AGENTS.md:Ports'), false, 'decided: not suggested for a month');
   // reverting either row writes the file back, which takes the other section with it: both are marked reverted
   const r2 = await revertDecision(store, hs[1].id);
   assert.match(r2.said, /written back as it was, with the other section of the same change \(/);
   assert.equal(fs.readFileSync(f, 'utf8'), '# A\n\n## Releases\n\nlong text\n\n## Ports\n\nmore\n');
   for (const e of changeHistory(store)) { assert.ok(e.revertedAt); assert.equal(e.revertible, false); }
   assert.match((await revertDecision(store, hs[0].id)).error, /already reverted/);
-  // one section alone has no group and no sibling
-  fs.writeFileSync(f, '# A\n\n## Releases\n\nlong text\n\n## Ports\n\nmore\n');
-  const edit1 = { applyEdit: () => { fs.writeFileSync(f, '# A\n\n## Releases\n\nshort\n\n## Ports\n\nmore\n'); return { said: 'Compressed 1 section in AGENTS.md' }; } };
-  await applyReviewed(store, [picked[0]], 'one', ['AGENTS.md'], { edit: edit1 });
-  const [one] = changeHistory(store);
-  assert.equal(one.group, undefined); assert.equal(one.key, picked[0].key);
-  assert.match((await revertDecision(store, one.id)).said, /written back as it was$/);
-  // the real applyEdit refuses without a preview, and nothing is recorded then
-  assert.match((await applyReviewed(store, [picked[0]], 'nope', ['AGENTS.md'])).error, /preview the change first/);
-  assert.equal(changeHistory(store).length, 3);
+  // a group the page never recorded: no job
+  assert.match((await runSectionJob(store, { group: 'nope', ids: ['Releases'], action: 'compress' })).error, /no job nope/);
+  // a job whose process is gone before it finished is failed, once it is read, and the section is suggested again (in a
+  // repository where nothing was decided on it before: a reverted edit still counts as decided for a month)
+  const store2 = repo(), f2 = path.join(store2.repo, 'AGENTS.md'); fs.writeFileSync(f2, 'x\n');
+  const dead = startSectionJob(store2, [picked[0]], 'compress', { pr: false, now, spawnFn: () => ({ pid: 2 ** 22 - 1, on() {}, unref() {} }), cliPath: '/x/cli.js' });
+  const [d] = changeHistory(store2, { now });
+  assert.equal(d.failed, true); assert.equal(d.retryable, true); assert.equal(d.attention, 'failed'); assert.equal(d.revertible, false); assert.match(d.job.error, /process ended before it finished/);
+  assert.equal(currentChanges(store2, view(), { now }).some(c => c.key === 'section:AGENTS.md:Releases'), true, 'failed: suggested again');
+  // one that never recorded a process is failed after a while
+  const unborn = startSectionJob(store2, [picked[1]], 'remove', { pr: false, now, spawnFn: () => ({ on() {}, unref() {} }), cliPath: '/x/cli.js' });
+  assert.equal(changeHistory(store2, { now: now + 60_000 }).find(e => e.group === unborn.group).running, true);
+  assert.match(changeHistory(store2, { now: now + 3 * 60_000 }).find(e => e.group === unborn.group).job.error, /did not start/);
+  // Retry runs the same command again, over every section of the change
+  const again = [];
+  const rr = retryJob(store2, d.id, { now: now + 1000, spawnFn: (c, args) => { again.push(args); return { pid: process.pid, on() {}, unref() {} }; }, cliPath: '/x/cli.js' });
+  assert.match(rr.said, /compressing again in the background$/);
+  assert.deepEqual(again, [['/x/cli.js', 'instructions', '--compress', 'Releases', '--apply', '--job', dead.group]]);
+  const d2 = changeHistory(store2, { now }).find(e => e.group === dead.group);
+  assert.equal(d2.running, true); assert.equal(d2.job.tries, 2);
+  assert.match(retryJob(store2, d2.id, { now }).error, /still running/);
+  assert.match(retryJob(store, hs[0].id, { now }).error, /nothing to retry/);
+  // the command fails (the model returned nothing): recorded as failed with the reason, nothing written
+  const bad = await runSectionJob(store2, { group: dead.group, ids: ['Releases'], action: 'compress' }, { now, edit: { previewEdit: async () => ({ error: 'the model returned nothing' }), applyEdit: () => ({}) } });
+  assert.equal(bad.error, 'the model returned nothing');
+  const d3 = changeHistory(store2, { now }).find(e => e.group === dead.group);
+  assert.equal(d3.failed, true); assert.equal(d3.job.error, 'the model returned nothing'); assert.equal(fs.readFileSync(f2, 'utf8'), 'x\n');
+  // nothing to change: refused before anything is recorded or started
+  assert.match(startSectionJob(store2, [], 'compress', { spawnFn }).error, /no section/);
+  assert.match(startSectionJob(store2, picked, 'off', { spawnFn }).error, /no section/);
+  assert.equal(changeHistory(store2).length, 2);
 });
 
 test('an output measured under an earlier setting is a comparison, not a change; the current row counts its own sessions', async () => {
@@ -284,8 +314,8 @@ test('an output measured under an earlier setting is a comparison, not a change;
   assert.equal(topChanges(v).some(c => c.kind === 'output'), false, 'nothing to compress: the past row is not offered, the current one is compressed');
 });
 
-test('applyReviewed with pr: the decision is a pull request, pending until merged; closed, it is rejected and suggested again; Close PR is its revert', async () => {
-  const { allChanges, applyReviewed, revertDecision, changeHistory, currentChanges, refreshPrStates } = await import('../src/context-suggest.js');
+test('a section job with a pull request: the decision is pending until merged; closed, it is rejected and suggested again; Close PR is its revert; a failed pull request is retried', async () => {
+  const { allChanges, startSectionJob, runSectionJob, revertDecision, changeHistory, currentChanges, refreshPrStates } = await import('../src/context-suggest.js');
   const store = repo(), cs = allChanges(view()), now = Date.parse('2026-10-24T10:00:00Z');
   const picked = cs.filter(c => ['section:AGENTS.md:Releases', 'section:AGENTS.md:Ports'].includes(c.key));
   const opened = [], closed = [];
@@ -295,14 +325,18 @@ test('applyReviewed with pr: the decision is a pull request, pending until merge
     closePr: (r, n, o) => { closed.push([n, o.branch]); return { ok: true }; },
     state: () => ({ state: 'open', at: null }),
   };
-  const r = await applyReviewed(store, picked, 'bulk', ['AGENTS.md'], { now, pr: true, prs });
+  const spawnFn = () => ({ pid: process.pid, on() {}, unref() {} });
+  const edit = { previewEdit: async (s, ids) => ({ key: ids.join('+'), files: ['AGENTS.md'], file: 'AGENTS.md' }), applyEdit: () => ({ error: 'not this way' }) };
+  // Apply, then the command it started: one pull request for both sections, a row each
+  const job = (changes, t) => { const s = startSectionJob(store, changes, 'compress', { pr: true, now: t, spawnFn, cliPath: '/x/cli.js' }); return runSectionJob(store, { group: s.group, ids: changes.map(c => c.id), action: 'compress', pr: true }, { now: t, edit, prs }); };
+  const r = await job(picked, now);
   assert.equal(r.said, 'Pull request #7 opened: https://github.com/o/r/pull/7');
-  assert.deepEqual(opened, [['bulk', 2]]);
+  assert.deepEqual(opened, [['Releases+Ports', 2]]);
   // the two sections are a row each, both pending on the one pull request
   let hs = changeHistory(store);
   assert.equal(hs.length, 2); assert.deepEqual(hs.map(e => e.key), picked.map(c => c.key)); assert.deepEqual(hs.map(e => e.saving), picked.map(c => c.saving));
   for (const e of hs) {
-    assert.equal(e.decision, 'pull request'); assert.equal(e.pending, true); assert.equal(e.rejected, false); assert.equal(e.revertible, true, 'Close PR'); assert.doesNotMatch(e.title, /sections:/);
+    assert.equal(e.decision, 'pull request'); assert.equal(e.pending, true); assert.equal(e.attention, 'pr'); assert.equal(e.running, false); assert.equal(e.rejected, false); assert.equal(e.revertible, true, 'Close PR'); assert.doesNotMatch(e.title, /sections:/);
     assert.deepEqual({ ...e.pr, checkedAt: undefined }, { number: 7, url: 'https://github.com/o/r/pull/7', branch: 'thinker/context-20261024-abc', commit: 'c0ffee', base: 'main', state: 'open', openedAt: '2026-10-24T10:00:00.000Z', checkedAt: undefined });
   }
   assert.equal(currentChanges(store, view(), { now }).some(c => c.key === 'section:AGENTS.md:Releases'), false, 'pending: not suggested');
@@ -327,14 +361,14 @@ test('applyReviewed with pr: the decision is a pull request, pending until merge
   assert.equal(await refreshPrStates(store, { now: now + 400_000, prs }), 0, 'no open pull request left to ask after');
 
   // a second pull request, merged: done, not suggested; a third, closed from History
-  await applyReviewed(store, [picked[0]], 'releases', ['AGENTS.md'], { now: now + 1000, pr: true, prs });
+  await job([picked[0]], now + 1000);
   prs.state = () => ({ state: 'merged', at: '2026-10-24T12:00:00Z' });
   assert.equal(await refreshPrStates(store, { now: now + 100_000, prs }), 1);
   assert.equal(changeHistory(store)[0].pr.state, 'merged'); assert.equal(changeHistory(store)[0].revertible, false);
   assert.equal(currentChanges(store, view(), { now }).some(c => c.key === 'section:AGENTS.md:Releases'), false, 'merged: decided');
-  await applyReviewed(store, [picked[1]], 'ports', ['AGENTS.md'], { now: now + 2000, pr: true, prs });
+  await job([picked[1]], now + 2000);
   const third = changeHistory(store)[0];
-  assert.equal(third.group, undefined, 'one section: no group');
+  assert.ok(third.group, 'a job is a group, one section or several');
   assert.match((await revertDecision(store, third.id, { now: now + 3000, prs })).said, /pull request #7 closed; suggested again$/);
   assert.deepEqual(closed, [[7, 'thinker/context-20261024-abc']]);
   const after = changeHistory(store)[0];
@@ -342,14 +376,16 @@ test('applyReviewed with pr: the decision is a pull request, pending until merge
   assert.match((await revertDecision(store, third.id, { prs })).error, /already reverted/);
   // a fourth over both sections, closed from History on one row: the pull request is one, so the other row is closed too
   prs.openEditPr = async () => ({ number: 8, url: 'https://github.com/o/r/pull/8', branch: 'thinker/context-8', commit: 'c1', base: 'main', said: 'Pull request #8 opened' });
-  await applyReviewed(store, picked, 'both', ['AGENTS.md'], { now: now + 4000, pr: true, prs });
+  await job(picked, now + 4000);
   const [r1, r2] = changeHistory(store);
   assert.equal(r1.pr.number, 8); assert.equal(r2.pr.number, 8); assert.equal(r1.group, r2.group);
   assert.match((await revertDecision(store, r2.id, { now: now + 5000, prs })).said, /pull request #8 closed; suggested again, with the other section of the same change \(Releases\)/);
   assert.deepEqual(closed[1], [8, 'thinker/context-8']);
   for (const e of changeHistory(store).slice(0, 2)) { assert.equal(e.pr.state, 'closed'); assert.equal(e.rejected, true); assert.ok(e.revertedAt); assert.equal(e.revertible, false); }
-  // the pull request's failure records nothing
+  // the pull request's failure: the job is failed with the reason, Retry offered, no pull request on it
   prs.openEditPr = async () => ({ error: 'could not push' });
-  assert.equal((await applyReviewed(store, [picked[0]], 'x', ['AGENTS.md'], { pr: true, prs })).error, 'could not push');
-  assert.equal(changeHistory(store).length, 6);
+  assert.equal((await job([picked[0]], now + 6000)).error, 'could not push');
+  const [failed] = changeHistory(store, { now });
+  assert.equal(failed.failed, true); assert.equal(failed.job.error, 'could not push'); assert.equal(failed.retryable, true); assert.equal(failed.pr, undefined); assert.equal(failed.attention, 'failed');
+  assert.equal(changeHistory(store).length, 7);
 });

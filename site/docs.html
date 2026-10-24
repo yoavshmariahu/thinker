@@ -801,9 +801,9 @@ thinker context --machine --ask    <span class="code-comment"># review suggestio
         </p>
 
         <dl class="how">
-          <dt>How</dt><dd>The diff is shown first. <strong>Open a pull request</strong> makes the change one commit on a branch of its own, built from the default branch and pushed to the origin, and opens the pull request with <code>gh</code>; nothing in your working tree changes. History links it: <strong>PR pending</strong> until it is merged, <strong>Rejected</strong> if it is closed without merging, and then the sections are suggested again. Without a GitHub origin or <code>gh</code>, the text is written to <code>AGENTS.md</code> (or <code>CLAUDE.md</code>) in your working tree instead, uncommitted, for you to review with <code>git diff</code>.</dd>
+          <dt>How</dt><dd>Apply starts the change in the background and the page says so once: a model compresses the sections, and the change becomes one commit on a branch of its own, built from the default branch and pushed to the origin, with a pull request opened through <code>gh</code>; nothing in your working tree changes, and you read the diff in the pull request. <strong>Recent activity</strong> (the tab at the right) follows it: <strong>Compressing…</strong> while it runs, <strong>PR pending</strong> until it is merged, <strong>Rejected</strong> if it is closed without merging (the sections are suggested again), <strong>Failed</strong> with the reason and a <strong>Retry</strong>; the badge on the tab counts what still needs you. Without a GitHub origin or <code>gh</code>, the text is written to <code>AGENTS.md</code> (or <code>CLAUDE.md</code>) in your working tree instead, uncommitted, for you to review with <code>git diff</code>.</dd>
           <dt>Command</dt><dd><code>thinker instructions --compress &lt;ids&gt; [--pr | --apply]</code>, or <code>--remove &lt;ids&gt;</code></dd>
-          <dt>Undo</dt><dd>Close an unmerged pull request from History or GitHub. Revert a merged change through git; restore an uncommitted edit from the working tree.</dd>
+          <dt>Undo</dt><dd>Close an unmerged pull request from Recent activity or GitHub. Revert a merged change through git; restore an uncommitted edit from the working tree.</dd>
           <dt>Agents</dt><dd>Every agent that reads the file.</dd>
         </dl>
 
@@ -841,7 +841,7 @@ thinker context --machine --ask    <span class="code-comment"># review suggestio
         <ul>
           <li><strong>Nothing is cut by itself.</strong> The report measures. Each cut is your choice, shown first as a diff, a setting or a sample result, and each has an undo path.</li>
           <li><strong>Use is measured before you cut.</strong> A section applied in 90% of sessions wastes a tenth of its cost at most, and is flagged only when that tenth is still a large share of the file. Start with high waste: large, and used in almost no session. The saving shown is the most a cut can save; a session that needed the part goes without it.</li>
-          <li><strong>Compression keeps the rules.</strong> The model that shortens a section is told to keep every instruction, command, flag, default and path and to drop history, numbers and rationale, and you read the diff before Apply. Remove is yours to judge; in doubt, compress.</li>
+          <li><strong>Compression keeps the rules.</strong> The model that shortens a section is told to keep every instruction, command, flag, default and path and to drop history, numbers and rationale, and you read the diff in the pull request before merging it. Remove is yours to judge; in doubt, compress.</li>
           <li><strong>A trimmed result says what it left out.</strong> A compressed file read names each omitted range and how to read it back, so the cost of a wrong guess is a second read, not a missed fact. A file the trim would not shorten passes whole, and full test logs stay on disk.</li>
           <li><strong>You can undo a cut.</strong> Close an unmerged instruction PR or revert a merged change; use <code>thinker harness --undo</code> for anything switched off, <code>--level off</code> for compression. The <a href="#faq-cut-files">FAQ</a> lists what each cut writes.</li>
         </ul>
@@ -1014,8 +1014,8 @@ thinker skills scan                 <span class="code-comment"># card new or cha
         <div class="table-scroll"><table>
           <thead><tr><th>View</th><th>What it does</th></tr></thead>
           <tbody>
-            <tr><td><a href="#context">Find Savings</a></td><td>See context cost and use over 7 or 30 days, for one repository or all. Review cuts and follow their status in History.</td></tr>
-            <tr><td>View Report</td><td>Track average session tokens or list-price costs over six weeks, by token type, context part and model. Review your changes and the cache's savings below.</td></tr>
+            <tr><td><a href="#context">Find Savings</a></td><td>See context cost and use over 7 or 30 days, for one repository or all. Apply cuts, and follow them under Recent activity, whose badge counts what still needs you.</td></tr>
+            <tr><td>View Report</td><td>Track average session tokens or list-price costs over six weeks, by context part, model and token type. Review your changes and the cache's savings below.</td></tr>
           </tbody>
         </table></div>
         <pre><code>thinker ui --tab save --all         <span class="code-comment"># Find Savings across repositories</span>
@@ -1147,7 +1147,7 @@ export THINKER_TELEMETRY=off
           </p>
           <ul>
             <li><strong>Use is measured first.</strong> A section is <em>applied</em> when a session touched its files, ran its command or read the code it names; a judge can add <em>relevant</em> and <em>followed</em>. Only a part used in under half the sessions is flagged, and <strong>high waste</strong> means large and used in almost none. Start there.</li>
-            <li><strong>Compress keeps the rules.</strong> The model is told to keep every instruction, command, flag, default and path and to drop history, numbers and rationale, and you read the diff before Apply. If a section holds rules the agent must follow, compress it rather than remove it.</li>
+            <li><strong>Compress keeps the rules.</strong> The model is told to keep every instruction, command, flag, default and path and to drop history, numbers and rationale, and you read the diff in the pull request before merging it. If a section holds rules the agent must follow, compress it rather than remove it.</li>
             <li><strong>A switched-off skill still runs</strong> when you type <code>/name</code>; only its listing leaves the context. An MCP server or plugin is off for new sessions in this repository, not removed.</li>
             <li><strong>Afterwards, <em>followed</em> and <em>missed</em></strong> on the cards show whether sessions kept a rule they no longer read. Each cut has an undo path (<a href="#faq-cut-files">below</a>).</li>
           </ul>

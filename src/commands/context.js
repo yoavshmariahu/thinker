@@ -12,7 +12,7 @@ import { judgeRecent, findRepoSessions } from '../instruction-value.js';
 import { formatTokens } from '../model-usage.js';
 import { refreshSnapshots, writeSnapshot } from '../context-snapshot.js';
 import { machineContext, recommendations, renderMachineReport, MACHINE_REPOS, MACHINE_TOP } from '../context-machine.js';
-import { approveChanges, dismissChanges, revertDecision, pickChanges, currentChanges, changeHistory, refreshPrStates } from '../context-suggest.js';
+import { approveChanges, dismissChanges, revertDecision, retryJob, pickChanges, currentChanges, changeHistory, refreshPrStates } from '../context-suggest.js';
 
 const pct = x => x == null ? '   -' : `${String(Math.round(100 * x)).padStart(3)}%`;
 const pad = (s, n) => String(s).padStart(n);
@@ -67,8 +67,16 @@ async function contextCommand({ store, flags, out }) {
     // a pending pull request is asked after on GitHub first (context-suggest.js:refreshPrStates)
     await refreshPrStates(store);
     const h = changeHistory(store);
-    const state = e => e.pr ? `PR #${e.pr.number} ${e.pr.state === 'open' ? 'pending' : e.pr.state === 'merged' ? 'merged' : 'rejected'}` : e.revertedAt ? `${e.decision}, reverted` : e.decision;
-    out(h.length ? h.map((e, i) => `${String(i + 1).padStart(3)}. ${e.at.slice(0, 10)}  ${state(e).padEnd(22)} ${e.title}${e.result ? `: ${e.result}` : ''}${e.pr?.url ? `  ${e.pr.url}` : ''}`).join('\n') + (h.some(e => e.revertible) ? '\n`thinker context --revert <n>` takes a decision back (a pending pull request is closed).' : '') : 'No decisions on the suggested changes here yet.');
+    // a job under way or failed (context-suggest.js:startSectionJob) is said so; --retry runs a failed one again
+    const state = e => e.running ? `${e.job.action === 'compress' ? 'compressing' : 'removing'}…` : e.failed ? 'failed' : e.pr ? `PR #${e.pr.number} ${e.pr.state === 'open' ? 'pending' : e.pr.state === 'merged' ? 'merged' : 'rejected'}` : e.revertedAt ? `${e.decision}, reverted` : e.decision;
+    const needs = h.filter(e => e.attention).length;
+    out(h.length ? (needs ? `${needs} need${needs === 1 ? 's' : ''} you: a pull request to merge, or a failed change to retry.\n` : '') + h.map((e, i) => `${String(i + 1).padStart(3)}. ${e.at.slice(0, 10)}  ${state(e).padEnd(22)} ${e.title}${e.failed ? `: ${e.job.error}` : e.result ? `: ${e.result}` : ''}${e.pr?.url ? `  ${e.pr.url}` : ''}`).join('\n') + (h.some(e => e.revertible) ? '\n`thinker context --revert <n>` takes a decision back (a pending pull request is closed).' : '') + (h.some(e => e.retryable) ? '\n`thinker context --retry <n>` runs a failed change again.' : '') : 'No decisions on the suggested changes here yet.');
+    return;
+  }
+  if (flags.retry !== undefined) {
+    const h = changeHistory(store), e = h[Number(flags.retry) - 1] || h.find(x => x.id === String(flags.retry));
+    const r = e ? retryJob(store, e.id) : { error: `no decision ${flags.retry}; \`thinker context --history\` lists them` };
+    out(r.error || r.said);
     return;
   }
   if (flags.revert !== undefined) {

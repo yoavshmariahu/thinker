@@ -39,6 +39,16 @@
     }
     .nav-link:hover { color: #000; background: #f5f5f5; }
     .nav-link.active { color: #000; background: #fff; border-color: #e5e7eb; }
+    /* Recent activity sits at the right of the nav, apart from the two pages, with a badge counting what needs the person */
+    .nav-sep { width: 1px; background: #e5e7eb; margin: 0 0.5rem; align-self: stretch; }
+    .nav-link .badge { display: inline-block; min-width: 1.25rem; padding: 0.05rem 0.4rem; margin-left: 0.4rem; border-radius: 999px; background: #dc2626; color: #fff; font-size: 0.7rem; font-weight: 700; text-align: center; line-height: 1.3; vertical-align: 1px; }
+    .nav-link .badge.quiet { background: #e5e7eb; color: #374151; }
+    /* what needs the person, at the top of Recent activity */
+    .attn { display: flex; flex-direction: column; gap: 0.3rem; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 0.7rem 0.9rem; margin: 0 0 0.8rem; }
+    .attn.ok { background: #f0fdf4; border-color: #bbf7d0; }
+    .attn ul { margin: 0.2rem 0 0; padding-left: 1.1rem; font-size: 0.86rem; line-height: 1.5; }
+    .attn a { color: #111; }
+    .ctx-table tr.act-attn td { background: #fff7ed; }
 
     /* both tabs take the width of the window: Save holds a document beside its annotations, Report its tables */
     main { max-width: 1440px; margin: 0 auto; padding: 2.25rem 2rem 4rem; }
@@ -127,7 +137,7 @@
     .ctx-pill.medium { background: #fef9c3; color: #854d0e; }
     .ctx-pill.ok { background: #dcfce7; color: #166534; }
     .ctx-pill.off { background: #f4f4f5; color: #52525b; }
-    /* what an action measured since it was taken (report.js:outputComparison): the saving first, green; a cost red */
+    /* what an action changed since it was taken (report.js:actionEffect): a session before against since, the saving green; a cost red */
     .ctx-measured { display: block; margin-top: 0.3rem; font-size: 0.8rem; font-weight: 600; color: #166534; }
     .ctx-measured.worse { color: #991b1b; }
     .ctx-measured .muted { font-weight: 400; }
@@ -137,6 +147,8 @@
     .ctx-compare th { font-weight: 600; color: #6b7280; }
     .ctx-compare tr.ctx-delta td { font-weight: 600; border-top: 1px solid #e5e7eb; }
     .ctx-pill.pr { background: #dbeafe; color: #1e40af; } a.ctx-pill { text-decoration: none; }
+    .ctx-pill.busy { background: #f4f4f5; color: #374151; } .ctx-pill.busy .spinner { width: 9px; height: 9px; margin-right: 0.3rem; vertical-align: -1px; }
+    .ctx-pill.failed { background: #fee2e2; color: #991b1b; }
     .ctx-prlink { font-weight: 400; color: #1e40af; margin-left: 0.35rem; font-size: 0.82rem; }
     .ctx-act { display: flex; align-items: center; justify-content: flex-end; gap: 0.4rem; }
     .ctx-act .sel { padding: 0.22rem 1.4rem 0.22rem 0.5rem; font-size: 0.76rem; max-width: 12rem; }
@@ -163,13 +175,6 @@
     .vtabs .vt-num span { font-weight: 400; color: #9ca3af; }
     .vtabs .vt-end { margin-left: auto; }
     .sort-sel { display: flex; align-items: center; gap: 0.4rem; }
-    .diff-sec { margin: 0.3rem 0; } .diff-sec summary { cursor: pointer; font-size: 0.82rem; }
-    .md-preview { border: 1px solid #e5e7eb; border-radius: 6px; padding: 0.6rem 0.7rem; background: #fafafa; }
-    .diff-head { font-size: 0.82rem; margin-bottom: 0.4rem; }
-    .diff { font-size: 0.74rem; line-height: 1.45; white-space: pre-wrap; max-height: 22rem; overflow: auto; margin: 0; }
-    .diff span { display: block; }
-    .diff .add { background: #dcfce7; }
-    .diff .del { background: #fee2e2; text-decoration: line-through; color: #7f1d1d; }
     @media (max-width: 760px) { .ctx-table td, .ctx-table th { white-space: normal; } .ctx-table td.ctx-name { min-width: 0; } }
     .ctx-top { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem 2rem; flex-wrap: wrap; margin-bottom: 1rem; }
     .ctx-top .controls { margin-top: 0; }
@@ -214,10 +219,6 @@
     .modal-small .modal-body p { margin: 0 0 0.7rem; }
     .modal-foot { display: flex; gap: 0.6rem; padding: 0 1.5rem 1.3rem; flex-wrap: wrap; align-items: center; }
     .modal-foot .why { flex-basis: 100%; }
-    /* the diff of a section change (previewSections): wider, the diffs scrolling inside */
-    .modal-card.modal-wide { max-width: 900px; }
-    .modal-wide .modal-body { padding-top: 0.9rem; }
-    .modal-wide .diff { max-height: 50vh; }
     .faq-item { padding: 1.25rem 0; border-top: 1px solid #f0f0f0; }
     .faq-item:first-child { border-top: none; }
     .faq-item h3 { font-size: 1rem; font-weight: 600; letter-spacing: -0.02em; line-height: 1.35; margin-bottom: 0.6rem; }
@@ -243,6 +244,8 @@
     <div class="nav-right">
       <button class="nav-link" data-tab="save">Find Savings</button>
       <button class="nav-link" data-tab="report">View Report</button>
+      <span class="nav-sep" aria-hidden="true"></span>
+      <button class="nav-link" data-tab="activity" title="Every decision taken here, and what still needs you">Recent activity<span class="badge" id="act-badge" hidden></span></button>
     </div>
   </nav>
 
@@ -259,7 +262,7 @@
       <div id="context-body" class="section"><div class="empty"><svg class="logo-spin" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="22" r="6"/><circle cx="16" cy="16" r="6"/><circle cx="22" cy="10" r="6"/></svg>Reading the transcripts…</div></div>
     </section>
 
-    <!-- Report: what a session costs here week by week, by token type, by part and by model, the actions taken and the cache's numbers (report.js, as `thinker report`) -->
+    <!-- Report: what a session costs here week by week, by part, by model and by token type, what was saved with thinker and the actions behind it, the cache's numbers (report.js, as `thinker report`) -->
     <section id="tab-report" hidden>
       <div class="ctx-top"><div><h1>View Report</h1></div>
       <div class="controls">
@@ -270,6 +273,18 @@
       </div></div>
       <div id="report-body" class="section"><div class="empty"><svg class="logo-spin" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="22" r="6"/><circle cx="16" cy="16" r="6"/><circle cx="22" cy="10" r="6"/></svg>Reading the report…</div></div>
     </section>
+
+    <!-- Recent activity: every decision taken on Find Savings (or `thinker context --approve`), newest first, with what came of it and
+         what still needs the person: a compression running in the background or failed, a pull request to merge (context-suggest.js:changeHistory,
+         as `thinker context --history`) -->
+    <section id="tab-activity" hidden>
+      <div class="ctx-top"><div><h1>Recent activity</h1>
+      <p class="lede">What was changed from Find Savings, what came of it, and what still needs you: a change under way, one that failed, a pull request to merge</p></div>
+      <div class="controls">
+        <select class="sel" id="a-repo" aria-label="Repository"></select>
+      </div></div>
+      <div id="activity-body" class="section"><div class="empty"><span class="spinner"></span>Reading…</div></div>
+    </section>
   </main>
   <div class="toast" id="toast"></div>
   <div class="hint" id="hint" role="status">Open this dashboard with <code>thinker ui</code></div>
@@ -279,13 +294,6 @@
       <div class="modal-header"><div><div class="modal-title" id="confirm-title"></div></div><button class="btn-close" id="confirm-close" type="button" aria-label="Close">&times;</button></div>
       <div class="modal-body" id="confirm-body"></div>
       <div class="modal-foot"><button class="btn" id="confirm-ok" type="button">Confirm</button><button class="btn ghost" id="confirm-cancel" type="button">Cancel</button></div>
-    </div>
-  </div>
-  <div class="modal-overlay" id="edit-overlay">
-    <div class="modal-card modal-wide" role="dialog" aria-modal="true" aria-labelledby="edit-title">
-      <div class="modal-header"><div><div class="modal-title" id="edit-title"></div><div class="modal-subtitle" id="edit-sub"></div></div><button class="btn-close" id="edit-close" type="button" aria-label="Close">&times;</button></div>
-      <div class="modal-body" id="edit-body"></div>
-      <div class="modal-foot" id="edit-foot"></div>
     </div>
   </div>
   <div class="modal-overlay" id="faq-overlay">
@@ -337,7 +345,7 @@
 
         <div class="faq-item">
           <h3>Can Thinker cut what my agents load into every session?</h3>
-          <p>It shows you what to cut, and you decide. The Find Savings view here and <code>thinker context</code> list every section of your instruction files, every skill and every tool with what it costs a session and how many sessions it bore on. A section you pick can be removed or compressed by a model: the diff is shown first, and Apply opens a pull request with it (or, without a GitHub origin or <code>gh</code>, writes it to your working tree, uncommitted). The pull request is yours to merge or close; closed, the section is suggested again. Nothing is cut on its own.</p>
+          <p>It shows you what to cut, and you decide. The Find Savings view here and <code>thinker context</code> list every section of your instruction files, every skill and every tool with what it costs a session and how many sessions it bore on. A section you pick can be removed or compressed by a model: Apply starts it in the background and a pull request opens with the change (or, without a GitHub origin or <code>gh</code>, it is written to your working tree, uncommitted). Recent activity follows it, and counts what needs you: a change that failed to retry, a pull request to merge or close. The pull request is yours; closed, the section is suggested again. Nothing is cut on its own.</p>
         </div>
 
         <div class="faq-item">
@@ -379,7 +387,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 // a negative count keeps its sign in front of the same short form (−26M, not -25669680)
 const fmt = n => n < 0 ? '−' + fmt(-n) : n >= 1e9 ? (n / 1e9).toFixed(n >= 1e10 ? 0 : 1) + 'B' : n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(n >= 1e4 ? 0 : 1) + 'k' : String(Math.round(n || 0));
 let toastTimer;
-function toast(msg, err) { const t = $('#toast'); t.textContent = msg; t.className = 'toast show' + (err ? ' err' : ''); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.className = 'toast', 2600); }
+function toast(msg, err, ms = 2600) { const t = $('#toast'); t.textContent = msg; t.className = 'toast show' + (err ? ' err' : ''); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.className = 'toast', ms); }
 
 // FAQ modal
 const faqOverlay = $('#faq-overlay');
@@ -403,32 +411,21 @@ function confirmDialog({ title, body, ok = 'Confirm' }) {
   });
 }
 
-// The diff of a section change, in a modal over the table (the owner's ask of 2026-10-24: no jump to a view above the
-// table): opened at once with a spinner while the model works, then the diffs and the one button that opens the pull
-// request. The cross, Escape and Cancel close it; a click outside does not, since a compression cost a model call.
-const editOverlay = $('#edit-overlay');
-function openEditModal({ title, sub = '', body, foot }) {
-  $('#edit-title').textContent = title; $('#edit-sub').innerHTML = sub; $('#edit-body').innerHTML = body; $('#edit-foot').innerHTML = foot;
-  editOverlay.classList.add('active'); $('#edit-close').focus();
-}
-function closeEditModal() { editOverlay.classList.remove('active'); $('#edit-body').innerHTML = ''; }
-const editModalOpen = () => editOverlay.classList.contains('active');
-$('#edit-close').onclick = closeEditModal;
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && editModalOpen()) closeEditModal(); });
-
 // tabs
 document.querySelectorAll('.nav-link').forEach(b => b.onclick = () => show(b.dataset.tab));
 function show(tab) {
-  // the Context tab is Find Savings (`save`) and the Cache tab is View Report (`report`) since 2026-10-22; an old link (context, changes, cache) and any
-  // tab the page does not know open the view that replaced it
+  // the Context tab is Find Savings (`save`) and the Cache tab is View Report (`report`) since 2026-10-22, and Save's History view is
+  // the Recent activity page (`activity`) since 2026-10-24; an old link (context, changes, cache, view=history) and any tab the page
+  // does not know open the view that replaced it
   if (tab === 'changes') { tab = 'save'; CVIEW = 'all'; }
   if (tab === 'cache') tab = 'report';
-  if (tab !== 'report') tab = 'save';
+  if (tab === 'save' && H().get('view') === 'history') tab = 'activity';
+  if (!['report', 'activity'].includes(tab)) tab = 'save';
   document.querySelectorAll('.nav-link').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-  $('#tab-save').hidden = tab !== 'save'; $('#tab-report').hidden = tab !== 'report';
+  for (const k of ['save', 'report', 'activity']) $(`#tab-${k}`).hidden = tab !== k;
   TAB = tab;
   history.replaceState(null, '', `#tab=${tab}`);
-  if (tab === 'save') loadContext(); else loadReport();
+  if (tab === 'save') loadContext(); else if (tab === 'report') loadReport(); else loadActivity();
 }
 function segOn(sel, on) { document.querySelectorAll(sel + ' button').forEach(b => b.classList.toggle('on', b === on)); }
 function card(kicker, num, label, rows, gain) {
@@ -452,7 +449,7 @@ async function loadContext() {
     $('#c-repo').innerHTML = `<option value="all"${CREPO === 'all' ? ' selected' : ''}>All repositories</option>` + REPOS.map(r => `<option value="${esc(r.id)}"${r.id === CREPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
     if (CREPO === 'all') $('#context-body').innerHTML = `<div class="empty">${LOGO_SPIN}Reading every repository's transcripts (the first time takes a while)…</div>`;
     if (!CREPO) { el.innerHTML = `<div class="empty">No repository with a cache on this machine yet.</div>`; return; }
-    const [v, d] = await Promise.all([api(`/api/context?repo=${encodeURIComponent(CREPO)}&days=${cdays}`), api(`/api/changes?repo=${encodeURIComponent(CREPO)}&days=7`).catch(e => ({ error: e.message, history: [] }))]);
+    const [v, d] = await Promise.all([api(`/api/context?repo=${encodeURIComponent(CREPO)}&days=${cdays}`), api(`/api/activity?repo=${encodeURIComponent(CREPO)}`).catch(e => ({ error: e.message, history: [] }))]);
     CHIST = d;
     renderContext(v); contextAsOf(v);
   } catch (e) { el.innerHTML = `<div class="empty">Could not read the context: ${esc(e.message)}</div>`; }
@@ -471,17 +468,17 @@ function contextAsOf(v) {
     if (CREPO !== want[0] || cdays !== want[1]) return;
     let n; try { n = await api(`/api/context?repo=${encodeURIComponent(CREPO)}&days=${cdays}`); } catch { return; }
     if (CREPO !== want[0] || cdays !== want[1]) return;
-    const picked = Object.values(PICKS).some(m => m.size) || editModalOpen();
+    const picked = Object.values(PICKS).some(m => m.size);
     if (n.asOf > v.asOf && !picked) { renderContext(n); contextAsOf(n); }
     else if (n.asOf > v.asOf) { if (el) el.textContent = `· newer figures ready, shown on reload`; }
     else contextAsOf({ ...v, refreshing: n.refreshing, tries });
   }, 5000);
 }
-// an old link to Top suggested (view=suggested) opens All, which lists every part
-let CVIEW = ['all', 'history', 'instructions', 'custom', 'builtin', 'outputs'].includes(H().get('view')) ? H().get('view') : 'all', CTX = null;
-// the decisions (/api/changes), read with the report: History's rows, and the pull request pending on a section
+// an old link to Top suggested (view=suggested) opens All, which lists every part; view=history opens Recent activity (show)
+let CVIEW = ['all', 'instructions', 'custom', 'builtin', 'outputs'].includes(H().get('view')) ? H().get('view') : 'all', CTX = null;
+// the decisions (/api/activity), read with the report: the pull request pending on a section, or the job under way or failed on it
 let CHIST = { history: [] };
-const pendingPr = (repo, key) => (CHIST.history || []).find(e => e.pending && e.pr && (!repo || e.repo === repo) && (e.keys || [e.key]).includes(key))?.pr || null;
+const decisionOn = (repo, key) => (CHIST.history || []).find(e => (e.pending || e.running || e.failed) && (!repo || e.repo === repo) && (e.keys || [e.key]).includes(key)) || null;
 const dlabel = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 // a small markdown reader for the team's own file: headings, lists, code, tables as text, inline code, bold, links' text
 function md(text) {
@@ -570,9 +567,15 @@ function contextRows(v) {
     wasted: s.wasted, waste: s.waste, off: false, pill: null,
     options: [['compress', 'Compress'], ['remove', 'Remove']], disabled: '',
   }));
-  // a section whose change is a pull request not yet merged: pending, with the link, and not to be picked again until the
-  // pull request is merged (the next report has the new section) or closed (the section is suggested again)
-  for (const r of rows) { const pr = pendingPr(r.repo, r.key); if (pr) { r.pr = pr; r.pill = ['pr', `PR #${pr.number} pending`]; r.options = []; r.disabled = `pull request #${pr.number} is open for it`; } }
+  // a section whose change is under way (a job in the background) or a pull request not yet merged: said so in its pill, with
+  // the link, and not to be picked again until the job is done and the pull request merged (the next report has the new
+  // section) or closed (the section is suggested again); one whose change failed says so and can be picked again
+  for (const r of rows) {
+    const d = decisionOn(r.repo, r.key); if (!d) continue;
+    if (d.running) { r.pill = ['busy', `<span class="spinner"></span>${d.job.action === 'compress' ? 'Compressing…' : 'Removing…'}`]; r.rawPill = true; r.options = []; r.disabled = 'a change is under way for it: see Recent activity'; }
+    else if (d.failed) r.pill = ['failed', `${d.job.action === 'compress' ? 'compression' : 'removal'} failed`];
+    else { r.pr = d.pr; r.pill = ['pr', `PR #${d.pr.number} pending`]; r.options = []; r.disabled = `pull request #${d.pr.number} is open for it`; }
+  }
   for (const s of v.skills || []) {
     const k = skillShort(s.text), o = s.outcome;
     rows.push({
@@ -658,7 +661,7 @@ function renderTable(view, rows, { title, sub, note, nameHead, savings }) {
       <td class="num">${actedCell(r)}</td>
       <td class="num">${fmt(r.perSession * r.sessions)}</td>
       <td class="num">${r.wasted == null ? '<span class="muted">–</span>' : fmt(windowWaste(r))}</td>
-      <td>${pt ? r.pr?.url ? `<a class="ctx-pill ${pc}" href="${esc(r.pr.url)}" target="_blank" rel="noopener">${esc(pt)}</a>` : `<span class="ctx-pill ${pc}">${esc(pt)}</span>` : ''}</td>
+      <td>${pt ? r.pr?.url ? `<a class="ctx-pill ${pc}" href="${esc(r.pr.url)}" target="_blank" rel="noopener">${esc(pt)}</a>` : `<span class="ctx-pill ${pc}">${r.rawPill ? pt : esc(pt)}</span>` : ''}</td>
       <td class="ctx-actcell"><div class="ctx-act">${r.options.length ? `<select class="sel" data-act="${i}" aria-label="Action">${r.options.map(([a, t]) => `<option value="${a}"${PREACT.get(`${view}\t${pickKey(r)}`) === a ? ' selected' : ''}>${t}</option>`).join('')}</select>` : `<span class="why" title="${esc(r.disabled)}">—</span>`}</div></td></tr>
       <tr class="ctx-detail" data-detail="${i}" hidden><td colspan="7"><div class="md-body">${r.detail}</div><div class="why">${fmt(r.perSession)} input tokens a session · acted on: ${esc(r.actedBy)}${r.wasted != null ? ` · ${r.kind === 'output' ? 'read again after the agent last used it:' : 'wasted in the sessions that did not use it:'} ~${fmt(r.wasted)} a session, ${fmt(windowWaste(r))} over ${CTX?.days || cdays} days` : ''}</div></td></tr>`;
   }).join('');
@@ -691,8 +694,11 @@ function wireTable(root, view, rows) {
   bulkState();
 }
 // Every checked row's action: a skill, tool or output is changed at once (/api/changes/approve,
-// context-suggest.js:approveChanges, each recorded in History with its undo); a section is previewed first, its diff
-// shown in a modal (instruction-edit.js) with the button that opens the pull request, and recorded when it is.
+// context-suggest.js:approveChanges, each recorded in Recent activity with its undo); a section's change is started in the
+// background (/api/changes/start, context-suggest.js:startSectionJob: `thinker instructions --compress|--remove <ids> --pr`
+// detached, recorded at once) and the page says so once and goes on. The owner's ask of 2026-10-24: a model call of some
+// seconds is nothing to hold the person's attention with in a modal; Recent activity shows the change under way, then the
+// pull request to merge, or a failure with Retry.
 async function applyRows(view, items, btn) {
   const secs = items.filter(x => x.r.kind === 'section' && x.act), rest = items.filter(x => x.r.kind !== 'section' && x.act);
   if (!secs.length && !rest.length) return toast('Nothing to apply', true);
@@ -700,70 +706,40 @@ async function applyRows(view, items, btn) {
   const builtins = rest.filter(x => x.r.view === 'builtin' && x.act === 'off');
   if (builtins.length && !await confirmDialog({
     title: `Switch off ${builtins.length === 1 ? 'a built-in tool' : `${builtins.length} built-in tools`}?`, ok: 'Switch off',
-    body: `<p>You are switching off Claude Code's own tools: <b>${builtins.map(x => esc(x.r.name)).join('</b>, <b>')}</b>.</p><p>Each goes into <code>permissions.deny</code> of <code>.claude/settings.local.json</code> in this repository, so new Claude Code sessions here have no definition of it and cannot call it. Sessions already open keep it; nothing else changes.</p><p>This can be reversed: <b>Revert</b> under History, <b>Turn back on</b> in the tool's row, or <code>thinker harness --undo</code>.</p>`,
+    body: `<p>You are switching off Claude Code's own tools: <b>${builtins.map(x => esc(x.r.name)).join('</b>, <b>')}</b>.</p><p>Each goes into <code>permissions.deny</code> of <code>.claude/settings.local.json</code> in this repository, so new Claude Code sessions here have no definition of it and cannot call it. Sessions already open keep it; nothing else changes.</p><p>This can be reversed: <b>Revert</b> under Recent activity, <b>Turn back on</b> in the tool's row, or <code>thinker harness --undo</code>.</p>`,
   })) return;
-  if (btn) busy(btn, secs.some(x => x.act === 'compress') ? 'Compressing…' : 'Applying…');
+  if (btn) busy(btn, 'Applying…');
   try {
+    const said = [];
     if (rest.length) {
       // in All repositories a merged skill or tool applies to each repository it came from (context-view.js:mergeViews
       // `repoIds`), an output to every repository
       const byRepo = new Map();
       for (const { r, act } of rest) for (const repo of r.repo ? [r.repo] : r.repoIds?.length ? r.repoIds : (CTX?.repos || []).map(x => x.repo)) { if (!byRepo.has(repo)) byRepo.set(repo, { keys: [], acts: {} }); const g = byRepo.get(repo); g.keys.push(r.key); g.acts[r.key] = act; }
       // one repository failing (a checkout gone since the report) is said in its line; the others are still made
-      const said = []; for (const [repo, g] of byRepo) { try { said.push((await api('/api/changes/approve', { repo, ...g, days: cdays })).said); } catch (err) { said.push(`${REPOS.find(x => x.id === repo)?.name || repo}: ${err.message}`); } }
-      toast(said.join(' ') || 'Done');
+      for (const [repo, g] of byRepo) { try { said.push((await api('/api/changes/approve', { repo, ...g, days: cdays })).said); } catch (err) { said.push(`${REPOS.find(x => x.id === repo)?.name || repo}: ${err.message}`); } }
     }
-    // the diff is in the modal, with its own button: the row's button is a button again
-    if (secs.length) { if (btn) idle(btn); await previewSections(view, secs); }
-    else { PICKS[view].clear(); loadContext(); }
+    // the sections, one request per repository: the server starts one job per action among them
+    if (secs.length) {
+      const byRepo = new Map();
+      for (const { r, act } of secs) { if (!byRepo.has(r.repo)) byRepo.set(r.repo, { keys: [], acts: {} }); const g = byRepo.get(r.repo); g.keys.push(r.key); g.acts[r.key] = act; }
+      for (const [repo, g] of byRepo) { try { said.push((await api('/api/changes/start', { repo, ...g, days: cdays })).said); } catch (err) { said.push(`${REPOS.find(x => x.id === repo)?.name || repo}: ${err.message}`); } }
+    }
+    toast(said.join(' ') || 'Done', false, secs.length ? 6000 : undefined);
+    PICKS[view].clear(); loadContext(); pollActivity();
   } catch (err) { toast(err.message, true); if (btn) idle(btn); }
-}
-// The picked sections' change, one preview per repository and action, in the modal; its button opens one pull request
-// per preview (instruction-pr.js, where the origin is on GitHub and gh is logged in) and the decision is recorded as
-// pending until the pull request is merged; else, with the reason, the file is written to the working tree as before.
-async function previewSections(view, items) {
-  const n = items.length, compress = items.some(x => x.act === 'compress'), word = `${n} section${n === 1 ? '' : 's'}`;
-  const groups = new Map(); for (const { r, act } of items) { const k = `${r.repo}\t${act}`; if (!groups.has(k)) groups.set(k, { repo: r.repo, action: act, rows: [] }); groups.get(k).rows.push(r); }
-  const title = `${compress ? (items.every(x => x.act === 'compress') ? 'Compress' : 'Change') : 'Remove'} ${word}`;
-  openEditModal({ title, body: `<div class="why"><span class="spinner"></span>${compress ? `Asking a model to compress ${word}…` : 'Working out the change…'}</div>`, foot: '<button class="btn ghost" data-cancel>Cancel</button>' });
-  const cancel = () => { closeEditModal(); loadContext(); };
-  $('#edit-foot [data-cancel]').onclick = cancel;
-  // a later preview (Cancel, then Apply again) takes the modal over: the earlier one's answer is dropped
-  const mine = String(Date.now()); editOverlay.dataset.run = mine;
-  try {
-    const previews = [];
-    for (const g of groups.values()) { const x = await api('/api/context/edit', { repo: g.repo, ids: g.rows.map(r => r.id), action: g.action }); previews.push({ ...g, p: x.preview, pr: x.pr }); }
-    if (!editModalOpen() || editOverlay.dataset.run !== mine) return;
-    const before = previews.reduce((a, x) => a + x.p.tokensBefore, 0), after = previews.reduce((a, x) => a + x.p.tokensAfter, 0);
-    const name = id => REPOS.find(r => r.id === id)?.name || id, files = [...new Set(previews.flatMap(x => x.p.files || [x.p.file]))];
-    // a pull request for every preview or for none: one repository that cannot have one gets the working tree, and says so
-    const no = previews.find(x => !x.pr?.ok)?.pr, pr = no ? { ok: false, reason: no.reason || 'no git remote' } : previews[0].pr;
-    $('#edit-sub').innerHTML = `~${fmt(before)} → ~${fmt(after)} tokens in every model call (−${fmt(before - after)}) · ${files.map(esc).join(', ')}`;
-    $('#edit-body').innerHTML = previews.flatMap(({ repo, action, p }) => p.sections.map(x => `<details class="diff-sec" open><summary>${action === 'compress' ? 'Compress' : 'Remove'} ${groups.size > 1 && CREPO === 'all' ? `<span class="muted">${esc(name(repo))} · </span>` : ''}${esc(x.title)} <span class="muted">~${fmt(x.tokensBefore)} → ~${fmt(x.tokensAfter)}</span></summary><pre class="diff">${x.diff.map(([k, l]) => `<span class="${k === '+' ? 'add' : k === '-' ? 'del' : 'keep'}">${k} ${esc(l) || ' '}</span>`).join('')}</pre></details>`)).join('');
-    $('#edit-foot').innerHTML = `<button class="btn" data-write>${pr.ok ? `Open a pull request${previews.length > 1 ? ` (${previews.length})` : ''}` : `Write to ${files.length === 1 ? esc(files[0]) : `${files.length} files`}`}</button><button class="btn ghost" data-cancel>Cancel</button>
-      <span class="why">${pr.ok ? `A branch with this commit is pushed to ${esc(pr.slug)} and a pull request opened against <code>${esc(pr.base)}</code>; nothing in your working tree changes. History links it and shows it pending until it is merged; closed without merging, it is marked rejected and the ${n === 1 ? 'section is' : 'sections are'} suggested again.` : `No pull request from here (${esc(pr.reason)}): written to the working tree, uncommitted. Review with git diff; History's Revert or git checkout undoes it.`}</span>`;
-    $('#edit-foot [data-cancel]').onclick = cancel;
-    $('#edit-foot [data-write]').onclick = async e => {
-      busy(e.target, pr.ok ? 'Opening the pull request…' : 'Writing…');
-      try {
-        const said = [];
-        for (const { repo, rows, p } of previews) said.push((await api('/api/changes/apply', { repo, keys: rows.map(r => r.key), edit: p.key, files: p.files || [p.file], days: cdays, pr: pr.ok })).said);
-        toast(pr.ok ? said.join(' ') : `Written ${word}: review with git diff`); closeEditModal(); PICKS[view].clear(); loadContext();
-      } catch (err) { toast(err.message, true); idle(e.target); }
-    };
-  } catch (err) { if (editModalOpen() && editOverlay.dataset.run === mine) { $('#edit-body').innerHTML = `<div class="why">Could not make the change: ${esc(err.message)}</div>`; $('#edit-foot').innerHTML = '<button class="btn ghost" data-cancel>Close</button>'; $('#edit-foot [data-cancel]').onclick = cancel; } }
 }
 function renderContext(v) {
   const el = $('#context-body'), iv = v.instructions, t = v.totals;
   CTX = v;
   let h = '';
-  // one table at a time under the chart: every part on All, then one kind each; History last, at the row's far right
+  // one table at a time: every part on All, then one kind each (the decisions are the Recent activity page since 2026-10-24)
   const all = contextRows(v), of = view => all.filter(r => r.view === view), perSession = rs => rs.reduce((a, r) => a + (r.off ? 0 : r.perSession), 0);
   // opened by the installer: All's suggested savings come checked, once (the person's checks hold from then on)
   if (PRESELECT && all.length) { PRESELECT = false; preselectRows(all, v.suggested || []); }
-  const VIEWS = [['all', 'All'], ['instructions', 'Instruction files'], ['custom', 'Custom tools'], ['builtin', 'Built-in tools'], ['outputs', 'Tool outputs'], ['history', 'History']];
-  const num = k => k === 'history' ? '<span class="spinner"></span>' : `${fmt(k === 'all' ? perSession(all) : t[k]?.perSession || 0)} <span>a session</span>`;
-  h += `<div class="vtabs" id="c-view" role="tablist">${VIEWS.map(([k, name]) => `<button role="tab" data-view="${k}" aria-selected="${CVIEW === k}" class="${[CVIEW === k ? 'on' : '', k === 'history' ? 'vt-end' : ''].join(' ').trim()}"><span class="vt-name">${name}</span><span class="vt-num" id="vt-${k}">${num(k)}</span></button>`).join('')}</div>`;
+  const VIEWS = [['all', 'All'], ['instructions', 'Instruction files'], ['custom', 'Custom tools'], ['builtin', 'Built-in tools'], ['outputs', 'Tool outputs']];
+  const num = k => `${fmt(k === 'all' ? perSession(all) : t[k]?.perSession || 0)} <span>a session</span>`;
+  h += `<div class="vtabs" id="c-view" role="tablist">${VIEWS.map(([k, name]) => `<button role="tab" data-view="${k}" aria-selected="${CVIEW === k}" class="${CVIEW === k ? 'on' : ''}"><span class="vt-name">${name}</span><span class="vt-num" id="vt-${k}">${num(k)}</span></button>`).join('')}</div>`;
   // the caption's figures: the sessions, the tokens per call, the cost over the window and how much of it was wasted
   const cap = (rs, sessions, what) => { const live = rs.filter(r => !r.off); return `${sessions} session${sessions === 1 ? '' : 's'} · ${fmt(live.reduce((a, r) => a + (r.tokens || 0), 0))} tokens per call · ${fmt(live.reduce((a, r) => a + r.perSession * r.sessions, 0))} input tokens ${what}, ${fmt(live.reduce((a, r) => a + (r.wasted || 0) * r.sessions, 0))} of it wasted`; };
   const vdiv = (k, inner) => `<div class="cview" data-view="${k}"${CVIEW === k ? '' : ' hidden'} id="c-${k}">${inner}</div>`;
@@ -777,27 +753,24 @@ function renderContext(v) {
   const sumSav = Object.values(sav).reduce((a, s) => ({ perSession: a.perSession + s.perSession, window: a.window + (s.window || 0) }), { perSession: 0, window: 0 });
   sav.all = { ...sumSav, share: perSession(all) ? sumSav.perSession / perSession(all) : null, days: v.days, text: 'Every view\'s card together: the flagged sections, skills and tools in the sessions that did not use them, and what compressing every output would cut at least.', ok: 'Nothing here is flagged, and no output is long enough to cut.' };
   h += vdiv('all', renderTable('all', all, { nameHead: 'Part', title: 'Everything in the context', sub: cap(all, v.sessions || 0, 'over the window'), savings: sav.all,
-    note: `Every instruction section, skill, tool and tool output the agents' sessions here carried, over ${v.days} days. <b>Sessions used</b>: the share of sessions that used the part (a section the agent followed, or whose files, commands or code it touched; a skill opened; a tool called). <b>Wasted</b>: what it cost in the sessions that did not use it; for an output, what its results cost after the agent last used them. The pill: high waste from 5% of what its kind cost, medium from 2%. Sorted by Wasted. Pick what to do in the row and Apply: a section's diff is shown first and written to your working tree, uncommitted; a skill or tool is switched off for this repository from the next session (a skill still runs as /name); an output is compressed before the model reads it (Claude Code). Every change is listed under History with a Revert. <b>Compress and Remove open a pull request with the change</b> (a branch pushed to the origin, nothing in your working tree touched): the section shows as pending until it is merged, and is suggested again if it is closed. Without a GitHub origin or <code>gh</code>, the file is written to your working tree instead, uncommitted.` }));
+    note: `Every instruction section, skill, tool and tool output the agents' sessions here carried, over ${v.days} days. <b>Sessions used</b>: the share of sessions that used the part (a section the agent followed, or whose files, commands or code it touched; a skill opened; a tool called). <b>Wasted</b>: what it cost in the sessions that did not use it; for an output, what its results cost after the agent last used them. The pill: high waste from 5% of what its kind cost, medium from 2%. Sorted by Wasted. Pick what to do in the row and Apply: a skill or tool is switched off for this repository from the next session (a skill still runs as /name); an output is compressed before the model reads it (Claude Code); <b>a section is compressed or removed in the background and a pull request opens with the change</b> (a branch pushed to the origin, nothing in your working tree touched): its row says so while it runs, shows the pull request pending until it is merged, and the section is suggested again if it is closed. Without a GitHub origin or <code>gh</code>, the file is written to your working tree instead, uncommitted. Every change is listed under <b>Recent activity</b>, which counts what needs you (a change that failed, a pull request to merge) and has the Revert.` }));
   h += vdiv('instructions', (iv.file ? renderTable('instructions', of('instructions'), { nameHead: 'Section', title: esc(iv.file), sub: cap(of('instructions'), iv.sessions || 0, 'on the file'), savings: sav.instructions,
-    note: `${(iv.files || []).length > 1 ? `<b>${iv.files.length} instruction files.</b> ${iv.files.map(f => `<code>${esc(f.file)}</code> ${f.kind === 'root' ? 'in every session' : `${f.loadedIn} session${f.loadedIn === 1 ? '' : 's'}, ${f.kind === 'rule' ? (f.globs?.length ? 'when a matching file is opened' : 'at the start, Claude Code') : 'when a file in its directory is opened'}`}`).join(' · ')}. ` : ''}Each session reads the file again on every model call; ${iv.judged} judged${iv.judge?.judge ? ` (a ${Math.round(100 * iv.judge.share)}% sample of sessions is judged by a model as they end)` : ' (judging is off)'}. <b>Compress</b> has a model rewrite a section to about a third, keeping its rules, commands and paths; <b>Remove</b> takes it out. Both show the diff first; Write puts it in the file in your working tree, uncommitted, for you to review and commit. <b>Compress and Remove only edit the instruction file in your working tree: no commit, no pull request, nothing pushed.</b>` })
+    note: `${(iv.files || []).length > 1 ? `<b>${iv.files.length} instruction files.</b> ${iv.files.map(f => `<code>${esc(f.file)}</code> ${f.kind === 'root' ? 'in every session' : `${f.loadedIn} session${f.loadedIn === 1 ? '' : 's'}, ${f.kind === 'rule' ? (f.globs?.length ? 'when a matching file is opened' : 'at the start, Claude Code') : 'when a file in its directory is opened'}`}`).join(' · ')}. ` : ''}Each session reads the file again on every model call; ${iv.judged} judged${iv.judge?.judge ? ` (a ${Math.round(100 * iv.judge.share)}% sample of sessions is judged by a model as they end)` : ' (judging is off)'}. <b>Compress</b> has a model rewrite a section to about a third, keeping its rules, commands and paths; <b>Remove</b> takes it out. Both run in the background once you Apply: the row says so while the model works, and <b>a pull request opens with the change</b> for you to read and merge (a branch pushed to the origin; nothing in your working tree changes). Recent activity follows it, and a change that fails can be retried there. Without a GitHub origin or <code>gh</code>, the file in your working tree is rewritten instead, uncommitted, for you to review with git diff.` })
     : '<div class="empty">No AGENTS.md or CLAUDE.md in this repository.</div>') + '<div class="controls"></div>');
   h += vdiv('custom', renderTable('custom', of('custom'), { nameHead: 'Skill or tool', title: 'Custom tools', sub: cap(of('custom'), v.sessions || 0, 'on them'), savings: sav.custom,
     note: `Every skill's name and description, and every MCP server's and plugin's tool definitions, sit in every session's context whether or not anything uses them; the agent reads a skill file only when it opens the skill. <b>Switch off</b> takes one out of the next session's context for this repository (a skill still runs when you type /name); <b>Turn back on</b> undoes it.` }));
   h += vdiv('builtin', renderTable('builtin', of('builtin'), { nameHead: 'Tool', title: 'Built-in tools', sub: cap(of('builtin'), v.sessions || 0, 'on them'), savings: sav.builtin,
-    note: `Claude Code's own tool definitions, from the transcripts. <b>Switch off</b> asks first: one switched off goes into <code>permissions.deny</code> of <code>.claude/settings.local.json</code>, so new sessions here cannot call it, and <b>Revert</b> under History or <b>Turn back on</b> brings it back; the file, shell and search tools are never offered.` }));
+    note: `Claude Code's own tool definitions, from the transcripts. <b>Switch off</b> asks first: one switched off goes into <code>permissions.deny</code> of <code>.claude/settings.local.json</code>, so new sessions here cannot call it, and <b>Revert</b> under Recent activity or <b>Turn back on</b> brings it back; the file, shell and search tools are never offered.` }));
   h += vdiv('outputs', renderTable('outputs', of('outputs'), { nameHead: 'Tool', title: 'Tool outputs', savings: sav.outputs, sub: (() => { const rs = of('outputs'), os = v.outputs?.sessions || 0; return `${os} session${os === 1 ? '' : 's'} · ${fmt(rs.reduce((a, r) => a + r.perSession * r.sessions, 0))} input tokens of output read again, ${fmt(rs.reduce((a, r) => a + (r.wasted || 0) * r.sessions, 0))} of it after the agent last used the result`; })(),
     note: `A tool's output stays in the conversation and every later model call reads it again: its tokens × the model calls left after it, until a compaction drops it, estimated from the transcripts. <b>Wasted</b>: the reads after the agent last used the result, its last edit copying text from it or call on the same file in that turn; nearly all of it, since a result is needed for a few calls and read for the rest of the session. Compression trims a result before the model reads it, in Claude Code: whole-file reads to the lines round what the agent searched for, test runs to their failures, big searches to their hits, long output to a cap of about 3k tokens. A tool whose compression you set is measured afresh from that moment, as its own row over the sessions since; its earlier measurement stays below it, muted, for the comparison, and never ranks above a current row.` }));
-  h += vdiv('history', '<div class="empty"><span class="spinner"></span>Reading…</div>');
   el.innerHTML = h;
-  for (const [k] of VIEWS) if (k !== 'history') wireTable(el.querySelector(`#c-${k}`), k, k === 'all' ? all : of(k));
+  for (const [k] of VIEWS) wireTable(el.querySelector(`#c-${k}`), k, k === 'all' ? all : of(k));
   el.querySelectorAll('#c-view button').forEach(b => b.onclick = () => { CVIEW = b.dataset.view; el.querySelectorAll('#c-view button').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-selected', String(x === b)); }); el.querySelectorAll('.cview').forEach(x => x.hidden = x.dataset.view !== CVIEW); sortControl(); });
   sortControl();
-  renderHistory(CHIST);
-  const act = async (btn, p, body, msg) => { if (btn) btn.disabled = true; try { const r = await api(p, { repo: CREPO, ...body }); toast(msg || (r.said && !String(r.said).startsWith('{') ? r.said : 'Saved')); loadContext(); } catch (err) { toast(err.message, true); if (btn) btn.disabled = false; } };
 }
 
 // the one Sort control in the Save header (beside the repository and the window, the owner's ask of 2026-10-22): the
-// orderings of the view shown, none for History; a change re-sorts that view and opens its first page
+// orderings of the view shown; a change re-sorts that view and opens its first page
 function sortControl() {
   const wrap = $('#c-sort-wrap'), sel = $('#c-sort'), opts = CSORTS[CVIEW];
   wrap.hidden = !opts || !CTX;
@@ -805,64 +778,123 @@ function sortControl() {
   sel.innerHTML = opts.map(([k, name]) => `<option value="${k}"${VSORT[CVIEW] === k ? ' selected' : ''}>${name}</option>`).join('');
   sel.onchange = e => { VSORT[CVIEW] = e.target.value; VPAGE[CVIEW] = 0; e.target.blur(); const y = scrollY; renderContext(CTX); scrollTo(0, y); };
 }
-// ---- History (context-suggest.js, as `thinker context --history|--revert`) ----
-// Every decision made from a row (or `thinker context --approve|--dismiss`), newest first, in the same table: what,
-// when, what it was worth, what came of it, and Revert where thinker kept enough to take it back.
+// ---- The decisions (context-suggest.js, as `thinker context --history|--revert|--retry`) ----
+// Every decision made from a row (or `thinker context --approve|--dismiss`), newest first, in one table: what, when, what it
+// was worth, what came of it, and the action it still takes: Retry for a change that failed, Close PR for a pull request
+// pending, Revert where thinker kept enough to take it back. Recent activity shows every decision kept, the Report the window's.
 const CH_KIND = { section: 'Instruction section', skill: 'Skill', tool: 'Tool', output: 'Tool output' };
 // what a decision did, in a word: the action approved (entries written before `act` was kept name it in their
 // suggested action), or dismissed, or reverted
 const CH_DONE = { off: 'Switched off', on: 'Turned back on', compress: 'Compressed', remove: 'Removed', high: 'High compression', uncompress: 'Compression off' };
-// a pull request by its state: pending while open, merged, rejected once closed without merging (Close PR too)
-const doneOf = e => e.pr ? (e.pr.state === 'merged' ? ['ok', 'Merged'] : e.pr.state === 'closed' ? ['high', 'Rejected'] : ['pr', 'PR pending']) : e.revertedAt ? ['off', 'Reverted'] : e.decision === 'dismissed' ? ['off', 'Dismissed']
+// a job under way or failed first (context-suggest.js:startSectionJob), then a pull request by its state: pending while open,
+// merged, rejected once closed without merging (Close PR too)
+const doneOf = e => e.running ? ['busy', `<span class="spinner"></span>${e.job.action === 'compress' ? 'Compressing…' : 'Removing…'}`, true] : e.failed ? ['failed', 'Failed']
+  : e.pr ? (e.pr.state === 'merged' ? ['ok', 'Merged'] : e.pr.state === 'closed' ? ['high', 'Rejected'] : ['pr', 'PR pending']) : e.revertedAt ? ['off', 'Reverted'] : e.decision === 'dismissed' ? ['off', 'Dismissed']
   : ['ok', CH_DONE[e.act] || (/^switch/i.test(e.action || '') ? CH_DONE.off : /^remove/i.test(e.action || '') ? CH_DONE.remove : /compress/i.test(e.action || '') ? CH_DONE.compress : 'Applied')];
-// The decisions table, one function for Save's History (every decision kept, HISTORY_PAGE a page) and the Report (the
-// window's alone): what, when, what it was worth, what came of it, and Revert where thinker kept enough to take it back;
-// `reload` is what a Revert refreshes, `rerender` what a page turn redraws.
+// what a decision still needs of the person, in a few words (the card at the top of Recent activity)
+const needOf = e => e.running ? null : e.failed ? `retry it, or pick the section again: ${e.job.error}` : e.pending ? `merge or close pull request #${e.pr.number}` : null;
 const HISTORY_PAGE = TABLE_PAGE, HPAGE = {};
-function historyFigure(hs, { many, caption, sub, empty, key = 'history', pageSize = HISTORY_PAGE }) {
+function historyFigure(hs, { many, caption, sub, empty, key = 'history', pageSize = HISTORY_PAGE, note = true }) {
   const pages = Math.max(1, Math.ceil(hs.length / pageSize)), page = Math.min(pages - 1, HPAGE[key] || 0), from = page * pageSize, shown = hs.slice(from, from + pageSize);
   const when = t => new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
   const day = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  // what an output's compression measured since (report.js:outputComparison): the saving a session in one line under the
-  // title, green, or the cost red, and the two periods side by side in the detail
-  const pct = x => x.share == null ? '' : ` (${x.delta >= 0 ? '−' : '+'}${Math.round(100 * Math.abs(x.share))}%)`;
-  const measuredLine = (m, e) => !m ? (e.kind === 'output' && !e.revertedAt && e.decision !== 'dismissed' ? '<span class="ctx-measured muted">Measured: nothing yet, no session has called it since</span>' : '') : `<span class="ctx-measured${m.perSession.delta >= 0 ? '' : ' worse'}">${m.perSession.delta >= 0 ? 'Saving' : 'Costing'} ~${fmt(Math.abs(m.perSession.delta))} input tokens a session${pct(m.perSession)} <span class="muted">· ${fmt(Math.abs(m.window))} over the ${m.after.sessions} session${m.after.sessions === 1 ? '' : 's'} since${m.few ? ' · few sessions yet' : ''} · a call ${fmt(m.perCall.before)} → ${fmt(m.perCall.after)}${pct(m.perCall)}</span></span>`;
-  const measuredTable = m => m ? `<table class="ctx-compare"><thead><tr><th>Measured</th><th>Sessions</th><th>Calls a session</th><th>Tokens a call</th><th>Input a session</th><th>After last use</th></tr></thead><tbody>
+  // what an action changed, as tokens a session (report.js:actionEffect, on the Report alone): the whole session before it
+  // against since in one line under the title, the saving green or the cost red, and in the detail the part it touched
+  // beside the whole session, both periods side by side; an output's compression also shows the tool's own row
+  // (report.js:outputComparison)
+  const pct = x => x.share == null || !Math.round(100 * Math.abs(x.share)) ? '' : ` (${x.delta >= 0 ? '−' : '+'}${Math.round(100 * Math.abs(x.share))}%)`;
+  const arrow = x => x.before == null || x.after == null ? '–' : `${fmt(x.before)} → ${fmt(x.after)}${pct(x)}`;
+  const inEffect = e => !e.revertedAt && e.decision !== 'dismissed' && !(e.pr && e.pr.state !== 'merged') && !(e.job && e.job.state !== 'done'); // report.js:effectSpan
+  const measuredLine = (e, onReport) => e.effect ? `<span class="ctx-measured${e.effect.session.delta >= 0 ? '' : ' worse'}">A session ${arrow(e.effect.session)} input tokens <span class="muted">· ${e.effect.session.delta >= 0 ? 'saving' : 'costing'} ~${fmt(Math.abs(e.effect.window))} over the ${e.effect.after.sessions} session${e.effect.after.sessions === 1 ? '' : 's'} since · ${esc(e.effect.partName.toLowerCase())} ${arrow(e.effect.parts)}${e.effect.few ? ' · few sessions yet' : ''}</span></span>`
+    : onReport && inEffect(e) ? '<span class="ctx-measured muted">Measured: nothing yet, no session since it in the window</span>' : '';
+  const effectTable = f => f ? `<table class="ctx-compare"><thead><tr><th>Tokens a session</th><th>Sessions</th><th>${esc(f.partName)}</th><th>The whole session's input</th></tr></thead><tbody>
+      <tr><td>Before (${day(f.before.from)} to ${day(f.before.to)})</td><td>${f.before.sessions}</td><td>${fmt(f.before.part)}</td><td>${fmt(f.before.session)}</td></tr>
+      <tr><td>Since (${day(f.after.from)} to ${day(f.after.to)})</td><td>${f.after.sessions}</td><td>${fmt(f.after.part)}</td><td>${fmt(f.after.session)}</td></tr>
+      <tr class="ctx-delta"><td>${f.session.delta >= 0 ? 'Saved' : 'Cost'} a session</td><td></td><td>${f.parts.delta >= 0 ? '−' : '+'}${fmt(Math.abs(f.parts.delta))}${pct(f.parts)}</td><td>${f.session.delta >= 0 ? '−' : '+'}${fmt(Math.abs(f.session.delta))}${pct(f.session)}</td></tr></tbody></table>
+      <p class="muted">The average over this repository's measured sessions in the window, before the action and since it was in effect. The part is what the action cut, the direct measure; the whole session also moves with what the sessions did.${f.few ? ' Fewer than five sessions on a side: give it a week.' : ''}</p>` : '';
+  const measuredTable = m => m ? `<table class="ctx-compare"><thead><tr><th>The tool's own row</th><th>Sessions</th><th>Calls a session</th><th>Tokens a call</th><th>Input a session</th><th>After last use</th></tr></thead><tbody>
       <tr><td>Before, no compression (${day(m.before.from)} to ${day(m.before.to)})</td><td>${m.before.sessions}</td><td>${perCall(m.before.calls || 0)}</td><td>${fmt(m.before.perCall)}</td><td>${fmt(m.before.perSession)}</td><td>${m.before.wasted == null ? '–' : fmt(m.before.wasted)}</td></tr>
       <tr><td>Since, ${esc(m.after.level)} compression (${day(m.after.from)} to ${day(m.after.to)})</td><td>${m.after.sessions}</td><td>${perCall(m.after.calls || 0)}</td><td>${fmt(m.after.perCall)}</td><td>${fmt(m.after.perSession)}</td><td>${m.after.wasted == null ? '–' : fmt(m.after.wasted)}</td></tr>
       <tr class="ctx-delta"><td>${m.perSession.delta >= 0 ? 'Saved' : 'Cost'}</td><td></td><td></td><td>${m.perCall.delta >= 0 ? '−' : '+'}${fmt(Math.abs(m.perCall.delta))}${pct(m.perCall)}</td><td>${m.perSession.delta >= 0 ? '−' : '+'}${fmt(Math.abs(m.perSession.delta))}${pct(m.perSession)}</td><td></td></tr></tbody></table>
-      <p class="muted">Tokens a call is the size of a result, what compression acts on; input a session is what the results cost over the calls that read them again, and moves with how the sessions used the tool as well.${m.few ? ' Fewer than five sessions since: give it a week.' : ''}</p>` : '';
+      <p class="muted">Tokens a call is the size of a result, what compression acts on; input a session is what this tool's results cost over the calls that read them again.${m.few ? ' Fewer than five sessions since: give it a week.' : ''}</p>` : '';
+  // the job behind a section's change: under way since, done (with the model's tokens), or failed with the reason
+  const jobLine = e => !e.job ? '' : e.running ? `<p class="muted">${e.job.action === 'compress' ? 'A model is compressing it' : 'Being removed'} in the background since ${when(e.job.startedAt)}${e.job.pr ? '; a pull request opens with the change when it is done' : '; the file in the working tree is rewritten when it is done'}.</p>`
+    : e.failed ? `<p><b>Failed</b> ${when(e.job.finishedAt || e.at)}: ${esc(e.job.error || 'no reason recorded')}. Retry runs the same change again${e.job.tries > 1 ? ` (tried ${e.job.tries} times)` : ''}; nothing was changed, and the section is suggested again.</p>`
+    : `<p class="muted">${e.job.action === 'compress' ? 'Compressed' : 'Removed'} in the background, ${when(e.job.startedAt)} to ${when(e.job.finishedAt)}${e.job.tokens ? `, ~${fmt(e.job.tokens)} model tokens` : ''}.</p>`;
   const detail = e => [
+    effectTable(e.effect),
     measuredTable(e.measured),
-    e.result && e.decision !== 'dismissed' ? `<p>${esc(e.result.replace(/ `?thinker harness --undo`? turns.*$/, ''))}</p>` : '',
+    jobLine(e),
+    e.result && e.decision !== 'dismissed' && !e.failed ? `<p>${esc(e.result.replace(/ `?thinker harness --undo`? turns.*$/, ''))}</p>` : '',
     e.action ? `<p class="muted">Suggested: ${esc(e.action)}</p>` : '',
     e.total ? `<p class="muted">Worth ~${fmt(e.total)} input tokens over the ${e.days || 7} days before it was decided${e.saving ? ` (~${fmt(e.saving)} a session)` : ''}.</p>` : e.saving ? `<p class="muted">Worth ~${fmt(e.saving)} input tokens a session when it was decided.</p>` : '',
     e.pr ? `<p class="muted">Pull request <a href="${esc(e.pr.url)}" target="_blank" rel="noopener">#${e.pr.number}</a> opened ${when(e.pr.openedAt || e.at)}${e.pr.state === 'merged' ? `; merged ${when(e.pr.at)}` : e.pr.state === 'closed' ? `; closed without merging ${when(e.pr.at)}: the change was not followed through on, and the ${e.keys?.length > 1 ? 'sections are' : 'section is'} suggested again` : '; pending until it is merged'}.</p>`
-      : `<p class="muted">${e.decision === 'dismissed' ? 'Dismissed' : e.decision === 'applied after review' ? 'Written after its diff was read' : 'Applied'} ${when(e.at)}${e.revertedAt ? `; reverted ${when(e.revertedAt)}` : ''}.</p>`,
+      : e.job ? '' : `<p class="muted">${e.decision === 'dismissed' ? 'Dismissed' : e.decision === 'applied after review' ? 'Written after its diff was read' : 'Applied'} ${when(e.at)}${e.revertedAt ? `; reverted ${when(e.revertedAt)}` : ''}.</p>`,
   ].join('');
-  const rows = shown.map((e, k) => { const i = from + k, [cls, label] = doneOf(e); return `<tr class="${e.revertedAt || e.rejected ? 'ctx-off' : ''}">
-      <td class="ctx-name"><b>${esc(e.title)}</b>${e.pr?.url ? `<a class="ctx-prlink" href="${esc(e.pr.url)}" target="_blank" rel="noopener">#${e.pr.number}</a>` : ''}<button class="ctx-more" data-more="${i}" aria-expanded="false">See more</button><span class="ctx-kind">${esc([CH_KIND[e.kind] || e.kind, many ? e.repoName : ''].filter(Boolean).join(' · '))}</span>${measuredLine(e.measured, e)}</td>
+  const rows = shown.map((e, k) => { const i = from + k, [cls, label, raw] = doneOf(e); return `<tr class="${e.revertedAt || e.rejected ? 'ctx-off' : e.attention && !e.running ? 'act-attn' : ''}">
+      <td class="ctx-name"><b>${esc(e.title)}</b>${e.pr?.url ? `<a class="ctx-prlink" href="${esc(e.pr.url)}" target="_blank" rel="noopener">#${e.pr.number}</a>` : ''}<button class="ctx-more" data-more="${i}" aria-expanded="false">See more</button><span class="ctx-kind">${esc([CH_KIND[e.kind] || e.kind, many ? e.repoName : ''].filter(Boolean).join(' · '))}</span>${measuredLine(e, key === 'report')}</td>
       <td class="num">${day(e.at)}</td><td class="num">${e.total ? fmt(e.total) : e.saving ? `${fmt(e.saving)} <span class="muted">a session</span>` : '–'}</td>
-      <td><span class="ctx-pill ${cls}">${label}</span></td>
-      <td class="ctx-actcell"><div class="ctx-act">${e.revertible ? `<button class="btn ghost" data-revert="${i}">${e.pending ? 'Close PR' : 'Revert'}</button>` : ''}</div></td></tr>
+      <td>${e.pr?.url && e.pending ? `<a class="ctx-pill ${cls}" href="${esc(e.pr.url)}" target="_blank" rel="noopener">${label}</a>` : `<span class="ctx-pill ${cls}">${raw ? label : esc(label)}</span>`}</td>
+      <td class="ctx-actcell"><div class="ctx-act">${e.retryable ? `<button class="btn" data-retry="${i}">Retry</button>` : e.revertible ? `<button class="btn ghost" data-revert="${i}">${e.pending ? 'Close PR' : 'Revert'}</button>` : ''}</div></td></tr>
       <tr class="ctx-detail" data-detail="${i}" hidden><td colspan="5"><div class="md-body">${detail(e)}</div></td></tr>`; }).join('');
   const reverted = hs.filter(e => e.revertedAt).length;
   const pager = pagerOf(key, hs.length, page, pageSize).replace(/data-vpage=/g, 'data-page=');
   return `<figure class="ctx-figure" data-history><figcaption><b>${caption}</b> <span class="ctx-sub">${sub ? `${sub} · ` : ''}${hs.length} decision${hs.length === 1 ? '' : 's'}${reverted ? ` · ${reverted} reverted` : ''}</span></figcaption>
     ${hs.length ? `<table class="ctx-table"><thead><tr><th>Change</th><th class="num">Decided</th><th class="num">Worth</th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table>${pager}` : `<div class="empty">${empty}</div>`}
-    <p class="ctx-note"><b>Revert</b> turns a switched-off skill or tool back on, sets an output's compression back, or writes a section's file back as it was (when the file is still what thinker wrote; else git has it). A dismissal reverted is suggested again. A section change is a pull request: <b>PR pending</b> until it is merged, <b>Rejected</b> once it is closed without merging (the section is suggested again); <b>Close PR</b> closes it and deletes its branch. Sections changed together are a row each but one edit: a Revert or Close PR on one takes the others with it.</p></figure>`;
+    ${note ? `<p class="ctx-note">A section's change runs in the background and <b>opens a pull request</b>: <b>PR pending</b> until it is merged, <b>Rejected</b> once it is closed without merging (the section is suggested again); <b>Close PR</b> closes it and deletes its branch. <b>Failed</b> says why, and <b>Retry</b> runs the same change again. <b>Revert</b> turns a switched-off skill or tool back on, sets an output's compression back, or writes a section's file back as it was (when the file is still what thinker wrote; else git has it). A dismissal reverted is suggested again. Sections changed together are a row each but one change: a Retry, Revert or Close PR on one takes the others with it.</p>` : ''}</figure>`;
 }
 function wireHistory(root, hs, reload, rerender) {
   if (!root) return;
   root.querySelectorAll('[data-page]').forEach(b => b.onclick = () => { const [key, n] = b.dataset.page.split(':'); HPAGE[key] = Math.max(0, Number(n)); rerender(); });
   root.querySelectorAll('[data-more]').forEach(b => b.onclick = () => { const x = root.querySelector(`[data-detail="${b.dataset.more}"]`), open = x.hidden; x.hidden = !open; b.setAttribute('aria-expanded', String(open)); b.textContent = open ? 'See less' : 'See more'; });
-  root.querySelectorAll('[data-revert]').forEach(b => b.onclick = async () => { const e = hs[Number(b.dataset.revert)]; busy(b, e.pending ? 'Closing…' : 'Reverting…'); try { toast((await api('/api/changes/revert', { repo: e.repo, id: e.id })).said); reload(); } catch (err) { toast(err.message, true); idle(b); } });
+  root.querySelectorAll('[data-revert]').forEach(b => b.onclick = async () => { const e = hs[Number(b.dataset.revert)]; busy(b, e.pending ? 'Closing…' : 'Reverting…'); try { toast((await api('/api/changes/revert', { repo: e.repo, id: e.id })).said); reload(); pollActivity(); } catch (err) { toast(err.message, true); idle(b); } });
+  root.querySelectorAll('[data-retry]').forEach(b => b.onclick = async () => { const e = hs[Number(b.dataset.retry)]; busy(b, 'Starting…'); try { toast((await api('/api/changes/retry', { repo: e.repo, id: e.id })).said); reload(); pollActivity(); } catch (err) { toast(err.message, true); idle(b); } });
 }
-function renderHistory(d) {
-  const hist = $('#c-history'), hs = d.history || [], many = CREPO === 'all';
-  hist.innerHTML = d.error ? `<div class="empty">Could not read the decisions: ${esc(d.error)}</div>` : historyFigure(hs, { many, caption: 'Decisions', empty: 'No decisions yet. What you apply from the tables is listed here.', key: 'history' });
-  $('#vt-history').innerHTML = `${hs.length} <span>decision${hs.length === 1 ? '' : 's'}</span>`;
-  wireHistory(hist, hs, loadContext, () => renderHistory(d));
+// ---- Recent activity (/api/activity: context-suggest.js:changeHistory, as `thinker context --history`) ----
+// Every decision kept, for one repository or all (the default: the page is the machine's), with what still needs the person
+// at the top; the badge on the tab counts those, asked for every ACT_POLL_MS, and every ACT_FAST_MS while a change runs,
+// so a row's pill moves from under way to pending or failed without a reload.
+let AREPO = H().get('tab') === 'activity' ? (H().get('repo') || 'all') : 'all', ACT = null, APOLL = null;
+const ACT_POLL_MS = 30_000, ACT_FAST_MS = 5_000;
+$('#a-repo').onchange = e => { AREPO = e.target.value; e.target.blur(); loadActivity(); };
+async function loadActivity() {
+  const el = $('#activity-body');
+  el.innerHTML = '<div class="empty"><span class="spinner"></span>Reading…</div>';
+  try {
+    if (!REPOS.length) await fetchRepos();
+    if (AREPO !== 'all' && !REPOS.some(r => r.id === AREPO)) AREPO = 'all';
+    $('#a-repo').innerHTML = `<option value="all"${AREPO === 'all' ? ' selected' : ''}>All repositories</option>` + REPOS.map(r => `<option value="${esc(r.id)}"${r.id === AREPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
+    renderActivity(await api(`/api/activity?repo=${encodeURIComponent(AREPO)}`));
+  } catch (e) { el.innerHTML = `<div class="empty">Could not read the activity: ${esc(e.message)}</div>`; }
+}
+function renderActivity(d) {
+  ACT = d;
+  const el = $('#activity-body'), hs = d.history || [], many = AREPO === 'all';
+  const needs = hs.filter(e => e.attention && !e.running), running = hs.filter(e => e.running);
+  const name = e => `${esc(e.title)}${many && e.repoName ? ` <span class="muted">· ${esc(e.repoName)}</span>` : ''}`;
+  const card = needs.length || running.length
+    ? `<div class="attn"><div class="kicker">${needs.length ? `${needs.length} need${needs.length === 1 ? 's' : ''} you` : 'Under way'}</div>${needs.length ? `<ul>${needs.map(e => `<li><b>${name(e)}</b>: ${e.pr?.url ? needOf(e).replace(`#${e.pr.number}`, `<a href="${esc(e.pr.url)}" target="_blank" rel="noopener">#${e.pr.number}</a>`) : esc(needOf(e))}</li>`).join('')}</ul>` : ''}${running.length ? `<div class="why"><span class="spinner"></span>${running.length === 1 ? 'One change is' : `${running.length} changes are`} being made in the background; this page follows ${running.length === 1 ? 'it' : 'them'}.</div>` : ''}</div>`
+    : `<div class="attn ok"><div class="why">Nothing needs you: no change under way or failed, no pull request waiting.</div></div>`;
+  el.innerHTML = card + historyFigure(hs, { many, caption: 'Decisions', sub: many ? 'every repository' : '', empty: 'No decisions yet. What you apply on Find Savings is listed here, with what came of it.', key: 'activity' });
+  wireHistory(el.querySelector('[data-history]'), hs, loadActivity, () => renderActivity(d));
+  badge(d);
+}
+// the badge on the Recent activity tab: what needs the person over every repository, red; grey while something only runs
+function badge(d) {
+  const b = $('#act-badge'), n = d.attention || 0;
+  b.hidden = !n; b.textContent = n; b.classList.toggle('quiet', !(n - (d.running || 0)));
+  b.title = n ? `${n} decision${n === 1 ? '' : 's'} not complete: a change under way or failed, or a pull request to merge` : '';
+}
+async function pollActivity() {
+  clearTimeout(APOLL);
+  let d = null; try { d = await api('/api/activity?repo=all'); } catch {}
+  if (d) {
+    badge(d);
+    // what the open page shows follows: Recent activity is drawn again, and a Save row's pill, when a change finished
+    if (TAB === 'activity' && ACT && JSON.stringify(ACT.history.map(e => [e.id, e.attention])) !== JSON.stringify(d.history.filter(e => AREPO === 'all' || e.repo === AREPO).map(e => [e.id, e.attention]))) loadActivity();
+    if (TAB === 'save' && CHIST && (CHIST.running || 0) !== d.history.filter(e => e.running && (CREPO === 'all' || e.repo === CREPO)).length && !Object.values(PICKS).some(m => m.size)) loadContext();
+  }
+  APOLL = setTimeout(pollActivity, d?.running ? ACT_FAST_MS : ACT_POLL_MS);
 }
 // ---- the repositories with a cache on this machine ----
 async function fetchRepos() {
@@ -919,8 +951,8 @@ function renderReport(v) {
   // what a cell shows: its value, or under Share its value over the whole session's (the base), the total rows their value
   const base = share ? v.sessionTotals : null;
   const val = (cells, w, b) => { const a = avg(cells[w], w); if (!a || !b) return a; const t = avg(b[w], w); return t ? a / t : null; };
-  const pct = x => { const p = 100 * x; return p >= 10 ? `${Math.round(p)}%` : p >= 1 ? `${p.toFixed(1)}%` : p >= 0.01 ? `${p.toFixed(2)}%` : '<0.01%'; };
-  const fv = (x, b) => x == null ? '<span class="muted">–</span>' : b ? pct(x) : cost ? money(x) : fmt(x);
+  const sharePct = x => { const p = 100 * x; return p >= 10 ? `${Math.round(p)}%` : p >= 1 ? `${p.toFixed(1)}%` : p >= 0.01 ? `${p.toFixed(2)}%` : '<0.01%'; };
+  const fv = (x, b) => x == null ? '<span class="muted">–</span>' : b ? sharePct(x) : cost ? money(x) : fmt(x);
   // a cell is shaded by its value against its own row's weeks (the owner's ask, 2026-10-24; against every cell of its table
   // from 2026-10-22 until then): the row's lowest value is the darkest green, its highest the darkest red, the rest in
   // proportion with the middle unshaded, in light shades; a zero is left blank; the shade alone says how much
@@ -957,9 +989,20 @@ function renderReport(v) {
   const mtitle = m => (c, w) => `${c.sessions} session${c.sessions === 1 ? '' : 's'} on ${m.model} this week${c.sessions ? `, ${cost ? (c.priced ? money(c.cost / c.priced) : '–') : fmt(c.tokens / c.sessions)} per session of its own` : ''}`;
   const models = `<figure class="ctx-figure"><figcaption><b>By model</b> <span class="ctx-sub">each model's share of the ${sum ? 'week' : 'average session'}, its provider's subtotal above its models</span></figcaption>
     <table class="ctx-table rep-table">${head('Provider · model')}<tbody>${v.providers.map(p => row(`<button class="rep-fold" data-fold="${esc(p.name)}" aria-expanded="${!fold(p.name)}">${fold(p.name) ? '▸' : '▾'}</button> ${esc(p.name)}`, p.cells, { cls: 'rep-sub', sub: `${modelsOf(p.name).length} model${modelsOf(p.name).length === 1 ? '' : 's'}` }) + (fold(p.name) ? '' : modelsOf(p.name).map(m => row(`<span class="rep-indent">${esc(m.model)}</span>`, m.cells, { cls: m.priced ? '' : 'ctx-off', sub: m.priced ? '' : 'no list price', titles: mtitle(m) })).join(''))).join('')}${row('Total (the whole session)', v.sessionTotals, { cls: 'rep-total', total: true })}</tbody></table></figure>`;
-  // the decisions taken on the Save page in these weeks, the same table as Save's History (context-suggest.js:changeHistory)
+  // what was saved with thinker (report.js:savingsSummary): a session's input tokens before the first action in effect against
+  // since, the saving over the sessions since, and the four parts the Save page controls; then the actions behind it
+  const sv = v.savings, dayOfT = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const pct = x => x.share == null || !Math.round(100 * Math.abs(x.share)) ? '' : ` (${x.delta >= 0 ? '−' : '+'}${Math.round(100 * Math.abs(x.share))}%)`;
+  const arrow = x => x.before == null || x.after == null ? '–' : `${fmt(x.before)} → ${fmt(x.after)}${pct(x)}`;
+  const saved = `<div class="section"><div class="kicker">Saved with thinker</div>${sv ? `<div class="cards" style="margin-top:0.6rem">
+    ${card('Input tokens a session', `${sv.session.delta >= 0 ? '−' : '+'}${fmt(Math.abs(sv.session.delta))}`, `${arrow(sv.session)}: the average session before ${dayOfT(sv.since)}, the first of ${sv.actions} action${sv.actions === 1 ? '' : 's'} in effect, against since`, null, sv.session.delta >= 0)}
+    ${card(sv.window >= 0 ? 'Saved since' : 'Cost since', fmt(Math.abs(sv.window)), `input tokens over the ${sv.after.sessions} session${sv.after.sessions === 1 ? '' : 's'} since ${dayOfT(sv.since)}, against ${sv.before.sessions} before${sv.few ? ' · few sessions yet: give it a week' : ''}`, null, sv.window >= 0)}
+    ${card('The four parts a session', `${sv.parts.delta >= 0 ? '−' : '+'}${fmt(Math.abs(sv.parts.delta))}`, `${arrow(sv.parts)}: the instruction files, custom and built-in tools and tool outputs together, what the actions cut`, null, sv.parts.delta >= 0)}
+  </div><p class="ctx-note">The parts are the direct measure of what the actions removed; the whole session also moves with what the sessions did, so read the two together. Each action below shows the same comparison for the part it touched.</p>` : `<div class="empty">Nothing measured yet. Once an action taken on the Find Savings page has sessions before and since it in these ${v.weeks} weeks, a session's input tokens before are compared with since, here.</div>`}</div>`;
+  // the decisions taken on the Save page in these weeks, the same table as Recent activity (context-suggest.js:changeHistory),
+  // each with a session before it against since
   const acts = v.actions.map(a => ({ ...a, repo: a.repo || REPO }));
-  const actions = historyFigure(acts, { many: Boolean(v.all), caption: 'Actions in the window', sub: `what was applied on the Find Savings page in these ${v.weeks} weeks, to read them against`, empty: 'No actions in these weeks. What you apply on the Find Savings page is listed here with its date.', key: 'report' });
+  const actions = historyFigure(acts, { many: Boolean(v.all), caption: 'Actions in the window', sub: `what was applied on the Find Savings page in these ${v.weeks} weeks, each with a session's input tokens before it against since; every decision is under Recent activity`, empty: 'No actions in these weeks. What you apply on the Find Savings page is listed here with its date.', key: 'report', note: false });
   // the cache's numbers over the same window (usage.js:summarize), its saving in dollars first
   const c = v.cache;
   const cards = `<div class="section"><div class="kicker">The cache, over the same ${v.weeks} weeks</div><div class="cards four" style="margin-top:0.6rem">
@@ -968,7 +1011,7 @@ function renderReport(v) {
     ${card('Cache hits', fmt(c.hits), `notes served, for ${fmt(c.answered)} of ${fmt(c.requests)} requests`)}
     ${card('Acted on', c.acted == null ? '–' : `${Math.round(100 * c.acted)}%`, `of ${fmt(c.judged)} servings the sessions were judged on`)}
   </div></div>`;
-  el.innerHTML = parts + models + tokenTypes + actions + cards; // the token types last (the owner's order, 2026-10-24)
+  el.innerHTML = parts + models + tokenTypes + saved + actions + cards; // the token types the last table (the owner's order, 2026-10-24)
   wireHistory(el.querySelector('[data-history]'), acts, loadReport, () => renderReport(v));
   el.querySelectorAll('[data-fold]').forEach(b => b.onclick = () => { const p = b.dataset.fold; RFOLD.has(p) ? RFOLD.delete(p) : RFOLD.add(p); renderReport(v); });
 }
@@ -978,6 +1021,7 @@ function renderReport(v) {
 const navHeight = () => document.documentElement.style.setProperty('--nav-h', `${document.querySelector('nav').getBoundingClientRect().height}px`);
 navHeight(); addEventListener('resize', navHeight);
 show(H().get('tab') || 'save');
+pollActivity();
 </script>
 </body>
 </html>
