@@ -176,7 +176,7 @@ const HELP = `thinker — knowledge cache for coding agents
                                  where the agents' context goes here and what each part is worth: every section of AGENTS.md (its
                                  tokens, the sessions it applied to, and the judged share it bore on and was followed), every skill
                                  (read in, kept its rules), every other tool loaded; --judge n judges n recent sessions now (model
-                                 calls); instructions.value.judge in .thinker/config.json judges a sample at session end; also the page's Context tab
+                                 calls); a 25% sample is judged as sessions end (instructions: { value: { judge: false, share } } in .thinker/config.json)
                                  --refresh keeps the report for the page, which reads it instead of the transcripts (it runs this in the background)
                                  --switch-off turns the harness on here and switches those tools off (--builtin: built-in tools too);
                                  --switch-on turns them back on; --output-compression sets how much of a tool's results Claude Code keeps

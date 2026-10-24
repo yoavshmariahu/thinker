@@ -124,11 +124,12 @@ test('the Save tab and `thinker context` show one report, and its controls are t
   // setup asks the same question over the same report for its one repository (setup/context-ask.js)
   assert.match(read('setup.js'), /askMachineReport\(\{ r, recs: recommendations\(view\)/);
   assert.match(read('setup/context-ask.js'), /renderMachineReport\(r, recs\)/);
-  // keeping sections is `thinker instructions --core`; judging is `thinker context --judge n`; a switch is `thinker harness --off`
+  // keeping sections is `thinker instructions --core`; a switch is `thinker harness --off`; judging more sessions is
+  // `thinker context --judge n` alone (the page's button went on 2026-10-24: a 25% sample is judged as sessions end)
   assert.match(read('commands/instructions.js'), /setCore\(store, keep/);
   assert.match(read('ui/server.js'), /\/api\/context\/core'\) \{[^\n]*setCore\(st/);
   assert.match(read('commands/context.js'), /judgeRecent\(store/);
-  assert.match(read('ui/server.js'), /\/api\/context\/judge'\) \{[^\n]*judgeRecent\(st/);
+  assert.doesNotMatch(read('ui/server.js'), /api\/context\/judge/);
   assert.match(read('commands/harness.js'), /switchOffNow\(store, String\(flags.off\), \{ via: 'cli', any: true \}\)/);
   assert.match(read('ui/server.js'), /switchOffNow\(st, b.labels.join\(','\), \{ via: 'ui', any: true \}\)/);
   const dir = repo(t); new Store(dir).init();
