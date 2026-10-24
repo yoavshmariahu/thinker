@@ -29,6 +29,7 @@ import { thinkerHome } from './update.js';
 import { formatTokens } from './model-usage.js';
 import { SIGNATURE } from './harness.js';
 import { WASTE } from './instruction-value.js';
+import { describePart, describeEntry } from './part-describe.js';
 
 export const SUGGEST = {
   max: 5,
@@ -80,7 +81,7 @@ function partChanges(view, { all = false } = {}) {
     kind: 'section', view: 'instructions', waste: s.waste, key: `section:${s.file}:${s.id}`, id: s.id, file: s.file, repo: s.repo,
     title: `${s.file} · ${s.parent ? `${s.parent}: ` : ''}${s.title}`, saving: s.wasted, text: String(s.text || '').slice(0, 1500),
     why: `${s.usedShare != null ? `acted on in ${Math.round(100 * s.usedShare)}% of sessions` : 'rarely acted on'}; ~${formatTokens(s.tokens)} tokens in every model call`,
-    action: 'compress or remove the section', sessions: view.instructions?.sessions || 0, options: [ACTS.compress, ACTS.remove],
+    action: 'compress or remove the section', sessions: view.instructions?.sessions || 0, options: [ACTS.compress, ACTS.remove], ...describePart({ kind: 'section', text: s.text }),
   });
   // a skill or tool thinker switched off has one action, back on (by the key the switch-off kept); one nothing switches
   // off has none
@@ -88,14 +89,16 @@ function partChanges(view, { all = false } = {}) {
   for (const s of view.skills || []) if (take(s)) out.push({
     kind: 'skill', view: 'custom', waste: s.waste, key: `${s.client}:${s.key}`, sourceKey: s.key, label: s.label, repo: s.repo, off: Boolean(s.off),
     title: `${s.name} skill`, saving: s.wasted, text: String(s.text || '').slice(0, 1200), why: `opened in ${s.used} of ${s.loaded} sessions; its listing is in every one`, action: 'switch it off here',
-    sessions: s.loaded || 0, options: switchOpts(s),
+    sessions: s.loaded || 0, options: switchOpts(s), ...describePart({ kind: 'skill', text: s.text }),
   });
   for (const s of view.tools || []) if (take(s)) out.push({
     kind: 'tool', view: s.group === 'builtin' ? 'builtin' : 'custom', waste: s.waste, key: `${s.client}:${s.key}`, sourceKey: s.key, label: s.label, repo: s.repo, off: Boolean(s.off),
     title: `${s.name}${s.kind === 'mcp' ? ' MCP server' : s.kind === 'plugin' ? ' plugin' : ' tool'}`, saving: s.wasted, text: String(s.text || '').slice(0, 1200),
     why: `used in ${s.used} of ${s.loaded} sessions; ~${formatTokens(s.tokens)} tokens in every model call`, action: 'switch it off here',
-    builtin: s.group === 'builtin', sessions: s.loaded || 0, options: switchOpts(s),
+    builtin: s.group === 'builtin', sessions: s.loaded || 0, options: switchOpts(s), ...describePart({ kind: 'tool', name: s.name, builtin: s.group === 'builtin', toolKind: s.kind, text: s.text }),
   });
+  // what an output's tool is, from the tool's own row (its definition's text): a built-in tool by its name, an MCP server by its key
+  const toolText = n => (view.tools || []).find(s => n.startsWith('mcp:') ? s.kind === 'mcp' && (s.key === n || s.name === n.slice(4)) : s.group === 'builtin' && s.name === n)?.text || '';
   // the summary ranks an output by what compressing it would cut, as a share of what every tool's output costs a
   // session, since that is what its action saves; the page's Wasted column shows the output's reads after its last
   // use (tool-outputs.js:sessionOutputs), which no cap recovers
@@ -112,7 +115,7 @@ function partChanges(view, { all = false } = {}) {
     // how much smaller compressing makes this tool's results here: the part past the length cap, from these
     // transcripts (tool-outputs.js); trimming reads and searches round what the agent looked for cuts more
     why: `~${formatTokens(t.perCall)} tokens a call, read again by every call after it${t.wasted != null ? ` (~${formatTokens(t.wasted)} a session after the agent last used the result)` : ''}; compressed, ${pctLess(t.saveModerate, t.perSession)}`, action: 'compress its output (Claude Code)',
-    sessions: t.sessions ?? view.outputs?.sessions ?? 0, options: levelOpts(t),
+    sessions: t.sessions ?? view.outputs?.sessions ?? 0, options: levelOpts(t), ...describePart({ kind: 'output', name: t.name, text: toolText(t.name) }),
   });
   // the first option is the suggestion; `total` is what it could have saved over the report's window: its saving a
   // session times the sessions that read it (a skill or tool, the sessions it was loaded in)
@@ -140,7 +143,8 @@ export function changeHistory(store, { now = Date.now() } = {}) {
   if (dirty) writeJson(stateFile(store), st);
   return h.map(e => {
     const running = e.job?.state === 'running', failed = e.job?.state === 'failed', pending = e.pr?.state === 'open';
-    return { ...e, revertible: !e.revertedAt && !running && !failed && Boolean(undoOf(store, e)), ...(e.pr ? { pending, rejected: e.pr.state === 'closed' } : {}), ...(e.job ? { running, failed, retryable: failed && !e.revertedAt } : {}), attention: running ? 'running' : failed && !e.revertedAt ? 'failed' : pending ? 'pr' : null };
+    // what the part is and does (part-describe.js), worked out for an entry written before they were kept
+    return { ...e, ...describeEntry(e), revertible: !e.revertedAt && !running && !failed && Boolean(undoOf(store, e)), ...(e.pr ? { pending, rejected: e.pr.state === 'closed' } : {}), ...(e.job ? { running, failed, retryable: failed && !e.revertedAt } : {}), attention: running ? 'running' : failed && !e.revertedAt ? 'failed' : pending ? 'pr' : null };
   });
 }
 // a job is dead when its process is gone, or it never recorded one in JOB_START_MS (the spawn failed)
@@ -185,7 +189,7 @@ const undoOf = (store, e) => e.decision === 'dismissed' ? { kind: 'dismissed' } 
 const entryOf = (store, c, decision, result, now, undo, { group = null, tokens = null } = {}) => {
   const id = randomBytes(6).toString('hex');
   if (undo && !group) writeJson(undoFile(store, id), undo);
-  return { id, ...(group ? { group } : {}), at: new Date(now).toISOString(), key: c.key, ...(c.keys ? { keys: c.keys } : {}), kind: c.kind, title: c.title, ...(c.kind === 'section' && c.file ? { file: c.file } : {}), ...(tokens ? { tokens } : {}), saving: c.saving, total: c.total, days: c.days ?? null, action: c.default?.text || null, act: c.default?.act || null, decision, result: result || null, ...(undo ? { revertible: true } : {}) };
+  return { id, ...(group ? { group } : {}), at: new Date(now).toISOString(), key: c.key, ...(c.keys ? { keys: c.keys } : {}), kind: c.kind, title: c.title, ...(c.what ? { what: c.what } : {}), ...(c.about ? { about: c.about } : {}), ...(c.kind === 'section' && c.file ? { file: c.file } : {}), ...(tokens ? { tokens } : {}), saving: c.saving, total: c.total, days: c.days ?? null, action: c.default?.text || null, act: c.default?.act || null, decision, result: result || null, ...(undo ? { revertible: true } : {}) };
 };
 // a section's tokens before and after its edit (instruction-edit.js:previewEdit `sections`), kept on the entry so the
 // Report can cost the section a session on each side (report.js:actionEffect)

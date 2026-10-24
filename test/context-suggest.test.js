@@ -389,3 +389,37 @@ test('a section job with a pull request: the decision is pending until merged; c
   assert.equal(failed.failed, true); assert.equal(failed.job.error, 'could not push'); assert.equal(failed.retryable, true); assert.equal(failed.pr, undefined); assert.equal(failed.attention, 'failed');
   assert.equal(changeHistory(store).length, 7);
 });
+
+test('describePart: a built-in tool is told from a custom one, and the thing a decision changed gets one line of what it does', async () => {
+  const { describePart } = await import('../src/part-describe.js');
+  const { allChanges, approveChanges, changeHistory } = await import('../src/context-suggest.js');
+  assert.deepEqual(describePart({ kind: 'tool', name: 'Grep', builtin: true }), { what: 'Built-in tool', about: 'text search over files' });
+  assert.deepEqual(describePart({ kind: 'tool', name: 'x', toolKind: 'mcp', text: 'Browser automation for Chrome. Clicks and reads pages.' }), { what: 'Custom tool · MCP server', about: 'Browser automation for Chrome.' });
+  assert.deepEqual(describePart({ kind: 'tool', name: 'p', toolKind: 'plugin' }), { what: 'Custom tool · plugin', about: '' });
+  assert.deepEqual(describePart({ kind: 'output', name: 'Bash:grep -rn foo src' }), { what: 'Shell command output', about: 'text search over files' });
+  assert.deepEqual(describePart({ kind: 'output', name: 'Bash:FOO=1 ./node_modules/.bin/pytest -q' }), { what: 'Shell command output', about: 'runs the Python tests' });
+  assert.deepEqual(describePart({ kind: 'output', name: 'Read' }), { what: 'Built-in tool output', about: 'reads a file' });
+  assert.deepEqual(describePart({ kind: 'output', name: 'mcp:x', text: 'Artemis: benchmark experiments. More.' }), { what: 'Custom tool output · MCP server', about: 'Artemis: benchmark experiments.' });
+  assert.deepEqual(describePart({ kind: 'skill', text: '---\nname: deploy\ndescription: Deploys the site to S3\n---\n# Deploy\nSteps.' }), { what: 'Custom tool · skill', about: 'Deploys the site to S3' });
+  assert.deepEqual(describePart({ kind: 'section', text: '## Ports\nAlways reserve a port first. Never hardcode.' }), { what: 'Instruction section', about: 'Always reserve a port first.' });
+  assert.equal(describePart({ kind: 'tool', name: 'Unknown', builtin: true, text: 'Does a thing <b>well</b>. And more.' }).about, 'Does a thing well.', 'a tool the table does not know: the first sentence of its definition');
+  assert.match(describePart({ kind: 'section', text: 'x'.repeat(50) + ' ' + 'y'.repeat(100) + ' z. More.' }).about, /…$/, 'a long first sentence is cut');
+  // the rows carry them, the decision keeps them
+  const cs = allChanges(view()), by = k => cs.find(c => c.key === k);
+  assert.deepEqual([by('claude:builtin:Workflow').what, by('claude:builtin:Workflow').about], ['Built-in tool', 'orchestrates subagents by a script']);
+  assert.deepEqual([by('output:Bash:pytest').what, by('output:Bash:pytest').about], ['Shell command output', 'runs the Python tests']);
+  assert.deepEqual([by('output:Read').what, by('output:Read').about], ['Built-in tool output', 'reads a file']);
+  assert.equal(by('claude:skill:deploy').what, 'Custom tool · skill');
+  assert.equal(by('section:AGENTS.md:Releases').what, 'Instruction section');
+  const store = repo();
+  await approveChanges(store, [by('output:Bash:pytest')]);
+  const [e] = changeHistory(store);
+  assert.deepEqual([e.what, e.about], ['Shell command output', 'runs the Python tests']);
+  assert.deepEqual([JSON.parse(fs.readFileSync(path.join(store.dir, 'state', 'context-suggest.json'), 'utf8')).history[0].what], ['Shell command output'], 'kept on the entry');
+  // an entry written before `what` and `about` were kept is described from its kind and key
+  const f = path.join(store.dir, 'state', 'context-suggest.json'), st = JSON.parse(fs.readFileSync(f, 'utf8'));
+  st.history.push({ at: new Date().toISOString(), key: 'claude:builtin:Artifact', kind: 'tool', title: 'Artifact tool', decision: 'approved', result: 'Switched off' }, { at: new Date().toISOString(), key: 'claude:mcp:artemis', kind: 'tool', title: 'artemis MCP server', decision: 'approved', result: 'Switched off' }, { at: new Date().toISOString(), key: 'output:mcp:chrome', kind: 'output', title: 'chrome output', decision: 'approved' });
+  fs.writeFileSync(f, JSON.stringify(st));
+  const hs = changeHistory(store);
+  assert.deepEqual(hs.map(x => [x.what, x.about]), [['Shell command output', 'runs the Python tests'], ['Built-in tool', 'drafts a document or page'], ['Custom tool · MCP server', ''], ['Custom tool output · MCP server', '']]);
+});

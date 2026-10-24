@@ -130,6 +130,8 @@
     .tr-num { font-size: 1.25rem; font-weight: 600; font-variant-numeric: tabular-nums; }
     .tr-num .muted { font-size: 0.8rem; font-weight: 400; }
     .ctx-kind { display: block; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; margin-top: 0.1rem; }
+    /* what the thing a decision changed does, in one line under its kind (Recent activity; part-describe.js) */
+    .ctx-about { display: block; font-size: 0.76rem; color: #6b7280; margin-top: 0.1rem; }
     .ctx-more { background: none; border: 0; padding: 0; margin-left: 0.5rem; font: inherit; font-size: 0.74rem; color: #6b7280; cursor: pointer; white-space: nowrap; }
     .ctx-more:hover { color: #111; text-decoration: underline; }
     .ctx-pill { font-size: 0.68rem; border-radius: 999px; padding: 0.1rem 0.5rem; font-weight: 600; white-space: nowrap; }
@@ -790,6 +792,8 @@ function sortControl() {
 // Every decision made from a row (or `thinker context --approve|--dismiss`), newest first, in one table: what, when, what it
 // was worth, what came of it, and the action it still takes: Retry for a change that failed, Close PR for a pull request
 // pending, Revert where thinker kept enough to take it back. Recent activity shows every decision kept, the Report the window's.
+// the kind line of an entry is `what` (part-describe.js: a built-in tool apart from a custom one, an output by its tool), with
+// `about`, one line of what the thing does, under it; CH_KIND is the fallback for an entry neither reached
 const CH_KIND = { section: 'Instruction section', skill: 'Skill', tool: 'Tool', output: 'Tool output' };
 // what a decision did, in a word: the action approved (entries written before `act` was kept name it in their
 // suggested action), or dismissed, or reverted
@@ -823,24 +827,23 @@ function historyFigure(hs, { many, caption, sub, empty, key = 'history', pageSiz
     const sinceT = `over the ${f.after.prompts} prompt${f.after.prompts === 1 ? '' : 's'} of the ${f.after.sessions} session${f.after.sessions === 1 ? '' : 's'} since (${day(f.after.from)} to ${day(f.after.to)})`;
     return `<td class="num" title="${esc(sideTitle(f.before, 'Before the decision'))}">${fmt(f.before.perPrompt)}</td><td class="num" title="${esc(sideTitle(f.after, 'Since'))}">${fmt(f.after.perPrompt)}</td><td class="num ctx-saved" style="${shadeOf(f)}" title="${esc(`${f.delta >= 0 ? 'Saved' : 'Cost'} ~${fmt(Math.abs(f.window))} tokens ${sinceT}${f.share == null ? '' : `: ${Math.round(100 * Math.abs(f.share))}% of what a prompt cost before the decision (${fmt(f.whole.before)})`}${f.few ? '; fewer than five sessions on a side, give it a week' : ''}`)}">${f.delta >= 0 ? '' : '−'}${fmt(Math.abs(f.delta))}${pct(f)}${f.few ? ' <span class="muted">·few</span>' : ''}</td>`; };
   const prCell = e => e.pr?.url ? `<td><a class="ctx-prlink" href="${esc(e.pr.url)}" target="_blank" rel="noopener">#${e.pr.number}</a> <span class="muted">${e.pr.state === 'merged' ? 'merged' : e.pr.state === 'open' ? 'pending' : 'closed'}</span></td>` : '<td class="muted">–</td>';
-  // the job behind a section's change: under way since, done (with the model's tokens), or failed with the reason
-  const jobLine = e => !e.job ? '' : e.running ? `<p class="muted">${e.job.action === 'compress' ? 'A model is compressing it' : 'Being removed'} in the background since ${when(e.job.startedAt)}${e.job.pr ? '; a pull request opens with the change when it is done' : '; the file in the working tree is rewritten when it is done'}.</p>`
-    : e.failed ? `<p><b>Failed</b> ${when(e.job.finishedAt || e.at)}: ${esc(e.job.error || 'no reason recorded')}. Retry runs the same change again${e.job.tries > 1 ? ` (tried ${e.job.tries} times)` : ''}; nothing was changed, and the section is suggested again.</p>`
-    : `<p class="muted">${e.job.action === 'compress' ? 'Compressed' : 'Removed'} in the background, ${when(e.job.startedAt)} to ${when(e.job.finishedAt)}${e.job.tokens ? `, ~${fmt(e.job.tokens)} model tokens` : ''}.</p>`;
-  const detail = e => [
-    jobLine(e),
-    e.result && e.decision !== 'dismissed' && !e.failed ? `<p>${esc(e.result.replace(/ `?thinker harness --undo`? turns.*$/, ''))}</p>` : '',
-    e.action ? `<p class="muted">Suggested: ${esc(e.action)}</p>` : '',
-    e.total ? `<p class="muted">Worth ~${fmt(e.total)} input tokens over the ${e.days || 7} days before it was decided${e.saving ? ` (~${fmt(e.saving)} a session)` : ''}.</p>` : e.saving ? `<p class="muted">Worth ~${fmt(e.saving)} input tokens a session when it was decided.</p>` : '',
-    e.pr ? `<p class="muted">Pull request <a href="${esc(e.pr.url)}" target="_blank" rel="noopener">#${e.pr.number}</a> opened ${when(e.pr.openedAt || e.at)}${e.pr.state === 'merged' ? `; merged ${when(e.pr.at)}` : e.pr.state === 'closed' ? `; closed without merging ${when(e.pr.at)}: the change was not followed through on, and the ${e.keys?.length > 1 ? 'sections are' : 'section is'} suggested again` : '; pending until it is merged'}.</p>`
-      : e.job ? '' : `<p class="muted">${e.decision === 'dismissed' ? 'Dismissed' : e.decision === 'applied after review' ? 'Written after its diff was read' : 'Applied'} ${when(e.at)}${e.revertedAt ? `; reverted ${when(e.revertedAt)}` : ''}.</p>`,
-  ].join('');
+  // No See more and no detail row (2026-10-24, the owner's ask): the pill's hover tells what came of the decision (the job
+  // behind a section's change: under way since, done with the model's tokens, or failed with the reason; the result; the
+  // pull request's dates), the Decided cell's hover the exact time, the suggested action and what it was worth
+  const hintOf = e => [
+    !e.job ? '' : e.running ? `${e.job.action === 'compress' ? 'A model is compressing it' : 'Being removed'} in the background since ${when(e.job.startedAt)}${e.job.pr ? '; a pull request opens with the change when it is done' : '; the file in the working tree is rewritten when it is done'}.`
+      : e.failed ? `Failed ${when(e.job.finishedAt || e.at)}: ${e.job.error || 'no reason recorded'}. Retry runs the same change again${e.job.tries > 1 ? ` (tried ${e.job.tries} times)` : ''}; nothing was changed, and the section is suggested again.`
+      : `${e.job.action === 'compress' ? 'Compressed' : 'Removed'} in the background, ${when(e.job.startedAt)} to ${when(e.job.finishedAt)}${e.job.tokens ? `, ~${fmt(e.job.tokens)} model tokens` : ''}.`,
+    e.result && e.decision !== 'dismissed' && !e.failed ? e.result.replace(/ `?thinker harness --undo`? turns.*$/, '').replace(/\.?$/, '.') : '',
+    e.pr ? `Pull request #${e.pr.number} opened ${when(e.pr.openedAt || e.at)}${e.pr.state === 'merged' ? `; merged ${when(e.pr.at)}` : e.pr.state === 'closed' ? `; closed without merging ${when(e.pr.at)}: the change was not followed through on, and the ${e.keys?.length > 1 ? 'sections are' : 'section is'} suggested again` : '; pending until it is merged'}.`
+      : e.job ? '' : `${e.decision === 'dismissed' ? 'Dismissed' : e.decision === 'applied after review' ? 'Written after its diff was read' : 'Applied'} ${when(e.at)}${e.revertedAt ? `; reverted ${when(e.revertedAt)}` : ''}.`,
+  ].filter(Boolean).join(' ');
+  const decidedHint = e => [when(e.at), e.action ? `Suggested: ${e.action}` : '', e.total ? `Worth ~${fmt(e.total)} input tokens over the ${e.days || 7} days before it was decided${e.saving ? ` (~${fmt(e.saving)} a session)` : ''}` : e.saving ? `Worth ~${fmt(e.saving)} input tokens a session when it was decided` : ''].filter(Boolean).join(' · ');
   const rows = shown.map((e, k) => { const i = from + k, [cls, label, raw] = doneOf(e); return `<tr class="${e.revertedAt || e.rejected ? 'ctx-off' : e.attention && !e.running ? 'act-attn' : ''}">
-      <td class="ctx-name"><b>${esc(e.title)}</b><button class="ctx-more" data-more="${i}" aria-expanded="false">See more</button><span class="ctx-kind">${esc([CH_KIND[e.kind] || e.kind, many ? e.repoName : ''].filter(Boolean).join(' · '))}</span></td>
-      <td class="num">${day(e.at)}</td>${effectCells(e)}${prCell(e)}
-      <td>${e.pr?.url && e.pending ? `<a class="ctx-pill ${cls}" href="${esc(e.pr.url)}" target="_blank" rel="noopener">${label}</a>` : `<span class="ctx-pill ${cls}">${raw ? label : esc(label)}</span>`}</td>
-      <td class="ctx-actcell"><div class="ctx-act">${e.retryable ? `<button class="btn" data-retry="${i}">Retry</button>` : e.revertible ? `<button class="btn ghost" data-revert="${i}">${e.pending ? 'Close PR' : 'Revert'}</button>` : ''}</div></td></tr>
-      <tr class="ctx-detail" data-detail="${i}" hidden><td colspan="8"><div class="md-body">${detail(e)}</div></td></tr>`; }).join('');
+      <td class="ctx-name"><b>${esc(e.title)}</b><span class="ctx-kind">${esc([e.what || CH_KIND[e.kind] || e.kind, many ? e.repoName : ''].filter(Boolean).join(' · '))}</span>${e.about ? `<span class="ctx-about">${esc(e.about)}</span>` : ''}</td>
+      <td class="num" title="${esc(decidedHint(e))}">${day(e.at)}</td>${effectCells(e)}${prCell(e)}
+      <td>${e.pr?.url && e.pending ? `<a class="ctx-pill ${cls}" href="${esc(e.pr.url)}" target="_blank" rel="noopener" title="${esc(hintOf(e))}">${label}</a>` : `<span class="ctx-pill ${cls}" title="${esc(hintOf(e))}">${raw ? label : esc(label)}</span>`}</td>
+      <td class="ctx-actcell"><div class="ctx-act">${e.retryable ? `<button class="btn" data-retry="${i}">Retry</button>` : e.revertible ? `<button class="btn ghost" data-revert="${i}">${e.pending ? 'Close PR' : 'Revert'}</button>` : ''}</div></td></tr>`; }).join('');
   const reverted = hs.filter(e => e.revertedAt).length;
   const pager = pagerOf(key, hs.length, page, pageSize).replace(/data-vpage=/g, 'data-page=');
   const avgStat = !promptAvg && measuring ? '<span class="ctx-avg muted" title="The report the savings are read from is being made; this page checks back">measuring…</span>' : promptAvg ? `<span class="ctx-avg" title="${esc(`What a prompt (one call to the model) costs here on average: ${fmt(promptAvg.tokens)} input tokens over ${promptAvg.prompts} prompts in ${promptAvg.sessions} sessions. Saved is read against it: its share of the prompt, and the shade of its cell.`)}"><span class="ctx-avg-label">Average prompt</span><b>${fmt(promptAvg.perPrompt)}</b> tokens</span>` : '';
@@ -854,7 +857,6 @@ function historyFigure(hs, { many, caption, sub, empty, key = 'history', pageSiz
 function wireHistory(root, hs, reload, rerender) {
   if (!root) return;
   root.querySelectorAll('[data-page]').forEach(b => b.onclick = () => { const [key, n] = b.dataset.page.split(':'); HPAGE[key] = Math.max(0, Number(n)); rerender(); });
-  root.querySelectorAll('[data-more]').forEach(b => b.onclick = () => { const x = root.querySelector(`[data-detail="${b.dataset.more}"]`), open = x.hidden; x.hidden = !open; b.setAttribute('aria-expanded', String(open)); b.textContent = open ? 'See less' : 'See more'; });
   root.querySelectorAll('[data-revert]').forEach(b => b.onclick = async () => { const e = hs[Number(b.dataset.revert)]; busy(b, e.pending ? 'Closing…' : 'Reverting…'); try { toast((await api('/api/changes/revert', { repo: e.repo, id: e.id })).said); reload(); pollActivity(); } catch (err) { toast(err.message, true); idle(b); } });
   root.querySelectorAll('[data-retry]').forEach(b => b.onclick = async () => { const e = hs[Number(b.dataset.retry)]; busy(b, 'Starting…'); try { toast((await api('/api/changes/retry', { repo: e.repo, id: e.id })).said); reload(); pollActivity(); } catch (err) { toast(err.message, true); idle(b); } });
 }

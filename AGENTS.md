@@ -1499,7 +1499,7 @@ prints the same states): a card at the top names what needs the person, then eve
 in its row, and the tab's badge counts what is not complete over every repository (`changeHistory` `attention`: a job
 running or failed, a pull request open), asked for every 30 s and every 5 s while a job runs, so a Save row's pill and the
 activity table move on their own when a job finishes (`page.html:pollActivity`). The Report's decisions table under its
-figures is the same function (`historyFigure`).
+figures is the same function (`historyFigure`). Each row of Recent activity says what the part is and does (2026-10-24, the owner's ask; `part-describe.js`): the kind line tells a built-in tool from a custom one (`Built-in tool`, `Custom tool · MCP server`, `Custom tool · skill`, an output by its tool: `Shell command output`), and under it one line of what the thing does (`Grep output`: text search over files), from a table for Claude Code's own tools and the common shell commands and else from the first sentence of the part's own text (a tool's definition, a skill's `description:`, a section's first line). Both are kept on the decision (`what`, `about`) and worked out from the kind and key for an entry written before (`changeHistory`); `thinker context --history` prints them after the title. The row has no See more and no detail row any more: the pill's hover tells what came of the decision and the Decided cell's the time, the suggested action and what it was worth.
 
 ## Internal server
 
