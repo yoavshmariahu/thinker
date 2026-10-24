@@ -164,10 +164,11 @@ const HELP = `thinker — knowledge cache for coding agents
                                  the next Claude Code, Codex or Cursor prompt here, one question for all of them (every two weeks by itself, as soon as 10 sessions are recorded the first time);
                                  --answer takes the reply, --off switches named ones off without asking; --undo turns them (or the named ones) back on;
                                  --recurring, --recall (a line when a request needs a switched-off tool; on with the harness) and --suggestions set what thinker does; also on the local page
-  instructions [--remove <id> | --compress <id> [--pr | --apply]]
+  instructions [--remove <id> | --compress <id> [--pr | --apply] [--job <id>]]
                                  the sections of AGENTS.md and their tokens;
                                  --remove / --compress <section id> show the diff of taking a section out or having a model shorten it;
-                                 --pr opens a pull request with it (a branch pushed to the origin; the Find Savings page's Apply),
+                                 --pr opens a pull request with it (a branch pushed to the origin; the Find Savings page's Apply runs
+                                 this in the background and follows it under Recent activity, --job naming the decision it recorded),
                                  --apply writes it to AGENTS.md in the working tree, uncommitted
   context [--days n] [--json] [--verbose] [--refresh] [--judge n] [--switch-off <labels> [--builtin]] [--switch-on <keys>] [--output-compression <tools> --level high|moderate|off]
           [--machine [--repos n] [--top n] [--ask [--no-browser]]]
@@ -184,9 +185,10 @@ const HELP = `thinker — knowledge cache for coding agents
                                  --ask (a terminal) asks whether to see it in the browser or here, where the suggestions are a list
                                  to pick from and apply at once (--no-browser: the terminal without the question)
                                  the top changes with their suggested actions: --approve 1,3|all (3:remove picks another action),
-                                 --dismiss 2, --history lists the decisions, --revert <n> takes one back; the Context tab's All
-                                 lists every part with its actions, and History the decisions. Once a week the next prompt passes
-                                 the five on with a link to that tab
+                                 --dismiss 2, --history lists the decisions (a change under way, failed, or a pull request to merge
+                                 is said so), --revert <n> takes one back, --retry <n> runs a failed change again; the page's
+                                 Find Savings lists every part with its actions, and Recent activity the decisions with what needs
+                                 you. Once a week the next prompt passes the five on with a link to that page
                                  (maintain.contextSuggest in .thinker/config.json; false turns it off)
   report [--weeks n] [--cost] [--total] [--json] [--refresh [--all]]   the Report page in the terminal: the average tokens a session cost here, week by week over the
                                  last 6, by part of the context (instruction files, custom and built-in tools, tool outputs, the rest)
@@ -213,7 +215,7 @@ const HELP = `thinker — knowledge cache for coding agents
   impact export | impact import <file.json>   transfer evidence from CI or another machine
   impact finding <id> --pr n --validity confirmed|dismissed|duplicate|pending --evidence reason
          [--resolution fixed|open|accepted-risk|not-applicable] [--fix sha] [--duplicate-of id]
-  ui [--port n] [--no-open] [--tab save|report] [--all] [--refresh]
+  ui [--port n] [--no-open] [--tab save|report|activity] [--all] [--refresh]
                                  open the local page, from any directory, on Find Savings (--tab save; --all: over all repositories): where the agents' context goes in each
                                  repository and what each part is worth, with the cuts (thinker context); then View Report (--tab report), what a
                                  session costs here week by week, by part and by model, in tokens or at list prices (thinker report);

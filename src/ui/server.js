@@ -1,9 +1,11 @@
-// `thinker ui`: a local page for the person, on this machine only. Two views: Save, where the agents' context goes in
-// a repository and what each part is worth, with the cuts (context-view.js, as `thinker context`), and Report, what a
+// `thinker ui`: a local page for the person, on this machine only. Three views: Save, where the agents' context goes in
+// a repository and what each part is worth, with the cuts (context-view.js, as `thinker context`); Report, what a
 // session costs here week by week, by part of the context and by model, in tokens or at list prices, with the
-// decisions taken on Save and the cache's numbers under it (report.js, as `thinker report`). The Cache view (the
-// usage cards, the repositories, the notes and the behaviors) was replaced by Report on 2026-10-22, at the owner's
-// decision; the notes and behaviors are the CLI's (`thinker list`, `show`, `archive`, `system`).
+// decisions taken on Save and the cache's numbers under it (report.js, as `thinker report`); and Recent activity, every
+// decision taken with what came of it and what still needs the person (context-suggest.js:changeHistory, as `thinker
+// context --history`): a compression running in the background or failed, a pull request waiting to be merged. The
+// Cache view (the usage cards, the repositories, the notes and the behaviors) was replaced by Report on 2026-10-22, at
+// the owner's decision; the notes and behaviors are the CLI's (`thinker list`, `show`, `archive`, `system`).
 //
 // The page is machine-wide: it needs no repository, and a repository is named by its id (as the log
 // names it) so the page cannot be pointed at a path.
@@ -17,10 +19,9 @@
 import { harnessView, harnessSavings, harnessOn, scheduleHarnessSuggestion, undoHarness, switchOffNow, setHarnessSettings } from '../harness.js';
 import { contextView, mergeViews, switchSources, setOutputCompression } from '../context-view.js';
 import { snapshotView, lastSnapshot, refreshing, dropSnapshots, REFRESH_MS } from '../context-snapshot.js';
-import { approveChanges, dismissChanges, applyReviewed, revertDecision, pickChanges, currentChanges, allChanges, changeHistory, refreshPrStates } from '../context-suggest.js';
+import { approveChanges, dismissChanges, startSectionJob, retryJob, revertDecision, pickChanges, allChanges, changeHistory, refreshPrStates } from '../context-suggest.js';
 import { mergeReports, reportActions, savingsSummary, mergeSavings, REPORT_WEEKS } from '../report.js';
 import { reportSnapshot, refreshing as reportRefreshing } from '../report-snapshot.js';
-import { previewEdit, applyEdit } from '../instruction-edit.js';
 import { prAvailable } from '../instruction-pr.js';
 import http from 'node:http';
 import fs from 'node:fs';
@@ -102,7 +103,7 @@ const readBody = req => new Promise((resolve, reject) => {
   req.on('end', () => { try { resolve(s ? JSON.parse(s) : {}); } catch (e) { reject(e); } });
 });
 
-export function createUiServer(store, { home = thinkerHome(), transcriptsHome, cliPath = path.join(HERE, '..', 'cli.js'), refreshFn, refreshReportFn, refreshReposFn } = {}) {
+export function createUiServer(store, { home = thinkerHome(), transcriptsHome, cliPath = path.join(HERE, '..', 'cli.js'), refreshFn, refreshReportFn, refreshReposFn, spawnFn = spawn } = {}) {
   refreshReposFn ||= () => { try { const p = spawn(process.execPath, [cliPath, 'ui', '--refresh'], { cwd: store.repo, stdio: 'ignore', detached: true }); p.on('error', () => {}); p.unref(); } catch {} };
   const background = serialSpawner();
   const child = (args, cwd) => { const p = spawn(process.execPath, [cliPath, ...args], { cwd, stdio: 'ignore', detached: true }); p.on('error', () => {}); p.unref(); return p; };
@@ -221,17 +222,17 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
         const { suggestedPicks } = await import('../context-machine.js');
         return json(res, 200, { ...view, suggested: suggestedPicks(view), asOf: Number.isFinite(at) ? at : Date.now(), refreshing: !!busy });
       }
-      // Context's History (context-suggest.js): the decisions so far, for one repository or each of them, and the top changes of the
-      // kept report less the ones decided lately (what the session's summary names; the page's All lists every part from /api/context)
-      if (req.method === 'GET' && url.pathname === '/api/changes') {
-        // the last report kept, made again in the background when it no longer holds or is old; made now only when
-        // there is none (context-snapshot.js:lastSnapshot)
-        const d = Number(url.searchParams.get('days')) || 7;
+      // Recent activity (context-suggest.js:changeHistory, as `thinker context --history`): every decision taken, for one
+      // repository or each of them, newest first, with what needs the person counted (`attention`: a change running or
+      // failed, a pull request to merge) for the badge on the tab; the Save page reads it too, for the pills on its rows.
+      // Reads no report: the history alone, so the badge can be asked for often.
+      if (req.method === 'GET' && url.pathname === '/api/activity') {
         const stores = storesFor(want); if (!stores) return json(res, 400, { error: 'unknown repository' });
         // a pending pull request is asked after on GitHub first (context-suggest.js:refreshPrStates, a minute apart at most)
         const xs = [];
-        for (const [r, st] of stores) { try { await refreshPrStates(st); const v = changesView(st, d); xs.push({ r, changes: currentChanges(st, v).map(c => ({ ...c, repo: r.id, repoName: r.name })), history: changeHistory(st).map(h => ({ ...h, repo: r.id, repoName: r.name })) }); } catch {} }
-        return json(res, 200, { days: d, changes: xs.flatMap(x => x.changes).sort((a, b) => (b.total ?? 0) - (a.total ?? 0)).slice(0, want === 'all' ? 10 : 5), history: xs.flatMap(x => x.history).sort((a, b) => b.at.localeCompare(a.at)) });
+        for (const [r, st] of stores) { try { await refreshPrStates(st); xs.push(...changeHistory(st).map(h => ({ ...h, repo: r.id, repoName: r.name }))); } catch {} }
+        const history = xs.sort((a, b) => b.at.localeCompare(a.at));
+        return json(res, 200, { history, attention: history.filter(h => h.attention).length, running: history.filter(h => h.running).length });
       }
       if (req.method !== 'POST') return json(res, 405, { error: 'method not allowed' });
       const b = await readBody(req);
@@ -246,23 +247,31 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
       if (url.pathname === '/api/harness/suggest') { const picks = scheduleHarnessSuggestion(st, { force: true }); r = picks?.length ? { queued: picks.length } : { error: 'nothing here is worth switching off' }; }
       else if (url.pathname === '/api/harness/undo') r = { said: undoHarness(st, { names: Array.isArray(b.names) ? b.names : null }) };
       else if (url.pathname === '/api/harness/off') r = Array.isArray(b.labels) && b.labels.length ? { said: switchOffNow(st, b.labels.join(','), { via: 'ui', any: true }) } : { error: 'nothing chosen' };
-      // `thinker instructions --remove|--compress <id>` (the diff) and `--apply` (written to the working tree); with the diff,
-      // whether a pull request can be opened from here (instruction-pr.js:prAvailable), for the page's button
-      else if (url.pathname === '/api/context/edit') { const x = await previewEdit(st, Array.isArray(b.ids) ? b.ids : String(b.id || ''), b.action === 'compress' ? 'compress' : 'remove'); if (x.error) r = x; else return json(res, 200, { ok: true, preview: x, pr: prAvailable(st.repo) }); }
-      else if (url.pathname === '/api/context/apply') r = applyEdit(st, String(b.id || ''));
       // `thinker context --approve|--dismiss <keys>` over every part of the report (context-suggest.js:allChanges; the command
       // numbers the top five, currentChanges): a row's Apply makes the action picked in it (`acts`), Dismiss leaves it a month;
-      // a section's reviewed diff is made a pull request (`pr`, as `thinker instructions --compress <id> --pr`) and recorded
-      // with it, or applied (`--apply`) and recorded with its undo
-      // `thinker context --revert <n>`: a decision taken back (context-suggest.js:revertDecision)
+      // a section's Apply (`start`) is a job in the background (context-suggest.js:startSectionJob): recorded at once and
+      // `thinker instructions --compress|--remove <ids> --pr` started detached, --apply where no pull request can be opened
+      // from here (instruction-pr.js:prAvailable); Recent activity follows it
+      // `thinker context --revert <n>`: a decision taken back (context-suggest.js:revertDecision); `--retry <n>`: a failed
+      // change run again (retryJob)
       else if (url.pathname === '/api/changes/revert') { r = await revertDecision(st, String(b.id || '')); if (!r.error && !refreshing(st)) refreshFn(st.repo); }
-      else if (['/api/changes/approve', '/api/changes/dismiss', '/api/changes/apply'].includes(url.pathname)) {
+      else if (url.pathname === '/api/changes/retry') r = retryJob(st, String(b.id || ''), { spawnFn, cliPath });
+      else if (['/api/changes/approve', '/api/changes/dismiss', '/api/changes/start'].includes(url.pathname)) {
         const keys = (Array.isArray(b.keys) ? b.keys : [b.key]).map(k => String(k || '')).filter(Boolean);
         const picked = pickChanges(allChanges(changesView(st, Number(b.days) || 7)), keys, b.acts && typeof b.acts === 'object' ? b.acts : {});
         if (!picked.length) r = { error: 'that part is no longer in the report; reload the page' };
         else if (url.pathname.endsWith('/approve')) r = { said: (await approveChanges(st, picked)).join(' ') };
         else if (url.pathname.endsWith('/dismiss')) r = { said: dismissChanges(st, picked).join(' ') };
-        else r = await applyReviewed(st, picked, String(b.edit || ''), Array.isArray(b.files) ? b.files : [], { pr: Boolean(b.pr) });
+        else {
+          // one job per action among the picked sections (the rows' dropdowns may differ); a part that is no section is refused
+          const secs = picked.filter(c => c.kind === 'section');
+          if (secs.length !== picked.length) r = { error: 'only a section is changed this way' };
+          else {
+            const said = [], pr = prAvailable(st.repo).ok;
+            for (const action of ['compress', 'remove']) { const xs = secs.filter(c => (c.chosen || c.default?.act) === action); if (!xs.length) continue; const j = startSectionJob(st, xs, action, { pr, spawnFn, cliPath }); said.push(j.said || j.error); }
+            r = said.length ? { said: said.join(' ') } : { error: 'no action picked' };
+          }
+        }
         if (!url.pathname.endsWith('/dismiss') && !refreshing(st)) refreshFn(st.repo);
       }
       // `thinker context --switch-off <labels> [--builtin]` / `--switch-on <keys>` and `--output-compression <tools> --level`

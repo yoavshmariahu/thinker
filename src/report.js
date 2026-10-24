@@ -142,9 +142,12 @@ export function outputComparison(rows, name) {
 // Which of the four parts an action acts on (PARTS): a section the instruction files, a skill or an MCP server the custom
 // tools, one of Claude Code's own tools the built-in tools, an output the tool outputs.
 export const actionPart = e => e.kind === 'section' ? 'instructions' : e.kind === 'output' ? 'outputs' : e.kind === 'tool' && /:tool:/.test(e.key || '') ? 'builtin' : 'custom';
-// From when an action is in effect, and until when: a dismissal and a pull request not merged never were; a merged one
-// from its merge; anything else from the decision, until it was reverted.
-export const effectSpan = (e, now) => e.decision === 'dismissed' ? null : e.pr ? (e.pr.state === 'merged' && e.pr.at ? { from: Date.parse(e.pr.at), to: now } : null) : { from: Date.parse(e.at), to: e.revertedAt ? Date.parse(e.revertedAt) : now };
+// From when an action is in effect, and until when: a dismissal and a pull request not merged never were, nor a section's
+// change still running in the background or failed (context-suggest.js:startSectionJob); a merged one from its merge; a
+// change written when its job was done from then; anything else from the decision, until it was reverted.
+export const effectSpan = (e, now) => e.decision === 'dismissed' || (e.job && e.job.state !== 'done') ? null
+  : e.pr ? (e.pr.state === 'merged' && e.pr.at ? { from: Date.parse(e.pr.at), to: now } : null)
+  : { from: Date.parse(e.job?.finishedAt || e.at), to: e.revertedAt ? Date.parse(e.revertedAt) : now };
 const avgOf = (xs, f) => xs.length ? Math.round(xs.reduce((a, x) => a + f(x), 0) / xs.length) : null;
 const diff = (before, after) => ({ before, after, delta: before - after, share: before ? (before - after) / before : null });
 // What an action changed, as tokens a session: the window's sessions before it (`before`) against those since it was in
@@ -286,7 +289,7 @@ export function renderReport(v, { cost = false, total = false } = {}) {
     // before and since, as tokens a session: the part the action touched, the whole session, the saving over the sessions since
     const f = a.effect;
     if (f) L.push(`${''.padEnd(36)}a session ${arrow(f.session, ' input tokens')} · ${f.partName.toLowerCase()} ${arrow(f.parts)} · ${f.session.delta >= 0 ? 'saving' : 'costing'} ~${formatTokens(Math.abs(f.window))} over the ${f.after.sessions} session${f.after.sessions === 1 ? '' : 's'} since, against ${f.before.sessions} before${f.few ? ' (few sessions yet)' : ''}`);
-    else if (!a.revertedAt && a.decision !== 'dismissed' && !(a.pr && a.pr.state !== 'merged')) L.push(`${''.padEnd(36)}measured: nothing yet, no session since it in the window`);
+    else if (!a.revertedAt && effectSpan(a, Date.now())) L.push(`${''.padEnd(36)}measured: nothing yet, no session since it in the window`);
     // what an output's compression measured on the tool's own row: a call and a session before and since
     const m = a.measured;
     if (!m) continue;

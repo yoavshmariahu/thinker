@@ -206,6 +206,10 @@ test('actionEffect: a session before an action against since, for the part it to
   assert.equal(effectSpan({ ...sec, pr: { state: 'open' } }, now), null);
   assert.equal(effectSpan({ ...sec, pr: { state: 'closed', at: at(6) } }, now), null);
   assert.equal(effectSpan({ ...sec, pr: { state: 'merged', at: at(6) } }, now).from, T0 + 6 * H);
+  // a section's change running in the background or failed is not in effect; written when its job was done, from then
+  assert.equal(effectSpan({ ...sec, decision: 'pull request', job: { state: 'running', pr: true } }, now), null);
+  assert.equal(effectSpan({ ...sec, decision: 'applied', job: { state: 'failed', error: 'no model' } }, now), null);
+  assert.equal(effectSpan({ ...sec, decision: 'applied', job: { state: 'done', finishedAt: at(7) } }, now).from, T0 + 7 * H);
   // no session on a side: nothing yet
   assert.equal(actionEffect({ ...sec, at: at(25) }, rows, now), null);
   assert.equal(actionEffect(sec, [], now), null);

@@ -81,7 +81,7 @@ test('CLI and page expose the shared Claude Code, Codex and Cursor harness repor
   assert.match(page, /bold: s\.kind === 'tool'/);
   assert.match(page, /confirmDialog\(\{\s*title: `Switch off \$\{builtins\.length/);
   assert.match(page, /permissions\.deny<\/code> of <code>\.claude\/settings\.local\.json<\/code> in this repository/);
-  assert.match(page, /<b>Revert<\/b> under History, <b>Turn back on<\/b> in the tool's row, or <code>thinker harness --undo<\/code>/);
+  assert.match(page, /<b>Revert<\/b> under Recent activity, <b>Turn back on<\/b> in the tool's row, or <code>thinker harness --undo<\/code>/);
   // every view opens with its Potential savings card
   assert.match(page, /const savingsCard = /);
   for (const k of ['all', 'instructions', 'custom', 'builtin', 'outputs']) assert.match(page, new RegExp(`savings: sav\\.${k}`), k);
@@ -146,27 +146,89 @@ test('the Save tab and `thinker context` show one report, and its controls are t
   assert.ok(v.instructions.sections.every(s => s.kept === undefined && !s.off), 'no trimmed copy to be kept out of');
 });
 
-test('All and History on the Context tab are `thinker context --approve|--dismiss|--revert|--history`', () => {
+test('All on Find Savings and Recent activity are `thinker context --approve|--dismiss|--revert|--retry|--history`, and a section\'s Apply is `thinker instructions --compress|--remove <ids> --pr` in the background', () => {
   // the command picks from the top five less the decisions (context-suggest.js:currentChanges), the page's rows from every
-  // part (allChanges); both act through the same functions, and the page's section Apply records its undo (applyReviewed)
+  // part (allChanges); both act through the same functions
   assert.match(read('ui/server.js'), /pickChanges\(allChanges\(changesView\(st, /);
-  assert.match(read('ui/server.js'), /\bapplyReviewed\(st, picked, /);
-  assert.match(read('ui/page.html'), /\/api\/changes\/apply', \{ repo, keys: rows\.map\(r => r\.key\), edit: p\.key, files/);
-  for (const [f, st] of [['commands/context.js', 'store'], ['ui/server.js', 'st']]) {
-    assert.match(read(f), new RegExp(`currentChanges\\(${st}, `));
+  assert.match(read('commands/context.js'), /currentChanges\(store, /);
+  for (const f of ['commands/context.js', 'ui/server.js']) {
     assert.match(read(f), /\bapproveChanges\b/);
     assert.match(read(f), /\bdismissChanges\b/);
     assert.match(read(f), /\brevertDecision\b/);
+    assert.match(read(f), /\bretryJob\b/);
     assert.match(read(f), /\bchangeHistory\b/);
   }
   assert.match(read('ui/server.js'), /\/api\/changes\/approve/);
   assert.match(read('ui/server.js'), /\/api\/changes\/revert/);
-  // the page's 7-day window is the command's suggested one (SUGGEST.days) and the session's summary links to that tab
-  assert.match(read('ui/page.html'), /\/api\/changes\?repo=\$\{encodeURIComponent\(CREPO\)\}&days=7/);
+  assert.match(read('ui/server.js'), /\/api\/changes\/retry/);
+  // a section's Apply starts a job (context-suggest.js:startSectionJob): the decision recorded at once, and the command the person
+  // would have typed started detached, `thinker instructions --compress|--remove <ids> --pr --job <group>` (--apply where no pull
+  // request can be opened: instruction-pr.js:prAvailable), which finishes the recorded decision (runSectionJob); no modal, no
+  // spinner to wait at (the owner's ask, 2026-10-24): the page says once that it started and Recent activity follows it
+  const cs = read('context-suggest.js');
+  assert.match(read('ui/server.js'), /startSectionJob\(st, xs, action, \{ pr, spawnFn, cliPath \}\)/);
+  assert.match(read('ui/server.js'), /const said = \[\], pr = prAvailable\(st\.repo\)\.ok;/);
+  assert.match(cs, /\[cliPath, 'instructions', `--\$\{action\}`, ids\.join\(','\), pr \? '--pr' : '--apply', '--job', group\]/);
+  assert.match(read('commands/instructions.js'), /runSectionJob\(store, \{ group: flags\.job, ids, action, pr: Boolean\(flags\.pr\) \}\)/);
+  assert.match(read('cli.js'), /instructions \[--remove <id> \| --compress <id> \[--pr \| --apply\] \[--job <id>\]\]/);
+  const page = read('ui/page.html');
+  assert.match(page, /api\('\/api\/changes\/start', \{ repo, \.\.\.g, days: cdays \}\)/);
+  assert.doesNotMatch(page, /edit-overlay|openEditModal|previewSections|api\/context\/edit|api\/context\/apply/);
+  assert.doesNotMatch(read('ui/server.js'), /api\/context\/edit|api\/context\/apply|api\/changes\/apply/);
+  // Recent activity is its own page, the tab at the right of the nav with a badge counting what is not complete (a job running or
+  // failed, a pull request to merge: context-suggest.js:changeHistory `attention`); Retry there is `thinker context --retry <n>`
+  assert.match(page, /data-tab="activity"[^>]*>Recent activity<span class="badge" id="act-badge"/);
+  assert.match(page, /api\(`\/api\/activity\?repo=\$\{encodeURIComponent\(AREPO\)\}`\)/);
+  assert.match(page, /api\('\/api\/changes\/retry', \{ repo: e\.repo, id: e\.id \}\)/);
+  assert.match(read('ui/server.js'), /attention: history\.filter\(h => h\.attention\)\.length/);
+  assert.match(cs, /attention: running \? 'running' : failed && !e\.revertedAt \? 'failed' : pending \? 'pr' : null/);
+  assert.match(read('commands/context.js'), /if \(flags\.retry !== undefined\)/);
+  assert.doesNotMatch(page, /\['history', 'History'\]/);
+  // the page's rows read the same decisions, for the pill on a section under way, failed or pending on a pull request
+  assert.match(page, /api\(`\/api\/activity\?repo=\$\{encodeURIComponent\(CREPO\)\}`\)/);
   assert.match(read('context-suggest.js'), /days: 7,/);
   assert.match(read('context-suggest.js'), /tab=save&view=all/);
   // the page's rows carry the keys allChanges gives, so the server finds the part a row's Apply names
   for (const k of ['`section:${s.file}:${s.id}`', '`${s.client}:${s.key}`', '`output:${s.name}`']) assert.ok(read('ui/page.html').includes(k), k);
+});
+
+test('over the wire: a section\'s Apply records the decision running and starts the command; Recent activity counts it until the job finishes', async t => {
+  const dir = repo(t); new Store(dir).init();
+  fs.writeFileSync(path.join(dir, 'AGENTS.md'), '# R\n\n## Tests\n\nRun `npm test`.\n\n## Style\n\nShort lines.\n');
+  const pg = page(t, dir), p = await pg.start();
+  const id = (await p.get('/api/repos')).repos[0].id;
+  await p.get(`/api/context?repo=${encodeURIComponent(id)}&days=7`); // the report the server resolves the rows in
+  assert.deepEqual(await p.get(`/api/activity?repo=${encodeURIComponent(id)}`), { history: [], attention: 0, running: 0 });
+  // Apply on two rows, one compressed and one removed: one job each, the command started detached in the checkout
+  const r = await p.post('/api/changes/start', { repo: id, keys: ['section:AGENTS.md:tests', 'section:AGENTS.md:style'], acts: { 'section:AGENTS.md:tests': 'compress', 'section:AGENTS.md:style': 'remove' }, days: 7 });
+  assert.equal(r.status, 200, JSON.stringify(r));
+  assert.match(r.said, /^Compressing 1 section in the background: the file in your working tree is rewritten when the model is done\. Follow it under Recent activity\. Removing 1 section: written to your working tree in a moment\. Follow it under Recent activity\.$/);
+  const jobs = pg.spawned.filter(x => x.args[1] === 'instructions');
+  assert.equal(jobs.length, 2);
+  assert.deepEqual(jobs[0].args.slice(0, 5), ['/x/cli.js', 'instructions', '--compress', 'tests', '--apply']); assert.equal(jobs[0].args[5], '--job');
+  assert.deepEqual(jobs[1].args.slice(0, 5), ['/x/cli.js', 'instructions', '--remove', 'style', '--apply']);
+  assert.equal(jobs[0].opts.cwd, dir); assert.equal(jobs[0].opts.detached, true);
+  // Recent activity: both running, both counted for the badge, nothing to revert yet; the Save rows read the same
+  let a = await p.get('/api/activity?repo=all');
+  assert.equal(a.attention, 2); assert.equal(a.running, 2);
+  assert.deepEqual(a.history.map(e => [e.key, e.attention, e.revertible, e.job.action, e.repo]).sort(), [['section:AGENTS.md:style', 'running', false, 'remove', id], ['section:AGENTS.md:tests', 'running', false, 'compress', id]]);
+  // a part that is no section is not started this way; a row no longer in the report is refused
+  assert.equal((await p.post('/api/changes/start', { repo: id, keys: ['output:Read'], days: 7 })).status, 400);
+  assert.equal((await p.post('/api/changes/start', { repo: id, keys: ['section:AGENTS.md:nope'], days: 7 })).status, 400);
+  // the command's side finishes the compress job: the row is complete, the removal still running
+  const { runSectionJob } = await import('../src/context-suggest.js');
+  const group = jobs[0].args[6], st = new Store(dir);
+  const edit = { previewEdit: async () => ({ key: 'tests', files: ['AGENTS.md'], file: 'AGENTS.md', modelTokens: 500 }), applyEdit: () => { fs.writeFileSync(path.join(dir, 'AGENTS.md'), '# R\n\n## Tests\n\n`npm test`.\n\n## Style\n\nShort lines.\n'); return { said: 'Compressed it in AGENTS.md' }; } };
+  assert.equal((await runSectionJob(st, { group, ids: ['tests'], action: 'compress', pr: false }, { edit })).said, 'Compressed it in AGENTS.md');
+  a = await p.get(`/api/activity?repo=${encodeURIComponent(id)}`);
+  assert.equal(a.attention, 1); assert.equal(a.running, 1);
+  const done = a.history.find(e => e.key === 'section:AGENTS.md:tests');
+  assert.equal(done.attention, null); assert.equal(done.revertible, true); assert.equal(done.job.state, 'done'); assert.equal(done.result, 'Compressed it in AGENTS.md');
+  // Revert from the page writes the file back; Retry on a running job is refused
+  assert.equal((await p.post('/api/changes/retry', { repo: id, id: a.history.find(e => e.running).id })).status, 400);
+  const rv = await p.post('/api/changes/revert', { repo: id, id: done.id });
+  assert.equal(rv.status, 200); assert.match(rv.said, /written back as it was$/);
+  assert.equal(fs.readFileSync(path.join(dir, 'AGENTS.md'), 'utf8'), '# R\n\n## Tests\n\nRun `npm test`.\n\n## Style\n\nShort lines.\n');
 });
 
 test('the Report tab and `thinker report` show one report: the same weeks, parts, prices and trend rule', () => {
@@ -219,5 +281,6 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('ui/page.html'), /data-tab="report">View Report</);
   assert.match(read('ui/page.html'), /if \(tab === 'cache'\) tab = 'report';/);
   assert.doesNotMatch(read('ui/page.html'), /renderTrend|tr-stack|api\/cache|api\/behaviors|api\/usage/);
-  assert.match(read('cli.js'), /ui \[--port n\] \[--no-open\] \[--tab save\|report\]/);
+  assert.match(read('cli.js'), /ui \[--port n\] \[--no-open\] \[--tab save\|report\|activity\]/);
+  assert.match(read('ui/page.html'), /if \(tab === 'save' && H\(\)\.get\('view'\) === 'history'\) tab = 'activity';/);
 });
