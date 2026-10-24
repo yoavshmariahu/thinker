@@ -188,10 +188,11 @@ const HELP = `thinker — knowledge cache for coding agents
                                  lists every part with its actions, and History the decisions. Once a week the next prompt passes
                                  the five on with a link to that tab
                                  (maintain.contextSuggest in .thinker/config.json; false turns it off)
-  report [--weeks n] [--cost] [--total] [--json] [--refresh [--all]]   the Report page in the terminal: the average tokens a session cost here, week by week over the
+  report [--weeks n] [--cost] [--total] [--share] [--json] [--refresh [--all]]   the Report page in the terminal: the average tokens a session cost here, week by week over the
                                  last 6, by token type (fresh input, cache writes, cache reads, output), by part of the context
                                  (instruction files, custom and built-in tools, tool outputs, the rest) and by model under its provider; --cost the same at the providers' list prices, --total each week's
-                                 sum instead of the average; a cell up or down 5% against the first week is marked; then the decisions
+                                 sum instead of the average, --share each row as its share of the whole session (the totals stay);
+                                 a cell up or down 5% against the first week is marked; then the decisions
                                  taken on the Find Savings page in the window and the cache's numbers, its saving in dollars first
                                  --refresh keeps the report for the page, which reads it instead of the log and the transcripts (it runs
                                  this in the background; --all for every repository the page lists, in one run)

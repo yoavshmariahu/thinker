@@ -1378,7 +1378,9 @@ the four parts the Save page measures and controls (instruction files, custom to
 `report.js:PARTS`) with the rest of the input as one row (`OTHERS`: Other input, the conversation itself, the breakdown's other
 input kinds summed) and the output under them; then the models. Every table ends on the whole session (`sessionTotals`), so
 the three add up to the same figure (a usage record whose cache reads and writes exceed its input is clamped so the types
-still do). Until that day the parts table showed the four alone with their own total; the rest is computed all the same (`BREAKDOWN`, `thinker report --json`) and written up
+still do). A Values / Share toggle (`--share`, the same day) shows every row but the whole-session total as its share of that
+total in the week (`report.js:formatShare`), the totals keeping their values, so the relative contributions and their trend
+can be read; the shading follows the shares. Until that day the parts table showed the four alone with their own total; the rest is computed all the same (`BREAKDOWN`, `thinker report --json`) and written up
 with its numbers, the unit calibration (the model reports 1.44 tokens for every four characters: at chars/4 the parts
 cover 74% of a long session's input, the residual is the unit, not a missing part) and the cuts to consider in
 `research/context-breakdown-2026-10-22.md` (the owner's decision, 2026-10-22). The second table is by model under its provider

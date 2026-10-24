@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
-import { reportView, mergeReports, renderReport, trend, change, weekColumns, weekStart, cacheMetrics, PARTS, BREAKDOWN, TOKEN_TYPES, OTHERS, outputComparison } from '../src/report.js';
+import { reportView, mergeReports, renderReport, trend, change, weekColumns, weekStart, cacheMetrics, PARTS, BREAKDOWN, TOKEN_TYPES, OTHERS, outputComparison, formatShare } from '../src/report.js';
 import { listPrice, providerOf, costOf, formatDollars } from '../src/prices.js';
 
 function fixture(t) {
@@ -142,7 +142,17 @@ test('the report averages each week over its sessions, by part and by model unde
   assert.match(text, /By token type/); assert.match(text, /Input, read from cache/); assert.match(text, /Other input/); assert.doesNotMatch(text, /Total of these/);
   assert.equal((text.match(/TOTAL \(THE WHOLE SESSION\)/g) || []).length, 3, 'every table ends on the whole session');
   assert.ok(text.indexOf('By token type') < text.indexOf('By part of the context'), 'the token types first');
-  assert.match(text, /By part of the context/); assert.match(text, /TOTAL/); assert.match(text, /ANTHROPIC/); assert.match(text, /claude-opus-5-5/);
+  assert.match(text, /By part of the context/); assert.match(text, /TOTAL/);
+  // --share: every row as its share of the whole session, the total rows as they are (the page's Share)
+  const shared = renderReport(v, { share: true }).join('\n'), lines = shared.split('\n');
+  assert.match(shared, /each row as its share of the whole session/);
+  const typeLines = TOKEN_TYPES.map(([, name]) => lines.find(l => l.trimStart().startsWith(name)));
+  assert.match(typeLines[2], /55%/, 'cache reads are 600 of the 1,100 tokens of an Opus session'); assert.match(typeLines[3], /9\.1%/); assert.match(typeLines[0], /36%/);
+  assert.doesNotMatch(typeLines[0], /\d[km]\b/, 'no token count on a shared row');
+  const totalLines = lines.filter(l => l.includes('TOTAL (THE WHOLE SESSION)'));
+  assert.equal(totalLines.length, 3); for (const l of totalLines) { assert.doesNotMatch(l, /%/); assert.match(l, /1\.1k/); }
+  assert.match(lines.find(l => l.trimStart().startsWith('ANTHROPIC')), /%/, 'a provider subtotal is a share too');
+  assert.equal(formatShare(0.5), '50%'); assert.equal(formatShare(0.0909), '9.1%'); assert.equal(formatShare(0.0031), '0.31%'); assert.equal(formatShare(0.00001), '<0.01%'); assert.match(text, /ANTHROPIC/); assert.match(text, /claude-opus-5-5/);
   assert.match(text, /mystery-9 \(unpriced\)/); assert.match(text, /Workflow tool/); assert.match(text, /\$ saved\s+\$0\.00/);
   assert.match(renderReport(v, { cost: true }).join('\n'), /list prices/);
   assert.match(renderReport(v, { total: true }).join('\n'), /Total tokens over the week's sessions/);
