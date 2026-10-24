@@ -7,6 +7,7 @@
 // the repositories the agents worked in lately, merged, with what to cut first (context-machine.js): what the
 // installer runs, from the sessions that ran before thinker was installed; it needs no repository. --ask is the
 // installer's question: browser or terminal, and in the terminal the suggestions to pick from (setup/context-ask.js).
+import { historyEffects } from '../report-snapshot.js';
 import { contextView, switchSources, setOutputCompression } from '../context-view.js';
 import { judgeRecent, findRepoSessions } from '../instruction-value.js';
 import { formatTokens } from '../model-usage.js';
@@ -63,14 +64,16 @@ async function contextCommand({ store, flags, out }) {
     for (const l of await fn(store, picked)) out(l);
     return;
   }
+  // what a decision saved, attributed to it alone (report.js:actionEffect): the changed thing a prompt (one call to the model) before against since
+  const effectLine = e => { const f = e.effect; if (!f) return ''; const pct = f.share == null || !Math.round(100 * Math.abs(f.share)) ? '' : ` (${f.delta >= 0 ? '−' : '+'}${Math.round(100 * Math.abs(f.share))}%)`; return `\n       a prompt ${formatTokens(f.before.perPrompt)} → ${formatTokens(f.after.perPrompt)}: ${f.delta >= 0 ? 'saved' : 'cost'} ${formatTokens(Math.abs(f.delta))}${pct} a prompt, ~${formatTokens(Math.abs(f.window))} over the ${f.after.prompts} prompt${f.after.prompts === 1 ? '' : 's'} of the ${f.after.sessions} session${f.after.sessions === 1 ? '' : 's'} since${f.few ? ' (few sessions yet)' : ''}`; };
   if (flags.history) {
     // a pending pull request is asked after on GitHub first (context-suggest.js:refreshPrStates)
     await refreshPrStates(store);
-    const h = changeHistory(store);
+    const h = historyEffects(store, changeHistory(store));
     // a job under way or failed (context-suggest.js:startSectionJob) is said so; --retry runs a failed one again
     const state = e => e.running ? `${e.job.action === 'compress' ? 'compressing' : 'removing'}…` : e.failed ? 'failed' : e.pr ? `PR #${e.pr.number} ${e.pr.state === 'open' ? 'pending' : e.pr.state === 'merged' ? 'merged' : 'rejected'}` : e.revertedAt ? `${e.decision}, reverted` : e.decision;
     const needs = h.filter(e => e.attention).length;
-    out(h.length ? (needs ? `${needs} need${needs === 1 ? 's' : ''} you: a pull request to merge, or a failed change to retry.\n` : '') + h.map((e, i) => `${String(i + 1).padStart(3)}. ${e.at.slice(0, 10)}  ${state(e).padEnd(22)} ${e.title}${e.failed ? `: ${e.job.error}` : e.result ? `: ${e.result}` : ''}${e.pr?.url ? `  ${e.pr.url}` : ''}`).join('\n') + (h.some(e => e.revertible) ? '\n`thinker context --revert <n>` takes a decision back (a pending pull request is closed).' : '') + (h.some(e => e.retryable) ? '\n`thinker context --retry <n>` runs a failed change again.' : '') : 'No decisions on the suggested changes here yet.');
+    out(h.length ? (needs ? `${needs} need${needs === 1 ? 's' : ''} you: a pull request to merge, or a failed change to retry.\n` : '') + h.map((e, i) => `${String(i + 1).padStart(3)}. ${e.at.slice(0, 10)}  ${state(e).padEnd(22)} ${e.title}${e.failed ? `: ${e.job.error}` : e.result ? `: ${e.result}` : ''}${e.pr?.url ? `  ${e.pr.url}` : ''}${effectLine(e)}`).join('\n') + (h.some(e => e.revertible) ? '\n`thinker context --revert <n>` takes a decision back (a pending pull request is closed).' : '') + (h.some(e => e.retryable) ? '\n`thinker context --retry <n>` runs a failed change again.' : '') : 'No decisions on the suggested changes here yet.');
     return;
   }
   if (flags.retry !== undefined) {

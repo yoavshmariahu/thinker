@@ -1,4 +1,4 @@
-// `thinker report`: the Report page in the terminal (report.js): the average tokens a session cost here, week by
+// `thinker report`: the Report page in the terminal (report.js): the average tokens a prompt (one call to the model) cost here, week by
 // week over the last six, by part of the context and by model (grouped by provider, with subtotals), with --cost
 // the same at list prices and --total the week's sum instead of the average; under it the decisions taken on the Save page in the window, and the cache's numbers.
 import { reportView, renderReport, REPORT_WEEKS } from '../report.js';

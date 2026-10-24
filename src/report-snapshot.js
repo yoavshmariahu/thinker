@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { reportView, REPORT_WEEKS } from './report.js';
+import { reportView, withEffects, REPORT_WEEKS } from './report.js';
 
 export const REFRESH_MS = 10 * 60_000;
 const LOCK_MS = 5 * 60_000;
@@ -72,4 +72,10 @@ export function refreshing(store, { now = Date.now() } = {}) {
 
 export function dropReports(store) {
   try { fs.rmSync(reportFile(store), { force: true }); } catch {}
+}
+
+// The decisions with what each saved (report.js:actionEffect), read over the report kept here without making one: what
+// Recent activity and `thinker context --history` show beside Recent improvements. With no kept report the effects are null.
+export function historyEffects(store, history, { weeks = REPORT_WEEKS, now = Date.now() } = {}) {
+  return withEffects(history, readReport(store, weeks, { now })?.view?.sessionRows || [], now);
 }

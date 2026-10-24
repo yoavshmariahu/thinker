@@ -182,11 +182,14 @@ const undoFile = (store, id) => path.join(store.dir, 'state', 'context-suggest-u
 const undoOf = (store, e) => e.decision === 'dismissed' ? { kind: 'dismissed' } : e.pr ? (e.pr.state === 'open' ? { kind: 'pr', number: e.pr.number, branch: e.pr.branch } : null) : (e.id && readJson(undoFile(store, e.group || e.id)))
   || (e.decision === 'approved' && (e.kind === 'tool' || e.kind === 'skill') ? { kind: 'off', key: e.key.replace(/^[^:]+:/, '') }
     : e.decision === 'approved' && e.kind === 'output' ? { kind: 'output', name: e.key.replace(/^output:/, '') } : null);
-const entryOf = (store, c, decision, result, now, undo, { group = null } = {}) => {
+const entryOf = (store, c, decision, result, now, undo, { group = null, tokens = null } = {}) => {
   const id = randomBytes(6).toString('hex');
   if (undo && !group) writeJson(undoFile(store, id), undo);
-  return { id, ...(group ? { group } : {}), at: new Date(now).toISOString(), key: c.key, ...(c.keys ? { keys: c.keys } : {}), kind: c.kind, title: c.title, saving: c.saving, total: c.total, days: c.days ?? null, action: c.default?.text || null, act: c.default?.act || null, decision, result: result || null, ...(undo ? { revertible: true } : {}) };
+  return { id, ...(group ? { group } : {}), at: new Date(now).toISOString(), key: c.key, ...(c.keys ? { keys: c.keys } : {}), kind: c.kind, title: c.title, ...(c.kind === 'section' && c.file ? { file: c.file } : {}), ...(tokens ? { tokens } : {}), saving: c.saving, total: c.total, days: c.days ?? null, action: c.default?.text || null, act: c.default?.act || null, decision, result: result || null, ...(undo ? { revertible: true } : {}) };
 };
+// a section's tokens before and after its edit (instruction-edit.js:previewEdit `sections`), kept on the entry so the
+// Report can cost the section a session on each side (report.js:actionEffect)
+export const sectionTokens = (p, id) => { const x = (p?.sections || []).find(s => s.id === id) || (p?.sections?.length === 1 ? p.sections[0] : null); return x ? { before: x.tokensBefore, after: x.tokensAfter } : p && p.tokensBefore != null ? { before: p.tokensBefore, after: p.tokensAfter } : null; };
 // the entries of one edit over several sections: one per section, each with its own title and saving, sharing the
 // group id their undo is kept under (written once, here) and, for a pull request, the pull request
 const entriesOf = (store, changes, decision, result, now, undo) => {
@@ -265,7 +268,7 @@ export async function runSectionJob(store, { group, ids, action, pr = false }, {
       const r = await openEditPr(store, p.key, { changes: es, now: now ?? Date.now() });
       if (r.error) return fail(r.error);
       const prRecord = { number: r.number, url: r.url, branch: r.branch, commit: r.commit, base: r.base, state: 'open', openedAt: done.finishedAt, checkedAt: done.finishedAt };
-      finishJob(store, group, j => ({ ...j, ...done }), e => { e.pr = { ...prRecord }; e.decision = 'pull request'; e.result = r.said; });
+      finishJob(store, group, j => ({ ...j, ...done }), e => { e.pr = { ...prRecord }; e.decision = 'pull request'; e.result = r.said; e.tokens = sectionTokens(p, e.section) || e.tokens || null; });
       store.log({ op: 'context-approve', changes: es.length, saving, reviewed: true, pr: r.number, group });
       return { said: r.said, pr: prRecord };
     }
@@ -274,7 +277,7 @@ export async function runSectionJob(store, { group, ids, action, pr = false }, {
     const a = applyEdit(store, p.key);
     if (a.error) return fail(a.error);
     writeJson(undoFile(store, group), { kind: 'edit', files: names.map((f, i) => ({ file: f, before: before[i], after: read(f) })) });
-    finishJob(store, group, j => ({ ...j, ...done }), e => { e.decision = 'applied'; e.result = a.said; });
+    finishJob(store, group, j => ({ ...j, ...done }), e => { e.decision = 'applied'; e.result = a.said; e.tokens = sectionTokens(p, e.section) || e.tokens || null; });
     store.log({ op: 'context-approve', changes: es.length, saving, reviewed: true, group });
     return a;
   } catch (err) { return fail(String(err.message || err).split('\n')[0]); }
@@ -394,7 +397,7 @@ export async function approveChanges(store, changes, { edit } = {}) {
       const files = p.files || [p.file], read = f => { try { return fs.readFileSync(path.join(store.repo, f), 'utf8'); } catch { return null; } };
       const before = files.map(read), a = applyEdit(store, p.key);
       if (a.error) return { error: a.error };
-      return { result: `${c.default.act === 'remove' ? 'Removed' : 'Compressed'}: ~${formatTokens(p.tokensBefore)} → ~${formatTokens(p.tokensAfter)} tokens in ${p.file}, uncommitted`, undo: { kind: 'edit', files: files.map((f, i) => ({ file: f, before: before[i], after: read(f) })) } };
+      return { result: `${c.default.act === 'remove' ? 'Removed' : 'Compressed'}: ~${formatTokens(p.tokensBefore)} → ~${formatTokens(p.tokensAfter)} tokens in ${p.file}, uncommitted`, undo: { kind: 'edit', files: files.map((f, i) => ({ file: f, before: before[i], after: read(f) })) }, tokens: sectionTokens(p, c.id) };
     }
     const r = switchSources(store, { labels: [c.label], builtin: Boolean(c.builtin) });
     return /^Switched off here/.test(r) && !/Not switched off/.test(r) ? { result: 'Switched off from the next session on', undo: { kind: 'off', key: c.sourceKey || c.name } } : { error: r.replace(/^Not switched off: /, '') };
@@ -402,7 +405,7 @@ export async function approveChanges(store, changes, { edit } = {}) {
   for (const c of changes) {
     let m; try { m = await make(c); } catch (e) { m = { error: String(e.message || e).split('\n')[0] }; }
     said.push(`${c.title}: ${m.error || m.result}`);
-    if (!m.error) record(store, [entryOf(store, c, 'approved', m.result, at, m.undo)]);
+    if (!m.error) record(store, [entryOf(store, c, 'approved', m.result, at, m.undo, { tokens: m.tokens || null })]);
   }
   store.log({ op: 'context-approve', changes: changes.length, saving: changes.reduce((a, c) => a + c.saving, 0) });
   return said;

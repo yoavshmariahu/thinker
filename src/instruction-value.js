@@ -382,7 +382,8 @@ export function instructionValue(store, { days = 30, sessions } = {}) {
   const tok = f => Math.ceil(f.text.length / 4), fileTokens = tok(files[0]);
   // per session, for the trend: the tokens of the files it read, read again by each of its model calls (today's
   // files: an earlier size is not kept)
-  const timeline = reading.filter(r => r.turns).map(r => ({ t: r.mtime, session: r.session, client: r.client, calls: r.turns, tokens: files.filter(f => loadedIn(r).includes(f.file)).reduce((a, f) => a + tok(f), 0) }));
+  // `files`: which instruction files the session read, so the Report can cost one section a session before and since its change (report.js:actionEffect)
+  const timeline = reading.filter(r => r.turns).map(r => ({ t: r.mtime, session: r.session, client: r.client, calls: r.turns, tokens: files.filter(f => loadedIn(r).includes(f.file)).reduce((a, f) => a + tok(f), 0), files: loadedIn(r) }));
   const fileRows = files.map(f => ({ file: f.file, kind: f.kind, tokens: tok(f), loadedIn: reading.filter(r => loadedIn(r).includes(f.file)).length, ...(f.globs?.length ? { globs: f.globs } : {}), ...(f.dir ? { dir: f.dir } : {}) }));
   const label = files.length === 1 ? files[0].file : `${files[0].file} + ${files.length - 1} more`;
   return { file: label, files: fileRows, tokens: fileTokens, sessions: n, judged: judged.length, calls, judge: valueConfig(store), sections: rows, timeline, savings };

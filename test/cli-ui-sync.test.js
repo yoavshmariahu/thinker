@@ -242,6 +242,11 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   // the page's Total toggle is the command's --total
   assert.match(read('commands/report.js'), /total: Boolean\(flags\.total\)/);
   assert.match(read('ui/page.html'), /data-mode="sum">Total</);
+  // the unit is a prompt, one call to the model, on both doors (2026-10-24): the average is the week's sum over its prompts
+  assert.match(read('ui/page.html'), /data-mode="avg" class="on">Per prompt</);
+  assert.match(read('ui/page.html'), /col\.prompts \? c\.tokens \/ col\.prompts : null/);
+  assert.match(read('report.js'), /col\.prompts \? c\.tokens \/ col\.prompts : null/);
+  assert.match(read('report.js'), /per prompt \(one call to the model\)/);
   assert.match(read('report.js'), /export const REPORT_WEEKS = 6;/);
   assert.match(read('ui/page.html'), /\/api\/report\?repo=\$\{encodeURIComponent\(REPO\)\}&weeks=6/);
   assert.match(read('report.js'), /export const TREND_MIN = 0\.05;/);
@@ -258,17 +263,18 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   // every table on the page shows 20 rows a page
   assert.match(read('ui/page.html'), /const TABLE_PAGE = 20, VPAGE = \{\};/);
   assert.match(read('ui/page.html'), /rows\.slice\(from, from \+ TABLE_PAGE\)/);
-  assert.match(read('ui/page.html'), /historyFigure\(acts, \{ many: Boolean\(v\.all\), caption: 'Actions in the window'/);
-  // what was saved with thinker leads the actions on both doors: a session's input tokens before the first action in effect
-  // against since (report.js:savingsSummary, over the view's sessionRows), the server reading it live over the kept report,
-  // and each action with the same comparison for the part it touched (actionEffect)
-  assert.match(read('report.js'), /savings: savingsSummary\(actions, sessionRows\)/);
-  assert.match(read('report.js'), /L\.push\('', 'Saved with thinker'\)/);
-  assert.match(read('ui/server.js'), /savings: savingsSummary\(actions, s\.view\.sessionRows \|\| \[\]\)/);
-  assert.match(read('ui/server.js'), /view\.savings = mergeSavings\(/);
-  assert.match(read('ui/page.html'), /<div class="kicker">Saved with thinker<\/div>/);
-  assert.match(read('ui/page.html'), /effectTable\(e\.effect\)/);
-  assert.match(read('report.js'), /effect: actionEffect\(e, sessionRows, now\)/);
+  // Recent improvements on both doors (report.js:reportTop over the kept report's sessionRows): the five actions in effect
+  // that saved most, each with before, after and saved a prompt attributed to the thing it changed alone (actionEffect)
+  // and its pull request; the page's table compact (no See more, no Revert); Recent activity and `thinker context
+  // --history` show every decision with the same figures (report-snapshot.js:historyEffects)
+  assert.match(read('report.js'), /top: reportTop\(actions, \{ now \}\)/);
+  assert.match(read('report.js'), /L\.push\('', 'Recent improvements'\)/);
+  assert.match(read('ui/server.js'), /view\.top = reportTop\(view\.actions\)/);
+  assert.match(read('ui/server.js'), /historyEffects\(st, changeHistory\(st\)\)/);
+  assert.match(read('commands/context.js'), /historyEffects\(store, changeHistory\(store\)\)/);
+  assert.match(read('ui/page.html'), /historyFigure\(acts, \{ many: Boolean\(v\.all\), caption: 'Recent improvements'[^\n]*compact: true/);
+  assert.match(read('ui/page.html'), /<th class="num"[^>]*>Before<\/th><th class="num"[^>]*>After<\/th><th class="num"[^>]*>Saved<\/th><th>Pull request<\/th>/);
+  assert.doesNotMatch(read('ui/page.html'), /Saved with thinker/);
   // the cost view is the command's --cost: list prices from prices.js, the unpriced models named on both
   assert.match(read('commands/report.js'), /cost: Boolean\(flags\.cost\)/);
   assert.match(read('report.js'), /listPrice\(r\.model, \{ config \}\)/);
