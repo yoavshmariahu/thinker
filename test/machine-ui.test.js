@@ -124,13 +124,13 @@ test('the page serves the reports kept in the checkouts and has them made again 
   // Report: made on the first visit and kept; the next visit reads it back, nothing started
   const a = await get('/api/report?repo=all');
   assert.equal(a.refreshing, false); assert.ok(a.asOf > 0); assert.equal(a.columns.length, 6);
-  const f = path.join(st.dir, 'state', 'report-6.json');
+  const f = path.join(st.dir, 'state', 'report.json');
   assert.ok(fs.existsSync(f));
   const b = await get('/api/report?repo=all');
   assert.equal(b.asOf, a.asOf); assert.equal(reports.length, 0);
   // old: served as it is, every repository's made again in the background in one run (null), asked for once
   const kept = JSON.parse(fs.readFileSync(f, 'utf8')), oldAt = Date.now() - 11 * 60_000;
-  fs.writeFileSync(f, JSON.stringify({ ...kept, at: oldAt }));
+  kept.views['6'].at = oldAt; fs.writeFileSync(f, JSON.stringify(kept));
   const c = await get('/api/report?repo=all');
   assert.equal(c.asOf, oldAt); assert.equal(c.refreshing, true); assert.deepEqual(reports, [null]);
   // one repository: its own refresh

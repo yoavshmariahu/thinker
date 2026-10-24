@@ -1354,7 +1354,10 @@ read (`store.js:assertSafeNotesPath`, five lstats and two realpaths a read; now 
 `.thinker/local` changed, by their mtimes) and a sixth of a second parsing the 14 MB machine log, once per
 repository (now once a process, by the file's size and mtime, `usage.js:parse`); a session's model read from its
 transcript for the summary is kept on disk (`transcripts.js:sessionModel`, `disk-cache.js`). The report itself is
-kept in the checkout like the Context report (`report-snapshot.js`, `.thinker/state/report-<weeks>.json`): `thinker
+kept in the repository like the Context report (`report-snapshot.js`, `.thinker/state/report.json`, every window
+asked for under `views`; one file per repository, which every linked worktree reads and refreshes, as the Context
+report's `context-view-<days>.json` is since the same day: worktrees are not a dimension, the sessions are gathered
+over every checkout, and a per-worktree file was the same figures worked out again): `thinker
 report` and `thinker report --refresh` write it, the page reads it and starts `thinker report --refresh --all` in the
 background (every repository in one process) when a kept report is older than `REFRESH_MS` (ten minutes) or was made
 by other code, and says "measured n min ago, updating…" and checks back, as the Save page does. The decisions under

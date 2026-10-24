@@ -5,12 +5,14 @@
 // page lists, in one process so the log is parsed once), and the page starts that in the background when what it
 // read is older than REFRESH_MS or was made by other code. The decisions under the tables are not kept: the server
 // reads them live (report.js:reportActions), so one taken on Find Savings a moment ago is in the window at once.
+// One file per repository (`.thinker/state/report.json`, every window asked for under `views`): a linked worktree
+// keeps its cache in the main checkout's .thinker and the sessions are gathered over every checkout, so every
+// checkout reads and refreshes the same report (the owner's decision, 2026-10-24: worktrees are not a dimension).
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { reportView, REPORT_WEEKS } from './report.js';
-import { stateTag } from './context-snapshot.js';
 
 export const REFRESH_MS = 10 * 60_000;
 const LOCK_MS = 5 * 60_000;
@@ -21,23 +23,25 @@ let codeKey;
 const code = () => codeKey ||= crypto.createHash('sha256').update(['report.js', 'instruction-value.js', 'instruction-sections.js', 'harness.js', 'harness-codex.js', 'tool-outputs.js', 'transcripts.js', 'usage.js', 'prices.js', 'model-usage.js']
   .map(f => { try { return fs.readFileSync(path.join(HERE, f), 'utf8'); } catch { return f; } }).join('\0')).digest('hex').slice(0, 16);
 
-const file = (store, weeks) => path.join(store.dir, 'state', `report-${weeks}${stateTag(store)}.json`);
-const lockFile = store => path.join(store.dir, 'state', `report${stateTag(store)}.lock`);
+export const reportFile = store => path.join(store.dir, 'state', 'report.json');
+const lockFile = store => path.join(store.dir, 'state', 'report.lock');
+const readFile = store => { try { const s = JSON.parse(fs.readFileSync(reportFile(store), 'utf8')); return s && typeof s.views === 'object' ? s : { views: {} }; } catch { return { views: {} }; } };
 
-// { at, view, current } of the report kept, whether or not it still holds: `current` when this code made it less
-// than REFRESH_MS ago; null when there is none
+// { at, view, current } of the report kept for `weeks`, whether or not it still holds: `current` when this code made
+// it less than REFRESH_MS ago; null when there is none
 export function readReport(store, weeks = REPORT_WEEKS, { now = Date.now() } = {}) {
-  try {
-    const s = JSON.parse(fs.readFileSync(file(store, weeks), 'utf8'));
-    return s.view ? { at: s.at, view: s.view, current: s.code === code() && now - s.at <= REFRESH_MS } : null;
-  } catch { return null; }
+  const s = readFile(store).views[String(weeks)];
+  return s?.view ? { at: s.at, view: s.view, current: s.code === code() && now - s.at <= REFRESH_MS } : null;
 }
 
+// the report for `weeks` written into the repository's file, the other windows kept as they are
 export function writeReport(store, weeks, view, { now = Date.now() } = {}) {
-  const f = file(store, weeks), tmp = `${f}.${process.pid}.tmp`;
+  const f = reportFile(store), tmp = `${f}.${process.pid}.tmp`;
   try {
+    const s = readFile(store);
+    s.views[String(weeks)] = { at: now, code: code(), view };
     fs.mkdirSync(path.dirname(f), { recursive: true });
-    fs.writeFileSync(tmp, JSON.stringify({ at: now, weeks, code: code(), view }));
+    fs.writeFileSync(tmp, JSON.stringify(s));
     fs.renameSync(tmp, f);
   } catch { try { fs.rmSync(tmp, { force: true }); } catch {} }
   return { at: now, view };
@@ -67,6 +71,5 @@ export function refreshing(store, { now = Date.now() } = {}) {
 }
 
 export function dropReports(store) {
-  let files = []; try { files = fs.readdirSync(path.join(store.dir, 'state')); } catch {}
-  for (const f of files) if (new RegExp(`^report-\\d+${stateTag(store)}\\.json$`).test(f)) { try { fs.rmSync(path.join(store.dir, 'state', f), { force: true }); } catch {} }
+  try { fs.rmSync(reportFile(store), { force: true }); } catch {}
 }

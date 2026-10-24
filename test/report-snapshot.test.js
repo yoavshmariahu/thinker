@@ -30,8 +30,10 @@ test('the Report is made once and read back until it is old', t => {
   assert.equal(reportSnapshot(st, 6, { now: now + 1000 }).at, now);
   const old = reportSnapshot(st, 6, { now: now + REFRESH_MS + 1 });
   assert.equal(old.at, now); assert.equal(old.stale, true);
-  // another window is its own report
+  // another window is its own report, in the same file
   assert.equal(readReport(st, 4), null);
+  writeReport(st, 4, { weeks: 4 }, { now });
+  assert.equal(readReport(st, 4, { now }).view.weeks, 4); assert.equal(readReport(st, 6, { now }).at, now);
   assert.equal(readReport(st, 6, { now }).current, true);
   assert.equal(readReport(st, 6, { now: now + REFRESH_MS + 1 }).current, false);
 });
@@ -40,8 +42,8 @@ test('a report made by other code is served and marked for a refresh', t => {
   const st = repo(t), now = Date.now();
   process.env.THINKER_LOG = 'local'; t.after(() => { delete process.env.THINKER_LOG; });
   writeReport(st, 6, { weeks: 6, columns: [] }, { now });
-  const f = path.join(st.dir, 'state', 'report-6.json'), kept = JSON.parse(fs.readFileSync(f, 'utf8'));
-  fs.writeFileSync(f, JSON.stringify({ ...kept, code: 'other' }));
+  const f = path.join(st.dir, 'state', 'report.json'), kept = JSON.parse(fs.readFileSync(f, 'utf8'));
+  kept.views['6'].code = 'other'; fs.writeFileSync(f, JSON.stringify(kept));
   const s = reportSnapshot(st, 6, { now });
   assert.equal(s.stale, true); assert.deepEqual(s.view, { weeks: 6, columns: [] });
 });
