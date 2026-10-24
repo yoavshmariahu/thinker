@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
-import { reportView, mergeReports, renderReport, trend, change, weekColumns, weekStart, cacheMetrics, PARTS, BREAKDOWN, TOKEN_TYPES, OTHERS, outputComparison, formatShare, actionEffect, itemCost, effectSpan, withEffects, promptAverage, mergePromptAverages } from '../src/report.js';
+import { reportView, mergeReports, renderReport, THRESHOLDS, verdict, formatThreshold, weekColumns, weekStart, cacheMetrics, PARTS, BREAKDOWN, TOKEN_TYPES, OTHERS, outputComparison, formatShare, actionEffect, itemCost, effectSpan, withEffects, promptAverage, mergePromptAverages } from '../src/report.js';
 import { listPrice, providerOf, costOf, formatDollars } from '../src/prices.js';
 
 function fixture(t) {
@@ -38,15 +38,21 @@ function transcript(dir, name, { model, usage, mtime, client = 'claude' }) {
 const NOW = new Date('2026-10-22T12:00:00').getTime(), DAY = 86400_000;
 const OPUS = { input_tokens: 200, cache_read_input_tokens: 300, output_tokens: 50 }; // 500 input a turn (reads included), 50 output
 
-test('weeks run Monday to Sunday, the current week last; a cell trends at 5%', () => {
+test('weeks run Monday to Sunday, the current week last; a part is good, mid or bad by its tokens a prompt', () => {
   const cols = weekColumns(NOW, 5);
   assert.equal(cols.length, 5);
   assert.equal(new Date(cols[4].t).getDay(), 1, 'a Monday');
   assert.equal(cols[4].t, weekStart(NOW));
   assert.equal(cols[3].end, cols[4].t);
   assert.equal(cols[0].t, weekStart(NOW - 28 * DAY));
-  assert.equal(trend(100, 106), 'up'); assert.equal(trend(100, 104), null); assert.equal(trend(100, 94), 'down'); assert.equal(trend(null, 5), null); assert.equal(trend(0, 5), null);
-  assert.equal(change(100, 150), 0.5); assert.equal(change(0, 5), null); assert.equal(change(200, 100), -0.5);
+  // the four parts the Find Savings page controls have a threshold each, at or under good green, at or over bad red, between yellow
+  assert.deepEqual(Object.keys(THRESHOLDS), ['instructions', 'custom', 'builtin', 'outputs']);
+  for (const t of Object.values(THRESHOLDS)) assert.ok(t.good < t.bad);
+  assert.equal(verdict('instructions', 8_000), 'good'); assert.equal(verdict('instructions', 8_001), 'mid'); assert.equal(verdict('instructions', 20_000), 'bad');
+  assert.equal(verdict('outputs', 50_000), 'bad'); assert.equal(verdict('outputs', 35_000), 'mid'); assert.equal(verdict('builtin', 12_000), 'good');
+  // no threshold for the rest of the input, the output, or a cell without a figure
+  assert.equal(verdict('otherInput', 1e6), null); assert.equal(verdict('output', 5), null); assert.equal(verdict(null, 5), null); assert.equal(verdict('custom', 0), null); assert.equal(verdict('custom', null), null);
+  assert.equal(formatThreshold(8_000), '8k'); assert.equal(formatThreshold(20_000), '20k'); assert.equal(formatThreshold(2_500), '2.5k');
 });
 
 test('list prices: Anthropic from the relative rates, the other providers from the table, the config on top', () => {
@@ -158,6 +164,13 @@ test('the report averages each week over its sessions, by part and by model unde
   assert.equal((text.match(/TOTAL \(THE WHOLE SESSION\)/g) || []).length, 3, 'every table ends on the whole session');
   assert.ok(text.indexOf('By token type') > text.indexOf('By model'), 'the token types last');
   assert.match(text, /By part of the context/); assert.match(text, /TOTAL/);
+  // the parts table alone has the good and bad columns and the marks (✓ · ✗ by THRESHOLDS, tokens a prompt); the others take none
+  const partLines = text.split('\n'), instr = partLines.find(l => l.trimStart().startsWith('Instruction files')), outRow = partLines.find(l => l.trimStart().startsWith('Model output'));
+  assert.match(partLines[partLines.findIndex(l => l.startsWith('By part of the context')) + 1], /good\s+bad\s+wk /, 'the threshold columns sit beside the part, before the weeks');
+  assert.match(instr, /≤8k\s+≥20k/); assert.match(instr, /✓/, '200 tokens a prompt of instruction files is good'); assert.match(outRow, /–\s+–/, 'no threshold for the output'); assert.doesNotMatch(outRow, /[✓·✗]/);
+  assert.doesNotMatch(partLines[partLines.findIndex(l => l.startsWith('By model')) + 1], /good/, 'the model table has no threshold columns'); assert.doesNotMatch(text, /▲|▼/);
+  assert.match(text, /✓ · ✗: a part at or under its good figure/);
+  assert.deepEqual(v.thresholds, THRESHOLDS, 'the view carries the thresholds for the page');
   // --share: every row as its share of the whole session, the total rows as they are (the page's Share)
   const shared = renderReport(v, { share: true }).join('\n'), lines = shared.split('\n');
   assert.match(shared, /each row as its share of the whole session/);

@@ -1389,11 +1389,19 @@ cover 74% of a long session's input, the residual is the unit, not a missing par
 `research/context-breakdown-2026-10-22.md` (the owner's decision, 2026-10-22). The second table is by model under its provider
 (`prices.js:providerOf`), each row the model's share of the average prompt (its tokens over every prompt of
 the week), so the rows add up to the total and a switch of model shows as one row falling while another rises;
-the provider's subtotal is above its models and folds them. On the page each cell is shaded by its number against its own
-row's weeks (by row since 2026-10-24, the owner's ask; against every cell of its table from 2026-10-22 until then): the
-row's highest the darkest red, its lowest the darkest green, the rest in proportion with the middle plain (`SHADE_MIN`,
-a tenth of the range), in light shades; no percentage in the cell; the command marks
-a cell `TREND_MIN` (5%) or more against the first week ▲ ▼, doubled past `TREND_BIG` (50%); a zero cell is blank.
+the provider's subtotal is above its models and folds them. **Colour says what needs attention, not where a row moved
+(2026-10-24, the owner's ask; until that evening each cell was shaded on a scale against its row, and before that against
+its table):** in the parts table, each of the four parts the Find Savings page controls is coloured flat by its tokens a
+prompt against `report.js:THRESHOLDS`, green at or under its `good` figure, red at or over its `bad` one, yellow between
+(instruction files 8k and 20k, custom tools 3k and 10k, built-in tools 15k and 25k, tool outputs 20k and 50k), and the two
+figures stand in narrow Good and Bad columns beside the part; the verdict is by tokens a prompt whatever the cell shows
+(cost, a week's total, a share), since a part's size a call is what a person controls. The rest of the input, the output,
+the totals, and the model and token-type tables take no colour: no setting changes them. The view carries the thresholds
+(`thresholds`) so the page reads the one constant; the command prints the same columns and marks the cells ✓ · ✗. The
+figures were set on this machine's 336 sessions of six weeks (the instruction files 38k a prompt here, 7k on a repository
+with a short AGENTS.md; custom tools 5–9k; built-in tools 25–30k with every tool loaded, 10–15k the core set; tool outputs
+23k a prompt at the long sessions' first quartile, 55k at the third), by judgment, not by an experiment; no percentage in
+the cell; a zero cell is blank.
 A Per session / Total toggle (`--total`) shows each week's sum over its sessions instead of the average. A session whose agent reports
 no usage (Cursor) is counted in no column and named as left out.
 

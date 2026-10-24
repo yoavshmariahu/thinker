@@ -111,9 +111,12 @@ The page's other view, View Report (`thinker report`; the first view is Find Sav
 costs here, week by week over the last six, as the average over each week's sessions. One table by
 type of token (input read fresh, input written to the prompt cache, input read back from it, output), one by
 part of the context (the instruction files, custom tools, built-in tools, tool outputs, the rest of the
-input, the output), one by model under its provider with subtotals, the same whole-session total under each; each cell is shaded by its
-number against its own row, the row's highest the darkest red and its lowest the darkest green, and a toggle shows each week's sum instead of
-the average per session, another every row but the whole-session total as its share of that total. A toggle prices the same tokens at the
+input, the output), one by model under its provider with subtotals, the same whole-session total under each. In the table by part,
+each of the four parts Find Savings controls is green, yellow or red by its tokens a prompt against a Good and a Bad figure shown
+beside it (instruction files 8k and 20k, custom tools 3k and 10k, built-in tools 15k and 25k, tool outputs 20k and 50k): green at
+or under Good, red at or over Bad, yellow between, whatever the cell shows; the other rows and the other two tables take no
+colour. A toggle shows each week's sum instead of the average per prompt, another every row but the whole-session total as its
+share of that total. A toggle prices the same tokens at the
 providers' list rates, so a switch of model shows in the trend. Under the tables: the actions taken on
 Find Savings in those weeks, by date, to read the weeks against, and the cache's four numbers, its saving in
 dollars first. The report is kept in the checkout and made again in the background when it is older than ten
