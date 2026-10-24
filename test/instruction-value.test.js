@@ -256,7 +256,8 @@ test('all repositories: the timeline joined, sections tagged with their reposito
   const { mergeViews } = await import('../src/context-view.js');
   const view = (sessions, tool, sec) => ({ days: 30, sessions, totals: { custom: { tokens: 10, perSession: 100, count: 1 } }, skills: [], tools: [tool], outputs: { sessions, tools: [] },
     instructions: { file: 'AGENTS.md', sessions, judged: 0, calls: 10, judge: { judge: false }, sections: [sec], savings: { window: 50, sessions: 1 } }, timeline: [{ t: sessions, custom: 1 }] });
-  const tool = (loaded, perSession) => ({ client: 'claude', key: 'mcp:rea', name: 'rea', kind: 'mcp', loaded, used: 1, tokens: 1000, perSession });
+  // each repository's row carries its own waste (its cost times its unused share) and pill, as contextView leaves them
+  const tool = (loaded, perSession, used = 1) => ({ client: 'claude', key: 'mcp:rea', name: 'rea', kind: 'mcp', group: 'mcp', loaded, used, tokens: 1000, perSession, usedShare: used / loaded, wasted: Math.round(perSession * (1 - used / loaded)), waste: 'high' });
   const v = mergeViews([{ repo: 'a', name: 'A', view: view(1, tool(1, 100), { id: 's', perSession: 10 }) }, { repo: 'b', name: 'B', view: view(3, tool(3, 500), { id: 's', perSession: 10 }) }]);
   assert.equal(v.all, true); assert.equal(v.sessions, 4); assert.equal(v.timeline.length, 2);
   assert.deepEqual(v.instructions.sections.map(s => s.repoName), ['A', 'B']);
@@ -269,6 +270,19 @@ test('all repositories: the timeline joined, sections tagged with their reposito
   const v3 = mergeViews([{ repo: 'a', name: 'A', view: view(1, tool(1, 100), { id: 's', perSession: 10 }) }]);
   assert.equal(v3.tools[0].repo, 'a', 'one repository\'s row keeps its repository'); assert.deepEqual(v3.tools[0].repoIds, ['a']);
   assert.equal(v.instructions.savings.window, 100);
+  // waste from the merged figures, never above the merged cost: the first repository's row costs 2,000 a session, all of it
+  // unused (used in 0 of 2), the second 100 used every time; merged, 2 of 6 sessions used it at a cost of 733 a session
+  const skill = (loaded, used, perSession) => ({ client: 'claude', key: 'skill:x', name: 'x', kind: 'skill', loaded, used, tokens: 100, perSession, usedShare: used / loaded, wasted: Math.round(perSession * (1 - used / loaded)), waste: 'high' });
+  const m = mergeViews([
+    { repo: 'a', name: 'A', view: { ...view(2, tool(2, 2000, 0), { id: 's', perSession: 10 }), skills: [skill(2, 0, 2000)] } },
+    { repo: 'b', name: 'B', view: { ...view(4, tool(4, 100, 4), { id: 's', perSession: 10 }), skills: [skill(4, 2, 100)] } },
+  ]);
+  for (const r of [m.tools[0], m.skills[0]]) {
+    assert.equal(r.perSession, 733); assert.ok(r.wasted <= r.perSession, `waste ${r.wasted} within the merged cost`);
+  }
+  assert.equal(m.tools[0].usedShare, 4 / 6); assert.equal(m.tools[0].wasted, Math.round(733 * (2 / 6)));
+  assert.equal(m.skills[0].usedShare, 2 / 6, 'a merged skill\'s share from the merged counts, not the first repository\'s'); assert.equal(m.skills[0].wasted, Math.round(733 * (4 / 6)));
+  assert.equal(m.skills[0].waste, 'high', 'graded against the merged kind cost'); assert.equal(m.tools[0].waste, 'high');
 });
 
 test('bash outputs by program; compression per tool or per command, high keeping less than moderate', async t => {

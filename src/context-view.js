@@ -134,8 +134,18 @@ export function mergeViews(list) {
   };
   const views = list.map(x => x.view), sessions = views.reduce((a, v) => a + v.sessions, 0);
   const tag = x => r => ({ ...r, repo: x.repo, repoName: x.name });
-  const tools = merge(list.flatMap(x => x.view.tools.map(tag(x))), r => `${r.client}:${r.key}`, 'loaded', ['loaded', 'used'], ['tokens', 'perSession']).map(r => ({ ...r, usedShare: r.loaded ? r.used / r.loaded : null })).sort((a, b) => b.perSession - a.perSession);
-  const skills = merge(list.flatMap(x => x.view.skills.map(tag(x))), r => `${r.client}:${r.key}`, 'loaded', ['loaded', 'used'], ['tokens', 'perSession']);
+  // a merged skill's or tool's use, waste and pill are made again from the merged figures: kept from the first
+  // repository's row (as `...g[0]` leaves them), `wasted` was that repository's cost times its unused share beside a
+  // cost averaged over every repository, and on the page Wasted stood above Over N days wherever the first
+  // repository's sessions were the costliest (2026-10-24)
+  const reuse = r => ({ ...r, usedShare: r.loaded ? r.used / r.loaded : null, wasted: r.off ? 0 : Math.round(r.perSession * (1 - (r.loaded ? r.used / r.loaded : 0))) });
+  const graded = (xs, cost) => xs.map(r => ({ ...r, ...wasteLevel({ usedShare: r.usedShare, wasted: r.off ? null : r.wasted }, cost) }));
+  const liveCost = xs => xs.reduce((a, x) => a + (x.off ? 0 : x.perSession), 0);
+  const tools0 = merge(list.flatMap(x => x.view.tools.map(tag(x))), r => `${r.client}:${r.key}`, 'loaded', ['loaded', 'used'], ['tokens', 'perSession']).map(reuse).sort((a, b) => b.perSession - a.perSession);
+  const skills0 = merge(list.flatMap(x => x.view.skills.map(tag(x))), r => `${r.client}:${r.key}`, 'loaded', ['loaded', 'used'], ['tokens', 'perSession']).map(reuse);
+  const skills = graded(skills0, liveCost(skills0));
+  // as contextView grades them: built-in tools against their own cost, the custom tools against every custom tool's and skill's
+  const tools = tools0.map(r => ({ ...r, ...wasteLevel({ usedShare: r.usedShare, wasted: r.off ? null : r.wasted }, r.group === 'builtin' ? liveCost(tools0.filter(x => x.group === 'builtin')) : liveCost(tools0.filter(x => x.group !== 'builtin').concat(skills))) }));
   const outs = merge(views.flatMap(v => v.outputs.tools.map(t => ({ ...t, n: v.outputs.sessions }))), r => r.name, 'n', ['usedIn', 'n'], ['tokens', 'perSession', 'perCall', 'wasted', 'saveModerate', 'saveHigh']).map(t => ({ ...t, calls: w(views.flatMap(v => v.outputs.tools.filter(x => x.name === t.name).map(x => ({ ...x, n: v.outputs.sessions }))), 'calls', 'n') })).sort((a, b) => b.perSession - a.perSession);
   const ivs = list.map(x => ({ x, iv: x.view.instructions })).filter(({ iv }) => iv.file);
   const ivSessions = ivs.reduce((a, { iv }) => a + iv.sessions, 0);
