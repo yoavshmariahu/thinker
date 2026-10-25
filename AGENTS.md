@@ -962,6 +962,21 @@ running or failed, a pull request open), asked for every 30 s and every 5 s whil
 activity table move on their own when a job finishes (`page.html:pollActivity`). The Report's decisions table under its
 figures is the same function (`historyFigure`). Each row of Recent activity says what the part is and does (2026-10-24, the owner's ask; `part-describe.js`): the kind line tells a built-in tool from a custom one (`Built-in tool`, `Custom tool · MCP server`, `Custom tool · skill`, an output by its tool: `Shell command output`), and under it one line of what the thing does (`Grep output`: text search over files), from a table for Claude Code's own tools and the common shell commands and else from the first sentence of the part's own text (a tool's definition, a skill's `description:`, a section's first line). Both are kept on the decision (`what`, `about`) and worked out from the kind and key for an entry written before (`changeHistory`); `thinker context --history` prints them after the title. The row has no See more and no detail row any more: the pill's hover tells what came of the decision and the Decided cell's the time, the suggested action and what it was worth.
 
+**A section changed inside the window is a new section from then (2026-10-25, the owner's ask).** A compressed section
+kept its id, so the sessions that read the old text counted in its use, and its new size was charged to every session of
+the window. Now each section carries when its lines last changed (`instruction-value.js:sectionAges`, from `git blame -w`
+of the working tree, an uncommitted line as old as the file's last write, kept on this machine by the file's text and HEAD
+since the blame of this repository's AGENTS.md takes two seconds; `changedAtOf`: the newest of the section's lines, blank
+lines apart), and a section whose change falls inside the window (`recent`: some session read the file before it) is
+measured over the sessions since the change alone, `applied` and the judge's verdicts among them; under
+`RARE.minSessions` of those it is unknown (no pill, not suggested) rather than a verdict on one or two sessions. What it
+costs a session is its present size in the share of sessions that read its file, as for any section; over the window it
+cost that in the sessions since the change (`sessionsSince`, the row's Over N days and the savings' `window`). The row says
+`changed <date>` and how many sessions it was measured on; `thinker context` prints the same. A change a person made by
+hand counts the same way, so a line fixed in a section resets its measurement to the sessions since. The same day the
+Find Savings pill stopped saying *compression failed*: a failed change leaves the row its waste pill and its actions, and
+Recent activity carries the failure and the Retry.
+
 ## Internal server
 
 `src/server/` and `infra/sync/` remain internal infrastructure: the team's note

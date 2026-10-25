@@ -612,15 +612,18 @@ function contextRows(v) {
   const iv = v.instructions || {}, rows = [], repoOf = s => s.repo || (v.all ? null : CREPO);
   (iv.sections || []).forEach((s, i) => rows.push({
     view: 'instructions', kind: 'section', kindLabel: 'Instruction section', key: `section:${s.file}:${s.id}`, id: s.id, repo: s.repo || CREPO, order: i,
-    name: s.title, sub: [s.repoName, (s.fileKind && s.fileKind !== 'root') || (iv.files || []).length > 1 ? s.file : null, s.parent].filter(Boolean).join(' · '),
-    detail: md(s.text), tokens: s.tokens, perSession: s.perSession, sessions: iv.sessions || 0, acted: s.usedShare,
-    actedBy: s.usedShare == null ? 'too few sessions to say' : s.usedBy === 'judge' ? 'judged sessions whose agent followed it' : 'sessions that touched its files, commands or code (until five are judged by the model)',
+    // a section changed inside the window (compressed, rewritten, added) is a new section from then: its row says when,
+    // its use and its cost over the window are the sessions since (instruction-value.js:instructionValue `recent`)
+    name: s.title, sub: [s.repoName, (s.fileKind && s.fileKind !== 'root') || (iv.files || []).length > 1 ? s.file : null, s.parent, s.recent ? `changed ${dayOf(s.changedAt)}` : null].filter(Boolean).join(' · '),
+    detail: md(s.text), tokens: s.tokens, perSession: s.perSession, sessions: s.sessionsSince ?? iv.sessions ?? 0, acted: s.usedShare,
+    actedBy: (s.usedShare == null ? (s.recent ? `too few sessions since it changed on ${dayOf(s.changedAt)} to say (${s.sessions} of five)` : 'too few sessions to say') : s.usedBy === 'judge' ? 'judged sessions whose agent followed it' : 'sessions that touched its files, commands or code (until five are judged by the model)') + (s.recent && s.usedShare != null ? `, over the ${s.sessions} sessions since it changed on ${dayOf(s.changedAt)}` : ''),
     wasted: s.wasted, waste: s.waste, off: false, pill: null,
     options: [['compress', 'Compress'], ['remove', 'Remove']], disabled: '',
   }));
   // a section whose change is under way (a job in the background) or a pull request not yet merged: said so in its pill, with
   // the link, and not to be picked again until the job is done and the pull request merged (the next report has the new
-  // section) or closed (the section is suggested again); one whose change failed says so and can be picked again. A merged
+  // section) or closed (the section is suggested again). One whose change failed keeps its waste pill and can be picked
+  // again: the failure is Recent activity's to say (2026-10-25, the owner's ask; until then the pill read "compression failed"). A merged
   // pull request this checkout has not pulled (`unpulled`): the section is still in the file here, but it is decided, so
   // its row is not shown at all (the owner's call, 2026-10-25); Recent activity says to pull and tints the decision until
   // the checkout has the merge. A row with a decision on it (`decided`) is not counted as a saving still to make (flaggedSavings).
@@ -628,7 +631,7 @@ function contextRows(v) {
     const d = decisionOn(r.repo, r.key); if (!d) continue;
     if (d.unpulled) r.hidden = true;
     else if (d.running) { r.pill = ['busy', `<span class="spinner"></span>${d.job.action === 'compress' ? 'Compressing…' : 'Removing…'}`]; r.rawPill = true; r.options = []; r.disabled = 'a change is under way for it: see Recent activity'; r.decided = true; }
-    else if (d.failed) r.pill = ['failed', `${d.job.action === 'compress' ? 'compression' : 'removal'} failed`];
+    else if (d.failed) continue;
     else { r.pr = d.pr; r.pill = ['pr', `PR #${d.pr.number} pending`]; r.options = []; r.disabled = `pull request #${d.pr.number} is open for it`; r.decided = true; }
   }
   for (let i = rows.length - 1; i >= 0; i--) if (rows[i].hidden) rows.splice(i, 1);

@@ -197,6 +197,13 @@ test('All on Find Savings and Recent activity are `thinker context --approve|--d
   assert.match(page, /api\(`\/api\/activity\?repo=\$\{encodeURIComponent\(CREPO\)\}`\)/);
   assert.match(read('context-suggest.js'), /days: 7,/);
   assert.match(read('context-suggest.js'), /tab=save&view=all/);
+  // a failed change leaves the section its waste pill on Find Savings (the failure is Recent activity's to say)
+  assert.match(page, /else if \(d\.failed\) continue;/);
+  assert.doesNotMatch(page, /'compression' : 'removal'\} failed/);
+  // a section changed inside the window is measured over the sessions since, said so by both doors (instruction-value.js `recent`)
+  assert.match(page, /sessions: s\.sessionsSince \?\? iv\.sessions \?\? 0/);
+  assert.match(page, /s\.recent \? `changed \$\{dayOf\(s\.changedAt\)\}` : null/);
+  assert.match(read('commands/context.js'), /s\.recent \? ` \(changed \$\{s\.changedAt\.slice\(0, 10\)\}: \$\{s\.sessions\} session/);
   // the page's rows carry the keys allChanges gives, so the server finds the part a row's Apply names
   for (const k of ['`section:${s.file}:${s.id}`', '`${s.client}:${s.key}`', '`output:${s.name}`']) assert.ok(read('ui/page.html').includes(k), k);
 });
