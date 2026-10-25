@@ -71,7 +71,7 @@ node scripts/metrics-dashboard.mjs login
 
 Open **http://localhost:3030** and use the printed login. The **Thinker metrics**
 collection contains **Cache & distillation performance**, **Telemetry diagnostics**,
-**PR delivery & review**, **Holdout: what the notes save**, **Cache health**, and **Waitlist** dashboards with saved SQL queries. Choose
+**PR delivery & review**, **Holdout: what the notes save**, **Cache health**, **Token spend**, and **Waitlist** dashboards with saved SQL queries. Choose
 **New → SQL query → Thinker telemetry (read-only)** to write your own SQL, save
 results, chart them, or export CSV. `start` prints the direct dashboard URLs.
 All dashboards have platform, version, device ID, and report-type filters.
@@ -427,6 +427,61 @@ answers: `answeredBuild` with `directoriesChosen`, `answeredNone` (not now: thos
 through the person's own agent login (`buildsStarted`, `tokensEstimated`) or not, with none signed in
 (`buildsNotStarted`); the whole-directory understanding runs report `wholeRuns`, `wholeFiles`, `wholeNotes` and
 `wholeCallsFailed`. Counts only, no directory names. **Cache health** shows them; run `refresh` to add the card.
+## Token spend (proxy, actions and savings schema 1)
+
+The **Token spend** dashboard (`scripts/spend-dashboard.mjs`) reads three 30-day blocks
+updated clients send beside the cache ones, all built without a model call:
+
+`raw_json.proxy` (`src/telemetry.js:proxyMetrics`) is the context proxy: whether the
+service is on here and whether a process was alive when the report was built, the
+holdout share it runs with, and the two sides of its own request log — `clearing`
+(the API was asked to clear old tool results) against `holdout` (passed through) —
+each with requests, sessions, the four token types, billed-equivalent input (fresh
+input 1, cache reads 0.1, cache writes 2), tokens cleared, and the proxy's own
+overhead p50/p99 in milliseconds. Plus the same two sides per model id, the errors
+by code with the retries, and the counts of the experimental note injection. The
+`responses` side is the OpenAI Responses protocol, where the proxy removes the text
+itself. Model ids are the provider's published names; no URL, header, prompt or
+response text is read or sent.
+
+`raw_json.actions` (`spendMetrics`) is what people did: the funnel from the machine
+log (changes suggested, summaries put to the person, approvals with their changes
+and claimed savings, dismissals, reverts, section jobs started, retried and failed,
+the in-prompt harness question and its answers), what the output compression
+actually cut (`src/diet.js`, in characters as it records them, roughly four to a
+token, by kind of result), and the decisions themselves as a `{group, outcome}`
+matrix: section / skill / built-in tool / MCP server / plugin / the three kinds of
+output, against applied, pull request open / merged / rejected, dismissed, reverted,
+failed, running.
+
+`raw_json.savings` is what those decisions measured: per group, the changed thing's
+own cost over the sessions before the decision and since it (tokens and prompts on
+each side, so the dashboard divides sums by sums), the tokens saved since, and what
+a whole prompt cost before, for the share; up to 50 anonymised decision rows newest
+first, each with its measured before and after a prompt; the device's own tokens a
+prompt, as the denominator; and how many of its repositories hold decisions and a
+report. The effects are read from the report each repository already keeps
+(`src/report-snapshot.js:historyEffects`), so a device whose repositories have no
+report of that code reports its decisions with no effect — counted, not measured.
+
+**What the figures are not.** A decision's before and after are its own cost a
+prompt over the sessions on each side of it, on one machine: anything else that
+changed in that window moves them too, and a decision measured on fewer than five
+sessions a side is marked `few`. The proxy's two sides are that machine's own work
+days apart, not paired runs. Neither is a controlled comparison, and neither
+subtracts what thinker itself spends.
+
+**Names.** The only part names that leave a machine are the agent's own built-in
+tools and the common shell commands, from the fixed tables in
+`src/part-describe.js` (`partIdentity`, `publicToolName`); everything else is
+counted by its group. No section title, instruction file name, skill name, MCP
+server name, repository, path or prompt text is in these blocks, and a repository
+with `telemetry: false` contributes no decisions. The existing JSONB ingestion
+preserves all three; no Lambda or schema migration is needed.
+
+Run `refresh` to add the dashboard to an existing setup, then `verify`. It stays
+empty until a release carrying these blocks is installed and reporting.
+
 ## Website messages
 
 The bottom-right **Send us a message** button on the homepage and docs opens a

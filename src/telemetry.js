@@ -15,6 +15,13 @@ import { deviceIdentity } from './device.js';
 import { detectClients, inferWiring, USER_SCOPE_CLIENTS } from './clients.js';
 import { detectHarnesses } from './harnesses.js';
 import { deliveryMetrics } from './delivery-telemetry.js';
+import { proxyReport } from './proxy.js';
+import { serviceState, proxyLogFile, SERVICE_HOLDOUT } from './proxy-service.js';
+import { readMachineConfig } from './repo-switch.js';
+import { changeHistory } from './context-suggest.js';
+import { historyEffects, promptAverageHere } from './report-snapshot.js';
+import { mergePromptAverages } from './report.js';
+import { partIdentity, publicToolName } from './part-describe.js';
 
 export const HOUR_MS = 60 * 60 * 1000;
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -276,6 +283,246 @@ export function wiringHealth({ home, detected = detectClients({ fallback: false 
   return out;
 }
 
+// ---------------------------------------------------------------------------------------------
+// Token spend: the proxy, the actions people take to cut what a prompt costs, and what those
+// actions measured as saved. The Metabase "Token spend" dashboard reads these three blocks from
+// reports.raw_json (scripts/spend-dashboard.mjs). Counts, tokens and published model ids only: the
+// one place a part's own name may be sent is part-describe.js:partIdentity, which names the agent's
+// built-in tools and the common shell commands and nothing else -- never a section title, file
+// name, skill name, MCP server name or repository.
+export const SPEND_WINDOW_DAYS = 30;
+const PROXY_LOG_MAX = 8 * 1024 * 1024;   // a day of heavy use is ~50 KB; the tail is enough for 30 days
+
+// The proxy's own records (proxy-service.js:proxyLogFile), newest PROXY_LOG_MAX bytes.
+function readProxyRows(file) {
+  let text = '';
+  try {
+    const size = fs.statSync(file).size;
+    const start = Math.max(0, size - PROXY_LOG_MAX);
+    const fd = fs.openSync(file, 'r');
+    try {
+      const buf = Buffer.alloc(size - start);
+      if (buf.length) fs.readSync(fd, buf, 0, buf.length, start);
+      text = buf.toString('utf8');
+    } finally { fs.closeSync(fd); }
+    if (start) text = text.slice(text.indexOf('\n') + 1);
+  } catch { return []; }
+  return text.split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+}
+const alive = pid => { if (!pid) return false; try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
+// what a request cost at the rates the sides are compared on (proxy.js:proxyReport billedInput)
+const billed = r => Math.round((r.input || 0) + 0.1 * (r.read || 0) + 2 * (r.write || 0));
+
+// The context proxy over the last 30 days: whether the service is on and running here, and the two sides the
+// service itself runs (proxy.js:proxyReport) -- requests whose old tool results the API was asked to clear
+// against the holdout share that passed through untouched, which is the proxy's own before and after. Plus the
+// errors by code, the retries, and the same two sides per model. Model ids are the provider's published names.
+export function proxyMetrics({ home = thinkerHome(), now = Date.now(), env = process.env } = {}) {
+  const since = new Date(now - SPEND_WINDOW_DAYS * DAY_MS).toISOString();
+  const rows = readProxyRows(proxyLogFile(home, env)).filter(r => !r.at || r.at >= since);
+  const state = serviceState(home);
+  let cfg = {}; try { cfg = (readMachineConfig(home) || {}).proxy || {}; } catch {}
+  const errors = { total: 0, retried: 0, byCode: {} };
+  const byModel = {};
+  const notes = { requests: 0, served: 0, replayed: 0 };
+  for (const r of rows) {
+    if (r.op === 'proxy-error') {
+      errors.total++; if (r.retried) errors.retried++;
+      const code = String(r.code || 'unknown'); errors.byCode[code] = (errors.byCode[code] || 0) + 1;
+      continue;
+    }
+    if (r.op !== 'proxy') continue;
+    if (r.notes != null) { notes.requests++; notes.served += r.notes || 0; notes.replayed += r.notesReplayed || 0; }
+    const side = r.protocol === 'responses' ? 'responses' : r.injected ? 'clearing' : r.reason === 'holdout' ? 'holdout' : 'other';
+    const m = byModel[r.model || 'unknown'] ||= {};
+    const s = m[side] ||= { requests: 0, billedInput: 0, cleared: 0 };
+    s.requests++; s.billedInput += billed(r); s.cleared += r.cleared || 0;
+  }
+  return {
+    schemaVersion: 1, windowDays: SPEND_WINDOW_DAYS,
+    service: {
+      on: state.enabled === true, running: alive(state.pid), since: state.since || null, off: state.off || null,
+      holdout: cfg.holdout == null ? SERVICE_HOLDOUT : Number(cfg.holdout) || 0,
+      keep: cfg.keep ?? null, trigger: cfg.trigger ?? null,
+    },
+    sides: proxyReport(rows, { since }),
+    byModel, errors, notes,
+  };
+}
+
+// Which side of a decision's life it ended on, for the kind x outcome matrix. A pull request is named by its
+// state on GitHub (context-suggest.js:refreshPrStates), since a change nobody merged saved nothing.
+export function decisionOutcome(e) {
+  if (e.revertedAt) return 'reverted';
+  if (e.job?.state === 'failed') return 'failed';
+  if (e.job?.state === 'running') return 'running';
+  if (e.pr) return e.pr.state === 'merged' ? 'pr-merged' : e.pr.state === 'closed' ? 'pr-rejected' : 'pr-open';
+  if (e.decision === 'dismissed') return 'dismissed';
+  return 'applied';
+}
+
+// Every decision taken on Find Savings, over every repository the machine's log names, each with what it
+// measured as saved (report-snapshot.js:historyEffects, read over the report kept in the repository: no
+// transcript is read and no model is called here). A repository whose config says `telemetry: false` is left
+// out, as in holdoutMetrics. Worktrees of one repository share a cache and a report, and a decision reached
+// through two checkouts is one decision: they are deduplicated by id.
+function collectDecisions(store, { all = true, now = Date.now() } = {}) {
+  const entries = [], averages = [];
+  let repositories = 0, withDecisions = 0, withReport = 0;
+  for (const r of knownRepos(store, { all })) {
+    const seen = new Set(), mine = [];
+    let optedOut = false, average = null, read = false;
+    for (const checkout of r.checkouts) {
+      let s;
+      try { s = store && path.resolve(store.repo || '') === path.resolve(checkout) ? store : new Store(checkout, { readonly: true }); } catch { continue; }
+      try { if (!s.exists()) continue; } catch { continue; }
+      try { if (s.config()?.telemetry === false) { optedOut = true; break; } } catch {}
+      read = true;
+      let history = [];
+      // no `git merge-base` per entry from a background report: whether a merged change is pulled in some
+      // checkout is the page's business, not telemetry's
+      try { history = changeHistory(s, { now, git: () => null }); } catch { history = []; }
+      if (history.length) {
+        let measured = history;
+        try { measured = historyEffects(s, history, { now }); } catch { measured = history; }
+        for (const e of measured) {
+          const id = e.id || `${e.at}:${e.key}`;
+          if (seen.has(id)) continue;
+          seen.add(id); mine.push(e);
+        }
+      }
+      if (!average) { try { average = promptAverageHere(s, { now }); } catch {} }
+    }
+    if (optedOut || !read) continue;
+    repositories++;
+    if (mine.length) withDecisions++;
+    if (average) { withReport++; averages.push(average); }
+    entries.push(...mine);
+  }
+  return { entries, averages, repositories, withDecisions, withReport };
+}
+
+const bump = (map, key, add) => { if (!map.has(key)) map.set(key, {}); const row = map.get(key); for (const [k, v] of Object.entries(add)) row[k] = (row[k] || 0) + v; return row; };
+
+// The two blocks built from one walk of the repositories: `actions` (what was suggested, offered and decided,
+// from the machine's log and the decisions themselves) and `savings` (what the decisions measured). Split so
+// the dashboard can read the funnel without the effects, which are null on a machine whose report was made by
+// other code.
+export function spendMetrics(store, { all = true, now = Date.now() } = {}) {
+  const since = new Date(now - SPEND_WINDOW_DAYS * DAY_MS).toISOString();
+  const a = {
+    schemaVersion: 1, windowDays: SPEND_WINDOW_DAYS,
+    suggested: 0, suggestedTokens: 0, offers: 0, offersInPage: 0, offeredTokens: 0,
+    approvals: 0, approvedChanges: 0, approvedTokens: 0, approvalsReviewed: 0, approvalsAsPr: 0,
+    dismissals: 0, dismissedChanges: 0, reverts: 0, revertedPrs: 0,
+    jobsStarted: 0, jobsRetried: 0, jobsFailed: 0, sectionEdits: 0, sectionPrs: 0,
+    harnessOffers: 0, harnessOfferedSources: 0, harnessOfferedTokens: 0,
+    harnessAnswers: {}, harnessOffs: 0, harnessSwitchedOff: 0, harnessUndos: 0, harnessUndoneSources: 0,
+    // what the output compression (diet.js) actually cut, in characters, as it records them (~4 to a token);
+    // `byKind` is its own vocabulary (cap, read, search, test), `byTool` only the tools it names publicly
+    compression: { calls: 0, charsBefore: 0, charsAfter: 0, charsSaved: 0, byKind: {}, byTool: {} },
+    settings: { harnessEnabled: null, builtinTools: null, outputTools: null },
+  };
+  for (const e of readLog(store, { all }).filter(e => e.t >= since)) {
+    switch (e.op) {
+      case 'context-suggest': a.suggested += e.changes || 0; a.suggestedTokens += e.saving || 0; break;
+      case 'context-offer': a.offers++; a.offeredTokens += e.saving || 0; if (e.ui) a.offersInPage++; break;
+      case 'context-approve':
+        a.approvals++; a.approvedChanges += e.changes || 0; a.approvedTokens += e.saving || 0;
+        if (e.reviewed) a.approvalsReviewed++;
+        if (e.pr) a.approvalsAsPr++;
+        break;
+      case 'context-dismiss': a.dismissals++; a.dismissedChanges += e.changes || 0; break;
+      case 'context-revert': a.reverts++; if (e.kind === 'pr') a.revertedPrs++; break;
+      case 'context-job':
+        if (e.state === 'started') a.jobsStarted++;
+        else if (e.state === 'retried') a.jobsRetried++;
+        else if (e.state === 'failed') a.jobsFailed++;
+        break;
+      case 'instruction-edit': a.sectionEdits++; break;
+      case 'instruction-pr': a.sectionPrs++; break;
+      case 'harness-offer': a.harnessOffers++; a.harnessOfferedSources += e.sources || 0; a.harnessOfferedTokens += e.tokens || 0; break;
+      case 'harness-answer': {
+        const choice = String(e.choice || 'unknown');
+        a.harnessAnswers[choice] = (a.harnessAnswers[choice] || 0) + 1;
+        a.harnessSwitchedOff += e.switched || 0;
+        break;
+      }
+      // since 2026-10-25 the harness question is part of the one weekly suggestion (context-offer above) and a
+      // switch-off is recorded on its own; the two ops above are still in the logs of the 30 days before that
+      case 'harness-off': a.harnessOffs++; a.harnessSwitchedOff += e.switched || 0; break;
+      case 'harness-undo': a.harnessUndos++; a.harnessUndoneSources += e.sources || 0; break;
+      case 'harness-settings': a.settings.harnessEnabled = e.enabled ?? a.settings.harnessEnabled; a.settings.builtinTools = e.builtinTools ?? a.settings.builtinTools; break;
+      // `tools` names the compressed tools (an MCP server among them): only how many, at which level
+      case 'diet-settings': a.settings.outputTools = e.tools && typeof e.tools === 'object'
+        ? Object.values(e.tools).reduce((m, level) => ({ ...m, [String(level)]: (m[String(level)] || 0) + 1 }), {})
+        : a.settings.outputTools; break;
+      case 'diet': {
+        const c = a.compression, cut = Math.max(0, (e.before || 0) - (e.after || 0));
+        c.calls++; c.charsBefore += e.before || 0; c.charsAfter += e.after || 0; c.charsSaved += cut;
+        const kind = String(e.kind || 'unknown');
+        const k = c.byKind[kind] ||= { calls: 0, charsSaved: 0 };
+        k.calls++; k.charsSaved += cut;
+        const name = publicToolName(e.tool);
+        if (name) { const t = c.byTool[name] ||= { calls: 0, charsSaved: 0 }; t.calls++; t.charsSaved += cut; }
+        break;
+      }
+      default: break;
+    }
+  }
+
+  const { entries, averages, repositories, withDecisions, withReport } = collectDecisions(store, { all, now });
+  const recent = entries.filter(e => (e.at || '') >= since).sort((x, y) => (x.at < y.at ? 1 : x.at > y.at ? -1 : 0));
+  const matrix = new Map(), named = new Map(), effects = new Map();
+  const rows = [];
+  let measured = 0;
+  for (const e of recent) {
+    const { group, name } = partIdentity({ kind: e.kind, key: e.key, what: e.what });
+    const outcome = decisionOutcome(e);
+    const before = e.tokens?.before ?? null, after = e.tokens?.after ?? null;
+    bump(matrix, `${group}\u0000${outcome}`, { decisions: 1, savingTokens: e.saving || 0, tokensBefore: before || 0, tokensAfter: after || 0, tokensKnown: before == null ? 0 : 1 });
+    if (name) bump(named, `${group}\u0000${name}\u0000${outcome}`, { decisions: 1 });
+    const x = e.effect;
+    if (x) {
+      measured++;
+      bump(effects, group, {
+        measured: 1,
+        beforeTokens: x.before.total, beforePrompts: x.before.prompts,
+        afterTokens: x.after.total, afterPrompts: x.after.prompts,
+        savedTokens: x.window, wholeBeforeTokens: (x.whole?.before || 0) * x.after.prompts,
+        few: x.few ? 1 : 0,
+      });
+    }
+    if (rows.length < 50) rows.push({
+      at: e.at, group, name, act: e.act || null, outcome,
+      tokensBefore: before, tokensAfter: after, savingClaimed: e.saving ?? null, days: e.days ?? null,
+      effect: x ? {
+        perPromptBefore: x.before.perPrompt, perPromptAfter: x.after.perPrompt, delta: x.delta,
+        share: x.share == null ? null : Math.round(x.share * 10000) / 10000,
+        promptsBefore: x.before.prompts, promptsAfter: x.after.prompts,
+        sessionsBefore: x.before.sessions, sessionsAfter: x.after.sessions,
+        wholeBefore: x.whole?.before ?? null, wholeAfter: x.whole?.after ?? null,
+        savedSince: x.window, few: Boolean(x.few),
+      } : null,
+    });
+  }
+  const list = (map, keys) => [...map.entries()].map(([k, v]) => ({ ...Object.fromEntries(k.split('\u0000').map((part, i) => [keys[i], part])), ...v }));
+  a.decisions = list(matrix, ['group', 'outcome']);
+  a.builtinParts = list(named, ['group', 'name', 'outcome']);
+
+  return {
+    actions: a,
+    savings: {
+      schemaVersion: 1, windowDays: SPEND_WINDOW_DAYS,
+      decisions: recent.length, measured, unmeasured: recent.length - measured,
+      byGroup: [...effects.entries()].map(([group, v]) => ({ group, ...v })),
+      rows,
+      promptAverage: mergePromptAverages(averages),
+      repositories: { total: repositories, withDecisions, withReport },
+    },
+  };
+}
+
 export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, all = true, event = 'hourly' } = {}) {
   let version = 'unknown';
   try {
@@ -299,6 +546,7 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
     : 0;
 
   const device = deviceIdentity({ home });
+  const tokenSpend = spendMetrics(store, { all });
   return {
     installId: getInstallId(home),
     deviceId: device.id,
@@ -322,6 +570,14 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
 
     // coverage suggestions asked, answered and built, 30 days (coverageMetrics)
     coverage: coverageMetrics(store, { all }),
+
+    // the context proxy, 30 days: the service here, the clearing side against the holdout side, by model (proxyMetrics)
+    proxy: proxyMetrics({ home }),
+
+    // what was suggested, offered and decided on Find Savings, 30 days, and what each decision measured as
+    // saved over the report kept in its repository (spendMetrics). The Token spend dashboard reads both.
+    actions: tokenSpend.actions,
+    savings: tokenSpend.savings,
 
     // Explicit coverage keeps old logs and unsupported provider costs unknown.
     // SQL dashboards read this versioned block from reports.raw_json.

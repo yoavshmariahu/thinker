@@ -46,6 +46,9 @@ const ownUrls = (home, s = serviceState(home)) => new Set([...(s.ports || []), s
 // a URL this machine's service had, trailing slash or not
 export const isOwnUrl = (value, home = thinkerHome()) => !!value && ownUrls(home).has(String(value).replace(/\/+$/, ''));
 export const logFile = (home = thinkerHome()) => path.join(home, 'state', 'proxy-service.log');
+// where the proxy writes a line per request it passes (proxy.js:startProxy); `thinker proxy report` and the
+// telemetry's proxy block read it
+export const proxyLogFile = (home = thinkerHome(), env = process.env) => env.THINKER_PROXY_LOG || path.join(home, 'state', 'proxy.jsonl');
 
 export function freePort() {
   return new Promise((resolve, reject) => {

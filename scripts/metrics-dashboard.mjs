@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { deliveryQuestions } from './delivery-dashboard.mjs';
 import { holdoutQuestions } from './holdout-dashboard.mjs';
 import { cacheQuestions } from './cache-dashboard.mjs';
+import { spendQuestions } from './spend-dashboard.mjs';
 import path from 'node:path';
 import net from 'node:net';
 import { randomBytes } from 'node:crypto';
@@ -107,7 +108,7 @@ const costQuestions = [
   { name: 'Distillation measurement coverage', display: 'table', sql: `SELECT count(*) FILTER (WHERE raw_json #>> '{distillation,schemaVersion}' = '1') AS installations_with_instrumentation, ${distillSum('attempts')} AS measured_runs, ${distillSum('legacySuccessfulRuns')} AS older_completions_without_outcomes, ${distillSum('durationSamples')} AS timed_runs, ${distillSum('costKnownCalls')} AS model_calls_with_cost, ${distillSum('costUnknownCalls')} AS model_calls_without_cost, ${distillSum('modelFailedCalls')} AS failed_model_attempts FROM v_latest_installs` }
 ];
 performanceQuestions.push(...costQuestions);
-const questions = [...diagnosticQuestions, ...performanceQuestions, ...deliveryQuestions, ...holdoutQuestions, ...cacheQuestions];
+const questions = [...diagnosticQuestions, ...performanceQuestions, ...deliveryQuestions, ...holdoutQuestions, ...cacheQuestions, ...spendQuestions];
 const performanceCardNames = [...performanceQuestions.map(q => q.name), 'Note assessments · latest snapshots', 'Savings estimates · latest snapshots'];
 
 const filterDefs = [
@@ -161,13 +162,13 @@ export async function provision({ call = api, config = state, persist = save, re
   state.cards ||= {};
   for (const question of questions) {
     const existingId = state.cards[question.name];
-    if (existingId && (question.cache ? state.cacheCardVersion === 5 : question.holdout ? state.holdoutCardVersion === 3 : question.delivery ? state.deliveryCardVersion === 2 : state.cardVersion === 7)) continue;
+    if (existingId && (question.spend ? state.spendCardVersion === 1 : question.cache ? state.cacheCardVersion === 5 : question.holdout ? state.holdoutCardVersion === 3 : question.delivery ? state.deliveryCardVersion === 2 : state.cardVersion === 7)) continue;
     const card = await api(existingId ? `/card/${existingId}` : '/card', existingId ? 'PUT' : 'POST', { name: question.name, display: question.display, description: question.description || null,
       collection_id: state.collectionId, visualization_settings: question.settings || {},
       dataset_query: dataset(question, db.id) });
     state.cards[question.name] = card.id; save();
   }
-  state.cardVersion = 7; state.deliveryCardVersion = 2; state.holdoutCardVersion = 3; state.cacheCardVersion = 5; save();
+  state.cardVersion = 7; state.deliveryCardVersion = 2; state.holdoutCardVersion = 3; state.cacheCardVersion = 5; state.spendCardVersion = 1; save();
   if (!state.dashboardId) {
     state.dashboardId = (await api('/dashboard', 'POST', { name: 'Thinker telemetry', collection_id: state.collectionId,
       description: 'Live reports, installation activity, and data quality. Installation IDs are not people. Older telemetry may contain test data. Usage fields are rolling snapshots; do not sum all reports.' })).id;
@@ -304,6 +305,41 @@ export async function provision({ call = api, config = state, persist = save, re
     await api(`/dashboard/${state.cacheId}`, 'PUT', { parameters: [...parameters,
       ...dashboard.parameters.filter(p => !filterDefs.some(([key]) => key === p.id))] });
   }
+  if (!state.spendId) {
+    state.spendId = (await api('/dashboard', 'POST', { name: 'Token spend', collection_id: state.collectionId,
+      description: 'The context proxy, the actions people take on Find Savings to cut what a prompt costs, and what those actions measured as saved. 30 days on the latest snapshot per device. Clients before these blocks send nothing here, which is not zero.' })).id;
+    save();
+  }
+  if (state.spendDashboardVersion !== 1) {
+    const band = (row, text) => ({ id: -(row + 1000), card_id: null, row, col: 0, size_x: 24, size_y: 3,
+      visualization_settings: { virtual_card: { display: 'text' }, text } });
+    const cards = [band(0, '## Where the tokens go, and what people cut\nThree bands: the proxy (what it clears and what that side costs against the held-out side), the actions taken on Find Savings, and what those decisions measured as saved. Every card reads the latest snapshot per known device (installation fallback) and covers 30 days.\n**Read the savings carefully:** a decision is measured by what the changed thing cost a prompt before it against since it, on the same machine, over the repository\'s own kept report. Other changes in that time move it too. Nothing here is a controlled comparison, and a device whose repositories hold no report is counted but not measured.')];
+    // the three bands, in the order the questions are written: proxy (9), actions (8), savings (5)
+    const bands = [[0, 9, 3, '## The proxy'], [9, 17, null, '## What people switched off, compressed or removed'], [17, spendQuestions.length, null, '## What it measured as saved']];
+    let row = 3;
+    for (const [from, to, scalars, title] of bands) {
+      if (from) { cards.push(band(row, title)); row += 3; }
+      let col = 0, top = row;
+      spendQuestions.slice(from, to).forEach((q, i) => {
+        const id = state.cards[q.name];
+        if (scalars != null && i < scalars) {
+          cards.push({ id: -(from + i + 2), card_id: id, row: top, col: i * (24 / scalars), size_x: 24 / scalars, size_y: 4, parameter_mappings: mappings(id) });
+          if (i === scalars - 1) row = top + 4;
+          return;
+        }
+        if (q.fullWidth && col) { row += 8; col = 0; }
+        cards.push({ id: -(from + i + 2), card_id: id, row, col, size_x: q.fullWidth ? 24 : 12, size_y: 8, parameter_mappings: mappings(id) });
+        if (q.fullWidth || col) { row += 8; col = 0; } else col = 12;
+      });
+      if (col) row += 8;
+    }
+    await api(`/dashboard/${state.spendId}`, 'PUT', { parameters, dashcards: cards });
+    state.spendDashboardVersion = 1; save();
+  } else {
+    const dashboard = await api(`/dashboard/${state.spendId}`);
+    await api(`/dashboard/${state.spendId}`, 'PUT', { parameters: [...parameters,
+      ...dashboard.parameters.filter(p => !filterDefs.some(([key]) => key === p.id))] });
+  }
   if (!state.messagesCardId) {
     state.messagesCardId = (await api('/card', 'POST', {
       name: 'Website messages', display: 'table', collection_id: state.collectionId,
@@ -328,6 +364,7 @@ export async function provision({ call = api, config = state, persist = save, re
   console.log(`Delivery: http://localhost:3030/dashboard/${state.deliveryId}`);
   console.log(`Holdout: http://localhost:3030/dashboard/${state.holdoutId}`);
   console.log(`Cache health: http://localhost:3030/dashboard/${state.cacheId}`);
+  console.log(`Token spend: http://localhost:3030/dashboard/${state.spendId}`);
   console.log(`Dashboard: http://localhost:3030/dashboard/${state.dashboardId}`);
   console.log(`Waitlist: http://localhost:3030/dashboard/${state.waitlistId}`);
   console.log(`SQL editor: http://localhost:3030/question#?db=${db.id}&type=native`);
@@ -337,6 +374,7 @@ export async function provision({ call = api, config = state, persist = save, re
 export async function verify({ call = api, config = state } = {}) {
   const api = call, state = config;
   if (!state.cacheId) throw new Error('Cache health dashboard missing; run refresh');
+  if (!state.spendId) throw new Error('Token spend dashboard missing; run refresh');
   session = (await api('/session', 'POST', { username: state.email, password: state.password })).id;
   const dashboard = await api(`/dashboard/${state.dashboardId}`);
   for (const [id] of filterDefs) {
@@ -373,6 +411,12 @@ export async function verify({ call = api, config = state } = {}) {
     if (cacheQuestions.some(q => !cache.dashcards.some(c => c.card_id === state.cards[q.name]))) throw new Error('Cache health dashboard is missing cards');
     if (filterDefs.some(([id]) => !cache.parameters.some(p => p.id === id) || cache.dashcards.some(c => c.card_id && !c.parameter_mappings.some(p => p.parameter_id === id)))) throw new Error('Unmapped cache health filter');
     console.log('PASS: cache health layout and filters.');
+  }
+  {
+    const spend = await api(`/dashboard/${state.spendId}`);
+    if (spendQuestions.some(q => !spend.dashcards.some(c => c.card_id === state.cards[q.name]))) throw new Error('Token spend dashboard is missing cards');
+    if (filterDefs.some(([id]) => !spend.parameters.some(p => p.id === id) || spend.dashcards.some(c => c.card_id && !c.parameter_mappings.some(p => p.parameter_id === id)))) throw new Error('Unmapped token spend filter');
+    console.log('PASS: token spend layout and filters.');
   }
   if (performanceCardNames.some(name => !dashboard.dashcards.some(card => card.card_id === state.cards[name]))) {
     throw new Error('Starter dashboard is missing cards');
