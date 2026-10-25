@@ -182,6 +182,15 @@ test('All on Find Savings and Recent activity are `thinker context --approve|--d
   assert.match(page, /api\('\/api\/changes\/retry', \{ repo: e\.repo, id: e\.id \}\)/);
   assert.match(read('ui/server.js'), /attention: history\.filter\(h => h\.attention\)\.length/);
   assert.match(cs, /attention: running \? 'running' : failed && !e\.revertedAt \? 'failed' : pending \? 'pr' : null/);
+  // a merged pull request this checkout has not pulled (`unpulled`, with the branch to pull): the section has no row on the
+  // page, Recent activity says to pull that branch and tints the decision, and `thinker context --history` says the same
+  assert.match(cs, /unpulled\.has\(e\) \? \{ unpulled: true, pullFrom: e\.pr\.base \|\| pullFrom \}/);
+  assert.match(page, /e\.failed \|\| e\.unpulled\) &&/);
+  assert.match(page, /if \(d\.unpulled\) r\.hidden = true;/);
+  assert.match(page, /once you pull <code>\$\{esc\(br\)\}<\/code> \(<code>git pull origin \$\{esc\(br\)\}<\/code>\)/);
+  assert.match(page, /e\.unpulled \? \['wait', 'Merged · pull to apply'\]/);
+  assert.match(read('commands/context.js'), /once you pull \$\{br\} \(git pull origin \$\{br\}\)/);
+  assert.match(read('commands/context.js'), /merged\$\{e\.unpulled \? ', pull to apply' : ''\}/);
   assert.match(read('commands/context.js'), /if \(flags\.retry !== undefined\)/);
   assert.doesNotMatch(page, /\['history', 'History'\]/);
   // the page's rows read the same decisions, for the pill on a section under way, failed or pending on a pull request
@@ -307,7 +316,7 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('ui/page.html'), /swapBody\(el, parts \+ models \+ tokenTypes \+ cards\);/, 'the token types last, no decisions on the Report');
   // every page is rebuilt in place once on screen (2026-10-25): the three renders go through swapBody, which keeps the scroll and
   // the open rows, and a load of what is already shown does not wipe the body to the spinner
-  assert.match(read('ui/page.html'), /function swapBody\(el, html\)/); assert.match(read('ui/page.html'), /swapBody\(el, h\);/); assert.match(read('ui/page.html'), /swapBody\(el, card \+ historyFigure\(/);
+  assert.match(read('ui/page.html'), /function swapBody\(el, html\)/); assert.match(read('ui/page.html'), /swapBody\(el, h\);/); assert.match(read('ui/page.html'), /swapBody\(el, card \+ pullCard \+ historyFigure\(/);
   assert.match(read('ui/page.html'), /inPlace = Boolean\(CTX\) && CTX_FOR === `\$\{CREPO\}\|\$\{cdays\}`/); assert.match(read('ui/page.html'), /inPlace = Boolean\(ACT\) && ACT_FOR === AREPO/); assert.match(read('ui/page.html'), /inPlace = Boolean\(RPT\) && RPT_FOR === REPO/);
   assert.doesNotMatch(read('ui/page.html'), /Total of these/); assert.doesNotMatch(read('report.js'), /'Total of these'/);
   assert.equal((read('report.js').match(/line\('Total \(the whole session\)', v\.sessionTotals, true(, null, \{ thresholds: true \})?\)/g) || []).length, 3);

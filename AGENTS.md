@@ -929,7 +929,15 @@ records the decision as `pull request` with `pr` {number, url, branch, state} (`
 follows the state on GitHub a minute apart at most (`refreshPrStates`, on every read of `/api/activity` and `thinker
 context --history`): **PR pending** while open (the section's row shows the same pill, linked, and cannot be picked
 again), **Merged**, **Rejected** once closed without merging, and a rejected change is suggested again
-(`currentChanges` leaves it out of the decided set) since nothing was followed through on. **Close PR** is the entry's
+(`currentChanges` leaves it out of the decided set) since nothing was followed through on. A merged change this checkout
+has not pulled is `unpulled` (`changeHistory`, 2026-10-25: two sections removed by a merged pull request were offered again on
+the page of a checkout behind `main`, which still had them in its AGENTS.md): the merge commit GitHub names (`prState`
+`commit`, kept as `pr.mergeCommit`; an entry from before it was kept is asked for it once more) is not an ancestor of `HEAD`,
+or, without a commit, a removed section is still in the file; the page shows no row for the section (the owner's call: a
+decided change is not a suggestion), and Recent activity opens with a yellow banner saying to pull the branch (`pullFrom`:
+the pull request's base, else `instruction-pr.js:defaultBranch`, main, master or whatever origin names) and tints the
+decisions waiting on it; `thinker context --history` prints the same line. Until the checkout has the merge (kept as
+`pr.pulledAt`, asked no more). **Close PR** is the entry's
 revert (`revertDecision`, `instruction-pr.js:closePr`: closed with a comment, the branch deleted). `thinker instructions
 --compress <id> --pr` is the command.
 
