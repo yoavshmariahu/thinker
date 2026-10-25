@@ -154,7 +154,8 @@ export function mergeViews(list) {
   const ivs = list.map(x => ({ x, iv: x.view.instructions })).filter(({ iv }) => iv.file);
   const ivSessions = ivs.reduce((a, { iv }) => a + iv.sessions, 0);
   const window = ivs.reduce((a, { iv }) => a + (iv.savings?.window || 0), 0);
-  const fileWindow = ivs.reduce((a, { iv }) => a + iv.sections.reduce((s, r) => s + r.perSession, 0) * iv.sessions, 0);
+  // each section over the sessions that read its present text (a section changed inside the window counts from then)
+  const fileWindow = ivs.reduce((a, { iv }) => a + iv.sections.reduce((s, r) => s + r.perSession * (r.sessionsSince ?? iv.sessions), 0), 0);
   const total = k => ({ tokens: Math.round(w(views.map(v => ({ ...v.totals[k], s: v.sessions })), 'tokens', 's')), perSession: Math.round(w(views.map(v => ({ ...v.totals[k], s: v.sessions })), 'perSession', 's')), count: Math.max(0, ...views.map(v => v.totals[k]?.count || 0)) });
   return {
     all: true, days: views[0]?.days || 30, sessions, harnessOn: false, repos: list.map(x => ({ repo: x.repo, name: x.name, sessions: x.view.sessions })),

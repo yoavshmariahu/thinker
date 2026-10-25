@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
-import { instructionFile, valueSections, sessionActivity, appliedSections, instructionValue, judgeSessionFile, judgeRecent, valueOf, readValueState, coversCode, IDLE_MS } from '../src/instruction-value.js';
+import { instructionFile, valueSections, sessionActivity, appliedSections, instructionValue, judgeSessionFile, judgeRecent, valueOf, readValueState, coversCode, IDLE_MS, sections, changedAtOf } from '../src/instruction-value.js';
 import { setDiskCache } from '../src/disk-cache.js';
 import { contextView, skillOutcomes } from '../src/context-view.js';
 import { retireTrimmedCopy } from '../src/trimmed-copy-retired.js';
@@ -250,6 +250,41 @@ test('a tool output costs its tokens once for each model call after it, scaled t
   assert.deepEqual(shot['mcp:claude-in-chrome'], { calls: 1, tokens: 1502, input: 1502, unneeded: 0, saveModerate: 0, saveHigh: 0 });
   const mcpText = sessionOutputs([ev('mcp__rea__q', 16000), { t: 'say', text: 'x' }]);
   assert.deepEqual([mcpText['mcp:rea'].tokens, mcpText['mcp:rea'].saveModerate, mcpText['mcp:rea'].saveHigh], [4000, 1000, 1000], 'an MCP server past the cap is a saving, the moderate one at either level');
+});
+
+test('a section changed inside the window is new from then: its use is measured over the sessions since, too few of them say nothing', t => {
+  // sections know where they start; a blank line between two sections says nothing about the one before it
+  const ss = sections('# T\n\n## A\n\na1\n\n## B\nb1\n');
+  assert.deepEqual(ss.map(x => [x.title, x.line, x.lines.length]), [['A', 2, 4], ['B', 6, 3]]);
+  assert.equal(changedAtOf([0, 0, 10, 10, 20, 99, 30, 40], ss[0]), 20, 'the newest of its lines, the blank one apart');
+  assert.equal(changedAtOf(null, ss[0]), null);
+
+  const { repo, store } = fixture(t);
+  const now = Date.now(), day = 86400_000;
+  const commit = (msg, at) => execFileSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qam', msg], { env: { ...process.env, GIT_COMMITTER_DATE: new Date(at).toISOString(), GIT_AUTHOR_DATE: new Date(at).toISOString() } });
+  execFileSync('git', ['-C', repo, 'add', '-A']); commit('first', now - 20 * day);
+  // the API views section compressed two days ago; the others untouched
+  fs.writeFileSync(path.join(repo, 'AGENTS.md'), AGENTS.replace('Keep views thin; logic goes in `src/api/` services.', 'Thin views: `src/api/` services hold the logic.'));
+  commit('compress', now - 2 * day);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-ivalue-tr-')); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const views = ['Read', { file_path: path.join(repo, 'src/api/views.js') }], ls = ['Bash', { command: 'ls' }];
+  const before = Array.from({ length: 6 }, (_, i) => transcript(dir, `b${i}`, [views], { mtime: now - 10 * day + i * 60_000 }));
+  const after = [transcript(dir, 'a0', [views], { mtime: now - day }), transcript(dir, 'a1', [ls], { mtime: now - day + 60_000 })];
+  let v = instructionValue(store, { sessions: [...before, ...after] });
+  const api = v.sections.find(x => x.id === 'api-views'), commits = v.sections.find(x => x.id === 'commits-and-pull-requests');
+  assert.equal(api.recent, true); assert.equal(api.changedAt.slice(0, 10), new Date(now - 2 * day).toISOString().slice(0, 10));
+  assert.deepEqual([api.sessions, api.applied, api.sessionsSince, api.loadedIn], [2, 1, 2, 8], 'the two sessions since the change, of eight that read the file');
+  assert.equal(api.usedShare, null, 'two sessions since the change are too few to say'); assert.equal(api.waste, 'unknown');
+  assert.equal(api.perSession, api.tokens * v.calls, 'what it costs a session is its present size, as for any section');
+  assert.equal(commits.recent, false); assert.deepEqual([commits.sessions, commits.sessionsSince], [8, 8], 'an unchanged section counts every session of the window');
+  assert.equal(commits.usedShare, 0, 'nothing committed: known, not used');
+  // four more sessions since the change: enough to say, and the sessions before still do not count
+  const more = Array.from({ length: 4 }, (_, i) => transcript(dir, `c${i}`, [ls], { mtime: now - day + (i + 2) * 60_000 }));
+  v = instructionValue(store, { sessions: [...before, ...after, ...more] });
+  const api2 = v.sections.find(x => x.id === 'api-views');
+  assert.deepEqual([api2.sessions, api2.applied, api2.usedShare, api2.sessionsSince], [6, 1, 1 / 6, 6]);
+  assert.equal(api2.wasted, Math.round(api2.perSession * (5 / 6)));
+  assert.equal(v.savings.window, v.sections.filter(x => x.waste === 'high' || x.waste === 'medium').reduce((a, x) => a + x.wasted * x.sessionsSince, 0), 'over the window, each in the sessions that read its present text');
 });
 
 test('waste: high or medium by what a section cost in the sessions that did not use it, as a share of the file', async () => {

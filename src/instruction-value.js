@@ -35,14 +35,15 @@ import { checkouts } from './harness.js';
 // Leaf sections: a "###" section on its own, a "##" one with the prose before its first "###"; the "#" title apart.
 export function sections(text) {
   const out = []; let cur = null, parent = null; const head = [];
-  for (const line of String(text).split('\n')) {
+  // `line`: where the section starts in the file (0-based), for the age of its lines (sectionAges)
+  String(text).split('\n').forEach((line, i) => {
     const m = line.match(/^(#{2,3}) (.+?)\s*$/);
     if (m) {
       if (cur) out.push(cur);
       if (m[1].length === 2) parent = m[2];
-      cur = { title: m[2], parent: m[1].length === 3 ? parent : null, level: m[1].length, lines: [line] };
+      cur = { title: m[2], parent: m[1].length === 3 ? parent : null, level: m[1].length, line: i, lines: [line] };
     } else if (cur) cur.lines.push(line); else head.push(line);
-  }
+  });
   if (cur) out.push(cur);
   const all = out.map(s => ({ ...s, text: s.lines.join('\n').trim(), tokens: Math.ceil(s.lines.join('\n').length / 4) }));
   all.head = head.join('\n').trim();
@@ -96,6 +97,39 @@ export function instructionFiles(repo) {
   }
   return out;
 }
+// When each line of an instruction file last changed (ms), from `git blame` of the working tree, whitespace changes
+// ignored; a line not committed yet is as old as the file's last write. Null where git cannot say (no commit holds the
+// file, no repository). Kept on this machine by the file's text and HEAD (disk-cache.js): the blame of this repository's
+// AGENTS.md is two seconds, and the report reads every instruction file on every refresh.
+const AGE_CACHE = diskCache('instruction-blame', 1);
+export function sectionAges(repo, file, text) {
+  let head = null; try { head = execFileSync('git', ['-C', repo, 'rev-parse', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { return null; }
+  const key = cacheKey('blame', repo, file, sha(text), head), hit = AGE_CACHE.get(key);
+  if (hit !== undefined) return hit;
+  let out = null;
+  try {
+    const porcelain = execFileSync('git', ['-C', repo, 'blame', '--line-porcelain', '-w', '--', file], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024 });
+    let mtime = Date.now(); try { mtime = fs.statSync(path.join(repo, file)).mtimeMs; } catch {}
+    out = []; let uncommitted = false;
+    for (const line of porcelain.split('\n')) {
+      if (/^[0-9a-f]{40} \d+ \d+/.test(line)) uncommitted = line.startsWith('0000000000000000000000000000000000000000');
+      else if (line.startsWith('committer-time ')) out.push(uncommitted ? mtime : Number(line.slice(15)) * 1000);
+    }
+    const lines = text.split('\n').length;
+    if (out.length !== lines && out.length !== lines - 1) out = null;
+  } catch { out = null; }
+  AGE_CACHE.set(key, out);
+  return out;
+}
+// A section's last change: the newest of its lines, blank lines apart (a blank line added between two sections belongs
+// to the one before it and says nothing about it).
+export const changedAtOf = (ages, s) => {
+  if (!ages || s.line == null || !s.lines) return null;
+  let t = null;
+  s.lines.forEach((l, i) => { const a = ages[s.line + i]; if (l.trim() && a != null && (t == null || a > t)) t = a; });
+  return t;
+};
+
 // Whether a session read a file: by its agent, and for a nested file or a rule, by the files it opened.
 export function fileLoaded(f, client, touched) {
   if (!readsFile(f, client)) return false;
@@ -116,9 +150,10 @@ export function valueSections(store, files = instructionFiles(store.repo)) {
   let cache = {}; try { cache = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
   let changed = false;
   // a file without headings (a rule, a short nested file) is one section, titled by its path
-  const split = f => { const ss = sections(f.text); return ss.length ? ss.filter(s => s.text.split('\n').slice(1).join('\n').trim()) : [{ title: f.file, parent: null, level: 2, text: f.text.replace(/^---\n[\s\S]*?\n---\n?/, '').trim(), tokens: Math.ceil(f.text.length / 4), whole: true }]; };
+  const split = f => { const ss = sections(f.text); return ss.length ? ss.filter(s => s.text.split('\n').slice(1).join('\n').trim()) : [{ title: f.file, parent: null, level: 2, line: 0, lines: f.text.split('\n'), text: f.text.replace(/^---\n[\s\S]*?\n---\n?/, '').trim(), tokens: Math.ceil(f.text.length / 4), whole: true }]; };
+  const ages = new Map(files.map(f => [f.file, sectionAges(store.repo, f.file, f.text)]));
   const out = files.flatMap(f => split(f).map(s => ({ s, f }))).map(({ s, f }) => {
-    const id = sectionId(f, s), key = sha(s.text);
+    const id = sectionId(f, s), key = sha(s.text), changedAt = changedAtOf(ages.get(f.file), s);
     // a nested file or a rule already says where it applies (its directory, its paths): that is its trigger, and
     // grepping a large repository for every name it holds (PostHog has 129 such files) is not needed
     let t;
@@ -126,7 +161,7 @@ export function valueSections(store, files = instructionFiles(store.repo)) {
     else if (f.kind === 'rule') t = { paths: (f.globs || []).map(triggerGlob), edits: [], code: [], cmd: null };
     else { if (!cache[key]) { cache[key] = deriveTriggers(store.repo, { title: s.title, text: s.text }); changed = true; } t = cache[key]; }
     const any = t.paths?.length || t.edits?.length || t.code?.length || t.codeRe?.length || t.cmd;
-    return { id, file: f.file, fileKind: f.kind, title: s.title, parent: s.parent, whole: !!s.whole, tokens: s.tokens, text: s.text, triggers: t, triggered: Boolean(any) };
+    return { id, file: f.file, fileKind: f.kind, title: s.title, parent: s.parent, whole: !!s.whole, tokens: s.tokens, text: s.text, triggers: t, triggered: Boolean(any), changedAt };
   });
   if (changed) {
     const keep = new Set(out.map(s => sha(s.text)));
@@ -354,20 +389,30 @@ export function instructionValue(store, { days = 30, sessions } = {}) {
   const calls = median(reading.map(r => r.turns)), n = reading.length;
   const rows = secs.map(s => {
     // a section counts in the sessions that read its file: what it costs is averaged over every session
-    const mine = reading.filter(r => loadedIn(r).includes(s.file)), judged = mine.filter(r => r.judged);
+    const loaded = reading.filter(r => loadedIn(r).includes(s.file));
+    // A section changed inside the window (compressed, rewritten, added: sectionAges) is a new section from then: the
+    // sessions before read another text, so they say nothing about whether this one is used, and what it cost them was
+    // the old text's size. Its use is measured over the sessions since the change alone, and with fewer than
+    // RARE.minSessions of them it is too few to say (unknown: not flagged, not suggested) rather than a verdict on one
+    // or two sessions; what it costs a session is the current text in the share of sessions that read its file, as for
+    // any section, and over the window it cost that in the sessions since the change (`sessionsSince`).
+    const recent = s.changedAt != null && reading.some(r => r.mtime < s.changedAt);
+    const mine = recent ? loaded.filter(r => r.mtime >= s.changedAt) : loaded, judged = mine.filter(r => r.judged);
+    const sessionsSince = recent ? reading.filter(r => r.mtime >= s.changedAt).length : n;
     const applied = mine.filter(r => r.applied[s.id]).length;
     const v = { followed: 0, violated: 0, applicable: 0 };
     for (const r of judged) { const x = r.judged.verdicts[s.id]; if (x) v[x.verdict]++; }
     const bore = v.followed + v.violated + v.applicable;
     const decided = v.followed + v.violated;
-    const perSession = Math.round(s.tokens * Math.max(1, calls) * (n ? mine.length / n : 0));
+    const perSession = Math.round(s.tokens * Math.max(1, calls) * (n ? loaded.length / n : 0));
     return {
-      id: s.id, file: s.file, fileKind: s.fileKind, title: s.title, parent: s.parent, whole: s.whole, tokens: s.tokens, perSession, loadedIn: mine.length,
+      id: s.id, file: s.file, fileKind: s.fileKind, title: s.title, parent: s.parent, whole: s.whole, tokens: s.tokens, perSession, loadedIn: loaded.length,
       sessions: mine.length, triggered: s.triggered, applied, judged: judged.length, ...v,
+      changedAt: s.changedAt == null ? null : new Date(s.changedAt).toISOString(), recent, sessionsSince,
       // a share of the sessions judged that the section bore on, and of those it decided, how many it was followed in
       bore, boreShare: judged.length ? bore / judged.length : null, success: decided ? v.followed / decided : null,
       value: valueOf({ sessions: mine.length, applied, triggered: s.triggered, judged: judged.length, bore, followed: v.followed, violated: v.violated }),
-      ...use({ sessions: mine.length, applied, triggered: s.triggered, judged: judged.length, followed: v.followed }, perSession),
+      ...use({ sessions: mine.length, applied, triggered: s.triggered, judged: judged.length, followed: v.followed, recent }, perSession),
       text: s.text,
     };
   });
@@ -378,7 +423,8 @@ export function instructionValue(store, { days = 30, sessions } = {}) {
   const flagged = rows.filter(r => r.waste === 'high' || r.waste === 'medium');
   const savings = { perSession: flagged.reduce((a, r) => a + r.wasted, 0), sections: flagged.length };
   savings.share = fileCost ? savings.perSession / fileCost : 0;
-  savings.window = savings.perSession * n;
+  // over the window, each flagged section in the sessions that read its present text
+  savings.window = flagged.reduce((a, r) => a + r.wasted * r.sessionsSince, 0);
   const tok = f => Math.ceil(f.text.length / 4), fileTokens = tok(files[0]);
   // per session, for the trend: the tokens of the files it read, read again by each of its model calls (today's
   // files: an earlier size is not kept)
@@ -393,8 +439,10 @@ export function instructionValue(store, { days = 30, sessions } = {}) {
 // verdicts (followed) once enough sessions are judged, else from its triggers (broad: a section about a common path applies
 // often), else unknown. `wasted` ranks the sections that cost most for least.
 // Acted on: the judged sessions whose agent followed the section (a verdict of followed), once enough are judged.
-export function use({ sessions, applied, triggered, judged, followed = 0 }, perSession) {
-  const [share, by] = judged >= RARE.minSessions ? [followed / judged, 'judge'] : triggered && sessions ? [applied / sessions, 'triggers'] : [null, null];
+// A section changed inside the window (`recent`) is measured over the sessions since the change, and fewer than
+// RARE.minSessions of them say nothing yet.
+export function use({ sessions, applied, triggered, judged, followed = 0, recent = false }, perSession) {
+  const [share, by] = judged >= RARE.minSessions ? [followed / judged, 'judge'] : triggered && sessions && !(recent && sessions < RARE.minSessions) ? [applied / sessions, 'triggers'] : [null, null];
   return { usedShare: share, usedBy: by, wasted: share == null ? null : Math.round(perSession * (1 - share)) };
 }
 
