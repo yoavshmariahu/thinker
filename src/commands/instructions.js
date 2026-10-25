@@ -27,11 +27,14 @@ async function instructionsCommand({ store, repo, flags, out }) {
       out(r.said || r.error);
       return;
     }
-    // one section id, or several separated by commas
-    const r = await previewEdit(store, ids, action);
+    // one section id, or several separated by commas; with --pr the change is made from the base branch's own text
+    // (instruction-pr.js:baseTexts), so the checkout's state plays no part in it
+    let src = null;
+    if (flags.pr) { const { baseTexts } = await import('../instruction-pr.js'); src = baseTexts(repo); if (src.error) { out(src.error); return; } }
+    const r = await previewEdit(store, ids, action, src ? { texts: src.textOf, base: src } : {});
     if (r.error) { out(r.error); return; }
     for (const x of r.sections) {
-      out(`${action === 'remove' ? 'Remove' : 'Compress'} "${x.title}" in ${r.file}: ~${x.tokensBefore} → ~${x.tokensAfter} tokens\n`);
+      out(`${action === 'remove' ? 'Remove' : 'Compress'} "${x.title}" in ${r.file}${src ? ` on ${src.branch}` : ''}: ~${x.tokensBefore} → ~${x.tokensAfter} tokens\n`);
       for (const [k, l] of x.diff) if (k !== ' ' || x.diff.length < 40) out(`${k} ${l}`);
       out('');
     }

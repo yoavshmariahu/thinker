@@ -313,7 +313,11 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('report.js'), /export const TOKEN_TYPES = \[\['fresh', 'Input, fresh'\], \['cacheWrite', 'Input, written to cache'\], \['cacheRead', 'Input, read from cache'\], \['output', 'Model output'\]\];/);
   assert.match(read('report.js'), /export const OTHERS = \[\['otherInput', 'Other input'\], \['output', 'Model output'\]\];/);
   assert.match(read('report.js'), /'By token type \(as the model reported them/); assert.match(read('ui/page.html'), /<b>By token type<\/b>/);
-  assert.match(read('ui/page.html'), /el\.innerHTML = parts \+ models \+ tokenTypes \+ cards;/, 'the token types last, no decisions on the Report');
+  assert.match(read('ui/page.html'), /swapBody\(el, parts \+ models \+ tokenTypes \+ cards\);/, 'the token types last, no decisions on the Report');
+  // every page is rebuilt in place once on screen (2026-10-25): the three renders go through swapBody, which keeps the scroll and
+  // the open rows, and a load of what is already shown does not wipe the body to the spinner
+  assert.match(read('ui/page.html'), /function swapBody\(el, html\)/); assert.match(read('ui/page.html'), /swapBody\(el, h\);/); assert.match(read('ui/page.html'), /swapBody\(el, card \+ historyFigure\(/);
+  assert.match(read('ui/page.html'), /inPlace = Boolean\(CTX\) && CTX_FOR === `\$\{CREPO\}\|\$\{cdays\}`/); assert.match(read('ui/page.html'), /inPlace = Boolean\(ACT\) && ACT_FOR === AREPO/); assert.match(read('ui/page.html'), /inPlace = Boolean\(RPT\) && RPT_FOR === REPO/);
   assert.doesNotMatch(read('ui/page.html'), /Total of these/); assert.doesNotMatch(read('report.js'), /'Total of these'/);
   assert.equal((read('report.js').match(/line\('Total \(the whole session\)', v\.sessionTotals, true(, null, \{ thresholds: true \})?\)/g) || []).length, 3);
   assert.equal((read('ui/page.html').match(/row\('Total \(the whole session\)', v\.sessionTotals, \{ cls: 'rep-total', total: true(, thresholds: true)? \}\)/g) || []).length, 3);
