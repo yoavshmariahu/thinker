@@ -208,12 +208,12 @@ test('the report averages each week over its sessions, by part and by model unde
   // the prompt-cache rewrites by cause (transcripts.js:cacheRewrites): the fixture sessions are under 20k of context, so none
   assert.deepEqual(v.rewrites.map(p => p.key), REWRITES.map(([k]) => k)); assert.deepEqual(REWRITES, REWRITE_CAUSES);
   assert.equal(v.rewrites.reduce((a, p) => a + p.cells[last].n, 0), 0); assert.equal(v.rewriteTotals[last].tokens, 0);
-  assert.match(text, /Prompt cache rewrites \(calls whose context/); assert.match(text, /TOTAL OF THE REWRITES/, 'the table is printed with its total even when empty');
+  assert.doesNotMatch(text, /Prompt cache rewrites|TOTAL OF THE REWRITES/, 'in the view, not printed (the owner\'s call, 2026-10-25)');
   // the Cursor session reports no usage: its four parts as estimated, in a table of its own, by its two calls
   assert.deepEqual(v.estimated.columns.map(c => c.sessions), [0, 0, 0, 0, 0, 1]); assert.equal(v.estimated.columns[last].prompts, 2);
   assert.ok(v.estimated.parts.find(p => p.key === 'instructions').cells[last].tokens > 0, 'the instruction file it read'); assert.deepEqual(v.estimated.parts.map(p => p.key), PARTS.map(([k]) => k));
   assert.equal(v.estimated.totals[last].tokens, v.estimated.parts.reduce((a, p) => a + p.cells[last].tokens, 0));
-  assert.match(text, /Sessions whose agent reported no usage \(Cursor\): 1 session/); assert.match(text, /TOTAL OF THE FOUR PARTS/);
+  assert.doesNotMatch(text, /Sessions whose agent reported no usage|TOTAL OF THE FOUR PARTS/, 'in the view, not printed');
   assert.deepEqual(v.calibration, { Anthropic: 1.44 });
   // the decisions are not on the Report (they are Recent activity's and `thinker context --history`'s)
   assert.doesNotMatch(text, /Recent improvements|Saved with thinker|Workflow tool/);

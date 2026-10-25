@@ -281,8 +281,9 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.equal((read('ui/page.html').match(/\{ cls: 'rep-total', total: true(, thresholds: true)? \}/g) || []).length, 3, 'the three whole-session rows keep their values under Share');
   // the rest of the input by kind (report.js:OTHERS, the breakdown's rows), the prompt-cache rewrites by cause and the sessions
   // whose agent reports no usage, on both doors (2026-10-25), from the one view (reportView: rewrites, rewriteTotals, estimated, calibration)
-  for (const re of [/Prompt cache rewrites/, /Total of the rewrites/, /Sessions whose agent reported no usage/, /Total of the four parts/]) { assert.match(read('ui/page.html'), re); assert.match(read('report.js'), re); }
-  assert.match(read('ui/page.html'), /v\.rewrites/); assert.match(read('ui/page.html'), /v\.estimated/); assert.match(read('ui/page.html'), /v\.calibration/);
+  // the rewrites by cause and the estimated sessions are in the view and on neither door (the owner's call, 2026-10-25)
+  for (const re of [/Prompt cache rewrites/, /Sessions whose agent reported no usage/]) { assert.doesNotMatch(read('ui/page.html'), re); assert.doesNotMatch(read('report.js').replace(/\/\/[^\n]*/g, ''), re); }
+  assert.match(read('ui/page.html'), /swapBody\(el, parts \+ models \+ tokenTypes \+ cards\);/); assert.match(read('ui/page.html'), /v\.calibration/);
   assert.match(read('report.js'), /export const CALIBRATION = \{ Anthropic: 1\.44 \}/, 'one calibration constant, read by the command and sent to the page in the view');
   assert.match(read('report.js'), /export const OTHERS = \[\.\.\.REST_INPUT, 'output'\]/, 'the rows under the four parts are the breakdown\'s kinds');
   // the page's Total toggle is the command's --total
