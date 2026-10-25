@@ -281,7 +281,9 @@ plugin on a machine without thinker does nothing.
   reasoning. Native compaction requests and linked histories pass through. No extra model calls or
   CLI login are needed by Thinker; a desktop client must honor the custom provider settings. Off by
   default, never installed by `connect`; CLI routing and resume are tested against a loopback fake
-  model, not a live subscription backend. See [setup, limits and verification](codex-proxy.md).
+  model and, on 2026-10-25, the live ChatGPT backend with Codex 0.164.0 and `gpt-6-astra` (high).
+  The live test verifies acceptance of a shortened history, not quality or savings. See
+  [setup, limits and verification](codex-proxy.md).
 
 ## Why these additions
 

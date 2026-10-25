@@ -206,11 +206,21 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
           res.writeHead(ures.statusCode, out);
           const tap = t.reason === 'other' ? null : t.protocol === 'responses' ? responsesUsageTap() : usageTap();
           ures.on('data', c => { res.write(c); tap?.push(c); });
-          ures.on('end', () => {
-            res.end();
+          let recorded = false;
+          const record = () => {
+            if (recorded) return;
+            recorded = true;
+            res.removeListener('close', record);
             if (tap) log({ at: new Date().toISOString(), op: 'proxy', session: t.session || sessionOf(req.headers), model: t.model, status: ures.statusCode,
               ...(t.protocol === 'responses' ? { protocol: 'responses', removedBytes: t.removedBytes || 0, estimatedRemovedTokens: t.estimatedRemovedTokens || 0, clearedUses: t.clearedUses || 0 } : {}),
               injected: !!t.injected, ...(t.injected ? { keep: t.keep } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...tap.result() });
+          };
+          // Codex closes SSE as soon as response.completed arrives, before the HTTP
+          // body ends. Record that request too, exactly once, using usage seen so far.
+          res.once('close', record);
+          ures.on('end', () => {
+            record();
+            res.end();
           });
           ures.on('error', () => res.destroy());
         });
