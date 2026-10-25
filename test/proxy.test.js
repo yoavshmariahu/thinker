@@ -4,7 +4,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { startProxy, transformRequest, proxyConfig, proxyReport, heldOut, usageTap, clearEdit, turnToolUses, EDIT_TYPE, EDIT_BETA, PROXY_DEFAULTS } from '../src/proxy.js';
+import { startProxy, transformRequest, proxyConfig, proxyReport, heldOut, usageTap, clearEdit, turnToolUses, thinkingEdit, resultsBeforeTurn, EDIT_TYPE, EDIT_BETA, PROXY_DEFAULTS } from '../src/proxy.js';
 
 const BETA = `oauth-2025-04-20,${EDIT_BETA},claude-code-20250219`;
 const body = (extra = {}) => Buffer.from(JSON.stringify({ model: 'claude-opus-5-5', messages: [{ role: 'user', content: 'hi' }],
@@ -240,4 +240,44 @@ test('a plain JSON answer is read too', () => {
   assert.equal(r.input, 7);
   assert.equal(r.read, 70);
   assert.equal(r.cleared, 0);
+});
+
+test('clear-inputs and clear-thinking: off by default, the inputs on the edit, the thinking edit only where the tool clear fires by the proxy\'s count', () => {
+  const tu = id => ({ type: 'tool_use', id, name: 'Bash', input: { command: 'ls' } });
+  const tr = (id, n) => ({ type: 'tool_result', tool_use_id: id, content: 'x'.repeat(n) });
+  const big = Math.ceil(100000 * 4 / 1.44); // 100k tokens of result text by the proxy's count
+  const messages = [
+    { role: 'user', content: 'first request' },
+    { role: 'assistant', content: [tu('a')] }, { role: 'user', content: [tr('a', big)] },
+    { role: 'assistant', content: [{ type: 'text', text: 'done' }] },
+    { role: 'user', content: [{ type: 'text', text: 'second request' }] },
+    { role: 'assistant', content: [tu('b')] }, { role: 'user', content: [tr('b', 10)] },
+    { role: 'assistant', content: [tu('c')] }, { role: 'user', content: [tr('c', 10)] },
+  ];
+  const off = proxyConfig({}, {});
+  assert.equal(off.clearInputs, false); assert.equal(off.clearThinking, false);
+  assert.equal(clearEdit(off, messages).clear_tool_inputs, undefined); assert.equal(thinkingEdit(off, messages), null);
+  const on = proxyConfig({ 'clear-inputs': true, 'clear-thinking': true }, {});
+  assert.equal(clearEdit(on, messages).clear_tool_inputs, true);
+  assert.equal(resultsBeforeTurn(messages), 100000); assert.equal(resultsBeforeTurn(messages.slice(0, 4)), 0, 'the first turn has nothing before it');
+  // the results before the second turn weigh 100k, over clearAtLeast (80k) with the margin: the thinking of the first turn
+  // goes, the second turn's two assistant messages are kept
+  assert.deepEqual(thinkingEdit(on, messages), { type: 'clear_thinking_20251015', keep: { type: 'thinking_turns', value: 2 } });
+  assert.equal(thinkingEdit(on, messages.slice(0, 6)).keep.value, 1, 'at least one turn, as the API requires');
+  assert.equal(thinkingEdit(on, messages.slice(0, 4)), null, 'in the first turn nothing is clearable');
+  assert.equal(thinkingEdit(proxyConfig({ 'clear-thinking': true, 'clear-at-least': '90000' }, {}), messages), null, '100k does not clear 90k by the margin of 1.25');
+  assert.equal(thinkingEdit(proxyConfig({ 'clear-thinking': true, keep: '3' }, {}), messages), null, 'keep turn alone: a count keeps results of earlier turns');
+  // in the request: the proxy's thinking edit first, in place of the agent's `keep: all`, the agent's other edits kept, the clear last
+  const body = Buffer.from(JSON.stringify({ model: 'm', messages, context_management: { edits: [{ type: 'clear_thinking_20251015', keep: 'all' }] } }));
+  const t = transformRequest('POST', '/v1/messages', { 'anthropic-beta': BETA }, body, on);
+  const edits = JSON.parse(t.body).context_management.edits;
+  assert.deepEqual(edits.map(e => e.type), ['clear_thinking_20251015', EDIT_TYPE]);
+  assert.deepEqual(edits[0].keep, { type: 'thinking_turns', value: 2 }); assert.equal(edits[1].clear_tool_inputs, true);
+  assert.equal(t.inputs, true); assert.equal(t.thinkingKeep, 2);
+  const early = transformRequest('POST', '/v1/messages', { 'anthropic-beta': BETA }, Buffer.from(JSON.stringify({ model: 'm', messages: messages.slice(0, 4), context_management: { edits: [{ type: 'clear_thinking_20251015', keep: 'all' }] } })), on);
+  assert.deepEqual(JSON.parse(early.body).context_management.edits[0], { type: 'clear_thinking_20251015', keep: 'all' }, 'where no thinking edit is due the agent\'s stays');
+  assert.equal(early.thinkingKeep, undefined);
+  // from the environment, and the service passes the two as flags from the machine config
+  assert.equal(proxyConfig({}, { THINKER_PROXY_CLEAR_INPUTS: 'on', THINKER_PROXY_CLEAR_THINKING: '1' }).clearThinking, true);
+  assert.equal(proxyConfig({}, { THINKER_PROXY_CLEAR_INPUTS: 'off' }).clearInputs, false);
 });

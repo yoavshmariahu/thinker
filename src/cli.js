@@ -253,7 +253,7 @@ const HELP = `thinker — knowledge cache for coding agents
                                  there leaves it off): clears older tool results for Claude Code, pi, OpenCode and Codex.
                                  Codex uses its existing OpenAI login through HTTP/SSE; custom providers stay as configured.
                                  Off restores the previous provider; status also prints the report of the last 30 days
-  proxy [serve] --port n [--codex] [--protocol anthropic|responses] [--upstream url] [--notes] [--repo path] [--trigger n] [--keep n|turn] [--keep-min n] [--clear-at-least n] [--holdout share]
+  proxy [serve] --port n [--codex] [--protocol anthropic|responses] [--upstream url] [--notes] [--repo path] [--trigger n] [--keep n|turn] [--keep-min n] [--clear-at-least n] [--clear-inputs] [--clear-thinking] [--holdout share]
                                  the proxy in the foreground (what the service runs; --keep turn, the default: only the
                                  results of earlier turns are cleared; --keep n: all but the newest n);
                                  --notes serves this checkout's notes to an agent with no prompt hook (Goose, Aider: Anthropic

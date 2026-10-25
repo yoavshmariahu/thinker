@@ -267,9 +267,20 @@ plugin on a machine without thinker does nothing.
   amount to `--clear-at-least` (80k tokens) and the context has reached `--trigger` (100k). `--keep` says
   what a clear leaves: `turn`, the default since 2026-10-22, the tool uses of the request's current turn
   (never under `--keep-min`, 3), so only results fetched by earlier turns are cleared; or a count of the
-  newest tool uses (`--keep 3`, the default before). `thinker proxy
+  newest tool uses (`--keep 3`, the default before). Two more things a clear can take, off until an
+  experiment (2026-10-25): `--clear-inputs` (`proxy: { clearInputs: true }` in `~/.thinker/config.json`,
+  `THINKER_PROXY_CLEAR_INPUTS=on`) adds the edit's `clear_tool_inputs`, so the text of the agent's own calls
+  goes with their results; `--clear-thinking` (`clearThinking`, `THINKER_PROXY_CLEAR_THINKING=on`) sends a
+  `clear_thinking` edit that drops the thinking of the turns before the current one, only on a request where
+  the results before that turn already weigh enough for the tool clear to fire by the proxy's own count, so the
+  two clears break the cache at the same point and never apart; it takes the place of the `keep: all` edit
+  Claude Code sends, the one edit of the agent's the proxy changes. In the replay at list prices over this
+  machine's six weeks the shipped clear alone was break-even (every clear writes the conversation again at
+  twice the input rate, a Fable read costs 2.5% of an input token), the inputs saved 2.3% of the bill and the
+  thinking on top 5.0%, 10.1% on sessions of 120 calls and more (research/cost-levers-2026-10-25.md). `thinker proxy
   replay [--days n] [--policies spec] [--repo path]` costs the policies over a checkout's Claude Code sessions
-  with no model call (`src/proxy-replay.js`; research/output-lifetime-2026-10-22). **On by default since 2026-10-24**
+  with no model call (`src/proxy-replay.js`; research/output-lifetime-2026-10-22), in billed-equivalent tokens
+  and in dollars at each model's list price; a policy spec takes `inputs:on` and `thinking:piggyback`. **On by default since 2026-10-24**
   (`src/proxy-service.js`): `thinker connect` keeps the proxy running (launchd on macOS, a systemd user unit on Linux, the
   prompt hook everywhere, which starts it when nothing listens) and writes its URL for Claude Code (the settings `env`),
   pi (`models.json`) and OpenCode (`opencode.json`); Goose, Aider, Cline, Droid, Copilot CLI with your own key, Qwen
