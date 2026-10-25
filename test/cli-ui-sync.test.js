@@ -138,7 +138,7 @@ test('the Save tab and `thinker context` show one report, and its controls are t
   // one default, the command's hash and the page's own reading of it
   assert.match(read('commands/cache.js'), /flags\.here && !flags\.all \? 'repo=here' : 'repo=all'/);
   assert.match(read('ui/page.html'), /const hashRepo = \(\) => \{ const r = H\(\)\.get\('repo'\); return r === 'here' \? '' : r \|\| 'all'; \}/);
-  for (const d of [/REPO = H\(\)\.get\('tab'\) === 'report' \? hashRepo\(\)/, /includes\(H\(\)\.get\('tab'\)\) \? hashRepo\(\)/, /AREPO = H\(\)\.get\('tab'\) === 'activity' \? hashRepo\(\)/]) assert.match(read('ui/page.html'), d);
+  for (const d of [/REPO = hashTab\(\) === 'report' \? hashRepo\(\)/, /CREPO = hashTab\(\) === 'save' \? hashRepo\(\)/, /AREPO = hashTab\(\) === 'activity' \? hashRepo\(\)/]) assert.match(read('ui/page.html'), d);
   assert.match(read('cli.js'), /ui \[--port n\] \[--no-open\] \[--tab save\|report\|activity\] \[--here\]/);
   // setup asks the same question over the same report for its one repository (setup/context-ask.js)
   assert.match(read('setup.js'), /askMachineReport\(\{ r, recs: recommendations\(view\)/);
