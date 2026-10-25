@@ -25,6 +25,7 @@ import https from 'node:https';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { transformResponses, responsesUsageTap, responsesReport } from './proxy-responses.js';
 
 export const EDIT_TYPE = 'clear_tool_uses_20250919';
 export const EDIT_BETA = 'context-management-2025-06-27';
@@ -56,6 +57,20 @@ export function proxyConfig(flags = {}, env = process.env) {
   if (String(flags.keep ?? env.THINKER_PROXY_KEEP ?? '').trim() === 'turn') cfg.keep = 'turn';
   cfg.upstream = flags.upstream || env.THINKER_PROXY_UPSTREAM || cfg.upstream;
   cfg.port = pick('port', 'THINKER_PROXY_PORT');
+  cfg.protocol = flags.protocol || env.THINKER_PROXY_PROTOCOL || 'anthropic';
+  if (!['anthropic', 'responses'].includes(cfg.protocol)) throw new Error('--protocol must be anthropic or responses');
+  if (cfg.protocol === 'responses') {
+    if (!flags.upstream && !env.THINKER_PROXY_UPSTREAM) throw new Error('--protocol responses needs an explicit --upstream (the existing provider base URL)');
+    const upstream = new URL(cfg.upstream);
+    if (!['http:', 'https:'].includes(upstream.protocol)) throw new Error('--upstream must be an HTTP(S) provider base URL');
+    for (const [flag, variable] of [['trigger', 'THINKER_PROXY_TRIGGER'], ['clear-at-least', 'THINKER_PROXY_CLEAR_AT_LEAST'], ['keep-min', 'THINKER_PROXY_KEEP_MIN'], ['holdout', 'THINKER_PROXY_HOLDOUT']]) {
+      const value = flags[flag] ?? env[variable];
+      if (value != null && (typeof value === 'boolean' || String(value).trim() === '' || !Number.isFinite(Number(value)))) throw new Error(`--${flag} needs a number`);
+    }
+    if (cfg.keep !== 'turn') throw new Error('--protocol responses requires --keep turn; the current turn is always preserved');
+    for (const k of ['trigger', 'clearAtLeast', 'keepMin']) if (!Number.isSafeInteger(cfg[k]) || cfg[k] < (k === 'keepMin' ? 0 : 1)) throw new Error(`responses ${k} must be a ${k === 'keepMin' ? 'non-negative' : 'positive'} integer`);
+    if (!Number.isFinite(cfg.holdout) || cfg.holdout < 0 || cfg.holdout > 1) throw new Error('--holdout must be between 0 and 1');
+  }
   return cfg;
 }
 
@@ -98,6 +113,7 @@ const sessionOf = headers => headers['x-claude-code-session-id'] || null;
 
 // What goes upstream. Anything unexpected forwards the agent's bytes as they came.
 export function transformRequest(method, url, headers, body, cfg) {
+  if (cfg.protocol === 'responses') return transformResponses(method, url, headers, body, cfg);
   if (method !== 'POST' || !/^\/v1\/messages(\?|$)/.test(url) || !body.length) return { body, reason: 'other' };
   if (heldOut(sessionOf(headers), cfg.holdout)) return { body, reason: 'holdout' };
   let j;
@@ -188,11 +204,12 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
           const out = {};
           for (const [k, v] of Object.entries(ures.headers)) if (!['connection', 'keep-alive', 'transfer-encoding'].includes(k)) out[k] = v;
           res.writeHead(ures.statusCode, out);
-          const tap = t.reason === 'other' ? null : usageTap();
+          const tap = t.reason === 'other' ? null : t.protocol === 'responses' ? responsesUsageTap() : usageTap();
           ures.on('data', c => { res.write(c); tap?.push(c); });
           ures.on('end', () => {
             res.end();
-            if (tap) log({ at: new Date().toISOString(), op: 'proxy', session: sessionOf(req.headers), model: t.model, status: ures.statusCode,
+            if (tap) log({ at: new Date().toISOString(), op: 'proxy', session: t.session || sessionOf(req.headers), model: t.model, status: ures.statusCode,
+              ...(t.protocol === 'responses' ? { protocol: 'responses', removedBytes: t.removedBytes || 0, estimatedRemovedTokens: t.estimatedRemovedTokens || 0, clearedUses: t.clearedUses || 0 } : {}),
               injected: !!t.injected, ...(t.injected ? { keep: t.keep } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...tap.result() });
           });
           ures.on('error', () => res.destroy());
@@ -211,6 +228,13 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
       res.on('close', () => { if (!res.writableFinished) ureq.destroy(); });
     });
   });
+  // This proxy processes full HTTP requests. A WebSocket upgrade must fail promptly,
+  // not hang or quietly bypass the policy. Codex providers can select SSE instead.
+  server.on('upgrade', (req, socket) => {
+    socket.on('error', () => socket.destroy());
+    socket.end('HTTP/1.1 426 Upgrade Required\r\nConnection: close\r\nContent-Type: text/plain\r\n\r\nthinker proxy uses HTTP/SSE; set supports_websockets = false in the Codex provider.\n');
+  });
+  server.on('close', () => agent.destroy());
   server.listen(cfg.port || 0, host, () => onListen?.(server.address()));
   return server;
 }
@@ -220,6 +244,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
 export function proxyReport(rows, { since } = {}) {
   const sides = {};
   for (const r of rows) {
+    if (r.protocol === 'responses') continue;
     if (r.op !== 'proxy' || (since && r.at < since)) continue;
     const side = r.injected ? 'clearing' : r.reason === 'holdout' ? 'holdout' : null;
     if (!side) continue;
@@ -236,5 +261,6 @@ export function proxyReport(rows, { since } = {}) {
       billedInput: Math.round(s.input + 0.1 * s.read + 2 * s.write), cleared: s.cleared, requestsCleared: s.clears,
       overheadP50: ms[Math.floor(ms.length / 2)] ?? 0, overheadP99: ms[Math.min(ms.length - 1, Math.floor(ms.length * 0.99))] ?? 0 };
   }
-  return outSides;
+  const responses = responsesReport(rows, { since });
+  return { ...outSides, ...(Object.keys(responses).length ? { responses } : {}) };
 }

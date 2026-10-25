@@ -275,6 +275,13 @@ plugin on a machine without thinker does nothing.
   pi (`models.json`) and OpenCode (`opencode.json`); Goose, Aider, Cline, Droid, Copilot CLI with your own key, Qwen
   Code on an Anthropic provider and Kilo's CLI take it by hand at the keys above; Codex, Cursor, Gemini CLI, Kiro,
   Windsurf and Auggie have no Anthropic URL to point at it. `thinker proxy status|off|on`, `connect --no-proxy`.
+- **Codex / Responses tool-output clearing (experimental):** `thinker proxy --protocol responses
+  --port n --upstream <provider-base-url>` runs a separate HTTP/SSE proxy for a custom Codex provider.
+  It replaces older text tool results with placeholders, preserving the current turn, calls, IDs and
+  reasoning. Native compaction requests and linked histories pass through. No extra model calls or
+  CLI login are needed by Thinker; a desktop client must honor the custom provider settings. Off by
+  default, never installed by `connect`; CLI routing and resume are tested against a loopback fake
+  model, not a live subscription backend. See [setup, limits and verification](codex-proxy.md).
 
 ## Why these additions
 

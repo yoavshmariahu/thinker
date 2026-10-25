@@ -65,6 +65,11 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
     if (flags.json) { out(JSON.stringify(sides, null, 2)); return; }
     if (!Object.keys(sides).length) { out(`No requests through the proxy yet (${logFile}).`); return; }
     for (const [side, s] of Object.entries(sides)) {
+      if (side === 'responses') {
+        for (const [name, r] of Object.entries(s)) out(`Responses ${name}: ${r.requests} requests, ${formatTokens(r.input)} input tokens (${formatTokens(r.cachedInput)} cached, included in input), ${formatTokens(r.output)} output tokens; ${r.removedBytes} tool-output bytes removed from requests, ${r.errors} errors` +
+          (Object.keys(r.reasons).length ? `; ${Object.entries(r.reasons).map(([k, n]) => `${k}: ${n}`).join(', ')}` : '') + '.');
+        continue;
+      }
       out(`${side}: ${s.requests} requests in ${s.sessions} sessions, ${formatTokens(s.billedInput)} billed-equivalent input` +
         `${s.requests ? ` (${formatTokens(Math.round(s.billedInput / s.requests))} a request)` : ''}` +
         `${side === 'clearing' ? `, ${formatTokens(s.cleared)} cleared on ${s.requestsCleared} requests` : ''}; proxy overhead p50 ${s.overheadP50} ms, p99 ${s.overheadP99} ms`);
@@ -86,21 +91,25 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
     return;
   }
   if (sub !== 'serve') { out('usage: thinker proxy on|off|status | thinker proxy [serve] --port n | thinker proxy report [--days n] [--json] | thinker proxy replay [--days n] [--policies spec] [--json]'); process.exitCode = 2; return; }
-  const cfg = proxyConfig(flags);
+  let cfg;
+  try { cfg = proxyConfig(flags); } catch (e) { out(`thinker proxy: ${e.message}`); process.exitCode = 2; return; }
   if (!cfg.port) { out('thinker proxy: name a port (--port n, or THINKER_PROXY_PORT).'); process.exitCode = 2; return; }
+  if (cfg.protocol === 'responses' && (flags.notes || flags.repo)) { out('thinker proxy: --protocol responses clears old tool outputs; --notes and --repo are not supported in this mode.'); process.exitCode = 2; return; }
   // --notes, or proxy: { notes: true } in the checkout's config: the notes of this checkout (--repo names another)
   // go to the agents that pass through (proxy-notes.js)
   let notes = null;
   let notesRepo = null;
   const wanted = flags.notes === true || (flags.repo && flags.notes !== false);
   const candidate = flags.repo ? path.resolve(String(flags.repo)) : repo;
-  if (candidate && fs.existsSync(path.join(candidate, '.git'))) {
+  if (cfg.protocol !== 'responses' && candidate && fs.existsSync(path.join(candidate, '.git'))) {
     const s = new Store(findRepoRoot(candidate));
     if (wanted || (flags.notes !== false && s.exists() && s.config().proxy?.notes === true)) { notes = noteInjectorFor(s); notesRepo = s.repo; }
   } else if (wanted) { out(`thinker proxy: --notes needs a git checkout (${candidate || 'none'}).`); process.exitCode = 2; return; }
   const server = startProxy(cfg, {
     logFile, notes,
-    onListen: a => out(`thinker proxy on http://127.0.0.1:${a.port} -> ${cfg.upstream}: clears tool results past ${cfg.trigger} input tokens, keeping ${cfg.keep === 'turn' ? `the current turn's (at least ${cfg.keepMin})` : cfg.keep}, at least ${cfg.clearAtLeast} at a time${cfg.holdout ? `, ${cfg.holdout * 100}% of sessions held out` : ''}.` +
+    onListen: a => out(cfg.protocol === 'responses'
+      ? `Experimental Responses proxy on http://127.0.0.1:${a.port} -> ${cfg.upstream}: clears old text tool outputs, preserving the current turn and at least ${cfg.keepMin} newest outputs.\nTriggers at ~${cfg.trigger} tokens and removes at least ~${cfg.clearAtLeast} (request bytes / 4; estimates, not measured savings).${cfg.holdout ? ` ${cfg.holdout * 100}% holdout.` : ''}\nIn a separate Codex provider, set base_url = "http://127.0.0.1:${a.port}" and supports_websockets = false. Keep the existing authentication and model. See docs/codex-proxy.md.\nNo Codex settings were changed. Restart the client after selecting the provider. Native compaction and linked histories pass through unchanged.`
+      : `thinker proxy on http://127.0.0.1:${a.port} -> ${cfg.upstream}: clears tool results past ${cfg.trigger} input tokens, keeping ${cfg.keep === 'turn' ? `the current turn's (at least ${cfg.keepMin})` : cfg.keep}, at least ${cfg.clearAtLeast} at a time${cfg.holdout ? `, ${cfg.holdout * 100}% of sessions held out` : ''}.` +
       (notes ? `\nServes the notes of ${notesRepo} to agents with no prompt hook (Anthropic and OpenAI chat requests; one carrying a Claude Code session is left to its hooks).` : '') +
       `\nPoint the agent at it: ANTHROPIC_BASE_URL=http://127.0.0.1:${a.port}${notes ? ` (Goose: ANTHROPIC_HOST; an OpenAI-compatible client: OPENAI_BASE_URL=http://127.0.0.1:${a.port}/v1)` : ''}`),
   });
