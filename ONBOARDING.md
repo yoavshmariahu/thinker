@@ -1,74 +1,41 @@
 # Setting up Thinker
 
-Run the installer anywhere. It wires your agents, asking nothing, then reads
-the agents' own transcripts of the last 30 days in the repositories they worked
-in most and prints where their context goes and what to cut first: the sections
-of AGENTS.md, the skills and the tools that cost the most in the sessions that
-did not use them. It asks where to see them: in the browser (the local page,
-`thinker ui`, over every repository) or in the terminal, where the suggestions
-are a list to pick from (compress or remove a section, switch off a skill or
-tool) and apply at once, with the page's address for the detail (`thinker
-context --machine --ask` asks again any time; without `--ask` it prints the
-report).
-Nothing is built: every git repository gets an empty cache with its first
-session, and the cache grows from the sessions there.
-[docs/setup.md](docs/setup.md#install-and-start) has the details.
-
-The rest of this file is about `thinker setup`, which does the same for one
-repository from the terminal: for a machine without a browser, or a script.
-
-Notes are stored locally and ranked on your machine. Your configured agent
-writes the notes.
-Personal backups use `thinker export backup.tgz` and
-`thinker import backup.tgz`. Team sharing and server sync are not supported.
-
-## Setup flow (`thinker setup`)
-
-Setup has one step, **Connect your agents**: it detects the installed coding agents and
-configures their hooks and MCP servers in the agents' own settings, once per machine
-(`thinker connect` does this step alone, anywhere); the repository gets its git hooks and
-Codex's trust. Codex's hook-review marks are written without asking (`--no-trust` leaves
-them). Only detected or explicitly selected agents appear in the connection summary. Then
-it fetches the ranking model and, when sessions ran in the repository, prints where the
-agents' context goes there and what to cut first, as the installer does for the machine.
-
-Nothing is built: the cache starts empty and grows from your sessions. Ongoing learning
-uses your agent to write notes from your sessions; `--no-learn` disables it. Flags of the
-build an older setup ran (`--build`, `--prs`, `--depth`, `--areas`) are accepted and ignored.
-
-The completion message shows the next step: start a new agent session in this repository.
-The first setup of a repository asks whether to see its Context report in the browser or the
-terminal; `--no-ui` keeps it in the terminal.
-
-## First-run benchmark
-
-Once the cache holds notes (or one was imported), you can benchmark on a recent PR change or any repository question anytime:
-
 ```bash
-# 1. Pick a question the cache covers (Enter takes the first), or type your own
-thinker benchmark
-
-# 2. Or benchmark a recent PR change
-thinker benchmark pr [number]
-
-# Name a question directly
-thinker benchmark run "explain how an upload is authorized and persisted"
-
-# 3. Reprint the latest result later
-thinker benchmark report
+npx @zerotimedev/thinker
 ```
 
-The benchmark commands make two read-only calls through the same installed agent:
-one without thinker context and one with the notes selected by `orient`. It
-compares time, turns, tool calls when the agent reports them, tokens, and target files found. Both
-answers are kept in `.thinker/benchmarks/` for a human quality check.
+Run the installer anywhere. It wires your agents, asking nothing, then reads
+the agents' own transcripts of the last 30 days in the repositories they worked
+in most and shows where their context goes and what to cut first: the sections
+of AGENTS.md, the skills and the tools that cost the most in the sessions that
+did not use them. It asks where to see them: in the browser, on the local page
+over every repository, or in the terminal, where the suggestions are a list to
+pick from (compress or remove a section, switch off a skill or tool) and apply
+at once.
 
-If the cache does not have sufficiently relevant notes for the question,
-Thinker stops before making either agent call, confirms that no model usage was
-spent, and prints up to three replacement commands drawn from distinct cached
-topics. Copy one of the suggested commands and try again. If there are no
-usable topics yet, the cache has not learned enough: it grows from your sessions.
+Nothing is built: every git repository gets an empty cache with its first
+session, and the cache grows from the sessions there. Notes are stored locally
+and ranked on your machine; your configured agent writes them.
 
-This is a quick repository-specific signal, not a statistically conclusive
-benchmark or an automatic correctness grade. Use `--agent codex` (or
-`claude`, `cursor`, `gemini`) and `--model <name>` to pin the runner.
+## After that
+
+You don't run thinker by hand:
+
+- **About once a week your agent passes on a suggestion from thinker**: a few
+  lines naming what to cut and what it would save, with a link to the page.
+  Reply with the numbers to approve, or "all", or review them on the page first.
+- **`thinker ui` opens the page** whenever you want it: Find Savings, View
+  Report and Recent activity, over every repository on the machine.
+
+Learning, re-checking notes as the code changes, and updates run in the
+background. [docs/setup.md](docs/setup.md) has the details.
+
+## Installer options
+
+- `--no-ui`: stay in the terminal. Over SSH or in CI the browser is not offered;
+  with `--yes` or no terminal, the report is printed.
+- `--clients claude,codex,cursor,gemini` (or `all`): which agents to wire; by
+  default the ones found on the machine.
+- `--no-learn`: wire the agents without learning from sessions.
+- `--no-auto-update`: skip scheduling background updates.
+- `--uninstall`: take the machine-wide wiring out again.

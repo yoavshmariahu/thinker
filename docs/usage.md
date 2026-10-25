@@ -1,31 +1,23 @@
 # Usage, savings and learning
 
 What the cache costs, what it saves, and how it learns from your sessions. Where the agents'
-context goes, and what to cut, is the [Context page](context.md). Back to the [README](../README.md).
+context goes, and what to cut, is the [Find Savings page](context.md). Back to the [README](../README.md).
 
 ## Cache usage and savings
 
-Run `thinker stats` for a machine-wide dashboard of activity, agent usage,
-learning, estimated reading avoided, and reported model tokens, with a breakdown
-by repository and the current checkout's cache details. `--here` limits activity
-to this repository, `--days 7` shows the last week, and `--json` includes the full
-data (the original `repo`, `notes`, `status`, `kinds`, and `uses` fields still
-describe the current checkout). Repositories are discovered from the configured
-usage log; clones and worktrees sharing an origin are grouped together. Cache
-counts are current, even when activity is filtered by date.
-
-Run `thinker usage --here` to compare this repository's cache spending with its
-estimated savings, or `thinker usage` for every repository on the machine.
-`--days 7` limits the period; `--json` includes spending by operation, provider/model,
-and repository.
+View Report on the page (`thinker ui`) shows the cache's numbers under the tables: its saving at list price,
+tokens saved, cache hits and the share of servings the sessions acted on. Behind them: notes served and how, what the
+sessions did with them, what learning and maintenance cost in reported model tokens, and an estimate of the
+reading avoided, for one repository or every repository on the machine (clones and worktrees sharing an origin
+count as one).
 
 One number in it is measured rather than estimated. The hooks serve nothing in
 15% of prompts (chosen by a hash of the session id and the turn's number, so
 every hook of a turn agrees; `holdout` in `.thinker/config.json` or
 `THINKER_HOLDOUT` changes the share or turns it off), and the stop hook records
 after every turn what the session has cost so far by its own transcript: tool
-calls, model turns, input tokens. A turn's cost is what that grew by. The
-"Holdout" section of `thinker usage` compares the prompts that got notes with
+calls, model turns, input tokens. A turn's cost is what that grew by. The holdout
+comparison compares the prompts that got notes with
 the ones that had notes withheld, as cost per prompt (the side's summed cost
 over its measured prompts) overall and per model, once twenty prompts stand on
 each side; and how often each side's prompt was followed by a correction. The
@@ -45,7 +37,7 @@ many fewer input tokens the prompts with notes cost than they would have at the
 held-out cost per prompt, with the two costs and the counts behind it. Nothing is
 shown until twenty prompts stand on each side. Claude Code, Codex and Gemini show
 the line as a message to you, outside the model's context; Cursor and Copilot
-have no such channel, so there it lives in `thinker usage` and the UI.
+have no such channel, so there it lives on the page.
 `THINKER_NOTICE=off` or `"notice": false` in the config turns it off with the
 other end-of-turn notices.
 
@@ -63,8 +55,7 @@ cached input are counted alike. Older logs omitted tokens and setup exploration,
 so historical totals cannot establish full payback. A limited date range also excludes
 setup spending outside that period.
 
-Session learning is the background distillation of each session; the agent's
-`feedback` tool can also correct a note it found wrong. The distillation selects at most 12,000 characters of source evidence from the transcript:
+Session learning is the background distillation of each session. The distillation selects at most 12,000 characters of source evidence from the transcript:
 the first request, the last answer, failures and corrections with what followed
 them, and the most recent tool calls. Routine exploration and cache hits alone do not
 trigger discovery. Notes are assessed only when discussed explicitly or when a
@@ -78,23 +69,10 @@ skip learning; `learn.quietExplore: 0` retains an explicit opt-in to processing
 every eligible session. The log records `learningMode` (`evidence`, `assessment`,
 `audit`, or `full`) and trace size so quality and spending can be compared.
 
-`thinker distill <transcript> --dry --evidence` previews the compact path;
-without `--evidence` or `--incremental`, an explicit distill retains the fuller
-trace as its fallback when semantic selection is disabled or unavailable. Both dry runs call a model but save no notes. Compact discovery
-requests at most 3,000 output tokens, assessment alone 1,500, and full distillation
-6,000. Claude CLI receives these per-request output limits, disables optional
-thinking, and limits structured-output attempts; provider retries can still add
-usage. These bounds reduce input and output, not guarantee a measured saving or
-identical note quality.
-
-To evaluate a cheaper distillation model, compare the same transcripts with
-`thinker distill <transcript> --dry --model <model>`, then inspect usage and note quality.
-`--dry` still calls a model and records its usage, but does not save notes. The existing
-`distillModel` setting in `.thinker/config.json` chooses the default distiller for session
-learning and PR mining; an explicit `--model` or `THINKER_LLM_MODEL` takes precedence.
-The report's no-new-note/no-merge counts help identify low-yield runs, though those runs
-may still assess existing notes. Keep quality and downstream task correctness in the
-comparison, not just note count.
+Compact discovery requests at most 3,000 output tokens, assessment alone 1,500, and full distillation
+6,000. These bounds reduce input and output, not guarantee a measured saving or identical note quality.
+`distillModel` in `.thinker/config.json` chooses the model for session learning; `THINKER_LLM_MODEL`
+takes precedence.
 
 ## What the hooks serve, and the symbol table behind it
 
@@ -126,8 +104,8 @@ servings with `"on": "outline"`, so a replay can count them apart from the notes
 
 `symbolTable` is what makes that cheap. With it on, the checkout keeps a
 definition index under `.thinker/state/symbols/` (already outside git, like the
-rest of `state/`), and `thinker`'s definition lookups — `find`, `drilldown`, the
-anchoring guard, the on-sight outline — read it instead of running `git grep`
+rest of `state/`), and thinker's definition lookups — the anchoring guard, the
+on-sight outline — read it instead of running `git grep`
 over the tree and re-parsing what they hit. On PostHog (53,503 tracked files,
 43,427 of them code, 641,442 definitions) a definition lookup goes from about
 2.9 s for the first and 0.6–0.9 s for each one after, to 108 ms for the first in
@@ -144,12 +122,8 @@ tree need a sweep that stats every file, which costs over a second on a
 checkout that size: it runs inline only once a measurement puts it under
 `sweepMs` (120 ms), and otherwise moves into the background. When more has
 changed than the table's delta holds (`maxDelta`, 400 files), or there is no
-table yet, a detached `thinker symbols build` is started and the caller falls
+table yet, a background build is started and the caller falls
 back to `git grep` meanwhile. A missing or half-built table is never an error.
-
-`thinker symbols` reports what the table covers; `thinker symbols build` builds
-it in the foreground (`--max-files`, `--build-ms` bound it, and a build that
-ran out of either says so); `thinker symbols refresh` brings it up to date.
 
 ## The context diet
 
@@ -179,15 +153,17 @@ false` leaves test runs alone. Other agents get their results untouched.
 
 A failing test run is often the most expensive thing in a session: whole suites of output read
 back into the context on every iteration, a third of it colour escapes, and seventy failures that
-are really a handful of causes.
+are really a handful of causes. Off until an experiment shows it helps. With
 
-```sh
-thinker test -- pytest tests/test_api.py
+```json
+{ "tests": { "nudge": true } }
 ```
 
-runs the command as given, with colour off, keeps the whole log in
-`.thinker/state/tests/<timestamp>-<runner>.log` (ignored by git; the last twenty are kept) and
-prints only what a reader needs:
+in `.thinker/config.json`, a shell command that is a test run is answered before it runs: Claude
+Code and Codex have the command rewritten to go through thinker's test wrapper, and Cursor is told what
+to run instead. Each command is answered once per session. The wrapper runs the command as given, with
+colour off, keeps the whole log in `.thinker/state/tests/<timestamp>-<runner>.log` (ignored by git; the
+last twenty are kept) and gives the agent only what a reader needs:
 
 ```
 pytest: 9 failed, 0 passed — exit 1
@@ -203,21 +179,9 @@ pytest: 9 failed, 0 passed — exit 1
 full log (81 lines): .thinker/state/tests/2026-10-18T05-37-29-595-pytest.log
 ```
 
-The exit code is the test command's, so it drops into a script or a `&&` chain unchanged. pytest,
-jest, vitest, `go test`, `cargo test` and `node --test` are parsed; any other runner is run as
-given and reported by the last lines of its log.
-
-Agents can be asked to use it. With
-
-```json
-{ "tests": { "nudge": true } }
-```
-
-in `.thinker/config.json`, a shell command that is a test run is answered before it runs: Claude
-Code and Codex have the command rewritten to go through `thinker test`, and Cursor is told what to
-run instead. Each command is answered once per session. Without that setting nothing is answered
-and the wrapper is only what you type yourself. The same `tests` object sets `color`, `causes`,
-`examples`, `traceback`, `tail` and `keepLogs`.
+The exit code is the test command's. pytest, jest, vitest, `go test`, `cargo test` and `node --test`
+are parsed; any other runner is reported by the last lines of its log. The same `tests` object sets
+`color`, `causes`, `examples`, `traceback`, `tail` and `keepLogs`.
 
 ## Your own model endpoint
 
