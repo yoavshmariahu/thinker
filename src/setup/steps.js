@@ -99,7 +99,7 @@ export async function stepConnectClis({ repo = null, cliPath, mcpEntry, userMcpE
   if (proxy && !isTestMode()) {
     try {
       const p = await enableProxyService({ cli: cliPath, home });
-      results.push({ client: 'proxy', status: 'connected', name: 'Context proxy', logs: [`old tool results cleared from the context by the API (${p.url}${p.listening === false ? ', not listening yet: the next prompt starts it' : ''})`, ...wiredLines(p.wired, p.url)] });
+      results.push({ client: 'proxy', status: 'connected', name: 'Context proxy', logs: [`old tool results cleared from context (${p.url}${p.listening === false ? ', not listening yet: the next prompt starts it' : ''})`, ...wiredLines(p.wired, p.url)] });
     } catch (e) { results.push({ client: 'proxy', status: 'error', detail: e.message }); }
   }
 

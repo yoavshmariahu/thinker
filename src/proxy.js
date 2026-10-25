@@ -26,6 +26,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { transformResponses, responsesUsageTap, responsesReport } from './proxy-responses.js';
+import { CODEX_PROXY_PATH, CODEX_UPSTREAMS } from './proxy-codex.js';
 
 export const EDIT_TYPE = 'clear_tool_uses_20250919';
 export const EDIT_BETA = 'context-management-2025-06-27';
@@ -58,6 +59,7 @@ export function proxyConfig(flags = {}, env = process.env) {
   cfg.upstream = flags.upstream || env.THINKER_PROXY_UPSTREAM || cfg.upstream;
   cfg.port = pick('port', 'THINKER_PROXY_PORT');
   cfg.protocol = flags.protocol || env.THINKER_PROXY_PROTOCOL || 'anthropic';
+  cfg.codex = flags.codex === true;
   if (!['anthropic', 'responses'].includes(cfg.protocol)) throw new Error('--protocol must be anthropic or responses');
   if (cfg.protocol === 'responses') {
     if (!flags.upstream && !env.THINKER_PROXY_UPSTREAM) throw new Error('--protocol responses needs an explicit --upstream (the existing provider base URL)');
@@ -169,23 +171,33 @@ const HOP = ['connection', 'keep-alive', 'proxy-connection', 'transfer-encoding'
 
 // `notes`: a proxy-notes.js NoteInjector; the notes for an agent with no prompt hook go into the last user turn
 export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes = null } = {}) {
-  const up = new URL(cfg.upstream);
-  const lib = up.protocol === 'http:' ? http : https;
-  const agent = new lib.Agent({ keepAlive: true, maxSockets: 256 });
+  const agents = new Map();
   const log = row => {
     if (!logFile) return;
     try { fs.mkdirSync(path.dirname(logFile), { recursive: true }); fs.appendFileSync(logFile, JSON.stringify(row) + '\n'); } catch { /* a log is never worth a failed request */ }
   };
   const server = http.createServer((req, res) => {
+    let requestUrl = req.url, requestCfg = cfg;
+    if (cfg.codex && (requestUrl.startsWith(`${CODEX_PROXY_PATH}/`) || requestUrl === CODEX_PROXY_PATH)) {
+      requestUrl = requestUrl.slice(CODEX_PROXY_PATH.length) || '/';
+      // Codex adds this header when using ChatGPT auth. API-key requests have none.
+      // Destinations are fixed OpenAI endpoints, never supplied by an incoming request.
+      const upstreams = cfg.codexUpstreams || CODEX_UPSTREAMS;
+      requestCfg = { ...cfg, protocol: 'responses', keep: 'turn', upstream: req.headers['chatgpt-account-id'] ? upstreams.chatgpt : upstreams.api };
+    }
+    const up = new URL(requestCfg.upstream);
+    const lib = up.protocol === 'http:' ? http : https;
+    if (!agents.has(up.origin)) agents.set(up.origin, new lib.Agent({ keepAlive: true, maxSockets: 256 }));
+    const agent = agents.get(up.origin);
     const chunks = [];
     req.on('data', c => chunks.push(c));
     req.on('end', async () => {
       const raw = Buffer.concat(chunks);
       const t0 = process.hrtime.bigint();
       let t;
-      try { t = transformRequest(req.method, req.url, req.headers, raw, cfg); } catch { t = { body: raw, reason: 'error' }; }
+      try { t = transformRequest(req.method, requestUrl, req.headers, raw, requestCfg); } catch { t = { body: raw, reason: 'error' }; }
       let n = null;
-      if (notes) { try { n = await notes.transform(req.method, req.url, req.headers, t.body); } catch { n = null; } if (n) { t.body = n.body; t.notes = n; if (t.reason === 'other') t.reason = 'notes'; } }
+      if (notes && requestCfg.protocol !== 'responses') { try { n = await notes.transform(req.method, req.url, req.headers, t.body); } catch { n = null; } if (n) { t.body = n.body; t.notes = n; if (t.reason === 'other') t.reason = 'notes'; } }
       const headers = {};
       for (const [k, v] of Object.entries(req.headers)) if (!HOP.includes(k)) headers[k] = v;
       headers.host = up.host;
@@ -200,7 +212,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
       // the second try is invisible to it; a drop after the answer started cannot be retried.
       const send = attempt => {
         const started = Date.now();
-        ureq = lib.request({ protocol: up.protocol, hostname: up.hostname, port: up.port || undefined, path: base + req.url, method: req.method, headers, agent: attempt ? false : agent }, ures => {
+        ureq = lib.request({ protocol: up.protocol, hostname: up.hostname, port: up.port || undefined, path: base + requestUrl, method: req.method, headers, agent: attempt ? false : agent }, ures => {
           const out = {};
           for (const [k, v] of Object.entries(ures.headers)) if (!['connection', 'keep-alive', 'transfer-encoding'].includes(k)) out[k] = v;
           res.writeHead(ures.statusCode, out);
@@ -244,7 +256,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
     socket.on('error', () => socket.destroy());
     socket.end('HTTP/1.1 426 Upgrade Required\r\nConnection: close\r\nContent-Type: text/plain\r\n\r\nthinker proxy uses HTTP/SSE; set supports_websockets = false in the Codex provider.\n');
   });
-  server.on('close', () => agent.destroy());
+  server.on('close', () => { for (const agent of agents.values()) agent.destroy(); });
   server.listen(cfg.port || 0, host, () => onListen?.(server.address()));
   return server;
 }

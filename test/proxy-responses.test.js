@@ -148,3 +148,40 @@ test('Codex closing SSE on response.completed still logs clearing and usage once
   assert.deepEqual([rows[0].input, rows[0].read, rows[0].out], [250, 200, 7]);
   assert.equal(rows[0].status, 200);
 });
+
+test('managed service routes Codex by its existing auth without changing the Anthropic route', async t => {
+  const seen = { anthropic: [], chatgpt: [], api: [] }, servers = {};
+  for (const name of Object.keys(seen)) {
+    const server = http.createServer((req, res) => {
+      const chunks = []; req.on('data', c => chunks.push(c)); req.on('end', () => {
+        seen[name].push({ path: req.url, auth: req.headers.authorization, beta: req.headers['anthropic-beta'], body: Buffer.concat(chunks).toString() });
+        res.writeHead(200, { 'content-type': 'text/event-stream' }); res.end(answer);
+      });
+    });
+    await new Promise(r => server.listen(0, '127.0.0.1', r)); servers[name] = server;
+    t.after(() => { server.closeAllConnections(); server.close(); });
+  }
+  const base = name => `http://127.0.0.1:${servers[name].address().port}`;
+  const proxy = startProxy({ ...cfg(), protocol: 'anthropic', codex: true, upstream: base('anthropic'), codexUpstreams: { chatgpt: base('chatgpt') + '/backend-api/codex', api: base('api') + '/v1' } });
+  await new Promise(r => proxy.once('listening', r));
+  t.after(() => { proxy.closeAllConnections(); proxy.close(); });
+  const send = async (endpoint, headers = {}, data = raw()) => {
+    const res = await fetch(`http://127.0.0.1:${proxy.address().port}${endpoint}`, { method: 'POST', headers: { authorization: 'Bearer fixture', ...headers }, body: data });
+    assert.equal(res.status, 200); await res.text();
+  };
+  await send('/codex/responses', { 'chatgpt-account-id': 'fixture-account' });
+  await send('/codex/responses');
+  await send('/codex/responses/compact', { 'chatgpt-account-id': 'fixture-account' });
+  await send('/v1/messages', {}, JSON.stringify({ model: 'claude', messages: [{ role: 'user', content: 'hello' }] }));
+  assert.equal(seen.chatgpt[0].path, '/backend-api/codex/responses');
+  assert.equal(seen.api[0].path, '/v1/responses');
+  for (const name of ['chatgpt', 'api']) {
+    assert.equal(JSON.parse(seen[name][0].body).input[2].output, CLEARED_OUTPUT);
+    assert.equal(seen[name][0].auth, 'Bearer fixture');
+    assert.equal(seen[name][0].beta, undefined);
+  }
+  assert.equal(seen.chatgpt[1].path, '/backend-api/codex/responses/compact');
+  assert.equal(seen.chatgpt[1].body, raw().toString());
+  assert.equal(seen.anthropic[0].path, '/v1/messages');
+  assert.ok(JSON.parse(seen.anthropic[0].body).context_management.edits.length);
+});

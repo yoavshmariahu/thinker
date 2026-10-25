@@ -66,6 +66,15 @@ Offline replays of retrieval against labelled targets are a first step, not the
 evidence: the outcome is measured in agent sessions. Turning the switch on by
 default is its own pull request that cites the experiment.
 
+Exception explicitly requested by the owner on 2026-10-25: Codex proxy tool-output
+clearing is on by default through install/connect/setup/update after a live
+ChatGPT transport smoke test (Codex 0.164.0, gpt-6-astra high). This establishes
+provider acceptance, not savings or quality. `proxy-codex.js` wires a managed
+provider without reading credentials; `/codex` on the existing service routes
+ChatGPT-account requests to the ChatGPT backend and API-key requests to OpenAI.
+Custom providers stay as configured; `thinker proxy off` restores the prior
+selection. Future claims of savings still require an Artemis experiment.
+
 Requires Node 20+. Tests: `npm test` (`scripts/test.sh`, `node --test` under `THINKER_TEST=1`).
 **Test selection (2026-10-24):** `npm test` runs only the test files the change against
 `origin/main` reaches (`scripts/select-tests.mjs`: committed since the merge base, the working
