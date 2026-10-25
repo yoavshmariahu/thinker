@@ -101,10 +101,14 @@ function wholeFile(f) {
 export async function previewEdit(store, ids, action, opts = {}) {
   ids = [...new Set((Array.isArray(ids) ? ids : String(ids).split(',')).map(s => String(s).trim()).filter(Boolean))];
   if (!ids.length) return { error: 'no section chosen' };
-  const files = instructionFiles(store.repo);
-  if (!files.length) return { error: 'no instruction file here' };
+  // opts.texts: the files' text from elsewhere than the working tree (the base branch, instruction-pr.js:baseTexts), so
+  // a pull request is made from what is on the branch whatever the checkout holds; a file not there is left out
+  let files = instructionFiles(store.repo);
+  if (opts.texts) files = files.map(f => ({ ...f, text: opts.texts(f.file) })).filter(f => f.text != null && f.text.trim());
+  const where = opts.base?.branch ? ` on ${opts.base.branch}` : '';
+  if (!files.length) return { error: `no instruction file${where || ' here'}` };
   const byFile = new Map();
-  for (const id of ids) { const r = resolveId(files, id); if (!r) return { error: `no section "${id}"` }; if (!byFile.has(r.f.file)) byFile.set(r.f.file, { f: r.f, items: [] }); byFile.get(r.f.file).items.push({ id, bare: r.bare }); }
+  for (const id of ids) { const r = resolveId(files, id); if (!r) return { error: `no section "${id}"${where}` }; if (!byFile.has(r.f.file)) byFile.set(r.f.file, { f: r.f, items: [] }); byFile.get(r.f.file).items.push({ id, bare: r.bare }); }
   const out = [], sections = [];
   let modelTokens = 0;
   for (const { f, items } of byFile.values()) {
@@ -119,7 +123,7 @@ export async function previewEdit(store, ids, action, opts = {}) {
       continue;
     }
     const props = await Promise.all(items.map(x => proposeSection(store, f.text, x.bare, action, opts)));
-    const bad = props.find(p => p.error); if (bad) return bad;
+    const bad = props.find(p => p.error); if (bad) return where ? { error: `${bad.error.replace(" in the file", ` in ${f.file}`)}${where}` } : bad;
     // every location is in the original text and sections do not overlap: replaced from the last one up
     const lines = f.text.split('\n');
     for (const p of [...props].sort((a, b) => b.loc.start - a.loc.start)) lines.splice(p.loc.start, p.loc.end - p.loc.start, ...(p.next ? [...p.next.split('\n'), ''] : []));
@@ -129,10 +133,11 @@ export async function previewEdit(store, ids, action, opts = {}) {
   }
   const key = ids.length === 1 ? ids[0] : 'bulk';
   const edits = readEdits(store);
-  edits[key] = { files: out, action, ids, at: new Date().toISOString(), sections: sections.map(x => ({ id: x.id, file: x.file, title: x.title, tokensBefore: x.tokensBefore, tokensAfter: x.tokensAfter })) };
+  const base = opts.base?.commit ? { commit: opts.base.commit, branch: opts.base.branch } : undefined;
+  edits[key] = { files: out, action, ids, at: new Date().toISOString(), base, sections: sections.map(x => ({ id: x.id, file: x.file, title: x.title, tokensBefore: x.tokensBefore, tokensAfter: x.tokensAfter })) };
   writeEdits(store, edits);
   const names = out.map(x => x.file);
-  return { key, action, file: names.length === 1 ? names[0] : `${names.length} files`, files: names, sections, title: sections[0].title, diff: sections.length === 1 ? sections[0].diff : null,
+  return { key, action, base, file: names.length === 1 ? names[0] : `${names.length} files`, files: names, sections, title: sections[0].title, diff: sections.length === 1 ? sections[0].diff : null,
     tokensBefore: sections.reduce((a, x) => a + x.tokensBefore, 0), tokensAfter: sections.reduce((a, x) => a + x.tokensAfter, 0), modelTokens: modelTokens || null };
 }
 const tok = s => Math.ceil(String(s).length / 4);

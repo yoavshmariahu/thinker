@@ -905,7 +905,12 @@ its own, built from the default branch with a temporary index so the checkout is
 pull request with `gh` (`instruction-pr.js:openEditPr`; `prAvailable` says when it cannot be: no GitHub origin, no
 `gh`, not logged in, and then the page offers the working-tree write as before, with the reason). The preview keeps each
 section's old and new text (`instruction-edit.js:previewEdit`, `edits`), so the change is applied to the base branch's
-file where that differs from the working tree (`textOnBase`), refused where the section is not found there. History
+file where that differs from the working tree (`textOnBase`), refused where the section is not found there. **Since 2026-10-25 the preview itself is made from the base
+branch's text** (`instruction-pr.js:baseTexts`, passed to `previewEdit` as `texts` and `base`, by `runSectionJob` and
+`thinker instructions --pr`): the model is shown what is on main, the pull request's parent is the commit the preview was
+read from, and the checkout's branch, uncommitted edits and distance behind the origin play no part. Before, the preview came
+from the working tree and the first pull request's own blank-line collapse made the next change fail with "differs on the base
+branch" until the person pulled; `textOnBase` now ignores blank-line differences as well, for a kept preview. History
 records the decision as `pull request` with `pr` {number, url, branch, state} (`context-suggest.js:applyReviewed`),
 follows the state on GitHub a minute apart at most (`refreshPrStates`, on every read of `/api/activity` and `thinker
 context --history`): **PR pending** while open (the section's row shows the same pill, linked, and cannot be picked

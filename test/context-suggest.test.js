@@ -324,9 +324,11 @@ test('a section job with a pull request: the decision is pending until merged; c
     prState: (r, n) => prs.state(n),
     closePr: (r, n, o) => { closed.push([n, o.branch]); return { ok: true }; },
     state: () => ({ state: 'open', at: null }),
+    baseTexts: () => ({ commit: 'c0', branch: 'main', textOf: f => `${f} on main` }),
   };
   const spawnFn = () => ({ pid: process.pid, on() {}, unref() {} });
-  const edit = { previewEdit: async (s, ids) => ({ key: ids.join('+'), files: ['AGENTS.md'], file: 'AGENTS.md' }), applyEdit: () => ({ error: 'not this way' }) };
+  // the preview is made from the base branch's text (prs.baseTexts), never the working tree's
+  const edit = { previewEdit: async (s, ids, action, o) => { assert.equal(o.texts('AGENTS.md'), 'AGENTS.md on main'); assert.equal(o.base.commit, 'c0'); return { key: ids.join('+'), files: ['AGENTS.md'], file: 'AGENTS.md' }; }, applyEdit: () => ({ error: 'not this way' }) };
   // Apply, then the command it started: one pull request for both sections, a row each
   const job = (changes, t) => { const s = startSectionJob(store, changes, 'compress', { pr: true, now: t, spawnFn, cliPath: '/x/cli.js' }); return runSectionJob(store, { group: s.group, ids: changes.map(c => c.id), action: 'compress', pr: true }, { now: t, edit, prs }); };
   const r = await job(picked, now);

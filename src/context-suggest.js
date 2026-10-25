@@ -263,13 +263,16 @@ export async function runSectionJob(store, { group, ids, action, pr = false }, {
   const fail = error => { finishJob(store, group, j => ({ ...j, state: 'failed', error, finishedAt: stamp() })); store.log({ op: 'context-job', group, action, state: 'failed', error }); return { error }; };
   try {
     const { previewEdit, applyEdit } = edit || await import('./instruction-edit.js');
-    const p = await previewEdit(store, ids, action);
+    // a pull request is made from the base branch's own text (instruction-pr.js:baseTexts), whatever the checkout holds
+    const prsMod = pr ? (prs || await import('./instruction-pr.js')) : null;
+    const src = prsMod?.baseTexts ? prsMod.baseTexts(store.repo) : null;
+    if (src?.error) return fail(src.error);
+    const p = await previewEdit(store, ids, action, src ? { texts: src.textOf, base: src } : {});
     if (p.error) return fail(p.error);
     const done = { state: 'done', finishedAt: stamp(), tokens: p.modelTokens || null };
     const saving = es.reduce((s, e) => s + (e.saving || 0), 0);
     if (pr) {
-      const { openEditPr } = prs || await import('./instruction-pr.js');
-      const r = await openEditPr(store, p.key, { changes: es, now: now ?? Date.now() });
+      const r = await prsMod.openEditPr(store, p.key, { changes: es, now: now ?? Date.now() });
       if (r.error) return fail(r.error);
       const prRecord = { number: r.number, url: r.url, branch: r.branch, commit: r.commit, base: r.base, state: 'open', openedAt: done.finishedAt, checkedAt: done.finishedAt };
       finishJob(store, group, j => ({ ...j, ...done }), e => { e.pr = { ...prRecord }; e.decision = 'pull request'; e.result = r.said; e.tokens = sectionTokens(p, e.section) || e.tokens || null; });
