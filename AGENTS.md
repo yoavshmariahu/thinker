@@ -776,6 +776,14 @@ and the behaviors are reached through the CLI (`thinker list`, `show`, `archive`
 `/api/usage`, `/api/cache`, `/api/behaviors` and `/api/activity` went with it. An old link (`tab=context`,
 `tab=changes`, `tab=cache`) opens the view that replaced it.
 
+**The page opens over every repository on the machine (2026-10-25, the owner's ask).** `thinker ui` lands on All
+repositories on every tab: the command writes `repo=all` in the address and the page reads `repo=` the same way
+for Save, Report and Recent activity (`page.html:hashRepo`; Find Savings defaulted to this checkout until then,
+and Report and Recent activity already opened on All). `thinker ui --here` opens on this checkout alone
+(`repo=here`, which each tab resolves to the current repository's id once the list is read), and a link naming a
+repository by its id still wins (`context-suggest.js:suggestionsUrl`, a session's summary). `--all` is accepted
+and says what it does.
+
 `thinker report` and the Report tab show one report (`report.js:reportView`): what a prompt costs here, week by
 week over the last six (`REPORT_WEEKS`, Monday to Sunday, the current week so far last). **The unit is a prompt, one call to
 the model (2026-10-24, the owner's ask; a session until then): the week's tokens over its prompts (`transcripts.js` `turns`,

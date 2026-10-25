@@ -216,8 +216,9 @@ const HELP = `thinker — knowledge cache for coding agents
   impact export | impact import <file.json>   transfer evidence from CI or another machine
   impact finding <id> --pr n --validity confirmed|dismissed|duplicate|pending --evidence reason
          [--resolution fixed|open|accepted-risk|not-applicable] [--fix sha] [--duplicate-of id]
-  ui [--port n] [--no-open] [--tab save|report|activity] [--all] [--refresh]
-                                 open the local page, from any directory, on Find Savings (--tab save; --all: over all repositories): where the agents' context goes in each
+  ui [--port n] [--no-open] [--tab save|report|activity] [--here] [--refresh]
+                                 open the local page, from any directory, over every repository on the machine (--here: this
+                                 checkout alone), on Find Savings (--tab save): where the agents' context goes in each
                                  repository and what each part is worth, with the cuts (thinker context); then View Report (--tab report), what a
                                  session costs here week by week, by part and by model, in tokens or at list prices (thinker report);
                                  127.0.0.1 only, Ctrl+C stops it; --refresh looks for the repositories again and keeps the list the

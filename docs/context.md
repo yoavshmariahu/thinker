@@ -5,7 +5,8 @@ its sessions. Review the suggested cuts, then track the change in **View Report*
 Back to the [README](../README.md).
 
 ```bash
-thinker ui                 # open Find Savings in your browser
+thinker ui                 # open Find Savings in your browser, over every repository
+thinker ui --here          # this repository alone
 thinker context            # the same report in the terminal
 thinker context --days 7   # focus on the last week
 ```
