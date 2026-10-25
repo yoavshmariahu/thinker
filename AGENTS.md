@@ -857,7 +857,10 @@ prompt by cause with the calls under each (`rewrites`, `rewriteTotals`); a part 
 types, not a fourth whole. The offline replay behind the figures is in research/cost-levers-2026-10-25.md.
 
 **Cost, the one place dollars are shown.** The Cost toggle (`--cost`) prices each session's tokens at its model's
-list rates (`prices.js:listPrice`: fresh input, cache reads, cache writes and output each at its rate; Anthropic's
+list rates (`prices.js:listPrice`: fresh input, cache reads, cache writes and output each at its rate, a cache write by its TTL
+since 2026-10-25, `writeCost`: the one-hour writes Claude Code and pi make at twice the input, the five-minute ones at 1.25 times,
+as the usage reports the split (`transcripts.js:Stats` `cacheWrite1hTokens`, state version 13); until then every write was priced
+at the five-minute rate, a third under on this machine, where writes are a third of the bill; Anthropic's
 from `model-usage.js:relativeRate` at Opus 5.5's input price, OpenAI's and Google's as published on
 `PRICED_ON`; `prices` in `.thinker/config.json` adds or overrides one), so sessions on different models compare on
 one scale; a part's cost is its share of the session's input cost. The rule that nothing is given in dollars

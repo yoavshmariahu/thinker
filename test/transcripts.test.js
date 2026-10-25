@@ -368,7 +368,7 @@ test('Codex rollouts with per-call usage: the calls are the turns, the conversat
   assert.equal(r.carried.system, 0, 'the rollout does not hold the system prompt');
   // the rewrites: the first call and the one after the pause, by their fresh tokens
   assert.equal(r.rewrites.calls, 3);
-  assert.deepEqual(r.rewrites.causes.first, { n: 1, fresh: 30000, write: 0 }); assert.deepEqual(r.rewrites.causes.expired, { n: 1, fresh: 30400, write: 0 });
+  assert.deepEqual(r.rewrites.causes.first, { n: 1, fresh: 30000, write: 0, write1h: 0 }); assert.deepEqual(r.rewrites.causes.expired, { n: 1, fresh: 30400, write: 0, write1h: 0 });
   assert.equal(r.rewrites.causes.midway.n, 0);
   // a rollout without per-call usage keeps the cumulative total and counts the assistant messages as turns, as before
   const old = write([
@@ -395,7 +395,7 @@ test('cacheRewrites names the cause of each whole-context rewrite, per agent of 
   ]);
   assert.equal(r.calls, 9);
   assert.deepEqual(Object.fromEntries(Object.entries(r.causes).map(([k, v]) => [k, v.n])), { first: 2, compaction: 1, expired: 1, tail: 1, model: 1, midway: 1 });
-  assert.deepEqual(r.causes.first, { n: 2, fresh: 20, write: 80000 }); assert.deepEqual(r.causes.midway, { n: 1, fresh: 10, write: 55000 });
+  assert.deepEqual(r.causes.first, { n: 2, fresh: 20, write: 80000, write1h: 80000 }); assert.deepEqual(r.causes.midway, { n: 1, fresh: 10, write: 55000, write1h: 55000 }); assert.deepEqual(r.causes.tail, { n: 1, fresh: 10, write: 54000, write1h: 0 }, 'the five-minute write is no one-hour write');
   assert.deepEqual(REWRITE_CAUSES.map(([k]) => k), ['first', 'compaction', 'expired', 'tail', 'model', 'midway']);
   // a context under 20k is never a rewrite; a call the cache served mostly is not one either
   assert.equal(cacheRewrites([call(0, 0, 10000), call(1, 40000, 15000)]).calls, 2);
@@ -413,5 +413,5 @@ test('Gemini chats carry the conversation\'s cost and per-call rewrites', () => 
   assert.equal(r.format, 'gemini'); assert.equal(r.stats.turns, 2); assert.equal(r.stats.inputTokens, 50100); assert.equal(r.stats.cacheReadTokens, 25000); assert.equal(r.stats.outputTokens, 18, 'the thoughts are not in the output Stats counts for a tokens block without candidates');
   const est = v => Math.ceil(JSON.stringify(v).length / 4);
   assert.equal(r.carried.prompts, 2 * est('where is x')); assert.equal(r.carried.agentText, est('looking')); assert.equal(r.carried.agentCalls, est({ path: '/r/src/x.py' })); assert.equal(r.carried.thinking, 0);
-  assert.deepEqual(r.rewrites.causes.first, { n: 1, fresh: 25000, write: 0 }); assert.equal(r.rewrites.calls, 2); assert.equal(Object.values(r.rewrites.causes).reduce((a, v) => a + v.n, 0), 1);
+  assert.deepEqual(r.rewrites.causes.first, { n: 1, fresh: 25000, write: 0, write1h: 0 }); assert.equal(r.rewrites.calls, 2); assert.equal(Object.values(r.rewrites.causes).reduce((a, v) => a + v.n, 0), 1);
 });

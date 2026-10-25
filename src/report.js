@@ -19,7 +19,7 @@ import { sessionUsage, toolOutputs } from './tool-outputs.js';
 import { changeHistory } from './context-suggest.js';
 import { summarize, readLog } from './usage.js';
 import { dietConfig, dietTimeline } from './diet.js';
-import { listPrice, providerOf, costOf, formatDollars, PRICED_ON } from './prices.js';
+import { listPrice, providerOf, costOf, writeCost, formatDollars, PRICED_ON } from './prices.js';
 import { formatTokens } from './model-usage.js';
 import { REWRITE_CAUSES } from './transcripts.js';
 
@@ -167,11 +167,11 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
     // reads and writes exceed its input (none should) is clamped so the four still add up to the session
     const write = Math.min(u.cacheWrite || 0, input), read = Math.min(u.cacheRead || 0, input - write), fresh = input - read - write;
     add(byType.fresh[w], fresh, price ? fresh * price.input / 1e6 : 0);
-    add(byType.cacheWrite[w], write, price ? write * price.cacheWrite / 1e6 : 0);
+    add(byType.cacheWrite[w], write, price ? writeCost(write, u.cacheWrite1h, price) / 1e6 : 0); // the one-hour writes at twice the input (prices.js)
     add(byType.cacheRead[w], read, price ? read * price.cacheRead / 1e6 : 0);
     add(byType.output[w], output, price ? output * price.output / 1e6 : 0);
     // the prompt-cache rewrites by cause: the tokens written again, each at its rate
-    for (const [k, x] of Object.entries(u.rewrites?.causes || {})) if (byCause[k]) { const c2 = byCause[k][w]; add(c2, (x.fresh || 0) + (x.write || 0), price ? ((x.fresh || 0) * price.input + (x.write || 0) * price.cacheWrite) / 1e6 : 0); c2.n += x.n || 0; }
+    for (const [k, x] of Object.entries(u.rewrites?.causes || {})) if (byCause[k]) { const c2 = byCause[k][w]; add(c2, (x.fresh || 0) + (x.write || 0), price ? ((x.fresh || 0) * price.input + writeCost(x.write || 0, x.write1h, price)) / 1e6 : 0); c2.n += x.n || 0; }
     const key = r.model || 'unknown';
     if (!models.has(key)) models.set(key, { model: key, provider: providerOf(r.model, r.client), priced: Boolean(price), cells: cols.map(cell) });
     add(models.get(key).cells[w], input + output, cost, 1, cost == null ? 0 : 1, prompts, cost == null ? 0 : prompts);

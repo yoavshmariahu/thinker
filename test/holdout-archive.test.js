@@ -118,7 +118,7 @@ test('the hooks of a held-out turn serve nothing, and every stop logs the sessio
   assert.equal(s[0].toolCalls, 1); assert.equal(s[0].turns, 2); assert.equal(s[0].inputTokens, 3000, 'input, cache reads and cache writes of every turn');
   assert.equal(s[1].turn, 2); assert.equal(s[1].toolCalls, 2); assert.equal(s[1].inputTokens, 6400, 'the session so far, not the turn');
   const stats = parseTranscript(transcript).stats;
-  assert.deepEqual(stats, { toolCalls: 2, turns: 4, inputTokens: 6400, outputTokens: null, cacheReadTokens: 5700, cacheWriteTokens: null, totalTokens: null, tokenCoverage: 'partial' });
+  assert.deepEqual(stats, { toolCalls: 2, turns: 4, inputTokens: 6400, outputTokens: null, cacheReadTokens: 5700, cacheWriteTokens: null, cacheWrite1hTokens: 0, totalTokens: null, tokenCoverage: 'partial' });
   // the comparison reads the two turns: turn 1 cost 3000, turn 2 cost 3400
   const h = summarize(store, {}).holdout;
   assert.equal(h.heldOut.prompts, 1, 'turn 2 withheld nothing new (the note was withheld on turn 1 and is not served twice): on neither side');
