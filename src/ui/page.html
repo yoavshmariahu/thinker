@@ -90,7 +90,7 @@
 
     /* the Save tables, as the docs' example (site/docs.html "AGENTS.md this week"): a figure holding a caption with the
        window's figures, the table, a line for what is picked, and a note */
-    .ctx-figure { margin: 1rem 0 0; padding: 1rem 1.1rem 0.9rem; border: 1px solid #e5e7eb; border-radius: 12px; background: #fcfcfb; }
+    .ctx-figure { margin: 1rem 0 0; padding: 1rem 1.1rem 0.9rem; border: 1px solid #e5e7eb; border-radius: 12px; background: #fcfcfb; overflow-x: auto; } /* a table wider than the box scrolls inside it, never past its border */
     .ctx-figure figcaption { font-size: 0.88rem; color: #111; margin-bottom: 0.6rem; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem 0.6rem; }
     .ctx-capact { margin-left: auto; display: flex; align-items: center; gap: 0.7rem; }
     .ctx-capact .btn { padding: 0.3rem 0.8rem; font-size: 0.78rem; }
@@ -121,7 +121,9 @@
     .ctx-table tr.ctx-off td { color: #6b7280; }
     .ctx-table input[type=checkbox] { margin: 0 0.3rem 0 0; vertical-align: -1px; accent-color: #111; }
     /* the Report tables: a trending cell is coloured against the first week, a provider's subtotal is bold with its models indented */
-    .rep-table th small { display: block; font-weight: 400; text-transform: none; letter-spacing: 0; color: #9ca3af; }
+    /* the week's count line wraps (th.num is nowrap): the Cost view adds ", n priced" to it, and unwrapped it pushed the table past the figure (2026-10-25) */
+    .rep-table th small { display: block; font-weight: 400; text-transform: none; letter-spacing: 0; color: #9ca3af; white-space: normal; }
+    .rep-table th.num { vertical-align: top; }
     .rep-table td.rep-good { background: #dcfce7; color: #14532d; }
     .rep-table td.rep-mid { background: #fef9c3; color: #713f12; }
     .rep-table td.rep-bad { background: #fee2e2; color: #7f1d1d; }
