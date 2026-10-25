@@ -49,10 +49,14 @@ above sends `/responses` to `/v1/responses`. Do not also append `/v1` to the loc
 ChatGPT backend normally uses `https://chatgpt.com/backend-api/codex`; a custom
 provider using that route needs `requires_openai_auth = true` instead of
 `env_key`. Thinker forwards the client's authorization and account headers
-unchanged. This route has **not been verified against the live ChatGPT backend**;
-do not treat the API-key example as a way to use a ChatGPT subscription. A
-provider/account rejecting edited history or custom routing needs its normal
-provider restored. Desktop provider support also depends on the particular app.
+unchanged. This route was verified on 2026-10-25 with Codex CLI 0.164.0 and
+`gpt-6-astra` at high reasoning effort: the current turn kept its tool output;
+after resume, the proxy shortened that older output and the backend returned a
+successful answer. All three model requests returned HTTP 200. The test used
+lower thresholds (`--trigger 1 --clear-at-least 1 --keep-min 0`) to exercise
+clearing in a small fixture, not to measure savings or establish good defaults.
+The API-key example above does not use a ChatGPT subscription. Desktop provider
+support still depends on the particular app and has not been tested live.
 
 ## What gets cleared
 
@@ -90,6 +94,8 @@ removed, upstream errors, and reasons requests were left unchanged. Text reports
 show these too. Bytes removed are not billed-token savings, and the report does
 not apply Anthropic's cache-price weights to OpenAI usage. Logs contain counts,
 model and session identifiers, not credentials or request/response content.
+Codex closes SSE on the completion event, often before the HTTP response ends;
+the proxy records usage and clearing on that close too, exactly once.
 
 `--holdout 0.15` leaves a stable 15% of identified sessions unchanged. A session
 comes from `session_id`, `x-codex-session-id`, or `prompt_cache_key`. With a
@@ -111,8 +117,11 @@ model, credentials or personal configuration:
 THINKER_CODEX_PROXY_SMOKE=1 npm test -- test/proxy-codex.test.js
 ```
 
-Verified this way with Codex CLI 0.164.0. This proves the CLI transport and resume
-path, not live provider acceptance, answer quality, or token savings.
+Verified this way with Codex CLI 0.164.0. A separate live ChatGPT smoke test also
+verified provider acceptance and resume as described above. Neither test proves
+answer quality or token savings on real coding tasks. The live test used a
+private temporary login copy and settings, removed afterward; normal Codex
+settings were unchanged and Thinker telemetry was disabled with `THINKER_TEST=1`.
 
 Protocol references: [Codex provider configuration](https://learn.chatgpt.com/docs/config-file/config-reference)
 and [OpenAI compaction](https://developers.openai.com/api/docs/guides/compaction).

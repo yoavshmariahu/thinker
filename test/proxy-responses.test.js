@@ -117,3 +117,34 @@ test('HTTP transport preserves auth, streaming, errors and compact requests with
   });
   assert.match(upgrade, /426.*[\s\S]*supports_websockets = false/);
 });
+
+test('Codex closing SSE on response.completed still logs clearing and usage once', async t => {
+  const upstream = http.createServer((req, res) => {
+    req.resume(); req.on('end', () => {
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      res.write(answer); // deliberately keep HTTP open after the completion event
+    });
+  });
+  await new Promise(r => upstream.listen(0, '127.0.0.1', r));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-responses-close-'));
+  const logFile = path.join(dir, 'proxy.jsonl');
+  const proxy = startProxy({ ...cfg(), upstream: `http://127.0.0.1:${upstream.address().port}` }, { logFile });
+  await new Promise(r => proxy.once('listening', r));
+  t.after(() => { proxy.closeAllConnections(); proxy.close(); upstream.closeAllConnections(); upstream.close(); fs.rmSync(dir, { recursive: true, force: true }); });
+  await new Promise((resolve, reject) => {
+    const req = http.request({ host: '127.0.0.1', port: proxy.address().port, path: '/responses', method: 'POST' }, res => {
+      let text = '';
+      res.on('data', chunk => { text += chunk; if (text.includes('\n\n')) res.destroy(); });
+      res.on('close', resolve);
+    });
+    req.on('error', reject); req.end(raw());
+  });
+  const deadline = Date.now() + 2000;
+  while (!fs.existsSync(logFile) && Date.now() < deadline) await new Promise(r => setTimeout(r, 10));
+  const rows = fs.readFileSync(logFile, 'utf8').trim().split('\n').map(JSON.parse);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].injected, true);
+  assert.ok(rows[0].removedBytes > 0);
+  assert.deepEqual([rows[0].input, rows[0].read, rows[0].out], [250, 200, 7]);
+  assert.equal(rows[0].status, 200);
+});
