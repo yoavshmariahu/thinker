@@ -79,6 +79,7 @@ export function serviceArgs(home = thinkerHome(), state = serviceState(home)) {
   const holdout = cfg.holdout == null ? SERVICE_HOLDOUT : Number(cfg.holdout) || 0;
   const args = ['proxy', '--port', String(state.port), '--holdout', String(holdout), '--codex'];
   for (const [key, flag] of [['trigger', '--trigger'], ['keep', '--keep'], ['keepMin', '--keep-min'], ['clearAtLeast', '--clear-at-least'], ['upstream', '--upstream']]) if (cfg[key] != null) args.push(flag, String(cfg[key]));
+  for (const [key, flag] of [['clearInputs', '--clear-inputs'], ['clearThinking', '--clear-thinking']]) if (cfg[key] === true) args.push(flag); // off until an experiment (proxy.js)
   return args;
 }
 

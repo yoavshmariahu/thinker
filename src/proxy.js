@@ -42,7 +42,26 @@ export const EDIT_BETA = 'context-management-2025-06-27';
 // count's 1.58%, with 17 sessions costlier against 20, and by construction never clears a result of the turn in hand;
 // what the replay cannot see, the agent reading again what was cleared, is the experiment still to run
 // (research/output-lifetime-2026-10-22). The proxy itself stays off until then: nothing points an agent at it.
-export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 100000, keep: 'turn', keepMin: 3, clearAtLeast: 80000, holdout: 0 };
+export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 100000, keep: 'turn', keepMin: 3, clearAtLeast: 80000, holdout: 0, clearInputs: false, clearThinking: false };
+// Two more things a clear can take with it, off until an experiment (2026-10-25; the replay priced at list over this
+// machine's six weeks, research/cost-levers-2026-10-25.md: the shipped clear alone is break-even in dollars, since every
+// clear writes the whole conversation again at twice the input rate and a Fable read costs 2.5% of an input token):
+// `clearInputs` (`--clear-inputs`, THINKER_PROXY_CLEAR_INPUTS=on, `proxy: { clearInputs: true }`): the edit's
+// `clear_tool_inputs`, so the text of the agent's own calls (its edits and commands) goes with their results; 2.3% of the
+// bill in the replay, 5.8% on sessions of 120 calls and more, riding the same clear. `clearThinking` (`--clear-thinking`,
+// THINKER_PROXY_CLEAR_THINKING=on, `proxy: { clearThinking: true }`): a `clear_thinking` edit that drops the thinking of
+// the turns before the current one, sent only on a request where the results before the current turn are, by the
+// proxy's own count, already enough for the tool clear to fire (thinkingEdit), so the two clears break the cache at the
+// same point and never on their own: 5.0% of the bill in the replay, 10.1% on the long sessions; thinking cleared on its
+// own schedule was negative, and a sliding keep (every call) cost 190%. This edit replaces the one the agent sent
+// (Claude Code's `keep: all`), the one place the proxy changes an edit of the agent's rather than appending.
+export const THINKING_EDIT_TYPE = 'clear_thinking_20251015';
+// what a text block costs the model, for the proxy's own count: four characters are 1.44 tokens (report.js:CALIBRATION)
+export const TOKENS_PER_CHAR = 1.44 / 4;
+// the margin the proxy's count of the clearable results must clear by before it sends the thinking edit, since the
+// server counts exactly and the proxy estimates: a thinking clear on a request whose tool clear does not fire would break
+// the cache on its own
+export const THINKING_MARGIN = 1.25;
 
 const num = v => (v == null || v === '' || Number.isNaN(Number(v)) ? undefined : Number(v));
 
@@ -56,6 +75,9 @@ export function proxyConfig(flags = {}, env = process.env) {
     if (v !== undefined) cfg[key] = v;
   }
   if (String(flags.keep ?? env.THINKER_PROXY_KEEP ?? '').trim() === 'turn') cfg.keep = 'turn';
+  const on = (flag, name) => { const v = flags[flag] ?? env[name]; return v === true || /^(1|on|true|yes)$/i.test(String(v ?? '').trim()); };
+  cfg.clearInputs = on('clear-inputs', 'THINKER_PROXY_CLEAR_INPUTS');
+  cfg.clearThinking = on('clear-thinking', 'THINKER_PROXY_CLEAR_THINKING');
   cfg.upstream = flags.upstream || env.THINKER_PROXY_UPSTREAM || cfg.upstream;
   cfg.port = pick('port', 'THINKER_PROXY_PORT');
   cfg.protocol = flags.protocol || env.THINKER_PROXY_PROTOCOL || 'anthropic';
@@ -79,15 +101,18 @@ export function proxyConfig(flags = {}, env = process.env) {
 // The tool uses of the request's current turn: those in the assistant messages after the last user message that
 // carries text and no tool result, which is the person's request (a hook's context and the system reminders ride in
 // the user message that holds the tool result they follow, so they do not start a turn).
-export function turnToolUses(messages) {
+export function turnStart(messages) {
   let start = 0;
   messages.forEach((m, i) => {
     if (m?.role !== 'user') return;
     const blocks = Array.isArray(m.content) ? m.content : [{ type: 'text' }];
     if (blocks.some(b => b?.type === 'text') && !blocks.some(b => b?.type === 'tool_result')) start = i;
   });
+  return start;
+}
+export function turnToolUses(messages) {
   let n = 0;
-  for (const m of messages.slice(start)) if (m?.role === 'assistant' && Array.isArray(m.content)) n += m.content.filter(b => b?.type === 'tool_use').length;
+  for (const m of messages.slice(turnStart(messages))) if (m?.role === 'assistant' && Array.isArray(m.content)) n += m.content.filter(b => b?.type === 'tool_use').length;
   return n;
 }
 export const keepValue = (cfg, messages) => cfg.keep === 'turn' ? Math.max(cfg.keepMin ?? 0, turnToolUses(messages || [])) : cfg.keep;
@@ -98,7 +123,28 @@ export function clearEdit(cfg, messages) {
     trigger: { type: 'input_tokens', value: cfg.trigger },
     keep: { type: 'tool_uses', value: keepValue(cfg, messages) },
     clear_at_least: { type: 'input_tokens', value: cfg.clearAtLeast },
+    ...(cfg.clearInputs ? { clear_tool_inputs: true } : {}),
   };
+}
+// the proxy's count of what the tool results before the current turn weigh (the text of every tool_result block, at
+// TOKENS_PER_CHAR; an image counts nothing here, which errs on the safe side), what a `keep: turn` clear would take
+export function resultsBeforeTurn(messages) {
+  const textLen = c => typeof c === 'string' ? c.length : Array.isArray(c) ? c.reduce((a, b) => a + (typeof b?.text === 'string' ? b.text.length : 0), 0) : 0;
+  let chars = 0;
+  for (const m of messages.slice(0, turnStart(messages))) if (m?.role === 'user' && Array.isArray(m.content)) for (const b of m.content) if (b?.type === 'tool_result') chars += textLen(b.content);
+  return Math.round(chars * TOKENS_PER_CHAR);
+}
+// The thinking edit, on a request where the tool clear will fire by the proxy's count (the results before the current
+// turn weigh clearAtLeast with the margin; keep turn alone, since a count keeps results of earlier turns and the two
+// clears would part): the thinking of the turns before this one goes, that of the current turn stays (`thinking_turns`,
+// the assistant messages since the person's request, at least one, as the API requires). Deterministic in the
+// conversation, so once the thinking before a turn is cleared every later request clears it too and the cache holds;
+// at each new turn the cleared set grows by one turn, the moment the tool clear grows by the same turn's results.
+export function thinkingEdit(cfg, messages) {
+  if (!cfg.clearThinking || cfg.keep !== 'turn' || !Array.isArray(messages)) return null;
+  if (resultsBeforeTurn(messages) < cfg.clearAtLeast * THINKING_MARGIN) return null;
+  const turns = messages.slice(turnStart(messages)).filter(m => m?.role === 'assistant').length;
+  return { type: THINKING_EDIT_TYPE, keep: { type: 'thinking_turns', value: Math.max(1, turns) } };
 }
 
 // a session is on one side of the holdout for all its requests: switching sides mid-session would bring
@@ -124,10 +170,12 @@ export function transformRequest(method, url, headers, body, cfg) {
   const cm = j.context_management && typeof j.context_management === 'object' ? j.context_management : {};
   const edits = Array.isArray(cm.edits) ? cm.edits : [];
   if (edits.some(e => e && e.type === EDIT_TYPE)) return { body, reason: 'agent-clears' };
-  // the API applies edits in order; the thinking edit Claude Code sends stays first
-  const edit = clearEdit(cfg, j.messages);
-  j.context_management = { ...cm, edits: [...edits, edit] };
-  return { body: Buffer.from(JSON.stringify(j)), injected: true, model: j.model, keep: edit.keep.value, addBeta: !betaOn(headers) };
+  // the API applies edits in order; the thinking edit Claude Code sends stays first, unless the proxy's own thinking edit
+  // takes its place (thinkingEdit, `--clear-thinking`): then that one is first and the agent's goes
+  const edit = clearEdit(cfg, j.messages), thinking = thinkingEdit(cfg, j.messages);
+  const kept = thinking ? edits.filter(e => !(e && e.type === THINKING_EDIT_TYPE)) : edits;
+  j.context_management = { ...cm, edits: [...(thinking ? [thinking] : []), ...kept, edit] };
+  return { body: Buffer.from(JSON.stringify(j)), injected: true, model: j.model, keep: edit.keep.value, addBeta: !betaOn(headers), ...(cfg.clearInputs ? { inputs: true } : {}), ...(thinking ? { thinkingKeep: thinking.keep.value } : {}) };
 }
 // the client's beta header with the edit's beta added
 export const withBeta = value => [value, EDIT_BETA].filter(Boolean).join(',');
@@ -225,7 +273,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
             res.removeListener('close', record);
             if (tap) log({ at: new Date().toISOString(), op: 'proxy', session: t.session || sessionOf(req.headers), model: t.model, status: ures.statusCode,
               ...(t.protocol === 'responses' ? { protocol: 'responses', removedBytes: t.removedBytes || 0, estimatedRemovedTokens: t.estimatedRemovedTokens || 0, clearedUses: t.clearedUses || 0 } : {}),
-              injected: !!t.injected, ...(t.injected ? { keep: t.keep } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...tap.result() });
+              injected: !!t.injected, ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}), ...(t.thinkingKeep != null ? { thinkingKeep: t.thinkingKeep } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...tap.result() });
           };
           // Codex closes SSE as soon as response.completed arrives, before the HTTP
           // body ends. Record that request too, exactly once, using usage seen so far.
