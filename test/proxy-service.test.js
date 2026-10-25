@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parse } from 'smol-toml';
 import { serviceState, proxyOn, proxyUrl, isOwnUrl, freePort, isListening, serviceArgs, plistText, unitText, claudeBlocker, withProxyUrl, withoutProxyUrl,
   wireAgents, enableProxyService, disableProxyService, ensureProxy, installService, uninstallService, wiredLines, SERVICE_HOLDOUT, PROXY_ENV, PROXY_LABEL } from '../src/proxy-service.js';
 
@@ -15,13 +16,13 @@ const readJson = f => JSON.parse(fs.readFileSync(f, 'utf8'));
 function fakeMachine() {
   const root = tmp('thinker-proxy-service-');
   const home = path.join(root, 'thinker');
-  const env = { CLAUDE_CONFIG_DIR: path.join(root, 'claude'), PI_CODING_AGENT_DIR: path.join(root, 'pi'), XDG_CONFIG_HOME: path.join(root, 'config') };
+  const env = { CODEX_HOME: path.join(root, 'codex'), CLAUDE_CONFIG_DIR: path.join(root, 'claude'), PI_CODING_AGENT_DIR: path.join(root, 'pi'), XDG_CONFIG_HOME: path.join(root, 'config') };
   const saved = {};
   for (const [k, v] of Object.entries(env)) { saved[k] = process.env[k]; process.env[k] = v; }
   fs.mkdirSync(path.join(env.XDG_CONFIG_HOME, 'opencode'), { recursive: true });
   const files = { claude: path.join(env.CLAUDE_CONFIG_DIR, 'settings.json'), pi: path.join(env.PI_CODING_AGENT_DIR, 'models.json'), opencode: path.join(env.XDG_CONFIG_HOME, 'opencode', 'opencode.json') };
   const restore = () => { for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } fs.rmSync(root, { recursive: true, force: true }); };
-  return { root, home, files, restore };
+  return { root, home, env, files, restore };
 }
 
 test('the state: off until enabled, the port kept, every port the service had is still ours', () => {
@@ -36,9 +37,9 @@ test('the state: off until enabled, the port kept, every port the service had is
     assert.equal(isOwnUrl('http://127.0.0.1:6899/', home), true, 'an earlier port, trailing slash');
     assert.equal(isOwnUrl('http://127.0.0.1:7000', home), false);
     assert.equal(isOwnUrl('https://gateway.example.com', home), false);
-    assert.deepEqual(serviceArgs(home), ['proxy', '--port', '6901', '--holdout', String(SERVICE_HOLDOUT)]);
+    assert.deepEqual(serviceArgs(home), ['proxy', '--port', '6901', '--holdout', String(SERVICE_HOLDOUT), '--codex']);
     fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ proxy: { holdout: 0, keep: 3, trigger: 60000 } }));
-    assert.deepEqual(serviceArgs(home), ['proxy', '--port', '6901', '--holdout', '0', '--trigger', '60000', '--keep', '3'], 'the machine config sets the flags');
+    assert.deepEqual(serviceArgs(home), ['proxy', '--port', '6901', '--holdout', '0', '--codex', '--trigger', '60000', '--keep', '3'], 'the machine config sets the flags');
   } finally { fs.rmSync(home, { recursive: true, force: true }); }
 });
 
@@ -68,26 +69,32 @@ test('enable writes the URL into every agent file and disable takes only ours ou
     fs.writeFileSync(m.files.claude, JSON.stringify({ env: { A: '1' }, hooks: {} }));
     fs.mkdirSync(path.dirname(m.files.pi), { recursive: true });
     fs.writeFileSync(m.files.pi, JSON.stringify({ providers: { anthropic: { headers: { 'x-a': 'b' } } } }));
-    const p = await enableProxyService({ cli: CLI, home: m.home, env: {}, manage: false });
+    fs.mkdirSync(m.env.CODEX_HOME);
+    const codexFile = path.join(m.env.CODEX_HOME, 'config.toml');
+    fs.writeFileSync(codexFile, 'model = "test-model"\n');
+    const p = await enableProxyService({ cli: CLI, home: m.home, env: m.env, manage: false });
     assert.ok(p.port > 0);
     assert.equal(p.url, `http://127.0.0.1:${p.port}`);
     assert.equal(proxyOn(m.home), true);
-    assert.deepEqual(p.wired.changed.map(c => c.agent).sort(), ['claude', 'opencode', 'pi']);
+    assert.deepEqual(p.wired.changed.map(c => c.agent).sort(), ['claude', 'codex', 'opencode', 'pi']);
+    assert.equal(parse(fs.readFileSync(codexFile, 'utf8')).model_providers.thinker_proxy.base_url, `${p.url}/codex`);
     assert.deepEqual(readJson(m.files.claude), { env: { A: '1', [PROXY_ENV]: p.url }, hooks: {} });
     assert.deepEqual(readJson(m.files.pi), { providers: { anthropic: { headers: { 'x-a': 'b' }, baseUrl: p.url } } });
     assert.deepEqual(readJson(m.files.opencode), { provider: { anthropic: { options: { baseURL: p.url } } } });
     // again: nothing changes, the port is kept
-    const again = await enableProxyService({ cli: CLI, home: m.home, env: {}, manage: false });
+    const again = await enableProxyService({ cli: CLI, home: m.home, env: m.env, manage: false });
     assert.equal(again.port, p.port);
     assert.deepEqual(again.wired.changed, []);
-    assert.equal(again.wired.unchanged.length, 3);
+    assert.equal(again.wired.unchanged.length, 4);
     assert.ok(wiredLines(p.wired, p.url).some(l => l.startsWith('Claude Code: model calls go through the proxy')));
     // the service entry text names this copy and the port
     const plist = plistText({ cli: CLI, home: m.home });
     assert.ok(plist.includes(`<string>${PROXY_LABEL}</string>`) && plist.includes(`<string>${p.port}</string>`) && plist.includes('<key>KeepAlive</key>'));
     assert.match(unitText({ cli: CLI, home: m.home }), /Restart=always/);
     const r = disableProxyService({ home: m.home, manage: false });
-    assert.deepEqual(r.wired.changed.map(c => c.agent).sort(), ['claude', 'opencode', 'pi']);
+    assert.deepEqual(r.wired.changed.map(c => c.agent).sort(), ['claude', 'codex', 'opencode', 'pi']);
+    const restoredCodex = parse(fs.readFileSync(codexFile, 'utf8'));
+    assert.equal(restoredCodex.model, 'test-model'); assert.equal(restoredCodex.model_provider, undefined);
     assert.deepEqual(readJson(m.files.claude), { env: { A: '1' }, hooks: {} });
     assert.deepEqual(readJson(m.files.pi), { providers: { anthropic: { headers: { 'x-a': 'b' } } } });
     assert.deepEqual(readJson(m.files.opencode), {});
@@ -104,7 +111,7 @@ test('a base URL of the person\'s own is left alone and named; a jsonc OpenCode 
     fs.mkdirSync(path.dirname(m.files.pi), { recursive: true });
     fs.writeFileSync(m.files.pi, JSON.stringify({ providers: { anthropic: { baseUrl: 'https://pi.corp' } } }));
     fs.writeFileSync(path.join(path.dirname(m.files.opencode), 'opencode.jsonc'), '{ /* mine */ }');
-    const p = await enableProxyService({ cli: CLI, home: m.home, env: {}, manage: false });
+    const p = await enableProxyService({ cli: CLI, home: m.home, env: m.env, manage: false });
     assert.deepEqual(p.wired.changed, []);
     assert.deepEqual(p.wired.skipped.map(s => s.agent).sort(), ['claude', 'opencode', 'pi']);
     assert.match(p.wired.skipped.find(s => s.agent === 'opencode').reason, /opencode\.jsonc/);
@@ -143,6 +150,7 @@ test('ensureProxy starts the proxy when nothing listens, and leaves a listening 
     assert.equal(serviceState(m.home).pid, pid, 'the pid is kept for off');
     assert.deepEqual(await ensureProxy({ cli: CLI, home: m.home }), { on: true, running: true });
     assert.ok(fs.readFileSync(path.join(m.home, 'state', 'proxy-service.log'), 'utf8').includes(`http://127.0.0.1:${port}`));
+    assert.ok(fs.readFileSync(path.join(m.home, 'state', 'proxy-service.log'), 'utf8').includes(`http://127.0.0.1:${port}/codex`), 'the managed process enables the Codex route');
     // the service entries are written without a service manager in test mode, and removed again
     const svc = installService({ cli: CLI, home: m.home, manage: false });
     if (svc.path) assert.ok(fs.existsSync(svc.path));

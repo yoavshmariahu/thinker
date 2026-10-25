@@ -20,15 +20,19 @@ const SRC = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'sr
 const read = f => fs.readFileSync(path.join(SRC, f), 'utf8');
 const tmp = p => fs.mkdtempSync(path.join(os.tmpdir(), p));
 
-test('experimental Responses proxy is a CLI-only opt-in and shares the existing thresholds', async () => {
+test('Codex proxy is wired by the default service and shares the existing thresholds', async () => {
   const { proxyConfig, PROXY_DEFAULTS } = await import('../src/proxy.js');
   const cfg = proxyConfig({ protocol: 'responses', upstream: 'https://api.openai.com/v1' }, {});
   for (const key of ['trigger', 'keep', 'keepMin', 'clearAtLeast']) assert.equal(cfg[key], PROXY_DEFAULTS[key]);
   assert.equal(proxyConfig({}, {}).protocol, 'anthropic');
   assert.match(read('cli.js'), /--protocol anthropic\|responses/);
   assert.match(read('commands/proxy.js'), /cfg\.protocol === 'responses'/);
-  // The page has no proxy controls. Automatic service setup must not opt Codex in.
-  assert.doesNotMatch(read('proxy-service.js'), /THINKER_PROXY_PROTOCOL|--protocol|thinker_responses/);
+  // The page has no separate proxy controls or implementation; setup uses the shared service.
+  const { serviceArgs } = await import('../src/proxy-service.js');
+  assert.ok(serviceArgs(tmp('thinker-proxy-sync-'), { port: 6901 }).includes('--codex'));
+  assert.match(read('proxy-service.js'), /agents = \['claude', 'pi', 'opencode', 'codex'\]/);
+  assert.match(read('setup/steps.js'), /enableProxyService\(/);
+  assert.match(read('cli.js'), /--codex/);
   assert.doesNotMatch(read('ui/page.html'), /--protocol responses/);
 });
 

@@ -40,7 +40,7 @@ const dashdash = argv.indexOf('--');
 const after = dashdash >= 0 ? argv.splice(dashdash).slice(1) : [];
 const flags = {}; const pos = [];
 for (let i = 0; i < argv.length; i++) {
-  if (argv[i].startsWith('--')) { const k = argv[i].slice(2); const boolean = ['full-repo'].includes(k) || (cmd === 'impact' && ['json'].includes(k)) || (cmd === 'system' && ['fixed', 'mutable', 'all', 'json', 'dry', 'again'].includes(k)); const v = !boolean && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true; flags[k] = v; }
+  if (argv[i].startsWith('--')) { const k = argv[i].slice(2); const boolean = ['full-repo'].includes(k) || (cmd === 'proxy' && k === 'codex') || (cmd === 'impact' && ['json'].includes(k)) || (cmd === 'system' && ['fixed', 'mutable', 'all', 'json', 'dry', 'again'].includes(k)); const v = !boolean && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true; flags[k] = v; }
   else pos.push(argv[i]);
 }
 const repo = findRepoRoot(flags.repo || process.env.THINKER_REPO || process.cwd());
@@ -249,19 +249,20 @@ const HELP = `thinker — knowledge cache for coding agents
   stats [--here] [--days n] [--json]
                                  machine-wide overview: activity, agents, learning, tokens and repositories; current checkout cache details
   proxy on|off|status            the context proxy as a service of this machine (on by default from connect/setup; --no-proxy
-                                 there leaves it off): a local pass-through for the agents that speak the Anthropic Messages
-                                 API at a settable base URL (Claude Code, pi, OpenCode) that asks the API to clear old tool
-                                 results on its side; status also prints the report of the last 30 days
-  proxy [serve] --port n [--protocol anthropic|responses] [--upstream url] [--notes] [--repo path] [--trigger n] [--keep n|turn] [--keep-min n] [--clear-at-least n] [--holdout share]
+                                 there leaves it off): clears older tool results for Claude Code, pi, OpenCode and Codex.
+                                 Codex uses its existing OpenAI login through HTTP/SSE; custom providers stay as configured.
+                                 Off restores the previous provider; status also prints the report of the last 30 days
+  proxy [serve] --port n [--codex] [--protocol anthropic|responses] [--upstream url] [--notes] [--repo path] [--trigger n] [--keep n|turn] [--keep-min n] [--clear-at-least n] [--holdout share]
                                  the proxy in the foreground (what the service runs; --keep turn, the default: only the
                                  results of earlier turns are cleared; --keep n: all but the newest n);
                                  --notes serves this checkout's notes to an agent with no prompt hook (Goose, Aider: Anthropic
                                  and OpenAI chat requests; off until an experiment); proxy report [--days n] [--json] sums its
                                  log; proxy replay [--days n] [--policies spec] [--json] costs the policies over this
                                  checkout's Claude Code sessions with no model call
-                                 --protocol responses: experimental Codex/OpenAI tool-output clearing; requires --upstream,
+                                 --codex: serve Codex at /codex alongside Anthropic (enabled by the managed service).
+                                 --protocol responses: a standalone OpenAI tool-output clearing proxy; requires --upstream,
                                  --keep turn and HTTP/SSE; preserves the current turn. Thresholds estimate tokens as bytes/4.
-                                 Off by default; no settings changed. Setup and limits: docs/codex-proxy.md
+                                 Codex is wired by connect/setup/update by default. Setup and limits: docs/codex-proxy.md
   telemetry [--send] [--json] [--force] [--event name] [--schedule] [--unschedule] [--status]
                                  cache effectiveness and size metrics sent to the metrics service;
                                  --schedule / --unschedule manages hourly background telemetry

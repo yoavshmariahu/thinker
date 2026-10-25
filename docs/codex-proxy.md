@@ -1,19 +1,40 @@
-# Experimental Codex context proxy
+# Codex context proxy
 
-Thinker can shorten old text tool results in OpenAI Responses requests. This is
-**opt-in**, through a separate foreground proxy; `connect`, `setup`, and
-`thinker proxy on` do not change Codex's provider or enable it.
+Thinker shortens old text tool results in OpenAI Responses requests. It is
+**on by default** for Codex using the built-in OpenAI provider: install, `connect`,
+`setup`, and updates wire it into the existing machine-wide proxy service.
+This default was explicitly requested by the owner on 2026-10-25 after the live
+transport test; it is not a claim of measured quality or savings improvements.
+
+The service adds a managed `thinker_proxy` provider in `$CODEX_HOME/config.toml`
+(or `~/.codex/config.toml`) and selects it. It keeps the model, reasoning effort,
+other settings, and Codex's existing authentication. Requests with a ChatGPT
+account header go to the ChatGPT backend; API-key requests go to the OpenAI API.
+No credentials are read or stored by Thinker. HTTP/SSE is used instead of
+WebSockets, and native compaction capability is retained.
+
+A custom provider, base URL, selected configuration profile, or a provider table
+that the person edited is left as configured and named in the setup output.
+Restart Codex after installation or update so it reads the provider setting.
+
+`thinker proxy off` restores the previous provider selection and removes the
+managed provider table if it has not been edited. Other settings and a provider
+chosen by the person are preserved. `thinker proxy on` enables it again.
+`connect --no-proxy` skips enabling the service; a previously disabled service
+stays off during updates. The shared service is kept alive by launchd/systemd,
+with the existing prompt-hook recovery on other systems.
 
 This is selective tool-output clearing, not OpenAI's summarizing compaction API.
 Codex still owns its transcript and native compaction. Thinker changes the full
 history sent to the model, leaving a placeholder where an older output was.
 It makes no extra model calls and needs no agent CLI login of its own. A desktop
-client that honors the same custom provider settings can use the same route.
+client that honors the same user-level provider settings can use the same route.
 It cannot change an already running session that is not routed through it.
 
-## Start a separate proxy
+## Run a standalone proxy manually
 
-For the OpenAI API, in one terminal:
+The managed service needs no manual configuration. For a separate foreground
+proxy instead, use the following OpenAI API example:
 
 ```sh
 thinker proxy --protocol responses --port 8788 \
@@ -83,8 +104,9 @@ support still depends on the particular app and has not been tested live.
 
 Old outputs can still matter. A model may have to read them again, or miss
 information. This policy has no measured quality or savings advantage over
-native Codex yet. It stays opt-in pending an approved Artemis comparison using
-the same model and reasoning effort in both arms.
+native Codex yet. The owner requested this default without waiting for an
+experiment. Any comparison of quality or savings still goes through an approved
+Artemis experiment with the same model and reasoning effort in both arms.
 
 ## Inspect and verify
 

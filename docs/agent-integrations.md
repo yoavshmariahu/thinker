@@ -275,12 +275,15 @@ plugin on a machine without thinker does nothing.
   pi (`models.json`) and OpenCode (`opencode.json`); Goose, Aider, Cline, Droid, Copilot CLI with your own key, Qwen
   Code on an Anthropic provider and Kilo's CLI take it by hand at the keys above; Codex, Cursor, Gemini CLI, Kiro,
   Windsurf and Auggie have no Anthropic URL to point at it. `thinker proxy status|off|on`, `connect --no-proxy`.
-- **Codex / Responses tool-output clearing (experimental):** `thinker proxy --protocol responses
-  --port n --upstream <provider-base-url>` runs a separate HTTP/SSE proxy for a custom Codex provider.
+- **Codex / Responses tool-output clearing (on by default, 2026-10-25, owner's request):**
+  install, `connect`, `setup`, and updates select a managed Codex provider on the shared service
+  (`/codex`). It uses the existing ChatGPT or OpenAI API login over HTTP/SSE; custom providers and
+  base URLs stay as configured. `thinker proxy off` restores the previous provider. A standalone
+  proxy is also available with `thinker proxy --protocol responses --port n --upstream <provider-base-url>`.
   It replaces older text tool results with placeholders, preserving the current turn, calls, IDs and
   reasoning. Native compaction requests and linked histories pass through. No extra model calls or
-  CLI login are needed by Thinker; a desktop client must honor the custom provider settings. Off by
-  default, never installed by `connect`; CLI routing and resume are tested against a loopback fake
+  CLI login are needed by Thinker; a desktop client must honor the custom provider settings. Enabled
+  by the owner's request after a live transport test; CLI routing and resume are tested against a loopback fake
   model and, on 2026-10-25, the live ChatGPT backend with Codex 0.164.0 and `gpt-6-astra` (high).
   The live test verifies acceptance of a shortened history, not quality or savings. See
   [setup, limits and verification](codex-proxy.md).

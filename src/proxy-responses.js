@@ -1,4 +1,5 @@
-// Experimental Responses API tool-output clearing. No model calls, no transcript writes:
+// Responses API tool-output clearing (default-on service wiring at the owner's request).
+// No model calls, no transcript writes:
 // Codex keeps its history; only full-history requests sent upstream are shortened.
 // Recompute from that history on every request, including retries and resumed sessions.
 // Never touch linked server-side histories or Codex's own compaction requests.

@@ -11,6 +11,8 @@
 // `opencode.json`. A person already routing elsewhere is left alone and told: a base URL of their own, or Claude Code on
 // Bedrock, Vertex or Foundry (those routes do not speak the Messages format). `thinker proxy off` takes it all out,
 // `thinker proxy on` puts it back, `thinker uninstall --user` removes it with the rest of the wiring.
+// Codex joins this service by default (owner's request, 2026-10-25): --codex adds a
+// fixed OpenAI/ChatGPT Responses route, and proxy-codex.js selects the managed provider.
 //
 // The service runs with a holdout share (SERVICE_HOLDOUT, 15% of sessions, as the hooks' notes have since 2026-10-04) so
 // that `thinker proxy report` compares the two sides on the machine's own work; `proxy: { holdout, trigger, keep, keepMin,
@@ -23,6 +25,7 @@ import { spawn, execFileSync } from 'node:child_process';
 import { thinkerHome } from './update.js';
 import { readMachineConfig } from './repo-switch.js';
 import { isTestMode } from './test-mode.js';
+import { wireCodexProxy } from './proxy-codex.js';
 
 export const SERVICE_HOLDOUT = 0.15;
 export const PROXY_LABEL = 'com.thinker.proxy';
@@ -74,7 +77,7 @@ export function isListening(port, { timeout = 400 } = {}) {
 export function serviceArgs(home = thinkerHome(), state = serviceState(home)) {
   const cfg = readMachineConfig(home).proxy || {};
   const holdout = cfg.holdout == null ? SERVICE_HOLDOUT : Number(cfg.holdout) || 0;
-  const args = ['proxy', '--port', String(state.port), '--holdout', String(holdout)];
+  const args = ['proxy', '--port', String(state.port), '--holdout', String(holdout), '--codex'];
   for (const [key, flag] of [['trigger', '--trigger'], ['keep', '--keep'], ['keepMin', '--keep-min'], ['clearAtLeast', '--clear-at-least'], ['upstream', '--upstream']]) if (cfg[key] != null) args.push(flag, String(cfg[key]));
   return args;
 }
@@ -291,9 +294,9 @@ function claudeFile(url, home, env) {
 
 // The URL written to (url given) or taken out of (null) every agent's file. Returns what changed and what was left
 // alone with the reason, by agent.
-export function wireAgents(url, { home = thinkerHome(), env = process.env, agents = ['claude', 'pi', 'opencode'] } = {}) {
+export function wireAgents(url, { home = thinkerHome(), env = process.env, agents = ['claude', 'pi', 'opencode', 'codex'] } = {}) {
   const out = { changed: [], skipped: [], unchanged: [] };
-  const fns = { claude: () => claudeFile(url, home, env), pi: () => piFile(url, home), opencode: () => opencodeFile(url, home) };
+  const fns = { claude: () => claudeFile(url, home, env), pi: () => piFile(url, home), opencode: () => opencodeFile(url, home), codex: () => wireCodexProxy(url, { home, env }) };
   for (const a of agents) {
     let r; try { r = fns[a](); } catch (e) { r = { skipped: e.message }; }
     if (r.changed) out.changed.push({ agent: a, file: r.file });
@@ -332,7 +335,7 @@ export function disableProxyService({ home = thinkerHome(), manage, keepState = 
 // one line per agent for the commands' output
 export function wiredLines(wired, url) {
   const lines = [];
-  const names = { claude: 'Claude Code', pi: 'pi', opencode: 'OpenCode' };
+  const names = { claude: 'Claude Code', pi: 'pi', opencode: 'OpenCode', codex: 'Codex' };
   for (const c of wired.changed) lines.push(`${names[c.agent]}: ${url ? `model calls go through the proxy (${url}, ${c.file})` : `the proxy's URL taken out of ${c.file}`}`);
   for (const s of wired.skipped) lines.push(`${names[s.agent]}: left as it is, ${s.reason}`);
   return lines;

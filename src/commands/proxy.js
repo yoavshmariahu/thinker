@@ -108,10 +108,11 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
   const server = startProxy(cfg, {
     logFile, notes,
     onListen: a => out(cfg.protocol === 'responses'
-      ? `Experimental Responses proxy on http://127.0.0.1:${a.port} -> ${cfg.upstream}: clears old text tool outputs, preserving the current turn and at least ${cfg.keepMin} newest outputs.\nTriggers at ~${cfg.trigger} tokens and removes at least ~${cfg.clearAtLeast} (request bytes / 4; estimates, not measured savings).${cfg.holdout ? ` ${cfg.holdout * 100}% holdout.` : ''}\nIn a separate Codex provider, set base_url = "http://127.0.0.1:${a.port}" and supports_websockets = false. Keep the existing authentication and model. See docs/codex-proxy.md.\nNo Codex settings were changed. Restart the client after selecting the provider. Native compaction and linked histories pass through unchanged.`
+      ? `Responses proxy on http://127.0.0.1:${a.port} -> ${cfg.upstream}: clears old text tool outputs, preserving the current turn and at least ${cfg.keepMin} newest outputs.\nTriggers at ~${cfg.trigger} tokens and removes at least ~${cfg.clearAtLeast} (request bytes / 4; estimates, not measured savings).${cfg.holdout ? ` ${cfg.holdout * 100}% holdout.` : ''}\nIn a separate Codex provider, set base_url = "http://127.0.0.1:${a.port}" and supports_websockets = false. Keep the existing authentication and model. See docs/codex-proxy.md.\nNo Codex settings were changed. Restart the client after selecting the provider. Native compaction and linked histories pass through unchanged.`
       : `thinker proxy on http://127.0.0.1:${a.port} -> ${cfg.upstream}: clears tool results past ${cfg.trigger} input tokens, keeping ${cfg.keep === 'turn' ? `the current turn's (at least ${cfg.keepMin})` : cfg.keep}, at least ${cfg.clearAtLeast} at a time${cfg.holdout ? `, ${cfg.holdout * 100}% of sessions held out` : ''}.` +
       (notes ? `\nServes the notes of ${notesRepo} to agents with no prompt hook (Anthropic and OpenAI chat requests; one carrying a Claude Code session is left to its hooks).` : '') +
-      `\nPoint the agent at it: ANTHROPIC_BASE_URL=http://127.0.0.1:${a.port}${notes ? ` (Goose: ANTHROPIC_HOST; an OpenAI-compatible client: OPENAI_BASE_URL=http://127.0.0.1:${a.port}/v1)` : ''}`),
+      `\nPoint the agent at it: ANTHROPIC_BASE_URL=http://127.0.0.1:${a.port}${notes ? ` (Goose: ANTHROPIC_HOST; an OpenAI-compatible client: OPENAI_BASE_URL=http://127.0.0.1:${a.port}/v1)` : ''}` +
+      (cfg.codex ? `\nCodex: http://127.0.0.1:${a.port}/codex (existing OpenAI auth; HTTP/SSE; current turn preserved).` : '')),
   });
   server.on('error', e => { out(`thinker proxy: ${e.message}`); process.exitCode = 1; });
   await new Promise(resolve => {
