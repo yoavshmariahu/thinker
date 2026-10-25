@@ -12,7 +12,7 @@ import { cacheBundleIntro } from '../cache-guidance.js';
 import { Store, findRepoRoot } from '../store.js';
 import { thinkerHome } from '../update.js';
 import { formatTokens } from '../model-usage.js';
-import { enableProxyService, disableProxyService, serviceState, isListening, wiredLines, serviceArgs, proxyUrl } from '../proxy-service.js';
+import { enableProxyService, disableProxyService, serviceState, isListening, wiredLines, serviceArgs, proxyUrl, proxyLogFile } from '../proxy-service.js';
 
 // The notes for a request, as the prompt hook serves them (commands/hooks.js): once a session, fresh only,
 // the holdout turn opened on the session (ops.js:beginTurn), under the same bundle line.
@@ -28,7 +28,7 @@ export function noteInjectorFor(store) {
   });
 }
 
-export const proxyLogFile = (env = process.env) => env.THINKER_PROXY_LOG || path.join(thinkerHome(), 'state', 'proxy.jsonl');
+export { proxyLogFile };
 
 async function proxyCommand({ pos, flags, out, repo, HERE }) {
   const sub = pos[0] || 'serve';

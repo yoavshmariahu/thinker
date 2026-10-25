@@ -60,3 +60,34 @@ export function describePart({ kind, key = '', name = '', builtin = false, toolK
 }
 // the same for a history entry (context-suggest.js:changeHistory): an entry written before `what` and `about` were kept
 export const describeEntry = e => e.what ? { what: e.what, about: e.about || '' } : describePart({ kind: e.kind, key: e.key, name: e.name || '' });
+
+// What a part is, for telemetry: the group it belongs to, and its name only where the name is the agent's own
+// (a built-in tool of Claude Code, a shell command), never a section title, file name, skill name or MCP server
+// name. The one gate every name passes through before it leaves the machine (telemetry.js:spendMetrics); the
+// tables above are the allow list, so a tool nobody here has heard of is counted without its name.
+export function partIdentity({ kind, key = '', name = '', what = '' } = {}) {
+  if (kind === 'section') return { group: 'section', name: null };
+  if (kind === 'skill') return { group: 'skill', name: null };
+  if (kind === 'tool') {
+    const n = name || key.replace(/^.*:/, '');
+    const group = what === 'Built-in tool' || /:(builtin|tool):/.test(`:${key}`) ? 'builtin-tool'
+      : /:mcp:/.test(`:${key}`) || what.endsWith('MCP server') ? 'mcp-server'
+        : /:plugin:/.test(`:${key}`) || what.endsWith('plugin') ? 'plugin'
+          : /:desktop:/.test(`:${key}`) || what === CUSTOM.desktop ? 'desktop-tool' : 'other-tool';
+    return { group, name: group === 'builtin-tool' && TOOL_ABOUT[n] ? n : null };
+  }
+  if (kind === 'output') {
+    const n = name || key.replace(/^output:/, '').replace(/@.*$/, '');
+    if (n.startsWith('Bash:')) { const c = commandName(n.slice(5)); return { group: 'shell-output', name: COMMAND_ABOUT[c] ? `Bash:${c}` : null }; }
+    if (n.startsWith('mcp:')) return { group: 'mcp-output', name: null };
+    return { group: 'builtin-output', name: TOOL_ABOUT[n] ? n : null };
+  }
+  return { group: 'other', name: null };
+}
+// A tool's name as the compression records it (diet.js logs `tool`), under the same gate: a built-in tool or a
+// known shell command by name, anything else counted without one.
+export const publicToolName = tool => {
+  const n = String(tool || '');
+  if (n.startsWith('Bash:')) { const c = commandName(n.slice(5)); return COMMAND_ABOUT[c] ? `Bash:${c}` : null; }
+  return TOOL_ABOUT[n] ? n : null;
+};
