@@ -1076,13 +1076,15 @@ function renderReport(v) {
   const head = (nameHead, thresholds = false) => `<thead><tr><th>${nameHead}</th>${thresholds ? thrHead : ''}${v.columns.map(c => `<th class="num">Week of ${dlabel(c.t)}<small>${fmt(c.prompts || 0)} prompt${c.prompts === 1 ? '' : 's'}, ${c.sessions} session${c.sessions === 1 ? '' : 's'}${cost && c.priced !== c.sessions ? `, ${c.priced} priced` : ''}</small></th>`).join('')}</tr></thead>`;
   const unit = cost ? 'cost at list prices' : 'tokens';
   const sessions = v.columns.reduce((a, c) => a + c.sessions, 0), prompts = v.columns.reduce((a, c) => a + (c.prompts || 0), 0), unmeasured = v.columns.reduce((a, c) => a + c.unmeasured, 0);
-  const sub = `${fmt(prompts)} prompts in ${sessions} session${sessions === 1 ? '' : 's'} over ${v.weeks} weeks${unmeasured ? `, ${unmeasured} more whose agent reported no usage (Cursor) left out` : ''}${v.all ? ` · ${v.repos.length} repositories` : ''}`;
+  const sub = `${fmt(prompts)} prompts in ${sessions} session${sessions === 1 ? '' : 's'} over ${v.weeks} weeks${unmeasured ? `, ${unmeasured} more whose agent reported no usage (Cursor) estimated below` : ''}${v.all ? ` · ${v.repos.length} repositories` : ''}`;
+  // the estimated parts are counted in the model's own tokens (report.js:CALIBRATION), the caption says by how much
+  const calNote = Object.entries(v.calibration || {}).map(([k, f]) => `${k} ×${f}`).join(', ');
   // the three tables add up to the same whole session (report.js: tokenTypes, parts with others, models); a kept report from
   // before the token types has none (report-snapshot.js remakes it in the background)
   const types = v.tokenTypes || [], others = v.others || [];
   const tokenTypes = `<figure class="ctx-figure"><figcaption><b>By token type</b> <span class="ctx-sub">${sub}</span></figcaption>
     <table class="ctx-table rep-table">${head('Token type')}<tbody>${types.map(p => row(esc(p.name), p.cells)).join('')}${row('Total (the whole session)', v.sessionTotals, { cls: 'rep-total', total: true })}</tbody></table></figure>`;
-  const parts = `<figure class="ctx-figure"><figcaption><b>By part of the context</b> <span class="ctx-sub">where the same tokens went · a part is green at or under Good, red at or over Bad, yellow between, in tokens a prompt</span></figcaption>
+  const parts = `<figure class="ctx-figure"><figcaption><b>By part of the context</b> <span class="ctx-sub">where the same tokens went · a part is green at or under Good, red at or over Bad, yellow between, in tokens a prompt${calNote ? ` · the estimated parts in the model's own tokens (${calNote}; the other providers one for one)` : ''}</span></figcaption>
     <table class="ctx-table rep-table">${head('Part', true)}<tbody>${[...v.parts.map(p => row(esc(p.name), p.cells, { key: p.key, thresholds: true })), ...others.map(p => row(esc(p.name), p.cells, { thresholds: true }))].join('')}${row('Total (the whole session)', v.sessionTotals, { cls: 'rep-total', total: true, thresholds: true })}</tbody></table></figure>`;
   const fold = p => RFOLD.has(p), modelsOf = p => v.models.filter(m => m.provider === p);
   const mtitle = m => (c, w) => `${fmt(c.prompts || 0)} prompts in ${c.sessions} session${c.sessions === 1 ? '' : 's'} on ${m.model} this week${c.prompts ? `, ${cost ? (c.pricedPrompts ? money(c.cost / c.pricedPrompts) : '–') : fmt(c.tokens / c.prompts)} per prompt of its own` : ''}`;
@@ -1096,7 +1098,20 @@ function renderReport(v) {
     ${card('Cache hits', fmt(c.hits), `notes served, for ${fmt(c.answered)} of ${fmt(c.requests)} requests`)}
     ${card('Acted on', c.acted == null ? '–' : `${Math.round(100 * c.acted)}%`, `of ${fmt(c.judged)} servings the sessions were judged on`)}
   </div></div>`;
-  swapBody(el, parts + models + tokenTypes + cards); // the token types the last table (the owner's order, 2026-10-24)
+  // the prompt-cache rewrites by cause (report.js:REWRITES; transcripts.js:cacheRewrites): a part of the fresh and written
+  // input above, so no whole-session total; each row shows the tokens (or cost) a prompt and, under the figure, the calls
+  const rw = (v.rewrites || []).filter(p => p.cells.some(c => c.n));
+  const rwCell = (cells, w, b) => { const a = val(cells, w, b); return `<td class="num">${a ? fv(a, b) : ''}${cells[w].n ? `<small class="muted"> ${cells[w].n} call${cells[w].n === 1 ? '' : 's'}</small>` : ''}</td>`; };
+  const rwRow = (name, cells, cls = '', b = base) => `<tr class="${cls}"><td class="ctx-name">${name}</td>${cells.map((c, w) => rwCell(cells, w, b)).join('')}</tr>`;
+  const rewrites = rw.length ? `<figure class="ctx-figure"><figcaption><b>Prompt cache rewrites</b> <span class="ctx-sub">calls whose context the cache mostly did not serve, so the conversation was written again · a part of the fresh and written input above, by cause · ${sum ? 'the week\'s' : 'a prompt\'s'} ${unit}, and the calls</span></figcaption>
+    <table class="ctx-table rep-table">${head('Cause')}<tbody>${rw.map(p => rwRow(esc(p.name), p.cells)).join('')}${rwRow('Total of the rewrites', v.rewriteTotals || [], 'rep-total')}</tbody></table></figure>` : '';
+  // the sessions whose agent reports no usage (Cursor): their four parts as estimated, by themselves, tokens a prompt
+  const est = v.estimated, estN = (est?.columns || []).reduce((a, c) => a + c.sessions, 0);
+  const eavg = (c, w) => sum ? c.tokens : (est.columns[w].prompts ? c.tokens / est.columns[w].prompts : null);
+  const eRow = (name, cells, cls = '') => `<tr class="${cls}"><td class="ctx-name">${name}</td>${cells.map((c, w) => `<td class="num">${eavg(c, w) ? fmt(eavg(c, w)) : ''}</td>`).join('')}</tr>`;
+  const estimated = estN ? `<figure class="ctx-figure"><figcaption><b>Sessions whose agent reported no usage</b> <span class="ctx-sub">${estN} Cursor session${estN === 1 ? '' : 's'}: their four parts as estimated, tokens${sum ? '' : ' a prompt'}, no cost</span></figcaption>
+    <table class="ctx-table rep-table"><thead><tr><th>Part</th>${v.columns.map((c, w) => `<th class="num">Week of ${dlabel(c.t)}<small>${fmt(est.columns[w].prompts || 0)} prompts, ${est.columns[w].sessions} session${est.columns[w].sessions === 1 ? '' : 's'}</small></th>`).join('')}</tr></thead><tbody>${est.parts.map(p => eRow(esc(p.name), p.cells)).join('')}${eRow('Total of the four parts', est.totals, 'rep-total')}</tbody></table></figure>` : '';
+  swapBody(el, parts + models + tokenTypes + rewrites + estimated + cards); // the token types after the models (the owner's order, 2026-10-24), then the rewrites and the estimated sessions (2026-10-25)
   el.querySelectorAll('[data-fold]').forEach(b => b.onclick = () => { const p = b.dataset.fold; RFOLD.has(p) ? RFOLD.delete(p) : RFOLD.add(p); renderReport(v); });
 }
 // first view: the tab the URL names, else Save (where the agents' context goes is the front door, since

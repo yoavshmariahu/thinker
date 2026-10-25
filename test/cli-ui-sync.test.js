@@ -271,6 +271,12 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('commands/report.js'), /share: Boolean\(flags\.share\)/); assert.match(read('cli.js'), /report \[--weeks n\] \[--cost\] \[--total\] \[--share\]/);
   assert.match(read('report.js'), /share = false \} = \{\}\) \{/);
   assert.equal((read('ui/page.html').match(/\{ cls: 'rep-total', total: true(, thresholds: true)? \}/g) || []).length, 3, 'the three whole-session rows keep their values under Share');
+  // the rest of the input by kind (report.js:OTHERS, the breakdown's rows), the prompt-cache rewrites by cause and the sessions
+  // whose agent reports no usage, on both doors (2026-10-25), from the one view (reportView: rewrites, rewriteTotals, estimated, calibration)
+  for (const re of [/Prompt cache rewrites/, /Total of the rewrites/, /Sessions whose agent reported no usage/, /Total of the four parts/]) { assert.match(read('ui/page.html'), re); assert.match(read('report.js'), re); }
+  assert.match(read('ui/page.html'), /v\.rewrites/); assert.match(read('ui/page.html'), /v\.estimated/); assert.match(read('ui/page.html'), /v\.calibration/);
+  assert.match(read('report.js'), /export const CALIBRATION = \{ Anthropic: 1\.44 \}/, 'one calibration constant, read by the command and sent to the page in the view');
+  assert.match(read('report.js'), /export const OTHERS = \[\.\.\.REST_INPUT, 'output'\]/, 'the rows under the four parts are the breakdown\'s kinds');
   // the page's Total toggle is the command's --total
   assert.match(read('commands/report.js'), /total: Boolean\(flags\.total\)/);
   assert.match(read('ui/page.html'), /data-mode="sum">Total</);
@@ -330,9 +336,9 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   // rows from the view, so the names live in one place), the parts with the rest of the input and the output under them
   // (report.js:OTHERS), the models, the token types last (2026-10-24)
   assert.match(read('report.js'), /export const TOKEN_TYPES = \[\['fresh', 'Input, fresh'\], \['cacheWrite', 'Input, written to cache'\], \['cacheRead', 'Input, read from cache'\], \['output', 'Model output'\]\];/);
-  assert.match(read('report.js'), /export const OTHERS = \[\['otherInput', 'Other input'\], \['output', 'Model output'\]\];/);
+  assert.match(read('report.js'), /export const OTHERS = \[\.\.\.REST_INPUT, 'output'\]\.map\(k => BREAKDOWN\.find/, 'the rest of the input by kind, then the output (2026-10-25)');
   assert.match(read('report.js'), /'By token type \(as the model reported them/); assert.match(read('ui/page.html'), /<b>By token type<\/b>/);
-  assert.match(read('ui/page.html'), /swapBody\(el, parts \+ models \+ tokenTypes \+ cards\);/, 'the token types last, no decisions on the Report');
+  assert.match(read('ui/page.html'), /swapBody\(el, parts \+ models \+ tokenTypes \+ rewrites \+ estimated \+ cards\);/, 'the token types after the models, then the rewrites and the estimated sessions, no decisions on the Report');
   // every page is rebuilt in place once on screen (2026-10-25): the three renders go through swapBody, which keeps the scroll and
   // the open rows, and a load of what is already shown does not wipe the body to the spinner
   assert.match(read('ui/page.html'), /function swapBody\(el, html\)/); assert.match(read('ui/page.html'), /swapBody\(el, h\);/); assert.match(read('ui/page.html'), /swapBody\(el, card \+ pullCard \+ historyFigure\(/);

@@ -190,8 +190,8 @@ class Stats {
 // A call is a rewrite when its context is over REWRITE_MIN_CONTEXT and the tokens not read from the cache are over half
 // of it. Each cause carries the calls (`n`), the fresh and the written tokens, so a report can price them.
 export const REWRITE_CAUSES = [
-  ['first', 'First call of a session'], ['compaction', 'After a compaction'], ['expired', 'After a pause over an hour'],
-  ['tail', 'After a pause of 5 to 60 minutes'], ['model', 'After a change of model'], ['midway', 'Mid-conversation, no pause'],
+  ['first', 'First call of a session'], ['compaction', 'After a compaction'], ['expired', 'Pause over an hour'],
+  ['tail', 'Pause of 5 to 60 minutes'], ['model', 'Change of model'], ['midway', 'Mid-conversation, no pause'],
 ];
 export const REWRITE_MIN_CONTEXT = 20_000;
 export function cacheRewrites(calls) {
@@ -330,6 +330,7 @@ function parseCodex(rows, fromLine) {
     if (j.type === 'response_item' && (p.type === 'function_call' || p.type === 'custom_tool_call' || p.type === 'local_shell_call')) { stats.toolCalls++; run.agentCalls += est(p.arguments ?? p.input ?? p.action ?? {}); }
     if (j.type === 'response_item' && p.type === 'message' && p.role === 'assistant') { msgTurns++; run.agentText += est(textOf(p.content)); }
     if (j.type === 'response_item' && p.type === 'message' && p.role === 'user') { const t = textOf(p.content); if (/^<user_instructions/.test(t.trim())) instructionTokens = est(t); else if (/^<(environment_context|skills_instructions)/.test(t.trim())) run.notes += est(t); else run.prompts += est(t); }
+    if (j.type === 'response_item' && p.type === 'message' && p.role === 'developer') instructionTokens += est(textOf(p.content)); // the instruction files, as Codex sends them
     if (j.type === 'response_item' && p.type === 'additional_tools') run.notes += est(p);
     if (i < fromLine) return;
     // rollout files

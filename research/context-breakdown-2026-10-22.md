@@ -71,3 +71,11 @@ the note. A real tokenizer is not available locally; `count_tokens` would need a
   results from earlier turns (research/output-lifetime-2026-10-22).
 - **Instruction files (14%)** are the Save page's sections; the memory file and the global CLAUDE.md
   ride with them in the same payload and are not listed there.
+
+## The choice, 2026-10-25
+
+The Report counts the estimated parts at the calibrated rate, per provider (`report.js:CALIBRATION`: Anthropic 1.44, the
+others one for one until measured, the config on top), and shows the conversation kinds as rows under the four parts; the
+Save page keeps chars/4, its unit for choosing what to cut. The thresholds were scaled with the unit. What is left over is
+"Unattributed input". The cache-write side of the bill, which this breakdown did not look at, is in
+research/cost-levers-2026-10-25.md.

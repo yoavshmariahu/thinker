@@ -204,7 +204,7 @@ cache at twice the input price and never read again.
 | `src/update.js` | CLI self-update and daily automatic background updates (LaunchAgent / cron / invocation) |
 | `src/usage.js` | summary of the usage log and the estimate of saved calls and tokens, in tokens (never dollars) |
 | `src/proxy.js`, `src/proxy-service.js`, `src/proxy-replay.js`, `src/commands/proxy.js` | the context proxy: a local pass-through for the Messages API that asks the API to clear old tool results (`proxy.js`), run as a service of the machine and written into the agents' base-URL settings by `connect` (`proxy-service.js`; `thinker proxy on|off|status`), and the offline replay of the clearing policies over past sessions (`proxy-replay.js`) |
-| `src/report.js`, `src/prices.js`, `src/commands/report.js` | the Report page: the average a session cost each week over the last six, by part of the context and by model under its provider, in tokens or at list prices (`prices.js`, the one place dollars are shown); the actions taken on Save in the window and the cache's numbers under it; `thinker report` and the page's Report tab (see [Report](#report)) |
+| `src/report.js`, `src/prices.js`, `src/commands/report.js` | the Report page: the average a prompt cost each week over the last six, by part of the context (the four the Save page controls, then the conversation by kind, the estimated parts calibrated to the model's tokens), by model under its provider and by token type, in tokens or at list prices (`prices.js`, the one place dollars are shown); the prompt-cache rewrites by cause; the sessions without usage estimated apart; the cache's numbers under it; `thinker report` and the page's Report tab (see [Report](#report)) |
 | `src/store.js`, `src/llm.js` | note storage; model access through any installed agent |
 | `src/server/` | `thinker-server`, the team's central cache: HTTP API (`index.js`), per-repository stores with a change journal and a clone of the repository (`repos.js`), tokens (`auth.js`), the worker that reviews the pull requests CI asks about (`worker.js`); the server learns nothing itself |
 | `infra/sync/` | the server on EC2: CloudFormation stack, bootstrap script, deploy script |
@@ -801,8 +801,10 @@ this repository's 30 longest recent sessions (2026-10-22, from the
 parts are scaled down to the session's measured input where their sum overshoots it (they are estimates with different
 multipliers); what is left of the input is "Other input", and "Output" is what the model wrote, so the whole adds up to
 the session's tokens. **Three tables, one total (2026-10-24, the owner's ask).** First the four parts the Save page measures and controls
-(instruction files, custom tools, built-in tools, tool outputs; `report.js:PARTS`) with the rest of the input as one row
-(`OTHERS`: Other input, the conversation itself, the breakdown's other input kinds summed) and the output under them; then
+(instruction files, custom tools, built-in tools, tool outputs; `report.js:PARTS`) with the rest of the input under them by kind
+(`OTHERS`, the breakdown's rows since 2026-10-25: the system prompt, the agent's tool calls, its thinking kept, the prompts and
+replies, the harness's notes, and what no reader attributed; until then one "Other input" row, which on this machine was more
+than the four parts together and said nothing) and the output; then
 the models; last the tokens by type (`report.js:TOKEN_TYPES`: the input read fresh, the input written to the prompt cache,
 the input read back from it, and the output, as the model reported them for each call and `transcripts.js:Stats` sums
 them; in the cost view each at its own list rate, the formula of `prices.js:costOf`). Every table ends on the whole session (`sessionTotals`), so
@@ -829,7 +831,30 @@ with a short AGENTS.md; custom tools 5–9k; built-in tools 25–30k with every 
 23k a prompt at the long sessions' first quartile, 55k at the third), by judgment, not by an experiment; no percentage in
 the cell; a zero cell is blank.
 A Per session / Total toggle (`--total`) shows each week's sum over its sessions instead of the average. A session whose agent reports
-no usage (Cursor) is counted in no column and named as left out.
+no usage (Cursor) is counted in no column; since 2026-10-25 its four parts, as estimated, stand in a table of their own under the
+others (`estimated`, by its calls), since without a measured input it cannot sit in tables that add up to one whole.
+
+**The estimated parts are counted in the model's own tokens (2026-10-25; `report.js:CALIBRATION`, `calibrationOf`).** Every
+reader counts text at four characters a token, and the Save page shows that unit; the model counts 1.44 tokens for every four
+characters (measured on 79 fully recorded first requests of Anthropic models, research/context-breakdown-2026-10-22.md), so at
+chars/4 the parts covered 74% of a long session's input and the rest read as "Other input". The Report scales each session's
+estimated parts by its provider's factor before the overshoot check (Anthropic 1.44; OpenAI and Google unmeasured, one for one;
+`calibration: {Provider: f}` in `.thinker/config.json` overrides), the thinking kept excepted, since the usage reports it exactly.
+The four thresholds were scaled by the same factor and rounded (12k/30k, 4k/15k, 22k/36k, 72k), so every verdict stands. The
+caption names the factors.
+
+**A fourth table, the prompt-cache rewrites (2026-10-25).** A call whose context the cache mostly did not serve writes the whole
+conversation again: on this machine's six weeks such calls were 54% of all cache-write tokens and, at list, a third of the bill
+(cache writes 34.5%, reads 43%, output 22%; a 1h write costs 200% of an input token, a read 2.5–5%). `transcripts.js:cacheRewrites`
+names each one's cause from the per-call usage of every agent (Claude Code's `message.usage` with the 5m/1h split, Codex's
+`token_count` `last_token_usage`, Gemini's `tokens`): the first call of a session or subagent (unavoidable), after a compaction,
+after a pause over an hour (the 1h cache expired), after a pause of 5 to 60 minutes with the write at the 5-minute TTL (Claude
+Code writes the messages breakpoint at 5m), after a change of model, and mid-conversation with no pause (a context edit by the
+harness or the proxy, or an earlier message changed; on 2026-10-24 half of these were the proxy's own clears). Kept on the
+session's record (`tool-outputs.js`, state version 12, with the session's `turns` and, for Codex and Gemini, `carried` as for
+Claude Code: Codex is counted by its calls where the rollout has them, by the cumulative total else), shown as tokens or cost a
+prompt by cause with the calls under each (`rewrites`, `rewriteTotals`); a part of the fresh and written input of the token
+types, not a fourth whole. The offline replay behind the figures is in research/cost-levers-2026-10-25.md.
 
 **Cost, the one place dollars are shown.** The Cost toggle (`--cost`) prices each session's tokens at its model's
 list rates (`prices.js:listPrice`: fresh input, cache reads, cache writes and output each at its rate; Anthropic's

@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { parseTranscript, detectFormat, toolName, hydrate, recordEvent, findSessions, textOf, imageDims, imageTokens, imageTokensOf, IMAGE_TOKENS_UNKNOWN } from '../src/transcripts.js';
+import { parseTranscript, detectFormat, toolName, hydrate, recordEvent, findSessions, textOf, imageDims, imageTokens, imageTokensOf, IMAGE_TOKENS_UNKNOWN, cacheRewrites, REWRITE_CAUSES } from '../src/transcripts.js';
 import { exploreCount, condense } from '../src/distill.js';
 import { extractJson } from '../src/llm.js';
 import { installClient } from '../src/clients.js';
@@ -336,4 +336,82 @@ test('Cursor transcripts strip system_reminder and thinker-learning tags and hyd
   hydrate(parsed.events, dir, { trace });
   assert.equal(parsed.events[1].result, 'Cached knowledge (id: auth-rule, confidence 90%)');
   fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('Codex rollouts with per-call usage: the calls are the turns, the conversation\'s cost is carried, the cache rewrites by cause', () => {
+  const t0 = Date.parse('2026-10-25T10:00:00Z'), ts = m => new Date(t0 + m * 60000).toISOString();
+  const tc = (m, input, cached, output, reasoning = 0) => ({ timestamp: ts(m), type: 'event_msg', payload: { type: 'token_count', info: { last_token_usage: { input_tokens: input, cached_input_tokens: cached, cache_write_input_tokens: 0, output_tokens: output, reasoning_output_tokens: reasoning, total_tokens: input + output }, total_token_usage: { input_tokens: 999, cached_input_tokens: 0, output_tokens: 1, total_tokens: 1000 } } } });
+  const f = write([
+    { type: 'session_meta', payload: { cwd: '/r', id: 's' } },
+    { type: 'turn_context', payload: { cwd: '/r', model: 'gpt-6-sol' } },
+    { type: 'response_item', payload: { type: 'message', role: 'developer', content: [{ type: 'input_text', text: 'r'.repeat(400) }] } },
+    { type: 'response_item', payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text: '<environment_context>cwd</environment_context>' }] } },
+    { type: 'response_item', payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'where is x' }] } },
+    tc(0, 30000, 0, 20, 10), // the first call: everything fresh, a rewrite by cause "first"
+    { type: 'response_item', payload: { type: 'reasoning', encrypted_content: 'zzz' } },
+    { type: 'response_item', payload: { type: 'function_call', name: 'shell', arguments: '{"command":["rg","-n","def x","src"]}', call_id: 'c1' } },
+    { type: 'response_item', payload: { type: 'function_call_output', call_id: 'c1', output: [{ type: 'input_text', text: 'src/x.py:1:def x' }] } },
+    tc(1, 30200, 30000, 20), // read from the cache
+    { type: 'response_item', payload: { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'in src/x.py' }] } },
+    tc(90, 30400, 0, 20), // an hour and a half later: the cache expired, the whole context fresh again
+  ]);
+  const r = parseTranscript(f);
+  assert.equal(r.format, 'codex'); assert.equal(r.model, 'gpt-6-sol');
+  assert.equal(r.stats.turns, 3, 'the calls, not the assistant messages'); assert.equal(r.stats.toolCalls, 1);
+  assert.equal(r.stats.inputTokens, 90600); assert.equal(r.stats.cacheReadTokens, 30000); assert.equal(r.stats.outputTokens, 60); assert.equal(r.stats.tokenCoverage, 'complete');
+  // carried: the developer message (the instruction files) is read by all three calls; the environment note and the prompt
+  // by the calls after them; the reasoning tokens of the first call by the two after it; the call's arguments by the last two
+  const est = v => Math.ceil(JSON.stringify(v).length / 4);
+  assert.equal(r.carried.instructions, 3 * est('r'.repeat(400)));
+  assert.equal(r.carried.notes, 3 * est('<environment_context>cwd</environment_context>')); assert.equal(r.carried.prompts, 3 * est('where is x'));
+  assert.equal(r.carried.thinking, 2 * 10); assert.equal(r.carried.agentCalls, 2 * est('{"command":["rg","-n","def x","src"]}')); assert.equal(r.carried.agentText, est('in src/x.py'));
+  assert.equal(r.carried.system, 0, 'the rollout does not hold the system prompt');
+  // the rewrites: the first call and the one after the pause, by their fresh tokens
+  assert.equal(r.rewrites.calls, 3);
+  assert.deepEqual(r.rewrites.causes.first, { n: 1, fresh: 30000, write: 0 }); assert.deepEqual(r.rewrites.causes.expired, { n: 1, fresh: 30400, write: 0 });
+  assert.equal(r.rewrites.causes.midway.n, 0);
+  // a rollout without per-call usage keeps the cumulative total and counts the assistant messages as turns, as before
+  const old = write([
+    { type: 'turn_context', payload: { cwd: '/r', model: 'gpt-6-sol' } },
+    { type: 'response_item', payload: { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'hi' }] } },
+    { type: 'event_msg', payload: { type: 'token_count', info: { total_token_usage: { input_tokens: 100, output_tokens: 10, cached_input_tokens: 50 } } } },
+  ], 'old.jsonl');
+  const o = parseTranscript(old);
+  assert.equal(o.stats.turns, 1); assert.equal(o.stats.inputTokens, 100); assert.equal(o.carried, undefined); assert.equal(o.rewrites.calls, 0);
+});
+
+test('cacheRewrites names the cause of each whole-context rewrite, per agent of the transcript', () => {
+  const m = 'claude-opus-5-5', call = (minute, read, write, extra = {}) => ({ t: Date.parse('2026-10-25T10:00:00Z') + minute * 60000, fresh: 10, read, write, out: 5, model: m, w5m: 0, w1h: write, agent: 'main', compaction: false, ...extra });
+  const r = cacheRewrites([
+    call(0, 0, 50000), // first
+    call(1, 50000, 1000), // an ordinary increment
+    call(2, 1000, 50000, { compaction: true }), // after a compaction
+    call(70, 1000, 52000), // over an hour later
+    call(72, 1000, 53000, { model: 'claude-fable-5-1' }), // a model change
+    call(80, 1000, 54000, { model: 'claude-fable-5-1', w5m: 54000, w1h: 0 }), // 8 minutes later, the 5-minute tail
+    call(81, 1000, 55000, { model: 'claude-fable-5-1' }), // no pause, same model: midway (a context edit, an earlier message changed)
+    call(82, 0, 30000, { agent: 'sub-1' }), // a subagent's first call
+    call(83, 5000, 100), // small: no rewrite
+  ]);
+  assert.equal(r.calls, 9);
+  assert.deepEqual(Object.fromEntries(Object.entries(r.causes).map(([k, v]) => [k, v.n])), { first: 2, compaction: 1, expired: 1, tail: 1, model: 1, midway: 1 });
+  assert.deepEqual(r.causes.first, { n: 2, fresh: 20, write: 80000 }); assert.deepEqual(r.causes.midway, { n: 1, fresh: 10, write: 55000 });
+  assert.deepEqual(REWRITE_CAUSES.map(([k]) => k), ['first', 'compaction', 'expired', 'tail', 'model', 'midway']);
+  // a context under 20k is never a rewrite; a call the cache served mostly is not one either
+  assert.equal(cacheRewrites([call(0, 0, 10000), call(1, 40000, 15000)]).calls, 2);
+  assert.equal(Object.values(cacheRewrites([call(0, 0, 10000), call(1, 40000, 15000)]).causes).reduce((a, v) => a + v.n, 0), 0);
+});
+
+test('Gemini chats carry the conversation\'s cost and per-call rewrites', () => {
+  const f = path.join(tmp(), 'chat.json');
+  fs.writeFileSync(f, JSON.stringify({ sessionId: 'g', projectPath: '/r', model: 'gemini-3-pro', messages: [
+    { type: 'user', content: 'where is x', timestamp: '2026-10-25T10:00:00Z' },
+    { type: 'gemini', model: 'gemini-3-pro', content: 'looking', timestamp: '2026-10-25T10:00:05Z', tokens: { input: 25000, cached: 0, output: 10, thoughts: 5, total: 25015 }, toolCalls: [{ name: 'read_file', args: { path: '/r/src/x.py' }, result: 'def x(): pass' }] },
+    { type: 'gemini', model: 'gemini-3-pro', content: 'in src/x.py', timestamp: '2026-10-25T10:00:09Z', tokens: { input: 25100, cached: 25000, output: 8, thoughts: 0, total: 25108 } },
+  ] }));
+  const r = parseTranscript(f);
+  assert.equal(r.format, 'gemini'); assert.equal(r.stats.turns, 2); assert.equal(r.stats.inputTokens, 50100); assert.equal(r.stats.cacheReadTokens, 25000); assert.equal(r.stats.outputTokens, 18, 'the thoughts are not in the output Stats counts for a tokens block without candidates');
+  const est = v => Math.ceil(JSON.stringify(v).length / 4);
+  assert.equal(r.carried.prompts, 2 * est('where is x')); assert.equal(r.carried.agentText, est('looking')); assert.equal(r.carried.agentCalls, est({ path: '/r/src/x.py' })); assert.equal(r.carried.thinking, 0);
+  assert.deepEqual(r.rewrites.causes.first, { n: 1, fresh: 25000, write: 0 }); assert.equal(r.rewrites.calls, 2); assert.equal(Object.values(r.rewrites.causes).reduce((a, v) => a + v.n, 0), 1);
 });
