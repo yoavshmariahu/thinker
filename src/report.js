@@ -180,6 +180,9 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   const totalOf = keys => cols.map((_, w) => { const c = cell(); for (const k of keys) add(c, byPart[k][w].tokens, byPart[k][w].cost); c.prompts = columns[w].prompts; c.pricedPrompts = columns[w].pricedPrompts; return c; });
   const totals = totalOf(PARTS.map(([k]) => k)), sessionTotals = totalOf(BREAKDOWN.map(([k]) => k));
   const others = OTHERS.map(([key, name]) => ({ key, name, cells: byPart[key] }));
+  // the rest of the input as one row (`otherInput`), the kinds under it folded by default on the page and indented in the
+  // print (the owner's ask, 2026-10-25: not all of it needs attention at once; a kind may move out later)
+  const otherInput = totalOf(REST_INPUT);
   const rewriteTotals = cols.map((_, w) => { const c = cell(); for (const k of Object.keys(byCause)) { add(c, byCause[k][w].tokens, byCause[k][w].cost); c.n += byCause[k][w].n; } c.prompts = columns[w].prompts; c.pricedPrompts = columns[w].pricedPrompts; return c; });
   const estimated = { columns: estCols, parts: PARTS.map(([key, name]) => ({ key, name, cells: byEst[key] })), totals: cols.map((_, w) => { const c = cell(); for (const [k] of PARTS) add(c, byEst[k][w].tokens, 0); c.prompts = estCols[w].prompts; return c; }) };
   const tokenTypes = TOKEN_TYPES.map(([key, name]) => ({ key, name, cells: byType[key] }));
@@ -196,7 +199,7 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   return {
     weeks, days, from, to: now, pricedOn: PRICED_ON, columns, sessionRows, thresholds: THRESHOLDS,
     tokenTypes,
-    parts: PARTS.map(([key, name]) => ({ key, name, cells: byPart[key] })), others, totals, sessionTotals,
+    parts: PARTS.map(([key, name]) => ({ key, name, cells: byPart[key] })), others, otherInput, totals, sessionTotals,
     breakdown: BREAKDOWN.map(([key, name]) => ({ key, name, cells: byPart[key] })),
     rewrites: REWRITES.map(([key, name]) => ({ key, name, cells: byCause[key] })), rewriteTotals, estimated,
     calibration: calibrations(config),
@@ -330,6 +333,7 @@ export function mergeReports(list) {
     tokenTypes: TOKEN_TYPES.map(([key, name]) => ({ key, name, cells: sumCells(views.map(v => (v.tokenTypes || []).find(p => p.key === key)?.cells || [])) })),
     parts: PARTS.map(([key, name]) => ({ key, name, cells: sumCells(views.map(v => v.parts.find(p => p.key === key)?.cells || [])) })),
     others: OTHERS.map(([key, name]) => ({ key, name, cells: sumCells(views.map(v => (v.others || []).find(p => p.key === key)?.cells || [])) })),
+    otherInput: sumCells(views.map(v => v.otherInput || [])),
     rewrites: REWRITES.map(([key, name]) => ({ key, name, cells: sumCells(views.map(v => (v.rewrites || []).find(p => p.key === key)?.cells || [])) })),
     rewriteTotals: sumCells(views.map(v => v.rewriteTotals || [])),
     estimated: { columns: Array.from({ length: n }, (_, w) => ({ sessions: views.reduce((a, v) => a + (v.estimated?.columns?.[w]?.sessions || 0), 0), prompts: views.reduce((a, v) => a + (v.estimated?.columns?.[w]?.prompts || 0), 0) })), parts: PARTS.map(([key, name]) => ({ key, name, cells: sumCells(views.map(v => (v.estimated?.parts || []).find(p => p.key === key)?.cells || [])) })), totals: sumCells(views.map(v => v.estimated?.totals || [])) },
@@ -373,7 +377,11 @@ export function renderReport(v, { cost = false, total = false, share = false } =
   const calNote = Object.entries(v.calibration || CALIBRATION).map(([k, f]) => `${k} ×${f}`).join(', ');
   L.push('', `By part of the context (the four the Find Savings page measures and controls, then the conversation by kind; the estimated parts in the model's own tokens: ${calNote}, the others one for one)`, headThr);
   for (const p of v.parts) L.push(line(p.name, p.cells, false, base, { key: p.key, thresholds: true }));
-  for (const p of v.others || []) L.push(line(p.name, p.cells, false, base, { thresholds: true }));
+  // the rest of the input as one line, its kinds indented under it; the output after
+  const rest = (v.others || []).filter(p => p.key !== 'output'), output = (v.others || []).find(p => p.key === 'output');
+  if (v.otherInput) L.push(line('Other input', v.otherInput, false, base, { thresholds: true }));
+  for (const p of rest) L.push(line(`  ${p.name}`, p.cells, false, base, { thresholds: true }));
+  if (output) L.push(line(output.name, output.cells, false, base, { thresholds: true }));
   L.push(line('Total (the whole session)', v.sessionTotals, true, null, { thresholds: true }));
   L.push('', 'By model', head);
   for (const p of v.providers) { L.push(line(p.name, p.cells, true, base)); for (const m of v.models.filter(x => x.provider === p.name)) L.push(line(`  ${m.model}${m.priced ? '' : ' (unpriced)'}`, m.cells, false, base)); }
@@ -382,23 +390,7 @@ export function renderReport(v, { cost = false, total = false, share = false } =
   L.push('', 'By token type (as the model reported them: fresh input, input written to and read from the prompt cache, output)', head);
   for (const p of v.tokenTypes || []) L.push(line(p.name, p.cells, false, base));
   L.push(line('Total (the whole session)', v.sessionTotals, true));
-  // the cache rewrites: a count a week in the Total view, else the tokens (or cost) a prompt; a part of the fresh and
-  // written input above, not a fourth whole
-  if (v.rewrites) {
-    const counts = cells => cells.map(c => (c.n ? String(c.n) : '').padStart(W)).join('');
-    L.push('', `Prompt cache rewrites (calls whose context the cache mostly did not serve, so the conversation was written again: a part of the fresh and written input above, by cause; ${total ? 'the week\'s tokens' : cost ? 'the cost a prompt' : 'the tokens a prompt'}, and the calls)`, head);
-    for (const p of v.rewrites) if (p.cells.some(c => c.n)) { L.push(line(p.name, p.cells, false, base)); L.push(`  ${'  calls'.padEnd(30)}${counts(p.cells)}`); }
-    L.push(line('Total of the rewrites', v.rewriteTotals || [], true, base)); L.push(`  ${'  calls'.padEnd(30)}${counts(v.rewriteTotals || [])}`);
-  }
-  // the sessions whose agent reports no usage (Cursor): their parts as estimated, by themselves
-  const estSessions = (v.estimated?.columns || []).reduce((a, c) => a + c.sessions, 0);
-  if (estSessions) {
-    const ecol = v.estimated.columns, eavg = (c, w) => total ? c.tokens : (ecol[w].prompts ? c.tokens / ecol[w].prompts : null);
-    const eline = (name, cells, bold) => `  ${(bold ? name.toUpperCase() : name).padEnd(30)}${cells.map((c, w) => (eavg(c, w) ? formatTokens(eavg(c, w)) : '').padStart(W)).join('')}`;
-    L.push('', `Sessions whose agent reported no usage (Cursor): ${estSessions} session${estSessions === 1 ? '' : 's'}, their four parts as estimated (${ecol.map(c => c.sessions).join(', ')} sessions, ${ecol.map(c => c.prompts).join(', ')} prompts; tokens${total ? '' : ' a prompt'}, no cost)`, head);
-    for (const p of v.estimated.parts) L.push(eline(p.name, p.cells, false));
-    L.push(eline('Total of the four parts', v.estimated.totals, true));
-  }
+  // the rewrites by cause and the estimated sessions stay in the view (--json) and off the print: not actionable (2026-10-25)
   L.push(`  ✓ · ✗: a part at or under its good figure, between the two, at or over its bad figure, in tokens a prompt whatever the table shows; the rest of the input, the output, the models and the token types take no mark; a zero is left blank. A model row is its share of the ${total ? 'week' : 'average prompt'}; its sessions:` + ` ${v.models.map(m => `${m.model} ${m.cells.map(c => c.sessions).join('/')}`).join(', ')}.`);
   if (v.unpriced.length) L.push(`  No list price for ${v.unpriced.join(', ')}: their sessions are left out of the cost average.`);
   const c = v.cache;

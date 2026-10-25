@@ -820,8 +820,10 @@ multipliers); what is left of the input is "Other input", and "Output" is what t
 the session's tokens. **Three tables, one total (2026-10-24, the owner's ask).** First the four parts the Save page measures and controls
 (instruction files, custom tools, built-in tools, tool outputs; `report.js:PARTS`) with the rest of the input under them by kind
 (`OTHERS`, the breakdown's rows since 2026-10-25: the system prompt, the agent's tool calls, its thinking kept, the prompts and
-replies, the harness's notes, and what no reader attributed; until then one "Other input" row, which on this machine was more
-than the four parts together and said nothing) and the output; then
+replies, the harness's notes, and what no reader attributed, **under one "Other input" row** (`otherInput`, their sum) that is
+folded by default on the page and opens on its chevron, the kinds indented in the print: not all of it needs attention at once,
+and a kind may move out to its own row later (the owner's ask, the same day); until then one "Other input" row, which on this
+machine was more than the four parts together and said nothing) and the output; then
 the models; last the tokens by type (`report.js:TOKEN_TYPES`: the input read fresh, the input written to the prompt cache,
 the input read back from it, and the output, as the model reported them for each call and `transcripts.js:Stats` sums
 them; in the cost view each at its own list rate, the formula of `prices.js:costOf`). Every table ends on the whole session (`sessionTotals`), so
@@ -848,8 +850,9 @@ with a short AGENTS.md; custom tools 5–9k; built-in tools 25–30k with every 
 23k a prompt at the long sessions' first quartile, 55k at the third), by judgment, not by an experiment; no percentage in
 the cell; a zero cell is blank.
 A Per session / Total toggle (`--total`) shows each week's sum over its sessions instead of the average. A session whose agent reports
-no usage (Cursor) is counted in no column; since 2026-10-25 its four parts, as estimated, stand in a table of their own under the
-others (`estimated`, by its calls), since without a measured input it cannot sit in tables that add up to one whole.
+no usage (Cursor) is counted in no column and named as left out (its four parts, as estimated, are in the view as `estimated`,
+by its calls, not shown: without a measured input it cannot sit in tables that add up to one whole, and the owner wants no
+table of estimates on the page).
 
 **The estimated parts are counted in the model's own tokens (2026-10-25; `report.js:CALIBRATION`, `calibrationOf`).** Every
 reader counts text at four characters a token, and the Save page shows that unit; the model counts 1.44 tokens for every four
@@ -860,7 +863,7 @@ estimated parts by its provider's factor before the overshoot check (Anthropic 1
 The four thresholds were scaled by the same factor and rounded (12k/30k, 4k/15k, 22k/36k, 72k), so every verdict stands. The
 caption names the factors.
 
-**A fourth table, the prompt-cache rewrites (2026-10-25).** A call whose context the cache mostly did not serve writes the whole
+**The prompt-cache rewrites, in the view and not shown (2026-10-25).** A call whose context the cache mostly did not serve writes the whole
 conversation again: on this machine's six weeks such calls were 54% of all cache-write tokens and, at list, a third of the bill
 (cache writes 34.5%, reads 43%, output 22%; a 1h write costs 200% of an input token, a read 2.5–5%). `transcripts.js:cacheRewrites`
 names each one's cause from the per-call usage of every agent (Claude Code's `message.usage` with the 5m/1h split, Codex's
@@ -869,9 +872,11 @@ after a pause over an hour (the 1h cache expired), after a pause of 5 to 60 minu
 Code writes the messages breakpoint at 5m), after a change of model, and mid-conversation with no pause (a context edit by the
 harness or the proxy, or an earlier message changed; on 2026-10-24 half of these were the proxy's own clears). Kept on the
 session's record (`tool-outputs.js`, state version 12, with the session's `turns` and, for Codex and Gemini, `carried` as for
-Claude Code: Codex is counted by its calls where the rollout has them, by the cumulative total else), shown as tokens or cost a
-prompt by cause with the calls under each (`rewrites`, `rewriteTotals`); a part of the fresh and written input of the token
-types, not a fourth whole. The offline replay behind the figures is in research/cost-levers-2026-10-25.md.
+Claude Code: Codex is counted by its calls where the rollout has them, by the cumulative total else), in the view and `--json`
+as tokens, cost and calls by cause (`rewrites`, `rewriteTotals`), **shown on neither door**: the owner took the table off the
+page and the print the same day (not a metric a person can act on), as the table of the sessions whose agent reports no usage
+(`estimated`, Cursor's four parts by their calls), which stays in the view for the same reason. The compaction-window row and
+the cost replay read the record. The offline replay behind the figures is in research/cost-levers-2026-10-25.md.
 
 **Cost, the one place dollars are shown.** The Cost toggle (`--cost`) prices each session's tokens at its model's
 list rates (`prices.js:listPrice`: fresh input, cache reads, cache writes and output each at its rate, a cache write by its TTL
