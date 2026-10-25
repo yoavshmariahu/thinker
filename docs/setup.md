@@ -51,33 +51,28 @@ the session instead, on the app's own login and model: the model calls are queue
 `.thinker/state`, and the agent starts a background subagent that answers them through
 thinker's `learn_next` tool.
 
-**Tools your sessions never use** (Claude Code and its desktop app, Codex; `thinker harness`). The
-[Context page](context.md) shows every skill, MCP server and plugin loaded into your sessions with its cost
-and use, and switching one off there turns the harness on for that repository. The rest of this paragraph,
-the question asked in your prompts, is off by default and not yet released: nothing below
-happens until `thinker harness --enabled on` in a repository (or a switch-off on the Context page). Once on,
-`thinker harness --suggest` and the page do the same: for each repository with at least 10 sessions
-recorded (`HARNESS.firstSessions`), the sources worth switching off, all picked, switched off only when the person
-confirms. Claude Code records in each session's
-transcript what it loaded: every MCP server's tool names and instructions, and the skill list. `thinker harness`
-reads the last 30 days of this repository's sessions and lists each MCP server, plugin and skill with its tokens
-per session and how many sessions used it. `--suggest` (and by itself every two weeks; a repository never looked at
-with 10 sessions recorded is asked as soon as it has them; `maintain: { harness: false }` in `.thinker/config.json`
-turns it off) has your next Claude Code prompt here ask you,
-in one multiple-choice question signed 🧠 Thinker, which of the unused ones to switch off: at most five, each
-option saying what the source is (the first sentence of its own listing), how many of the sessions that carried
-it used it, what it costs, and what off means and how it comes back; the rest, built-in tools always among them,
-are on the page (`thinker ui`, Find Savings, All), which the question links to. The ones you pick go
-off for this checkout (`enabledPlugins` and `skillOverrides` in `.claude/settings.local.json`, kept out of git)
-or, for an MCP server, for the repository and its worktrees (`disabledMcpServers` in its entry of
+**Tools your sessions never use** (Claude Code and its desktop app, Codex, Cursor; `thinker harness`). Claude Code
+records in each session's transcript what it loaded: every MCP server's tool names and instructions, and the skill
+list. `thinker harness` reads the last 30 days of this repository's sessions and lists each MCP server, plugin and
+skill with its tokens per session and how many sessions used it; the report changes nothing. The ones worth
+switching off are put to you in one place, with the rest of what your context costs: the weekly suggestion in your
+session and the [Find Savings page](context.md), beside the instruction sections and the tool outputs. Until
+2026-10-25 this had a second door, a multiple-choice question of its own in your prompts every two weeks; the owner
+merged it into the weekly suggestion, which already ranked the same skills and servers and could explain them at
+more than a picker line's length.
+
+Switching one off (the page's row, `thinker harness --off "<label>"`, or approving the suggestion) turns the harness
+on for that repository; the whole feature is off by default and not yet released (`thinker harness --enabled on`).
+What goes off goes off for this checkout (`enabledPlugins` and `skillOverrides` in `.claude/settings.local.json`,
+kept out of git) or, for an MCP server, for the repository and its worktrees (`disabledMcpServers` in its entry of
 `~/.claude.json`, what `/mcp disable` writes). A skill switched off still runs as `/name`. What each file said
 before is kept under `~/.thinker/state/harness-backups/`, and `thinker harness --undo` turns everything back on.
 The report and `thinker ui` (the View Report view's cache numbers) then show what it saved, read from the sessions started since: a source
 absent from a session saved its tokens there, once in the context and again in each model call; one still
 loaded is shown as such, not counted.
 
-**Coverage suggestions** (off until an experiment shows they help; `maintain: { coverage: true }` in
-`.thinker/config.json` turns them on for a repository). The agent hooks count which directories your sessions read and edit
+**Coverage suggestions** (off until an experiment shows they help, and held off on 2026-10-25 as not effective
+enough to put to people; `maintain: { coverage: true }` in `.thinker/config.json` turns them on for a repository). The agent hooks count which directories your sessions read and edit
 (locally, in `.thinker/state/access.json`, four weeks kept). About once a week, once there are at least five
 sessions on three days, background maintenance picks up to five of the most worked-in directories that the
 cache covers little (fewer than half their code files have a note), and on your next prompt your agent asks

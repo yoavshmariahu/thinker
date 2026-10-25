@@ -8,7 +8,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
 import { desktopSessionsDir, desktopRecords, CONNECTOR_TOOL } from '../src/harness-desktop.js';
-import { claudeSessionHarness, harnessUsage, harnessAdvice, scheduleHarnessSuggestion, harnessOffer, answerHarness, undoHarness, harnessSavings, readHarnessState } from '../src/harness.js';
+import { claudeSessionHarness, harnessUsage, harnessAdvice, switchOffNow, undoHarness, harnessSavings, readHarnessState } from '../src/harness.js';
 
 const tmp = p => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), p)));
 const long = n => 'x'.repeat(n);
@@ -81,18 +81,13 @@ test('the advice names the desktop connector by its name and switches it through
   assert.equal(advice.some(a => a.kind === 'desktop'), false, 'thinker switches nothing of the app\'s own');
 });
 
-test('the question offers a desktop connector only in the desktop app; the answer has the agent flip the app\'s switch', t => {
+test('a desktop connector goes off by having the agent flip the app\'s own switch, and comes back the same way', t => {
   const { h, add } = machine(t), store = checkout(t), th = tmp('thinker-desktop-th-');
   t.after(() => fs.rmSync(th, { recursive: true, force: true }));
   const sessions = [...Array(10).keys()].map(i => add(`d${i}`));
-  const picks = scheduleHarnessSuggestion(store, { now: T0, home: th, usage: harnessUsage(store.repo, { home: h, sessions }) });
-  assert.deepEqual(picks.map(p => p.how), ['desktop-connector']);
-  assert.equal(harnessOffer(store, { client: 'claude', home: th, now: T0, env: TERMINAL }), '', 'nothing to ask in the terminal');
-  assert.equal(readHarnessState(store).pending.offeredAt, undefined, 'still waiting for a desktop session');
-  const ask = harnessOffer(store, { client: 'claude', home: th, now: T0, env: DESKTOP });
-  assert.match(ask, /Claude-Docs connector/);
-  assert.match(ask, /every new session on this machine/);
-  const said = answerHarness(store, 'Claude-Docs connector', { client: 'claude', home: th, userHome: h, now: T0 });
+  const usage = harnessUsage(store.repo, { home: h, sessions });
+  assert.deepEqual(harnessAdvice(usage).map(p => p.how), ['desktop-connector']);
+  const said = switchOffNow(store, 'Claude-Docs connector', { home: th, userHome: h, now: T0, usage });
   assert.ok(said.includes(CONNECTOR_TOOL) && said.includes(JSON.stringify(DOCS)) && /enabled false/.test(said));
   assert.doesNotMatch(said, /Switched off here/, 'no file was written');
   assert.equal(fs.existsSync(path.join(store.repo, '.claude', 'settings.local.json')), false);
@@ -106,20 +101,7 @@ test('the question offers a desktop connector only in the desktop app; the answe
   assert.equal(readHarnessState(store).applied, undefined);
 });
 
-test('outside the desktop app a desktop connector is left out of the question and of its answer', t => {
-  const { h, add } = machine(t), store = checkout(t), th = tmp('thinker-desktop-th-');
-  t.after(() => fs.rmSync(th, { recursive: true, force: true }));
-  // a big skill every session loads and none calls, beside the connector
-  const sessions = [...Array(10).keys()].map(i => add(`d${i}`, { extra: [{ type: 'attachment', attachment: { type: 'skill_listing', content: `- bulky: ${long(2000)}\n`, names: ['bulky'] } }] }));
-  scheduleHarnessSuggestion(store, { now: T0, home: th, usage: harnessUsage(store.repo, { home: h, sessions }) });
-  const ask = harnessOffer(store, { client: 'claude', home: th, now: T0, env: TERMINAL });
-  assert.match(ask, /bulky skill/); assert.doesNotMatch(ask, /Claude-Docs/);
-  answerHarness(store, 'none', { client: 'claude', home: th, userHome: h, now: T0 });
-  const declined = Object.keys(readHarnessState(store).declined);
-  assert.ok(declined.includes('skill:bulky')); assert.equal(declined.some(k => k.includes('1a59c906')), false, 'not declined: never asked');
-});
-
-test('the question says what a source costs over a session\'s model calls, and how it comes back', t => {
+test('what a source costs is its tokens over a session\'s model calls, and its card says how it comes back', t => {
   const { h, add } = machine(t), store = checkout(t), th = tmp('thinker-desktop-th-');
   t.after(() => fs.rmSync(th, { recursive: true, force: true }));
   // ten model calls a session, each recorded once
@@ -127,12 +109,7 @@ test('the question says what a source costs over a session\'s model calls, and h
   const sessions = [...Array(10).keys()].map(i => add(`d${i}`, { extra: turns }));
   const usage = harnessUsage(store.repo, { home: h, sessions });
   assert.equal(usage.calls.claude, 10);
-  scheduleHarnessSuggestion(store, { now: T0, home: th, usage });
-  const ask = harnessOffer(store, { client: 'claude', home: th, now: T0, env: DESKTOP });
-  assert.match(ask, /~644 tokens in every session, ~6\.4k input tokens over its ~10 model calls/);
-  assert.match(ask, /each model call reads them again: ~\d+(\.\d)?k input tokens in a typical session/);
-  assert.match(ask, /thinker tells the agent it is off and how to bring it back/, 'recall is on with the harness');
-  answerHarness(store, 'Claude-Docs connector', { client: 'claude', home: th, userHome: h, now: T0 });
+  switchOffNow(store, 'Claude-Docs connector', { home: th, userHome: h, now: T0, usage });
   const card = readHarnessState(store).applied[0].cards[0];
   assert.match(card.back, /Connectors/); assert.doesNotMatch(card.back, /still runs it/);
 });

@@ -427,18 +427,18 @@ Switched-off tool reminders (recall) are on wherever the harness is on, at the o
 decision (2026-10-19): switching a source off is fair only if a request that needs it is
 told that it is off and how to bring it back. `--recall off` (or `harness: { recall: false }`)
 turns them off. On 4,511 replayed prompts they rarely fired wrongly but caught few of the
-turns that needed a tool, so they are a reminder, not a guarantee. The question every two weeks
-is on with the harness (`--recurring off` turns it off).
+turns that needed a tool, so they are a reminder, not a guarantee.
 
-The question and the report give what a source costs a session: its tokens, which every
-model call reads again, times the model calls of a typical session here (the median, per
-agent), mostly as prompt-cache reads. Cursor records no model calls, so its sources are
-given by size alone. The question carries at most five sources, each with what it is in
-its own words, its use among the sessions that carried it, and what off means; built-in
-tools are never among them (switch one off from the Context tab, which shows its
-description), and the question names the page for everything it left out.
-Codex suggestions use its available question tool or prose, and wait for an
-explicit answer. To support another harness, add evidence parsing, native scoped
+What a source costs a session is its tokens, which every model call reads again, times the
+model calls of a typical session here (the median, per agent), mostly as prompt-cache reads.
+Cursor records no model calls, so its sources are given by size alone. What is worth switching
+off is suggested in one place, with the rest of the context: the weekly suggestion and the Find
+Savings page (`context-suggest.js`), each row saying what the source is in its own words and
+how the sessions here used it. A built-in tool is a row like any other there, with a
+confirmation, and never part of a question. Until 2026-10-25 this file's own two-weekly
+question asked for the same switches through each agent's question tool (Claude Code's
+AskUserQuestion, Codex's `request_user_input_async`, Cursor's AskQuestion); it was merged into
+the weekly suggestion. To support another harness, add evidence parsing, native scoped
 config changes, restoration, and post-change evidence together; a generic hook
 message alone cannot implement context reduction.
 

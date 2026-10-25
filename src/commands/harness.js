@@ -1,7 +1,8 @@
 // `thinker harness`: what the agent loads into every session here against what the sessions use,
 // and the sources worth switching off (harness.js). The report reads transcripts and settings and changes
-// nothing; --suggest queues the question for the next prompt, --answer takes its reply, --undo reverses them.
-import { harnessUsage, harnessAdvice, harnessSavings, clientPrefix, MIN_TOKENS, scheduleHarnessSuggestion, answerHarness, undoHarness, switchOffNow, setHarnessSettings, harnessOn, OFF_MESSAGE, perSession, recallOn } from '../harness.js';
+// nothing; --off switches sources off here and --undo reverses that. What is worth switching off is put to
+// the person in one place, the weekly context suggestion and the Find Savings page (context-suggest.js).
+import { harnessUsage, harnessAdvice, harnessSavings, clientPrefix, MIN_TOKENS, undoHarness, switchOffNow, setHarnessSettings, harnessOn, OFF_MESSAGE, perSession, recallOn } from '../harness.js';
 import { formatTokens } from '../model-usage.js';
 
 const KIND = { plugin: 'plugin', mcp: 'MCP server', connector: 'claude.ai connector', skill: 'skill', desktop: 'desktop app' };
@@ -13,21 +14,10 @@ async function harnessCommand({ store, repo, flags, out }) {
   // --undo works with it off: it reverses what was switched off while it was on
   if (flags.undo) { out(undoHarness(store, { names: flags.undo === true ? null : String(flags.undo).split(',') })); return; }
   if (!harnessOn(store)) { out(OFF_MESSAGE); return; }
-  if (flags.answer !== undefined) { out(answerHarness(store, String(flags.answer === true ? '' : flags.answer), { client: flags.client ? String(flags.client) : undefined, via: flags.via === 'text' ? 'text' : 'picker' })); return; }
   if (flags.off) { out(switchOffNow(store, String(flags.off), { via: 'cli', any: true })); return; }
-  if (['recurring', 'weekly', 'recall', 'suggestions'].some(k => flags[k] !== undefined)) {
-    // --weekly is the old name of --recurring
-    const s = setHarnessSettings(store, { recurring: onOff(flags.recurring ?? flags.weekly), recall: onOff(flags.recall), suggestions: onOff(flags.suggestions) });
-    out(`question every two weeks: ${s.recurring ? 'on' : 'off'} · switched-off hints: ${s.recall ? 'on' : 'off'} · suggestions on this machine: ${s.suggestions ? 'on' : 'off'}`);
-    return;
-  }
+  if (flags.recall !== undefined) { const s = setHarnessSettings(store, { recall: onOff(flags.recall) }); out(`switched-off hints: ${s.recall ? 'on' : 'off'}`); return; }
   const days = Number(flags.days) || 30;
   const usage = harnessUsage(repo, { days });
-  if (flags.suggest) {
-    const picks = scheduleHarnessSuggestion(store, { force: true, usage });
-    out(picks?.length ? `Queued: your next prompt in Claude Code, Codex or Cursor here asks which of ${picks.length} source${picks.length === 1 ? '' : 's'} to switch off (${picks.map(p => p.name).join(', ')}).` : 'Nothing here is worth switching off; no question queued.');
-    return;
-  }
   const advice = harnessAdvice(usage), saved = harnessSavings(store);
   if (flags.json) { out(JSON.stringify({ ...usage, advice, saved }, null, 2)); return; }
   if (saved.sources.length) {
@@ -54,7 +44,7 @@ async function harnessCommand({ store, repo, flags, out }) {
     out(`  ${s.action}`);
   }
   out(`\nSwitched off, a source is not gone: ${recallOn(store) ? 'when a request looks like it needs one, thinker tells the agent it is off and how to bring it back; ' : ''}skills still run when you type /name, and \`thinker harness --undo\` turns everything back on.`);
-  out('\nNothing was changed. `thinker harness --suggest` asks you in your next Claude Code, Codex or Cursor prompt here, all of them in one question.');
+  out('\nNothing was changed. `thinker harness --off "<label>"` switches one off here; thinker suggests these with the rest of the context once a week (`thinker context`).');
 }
 
 export const commands = { harness: harnessCommand };

@@ -156,14 +156,13 @@ const HELP = `thinker — knowledge cache for coding agents
   version [--json]               the version this thinker runs, and its commit when it runs from a checkout
   served [--json]                what this checkout's own log says was served: prompt-hook and file-hook notes, orient and lookup calls
   spent [--json]                 what this checkout's own log says its model calls spent
-  harness [--days n] [--json] [--verbose] [--suggest] [--off <labels>] [--undo [names]] [--answer <labels|none|never> [--via picker|text] [--client c]]
-          [--recurring on|off] [--recall on|off] [--suggestions on|off] [--enabled on|off]
+  harness [--days n] [--json] [--verbose] [--off <labels>] [--undo [names]] [--recall on|off] [--enabled on|off]
                                  off by default, not yet released: --enabled on turns it on for this repository (--undo works either way);
                                  what Claude Code, Codex and Cursor record loading here (MCP servers, plugins, skills, with their tokens) against
-                                 what the sessions use, and the ones worth switching off; the report changes nothing. --suggest asks in
-                                 the next Claude Code, Codex or Cursor prompt here, one question for all of them (every two weeks by itself, as soon as 10 sessions are recorded the first time);
-                                 --answer takes the reply, --off switches named ones off without asking; --undo turns them (or the named ones) back on;
-                                 --recurring, --recall (a line when a request needs a switched-off tool; on with the harness) and --suggestions set what thinker does; also on the local page
+                                 what the sessions use, and the ones worth switching off; the report changes nothing. --off switches named ones
+                                 off here; --undo turns them (or the named ones) back on; --recall sets the line a request gets when it needs a
+                                 switched-off tool (on with the harness). What is worth switching off is suggested with the rest of the context,
+                                 once a week in a session and on the Find Savings page (\`thinker context\`), not as a question of its own
   instructions [--remove <id> | --compress <id> [--pr | --apply] [--job <id>]]
                                  the sections of AGENTS.md and their tokens;
                                  --remove / --compress <section id> show the diff of taking a section out or having a model shorten it;

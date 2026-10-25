@@ -356,34 +356,23 @@ function action(s) {
   }
 }
 
-// --- the suggestion ---------------------------------------------------------------------------------
-// Every two weeks, the sources worth switching off, put to the person as one question with every one
-// of them as an option, signed as thinker. On with the rest of it (harnessOn); `maintain: { harness: false }`
-// in .thinker/config.json turns this question off, `thinker harness --suggest` queues one now. Claude Code and Codex; each adapter counts only what its transcripts record.
+// --- switching a source off ------------------------------------------------------------------------
+// The sources worth switching off are suggested in one place, the weekly context suggestion and the Find
+// Savings page beside the instruction sections and the tool outputs (context-suggest.js, context-view.js);
+// what they rank is `harnessAdvice` below. Until 2026-10-25 this file also put its own question to the
+// person in their session (`scheduleHarnessSuggestion`, `harnessOffer`, `answerHarness`, the MCP `harness`
+// tool, a "never" for the machine): a second suggestion of a subset of the same things, through a picker
+// instead of a message, which the owner merged into the weekly one.
 //
-//   scheduleHarnessSuggestion  maintenance: every two weeks once there are enough sessions (daily until then), the advice not passed on in the last month
-//   harnessOffer               the prompt hook: the question, once, for the agent to put to the person
-//   answerHarness              the answer (MCP `harness`, `thinker harness --answer`): switches the chosen
-//                              sources off for this repository, a backup of each file first
-//   undoHarness                `thinker harness --undo`: puts back what the answers switched off
+//   switchOffNow   switches named sources off here (the page's rows, `thinker harness --off`, an approved
+//                  suggestion), a backup of each file first
+//   undoHarness    `thinker harness --undo`: puts back what was switched off
 //
-// Local state: <cache>/state/harness.json (the pending question, answers, what was switched off);
-// THINKER_HOME/state/harness-never.
-export const HARNESS = {
-  everyDays: 14,   // a suggestion at most this often, once a repository has been looked at with enough sessions
-  waitDays: 1,     // until then, how often maintenance looks again: the first question is asked as soon as the data is there
-  max: 5,          // sources in one suggestion (2026-10-22, the owner's call: fewer to weigh at once; the rest are on the Context tab)
-  bundle: 500,     // skills under this many tokens are one option together, so the question stays short
-  declineDays: 30, // a source the person passed on is not suggested again for this long
-  answerDays: 3,   // a question left unanswered this long is dropped
-  firstSessions: 10, // any question about a repository waits for this many sessions recorded there
-};
+// Local state: <cache>/state/harness.json (what was switched off).
 export const SIGNATURE = '🧠 thinker';
 const DAY = 86_400_000;
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), 'cli.js');
 const stateFile = store => path.join(store.dir, 'state', 'harness.json');
-const neverFile = (home = thinkerHome()) => path.join(home, 'state', 'harness-never');
-export const harnessNever = home => fs.existsSync(neverFile(home));
 // Off until it is tested and works for every agent that matters (2026-10-19, the owner's decision): no
 // question, no recall line, no advice on the page unless `harness: { enabled: true }` in .thinker/config.json.
 // `thinker harness --undo` still reverses what was switched off before.
@@ -409,137 +398,28 @@ function writeTheirs(f, v) {
 }
 export const readHarnessState = store => readJson(stateFile(store)) || {};
 const saveState = (store, st) => writeJson(stateFile(store), st);
-export const harnessPending = (store, { home } = {}) => harnessOn(store) && !harnessNever(home) && Boolean(readHarnessState(store).pending);
 
 // What the question needs of a source, and nothing that could hold a secret.
 const pick = s => ({ client: s.client, dir: s.dir, evidenceKeys: s.evidenceKeys, key: s.key, name: s.name, kind: s.kind, scope: s.scope, id: s.id, how: s.how, skills: s.skills, tokens: s.tokens, used: s.used, loaded: s.loaded, texts: s.texts });
 
-// Small skills as one option: switched off together, each still runnable as /name.
-const bundleOf = skills => ({
-  key: `skills:${skills.map(s => s.name).join(',')}`, name: `${skills.length} rarely used skills`, kind: 'skills', how: 'skills',
-  skills: skills.map(s => s.name), members: skills.map(s => s.key), tokens: skills.reduce((t, s) => t + s.tokens, 0), texts: Object.assign({}, ...skills.map(s => s.texts)),
-  used: Math.max(...skills.map(s => s.used)), loaded: Math.max(...skills.map(s => s.loaded)),
-});
-
-// The sources a question or a switch may name: the advice with plain names, the small skills as one option.
-function pickSources(usage, keep = () => true, max = HARNESS.max, { any = false } = {}) {
-  const advice = (any ? anySource(usage) : harnessAdvice(usage)).filter(s => keep(s) && SAFE_NAME.test(s.name) && (s.skills || []).every(n => SAFE_NAME.test(n))).map(pick);
-  const small = advice.filter(s => s.client !== 'codex' && s.kind === 'skill' && s.tokens < HARNESS.bundle);
-  // each with the model calls of a typical session of its agent here: what it costs is its tokens read again by each
-  const calls = s => usage.calls?.[s.client || 'claude'] || 0;
-  return (small.length > 1 && !any ? [...advice.filter(s => !small.includes(s)), bundleOf(small)] : advice).slice(0, max).map(s => ({ ...s, calls: calls(s) }));
+// The sources a switch may name: the advice, or every source with a local switch (`any`: the Find Savings
+// rows, which offer a switch whatever the use). Each carries the model calls of a typical session of its
+// agent here, since what it costs is its tokens read again by each.
+function pickSources(usage, { any = false } = {}) {
+  const sources = (any ? anySource(usage) : harnessAdvice(usage)).filter(s => SAFE_NAME.test(s.name) && (s.skills || []).every(n => SAFE_NAME.test(n))).map(pick);
+  return sources.map(s => ({ ...s, calls: usage.calls?.[s.client || 'claude'] || 0 }));
 }
 
 // What a source costs a session: its tokens sit in the context and every model call reads them again, mostly
 // from the prompt cache. Cursor records no model calls, so it is its size alone.
 export const perSession = (tokens, calls) => calls > 1 ? tokens * calls : tokens;
-const costOf = p => p.calls > 1
-  ? `~${formatTokens(p.tokens)} tokens in every session, ~${formatTokens(perSession(p.tokens, p.calls))} input tokens over its ~${p.calls} model calls`
-  : `~${formatTokens(p.tokens)} tokens in every ${p.client === 'cursor' ? 'Cursor chat' : 'session'}`;
 // What a source is, in its own words: the first sentence of its listing (a skill's description, a server's
 // instructions, a tool's description), the name it opens with dropped. The text is a third party's: quoted
 // as data, with nothing that could close the block or open another.
 export const sentenceOf = text => String(text || '').replace(/^- /, '').replace(/^#+ \S+\s*/, '').replace(/^\S+?(?=: | \()(\s*\([^)]*\))?:\s*/, '').replace(/[<>`\n\r]+/g, ' ').split(/(?<=\.)\s/)[0].trim().slice(0, 160);
-const describeOf = p => p.kind === 'skills' ? '' : sentenceOf(p.texts?.[p.key] ?? p.texts?.[`mcp:${serverKey(p.name)}`] ?? p.texts?.[`skill:${p.name}`] ?? Object.values(p.texts || {})[0]);
-// What the person loses with it off, and how it comes back: the line the picker shows under the label.
-const offMeans = p => {
-  const undo = `\`thinker harness --undo ${p.client === 'codex' || p.client === 'cursor' ? p.key : p.name}\``;
-  if (p.kind === 'skills') return 'Off, each still runs when you type /name; `thinker harness --undo` turns them back on';
-  if (p.client === 'cursor') return `Off in every Cursor chat on this machine, not only this repository (Cursor has no per-repository switch); ${undo} puts it back`;
-  if (p.client === 'codex') return `Off in this checkout's Codex sessions; ${undo} turns it back on`;
-  if (p.how === 'desktop-connector') return 'Off in every new session on this machine, not only this repository, through the Claude desktop app\'s Connectors switch, which also turns it back on';
-  switch (p.kind) {
-    case 'skill': return `Off, it still runs when you type /${p.name}; ${undo} turns it back on`;
-    case 'plugin': return `Off, its skills and hooks leave new sessions in this repository; ${undo} turns it back on`;
-    case 'tool': return `Off, the tool is gone from new Claude Code sessions in this repository; ${undo} turns it back on`;
-    default: return `Off, its tools leave new sessions in this repository; ${undo} turns it back on`;
-  }
-};
-// How a source switched off comes back, said in the question and the report.
-const comesBack = store => `${recallOn(store) ? 'When a request looks like it needs one, thinker tells the agent it is off and how to bring it back. ' : ''}Skills still run when you type /name, and \`thinker harness --undo\` turns everything back on.`;
-
-// Maintenance (or `thinker harness --suggest`, with force): a new question when there is something
-// to ask. Returns the sources queued, or null.
-export function scheduleHarnessSuggestion(store, { now = Date.now(), home, force = false, usage } = {}) {
-  if (!harnessOn(store) || harnessNever(home)) return null;
-  const st = readHarnessState(store);
-  if (st.pending && !force) {
-    // offered and not answered, or never offered (no supported prompt here since): dropped after a while
-    if (now - Date.parse(st.pending.offeredAt || st.pending.at) > HARNESS.answerDays * DAY * (st.pending.offeredAt ? 1 : 2)) {
-      store.log({ op: 'harness-answer', choice: 'unanswered', sources: st.pending.sources.length });
-      delete st.pending; saveState(store, st);
-    }
-    return null;
-  }
-  // a repository never looked at with enough sessions (an existing install) is looked at
-  // daily, and asked the first time the data is there; after that, every two weeks
-  if (!force && st.checkedAt && now - Date.parse(st.checkedAt) < (st.firstLookAt ? HARNESS.everyDays : HARNESS.waitDays) * DAY) return null;
-  usage ??= harnessUsage(store.repo);
-  st.checkedAt = new Date(now).toISOString();
-  if (!force && (usage.sessions || 0) < HARNESS.firstSessions) { saveState(store, st); return null; }
-  st.firstLookAt ||= st.checkedAt;
-  const recent = t => t && now - Date.parse(t) < HARNESS.declineDays * DAY;
-  // A built-in tool is never an option of the question (2026-10-22): a picker's line has no room for what denying
-  // a tool costs (no subagents, no /loop), and the Context tab, where a row shows the tool's own description, is
-  // where a person switches one off. At most HARNESS.max options; the rest are counted and the page named for them.
-  const all = pickSources(usage, s => force || !recent(st.declined?.[s.key]), Infinity);
-  const picks = all.filter(s => s.kind !== 'tool').slice(0, HARNESS.max), more = all.length - picks.length;
-  if (picks.length) { st.pending = { at: st.checkedAt, days: usage.days, sessions: usage.sessions, byClient: usage.byClient, sources: picks, more, moreTools: all.filter(s => s.kind === 'tool').length }; store.log({ op: 'harness-suggest', sources: picks.length, more, tokens: picks.reduce((t, p) => t + p.tokens, 0) }); }
-  else delete st.pending;
-  saveState(store, st);
-  return picks;
-}
-
 const KIND = { plugin: 'plugin', mcp: 'MCP server', connector: 'connector', skill: 'skill', skills: '', tool: 'tool' };
 export const clientPrefix = c => ({ codex: 'Codex: ', cursor: 'Cursor: ' })[c] || '';
 export const labelOf = p => clientPrefix(p.client) + (p.kind === 'skills' ? p.name : `${p.name} ${KIND[p.kind]}`);
-const shq = s => `'${String(s).replace(/'/g, `'\\''`)}'`;
-const answerCommand = (repo, client = 'claude') => `${shq(process.execPath)} ${shq(CLI)} harness --answer '<labels|none|never>' --via picker --client ${client} --repo ${shq(repo)}`;
-// One option: what it is, how often the sessions that carried it used it, what it costs, and what off means.
-const usedIn = p => p.kind === 'skills' ? `Each used in ${p.used ? `at most ${p.used}` : 'none'} of the ${p.loaded} sessions here that carried them` : `${p.used ? `Used in ${p.used}` : 'Used in none'} of the ${p.loaded} ${p.client === 'cursor' ? 'Cursor chats on this machine' : 'sessions here'} that carried it`;
-const optionOf = p => p.kind === 'skills'
-  ? `label ${JSON.stringify(labelOf(p))}: ${p.skills.join(', ')}. ${usedIn(p)}; together ${costOf(p)}. ${offMeans(p)}.`
-  : `label ${JSON.stringify(labelOf(p))}: ${describeOf(p) ? `${describeOf(p)} ` : ''}${usedIn(p)}; ${costOf(p)}. ${offMeans(p)}.`;
-const ASK = {
-  codex: rest => `${SIGNATURE}: Ask the user which of the following labeled sources to switch off, each with the rest of its line as its description. Use request_user_input_async if available, otherwise ask in prose. Allow a comma-separated choice, none, or never. Do not assume a default or change settings until the user answers. Tell them: ${rest}`,
-  cursor: rest => `${SIGNATURE}: Before you start on the request, ask the user with your AskQuestion tool, not in prose: one question, title "🧠 Thinker", allow_multiple true, prompt "${SIGNATURE}: switch these off? They are loaded into every chat and almost never used. \`thinker harness --undo\` turns them back on. ${rest}" Its options are the sources below, in this order, each option's label the label given and then, in parentheses and without commas, what it is, its tokens and use from the rest of its line, plus a last option "none" and one "never (stop these suggestions on this machine)". Do not change settings until the user answers.`,
-};
-// a session no person is at: `claude -p`, the Agent SDK (CLAUDE_CODE_ENTRYPOINT sdk-cli, sdk-ts, sdk-py…)
-const unattended = (env = process.env) => /^sdk-/.test(env.CLAUDE_CODE_ENTRYPOINT || '');
-// the Claude desktop app's Code tab, the one place its Connectors switch can be flipped from
-const inDesktop = (env = process.env) => env.CLAUDE_CODE_ENTRYPOINT === 'claude-desktop';
-const offerable = (s, client, env) => (s.client || 'claude') === client && (s.how !== 'desktop-connector' || inDesktop(env));
-// The prompt hook: the pending question, said once, as an instruction to the agent to put it to the person.
-// `ui`, from the hook (context-suggest.js:ensureUi with suggestionsUrl): the address of the Context tab's All
-// for this repository, the page started if need be; the question names it for the rest (the sources past the
-// five, the built-in tools), and without it the `thinker ui` command.
-export function harnessOffer(store, { client, home, now = Date.now(), env = process.env, ui = null } = {}) {
-  if (!['claude', 'codex', 'cursor'].includes(client) || !harnessOn(store) || harnessNever(home) || unattended(env)) return '';
-  const st = readHarnessState(store);
-  if (!st.pending || st.pending.offeredAt || !st.pending.sources.some(s => offerable(s, client, env))) return '';
-  st.pending.offeredAt = new Date(now).toISOString();
-  // a desktop connector is left out of a question asked outside the desktop app, and so out of its answer
-  const ps = st.pending.sources.filter(s => s.how !== 'desktop-connector' || offerable(s, client, env));
-  if (ps.length < st.pending.sources.length) st.pending.offered = ps.map(p => p.key);
-  saveState(store, st);
-  const total = ps.reduce((t, p) => t + p.tokens, 0), input = ps.reduce((t, p) => t + perSession(p.tokens, p.calls), 0);
-  const more = (st.pending.more || 0) + (st.pending.sources.length - ps.length), tools = st.pending.moreTools || 0;
-  const url = ui ? (() => { try { return ui(store); } catch { return null; } })() : null;
-  const page = url ? `thinker's page at ${url}` : 'thinker\'s page (run `thinker ui`, Context tab, All)';
-  // the cost said once for all: the context, and what the model calls of a typical session read of it again
-  const cost = input > total ? `About ${formatTokens(total)} tokens sit in every session here and each model call reads them again: ~${formatTokens(input)} input tokens in a typical session, mostly prompt-cache reads. They are almost never used.` : `About ${formatTokens(total)} tokens are loaded into every session here and almost never used.`;
-  // where the rest is: the sources past the five, and the built-in tools, which the question never carries
-  const rest = more ? `${more} more that thinker could switch off here${tools ? `, built-in tools among them,` : ''} are on ${page}, each with what it is.` : `Everything thinker could switch off here, with what each is, is on ${page}.`;
-  store.log({ op: 'harness-offer', client, sources: ps.length, more, tokens: total, input, ui: Boolean(url) });
-  const options = ps.map((p, i) => `${i + 1}. ${optionOf(p)}`).join('\n');
-  return `<thinker-harness-suggestion>
-Your agents load ${ps.length === 1 ? 'this' : 'these'} into every session in this repository, and the sessions here over the last ${st.pending.days} days almost never used ${ps.length === 1 ? 'it' : 'them'}: about ${formatTokens(total)} tokens across these source listings (the amount per session depends on the agent), read again by every model call${input > total ? `, ~${formatTokens(input)} input tokens in a typical session` : ''}. thinker can switch ${ps.length === 1 ? 'it' : 'them'} off ${ps.every(p => p.client === 'cursor') ? 'in Cursor, for every repository (Cursor has no per-repository switch)' : ps.some(p => p.client === 'cursor') ? 'for this repository only (the Cursor ones in every repository: Cursor has no per-repository switch)' : 'for this repository only'}, from the next session on. ${rest}
-${ASK[client]?.(rest) || `Before you start on the request, ask the user with your AskUserQuestion tool, not in prose: one question with multiSelect true, header "🧠 Thinker", and the question "${SIGNATURE}: switch these off in this repository? ${cost} ${comesBack(store)} ${rest}" Its options are the sources below, in this order, each with the label given and the rest of its line as the description, word for word. If there are more than four, ask the rest in a second question of the same call, header "🧠 Thinker" and question "${SIGNATURE}: and these?". Choosing none means not now (thinker does not suggest those again for a month); "never" (Other) stops these suggestions on this machine.`}
-${options}
-Then call thinker's \`harness\` tool with choice set to the chosen labels exactly as given, comma-separated (or none, or never); if that tool is not available, run \`${answerCommand(store.repo, client)}\`. Then go on with the task.
-</thinker-harness-suggestion>`;
-}
-
 // One edit of one JSON file, after a copy of what it changes as it was (THINKER_HOME/state/harness-backups/,
 // 0600, the last twenty kept): of ~/.claude.json only the project's entry (`part`), never the keys and
 // account it holds. `check` reads the file back: Claude Code rewrites ~/.claude.json while sessions run,
@@ -643,42 +523,6 @@ function applyCodex(repo, s, { home, userHome, now, backups }, undo) {
     if (!before && !user) excludeFromGit(repo, file);
   }
   return { file, key: 'codex', source: { kind: s.kind, name: s.name, id: s.id, dir: s.dir }, prev: changed.prev, created: changed.created, inherited: changed.inherited };
-}
-
-// The answer: never stops suggestions on this machine; none (or nothing that names a pending source)
-// passes on them for a month; names switch those sources off here. Returns the line to tell the agent.
-export function answerHarness(store, choice, { client, via = 'picker', home, userHome = os.homedir(), now = Date.now(), declineRest = true } = {}) {
-  const st = readHarnessState(store), offered = st.pending?.offered, pending = (st.pending?.sources || []).filter(p => !offered || offered.includes(p.key));
-  const raw = String(choice || '').trim();
-  if (!st.pending && !/^never$/i.test(raw)) return `No thinker question waits for an answer in ${store.repo}; nothing changed. Go on with the task.`;
-  if (/^never$/i.test(raw)) {
-    const f = neverFile(home); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, new Date(now).toISOString() + '\n');
-    delete st.pending; saveState(store, st);
-    store.log({ op: 'harness-answer', choice: 'never', client, via, sources: pending.length });
-    return 'Recorded: thinker will not suggest switching tools off again on this machine (`thinker harness` still shows the report). Go on with the task.';
-  }
-  // a choice names an option by its label ("rea MCP server"), its key, or its bare name where only one has it
-  const said = raw.split(/[,\n]/).map(s => s.trim().replace(/^["'`]|["'`]$/g, '').toLowerCase()).filter(Boolean);
-  const chosen = pending.filter(p => said.some(w => w === labelOf(p).toLowerCase() || w.startsWith(`${labelOf(p).toLowerCase()} (`) || w === String(p.key).toLowerCase() || (w === p.name.toLowerCase() && pending.filter(q => q.name.toLowerCase() === w).length === 1)));
-  const at = new Date(now).toISOString();
-  st.declined ||= {};
-  if (declineRest) for (const p of pending) if (!chosen.includes(p)) for (const k of p.members || [p.key]) st.declined[k] = at;
-  delete st.pending;
-  if (!chosen.length) { saveState(store, st); store.log({ op: 'harness-answer', choice: 'none', client, via, sources: pending.length }); return 'Recorded: nothing switched off; thinker will not suggest these again for a month. Go on with the task.'; }
-  const backups = new Map(), done = [], failed = [], overrides = claudeHarnessConfig(store.repo, { home: userHome }).overrides;
-  for (const s of chosen) {
-    try { done.push({ client: s.client || 'claude', evidenceKeys: s.evidenceKeys, key: s.key, members: s.members, name: s.name, kind: s.kind, tokens: s.tokens, at, undo: apply(store.repo, s, { userHome, home, now, backups, overrides }), cards: cardsFor(s, { repo: store.repo }) }); }
-    catch (e) { failed.push(`${s.name} (${e.message})`); }
-  }
-  (st.applied ||= []).push(...done);
-  saveState(store, st);
-  const tokens = done.reduce((t, d) => t + d.tokens, 0);
-  store.log({ op: 'harness-answer', choice: 'off', client, via, sources: pending.length, chosen: chosen.length, switched: done.length, tokens });
-  const files = done.filter(d => d.undo.key !== 'desktop-connector'), desk = done.filter(d => d.undo.key === 'desktop-connector');
-  const line = files.length ? `Switched off here from the next session on${files.some(d => d.client === 'cursor') ? ' (the Cursor ones in every repository)' : ''}: ${files.map(d => d.name).join(', ')}, about ${formatTokens(files.reduce((t, d) => t + d.tokens, 0))} tokens a session. \`thinker harness --undo\` turns them back on${backups.size ? `; what the files said before is under ${path.dirname([...backups.values()][0])}` : ''}.` : '';
-  // the desktop app's connectors: the agent flips the app's switch, one call each, which the user approves
-  const app = desk.length ? `Now switch off the desktop app's connector${desk.length === 1 ? '' : 's'} the user chose: call ${CONNECTOR_TOOL} with ${desk.map(d => `connector ${JSON.stringify(d.undo.id)} (${d.name})`).join(', ')} and enabled false, one call each. The app keeps ${desk.length === 1 ? 'it' : 'them'} off in every new session on this machine; the + menu → Connectors turns ${desk.length === 1 ? 'it' : 'them'} back on.` : '';
-  return [line, app, failed.length ? `Not switched off: ${failed.join('; ')}.` : ''].filter(Boolean).join(' ') + ' Tell the user in one line, then go on with the task.';
 }
 
 // `thinker harness --undo`: every source the answers switched off here, turned back on.
@@ -905,7 +749,7 @@ export function harnessView(store, { days = 30, home } = {}) {
     advice: harnessAdvice(usage).map(s => ({ ...slim(s), label: labelOf(s), action: s.action, input: perSession(s.tokens, usage.calls?.[s.client || 'claude'] || 0) })), calls: usage.calls,
     settings: harnessSettings(store, { home }),
     saved: harnessSavings(store),
-    pending: harnessPending(store, { home }), never: harnessNever(home), enabled: true,
+    enabled: true,
   };
 }
 
@@ -948,39 +792,50 @@ export function harnessIndex(store, { session, client } = {}) {
   return `<thinker-skills>\nThis repository's skills are not listed in full here, to save context. Before work one of them covers, read its file and follow it:\n${[...byDir].map(([k, names]) => `${k}: ${names.sort().join(', ')}`).join('\n')}\n</thinker-skills>`;
 }
 
-// --- the controls: `thinker harness --off/--undo/--recurring/--recall/--suggestions`, and the page's buttons ---
+// --- the controls: `thinker harness --off/--undo/--recall/--enabled`, and the page's buttons ---
 export function harnessSettings(store, { home } = {}) {
-  return { enabled: harnessOn(store), recurring: store.config().maintain?.harness !== false, recall: recallOn(store), suggestions: !harnessNever(home) };
+  return { enabled: harnessOn(store), recall: recallOn(store) };
 }
-// recurring: the question from maintenance every two weeks (maintain.harness, on unless false; `weekly` is its old name); recall: the switched-off lines (harness.recall),
-// both in .thinker/config.json; suggestions: this machine's "never" (THINKER_HOME/state/harness-never);
-// enabled: the whole feature here (harness.enabled), off by default
-export function setHarnessSettings(store, { enabled, recurring, weekly, recall, suggestions, builtinTools } = {}, { home } = {}) {
-  recurring ??= weekly;
-  if (enabled !== undefined || recurring !== undefined || recall !== undefined || builtinTools !== undefined) {
+// recall: the switched-off lines (harness.recall) and enabled: the whole feature here (harness.enabled),
+// off by default, both in .thinker/config.json; builtinTools: whether the advice counts the agent's own tools
+export function setHarnessSettings(store, { enabled, recall, builtinTools } = {}, { home } = {}) {
+  if (enabled !== undefined || recall !== undefined || builtinTools !== undefined) {
     const file = path.join(store.dir, 'config.json'), cfg = readJson(file) || {};
     if (enabled !== undefined) (cfg.harness ||= {}).enabled = Boolean(enabled);
     if (builtinTools !== undefined) (cfg.harness ||= {}).builtinTools = Boolean(builtinTools);
-    if (recurring !== undefined) (cfg.maintain ||= {}).harness = Boolean(recurring);
     if (recall !== undefined) (cfg.harness ||= {}).recall = Boolean(recall);
     writeJson(file, cfg, true);
   }
-  if (suggestions === false) { const f = neverFile(home); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, new Date().toISOString() + '\n'); }
-  if (suggestions === true) fs.rmSync(neverFile(home), { force: true });
   const now = harnessSettings(store, { home });
   store.log({ op: 'harness-settings', ...now });
   return now;
 }
-// Switch named sources off now, without a question: the page's checkboxes, `--off`. What is not named is
-// not passed on; a question waiting here is replaced by this answer.
-// `any`: a source by its label whether or not the advice would name it (the Context view's switches).
-export function switchOffNow(store, labels, { home, userHome, now = Date.now(), via = 'cli', usage, any = false } = {}) {
+// Switch named sources off now: the page's checkboxes, `--off`, and the weekly suggestion's Switch off
+// (context-view.js:switchSources, context-suggest.js:approveChanges). Every source thinker can switch off
+// here is a candidate; what the labels do not name is left alone. `any`: a source by its label whether or
+// not the advice would name it (the Context view's switches).
+export function switchOffNow(store, labels, { home, userHome = os.homedir(), now = Date.now(), via = 'cli', usage, any = false } = {}) {
   if (!harnessOn(store)) return OFF_MESSAGE;
-  const picks = pickSources(usage || harnessUsage(store.repo), () => true, Infinity, { any });
+  const picks = pickSources(usage || harnessUsage(store.repo), { any });
   if (!picks.length) return 'Nothing here is worth switching off; nothing changed.';
-  const st = readHarnessState(store);
-  st.pending = { at: new Date(now).toISOString(), days: 30, sources: picks, direct: true };
+  // a label names a source by its label ("rea MCP server"), its key, or its bare name where only one has it
+  const said = String(labels || '').split(/[,\n]/).map(s => s.trim().replace(/^["'`]|["'`]$/g, '').toLowerCase()).filter(Boolean);
+  const chosen = picks.filter(p => said.some(w => w === labelOf(p).toLowerCase() || w.startsWith(`${labelOf(p).toLowerCase()} (`) || w === String(p.key).toLowerCase() || (w === p.name.toLowerCase() && picks.filter(q => q.name.toLowerCase() === w).length === 1)));
+  if (!chosen.length) return 'Nothing switched off: nothing here goes by those names.';
+  const st = readHarnessState(store), at = new Date(now).toISOString();
+  const backups = new Map(), done = [], failed = [], overrides = claudeHarnessConfig(store.repo, { home: userHome }).overrides;
+  for (const s of chosen) {
+    try { done.push({ client: s.client || 'claude', evidenceKeys: s.evidenceKeys, key: s.key, members: s.members, name: s.name, kind: s.kind, tokens: s.tokens, at, undo: apply(store.repo, s, { userHome, home, now, backups, overrides }), cards: cardsFor(s, { repo: store.repo }) }); }
+    catch (e) { failed.push(`${s.name} (${e.message})`); }
+  }
+  (st.applied ||= []).push(...done);
   saveState(store, st);
-  return answerHarness(store, labels, { via, home, userHome, now, declineRest: false }).replace(/ Tell the user in one line, then go on with the task\.$/, '');
+  const tokens = done.reduce((t, d) => t + d.tokens, 0);
+  store.log({ op: 'harness-off', via, chosen: chosen.length, switched: done.length, tokens });
+  const files = done.filter(d => d.undo.key !== 'desktop-connector'), desk = done.filter(d => d.undo.key === 'desktop-connector');
+  const line = files.length ? `Switched off here from the next session on${files.some(d => d.client === 'cursor') ? ' (the Cursor ones in every repository)' : ''}: ${files.map(d => d.name).join(', ')}, about ${formatTokens(files.reduce((t, d) => t + d.tokens, 0))} tokens a session. \`thinker harness --undo\` turns them back on${backups.size ? `; what the files said before is under ${path.dirname([...backups.values()][0])}` : ''}.` : '';
+  // the desktop app's connectors: the agent flips the app's switch, one call each, which the user approves
+  const app = desk.length ? `Now switch off the desktop app's connector${desk.length === 1 ? '' : 's'} chosen: call ${CONNECTOR_TOOL} with ${desk.map(d => `connector ${JSON.stringify(d.undo.id)} (${d.name})`).join(', ')} and enabled false, one call each. The app keeps ${desk.length === 1 ? 'it' : 'them'} off in every new session on this machine; the + menu → Connectors turns ${desk.length === 1 ? 'it' : 'them'} back on.` : '';
+  return [line, app, failed.length ? `Not switched off: ${failed.join('; ')}.` : ''].filter(Boolean).join(' ');
 }
 
