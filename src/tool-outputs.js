@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseTranscript } from './transcripts.js';
 
-const KEEP = 1000, VERSION = 11;
+const KEEP = 1000, VERSION = 12;
 // what each level's cap leaves of an output, in tokens (diet.js:DIET_LEVELS outputChars / 4): the part of a
 // compressible tool's result past it is a saving at least (the other trims, round search hits and file windows, come on top);
 // an MCP server has the moderate level alone (diet.js:mcpLevel), so its high saving is its moderate one
@@ -91,8 +91,10 @@ const stateFile = store => path.join(store.dir, 'state', 'tool-outputs.json');
 // another timeline, or under none (a reader that wants the usage alone), is made again when a reader brings one: the
 // Report's usage reader parsed new transcripts first and without it, and every call of those sessions read as
 // uncompressed to the readers after (2026-10-24).
-// `carried`: what the conversation itself cost in input tokens, by kind (transcripts.js:parseClaude; Claude Code alone)
-const usageOf = (st, carried) => st && st.inputTokens != null ? { input: st.inputTokens, output: st.outputTokens ?? 0, cacheRead: st.cacheReadTokens ?? 0, cacheWrite: st.cacheWriteTokens ?? 0, turns: st.turns || 0, carried: carried || null } : null;
+// `carried`: what the conversation itself cost in input tokens, by kind (transcripts.js: Claude Code, Codex and Gemini since
+// version 12, which also keeps `rewrites`, the prompt-cache rewrites by cause (transcripts.js:cacheRewrites), and the
+// session's `turns` beside the usage, so a session that reports no usage (Cursor) can still be estimated by its calls)
+const usageOf = (st, carried, rewrites) => st && st.inputTokens != null ? { input: st.inputTokens, output: st.outputTokens ?? 0, cacheRead: st.cacheReadTokens ?? 0, cacheWrite: st.cacheWriteTokens ?? 0, turns: st.turns || 0, carried: carried || null, rewrites: rewrites || null } : null;
 function sessionRecords(store, sessions, { levelAt = null, key = '' } = {}) {
   let st = {}; try { st = JSON.parse(fs.readFileSync(stateFile(store), 'utf8')); } catch {}
   const recs = [];
@@ -104,7 +106,7 @@ function sessionRecords(store, sessions, { levelAt = null, key = '' } = {}) {
       let parsed; try { parsed = parseTranscript(s.file); } catch { continue; }
       const at = parsed.events.reduce((a, e) => e.t === 'tool' && e.at && (!a || e.at < a) ? e.at : a, 0) || s.mtime;
       const level = levelAt ? (key, t) => levelAt(key, t ?? at) : null;
-      r = st[s.session] = { v: VERSION, size, mtime: s.mtime, at, tk: levelAt ? key : '', model: parsed.model || null, usage: usageOf(parsed.stats, parsed.carried), by: sessionOutputs(parsed.events, parsed.stats?.turns || 0, parsed.compactions || [], { levelAt: level }) };
+      r = st[s.session] = { v: VERSION, size, mtime: s.mtime, at, tk: levelAt ? key : '', model: parsed.model || null, turns: parsed.stats?.turns || 0, usage: usageOf(parsed.stats, parsed.carried, parsed.rewrites), by: sessionOutputs(parsed.events, parsed.stats?.turns || 0, parsed.compactions || [], { levelAt: level }) };
       changed = true;
     }
     recs.push({ ...r, at: r.at || s.mtime, session: s.session, client: s.client, t: s.mtime });
@@ -120,7 +122,7 @@ function sessionRecords(store, sessions, { levelAt = null, key = '' } = {}) {
 // what its tool outputs cost in input tokens
 export function sessionUsage(store, sessions, { levelAt = null, key = '' } = {}) {
   // `by`: each tool's own cost in the session, so the Report can cost one tool's outputs a session before and since its compression (report.js:actionEffect)
-  return sessionRecords(store, sessions, { levelAt, key }).map(r => ({ session: r.session, t: r.t, client: r.client, model: r.model || null, usage: r.usage || null, outputs: Object.values(r.by).reduce((a, x) => a + x.input, 0), by: Object.fromEntries(Object.entries(r.by).map(([k, x]) => [k, x.input])) }));
+  return sessionRecords(store, sessions, { levelAt, key }).map(r => ({ session: r.session, t: r.t, client: r.client, model: r.model || null, turns: r.turns || 0, usage: r.usage || null, outputs: Object.values(r.by).reduce((a, x) => a + x.input, 0), by: Object.fromEntries(Object.entries(r.by).map(([k, x]) => [k, x.input])) }));
 }
 // The rows of one tool linked: each carries `others`, the same tool's rows under its other settings (level, sessions,
 // from, to, perCall, perSession, wasted), so the page and the command compare a compressed tool with itself before.

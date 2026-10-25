@@ -7,7 +7,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
-import { reportView, mergeReports, renderReport, THRESHOLDS, verdict, formatThreshold, weekColumns, weekStart, cacheMetrics, PARTS, BREAKDOWN, TOKEN_TYPES, OTHERS, outputComparison, formatShare, actionEffect, itemCost, effectSpan, withEffects, promptAverage, mergePromptAverages } from '../src/report.js';
+import { reportView, mergeReports, renderReport, THRESHOLDS, verdict, formatThreshold, weekColumns, weekStart, cacheMetrics, PARTS, BREAKDOWN, TOKEN_TYPES, OTHERS, REWRITES, CALIBRATION, calibrationOf, outputComparison, formatShare, actionEffect, itemCost, effectSpan, withEffects, promptAverage, mergePromptAverages } from '../src/report.js';
+import { REWRITE_CAUSES } from '../src/transcripts.js';
+const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-6, `${msg || ''} ${a} ≈ ${b}`);
 import { listPrice, providerOf, costOf, formatDollars } from '../src/prices.js';
 
 function fixture(t) {
@@ -48,8 +50,12 @@ test('weeks run Monday to Sunday, the current week last; a part is good, mid or 
   // the four parts the Find Savings page controls have a threshold each, at or under good green, at or over bad red, between yellow
   assert.deepEqual(Object.keys(THRESHOLDS), ['instructions', 'custom', 'builtin', 'outputs']);
   for (const t of Object.values(THRESHOLDS)) assert.ok(t.good < t.bad);
-  assert.equal(verdict('instructions', 8_000), 'good'); assert.equal(verdict('instructions', 8_001), 'mid'); assert.equal(verdict('instructions', 20_000), 'bad');
-  assert.equal(verdict('outputs', 50_000), 'bad'); assert.equal(verdict('outputs', 35_000), 'mid'); assert.equal(verdict('builtin', 12_000), 'good');
+  // the figures of 2026-10-24 (8k/20k, 3k/10k, 15k/25k, 20k/50k at four characters a token) scaled by the Anthropic calibration (1.44) and rounded
+  assert.equal(verdict('instructions', 12_000), 'good'); assert.equal(verdict('instructions', 12_001), 'mid'); assert.equal(verdict('instructions', 30_000), 'bad');
+  assert.equal(verdict('outputs', 72_000), 'bad'); assert.equal(verdict('outputs', 50_000), 'mid'); assert.equal(verdict('builtin', 12_000), 'good');
+  // the estimated parts are counted in the model's own tokens: 1.44 for every four characters on an Anthropic model (measured), one for one elsewhere, the config on top
+  assert.equal(CALIBRATION.Anthropic, 1.44); assert.equal(calibrationOf('claude-opus-5-5', 'claude'), 1.44); assert.equal(calibrationOf('gpt-6-astra', 'codex'), 1); assert.equal(calibrationOf(null, 'cursor'), 1);
+  assert.equal(calibrationOf('gpt-6-astra', 'codex', { calibration: { OpenAI: 1.2 } }), 1.2); assert.equal(calibrationOf('claude-opus-5-5', 'claude', { calibration: { Anthropic: 'x' } }), 1.44);
   // no threshold for the rest of the input, the output, or a cell without a figure
   assert.equal(verdict('otherInput', 1e6), null); assert.equal(verdict('output', 5), null); assert.equal(verdict(null, 5), null); assert.equal(verdict('custom', 0), null); assert.equal(verdict('custom', null), null);
   assert.equal(formatThreshold(8_000), '8k'); assert.equal(formatThreshold(20_000), '20k'); assert.equal(formatThreshold(2_500), '2.5k');
@@ -106,16 +112,19 @@ test('the report averages each week over its sessions, by part and by model unde
   assert.equal(bd('thinking').cells[last].tokens, 2 * 40);
   assert.ok(bd('prompts').cells[last].tokens > 0);
   assert.ok(bd('agentCalls').cells[last].tokens > 0);
-  assert.equal(bd('system').cells[last].tokens, 2 * 2 * Math.ceil('["You are an agent."]'.length / 4));
-  assert.equal(bd('notes').cells[last].tokens, 2 * 2 * Math.ceil(JSON.stringify({ type: 'environment', text: 'cwd is here' }).length / 4), 'an environment note, read by both calls');
+  // the estimated kinds in the model's tokens (×1.44 on Anthropic); the thinking as reported, unscaled
+  near(bd('system').cells[last].tokens, 1.44 * 2 * 2 * Math.ceil('["You are an agent."]'.length / 4), 'system prompt');
+  near(bd('notes').cells[last].tokens, 1.44 * 2 * 2 * Math.ceil(JSON.stringify({ type: 'environment', text: 'cwd is here' }).length / 4), 'an environment note, read by both calls');
+  assert.equal(bd('notes').name, 'Harness notes'); assert.equal(bd('other').name, 'Unattributed input');
   assert.deepEqual(v.parts.map(p => p.key), PARTS.map(([k]) => k));
   assert.deepEqual(v.parts.map(p => p.key), ['instructions', 'custom', 'builtin', 'outputs'], 'the tables show the four the Save page controls');
   assert.deepEqual(v.breakdown.map(p => p.key), BREAKDOWN.map(([k]) => k));
   assert.equal(v.totals[last].tokens, v.parts.reduce((a, p) => a + p.cells[last].tokens, 0), 'the parts table totals the four');
-  // the three tables add up to the same whole session: the parts with the rest of the input and the output under them…
+  // the three tables add up to the same whole session: the parts with the rest of the input, by kind since 2026-10-25, and the output under them…
   assert.deepEqual(v.others.map(p => p.key), OTHERS.map(([k]) => k));
+  assert.deepEqual(v.others.map(p => p.key), ['system', 'agentCalls', 'thinking', 'prompts', 'notes', 'other', 'output'], 'the conversation by kind, the unattributed rest, the output');
   assert.equal(avg(v.others.find(p => p.key === 'output').cells, last), 50, 'a prompt: 100 output over the session\'s two calls');
-  assert.equal(v.others.find(p => p.key === 'otherInput').cells[last].tokens, v.breakdown.filter(p => !PARTS.some(([k]) => k === p.key) && p.key !== 'output').reduce((a, p) => a + p.cells[last].tokens, 0));
+  for (const p of v.others) assert.equal(p.cells[last].tokens, bd(p.key).cells[last].tokens, `${p.key} is the breakdown's row`);
   for (const w of [4, last]) assert.equal(v.totals[w].tokens + v.others.reduce((a, p) => a + p.cells[w].tokens, 0), v.sessionTotals[w].tokens, 'the parts with the others are the whole session');
   // …and the tokens by type: an Opus session is two turns of 200 fresh, 300 read from the cache, 50 output
   assert.deepEqual(v.tokenTypes.map(p => p.key), TOKEN_TYPES.map(([k]) => k));
@@ -160,14 +169,15 @@ test('the report averages each week over its sessions, by part and by model unde
   assert.equal(promptAverage([]), null);
   // the command's text: the two tables with totals, the marks, the actions and the cache
   const text = renderReport(v).join('\n');
-  assert.match(text, /By token type/); assert.match(text, /Input, read from cache/); assert.match(text, /Other input/); assert.doesNotMatch(text, /Total of these/);
+  assert.match(text, /By token type/); assert.match(text, /Input, read from cache/); assert.match(text, /Unattributed input/); assert.match(text, /Agent's tool calls/); assert.doesNotMatch(text, /Other input|Total of these/);
+  assert.match(text, /the estimated parts in the model's own tokens: Anthropic ×1\.44/);
   assert.equal((text.match(/TOTAL \(THE WHOLE SESSION\)/g) || []).length, 3, 'every table ends on the whole session');
   assert.ok(text.indexOf('By token type') > text.indexOf('By model'), 'the token types last');
   assert.match(text, /By part of the context/); assert.match(text, /TOTAL/);
   // the parts table alone has the good and bad columns and the marks (✓ · ✗ by THRESHOLDS, tokens a prompt); the others take none
   const partLines = text.split('\n'), instr = partLines.find(l => l.trimStart().startsWith('Instruction files')), outRow = partLines.find(l => l.trimStart().startsWith('Model output'));
   assert.match(partLines[partLines.findIndex(l => l.startsWith('By part of the context')) + 1], /good\s+bad\s+wk /, 'the threshold columns sit beside the part, before the weeks');
-  assert.match(instr, /≤8k\s+≥20k/); assert.match(instr, /✓/, '200 tokens a prompt of instruction files is good'); assert.match(outRow, /–\s+–/, 'no threshold for the output'); assert.doesNotMatch(outRow, /[✓·✗]/);
+  assert.match(instr, /≤12k\s+≥30k/); assert.match(instr, /✓/, 'a few hundred tokens a prompt of instruction files is good'); assert.match(outRow, /–\s+–/, 'no threshold for the output'); assert.doesNotMatch(outRow, /[✓·✗]/);
   assert.doesNotMatch(partLines[partLines.findIndex(l => l.startsWith('By model')) + 1], /good/, 'the model table has no threshold columns'); assert.doesNotMatch(text, /▲|▼/);
   assert.match(text, /✓ · ✗: a part at or under its good figure/);
   assert.deepEqual(v.thresholds, THRESHOLDS, 'the view carries the thresholds for the page');
@@ -182,6 +192,16 @@ test('the report averages each week over its sessions, by part and by model unde
   assert.match(lines.find(l => l.trimStart().startsWith('ANTHROPIC')), /%/, 'a provider subtotal is a share too');
   assert.equal(formatShare(0.5), '50%'); assert.equal(formatShare(0.0909), '9.1%'); assert.equal(formatShare(0.0031), '0.31%'); assert.equal(formatShare(0.00001), '<0.01%'); assert.match(text, /ANTHROPIC/); assert.match(text, /claude-opus-5-5/);
   assert.match(text, /mystery-9 \(unpriced\)/); assert.match(text, /\$ saved\s+\$0\.00/); assert.match(text, /per prompt \(one call to the model\), by week \(.*sessions, 0, 0, 0, 0, 4, 4 prompts\)/);
+  // the prompt-cache rewrites by cause (transcripts.js:cacheRewrites): the fixture sessions are under 20k of context, so none
+  assert.deepEqual(v.rewrites.map(p => p.key), REWRITES.map(([k]) => k)); assert.deepEqual(REWRITES, REWRITE_CAUSES);
+  assert.equal(v.rewrites.reduce((a, p) => a + p.cells[last].n, 0), 0); assert.equal(v.rewriteTotals[last].tokens, 0);
+  assert.match(text, /Prompt cache rewrites \(calls whose context/); assert.match(text, /TOTAL OF THE REWRITES/, 'the table is printed with its total even when empty');
+  // the Cursor session reports no usage: its four parts as estimated, in a table of its own, by its two calls
+  assert.deepEqual(v.estimated.columns.map(c => c.sessions), [0, 0, 0, 0, 0, 1]); assert.equal(v.estimated.columns[last].prompts, 2);
+  assert.ok(v.estimated.parts.find(p => p.key === 'instructions').cells[last].tokens > 0, 'the instruction file it read'); assert.deepEqual(v.estimated.parts.map(p => p.key), PARTS.map(([k]) => k));
+  assert.equal(v.estimated.totals[last].tokens, v.estimated.parts.reduce((a, p) => a + p.cells[last].tokens, 0));
+  assert.match(text, /Sessions whose agent reported no usage \(Cursor\): 1 session/); assert.match(text, /TOTAL OF THE FOUR PARTS/);
+  assert.deepEqual(v.calibration, { Anthropic: 1.44 });
   // the decisions are not on the Report (they are Recent activity's and `thinker context --history`'s)
   assert.doesNotMatch(text, /Recent improvements|Saved with thinker|Workflow tool/);
   assert.match(renderReport(v, { cost: true }).join('\n'), /list prices/);
@@ -191,6 +211,7 @@ test('the report averages each week over its sessions, by part and by model unde
   assert.deepEqual(m.columns.map(c => c.sessions), [0, 0, 0, 0, 4, 4]);
   assert.equal(m.sessionTotals[last].tokens, 4400); assert.equal(m.columns[last].prompts, 8); assert.equal(m.sessionTotals[last].prompts, 8);
   assert.equal(m.tokenTypes.find(p => p.key === 'cacheRead').cells[last].tokens, 2400); assert.equal(m.others.find(p => p.key === 'output').cells[last].tokens, 400);
+  assert.deepEqual(m.estimated.columns.map(c => c.sessions), [0, 0, 0, 0, 0, 2]); assert.equal(m.estimated.totals[last].tokens, 2 * v.estimated.totals[last].tokens); assert.deepEqual(m.rewrites.map(p => p.key), REWRITES.map(([k]) => k)); assert.deepEqual(m.calibration, { Anthropic: 1.44 });
   // a kept report from before the token types merges as zeros, and the page renders it without them
   const old = { ...v }; delete old.tokenTypes; delete old.others;
   assert.equal(mergeReports([{ repo: 'a', name: 'A', view: old }]).tokenTypes.find(p => p.key === 'fresh').cells[last].tokens, 0);

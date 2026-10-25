@@ -179,6 +179,36 @@ class Stats {
   }
 }
 
+// Prompt-cache rewrites (2026-10-25): a call whose context the cache mostly did not serve, so the whole conversation
+// was written again (Anthropic: `cache_creation_input_tokens`, at twice the input rate for the 1h cache Claude Code and
+// pi write; OpenAI and Google: input not `cached`, at the full input rate). On this machine's six weeks these were
+// 54% of all cache-write tokens and a third of the bill at list, so the Report names them by cause: the first call of
+// a session or of a subagent (unavoidable), the call after a compaction, a pause over an hour (the 1h cache expired),
+// a pause of 5 to 60 minutes with the write mostly at the 5-minute TTL (Claude Code writes the messages breakpoint at
+// 5m), a change of model, and mid-conversation with no pause (a context edit, by the harness or by the proxy, or an
+// earlier message changed). `calls` are in order: {t, fresh, read, write, out, model, w5m, w1h, agent, compaction}.
+// A call is a rewrite when its context is over REWRITE_MIN_CONTEXT and the tokens not read from the cache are over half
+// of it. Each cause carries the calls (`n`), the fresh and the written tokens, so a report can price them.
+export const REWRITE_CAUSES = [
+  ['first', 'First call of a session'], ['compaction', 'After a compaction'], ['expired', 'Pause over an hour'],
+  ['tail', 'Pause of 5 to 60 minutes'], ['model', 'Change of model'], ['midway', 'Mid-conversation, no pause'],
+];
+export const REWRITE_MIN_CONTEXT = 20_000;
+export function cacheRewrites(calls) {
+  const out = Object.fromEntries(REWRITE_CAUSES.map(([k]) => [k, { n: 0, fresh: 0, write: 0 }])), prev = new Map();
+  let calls_ = 0;
+  for (const c of calls) {
+    calls_++;
+    const agent = c.agent || 'main', p = prev.get(agent); prev.set(agent, c);
+    const ctx = (c.fresh || 0) + (c.read || 0) + (c.write || 0), miss = (c.fresh || 0) + (c.write || 0);
+    if (ctx <= REWRITE_MIN_CONTEXT || miss <= 0.5 * ctx) continue;
+    const gap = p && c.t && p.t ? (c.t - p.t) / 60000 : 0;
+    const cause = !p ? 'first' : c.compaction ? 'compaction' : gap > 60 ? 'expired' : p.model && c.model && p.model !== c.model ? 'model' : gap > 5 && (c.w5m || 0) > (c.w1h || 0) ? 'tail' : 'midway';
+    out[cause].n++; out[cause].fresh += c.fresh || 0; out[cause].write += c.write || 0;
+  }
+  return { calls: calls_, causes: out };
+}
+
 // Claude Code and Cursor share the Anthropic message shape; Cursor puts the role at the top level.
 function parseMessages(rows, fromLine) {
   const events = [], results = new Map(), models = new ModelTally(), stats = new Stats(), messageUsage = new Map(), compactions = [];
@@ -193,7 +223,8 @@ function parseMessages(rows, fromLine) {
   // alone) once a call; and Claude Code's own notes (every other attachment: environment updates, reminders, the
   // schemas of tools loaded on demand, listings), each read again by the calls after it.
   const carried = { prompts: 0, agentText: 0, agentCalls: 0, thinking: 0, notes: 0, system: 0, instructions: 0 }, run = { prompts: 0, agentText: 0, agentCalls: 0, thinking: 0, notes: 0 }, counted = new Set();
-  let cwd = null, systemTokens = 0, instructionTokens = 0;
+  let cwd = null, systemTokens = 0, instructionTokens = 0, afterCompaction = false;
+  const calls = []; // one per model call that reports usage, for the cache rewrites (cacheRewrites)
   const est = v => Math.ceil(JSON.stringify(v ?? '').length / 4);
   // attachments the other parts already count: the system prompt, the instruction payload, the skill listing (harness.js)
   const COUNTED = new Set(['prompt_snapshot', 'instructions', 'skill_listing']);
@@ -202,7 +233,7 @@ function parseMessages(rows, fromLine) {
     if (j.type === 'attachment' && j.attachment?.type === 'prompt_snapshot') systemTokens = est(j.attachment.systemPrompt);
     else if (j.type === 'attachment' && j.attachment?.type === 'instructions') instructionTokens = est(j.attachment);
     else if (j.type === 'attachment' && j.attachment && !COUNTED.has(j.attachment.type)) run.notes += est(j.attachment);
-    if (j.type === 'system' && j.subtype === 'compact_boundary') for (const k of Object.keys(run)) run[k] = 0;
+    if (j.type === 'system' && j.subtype === 'compact_boundary') { for (const k of Object.keys(run)) run[k] = 0; afterCompaction = true; }
     if (j.type === 'assistant' || j.role === 'assistant') models.add(j.message?.model ?? j.model);
     if (j.type === 'assistant' || j.role === 'assistant') {
       const id = j.message?.id || j.id || `row-${i}`, u = j.message?.usage ?? j.usage;
@@ -212,6 +243,8 @@ function parseMessages(rows, fromLine) {
         for (const k of Object.keys(run)) carried[k] += run[k];
         carried.system += systemTokens; carried.instructions += instructionTokens;
         run.thinking += u.output_tokens_details?.thinking_tokens ?? 0;
+        calls.push({ t: Date.parse(j.timestamp) || 0, fresh: u.input_tokens || 0, read: u.cache_read_input_tokens || 0, write: u.cache_creation_input_tokens || 0, out: u.output_tokens || 0, model: j.message?.model ?? j.model ?? null, w5m: u.cache_creation?.ephemeral_5m_input_tokens || 0, w1h: u.cache_creation?.ephemeral_1h_input_tokens || 0, agent: j.agentId || (j.isSidechain ? 'side' : 'main'), compaction: afterCompaction });
+        afterCompaction = false;
       }
       for (const b of Array.isArray(j.message?.content) ? j.message.content : []) {
         if (b.type === 'tool_use') { stats.toolCalls++; run.agentCalls += est(b.input); }
@@ -257,24 +290,48 @@ function parseMessages(rows, fromLine) {
   });
   for (const usage of messageUsage.values()) stats.turn(usage);
   // `carried` beside the stats, not in them: the stop hook logs the stats on every session line (commands/hooks.js)
-  return { events: attachResults(events, results), cwd, model: models.model, stats: stats.value, carried, compactions };
+  return { events: attachResults(events, results), cwd, model: models.model, stats: stats.value, carried, compactions, rewrites: cacheRewrites(calls) };
 }
 
 function parseCodex(rows, fromLine) {
   const events = [], results = new Map(), models = new ModelTally(), stats = new Stats();
   let cwd = null;
   const seenPrompts = new Set();
+  // What the conversation costs, as parseMessages counts it for Claude Code (2026-10-25): the rollout holds every item
+  // the next call reads again. Codex reports usage per call in `token_count` (`last_token_usage`: input with the cached
+  // part, `cache_write_input_tokens`, output with `reasoning_output_tokens`), with the cumulative total beside it; a
+  // rollout with those is counted by its calls, one without (an exec stream, an old rollout) by the total as before.
+  // Kinds: the person's messages (`prompts`), the agent's text, the arguments of its calls (`agentCalls`), its reasoning
+  // (encrypted, sent back on every call: `thinking`, by `reasoning_output_tokens`), the `<user_instructions>` message
+  // (`instructions`, once a call) and Codex's own context (`<environment_context>`, `additional_tools`: `notes`).
+  const carried = { prompts: 0, agentText: 0, agentCalls: 0, thinking: 0, notes: 0, system: 0, instructions: 0 }, run = { prompts: 0, agentText: 0, agentCalls: 0, thinking: 0, notes: 0 };
+  const calls = [], lastUsages = []; let lastTotal = null, instructionTokens = 0, model = null, msgTurns = 0;
+  const est = v => Math.ceil(JSON.stringify(v ?? '').length / 4);
   const prompt = text => { const t = cleanPrompt(text); if (t && !seenPrompts.has(t)) { seenPrompts.add(t); events.push({ t: 'prompt', text: t }); } };
   rows.forEach((j, i) => {
     if (!j) return;
     const p = j.payload || {};
     if (j.type === 'session_meta' && p.cwd) cwd = p.cwd;
-    if (j.type === 'turn_context' || j.type === 'session_meta') models.add(p.model);
+    if (j.type === 'turn_context' || j.type === 'session_meta') { models.add(p.model); if (p.model) model = p.model; }
     if (j.type === 'thread.started' || j.type === 'turn.started') models.add(j.model ?? j.thread?.model);
     if (j.type === 'turn.completed') stats.turn(j.usage, 'codex');
-    if (j.type === 'event_msg' && p.type === 'token_count') stats.total(p.info?.total_token_usage);
-    if (j.type === 'response_item' && (p.type === 'function_call' || p.type === 'custom_tool_call' || p.type === 'local_shell_call')) stats.toolCalls++;
-    if (j.type === 'response_item' && p.type === 'message' && p.role === 'assistant') stats.turns++;
+    if (j.type === 'event_msg' && p.type === 'token_count') {
+      const last = p.info?.last_token_usage, total = p.info?.total_token_usage;
+      if (total) lastTotal = total;
+      if (last && typeof last === 'object') {
+        lastUsages.push(last);
+        for (const k of Object.keys(run)) carried[k] += run[k];
+        carried.instructions += instructionTokens;
+        run.thinking += last.reasoning_output_tokens || 0;
+        const read = last.cached_input_tokens || 0, write = last.cache_write_input_tokens || 0;
+        calls.push({ t: Date.parse(j.timestamp) || 0, fresh: Math.max(0, (last.input_tokens || 0) - read - write), read, write, out: last.output_tokens || 0, model, agent: 'main', compaction: false });
+      }
+    }
+    if (j.type === 'response_item' && (p.type === 'function_call' || p.type === 'custom_tool_call' || p.type === 'local_shell_call')) { stats.toolCalls++; run.agentCalls += est(p.arguments ?? p.input ?? p.action ?? {}); }
+    if (j.type === 'response_item' && p.type === 'message' && p.role === 'assistant') { msgTurns++; run.agentText += est(textOf(p.content)); }
+    if (j.type === 'response_item' && p.type === 'message' && p.role === 'user') { const t = textOf(p.content); if (/^<user_instructions/.test(t.trim())) instructionTokens = est(t); else if (/^<(environment_context|skills_instructions)/.test(t.trim())) run.notes += est(t); else run.prompts += est(t); }
+    if (j.type === 'response_item' && p.type === 'message' && p.role === 'developer') instructionTokens += est(textOf(p.content)); // the instruction files, as Codex sends them
+    if (j.type === 'response_item' && p.type === 'additional_tools') run.notes += est(p);
     if (i < fromLine) return;
     // rollout files
     if (j.type === 'event_msg' && p.type === 'item_completed' && p.item?.type === 'UserMessage') prompt(textOf(p.item.content));
@@ -297,25 +354,41 @@ function parseCodex(rows, fromLine) {
       else if (it.type === 'mcp_tool_call') events.push(tool(`mcp__${it.server}__${it.tool}`, it.arguments, it.result ?? it.error));
     }
   });
-  return { events: attachResults(events, results), cwd, model: models.model, stats: stats.value };
+  // per-call usage where the rollout has it (the calls are the turns), else the cumulative total with the messages as turns
+  if (lastUsages.length) for (const u of lastUsages) stats.turn(u, 'codex');
+  else { stats.turns = msgTurns; if (lastTotal) stats.total(lastTotal); }
+  return { events: attachResults(events, results), cwd, model: models.model, stats: stats.value, carried: lastUsages.length ? carried : undefined, rewrites: cacheRewrites(calls) };
 }
 
 function parseGemini(j, fromLine) {
   const events = [], models = new ModelTally(), stats = new Stats();
   const msgs = j.messages || j.history || [];
   models.add(j.model);
+  // the conversation's cost as for the other agents (2026-10-25): the person's text, the agent's text and the arguments of
+  // its calls, each read again by every call after; a thought is not sent back by Gemini CLI, so none is carried
+  const carried = { prompts: 0, agentText: 0, agentCalls: 0, thinking: 0, notes: 0, system: 0, instructions: 0 }, run = { prompts: 0, agentText: 0, agentCalls: 0, thinking: 0, notes: 0 }, calls = [];
+  const est = v => Math.ceil(JSON.stringify(v ?? '').length / 4);
   msgs.forEach((m, i) => {
     const role = m.type || m.role;
-    if (role !== 'user') { models.add(m.model); stats.turn(m.tokens || m.usage, 'gemini'); stats.toolCalls += (m.toolCalls || []).length; }
-    if (i < fromLine) return;
     const text = textOf(m.content ?? m.parts ?? m.text);
+    if (role === 'user') run.prompts += est(text);
+    if (role !== 'user') {
+      models.add(m.model); const u = m.tokens || m.usage; stats.turn(u, 'gemini'); stats.toolCalls += (m.toolCalls || []).length;
+      if (u && typeof u === 'object') {
+        for (const k of Object.keys(run)) carried[k] += run[k];
+        const read = u.cached || u.cachedContentTokenCount || 0, input = u.input || u.promptTokenCount || 0;
+        calls.push({ t: Date.parse(m.timestamp) || 0, fresh: Math.max(0, input - read), read, write: 0, out: (u.output || u.candidatesTokenCount || 0) + (u.thoughts || u.thoughtsTokenCount || 0), model: m.model || j.model || null, agent: 'main', compaction: false });
+      }
+      run.agentText += est(text); for (const c of m.toolCalls || []) run.agentCalls += est(c.args ?? c.input ?? {});
+    }
+    if (i < fromLine) return;
     if (role === 'user') { const t = cleanPrompt(text); if (t) events.push({ t: 'prompt', text: t }); }
     else {
       for (const c of m.toolCalls || []) events.push(tool(c.name, c.args ?? c.input, c.result ?? c.resultDisplay ?? c.output, c.id));
       if (text) events.push({ t: 'say', text });
     }
   });
-  return { events, cwd: j.projectPath || j.cwd || null, count: msgs.length, model: models.model, stats: stats.value };
+  return { events, cwd: j.projectPath || j.cwd || null, count: msgs.length, model: models.model, stats: stats.value, carried: calls.length ? carried : undefined, rewrites: cacheRewrites(calls) };
 }
 
 function parseEvents(rows, fromLine) {
@@ -366,7 +439,7 @@ function parseAgy(rows, fromLine = 0) {
 export function parseTranscript(file, { fromLine = 0, format } = {}) {
   const text = fs.readFileSync(file, 'utf8');
   const fmt = format && format !== 'auto' ? format : detectFormat(text);
-  if (fmt === 'gemini') { let j = {}; try { j = JSON.parse(text); } catch {} const r = parseGemini(j, fromLine); return { events: r.events, lineCount: r.count, cwd: r.cwd, model: r.model, format: fmt }; }
+  if (fmt === 'gemini') { let j = {}; try { j = JSON.parse(text); } catch {} const r = parseGemini(j, fromLine); return { events: r.events, lineCount: r.count, cwd: r.cwd, model: r.model, stats: r.stats, carried: r.carried, rewrites: r.rewrites, format: fmt }; }
   const lines = text.split('\n');
   const rows = jsonLines(text);
   // A trailing newline is the start of the next record, not a consumed record.

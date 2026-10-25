@@ -21,6 +21,7 @@ import { summarize, readLog } from './usage.js';
 import { dietConfig, dietTimeline } from './diet.js';
 import { listPrice, providerOf, costOf, formatDollars, PRICED_ON } from './prices.js';
 import { formatTokens } from './model-usage.js';
+import { REWRITE_CAUSES } from './transcripts.js';
 
 export const REPORT_WEEKS = 6;
 // What a part should cost a prompt (one call to the model), in tokens: at or under `good` the cell is green, at or over
@@ -33,12 +34,29 @@ export const REPORT_WEEKS = 6;
 // MCP servers, plugins) 5–9k, one server being 1–5k; Claude Code's built-in tools 25–30k with every tool loaded against
 // 10–15k for the core set; the tool outputs 23k a prompt at the first quartile of the long sessions and 55k at the third,
 // 88% of their cost being reads after the agent last used them (the proxy's clearing is the cut).
+// Since 2026-10-25 the Report counts the estimated parts in the model's own tokens (CALIBRATION below), so the figures set
+// on 2026-10-24 at four characters a token (8k/20k, 3k/10k, 15k/25k, 20k/50k) are scaled by the same factor and rounded,
+// and every verdict given then stands.
 export const THRESHOLDS = {
-  instructions: { good: 8_000, bad: 20_000 },
-  custom: { good: 3_000, bad: 10_000 },
-  builtin: { good: 15_000, bad: 25_000 },
-  outputs: { good: 20_000, bad: 50_000 },
+  instructions: { good: 12_000, bad: 30_000 },
+  custom: { good: 4_000, bad: 15_000 },
+  builtin: { good: 22_000, bad: 36_000 },
+  outputs: { good: 30_000, bad: 72_000 },
 };
+// Calibration of the estimated parts (2026-10-25). Every reader counts text at four characters a token (instruction-value.js,
+// harness.js, tool-outputs.js, transcripts.js `carried`), and the Save page shows that unit. The model counts more: on the 79
+// sessions whose first request was fully recorded (research/context-breakdown-2026-10-22.md) an Anthropic model reported
+// 1.44 tokens for every four characters (1.41–1.46), and at chars/4 the parts covered 74% of a long session's input, the
+// residual being the unit and not a missing part. So the Report, which puts the parts beside the input the model reported,
+// scales each session's estimated parts by its provider's factor before the overshoot check; what is left is
+// `other`, unattributed. Measured for Anthropic alone; OpenAI's and Google's tokenizers are not measured here and count one
+// for one until they are (a `calibration` block in .thinker/config.json overrides a provider's factor). The thinking kept is
+// not scaled: the usage reports it exactly (thinking_tokens, reasoning_output_tokens).
+export const CALIBRATION = { Anthropic: 1.44 };
+export const calibrationFor = (provider, config) => { const own = config?.calibration && typeof config.calibration === 'object' ? config.calibration[provider] : null; return Number.isFinite(own) && own > 0 ? own : CALIBRATION[provider] || 1; };
+export const calibrationOf = (model, client, config) => calibrationFor(providerOf(model, client), config);
+// the factors in force, for the page and the command's caption: the measured ones and any the config sets
+export const calibrations = config => Object.fromEntries([...new Set([...Object.keys(CALIBRATION), ...Object.keys(config?.calibration && typeof config.calibration === 'object' ? config.calibration : {})])].map(p => [p, calibrationFor(p, config)]));
 // 'good' | 'mid' | 'bad' for a part's tokens a prompt; null for a row without a threshold or a cell without a figure
 export const verdict = (key, perPrompt) => { const t = THRESHOLDS[key]; return !t || !perPrompt ? null : perPrompt <= t.good ? 'good' : perPrompt >= t.bad ? 'bad' : 'mid'; };
 // a threshold as the columns show it: 8k, 20k
@@ -58,14 +76,23 @@ export const formatThreshold = n => n % 1000 ? formatTokens(n) : `${n / 1000}k`;
 // work on cutting them (the owner's decision, 2026-10-22).
 export const BREAKDOWN = [
   ['instructions', 'Instruction files'], ['system', 'System prompt'], ['custom', 'Custom tools'], ['builtin', 'Built-in tools'], ['outputs', 'Tool outputs'],
-  ['agentCalls', "Agent's tool calls"], ['thinking', 'Thinking kept'], ['prompts', 'Prompts and replies'], ['notes', "Claude Code's notes"],
-  ['other', 'Other input'], ['output', 'Model output'],
+  ['agentCalls', "Agent's tool calls"], ['thinking', 'Thinking kept'], ['prompts', 'Prompts and replies'], ['notes', 'Harness notes'],
+  ['other', 'Unattributed input'], ['output', 'Model output'],
 ];
 export const PARTS = BREAKDOWN.filter(([k]) => ['instructions', 'custom', 'builtin', 'outputs'].includes(k));
 // the rest of the session under the four parts, so the parts table adds up to the whole session (2026-10-24, the owner's
 // ask): the other input as one row (the conversation: REST_INPUT, the breakdown's other input kinds), and the output
 export const REST_INPUT = BREAKDOWN.map(([k]) => k).filter(k => !PARTS.some(([p]) => p === k) && k !== 'output');
-export const OTHERS = [['otherInput', 'Other input'], ['output', 'Model output']];
+// Since 2026-10-25 the rest of the input is shown by kind (the owner's ask: "Other input" was more than the four parts
+// together and said nothing), each a BREAKDOWN row: the system prompt, the agent's tool calls, its thinking kept, the
+// prompts and replies, the harness's notes, and what no reader attributed (`other`, the estimation slack left after the
+// calibration), then the output. The names are the breakdown's, so OTHERS is built from it.
+export const OTHERS = [...REST_INPUT, 'output'].map(k => BREAKDOWN.find(([key]) => key === k));
+// The prompt-cache rewrites, by cause (transcripts.js:cacheRewrites, REWRITE_CAUSES): the calls whose context the cache
+// mostly did not serve, and the tokens they wrote again (Anthropic: cache writes at twice the input rate; OpenAI and Google:
+// the fresh input). A fourth table under the three (2026-10-25), with a total; its tokens are a part of the token types'
+// fresh and written input, not a fourth total, and the caption says so.
+export const REWRITES = REWRITE_CAUSES;
 // the tokens by type, as the model reported them for each call and the transcript sums them (transcripts.js:Stats,
 // model-usage.js): fresh input, at the input rate; input written to the prompt cache and input read from it, each at its
 // rate; and output. The four add up to the whole session, as the parts and the models do: three tables, one total.
@@ -82,7 +109,7 @@ export function weekColumns(now, weeks) {
 
 // a cell: the week's tokens and cost, with the sessions and the prompts (model calls) behind them, so the average per
 // prompt is the ratio of the sums (a long session weighs by its prompts, not as one)
-const cell = () => ({ tokens: 0, cost: 0, sessions: 0, priced: 0, prompts: 0, pricedPrompts: 0 });
+const cell = () => ({ tokens: 0, cost: 0, sessions: 0, priced: 0, prompts: 0, pricedPrompts: 0, n: 0 });
 const add = (c, tokens, cost, n = 0, p = 0, prompts = 0, pricedPrompts = 0) => { c.tokens += tokens; c.cost += cost || 0; c.sessions += n; c.priced += p; c.prompts += prompts; c.pricedPrompts += pricedPrompts; };
 
 export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sessions } = {}) {
@@ -106,19 +133,29 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   const columns = cols.map(c => ({ t: c.t, sessions: 0, priced: 0, unmeasured: 0, prompts: 0, pricedPrompts: 0 }));
   const byPart = Object.fromEntries(BREAKDOWN.map(([k]) => [k, cols.map(cell)]));
   const byType = Object.fromEntries(TOKEN_TYPES.map(([k]) => [k, cols.map(cell)]));
+  const byCause = Object.fromEntries(REWRITES.map(([k]) => [k, cols.map(cell)]));
+  // the sessions whose agent reports no usage (Cursor): their estimated parts, in a table of their own (`estimated`), since
+  // without a measured input they cannot sit in the three tables that add up to one whole (2026-10-25)
+  const estCols = cols.map(() => ({ sessions: 0, prompts: 0 })), byEst = Object.fromEntries(PARTS.map(([k]) => [k, cols.map(cell)]));
   const models = new Map(), unpriced = new Set();
   // one row a measured session (sessionRows): its input, the four parts as estimated, and the things it cost (above), so
   // each action can be measured as tokens a prompt before and since it (actionEffect), live over a kept report
   const sessionRows = [];
   for (const r of rows) {
     const w = week(r.t); if (w < 0) continue;
-    const col = columns[w];
-    if (!r.usage) { col.unmeasured++; continue; }
+    const col = columns[w], cal = calibrationOf(r.model, r.client, config);
+    if (!r.usage) {
+      col.unmeasured++;
+      const p = parts.get(r.session) || {}, sum = PARTS.reduce((a, [k]) => a + (p[k] || 0), 0);
+      if (sum > 0) { estCols[w].sessions++; estCols[w].prompts += Math.max(1, r.turns || 0); for (const [k] of PARTS) add(byEst[k][w], (p[k] || 0) * cal, 0); }
+      continue;
+    }
     const u = r.usage, price = listPrice(r.model, { config }), cost = costOf(u, price);
     const input = u.input, output = u.output || 0, prompts = Math.max(1, u.turns || 0);
     col.sessions++; col.prompts += prompts; if (cost != null) { col.priced++; col.pricedPrompts += prompts; } else unpriced.add(r.model || 'unknown');
     // the parts as estimated, scaled to the measured input where they overshoot it; what is left is the conversation
-    const p = parts.get(r.session) || {}, c = u.carried || {}, est = { instructions: Math.max(c.instructions || 0, p.instructions || 0), system: c.system || 0, custom: p.custom || 0, builtin: p.builtin || 0, outputs: p.outputs || 0, agentCalls: c.agentCalls || 0, thinking: c.thinking || 0, prompts: (c.prompts || 0) + (c.agentText || 0), notes: c.notes || 0 };
+    // the estimated parts in the model's tokens (calibrationOf); the thinking kept is reported exactly and not scaled
+    const p = parts.get(r.session) || {}, c = u.carried || {}, est = { instructions: Math.max(c.instructions || 0, p.instructions || 0) * cal, system: (c.system || 0) * cal, custom: (p.custom || 0) * cal, builtin: (p.builtin || 0) * cal, outputs: (p.outputs || 0) * cal, agentCalls: (c.agentCalls || 0) * cal, thinking: c.thinking || 0, prompts: ((c.prompts || 0) + (c.agentText || 0)) * cal, notes: (c.notes || 0) * cal };
     const sum = Object.values(est).reduce((a, b) => a + b, 0), scale = sum > input && sum > 0 ? input / sum : 1;
     const inCost = cost == null ? null : (cost - (price ? output * price.output / 1e6 : 0)) / Math.max(1, input);
     for (const k of Object.keys(est)) { const tk = est[k] * scale; add(byPart[k][w], tk, inCost == null ? 0 : tk * inCost); }
@@ -133,6 +170,8 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
     add(byType.cacheWrite[w], write, price ? write * price.cacheWrite / 1e6 : 0);
     add(byType.cacheRead[w], read, price ? read * price.cacheRead / 1e6 : 0);
     add(byType.output[w], output, price ? output * price.output / 1e6 : 0);
+    // the prompt-cache rewrites by cause: the tokens written again, each at its rate
+    for (const [k, x] of Object.entries(u.rewrites?.causes || {})) if (byCause[k]) { const c2 = byCause[k][w]; add(c2, (x.fresh || 0) + (x.write || 0), price ? ((x.fresh || 0) * price.input + (x.write || 0) * price.cacheWrite) / 1e6 : 0); c2.n += x.n || 0; }
     const key = r.model || 'unknown';
     if (!models.has(key)) models.set(key, { model: key, provider: providerOf(r.model, r.client), priced: Boolean(price), cells: cols.map(cell) });
     add(models.get(key).cells[w], input + output, cost, 1, cost == null ? 0 : 1, prompts, cost == null ? 0 : prompts);
@@ -140,7 +179,9 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   // a total row carries the week's prompts, so a merged report (mergeReports) averages over every repository's
   const totalOf = keys => cols.map((_, w) => { const c = cell(); for (const k of keys) add(c, byPart[k][w].tokens, byPart[k][w].cost); c.prompts = columns[w].prompts; c.pricedPrompts = columns[w].pricedPrompts; return c; });
   const totals = totalOf(PARTS.map(([k]) => k)), sessionTotals = totalOf(BREAKDOWN.map(([k]) => k));
-  const others = OTHERS.map(([key, name]) => ({ key, name, cells: key === 'output' ? byPart.output : totalOf(REST_INPUT) }));
+  const others = OTHERS.map(([key, name]) => ({ key, name, cells: byPart[key] }));
+  const rewriteTotals = cols.map((_, w) => { const c = cell(); for (const k of Object.keys(byCause)) { add(c, byCause[k][w].tokens, byCause[k][w].cost); c.n += byCause[k][w].n; } c.prompts = columns[w].prompts; c.pricedPrompts = columns[w].pricedPrompts; return c; });
+  const estimated = { columns: estCols, parts: PARTS.map(([key, name]) => ({ key, name, cells: byEst[key] })), totals: cols.map((_, w) => { const c = cell(); for (const [k] of PARTS) add(c, byEst[k][w].tokens, 0); c.prompts = estCols[w].prompts; return c; }) };
   const tokenTypes = TOKEN_TYPES.map(([key, name]) => ({ key, name, cells: byType[key] }));
   // the models by provider, the biggest provider first and the biggest model within it
   const windowOf = m => m.cells.reduce((a, c) => a + c.tokens, 0);
@@ -157,6 +198,8 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
     tokenTypes,
     parts: PARTS.map(([key, name]) => ({ key, name, cells: byPart[key] })), others, totals, sessionTotals,
     breakdown: BREAKDOWN.map(([key, name]) => ({ key, name, cells: byPart[key] })),
+    rewrites: REWRITES.map(([key, name]) => ({ key, name, cells: byCause[key] })), rewriteTotals, estimated,
+    calibration: calibrations(config),
     providers, models: modelRows, unpriced: [...unpriced],
     actions, outputRows: outRows, cache: cacheMetrics(store, { days, config }),
   };
@@ -271,7 +314,7 @@ export function mergeReports(list) {
   list = list.filter(x => x.view);
   if (!list.length) return null;
   const first = list[0].view, n = first.columns.length;
-  const sumCells = xs => Array.from({ length: n }, (_, w) => { const c = cell(); for (const cs of xs) if (cs[w]) add(c, cs[w].tokens, cs[w].cost, cs[w].sessions, cs[w].priced, cs[w].prompts || 0, cs[w].pricedPrompts || 0); return c; });
+  const sumCells = xs => Array.from({ length: n }, (_, w) => { const c = cell(); for (const cs of xs) if (cs[w]) { add(c, cs[w].tokens, cs[w].cost, cs[w].sessions, cs[w].priced, cs[w].prompts || 0, cs[w].pricedPrompts || 0); c.n += cs[w].n || 0; } return c; });
   const views = list.map(x => x.view);
   const models = new Map();
   for (const v of views) for (const m of v.models) { if (!models.has(m.model)) models.set(m.model, { ...m, cells: [] , _cells: [] }); models.get(m.model)._cells.push(m.cells); }
@@ -287,6 +330,10 @@ export function mergeReports(list) {
     tokenTypes: TOKEN_TYPES.map(([key, name]) => ({ key, name, cells: sumCells(views.map(v => (v.tokenTypes || []).find(p => p.key === key)?.cells || [])) })),
     parts: PARTS.map(([key, name]) => ({ key, name, cells: sumCells(views.map(v => v.parts.find(p => p.key === key)?.cells || [])) })),
     others: OTHERS.map(([key, name]) => ({ key, name, cells: sumCells(views.map(v => (v.others || []).find(p => p.key === key)?.cells || [])) })),
+    rewrites: REWRITES.map(([key, name]) => ({ key, name, cells: sumCells(views.map(v => (v.rewrites || []).find(p => p.key === key)?.cells || [])) })),
+    rewriteTotals: sumCells(views.map(v => v.rewriteTotals || [])),
+    estimated: { columns: Array.from({ length: n }, (_, w) => ({ sessions: views.reduce((a, v) => a + (v.estimated?.columns?.[w]?.sessions || 0), 0), prompts: views.reduce((a, v) => a + (v.estimated?.columns?.[w]?.prompts || 0), 0) })), parts: PARTS.map(([key, name]) => ({ key, name, cells: sumCells(views.map(v => (v.estimated?.parts || []).find(p => p.key === key)?.cells || [])) })), totals: sumCells(views.map(v => v.estimated?.totals || [])) },
+    calibration: views.find(v => v.calibration)?.calibration || CALIBRATION,
     breakdown: BREAKDOWN.map(([key, name]) => ({ key, name, cells: sumCells(views.map(v => (v.breakdown || []).find(p => p.key === key)?.cells || [])) })),
     totals: sumCells(views.map(v => v.totals)), sessionTotals: sumCells(views.map(v => v.sessionTotals)),
     providers, models: modelRows, unpriced: [...new Set(views.flatMap(v => v.unpriced))],
@@ -323,7 +370,8 @@ export function renderReport(v, { cost = false, total = false, share = false } =
   const head = `  ${''.padEnd(30)}${weeks}`, headThr = `  ${''.padEnd(30)}${'good'.padStart(T)}${'bad'.padStart(T)}${weeks}`;
   const base = share ? v.sessionTotals : null;
   L.push(`${total ? 'Total' : 'Average'} ${cost ? 'cost' : 'tokens'} ${total ? 'over the week\'s sessions' : 'per prompt (one call to the model)'}, by week (${v.columns.map(c => c.sessions).join(', ')} sessions, ${v.columns.map(c => c.prompts || 0).join(', ')} prompts)${cost ? `, at list prices of ${v.pricedOn}` : ''}${share ? '; each row as its share of the whole session, the totals as they are' : ''}`);
-  L.push('', 'By part of the context (the four the Find Savings page measures and controls, the rest of the input as one line; --json holds the whole breakdown)', headThr);
+  const calNote = Object.entries(v.calibration || CALIBRATION).map(([k, f]) => `${k} ×${f}`).join(', ');
+  L.push('', `By part of the context (the four the Find Savings page measures and controls, then the conversation by kind; the estimated parts in the model's own tokens: ${calNote}, the others one for one)`, headThr);
   for (const p of v.parts) L.push(line(p.name, p.cells, false, base, { key: p.key, thresholds: true }));
   for (const p of v.others || []) L.push(line(p.name, p.cells, false, base, { thresholds: true }));
   L.push(line('Total (the whole session)', v.sessionTotals, true, null, { thresholds: true }));
@@ -334,6 +382,23 @@ export function renderReport(v, { cost = false, total = false, share = false } =
   L.push('', 'By token type (as the model reported them: fresh input, input written to and read from the prompt cache, output)', head);
   for (const p of v.tokenTypes || []) L.push(line(p.name, p.cells, false, base));
   L.push(line('Total (the whole session)', v.sessionTotals, true));
+  // the cache rewrites: a count a week in the Total view, else the tokens (or cost) a prompt; a part of the fresh and
+  // written input above, not a fourth whole
+  if (v.rewrites) {
+    const counts = cells => cells.map(c => (c.n ? String(c.n) : '').padStart(W)).join('');
+    L.push('', `Prompt cache rewrites (calls whose context the cache mostly did not serve, so the conversation was written again: a part of the fresh and written input above, by cause; ${total ? 'the week\'s tokens' : cost ? 'the cost a prompt' : 'the tokens a prompt'}, and the calls)`, head);
+    for (const p of v.rewrites) if (p.cells.some(c => c.n)) { L.push(line(p.name, p.cells, false, base)); L.push(`  ${'  calls'.padEnd(30)}${counts(p.cells)}`); }
+    L.push(line('Total of the rewrites', v.rewriteTotals || [], true, base)); L.push(`  ${'  calls'.padEnd(30)}${counts(v.rewriteTotals || [])}`);
+  }
+  // the sessions whose agent reports no usage (Cursor): their parts as estimated, by themselves
+  const estSessions = (v.estimated?.columns || []).reduce((a, c) => a + c.sessions, 0);
+  if (estSessions) {
+    const ecol = v.estimated.columns, eavg = (c, w) => total ? c.tokens : (ecol[w].prompts ? c.tokens / ecol[w].prompts : null);
+    const eline = (name, cells, bold) => `  ${(bold ? name.toUpperCase() : name).padEnd(30)}${cells.map((c, w) => (eavg(c, w) ? formatTokens(eavg(c, w)) : '').padStart(W)).join('')}`;
+    L.push('', `Sessions whose agent reported no usage (Cursor): ${estSessions} session${estSessions === 1 ? '' : 's'}, their four parts as estimated (${ecol.map(c => c.sessions).join(', ')} sessions, ${ecol.map(c => c.prompts).join(', ')} prompts; tokens${total ? '' : ' a prompt'}, no cost)`, head);
+    for (const p of v.estimated.parts) L.push(eline(p.name, p.cells, false));
+    L.push(eline('Total of the four parts', v.estimated.totals, true));
+  }
   L.push(`  ✓ · ✗: a part at or under its good figure, between the two, at or over its bad figure, in tokens a prompt whatever the table shows; the rest of the input, the output, the models and the token types take no mark; a zero is left blank. A model row is its share of the ${total ? 'week' : 'average prompt'}; its sessions:` + ` ${v.models.map(m => `${m.model} ${m.cells.map(c => c.sessions).join('/')}`).join(', ')}.`);
   if (v.unpriced.length) L.push(`  No list price for ${v.unpriced.join(', ')}: their sessions are left out of the cost average.`);
   const c = v.cache;
