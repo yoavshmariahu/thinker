@@ -462,3 +462,40 @@ test('a merged pull request from before the merge commit was kept: GitHub is ask
   assert.equal(hs[1].unpulled, true, 'the compression is told by the commit now');
   assert.equal(await refreshPrStates(store, { now: now + 200_000, prs }), 0); assert.equal(asked, 2, 'not asked again');
 });
+
+test('the auto-compact window as a row: suggested when a tenth of the input ran past it, set into the local settings\' env, taken out by Revert', async () => {
+  const { allChanges, topChanges, approveChanges, revertDecision, changeHistory } = await import('../src/context-suggest.js');
+  const { compactWindowSet, COMPACT_WINDOW_VAR } = await import('../src/harness.js');
+  const store = repo();
+  const row = (over = {}) => ({ kind: 'setting', key: 'setting:compactWindow', client: 'claude', name: 'Auto-compact window', window: 200000, set: null, sessions: 12, reached: 4, tokens: 0, perSession: 150_000, share: 0.29, ...over });
+  const cs = allChanges(view({ settings: [row()] })), c = cs.find(x => x.kind === 'setting');
+  assert.equal(c.key, 'setting:compactWindow'); assert.equal(c.view, 'builtin'); assert.equal(c.waste, 'high'); assert.equal(c.saving, 150_000);
+  assert.deepEqual(c.options.map(o => o.act), ['window']); assert.equal(c.what, 'Claude Code setting'); assert.match(c.why, /29% of the input was context past 200k tokens, in 4 of 12 sessions/);
+  assert.ok(topChanges(view({ settings: [row()] })).some(x => x.kind === 'setting'), 'flagged at a tenth of the input');
+  assert.equal(topChanges(view({ settings: [row({ share: 0.05 })] })).some(x => x.kind === 'setting'), false, 'under a tenth: on the page, not suggested');
+  assert.equal(allChanges(view({})).some(x => x.kind === 'setting'), false, 'no row when the switch is off (the view carries none)');
+  // approved: the variable in the local settings' env; the row then offers the default back
+  const said = await approveChanges(store, [c]);
+  assert.deepEqual(said, ['Auto-compact window: Compacting at 200k tokens from the next session on']);
+  const local = path.join(store.repo, '.claude', 'settings.local.json');
+  assert.equal(JSON.parse(fs.readFileSync(local, 'utf8')).env[COMPACT_WINDOW_VAR], '200000');
+  assert.deepEqual(compactWindowSet(store.repo, { userHome: tmp('thinker-nohome-') }), { file: local, value: 200000, raw: '200000' });
+  const back = allChanges(view({ settings: [row({ set: { file: local, value: 200000, raw: '200000' } })] })).find(x => x.kind === 'setting');
+  assert.deepEqual(back.options.map(o => o.act), ['window-off']); assert.equal(back.saving, 0); assert.equal(back.off, true);
+  // reverted: the variable gone, the env block with it when empty
+  const h = changeHistory(store), e = h.find(x => x.key === 'setting:compactWindow');
+  assert.equal(e.revertible, true); assert.equal(e.what, 'Claude Code setting');
+  assert.ok(!(await revertDecision(store, e.id)).error);
+  assert.equal(JSON.parse(fs.readFileSync(local, 'utf8')).env, undefined);
+  assert.equal(compactWindowSet(store.repo, { userHome: tmp('thinker-nohome-') }), null);
+  // the default back, approved from the row, restores a value that was there before
+  fs.writeFileSync(local, JSON.stringify({ env: { [COMPACT_WINDOW_VAR]: '300k', OTHER: '1' } }));
+  await approveChanges(store, [back]);
+  assert.deepEqual(JSON.parse(fs.readFileSync(local, 'utf8')).env, { OTHER: '1' });
+  await revertDecision(store, changeHistory(store)[0].id);
+  assert.deepEqual(JSON.parse(fs.readFileSync(local, 'utf8')).env, { OTHER: '1', [COMPACT_WINDOW_VAR]: '300k' });
+  // a suffixed value is read as tokens; the project's and the user's files are read after the local one
+  fs.writeFileSync(local, JSON.stringify({}));
+  fs.writeFileSync(path.join(store.repo, '.claude', 'settings.json'), JSON.stringify({ env: { [COMPACT_WINDOW_VAR]: '250k' } }));
+  assert.deepEqual(compactWindowSet(store.repo, { userHome: tmp('thinker-nohome-') }).value, 250000);
+});

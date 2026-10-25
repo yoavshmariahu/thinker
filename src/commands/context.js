@@ -10,6 +10,7 @@
 import { historyEffects, promptAverageHere, keptRows } from '../report-snapshot.js';
 import { contextView, switchSources, setOutputCompression } from '../context-view.js';
 import { judgeRecent, findRepoSessions } from '../instruction-value.js';
+import path from 'node:path';
 import { formatTokens } from '../model-usage.js';
 import { refreshSnapshots, writeSnapshot } from '../context-snapshot.js';
 import { machineContext, recommendations, renderMachineReport, MACHINE_REPOS, MACHINE_TOP } from '../context-machine.js';
@@ -135,6 +136,7 @@ async function contextCommand({ store, flags, out }) {
     for (const o of rows.slice(0, flags.verbose ? undefined : 12)) out(`  ${pad(formatTokens(o.perSession), 9)} ${pad(o.wasted == null ? '-' : formatTokens(o.wasted), 9)} ${pad(o.calls.toFixed(1), 6)} calls ${pad(formatTokens(o.perCall), 6)}  ${o.name}${note(o)}`);
     out('');
   }
+  for (const s of v.settings || []) out(`Claude Code setting: ${s.name} ${s.set ? `set to ${s.set.raw} (${path.basename(s.set.file)})` : 'at Claude Code\'s default'}; ${Math.round(100 * (s.share || 0))}% of the input was context past ${formatTokens(s.window)} tokens (~${formatTokens(s.perSession)} a session, ${s.reached} of ${s.sessions} sessions reached it). ${s.set ? '`thinker harness --window off` puts the default back.' : `\`thinker harness --window ${s.window}\` compacts there; a summary and what it leaves out are the price, which only an experiment can weigh.`}`);
   if (v.tools.length) {
     out('Other tools loaded into every session:');
     for (const s of v.tools.slice(0, flags.verbose ? undefined : 20)) out(`  ${pad(s.tokens, 6)} ${pad(formatTokens(s.perSession), 9)} used ${pad(`${s.used}/${s.loaded}`, 7)}  ${s.client === 'claude' ? '' : `${s.client}: `}${s.name} ${s.kind}${s.off ? ' (off)' : s.suggested ? ' (rarely used)' : ''}`);

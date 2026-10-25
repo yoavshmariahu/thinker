@@ -267,6 +267,20 @@ test('over the wire: a section\'s Apply records the decision running and starts 
   assert.equal(fs.readFileSync(path.join(dir, 'AGENTS.md'), 'utf8'), '# R\n\n## Tests\n\nRun `npm test`.\n\n## Style\n\nShort lines.\n');
 });
 
+test('the auto-compact window is one row on both doors, behind harness.compactWindow, with one setter', () => {
+  // the view carries the row (context-view.js:compactWindowRow) when the switch is on; the page and the command read it
+  assert.match(read('context-view.js'), /const settings = compactWindowOn\(store\.repo\) \? \[compactWindowRow\(store, sessions\)\] : \[\];/);
+  assert.match(read('ui/page.html'), /for \(const s of v\.settings \|\| \[\]\) rows\.push\(\{\n\s+view: 'builtin', kind: 'setting'/);
+  assert.match(read('commands/context.js'), /for \(const s of v\.settings \|\| \[\]\) out\(`Claude Code setting: /);
+  // the actions are the change's (context-suggest.js:ACTS.window, windowOff), the page names them the same
+  assert.match(read('context-suggest.js'), /window: \{ act: 'window', text: 'Compact at 200k tokens' \}/); assert.match(read('context-suggest.js'), /windowOff: \{ act: 'window-off'/);
+  assert.match(read('ui/page.html'), /\[\['window-off', 'Claude Code\\'s default window'\]\] : \[\['window', `Compact at \$\{fmt\(s\.window\)\} tokens`\]\]/);
+  // one setter for the page's Apply, the command's --window and Revert (harness.js:setCompactWindow)
+  assert.equal((read('context-suggest.js').match(/setCompactWindow\(/g) || []).length, 2, 'apply and revert');
+  assert.match(read('commands/harness.js'), /setCompactWindow\(store, n\)/); assert.match(read('cli.js'), /harness \[.*\[--window n\|off\]/);
+  assert.match(read('harness.js'), /export const COMPACT_WINDOW = 200_000;/);
+});
+
 test('the Report tab and `thinker report` show one report: the same weeks, parts, prices and trend rule', () => {
   // both doors read report.js:reportView; the page's All repositories is mergeReports, as the command has no All
   assert.match(read('commands/report.js'), /reportView\(store, \{ weeks \}\)/);

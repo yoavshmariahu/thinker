@@ -44,6 +44,7 @@ const CUSTOM = { mcp: 'Custom tool · MCP server', connector: 'Custom tool · co
 // (tool for a built-in, mcp, plugin, connector, desktop), `name` the tool's or output's name, `text` the part's own text.
 export function describePart({ kind, key = '', name = '', builtin = false, toolKind = null, text = '' } = {}) {
   if (kind === 'section') return { what: 'Instruction section', about: firstSentence(text) };
+  if (kind === 'setting') return { what: 'Claude Code setting', about: 'the context size at which Claude Code compacts the conversation into a summary' };
   if (kind === 'skill') return { what: 'Custom tool · skill', about: skillDescription(text) || firstSentence(text) };
   if (kind === 'tool') {
     const tk = toolKind || (builtin || /:(builtin|tool):/.test(`:${key}`) ? 'tool' : /:mcp:/.test(`:${key}`) ? 'mcp' : /:plugin:/.test(`:${key}`) ? 'plugin' : /:desktop:/.test(`:${key}`) ? 'desktop' : null);

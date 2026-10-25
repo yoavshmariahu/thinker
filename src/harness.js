@@ -57,6 +57,46 @@ export function builtinToolsOn(repo, env = process.env) {
   try { return new Store(repo, { readonly: true }).config().harness?.builtinTools === true; } catch { return false; }
 }
 
+// The auto-compact window as a lever on the Save page (2026-10-25), off until an experiment: `harness: { compactWindow:
+// true }` in .thinker/config.json, or THINKER_HARNESS_COMPACT_WINDOW=on (=off wins). Claude Code compacts the conversation
+// when the context reaches its window (CLAUDE_CODE_AUTO_COMPACT_WINDOW, 100k to 1M tokens; the model's limit by default);
+// on this machine's six weeks 51% of the input dollars went to context above 100k and 29% above 200k
+// (research/cost-levers-2026-10-25.md), the largest lever the harness itself offers, at the price of a summary and
+// whatever the summary loses, which no replay can cost: an experiment can. The row proposes one window, COMPACT_WINDOW,
+// written as the variable into the `env` of the checkout's .claude/settings.local.json (the same file the tool switches
+// use), and takes it out again.
+export const COMPACT_WINDOW = 200_000;
+export const COMPACT_WINDOW_VAR = 'CLAUDE_CODE_AUTO_COMPACT_WINDOW';
+export function compactWindowOn(repo, env = process.env) {
+  const v = env.THINKER_HARNESS_COMPACT_WINDOW || '';
+  if (/^(0|off|false)$/i.test(v)) return false;
+  if (/^(1|on|true)$/i.test(v)) return true;
+  try { return new Store(repo, { readonly: true }).config().harness?.compactWindow === true; } catch { return false; }
+}
+// the window in force for this checkout's sessions, as Claude Code resolves it: the local settings' `env` over the
+// project's over the user's (settings.js precedence, the shell's variable aside); null where none sets it
+const readJsonFile = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
+export function compactWindowSet(repo, { userHome } = {}) {
+  const cp = claudePaths(userHome);
+  for (const f of [path.join(repo, '.claude', 'settings.local.json'), path.join(repo, '.claude', 'settings.json'), cp.settings]) {
+    const v = readJsonFile(f)?.env?.[COMPACT_WINDOW_VAR];
+    if (v != null && v !== '') { const n = /^(\d+)k$/i.test(String(v)) ? Number(String(v).slice(0, -1)) * 1000 : Number(v); return { file: f, value: Number.isFinite(n) ? n : null, raw: String(v) }; }
+  }
+  return null;
+}
+// write the window into the local settings' `env` (a value), or take it out (null); the previous value comes back for the undo
+export function setCompactWindow(store, value, { home, now = Date.now() } = {}) {
+  const local = path.join(store.repo, '.claude', 'settings.local.json'), ctx = { home, now, backups: new Map() };
+  let prev = null;
+  editJson(local, j => {
+    prev = j.env?.[COMPACT_WINDOW_VAR] ?? null;
+    if (value == null) { if (j.env) { delete j.env[COMPACT_WINDOW_VAR]; if (!Object.keys(j.env).length) delete j.env; } }
+    else (j.env ||= {})[COMPACT_WINDOW_VAR] = String(value);
+  }, ctx);
+  store.log({ op: 'harness-setting', setting: 'compactWindow', value: value ?? null, prev });
+  return { file: local, prev };
+}
+
 // Claude Code's own files; CLAUDE_CONFIG_DIR moves them (clients.js:claudeDir does the same).
 export function claudePaths(home = os.homedir(), env = process.env) {
   const dir = env.CLAUDE_CONFIG_DIR || path.join(home, '.claude');

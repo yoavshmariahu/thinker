@@ -603,7 +603,7 @@ const CSORTS = {
 // a button says what it is doing while it works: compressing a section is a model call of several seconds
 const busy = (btn, text) => { btn.disabled = true; btn.dataset.label = btn.textContent; btn.innerHTML = `<span class="spinner"></span>${text}`; };
 const idle = btn => { btn.disabled = false; btn.textContent = btn.dataset.label || btn.textContent; };
-const KIND = { mcp: 'MCP server', connector: 'connector', plugin: 'plugin', tool: 'built-in tool', desktop: 'desktop app' };
+const KIND = { mcp: 'MCP server', connector: 'connector', plugin: 'plugin', tool: 'built-in tool', desktop: 'desktop app', setting: 'Claude Code setting' };
 const CLIENT = { codex: 'Codex', cursor: 'Cursor', claude: 'Claude Code', gemini: 'Gemini CLI' };
 // the actions a row takes, as context-suggest.js:allChanges gives them (the server resolves the row by its key): a section
 // compressed or removed; a skill or tool switched off, or back on when thinker switched it off; an output's compression level
@@ -659,6 +659,16 @@ function contextRows(v) {
     detail: s.text ? `<pre class="md-pre" style="white-space:pre-wrap">${esc(s.text)}</pre>` : '<p class="muted">No description recorded.</p>',
     tokens: s.tokens, perSession: s.perSession, sessions: s.loaded || 0, acted: s.loaded ? s.used / s.loaded : null, actedBy: `${s.used} of ${s.loaded} sessions called it`,
     wasted: s.off ? null : s.wasted, waste: s.waste, off: Boolean(s.off), options: switchOpts(s), disabled: s.off || s.label ? '' : 'no setting switches this one off',
+  });
+  // the harness's settings (context-view.js:compactWindowRow, when harness.compactWindow is on): one row in the Built-in
+  // tools view, its action the window or Claude Code's default; its waste is the input past the proposed window
+  for (const s of v.settings || []) rows.push({
+    view: 'builtin', kind: 'setting', kindLabel: KIND.setting, key: s.key, repo: repoOf(s), repoIds: s.repoIds, name: s.name, bold: true,
+    sub: [CLIENT.claude, s.set ? `set to ${s.set.raw}` : 'Claude Code\'s default', s.repos > 1 ? `${s.repos} repositories` : ''].filter(Boolean).join(' · '),
+    detail: `<p class="muted">Claude Code compacts the conversation into a summary when the context reaches its window (the model's limit by default; <code>CLAUDE_CODE_AUTO_COMPACT_WINDOW</code>). Over the ${s.sessions} measured sessions, ${Math.round(100 * (s.share || 0))}% of the input was context past ${fmt(s.window)} tokens, in ${s.reached} session${s.reached === 1 ? '' : 's'}. Compacting there costs a summary and what the summary leaves out, which only an experiment can weigh.</p>`,
+    tokens: 0, perSession: s.perSession, sessions: s.sessions, acted: null, actedBy: `${s.reached} of ${s.sessions} sessions reached ${fmt(s.window)} tokens of context`,
+    wasted: s.set ? null : s.perSession, waste: s.set ? 'low' : (s.share || 0) >= 0.2 ? 'high' : (s.share || 0) >= 0.1 ? 'medium' : 'low', off: Boolean(s.set),
+    options: s.set ? [['window-off', 'Claude Code\'s default window']] : [['window', `Compact at ${fmt(s.window)} tokens`]], disabled: '',
   });
   const os = v.outputs?.sessions || 0, outCost = v.totals?.outputs?.perSession || (v.outputs?.tools || []).reduce((a, t) => a + (t.perSession || 0), 0);
   // an output's waste: what its results cost after the agent last used them (tool-outputs.js:sessionOutputs), as a
@@ -811,6 +821,7 @@ function patchContext(items) {
   for (const { r, act } of items) {
     if (r.kind === 'skill' || r.kind === 'tool') { const s = bySource(r.kind === 'skill' ? CTX.skills : CTX.tools, r.key); if (s && (act === 'off' || act === 'on')) s.off = act === 'off'; }
     else if (r.kind === 'output' && (act === 'compress' || act === 'uncompress')) { const s = (CTX.outputs?.tools || []).find(o => !o.past && `output:${o.name}` === r.key); if (s) { s.compression = act === 'compress' ? 'moderate' : null; s.level = s.compression; } }
+    else if (r.kind === 'setting' && (act === 'window' || act === 'window-off')) { const s = (CTX.settings || []).find(x => x.key === r.key); if (s) s.set = act === 'window' ? { raw: String(s.window), value: s.window, file: '.claude/settings.local.json' } : null; }
   }
 }
 function renderContext(v) {

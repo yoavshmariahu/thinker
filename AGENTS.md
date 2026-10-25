@@ -1099,6 +1099,18 @@ the repository; `thinker skills seed <transcripts...>` seeds from chosen ones (a
 `thinker skills suggest <file>` previews. The offline checks are in
 `bench/worktrees/eval-support/skill-protocol/` (local). No agent session has been run with it.
 
+**The auto-compact window on the Save page (off until an experiment, 2026-10-25).** With `harness: { compactWindow: true }`
+in `.thinker/config.json` (or `THINKER_HARNESS_COMPACT_WINDOW=on`; `=off` wins), the Built-in tools view carries one row of
+kind `setting`, "Auto-compact window" (`context-view.js:compactWindowRow`): over the window's Claude Code sessions, the input
+tokens of every call past 200k tokens of context (`transcripts.js:cacheRewrites` `above`, on the session record since state
+version 14), a session, with the sessions that reached it and the share of the input, and whether a window is set for this
+checkout (`harness.js:compactWindowSet`: the local settings' `env` over the project's over the user's). Its action writes
+`CLAUDE_CODE_AUTO_COMPACT_WINDOW=200000` into the `env` of `.claude/settings.local.json` (`setCompactWindow`; `thinker harness
+--window 200k|off` is the command), its Revert takes it out and puts back what was there; a set window offers the default back.
+Suggested when a tenth of the input ran past the window. Why: on this machine's six weeks 51% of the input dollars went to
+context above 100k and 29% above 200k (research/cost-levers-2026-10-25.md), the largest lever the harness itself has; what a
+compaction's summary loses no replay can cost, so nothing turns it on by default.
+
 **Built-in tools in the harness advice (off until an experiment, 2026-10-20).** With `harness: { builtinTools: true }`
 in `.thinker/config.json` (or `THINKER_HARNESS_BUILTIN_TOOLS=on`; `=off` wins over the config), the harness counts
 Claude Code's own tools as sources beside plugins, skills and MCP servers: their definitions from the transcript's

@@ -104,7 +104,7 @@ export function suggestedPicks(view, { top = MACHINE_TOP } = {}) {
   return recommendations(view, { top }).items.map(x => ({ kind: x.kind, key: suggestedKey(x), repo: x.repoId || null, act: suggestedAct(x) }));
 }
 
-const what = { section: 'section', skill: 'skill', tool: 'tool' };
+const what = { section: 'section', skill: 'skill', tool: 'tool', setting: 'setting' };
 const groupName = { mcp: 'MCP server', plugins: 'plugin', builtin: 'built-in tool' };
 // one suggestion as a line: what it is, where, what it costs a session, how often it was used
 export function recommendationLine(x) {

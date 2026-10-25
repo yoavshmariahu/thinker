@@ -156,7 +156,7 @@ const HELP = `thinker — knowledge cache for coding agents
   version [--json]               the version this thinker runs, and its commit when it runs from a checkout
   served [--json]                what this checkout's own log says was served: prompt-hook and file-hook notes, orient and lookup calls
   spent [--json]                 what this checkout's own log says its model calls spent
-  harness [--days n] [--json] [--verbose] [--off <labels>] [--undo [names]] [--recall on|off] [--enabled on|off]
+  harness [--days n] [--json] [--verbose] [--off <labels>] [--undo [names]] [--window n|off] [--recall on|off] [--enabled on|off]
                                  off by default, not yet released: --enabled on turns it on for this repository (--undo works either way);
                                  what Claude Code, Codex and Cursor record loading here (MCP servers, plugins, skills, with their tokens) against
                                  what the sessions use, and the ones worth switching off; the report changes nothing. --off switches named ones

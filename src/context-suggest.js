@@ -61,6 +61,8 @@ export const ACTS = {
   off: { act: 'off', text: 'Switch off' },
   on: { act: 'on', text: 'Turn back on' },
   uncompress: { act: 'uncompress', text: 'No compression' },
+  window: { act: 'window', text: 'Compact at 200k tokens' },
+  windowOff: { act: 'window-off', text: 'Claude Code\'s default window' },
 };
 const pctLess = (cut, of) => { const p = of ? 100 * cut / of : 0; return p < 1 ? '<1% smaller' : `~${Math.round(p)}% smaller`; };
 const flagged = r => !r.off && (r.waste === 'high' || r.waste === 'medium') && r.wasted > 0;
@@ -99,6 +101,15 @@ function partChanges(view, { all = false } = {}) {
     title: `${s.name}${s.kind === 'mcp' ? ' MCP server' : s.kind === 'plugin' ? ' plugin' : ' tool'}`, saving: s.wasted, text: String(s.text || '').slice(0, 1200),
     why: `used in ${s.used} of ${s.loaded} sessions; ~${formatTokens(s.tokens)} tokens in every model call`, action: 'switch it off here',
     builtin: s.group === 'builtin', sessions: s.loaded || 0, options: switchOpts(s), ...describePart({ kind: 'tool', name: s.name, builtin: s.group === 'builtin', toolKind: s.kind, text: s.text }),
+  });
+  // the harness's settings (context-view.js:compactWindowRow, when harness.compactWindow is on): the auto-compact window, set
+  // for this checkout or back to Claude Code's default; flagged when a tenth of the input went past the proposed window
+  for (const s of view.settings || []) if (all || (!s.set && s.share >= 0.1)) out.push({
+    kind: 'setting', view: 'builtin', waste: s.set ? 'low' : s.share >= 0.2 ? 'high' : s.share >= 0.1 ? 'medium' : 'low', key: s.key, name: s.name, repo: s.repo, set: s.set, window: s.window, off: Boolean(s.set),
+    title: s.name, saving: s.set ? 0 : s.perSession, text: '',
+    why: s.set ? `set to ${s.set.raw} in ${path.basename(s.set.file)}` : `${Math.round(100 * s.share)}% of the input was context past ${formatTokens(s.window)} tokens, in ${s.reached} of ${s.sessions} sessions; compacting there costs a summary and what it leaves out, which only an experiment can weigh`,
+    action: s.set ? 'back to Claude Code\'s default' : `compact at ${formatTokens(s.window)} tokens (Claude Code)`,
+    sessions: s.sessions, options: s.set ? [ACTS.windowOff] : [ACTS.window], ...describePart({ kind: 'setting', name: s.name }),
   });
   // what an output's tool is, from the tool's own row (its definition's text): a built-in tool by its name, an MCP server by its key
   const toolText = n => (view.tools || []).find(s => n.startsWith('mcp:') ? s.kind === 'mcp' && (s.key === n || s.name === n.slice(4)) : s.group === 'builtin' && s.name === n)?.text || '';
@@ -429,6 +440,11 @@ export async function approveChanges(store, changes, { edit } = {}) {
       const ok = level === 'off' ? /^Compression off for/.test(r) : /^Moderate compression for/.test(r);
       return ok ? { result: level === 'off' ? 'Compression off from the next tool call' : 'Compressed from the next tool call', undo: { kind: 'output', name: c.name, level: c.compression || 'off' } } : { error: r };
     }
+    if (c.kind === 'setting') {
+      const { setCompactWindow } = await import('./harness.js');
+      const on = c.default.act === 'window', r = setCompactWindow(store, on ? c.window : null);
+      return { result: on ? `Compacting at ${formatTokens(c.window)} tokens from the next session on` : 'Claude Code\'s default window from the next session on', undo: { kind: 'setting', setting: 'compactWindow', value: r.prev } };
+    }
     if (c.default.act === 'on') {
       const r = switchSources(store, { keys: [c.sourceKey || c.name], on: true });
       return /^Turned back on/.test(r) ? { result: 'Turned back on from the next session on', undo: c.label ? { kind: 'on', label: c.label, builtin: Boolean(c.builtin) } : null } : { error: r };
@@ -483,6 +499,9 @@ export async function revertDecision(store, id, { now = Date.now(), prs } = {}) 
   } else if (u.kind === 'output') {
     const { setOutputCompression } = await import('./context-view.js');
     setOutputCompression(store, [u.name], u.level || 'off');
+  } else if (u.kind === 'setting') {
+    const { setCompactWindow } = await import('./harness.js');
+    setCompactWindow(store, u.value == null ? null : u.value);
   } else if (u.kind === 'on') {
     const { switchSources } = await import('./context-view.js');
     const r = switchSources(store, { labels: [u.label], builtin: Boolean(u.builtin) });

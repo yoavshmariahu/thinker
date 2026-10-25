@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseTranscript } from './transcripts.js';
 
-const KEEP = 1000, VERSION = 13;
+const KEEP = 1000, VERSION = 14; // 14: the rewrites carry `above` and `maxContext` (transcripts.js:cacheRewrites)
 // what each level's cap leaves of an output, in tokens (diet.js:DIET_LEVELS outputChars / 4): the part of a
 // compressible tool's result past it is a saving at least (the other trims, round search hits and file windows, come on top);
 // an MCP server has the moderate level alone (diet.js:mcpLevel), so its high saving is its moderate one

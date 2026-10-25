@@ -13,6 +13,17 @@ async function harnessCommand({ store, repo, flags, out }) {
   if (flags.enabled !== undefined) { const s = setHarnessSettings(store, { enabled: onOff(flags.enabled) }); out(`thinker harness here: ${s.enabled ? 'on' : 'off'}`); return; }
   // --undo works with it off: it reverses what was switched off while it was on
   if (flags.undo) { out(undoHarness(store, { names: flags.undo === true ? null : String(flags.undo).split(',') })); return; }
+  // --window n|off: the auto-compact window for this checkout (harness.js:setCompactWindow; the Save page's row when
+  // harness.compactWindow is on), written into .claude/settings.local.json's env, or taken out
+  if (flags.window !== undefined) {
+    const { setCompactWindow, compactWindowSet, COMPACT_WINDOW_VAR } = await import('../harness.js');
+    const raw = String(flags.window).trim().toLowerCase();
+    if (raw === 'off' || raw === 'default') { setCompactWindow(store, null); out(`${COMPACT_WINDOW_VAR} taken out of .claude/settings.local.json: Claude Code's default window from the next session on.`); return; }
+    const n = /^(\d+)k$/.test(raw) ? Number(raw.slice(0, -1)) * 1000 : Number(raw);
+    if (!Number.isFinite(n) || n < 100_000 || n > 1_000_000) { out('thinker harness --window: a number of tokens from 100000 to 1000000 (or 200k), or off.'); process.exitCode = 2; return; }
+    setCompactWindow(store, n); const set = compactWindowSet(store.repo);
+    out(`${COMPACT_WINDOW_VAR}=${n} in .claude/settings.local.json: Claude Code compacts at ${n} tokens from the next session on${set && set.value !== n ? ` (a higher scope sets ${set.raw} in ${set.file}, which wins)` : ''}.`); return;
+  }
   if (!harnessOn(store)) { out(OFF_MESSAGE); return; }
   if (flags.off) { out(switchOffNow(store, String(flags.off), { via: 'cli', any: true })); return; }
   if (flags.recall !== undefined) { const s = setHarnessSettings(store, { recall: onOff(flags.recall) }); out(`switched-off hints: ${s.recall ? 'on' : 'off'}`); return; }

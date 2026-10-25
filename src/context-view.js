@@ -5,14 +5,14 @@
 // the page's Context tab, so both show the same rows and the same controls: a section is kept or left out of the
 // team's file by a pull request (instruction-edit.js), a tool is switched off for the
 // repository (`thinker harness --off`), where the harness is on.
-import { harnessUsage, harnessAdvice, harnessOn, labelOf, canSwitchOff, MIN_TOKENS, median, setHarnessSettings, switchOffNow, undoHarness } from './harness.js';
+import { harnessUsage, harnessAdvice, harnessOn, labelOf, canSwitchOff, MIN_TOKENS, median, setHarnessSettings, switchOffNow, undoHarness, compactWindowOn, compactWindowSet, COMPACT_WINDOW } from './harness.js';
 import { dietConfig, compressible, COMPRESSIBLE, setDietLevel, levelOf, dietTimeline } from './diet.js';
 import { instructionValue, findRepoSessions } from './instruction-value.js';
 import { wasteLevel } from './instruction-value.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { readLog } from './usage.js';
-import { toolOutputs, linkRows } from './tool-outputs.js';
+import { toolOutputs, linkRows, sessionUsage } from './tool-outputs.js';
 import { topChanges } from './context-suggest.js';
 
 // The skills' outcome checks over the window, per skill: sessions checked where it applied, read in, broken after
@@ -82,6 +82,10 @@ export function contextView(store, { days = 30, sessions, usage, log } = {}) {
   const outputs = toolOutputs(store, sessions, { levelAt: timeline.levelAt, key: timeline.key });
   outputs.tools = outputs.tools.map(t => { const compression = levelOf(diet, t.name); return { ...t, compressible: compressible(t.name), compression, past: (t.level || null) !== (compression || null), since: t.level ? timeline.since(t.name, t.level) : null }; });
   const instructions = { ...iv };
+  // the harness's own settings as rows, when their switch is on (harness.js:compactWindowOn): the auto-compact window, with
+  // what the input above the proposed window cost a session over the Claude Code sessions measured (transcripts.js:
+  // cacheRewrites `above`), and whether a window is set for this checkout
+  const settings = compactWindowOn(store.repo) ? [compactWindowRow(store, sessions)] : [];
   const sum = (xs, k) => xs.reduce((a, x) => a + (x.off ? 0 : x[k] || 0), 0);
   const view = {
     days, sessions: usage.sessions, harnessOn: on,
@@ -95,7 +99,7 @@ export function contextView(store, { days = 30, sessions, usage, log } = {}) {
       // the tools by kind, as the Context tab's bar and tables split them
       ...Object.fromEntries(Object.keys(TOOL_GROUPS).map(g => { const xs = tools.filter(r => toolGroup(r) === g); return [g, { tokens: sum(xs, 'tokens'), perSession: sum(xs, 'perSession'), count: xs.filter(x => !x.off).length }]; })),
     },
-    instructions, skills, tools, outputs: { sessions: outputs.sessions, tools: outputs.tools },
+    instructions, skills, tools, settings, outputs: { sessions: outputs.sessions, tools: outputs.tools },
     // one row per session, for the trend: its input tokens by part (tokens a call × its model calls); the instruction
     // file and the loaded tools come from different readers, so a session may have one side only
     timeline: [
@@ -118,6 +122,16 @@ export function contextView(store, { days = 30, sessions, usage, log } = {}) {
 // names the repositories it came from (`repoIds`) and keeps a switch label where any of them has one, so the page's All
 // can switch it off in each of those repositories as the installer's terminal picker does (context-machine.js:
 // machineChanges); the switch itself is made per repository, by the row's key in that repository's own report.
+// The compaction-window row (harness.js:COMPACT_WINDOW): over the window's Claude Code sessions that report usage, the input
+// tokens of every call past the proposed window, summed and averaged a session (`perSession`), the sessions that reached it,
+// and the window set now (`set`: the value and the file, or null)
+export function compactWindowRow(store, sessions) {
+  const rows = sessionUsage(store, sessions).filter(r => r.client === 'claude' && r.usage?.rewrites?.above);
+  const above = rows.reduce((a, r) => a + (r.usage.rewrites.above[COMPACT_WINDOW] || 0), 0), reached = rows.filter(r => (r.usage.rewrites.maxContext || 0) > COMPACT_WINDOW).length;
+  const input = rows.reduce((a, r) => a + (r.usage.input || 0), 0), set = compactWindowSet(store.repo);
+  return { kind: 'setting', key: 'setting:compactWindow', client: 'claude', name: 'Auto-compact window', window: COMPACT_WINDOW, set, sessions: rows.length, reached, tokens: 0,
+    perSession: rows.length ? Math.round(above / rows.length) : 0, share: input ? above / input : 0, off: Boolean(set) };
+}
 export function mergeViews(list) {
   list = list.filter(x => x.view && x.view.sessions + (x.view.instructions?.sessions || 0) > 0);
   const w = (xs, k, by) => { const n = xs.reduce((a, x) => a + (x[by] || 0), 0); return n ? xs.reduce((a, x) => a + (x[k] || 0) * (x[by] || 0), 0) / n : 0; };

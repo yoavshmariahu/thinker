@@ -415,3 +415,11 @@ test('Gemini chats carry the conversation\'s cost and per-call rewrites', () => 
   assert.equal(r.carried.prompts, 2 * est('where is x')); assert.equal(r.carried.agentText, est('looking')); assert.equal(r.carried.agentCalls, est({ path: '/r/src/x.py' })); assert.equal(r.carried.thinking, 0);
   assert.deepEqual(r.rewrites.causes.first, { n: 1, fresh: 25000, write: 0, write1h: 0 }); assert.equal(r.rewrites.calls, 2); assert.equal(Object.values(r.rewrites.causes).reduce((a, v) => a + v.n, 0), 1);
 });
+
+test('cacheRewrites measures the input past each context cap, for the auto-compact window', () => {
+  const call = (read, write = 0) => ({ t: 0, fresh: 10, read, write, out: 1, model: 'm', agent: 'main' });
+  const r = cacheRewrites([call(0, 50000), call(90000), call(150000), call(250000)]);
+  assert.equal(r.maxContext, 250010);
+  assert.deepEqual(r.above, { 100000: 50010 + 150010, 150000: 10 + 100010, 200000: 50010, 300000: 0 }, 'each call\'s context past the cap, summed');
+  assert.deepEqual(cacheRewrites([]).above, { 100000: 0, 150000: 0, 200000: 0, 300000: 0 });
+});

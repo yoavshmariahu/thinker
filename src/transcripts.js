@@ -196,11 +196,18 @@ export const REWRITE_CAUSES = [
   ['tail', 'Pause of 5 to 60 minutes'], ['model', 'Change of model'], ['midway', 'Mid-conversation, no pause'],
 ];
 export const REWRITE_MIN_CONTEXT = 20_000;
+// the caps the input is measured against (`above`): what an auto-compact window at each would not have carried, the input
+// tokens of every call past the cap, summed (context-view.js: the compaction-window row of the Save page, 2026-10-25)
+export const CONTEXT_CAPS = [100_000, 150_000, 200_000, 300_000];
 export function cacheRewrites(calls) {
   const out = Object.fromEntries(REWRITE_CAUSES.map(([k]) => [k, { n: 0, fresh: 0, write: 0, write1h: 0 }])), prev = new Map();
-  let calls_ = 0;
+  const above = Object.fromEntries(CONTEXT_CAPS.map(cap => [cap, 0]));
+  let calls_ = 0, maxContext = 0;
   for (const c of calls) {
     calls_++;
+    const size = (c.fresh || 0) + (c.read || 0) + (c.write || 0);
+    maxContext = Math.max(maxContext, size);
+    for (const cap of CONTEXT_CAPS) if (size > cap) above[cap] += size - cap;
     const agent = c.agent || 'main', p = prev.get(agent); prev.set(agent, c);
     const ctx = (c.fresh || 0) + (c.read || 0) + (c.write || 0), miss = (c.fresh || 0) + (c.write || 0);
     if (ctx <= REWRITE_MIN_CONTEXT || miss <= 0.5 * ctx) continue;
@@ -208,7 +215,7 @@ export function cacheRewrites(calls) {
     const cause = !p ? 'first' : c.compaction ? 'compaction' : gap > 60 ? 'expired' : p.model && c.model && p.model !== c.model ? 'model' : gap > 5 && (c.w5m || 0) > (c.w1h || 0) ? 'tail' : 'midway';
     out[cause].n++; out[cause].fresh += c.fresh || 0; out[cause].write += c.write || 0; out[cause].write1h += Math.min(c.w1h || 0, c.write || 0);
   }
-  return { calls: calls_, causes: out };
+  return { calls: calls_, causes: out, above, maxContext };
 }
 
 // Claude Code and Cursor share the Anthropic message shape; Cursor puts the role at the top level.
