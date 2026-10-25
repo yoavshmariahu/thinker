@@ -1,6 +1,6 @@
 {
   "name": "thinker",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "description": "Think ahead. Save context. A knowledge cache for coding agents: injects the context and skills that fit each task and keeps itself fresh as the code changes",
   "type": "module",
   "bin": {
