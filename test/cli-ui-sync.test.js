@@ -20,6 +20,18 @@ const SRC = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'sr
 const read = f => fs.readFileSync(path.join(SRC, f), 'utf8');
 const tmp = p => fs.mkdtempSync(path.join(os.tmpdir(), p));
 
+test('experimental Responses proxy is a CLI-only opt-in and shares the existing thresholds', async () => {
+  const { proxyConfig, PROXY_DEFAULTS } = await import('../src/proxy.js');
+  const cfg = proxyConfig({ protocol: 'responses', upstream: 'https://api.openai.com/v1' }, {});
+  for (const key of ['trigger', 'keep', 'keepMin', 'clearAtLeast']) assert.equal(cfg[key], PROXY_DEFAULTS[key]);
+  assert.equal(proxyConfig({}, {}).protocol, 'anthropic');
+  assert.match(read('cli.js'), /--protocol anthropic\|responses/);
+  assert.match(read('commands/proxy.js'), /cfg\.protocol === 'responses'/);
+  // The page has no proxy controls. Automatic service setup must not opt Codex in.
+  assert.doesNotMatch(read('proxy-service.js'), /THINKER_PROXY_PROTOCOL|--protocol|thinker_responses/);
+  assert.doesNotMatch(read('ui/page.html'), /--protocol responses/);
+});
+
 // A repository the test user committed to in src/api four times: their focus area is src/api.
 function repo(t) {
   const dir = fs.realpathSync(tmp('thinker-sync-'));

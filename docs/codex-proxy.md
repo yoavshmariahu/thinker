@@ -1,0 +1,118 @@
+# Experimental Codex context proxy
+
+Thinker can shorten old text tool results in OpenAI Responses requests. This is
+**opt-in**, through a separate foreground proxy; `connect`, `setup`, and
+`thinker proxy on` do not change Codex's provider or enable it.
+
+This is selective tool-output clearing, not OpenAI's summarizing compaction API.
+Codex still owns its transcript and native compaction. Thinker changes the full
+history sent to the model, leaving a placeholder where an older output was.
+It makes no extra model calls and needs no agent CLI login of its own. A desktop
+client that honors the same custom provider settings can use the same route.
+It cannot change an already running session that is not routed through it.
+
+## Start a separate proxy
+
+For the OpenAI API, in one terminal:
+
+```sh
+thinker proxy --protocol responses --port 8788 \
+  --upstream https://api.openai.com/v1
+```
+
+In Codex's config, add a separate provider and select it for a new session:
+
+```toml
+# Keep your existing model and reasoning effort.
+model_provider = "thinker_responses"
+
+[model_providers.thinker_responses]
+name = "Thinker Responses proxy"
+base_url = "http://127.0.0.1:8788"
+wire_api = "responses"
+env_key = "OPENAI_API_KEY"
+supports_websockets = false
+```
+
+Keep the proxy running while the client uses it. To stop using it, restore your
+previous `model_provider`, restart the client, then stop the foreground proxy
+with Ctrl-C. `thinker proxy off` manages the existing Anthropic service, not this
+separate process. No credentials are stored by the proxy.
+
+For an existing gateway, use its exact provider base URL as `--upstream`, and
+preserve its authentication, headers, model and capabilities in the new provider.
+The upstream base path is prepended to the client's request path: the example
+above sends `/responses` to `/v1/responses`. Do not also append `/v1` to the local
+`base_url`, which would duplicate it upstream.
+
+**ChatGPT login:** this is a different upstream from `api.openai.com`. Codex's
+ChatGPT backend normally uses `https://chatgpt.com/backend-api/codex`; a custom
+provider using that route needs `requires_openai_auth = true` instead of
+`env_key`. Thinker forwards the client's authorization and account headers
+unchanged. This route has **not been verified against the live ChatGPT backend**;
+do not treat the API-key example as a way to use a ChatGPT subscription. A
+provider/account rejecting edited history or custom routing needs its normal
+provider restored. Desktop provider support also depends on the particular app.
+
+## What gets cleared
+
+- Only `function_call_output` and `custom_tool_call_output` text from before the
+  latest user message is eligible. The entire current turn stays intact.
+- At least the newest three tool outputs stay (`--keep-min n`). Calls and IDs,
+  user/developer messages, reasoning and encrypted compaction items stay intact.
+  Image, file and mixed-content outputs stay intact.
+- Clearing starts at roughly 100,000 tokens and must remove roughly 80,000 tokens
+  (`--trigger n`, `--clear-at-least n`). These are **UTF-8 request bytes divided by
+  four**, not tokenizer counts. Instructions and tool schemas count toward the
+  trigger; only replaceable tool-output bytes count toward the removal minimum.
+- `--keep turn` is required in this mode; a numeric `--keep` is rejected.
+- The proxy recomputes replacements from the full request each time. Identical
+  retries and resumed histories produce identical replacements, without keeping
+  a second transcript or session state on disk. A changed prefix can miss the
+  provider's prompt cache; more clearing is not necessarily cheaper.
+- `/responses/compact`, requests containing `compaction_trigger` or
+  `context_management`, and linked server-side histories (`previous_response_id`
+  or `conversation`, or inputs with `item_reference`) pass through unchanged. Unknown/non-array histories and
+  compressed request bodies also pass through, with a reason in the report.
+  This mode requires full-history HTTP/SSE requests; WebSocket upgrades receive
+  an explicit error instructing the client to use HTTP/SSE.
+
+Old outputs can still matter. A model may have to read them again, or miss
+information. This policy has no measured quality or savings advantage over
+native Codex yet. It stays opt-in pending an approved Artemis comparison using
+the same model and reasoning effort in both arms.
+
+## Inspect and verify
+
+`thinker proxy report --json` includes a separate `responses` object: requests,
+input tokens, cached input (already included in input), output tokens, bytes
+removed, upstream errors, and reasons requests were left unchanged. Text reports
+show these too. Bytes removed are not billed-token savings, and the report does
+not apply Anthropic's cache-price weights to OpenAI usage. Logs contain counts,
+model and session identifiers, not credentials or request/response content.
+
+`--holdout 0.15` leaves a stable 15% of identified sessions unchanged. A session
+comes from `session_id`, `x-codex-session-id`, or `prompt_cache_key`. With a
+nonzero holdout, requests without an identifier are left unchanged.
+
+Unit and loopback tests cover preservation, streaming, authentication headers,
+upstream errors, usage, native compaction passthrough, and repeat requests:
+
+```sh
+npm test -- test/proxy-responses.test.js test/proxy.test.js
+```
+
+An optional real-client test starts the installed Codex against a loopback fake
+model in a disposable home. It executes a harmless fixture command, resumes the
+session, and verifies that only the older output is shortened. It uses no real
+model, credentials or personal configuration:
+
+```sh
+THINKER_CODEX_PROXY_SMOKE=1 npm test -- test/proxy-codex.test.js
+```
+
+Verified this way with Codex CLI 0.164.0. This proves the CLI transport and resume
+path, not live provider acceptance, answer quality, or token savings.
+
+Protocol references: [Codex provider configuration](https://learn.chatgpt.com/docs/config-file/config-reference)
+and [OpenAI compaction](https://developers.openai.com/api/docs/guides/compaction).

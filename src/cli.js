@@ -252,13 +252,16 @@ const HELP = `thinker — knowledge cache for coding agents
                                  there leaves it off): a local pass-through for the agents that speak the Anthropic Messages
                                  API at a settable base URL (Claude Code, pi, OpenCode) that asks the API to clear old tool
                                  results on its side; status also prints the report of the last 30 days
-  proxy [serve] --port n [--upstream url] [--notes] [--repo path] [--trigger n] [--keep n|turn] [--keep-min n] [--clear-at-least n] [--holdout share]
+  proxy [serve] --port n [--protocol anthropic|responses] [--upstream url] [--notes] [--repo path] [--trigger n] [--keep n|turn] [--keep-min n] [--clear-at-least n] [--holdout share]
                                  the proxy in the foreground (what the service runs; --keep turn, the default: only the
                                  results of earlier turns are cleared; --keep n: all but the newest n);
                                  --notes serves this checkout's notes to an agent with no prompt hook (Goose, Aider: Anthropic
                                  and OpenAI chat requests; off until an experiment); proxy report [--days n] [--json] sums its
                                  log; proxy replay [--days n] [--policies spec] [--json] costs the policies over this
                                  checkout's Claude Code sessions with no model call
+                                 --protocol responses: experimental Codex/OpenAI tool-output clearing; requires --upstream,
+                                 --keep turn and HTTP/SSE; preserves the current turn. Thresholds estimate tokens as bytes/4.
+                                 Off by default; no settings changed. Setup and limits: docs/codex-proxy.md
   telemetry [--send] [--json] [--force] [--event name] [--schedule] [--unschedule] [--status]
                                  cache effectiveness and size metrics sent to the metrics service;
                                  --schedule / --unschedule manages hourly background telemetry
