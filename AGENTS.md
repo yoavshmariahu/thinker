@@ -1472,6 +1472,20 @@ the next visit re-read every transcript of the window: 340 sessions here, 70 s w
 page waited on it. Measured on this repository with the records dropped: 846 ms from the kept activity, 55 ms with the
 records; the kept activity is 18 MB for 348 sessions.
 
+**The page is rebuilt in place, never through the spinner, once it is on screen (2026-10-25, the owner's ask: the page
+flashed on every action).** Every refresh of a page already showing the repository and window asked for (an Apply, a Revert or
+Retry, a job finishing under the 5-second poll, a background report landing, a switch back to the tab) keeps the table on screen
+and swaps the new one in when the answer is in (`page.html:swapBody`): the scroll position, the rows opened with See more and the
+action picked in a row's dropdown hold (each keyed by the row's key, `data-dk`, since the rows may have moved), and the body keeps
+its height until the new content has laid out. The Save header says `updating…` meanwhile, on a line of its own with a fixed
+height (`#c-asof`), since the text wrapping the lede moved the table a line under the reader. After an Apply the rows show the
+change at once, from the setting the server wrote (`patchContext`: a skill or tool off, an output compressed) and the decisions
+read again (a section's job under way), before the report is read again behind it, which takes a second or more since the action
+made the kept copy stale. A load overtaken by a later one (the repository or window changed meanwhile) renders nothing; an error
+on an in-place refresh is a toast, the table staying. The spinner is for the first read of a tab and a change of repository or
+window, where what is shown is not what was asked for. Until that day `loadContext`, `loadActivity` and `loadReport` wiped the body
+to "Reading…" on every call, and `pollActivity` called them whenever a job's state moved.
+
 **A section change is a pull request (2026-10-24, the owner's ask).** Writing the compressed or removed section to the
 working tree locked nothing in and threw the page to a view above the table. Now the diff opens in a modal over the
 table (`page.html:previewSections`, `openEditModal`), and its one button makes the previewed edit a commit on a branch of

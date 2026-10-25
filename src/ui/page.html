@@ -54,6 +54,9 @@
     main { max-width: 1440px; margin: 0 auto; padding: 2.25rem 2rem 4rem; }
     h1 { font-size: 1.9rem; font-weight: 700; letter-spacing: -0.04em; line-height: 1.15; }
     .lede { font-size: 1rem; color: #6b7280; line-height: 1.55; margin-top: 0.5rem; max-width: 680px; }
+    /* when the figures were measured, on a line of its own that is always there: text added to it (`updating…`) must not
+       wrap the lede onto another line and move the table under the reader (2026-10-25) */
+    #c-asof { display: block; min-height: 1.55em; font-size: 0.88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .kicker { font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; margin-bottom: 0.45rem; }
     .section { margin-top: 2.25rem; }
     .section-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; margin-bottom: 0.9rem; flex-wrap: wrap; }
@@ -113,6 +116,7 @@
     .ctx-table .num, .ctx-table th.num { text-align: center; font-variant-numeric: tabular-nums; }
     .ctx-table tr.ctx-high td { background: #fef2f2; }
     .ctx-table tr.ctx-medium td { background: #fefce8; }
+    .ctx-table tbody td { transition: background-color 0.15s ease; }
     .ctx-table tr.ctx-picked td { background: #eff6ff; }
     .ctx-table tr.ctx-off td { color: #6b7280; }
     .ctx-table input[type=checkbox] { margin: 0 0.3rem 0 0; vertical-align: -1px; accent-color: #111; }
@@ -453,19 +457,46 @@ document.querySelectorAll('#c-days-seg button').forEach(b => b.onclick = () => {
 $('#c-repo').onchange = e => { CREPO = e.target.value; e.target.blur(); loadContext(); };
 // the logo's three dots as the Save tab's spinner (.logo-spin): the same marks as the favicon
 const LOGO_SPIN = '<svg class="logo-spin" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="22" r="6"/><circle cx="16" cy="16" r="6"/><circle cx="22" cy="10" r="6"/></svg>';
+// The table on screen stays while the figures are read again (2026-10-25): when the same repository and window are already
+// shown (after an Apply, when a job finishes, on a tab switch back) the body is rebuilt in place once the answer is in, the
+// scroll and the open rows kept (swapBody), and the header says `updating…` meanwhile. Until then every refresh went through
+// the spinner, and the page flashed on every action and every poll. The spinner is for the first read, and a change of
+// repository or window, where the table shown is not the one asked for. A load overtaken by a later one renders nothing.
+let CTX_FOR = null, CLOAD = 0;
 async function loadContext() {
-  const el = $('#context-body');
-  el.innerHTML = `<div class="empty">${LOGO_SPIN}Reading the transcripts…</div>`; $('#c-sort-wrap').hidden = true;
+  const el = $('#context-body'), seq = ++CLOAD, inPlace = Boolean(CTX) && CTX_FOR === `${CREPO}|${cdays}`;
+  if (inPlace) { const a = $('#c-asof'); if (a && !/updating/.test(a.textContent)) a.textContent = `${a.textContent.replace(/\s*$/, '')}${a.textContent.trim() ? ', ' : ''}updating…`; }
+  else { el.innerHTML = `<div class="empty">${LOGO_SPIN}Reading the transcripts…</div>`; $('#c-sort-wrap').hidden = true; }
   try {
     if (!REPOS.length) await fetchRepos();
     if (!CREPO || (CREPO !== 'all' && !REPOS.some(r => r.id === CREPO))) CREPO = REPO !== 'all' && REPOS.some(r => r.id === REPO) ? REPO : REPOS.find(r => r.current)?.id || REPOS[0]?.id || '';
     $('#c-repo').innerHTML = `<option value="all"${CREPO === 'all' ? ' selected' : ''}>All repositories</option>` + REPOS.map(r => `<option value="${esc(r.id)}"${r.id === CREPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
-    if (CREPO === 'all') $('#context-body').innerHTML = `<div class="empty">${LOGO_SPIN}Reading every repository's transcripts (the first time takes a while)…</div>`;
+    if (CREPO === 'all' && !inPlace) el.innerHTML = `<div class="empty">${LOGO_SPIN}Reading every repository's transcripts (the first time takes a while)…</div>`;
     if (!CREPO) { el.innerHTML = `<div class="empty">No repository with a cache on this machine yet.</div>`; return; }
+    const want = `${CREPO}|${cdays}`;
     const [v, d] = await Promise.all([api(`/api/context?repo=${encodeURIComponent(CREPO)}&days=${cdays}`), api(`/api/activity?repo=${encodeURIComponent(CREPO)}`).catch(e => ({ error: e.message, history: [] }))]);
-    CHIST = d;
+    if (seq !== CLOAD || want !== `${CREPO}|${cdays}`) return;
+    CHIST = d; CTX_FOR = want;
     renderContext(v); contextAsOf(v);
-  } catch (e) { el.innerHTML = `<div class="empty">Could not read the context: ${esc(e.message)}</div>`; }
+  } catch (e) { if (inPlace && seq === CLOAD) { toast(`Could not read the context: ${e.message}`, true); contextAsOf(CTX); } else if (seq === CLOAD) el.innerHTML = `<div class="empty">Could not read the context: ${esc(e.message)}</div>`; }
+}
+// A table rebuilt while the person reads it keeps their place: the scroll position, the rows opened with See more (by the
+// row's key, not its index, since the rows may have moved), and the body's height until the new content has laid out, so
+// the page neither jumps nor flashes. Every render of the three pages goes through it.
+function swapBody(el, html) {
+  const y = scrollY, open = [...el.querySelectorAll('.ctx-detail[data-dk]:not([hidden])')].map(d => d.dataset.dk);
+  const acts = new Map([...el.querySelectorAll('select[data-act][data-dk]')].map(x => [x.dataset.dk, x.value]));
+  el.style.minHeight = `${el.offsetHeight}px`;
+  el.innerHTML = html;
+  for (const k of open) {
+    const d = el.querySelector(`.ctx-detail[data-dk="${CSS.escape(k)}"]`), b = el.querySelector(`.ctx-more[data-dk="${CSS.escape(k)}"]`);
+    if (d) d.hidden = false;
+    if (b) { b.setAttribute('aria-expanded', 'true'); b.textContent = 'See less'; }
+  }
+  // the action picked in a row's dropdown holds too
+  for (const [k, v] of acts) { const x = el.querySelector(`select[data-act][data-dk="${CSS.escape(k)}"]`); if (x && [...x.options].some(o => o.value === v)) x.value = v; }
+  scrollTo(0, y);
+  requestAnimationFrame(() => requestAnimationFrame(() => { el.style.minHeight = ''; }));
 }
 // The report is kept and made again in the background (context-snapshot.js): the page says when it was measured
 // and, while a newer one is being made, checks back and shows it, unless the person has picked rows to act on.
@@ -473,17 +504,17 @@ let CPOLL = null;
 const sinceMeasured = t => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 48 * 60 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`; };
 function contextAsOf(v) {
   const el = $('#c-asof'); clearTimeout(CPOLL);
-  if (el) el.textContent = `· measured ${sinceMeasured(v.asOf)}${v.refreshing ? ', updating…' : ''}`;
+  if (el) el.textContent = `measured ${sinceMeasured(v.asOf)}${v.refreshing ? ', updating…' : ''}`;
   if (!v.refreshing) return;
   const want = [CREPO, cdays], tries = (v.tries || 0) + 1;
-  if (tries > 24) { if (el) el.textContent = `· measured ${sinceMeasured(v.asOf)}`; return; }
+  if (tries > 24) { if (el) el.textContent = `measured ${sinceMeasured(v.asOf)}`; return; }
   CPOLL = setTimeout(async () => {
     if (CREPO !== want[0] || cdays !== want[1]) return;
     let n; try { n = await api(`/api/context?repo=${encodeURIComponent(CREPO)}&days=${cdays}`); } catch { return; }
     if (CREPO !== want[0] || cdays !== want[1]) return;
     const picked = Object.values(PICKS).some(m => m.size);
     if (n.asOf > v.asOf && !picked) { renderContext(n); contextAsOf(n); }
-    else if (n.asOf > v.asOf) { if (el) el.textContent = `· newer figures ready, shown on reload`; }
+    else if (n.asOf > v.asOf) { if (el) el.textContent = `newer figures ready, shown on reload`; }
     else contextAsOf({ ...v, refreshing: n.refreshing, tries });
   }, 5000);
 }
@@ -669,14 +700,14 @@ function renderTable(view, rows, { title, sub, note, nameHead, savings }) {
     const i = from + k;
     const [pc, pt] = r.pill || (r.off ? ['off', 'off'] : WASTE_PILL[r.waste] || []), on = picks.has(pickKey(r));
     return `<tr class="${[r.off || r.past ? 'ctx-off' : r.waste === 'high' ? 'ctx-high' : r.waste === 'medium' ? 'ctx-medium' : '', on ? 'ctx-picked' : ''].join(' ').trim()}" data-row="${i}">
-      <td class="ctx-name"><label><input type="checkbox" data-pick="${view}" data-k="${esc(pickKey(r))}" data-i="${i}"${r.options.length ? '' : ' disabled'}${on ? ' checked' : ''} aria-label="Pick ${esc(r.name)}"> ${r.bold ? `<b>${esc(r.name)}</b>` : esc(r.name)}</label><button class="ctx-more" data-more="${i}" aria-expanded="false">See more</button>${(kindOf => kindOf || r.sub ? `<span class="ctx-kind">${esc([kindOf, r.sub].filter(Boolean).join(' · '))}</span>` : '')(view === 'all' || r.kind === 'skill' || r.kind === 'tool' ? r.kindLabel : '')}</td>
+      <td class="ctx-name"><label><input type="checkbox" data-pick="${view}" data-k="${esc(pickKey(r))}" data-i="${i}"${r.options.length ? '' : ' disabled'}${on ? ' checked' : ''} aria-label="Pick ${esc(r.name)}"> ${r.bold ? `<b>${esc(r.name)}</b>` : esc(r.name)}</label><button class="ctx-more" data-more="${i}" data-dk="${esc(`${view}\t${pickKey(r)}`)}" aria-expanded="false">See more</button>${(kindOf => kindOf || r.sub ? `<span class="ctx-kind">${esc([kindOf, r.sub].filter(Boolean).join(' · '))}</span>` : '')(view === 'all' || r.kind === 'skill' || r.kind === 'tool' ? r.kindLabel : '')}</td>
       <td class="num">${fmt(r.tokens)}</td>
       <td class="num">${actedCell(r)}</td>
       <td class="num">${fmt(r.perSession * r.sessions)}</td>
       <td class="num">${r.wasted == null ? '<span class="muted">–</span>' : fmt(windowWaste(r))}</td>
       <td>${pt ? r.pr?.url ? `<a class="ctx-pill ${pc}" href="${esc(r.pr.url)}" target="_blank" rel="noopener">${esc(pt)}</a>` : `<span class="ctx-pill ${pc}">${r.rawPill ? pt : esc(pt)}</span>` : ''}</td>
-      <td class="ctx-actcell"><div class="ctx-act">${r.options.length ? `<select class="sel" data-act="${i}" aria-label="Action">${r.options.map(([a, t]) => `<option value="${a}"${PREACT.get(`${view}\t${pickKey(r)}`) === a ? ' selected' : ''}>${t}</option>`).join('')}</select>` : `<span class="why" title="${esc(r.disabled)}">—</span>`}</div></td></tr>
-      <tr class="ctx-detail" data-detail="${i}" hidden><td colspan="7"><div class="md-body">${r.detail}</div><div class="why">${fmt(r.perSession)} input tokens a session · acted on: ${esc(r.actedBy)}${r.wasted != null ? ` · ${r.kind === 'output' ? 'read again after the agent last used it:' : 'wasted in the sessions that did not use it:'} ~${fmt(r.wasted)} a session, ${fmt(windowWaste(r))} over ${CTX?.days || cdays} days` : ''}</div></td></tr>`;
+      <td class="ctx-actcell"><div class="ctx-act">${r.options.length ? `<select class="sel" data-act="${i}" data-dk="${esc(`${view}\t${pickKey(r)}`)}" aria-label="Action">${r.options.map(([a, t]) => `<option value="${a}"${PREACT.get(`${view}\t${pickKey(r)}`) === a ? ' selected' : ''}>${t}</option>`).join('')}</select>` : `<span class="why" title="${esc(r.disabled)}">—</span>`}</div></td></tr>
+      <tr class="ctx-detail" data-detail="${i}" data-dk="${esc(`${view}\t${pickKey(r)}`)}" hidden><td colspan="7"><div class="md-body">${r.detail}</div><div class="why">${fmt(r.perSession)} input tokens a session · acted on: ${esc(r.actedBy)}${r.wasted != null ? ` · ${r.kind === 'output' ? 'read again after the agent last used it:' : 'wasted in the sessions that did not use it:'} ~${fmt(r.wasted)} a session, ${fmt(windowWaste(r))} over ${CTX?.days || cdays} days` : ''}</div></td></tr>`;
   }).join('');
   return `<figure class="ctx-figure"><figcaption><b>${title}</b> <span class="ctx-sub">${sub}</span><span class="ctx-capact"><span class="ctx-sub" data-seln="${view}"></span><button class="btn" data-apply-picked="${view}" disabled title="Apply the action picked in each checked row">Apply</button></span></figcaption>
     ${savings ? savingsCard(savings) : ''}
@@ -703,7 +734,7 @@ function wireTable(root, view, rows) {
     if (!items.length) return toast('Check rows first', true);
     applyRows(view, items, e.target);
   });
-  root.querySelectorAll('[data-vpage]').forEach(b => b.onclick = () => { const [k, n] = b.dataset.vpage.split(':'); VPAGE[k] = Math.max(0, Number(n)); const y = scrollY; renderContext(CTX); scrollTo(0, y); });
+  root.querySelectorAll('[data-vpage]').forEach(b => b.onclick = () => { const [k, n] = b.dataset.vpage.split(':'); VPAGE[k] = Math.max(0, Number(n)); renderContext(CTX); });
   bulkState();
 }
 // Every checked row's action: a skill, tool or output is changed at once (/api/changes/approve,
@@ -723,14 +754,14 @@ async function applyRows(view, items, btn) {
   })) return;
   if (btn) busy(btn, 'Applying…');
   try {
-    const said = [];
+    const said = []; let failed = false;
     if (rest.length) {
       // in All repositories a merged skill or tool applies to each repository it came from (context-view.js:mergeViews
       // `repoIds`), an output to every repository
       const byRepo = new Map();
       for (const { r, act } of rest) for (const repo of r.repo ? [r.repo] : r.repoIds?.length ? r.repoIds : (CTX?.repos || []).map(x => x.repo)) { if (!byRepo.has(repo)) byRepo.set(repo, { keys: [], acts: {} }); const g = byRepo.get(repo); g.keys.push(r.key); g.acts[r.key] = act; }
       // one repository failing (a checkout gone since the report) is said in its line; the others are still made
-      for (const [repo, g] of byRepo) { try { said.push((await api('/api/changes/approve', { repo, ...g, days: cdays })).said); } catch (err) { said.push(`${REPOS.find(x => x.id === repo)?.name || repo}: ${err.message}`); } }
+      for (const [repo, g] of byRepo) { try { said.push((await api('/api/changes/approve', { repo, ...g, days: cdays })).said); } catch (err) { failed = true; said.push(`${REPOS.find(x => x.id === repo)?.name || repo}: ${err.message}`); } }
     }
     // the sections, one request per repository: the server starts one job per action among them
     if (secs.length) {
@@ -739,8 +770,25 @@ async function applyRows(view, items, btn) {
       for (const [repo, g] of byRepo) { try { said.push((await api('/api/changes/start', { repo, ...g, days: cdays })).said); } catch (err) { said.push(`${REPOS.find(x => x.id === repo)?.name || repo}: ${err.message}`); } }
     }
     toast(said.join(' ') || 'Done', false, secs.length ? 6000 : undefined);
-    PICKS[view].clear(); loadContext(); pollActivity();
+    PICKS[view].clear();
+    // the rows show what was done at once: the setting the server wrote on a skill, tool or output (patchContext), and a
+    // section's job under way from the decisions (a quick read); the report itself is read again behind it (loadContext, in
+    // place), a second or more after an action, since the action made the kept copy stale
+    if (!failed) patchContext(rest);
+    if (secs.length) { try { CHIST = await api(`/api/activity?repo=${encodeURIComponent(CREPO)}`); } catch {} }
+    if (CTX) renderContext(CTX);
+    loadContext(); pollActivity();
   } catch (err) { toast(err.message, true); if (btn) idle(btn); }
+}
+// what an Apply changed, written into the report on screen as the next report will show it: a skill or tool off (or back
+// on), an output compressed (or not); the report read again after it says the same from the files
+function patchContext(items) {
+  if (!CTX) return;
+  const bySource = (arr, key) => (arr || []).find(s => `${s.client}:${s.key}` === key);
+  for (const { r, act } of items) {
+    if (r.kind === 'skill' || r.kind === 'tool') { const s = bySource(r.kind === 'skill' ? CTX.skills : CTX.tools, r.key); if (s && (act === 'off' || act === 'on')) s.off = act === 'off'; }
+    else if (r.kind === 'output' && (act === 'compress' || act === 'uncompress')) { const s = (CTX.outputs?.tools || []).find(o => !o.past && `output:${o.name}` === r.key); if (s) { s.compression = act === 'compress' ? 'moderate' : null; s.level = s.compression; } }
+  }
 }
 function renderContext(v) {
   const el = $('#context-body'), iv = v.instructions, t = v.totals;
@@ -776,7 +824,7 @@ function renderContext(v) {
     note: `Claude Code's own tool definitions, from the transcripts. <b>Switch off</b> asks first: one switched off goes into <code>permissions.deny</code> of <code>.claude/settings.local.json</code>, so new sessions here cannot call it, and <b>Revert</b> under Recent activity or <b>Turn back on</b> brings it back; the file, shell and search tools are never offered.` }));
   h += vdiv('outputs', renderTable('outputs', of('outputs'), { nameHead: 'Tool', title: 'Tool outputs', savings: sav.outputs, sub: (() => { const rs = of('outputs'), os = v.outputs?.sessions || 0; return `${os} session${os === 1 ? '' : 's'} · ${fmt(rs.reduce((a, r) => a + r.perSession * r.sessions, 0))} input tokens of output read again, ${fmt(rs.reduce((a, r) => a + (r.wasted || 0) * r.sessions, 0))} of it after the agent last used the result`; })(),
     note: `A tool's output stays in the conversation and every later model call reads it again: its tokens × the model calls left after it, until a compaction drops it, estimated from the transcripts. <b>Wasted</b>: the reads after the agent last used the result, its last edit copying text from it or call on the same file in that turn; nearly all of it, since a result is needed for a few calls and read for the rest of the session. Compression trims a result before the model reads it, in Claude Code: whole-file reads to the lines round what the agent searched for, test runs to their failures, big searches to their hits, long output to a cap of about 3k tokens. A tool whose compression you set is measured afresh from that moment, as its own row over the sessions since; its earlier measurement stays below it, muted, for the comparison, and never ranks above a current row.` }));
-  el.innerHTML = h;
+  swapBody(el, h);
   for (const [k] of VIEWS) wireTable(el.querySelector(`#c-${k}`), k, k === 'all' ? all : of(k));
   el.querySelectorAll('#c-view button').forEach(b => b.onclick = () => { CVIEW = b.dataset.view; el.querySelectorAll('#c-view button').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-selected', String(x === b)); }); el.querySelectorAll('.cview').forEach(x => x.hidden = x.dataset.view !== CVIEW); sortControl(); });
   sortControl();
@@ -789,7 +837,7 @@ function sortControl() {
   wrap.hidden = !opts || !CTX;
   if (!opts) return;
   sel.innerHTML = opts.map(([k, name]) => `<option value="${k}"${VSORT[CVIEW] === k ? ' selected' : ''}>${name}</option>`).join('');
-  sel.onchange = e => { VSORT[CVIEW] = e.target.value; VPAGE[CVIEW] = 0; e.target.blur(); const y = scrollY; renderContext(CTX); scrollTo(0, y); };
+  sel.onchange = e => { VSORT[CVIEW] = e.target.value; VPAGE[CVIEW] = 0; e.target.blur(); renderContext(CTX); };
 }
 // ---- The decisions (context-suggest.js, as `thinker context --history|--revert|--retry`) ----
 // Every decision made from a row (or `thinker context --approve|--dismiss`), newest first, in one table: what, when, what it
@@ -870,15 +918,20 @@ function wireHistory(root, hs, reload, rerender) {
 let AREPO = H().get('tab') === 'activity' ? (H().get('repo') || 'all') : 'all', ACT = null, APOLL = null;
 const ACT_POLL_MS = 30_000, ACT_FAST_MS = 5_000;
 $('#a-repo').onchange = e => { AREPO = e.target.value; e.target.blur(); loadActivity(); };
+// as loadContext: the table stays and is rebuilt in place when the same repository is already shown (after a Revert or
+// Retry, when a job finishes, on a tab switch back); the spinner is for the first read and a change of repository
+let ACT_FOR = null, ALOAD = 0;
 async function loadActivity() {
-  const el = $('#activity-body');
-  el.innerHTML = '<div class="empty"><span class="spinner"></span>Reading…</div>';
+  const el = $('#activity-body'), seq = ++ALOAD, inPlace = Boolean(ACT) && ACT_FOR === AREPO;
+  if (!inPlace) el.innerHTML = '<div class="empty"><span class="spinner"></span>Reading…</div>';
   try {
     if (!REPOS.length) await fetchRepos();
     if (AREPO !== 'all' && !REPOS.some(r => r.id === AREPO)) AREPO = 'all';
     $('#a-repo').innerHTML = `<option value="all"${AREPO === 'all' ? ' selected' : ''}>All repositories</option>` + REPOS.map(r => `<option value="${esc(r.id)}"${r.id === AREPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
-    renderActivity(await api(`/api/activity?repo=${encodeURIComponent(AREPO)}`));
-  } catch (e) { el.innerHTML = `<div class="empty">Could not read the activity: ${esc(e.message)}</div>`; }
+    const want = AREPO, d = await api(`/api/activity?repo=${encodeURIComponent(AREPO)}`);
+    if (seq !== ALOAD || want !== AREPO) return;
+    ACT_FOR = want; renderActivity(d);
+  } catch (e) { if (seq !== ALOAD) return; if (inPlace) toast(`Could not read the activity: ${e.message}`, true); else el.innerHTML = `<div class="empty">Could not read the activity: ${esc(e.message)}</div>`; }
 }
 // while the report the savings are read from is being made again (`measuring`), check back and show it (as reportAsOf does)
 let AMPOLL = null;
@@ -901,7 +954,7 @@ function renderActivity(d) {
   const card = needs.length || running.length
     ? `<div class="attn"><div class="kicker">${needs.length ? `${needs.length} need${needs.length === 1 ? 's' : ''} you` : 'Under way'}</div>${needs.length ? `<ul>${needs.map(e => `<li><b>${name(e)}</b>: ${e.pr?.url ? needOf(e).replace(`#${e.pr.number}`, `<a href="${esc(e.pr.url)}" target="_blank" rel="noopener">#${e.pr.number}</a>`) : esc(needOf(e))}</li>`).join('')}</ul>` : ''}${running.length ? `<div class="why"><span class="spinner"></span>${running.length === 1 ? 'One change is' : `${running.length} changes are`} being made in the background; this page follows ${running.length === 1 ? 'it' : 'them'}.</div>` : ''}</div>`
     : `<div class="attn ok"><div class="why">Nothing needs you: no change under way or failed, no pull request waiting.</div></div>`;
-  el.innerHTML = card + historyFigure(hs, { many, caption: 'Decisions', sub: many ? 'every repository' : '', empty: 'No decisions yet. What you apply on Find Savings is listed here, with what came of it.', key: 'activity', promptAvg: d.promptAvg || null, measuring: !!d.measuring });
+  swapBody(el, card + historyFigure(hs, { many, caption: 'Decisions', sub: many ? 'every repository' : '', empty: 'No decisions yet. What you apply on Find Savings is listed here, with what came of it.', key: 'activity', promptAvg: d.promptAvg || null, measuring: !!d.measuring }));
   wireHistory(el.querySelector('[data-history]'), hs, loadActivity, () => renderActivity(d));
   badge(d);
 }
@@ -917,8 +970,11 @@ async function pollActivity() {
   if (d) {
     badge(d);
     // what the open page shows follows: Recent activity is drawn again, and a Save row's pill, when a change finished
-    if (TAB === 'activity' && ACT && JSON.stringify(ACT.history.map(e => [e.id, e.attention])) !== JSON.stringify(d.history.filter(e => AREPO === 'all' || e.repo === AREPO).map(e => [e.id, e.attention]))) loadActivity();
-    if (TAB === 'save' && CHIST && (CHIST.running || 0) !== d.history.filter(e => e.running && (CREPO === 'all' || e.repo === CREPO)).length && !Object.values(PICKS).some(m => m.size)) loadContext();
+    // the state of each decision of the repository shown (under way, pending, failed): when one moved, the page is drawn
+    // again in place (loadActivity, loadContext), so a Save row's pill goes from Compressing… to PR pending where it stands
+    const sig = (hs, repo) => JSON.stringify((hs || []).filter(e => repo === 'all' || e.repo === repo).map(e => [e.id, Boolean(e.running), Boolean(e.pending), Boolean(e.failed), e.attention]));
+    if (TAB === 'activity' && ACT && sig(ACT.history, AREPO) !== sig(d.history, AREPO)) loadActivity();
+    if (TAB === 'save' && CHIST && sig(CHIST.history, CREPO) !== sig(d.history, CREPO) && !Object.values(PICKS).some(m => m.size)) loadContext();
   }
   APOLL = setTimeout(pollActivity, d?.running ? ACT_FAST_MS : ACT_POLL_MS);
 }
@@ -938,17 +994,22 @@ document.querySelectorAll('#r-measure button').forEach(b => b.onclick = () => { 
 // a Report cell's colour is report.js:THRESHOLDS, read from the view (`thresholds`): the command marks the same cells ✓ · ✗
 // a dollar figure as prices.js:formatDollars makes it
 const money = d => d == null ? '–' : (d < 0 ? '−' : '') + '$' + (Math.abs(d) >= 10000 ? (Math.abs(d) / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : Math.abs(d) >= 100 ? String(Math.round(Math.abs(d))) : Math.abs(d) >= 10 ? Math.abs(d).toFixed(1) : Math.abs(d) >= 0.01 || d === 0 ? Math.abs(d).toFixed(2) : Math.abs(d).toFixed(3));
+// as loadContext: the tables stay and are rebuilt in place when the same repository is already shown (a tab switch back);
+// the spinner is for the first read and a change of repository
+let RPT_FOR = null, RLOAD = 0;
 async function loadReport() {
-  const el = $('#report-body');
-  el.innerHTML = `<div class="empty">${LOGO_SPIN}Reading the report…</div>`; clearTimeout(RPOLL);
+  const el = $('#report-body'), seq = ++RLOAD, inPlace = Boolean(RPT) && RPT_FOR === REPO;
+  if (!inPlace) el.innerHTML = `<div class="empty">${LOGO_SPIN}Reading the report…</div>`;
+  clearTimeout(RPOLL);
   try {
     if (!REPOS.length) await fetchRepos();
     if (REPO !== 'all' && !REPOS.some(r => r.id === REPO)) REPO = REPOS.find(r => r.current)?.id || 'all';
     $('#r-repo').innerHTML = `<option value="all"${REPO === 'all' ? ' selected' : ''}>All repositories</option>` + REPOS.map(r => `<option value="${esc(r.id)}"${r.id === REPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
-    const v = await api(`/api/report?repo=${encodeURIComponent(REPO)}&weeks=6`);
+    const want = REPO, v = await api(`/api/report?repo=${encodeURIComponent(REPO)}&weeks=6`);
+    if (seq !== RLOAD || want !== REPO) return;
     if (v.empty) { el.innerHTML = '<div class="empty">No repository with a cache on this machine yet.</div>'; return; }
-    renderReport(v); reportAsOf(v);
-  } catch (e) { el.innerHTML = `<div class="empty">Could not read the report: ${esc(e.message)}</div>`; }
+    RPT_FOR = want; renderReport(v); reportAsOf(v);
+  } catch (e) { if (seq !== RLOAD) return; if (inPlace) toast(`Could not read the report: ${e.message}`, true); else el.innerHTML = `<div class="empty">Could not read the report: ${esc(e.message)}</div>`; }
 }
 // The report is kept and made again in the background (report-snapshot.js), like the Save page's: while a newer one is
 // being made the page checks back and shows it. It says nothing of when it was measured, and nothing under its tables
@@ -1013,7 +1074,7 @@ function renderReport(v) {
     ${card('Cache hits', fmt(c.hits), `notes served, for ${fmt(c.answered)} of ${fmt(c.requests)} requests`)}
     ${card('Acted on', c.acted == null ? '–' : `${Math.round(100 * c.acted)}%`, `of ${fmt(c.judged)} servings the sessions were judged on`)}
   </div></div>`;
-  el.innerHTML = parts + models + tokenTypes + cards; // the token types the last table (the owner's order, 2026-10-24)
+  swapBody(el, parts + models + tokenTypes + cards); // the token types the last table (the owner's order, 2026-10-24)
   el.querySelectorAll('[data-fold]').forEach(b => b.onclick = () => { const p = b.dataset.fold; RFOLD.has(p) ? RFOLD.delete(p) : RFOLD.add(p); renderReport(v); });
 }
 // first view: the tab the URL names, else Save (where the agents' context goes is the front door, since
