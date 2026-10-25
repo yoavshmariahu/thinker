@@ -491,7 +491,9 @@ function contextAsOf(v) {
 let CVIEW = ['all', 'instructions', 'custom', 'builtin', 'outputs'].includes(H().get('view')) ? H().get('view') : 'all', CTX = null;
 // the decisions (/api/activity), read with the report: the pull request pending on a section, or the job under way or failed on it
 let CHIST = { history: [] };
-const decisionOn = (repo, key) => (CHIST.history || []).find(e => (e.pending || e.running || e.failed) && (!repo || e.repo === repo) && (e.keys || [e.key]).includes(key)) || null;
+// a merged pull request this checkout has not pulled yet (`unpulled`, context-suggest.js:changeHistory) is one too: its
+// section is still in the file here, and its row says Merged rather than coming back as a suggestion
+const decisionOn = (repo, key) => (CHIST.history || []).find(e => (e.pending || e.running || e.failed || e.unpulled) && (!repo || e.repo === repo) && (e.keys || [e.key]).includes(key)) || null;
 const dlabel = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 // a small markdown reader for the team's own file: headings, lists, code, tables as text, inline code, bold, links' text
 function md(text) {
@@ -582,12 +584,16 @@ function contextRows(v) {
   }));
   // a section whose change is under way (a job in the background) or a pull request not yet merged: said so in its pill, with
   // the link, and not to be picked again until the job is done and the pull request merged (the next report has the new
-  // section) or closed (the section is suggested again); one whose change failed says so and can be picked again
+  // section) or closed (the section is suggested again); one whose change failed says so and can be picked again. A merged
+  // pull request this checkout has not pulled: the section is still in the file here, so its row says Merged, with the link,
+  // and cannot be picked; it leaves the table once the checkout has the merge. A row with a decision on it (`decided`) is
+  // not counted as a saving still to make (flaggedSavings).
   for (const r of rows) {
     const d = decisionOn(r.repo, r.key); if (!d) continue;
-    if (d.running) { r.pill = ['busy', `<span class="spinner"></span>${d.job.action === 'compress' ? 'Compressing…' : 'Removing…'}`]; r.rawPill = true; r.options = []; r.disabled = 'a change is under way for it: see Recent activity'; }
+    if (d.running) { r.pill = ['busy', `<span class="spinner"></span>${d.job.action === 'compress' ? 'Compressing…' : 'Removing…'}`]; r.rawPill = true; r.options = []; r.disabled = 'a change is under way for it: see Recent activity'; r.decided = true; }
     else if (d.failed) r.pill = ['failed', `${d.job.action === 'compress' ? 'compression' : 'removal'} failed`];
-    else { r.pr = d.pr; r.pill = ['pr', `PR #${d.pr.number} pending`]; r.options = []; r.disabled = `pull request #${d.pr.number} is open for it`; }
+    else if (d.unpulled) { r.pr = d.pr; r.pill = ['ok', `PR #${d.pr.number} merged`]; r.options = []; r.disabled = `pull request #${d.pr.number} ${(d.act || d.job?.action) === 'remove' ? 'removed' : 'compressed'} it on ${d.pr.base || 'the default branch'}; this checkout has not pulled it yet`; r.decided = true; }
+    else { r.pr = d.pr; r.pill = ['pr', `PR #${d.pr.number} pending`]; r.options = []; r.disabled = `pull request #${d.pr.number} is open for it`; r.decided = true; }
   }
   for (const s of v.skills || []) {
     const k = skillShort(s.text), o = s.outcome;
@@ -643,7 +649,8 @@ const savingsCard = ({ perSession, share, window, days, text, kicker = 'Potentia
   ? `<div class="savings"><div><div class="kicker">${kicker}</div><div class="tr-num">${fmt(perSession)} <span class="muted">input tokens a session${share != null ? ` · ${Math.round(100 * share)}% of this` : ''}${window ? ` · ${fmt(window)} over ${days} days` : ''}</span></div></div><div class="why">${text}</div></div>`
   : `<div class="savings ok"><div class="why">${ok}</div></div>`;
 const flaggedSavings = (rows, days, { what, does, ok }) => {
-  const live = rows.filter(r => !r.off && r.kind !== 'output'), flagged = live.filter(r => r.waste === 'high' || r.waste === 'medium'), cost = live.reduce((a, r) => a + r.perSession, 0);
+  // a row with a decision on it (a change under way, a pull request pending or merged) is not a saving still to make
+  const live = rows.filter(r => !r.off && r.kind !== 'output'), flagged = live.filter(r => (r.waste === 'high' || r.waste === 'medium') && !r.decided), cost = live.reduce((a, r) => a + r.perSession, 0);
   const per = flagged.reduce((a, r) => a + (r.wasted || 0), 0), n = l => flagged.filter(r => r.waste === l).length;
   return { perSession: per, share: cost ? per / cost : null, window: flagged.reduce((a, r) => a + (r.wasted || 0) * r.sessions, 0), days, text: `${n('high')} high and ${n('medium')} medium waste ${what}: what they cost in the sessions that did not use them. ${does}`, ok };
 };
@@ -838,7 +845,7 @@ function historyFigure(hs, { many, caption, sub, empty, key = 'history', pageSiz
       : e.failed ? `Failed ${when(e.job.finishedAt || e.at)}: ${e.job.error || 'no reason recorded'}. Retry runs the same change again${e.job.tries > 1 ? ` (tried ${e.job.tries} times)` : ''}; nothing was changed, and the section is suggested again.`
       : `${e.job.action === 'compress' ? 'Compressed' : 'Removed'} in the background, ${when(e.job.startedAt)} to ${when(e.job.finishedAt)}${e.job.tokens ? `, ~${fmt(e.job.tokens)} model tokens` : ''}.`,
     e.result && e.decision !== 'dismissed' && !e.failed ? e.result.replace(/ `?thinker harness --undo`? turns.*$/, '').replace(/\.?$/, '.') : '',
-    e.pr ? `Pull request #${e.pr.number} opened ${when(e.pr.openedAt || e.at)}${e.pr.state === 'merged' ? `; merged ${when(e.pr.at)}` : e.pr.state === 'closed' ? `; closed without merging ${when(e.pr.at)}: the change was not followed through on, and the ${e.keys?.length > 1 ? 'sections are' : 'section is'} suggested again` : '; pending until it is merged'}.`
+    e.pr ? `Pull request #${e.pr.number} opened ${when(e.pr.openedAt || e.at)}${e.pr.state === 'merged' ? `; merged ${when(e.pr.at)}${e.unpulled ? '; this checkout has not pulled it yet, so the section still shows on Find Savings as Merged' : ''}` : e.pr.state === 'closed' ? `; closed without merging ${when(e.pr.at)}: the change was not followed through on, and the ${e.keys?.length > 1 ? 'sections are' : 'section is'} suggested again` : '; pending until it is merged'}.`
       : e.job ? '' : `${e.decision === 'dismissed' ? 'Dismissed' : e.decision === 'applied after review' ? 'Written after its diff was read' : 'Applied'} ${when(e.at)}${e.revertedAt ? `; reverted ${when(e.revertedAt)}` : ''}.`,
   ].filter(Boolean).join(' ');
   const decidedHint = e => [when(e.at), e.action ? `Suggested: ${e.action}` : '', e.total ? `Worth ~${fmt(e.total)} input tokens over the ${e.days || 7} days before it was decided${e.saving ? ` (~${fmt(e.saving)} a session)` : ''}` : e.saving ? `Worth ~${fmt(e.saving)} input tokens a session when it was decided` : ''].filter(Boolean).join(' · ');

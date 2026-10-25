@@ -94,6 +94,8 @@ test('textOnBase: the preview\'s text where the base is what it was made from, e
 test('prState and closePr through gh; prAvailable names why not', () => {
   const { store, r } = checkout();
   assert.deepEqual(prState(r, 12, { gh: fakeGh({ view: { state: 'MERGED', mergedAt: '2026-10-24T12:00:00Z', url: 'u' } }), slug: 'o/r' }), { state: 'merged', at: '2026-10-24T12:00:00Z', url: 'u' });
+  // the merge commit, when GitHub names it: what tells whether a checkout has the change (context-suggest.js `unpulled`)
+  assert.deepEqual(prState(r, 12, { gh: fakeGh({ view: { state: 'MERGED', mergedAt: '2026-10-24T12:00:00Z', url: 'u', mergeCommit: { oid: 'abc123' } } }), slug: 'o/r' }), { state: 'merged', at: '2026-10-24T12:00:00Z', url: 'u', commit: 'abc123' });
   assert.deepEqual(prState(r, 12, { gh: fakeGh({ view: { state: 'CLOSED', closedAt: '2026-10-24T13:00:00Z', url: 'u' } }), slug: 'o/r' }), { state: 'closed', at: '2026-10-24T13:00:00Z', url: 'u' });
   assert.equal(prState(r, 12, { gh: fakeGh(), slug: 'o/r' }).state, 'open');
   assert.equal(prState(r, 12, { gh: { run: () => { throw new Error('no network'); } }, slug: 'o/r' }), null, 'unknown keeps the state');

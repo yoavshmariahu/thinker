@@ -160,9 +160,10 @@ function prBody(e, changes, baseName) {
 export function prState(repo, number, { gh = ghCli, slug = githubSlug(repo) } = {}) {
   if (!slug || !number) return null;
   try {
-    const j = JSON.parse(gh.run(['pr', 'view', String(number), '--repo', slug, '--json', 'state,mergedAt,closedAt,url'], { cwd: repo }));
+    const j = JSON.parse(gh.run(['pr', 'view', String(number), '--repo', slug, '--json', 'state,mergedAt,closedAt,url,mergeCommit'], { cwd: repo }));
     const state = j.state === 'MERGED' ? 'merged' : j.state === 'CLOSED' ? 'closed' : 'open';
-    return { state, at: state === 'merged' ? j.mergedAt : state === 'closed' ? j.closedAt : null, url: j.url };
+    // the merge commit is what tells whether a checkout has the change (context-suggest.js:changeHistory `unpulled`)
+    return { state, at: state === 'merged' ? j.mergedAt : state === 'closed' ? j.closedAt : null, url: j.url, ...(state === 'merged' && j.mergeCommit?.oid ? { commit: j.mergeCommit.oid } : {}) };
   } catch { return null; }
 }
 // A pending pull request closed, its branch deleted on the origin and here.

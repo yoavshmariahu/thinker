@@ -73,7 +73,7 @@ async function contextCommand({ store, flags, out }) {
     // what a prompt costs on average here, the size each decision's saving is read against (report-snapshot.js:promptAverageHere)
     const avg = promptAverageHere(store);
     // a job under way or failed (context-suggest.js:startSectionJob) is said so; --retry runs a failed one again
-    const state = e => e.running ? `${e.job.action === 'compress' ? 'compressing' : 'removing'}…` : e.failed ? 'failed' : e.pr ? `PR #${e.pr.number} ${e.pr.state === 'open' ? 'pending' : e.pr.state === 'merged' ? 'merged' : 'rejected'}` : e.revertedAt ? `${e.decision}, reverted` : e.decision;
+    const state = e => e.running ? `${e.job.action === 'compress' ? 'compressing' : 'removing'}…` : e.failed ? 'failed' : e.pr ? `PR #${e.pr.number} ${e.pr.state === 'open' ? 'pending' : e.pr.state === 'merged' ? `merged${e.unpulled ? ', not pulled here' : ''}` : 'rejected'}` : e.revertedAt ? `${e.decision}, reverted` : e.decision;
     const needs = h.filter(e => e.attention).length;
     // without a report of this code's kept here, nothing is measured: say what makes one
     const unmeasured = keptRows(store).stale && !avg ? 'Before and after are not measured yet: `thinker report --refresh` makes the report they are read from.\n' : '';
