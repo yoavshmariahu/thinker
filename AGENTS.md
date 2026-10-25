@@ -820,8 +820,10 @@ multipliers); what is left of the input is "Other input", and "Output" is what t
 the session's tokens. **Three tables, one total (2026-10-24, the owner's ask).** First the four parts the Save page measures and controls
 (instruction files, custom tools, built-in tools, tool outputs; `report.js:PARTS`) with the rest of the input under them by kind
 (`OTHERS`, the breakdown's rows since 2026-10-25: the system prompt, the agent's tool calls, its thinking kept, the prompts and
-replies, the harness's notes, and what no reader attributed; until then one "Other input" row, which on this machine was more
-than the four parts together and said nothing) and the output; then
+replies, the harness's notes, and what no reader attributed, **under one "Other input" row** (`otherInput`, their sum) that is
+folded by default on the page and opens on its chevron, the kinds indented in the print: not all of it needs attention at once,
+and a kind may move out to its own row later (the owner's ask, the same day); until then one "Other input" row, which on this
+machine was more than the four parts together and said nothing) and the output; then
 the models; last the tokens by type (`report.js:TOKEN_TYPES`: the input read fresh, the input written to the prompt cache,
 the input read back from it, and the output, as the model reported them for each call and `transcripts.js:Stats` sums
 them; in the cost view each at its own list rate, the formula of `prices.js:costOf`). Every table ends on the whole session (`sessionTotals`), so

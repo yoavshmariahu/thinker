@@ -130,6 +130,9 @@ test('the report averages each week over its sessions, by part and by model unde
   assert.deepEqual(v.others.map(p => p.key), ['system', 'agentCalls', 'thinking', 'prompts', 'notes', 'other', 'output'], 'the conversation by kind, the unattributed rest, the output');
   assert.equal(avg(v.others.find(p => p.key === 'output').cells, last), 50, 'a prompt: 100 output over the session\'s two calls');
   for (const p of v.others) assert.equal(p.cells[last].tokens, bd(p.key).cells[last].tokens, `${p.key} is the breakdown's row`);
+  // …and the rest of the input as one row for the fold, the sum of the kinds
+  assert.equal(v.otherInput[last].tokens, v.others.filter(p => p.key !== 'output').reduce((a, p) => a + p.cells[last].tokens, 0));
+  assert.equal(v.otherInput[last].prompts, v.sessionTotals[last].prompts);
   for (const w of [4, last]) assert.equal(v.totals[w].tokens + v.others.reduce((a, p) => a + p.cells[w].tokens, 0), v.sessionTotals[w].tokens, 'the parts with the others are the whole session');
   // …and the tokens by type: an Opus session is two turns of 200 fresh, 300 read from the cache, 50 output
   assert.deepEqual(v.tokenTypes.map(p => p.key), TOKEN_TYPES.map(([k]) => k));
@@ -182,7 +185,10 @@ test('the report averages each week over its sessions, by part and by model unde
   assert.equal(promptAverage([]), null);
   // the command's text: the two tables with totals, the marks, the actions and the cache
   const text = renderReport(v).join('\n');
-  assert.match(text, /By token type/); assert.match(text, /Input, read from cache/); assert.match(text, /Unattributed input/); assert.match(text, /Agent's tool calls/); assert.doesNotMatch(text, /Other input|Total of these/);
+  assert.match(text, /By token type/); assert.match(text, /Input, read from cache/); assert.doesNotMatch(text, /Total of these/);
+  // the rest of the input as one line, its kinds indented under it, then the output
+  const names = text.split('\n').map(l => l.slice(2, 32).trimEnd()), at = n => names.indexOf(n);
+  assert.ok(at('Other input') > at('Tool outputs')); assert.ok(at('  Unattributed input') > at('Other input')); assert.ok(at("  Agent's tool calls") > at('Other input')); assert.ok(at('Model output') > at('  Unattributed input'));
   assert.match(text, /the estimated parts in the model's own tokens: Anthropic ×1\.44/);
   assert.equal((text.match(/TOTAL \(THE WHOLE SESSION\)/g) || []).length, 3, 'every table ends on the whole session');
   assert.ok(text.indexOf('By token type') > text.indexOf('By model'), 'the token types last');
@@ -224,7 +230,7 @@ test('the report averages each week over its sessions, by part and by model unde
   assert.deepEqual(m.columns.map(c => c.sessions), [0, 0, 0, 0, 4, 4]);
   assert.equal(m.sessionTotals[last].tokens, 4400); assert.equal(m.columns[last].prompts, 8); assert.equal(m.sessionTotals[last].prompts, 8);
   assert.equal(m.tokenTypes.find(p => p.key === 'cacheRead').cells[last].tokens, 2400); assert.equal(m.others.find(p => p.key === 'output').cells[last].tokens, 400);
-  assert.deepEqual(m.estimated.columns.map(c => c.sessions), [0, 0, 0, 0, 0, 2]); assert.equal(m.estimated.totals[last].tokens, 2 * v.estimated.totals[last].tokens); assert.deepEqual(m.rewrites.map(p => p.key), REWRITES.map(([k]) => k)); assert.deepEqual(m.calibration, { Anthropic: 1.44 });
+  assert.deepEqual(m.estimated.columns.map(c => c.sessions), [0, 0, 0, 0, 0, 2]); assert.equal(m.estimated.totals[last].tokens, 2 * v.estimated.totals[last].tokens); assert.equal(m.otherInput[last].tokens, 2 * v.otherInput[last].tokens); assert.deepEqual(m.rewrites.map(p => p.key), REWRITES.map(([k]) => k)); assert.deepEqual(m.calibration, { Anthropic: 1.44 });
   // a kept report from before the token types merges as zeros, and the page renders it without them
   const old = { ...v }; delete old.tokenTypes; delete old.others;
   assert.equal(mergeReports([{ repo: 'a', name: 'A', view: old }]).tokenTypes.find(p => p.key === 'fresh').cells[last].tokens, 0);

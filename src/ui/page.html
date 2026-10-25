@@ -136,6 +136,8 @@
     .rep-indent { display: inline-block; padding-left: 1.4rem; }
     .rep-fold { background: none; border: 0; padding: 0; font: inherit; color: #6b7280; cursor: pointer; width: 1rem; }
     .rep-fold:hover { color: #111; }
+    .rep-sub { padding-left: 1.4rem; color: #4b5563; }
+    .rep-subrow td { font-size: 0.93em; }
     .rep-pager { display: flex; align-items: center; gap: 0.6rem; }
     .rep-pager .btn { padding: 0.26rem 0.65rem; font-size: 0.76rem; }
     .tr-num { font-size: 1.25rem; font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -1014,7 +1016,7 @@ async function fetchRepos() {
   REPOS = r.repos;
 }
 // ---- Report (report.js:reportView, as `thinker report`): the average a prompt (one call to the model) cost each week, by token type, by part and by model ----
-let RPT = null, RMEASURE = 'tokens', RMODE = 'avg', RVIEW = 'values', RFOLD = new Set();
+let RPT = null, RMEASURE = 'tokens', RMODE = 'avg', RVIEW = 'values', RFOLD = new Set(['other-input']); // the rest of the input folded until opened (2026-10-25)
 // Values / Share is the command's --share (report.js:renderReport): every row but the whole-session total as its share of that
 // total in the week, so the relative contributions and their trend can be read; the total rows keep their values
 document.querySelectorAll('#r-view button').forEach(b => b.onclick = () => { RVIEW = b.dataset.view; segOn('#r-view', b); if (RPT) renderReport(RPT); });
@@ -1092,8 +1094,17 @@ function renderReport(v) {
   const types = v.tokenTypes || [], others = v.others || [];
   const tokenTypes = `<figure class="ctx-figure"><figcaption><b>By token type</b> <span class="ctx-sub">${sub}</span></figcaption>
     <table class="ctx-table rep-table">${head('Token type')}<tbody>${types.map(p => row(esc(p.name), p.cells)).join('')}${row('Total (the whole session)', v.sessionTotals, { cls: 'rep-total', total: true })}</tbody></table></figure>`;
+  // the rest of the input as one row, "Other input", folded by default: its kinds (the system prompt, the agent's tool
+  // calls, the thinking kept, the prompts and replies, the harness's notes, the unattributed rest) open under it on the
+  // chevron, indented, and the output row after (the owner's ask, 2026-10-25: not all of it needs attention at once)
+  const rest = others.filter(p => p.key !== 'output'), output = others.find(p => p.key === 'output'), otherFolded = RFOLD.has('other-input');
+  const otherRows = [
+    row(`<button class="rep-fold" data-fold="other-input" aria-expanded="${!otherFolded}" title="${otherFolded ? 'Show' : 'Hide'} what the rest of the input is">${otherFolded ? '▸' : '▾'}</button> Other input`, v.otherInput || [], { thresholds: true }),
+    ...(otherFolded ? [] : rest.map(p => row(`<span class="rep-sub">${esc(p.name)}</span>`, p.cells, { cls: 'rep-subrow', thresholds: true }))),
+    ...(output ? [row(esc(output.name), output.cells, { thresholds: true })] : []),
+  ];
   const parts = `<figure class="ctx-figure"><figcaption><b>By part of the context</b> <span class="ctx-sub">where the same tokens went · a part is green at or under Good, red at or over Bad, yellow between, in tokens a prompt${calNote ? ` · the estimated parts in the model's own tokens (${calNote}; the other providers one for one)` : ''}</span></figcaption>
-    <table class="ctx-table rep-table">${head('Part', true)}<tbody>${[...v.parts.map(p => row(esc(p.name), p.cells, { key: p.key, thresholds: true })), ...others.map(p => row(esc(p.name), p.cells, { thresholds: true }))].join('')}${row('Total (the whole session)', v.sessionTotals, { cls: 'rep-total', total: true, thresholds: true })}</tbody></table></figure>`;
+    <table class="ctx-table rep-table">${head('Part', true)}<tbody>${[...v.parts.map(p => row(esc(p.name), p.cells, { key: p.key, thresholds: true })), ...otherRows].join('')}${row('Total (the whole session)', v.sessionTotals, { cls: 'rep-total', total: true, thresholds: true })}</tbody></table></figure>`;
   const fold = p => RFOLD.has(p), modelsOf = p => v.models.filter(m => m.provider === p);
   const mtitle = m => (c, w) => `${fmt(c.prompts || 0)} prompts in ${c.sessions} session${c.sessions === 1 ? '' : 's'} on ${m.model} this week${c.prompts ? `, ${cost ? (c.pricedPrompts ? money(c.cost / c.pricedPrompts) : '–') : fmt(c.tokens / c.prompts)} per prompt of its own` : ''}`;
   const models = `<figure class="ctx-figure"><figcaption><b>By model</b> <span class="ctx-sub">each model's share of the ${sum ? 'week' : 'average prompt'}, its provider's subtotal above its models</span></figcaption>

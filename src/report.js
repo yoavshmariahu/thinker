@@ -180,6 +180,9 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   const totalOf = keys => cols.map((_, w) => { const c = cell(); for (const k of keys) add(c, byPart[k][w].tokens, byPart[k][w].cost); c.prompts = columns[w].prompts; c.pricedPrompts = columns[w].pricedPrompts; return c; });
   const totals = totalOf(PARTS.map(([k]) => k)), sessionTotals = totalOf(BREAKDOWN.map(([k]) => k));
   const others = OTHERS.map(([key, name]) => ({ key, name, cells: byPart[key] }));
+  // the rest of the input as one row (`otherInput`), the kinds under it folded by default on the page and indented in the
+  // print (the owner's ask, 2026-10-25: not all of it needs attention at once; a kind may move out later)
+  const otherInput = totalOf(REST_INPUT);
   const rewriteTotals = cols.map((_, w) => { const c = cell(); for (const k of Object.keys(byCause)) { add(c, byCause[k][w].tokens, byCause[k][w].cost); c.n += byCause[k][w].n; } c.prompts = columns[w].prompts; c.pricedPrompts = columns[w].pricedPrompts; return c; });
   const estimated = { columns: estCols, parts: PARTS.map(([key, name]) => ({ key, name, cells: byEst[key] })), totals: cols.map((_, w) => { const c = cell(); for (const [k] of PARTS) add(c, byEst[k][w].tokens, 0); c.prompts = estCols[w].prompts; return c; }) };
   const tokenTypes = TOKEN_TYPES.map(([key, name]) => ({ key, name, cells: byType[key] }));
@@ -196,7 +199,7 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   return {
     weeks, days, from, to: now, pricedOn: PRICED_ON, columns, sessionRows, thresholds: THRESHOLDS,
     tokenTypes,
-    parts: PARTS.map(([key, name]) => ({ key, name, cells: byPart[key] })), others, totals, sessionTotals,
+    parts: PARTS.map(([key, name]) => ({ key, name, cells: byPart[key] })), others, otherInput, totals, sessionTotals,
     breakdown: BREAKDOWN.map(([key, name]) => ({ key, name, cells: byPart[key] })),
     rewrites: REWRITES.map(([key, name]) => ({ key, name, cells: byCause[key] })), rewriteTotals, estimated,
     calibration: calibrations(config),
@@ -330,6 +333,7 @@ export function mergeReports(list) {
     tokenTypes: TOKEN_TYPES.map(([key, name]) => ({ key, name, cells: sumCells(views.map(v => (v.tokenTypes || []).find(p => p.key === key)?.cells || [])) })),
     parts: PARTS.map(([key, name]) => ({ key, name, cells: sumCells(views.map(v => v.parts.find(p => p.key === key)?.cells || [])) })),
     others: OTHERS.map(([key, name]) => ({ key, name, cells: sumCells(views.map(v => (v.others || []).find(p => p.key === key)?.cells || [])) })),
+    otherInput: sumCells(views.map(v => v.otherInput || [])),
     rewrites: REWRITES.map(([key, name]) => ({ key, name, cells: sumCells(views.map(v => (v.rewrites || []).find(p => p.key === key)?.cells || [])) })),
     rewriteTotals: sumCells(views.map(v => v.rewriteTotals || [])),
     estimated: { columns: Array.from({ length: n }, (_, w) => ({ sessions: views.reduce((a, v) => a + (v.estimated?.columns?.[w]?.sessions || 0), 0), prompts: views.reduce((a, v) => a + (v.estimated?.columns?.[w]?.prompts || 0), 0) })), parts: PARTS.map(([key, name]) => ({ key, name, cells: sumCells(views.map(v => (v.estimated?.parts || []).find(p => p.key === key)?.cells || [])) })), totals: sumCells(views.map(v => v.estimated?.totals || [])) },
@@ -373,7 +377,11 @@ export function renderReport(v, { cost = false, total = false, share = false } =
   const calNote = Object.entries(v.calibration || CALIBRATION).map(([k, f]) => `${k} ×${f}`).join(', ');
   L.push('', `By part of the context (the four the Find Savings page measures and controls, then the conversation by kind; the estimated parts in the model's own tokens: ${calNote}, the others one for one)`, headThr);
   for (const p of v.parts) L.push(line(p.name, p.cells, false, base, { key: p.key, thresholds: true }));
-  for (const p of v.others || []) L.push(line(p.name, p.cells, false, base, { thresholds: true }));
+  // the rest of the input as one line, its kinds indented under it; the output after
+  const rest = (v.others || []).filter(p => p.key !== 'output'), output = (v.others || []).find(p => p.key === 'output');
+  if (v.otherInput) L.push(line('Other input', v.otherInput, false, base, { thresholds: true }));
+  for (const p of rest) L.push(line(`  ${p.name}`, p.cells, false, base, { thresholds: true }));
+  if (output) L.push(line(output.name, output.cells, false, base, { thresholds: true }));
   L.push(line('Total (the whole session)', v.sessionTotals, true, null, { thresholds: true }));
   L.push('', 'By model', head);
   for (const p of v.providers) { L.push(line(p.name, p.cells, true, base)); for (const m of v.models.filter(x => x.provider === p.name)) L.push(line(`  ${m.model}${m.priced ? '' : ' (unpriced)'}`, m.cells, false, base)); }
