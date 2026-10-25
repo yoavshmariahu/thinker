@@ -1,4 +1,4 @@
-node_modules/
+node_modules
 .metrics-work/
 dist/
 *.log
