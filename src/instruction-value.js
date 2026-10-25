@@ -368,12 +368,15 @@ export function findRepoSessions(repo, days) {
 }
 const median = xs => { const a = xs.filter(n => Number.isFinite(n) && n > 0).sort((x, y) => x - y); return a.length ? a[Math.floor(a.length / 2)] : 0; };
 
-// Per section over the window: tokens, what it costs a session (tokens × the median model calls), the sessions
-// that read it, how many it bore on (applied), and the judged verdicts with the share followed.
-export function instructionValue(store, { days = 30, sessions } = {}) {
+// Per section over the window: tokens, the model calls that read it (`prompts`), what it cost over the window
+// (tokens × those calls) and what that is on an average prompt here (`perPrompt`: the window cost over every prompt
+// of the window, as the Report counts a prompt), the sessions that read it, how many it bore on (applied), and the
+// judged verdicts with the share followed. `prompts` names the denominator: the caller passes the whole window's
+// model calls (context-view.js, where the sessions that read no instruction file count too), else this reader's own.
+export function instructionValue(store, { days = 30, sessions, prompts } = {}) {
   const files = instructionFiles(store.repo);
   // no instruction file: the same shape, empty, so the Context view of such a repository still renders
-  if (!files.length) return { file: null, files: [], tokens: 0, sessions: 0, judged: 0, calls: 0, judge: valueConfig(store), sections: [], timeline: [], savings: { perSession: 0, sections: 0, share: 0, window: 0 } };
+  if (!files.length) return { file: null, files: [], tokens: 0, sessions: 0, prompts: 0, judged: 0, calls: 0, judge: valueConfig(store), sections: [], timeline: [], savings: { perPrompt: 0, sections: 0, share: 0, window: 0 } };
   const secs = valueSections(store, files), srcHash = sha(files.map(f => f.file + f.text).join('\0')), st = readValueState(store);
   sessions ??= findRepoSessions(store.repo, days);
   const recs = [];
@@ -387,6 +390,12 @@ export function instructionValue(store, { days = 30, sessions } = {}) {
   const loadedIn = r => r.loaded || [files[0].file];
   const reading = recs.filter(r => loadedIn(r).length);
   const calls = median(reading.map(r => r.turns)), n = reading.length;
+  // the window's model calls: every call reads the file again, so a section's cost is its size times the calls that
+  // carried it, and its share of an average prompt is that over every prompt of the window
+  const promptsOf = rs => rs.reduce((a, r) => a + Math.max(1, r.turns || 0), 0);
+  // the denominator is the window's prompts, the caller's where it counts sessions this reader does not see; never
+  // fewer than the calls that read the files, so no section shows more a prompt than its own size
+  const mine0 = promptsOf(reading), denom = Math.max(1, prompts || 0, mine0);
   const rows = secs.map(s => {
     // a section counts in the sessions that read its file: what it costs is averaged over every session
     const loaded = reading.filter(r => loadedIn(r).includes(s.file));
@@ -404,27 +413,30 @@ export function instructionValue(store, { days = 30, sessions } = {}) {
     for (const r of judged) { const x = r.judged.verdicts[s.id]; if (x) v[x.verdict]++; }
     const bore = v.followed + v.violated + v.applicable;
     const decided = v.followed + v.violated;
-    const perSession = Math.round(s.tokens * Math.max(1, calls) * (n ? loaded.length / n : 0));
+    // one rule for every part: its present size in every model call that carried it (a section: the calls of the
+    // sessions that read its file), and that over every prompt of the window. A section changed inside the window
+    // keeps that cost -- the change governs what its *use* is measured over (`mine`), not what it costs now.
+    const promptsHere = promptsOf(loaded), window = s.tokens * promptsHere, perPrompt = Math.round(window / denom);
     return {
-      id: s.id, file: s.file, fileKind: s.fileKind, title: s.title, parent: s.parent, whole: s.whole, tokens: s.tokens, perSession, loadedIn: loaded.length,
+      id: s.id, file: s.file, fileKind: s.fileKind, title: s.title, parent: s.parent, whole: s.whole, tokens: s.tokens, prompts: promptsHere, window, perPrompt, loadedIn: loaded.length,
       sessions: mine.length, triggered: s.triggered, applied, judged: judged.length, ...v,
       changedAt: s.changedAt == null ? null : new Date(s.changedAt).toISOString(), recent, sessionsSince,
       // a share of the sessions judged that the section bore on, and of those it decided, how many it was followed in
       bore, boreShare: judged.length ? bore / judged.length : null, success: decided ? v.followed / decided : null,
       value: valueOf({ sessions: mine.length, applied, triggered: s.triggered, judged: judged.length, bore, followed: v.followed, violated: v.violated }),
-      ...use({ sessions: mine.length, applied, triggered: s.triggered, judged: judged.length, followed: v.followed, recent }, perSession),
+      ...use({ sessions: mine.length, applied, triggered: s.triggered, judged: judged.length, followed: v.followed, recent }, perPrompt, window),
       text: s.text,
     };
   });
   const judged = reading.filter(r => r.judged), recsAll = recs;
   // the waste flag: a section used in under half the sessions whose cost there is a large share of the file's
-  const fileCost = rows.reduce((a, r) => a + r.perSession, 0);
+  const fileCost = rows.reduce((a, r) => a + r.perPrompt, 0);
   for (const r of rows) Object.assign(r, wasteLevel(r, fileCost));
   const flagged = rows.filter(r => r.waste === 'high' || r.waste === 'medium');
-  const savings = { perSession: flagged.reduce((a, r) => a + r.wasted, 0), sections: flagged.length };
-  savings.share = fileCost ? savings.perSession / fileCost : 0;
-  // over the window, each flagged section in the sessions that read its present text
-  savings.window = flagged.reduce((a, r) => a + r.wasted * r.sessionsSince, 0);
+  const savings = { perPrompt: flagged.reduce((a, r) => a + r.wasted, 0), sections: flagged.length };
+  savings.share = fileCost ? savings.perPrompt / fileCost : 0;
+  // over the window, each flagged section in the calls that read its present text
+  savings.window = flagged.reduce((a, r) => a + (r.wastedWindow || 0), 0);
   const tok = f => Math.ceil(f.text.length / 4), fileTokens = tok(files[0]);
   // per session, for the trend: the tokens of the files it read, read again by each of its model calls (today's
   // files: an earlier size is not kept)
@@ -432,7 +444,7 @@ export function instructionValue(store, { days = 30, sessions } = {}) {
   const timeline = reading.filter(r => r.turns).map(r => ({ t: r.mtime, session: r.session, client: r.client, calls: r.turns, tokens: files.filter(f => loadedIn(r).includes(f.file)).reduce((a, f) => a + tok(f), 0), files: loadedIn(r) }));
   const fileRows = files.map(f => ({ file: f.file, kind: f.kind, tokens: tok(f), loadedIn: reading.filter(r => loadedIn(r).includes(f.file)).length, ...(f.globs?.length ? { globs: f.globs } : {}), ...(f.dir ? { dir: f.dir } : {}) }));
   const label = files.length === 1 ? files[0].file : `${files[0].file} + ${files.length - 1} more`;
-  return { file: label, files: fileRows, tokens: fileTokens, sessions: n, judged: judged.length, calls, judge: valueConfig(store), sections: rows, timeline, savings };
+  return { file: label, files: fileRows, tokens: fileTokens, sessions: n, prompts: mine0, denom, judged: judged.length, calls, judge: valueConfig(store), sections: rows, timeline, savings };
 }
 
 // How often sessions acted on a section, and the tokens spent on it in the sessions that did not: from the judge's
@@ -441,9 +453,10 @@ export function instructionValue(store, { days = 30, sessions } = {}) {
 // Acted on: the judged sessions whose agent followed the section (a verdict of followed), once enough are judged.
 // A section changed inside the window (`recent`) is measured over the sessions since the change, and fewer than
 // RARE.minSessions of them say nothing yet.
-export function use({ sessions, applied, triggered, judged, followed = 0, recent = false }, perSession) {
+export function use({ sessions, applied, triggered, judged, followed = 0, recent = false }, perPrompt, window = null) {
   const [share, by] = judged >= RARE.minSessions ? [followed / judged, 'judge'] : triggered && sessions && !(recent && sessions < RARE.minSessions) ? [applied / sessions, 'triggers'] : [null, null];
-  return { usedShare: share, usedBy: by, wasted: share == null ? null : Math.round(perSession * (1 - share)) };
+  // `wasted` is what it cost on an average prompt where it was not used, `wastedWindow` the same over the window
+  return { usedShare: share, usedBy: by, wasted: share == null ? null : Math.round(perPrompt * (1 - share)), wastedWindow: share == null || window == null ? null : Math.round(window * (1 - share)) };
 }
 
 // Wasted is what a part cost in the sessions that did not use it. High waste: 5% or more of what its kind (the file,

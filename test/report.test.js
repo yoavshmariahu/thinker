@@ -259,16 +259,16 @@ test('the cache\'s numbers price the saving at each model\'s input rate and keep
   assert.equal(c.hits, 0); assert.equal(c.dollarsSaved, 0); assert.equal(c.acted, null);
 });
 
-test('outputComparison: a compressed tool against itself before, the saving a session over the sessions since', () => {
+test('outputComparison: a compressed tool against itself before, the saving a prompt over the prompts since', () => {
   const rows = [
-    { name: 'Bash:sed', level: null, sessions: 277, from: 1, to: 2, calls: 8.5, perCall: 1000, perSession: 889_000, wasted: 732_000 },
-    { name: 'Bash:sed', level: 'moderate', sessions: 8, from: 3, to: 4, calls: 7, perCall: 1600, perSession: 463_000, wasted: 277_000 },
-    { name: 'Bash:cat', level: null, sessions: 285, perCall: 700, perSession: 300_000 },
+    { name: 'Bash:sed', level: null, sessions: 277, prompts: 9000, from: 1, to: 2, calls: 8.5, perCall: 1000, perPrompt: 8890, wasted: 7320 },
+    { name: 'Bash:sed', level: 'moderate', sessions: 8, prompts: 300, from: 3, to: 4, calls: 7, perCall: 1600, perPrompt: 4630, wasted: 2770 },
+    { name: 'Bash:cat', level: null, sessions: 285, prompts: 9300, perCall: 700, perPrompt: 3000 },
   ];
   const m = outputComparison(rows, 'Bash:sed');
   assert.deepEqual([m.before.sessions, m.after.sessions, m.after.level], [277, 8, 'moderate']);
-  assert.deepEqual(m.perSession, { before: 889_000, after: 463_000, delta: 426_000, share: 426_000 / 889_000 });
-  assert.deepEqual([m.perCall.delta, m.window, m.few], [-600, 426_000 * 8, false]);
+  assert.deepEqual(m.perPrompt, { before: 8890, after: 4630, delta: 4260, share: 4260 / 8890 });
+  assert.deepEqual([m.perCall.delta, m.window, m.few], [-600, 4260 * 300, false]);
   assert.equal(outputComparison(rows, 'Bash:cat'), null, 'nothing measured under a setting yet');
   assert.equal(outputComparison(rows, 'Read'), null);
 });

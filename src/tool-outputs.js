@@ -126,9 +126,9 @@ export function sessionUsage(store, sessions, { levelAt = null, key = '' } = {})
   return sessionRecords(store, sessions, { levelAt, key }).map(r => ({ session: r.session, t: r.t, client: r.client, model: r.model || null, turns: r.turns || 0, usage: r.usage || null, outputs: Object.values(r.by).reduce((a, x) => a + x.input, 0), by: Object.fromEntries(Object.entries(r.by).map(([k, x]) => [k, x.input])) }));
 }
 // The rows of one tool linked: each carries `others`, the same tool's rows under its other settings (level, sessions,
-// from, to, perCall, perSession, wasted), so the page and the command compare a compressed tool with itself before.
+// from, to, perCall, perPrompt, wasted), so the page and the command compare a compressed tool with itself before.
 export function linkRows(rows) {
-  const brief = r => ({ level: r.level, sessions: r.sessions, from: r.from, to: r.to, perCall: r.perCall, perSession: r.perSession, wasted: r.wasted, calls: r.calls });
+  const brief = r => ({ level: r.level, sessions: r.sessions, prompts: r.prompts, from: r.from, to: r.to, perCall: r.perCall, perPrompt: r.perPrompt, wasted: r.wasted, calls: r.calls });
   return rows.map(r => ({ ...r, others: rows.filter(o => o !== r && o.name === r.name).map(brief) }));
 }
 // The rows from the session records: one per tool and compression setting (splitKey). A row's figures are averaged over
@@ -138,6 +138,10 @@ export function linkRows(rows) {
 // the settings. Without `levelAt` there is one row a tool over every session, as before.
 export function aggregateOutputs(recs, { levelAt = null } = {}) {
   const n = recs.length, rows = new Map();
+  // a prompt is one model call (transcripts.js `turns`), as the Report counts it: the figures are a tool's cost on an
+  // average prompt of the period its row was measured over, and the window total under it
+  const promptsOf = rs => rs.reduce((a, s) => a + Math.max(1, s.turns || 0), 0);
+  const allPrompts = Math.max(1, promptsOf(recs));
   for (const r of recs) for (const [k, x] of Object.entries(r.by)) {
     const row = rows.get(k) || { key: k, ...splitKey(k), usedIn: 0, calls: 0, tokens: 0, input: 0, unneeded: 0, saveModerate: 0, saveHigh: 0 };
     row.usedIn++; row.calls += x.calls; row.tokens += x.tokens; row.input += x.input; row.unneeded += x.unneeded || 0; row.saveModerate += x.saveModerate || 0; row.saveHigh += x.saveHigh || 0; rows.set(k, row);
@@ -145,13 +149,18 @@ export function aggregateOutputs(recs, { levelAt = null } = {}) {
   const span = xs => xs.length ? { from: Math.min(...xs), to: Math.max(...xs) } : { from: null, to: null };
   // `wasted`: the input tokens a session spent reading the tool's results after the agent last used them (sessionOutputs)
   const tools = [...rows.values()].map(r => {
-    const at = levelAt ? recs.filter(s => levelAt(r.name, s.at ?? s.t) === r.level).map(s => s.at ?? s.t) : recs.map(s => s.at ?? s.t);
+    const mine = levelAt ? recs.filter(s => levelAt(r.name, s.at ?? s.t) === r.level) : recs;
+    const at = mine.map(s => s.at ?? s.t);
     // a session's calls fall under a setting its first call did not have (made during it): the sessions that called it are a floor
     const d = Math.max(at.length, r.usedIn, 1);
-    return { name: r.name, level: r.level, sessions: levelAt ? d : n, ...span(at), usedIn: r.usedIn, calls: r.calls / d, tokens: Math.round(r.tokens / d), perSession: Math.round(r.input / d), perCall: Math.round(r.tokens / (r.calls || 1)), wasted: Math.round(r.unneeded / d), saveModerate: Math.round(r.saveModerate / d), saveHigh: Math.round(r.saveHigh / d) };
-  }).sort((a, b) => b.perSession - a.perSession);
-  const sum = k => Math.round([...rows.values()].reduce((a, r) => a + r[k], 0) / (n || 1));
-  return { sessions: n, tools: linkRows(tools), tokens: sum('tokens'), perSession: sum('input'), wasted: sum('unneeded') };
+    // the prompts the row is measured over: its setting's period, so a tool compressed on Tuesday compares with
+    // itself before on the same unit, and the window total beside it (`window`, what it cost in all of them)
+    const pr = Math.max(1, levelAt ? promptsOf(mine) : allPrompts);
+    return { name: r.name, level: r.level, sessions: levelAt ? d : n, prompts: pr, ...span(at), usedIn: r.usedIn, calls: r.calls / d, tokens: Math.round(r.tokens / d), perPrompt: Math.round(r.input / pr), window: r.input, perCall: Math.round(r.tokens / (r.calls || 1)), wasted: Math.round(r.unneeded / pr), wastedWindow: r.unneeded, saveModerate: Math.round(r.saveModerate / pr), saveHigh: Math.round(r.saveHigh / pr), saveModerateWindow: r.saveModerate };
+  }).sort((a, b) => b.window - a.window);
+  const total = k => [...rows.values()].reduce((a, r) => a + r[k], 0);
+  const sum = k => Math.round(total(k) / (n || 1));
+  return { sessions: n, prompts: allPrompts, tools: linkRows(tools), tokens: sum('tokens'), perPrompt: Math.round(total('input') / allPrompts), window: total('input'), wasted: Math.round(total('unneeded') / allPrompts), wastedWindow: total('unneeded') };
 }
 export function toolOutputs(store, sessions, { levelAt = null, key = '' } = {}) {
   const recs = sessionRecords(store, sessions, { levelAt, key }).filter(r => Object.keys(r.by).length);

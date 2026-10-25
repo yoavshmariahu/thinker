@@ -42,10 +42,19 @@ export function contextView(store, { days = 30, sessions, usage, log } = {}) {
   const on = harnessOn(store);
   const advice = new Set(harnessAdvice(usage).map(s => `${s.client || 'claude'}:${s.key}`));
   const calls = c => usage.calls?.[c || 'claude'] || median(Object.values(usage.calls || {})) || 1;
+  // The unit is a prompt, one call to the model, as the Report counts it (report.js): a part sitting in the context is
+  // read again by every call, so what it cost over the window is its tokens times the calls of the sessions that
+  // carried it (`window`), and `perPrompt` is that over every prompt of the window — what it adds to an average
+  // prompt here. A part carried by half the window's calls shows half its size, not its size.
+  const promptsOf = s => Math.max(0, s.prompts ?? s.loaded * Math.max(1, calls(s.client)));
+  // never fewer than the calls that carried any one part (a report read without the window's own count), so nothing
+  // adds more to an average prompt than its own size
+  const viewPrompts = Math.max(1, usage.prompts || usage.sessions * Math.max(1, calls('claude')) || 1, ...(usage.sources || []).map(promptsOf));
   log ||= readLog(store);
   const outcomes = skillOutcomes(store, { days, log });
   const src = s => ({
-    key: s.key, name: s.name, kind: s.kind, client: s.client || 'claude', scope: s.scope || null, tokens: s.tokens, perSession: s.tokens * Math.max(1, calls(s.client)),
+    key: s.key, name: s.name, kind: s.kind, client: s.client || 'claude', scope: s.scope || null, tokens: s.tokens,
+    prompts: promptsOf(s), window: s.tokens * promptsOf(s), perPrompt: Math.round(s.tokens * promptsOf(s) / viewPrompts),
     loaded: s.loaded, used: s.used, usedShare: s.loaded ? s.used / s.loaded : null, off: Boolean(s.off),
     // what switches it off here (harness.js:switchOffNow with `any` takes the label); `switchSources` turns the
     // harness on for it when it is not
@@ -56,8 +65,9 @@ export function contextView(store, { days = 30, sessions, usage, log } = {}) {
   // a skill as the Context tab shows it: its own text beside its cost, how often sessions read it, its outcome, and
   // the waste flag the instruction sections get (its listing's cost in the sessions that did not read it)
   const skillText = s => { const src = usage.sources.find(x => x.key === s.key && (x.client || 'claude') === s.client); try { return fs.readFileSync(path.join(src?.dir || '', 'SKILL.md'), 'utf8'); } catch { return Object.values(src?.texts || {})[0] || ''; } };
-  let skills = rows.filter(r => r.kind === 'skill').map(r => ({ ...r, outcome: outcomes[r.name] || null, text: skillText(r).slice(0, 4000), wasted: r.off ? 0 : Math.round(r.perSession * (1 - (r.usedShare ?? 0))) }));
-  const skillCost = skills.reduce((a, r) => a + (r.off ? 0 : r.perSession), 0);
+  const unused = r => 1 - (r.usedShare ?? 0);
+  let skills = rows.filter(r => r.kind === 'skill').map(r => ({ ...r, outcome: outcomes[r.name] || null, text: skillText(r).slice(0, 4000), wasted: r.off ? 0 : Math.round(r.perPrompt * unused(r)), wastedWindow: r.off ? 0 : Math.round(r.window * unused(r)) }));
+  const skillCost = skills.reduce((a, r) => a + (r.off ? 0 : r.perPrompt), 0);
   skills = skills.map(r => ({ ...r, ...wasteLevel(r, skillCost) }));
   // skills of a plugin are one row in the harness report (one switch): their outcomes are summed onto it
   const tools = rows.filter(r => r.kind !== 'skill').map(r => ({ ...r, group: toolGroup(r) })).map(r => {
@@ -70,10 +80,10 @@ export function contextView(store, { days = 30, sessions, usage, log } = {}) {
   // each tool's description (what its listing or definition said) and its waste within its kind, for its card
   const sourceOf = r => usage.sources.find(x => x.key === r.key && (x.client || 'claude') === r.client);
   for (const g of ['mcp', 'plugins', 'builtin']) {
-    const xs = tools.filter(r => r.group === g), cost = xs.reduce((a, r) => a + (r.off ? 0 : r.perSession), 0);
-    for (const r of xs) Object.assign(r, { text: Object.values(sourceOf(r)?.texts || {}).join('\n\n').slice(0, 2400), wasted: r.off ? 0 : Math.round(r.perSession * (1 - (r.usedShare ?? 0))) }, wasteLevel({ usedShare: r.usedShare, wasted: r.off ? null : Math.round(r.perSession * (1 - (r.usedShare ?? 0))) }, g === 'builtin' ? cost : xs.concat(skills).reduce((a, x) => a + (x.off ? 0 : x.perSession), 0)));
+    const xs = tools.filter(r => r.group === g), cost = xs.reduce((a, r) => a + (r.off ? 0 : r.perPrompt), 0);
+    for (const r of xs) Object.assign(r, { text: Object.values(sourceOf(r)?.texts || {}).join('\n\n').slice(0, 2400), wasted: r.off ? 0 : Math.round(r.perPrompt * unused(r)), wastedWindow: r.off ? 0 : Math.round(r.window * unused(r)) }, wasteLevel({ usedShare: r.usedShare, wasted: r.off ? null : Math.round(r.perPrompt * unused(r)) }, g === 'builtin' ? cost : xs.concat(skills).reduce((a, x) => a + (x.off ? 0 : x.perPrompt), 0)));
   }
-  const iv = instructionValue(store, { days, sessions });
+  const iv = instructionValue(store, { days, sessions, prompts: viewPrompts });
   // each tool's output measured under each compression setting it ran with (tool-outputs.js:aggregateOutputs, the
   // settings' times from the log: diet.js:dietTimeline), with the level set now (`compression`) and whether thinker can
   // compress it at all; a row measured under another setting than now's is `past`: kept for the comparison, offered
@@ -84,18 +94,18 @@ export function contextView(store, { days = 30, sessions, usage, log } = {}) {
   const instructions = { ...iv };
   const sum = (xs, k) => xs.reduce((a, x) => a + (x.off ? 0 : x[k] || 0), 0);
   const view = {
-    days, sessions: usage.sessions, harnessOn: on,
+    days, sessions: usage.sessions, prompts: viewPrompts, harnessOn: on,
     totals: {
-      instructions: { tokens: iv.tokens || 0, perSession: (iv.tokens || 0) * Math.max(1, iv.calls || 1) },
-      skills: { tokens: sum(skills, 'tokens'), perSession: sum(skills, 'perSession') },
-      tools: { tokens: sum(tools, 'tokens'), perSession: sum(tools, 'perSession') },
-      outputs: { tokens: outputs.tokens, perSession: outputs.perSession, wasted: outputs.wasted },
+      instructions: { tokens: iv.tokens || 0, perPrompt: (iv.sections || []).reduce((a, r) => a + r.perPrompt, 0), window: (iv.sections || []).reduce((a, r) => a + r.window, 0) },
+      skills: { tokens: sum(skills, 'tokens'), perPrompt: sum(skills, 'perPrompt'), window: sum(skills, 'window') },
+      tools: { tokens: sum(tools, 'tokens'), perPrompt: sum(tools, 'perPrompt'), window: sum(tools, 'window') },
+      outputs: { tokens: outputs.tokens, perPrompt: outputs.perPrompt, window: outputs.window, wasted: outputs.wasted, wastedWindow: outputs.wastedWindow },
       // what the person added to the agent, one part: skills, MCP servers, plugins
-      custom: (() => { const xs = [...skills, ...tools.filter(r => r.group !== 'builtin')]; return { tokens: sum(xs, 'tokens'), perSession: sum(xs, 'perSession'), count: xs.filter(x => !x.off).length }; })(),
+      custom: (() => { const xs = [...skills, ...tools.filter(r => r.group !== 'builtin')]; return { tokens: sum(xs, 'tokens'), perPrompt: sum(xs, 'perPrompt'), window: sum(xs, 'window'), count: xs.filter(x => !x.off).length }; })(),
       // the tools by kind, as the Context tab's bar and tables split them
-      ...Object.fromEntries(Object.keys(TOOL_GROUPS).map(g => { const xs = tools.filter(r => toolGroup(r) === g); return [g, { tokens: sum(xs, 'tokens'), perSession: sum(xs, 'perSession'), count: xs.filter(x => !x.off).length }]; })),
+      ...Object.fromEntries(Object.keys(TOOL_GROUPS).map(g => { const xs = tools.filter(r => toolGroup(r) === g); return [g, { tokens: sum(xs, 'tokens'), perPrompt: sum(xs, 'perPrompt'), window: sum(xs, 'window'), count: xs.filter(x => !x.off).length }]; })),
     },
-    instructions, skills, tools, outputs: { sessions: outputs.sessions, tools: outputs.tools },
+    instructions, skills, tools, outputs: { sessions: outputs.sessions, prompts: outputs.prompts, tools: outputs.tools },
     // one row per session, for the trend: its input tokens by part (tokens a call × its model calls); the instruction
     // file and the loaded tools come from different readers, so a session may have one side only
     timeline: [
@@ -132,41 +142,51 @@ export function mergeViews(list) {
     }));
   };
   const views = list.map(x => x.view), sessions = views.reduce((a, v) => a + v.sessions, 0);
+  // every repository's prompts together: a merged row's cost over the window is the sum of its repositories' and what
+  // it adds to an average prompt is that over all of them, so no figure is a repository's own weighted by another's
+  const prompts = Math.max(1, views.reduce((a, v) => a + (v.prompts || 0), 0));
   const tag = x => r => ({ ...r, repo: x.repo, repoName: x.name });
   // a merged skill's or tool's use, waste and pill are made again from the merged figures: kept from the first
-  // repository's row (as `...g[0]` leaves them), `wasted` was that repository's cost times its unused share beside a
-  // cost averaged over every repository, and on the page Wasted stood above Over N days wherever the first
-  // repository's sessions were the costliest (2026-10-24)
-  const reuse = r => ({ ...r, usedShare: r.loaded ? r.used / r.loaded : null, wasted: r.off ? 0 : Math.round(r.perSession * (1 - (r.loaded ? r.used / r.loaded : 0))) });
+  // repository's row (as `...g[0]` leaves them). The costs are sums now (the calls that carried it, and its tokens in
+  // each), so nothing is one repository's figure weighted by another's, as it was until 2026-10-25.
+  const reuse = r => { const share = r.loaded ? r.used / r.loaded : null, perPrompt = Math.round(r.window / prompts);
+    return { ...r, usedShare: share, perPrompt, wasted: r.off ? 0 : Math.round(perPrompt * (1 - (share || 0))), wastedWindow: r.off ? 0 : Math.round(r.window * (1 - (share || 0))) }; };
   const graded = (xs, cost) => xs.map(r => ({ ...r, ...wasteLevel({ usedShare: r.usedShare, wasted: r.off ? null : r.wasted }, cost) }));
-  const liveCost = xs => xs.reduce((a, x) => a + (x.off ? 0 : x.perSession), 0);
-  const tools0 = merge(list.flatMap(x => x.view.tools.map(tag(x))), r => `${r.client}:${r.key}`, 'loaded', ['loaded', 'used'], ['tokens', 'perSession']).map(reuse).sort((a, b) => b.perSession - a.perSession);
-  const skills0 = merge(list.flatMap(x => x.view.skills.map(tag(x))), r => `${r.client}:${r.key}`, 'loaded', ['loaded', 'used'], ['tokens', 'perSession']).map(reuse);
+  const liveCost = xs => xs.reduce((a, x) => a + (x.off ? 0 : x.perPrompt), 0);
+  const tools0 = merge(list.flatMap(x => x.view.tools.map(tag(x))), r => `${r.client}:${r.key}`, 'loaded', ['loaded', 'used', 'prompts', 'window'], ['tokens']).map(reuse).sort((a, b) => b.window - a.window);
+  const skills0 = merge(list.flatMap(x => x.view.skills.map(tag(x))), r => `${r.client}:${r.key}`, 'loaded', ['loaded', 'used', 'prompts', 'window'], ['tokens']).map(reuse);
   const skills = graded(skills0, liveCost(skills0));
   // as contextView grades them: built-in tools against their own cost, the custom tools against every custom tool's and skill's
   const tools = tools0.map(r => ({ ...r, ...wasteLevel({ usedShare: r.usedShare, wasted: r.off ? null : r.wasted }, r.group === 'builtin' ? liveCost(tools0.filter(x => x.group === 'builtin')) : liveCost(tools0.filter(x => x.group !== 'builtin').concat(skills))) }));
   // a tool's rows merged by tool and setting, each weighted by the sessions it was measured over; the row is past
   // when it is past in every repository, and the rows of one tool are linked again over the merged figures
   const allOuts = views.flatMap(v => v.outputs.tools), span = (xs, f) => { const ts = xs.filter(Number.isFinite); return ts.length ? f(...ts) : null; };
-  const outs = linkRows(merge(allOuts, r => r.key || `${r.name}@${r.level || ''}`, 'sessions', ['usedIn', 'sessions'], ['tokens', 'perSession', 'perCall', 'wasted', 'saveModerate', 'saveHigh'])
-    .map(t => { const g = allOuts.filter(x => x.name === t.name && (x.level || null) === (t.level || null)); return { ...t, calls: w(g, 'calls', 'sessions'), past: g.every(x => x.past), from: span(g.map(x => x.from), Math.min), to: span(g.map(x => x.to), Math.max) }; }))
-    .sort((a, b) => b.perSession - a.perSession);
+  const outs = linkRows(merge(allOuts, r => r.key || `${r.name}@${r.level || ''}`, 'sessions', ['usedIn', 'sessions', 'prompts', 'window', 'wastedWindow', 'saveModerateWindow'], ['tokens', 'perCall'])
+    .map(t => { const g = allOuts.filter(x => x.name === t.name && (x.level || null) === (t.level || null)), pr = Math.max(1, t.prompts);
+      // the merged row's unit is its own prompts (the setting's period in each repository), as one repository's row is
+      return { ...t, perPrompt: Math.round(t.window / pr), wasted: Math.round(t.wastedWindow / pr), saveModerate: Math.round(t.saveModerateWindow / pr),
+        calls: w(g, 'calls', 'sessions'), past: g.every(x => x.past), from: span(g.map(x => x.from), Math.min), to: span(g.map(x => x.to), Math.max) }; }))
+    .sort((a, b) => b.window - a.window);
   const ivs = list.map(x => ({ x, iv: x.view.instructions })).filter(({ iv }) => iv.file);
   const ivSessions = ivs.reduce((a, { iv }) => a + iv.sessions, 0);
   const window = ivs.reduce((a, { iv }) => a + (iv.savings?.window || 0), 0);
-  // each section over the sessions that read its present text (a section changed inside the window counts from then)
-  const fileWindow = ivs.reduce((a, { iv }) => a + iv.sections.reduce((s, r) => s + r.perSession * (r.sessionsSince ?? iv.sessions), 0), 0);
-  const total = k => ({ tokens: Math.round(w(views.map(v => ({ ...v.totals[k], s: v.sessions })), 'tokens', 's')), perSession: Math.round(w(views.map(v => ({ ...v.totals[k], s: v.sessions })), 'perSession', 's')), count: Math.max(0, ...views.map(v => v.totals[k]?.count || 0)) });
+  // each section over the calls that read its present text (a section changed inside the window counts from then)
+  const fileWindow = ivs.reduce((a, { iv }) => a + iv.sections.reduce((s, r) => s + (r.window || 0), 0), 0);
+  const total = k => { const win = views.reduce((a, v) => a + (v.totals[k]?.window || 0), 0);
+    return { tokens: Math.round(w(views.map(v => ({ ...v.totals[k], s: v.sessions })), 'tokens', 's')), window: win, perPrompt: Math.round(win / prompts), count: Math.max(0, ...views.map(v => v.totals[k]?.count || 0)) }; };
   return {
-    all: true, days: views[0]?.days || 30, sessions, harnessOn: false, repos: list.map(x => ({ repo: x.repo, name: x.name, sessions: x.view.sessions })),
+    all: true, days: views[0]?.days || 30, sessions, prompts, harnessOn: false, repos: list.map(x => ({ repo: x.repo, name: x.name, sessions: x.view.sessions })),
     totals: Object.fromEntries(Object.keys(views[0]?.totals || {}).map(k => [k, total(k)])),
     instructions: {
       all: true, file: ivs.length ? `${ivs.length} instruction file${ivs.length === 1 ? '' : 's'}` : null, sessions: ivSessions,
       judged: ivs.reduce((a, { iv }) => a + iv.judged, 0), calls: Math.round(w(ivs.map(({ iv }) => iv), 'calls', 'sessions')), judge: ivs[0]?.iv.judge || { judge: false, share: 0 },
-      sections: ivs.flatMap(({ x, iv }) => iv.sections.map(tag(x))),
-      savings: { window, perSession: ivSessions ? Math.round(window / ivSessions) : 0, share: fileWindow ? window / fileWindow : 0, sections: ivs.reduce((a, { iv }) => a + (iv.savings?.sections || 0), 0) },
+      // a section's cost over the window is its own; what it adds to an average prompt is read against every
+      // repository's prompts here, not its own repository's, so the rows of all of them compare
+      sections: ivs.flatMap(({ x, iv }) => iv.sections.map(tag(x))).map(r => { const perPrompt = Math.round((r.window || 0) / prompts);
+        return { ...r, perPrompt, wasted: r.usedShare == null ? null : Math.round(perPrompt * (1 - r.usedShare)) }; }),
+      savings: { window, perPrompt: Math.round(window / prompts), share: fileWindow ? window / fileWindow : 0, sections: ivs.reduce((a, { iv }) => a + (iv.savings?.sections || 0), 0) },
     },
-    skills, tools, outputs: { sessions: views.reduce((a, v) => a + v.outputs.sessions, 0), tools: outs },
+    skills, tools, outputs: { sessions: views.reduce((a, v) => a + v.outputs.sessions, 0), prompts: views.reduce((a, v) => a + (v.outputs?.prompts || 0), 0), tools: outs },
     timeline: views.flatMap(v => v.timeline).sort((a, b) => a.t - b.t),
     // each repository's own, ranked together (a change is made in its repository)
     suggestions: list.flatMap(x => (x.view.suggestions || []).map(c => ({ ...c, repo: x.repo, repoName: x.name }))).sort((a, b) => b.saving - a.saving),

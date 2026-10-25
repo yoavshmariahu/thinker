@@ -74,14 +74,27 @@ test('aggregateOutputs: a row per tool and setting, each over the sessions that 
   const r = aggregateOutputs(recs, { levelAt });
   const before = r.tools.find(t => t.name === 'Bash:sed' && t.level === null), after = r.tools.find(t => t.name === 'Bash:sed' && t.level === 'moderate');
   assert.equal(r.sessions, 5);
-  assert.deepEqual([before.sessions, before.usedIn, before.perSession, before.wasted, before.from, before.to], [3, 2, 1000, 800, T0, T0 + 2], 'the three sessions until the setting, two of which called it');
-  assert.deepEqual([after.sessions, after.usedIn, after.perSession, after.wasted, after.calls, after.from, after.to], [2, 2, 400, 100, 1.5, SET + 1, SET + 2], 'the two sessions since');
-  assert.deepEqual(after.others.map(o => [o.level, o.sessions, o.perSession]), [[null, 3, 1000]]);
-  assert.deepEqual(before.others.map(o => [o.level, o.sessions, o.perSession]), [['moderate', 2, 400]]);
+  assert.deepEqual([before.sessions, before.usedIn, before.perPrompt, before.wasted, before.from, before.to], [3, 2, 1000, 800, T0, T0 + 2], 'the three sessions until the setting, two of which called it');
+  assert.deepEqual([after.sessions, after.usedIn, after.perPrompt, after.wasted, after.calls, after.from, after.to], [2, 2, 400, 100, 1.5, SET + 1, SET + 2], 'the two sessions since');
+  assert.deepEqual([after.window, after.wastedWindow], [800, 200], 'the window totals under the per-prompt figures');
+  assert.deepEqual(after.others.map(o => [o.level, o.sessions, o.perPrompt]), [[null, 3, 1000]]);
+  assert.deepEqual(before.others.map(o => [o.level, o.sessions, o.perPrompt]), [['moderate', 2, 400]]);
   assert.deepEqual(r.tools.find(t => t.name === 'Bash:ls').others, []);
-  // the totals are over every session, whatever the settings: (1000 + 2000 + 40 + 300 + 500) / 5
-  assert.equal(r.perSession, 768); assert.equal(r.wasted, Math.round((800 + 1600 + 30 + 100 + 100) / 5));
+  // the totals are over every prompt of the window, whatever the settings: (1000 + 2000 + 40 + 300 + 500) / 5
+  assert.equal(r.perPrompt, 768); assert.equal(r.wasted, Math.round((800 + 1600 + 30 + 100 + 100) / 5));
+  assert.equal(r.prompts, 5, 'a session with no model calls recorded counts as one prompt');
   // without a timeline, one row a tool over every session, as before
   const plain = aggregateOutputs(recs.map(x => ({ ...x, by: Object.fromEntries(Object.entries(x.by).map(([k, v]) => [splitKey(k).name, v])) })));
   assert.deepEqual(plain.tools.filter(t => t.name === 'Bash:sed').map(t => [t.level, t.sessions]), [[null, 5]]);
+});
+
+test('aggregateOutputs: the unit is a prompt, so a long session weighs by its model calls', () => {
+  const rec = (at, turns, by) => ({ at, t: at, turns, by });
+  const out = input => ({ calls: 1, tokens: 100, input, unneeded: 0, saveModerate: 0, saveHigh: 0 });
+  // 9000 input tokens over 30 model calls, not over two sessions
+  const r = aggregateOutputs([rec(T0, 20, { 'Bash:sed': out(6000) }), rec(T0 + 1, 10, { 'Bash:sed': out(3000) })]);
+  const sed = r.tools.find(t => t.name === 'Bash:sed');
+  assert.equal(r.prompts, 30);
+  assert.deepEqual([sed.prompts, sed.window, sed.perPrompt], [30, 9000, 300]);
+  assert.equal(r.perPrompt, 300);
 });

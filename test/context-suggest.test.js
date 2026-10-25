@@ -16,12 +16,13 @@ function repo() {
   return s;
 }
 const section = (id, wasted, waste = 'high') => ({ id, file: 'AGENTS.md', title: id, tokens: 2000, wasted, waste, usedShare: 0.1 });
+// a fixture row without `prompts` falls back to its sessions, one prompt each
 const view = (over = {}) => ({
   days: 30, sessions: 40,
   instructions: { sessions: 40, sections: [section('Releases', 30_000), section('Ports', 9_000, 'medium'), section('Tests', 50_000, 'low'), section('Unknown', null, 'unknown')] },
   skills: [{ name: 'deploy', client: 'claude', key: 'skill:deploy', label: 'deploy skill', used: 1, loaded: 40, wasted: 12_000, waste: 'high' }, { name: 'off-one', client: 'claude', key: 'skill:x', used: 0, loaded: 40, wasted: 99_000, waste: 'high', off: true }],
   tools: [{ name: 'Workflow', kind: 'tool', group: 'builtin', client: 'claude', key: 'builtin:Workflow', label: 'Workflow tool', used: 0, loaded: 40, tokens: 3000, wasted: 20_000, waste: 'high' }],
-  outputs: { sessions: 40, tools: [{ name: 'Bash:pytest', compressible: true, compression: null, saveModerate: 25_000, saveHigh: 40_000, perSession: 100_000, perCall: 9000 }, { name: 'Read', compressible: true, compression: 'moderate', saveModerate: 80_000 }, { name: 'mcp:x', compressible: false, saveModerate: 70_000 }] },
+  outputs: { sessions: 40, tools: [{ name: 'Bash:pytest', compressible: true, compression: null, saveModerate: 25_000, saveHigh: 40_000, perPrompt: 100_000, perCall: 9000 }, { name: 'Read', compressible: true, compression: 'moderate', saveModerate: 80_000 }, { name: 'mcp:x', compressible: false, saveModerate: 70_000 }] },
   ...over,
 });
 
@@ -30,7 +31,10 @@ test('topChanges: the flagged parts by what they save, five at most, nothing off
   assert.deepEqual(c.map(x => x.title), ['AGENTS.md · Releases', 'Bash:pytest output'.replace('Bash:', ''), 'Workflow tool', 'deploy skill', 'AGENTS.md · Ports']);
   assert.deepEqual(c.map(x => x.view), ['instructions', 'outputs', 'builtin', 'custom', 'instructions']);
   assert.equal(topChanges(view(), { max: 2 }).length, 2);
-  assert.equal(topChanges(view({ instructions: { sections: [section('Tiny', 100)] }, skills: [], tools: [], outputs: { tools: [] } })).length, 0, 'a saving under minSaving is not worth a line');
+  assert.equal(topChanges(view({ instructions: { sections: [section('Tiny', 10)] }, skills: [], tools: [], outputs: { tools: [] } })).length, 0, 'a saving under minSaving is not worth a line');
+  // what a change is worth over the window is its saving a prompt times the model calls that carried it, not its sessions
+  const withPrompts = topChanges(view({ instructions: { sessions: 40, sections: [{ ...section('Releases', 300), prompts: 4000 }] }, skills: [], tools: [], outputs: { tools: [] } }));
+  assert.deepEqual([withPrompts[0].saving, withPrompts[0].total], [300, 1_200_000]);
 });
 
 test('scheduleContextSuggestion: kept for the next prompt, at most weekly, after enough sessions; off by config', async () => {

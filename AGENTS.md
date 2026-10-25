@@ -713,6 +713,15 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   - `instructions` attachment, when present, is exact (replaces estimate).
 - Scaling: parts scaled down where sum exceeds measured input. Remainder = "Other input". Output = model output. Total = session tokens.
 
+**Find Savings: one cost rule, per prompt (2026-10-25, the owner's ask)**
+- A part sits in the context, so it costs its size in every model call that carries it. That is the whole calculation; the three number columns are three readings of it.
+- `window` (**Over N days**): tokens × the model calls of the sessions that carried it. `perPrompt` (**A prompt**): that ÷ every prompt of the window (`contextView` `viewPrompts`, never fewer than any one part's) — the Report's unit, so both pages read on one scale. `wasted` / `wastedWindow` (**Wasted**): either × (1 − Sessions used).
+- Real calls, not a median: `harness.js:claudeUsage` and `harness-codex.js` add a session's calls to every source it loaded (`prompts`); `instruction-value.js:instructionValue` sums the calls of the sessions that read a section's file; `tool-outputs.js:aggregateOutputs` the calls of the period a setting was measured over. Cursor records none: one prompt a session.
+- A section changed inside the window still costs its present size in every call that reads its file; the change governs what its *use* is measured over, nothing else.
+- Each column's **?** is under forty words (the owner: if it needs more, the calculation is wrong), ending on the caveat — tokens read, served far cheaper from the prompt cache after the first call.
+- `wasteLevel` compares per-prompt figures against per-prompt kind costs, so the pills are unchanged. All repositories sums costs and prompts (`mergeViews`), never weights one repository's figure by another's sessions. `context-machine.js` says "a prompt"; a change is worth its saving × the calls that carried it (`context-suggest.js` `total`); `SUGGEST.minSaving` is 15 a prompt (500 a session before).
+- Until then every figure was tokens × the *median* calls of a session, which weighed every session alike and mixed two denominators (a section was averaged over the sessions that read its file, a tool was not).
+
 **Tables** (each ends on `sessionTotals`; all three sum to same figure)
 1. Parts (`report.js:PARTS`): instruction files, custom tools, built-in tools, tool outputs; then **Other input** row (`otherInput`, folded, kinds via `OTHERS`); then output.
 2. Models (`prices.js:providerOf`): grouped by provider; provider subtotal folds models. Each model over every prompt of week.

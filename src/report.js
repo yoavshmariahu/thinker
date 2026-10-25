@@ -210,16 +210,16 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
 
 // What compressing a tool's output measured: the tool's row under the compression against its row from before
 // (tool-outputs.js:aggregateOutputs, one row a setting, each over the sessions that ran under it), the compressed row
-// the latest one with a level. `perCall` is what compression acts on, the size of a result; `perSession` is what the
-// person pays, the results times the calls that read them again, and moves with how the sessions since used the tool
-// as well. A delta is before minus since, positive a saving; `window` is the session delta over the sessions since.
-// null until both periods have a session in the window.
+// the latest one with a level. `perCall` is what compression acts on, the size of a result; `perPrompt` is what the
+// person pays on an average prompt, the results times the calls that read them again, and moves with how the sessions
+// since used the tool as well. A delta is before minus since, positive a saving; `window` is the prompt delta over the
+// prompts since. null until both periods have a session in the window.
 export function outputComparison(rows, name) {
   const mine = rows.filter(r => r.name === name), before = mine.find(r => !r.level), after = mine.filter(r => r.level).sort((a, b) => (b.from || 0) - (a.from || 0))[0];
   if (!before || !after || !before.sessions || !after.sessions) return null;
-  const pick = r => ({ level: r.level || null, sessions: r.sessions, from: r.from ?? null, to: r.to ?? null, calls: r.calls, perCall: r.perCall, perSession: r.perSession, wasted: r.wasted ?? null });
+  const pick = r => ({ level: r.level || null, sessions: r.sessions, prompts: r.prompts ?? null, from: r.from ?? null, to: r.to ?? null, calls: r.calls, perCall: r.perCall, perPrompt: r.perPrompt, wasted: r.wasted ?? null });
   const d = k => ({ before: before[k], after: after[k], delta: before[k] - after[k], share: before[k] ? (before[k] - after[k]) / before[k] : null });
-  return { name, before: pick(before), after: pick(after), perCall: d('perCall'), perSession: d('perSession'), window: (before.perSession - after.perSession) * after.sessions, few: after.sessions < 5 };
+  return { name, before: pick(before), after: pick(after), perCall: d('perCall'), perPrompt: d('perPrompt'), window: (before.perPrompt - after.perPrompt) * (after.prompts || 0), few: after.sessions < 5 };
 }
 
 // From when an action is in effect, and until when: a dismissal and a pull request not merged never were, nor a section's

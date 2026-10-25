@@ -96,11 +96,13 @@ async function contextCommand({ store, flags, out }) {
   }
   if (flags.json) { out(JSON.stringify(v, null, 2)); return; }
   const iv = v.instructions, t = v.totals;
-  out(`Context per session here, over ${days} days (${v.sessions} sessions; tokens are read again by every model call):`);
-  out(`  instruction files ~${formatTokens(t.instructions.perSession)} a session (~${formatTokens(t.instructions.tokens)} tokens in every model call)`);
-  out(`  custom tools      ~${formatTokens(t.custom.perSession)} a session (skills, MCP servers, plugins: ~${formatTokens(t.custom.tokens)} in every call)`);
-  out(`  built-in tools    ~${formatTokens(t.builtin.perSession)} a session (~${formatTokens(t.builtin.tokens)} in every call)`);
-  out(`  tool outputs      ~${formatTokens(t.outputs.perSession)} a session (each result read again by the calls after it${t.outputs.wasted != null ? `; ~${formatTokens(t.outputs.wasted)} of it after the agent last used the result` : ''}; an estimate)\n`);
+  // the unit is a prompt, one call to the model, as the Report counts it (report.js): a part's tokens in the calls
+  // that carried it, over every prompt of the window
+  out(`Context per prompt here, over ${days} days (${v.sessions} sessions, ${v.prompts || 0} prompts; a prompt is one call to the model, and every call reads these again):`);
+  out(`  instruction files ~${formatTokens(t.instructions.perPrompt)} a prompt (~${formatTokens(t.instructions.tokens)} tokens in every model call that reads them)`);
+  out(`  custom tools      ~${formatTokens(t.custom.perPrompt)} a prompt (skills, MCP servers, plugins: ~${formatTokens(t.custom.tokens)} in every call that loads them)`);
+  out(`  built-in tools    ~${formatTokens(t.builtin.perPrompt)} a prompt (~${formatTokens(t.builtin.tokens)} in every call that loads them)`);
+  out(`  tool outputs      ~${formatTokens(t.outputs.perPrompt)} a prompt (each result read again by the calls after it${t.outputs.wasted != null ? `; ~${formatTokens(t.outputs.wasted)} of it after the agent last used the result` : ''}; an estimate)\n`);
   // the five highest-leverage changes, as the page's Top changes view and the weekly summary in a session give them
   if (top.length) {
     out(`Top changes (up to ~${formatTokens(top.reduce((a, c) => a + c.total, 0))} input tokens over the last ${days} days together):`);
@@ -110,18 +112,18 @@ async function contextCommand({ store, flags, out }) {
   if (iv.file) {
     if ((iv.files || []).length > 1) out(`Instruction files: ${iv.files.map(f => `${f.file} (${f.kind === 'root' ? 'every session' : `${f.loadedIn} sessions`})`).join(', ')}.`);
     out(`${iv.file}: ${iv.sessions} sessions read it, ${iv.judged} judged${iv.judge.judge ? ` (a ${Math.round(100 * iv.judge.share)}% sample is judged at session end)` : ' (judging is off: instructions.value.judge in .thinker/config.json)'}.`);
-    out(`  ${pad('tokens', 6)} ${pad('a session', 9)} ${pad('applied', 8)} ${pad('relevant', 8)} ${pad('followed', 8)}  value        section`);
-    for (const s of [...iv.sections].sort((a, b) => b.perSession - a.perSession)) {
+    out(`  ${pad('tokens', 6)} ${pad('a prompt', 9)} ${pad('applied', 8)} ${pad('relevant', 8)} ${pad('followed', 8)}  value        section`);
+    for (const s of [...iv.sections].sort((a, b) => b.window - a.window)) {
       // a section changed inside the window is measured over the sessions since the change, as on the page
-      out(`  ${pad(s.tokens, 6)} ${pad(formatTokens(s.perSession), 9)} ${pad(s.triggered ? `${s.applied}/${s.sessions}` : '-', 8)} ${pad(s.judged ? `${s.bore}/${s.judged}` : '-', 8)} ${pad(pct(s.success), 8)}  ${s.value.padEnd(12)} ${s.fileKind && s.fileKind !== 'root' ? `${s.file} · ` : ''}${s.parent ? `${s.parent}: ` : ''}${s.title}${s.recent ? ` (changed ${s.changedAt.slice(0, 10)}: ${s.sessions} session${s.sessions === 1 ? '' : 's'} since)` : ''}`);
+      out(`  ${pad(s.tokens, 6)} ${pad(formatTokens(s.perPrompt), 9)} ${pad(s.triggered ? `${s.applied}/${s.sessions}` : '-', 8)} ${pad(s.judged ? `${s.bore}/${s.judged}` : '-', 8)} ${pad(pct(s.success), 8)}  ${s.value.padEnd(12)} ${s.fileKind && s.fileKind !== 'root' ? `${s.file} · ` : ''}${s.parent ? `${s.parent}: ` : ''}${s.title}${s.recent ? ` (changed ${s.changedAt.slice(0, 10)}: ${s.sessions} session${s.sessions === 1 ? '' : 's'} since)` : ''}`);
     }
     out(`  applied: the session touched the section's files, commands or code; relevant: judged sessions where it mattered to the work; followed: % of judged sessions that followed rather than broke it. A section changed inside the window counts from its change.\n`);
   }
   if (v.skills.length) {
     out('Skills: listed in every session, read in some; kept: checked sessions that read it and kept its rules.');
-    for (const s of [...v.skills].sort((a, b) => b.perSession - a.perSession).slice(0, flags.verbose ? undefined : 20)) {
+    for (const s of [...v.skills].sort((a, b) => b.window - a.window).slice(0, flags.verbose ? undefined : 20)) {
       const o = s.outcome;
-      out(`  ${pad(s.tokens, 6)} ${pad(formatTokens(s.perSession), 9)} read ${pad(`${s.used}/${s.loaded}`, 7)} ${o?.read ? `kept ${pct(o.success)} of ${o.read}` : '            '}${o?.missed ? ` missed ${o.missed}` : ''}  ${s.client === 'claude' ? '' : `${s.client}: `}${s.name}${s.off ? ' (off)' : ''}`);
+      out(`  ${pad(s.tokens, 6)} ${pad(formatTokens(s.perPrompt), 9)} read ${pad(`${s.used}/${s.loaded}`, 7)} ${o?.read ? `kept ${pct(o.success)} of ${o.read}` : '            '}${o?.missed ? ` missed ${o.missed}` : ''}  ${s.client === 'claude' ? '' : `${s.client}: `}${s.name}${s.off ? ' (off)' : ''}`);
     }
     out('');
   }
@@ -130,14 +132,14 @@ async function contextCommand({ store, flags, out }) {
     // listed after every current row, marked, for the comparison (tool-outputs.js:aggregateOutputs)
     const day = t => new Date(t).toISOString().slice(0, 10), level = l => l ? `${l} compression` : 'no compression';
     const note = o => o.past ? `  (measured with ${level(o.level)}, ${o.sessions} sessions${o.from ? ` ${day(o.from)} to ${day(o.to)}` : ''}; the setting has changed since)` : o.level ? `  (${level(o.level)} since ${day(o.since || o.from)}, ${o.sessions} sessions)` : (o.others || []).length ? `  (before compression, ${o.sessions} sessions)` : '';
-    out('Tool outputs: input tokens a session, of it read after the agent last used the result (wasted), calls a session, tokens per call.');
+    out('Tool outputs: input tokens a prompt, of it read after the agent last used the result (wasted), calls a session, tokens per call.');
     const rows = [...v.outputs.tools.filter(o => !o.past), ...v.outputs.tools.filter(o => o.past)];
-    for (const o of rows.slice(0, flags.verbose ? undefined : 12)) out(`  ${pad(formatTokens(o.perSession), 9)} ${pad(o.wasted == null ? '-' : formatTokens(o.wasted), 9)} ${pad(o.calls.toFixed(1), 6)} calls ${pad(formatTokens(o.perCall), 6)}  ${o.name}${note(o)}`);
+    for (const o of rows.slice(0, flags.verbose ? undefined : 12)) out(`  ${pad(formatTokens(o.perPrompt), 9)} ${pad(o.wasted == null ? '-' : formatTokens(o.wasted), 9)} ${pad(o.calls.toFixed(1), 6)} calls ${pad(formatTokens(o.perCall), 6)}  ${o.name}${note(o)}`);
     out('');
   }
   if (v.tools.length) {
     out('Other tools loaded into every session:');
-    for (const s of v.tools.slice(0, flags.verbose ? undefined : 20)) out(`  ${pad(s.tokens, 6)} ${pad(formatTokens(s.perSession), 9)} used ${pad(`${s.used}/${s.loaded}`, 7)}  ${s.client === 'claude' ? '' : `${s.client}: `}${s.name} ${s.kind}${s.off ? ' (off)' : s.suggested ? ' (rarely used)' : ''}`);
+    for (const s of v.tools.slice(0, flags.verbose ? undefined : 20)) out(`  ${pad(s.tokens, 6)} ${pad(formatTokens(s.perPrompt), 9)} used ${pad(`${s.used}/${s.loaded}`, 7)}  ${s.client === 'claude' ? '' : `${s.client}: `}${s.name} ${s.kind}${s.off ? ' (off)' : s.suggested ? ' (rarely used)' : ''}`);
     out('');
   }
   out(`Change a section as a pull request: thinker instructions --compress <id> --pr (or --remove).${v.harnessOn ? ' Switch a skill or tool off here: thinker harness --off "<label>".' : ' Switching skills and tools off needs the harness (thinker harness --enabled on).'}`);

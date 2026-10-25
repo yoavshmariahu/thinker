@@ -243,14 +243,14 @@ export function harnessUsage(repo, { days = 30, home = os.homedir(), sessions, c
   const claude = claudeUsage(repo, { days, home, sessions: sessions.filter(s => s.client === 'claude') });
   const codex = codexHarnessUsage(repo, sessions.filter(s => s.client === 'codex'), { home });
   const cur = cursor ? cursorHarnessUsage({ home, snapshots: cursor }) : { sessions: 0, sources: [] };
-  return { ...claude, builtinTools, timeline: [...claude.timeline, ...(codex.timeline || [])], sessions: claude.sessions + codex.sessions + cur.sessions, byClient: { claude: claude.sessions, codex: codex.sessions, cursor: cur.sessions }, calls: { claude: claude.calls, codex: codex.calls || 0 }, sources: [...claude.sources.map(s => ({ ...s, client: 'claude' })), ...codex.sources, ...cur.sources].sort((a, b) => b.tokens * (b.loaded - b.used) - a.tokens * (a.loaded - a.used)) };
+  return { ...claude, builtinTools, timeline: [...claude.timeline, ...(codex.timeline || [])], sessions: claude.sessions + codex.sessions + cur.sessions, byClient: { claude: claude.sessions, codex: codex.sessions, cursor: cur.sessions }, calls: { claude: claude.calls, codex: codex.calls || 0 }, prompts: (claude.prompts || 0) + (codex.prompts || 0) + cur.sessions, promptsByClient: { claude: claude.prompts || 0, codex: codex.prompts || 0, cursor: cur.sessions }, sources: [...claude.sources.map(s => ({ ...s, client: 'claude' })), ...codex.sources, ...cur.sources].sort((a, b) => b.tokens * (b.loaded - b.used) - a.tokens * (a.loaded - a.used)) };
 }
 function claudeUsage(repo, { days = 30, home = os.homedir(), sessions } = {}) {
   sessions ??= checkouts(repo).flatMap(r => findSessions(r, { sinceMs: days * 86400_000 }).filter(s => s.client === 'claude'));
   const config = claudeHarnessConfig(repo, { home });
   const rows = new Map();
   const row = key => {
-    if (!rows.has(key)) rows.set(key, { key, loaded: 0, used: 0, tokens: 0, lastUsed: null, skills: new Set(), texts: {} });
+    if (!rows.has(key)) rows.set(key, { key, loaded: 0, used: 0, prompts: 0, tokens: 0, lastUsed: null, skills: new Set(), texts: {} });
     return rows.get(key);
   };
   const records = desktopFor(home), read = sessions.map(s => ({ s, h: claudeSessionHarness(s.file, records) }));
@@ -275,12 +275,13 @@ function claudeUsage(repo, { days = 30, home = os.homedir(), sessions } = {}) {
     // `loaded`: each source's tokens a call, so the Report can cost one source a session before and since it was switched off (report.js:actionEffect)
     timeline.push({ t: s.mtime, session: s.session, client: 'claude', calls: h.calls, parts: partsOf(tokens), loaded: Object.fromEntries(tokens) });
     for (const [k, t] of tokens) {
-      const r = row(k); r.loaded++; r.tokens += t;
+      // `prompts`: the model calls of every session that carried it, since each call reads its tokens again
+      const r = row(k); r.loaded++; r.tokens += t; r.prompts += Math.max(1, h.calls);
       if (used.has(k)) { r.used++; if (!r.lastUsed || s.mtime > r.lastUsed) r.lastUsed = s.mtime; }
     }
   }
   const out = [...rows.values()].filter(r => r.loaded).map(r => ({ ...r, skills: [...r.skills].sort(), tokens: Math.round(r.tokens / r.loaded), ...describe(r.key, config, [...r.skills]) }));
-  return { repo, days, sessions: counted, calls: median(calls), timeline, sources: out.sort((a, b) => b.tokens * (b.loaded - b.used) - a.tokens * (a.loaded - a.used)) };
+  return { repo, days, sessions: counted, calls: median(calls), prompts: calls.reduce((a, c) => a + Math.max(1, c), 0), timeline, sources: out.sort((a, b) => b.tokens * (b.loaded - b.used) - a.tokens * (a.loaded - a.used)) };
 }
 
 // What a source is and where it is switched on, so the advice names the setting to change.

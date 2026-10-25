@@ -172,13 +172,14 @@ export function codexHarnessUsage(repo, sessions, options = {}) {
     }
     timeline.push({ t: s.mtime, session: s.session, client: 'codex', calls: h.calls, parts: partsOf(new Map([...grouped.values()].map((g, i) => [`${g.kind}:${i}`, g.tokens]))) });
     for (const [key, g] of grouped) {
-      if (!rows.has(key)) rows.set(key, { ...g, tokens: 0, loaded: 0, used: 0, lastUsed: null });
-      const r = rows.get(key); r.loaded++; r.tokens += g.tokens; if (g.used) { r.used++; r.lastUsed = Math.max(r.lastUsed || 0, s.mtime); }
+      if (!rows.has(key)) rows.set(key, { ...g, tokens: 0, loaded: 0, used: 0, prompts: 0, lastUsed: null });
+      // `prompts`: the model calls of every session that carried it, as harness.js:claudeUsage counts them
+      const r = rows.get(key); r.loaded++; r.tokens += g.tokens; r.prompts += Math.max(1, h.calls); if (g.used) { r.used++; r.lastUsed = Math.max(r.lastUsed || 0, s.mtime); }
       r.texts = { ...r.texts, ...g.texts }; r.evidenceKeys = [...new Set([...r.evidenceKeys, ...g.evidenceKeys])];
     }
   }
   const sorted = calls.sort((x, y) => x - y);
-  return { sessions: counted, calls: sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0, timeline, sources: [...rows.values()].map(r => {
+  return { sessions: counted, calls: sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0, prompts: calls.reduce((a, c) => a + Math.max(1, c), 0), timeline, sources: [...rows.values()].map(r => {
     const setting = r.kind === 'mcp' ? config.servers.get(r.name) : r.kind === 'plugin' ? config.plugins.get(r.id) : null;
     const skill = r.dir && !r.dir.includes('/.system/') && !r.dir.includes('/plugins/cache/') && fs.existsSync(path.join(r.dir, 'SKILL.md'));
     return { ...r, tokens: Math.round(r.tokens / r.loaded), scope: setting?.scope || (skill ? 'project' : null), off: setting?.off || (r.dir && (config.skills.get(r.dir) === false || config.skills.get(path.join(r.dir, 'SKILL.md')) === false)), how: valid && (setting || skill) ? `codex-${r.kind}` : null };

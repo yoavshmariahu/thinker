@@ -26,12 +26,17 @@ parts the agent reads on every model call:
 | Built-in tools | the agent's own tool definitions, re-sent with every call | Claude Code |
 | Tool outputs | what each tool's results added to the conversation, re-read by every call after them | Claude Code |
 
-A part's cost a session is its tokens times the session's model calls: a 4k-token instruction file
-read by 40 calls is 160k input tokens. That is the number the page shows and sorts by.
+A part's cost is its tokens times the model calls that carried it: a 4k-token instruction file read by
+40 calls is 160k input tokens, and over a window that is summed across every session that read it
+(**Over N days**, what the page sorts by). **A prompt** divides that by every prompt of the window — a
+prompt being one call to the model, as the Report counts it — so the column says what the part adds to an
+average prompt here, and a part carried by half the window's calls shows half its size. These are input
+tokens read: a definition at the stable front of the prompt is served from the prompt cache on most calls,
+at a tenth or less of the input price, and the Report prices the token types as the model reported them.
 
 **One part at a time, as cards.** Each instruction section, skill and tool beside:
 
-- *Cost*: tokens per call and input tokens a session.
+- *Cost*: tokens per call, input tokens on an average prompt, and the total over the window.
 - *Used* (the page's Sessions used): how often the sessions acted on it. A section is *applied* when a session touched its
   files, ran its command or read the code it names, free, from the transcript. *Relevant* and
   *followed* come from a model reading one session against the sections and saying which bore on
@@ -51,7 +56,7 @@ read by 40 calls is 160k input tokens. That is the number the page shows and sor
   much that is.
 
 **All repositories** merges every repository's report: the timeline side by side, tools merged by
-name, averages weighted by sessions.
+name, each cost summed over the repositories and read against all their prompts together.
 
 ## What you can cut
 
@@ -69,7 +74,7 @@ A tool whose compression you set is measured afresh from that moment: its row co
 the setting alone, and says so (*moderate compression since Oct 22, 15 sessions*). Its measurement from
 before stays as a second, muted row (*measured with no compression, 203 sessions*), with no action, sorted
 after every current row whatever the order, so a tool is never ranked by what it cost before it was
-compressed. Each row's detail compares the two: tokens a call and a session under each setting. The
+compressed. Each row's detail compares the two: tokens a call and a prompt under each setting. The
 settings' dates come from the log of every setting made (`diet-settings`), so a setting the log never saw
 (a config edited by hand) counts from the last one it did.
 
