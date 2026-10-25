@@ -417,7 +417,7 @@ export function spendMetrics(store, { all = true, now = Date.now() } = {}) {
     dismissals: 0, dismissedChanges: 0, reverts: 0, revertedPrs: 0,
     jobsStarted: 0, jobsRetried: 0, jobsFailed: 0, sectionEdits: 0, sectionPrs: 0,
     harnessOffers: 0, harnessOfferedSources: 0, harnessOfferedTokens: 0,
-    harnessAnswers: {}, harnessSwitchedOff: 0, harnessUndos: 0, harnessUndoneSources: 0,
+    harnessAnswers: {}, harnessOffs: 0, harnessSwitchedOff: 0, harnessUndos: 0, harnessUndoneSources: 0,
     // what the output compression (diet.js) actually cut, in characters, as it records them (~4 to a token);
     // `byKind` is its own vocabulary (cap, read, search, test), `byTool` only the tools it names publicly
     compression: { calls: 0, charsBefore: 0, charsAfter: 0, charsSaved: 0, byKind: {}, byTool: {} },
@@ -448,6 +448,9 @@ export function spendMetrics(store, { all = true, now = Date.now() } = {}) {
         a.harnessSwitchedOff += e.switched || 0;
         break;
       }
+      // since 2026-10-25 the harness question is part of the one weekly suggestion (context-offer above) and a
+      // switch-off is recorded on its own; the two ops above are still in the logs of the 30 days before that
+      case 'harness-off': a.harnessOffs++; a.harnessSwitchedOff += e.switched || 0; break;
       case 'harness-undo': a.harnessUndos++; a.harnessUndoneSources += e.sources || 0; break;
       case 'harness-settings': a.settings.harnessEnabled = e.enabled ?? a.settings.harnessEnabled; a.settings.builtinTools = e.builtinTools ?? a.settings.builtinTools; break;
       // `tools` names the compressed tools (an MCP server among them): only how many, at which level
