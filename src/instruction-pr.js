@@ -12,7 +12,10 @@
 //
 // Without a GitHub origin or `gh`, the page says so and offers what was there before: the file written to the working
 // tree, uncommitted. The commit is built with a temporary index (read-tree, update-index, write-tree, commit-tree), so
-// it never touches the checkout's index or files, and a file that differs on the base branch from the working tree the
+// it never touches the checkout's index or files. The preview is made from the base branch's own text (baseTexts, since
+// 2026-10-25: a blank line the last merged pull request had collapsed was enough to refuse every later change until the
+// person pulled), so the checkout's branch, its uncommitted edits and how far behind the origin it is play no part in
+// the diff; a preview made from the working tree (a kept one) is still carried over: a file that differs on the base branch from the working tree the
 // preview was made from gets the section replacements applied to the base's text (editRecord's `edits`), refused
 // where a section's text is not found there.
 import fs from 'node:fs';
@@ -27,6 +30,8 @@ import { formatTokens } from './model-usage.js';
 const NET_MS = 60_000; // a fetch or a push over the network
 const git = (repo, args, opts = {}) => execFileSync('git', args, { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...opts }).replace(/\n$/, '');
 const tryGit = (repo, args, opts) => { try { return git(repo, args, opts); } catch { return null; } };
+// a file's text at a commit, exactly (`git` above drops the last newline, which a file's hash must keep); null when absent
+const fileAt = (repo, commit, file) => { try { return execFileSync('git', ['show', `${commit}:${file}`], { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch { return null; } };
 const netGit = (repo, args) => { const r = spawnSync('git', args, { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: NET_MS }); return r.status === 0 ? { ok: true } : { ok: false, error: (r.stderr || r.error?.message || `git ${args[0]} failed`).trim().split('\n').pop() }; };
 // the GitHub CLI, with the person's own login; a test gives another
 export const ghCli = {
@@ -52,6 +57,16 @@ export function defaultBranch(repo) {
 function baseCommit(repo, branch) {
   netGit(repo, ['fetch', '-q', 'origin', branch]);
   return tryGit(repo, ['rev-parse', '-q', '--verify', `refs/remotes/origin/${branch}^{commit}`]) || tryGit(repo, ['rev-parse', '-q', '--verify', `refs/heads/${branch}^{commit}`]);
+}
+
+// The files' text on the base branch, for a preview made from what the pull request changes (instruction-edit.js:
+// previewEdit's `texts` and `base`): origin's branch after a fetch, read once per file. {commit, branch, textOf} or {error}.
+export function baseTexts(repo, { branch = defaultBranch(repo) } = {}) {
+  if (!branch) return { error: 'no default branch (main or master) to open the pull request against' };
+  const commit = baseCommit(repo, branch);
+  if (!commit) return { error: `no commit for ${branch} here` };
+  const texts = new Map();
+  return { commit, branch, textOf: file => { if (!texts.has(file)) texts.set(file, fileAt(repo, commit, file)); return texts.get(file); } };
 }
 
 // Whether a pull request can be opened from this checkout, with the reason when not; kept a minute, since the page asks
@@ -81,8 +96,11 @@ export function textOnBase(baseText, x) {
   if (x.text == null && baseText == null) return { text: null };
   if (!x.edits?.length) return { error: baseText == null ? 'is not on the base branch' : 'differs on the base branch from your working tree; commit or push your change to it first' };
   if (baseText == null) return { error: 'is not on the base branch' };
-  let text = baseText;
-  for (const e of x.edits) {
+  // blank lines are not a difference: the text written collapses runs of them, and a preview from the working tree
+  // must still apply after a merged change did
+  const blank = s => String(s).replace(/\n{3,}/g, '\n\n');
+  let text = blank(baseText);
+  for (const e of x.edits.map(e => ({ ...e, old: blank(e.old) }))) {
     const at = text.indexOf(e.old);
     if (at < 0 || text.indexOf(e.old, at + 1) >= 0) return { error: `differs on the base branch around "${e.title}"; commit or push your change to it first` };
     text = text.slice(0, at) + (e.next ? `${e.next}\n` : '') + text.slice(at + e.old.length).replace(/^\n+/, e.next ? '\n' : '');
@@ -98,15 +116,17 @@ export async function openEditPr(store, key, { changes = [], gh = ghCli, slug: s
   if (!e) return { error: 'preview the change first' };
   const slug = slugGiven || githubSlug(repo);
   if (!slug) return { error: 'the origin is not on GitHub; written to the working tree instead' };
-  const baseName = baseGiven || defaultBranch(repo);
+  const baseName = baseGiven || e.base?.branch || defaultBranch(repo);
   if (!baseName) return { error: 'no default branch (main or master) to open the pull request against' };
-  const base = baseCommit(repo, baseName);
+  // the commit the preview was made from, when it was made from the base (baseTexts): the diff is then exactly the
+  // preview's; else origin's branch now
+  const base = (!baseGiven && e.base?.commit && tryGit(repo, ['rev-parse', '-q', '--verify', `${e.base.commit}^{commit}`])) || baseCommit(repo, baseName);
   if (!base) return { error: `no commit for ${baseName} here` };
   // the files as they should be on the base
   const files = [];
   for (const x of e.files) {
-    const baseText = tryGit(repo, ['show', `${base}:${x.file}`]);
-    const t = textOnBase(baseText == null ? null : baseText, x);
+    const baseText = fileAt(repo, base, x.file);
+    const t = textOnBase(baseText, x);
     if (t.error) return { error: `${x.file} ${t.error}` };
     if (t.text === baseText) return { error: `${x.file} is already so on ${baseName}` };
     files.push({ file: x.file, text: t.text });

@@ -9,7 +9,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { Store } from '../src/store.js';
 import { previewEdit, editRecord } from '../src/instruction-edit.js';
-import { openEditPr, textOnBase, prState, closePr, prAvailable, defaultBranch } from '../src/instruction-pr.js';
+import { openEditPr, textOnBase, prState, closePr, prAvailable, defaultBranch, baseTexts } from '../src/instruction-pr.js';
 
 const tmp = p => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), p)));
 const git = (cwd, ...a) => execFileSync('git', a, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
@@ -81,12 +81,43 @@ test('openEditPr: a file that differs on main from the working tree gets the sec
   assert.ok(editRecord(store, 'ports'), 'the preview is kept for the working-tree write');
 });
 
+test('baseTexts: the change is made from the base branch\'s own text, whatever the checkout holds (another branch, a main behind the origin, the file edited, a blank line less)', async () => {
+  const { store, r, origin } = checkout();
+  // the origin's main moved on: a commit that compressed Tests and collapsed the blank lines (as a merged thinker pull request does)
+  const ON_MAIN = AGENTS.replace('## Tests\n\nnpm test\n', '## Tests\n\n- npm test\n');
+  fs.writeFileSync(path.join(r, 'AGENTS.md'), ON_MAIN); git(r, 'commit', '-q', '-am', 'tests shorter'); git(r, 'push', '-q', 'origin', 'main');
+  git(r, 'reset', '-q', '--hard', 'HEAD~1'); // the checkout's main is behind the origin
+  git(r, 'checkout', '-q', '-b', 'feature');
+  // and its working tree has the file edited: another word in the section being compressed, a blank line more after another
+  fs.writeFileSync(path.join(r, 'AGENTS.md'), AGENTS.replace('long text about releases', 'edited here').replace('## Ports\n', '## Ports\n\n'));
+  const shown = [];
+  const src = baseTexts(r);
+  assert.equal(src.error, undefined, src.error); assert.equal(src.branch, 'main'); assert.equal(src.commit, git(origin, 'rev-parse', 'main'));
+  assert.equal(src.textOf('AGENTS.md'), ON_MAIN, 'exactly, with the last newline'); assert.equal(src.textOf('nope.md'), null);
+  const p = await previewEdit(store, 'releases', 'compress', { completeFn: ({ prompt }) => { shown.push(prompt); return short(); }, texts: src.textOf, base: src });
+  assert.equal(p.error, undefined, p.error);
+  assert.match(shown[0], /long text about releases/, 'the model is shown the base\'s text'); assert.doesNotMatch(shown[0], /edited here/);
+  assert.deepEqual(p.base, { commit: src.commit, branch: 'main' }); assert.deepEqual(editRecord(store, 'releases').base, p.base);
+  const gh = fakeGh();
+  const pr = await openEditPr(store, 'releases', { gh, slug: 'o/r' });
+  assert.equal(pr.error, undefined, pr.error);
+  assert.equal(git(origin, 'rev-parse', `${pr.branch}^`), src.commit, 'from the base the preview was made from');
+  assert.equal(execFileSync('git', ['show', `${pr.branch}:AGENTS.md`], { cwd: origin, encoding: 'utf8' }), '# A\n\n## Releases\n\n- short\n\n## Ports\n\nreserve a port first\n\n## Tests\n\n- npm test\n', 'main\'s text with the one section replaced, the last newline kept');
+  // the checkout is as it was
+  assert.equal(git(r, 'rev-parse', '--abbrev-ref', 'HEAD'), 'feature');
+  assert.match(fs.readFileSync(path.join(r, 'AGENTS.md'), 'utf8'), /edited here/);
+  // a section that is not on the base is refused by name, before any model call
+  const none = await previewEdit(store, 'nowhere', 'compress', { completeFn: () => { throw new Error('not asked'); }, texts: src.textOf, base: src });
+  assert.match(none.error, /no section "nowhere" in AGENTS\.md on main/);
+});
+
 test('textOnBase: the preview\'s text where the base is what it was made from, else each replacement, once', () => {
   const from = s => ({ from: createHash('sha256').update(s).digest('hex').slice(0, 16), text: 'NEW', edits: [{ title: 'B', old: '## B\n\nb', next: '## B\n\n- b' }] });
   assert.deepEqual(textOnBase('# A\n\n## B\n\nb\n', from('# A\n\n## B\n\nb\n')), { text: 'NEW' });
   assert.deepEqual(textOnBase('# A\n\n## B\n\nb\n\n## C\n\nc\n', from('other')), { text: '# A\n\n## B\n\n- b\n\n## C\n\nc\n' });
   assert.deepEqual(textOnBase('# A\n\n## B\n\nb\n\n## C\n\nc\n', { ...from('other'), edits: [{ title: 'B', old: '## B\n\nb', next: '' }] }), { text: '# A\n\n## C\n\nc\n' }, 'removed');
   assert.match(textOnBase('# A\n\n## B\n\nb\n\n## B\n\nb\n', from('other')).error, /around "B"/, 'found twice');
+  assert.deepEqual(textOnBase('# A\n\n\n## B\n\nb\n\n\n\n## C\n\nc\n', from('other')), { text: '# A\n\n## B\n\n- b\n\n## C\n\nc\n' }, 'blank lines are not a difference');
   assert.match(textOnBase(null, from('other')).error, /not on the base branch/);
   assert.match(textOnBase('x', { from: 'abc', text: 'y', edits: null }).error, /differs on the base branch/, 'a whole-file preview with no replacements');
 });
