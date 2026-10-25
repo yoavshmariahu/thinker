@@ -6,7 +6,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
 import { cursorInventory, cursorProjectDir, cursorSessionUse, snapshotCursorInventory, cursorSnapshots } from '../src/harness-cursor.js';
-import { harnessUsage, harnessAdvice, switchOffNow, undoHarness, readHarnessState, harnessSavings, scheduleHarnessSuggestion, harnessOffer, answerHarness } from '../src/harness.js';
+import { harnessUsage, harnessAdvice, switchOffNow, undoHarness, readHarnessState, harnessSavings } from '../src/harness.js';
 
 function fixture(t) {
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-cursor-harness-'))), repo = path.join(root, 'repo'), home = path.join(root, 'home'), tHome = path.join(root, 'thinker');
@@ -88,13 +88,12 @@ test('savings count the chats since whose inventory no longer holds the server, 
   assert.equal(s.sessions, 2); assert.equal(s.absent, 1); assert.equal(s.stillLoaded, 1); assert.equal(s.tokens, s.tokensPerSession); assert.equal(s.inputTokens, 0);
 });
 
-test('a Cursor prompt asks through AskQuestion, and the answer accepts the label with its counts', t => {
+test('a Cursor source is advised by its prefixed label, and switching off takes its entry out', t => {
   const f = fixture(t);
   for (const id of ['a', 'b', 'c']) f.chat(id, [], '2026-10-01T00:00:00Z');
   const usage = harnessUsage(f.repo, { home: f.home, sessions: [], cursor: cursorSnapshots(f.tHome, { now: Date.parse('2026-10-02T00:00:00Z') }) });
-  scheduleHarnessSuggestion(f.store, { ...f.options, usage, force: true });
-  const offer = harnessOffer(f.store, { ...f.options, client: 'cursor' });
-  assert.match(offer, /AskQuestion/); assert.doesNotMatch(offer, /AskUserQuestion/); assert.match(offer, /--client cursor/); assert.match(offer, /Cursor: docs MCP server/); assert.match(offer, /every repository/);
-  assert.match(answerHarness(f.store, 'Cursor: docs MCP server (~1k tokens a chat used in 0 of 3)', { ...f.options, client: 'cursor' }), /Switched off/);
+  assert.deepEqual(harnessAdvice(usage).map(a => `${a.client}:${a.name}`), ['cursor:docs']);
+  // the label carries what the page's row shows after it; the counts in brackets are ignored
+  assert.match(switchOffNow(f.store, 'Cursor: docs MCP server (~1k tokens a chat used in 0 of 3)', { ...f.options, usage }), /Switched off/);
   assert.equal(JSON.parse(fs.readFileSync(f.mcpJson, 'utf8')).mcpServers.docs, undefined);
 });

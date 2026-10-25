@@ -193,7 +193,7 @@ cache at twice the input price and never read again.
 |---|---|
 | `src/cli.js` | the `thinker` command: argument parsing, the help text, the prelude every command shares (update notice, background update and telemetry, the not-set-up check, the parser), and a table of handlers |
 | `src/commands/` | one module per group of commands, each handler taking the dispatcher's context (`store`, `repo`, `flags`, `pos`, `out`, …): `notes.js` (orient, lookup, find, drilldown, system, list, show, add, rm, archive, phrase, rehash, relink), `cache.js` (review, export, import, serve, health, stats, usage), `learn.js` (learn, maintain, distill, record, outcome, verify, check, mine-prs, and the PR-mining helpers), `hooks.js` (the hook entrypoints and the background catch-up they start), `setup.js` (setup, uninstall, ast, update/upgrade/switch/branch), `telemetry.js`, `benchmark.js`, `shared.js` (helpers several of them need) |
-| `src/mcp.js` | MCP server: no agent tools since 2026-10-22; the answer tools of thinker's own questions (coverage, harness) and the desktop app's learning queue (`learn_next`), each offered while it has work |
+| `src/mcp.js` | MCP server: no agent tools since 2026-10-22; the answer tool of thinker's own coverage question (the harness one went with its question on 2026-10-25) and the desktop app's learning queue (`learn_next`), each offered while it has work |
 | `src/setup.js`, `src/setup/` | the guided `setup` flow (`runSetup`), with its parts under `src/setup/`: `ui.js` (colors, boxes, the arrow-key menu), `agents.js` (which agent CLIs are installed and logged in, and the menu that picks one), `estimate.js` (what a cache build will cost), `steps.js` (wiring the clients, building the cache), `pr-benchmark.js` (the optional PR change benchmark); everything is re-exported from `setup.js` |
 | `src/clients.js` | adapters for Claude Code, Codex, Gemini CLI, Cursor, Pi, Windsurf Cascade, Copilot CLI (and Copilot in VS Code), OpenCode, Factory Droid, Qwen Code, Kiro CLI, Cline, Kilo Code, Auggie and Goose: config files and hook formats; native extension handlers in `src/integrations/`; coverage in `docs/agent-integrations.md` |
 | `src/transcripts.js` | session transcripts of every agent as one event form; the hook-recorded trace; finding sessions |
@@ -1105,16 +1105,33 @@ Claude Code's own tools as sources beside plugins, skills and MCP servers: their
 `prompt_snapshot` attachment, a call by name as a use (`harness.js:sessionHarness`, `builtinKey`). One called in under
 a tenth of the sessions is advised like any source (`thinker harness`, the Context tab's Built-in tools, where a row
 shows the tool's own description) and goes off as a bare name in `permissions.deny` of
-`.claude/settings.local.json`; `--undo` takes it out. Never an option of the in-prompt question (2026-10-22, the
-owner's call: a picker's line has no room for what denying a tool costs, no subagents or no `/loop`, and the
-question offered eight tools by their token counts alone); the question counts it among the "more" it sends to
-the page. Checked with `claude -p` 2.1.304 (2026-10-20): `permissions.deny`
+`.claude/settings.local.json`; `--undo` takes it out. It was never an option of the harness's own in-prompt question
+(2026-10-22, the owner's call: a picker's line has no room for what denying a tool costs, no subagents or no
+`/loop`, and the question offered eight tools by their token counts alone), and since that question was merged
+away (below) it is a Find Savings row like any other, bold and behind a confirmation. Checked with `claude -p` 2.1.304 (2026-10-20): `permissions.deny`
 and `--disallowedTools` both take the definition out of the prompt, Workflow, ScheduleWakeup and ReportFindings
 together ~4k tokens a call. Never offered (`CORE_TOOLS`): the file and shell tools, Skill, AskUserQuestion (the question goes through it), and
 ToolSearch, whose absence puts every deferred definition inline (+29k tokens a call); an allow-list (`--tools`) does the same, so the switch
 is a deny list. Why: on this machine's sessions (Artemis Tokens page, waste view) Artifact (15k tokens) was called in
 1 of 65 sessions that carried it, Workflow in 0 of 535. Not known: whether the desktop app's own tools (Artifact,
 SendFeedback, absent from `-p`) obey the deny list.
+
+**One suggestion, not three (2026-10-25, the owner's call).** What thinker puts to the person in their session is
+the weekly context suggestion alone (`context-suggest.js:contextSuggestOffer`, `maintain.contextSuggest`, at most
+every `SUGGEST.everyDays` = 7 days once the repository has 10 sessions to read): a short message, one line per
+change with what it costs and the suggested action, and a link to Find Savings, where every part of the context is
+a row. It already ranked instruction sections, skills, MCP servers, plugins, built-in tools and tool outputs
+against each other by tokens saved, which is why the other two prompt questions went:
+- the harness question (`harness.js:scheduleHarnessSuggestion`, `harnessOffer`, `answerHarness`, the MCP `harness`
+  tool, `thinker harness --suggest/--answer/--recurring/--suggestions`, the machine's `harness-never`, the
+  `/api/harness/suggest` endpoint, the small-skill bundle) was removed on 2026-10-25: a second suggestion of a
+  subset of the same sources, through each agent's picker, which could not explain a section diff and never
+  carried built-in tools. What stays is the advice behind the rows (`harnessAdvice`), switching off
+  (`switchOffNow`, which now applies the chosen labels itself), `undoHarness`, the recall line and the report;
+- the coverage question (`coverage.js`) stays off by default (`maintain.coverage`, false since it shipped) and was
+  held there the same day: it was not effective enough to put to people. It is the only question the hooks can
+  still emit, and only where a repository turns it on.
+A new thing worth suggesting is a row and a line of the weekly message, not a question of its own.
 
 ## Desired behaviors
 

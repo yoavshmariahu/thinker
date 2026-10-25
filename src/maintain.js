@@ -45,11 +45,9 @@ export const DEFAULTS = {
   skills: false,    // card the skill files (SKILL.md) that are new or changed, and settle duplicates (skills.js); off since 2026-10-21
   skillsPerRun: 3,
   // the weekly suggestion of directories to cover (coverage.js): a new cache-building strategy, off until an experiment
-  // shows it helps (AGENTS.md); `maintain: { coverage: true }` in .thinker/config.json turns it on for a repository
+  // shows it helps (AGENTS.md), and held there on 2026-10-25 (the owner's call: it was not effective enough to put to
+  // people); `maintain: { coverage: true }` in .thinker/config.json turns it on for a repository
   coverage: false,
-  // the question of tools to switch off (harness.js), every two weeks: on with the harness itself (harness.enabled,
-  // off until it is released); `maintain: { harness: false }` turns the question off for a repository
-  harness: true,
   // the week's five highest-leverage context changes (context-suggest.js), passed on at the next prompt with a link to
   // the local page; no model call, nothing changed but by the person on the page. `maintain: { contextSuggest: false }`
   contextSuggest: true,
@@ -277,13 +275,7 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
     if (cfg.coverage === true && !dry) {
       try { const { scheduleSuggestion } = await (fns.coverage ? { scheduleSuggestion: fns.coverage } : import('./coverage.js')); const picks = scheduleSuggestion(store, { now }); if (picks) r.coverageSuggested = picks.length; } catch { r.errors++; }
     }
-    // 8. every two weeks (daily until a first look with enough sessions), the tools the agents load here and the
-    // sessions never use, as one question (harness.js), on with the harness unless maintain.harness is false.
-    // No model call; the prompt hook asks it, and a setting changes only on the person's answer.
-    if (cfg.harness !== false && !dry) {
-      try { const { scheduleHarnessSuggestion } = await (fns.harness ? { scheduleHarnessSuggestion: fns.harness } : import('./harness.js')); const picks = scheduleHarnessSuggestion(store, { now }); if (picks) r.harnessSuggested = picks.length; } catch { r.errors++; }
-    }
-    // 9. at most weekly, the five highest-leverage changes the Context view finds (context-suggest.js), for the next prompt
+    // 8. at most weekly, the five highest-leverage changes the Context view finds (context-suggest.js), for the next prompt
     if (cfg.contextSuggest !== false && !dry) {
       try { const { scheduleContextSuggestion } = await (fns.contextSuggest ? { scheduleContextSuggestion: fns.contextSuggest } : import('./context-suggest.js')); const c = await scheduleContextSuggestion(store, { now }); if (c) r.contextSuggested = c.length; } catch { r.errors++; }
     }

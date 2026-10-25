@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { parse } from 'smol-toml';
 import { Store } from '../src/store.js';
 import { codexSessionHarness, codexHarnessConfig, editCodexSetting } from '../src/harness-codex.js';
-import { harnessUsage, harnessAdvice, switchOffNow, undoHarness, readHarnessState, harnessSavings, scheduleHarnessSuggestion, harnessOffer, harnessRecall } from '../src/harness.js';
+import { harnessUsage, harnessAdvice, switchOffNow, undoHarness, readHarnessState, harnessSavings, harnessRecall } from '../src/harness.js';
 
 function fixture(t) {
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-codex-harness-'))), repo = path.join(root, 'repo'), home = path.join(root, 'home');
@@ -97,12 +97,9 @@ test('Codex savings require comparable inventories and ignore other harnesses an
   assert.equal(saved.sources[0].sessions, 2); assert.equal(saved.sources[0].absent, 1); assert.equal(saved.sources[0].stillLoaded, 1); assert.ok(saved.tokens > 0); assert.equal(saved.inputTokens, saved.tokens);
 });
 
-test('Codex offers use the available question tool, and recall follows the harness switch and is client scoped', async t => {
+test('a Codex source is advised by its own label, and recall follows the harness switch and is client scoped', async t => {
   const f = fixture(t), usage = harnessUsage(f.repo, { home: f.home, sessions: [0, 1, 2].map(i => f.session(`s${i}`)) });
-  scheduleHarnessSuggestion(f.store, { ...f.options, usage, force: true });
-  assert.equal(harnessOffer(f.store, { ...f.options, client: 'claude' }), '');
-  const offer = harnessOffer(f.store, { ...f.options, client: 'codex' });
-  assert.match(offer, /request_user_input_async/); assert.doesNotMatch(offer, /AskUserQuestion/); assert.match(offer, /--client codex/); assert.match(offer, /Codex: docs MCP server/);
+  assert.ok(harnessAdvice(usage).some(a => a.client === 'codex' && a.name === 'docs'), 'the advice names the server, with its own client');
   switchOffNow(f.store, 'codex:mcp:docs', { ...f.options, usage });
   fs.writeFileSync(path.join(f.store.dir, 'config.json'), JSON.stringify({ harness: { enabled: true, recall: false } }));
   assert.equal(await harnessRecall(f.store, 'search docs documentation', { client: 'codex', scoreFn: rows => rows }), '', 'switched off by name');
