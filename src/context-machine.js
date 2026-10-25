@@ -49,7 +49,7 @@ export function machineContext(store, { home, days = 30, limit = MACHINE_REPOS, 
 // What to cut first: the parts of the context the sessions did not use, costliest first. The same flag the
 // Context tab shows on each row (instruction-value.js:wasteLevel): a section, skill or tool whose cost in the
 // sessions that did not use it is a share of its kind's (5% high, 2% medium). `wasted` is that cost,
-// tokens a session, and the saving at most. Sections carry the free signal only (applied by their triggers, or
+// tokens a prompt (one model call), and the saving at most. Sections carry the free signal only (applied by their triggers, or
 // judged where sessions were); a section naming no file or command is unknown and not listed.
 export function recommendations(view, { top = MACHINE_TOP } = {}) {
   if (!view) return { items: [], flagged: 0, potential: 0 };
@@ -58,19 +58,19 @@ export function recommendations(view, { top = MACHINE_TOP } = {}) {
     if (s.waste !== 'high' && s.waste !== 'medium') continue;
     // the share is the judge's (followed of judged) once enough sessions are judged, else the triggers' (applied of all)
     const judge = s.usedBy === 'judge';
-    items.push({ kind: 'section', id: s.id, title: `${s.parent ? `${s.parent}: ` : ''}${s.title}`, file: s.file, repo: s.repoName || null, repoId: s.repo || null, perSession: s.perSession, wasted: s.wasted, usedShare: s.usedShare, used: judge ? s.followed : s.applied, of: judge ? s.judged : s.sessions, by: judge ? 'judge' : 'triggers' });
+    items.push({ kind: 'section', id: s.id, title: `${s.parent ? `${s.parent}: ` : ''}${s.title}`, file: s.file, repo: s.repoName || null, repoId: s.repo || null, perPrompt: s.perPrompt, wasted: s.wasted, usedShare: s.usedShare, used: judge ? s.followed : s.applied, of: judge ? s.judged : s.sessions, by: judge ? 'judge' : 'triggers' });
   }
   // skills and tools: in a merged view `usedShare` is the sum over repositories and `wasted` the first one's, so
   // both are made again here, against the kind's cost as contextView does (skills; built-in tools; the custom
   // tools together)
   const rows = (xs, kind) => {
-    const cost = xs.reduce((a, r) => a + (r.off ? 0 : r.perSession), 0);
+    const cost = xs.reduce((a, r) => a + (r.off ? 0 : r.perPrompt), 0);
     for (const r of xs) {
       if (r.off || r.usedShare == null) continue;
-      const wasted = Math.round(r.perSession * (1 - r.usedShare));
+      const wasted = Math.round(r.perPrompt * (1 - r.usedShare));
       const { waste } = wasteLevel({ usedShare: r.usedShare, wasted }, cost);
       if (waste !== 'high' && waste !== 'medium') continue;
-      items.push({ kind, group: r.group || null, key: r.key, title: r.name, client: r.client, repo: r.repoName || null, repos: r.repos || null, label: r.label || null, perSession: r.perSession, wasted, usedShare: r.usedShare, used: r.used, of: r.loaded, by: kind === 'skill' ? 'read' : 'called' });
+      items.push({ kind, group: r.group || null, key: r.key, title: r.name, client: r.client, repo: r.repoName || null, repos: r.repos || null, label: r.label || null, perPrompt: r.perPrompt, wasted, usedShare: r.usedShare, used: r.used, of: r.loaded, by: kind === 'skill' ? 'read' : 'called' });
     }
   };
   const skills = view.skills || [], tools = view.tools || [];
@@ -79,15 +79,15 @@ export function recommendations(view, { top = MACHINE_TOP } = {}) {
   const custom = tools.filter(t => t.group !== 'builtin');
   if (custom.length) {
     // against what every custom tool costs, skills included, as the tab does
-    const cost = [...custom, ...skills].reduce((a, r) => a + (r.off ? 0 : r.perSession), 0);
+    const cost = [...custom, ...skills].reduce((a, r) => a + (r.off ? 0 : r.perPrompt), 0);
     for (const r of custom) {
       if (r.off || r.usedShare == null) continue;
-      const wasted = Math.round(r.perSession * (1 - r.usedShare));
+      const wasted = Math.round(r.perPrompt * (1 - r.usedShare));
       const { waste } = wasteLevel({ usedShare: r.usedShare, wasted }, cost);
-      if (waste === 'high' || waste === 'medium') items.push({ kind: 'tool', group: r.group, key: r.key, title: r.name, client: r.client, repo: r.repoName || null, repos: r.repos || null, label: r.label || null, perSession: r.perSession, wasted, usedShare: r.usedShare, used: r.used, of: r.loaded, by: 'called' });
+      if (waste === 'high' || waste === 'medium') items.push({ kind: 'tool', group: r.group, key: r.key, title: r.name, client: r.client, repo: r.repoName || null, repos: r.repos || null, label: r.label || null, perPrompt: r.perPrompt, wasted, usedShare: r.usedShare, used: r.used, of: r.loaded, by: 'called' });
     }
   }
-  items.sort((a, b) => b.wasted - a.wasted || b.perSession - a.perSession);
+  items.sort((a, b) => b.wasted - a.wasted || b.perPrompt - a.perPrompt);
   return { items: items.slice(0, top), flagged: items.length, potential: items.reduce((a, x) => a + x.wasted, 0) };
 }
 
@@ -106,13 +106,13 @@ export function suggestedPicks(view, { top = MACHINE_TOP } = {}) {
 
 const what = { section: 'section', skill: 'skill', tool: 'tool' };
 const groupName = { mcp: 'MCP server', plugins: 'plugin', builtin: 'built-in tool' };
-// one suggestion as a line: what it is, where, what it costs a session, how often it was used
+// one suggestion as a line: what it is, where, what it costs a prompt, how often it was used
 export function recommendationLine(x) {
   const where = x.repo ? ` (${x.repo})` : x.repos > 1 ? ` (${x.repos} repositories)` : '';
   const kind = x.kind === 'section' ? `${x.file || 'AGENTS.md'} section` : x.kind === 'tool' ? groupName[x.group] || 'tool' : what[x.kind];
   const client = x.client && x.client !== 'claude' ? `${x.client} ` : '';
-  const use = x.of ? `${x.by === 'triggers' ? 'applied' : x.by === 'judge' ? 'followed' : x.by} in ${x.used} of ${x.of} sessions` : 'use unknown';
-  return `${client}${kind} "${x.title}"${where}: ~${formatTokens(x.wasted)} tokens a session spent where it was not used (${use})`;
+  const share = x.usedShare ?? (x.of ? x.used / x.of : null), use = share != null ? `needed in ${Math.round(100 * share)}% of prompts` : 'use unknown';
+  return `${client}${kind} "${x.title}"${where}: ~${formatTokens(x.wasted)} tokens a prompt spent where it was not used (${use})`;
 }
 
 // The report as the installer and `thinker context --machine` print it: the parts of the context per model
@@ -133,7 +133,7 @@ export function renderMachineSummary({ days, repos, skipped = [], more = 0, view
   const names = repos.map(r => `${r.name} (${r.sessions})`).join(', ');
   lines.push(`Where your agents' context goes, from ${sessions} session${sessions === 1 ? '' : 's'} of the last ${days} days in ${names}${more ? ` and ${more} more repositor${more === 1 ? 'y' : 'ies'} not read` : ''}:`);
   lines.push(`  in every model call: instruction files ~${formatTokens(t.instructions.tokens)} tokens, skills and MCP servers ~${formatTokens(t.custom.tokens)}, built-in tools ~${formatTokens(t.builtin?.tokens || 0)}`);
-  lines.push(`  a session, read again by each of its model calls: instruction files ~${formatTokens(t.instructions.perSession)}, skills and MCP servers ~${formatTokens(t.custom.perSession)}, built-in tools ~${formatTokens(t.builtin?.perSession || 0)}, tool outputs ~${formatTokens(t.outputs.perSession)} (an estimate)`);
+  lines.push(`  a prompt, one call to the model: instruction files ~${formatTokens(t.instructions.perPrompt)}, skills and MCP servers ~${formatTokens(t.custom.perPrompt)}, built-in tools ~${formatTokens(t.builtin?.perPrompt || 0)}, tool outputs ~${formatTokens(t.outputs.perPrompt)} (an estimate)`);
   for (const s of skipped) lines.push(`  ${s.name}: could not be read (${s.error})`);
   return lines;
 }
@@ -146,7 +146,7 @@ export function renderMachineCuts({ view }, recs, { actions = true } = {}) {
     lines.push(`Cut first (what the sessions did not use, costliest first; the saving is at most the figure shown):`);
     recs.items.forEach((x, i) => lines.push(`  ${i + 1}. ${recommendationLine(x)}`));
     const shown = recs.items.reduce((a, x) => a + x.wasted, 0);
-    lines.push(`  about ~${formatTokens(shown)} tokens a session in these ${recs.items.length}${recs.flagged > recs.items.length ? `, ~${formatTokens(recs.potential)} over all ${recs.flagged} flagged` : ''}.`);
+    lines.push(`  about ~${formatTokens(shown)} tokens a prompt in these ${recs.items.length}${recs.flagged > recs.items.length ? `, ~${formatTokens(recs.potential)} over all ${recs.flagged} flagged` : ''}.`);
   }
   if (actions) lines.push(`Review and apply in the browser: thinker ui (Context${view.all ? ', All repositories' : ''}). By hand: thinker instructions --remove|--compress <section>${view.all ? ' in the repository' : ''}; thinker harness --off "<skill or tool>".`);
   return lines;
@@ -181,8 +181,8 @@ export function pickLine(p) {
 }
 // what the row costs and how often it was used, beside the line
 export function pickNote(p) {
-  const use = p.of ? `${p.by === 'triggers' ? 'applied' : p.by === 'judge' ? 'followed' : p.by} in ${p.used} of ${p.of} sessions` : 'use unknown';
-  return `~${formatTokens(p.wasted)} tokens a session, ${use}${p.act === 'compress' ? ', a model call' : ''}`;
+  const share = p.usedShare ?? (p.of ? p.used / p.of : null), use = share != null ? `needed in ${Math.round(100 * share)}% of prompts` : 'use unknown';
+  return `~${formatTokens(p.wasted)} tokens a prompt, ${use}${p.act === 'compress' ? ', a model call' : ''}`;
 }
 // The picks made, each in its repository, through the function behind the page's Apply and `thinker context
 // --approve` (context-suggest.js:approveChanges): a section compressed by a model or removed, written to the working

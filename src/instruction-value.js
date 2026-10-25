@@ -194,9 +194,17 @@ export function sessionActivity(repo, events) {
     for (const f of edits) edited.add(f);
     if (!edits.length) for (const f of named) read.add(f);
     if (command) commands.push(command);
-    calls.push({ files: [...named, ...edits, ...seen], command, output: String(e.result || '').slice(0, 200_000), read: edits.length ? [] : named, edited: edits });
+    calls.push({ files: [...named, ...edits, ...seen], command, output: String(e.result || '').slice(0, 200_000), read: edits.length ? [] : named, edited: edits, turn: e.turn ?? null });
   }
   return { calls, read: [...read], edited: [...edited], commands, prompts, answer };
+}
+
+// How many of the session's model calls fired each section: a call that named its files, ran its command or printed
+// its code needed it in that prompt. A tool event with no `turn` (an older record, a streamed transcript) is its own.
+export function appliedTurns(secs, activity) {
+  const out = {};
+  activity.calls.forEach((c, i) => { for (const s of secs) { if (!s.triggered || !sectionFires(s, c)) continue; (out[s.id] ||= new Set()).add(c.turn ?? `call-${i}`); } });
+  return Object.fromEntries(Object.entries(out).map(([id, set]) => [id, set.size]));
 }
 
 // The sections a session's tool calls fired, each with how it first fired.
@@ -228,10 +236,11 @@ export const coversCode = (had, want) => want.names.every(c => had?.names?.inclu
 // the files it edited and the code names its output held. A call that named nothing and ran nothing fires no section.
 const compactActivity = (activity, code) => ({
   read: activity.read, edited: activity.edited,
-  calls: activity.calls.filter(c => c.files.length || c.command).map(c => ({ files: c.files, command: c.command.slice(0, 2000), edited: c.edited, hits: codeHits(c, code) })),
+  calls: activity.calls.filter(c => c.files.length || c.command).map(c => ({ files: c.files, command: c.command.slice(0, 2000), edited: c.edited, hits: codeHits(c, code), turn: c.turn ?? null })),
 });
-// kept on this machine by the transcript's size (disk-cache.js; none in the suite unless a test names a directory)
-const ACTIVITY_CACHE = diskCache('session-activity', 1);
+// kept on this machine by the transcript's size (disk-cache.js; none in the suite unless a test names a directory);
+// 2 since the calls carry their turn (2026-10-25)
+const ACTIVITY_CACHE = diskCache('session-activity', 2);
 
 // A session's record: its transcript is read once, and what the sections need of it kept (compactActivity); the
 // sections' triggers are matched again from that when the instruction files change, and the transcript is read again
@@ -241,7 +250,7 @@ const ACTIVITY_CACHE = diskCache('session-activity', 1);
 function sessionRecord(store, st, s, secs, srcHash, files) {
   let size = 0; try { size = fs.statSync(s.file).size; } catch { return null; }
   const prev = st.sessions[s.session];
-  if (prev && prev.size === size && prev.src === srcHash) return prev;
+  if (prev && prev.size === size && prev.src === srcHash && prev.appliedTurns) return prev;
   const code = codeNames(secs), key = cacheKey('activity', store.repo, s.file);
   let kept = ACTIVITY_CACHE.get(key);
   if (!kept || kept.size !== size || !coversCode(kept.code, code)) {
@@ -253,7 +262,8 @@ function sessionRecord(store, st, s, secs, srcHash, files) {
   if (kept.empty) return null;
   const activity = kept.activity, touched = touchedFiles(activity);
   const loaded = (files || []).filter(f => fileLoaded(f, s.client, touched)).map(f => f.file);
-  const rec = { client: s.client, file: s.file, mtime: s.mtime, size, src: srcHash, turns: kept.turns, loaded, applied: appliedSections(secs.filter(x => loaded.includes(x.file)), activity), edited: activity.edited.length, ...(prev?.judged ? { judged: prev.judged } : {}) };
+  const mine = secs.filter(x => loaded.includes(x.file));
+  const rec = { client: s.client, file: s.file, mtime: s.mtime, size, src: srcHash, turns: kept.turns, loaded, applied: appliedSections(mine, activity), appliedTurns: appliedTurns(mine, activity), edited: activity.edited.length, ...(prev?.judged ? { judged: prev.judged } : {}) };
   st.sessions[s.session] = rec;
   return rec;
 }
@@ -368,12 +378,15 @@ export function findRepoSessions(repo, days) {
 }
 const median = xs => { const a = xs.filter(n => Number.isFinite(n) && n > 0).sort((x, y) => x - y); return a.length ? a[Math.floor(a.length / 2)] : 0; };
 
-// Per section over the window: tokens, what it costs a session (tokens × the median model calls), the sessions
-// that read it, how many it bore on (applied), and the judged verdicts with the share followed.
-export function instructionValue(store, { days = 30, sessions } = {}) {
+// Per section over the window: tokens, the model calls that read it (`prompts`), what it cost over the window
+// (tokens × those calls) and what that is on an average prompt here (`perPrompt`: the window cost over every prompt
+// of the window, as the Report counts a prompt), the sessions that read it, how many it bore on (applied), and the
+// judged verdicts with the share followed. `prompts` names the denominator: the caller passes the whole window's
+// model calls (context-view.js, where the sessions that read no instruction file count too), else this reader's own.
+export function instructionValue(store, { days = 30, sessions, prompts } = {}) {
   const files = instructionFiles(store.repo);
   // no instruction file: the same shape, empty, so the Context view of such a repository still renders
-  if (!files.length) return { file: null, files: [], tokens: 0, sessions: 0, judged: 0, calls: 0, judge: valueConfig(store), sections: [], timeline: [], savings: { perSession: 0, sections: 0, share: 0, window: 0 } };
+  if (!files.length) return { file: null, files: [], tokens: 0, sessions: 0, prompts: 0, judged: 0, calls: 0, judge: valueConfig(store), sections: [], timeline: [], savings: { perPrompt: 0, sections: 0, share: 0, window: 0 } };
   const secs = valueSections(store, files), srcHash = sha(files.map(f => f.file + f.text).join('\0')), st = readValueState(store);
   sessions ??= findRepoSessions(store.repo, days);
   const recs = [];
@@ -387,6 +400,12 @@ export function instructionValue(store, { days = 30, sessions } = {}) {
   const loadedIn = r => r.loaded || [files[0].file];
   const reading = recs.filter(r => loadedIn(r).length);
   const calls = median(reading.map(r => r.turns)), n = reading.length;
+  // the window's model calls: every call reads the file again, so a section's cost is its size times the calls that
+  // carried it, and its share of an average prompt is that over every prompt of the window
+  const promptsOf = rs => rs.reduce((a, r) => a + Math.max(1, r.turns || 0), 0);
+  // the denominator is the window's prompts, the caller's where it counts sessions this reader does not see; never
+  // fewer than the calls that read the files, so no section shows more a prompt than its own size
+  const mine0 = promptsOf(reading), denom = Math.max(1, prompts || 0, mine0);
   const rows = secs.map(s => {
     // a section counts in the sessions that read its file: what it costs is averaged over every session
     const loaded = reading.filter(r => loadedIn(r).includes(s.file));
@@ -400,31 +419,37 @@ export function instructionValue(store, { days = 30, sessions } = {}) {
     const mine = recent ? loaded.filter(r => r.mtime >= s.changedAt) : loaded, judged = mine.filter(r => r.judged);
     const sessionsSince = recent ? reading.filter(r => r.mtime >= s.changedAt).length : n;
     const applied = mine.filter(r => r.applied[s.id]).length;
+    // the prompts that needed it: the model calls that fired its triggers, of every call of the sessions that read it
+    const appliedPrompts = mine.reduce((a, r) => a + Math.min(Math.max(1, r.turns || 0), r.appliedTurns?.[s.id] || 0), 0);
     const v = { followed: 0, violated: 0, applicable: 0 };
     for (const r of judged) { const x = r.judged.verdicts[s.id]; if (x) v[x.verdict]++; }
     const bore = v.followed + v.violated + v.applicable;
     const decided = v.followed + v.violated;
-    const perSession = Math.round(s.tokens * Math.max(1, calls) * (n ? loaded.length / n : 0));
+    // one rule for every part: its present size in every model call that carried it (a section: the calls of the
+    // sessions that read its file), and that over every prompt of the window. A section changed inside the window
+    // keeps that cost -- the change governs what its *use* is measured over (`mine`), not what it costs now.
+    const promptsHere = promptsOf(loaded), window = s.tokens * promptsHere, perPrompt = Math.round(window / denom);
     return {
-      id: s.id, file: s.file, fileKind: s.fileKind, title: s.title, parent: s.parent, whole: s.whole, tokens: s.tokens, perSession, loadedIn: loaded.length,
+      id: s.id, file: s.file, fileKind: s.fileKind, title: s.title, parent: s.parent, whole: s.whole, tokens: s.tokens, prompts: promptsHere, window, perPrompt, loadedIn: loaded.length,
       sessions: mine.length, triggered: s.triggered, applied, judged: judged.length, ...v,
       changedAt: s.changedAt == null ? null : new Date(s.changedAt).toISOString(), recent, sessionsSince,
       // a share of the sessions judged that the section bore on, and of those it decided, how many it was followed in
       bore, boreShare: judged.length ? bore / judged.length : null, success: decided ? v.followed / decided : null,
       value: valueOf({ sessions: mine.length, applied, triggered: s.triggered, judged: judged.length, bore, followed: v.followed, violated: v.violated }),
-      ...use({ sessions: mine.length, applied, triggered: s.triggered, judged: judged.length, followed: v.followed, recent }, perSession),
+      // `promptsSince`: the calls its use is measured over (the sessions since its last change), `prompts` the calls it cost in
+      appliedPrompts, promptsSince: promptsOf(mine), ...use({ sessions: mine.length, prompts: promptsOf(mine), appliedPrompts, triggered: s.triggered, recent }, perPrompt, window),
       text: s.text,
     };
   });
   const judged = reading.filter(r => r.judged), recsAll = recs;
   // the waste flag: a section used in under half the sessions whose cost there is a large share of the file's
-  const fileCost = rows.reduce((a, r) => a + r.perSession, 0);
+  const fileCost = rows.reduce((a, r) => a + r.perPrompt, 0);
   for (const r of rows) Object.assign(r, wasteLevel(r, fileCost));
   const flagged = rows.filter(r => r.waste === 'high' || r.waste === 'medium');
-  const savings = { perSession: flagged.reduce((a, r) => a + r.wasted, 0), sections: flagged.length };
-  savings.share = fileCost ? savings.perSession / fileCost : 0;
-  // over the window, each flagged section in the sessions that read its present text
-  savings.window = flagged.reduce((a, r) => a + r.wasted * r.sessionsSince, 0);
+  const savings = { perPrompt: flagged.reduce((a, r) => a + r.wasted, 0), sections: flagged.length };
+  savings.share = fileCost ? savings.perPrompt / fileCost : 0;
+  // over the window, each flagged section in the calls that read its present text
+  savings.window = flagged.reduce((a, r) => a + (r.wastedWindow || 0), 0);
   const tok = f => Math.ceil(f.text.length / 4), fileTokens = tok(files[0]);
   // per session, for the trend: the tokens of the files it read, read again by each of its model calls (today's
   // files: an earlier size is not kept)
@@ -432,7 +457,7 @@ export function instructionValue(store, { days = 30, sessions } = {}) {
   const timeline = reading.filter(r => r.turns).map(r => ({ t: r.mtime, session: r.session, client: r.client, calls: r.turns, tokens: files.filter(f => loadedIn(r).includes(f.file)).reduce((a, f) => a + tok(f), 0), files: loadedIn(r) }));
   const fileRows = files.map(f => ({ file: f.file, kind: f.kind, tokens: tok(f), loadedIn: reading.filter(r => loadedIn(r).includes(f.file)).length, ...(f.globs?.length ? { globs: f.globs } : {}), ...(f.dir ? { dir: f.dir } : {}) }));
   const label = files.length === 1 ? files[0].file : `${files[0].file} + ${files.length - 1} more`;
-  return { file: label, files: fileRows, tokens: fileTokens, sessions: n, judged: judged.length, calls, judge: valueConfig(store), sections: rows, timeline, savings };
+  return { file: label, files: fileRows, tokens: fileTokens, sessions: n, prompts: mine0, denom, judged: judged.length, calls, judge: valueConfig(store), sections: rows, timeline, savings };
 }
 
 // How often sessions acted on a section, and the tokens spent on it in the sessions that did not: from the judge's
@@ -441,9 +466,13 @@ export function instructionValue(store, { days = 30, sessions } = {}) {
 // Acted on: the judged sessions whose agent followed the section (a verdict of followed), once enough are judged.
 // A section changed inside the window (`recent`) is measured over the sessions since the change, and fewer than
 // RARE.minSessions of them say nothing yet.
-export function use({ sessions, applied, triggered, judged, followed = 0, recent = false }, perSession) {
-  const [share, by] = judged >= RARE.minSessions ? [followed / judged, 'judge'] : triggered && sessions && !(recent && sessions < RARE.minSessions) ? [applied / sessions, 'triggers'] : [null, null];
-  return { usedShare: share, usedBy: by, wasted: share == null ? null : Math.round(perSession * (1 - share)) };
+// The share of prompts that needed the section (`usedShare`): the model calls that fired its triggers, of every call of
+// the sessions that read it. By prompts since 2026-10-25 (the owner's ask); the judge's verdicts stay beside it as the
+// section's value, not in the share. A section with no trigger, or changed too recently to have been read enough, is
+// unknown. `wasted` is what it cost on an average prompt where it was not needed, `wastedWindow` the same over the window.
+export function use({ sessions, prompts, appliedPrompts, triggered, recent = false }, perPrompt, window = null) {
+  const share = triggered && prompts && !(recent && sessions < RARE.minSessions) ? Math.min(1, appliedPrompts / prompts) : null;
+  return { usedShare: share, usedBy: share == null ? null : 'prompts', wasted: share == null ? null : Math.round(perPrompt * (1 - share)), wastedWindow: share == null || window == null ? null : Math.round(window * (1 - share)) };
 }
 
 // Wasted is what a part cost in the sessions that did not use it. High waste: 5% or more of what its kind (the file,

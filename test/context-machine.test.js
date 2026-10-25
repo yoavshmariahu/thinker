@@ -72,7 +72,7 @@ test('the installer\'s report reads the most active repositories, keeps each rep
   const lines = renderMachineReport(r, recs);
   assert.match(lines[0], /from 2 sessions of the last 30 days/);
   assert.match(lines[0], /1 more repository not read/);
-  assert.ok(lines.some(l => /1\. AGENTS\.md section "API views" \(.*\): ~.* tokens a session .*applied in 0 of 2 sessions/.test(l)), lines.join('\n'));
+  assert.ok(lines.some(l => /1\. AGENTS\.md section "API views" \(.*\): ~.* tokens a prompt .*needed in 0% of prompts/.test(l)), lines.join('\n'));
   assert.match(lines[lines.length - 1], /thinker ui \(Context, All repositories\)/);
   // both repositories within a larger limit, the busier first; one without an instruction file reads fine
   const both = machineContext(store, { home, limit: MACHINE_REPOS, thinkerHome: th });
@@ -92,16 +92,16 @@ test('suggestions are the flagged parts, costliest first, tools switched off lef
   const view = {
     all: true,
     instructions: { sections: [
-      { id: 'a', title: 'A', file: 'AGENTS.md', repoName: 'r', waste: 'high', wasted: 3000, perSession: 4000, usedShare: 0.25, usedBy: 'triggers', applied: 2, sessions: 8 },
-      { id: 'j', title: 'J', file: 'AGENTS.md', repoName: 'r', waste: 'medium', wasted: 1000, perSession: 2000, usedShare: 0.4, usedBy: 'judge', applied: 7, sessions: 8, followed: 2, judged: 5 },
-      { id: 'ok', title: 'OK', waste: 'low', wasted: 10, perSession: 5000, usedShare: 0.9 },
-      { id: 'u', title: 'U', waste: 'unknown', wasted: null, perSession: 5000, usedShare: null },
+      { id: 'a', title: 'A', file: 'AGENTS.md', repoName: 'r', waste: 'high', wasted: 3000, perPrompt: 4000, usedShare: 0.25, usedBy: 'triggers', applied: 2, sessions: 8 },
+      { id: 'j', title: 'J', file: 'AGENTS.md', repoName: 'r', waste: 'medium', wasted: 1000, perPrompt: 2000, usedShare: 0.4, usedBy: 'judge', applied: 7, sessions: 8, followed: 2, judged: 5 },
+      { id: 'ok', title: 'OK', waste: 'low', wasted: 10, perPrompt: 5000, usedShare: 0.9 },
+      { id: 'u', title: 'U', waste: 'unknown', wasted: null, perPrompt: 5000, usedShare: null },
     ] },
-    skills: [{ key: 'sk', name: 'sk', client: 'claude', perSession: 2000, usedShare: 0, used: 0, loaded: 10, label: 'skill:sk' }],
+    skills: [{ key: 'sk', name: 'sk', client: 'claude', perPrompt: 2000, usedShare: 0, used: 0, loaded: 10, label: 'skill:sk' }],
     tools: [
-      { key: 'Artifact', name: 'Artifact', client: 'claude', group: 'builtin', perSession: 10000, usedShare: 0.1, used: 1, loaded: 10, repos: 2 },
-      { key: 'Workflow', name: 'Workflow', client: 'claude', group: 'builtin', perSession: 100, usedShare: 0, used: 0, loaded: 10, off: true },
-      { key: 'mcp:x', name: 'x', client: 'codex', group: 'mcp', perSession: 500, usedShare: 0.2, used: 2, loaded: 10, repos: 1 },
+      { key: 'Artifact', name: 'Artifact', client: 'claude', group: 'builtin', perPrompt: 10000, usedShare: 0.1, used: 1, loaded: 10, repos: 2 },
+      { key: 'Workflow', name: 'Workflow', client: 'claude', group: 'builtin', perPrompt: 100, usedShare: 0, used: 0, loaded: 10, off: true },
+      { key: 'mcp:x', name: 'x', client: 'codex', group: 'mcp', perPrompt: 500, usedShare: 0.2, used: 2, loaded: 10, repos: 1 },
     ],
   };
   const recs = recommendations(view, { top: 10 });
@@ -109,16 +109,16 @@ test('suggestions are the flagged parts, costliest first, tools switched off lef
   assert.equal(recs.flagged, 5); assert.equal(recs.potential, 15400);
   const j = recs.items.find(x => x.title === 'J');
   assert.equal(j.used, 2); assert.equal(j.of, 5); assert.equal(j.by, 'judge');
-  assert.match(recommendationLine(j), /followed in 2 of 5 sessions/);
-  assert.match(recommendationLine(recs.items[0]), /^built-in tool "Artifact" \(2 repositories\): ~9k tokens a session .*called in 1 of 10 sessions/);
+  assert.match(recommendationLine(j), /needed in 40% of prompts/);
+  assert.match(recommendationLine(recs.items[0]), /^built-in tool "Artifact" \(2 repositories\): ~9k tokens a prompt .*needed in 10% of prompts/);
   assert.match(recommendationLine(recs.items[4]), /^codex MCP server "x"/);
-  assert.match(recommendationLine(recs.items[2]), /read in 0 of 10 sessions/);
+  assert.match(recommendationLine(recs.items[2]), /needed in 0% of prompts/);
   // the top cuts the list, not the totals
   const top = recommendations(view, { top: 2 });
   assert.equal(top.items.length, 2); assert.equal(top.flagged, 5); assert.equal(top.potential, 15400);
   assert.equal(MACHINE_TOP, 5);
-  const lines = renderMachineReport({ days: 30, repos: [{ name: 'r', sessions: 8 }], view: { ...view, totals: { instructions: { tokens: 1, perSession: 2 }, custom: { tokens: 3, perSession: 4 }, builtin: { tokens: 5, perSession: 6 }, outputs: { tokens: 7, perSession: 8 } } } }, top);
-  assert.ok(lines.some(l => /about ~12k tokens a session in these 2, ~15k over all 5 flagged/.test(l)), lines.join('\n'));
+  const lines = renderMachineReport({ days: 30, repos: [{ name: 'r', sessions: 8 }], view: { ...view, totals: { instructions: { tokens: 1, perPrompt: 2 }, custom: { tokens: 3, perPrompt: 4 }, builtin: { tokens: 5, perPrompt: 6 }, outputs: { tokens: 7, perPrompt: 8 } } } }, top);
+  assert.ok(lines.some(l => /about ~12k tokens a prompt in these 2, ~15k over all 5 flagged/.test(l)), lines.join('\n'));
 });
 
 // the installer's picker (setup/context-ask.js): the suggestions as the changes the page's rows make, in their repositories
@@ -134,7 +134,7 @@ test('machineChanges: a section never applied is removed in its repository, a to
   const picks = machineChanges(r, recs);
   const sec = picks.find(p => p.kind === 'section');
   assert.ok(sec, 'the section is a pick');
-  assert.equal(sec.act, 'remove', 'applied in 0 of 2 sessions by its triggers: removed');
+  assert.equal(sec.act, 'remove', 'needed in 0% of prompts by its triggers: removed');
   assert.deepEqual(sec.targets.map(x => x.checkout), [a], 'in its own repository only');
   assert.equal(sec.targets[0].change.chosen, 'remove'); assert.equal(sec.targets[0].change.key, `section:AGENTS.md:${sec.id}`);
   // the page the installer opens pre-checks the same rows with the same actions (suggestedPicks, sent with /api/context)
@@ -143,10 +143,10 @@ test('machineChanges: a section never applied is removed in its repository, a to
   assert.deepEqual(sp.find(s => s.kind === 'section'), { kind: 'section', key: `section:AGENTS.md:${sec.id}`, repo: r.views[0].repo, act: 'remove' });
   for (const s of sp.filter(s => s.kind !== 'section')) { assert.equal(s.act, 'off'); assert.equal(s.repo, null); }
   assert.equal(pickLine(sec), `Remove the AGENTS.md section "API views" in ${path.basename(a)}`);
-  assert.match(pickNote(sec), /tokens a session, applied in 0 of 2 sessions$/);
+  assert.match(pickNote(sec), /tokens a prompt, needed in 0% of prompts$/);
   // a section the judge saw, or one applied somewhere, is compressed; a tool is switched off in every repository that has it
   const views = [
-    { repo: 'r1', name: 'r1', checkout: '/c1', view: { days: 30, instructions: { sections: [{ id: 'j', title: 'J', file: 'AGENTS.md', text: 't', waste: 'medium', wasted: 1000, tokens: 100, perSession: 2000, usedShare: 0.4 }] }, skills: [], tools: [{ key: 'Artifact', name: 'Artifact', client: 'claude', group: 'builtin', label: 'tool:Artifact', text: '', perSession: 10000, usedShare: 0.1, used: 1, loaded: 10, waste: 'high', wasted: 9000 }], outputs: { tools: [] } } },
+    { repo: 'r1', name: 'r1', checkout: '/c1', view: { days: 30, instructions: { sections: [{ id: 'j', title: 'J', file: 'AGENTS.md', text: 't', waste: 'medium', wasted: 1000, tokens: 100, perPrompt: 2000, usedShare: 0.4 }] }, skills: [], tools: [{ key: 'Artifact', name: 'Artifact', client: 'claude', group: 'builtin', label: 'tool:Artifact', text: '', perSession: 10000, usedShare: 0.1, used: 1, loaded: 10, waste: 'high', wasted: 9000 }], outputs: { tools: [] } } },
     { repo: 'r2', name: 'r2', checkout: '/c2', view: { days: 30, instructions: { sections: [] }, skills: [], tools: [{ key: 'Artifact', name: 'Artifact', client: 'claude', group: 'builtin', label: 'tool:Artifact', text: '', perSession: 10000, usedShare: 0, used: 0, loaded: 5, waste: 'high', wasted: 10000 }, { key: 'mcp:x', name: 'x', client: 'claude', group: 'mcp', kind: 'mcp', text: '', perSession: 500, usedShare: 0, used: 0, loaded: 5, waste: 'high', wasted: 500 }], outputs: { tools: [] } } },
   ];
   const recs2 = { items: [
@@ -159,7 +159,7 @@ test('machineChanges: a section never applied is removed in its repository, a to
   assert.equal(pickLine(p2[2]), 'Switch off the MCP server "x"');
   assert.deepEqual(await applyMachinePicks([p2[2]]), [], 'and nothing to apply');
   assert.equal(pickLine(p2[1]), 'Remove the built-in tool "Artifact" in 2 repositories'.replace('Remove', 'Switch off'));
-  assert.match(pickNote(p2[0]), /followed in 2 of 5 sessions, a model call$/);
+  assert.match(pickNote(p2[0]), /needed in 40% of prompts, a model call$/);
   // applied: the removal in repository a through approveChanges, recorded in that repository's history, nothing in b
   const said = await applyMachinePicks([sec]);
   assert.equal(said.length, 1); assert.match(said[0], /^AGENTS\.md · API views: Removed: ~\d+ → ~\d+ tokens in AGENTS\.md, uncommitted$/);

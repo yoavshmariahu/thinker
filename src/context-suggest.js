@@ -40,7 +40,8 @@ export const SUGGEST = {
   everyDays: 7,       // a new summary at most this often
   firstSessions: 10,  // and only once the repository has this many sessions to read
   answerDays: 3,      // a summary not passed on in this long (no prompt here) is dropped
-  minSaving: 500,     // a change saving fewer input tokens a session is not worth a line
+  minSaving: 15,      // a change saving fewer input tokens on an average prompt is not worth a line (500 a session
+                      // until 2026-10-25, when the unit became a prompt: about 15 of them at this machine's median calls)
   uiWaitMs: 3000,     // how long the hook waits for the page to start
 };
 const DAY = 86_400_000;
@@ -65,7 +66,7 @@ export const ACTS = {
 const pctLess = (cut, of) => { const p = of ? 100 * cut / of : 0; return p < 1 ? '<1% smaller' : `~${Math.round(p)}% smaller`; };
 const flagged = r => !r.off && (r.waste === 'high' || r.waste === 'medium') && r.wasted > 0;
 
-// Every change the report flags, by what it saves a session, the five largest. A section, skill or tool is flagged
+// Every change the report flags, by what it saves over the window, the five largest. A section, skill or tool is flagged
 // when its cost in the sessions that did not use it is a share of its kind's (instruction-value.js:wasteLevel), and saves at most its cost
 // in the sessions that did not use it; an output thinker can compress and does not, what moderate compression's cap
 // alone would have cut from it (tool-outputs.js).
@@ -83,29 +84,29 @@ function partChanges(view, { all = false } = {}) {
   for (const s of view.instructions?.sections || []) if (take(s)) out.push({
     kind: 'section', view: 'instructions', waste: s.waste, key: `section:${s.file}:${s.id}`, id: s.id, file: s.file, repo: s.repo,
     title: `${s.file} · ${s.parent ? `${s.parent}: ` : ''}${s.title}`, saving: s.wasted, text: String(s.text || '').slice(0, 1500),
-    why: `${s.usedShare != null ? `acted on in ${Math.round(100 * s.usedShare)}% of sessions` : 'rarely acted on'}; ~${formatTokens(s.tokens)} tokens in every model call`,
-    action: 'compress or remove the section', sessions: view.instructions?.sessions || 0, options: [ACTS.compress, ACTS.remove], ...describePart({ kind: 'section', text: s.text }),
+    why: `${s.usedShare != null ? `needed in ${Math.round(100 * s.usedShare)}% of prompts` : 'rarely acted on'}; ~${formatTokens(s.tokens)} tokens in every model call`,
+    action: 'compress or remove the section', sessions: view.instructions?.sessions || 0, prompts: s.prompts || 0, options: [ACTS.compress, ACTS.remove], ...describePart({ kind: 'section', text: s.text }),
   });
   // a skill or tool thinker switched off has one action, back on (by the key the switch-off kept); one nothing switches
   // off has none
   const switchOpts = s => s.off ? [ACTS.on] : s.label ? [ACTS.off] : [];
   for (const s of view.skills || []) if (take(s)) out.push({
     kind: 'skill', view: 'custom', waste: s.waste, key: `${s.client}:${s.key}`, sourceKey: s.key, label: s.label, repo: s.repo, off: Boolean(s.off),
-    title: `${s.name} skill`, saving: s.wasted, text: String(s.text || '').slice(0, 1200), why: `opened in ${s.used} of ${s.loaded} sessions; its listing is in every one`, action: 'switch it off here',
-    sessions: s.loaded || 0, options: switchOpts(s), ...describePart({ kind: 'skill', text: s.text }),
+    title: `${s.name} skill`, saving: s.wasted, text: String(s.text || '').slice(0, 1200), why: `${s.usedShare != null ? `needed in ${Math.round(100 * s.usedShare)}% of prompts` : `opened in ${s.used} of ${s.loaded} sessions`}; its listing is in every one`, action: 'switch it off here',
+    sessions: s.loaded || 0, prompts: s.prompts || 0, options: switchOpts(s), ...describePart({ kind: 'skill', text: s.text }),
   });
   for (const s of view.tools || []) if (take(s)) out.push({
     kind: 'tool', view: s.group === 'builtin' ? 'builtin' : 'custom', waste: s.waste, key: `${s.client}:${s.key}`, sourceKey: s.key, label: s.label, repo: s.repo, off: Boolean(s.off),
     title: `${s.name}${s.kind === 'mcp' ? ' MCP server' : s.kind === 'plugin' ? ' plugin' : ' tool'}`, saving: s.wasted, text: String(s.text || '').slice(0, 1200),
-    why: `used in ${s.used} of ${s.loaded} sessions; ~${formatTokens(s.tokens)} tokens in every model call`, action: 'switch it off here',
-    builtin: s.group === 'builtin', sessions: s.loaded || 0, options: switchOpts(s), ...describePart({ kind: 'tool', name: s.name, builtin: s.group === 'builtin', toolKind: s.kind, text: s.text }),
+    why: `${s.usedShare != null ? `needed in ${Math.round(100 * s.usedShare)}% of prompts` : `used in ${s.used} of ${s.loaded} sessions`}; ~${formatTokens(s.tokens)} tokens in every model call`, action: 'switch it off here',
+    builtin: s.group === 'builtin', sessions: s.loaded || 0, prompts: s.prompts || 0, options: switchOpts(s), ...describePart({ kind: 'tool', name: s.name, builtin: s.group === 'builtin', toolKind: s.kind, text: s.text }),
   });
   // what an output's tool is, from the tool's own row (its definition's text): a built-in tool by its name, an MCP server by its key
   const toolText = n => (view.tools || []).find(s => n.startsWith('mcp:') ? s.kind === 'mcp' && (s.key === n || s.name === n.slice(4)) : s.group === 'builtin' && s.name === n)?.text || '';
   // the summary ranks an output by what compressing it would cut, as a share of what every tool's output costs a
   // session, since that is what its action saves; the page's Wasted column shows the output's reads after its last
   // use (tool-outputs.js:sessionOutputs), which no cap recovers
-  const outCost = view.totals?.outputs?.perSession || (view.outputs?.tools || []).reduce((a, t) => a + (t.perSession || 0), 0);
+  const outCost = view.totals?.outputs?.perPrompt || (view.outputs?.tools || []).reduce((a, t) => a + (t.perPrompt || 0), 0);
   const outWaste = cut => { const sh = outCost ? cut / outCost : 0; return sh >= WASTE.high ? 'high' : sh >= WASTE.medium ? 'medium' : 'low'; };
   // one level (moderate, diet.js): Compress, or No compression once the output is compressed at any level (the
   // command line can set high)
@@ -117,12 +118,12 @@ function partChanges(view, { all = false } = {}) {
     title: `${t.name.replace(/^Bash:/, '')} output`, saving: t.saveModerate,
     // how much smaller compressing makes this tool's results here: the part past the length cap, from these
     // transcripts (tool-outputs.js); trimming reads and searches round what the agent looked for cuts more
-    why: `~${formatTokens(t.perCall)} tokens a call, read again by every call after it${t.wasted != null ? ` (~${formatTokens(t.wasted)} a session after the agent last used the result)` : ''}; compressed, ${pctLess(t.saveModerate, t.perSession)}`, action: 'compress its output (Claude Code)',
-    sessions: t.sessions ?? view.outputs?.sessions ?? 0, options: levelOpts(t), ...describePart({ kind: 'output', name: t.name, text: toolText(t.name) }),
+    why: `~${formatTokens(t.perCall)} tokens a call, read again by every call after it${t.wasted != null ? ` (~${formatTokens(t.wasted)} a prompt after the agent last used the result)` : ''}; compressed, ${pctLess(t.saveModerate, t.perPrompt)}`, action: 'compress its output (Claude Code)',
+    sessions: t.sessions ?? view.outputs?.sessions ?? 0, prompts: t.prompts || 0, options: levelOpts(t), ...describePart({ kind: 'output', name: t.name, text: toolText(t.name) }),
   });
   // the first option is the suggestion; `total` is what it could have saved over the report's window: its saving a
-  // session times the sessions that read it (a skill or tool, the sessions it was loaded in)
-  return out.map(c => ({ ...c, saving: c.saving || 0, default: c.options[0] || null, total: (c.saving || 0) * c.sessions, days: view.days }));
+  // prompt times the model calls that carried it (a skill or tool, the calls of the sessions it was loaded in)
+  return out.map(c => ({ ...c, saving: c.saving || 0, default: c.options[0] || null, total: (c.saving || 0) * (c.prompts || c.sessions), days: view.days }));
 }
 
 const configOn = store => store.config().maintain?.contextSuggest !== false;

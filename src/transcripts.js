@@ -286,7 +286,9 @@ function parseMessages(rows, fromLine) {
       if (b.type === 'text' && role === 'user' && !j.isMeta) { const t = cleanPrompt(b.text); if (t) events.push({ t: 'prompt', text: t }); }
       else if (b.type === 'text' && role === 'assistant') events.push({ t: 'say', text: b.text });
       // `at`: when the call was made (ms), so a result is measured under the output compression in force then (tool-outputs.js)
-      else if (b.type === 'tool_use') { const ev = tool(b.name, b.input, '', b.id), at = Date.parse(j.timestamp); if (at) ev.at = at; events.push(ev); }
+      // `turn`: the model call the tool was called in (the count of assistant messages so far), so a part's use can be
+      // counted by prompts (instruction-value.js:appliedTurns)
+      else if (b.type === 'tool_use') { const ev = tool(b.name, b.input, '', b.id), at = Date.parse(j.timestamp); if (at) ev.at = at; ev.turn = messageUsage.size; events.push(ev); }
       else if (b.type === 'tool_result') keepResult(results, b.tool_use_id, b.content);
     }
   });
@@ -344,7 +346,8 @@ function parseCodex(rows, fromLine) {
       else if (p.type === 'function_call' || p.type === 'custom_tool_call' || p.type === 'local_shell_call') {
         const input = p.arguments ?? p.input ?? p.action ?? {};
         if (p.name === 'wait' || p.name === 'update_plan') return;
-        events.push(tool(p.name || 'shell', input, '', p.call_id));
+        // `turn`: the response the call belongs to, by the usage records so far, else by the assistant messages
+        events.push({ ...tool(p.name || 'shell', input, '', p.call_id), turn: lastUsages.length || msgTurns });
       } else if (p.type === 'function_call_output' || p.type === 'custom_tool_call_output' || p.type === 'local_shell_call_output') keepResult(results, p.call_id, p.output);
     }
     // `codex exec --json` stream

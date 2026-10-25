@@ -77,7 +77,7 @@ test('a section applies when the session touches its files or runs its command; 
   assert.deepEqual(appliedSections(secs, sessionActivity(repo, [{ t: 'tool', name: 'Bash', input: { command: 'ls' }, result: '' }])), {});
 });
 
-test('the report counts applied sessions and the cost of each section a session, and keeps records by transcript size', t => {
+test('the report counts applied sessions and the cost of each section a prompt, and keeps records by transcript size', t => {
   const { repo, store } = fixture(t);
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-ivalue-tr-')); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const sessions = [
@@ -88,7 +88,9 @@ test('the report counts applied sessions and the cost of each section a session,
   assert.equal(v.file, 'AGENTS.md'); assert.equal(v.sessions, 2);
   const api = v.sections.find(s => s.id === 'api-views');
   assert.equal(api.applied, 1); assert.equal(api.judged, 0); assert.equal(api.success, null);
-  assert.equal(api.perSession, api.tokens * v.calls, 'its tokens, read again by each model call');
+  // every session here read the file, so its tokens are in every prompt of the window; over the window, that times the calls
+  assert.equal(api.perPrompt, api.tokens, 'its tokens, read again by each model call');
+  assert.equal(api.window, api.tokens * api.prompts); assert.equal(api.prompts, v.prompts);
   assert.ok(v.calls >= 2);
   assert.equal(Object.keys(readValueState(store).sessions).length, 2);
   // a Claude Code session does not count when CLAUDE.md is its own text
@@ -189,9 +191,10 @@ test('the context view puts sections, skills and tools side by side, with the ke
   let v = contextView(store, { sessions: [], usage, log });
   assert.equal(v.harnessOn, false);
   // a label even with the harness off: picking it on the tab turns the harness on (context-view.js:switchSources)
-  assert.deepEqual(v.skills.map(s => [s.name, s.perSession, !!s.label, s.outcome.missed]), [['naming', 1200, true, 1]]);
+  assert.deepEqual(v.skills.map(s => [s.name, s.perPrompt, s.window, !!s.label, s.outcome.missed]), [['naming', 120, 4800, true, 1]]);
   assert.deepEqual(v.tools.map(s => s.name), ['rea', 'Workflow']);
-  assert.equal(v.totals.tools.perSession, 44000);
+  // 4 sessions of 10 model calls: 4,400 tokens in every one of the 40, 176,000 over the window
+  assert.deepEqual([v.totals.tools.perPrompt, v.totals.tools.window, v.prompts], [4400, 176_000, 40]);
   assert.ok(v.instructions.sections.every(s => s.kept === undefined)); assert.equal(v.instructions.coreOn, undefined);
   // the label `thinker harness --off` takes, for a built-in tool too (switching it off turns built-in tool switching on)
   fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ harness: { enabled: true } }));
@@ -224,7 +227,7 @@ test('a repository with no instruction file still has a context view: empty inst
   const v = contextView(store, { sessions: [], usage, log: [] });
   assert.equal(v.instructions.file, null);
   assert.deepEqual(v.instructions.sections, []);
-  assert.deepEqual(v.totals.instructions, { tokens: 0, perSession: 0 });
+  assert.deepEqual(v.totals.instructions, { tokens: 0, perPrompt: 0, window: 0 });
   assert.deepEqual(v.tools.map(s => s.name), ['rea']);
   assert.deepEqual(v.timeline, []);
 });
@@ -275,23 +278,29 @@ test('a section changed inside the window is new from then: its use is measured 
   assert.equal(api.recent, true); assert.equal(api.changedAt.slice(0, 10), new Date(now - 2 * day).toISOString().slice(0, 10));
   assert.deepEqual([api.sessions, api.applied, api.sessionsSince, api.loadedIn], [2, 1, 2, 8], 'the two sessions since the change, of eight that read the file');
   assert.equal(api.usedShare, null, 'two sessions since the change are too few to say'); assert.equal(api.waste, 'unknown');
-  assert.equal(api.perSession, api.tokens * v.calls, 'what it costs a session is its present size, as for any section');
+  assert.equal(api.perPrompt, Math.round(api.tokens * api.prompts / v.denom), 'what it costs is its present size in the calls since the change');
   assert.equal(commits.recent, false); assert.deepEqual([commits.sessions, commits.sessionsSince], [8, 8], 'an unchanged section counts every session of the window');
   assert.equal(commits.usedShare, 0, 'nothing committed: known, not used');
   // four more sessions since the change: enough to say, and the sessions before still do not count
   const more = Array.from({ length: 4 }, (_, i) => transcript(dir, `c${i}`, [ls], { mtime: now - day + (i + 2) * 60_000 }));
   v = instructionValue(store, { sessions: [...before, ...after, ...more] });
   const api2 = v.sections.find(x => x.id === 'api-views');
-  assert.deepEqual([api2.sessions, api2.applied, api2.usedShare, api2.sessionsSince], [6, 1, 1 / 6, 6]);
-  assert.equal(api2.wasted, Math.round(api2.perSession * (5 / 6)));
-  assert.equal(v.savings.window, v.sections.filter(x => x.waste === 'high' || x.waste === 'medium').reduce((a, x) => a + x.wasted * x.sessionsSince, 0), 'over the window, each in the sessions that read its present text');
+  // the share is by prompts: the one model call that read src/api of every call of the six sessions since
+  assert.deepEqual([api2.sessions, api2.applied, api2.appliedPrompts, api2.sessionsSince], [6, 1, 1, 6]);
+  assert.ok(api2.promptsSince >= 6 && api2.prompts > api2.promptsSince, 'measured over the calls since the change; costed in every call that read the file');
+  assert.equal(api2.usedShare, api2.appliedPrompts / api2.promptsSince);
+  assert.equal(api2.wasted, Math.round(api2.perPrompt * (1 - api2.usedShare)));
+  assert.equal(api2.wastedWindow, Math.round(api2.window * (1 - api2.usedShare)));
+  assert.equal(v.savings.window, v.sections.filter(x => x.waste === 'high' || x.waste === 'medium').reduce((a, x) => a + x.wastedWindow, 0), 'over the window, each in the calls that read its present text');
 });
 
-test('waste: high or medium by what a section cost in the sessions that did not use it, as a share of the file', async () => {
+test('waste: high or medium by what a section cost in the prompts that did not need it, as a share of the file', async () => {
   const { wasteLevel, use } = await import('../src/instruction-value.js');
-  // acted on in 1 of 10 judged sessions, 100k a session: wastes 90k
-  const r = use({ sessions: 20, applied: 0, triggered: false, judged: 10, followed: 1 }, 100_000);
-  assert.deepEqual(r, { usedShare: 0.1, usedBy: 'judge', wasted: 90_000 });
+  // needed in 100 of 1,000 prompts, 100k a prompt on average: wastes 90k a prompt, 900k over the window
+  const r = use({ sessions: 20, prompts: 1000, appliedPrompts: 100, triggered: true }, 100_000, 1_000_000);
+  assert.deepEqual(r, { usedShare: 0.1, usedBy: 'prompts', wasted: 90_000, wastedWindow: 900_000 });
+  assert.equal(use({ sessions: 20, prompts: 1000, appliedPrompts: 0, triggered: false }, 100_000).usedShare, null, 'a section with nothing to look for is unknown');
+  assert.equal(use({ sessions: 2, prompts: 40, appliedPrompts: 10, triggered: true, recent: true }, 100_000).usedShare, null, 'too few sessions since it changed');
   assert.equal(wasteLevel(r, 1_000_000).waste, 'high', '9% of the file');
   assert.equal(wasteLevel(r, 3_000_000).waste, 'medium', '3% of the file');
   assert.equal(wasteLevel(r, 10_000_000).waste, 'low', 'under 2%');
@@ -326,31 +335,34 @@ test('remove and compress: a diff first, then exactly that text written to the w
 
 test('all repositories: the timeline joined, sections tagged with their repository, a tool merged by name', async () => {
   const { mergeViews } = await import('../src/context-view.js');
-  const view = (sessions, tool, sec) => ({ days: 30, sessions, totals: { custom: { tokens: 10, perSession: 100, count: 1 } }, skills: [], tools: [tool], outputs: { sessions, tools: [] },
-    instructions: { file: 'AGENTS.md', sessions, judged: 0, calls: 10, judge: { judge: false }, sections: [sec], savings: { window: 50, sessions: 1 } }, timeline: [{ t: sessions, custom: 1 }] });
+  // a repository's view counts one model call a session here, so its prompts are its sessions
+  const view = (sessions, tool, sec) => ({ days: 30, sessions, prompts: sessions, totals: { custom: { tokens: 10, perPrompt: 100, window: 100 * sessions, count: 1 } }, skills: [], tools: [tool], outputs: { sessions, prompts: sessions, tools: [] },
+    instructions: { file: 'AGENTS.md', sessions, prompts: sessions, judged: 0, calls: 10, judge: { judge: false }, sections: [sec], savings: { window: 50, sessions: 1 } }, timeline: [{ t: sessions, custom: 1 }] });
   // each repository's row carries its own waste (its cost times its unused share) and pill, as contextView leaves them
-  const tool = (loaded, perSession, used = 1) => ({ client: 'claude', key: 'mcp:rea', name: 'rea', kind: 'mcp', group: 'mcp', loaded, used, tokens: 1000, perSession, usedShare: used / loaded, wasted: Math.round(perSession * (1 - used / loaded)), waste: 'high' });
-  const v = mergeViews([{ repo: 'a', name: 'A', view: view(1, tool(1, 100), { id: 's', perSession: 10 }) }, { repo: 'b', name: 'B', view: view(3, tool(3, 500), { id: 's', perSession: 10 }) }]);
+  const tool = (loaded, perPrompt, used = 1) => ({ client: 'claude', key: 'mcp:rea', name: 'rea', kind: 'mcp', group: 'mcp', loaded, used, prompts: loaded, usedPrompts: used, window: perPrompt * loaded, tokens: 1000, perPrompt, usedShare: used / loaded, wasted: Math.round(perPrompt * (1 - used / loaded)), waste: 'high' });
+  const sec = { id: 's', prompts: 1, window: 10, perPrompt: 10 };
+  const v = mergeViews([{ repo: 'a', name: 'A', view: view(1, tool(1, 100), sec) }, { repo: 'b', name: 'B', view: view(3, tool(3, 500), sec) }]);
   assert.equal(v.all, true); assert.equal(v.sessions, 4); assert.equal(v.timeline.length, 2);
   assert.deepEqual(v.instructions.sections.map(s => s.repoName), ['A', 'B']);
-  assert.equal(v.tools.length, 1); assert.equal(v.tools[0].loaded, 4); assert.equal(v.tools[0].perSession, 400, 'weighted by the sessions that loaded it');
+  // 100 over one call and 1,500 over three: 1,600 over the four prompts of the two repositories, 400 a prompt
+  assert.equal(v.tools.length, 1); assert.equal(v.tools[0].loaded, 4); assert.deepEqual([v.tools[0].window, v.tools[0].perPrompt], [1600, 400], 'the repositories\' costs summed, over all their prompts');
   // a merged row names its repositories and belongs to none; it keeps a switch label where any repository has one, so
   // All can switch it off in each of them (the page's Apply, per repository)
   assert.deepEqual(v.tools[0].repoIds, ['a', 'b']); assert.equal(v.tools[0].repo, null); assert.equal(v.tools[0].label, null);
-  const v2 = mergeViews([{ repo: 'a', name: 'A', view: view(1, { ...tool(1, 100), label: 'mcp:rea' }, { id: 's', perSession: 10 }) }, { repo: 'b', name: 'B', view: view(3, tool(3, 500), { id: 's', perSession: 10 }) }]);
+  const v2 = mergeViews([{ repo: 'a', name: 'A', view: view(1, { ...tool(1, 100), label: 'mcp:rea' }, sec) }, { repo: 'b', name: 'B', view: view(3, tool(3, 500), sec) }]);
   assert.equal(v2.tools[0].label, 'mcp:rea');
-  const v3 = mergeViews([{ repo: 'a', name: 'A', view: view(1, tool(1, 100), { id: 's', perSession: 10 }) }]);
+  const v3 = mergeViews([{ repo: 'a', name: 'A', view: view(1, tool(1, 100), sec) }]);
   assert.equal(v3.tools[0].repo, 'a', 'one repository\'s row keeps its repository'); assert.deepEqual(v3.tools[0].repoIds, ['a']);
   assert.equal(v.instructions.savings.window, 100);
   // waste from the merged figures, never above the merged cost: the first repository's row costs 2,000 a session, all of it
   // unused (used in 0 of 2), the second 100 used every time; merged, 2 of 6 sessions used it at a cost of 733 a session
-  const skill = (loaded, used, perSession) => ({ client: 'claude', key: 'skill:x', name: 'x', kind: 'skill', loaded, used, tokens: 100, perSession, usedShare: used / loaded, wasted: Math.round(perSession * (1 - used / loaded)), waste: 'high' });
+  const skill = (loaded, used, perPrompt) => ({ client: 'claude', key: 'skill:x', name: 'x', kind: 'skill', loaded, used, prompts: loaded, usedPrompts: used, window: perPrompt * loaded, tokens: 100, perPrompt, usedShare: used / loaded, wasted: Math.round(perPrompt * (1 - used / loaded)), waste: 'high' });
   const m = mergeViews([
-    { repo: 'a', name: 'A', view: { ...view(2, tool(2, 2000, 0), { id: 's', perSession: 10 }), skills: [skill(2, 0, 2000)] } },
-    { repo: 'b', name: 'B', view: { ...view(4, tool(4, 100, 4), { id: 's', perSession: 10 }), skills: [skill(4, 2, 100)] } },
+    { repo: 'a', name: 'A', view: { ...view(2, tool(2, 2000, 0), sec), skills: [skill(2, 0, 2000)] } },
+    { repo: 'b', name: 'B', view: { ...view(4, tool(4, 100, 4), sec), skills: [skill(4, 2, 100)] } },
   ]);
   for (const r of [m.tools[0], m.skills[0]]) {
-    assert.equal(r.perSession, 733); assert.ok(r.wasted <= r.perSession, `waste ${r.wasted} within the merged cost`);
+    assert.equal(r.perPrompt, 733); assert.ok(r.wasted <= r.perPrompt, `waste ${r.wasted} within the merged cost`);
   }
   assert.equal(m.tools[0].usedShare, 4 / 6); assert.equal(m.tools[0].wasted, Math.round(733 * (2 / 6)));
   assert.equal(m.skills[0].usedShare, 2 / 6, 'a merged skill\'s share from the merged counts, not the first repository\'s'); assert.equal(m.skills[0].wasted, Math.round(733 * (4 / 6)));
@@ -418,7 +430,7 @@ test('nested instruction files and rules count in the sessions that read them, a
   assert.deepEqual(f, { 'AGENTS.md': 2, '.claude/rules/always.md': 2, '.claude/rules/api.md': 1, 'web/AGENTS.md': 1 });
   const comp = v.sections.find(s => s.file === 'web/AGENTS.md'), root = v.sections.find(s => s.id === 'api-views');
   assert.equal(comp.id, 'web-agents-md--components'); assert.equal(comp.loadedIn, 1);
-  assert.equal(comp.perSession, Math.round(comp.tokens * v.calls * 0.5), 'its cost averaged over every session');
+  assert.equal(comp.perPrompt, Math.round(comp.tokens * comp.prompts / v.denom), 'its cost over every prompt of the window, not only the session that read it');
   assert.equal(root.loadedIn, 2);
   // a rule with no headings is one section; removed, the file goes
   const rule = v.sections.find(s => s.file === '.claude/rules/api.md');
