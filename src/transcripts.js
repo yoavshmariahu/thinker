@@ -157,7 +157,7 @@ class ModelTally {
 // turn as the agent reported them (Claude Code and Cursor: message.usage; Codex: token_count
 // events). Read by the stop hook into the `session` log line, for the holdout comparison in usage.js.
 class Stats {
-  constructor() { this.toolCalls = 0; this.turns = 0; this.inputTokens = null; this.outputTokens = null; this.cacheReadTokens = null; this.cacheWriteTokens = null; this.covered = 0; this.measured = 0; this.cumulative = false; }
+  constructor() { this.toolCalls = 0; this.turns = 0; this.inputTokens = null; this.outputTokens = null; this.cacheReadTokens = null; this.cacheWriteTokens = null; this.cacheWrite1hTokens = 0; this.covered = 0; this.measured = 0; this.cumulative = false; }
   turn(usage, provider = 'anthropic') {
     this.turns++;
     if (!usage || typeof usage !== 'object') return;
@@ -165,6 +165,8 @@ class Stats {
     this.measured++;
     if (t.totalTokens !== null) this.covered++;
     for (const k of ['inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens']) if (t[k] !== null) this[k] = (this[k] || 0) + t[k];
+    // the writes at the one-hour TTL, priced at twice the input (prices.js:writeCost); Anthropic's usage alone says
+    this.cacheWrite1hTokens += Number(usage.cache_creation?.ephemeral_1h_input_tokens) || 0;
   }
   total(usage) {
     const t = normalizeModelUsage('codex', usage);
@@ -175,7 +177,7 @@ class Stats {
   get value() {
     const complete = this.cumulative ? this.covered === 1 : this.turns > 0 && this.covered === this.turns;
     const totalTokens = this.inputTokens !== null && this.outputTokens !== null ? this.inputTokens + this.outputTokens : null;
-    return { toolCalls: this.toolCalls, turns: this.turns, inputTokens: this.inputTokens, outputTokens: this.outputTokens, cacheReadTokens: this.cacheReadTokens, cacheWriteTokens: this.cacheWriteTokens, totalTokens, tokenCoverage: complete ? 'complete' : 'partial' };
+    return { toolCalls: this.toolCalls, turns: this.turns, inputTokens: this.inputTokens, outputTokens: this.outputTokens, cacheReadTokens: this.cacheReadTokens, cacheWriteTokens: this.cacheWriteTokens, cacheWrite1hTokens: this.cacheWrite1hTokens, totalTokens, tokenCoverage: complete ? 'complete' : 'partial' };
   }
 }
 
@@ -195,7 +197,7 @@ export const REWRITE_CAUSES = [
 ];
 export const REWRITE_MIN_CONTEXT = 20_000;
 export function cacheRewrites(calls) {
-  const out = Object.fromEntries(REWRITE_CAUSES.map(([k]) => [k, { n: 0, fresh: 0, write: 0 }])), prev = new Map();
+  const out = Object.fromEntries(REWRITE_CAUSES.map(([k]) => [k, { n: 0, fresh: 0, write: 0, write1h: 0 }])), prev = new Map();
   let calls_ = 0;
   for (const c of calls) {
     calls_++;
@@ -204,7 +206,7 @@ export function cacheRewrites(calls) {
     if (ctx <= REWRITE_MIN_CONTEXT || miss <= 0.5 * ctx) continue;
     const gap = p && c.t && p.t ? (c.t - p.t) / 60000 : 0;
     const cause = !p ? 'first' : c.compaction ? 'compaction' : gap > 60 ? 'expired' : p.model && c.model && p.model !== c.model ? 'model' : gap > 5 && (c.w5m || 0) > (c.w1h || 0) ? 'tail' : 'midway';
-    out[cause].n++; out[cause].fresh += c.fresh || 0; out[cause].write += c.write || 0;
+    out[cause].n++; out[cause].fresh += c.fresh || 0; out[cause].write += c.write || 0; out[cause].write1h += Math.min(c.w1h || 0, c.write || 0);
   }
   return { calls: calls_, causes: out };
 }

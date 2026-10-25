@@ -10,7 +10,7 @@ import { Store } from '../src/store.js';
 import { reportView, mergeReports, renderReport, THRESHOLDS, verdict, formatThreshold, weekColumns, weekStart, cacheMetrics, PARTS, BREAKDOWN, TOKEN_TYPES, OTHERS, REWRITES, CALIBRATION, calibrationOf, outputComparison, formatShare, actionEffect, itemCost, effectSpan, withEffects, promptAverage, mergePromptAverages } from '../src/report.js';
 import { REWRITE_CAUSES } from '../src/transcripts.js';
 const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-6, `${msg || ''} ${a} ≈ ${b}`);
-import { listPrice, providerOf, costOf, formatDollars } from '../src/prices.js';
+import { listPrice, providerOf, costOf, writeCost, formatDollars } from '../src/prices.js';
 
 function fixture(t) {
   const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-report-')));
@@ -62,15 +62,20 @@ test('weeks run Monday to Sunday, the current week last; a part is good, mid or 
 });
 
 test('list prices: Anthropic from the relative rates, the other providers from the table, the config on top', () => {
-  assert.deepEqual(listPrice('claude-opus-5-5'), { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 });
+  assert.deepEqual(listPrice('claude-opus-5-5'), { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5, cacheWrite1h: 8 }, 'a five-minute write 1.25 times the input, a one-hour write twice');
   assert.equal(listPrice('claude-fable-5-1').input, 10);
   assert.equal(listPrice('gpt-6-astra').output, 50);
   assert.equal(listPrice('gemini-3.8-flash-high').input, 0.75);
   assert.equal(listPrice('codex-auto-review'), null);
-  assert.deepEqual(listPrice('gpt-7', { config: { prices: { 'gpt-7': { input: 2, output: 8 } } } }), { input: 2, output: 8, cacheRead: 0.2, cacheWrite: 2.5 });
+  assert.deepEqual(listPrice('gpt-7', { config: { prices: { 'gpt-7': { input: 2, output: 8 } } } }), { input: 2, output: 8, cacheRead: 0.2, cacheWrite: 2.5, cacheWrite1h: 4 });
   assert.equal(providerOf('claude-opus-5-5'), 'Anthropic'); assert.equal(providerOf('gpt-6-astra'), 'OpenAI'); assert.equal(providerOf('gemini-3.8-flash'), 'Google'); assert.equal(providerOf(null, 'cursor'), 'Cursor');
   // fresh input at the input rate, cache reads at theirs, output at the output rate
   assert.equal(costOf({ input: 1000, cacheRead: 600, cacheWrite: 0, output: 100 }, listPrice('claude-opus-5-5')), (400 * 4 + 600 * 0.2 + 100 * 20) / 1e6);
+  // cache writes at their TTL's rate: the one-hour writes (as the usage reports them, never more than the writes) at twice the
+  // input, the rest at the five-minute rate; a record without the split (an older one, another provider) at the five-minute rate
+  assert.equal(costOf({ input: 1000, cacheRead: 0, cacheWrite: 1000, cacheWrite1h: 600, output: 0 }, listPrice('claude-opus-5-5')), (600 * 8 + 400 * 5) / 1e6);
+  assert.equal(costOf({ input: 1000, cacheRead: 0, cacheWrite: 1000, output: 0 }, listPrice('claude-opus-5-5')), (1000 * 5) / 1e6);
+  assert.equal(writeCost(100, 500, listPrice('claude-opus-5-5')), 100 * 8, 'never more one-hour writes than writes'); assert.equal(writeCost(100, 0, { cacheWrite: 5 }), 500, 'a price without the one-hour rate uses the five-minute one');
   assert.equal(formatDollars(0.00372), '$0.004'); assert.equal(formatDollars(3.8), '$3.80'); assert.equal(formatDollars(127.4), '$127'); assert.equal(formatDollars(12345), '$12.3k');
 });
 
@@ -150,6 +155,14 @@ test('the report averages each week over its sessions, by part and by model unde
   // each type at its rate, the four adding up to the sessions' cost
   assert.ok(Math.abs(tt('fresh').cells[last].cost - 2 * 400 * 4 / 1e6) < 1e-12); assert.ok(Math.abs(tt('cacheRead').cells[last].cost - 2 * 600 * 0.2 / 1e6) < 1e-12);
   assert.ok(Math.abs(v.tokenTypes.reduce((a, p) => a + p.cells[last].cost, 0) - 2 * sessionCost) < 1e-9);
+  // a session whose writes were at the one-hour TTL is priced at twice the input for those (the usage's split), in the type
+  // and in the rewrites: 30k written on the first call, all of it 1h, a rewrite by cause "first"
+  { const w = { input_tokens: 10, cache_creation_input_tokens: 30000, cache_read_input_tokens: 0, output_tokens: 5, cache_creation: { ephemeral_1h_input_tokens: 30000, ephemeral_5m_input_tokens: 0 } };
+    const s6 = transcript(dir, 's6', { model: 'claude-opus-5-5', usage: w, mtime: thisWeek + 7200_000 });
+    const v6 = reportView(store, { now: NOW, sessions: [s6] });
+    near(v6.tokenTypes.find(p => p.key === 'cacheWrite').cells[last].cost, 2 * 30000 * 8 / 1e6, 'two calls of 30k one-hour writes at $8 a million');
+    const first = v6.rewrites.find(p => p.key === 'first').cells[last];
+    assert.equal(first.n, 1); assert.equal(first.tokens, 30010); near(first.cost, (10 * 4 + 30000 * 8) / 1e6, 'the rewrite priced at the one-hour rate'); }
   assert.ok(Math.abs(v.totals[last].cost + v.others.reduce((a, p) => a + p.cells[last].cost, 0) - 2 * sessionCost) < 1e-9);
   assert.ok(Math.abs(v.sessionTotals[4].cost - costOf({ input: 4000, output: 20 }, listPrice('gpt-6-astra'))) < 1e-9, 'the unpriced session adds no cost');
   // the actions in the window, the cache's numbers over it

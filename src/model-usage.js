@@ -99,7 +99,8 @@ export function relativeRate(model) {
   const hit = RATES.find(([re]) => re.test(m));
   if (!hit) return null;
   const [, input, cacheRead] = hit;
-  return { input, output: input * 5, cacheRead, cacheWrite: input * 1.25 };
+  // a cache write at the five-minute TTL is 1.25 times the input, at the one-hour TTL twice it (Anthropic's table)
+  return { input, output: input * 5, cacheRead, cacheWrite: input * 1.25, cacheWrite1h: input * 2 };
 }
 
 // One call's tokens at that rate, in Opus 5.5 input tokens. Input includes cache reads and writes

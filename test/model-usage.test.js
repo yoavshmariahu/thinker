@@ -77,7 +77,7 @@ test('spending separates init, learning and legacy costs without double counting
 });
 
 test('the net weighs model work by its model, cached input and output, and leaves removed features out', () => {
-  assert.deepEqual(relativeRate('claude-haiku-5-5'), { input: 0.025, output: 0.125, cacheRead: 0.0025, cacheWrite: 0.03125 });
+  assert.deepEqual(relativeRate('claude-haiku-5-5'), { input: 0.025, output: 0.125, cacheRead: 0.0025, cacheWrite: 0.03125, cacheWrite1h: 0.05 });
   assert.equal(relativeRate('claude-opus-5-5').input, 1);
   assert.equal(relativeRate('opus').input, 1);
   assert.equal(relativeRate('claude-opus-5').input, 1.25);
