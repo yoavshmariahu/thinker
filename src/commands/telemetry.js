@@ -80,6 +80,14 @@ async function telemetryCommand(ctx) {
     const activeSummary = Object.entries(payload.clients.activeRequests || {}).filter(([_, n]) => n > 0).map(([c, n]) => `${c}:${n}`).join(', ') || 'none';
     out(`  Clients:      detected: ${payload.clients.detected.join(', ')}; active requests: ${activeSummary}`);
   }
+  if (payload.proxy) {
+    const c = payload.proxy.sides?.clearing, h = payload.proxy.sides?.holdout;
+    out(`  Proxy:        ${payload.proxy.service.on ? (payload.proxy.service.running ? 'on and running' : 'on, not running') : 'off'}; ${c?.requests || 0} requests cleared, ${h?.requests || 0} held out, ${(c?.cleared || 0).toLocaleString()} tokens cleared (30 days)`);
+  }
+  if (payload.actions) {
+    const s = payload.savings;
+    out(`  Actions:      ${payload.actions.approvedChanges} changes approved, ${payload.actions.dismissedChanges} dismissed, ${payload.actions.reverts} reverted; ${s.measured} of ${s.decisions} decisions measured${s.promptAverage ? `, ${s.promptAverage.perPrompt.toLocaleString()} tokens a prompt here` : ''}`);
+  }
   if (payload.retrieval) {
     out(`  Retrieval:    ${payload.retrieval.staleNotesServed} stale served, ${payload.retrieval.guardTriggeredCount} guard triggers${payload.retrieval.averageDurationMs ? `, ${payload.retrieval.averageDurationMs}ms avg latency` : ''}`);
   }
