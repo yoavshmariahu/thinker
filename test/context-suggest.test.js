@@ -439,6 +439,7 @@ test('a merged pull request from before the merge commit was kept: GitHub is ask
   const { changeHistory, refreshPrStates } = await import('../src/context-suggest.js');
   const store = repo(), now = Date.parse('2026-10-25T10:00:00Z');
   const entry = (id, key, act, pr = {}) => ({ id, at: '2026-10-25T03:59:27Z', key, kind: 'section', title: key, file: 'AGENTS.md', act, decision: 'pull request', pr: { number: 475, state: 'merged', at: '2026-10-25T04:00:16Z', base: 'main', ...pr } });
+  fs.mkdirSync(path.join(store.dir, 'state'), { recursive: true });
   fs.writeFileSync(path.join(store.dir, 'state', 'context-suggest.json'), JSON.stringify({ history: [entry('a', 'section:AGENTS.md:serving', 'remove'), entry('b', 'section:AGENTS.md:context-view', 'compress'), entry('c', 'section:AGENTS.md:old', 'remove', { at: '2026-08-01T00:00:00Z' })] }));
   fs.writeFileSync(path.join(store.repo, 'AGENTS.md'), '# x\n\n## Serving\n\nnotes\n\n## Context view\n\nreport\n');
   // without the commit: a removal is unpulled while its section is in the file; a compression cannot be told; a month-old one is left
