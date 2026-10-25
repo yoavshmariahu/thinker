@@ -17,7 +17,8 @@
 //                                    `thinker instructions … --job`, a pull request when done (instruction-pr.js) or failed with Retry
 //   refreshPrStates               a pull request's state followed: open is pending, merged done, closed without merging rejected
 //                                    and suggested again; a merged one that this checkout has not pulled is `unpulled`
-//                                    (changeHistory), so its section's row says Merged rather than coming back as a suggestion
+//                                    (changeHistory, with `pullFrom`, the branch to pull): the page shows no row for its
+//                                    section, and Recent activity says to pull and tints the decisions waiting on it
 //   ensureUi                      a detached `thinker ui --background` for the machine, reused while it runs
 //
 // `maintain: { contextSuggest: false }` in .thinker/config.json turns it off for a repository.
@@ -31,6 +32,7 @@ import { formatTokens } from './model-usage.js';
 import { SIGNATURE } from './harness.js';
 import { WASTE, sections, sectionId } from './instruction-value.js';
 import { describePart, describeEntry } from './part-describe.js';
+import { defaultBranch } from './instruction-pr.js';
 
 export const SUGGEST = {
   max: 5,
@@ -144,7 +146,9 @@ export function changeHistory(store, { now = Date.now(), git = isAncestor } = {}
     if (e.job?.state === 'running' && jobDied(e.job, now)) { e.job = { ...e.job, state: 'failed', error: e.job.pid ? 'the process ended before it finished' : 'the process did not start', finishedAt: new Date(now).toISOString() }; dirty = true; }
     // a merged pull request this checkout has not pulled: the section is still in the file here, and its row would come
     // back as a suggestion (2026-10-25: two sections removed by a merged pull request were offered again on the page of the
-    // checkout that had not pulled main). Asked until the merge is seen here once, then kept (`pulledAt`).
+    // checkout that had not pulled main). Asked until the merge is seen here once, then kept (`pulledAt`). `pullFrom` is
+    // the branch to pull: the pull request's base, else the repository's default branch (main, master or whatever origin
+    // names), for the banner on Recent activity.
     if (e.pr?.state === 'merged' && e.kind === 'section' && !e.pr.pulledAt && now - Date.parse(e.pr.at || e.at) < DECIDED_DAYS * DAY) {
       const here = inCheckout(store, e, git);
       if (here === true) { e.pr.pulledAt = new Date(now).toISOString(); dirty = true; }
@@ -152,10 +156,11 @@ export function changeHistory(store, { now = Date.now(), git = isAncestor } = {}
     }
   }
   if (dirty) writeJson(stateFile(store), st);
+  const pullFrom = unpulled.size ? (defaultBranch(store.repo) || 'main') : null;
   return h.map(e => {
     const running = e.job?.state === 'running', failed = e.job?.state === 'failed', pending = e.pr?.state === 'open';
     // what the part is and does (part-describe.js), worked out for an entry written before they were kept
-    return { ...e, ...describeEntry(e), revertible: !e.revertedAt && !running && !failed && Boolean(undoOf(store, e)), ...(e.pr ? { pending, rejected: e.pr.state === 'closed', ...(unpulled.has(e) ? { unpulled: true } : {}) } : {}), ...(e.job ? { running, failed, retryable: failed && !e.revertedAt } : {}), attention: running ? 'running' : failed && !e.revertedAt ? 'failed' : pending ? 'pr' : null };
+    return { ...e, ...describeEntry(e), revertible: !e.revertedAt && !running && !failed && Boolean(undoOf(store, e)), ...(e.pr ? { pending, rejected: e.pr.state === 'closed', ...(unpulled.has(e) ? { unpulled: true, pullFrom: e.pr.base || pullFrom } : {}) } : {}), ...(e.job ? { running, failed, retryable: failed && !e.revertedAt } : {}), attention: running ? 'running' : failed && !e.revertedAt ? 'failed' : pending ? 'pr' : null };
   });
 }
 // Whether this checkout has a merged section change: by the merge commit GitHub named (prState), an ancestor of HEAD or not;

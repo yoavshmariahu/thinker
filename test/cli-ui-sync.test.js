@@ -182,12 +182,15 @@ test('All on Find Savings and Recent activity are `thinker context --approve|--d
   assert.match(page, /api\('\/api\/changes\/retry', \{ repo: e\.repo, id: e\.id \}\)/);
   assert.match(read('ui/server.js'), /attention: history\.filter\(h => h\.attention\)\.length/);
   assert.match(cs, /attention: running \? 'running' : failed && !e\.revertedAt \? 'failed' : pending \? 'pr' : null/);
-  // a merged pull request this checkout has not pulled (`unpulled`): the section's row says Merged on the page and cannot be
-  // picked, and `thinker context --history` says so in the same words
-  assert.match(cs, /unpulled\.has\(e\) \? \{ unpulled: true \}/);
+  // a merged pull request this checkout has not pulled (`unpulled`, with the branch to pull): the section has no row on the
+  // page, Recent activity says to pull that branch and tints the decision, and `thinker context --history` says the same
+  assert.match(cs, /unpulled\.has\(e\) \? \{ unpulled: true, pullFrom: e\.pr\.base \|\| pullFrom \}/);
   assert.match(page, /e\.failed \|\| e\.unpulled\) &&/);
-  assert.match(page, /else if \(d\.unpulled\) \{ r\.pr = d\.pr; r\.pill = \['ok', `PR #\$\{d\.pr\.number\} merged`\]; r\.options = \[\];/);
-  assert.match(read('commands/context.js'), /merged\$\{e\.unpulled \? ', not pulled here' : ''\}/);
+  assert.match(page, /if \(d\.unpulled\) r\.hidden = true;/);
+  assert.match(page, /once you pull <code>\$\{esc\(br\)\}<\/code> \(<code>git pull origin \$\{esc\(br\)\}<\/code>\)/);
+  assert.match(page, /e\.unpulled \? \['wait', 'Merged · pull to apply'\]/);
+  assert.match(read('commands/context.js'), /once you pull \$\{br\} \(git pull origin \$\{br\}\)/);
+  assert.match(read('commands/context.js'), /merged\$\{e\.unpulled \? ', pull to apply' : ''\}/);
   assert.match(read('commands/context.js'), /if \(flags\.retry !== undefined\)/);
   assert.doesNotMatch(page, /\['history', 'History'\]/);
   // the page's rows read the same decisions, for the pill on a section under way, failed or pending on a pull request

@@ -46,9 +46,11 @@
     /* what needs the person, at the top of Recent activity */
     .attn { display: flex; flex-direction: column; gap: 0.3rem; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 0.7rem 0.9rem; margin: 0 0 0.8rem; }
     .attn.ok { background: #f0fdf4; border-color: #bbf7d0; }
+    .attn.wait { background: #fefce8; border-color: #fde68a; } .attn.wait code { background: #fef3c7; padding: 0 0.25rem; border-radius: 3px; }
     .attn ul { margin: 0.2rem 0 0; padding-left: 1.1rem; font-size: 0.86rem; line-height: 1.5; }
     .attn a { color: #111; }
     .ctx-table tr.act-attn td { background: #fff7ed; }
+    .ctx-table tr.act-wait td { background: #fefce8; }
 
     /* both tabs take the width of the window: Save holds a document beside its annotations, Report its tables */
     main { max-width: 1440px; margin: 0 auto; padding: 2.25rem 2rem 4rem; }
@@ -141,6 +143,7 @@
     .ctx-pill.high { background: #fee2e2; color: #991b1b; }
     .ctx-pill.medium { background: #fef9c3; color: #854d0e; }
     .ctx-pill.ok { background: #dcfce7; color: #166534; }
+    .ctx-pill.wait { background: #fef9c3; color: #854d0e; }
     .ctx-pill.off { background: #f4f4f5; color: #52525b; }
     /* what an action changed since it was taken (report.js:actionEffect): a session before against since, the saving green; a cost red */
     /* what a decision saved a session (report.js:actionEffect): a saving green, a cost red */
@@ -492,7 +495,7 @@ let CVIEW = ['all', 'instructions', 'custom', 'builtin', 'outputs'].includes(H()
 // the decisions (/api/activity), read with the report: the pull request pending on a section, or the job under way or failed on it
 let CHIST = { history: [] };
 // a merged pull request this checkout has not pulled yet (`unpulled`, context-suggest.js:changeHistory) is one too: its
-// section is still in the file here, and its row says Merged rather than coming back as a suggestion
+// section is still in the file here, and its row is left out rather than coming back as a suggestion
 const decisionOn = (repo, key) => (CHIST.history || []).find(e => (e.pending || e.running || e.failed || e.unpulled) && (!repo || e.repo === repo) && (e.keys || [e.key]).includes(key)) || null;
 const dlabel = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 // a small markdown reader for the team's own file: headings, lists, code, tables as text, inline code, bold, links' text
@@ -585,16 +588,17 @@ function contextRows(v) {
   // a section whose change is under way (a job in the background) or a pull request not yet merged: said so in its pill, with
   // the link, and not to be picked again until the job is done and the pull request merged (the next report has the new
   // section) or closed (the section is suggested again); one whose change failed says so and can be picked again. A merged
-  // pull request this checkout has not pulled: the section is still in the file here, so its row says Merged, with the link,
-  // and cannot be picked; it leaves the table once the checkout has the merge. A row with a decision on it (`decided`) is
-  // not counted as a saving still to make (flaggedSavings).
+  // pull request this checkout has not pulled (`unpulled`): the section is still in the file here, but it is decided, so
+  // its row is not shown at all (the owner's call, 2026-10-25); Recent activity says to pull and tints the decision until
+  // the checkout has the merge. A row with a decision on it (`decided`) is not counted as a saving still to make (flaggedSavings).
   for (const r of rows) {
     const d = decisionOn(r.repo, r.key); if (!d) continue;
-    if (d.running) { r.pill = ['busy', `<span class="spinner"></span>${d.job.action === 'compress' ? 'Compressing…' : 'Removing…'}`]; r.rawPill = true; r.options = []; r.disabled = 'a change is under way for it: see Recent activity'; r.decided = true; }
+    if (d.unpulled) r.hidden = true;
+    else if (d.running) { r.pill = ['busy', `<span class="spinner"></span>${d.job.action === 'compress' ? 'Compressing…' : 'Removing…'}`]; r.rawPill = true; r.options = []; r.disabled = 'a change is under way for it: see Recent activity'; r.decided = true; }
     else if (d.failed) r.pill = ['failed', `${d.job.action === 'compress' ? 'compression' : 'removal'} failed`];
-    else if (d.unpulled) { r.pr = d.pr; r.pill = ['ok', `PR #${d.pr.number} merged`]; r.options = []; r.disabled = `pull request #${d.pr.number} ${(d.act || d.job?.action) === 'remove' ? 'removed' : 'compressed'} it on ${d.pr.base || 'the default branch'}; this checkout has not pulled it yet`; r.decided = true; }
     else { r.pr = d.pr; r.pill = ['pr', `PR #${d.pr.number} pending`]; r.options = []; r.disabled = `pull request #${d.pr.number} is open for it`; r.decided = true; }
   }
+  for (let i = rows.length - 1; i >= 0; i--) if (rows[i].hidden) rows.splice(i, 1);
   for (const s of v.skills || []) {
     const k = skillShort(s.text), o = s.outcome;
     rows.push({
@@ -811,7 +815,7 @@ const CH_DONE = { off: 'Switched off', on: 'Turned back on', compress: 'Compress
 // a job under way or failed first (context-suggest.js:startSectionJob), then a pull request by its state: pending while open,
 // merged, rejected once closed without merging (Close PR too)
 const doneOf = e => e.running ? ['busy', `<span class="spinner"></span>${e.job.action === 'compress' ? 'Compressing…' : 'Removing…'}`, true] : e.failed ? ['failed', 'Failed']
-  : e.pr ? (e.pr.state === 'merged' ? ['ok', 'Merged'] : e.pr.state === 'closed' ? ['high', 'Rejected'] : ['pr', 'PR pending']) : e.revertedAt ? ['off', 'Reverted'] : e.decision === 'dismissed' ? ['off', 'Dismissed']
+  : e.pr ? (e.pr.state === 'merged' ? (e.unpulled ? ['wait', 'Merged · pull to apply'] : ['ok', 'Merged']) : e.pr.state === 'closed' ? ['high', 'Rejected'] : ['pr', 'PR pending']) : e.revertedAt ? ['off', 'Reverted'] : e.decision === 'dismissed' ? ['off', 'Dismissed']
   : ['ok', CH_DONE[e.act] || (/^switch/i.test(e.action || '') ? CH_DONE.off : /^remove/i.test(e.action || '') ? CH_DONE.remove : /compress/i.test(e.action || '') ? CH_DONE.compress : 'Applied')];
 // what a decision still needs of the person, in a few words (the card at the top of Recent activity)
 const needOf = e => e.running ? null : e.failed ? `retry it, or pick the section again: ${e.job.error}` : e.pending ? `merge or close pull request #${e.pr.number}` : null;
@@ -845,11 +849,11 @@ function historyFigure(hs, { many, caption, sub, empty, key = 'history', pageSiz
       : e.failed ? `Failed ${when(e.job.finishedAt || e.at)}: ${e.job.error || 'no reason recorded'}. Retry runs the same change again${e.job.tries > 1 ? ` (tried ${e.job.tries} times)` : ''}; nothing was changed, and the section is suggested again.`
       : `${e.job.action === 'compress' ? 'Compressed' : 'Removed'} in the background, ${when(e.job.startedAt)} to ${when(e.job.finishedAt)}${e.job.tokens ? `, ~${fmt(e.job.tokens)} model tokens` : ''}.`,
     e.result && e.decision !== 'dismissed' && !e.failed ? e.result.replace(/ `?thinker harness --undo`? turns.*$/, '').replace(/\.?$/, '.') : '',
-    e.pr ? `Pull request #${e.pr.number} opened ${when(e.pr.openedAt || e.at)}${e.pr.state === 'merged' ? `; merged ${when(e.pr.at)}${e.unpulled ? '; this checkout has not pulled it yet, so the section still shows on Find Savings as Merged' : ''}` : e.pr.state === 'closed' ? `; closed without merging ${when(e.pr.at)}: the change was not followed through on, and the ${e.keys?.length > 1 ? 'sections are' : 'section is'} suggested again` : '; pending until it is merged'}.`
+    e.pr ? `Pull request #${e.pr.number} opened ${when(e.pr.openedAt || e.at)}${e.pr.state === 'merged' ? `; merged ${when(e.pr.at)}${e.unpulled ? `; it takes effect here once you pull ${e.pullFrom || 'the default branch'} (this checkout does not have the merge yet)` : ''}` : e.pr.state === 'closed' ? `; closed without merging ${when(e.pr.at)}: the change was not followed through on, and the ${e.keys?.length > 1 ? 'sections are' : 'section is'} suggested again` : '; pending until it is merged'}.`
       : e.job ? '' : `${e.decision === 'dismissed' ? 'Dismissed' : e.decision === 'applied after review' ? 'Written after its diff was read' : 'Applied'} ${when(e.at)}${e.revertedAt ? `; reverted ${when(e.revertedAt)}` : ''}.`,
   ].filter(Boolean).join(' ');
   const decidedHint = e => [when(e.at), e.action ? `Suggested: ${e.action}` : '', e.total ? `Worth ~${fmt(e.total)} input tokens over the ${e.days || 7} days before it was decided${e.saving ? ` (~${fmt(e.saving)} a session)` : ''}` : e.saving ? `Worth ~${fmt(e.saving)} input tokens a session when it was decided` : ''].filter(Boolean).join(' · ');
-  const rows = shown.map((e, k) => { const i = from + k, [cls, label, raw] = doneOf(e); return `<tr class="${e.revertedAt || e.rejected ? 'ctx-off' : e.attention && !e.running ? 'act-attn' : ''}">
+  const rows = shown.map((e, k) => { const i = from + k, [cls, label, raw] = doneOf(e); return `<tr class="${e.revertedAt || e.rejected ? 'ctx-off' : e.attention && !e.running ? 'act-attn' : e.unpulled ? 'act-wait' : ''}">
       <td class="ctx-name"><b>${esc(e.title)}</b><span class="ctx-kind">${esc([e.what || CH_KIND[e.kind] || e.kind, many ? e.repoName : ''].filter(Boolean).join(' · '))}</span>${e.about ? `<span class="ctx-about">${esc(e.about)}</span>` : ''}</td>
       <td class="num" title="${esc(decidedHint(e))}">${day(e.at)}</td>${effectCells(e)}${prCell(e)}
       <td>${e.pr?.url && e.pending ? `<a class="ctx-pill ${cls}" href="${esc(e.pr.url)}" target="_blank" rel="noopener" title="${esc(hintOf(e))}">${label}</a>` : `<span class="ctx-pill ${cls}" title="${esc(hintOf(e))}">${raw ? label : esc(label)}</span>`}</td>
@@ -908,7 +912,13 @@ function renderActivity(d) {
   const card = needs.length || running.length
     ? `<div class="attn"><div class="kicker">${needs.length ? `${needs.length} need${needs.length === 1 ? 's' : ''} you` : 'Under way'}</div>${needs.length ? `<ul>${needs.map(e => `<li><b>${name(e)}</b>: ${e.pr?.url ? needOf(e).replace(`#${e.pr.number}`, `<a href="${esc(e.pr.url)}" target="_blank" rel="noopener">#${e.pr.number}</a>`) : esc(needOf(e))}</li>`).join('')}</ul>` : ''}${running.length ? `<div class="why"><span class="spinner"></span>${running.length === 1 ? 'One change is' : `${running.length} changes are`} being made in the background; this page follows ${running.length === 1 ? 'it' : 'them'}.</div>` : ''}</div>`
     : `<div class="attn ok"><div class="why">Nothing needs you: no change under way or failed, no pull request waiting.</div></div>`;
-  el.innerHTML = card + historyFigure(hs, { many, caption: 'Decisions', sub: many ? 'every repository' : '', empty: 'No decisions yet. What you apply on Find Savings is listed here, with what came of it.', key: 'activity', promptAvg: d.promptAvg || null, measuring: !!d.measuring });
+  // merged changes this checkout has not pulled (`unpulled`, context-suggest.js:changeHistory): a banner per repository naming
+  // the branch to pull (the pull request's base, else the default branch: main, master or whatever origin names), and the
+  // decisions waiting on it tinted yellow below (act-wait) until the checkout has the merge
+  const waiting = hs.filter(e => e.unpulled), byRepo = new Map();
+  for (const e of waiting) { const k = `${many ? e.repoName || e.repo : ''}\t${e.pullFrom || 'main'}`; byRepo.set(k, (byRepo.get(k) || 0) + 1); }
+  const pullCard = waiting.length ? `<div class="attn wait"><div class="kicker">Pull to apply</div><div class="why">${[...byRepo].map(([k, n]) => { const [r, br] = k.split('\t'); return `${n} merged change${n === 1 ? '' : 's'}${r ? ` in ${esc(r)}` : ''} take${n === 1 ? 's' : ''} effect here once you pull <code>${esc(br)}</code> (<code>git pull origin ${esc(br)}</code>): this checkout does not have the merge yet, so the sections still show in its files. They are tinted below and no longer offered on Find Savings.`; }).join('<br>')}</div></div>` : '';
+  el.innerHTML = card + pullCard + historyFigure(hs, { many, caption: 'Decisions', sub: many ? 'every repository' : '', empty: 'No decisions yet. What you apply on Find Savings is listed here, with what came of it.', key: 'activity', promptAvg: d.promptAvg || null, measuring: !!d.measuring });
   wireHistory(el.querySelector('[data-history]'), hs, loadActivity, () => renderActivity(d));
   badge(d);
 }

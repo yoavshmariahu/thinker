@@ -1488,8 +1488,11 @@ again), **Merged**, **Rejected** once closed without merging, and a rejected cha
 has not pulled is `unpulled` (`changeHistory`, 2026-10-25: two sections removed by a merged pull request were offered again on
 the page of a checkout behind `main`, which still had them in its AGENTS.md): the merge commit GitHub names (`prState`
 `commit`, kept as `pr.mergeCommit`; an entry from before it was kept is asked for it once more) is not an ancestor of `HEAD`,
-or, without a commit, a removed section is still in the file; the section's row says **Merged**, linked, cannot be picked and
-is left out of Potential savings, until the checkout has the merge (kept as `pr.pulledAt`, asked no more). **Close PR** is the entry's
+or, without a commit, a removed section is still in the file; the page shows no row for the section (the owner's call: a
+decided change is not a suggestion), and Recent activity opens with a yellow banner saying to pull the branch (`pullFrom`:
+the pull request's base, else `instruction-pr.js:defaultBranch`, main, master or whatever origin names) and tints the
+decisions waiting on it; `thinker context --history` prints the same line. Until the checkout has the merge (kept as
+`pr.pulledAt`, asked no more). **Close PR** is the entry's
 revert (`revertDecision`, `instruction-pr.js:closePr`: closed with a comment, the branch deleted). `thinker instructions
 --compress <id> --pr` is the command.
 

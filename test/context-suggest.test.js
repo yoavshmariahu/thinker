@@ -371,7 +371,7 @@ test('a section job with a pull request: the decision is pending until merged; c
   assert.equal(changeHistory(store)[0].pr.mergeCommit, 'm1');
   const gitCalls = [];
   let m = changeHistory(store, { now, git: (r, c) => { gitCalls.push([r, c]); return false; } })[0];
-  assert.equal(m.unpulled, true); assert.deepEqual(gitCalls, [[store.repo, 'm1']]);
+  assert.equal(m.unpulled, true); assert.equal(m.pullFrom, 'main', "the pull request's base"); assert.deepEqual(gitCalls, [[store.repo, 'm1']]);
   assert.equal(currentChanges(store, view(), { now }).some(c => c.key === 'section:AGENTS.md:Releases'), false, 'merged, unpulled: decided');
   // git cannot answer: not marked; pulled once: kept, and git is not asked again
   assert.equal(changeHistory(store, { now, git: () => null })[0].unpulled, undefined);
@@ -438,13 +438,16 @@ test('describePart: a built-in tool is told from a custom one, and the thing a d
 test('a merged pull request from before the merge commit was kept: GitHub is asked for it once; a removal is unpulled while its section is still in the file', async () => {
   const { changeHistory, refreshPrStates } = await import('../src/context-suggest.js');
   const store = repo(), now = Date.parse('2026-10-25T10:00:00Z');
-  const entry = (id, key, act, pr = {}) => ({ id, at: '2026-10-25T03:59:27Z', key, kind: 'section', title: key, file: 'AGENTS.md', act, decision: 'pull request', pr: { number: 475, state: 'merged', at: '2026-10-25T04:00:16Z', base: 'main', ...pr } });
+  const entry = (id, key, act, pr = {}) => ({ id, at: '2026-10-25T03:59:27Z', key, kind: 'section', title: key, file: 'AGENTS.md', act, decision: 'pull request', pr: { number: 475, state: 'merged', at: '2026-10-25T04:00:16Z', ...pr } });
+  // no base on the entry: the branch to pull is the repository's default branch, master here
+  execFileSync('git', ['-C', store.repo, 'checkout', '-q', '-b', 'master'], { stdio: 'ignore' });
+  fs.writeFileSync(path.join(store.repo, 'README.md'), 'x'); execFileSync('git', ['-C', store.repo, 'add', 'README.md']); execFileSync('git', ['-C', store.repo, '-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '-m', 'x']);
   fs.mkdirSync(path.join(store.dir, 'state'), { recursive: true });
   fs.writeFileSync(path.join(store.dir, 'state', 'context-suggest.json'), JSON.stringify({ history: [entry('a', 'section:AGENTS.md:serving', 'remove'), entry('b', 'section:AGENTS.md:context-view', 'compress'), entry('c', 'section:AGENTS.md:old', 'remove', { at: '2026-08-01T00:00:00Z' })] }));
   fs.writeFileSync(path.join(store.repo, 'AGENTS.md'), '# x\n\n## Serving\n\nnotes\n\n## Context view\n\nreport\n');
   // without the commit: a removal is unpulled while its section is in the file; a compression cannot be told; a month-old one is left
   let hs = changeHistory(store, { now, git: () => { throw new Error('no commit to ask by'); } });
-  assert.equal(hs[0].unpulled, true); assert.equal(hs[1].unpulled, undefined); assert.equal(hs[2].unpulled, undefined);
+  assert.equal(hs[0].unpulled, true); assert.equal(hs[0].pullFrom, 'master', 'the default branch, whatever it is called'); assert.equal(hs[1].unpulled, undefined); assert.equal(hs[2].unpulled, undefined);
   fs.writeFileSync(path.join(store.repo, 'AGENTS.md'), '# x\n\n## Context view\n\nreport\n');
   hs = changeHistory(store, { now }); assert.equal(hs[0].unpulled, undefined); assert.ok(hs[0].pr.pulledAt, 'the section is gone from the file here: pulled, and kept so');
   // GitHub is asked once for the merge commit of the entries that lack it (not the old one), and not again once it answered
