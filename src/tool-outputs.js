@@ -156,7 +156,8 @@ export function aggregateOutputs(recs, { levelAt = null } = {}) {
     // the prompts the row is measured over: its setting's period, so a tool compressed on Tuesday compares with
     // itself before on the same unit, and the window total beside it (`window`, what it cost in all of them)
     const pr = Math.max(1, levelAt ? promptsOf(mine) : allPrompts);
-    return { name: r.name, level: r.level, sessions: levelAt ? d : n, prompts: pr, ...span(at), usedIn: r.usedIn, calls: r.calls / d, tokens: Math.round(r.tokens / d), perPrompt: Math.round(r.input / pr), window: r.input, perCall: Math.round(r.tokens / (r.calls || 1)), wasted: Math.round(r.unneeded / pr), wastedWindow: r.unneeded, saveModerate: Math.round(r.saveModerate / pr), saveHigh: Math.round(r.saveHigh / pr), saveModerateWindow: r.saveModerate };
+    // `needed`: of the prompts that read a result again, the share before the agent last used it
+    return { name: r.name, level: r.level, sessions: levelAt ? d : n, prompts: pr, ...span(at), usedIn: r.usedIn, calls: r.calls / d, tokens: Math.round(r.tokens / d), perPrompt: Math.round(r.input / pr), window: r.input, perCall: Math.round(r.tokens / (r.calls || 1)), needed: r.input ? Math.max(0, r.input - r.unneeded) / r.input : null, wasted: Math.round(r.unneeded / pr), wastedWindow: r.unneeded, saveModerate: Math.round(r.saveModerate / pr), saveHigh: Math.round(r.saveHigh / pr), saveModerateWindow: r.saveModerate };
   }).sort((a, b) => b.window - a.window);
   const total = k => [...rows.values()].reduce((a, r) => a + r[k], 0);
   const sum = k => Math.round(total(k) / (n || 1));

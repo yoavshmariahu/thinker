@@ -84,7 +84,7 @@ function partChanges(view, { all = false } = {}) {
   for (const s of view.instructions?.sections || []) if (take(s)) out.push({
     kind: 'section', view: 'instructions', waste: s.waste, key: `section:${s.file}:${s.id}`, id: s.id, file: s.file, repo: s.repo,
     title: `${s.file} · ${s.parent ? `${s.parent}: ` : ''}${s.title}`, saving: s.wasted, text: String(s.text || '').slice(0, 1500),
-    why: `${s.usedShare != null ? `acted on in ${Math.round(100 * s.usedShare)}% of sessions` : 'rarely acted on'}; ~${formatTokens(s.tokens)} tokens in every model call`,
+    why: `${s.usedShare != null ? `needed in ${Math.round(100 * s.usedShare)}% of prompts` : 'rarely acted on'}; ~${formatTokens(s.tokens)} tokens in every model call`,
     action: 'compress or remove the section', sessions: view.instructions?.sessions || 0, prompts: s.prompts || 0, options: [ACTS.compress, ACTS.remove], ...describePart({ kind: 'section', text: s.text }),
   });
   // a skill or tool thinker switched off has one action, back on (by the key the switch-off kept); one nothing switches
@@ -92,13 +92,13 @@ function partChanges(view, { all = false } = {}) {
   const switchOpts = s => s.off ? [ACTS.on] : s.label ? [ACTS.off] : [];
   for (const s of view.skills || []) if (take(s)) out.push({
     kind: 'skill', view: 'custom', waste: s.waste, key: `${s.client}:${s.key}`, sourceKey: s.key, label: s.label, repo: s.repo, off: Boolean(s.off),
-    title: `${s.name} skill`, saving: s.wasted, text: String(s.text || '').slice(0, 1200), why: `opened in ${s.used} of ${s.loaded} sessions; its listing is in every one`, action: 'switch it off here',
+    title: `${s.name} skill`, saving: s.wasted, text: String(s.text || '').slice(0, 1200), why: `${s.usedShare != null ? `needed in ${Math.round(100 * s.usedShare)}% of prompts` : `opened in ${s.used} of ${s.loaded} sessions`}; its listing is in every one`, action: 'switch it off here',
     sessions: s.loaded || 0, prompts: s.prompts || 0, options: switchOpts(s), ...describePart({ kind: 'skill', text: s.text }),
   });
   for (const s of view.tools || []) if (take(s)) out.push({
     kind: 'tool', view: s.group === 'builtin' ? 'builtin' : 'custom', waste: s.waste, key: `${s.client}:${s.key}`, sourceKey: s.key, label: s.label, repo: s.repo, off: Boolean(s.off),
     title: `${s.name}${s.kind === 'mcp' ? ' MCP server' : s.kind === 'plugin' ? ' plugin' : ' tool'}`, saving: s.wasted, text: String(s.text || '').slice(0, 1200),
-    why: `used in ${s.used} of ${s.loaded} sessions; ~${formatTokens(s.tokens)} tokens in every model call`, action: 'switch it off here',
+    why: `${s.usedShare != null ? `needed in ${Math.round(100 * s.usedShare)}% of prompts` : `used in ${s.used} of ${s.loaded} sessions`}; ~${formatTokens(s.tokens)} tokens in every model call`, action: 'switch it off here',
     builtin: s.group === 'builtin', sessions: s.loaded || 0, prompts: s.prompts || 0, options: switchOpts(s), ...describePart({ kind: 'tool', name: s.name, builtin: s.group === 'builtin', toolKind: s.kind, text: s.text }),
   });
   // what an output's tool is, from the tool's own row (its definition's text): a built-in tool by its name, an MCP server by its key

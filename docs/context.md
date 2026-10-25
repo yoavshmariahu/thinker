@@ -26,17 +26,18 @@ parts the agent reads on every model call:
 | Built-in tools | the agent's own tool definitions, re-sent with every call | Claude Code |
 | Tool outputs | what each tool's results added to the conversation, re-read by every call after them | Claude Code |
 
-A part's cost is its tokens times the model calls that carried it: a 4k-token instruction file read by
-40 calls is 160k input tokens, and over a window that is summed across every session that read it
-(**Over N days**, what the page sorts by). **A prompt** divides that by every prompt of the window — a
-prompt being one call to the model, as the Report counts it — so the column says what the part adds to an
-average prompt here, and a part carried by half the window's calls shows half its size. These are input
-tokens read: a definition at the stable front of the prompt is served from the prompt cache on most calls,
-at a tenth or less of the input price, and the Report prices the token types as the model reported them.
+One rule: a part sits in the prompt, so it costs its size in every model call that carries it. **Per
+prompt** is that size — a prompt being one call to the model, as the Report counts it. **Needed** is the
+share of those prompts where the agent acted on it: called the tool, invoked the skill, touched the files,
+commands or code the section names, read the output again before moving on. **Over N days** is per prompt
+times every prompt that carried it in the window, what the page sorts by. **Wasted** is that times the share
+of prompts that did not need it, the most that cutting the part could save. These are input tokens read: a
+definition at the stable front of the prompt is served from the prompt cache on most calls, at a tenth or
+less of the input price, and the Report prices the token types as the model reported them.
 
 **One part at a time, as cards.** Each instruction section, skill and tool beside:
 
-- *Cost*: tokens per call, input tokens on an average prompt, and the total over the window.
+- *Cost*: per prompt, the share of prompts that needed it, the total over the window, and the waste.
 - *Used* (the page's Sessions used): how often the sessions acted on it. A section is *applied* when a session touched its
   files, ran its command or read the code it names, free, from the transcript. *Relevant* and
   *followed* come from a model reading one session against the sections and saying which bore on

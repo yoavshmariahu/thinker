@@ -285,17 +285,22 @@ test('a section changed inside the window is new from then: its use is measured 
   const more = Array.from({ length: 4 }, (_, i) => transcript(dir, `c${i}`, [ls], { mtime: now - day + (i + 2) * 60_000 }));
   v = instructionValue(store, { sessions: [...before, ...after, ...more] });
   const api2 = v.sections.find(x => x.id === 'api-views');
-  assert.deepEqual([api2.sessions, api2.applied, api2.usedShare, api2.sessionsSince], [6, 1, 1 / 6, 6]);
-  assert.equal(api2.wasted, Math.round(api2.perPrompt * (5 / 6)));
-  assert.equal(api2.wastedWindow, Math.round(api2.window * (5 / 6)));
+  // the share is by prompts: the one model call that read src/api of every call of the six sessions since
+  assert.deepEqual([api2.sessions, api2.applied, api2.appliedPrompts, api2.sessionsSince], [6, 1, 1, 6]);
+  assert.ok(api2.promptsSince >= 6 && api2.prompts > api2.promptsSince, 'measured over the calls since the change; costed in every call that read the file');
+  assert.equal(api2.usedShare, api2.appliedPrompts / api2.promptsSince);
+  assert.equal(api2.wasted, Math.round(api2.perPrompt * (1 - api2.usedShare)));
+  assert.equal(api2.wastedWindow, Math.round(api2.window * (1 - api2.usedShare)));
   assert.equal(v.savings.window, v.sections.filter(x => x.waste === 'high' || x.waste === 'medium').reduce((a, x) => a + x.wastedWindow, 0), 'over the window, each in the calls that read its present text');
 });
 
-test('waste: high or medium by what a section cost in the sessions that did not use it, as a share of the file', async () => {
+test('waste: high or medium by what a section cost in the prompts that did not need it, as a share of the file', async () => {
   const { wasteLevel, use } = await import('../src/instruction-value.js');
-  // acted on in 1 of 10 judged sessions, 100k a session: wastes 90k
-  const r = use({ sessions: 20, applied: 0, triggered: false, judged: 10, followed: 1 }, 100_000, 1_000_000);
-  assert.deepEqual(r, { usedShare: 0.1, usedBy: 'judge', wasted: 90_000, wastedWindow: 900_000 });
+  // needed in 100 of 1,000 prompts, 100k a prompt on average: wastes 90k a prompt, 900k over the window
+  const r = use({ sessions: 20, prompts: 1000, appliedPrompts: 100, triggered: true }, 100_000, 1_000_000);
+  assert.deepEqual(r, { usedShare: 0.1, usedBy: 'prompts', wasted: 90_000, wastedWindow: 900_000 });
+  assert.equal(use({ sessions: 20, prompts: 1000, appliedPrompts: 0, triggered: false }, 100_000).usedShare, null, 'a section with nothing to look for is unknown');
+  assert.equal(use({ sessions: 2, prompts: 40, appliedPrompts: 10, triggered: true, recent: true }, 100_000).usedShare, null, 'too few sessions since it changed');
   assert.equal(wasteLevel(r, 1_000_000).waste, 'high', '9% of the file');
   assert.equal(wasteLevel(r, 3_000_000).waste, 'medium', '3% of the file');
   assert.equal(wasteLevel(r, 10_000_000).waste, 'low', 'under 2%');
@@ -334,7 +339,7 @@ test('all repositories: the timeline joined, sections tagged with their reposito
   const view = (sessions, tool, sec) => ({ days: 30, sessions, prompts: sessions, totals: { custom: { tokens: 10, perPrompt: 100, window: 100 * sessions, count: 1 } }, skills: [], tools: [tool], outputs: { sessions, prompts: sessions, tools: [] },
     instructions: { file: 'AGENTS.md', sessions, prompts: sessions, judged: 0, calls: 10, judge: { judge: false }, sections: [sec], savings: { window: 50, sessions: 1 } }, timeline: [{ t: sessions, custom: 1 }] });
   // each repository's row carries its own waste (its cost times its unused share) and pill, as contextView leaves them
-  const tool = (loaded, perPrompt, used = 1) => ({ client: 'claude', key: 'mcp:rea', name: 'rea', kind: 'mcp', group: 'mcp', loaded, used, prompts: loaded, window: perPrompt * loaded, tokens: 1000, perPrompt, usedShare: used / loaded, wasted: Math.round(perPrompt * (1 - used / loaded)), waste: 'high' });
+  const tool = (loaded, perPrompt, used = 1) => ({ client: 'claude', key: 'mcp:rea', name: 'rea', kind: 'mcp', group: 'mcp', loaded, used, prompts: loaded, usedPrompts: used, window: perPrompt * loaded, tokens: 1000, perPrompt, usedShare: used / loaded, wasted: Math.round(perPrompt * (1 - used / loaded)), waste: 'high' });
   const sec = { id: 's', prompts: 1, window: 10, perPrompt: 10 };
   const v = mergeViews([{ repo: 'a', name: 'A', view: view(1, tool(1, 100), sec) }, { repo: 'b', name: 'B', view: view(3, tool(3, 500), sec) }]);
   assert.equal(v.all, true); assert.equal(v.sessions, 4); assert.equal(v.timeline.length, 2);
@@ -351,7 +356,7 @@ test('all repositories: the timeline joined, sections tagged with their reposito
   assert.equal(v.instructions.savings.window, 100);
   // waste from the merged figures, never above the merged cost: the first repository's row costs 2,000 a session, all of it
   // unused (used in 0 of 2), the second 100 used every time; merged, 2 of 6 sessions used it at a cost of 733 a session
-  const skill = (loaded, used, perPrompt) => ({ client: 'claude', key: 'skill:x', name: 'x', kind: 'skill', loaded, used, prompts: loaded, window: perPrompt * loaded, tokens: 100, perPrompt, usedShare: used / loaded, wasted: Math.round(perPrompt * (1 - used / loaded)), waste: 'high' });
+  const skill = (loaded, used, perPrompt) => ({ client: 'claude', key: 'skill:x', name: 'x', kind: 'skill', loaded, used, prompts: loaded, usedPrompts: used, window: perPrompt * loaded, tokens: 100, perPrompt, usedShare: used / loaded, wasted: Math.round(perPrompt * (1 - used / loaded)), waste: 'high' });
   const m = mergeViews([
     { repo: 'a', name: 'A', view: { ...view(2, tool(2, 2000, 0), sec), skills: [skill(2, 0, 2000)] } },
     { repo: 'b', name: 'B', view: { ...view(4, tool(4, 100, 4), sec), skills: [skill(4, 2, 100)] } },

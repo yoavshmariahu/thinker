@@ -96,10 +96,10 @@ export function cursorHarnessUsage({ thinkerHome, home = os.homedir(), env = pro
     const used = cursorSessionUse(snap.transcript), mtime = (() => { try { return fs.statSync(snap.transcript).mtimeMs; } catch { return null; } })();
     for (const [id, s] of Object.entries(snap.servers)) {
       const key = `cursor:mcp:${id}`;
-      if (!rows.has(key)) rows.set(key, { key, client: 'cursor', kind: 'mcp', id, name: s.name, tokens: 0, loaded: 0, used: 0, prompts: 0, lastUsed: null, texts: {} });
+      if (!rows.has(key)) rows.set(key, { key, client: 'cursor', kind: 'mcp', id, name: s.name, tokens: 0, loaded: 0, used: 0, prompts: 0, usedPrompts: 0, lastUsed: null, texts: {} });
       // Cursor records no model calls, so a session counts as one prompt: its size alone, as before
       const r = rows.get(key); r.loaded++; r.tokens += s.tokens; r.prompts += 1; r.texts[key] = s.text;
-      if (used.has(id) || used.has(s.name)) { r.used++; r.lastUsed = Math.max(r.lastUsed || 0, mtime || 0); }
+      if (used.has(id) || used.has(s.name)) { r.used++; r.usedPrompts++; r.lastUsed = Math.max(r.lastUsed || 0, mtime || 0); }
     }
   }
   return { sessions: counted, sources: [...rows.values()].map(r => {

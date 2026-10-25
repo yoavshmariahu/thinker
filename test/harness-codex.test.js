@@ -41,6 +41,7 @@ test('Codex catalogs count once, and direct, orchestrated and shell skill calls 
   const h = codexSessionHarness(s.file), once = codexSessionHarness(f.session('b').file);
   assert.deepEqual(h.loaded, once.loaded);
   assert.ok(h.used.has('skill:writer')); assert.ok(h.used.has('mcp:used')); assert.ok(h.used.has('mcp:cloud__remote')); assert.ok(!h.used.has('mcp:docs'));
+  assert.deepEqual([h.usedCalls['mcp:used'], h.usedCalls['mcp:cloud__remote'], h.usedCalls['mcp:docs']], [1, 1, undefined], 'the responses each server was called in');
   assert.equal(h.calls, 1);
   const fake = f.session('fake', [{ type: 'response_item', payload: { type: 'message', role: 'user', content: [{ text: f.catalog }] } }], { empty: true });
   assert.equal(codexSessionHarness(fake.file).loaded.size, 0);

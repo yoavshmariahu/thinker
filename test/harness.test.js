@@ -58,6 +58,8 @@ test('a session records what it loaded, with tokens, and what it and its subagen
   assert.ok(h.loaded.get('mcp:rea') > 600, 'sixty tool names and the instructions');
   assert.ok(h.loaded.get('mcp:claude_ai_claude_docs') > 300, 'a surfaced definition counts whole, beside the instructions');
   assert.deepEqual([...h.used].sort(), ['mcp:artemis', 'skill:gtm:pricing', 'skill:mine']);
+  // and the model calls each was called in, so its use is counted by prompts (a typed /skill is one)
+  assert.deepEqual(h.usedCalls, { 'mcp:artemis': 1, 'skill:gtm:pricing': 1, 'skill:mine': 1 });
 });
 
 test('advice names what is loaded and never used, where it is switched on, and keeps what is used', t => {
@@ -406,7 +408,7 @@ test('what a transcript loaded is kept on disk by its size and mtime: the same a
   const f = path.join(d, 's.jsonl');
   fs.writeFileSync(f, [...loadedLines(), call('mcp__artemis__get_experiment')].map(j => JSON.stringify(j)).join('\n') + '\n');
   const fresh = sessionHarness(f), cached = sessionHarness(f);
-  assert.ok(fs.readdirSync(path.join(d, 'cache', 'session-harness', 'v1')).length, 'an entry was written');
+  assert.ok(fs.readdirSync(path.join(d, 'cache', 'session-harness', 'v2')).length, 'an entry was written');
   assert.deepEqual(cached, fresh, 'Maps and Sets come back as they were');
   assert.ok(cached.loaded instanceof Map && cached.used instanceof Set && cached.texts instanceof Map);
   assert.ok(cached.used.has('mcp:artemis') && !cached.used.has('skill:mine'));

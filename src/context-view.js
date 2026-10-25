@@ -55,7 +55,9 @@ export function contextView(store, { days = 30, sessions, usage, log } = {}) {
   const src = s => ({
     key: s.key, name: s.name, kind: s.kind, client: s.client || 'claude', scope: s.scope || null, tokens: s.tokens,
     prompts: promptsOf(s), window: s.tokens * promptsOf(s), perPrompt: Math.round(s.tokens * promptsOf(s) / viewPrompts),
-    loaded: s.loaded, used: s.used, usedShare: s.loaded ? s.used / s.loaded : null, off: Boolean(s.off),
+    // `usedShare`: of the prompts that carried it, the share that called it (the harness readers' `usedPrompts`); by
+    // prompts since 2026-10-25, the owner's ask. `used` of `loaded` sessions stays for the detail
+    loaded: s.loaded, used: s.used, usedPrompts: s.usedPrompts ?? s.used, usedShare: promptsOf(s) ? Math.min(1, (s.usedPrompts ?? s.used) / promptsOf(s)) : null, off: Boolean(s.off),
     // what switches it off here (harness.js:switchOffNow with `any` takes the label); `switchSources` turns the
     // harness on for it when it is not
     label: canSwitchOff(s) ? labelOf(s) : null,
@@ -149,12 +151,12 @@ export function mergeViews(list) {
   // a merged skill's or tool's use, waste and pill are made again from the merged figures: kept from the first
   // repository's row (as `...g[0]` leaves them). The costs are sums now (the calls that carried it, and its tokens in
   // each), so nothing is one repository's figure weighted by another's, as it was until 2026-10-25.
-  const reuse = r => { const share = r.loaded ? r.used / r.loaded : null, perPrompt = Math.round(r.window / prompts);
+  const reuse = r => { const share = r.prompts ? Math.min(1, (r.usedPrompts || 0) / r.prompts) : null, perPrompt = Math.round(r.window / prompts);
     return { ...r, usedShare: share, perPrompt, wasted: r.off ? 0 : Math.round(perPrompt * (1 - (share || 0))), wastedWindow: r.off ? 0 : Math.round(r.window * (1 - (share || 0))) }; };
   const graded = (xs, cost) => xs.map(r => ({ ...r, ...wasteLevel({ usedShare: r.usedShare, wasted: r.off ? null : r.wasted }, cost) }));
   const liveCost = xs => xs.reduce((a, x) => a + (x.off ? 0 : x.perPrompt), 0);
-  const tools0 = merge(list.flatMap(x => x.view.tools.map(tag(x))), r => `${r.client}:${r.key}`, 'loaded', ['loaded', 'used', 'prompts', 'window'], ['tokens']).map(reuse).sort((a, b) => b.window - a.window);
-  const skills0 = merge(list.flatMap(x => x.view.skills.map(tag(x))), r => `${r.client}:${r.key}`, 'loaded', ['loaded', 'used', 'prompts', 'window'], ['tokens']).map(reuse);
+  const tools0 = merge(list.flatMap(x => x.view.tools.map(tag(x))), r => `${r.client}:${r.key}`, 'loaded', ['loaded', 'used', 'usedPrompts', 'prompts', 'window'], ['tokens']).map(reuse).sort((a, b) => b.window - a.window);
+  const skills0 = merge(list.flatMap(x => x.view.skills.map(tag(x))), r => `${r.client}:${r.key}`, 'loaded', ['loaded', 'used', 'usedPrompts', 'prompts', 'window'], ['tokens']).map(reuse);
   const skills = graded(skills0, liveCost(skills0));
   // as contextView grades them: built-in tools against their own cost, the custom tools against every custom tool's and skill's
   const tools = tools0.map(r => ({ ...r, ...wasteLevel({ usedShare: r.usedShare, wasted: r.off ? null : r.wasted }, r.group === 'builtin' ? liveCost(tools0.filter(x => x.group === 'builtin')) : liveCost(tools0.filter(x => x.group !== 'builtin').concat(skills))) }));
@@ -164,7 +166,7 @@ export function mergeViews(list) {
   const outs = linkRows(merge(allOuts, r => r.key || `${r.name}@${r.level || ''}`, 'sessions', ['usedIn', 'sessions', 'prompts', 'window', 'wastedWindow', 'saveModerateWindow'], ['tokens', 'perCall'])
     .map(t => { const g = allOuts.filter(x => x.name === t.name && (x.level || null) === (t.level || null)), pr = Math.max(1, t.prompts);
       // the merged row's unit is its own prompts (the setting's period in each repository), as one repository's row is
-      return { ...t, perPrompt: Math.round(t.window / pr), wasted: Math.round(t.wastedWindow / pr), saveModerate: Math.round(t.saveModerateWindow / pr),
+      return { ...t, perPrompt: Math.round(t.window / pr), wasted: Math.round(t.wastedWindow / pr), needed: t.window ? Math.max(0, t.window - t.wastedWindow) / t.window : null, saveModerate: Math.round(t.saveModerateWindow / pr),
         calls: w(g, 'calls', 'sessions'), past: g.every(x => x.past), from: span(g.map(x => x.from), Math.min), to: span(g.map(x => x.to), Math.max) }; }))
     .sort((a, b) => b.window - a.window);
   const ivs = list.map(x => ({ x, iv: x.view.instructions })).filter(({ iv }) => iv.file);

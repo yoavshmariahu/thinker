@@ -36,7 +36,7 @@ export function codexHarnessConfig(repo, { home = os.homedir(), env = process.en
 }
 
 // Kept on this machine by the file's size and mtime, as the Claude reader's is (harness.js:sessionHarness).
-const HARNESS_CACHE = diskCache('session-harness', 1);
+const HARNESS_CACHE = diskCache('session-harness', 2); // 2: `usedCalls` (2026-10-25)
 const freeze = h => ({ ...h, loaded: [...h.loaded], used: [...h.used], texts: [...h.texts].map(([k, t]) => [k, String(t).slice(0, 4000)]), skillPaths: [...h.skillPaths], skillReads: [...h.skillReads], coverage: [...h.coverage] });
 const thaw = v => ({ ...v, loaded: new Map(v.loaded), used: new Set(v.used), texts: new Map(v.texts), skillPaths: new Map(v.skillPaths), skillReads: new Set(v.skillReads), coverage: new Set(v.coverage) });
 export function codexSessionHarness(file) {
@@ -44,6 +44,10 @@ export function codexSessionHarness(file) {
 }
 function readCodexSessionHarness(file) {
   const loaded = new Map(), used = new Set(), texts = new Map(), skillPaths = new Map(), coverage = new Set(), calls = new Set();
+  // the responses each source was called in (by the usage records so far), so its use is counted by prompts
+  const usedCalls = new Map(), usedIn = (k, turn) => (usedCalls.get(k) || usedCalls.set(k, new Set()).get(k)).add(turn);
+  const keysIn = text => { const ks = new Set(); for (const m of text.matchAll(/mcp__([\w-]+(?:__[\w-]+)+)/g)) { let hit = false; for (const key of loaded.keys()) if (key.startsWith('mcp:') && (m[1] === key.slice(4) || m[1].startsWith(`${key.slice(4)}__`))) { ks.add(key); hit = true; } if (!hit) ks.add(`mcp:${m[1].split('__')[0]}`); }
+    for (const [key, file] of skillPaths) if (text.includes(file) || text.includes(`/${path.basename(path.dirname(file))}/SKILL.md`)) ks.add(key); return ks; };
   let cwd, start, id, parent, excluded = false;
   const put = (key, text) => { loaded.set(key, Math.max(loaded.get(key) || 0, estTokens(text))); texts.set(key, text); };
   const catalog = text => {
@@ -90,10 +94,11 @@ function readCodexSessionHarness(file) {
     if (['function_call', 'custom_tool_call'].includes(p.type)) {
       const text = `${p.name || ''}\n${typeof p.arguments === 'string' ? p.arguments : JSON.stringify(p.arguments || '')}\n${p.input || ''}`;
       inputs.push(text);
+      for (const k of keysIn(text)) usedIn(k, calls.size);
       for (const m of text.matchAll(/skills\/([\w.-]+)\/SKILL\.md/g)) skillOpens.push({ skill: m[1], at: j.timestamp });
       for (const m of text.replace(/\\n/g, '\n').matchAll(/^\*\*\* (?:Update|Add|Delete) File: ([^\n"\\]+)/gm)) { const f = m[1].trim(); if (!edited.includes(f)) edited.push(f); }
     }
-    if (p.type === 'message' && p.role === 'user') for (const c of p.content || []) for (const m of String(c.text || '').matchAll(/\$([\w:.-]+)/g)) used.add(`skill:${m[1]}`);
+    if (p.type === 'message' && p.role === 'user') for (const c of p.content || []) for (const m of String(c.text || '').matchAll(/\$([\w:.-]+)/g)) { used.add(`skill:${m[1]}`); usedIn(`skill:${m[1]}`, `typed-${calls.size}`); }
   }
   const input = inputs.join('\n');
   // Includes calls dispatched through functions.exec and skill files read through the shell.
@@ -104,8 +109,8 @@ function readCodexSessionHarness(file) {
   }
   for (const [key, file] of skillPaths) if (input.includes(file) || input.includes(JSON.stringify(file).slice(1, -1)) || input.includes(`/${path.basename(path.dirname(file))}/SKILL.md`)) used.add(key);
   const skillReads = new Set([...input.matchAll(/[^\s"'`\\]+\/SKILL\.md/g)].map(m => m[0]));
-  if (excluded) { skillReads.clear(); loaded.clear(); coverage.clear(); used.clear(); edited.length = 0; skillOpens.length = 0; }
-  return { loaded, used, texts, skillPaths, skillReads, coverage, cwd, start, id, parent, calls: calls.size, client: 'codex', edited, skillOpens };
+  if (excluded) { skillReads.clear(); loaded.clear(); coverage.clear(); used.clear(); usedCalls.clear(); edited.length = 0; skillOpens.length = 0; }
+  return { loaded, used, usedCalls: Object.fromEntries([...usedCalls].map(([k, s]) => [k, s.size])), texts, skillPaths, skillReads, coverage, cwd, start, id, parent, calls: calls.size, client: 'codex', edited, skillOpens };
 }
 
 // Local plugin manifests establish ownership even when tool and plugin names differ. Never print
@@ -166,15 +171,19 @@ export function codexHarnessUsage(repo, sessions, options = {}) {
     for (const [key, tokens] of h.loaded) {
       const plugin = pluginFor(key, h), raw = key.slice(key.indexOf(':') + 1), kind = plugin ? 'plugin' : key.split(':')[0];
       const k = `codex:${plugin ? `plugin:${plugin.id}` : key}`;
-      if (!grouped.has(k)) grouped.set(k, { key: k, client: 'codex', kind, name: plugin?.name || raw, id: plugin?.id, tokens: 0, used: false, skills: [], texts: {}, evidenceKeys: [], dir: h.skillPaths.get(key) && path.dirname(h.skillPaths.get(key)) });
+      if (!grouped.has(k)) grouped.set(k, { key: k, client: 'codex', kind, name: plugin?.name || raw, id: plugin?.id, tokens: 0, used: false, usedCalls: 0, skills: [], texts: {}, evidenceKeys: [], dir: h.skillPaths.get(key) && path.dirname(h.skillPaths.get(key)) });
       const g = grouped.get(k); g.tokens += tokens; g.used ||= used.has(key) || (plugin && usedPlugins.has(plugin.id)); g.texts[key] = h.texts.get(key)?.slice(0, 1200); g.evidenceKeys.push(key);
+      // the calls of the session and its subagents that called it
+      g.usedCalls += read.filter(r => r.h === h || descendants.has(r.h.id)).reduce((a, r) => a + (r.h.usedCalls?.[key] || 0), 0);
       if (kind === 'plugin' && key.startsWith('skill:')) g.skills.push(raw);
     }
     timeline.push({ t: s.mtime, session: s.session, client: 'codex', calls: h.calls, parts: partsOf(new Map([...grouped.values()].map((g, i) => [`${g.kind}:${i}`, g.tokens]))) });
     for (const [key, g] of grouped) {
-      if (!rows.has(key)) rows.set(key, { ...g, tokens: 0, loaded: 0, used: 0, prompts: 0, lastUsed: null });
-      // `prompts`: the model calls of every session that carried it, as harness.js:claudeUsage counts them
-      const r = rows.get(key); r.loaded++; r.tokens += g.tokens; r.prompts += Math.max(1, h.calls); if (g.used) { r.used++; r.lastUsed = Math.max(r.lastUsed || 0, s.mtime); }
+      if (!rows.has(key)) rows.set(key, { ...g, tokens: 0, loaded: 0, used: 0, prompts: 0, usedPrompts: 0, lastUsed: null });
+      // `prompts`: the model calls of every session that carried it, as harness.js:claudeUsage counts them;
+      // `usedPrompts`: the calls that called it, capped at the session's
+      const r = rows.get(key); r.loaded++; r.tokens += g.tokens; r.prompts += Math.max(1, h.calls);
+      if (g.used) r.usedPrompts += Math.min(Math.max(1, h.calls), g.usedCalls || 1); if (g.used) { r.used++; r.lastUsed = Math.max(r.lastUsed || 0, s.mtime); }
       r.texts = { ...r.texts, ...g.texts }; r.evidenceKeys = [...new Set([...r.evidenceKeys, ...g.evidenceKeys])];
     }
   }

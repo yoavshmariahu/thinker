@@ -93,7 +93,7 @@ export function skillCosts(content, names) {
 // What was read is kept on this machine by the files' size and mtime (disk-cache.js:cachedByFiles): the
 // Context and Harness pages read every transcript of the window on each request, a gigabyte and five
 // seconds on a busy repository, and only the live session's file changes between two requests.
-const HARNESS_CACHE = diskCache('session-harness', 1);
+const HARNESS_CACHE = diskCache('session-harness', 2); // 2: `usedCalls` (2026-10-25)
 const TEXT_CHARS = 4000; // a source's text in the cache: the cards keep at most CARD_CHARS of it
 const transcriptFiles = file => {
   const files = [file];
@@ -109,6 +109,8 @@ export function sessionHarness(file) {
 function readSessionHarness(files) {
   // what a source costs is counted once per thing listed: a session resumed or compacted lists it again
   const names = new Map(), instr = new Map(), skills = new Map(), used = new Set(), texts = new Map(), calls = new Set(), alias = new Map();
+  // the model calls each source was called in, so its use is counted by prompts (a call that calls a tool twice is one)
+  const usedCalls = new Map(), usedIn = (k, id) => { used.add(k); (usedCalls.get(k) || usedCalls.set(k, new Set()).get(k)).add(id); };
   // the files edited and the skills opened, in order (skill-suggest.js reads them)
   const edited = [], skillOpens = [];
   let cwd = null, start = null;
@@ -148,19 +150,20 @@ function readSessionHarness(files) {
         }
       }
       if (call) {
+        const callId = j.message?.id || j.uuid || `line-${calls.size}`;
         for (const c of Array.isArray(j.message?.content) ? j.message.content : []) {
           if (c?.type !== 'tool_use') continue;
           const s = toolServer(c.name);
-          if (s) used.add(mcpKey(s));
-          else if (c.name === 'Skill' && c.input?.skill) used.add(`skill:${c.input.skill}`);
-          if (!s && builtinKey(c.name)) used.add(builtinKey(c.name));
+          if (s) usedIn(mcpKey(s), callId);
+          else if (c.name === 'Skill' && c.input?.skill) usedIn(`skill:${c.input.skill}`, callId);
+          if (!s && builtinKey(c.name)) usedIn(builtinKey(c.name), callId);
           if (c.name === 'Skill' && c.input?.skill) skillOpens.push({ skill: String(c.input.skill), at: j.timestamp });
           for (const m of JSON.stringify(c.input || {}).matchAll(/skills\/([\w.-]+)\/SKILL\.md/g)) skillOpens.push({ skill: m[1], at: j.timestamp });
           const f = ['Edit', 'Write', 'MultiEdit', 'NotebookEdit'].includes(c.name) && (c.input?.file_path || c.input?.notebook_path);
           if (f && !edited.includes(f)) edited.push(f);
         }
       }
-      if (typed) for (const m of line.matchAll(/<command-name>\/?([^<\s]+)<\/command-name>/g)) used.add(`skill:${m[1]}`);
+      if (typed) for (const m of line.matchAll(/<command-name>\/?([^<\s]+)<\/command-name>/g)) usedIn(`skill:${m[1]}`, `typed-${j.uuid || calls.size}`);
     }
   });
   // a server's card text: its instructions, then the names of its tools
@@ -170,8 +173,10 @@ function readSessionHarness(files) {
   for (const [k, items] of names) for (const t of items.values()) add(k, t);
   for (const [k, t] of instr) add(k, t);
   for (const [k, t] of skills) add(k, t);
-  const usedNames = new Set([...used].map(k => k.startsWith('skill:') && alias.has(k.slice(6)) ? `skill:${alias.get(k.slice(6))}` : k));
-  return { loaded, used: usedNames, cwd, texts, start, calls: calls.size, edited, skillOpens };
+  const canon = k => k.startsWith('skill:') && alias.has(k.slice(6)) ? `skill:${alias.get(k.slice(6))}` : k;
+  const usedNames = new Set([...used].map(canon)), usedCallsOut = {};
+  for (const [k, ids] of usedCalls) usedCallsOut[canon(k)] = (usedCallsOut[canon(k)] || 0) + ids.size;
+  return { loaded, used: usedNames, usedCalls: usedCallsOut, cwd, texts, start, calls: calls.size, edited, skillOpens };
 }
 
 // A Claude Code session with what the desktop app added to it, when the app ran it (harness-desktop.js):
@@ -250,7 +255,7 @@ function claudeUsage(repo, { days = 30, home = os.homedir(), sessions } = {}) {
   const config = claudeHarnessConfig(repo, { home });
   const rows = new Map();
   const row = key => {
-    if (!rows.has(key)) rows.set(key, { key, loaded: 0, used: 0, prompts: 0, tokens: 0, lastUsed: null, skills: new Set(), texts: {} });
+    if (!rows.has(key)) rows.set(key, { key, loaded: 0, used: 0, prompts: 0, usedPrompts: 0, tokens: 0, lastUsed: null, skills: new Set(), texts: {} });
     return rows.get(key);
   };
   const records = desktopFor(home), read = sessions.map(s => ({ s, h: claudeSessionHarness(s.file, records) }));
@@ -266,7 +271,10 @@ function claudeUsage(repo, { days = 30, home = os.homedir(), sessions } = {}) {
   for (const { s, h } of read) {
     if (!h.loaded.size) continue; // written before Claude Code recorded what it loaded
     counted++; calls.push(h.calls);
-    const tokens = new Map(), used = new Set([...h.used].map(group));
+    const tokens = new Map(), used = new Set([...h.used].map(group)), usedCalls = new Map();
+    // a source's calls under its group (a plugin's skills together), capped at the session's calls; a key the desktop
+    // marked used without a call count (desktopUsed) counts one prompt
+    for (const k of h.used) usedCalls.set(group(k), (usedCalls.get(group(k)) || 0) + (h.usedCalls?.[k] ?? 1));
     for (const [k, t] of h.loaded) {
       tokens.set(group(k), (tokens.get(group(k)) || 0) + t);
       if (k.startsWith('skill:') && group(k) !== k) row(group(k)).skills.add(k.slice(6));
@@ -277,7 +285,7 @@ function claudeUsage(repo, { days = 30, home = os.homedir(), sessions } = {}) {
     for (const [k, t] of tokens) {
       // `prompts`: the model calls of every session that carried it, since each call reads its tokens again
       const r = row(k); r.loaded++; r.tokens += t; r.prompts += Math.max(1, h.calls);
-      if (used.has(k)) { r.used++; if (!r.lastUsed || s.mtime > r.lastUsed) r.lastUsed = s.mtime; }
+      if (used.has(k)) { r.used++; r.usedPrompts += Math.min(Math.max(1, h.calls), usedCalls.get(k) || 1); if (!r.lastUsed || s.mtime > r.lastUsed) r.lastUsed = s.mtime; }
     }
   }
   const out = [...rows.values()].filter(r => r.loaded).map(r => ({ ...r, skills: [...r.skills].sort(), tokens: Math.round(r.tokens / r.loaded), ...describe(r.key, config, [...r.skills]) }));

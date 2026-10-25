@@ -626,6 +626,7 @@ function contextRows(v) {
     // its use and its cost over the window are the sessions since (instruction-value.js:instructionValue `recent`)
     name: s.title, sub: [s.repoName, (s.fileKind && s.fileKind !== 'root') || (iv.files || []).length > 1 ? s.file : null, s.parent, s.recent ? `changed ${dayOf(s.changedAt)}` : null].filter(Boolean).join(' · '),
     detail: md(s.text), tokens: s.tokens, perPrompt: s.perPrompt, window: s.window, wastedWindow: s.wastedWindow, prompts: s.prompts, sessions: s.sessionsSince ?? iv.sessions ?? 0, acted: s.usedShare,
+    actedBy: s.usedShare == null ? (s.triggered ? 'too few sessions since it changed' : 'it names no file, command or code to look for') : `its files, commands or code came up in ${fmt(s.appliedPrompts || 0)} of ${fmt(s.promptsSince ?? s.prompts ?? 0)} prompts (${s.applied} of ${s.sessions} sessions)`,
     actedBy: (s.usedShare == null ? (s.recent ? `too few sessions since it changed on ${dayOf(s.changedAt)} to say (${s.sessions} of five)` : 'too few sessions to say') : s.usedBy === 'judge' ? 'judged sessions whose agent followed it' : 'sessions that touched its files, commands or code (until five are judged by the model)') + (s.recent && s.usedShare != null ? `, over the ${s.sessions} sessions since it changed on ${dayOf(s.changedAt)}` : ''),
     wasted: s.wasted, waste: s.waste, off: false, pill: null,
     options: [['compress', 'Compress'], ['remove', 'Remove']], disabled: '',
@@ -650,7 +651,7 @@ function contextRows(v) {
     rows.push({
       view: 'custom', kind: 'skill', kindLabel: 'Skill', key: `${s.client}:${s.key}`, repo: repoOf(s), repoIds: s.repoIds, name: s.name, sub: [CLIENT[s.client] || s.client, s.repos > 1 ? `${s.repos} repositories` : ''].filter(Boolean).join(' · '),
       detail: (k.desc ? `<p class="muted">${esc(k.desc)}</p>` : '') + md(k.body) + (o?.read || o?.missed ? `<p class="muted">Sampled outcome check: rules kept in ${o.read - Math.min(o.read, o.brokenAfterRead)} of ${o.read} sessions that read it; missed (broken without reading it) ${o.missed || 0} times.</p>` : ''),
-      tokens: s.tokens, perPrompt: s.perPrompt, window: s.window, wastedWindow: s.wastedWindow, prompts: s.prompts, sessions: s.loaded || 0, acted: s.loaded ? s.used / s.loaded : null, actedBy: `${s.used} of ${s.loaded} sessions opened it`,
+      tokens: s.tokens, perPrompt: s.perPrompt, window: s.window, wastedWindow: s.wastedWindow, prompts: s.prompts, sessions: s.loaded || 0, acted: s.usedShare, actedBy: `invoked in ${fmt(s.usedPrompts || 0)} of ${fmt(s.prompts || 0)} prompts (${s.used} of ${s.loaded} sessions)`,
       wasted: s.off ? null : s.wasted, waste: s.waste, off: Boolean(s.off), options: switchOpts(s), disabled: s.off || s.label ? '' : 'no setting switches this one off',
     });
   }
@@ -660,7 +661,7 @@ function contextRows(v) {
     // bigger step than a skill, and the Apply asks first
     bold: s.kind === 'tool', sub: [CLIENT[s.client] || s.client, s.repos > 1 ? `${s.repos} repositories` : ''].filter(Boolean).join(' · '),
     detail: s.text ? `<pre class="md-pre" style="white-space:pre-wrap">${esc(s.text)}</pre>` : '<p class="muted">No description recorded.</p>',
-    tokens: s.tokens, perPrompt: s.perPrompt, window: s.window, wastedWindow: s.wastedWindow, prompts: s.prompts, sessions: s.loaded || 0, acted: s.loaded ? s.used / s.loaded : null, actedBy: `${s.used} of ${s.loaded} sessions called it`,
+    tokens: s.tokens, perPrompt: s.perPrompt, window: s.window, wastedWindow: s.wastedWindow, prompts: s.prompts, sessions: s.loaded || 0, acted: s.usedShare, actedBy: `called in ${fmt(s.usedPrompts || 0)} of ${fmt(s.prompts || 0)} prompts (${s.used} of ${s.loaded} sessions)`,
     wasted: s.off ? null : s.wasted, waste: s.waste, off: Boolean(s.off), options: switchOpts(s), disabled: s.off || s.label ? '' : 'no setting switches this one off',
   });
   const os = v.outputs?.sessions || 0, outCost = v.totals?.outputs?.perPrompt || (v.outputs?.tools || []).reduce((a, t) => a + (t.perPrompt || 0), 0);
@@ -677,7 +678,7 @@ function contextRows(v) {
     view: 'outputs', kind: 'output', kindLabel: s.name.startsWith('mcp:') ? 'MCP server output' : s.name.startsWith('Bash:') ? 'Bash command output' : 'Tool output', key: `output:${s.name}` + (s.past ? `@${s.level || 'none'}` : ''), repo: repoOf(s), past: Boolean(s.past), level: s.level || null,
     name: s.name.replace(/^(mcp|Bash):/, ''), sub: [s.repos > 1 ? `${s.repos} repositories` : '', s.past ? `measured with ${levelName(s.level)}, ${period(s)}` : s.level ? `${levelName(s.level)} since ${dayOf(s.since || s.from)}, ${period(s)}` : (s.others || []).length ? `before compression, ${period(s)}` : ''].filter(Boolean).join(' · '),
     detail: `<p class="muted">${fmt(s.tokens)} tokens of output a session over ${perCall(s.calls)} calls, about ${fmt(s.perCall)} a call, read again by every model call after it.${s.wasted != null ? ` About ${fmt(s.wasted)} of its ${fmt(s.perPrompt)} input tokens a prompt were spent reading results after the agent last used them (an edit copying their text, or a later call on the same file in the same turn; an estimate).` : ''} ${s.past ? `Measured with ${levelName(s.level)} over ${period(s)}; the setting has changed since, and the tool is measured afresh from then as its own row above.` : s.compressible ? s.compression ? `Compressed at the ${s.compression} level since ${dayOf(s.since || s.from)}: this row is measured over the sessions since, not the month before.` : `Compressed, its long results are cut before the model reads them (Claude Code only): that would have saved at least ${fmt(s.saveModerate || 0)} input tokens a prompt here.` : 'thinker cannot compress this one yet (Bash commands, Read and MCP servers, in Claude Code).'}</p>${compare(s)}`,
-    tokens: s.perCall, perPrompt: s.perPrompt, window: s.window, wastedWindow: s.wastedWindow, prompts: s.prompts, sessions: s.sessions ?? os, acted: (s.sessions ?? os) ? s.usedIn / (s.sessions ?? os) : null, actedBy: `called in ${s.usedIn} of ${s.sessions ?? os} sessions`, calls: s.calls,
+    tokens: s.perCall, perPrompt: s.perPrompt, window: s.window, wastedWindow: s.wastedWindow, prompts: s.prompts, sessions: s.sessions ?? os, acted: s.needed ?? null, actedBy: `of the prompts that read a result again, ${s.needed == null ? 'an unknown share' : `${Math.round(100 * s.needed)}%`} did so before the agent last used it; called in ${s.usedIn} of ${s.sessions ?? os} sessions`, calls: s.calls,
     wasted: s.wasted ?? null, waste: s.past ? null : outWaste(s), off: false,
     pill: s.past ? ['off', 'earlier setting'] : s.compression ? [s.compression === 'high' ? 'high' : 'ok', s.compression === 'high' ? 'high compression (command line)' : 'compressed'] : s.compressible ? null : ['off', "can't compress yet"],
     options: s.past ? [] : s.compressible ? levelOpts(s) : [], disabled: s.past ? 'measured under an earlier setting; the current row takes the action' : s.compressible ? '' : 'thinker cannot compress this one yet (Bash commands, Read and MCP servers, in Claude Code)',
@@ -685,31 +686,26 @@ function contextRows(v) {
   return rows;
 }
 const pickKey = r => `${r.repo || ''}\t${r.key}`;
-// the ? beside the Sessions used header (hover or focus opens it)
-// the ? beside the three number columns. One rule behind all of them: a part sits in the prompt, so it costs its
-// size in every model call that carries it. Keep these short (the owner's ask, 2026-10-25: under 40 words each).
+// the ? beside each number column (hover or focus opens it). One rule behind them all: a part sits in the prompt, so it
+// costs its size in every model call that carries it. Under forty words each (the owner's ask, 2026-10-25: if the
+// explanation needs more, the calculation is wrong).
 const helpPop = (label, text) => `<span class="help"><button type="button" class="help-btn" aria-label="${label}">?</button><div class="help-pop" role="tooltip">${text}</div></span>`;
-const CACHE_NOTE = 'These are tokens read, not tokens billed: after the first call the prompt cache serves them far cheaper.';
-const PROMPT_HELP = helpPop('How the tokens a prompt are counted',
-  `What it adds to an average model call here: its size &times; the share of calls that carry it. ${CACHE_NOTE}`);
-const COST_HELP = helpPop('How the window total is counted',
-  `Its size &times; every model call that carried it in the window. ${CACHE_NOTE}`);
-const WASTE_HELP = helpPop('How Wasted is counted',
-  'The same cost, counted only where it went unused: &times; (1 &minus; Sessions used). The most that cutting it could save.');
-const USED_HELP = helpPop('How Sessions used is counted',
-  'Of the sessions that carried it, the share that used it: a section the agent followed, a skill it opened, a tool it called. Read from the transcripts; a section\'s by a model on a sample.');
+const PROMPT_HELP = helpPop('What Per prompt counts', 'What it adds to every prompt that carries it. A prompt is one call to the model. Tokens read, not billed: after the first call the prompt cache serves them far cheaper.');
+const NEEDED_HELP = helpPop('What Needed counts', 'Of the prompts that carried it, the share where the agent acted on it: called the tool, invoked the skill, touched what the section names, read the output before moving on. An estimate from the transcripts.');
+const COST_HELP = helpPop('What the window total counts', 'Per prompt &times; every prompt that carried it in the window.');
+const WASTE_HELP = helpPop('What Wasted counts', 'The window total &times; the share of prompts that did not need it. The most that cutting it could save.');
 const actedCell = r => r.acted == null ? '<span class="muted">–</span>' : `${Math.round(100 * r.acted)}%`;
 // The Potential savings card at the top of every view (back on 2026-10-22, the owner's ask): input tokens a prompt, the share
 // of the view's cost, and the window's total. For a section, skill or tool, what the flagged rows (high or medium waste) cost
 // in the sessions that did not use them, as the Wasted column sums it; for an output, what the compression cap alone would have cut.
-const savingsCard = ({ perPrompt, share, window, days, text, kicker = 'Potential savings, at most', ok }) => perPrompt > 0
-  ? `<div class="savings"><div><div class="kicker">${kicker}</div><div class="tr-num">${fmt(perPrompt)} <span class="muted">input tokens a prompt${share != null ? ` · ${Math.round(100 * share)}% of this` : ''}${window ? ` · ${fmt(window)} over ${days} days` : ''}</span></div></div><div class="why">${text}</div></div>`
+const savingsCard = ({ perPrompt, share, window, days, text, kicker = 'Potential savings, at most', ok }) => (window || perPrompt) > 0
+  ? `<div class="savings"><div><div class="kicker">${kicker}</div><div class="tr-num">${fmt(window)} <span class="muted">input tokens over ${days} days${share != null ? ` · ${Math.round(100 * share)}% of this` : ''}${perPrompt ? ` · ~${fmt(perPrompt)} a prompt` : ''}</span></div></div><div class="why">${text}</div></div>`
   : `<div class="savings ok"><div class="why">${ok}</div></div>`;
 const flaggedSavings = (rows, days, { what, does, ok }) => {
   // a row with a decision on it (a change under way, a pull request pending or merged) is not a saving still to make
   const live = rows.filter(r => !r.off && r.kind !== 'output'), flagged = live.filter(r => (r.waste === 'high' || r.waste === 'medium') && !r.decided), cost = live.reduce((a, r) => a + r.perPrompt, 0);
   const per = flagged.reduce((a, r) => a + (r.wasted || 0), 0), n = l => flagged.filter(r => r.waste === l).length;
-  return { perPrompt: per, share: cost ? per / cost : null, window: flagged.reduce((a, r) => a + (r.wastedWindow || 0), 0), days, text: `${n('high')} high and ${n('medium')} medium waste ${what}: what they cost in the sessions that did not use them. ${does}`, ok };
+  return { perPrompt: per, share: cost ? per / cost : null, window: flagged.reduce((a, r) => a + (r.wastedWindow || 0), 0), days, text: `${n('high')} high and ${n('medium')} medium waste ${what}: what they cost in the prompts that did not need them. ${does}`, ok };
 };
 // an output: the part of each result past the moderate cap, read again by every call after it (tool-outputs.js); the trims
 // round what the agent looked for cut more, so this is a floor
@@ -718,8 +714,8 @@ const outputSavings = (v, days) => {
   const outs = (v.outputs?.tools || []).filter(o => !o.past), per = outs.reduce((a, o) => a + (o.saveModerate || 0), 0), cost = v.totals?.outputs?.perPrompt || outs.reduce((a, o) => a + (o.perPrompt || 0), 0);
   return { kicker: 'Potential savings, at least', perPrompt: per, share: cost ? per / cost : null, window: outs.reduce((a, o) => a + (o.saveModerateWindow ?? (o.saveModerate || 0) * (o.prompts || 0)), 0), days, text: 'With compression on every Bash command, Read and MCP server: the part of each result past the cap, read again by every call after it. Trimming file reads and search results round what the agent looked for saves more. Claude Code only.', ok: 'No output here is long enough for the cap to cut.' };
 };
-// The table of one view, as the docs' example: a row a part with its box, tokens per call, the share of sessions that used it,
-// its cost over the window and its waste; a dropdown in the row picks what to do, and the one Apply at the top right does it
+// The table of one view, as the docs' example: a row a part with its box, its size (what it adds to each prompt that carries
+// it), the share of prompts that needed it, its cost over the window and its waste; a dropdown in the row picks what to do, and the one Apply at the top right does it
 // for every checked row; See more opens the part's text under the row.
 // every table is paged, TABLE_PAGE rows at a time (the owner's ask, 2026-10-22); the row index stays the sorted list's,
 // so a pick on one page holds while another is shown
@@ -736,16 +732,15 @@ function renderTable(view, rows, { title, sub, note, nameHead, savings }) {
       <td class="ctx-name"><label><input type="checkbox" data-pick="${view}" data-k="${esc(pickKey(r))}" data-i="${i}"${r.options.length ? '' : ' disabled'}${on ? ' checked' : ''} aria-label="Pick ${esc(r.name)}"> ${r.bold ? `<b>${esc(r.name)}</b>` : esc(r.name)}</label><button class="ctx-more" data-more="${i}" data-dk="${esc(`${view}\t${pickKey(r)}`)}" aria-expanded="false">See more</button>${(kindOf => kindOf || r.sub ? `<span class="ctx-kind">${esc([kindOf, r.sub].filter(Boolean).join(' · '))}</span>` : '')(view === 'all' || r.kind === 'skill' || r.kind === 'tool' ? r.kindLabel : '')}</td>
       <td class="num">${fmt(r.tokens)}</td>
       <td class="num">${actedCell(r)}</td>
-      <td class="num">${fmt(r.perPrompt)}</td>
       <td class="num">${fmt(windowCost(r))}</td>
       <td class="num">${r.wasted == null ? '<span class="muted">–</span>' : fmt(windowWaste(r))}</td>
       <td>${pt ? r.pr?.url ? `<a class="ctx-pill ${pc}" href="${esc(r.pr.url)}" target="_blank" rel="noopener">${esc(pt)}</a>` : `<span class="ctx-pill ${pc}">${r.rawPill ? pt : esc(pt)}</span>` : ''}</td>
       <td class="ctx-actcell"><div class="ctx-act">${r.options.length ? `<select class="sel" data-act="${i}" data-dk="${esc(`${view}\t${pickKey(r)}`)}" aria-label="Action">${r.options.map(([a, t]) => `<option value="${a}"${PREACT.get(`${view}\t${pickKey(r)}`) === a ? ' selected' : ''}>${t}</option>`).join('')}</select>` : `<span class="why" title="${esc(r.disabled)}">—</span>`}</div></td></tr>
-      <tr class="ctx-detail" data-detail="${i}" data-dk="${esc(`${view}\t${pickKey(r)}`)}" hidden><td colspan="8"><div class="md-body">${r.detail}</div><div class="why">${fmt(r.perPrompt)} input tokens a prompt · acted on: ${esc(r.actedBy)}${r.wasted != null ? ` · ${r.kind === 'output' ? 'read again after the agent last used it:' : 'wasted in the sessions that did not use it:'} ~${fmt(r.wasted)} a prompt, ${fmt(windowWaste(r))} over ${CTX?.days || cdays} days` : ''}</div></td></tr>`;
+      <tr class="ctx-detail" data-detail="${i}" data-dk="${esc(`${view}\t${pickKey(r)}`)}" hidden><td colspan="7"><div class="md-body">${r.detail}</div><div class="why">${fmt(r.tokens)} tokens in every prompt that carries it, ${fmt(windowCost(r))} over ${CTX?.days || cdays} days · needed: ${esc(r.actedBy)}${r.wasted != null ? ` · wasted: ${fmt(windowWaste(r))} over ${CTX?.days || cdays} days` : ''}</div></td></tr>`;
   }).join('');
   return `<figure class="ctx-figure"><figcaption><b>${title}</b> <span class="ctx-sub">${sub}</span><span class="ctx-capact"><span class="ctx-sub" data-seln="${view}"></span><button class="btn" data-apply-picked="${view}" disabled title="Apply the action picked in each checked row">Apply</button></span></figcaption>
     ${savings ? savingsCard(savings) : ''}
-    ${rows.length ? `<table class="ctx-table"><thead><tr><th>${nameHead}</th><th class="num">Tokens per call</th><th class="num">Sessions used ${USED_HELP}</th><th class="num">A prompt ${PROMPT_HELP}</th><th class="num">Over ${days} days ${COST_HELP}</th><th class="num">Wasted ${WASTE_HELP}</th><th></th><th></th></tr></thead><tbody>${body}</tbody></table>${pagerOf(view, rows.length, page, TABLE_PAGE)}` : '<div class="empty">Nothing recorded here yet.</div>'}
+    ${rows.length ? `<table class="ctx-table"><thead><tr><th>${nameHead}</th><th class="num">Per prompt ${PROMPT_HELP}</th><th class="num">Needed ${NEEDED_HELP}</th><th class="num">Over ${days} days ${COST_HELP}</th><th class="num">Wasted ${WASTE_HELP}</th><th></th><th></th></tr></thead><tbody>${body}</tbody></table>${pagerOf(view, rows.length, page, TABLE_PAGE)}` : '<div class="empty">Nothing recorded here yet.</div>'}
     ${note ? `<p class="ctx-note">${note}</p>` : ''}</figure>`;
 }
 // beside the Apply: what is picked, what it costs a call and over the window
@@ -753,7 +748,7 @@ function bulkState() {
   for (const [view, m] of Object.entries(PICKS)) {
     const rs = [...m.values()], days = CTX?.days || cdays;
     const pre = view === 'all' && PRESUGGESTED && rs.length;
-    document.querySelectorAll(`[data-seln="${view}"]`).forEach(l => l.textContent = rs.length ? `${rs.length} ${pre ? 'suggested savings checked for you' : 'picked'} · ${fmt(rs.reduce((a, r) => a + (r.tokens || 0), 0))} tokens per call, ${fmt(rs.reduce((a, r) => a + windowCost(r), 0))} over ${days} days${pre ? ' · review the actions, then Apply, or uncheck' : ''}` : 'Check rows, pick their actions');
+    document.querySelectorAll(`[data-seln="${view}"]`).forEach(l => l.textContent = rs.length ? `${rs.length} ${pre ? 'suggested savings checked for you' : 'picked'} · ${fmt(rs.reduce((a, r) => a + windowCost(r), 0))} over ${days} days, ${fmt(rs.reduce((a, r) => a + Math.max(0, windowWaste(r)), 0))} of it wasted${pre ? ' · review the actions, then Apply, or uncheck' : ''}` : 'Check rows, pick their actions');
     document.querySelectorAll(`[data-apply-picked="${view}"]`).forEach(b => b.disabled = !rs.length);
   }
 }
@@ -836,7 +831,7 @@ function renderContext(v) {
   const num = k => `${fmt(k === 'all' ? perPrompt(all) : t[k]?.perPrompt || 0)} <span>a prompt</span>`;
   h += `<div class="vtabs" id="c-view" role="tablist">${VIEWS.map(([k, name]) => `<button role="tab" data-view="${k}" aria-selected="${CVIEW === k}" class="${CVIEW === k ? 'on' : ''}"><span class="vt-name">${name}</span><span class="vt-num" id="vt-${k}">${num(k)}</span></button>`).join('')}</div>`;
   // the caption's figures: the sessions, the tokens per call, the cost over the window and how much of it was wasted
-  const cap = (rs, sessions, what) => { const live = rs.filter(r => !r.off); return `${sessions} session${sessions === 1 ? '' : 's'}${CTX?.prompts ? `, ${fmt(CTX.prompts)} prompts` : ''} · ${fmt(live.reduce((a, r) => a + (r.tokens || 0), 0))} tokens per call · ${fmt(live.reduce((a, r) => a + windowCost(r), 0))} input tokens ${what}, ${fmt(live.reduce((a, r) => a + Math.max(0, windowWaste(r)), 0))} of it wasted`; };
+  const cap = (rs, sessions, what) => { const live = rs.filter(r => !r.off); return `${sessions} session${sessions === 1 ? '' : 's'}${CTX?.prompts ? `, ${fmt(CTX.prompts)} prompts` : ''} · ${fmt(live.reduce((a, r) => a + windowCost(r), 0))} input tokens ${what}, ${fmt(live.reduce((a, r) => a + Math.max(0, windowWaste(r)), 0))} of it wasted`; };
   const vdiv = (k, inner) => `<div class="cview" data-view="${k}"${CVIEW === k ? '' : ' hidden'} id="c-${k}">${inner}</div>`;
   // the savings card of each view, and All's as their sum over what everything costs a prompt
   const sav = {
@@ -848,7 +843,7 @@ function renderContext(v) {
   const sumSav = Object.values(sav).reduce((a, s) => ({ perPrompt: a.perPrompt + s.perPrompt, window: a.window + (s.window || 0) }), { perPrompt: 0, window: 0 });
   sav.all = { ...sumSav, share: perPrompt(all) ? sumSav.perPrompt / perPrompt(all) : null, days: v.days, text: 'Every view\'s card together: the flagged sections, skills and tools in the sessions that did not use them, and what compressing every output would cut at least.', ok: 'Nothing here is flagged, and no output is long enough to cut.' };
   h += vdiv('all', renderTable('all', all, { nameHead: 'Part', title: 'Everything in the context', sub: cap(all, v.sessions || 0, 'over the window'), savings: sav.all,
-    note: `Every instruction section, skill, tool and tool output the agents' sessions here carried, over ${v.days} days. <b>Sessions used</b>: the share of sessions that used the part (a section the agent followed, or whose files, commands or code it touched; a skill opened; a tool called). <b>Wasted</b>: what it cost in the sessions that did not use it; for an output, what its results cost after the agent last used them. The pill: high waste from 5% of what its kind cost, medium from 2%. Sorted by Wasted. Pick what to do in the row and Apply: a skill or tool is switched off for this repository from the next session (a skill still runs as /name); an output is compressed before the model reads it (Claude Code); <b>a section is compressed or removed in the background and a pull request opens with the change</b> (a branch pushed to the origin, nothing in your working tree touched): its row says so while it runs, shows the pull request pending until it is merged, and the section is suggested again if it is closed. Without a GitHub origin or <code>gh</code>, the file is written to your working tree instead, uncommitted. Every change is listed under <b>Recent activity</b>, which counts what needs you (a change that failed, a pull request to merge) and has the Revert.` }));
+    note: `Every instruction section, skill, tool and tool output the agents' sessions here carried, over ${v.days} days. <b>Per prompt</b>: what the part adds to every prompt that carries it. <b>Needed</b>: the share of those prompts where the agent acted on it (touched what the section names; invoked the skill; called the tool; for an output, read it again before moving on). <b>Over ${v.days} days</b>: per prompt × every prompt that carried it. <b>Wasted</b>: that × the prompts that did not need it. The pill: high waste from 5% of what its kind cost, medium from 2%. Sorted by Wasted. Pick what to do in the row and Apply: a skill or tool is switched off for this repository from the next session (a skill still runs as /name); an output is compressed before the model reads it (Claude Code); <b>a section is compressed or removed in the background and a pull request opens with the change</b> (a branch pushed to the origin, nothing in your working tree touched): its row says so while it runs, shows the pull request pending until it is merged, and the section is suggested again if it is closed. Without a GitHub origin or <code>gh</code>, the file is written to your working tree instead, uncommitted. Every change is listed under <b>Recent activity</b>, which counts what needs you (a change that failed, a pull request to merge) and has the Revert.` }));
   h += vdiv('instructions', (iv.file ? renderTable('instructions', of('instructions'), { nameHead: 'Section', title: esc(iv.file), sub: cap(of('instructions'), iv.sessions || 0, 'on the file'), savings: sav.instructions,
     note: `${(iv.files || []).length > 1 ? `<b>${iv.files.length} instruction files.</b> ${iv.files.map(f => `<code>${esc(f.file)}</code> ${f.kind === 'root' ? 'in every session' : `${f.loadedIn} session${f.loadedIn === 1 ? '' : 's'}, ${f.kind === 'rule' ? (f.globs?.length ? 'when a matching file is opened' : 'at the start, Claude Code') : 'when a file in its directory is opened'}`}`).join(' · ')}. ` : ''}Each session reads the file again on every model call; ${iv.judged} judged${iv.judge?.judge ? ` (a ${Math.round(100 * iv.judge.share)}% sample of sessions is judged by a model as they end)` : ' (judging is off)'}. <b>Compress</b> has a model rewrite a section to about a third, keeping its rules, commands and paths; <b>Remove</b> takes it out. Both run in the background once you Apply: the row says so while the model works, and <b>a pull request opens with the change</b> for you to read and merge (a branch pushed to the origin; nothing in your working tree changes). Recent activity follows it, and a change that fails can be retried there. Without a GitHub origin or <code>gh</code>, the file in your working tree is rewritten instead, uncommitted, for you to review with git diff.` })
     : '<div class="empty">No AGENTS.md or CLAUDE.md in this repository.</div>') + '<div class="controls"></div>');

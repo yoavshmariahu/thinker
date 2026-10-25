@@ -111,7 +111,7 @@ export function recommendationLine(x) {
   const where = x.repo ? ` (${x.repo})` : x.repos > 1 ? ` (${x.repos} repositories)` : '';
   const kind = x.kind === 'section' ? `${x.file || 'AGENTS.md'} section` : x.kind === 'tool' ? groupName[x.group] || 'tool' : what[x.kind];
   const client = x.client && x.client !== 'claude' ? `${x.client} ` : '';
-  const use = x.of ? `${x.by === 'triggers' ? 'applied' : x.by === 'judge' ? 'followed' : x.by} in ${x.used} of ${x.of} sessions` : 'use unknown';
+  const share = x.usedShare ?? (x.of ? x.used / x.of : null), use = share != null ? `needed in ${Math.round(100 * share)}% of prompts` : 'use unknown';
   return `${client}${kind} "${x.title}"${where}: ~${formatTokens(x.wasted)} tokens a prompt spent where it was not used (${use})`;
 }
 
@@ -181,7 +181,7 @@ export function pickLine(p) {
 }
 // what the row costs and how often it was used, beside the line
 export function pickNote(p) {
-  const use = p.of ? `${p.by === 'triggers' ? 'applied' : p.by === 'judge' ? 'followed' : p.by} in ${p.used} of ${p.of} sessions` : 'use unknown';
+  const share = p.usedShare ?? (p.of ? p.used / p.of : null), use = share != null ? `needed in ${Math.round(100 * share)}% of prompts` : 'use unknown';
   return `~${formatTokens(p.wasted)} tokens a prompt, ${use}${p.act === 'compress' ? ', a model call' : ''}`;
 }
 // The picks made, each in its repository, through the function behind the page's Apply and `thinker context

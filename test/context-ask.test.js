@@ -50,7 +50,7 @@ test('in the terminal: the summary, the choice, the cuts with the page\'s addres
   const drawn = stdout.writes.join('');
   assert.ok(drawn.includes('Switch off the built-in tool "Artifact" in 2 repositories'), drawn);
   assert.ok(drawn.includes('Remove the AGENTS.md section "API views" in r1'), drawn);
-  assert.ok(drawn.includes('applied in 0 of 8 sessions'), drawn);
+  assert.ok(drawn.includes('needed in 0% of prompts'), drawn);
   assert.ok(drawn.includes('Switch off the built-in tool "Workflow"') && drawn.includes('nothing switches it off per repository'), 'a suggestion with no action is a disabled row');
   stdin.emit('keypress', 'a', { name: 'a' });           // every row
   stdin.emit('keypress', null, { name: 'return' });
