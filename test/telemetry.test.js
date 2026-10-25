@@ -24,7 +24,10 @@ import {
   getTelemetryLaunchAgentPath,
   HOUR_MS,
   DEFAULT_TELEMETRY_ENDPOINT,
+  proxyMetrics,
+  spendMetrics,
 } from '../src/telemetry.js';
+import { writeReport } from '../src/report-snapshot.js';
 
 // Only this module exercises telemetry opt-in using mocks/loopback. The inherited
 // test guard still forbids production requests, including child processes.
@@ -788,5 +791,141 @@ test('computeCacheMetrics counts the repositories with a cache now, not every ch
     if (origHome) process.env.THINKER_HOME = origHome;
     else delete process.env.THINKER_HOME;
     for (const d of [live, gone, tmpHome]) fs.rmSync(d, { recursive: true, force: true });
+  }
+});
+
+// --- token spend: the proxy, the actions taken and what they measured ---------------------------------------
+test('proxy telemetry reports the service, both sides of its holdout, the models and the errors', () => {
+  const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-proxy-metrics-'));
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-proxy-home-'));
+  try {
+    const now = Date.now(), at = ms => new Date(now - ms).toISOString();
+    fs.mkdirSync(path.join(tmpHome, 'state'), { recursive: true });
+    fs.writeFileSync(path.join(tmpHome, 'state', 'proxy-service.json'), JSON.stringify({ enabled: true, port: 4321, pid: 999999, since: at(5 * 86400_000) }));
+    const rows = [
+      { at: at(3600_000), op: 'proxy', session: 's1', model: 'claude-opus-5', injected: true, keep: 'turn', input: 1000, read: 20_000, write: 5000, out: 500, cleared: 40_000, clearedUses: 3, overheadMs: 4 },
+      { at: at(3500_000), op: 'proxy', session: 's1', model: 'claude-opus-5', injected: true, keep: 'turn', input: 500, read: 10_000, write: 0, out: 100, cleared: 0, overheadMs: 6 },
+      { at: at(3400_000), op: 'proxy', session: 's2', model: 'claude-opus-5', injected: false, reason: 'holdout', input: 2000, read: 30_000, write: 8000, out: 900, overheadMs: 1 },
+      { at: at(3300_000), op: 'proxy-error', code: 'ECONNRESET', error: 'socket hang up', retried: true },
+      { at: at(3200_000), op: 'proxy-error', code: 'ENOTFOUND', error: 'dns', retried: false },
+      { at: at(40 * 86400_000), op: 'proxy', session: 'old', model: 'claude-opus-5', injected: true, input: 99_999, read: 0, write: 0, out: 0, cleared: 99_999, overheadMs: 2 },
+    ];
+    fs.writeFileSync(path.join(tmpHome, 'state', 'proxy.jsonl'), rows.map(r => JSON.stringify(r)).join('\n') + '\n');
+    const p = proxyMetrics({ home: tmpHome, now, env: {} });
+    assert.equal(p.schemaVersion, 1); assert.equal(p.windowDays, 30);
+    assert.equal(p.service.on, true);
+    assert.equal(p.service.holdout, 0.15, 'the service holdout share the two sides come from');
+    assert.equal(p.sides.clearing.requests, 2, 'the request from 40 days ago is outside the window');
+    assert.equal(p.sides.clearing.cleared, 40_000);
+    assert.equal(p.sides.clearing.requestsCleared, 1);
+    assert.equal(p.sides.holdout.requests, 1);
+    assert.equal(p.sides.clearing.billedInput, Math.round(1500 + 0.1 * 30_000 + 2 * 5000));
+    assert.equal(p.byModel['claude-opus-5'].clearing.requests, 2);
+    assert.equal(p.byModel['claude-opus-5'].holdout.requests, 1);
+    assert.equal(p.errors.total, 2); assert.equal(p.errors.retried, 1);
+    assert.deepEqual(p.errors.byCode, { ECONNRESET: 1, ENOTFOUND: 1 });
+  } finally {
+    fs.rmSync(tmpRepo, { recursive: true, force: true }); fs.rmSync(tmpHome, { recursive: true, force: true });
+  }
+});
+
+test('spend telemetry counts the funnel, the decisions and what they measured, and names only the agent\'s own parts', () => {
+  const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-spend-metrics-'));
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-spend-home-'));
+  try {
+    const store = new Store(tmpRepo).init();
+    const now = Date.now(), day = 86400_000, iso = ms => new Date(now - ms).toISOString();
+    store.log({ op: 'context-suggest', changes: 5, saving: 50_000 });
+    store.log({ op: 'context-offer', changes: 5, saving: 50_000, ui: true });
+    store.log({ op: 'context-approve', changes: 2, saving: 30_000, reviewed: true, pr: 42, group: 'g1' });
+    store.log({ op: 'context-approve', changes: 1, saving: 4_000 });
+    store.log({ op: 'context-dismiss', changes: 1 });
+    store.log({ op: 'context-revert', kind: 'off' });
+    store.log({ op: 'context-job', group: 'g1', action: 'compress', state: 'started' });
+    store.log({ op: 'context-job', group: 'g2', action: 'compress', state: 'failed', error: 'the model said no' });
+    store.log({ op: 'harness-offer', client: 'claude', sources: 6, tokens: 9_000, ui: false });
+    store.log({ op: 'harness-answer', choice: 'off', client: 'claude', sources: 6, chosen: 2, switched: 2, tokens: 3_000 });
+    store.log({ op: 'harness-settings', enabled: true, builtinTools: false });
+    store.log({ op: 'diet-settings', tools: { 'Bash:grep': 'moderate', 'mcp:private-server': 'moderate' } });
+    store.log({ op: 'diet', kind: 'cap', tool: 'Grep', before: 10_000, after: 4_000 });
+    store.log({ op: 'diet', kind: 'cap', tool: 'mcp__private__thing', before: 2_000, after: 1_000 });
+
+    // three decisions: a merged section pull request, a built-in tool switched off, a skill switched off
+    const history = [
+      { id: 'a', at: iso(10 * day), key: 'section:AGENTS.md:Secret section title', kind: 'section', file: 'AGENTS.md',
+        title: 'AGENTS.md · Secret section title', what: 'Instruction section', decision: 'pull request', act: 'compress',
+        saving: 9_000, tokens: { before: 4_000, after: 1_000 }, pr: { number: 7, state: 'merged', at: iso(9 * day) } },
+      { id: 'b', at: iso(8 * day), key: 'claude:builtin:Workflow', kind: 'tool', title: 'Workflow tool',
+        what: 'Built-in tool', decision: 'approved', act: 'off', saving: 4_000 },
+      { id: 'c', at: iso(7 * day), key: 'claude:skill:secret-internal-skill', kind: 'skill', title: 'secret-internal-skill skill',
+        what: 'Custom tool · skill', decision: 'approved', act: 'off', saving: 1_000 },
+    ];
+    fs.mkdirSync(path.join(store.dir, 'state'), { recursive: true });
+    fs.writeFileSync(path.join(store.dir, 'state', 'context-suggest.json'), JSON.stringify({ history }));
+    // a report of this code with sessions on both sides of every decision, so the effects can be worked out
+    const row = (days, { files = [], sources = {}, outputs = {} } = {}) => ({ t: now - days * day, input: 100_000, prompts: 10, calls: 10, files, sources, outputs });
+    writeReport(store, 6, { sessionRows: [
+      row(12, { files: ['AGENTS.md'], sources: { 'claude:builtin:Workflow': 500, 'claude:skill:secret-internal-skill': 300 } }),
+      row(11, { files: ['AGENTS.md'], sources: { 'claude:builtin:Workflow': 500, 'claude:skill:secret-internal-skill': 300 } }),
+      row(2, { files: ['AGENTS.md'], sources: {} }),
+      row(1, { files: ['AGENTS.md'], sources: {} }),
+    ] }, { now });
+
+    const { actions, savings } = spendMetrics(store, { all: false, now });
+    assert.equal(actions.suggested, 5);
+    assert.equal(actions.offers, 1); assert.equal(actions.offersInPage, 1);
+    assert.equal(actions.approvals, 2); assert.equal(actions.approvedChanges, 3); assert.equal(actions.approvalsAsPr, 1);
+    assert.equal(actions.dismissedChanges, 1); assert.equal(actions.reverts, 1);
+    assert.equal(actions.jobsStarted, 1); assert.equal(actions.jobsFailed, 1);
+    assert.equal(actions.harnessOffers, 1); assert.equal(actions.harnessAnswers.off, 1); assert.equal(actions.harnessSwitchedOff, 2);
+    assert.equal(actions.compression.calls, 2); assert.equal(actions.compression.charsSaved, 7_000);
+    assert.equal(actions.compression.byKind.cap.calls, 2);
+    assert.deepEqual(actions.compression.byTool, { Grep: { calls: 1, charsSaved: 6_000 } }, 'an MCP tool is counted in the totals, never named');
+    assert.deepEqual(actions.settings.outputTools, { moderate: 2 }, 'how many tools are compressed, not which');
+
+    const matrix = Object.fromEntries(actions.decisions.map(d => [`${d.group}/${d.outcome}`, d.decisions]));
+    assert.deepEqual(matrix, { 'section/pr-merged': 1, 'builtin-tool/applied': 1, 'skill/applied': 1 });
+    assert.deepEqual(actions.builtinParts, [{ group: 'builtin-tool', name: 'Workflow', outcome: 'applied', decisions: 1 }]);
+
+    assert.equal(savings.decisions, 3);
+    assert.equal(savings.measured, 3, 'every decision has sessions on both sides of it in the kept report');
+    const section = savings.byGroup.find(g => g.group === 'section');
+    assert.equal(section.beforeTokens, 2 * 4_000 * 10, 'the section cost its tokens in every call of the sessions that read its file');
+    assert.equal(section.afterTokens, 2 * 1_000 * 10);
+    assert.equal(savings.promptAverage.perPrompt, 10_000);
+    assert.equal(savings.repositories.withDecisions, 1);
+    assert.equal(savings.rows.length, 3);
+    assert.equal(savings.rows[0].group, 'skill', 'newest first');
+    assert.ok(savings.rows.every(r => r.effect && r.effect.perPromptBefore >= r.effect.perPromptAfter));
+
+    // the naming rule: nothing identifying leaves the machine
+    const blob = JSON.stringify({ actions, savings });
+    for (const secret of ['Secret section title', 'secret-internal-skill', 'AGENTS.md', 'private-server', 'mcp__private__thing', tmpRepo]) {
+      assert.ok(!blob.includes(secret), `the payload must not carry ${secret}`);
+    }
+    assert.ok(blob.includes('Workflow'), 'the agent\'s own built-in tools are named');
+  } finally {
+    fs.rmSync(tmpRepo, { recursive: true, force: true }); fs.rmSync(tmpHome, { recursive: true, force: true });
+  }
+});
+
+test('a repository that opted out of telemetry contributes no decisions', () => {
+  const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-spend-optout-'));
+  try {
+    const store = new Store(tmpRepo).init();
+    const now = Date.now();
+    store.log({ op: 'context-approve', changes: 1, saving: 1_000 });
+    fs.mkdirSync(path.join(store.dir, 'state'), { recursive: true });
+    fs.writeFileSync(path.join(store.dir, 'state', 'context-suggest.json'), JSON.stringify({ history: [
+      { id: 'a', at: new Date(now - 86400_000).toISOString(), key: 'claude:builtin:Workflow', kind: 'tool', what: 'Built-in tool', decision: 'approved', act: 'off', saving: 1_000 },
+    ] }));
+    assert.equal(spendMetrics(store, { all: false, now }).savings.decisions, 1);
+    fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ telemetry: false }));
+    const off = spendMetrics(store, { all: false, now });
+    assert.equal(off.savings.decisions, 0);
+    assert.equal(off.savings.repositories.total, 0);
+    assert.equal(off.actions.approvals, 1, 'the machine log is the upload\'s own; the decisions of an opted-out repository are not');
+  } finally {
+    fs.rmSync(tmpRepo, { recursive: true, force: true });
   }
 });
