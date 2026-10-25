@@ -151,8 +151,9 @@ async function uiCommand(ctx) {
   const ui = createUiServer(store);
   const listening = await ui.listen(flags.port !== undefined ? Number(flags.port) : DEFAULT_PORT);
   const { port } = listening;
-  // --all: the Save tab over all repositories (the installer opens the page so); an old --tab context|cache opens the view that replaced it
-  const parts = [typeof flags.tab === 'string' ? `tab=${encodeURIComponent(flags.tab)}` : '', flags.all ? 'repo=all' : ''].filter(Boolean);
+  // Over every repository on the machine (2026-10-25, the owner's ask; `--all` was the flag for it and still says so):
+  // `--here` opens on this checkout alone. An old --tab context|cache opens the view that replaced it.
+  const parts = [typeof flags.tab === 'string' ? `tab=${encodeURIComponent(flags.tab)}` : '', flags.here && !flags.all ? 'repo=here' : 'repo=all'].filter(Boolean);
   const tab = parts.length ? `#${parts.join('&')}` : '';
   if (background) {
     const { uiFile } = await import('../context-suggest.js');

@@ -394,8 +394,15 @@ const api = async (p, body) => {
 };
 const $ = s => document.querySelector(s);
 const H = () => new URLSearchParams(location.hash.slice(1));
+// Which repository the link asks for: an id, `all` (every repository on the machine, and the default since
+// 2026-10-25: `thinker ui` opens there on every tab) or `here`, this checkout, which each tab resolves to the
+// current repository's id once the list is read (`thinker ui --here`; cache.js:uiCommand).
+const hashRepo = () => { const r = H().get('repo'); return r === 'here' ? '' : r || 'all'; };
+// and which tab, normalized as show() does (an old name, an unknown one and no tab at all are Save), so `repo=`
+// reaches the tab that opens
+const hashTab = () => { let t = H().get('tab'); if (t === 'changes') t = 'save'; if (t === 'cache') t = 'report'; if (t === 'save' && H().get('view') === 'history') t = 'activity'; return ['report', 'activity'].includes(t) ? t : 'save'; };
 // the repositories with a cache (/api/repos); REPO is the one picked for Report, CREPO for Save
-let REPOS = [], REPO = H().get('tab') === 'report' ? (H().get('repo') || 'all') : 'all';
+let REPOS = [], REPO = hashTab() === 'report' ? hashRepo() : 'all';
 // setup opens the page once (from=setup); a hint in the corner says how to come back to it, then fades, and All
 // comes with the suggested savings checked (preselectRows), once
 const FROM_SETUP = H().get('from') === 'setup';
@@ -455,9 +462,9 @@ function card(kicker, num, label, rows, gain) {
 }
 
 // ---- Save: where the context goes in one repository (context-view.js:contextView, as `thinker context`) ----
-// `thinker ui --tab save --all` (the installer) asks for every repository at once; a session's summary links to All
-// with its repository (context-suggest.js:suggestionsUrl)
-let CREPO = ['save', 'context', 'changes'].includes(H().get('tab')) ? (H().get('repo') === 'all' ? 'all' : H().get('repo') || '') : '', cdays = 30;
+// `thinker ui` asks for every repository at once (hashRepo, All); a session's summary links to All with its
+// repository (context-suggest.js:suggestionsUrl), and `thinker ui --here` to this checkout alone
+let CREPO = hashTab() === 'save' ? hashRepo() : 'all', cdays = 30;
 document.querySelectorAll('#c-days-seg button').forEach(b => b.onclick = () => { cdays = Number(b.dataset.days); segOn('#c-days-seg', b); loadContext(); });
 $('#c-repo').onchange = e => { CREPO = e.target.value; e.target.blur(); loadContext(); };
 // the logo's three dots as the Save tab's spinner (.logo-spin): the same marks as the favicon
@@ -931,7 +938,7 @@ function wireHistory(root, hs, reload, rerender) {
 // Every decision kept, for one repository or all (the default: the page is the machine's), with what still needs the person
 // at the top; the badge on the tab counts those, asked for every ACT_POLL_MS, and every ACT_FAST_MS while a change runs,
 // so a row's pill moves from under way to pending or failed without a reload.
-let AREPO = H().get('tab') === 'activity' ? (H().get('repo') || 'all') : 'all', ACT = null, APOLL = null;
+let AREPO = hashTab() === 'activity' ? hashRepo() : 'all', ACT = null, APOLL = null;
 const ACT_POLL_MS = 30_000, ACT_FAST_MS = 5_000;
 $('#a-repo').onchange = e => { AREPO = e.target.value; e.target.blur(); loadActivity(); };
 // as loadContext: the table stays and is rebuilt in place when the same repository is already shown (after a Revert or
@@ -942,7 +949,8 @@ async function loadActivity() {
   if (!inPlace) el.innerHTML = '<div class="empty"><span class="spinner"></span>Reading…</div>';
   try {
     if (!REPOS.length) await fetchRepos();
-    if (AREPO !== 'all' && !REPOS.some(r => r.id === AREPO)) AREPO = 'all';
+    if (!AREPO) AREPO = REPOS.find(r => r.current)?.id || 'all';
+    else if (AREPO !== 'all' && !REPOS.some(r => r.id === AREPO)) AREPO = 'all';
     $('#a-repo').innerHTML = `<option value="all"${AREPO === 'all' ? ' selected' : ''}>All repositories</option>` + REPOS.map(r => `<option value="${esc(r.id)}"${r.id === AREPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
     const want = AREPO, d = await api(`/api/activity?repo=${encodeURIComponent(AREPO)}`);
     if (seq !== ALOAD || want !== AREPO) return;

@@ -124,10 +124,10 @@ test('the Save tab and `thinker context` show one report, and its controls are t
   assert.match(read('commands/context.js'), /refreshSnapshots\(store\)/);
   // the installer's report (context-machine.js) is the page's All repositories: one merge, and the reports it
   // keeps are the snapshots the page reads; the browser choice of the installer's question opens the page on it
-  // (`thinker ui --tab save --all`, setup/context-ask.js:openContextPage)
+  // (`thinker ui --tab save`, over every repository by default, setup/context-ask.js:openContextPage)
   const machine = read('context-machine.js'), install = fs.readFileSync(path.join(SRC, '..', 'install.sh'), 'utf8');
   assert.match(install, /"\$thinker" context --machine/);
-  assert.match(read('setup/context-ask.js'), /'ui', '--from-setup', '--tab', 'save', \.\.\.\(all \? \['--all'\]/);
+  assert.match(read('setup/context-ask.js'), /'ui', '--from-setup', '--tab', 'save', \.\.\.\(all \? \[\] : \['--here'\]\)/);
   // and that page opens with the terminal picker's suggestions checked: the same rows and actions, from one function
   // (context-machine.js:suggestedPicks, sent with the report as `suggested`; page.html:preselectRows on from=setup)
   assert.match(machine, /export function suggestedPicks\(view/); assert.match(machine, /const act = suggestedAct\(x\), key = suggestedKey\(x\)/);
@@ -138,8 +138,12 @@ test('the Save tab and `thinker context` show one report, and its controls are t
   assert.match(read('commands/context.js'), /machineContext\(store, \{ days, limit/);
   assert.match(machine, /mergeViews\(views\)/); assert.match(read('ui/server.js'), /mergeViews\(xs\.map/);
   assert.match(machine, /writeSnapshot\(st, d, v/); assert.match(machine, /refreshCheckouts\(store/);
-  assert.match(read('commands/cache.js'), /flags\.all \? 'repo=all'/);
-  assert.match(read('ui/page.html'), /H\(\)\.get\('repo'\) === 'all' \? 'all'/);
+  // `thinker ui` opens over every repository, on every tab, and `--here` on this checkout alone (2026-10-25):
+  // one default, the command's hash and the page's own reading of it
+  assert.match(read('commands/cache.js'), /flags\.here && !flags\.all \? 'repo=here' : 'repo=all'/);
+  assert.match(read('ui/page.html'), /const hashRepo = \(\) => \{ const r = H\(\)\.get\('repo'\); return r === 'here' \? '' : r \|\| 'all'; \}/);
+  for (const d of [/REPO = hashTab\(\) === 'report' \? hashRepo\(\)/, /CREPO = hashTab\(\) === 'save' \? hashRepo\(\)/, /AREPO = hashTab\(\) === 'activity' \? hashRepo\(\)/]) assert.match(read('ui/page.html'), d);
+  assert.match(read('cli.js'), /ui \[--port n\] \[--no-open\] \[--tab save\|report\|activity\] \[--here\]/);
   // setup asks the same question over the same report for its one repository (setup/context-ask.js)
   assert.match(read('setup.js'), /askMachineReport\(\{ r, recs: recommendations\(view\)/);
   assert.match(read('setup/context-ask.js'), /renderMachineReport\(r, recs\)/);

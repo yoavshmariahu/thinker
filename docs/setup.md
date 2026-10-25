@@ -95,12 +95,14 @@ later suggestion continues where it stopped.
 Run `thinker ui` from any directory. It opens two views:
 
 - **Find Savings** shows which instructions, skills and tools consume context, how often
-  sessions use them, and what you can cut. Choose one repository or all, over 7 or 30 days.
+  sessions use them, and what you can cut. It opens over every repository on the machine;
+  pick one from the list, or start on this checkout with `thinker ui --here`. Over 7 or 30 days.
 - **View Report** tracks session tokens or list-price costs over six weeks, by token type,
   context part and model, with your changes and the cache's savings below. `thinker report` prints the same report.
 
 ```bash
-thinker ui --tab save --all   # Find Savings across repositories
+thinker ui                    # Find Savings across every repository
+thinker ui --here             # this repository alone
 thinker ui --tab report       # weekly report
 ```
 

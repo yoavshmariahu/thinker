@@ -25,7 +25,7 @@ export function canOpenBrowser(env = process.env, platform = process.platform) {
 // (cache.js:uiCommand, --from-setup opens the browser itself and exits once idle)
 export function openContextPage({ store, cliPath = CLI, spawnFn = spawn, all = true } = {}) {
   try {
-    const child = spawnFn(process.execPath, [cliPath, 'ui', '--from-setup', '--tab', 'save', ...(all ? ['--all'] : [])], { cwd: store.repo, detached: true, stdio: 'ignore' });
+    const child = spawnFn(process.execPath, [cliPath, 'ui', '--from-setup', '--tab', 'save', ...(all ? [] : ['--here'])], { cwd: store.repo, detached: true, stdio: 'ignore' });
     child.on?.('error', () => {}); child.unref?.();
     return true;
   } catch { return false; }
