@@ -14,217 +14,134 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 
 ## Working on this repository
 
-**The command line and the local page stay in sync (MANDATORY RULE):**
-The page (`src/ui/`) is a second door to the same commands, never a second
-implementation. A default the page shows (the model, the agent, a report's window)
-is the constant the command reads (`DEFAULT_DISTILL_MODEL` in `src/llm.js`,
-`buildAgent` in `src/setup/agents.js`), and a report the page shows is the one the
-command prints (`thinker context` and the Save tab, `thinker context --machine` and
-its All repositories, `thinker report` and the Report tab). An action the page takes runs the command line with the flags
-the person would have typed. `test/cli-ui-sync.test.js` checks both doors; a new default
-or flag gets a line there before it ships.
+**CLI and local page in sync (MANDATORY):**
+- `src/ui/` is a second door to the same commands, never a second implementation.
+- Page defaults must use the constants the command reads: `DEFAULT_DISTILL_MODEL` (`src/llm.js`), `buildAgent` (`src/setup/agents.js`).
+- Page reports must match command output: `thinker context` and Save tab; `thinker context --machine` and All repositories; `thinker report` and Report tab.
+- Page actions run the CLI with the flags a person would type.
+- Any new default or flag: add a line to `test/cli-ui-sync.test.js`.
 
-**Pull requests in this repository (MANDATORY RULE):**
-We use PRs here to keep every change reviewable in one place. This is
-a contributor workflow for thinker itself, not a product requirement. Teams using
-Thinker may land direct commits or use any Git workflow; setup must not install
-our repository policy guard or require PRs in their repositories.
-- Push task branches and open a GitHub pull request targeting `main`. Never push
-  commits directly to remote `main`, including fast-forward pushes.
-- **The `tests` workflow is disabled** since 2026-10-07, at the owner's request
-  (`disabled_manually`; `gh workflow enable tests` reverses it). No test check will
-  report on a pull request, so do not wait for one: run the tests locally
-  (`npm test`, which sets `THINKER_TEST=1`) before pushing and state the result in
-  the pull request, then merge through GitHub and bring local `main` up to date
-  from the merged remote branch. `npm test` runs the test files the change reaches,
-  not the whole suite (below); the whole suite (`npm test -- --all`) is for a change
-  to the test run itself or when the selection's reasons look wrong.
-- Do not bypass a pre-push guard or disable hooks to push `main`.
-- GitHub server-side enforcement for this repository (private when this was written; public since) requires GitHub Pro
-  (the API currently returns 403 on the account's plan). Until enabled, the local
-  guard and this policy enforce the workflow on this checkout, not on every client.
+**Pull requests (MANDATORY):**
+- Thinker contributor workflow only. Setup must not install a repo policy guard or require PRs in user repos.
+- Push task branches, open a GitHub PR to `main`. Never push `main`, including fast-forward.
+- Never bypass the pre-push guard or disable hooks to push `main`.
+- `tests` workflow is disabled; don't wait for it. Run `npm test` locally, state the result in the PR, merge via GitHub, then update local `main` from the merged remote.
+- Until GitHub enforcement is enabled (needs Pro; API 403), the local guard and this policy are the enforcement.
 
-**Every model-backed feature works in the desktop apps (MANDATORY RULE, 2026-10-16):**
-Anything thinker starts that calls a model for the person (learning, a
-coverage build, verification, a new kind of build) must also run inside a desktop
-app (Claude Desktop, the Codex app, Cursor) and wherever no agent CLI is signed in.
-Those sessions have no CLI login to read through: the work goes through the
-session itself, as learning does (`session-work.js`,
-`session-llm.js`: model calls queued in `.thinker/state`, a background subagent
-answering them through `learn_next`). A feature that only says
-"sign in a CLI" in a desktop app is not done. Tests cover the desktop-app path
-(`appFn`, a missing CLI login) beside the CLI one.
+**Test selection:**
+- `npm test` runs test files reached by the change vs `origin/main` (commits since merge base, working tree, untracked).
+- Changed code no test reaches is named on stderr.
+- Full suite runs when `package.json`, lockfile, `scripts/test.sh` or `scripts/select-tests.mjs` changes (version-only bump excluded), when nothing changed, or with `npm test -- --all`.
+- `npm test -- test/rank.test.js`: run named files as given.
+- `TEST_BASE=HEAD npm test`: select against working tree only.
+- `scripts/select-tests.mjs --why`: show which file selected each test.
+- Use `--all` for test-runner changes or wrong selection.
+- Requires Node 20+. `npm test` runs `scripts/test.sh` (`node --test`, `THINKER_TEST=1`).
 
-**No new cache-building or serving strategy ships without an experiment (MANDATORY RULE, 2026-10-16):**
-A change to what the cache is built from (a new source, a new selection of code or
-history, a new note kind) or to how notes reach the agent (ranking, the
-cross-encoder, floors, slots, budgets, a new serving pool) lands off by default,
-behind a config switch, until an experiment shows it helps. The experiment runs
-through Artemis (plan, the owner's approval, then the run), compares the strategy
-with what ships on the same tasks, and is written up with its numbers and caveats.
-Offline replays of retrieval against labelled targets are a first step, not the
-evidence: the outcome is measured in agent sessions. Turning the switch on by
-default is its own pull request that cites the experiment.
+**Desktop apps (MANDATORY):**
+- Every model-backed feature must work in Claude Desktop, Codex app, Cursor, and anywhere no agent CLI is signed in.
+- Those sessions have no CLI login: model calls queue in `.thinker/state`; a background subagent answers via `learn_next` (`session-work.js`, `session-llm.js`).
+- "Sign in a CLI" alone does not finish a feature.
+- Tests cover the desktop path (`appFn`, missing CLI login) beside the CLI path.
 
-Exception explicitly requested by the owner on 2026-10-25: Codex proxy tool-output
-clearing is on by default through install/connect/setup/update after a live
-ChatGPT transport smoke test (Codex 0.164.0, gpt-6-astra high). This establishes
-provider acceptance, not savings or quality. `proxy-codex.js` wires a managed
-provider without reading credentials; `/codex` on the existing service routes
-ChatGPT-account requests to the ChatGPT backend and API-key requests to OpenAI.
-Custom providers stay as configured; `thinker proxy off` restores the prior
-selection. Future claims of savings still require an Artemis experiment.
+**Cache and serving changes need an experiment (MANDATORY):**
+- Changes to cache sources (source, code or history selection, note kind) or note serving (ranking, cross-encoder, floors, slots, budgets, serving pool) ship off by default behind a config switch.
+- Enable by default only after an Artemis experiment: plan, owner approval, run. Compare with shipped strategy on same tasks. Report numbers and caveats.
+- Offline replays are not evidence. Measure outcomes in agent sessions.
+- Default-on switch = its own PR citing the experiment.
+- Owner-approved exception (2026-10-25): Codex proxy tool-output clearing is on by default via install/connect/setup/update. `proxy-codex.js` wires a managed provider without reading credentials. `/codex` routes ChatGPT-account requests to the ChatGPT backend, API-key requests to OpenAI. Custom providers stay as configured. `thinker proxy off` restores prior selection. Savings claims still need an Artemis experiment.
 
-Requires Node 20+. Tests: `npm test` (`scripts/test.sh`, `node --test` under `THINKER_TEST=1`).
-**Test selection (2026-10-24):** `npm test` runs only the test files the change against
-`origin/main` reaches (`scripts/select-tests.mjs`: committed since the merge base, the working
-tree and untracked files; the import graph of every JavaScript file with `import`, `export …
-from`, `import()`, `require()` and `new URL(…, import.meta.url)` edges, plus, for a test file,
-the repository paths it names with a directory in them, `'src/cli.js'` for the tests that spawn
-the command, and `join(x, '..', 'install.sh')`-style reaches above it). A test file runs when it
-changed or its closure holds a changed file; a changed code file no test reaches is named on
-stderr. The whole suite runs when `package.json`, the lockfile, `scripts/test.sh` or the selector
-changed (a version-only bump is not that), when nothing changed against the base, or with
-`npm test -- --all`; named files run as given (`npm test -- test/rank.test.js`); `TEST_BASE=HEAD npm test`
-selects against the working tree alone (on a branch that changed the runner, as this one did). Replayed over the
-40 commits before it: 64 of 116 files on average, since the 55 tests that spawn `src/cli.js`
-reach most of `src/` through the handlers' static imports; a change to a leaf module runs
-20–40. `scripts/select-tests.mjs --why` prints which changed file selected each test.
+**Telemetry and tests (MANDATORY):**
+- Set `THINKER_TEST=1` for tests, benchmarks, eval harnesses, scratch experiments, and their setup/install steps (`npm test` sets it).
+- It blocks production telemetry and automatic background work, keeps usage logs local, silences machine-wide hooks, and suppresses coverage offers (hooks, `orient` over MCP).
+- `THINKER_OFFERS=on`: restore offers, offer tests only.
+- `THINKER_TELEMETRY=off`: extra telemetry-only control.
+- Every child process must inherit these settings.
+- Never send these runs to the production telemetry endpoint or count them as usage.
+- Telemetry tests use mocked requests or isolated loopback only. Never contact production.
 
-**Releases are GitHub releases on tags (since 0.1.35):** a release is the tag
-`vX.Y.Z` on a commit of `main`, with `thinker.tgz`, `version.json` (version,
-commit, sha256 of the archive) and `install.sh` attached. The installer
-(`install.sh`, run through `npx @zerotimedev/thinker`, the npm package that carries it) and `thinker update` (`src/update.js`)
-read `releases/latest/download/version.json` and download the archive from the
-same release; `thinker update vX.Y.Z` pins one. To cut a release, manually run
-`bash scripts/release.sh X.Y.Z` from any checkout. The runner
-(`scripts/release.mjs`) fetches `origin/main`, tests a version-only bump in a
-temporary worktree and opens a PR. It waits for the user to review and merge
-the PR; it never merges or pushes main itself. It tests and packages the merged
-commit (`scripts/pack.sh`), tags it, publishes the GitHub release and its three
-assets, verifies the public download, then publishes the npm installer at the
-same version. Rerunning the same command resumes incomplete steps from the
-exact tag; existing public assets and npm versions are never overwritten.
-Without a version it resumes the current `origin/main` version. `--hold` publishes a version that is not latest (a GitHub pre-release, npm tag `next`), so
-nothing updates to it until `bash scripts/release.sh X.Y.Z --promote`. See
-`docs/releases.md` for prerequisites, authentication and `--no-wait`.
-Nothing is uploaded to zerotime.dev any more; `scripts/pack.sh <base
-url>` still builds a self-hosted set for anyone who wants one. Installs made
-before 0.1.35 point at `zerotime.dev/dist` and move to GitHub on their first
-update that runs the new code (`install.sh --update` does it by hand).
+**Benchmark caches (MANDATORY):**
+- Build only through product paths: `mine-prs` (GitHub or `--git`), or `understand` (`src/understand.js`).
+- Forbidden: `seed`, synthetic agent sessions, distilling a benchmark's own eval traces, hand-written notes.
+- Nothing from the task's future may be reachable:
+  - Build at an anchor commit at or before the earliest task base in that repo.
+  - Each task gets a copy, topped up only with changes merged before its own base.
+  - Verify the fix commit is absent from the cache's build checkout.
+- Record anchor commit, what was mined or read, source hashes, and model and effort of every building call; these must match the coding arm.
+- Missing, failed or empty cache stops the run before coding. No fallback.
+- Historical session-learning experiments are not valid caches.
+- `research/performance-canary/guardrails.py` enforces this (`cacheSource: recent-merged-prs`). `research/efficiency-simple/run.py` mines only.
 
-**No telemetry from tests or benchmarks (MANDATORY RULE):**
-Always set `THINKER_TEST=1` when running tests, benchmarks, evaluation
-harnesses, scratch experiments, or their setup/install steps (`npm test` sets it).
-This single mode blocks production telemetry and automatic background work, keeps
-default usage logs local, and silences machine-wide hooks. It also makes no coverage offer
-to the agent, from the hooks or from `orient` over MCP (2026-10-18: an offer in a benchmark session is noise
-in its context, and the eval runner marked the session invalid for it); `THINKER_OFFERS=on` restores them,
-for the tests of the offers only. `THINKER_TELEMETRY=off`
-remains a valid additional telemetry-only control. Ensure every child
-process inherits it. Never send these runs to the production telemetry endpoint
-or count them as real usage. Telemetry-specific tests may use mocked requests or
-an isolated loopback server only; they must never contact production.
+**Matched models (MANDATORY):**
+- Compare arms only with the same exact model and reasoning effort per phase: exploration, memory building, coding, judging.
+- Keep agent config fixed except the declared intervention.
+- Record models before running. Disable silent provider/model fallback. Mismatch = invalid comparison.
+- Prefer executable tests for correctness. Report correctness, tokens, latency separately.
+- Different models or reasoning settings go in separate cohorts, never one ranking.
 
-**Benchmark caches come from the product's own build paths, out of the task's past (MANDATORY RULE):**
-Build a benchmark cache through one of the product's own paths, and from nothing else: mining merged
-changes (`mine-prs`, GitHub or `--git`), or reading the code at the anchor (`understand`: notes on how
-the most changed files work, src/understand.js; added 2026-10-16 after it reached 8 of 13 mlflow
-requests with an on-target note against 3 for mining). Exploration (the `seed` command, removed in 0.1.22) was never a
-benchmark cache source: measured on Click on 2026-10-07 it cost 3.6M tokens for 0 notes
-under Opus and 1.3M for 1 note under Sol, against 272k tokens for 9 notes by mining, so
-it buys cost and not cache. Also forbidden, none of it being the product learning from
-the repository's own past: synthetic agent sessions, distillation of a benchmark's own
-eval traces, and hand-written notes.
-Nothing from the task's future may be reachable. Build at an anchor commit at or before
-the earliest task base in that repository, give each task a copy of that cache topped up
-only with changes merged before its own base, and check that the fix commit is absent
-from the checkout the cache was built in. Record the anchor commit, what was mined or read, source hashes, and the model and effort of every building call -- which must
-match the coding arm's. A missing, failed or empty cache must stop the run before coding.
-No alternative cache source and no silent fallback.
-Historical session-learning experiments are not valid caches for these runs.
-`research/performance-canary/guardrails.py` enforces this for that harness
-(`cacheSource: recent-merged-prs`); `research/efficiency-simple/run.py` mines only.
+**Evals only through Artemis (MANDATORY):**
+- Run, follow, read benchmarks only via Artemis (`~/src/artemis`; start with `bin/artemis-up`; web app and MCP server).
+- Follow `.agents/skills/run-evals/SKILL.md`: `create_pr_set` (freeze PRs); `plan_cache` / `build_cache`; `plan_experiment`; user approves each plan; `start_experiment`; read with `get_experiment`, `get_session`.
+- Never start the task runner (`~/src/task-runner`) or run `mine-prs` by hand.
+- Never report numbers computed by hand from run files.
+- Artemis and task runner use thinker only via CLI: `thinker mcp`, `hook`, `guide`, `served`, `spent`, `export --dir`, `version` (`src/commands/external.js`). Changing their output or input is an interface change: stay compatible or change Artemis in step.
+- Artemis's `"thinker"` entry in `~/.artemis/config.json` is the tested build; point it at a worktree to test a branch.
 
-**Matched models in comparisons (MANDATORY RULE):**
-Compare arms only with the same exact model and reasoning effort for each
-corresponding phase (exploration, memory building, coding and any judging). Keep
-agent configuration fixed except for the declared intervention being compared.
-Record them before running, disable silent provider/model fallback, and report a
-model mismatch as an invalid comparison. Prefer executable tests for correctness;
-keep correctness, tokens and latency separate. Results from different models or
-reasoning settings belong in separate cohorts, not one ranking.
+**Worktrees (MANDATORY):**
+- All code changes, scratch experiments and benchmark runs happen in an isolated worktree. Never edit the primary tree.
+- Create: `git worktree add -b agent/<task-name> .worktrees/<task-name> HEAD` (gitignored). Work only inside it.
+- On merge, push, abort or cancel: `git worktree remove --force <path>`; if unneeded, `git branch -D agent/<task-name>`.
 
-**Evals run only through Artemis, the evals platform (MANDATORY RULE):**
-Run, follow and read benchmark experiments only through Artemis, its own repository
-(`~/src/artemis`, started with its `bin/artemis-up`; a web app and an MCP server), following its
-`run-evals` skill (`.agents/skills/run-evals/SKILL.md` there): freeze the PRs with `create_pr_set`,
-build the cache through `plan_cache`/`build_cache`, plan the experiment with `plan_experiment`, get
-the user's approval of each plan, start with `start_experiment`, read with `get_experiment` and
-`get_session`. Do not start the task runner (`~/src/task-runner`) or a benchmark `mine-prs` by hand,
-and do not report numbers hand-computed from run files. The cache-source and matched-model rules
-above still apply to every experiment the platform starts.
+**Model calls:**
+- Anthropic SDK when `ANTHROPIC_API_KEY` is set. Otherwise first installed agent CLI: `claude`, `codex`, `gemini`, `agent`.
+- `claude -p` uses a replaced system prompt (`--system-prompt`, `--setting-sources ''`, `--disable-slash-commands`; `llm.js:viaCliOnce`). Never append.
 
-Artemis and the task runner use thinker only as an installed program, through its CLI (`thinker
-mcp`, `hook`, `guide`, `served`, `spent`, `export --dir`, `version`; `src/commands/external.js`).
-Changing what those commands print or take is a change to their interface: keep them compatible, or
-change Artemis in step. Which thinker an experiment tests is Artemis's setting (`~/.artemis/
-config.json` `"thinker"`): point it at a worktree to test a branch.
+**Releases:**
+- Release = GitHub release on tag `vX.Y.Z` on a `main` commit, assets `thinker.tgz`, `version.json` (version, commit, archive sha256), `install.sh`.
+- `install.sh` (`npx @zerotimedev/thinker`) and `thinker update` (`src/update.js`) read `releases/latest/download/version.json`. `thinker update vX.Y.Z` pins.
+- Cut: `bash scripts/release.sh X.Y.Z`. `scripts/release.mjs` tests a version-only bump in a temp worktree, opens a PR, waits for the user to merge. Never merges or pushes `main`.
+- After merge: `scripts/pack.sh` packages the merged commit; runner tags, publishes release and three assets, verifies public download, publishes npm installer at same version.
+- Rerun resumes from the exact tag. Never overwrite public assets or npm versions. No version = resume current `origin/main` version.
+- `--hold`: GitHub pre-release and npm tag `next`. Promote: `bash scripts/release.sh X.Y.Z --promote`.
+- Prerequisites, auth, `--no-wait`: `docs/releases.md`.
+- Nothing uploads to zerotime.dev. `scripts/pack.sh <base url>` builds a self-hosted set.
 
-**Agent concurrency and worktrees (MANDATORY RULE):**
-All agents working on this repository MUST perform code changes, scratch experiments, and benchmark runs in isolated git worktrees to avoid collisions with other active agents or running benchmark jobs. Never edit directly in the primary working tree.
-- **Create a worktree:** `git worktree add -b agent/<task-name> .worktrees/<task-name> HEAD` (gitignored).
-- **Work strictly within the worktree.**
-- **Destroy on completion:** Once changes are committed/pushed/merged, or if the task is aborted or cancelled, always remove the worktree:
-  ```bash
-  git worktree remove --force <path-to-worktree>
-  git branch -D agent/<task-name> # if no longer needed
-  ```
-
-Model calls go through the Anthropic SDK when `ANTHROPIC_API_KEY` is set,
-otherwise through the first installed agent CLI (`claude`, `codex`, `gemini`,
-`agent`), so no extra credentials are needed. `claude -p` is run with its
-system prompt replaced (`--system-prompt`, `--setting-sources ''`,
-`--disable-slash-commands`; `llm.js:viaCliOnce`): appended to, Claude Code's
-own prompt added ~7k tokens to every call, written to the one-hour prompt
-cache at twice the input price and never read again.
+**Layout:**
 
 | path | contents |
 |---|---|
-| `src/cli.js` | the `thinker` command: argument parsing, the help text, the prelude every command shares (update notice, background update and telemetry, the not-set-up check, the parser), and a table of handlers |
-| `src/commands/` | one module per group of commands, each handler taking the dispatcher's context (`store`, `repo`, `flags`, `pos`, `out`, …): `notes.js` (orient, lookup, find, drilldown, system, list, show, add, rm, archive, phrase, rehash, relink), `cache.js` (review, export, import, serve, health, stats, usage), `learn.js` (learn, maintain, distill, record, outcome, verify, check, mine-prs, and the PR-mining helpers), `hooks.js` (the hook entrypoints and the background catch-up they start), `setup.js` (setup, uninstall, ast, update/upgrade/switch/branch), `telemetry.js`, `benchmark.js`, `shared.js` (helpers several of them need) |
-| `src/mcp.js` | MCP server: no agent tools since 2026-10-22; the answer tool of thinker's own coverage question (the harness one went with its question on 2026-10-25) and the desktop app's learning queue (`learn_next`), each offered while it has work |
-| `src/setup.js`, `src/setup/` | the guided `setup` flow (`runSetup`), with its parts under `src/setup/`: `ui.js` (colors, boxes, the arrow-key menu), `agents.js` (which agent CLIs are installed and logged in, and the menu that picks one), `estimate.js` (what a cache build will cost), `steps.js` (wiring the clients, building the cache), `pr-benchmark.js` (the optional PR change benchmark); everything is re-exported from `setup.js` |
-| `src/clients.js` | adapters for Claude Code, Codex, Gemini CLI, Cursor, Pi, Windsurf Cascade, Copilot CLI (and Copilot in VS Code), OpenCode, Factory Droid, Qwen Code, Kiro CLI, Cline, Kilo Code, Auggie and Goose: config files and hook formats; native extension handlers in `src/integrations/`; coverage in `docs/agent-integrations.md` |
-| `src/transcripts.js` | session transcripts of every agent as one event form; the hook-recorded trace; finding sessions |
-| `src/prs.js` | mining merged pull requests into notes |
-| `src/ops.js` | core operations on notes (serve, merge, assess, link) |
-| `src/deps.js` | dependency extraction and symbol-level content hashing |
-| `src/ast.js` | symbol boundaries by tree-sitter (Python, JS/TS, Go, Rust), on by default: the parser and its grammars are dependencies; `deps.js` falls back to regex heuristics where they are missing, for other languages, and for a definition with a parse error |
-| `src/disk-cache.js` | results kept on this machine between processes, by a key naming everything they depend on: definitions, symbol and file hashes, hashes at a commit, and what each transcript loaded and called (`harness.js:sessionHarness`, `harness-codex.js:codexSessionHarness`, by the file's size and mtime, `cachedByFiles`: the Context and Harness pages read every transcript of the window on each request, a gigabyte and five seconds on this repository before, under 0.3 s after) (`~/.thinker/cache`) |
-| `src/codegraph.js` | one hop of the call graph: references and blast radius of a symbol (`fanout`), callers, callees, definitions, outlines, and `findSymbols` (the definitions carrying the words of a query); behind `find`, `drilldown` and the `[n call sites in m files]` tags on pointers. From the code graph when the checkout is indexed, else from `git grep` |
-| `src/rank.js` | BM25 ranking, relevance gate, budget packing |
-| `src/distill.js` | transcript → notes and per-note assessments |
-| `src/maintain.js` | background maintenance: re-verify stale notes, phrase new ones, distill newly merged PRs, under a daily cap |
-| `src/skills.js`, `src/commands/skills.js` | skill files (SKILL.md) as cached knowledge: one card per file, audited against the code, graded by the sessions that invoke it, duplicates settled; `thinker skills` (docs/skills.md) |
-| `src/instruction-value.js`, `src/context-view.js`, `src/commands/context.js` | what each part of the agents' context is worth here: every AGENTS.md section (tokens, sessions it applied to by its triggers, and judged relevant / followed / broken), every skill (read in, rules kept, missed), every other tool; `thinker context` and the page's Context tab (see [Context view](#context-view)) |
-| `src/testing.js`, `src/commands/testing.js` | test economy, off until an experiment: `thinker test -- <command>` runs a test command with colour off, keeps the whole log in `.thinker/state/tests/` and prints the counts, the failures grouped by distinct cause, and the log path; the parsers (pytest, jest, vitest, go, cargo, node --test), the cause grouping and the command classifier the `pre` hook uses |
-| `src/guard.js` | anchoring guard: names identifiers in the request that the served notes do not cover |
-| `src/update.js` | CLI self-update and daily automatic background updates (LaunchAgent / cron / invocation) |
-| `src/usage.js` | summary of the usage log and the estimate of saved calls and tokens, in tokens (never dollars) |
-| `src/proxy.js`, `src/proxy-service.js`, `src/proxy-replay.js`, `src/commands/proxy.js` | the context proxy: a local pass-through for the Messages API that asks the API to clear old tool results (`proxy.js`; with the agent's tool inputs and the earlier turns' thinking behind `--clear-inputs` and `--clear-thinking`, off until an experiment, 2026-10-25), run as a service of the machine and written into the agents' base-URL settings by `connect` (`proxy-service.js`; `thinker proxy on|off|status`), and the offline replay of the clearing policies over past sessions, in billed-equivalent tokens and at list prices (`proxy-replay.js`) |
-| `src/report.js`, `src/prices.js`, `src/commands/report.js` | the Report page: the average a prompt cost each week over the last six, by part of the context (the four the Save page controls, then the conversation by kind, the estimated parts calibrated to the model's tokens), by model under its provider and by token type, in tokens or at list prices (`prices.js`, the one place dollars are shown); the prompt-cache rewrites by cause; the sessions without usage estimated apart; the cache's numbers under it; `thinker report` and the page's Report tab (see [Report](#report)) |
-| `src/store.js`, `src/llm.js` | note storage; model access through any installed agent |
-| `src/server/` | `thinker-server`, the team's central cache: HTTP API (`index.js`), per-repository stores with a change journal and a clone of the repository (`repos.js`), tokens (`auth.js`), the worker that reviews the pull requests CI asks about (`worker.js`); the server learns nothing itself |
-| `infra/sync/` | the server on EC2: CloudFormation stack, bootstrap script, deploy script |
-| `src/change.js` | the change under review with no model call: scope, parsed diff, the definitions the hunks touched, the notes resting on them (`selectNotes`), what the changed definitions use one hop down (`usedContext`); the model-free half of the `thinker review` command removed on 2026-10-11 |
+| `src/cli.js` | entry: parsing, help, prelude, handler table |
+| `src/commands/` | `notes.js`, `cache.js`, `learn.js`, `hooks.js`, `setup.js`, `telemetry.js`, `benchmark.js`, `shared.js` |
+| `src/mcp.js` | MCP server: coverage answer tool, `learn_next` queue |
+| `src/setup.js`, `src/setup/` | `runSetup`; `ui.js`, `agents.js`, `estimate.js`, `steps.js`, `pr-benchmark.js` |
+| `src/clients.js`, `src/integrations/` | client adapters, extension handlers (`docs/agent-integrations.md`) |
+| `src/transcripts.js` | transcripts, one event form |
+| `src/prs.js` | PR mining |
+| `src/ops.js` | serve, merge, assess, link |
+| `src/deps.js` | dependencies, symbol hashing |
+| `src/ast.js` | tree-sitter boundaries (default); regex fallback in `deps.js` |
+| `src/disk-cache.js` | machine-wide results cache (`~/.thinker/cache`) |
+| `src/codegraph.js` | call graph: `fanout`, callers, callees, `findSymbols` |
+| `src/rank.js` | BM25, relevance gate, budget packing |
+| `src/distill.js` | transcript to notes and assessments |
+| `src/maintain.js` | background maintenance, daily cap |
+| `src/skills.js`, `src/commands/skills.js` | SKILL.md cards; `thinker skills` (`docs/skills.md`) |
+| `src/instruction-value.js`, `src/context-view.js`, `src/commands/context.js` | `thinker context`, Context tab |
+| `src/testing.js`, `src/commands/testing.js` | `thinker test -- <command>` (off until experiment) |
+| `src/guard.js` | anchoring guard |
+| `src/update.js` | self and background updates |
+| `src/usage.js` | usage log summary |
+| `src/proxy*.js`, `src/commands/proxy.js` | context proxy; `thinker proxy on\|off\|status`; `--clear-inputs`, `--clear-thinking` off until experiment |
+| `src/report.js`, `src/prices.js`, `src/commands/report.js` | Report page; `thinker report`; `prices.js` only place dollars appear |
+| `src/store.js`, `src/llm.js` | note storage; model access |
+| `src/server/` | `thinker-server`: `index.js`, `repos.js`, `auth.js`, `worker.js` |
+| `infra/sync/` | EC2 server: CloudFormation, bootstrap, deploy |
+| `src/change.js` | change review, no model call; `selectNotes`, `usedContext` |
 | `test/` | unit tests (`node --test`) |
-| `research/bench-history/` | what the benchmarks measured before they moved out (`RESULTS.md`, serving notes); the harness, task sets and run data are in Artemis's database, the old scripts in this repository's history before 2026-10-16 |
-| `.thinker/` | thinker's own notes about this repo |
+| `research/bench-history/` | old results (`RESULTS.md`) |
+| `.thinker/` | notes about this repo |
 
-Benchmarks are not in this repository: Artemis (`~/src/artemis`) holds the task sets, PR sets,
-caches, runs and their data, and the task runner (`~/src/task-runner`) runs the sessions. A
-`bench/` folder left in a checkout is local leftovers and ignored.
+Benchmarks are not in this repo. Artemis (`~/src/artemis`) holds task sets, PR sets, caches, runs, data. Task runner (`~/src/task-runner`) runs sessions. `bench/` in a checkout is ignored local leftovers.
 
 ## What `setup` does
 
@@ -777,255 +694,144 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
 
 ## Report
 
-**The page's two tabs are Find Savings and View Report (2026-10-22, the owner's layout; shown so since that evening, the
-tab ids and `--tab save|report` unchanged; "Save" and "Report" below are those tabs).** The Context tab became Save (the
-page to find savings: the same tables, the stacked-column chart of input by day or week removed) and the Cache
-tab (the usage cards, the repositories, one repository's notes and behaviors) was replaced by Report; the notes
-and the behaviors are reached through the CLI (`thinker list`, `show`, `archive`, `system`), and the page's
-`/api/usage`, `/api/cache`, `/api/behaviors` and `/api/activity` went with it. An old link (`tab=context`,
-`tab=changes`, `tab=cache`) opens the view that replaced it.
+**Tabs and entry**
+- Tabs: Find Savings (`--tab save`), View Report (`--tab report`). Old `tab=context|changes|cache` open replacement view.
+- CLI only: `thinker list`, `show`, `archive`, `system`. Removed: `/api/usage`, `/api/cache`, `/api/behaviors`.
+- `thinker ui` opens `repo=all`; `--here` opens `repo=here`; `--all` accepted.
+- Page reads `repo=` (`page.html:hashRepo`). Link naming a repo id wins (`context-suggest.js:suggestionsUrl`).
 
-**The page opens over every repository on the machine (2026-10-25, the owner's ask).** `thinker ui` lands on All
-repositories on every tab: the command writes `repo=all` in the address and the page reads `repo=` the same way
-for Save, Report and Recent activity (`page.html:hashRepo`; Find Savings defaulted to this checkout until then,
-and Report and Recent activity already opened on All). `thinker ui --here` opens on this checkout alone
-(`repo=here`, which each tab resolves to the current repository's id once the list is read), and a link naming a
-repository by its id still wins (`context-suggest.js:suggestionsUrl`, a session's summary). `--all` is accepted
-and says what it does.
+**Report (`thinker report`, `report.js:reportView`)**
+- Weeks: last `REPORT_WEEKS` (6), Monday–Sunday, current last.
+- Unit: prompt (one model call). Week tokens over its prompts (`transcripts.js` `turns`, kept as `prompts` on cells/columns).
+- `--total`: week sum. Default: per prompt.
+- Per-prompt cell = ratio of sums, never mean of session means.
+- Per session:
+  - Model/usage: `transcripts.js:Stats`, `tool-outputs.js:sessionUsage`, state `.thinker/state/tool-outputs.json` (v8).
+  - Parts joined by session id: instruction files, custom tools (skills, MCP, plugins), built-in tools. Each × session model calls. Tool outputs re-read by later calls.
+  - Transcript (`transcripts.js:parseClaude`, `carried`, Claude Code only, v10): system prompt per call; tool inputs, thinking, prompts, agent text, attachments. Re-read by later calls since last compaction.
+  - Thinking: `thinking_tokens`, else signature length ÷ 4.3. Kept (`clear_thinking keep: all`).
+  - `instructions` attachment, when present, is exact (replaces estimate).
+- Scaling: parts scaled down where sum exceeds measured input. Remainder = "Other input". Output = model output. Total = session tokens.
 
-`thinker report` and the Report tab show one report (`report.js:reportView`): what a prompt costs here, week by
-week over the last six (`REPORT_WEEKS`, Monday to Sunday, the current week so far last). **The unit is a prompt, one call to
-the model (2026-10-24, the owner's ask; a session until then): the week's tokens over its prompts (`transcripts.js` `turns`,
-kept as `prompts` on every cell and column), so a long session weighs by its calls, and the Total toggle (`--total`) is the
-week's sum as before.** A `Per prompt` cell is the ratio of sums, never a mean of per-session means. Per session the transcript gives the model and the usage the agent reported
-(`transcripts.js:Stats`, kept with the tool outputs' record in `.thinker/state/tool-outputs.json` since its version
-8, `tool-outputs.js:sessionUsage`), and the Context view's readers give the parts, joined by session id (the
-timeline rows of `instruction-value.js`, `harness.js` and `tool-outputs.js` carry `session` since this day):
-the instruction files read, the custom tools (skills, MCP servers, plugins) and built-in tools loaded, each times
-the session's model calls, and the tool outputs read again by every call after them; and the transcript itself gives
-what the conversation costs (`transcripts.js:parseClaude`, `carried` beside the stats, Claude Code alone; kept with the
-session's record since tool-outputs state version 10): the system prompt (the prompt snapshot) once a call, and, each
-read again by every call after it since the last compaction, the agent's tool calls (the input of each `tool_use`),
-its thinking (Claude Code keeps every turn's in the context, `clear_thinking keep: all`; counted by the usage's
-`output_tokens_details.thinking_tokens`, else by the signature at 4.3 characters a token), and the prompts with their
-reminders and the agent's text, and Claude Code's own notes (every other attachment row: environment updates,
-reminders, the schemas of tools loaded on demand, listings; the skill listing is the harness's). Where the transcript
-carries the instruction payload (the `instructions` attachment: the root file with the person's global file and
-memory) it is the instruction part, exact, instead of the Save page's estimate of the root file alone. Measured on
-this repository's 30 longest recent sessions (2026-10-22, from the
-`api-request` records Claude Code 2.1.308 writes): tool results 27%, instruction files 14%, the agent's tool calls
-12%, user text 11%, thinking 11%, Claude Code's own system messages 5%, tool definitions 4%, the system prompt 2%. The
-parts are scaled down to the session's measured input where their sum overshoots it (they are estimates with different
-multipliers); what is left of the input is "Other input", and "Output" is what the model wrote, so the whole adds up to
-the session's tokens. **Three tables, one total (2026-10-24, the owner's ask).** First the four parts the Save page measures and controls
-(instruction files, custom tools, built-in tools, tool outputs; `report.js:PARTS`) with the rest of the input under them by kind
-(`OTHERS`, the breakdown's rows since 2026-10-25: the system prompt, the agent's tool calls, its thinking kept, the prompts and
-replies, the harness's notes, and what no reader attributed, **under one "Other input" row** (`otherInput`, their sum) that is
-folded by default on the page and opens on its chevron, the kinds indented in the print: not all of it needs attention at once,
-and a kind may move out to its own row later (the owner's ask, the same day); until then one "Other input" row, which on this
-machine was more than the four parts together and said nothing) and the output; then
-the models; last the tokens by type (`report.js:TOKEN_TYPES`: the input read fresh, the input written to the prompt cache,
-the input read back from it, and the output, as the model reported them for each call and `transcripts.js:Stats` sums
-them; in the cost view each at its own list rate, the formula of `prices.js:costOf`). Every table ends on the whole session (`sessionTotals`), so
-the three add up to the same figure (a usage record whose cache reads and writes exceed its input is clamped so the types
-still do). A Values / Share toggle (`--share`, the same day) shows every row but the whole-session total as its share of that
-total in the week (`report.js:formatShare`), the totals keeping their values, so the relative contributions and their trend
-can be read; the shading follows the shares. Until that day the parts table showed the four alone with their own total; the rest is computed all the same (`BREAKDOWN`, `thinker report --json`) and written up
-with its numbers, the unit calibration (the model reports 1.44 tokens for every four characters: at chars/4 the parts
-cover 74% of a long session's input, the residual is the unit, not a missing part) and the cuts to consider in
-`research/context-breakdown-2026-10-22.md` (the owner's decision, 2026-10-22). The second table is by model under its provider
-(`prices.js:providerOf`), each row the model's share of the average prompt (its tokens over every prompt of
-the week), so the rows add up to the total and a switch of model shows as one row falling while another rises;
-the provider's subtotal is above its models and folds them. **Colour says what needs attention, not where a row moved
-(2026-10-24, the owner's ask; until that evening each cell was shaded on a scale against its row, and before that against
-its table):** in the parts table, each of the four parts the Find Savings page controls is coloured flat by its tokens a
-prompt against `report.js:THRESHOLDS`, green at or under its `good` figure, red at or over its `bad` one, yellow between
-(instruction files 8k and 20k, custom tools 3k and 10k, built-in tools 15k and 25k, tool outputs 20k and 50k), and the two
-figures stand in narrow Good and Bad columns beside the part; the verdict is by tokens a prompt whatever the cell shows
-(cost, a week's total, a share), since a part's size a call is what a person controls. The rest of the input, the output,
-the totals, and the model and token-type tables take no colour: no setting changes them. The view carries the thresholds
-(`thresholds`) so the page reads the one constant; the command prints the same columns and marks the cells ✓ · ✗. The
-figures were set on this machine's 336 sessions of six weeks (the instruction files 38k a prompt here, 7k on a repository
-with a short AGENTS.md; custom tools 5–9k; built-in tools 25–30k with every tool loaded, 10–15k the core set; tool outputs
-23k a prompt at the long sessions' first quartile, 55k at the third), by judgment, not by an experiment; no percentage in
-the cell; a zero cell is blank.
-A Per session / Total toggle (`--total`) shows each week's sum over its sessions instead of the average. A session whose agent reports
-no usage (Cursor) is counted in no column and named as left out (its four parts, as estimated, are in the view as `estimated`,
-by its calls, not shown: without a measured input it cannot sit in tables that add up to one whole, and the owner wants no
-table of estimates on the page).
+**Tables** (each ends on `sessionTotals`; all three sum to same figure)
+1. Parts (`report.js:PARTS`): instruction files, custom tools, built-in tools, tool outputs; then **Other input** row (`otherInput`, folded, kinds via `OTHERS`); then output.
+2. Models (`prices.js:providerOf`): grouped by provider; provider subtotal folds models. Each model over every prompt of week.
+3. Token types (`report.js:TOKEN_TYPES`): fresh input, cache writes, cache reads, output (`transcripts.js:Stats`). Clamp cache reads/writes exceeding input.
 
-**The estimated parts are counted in the model's own tokens (2026-10-25; `report.js:CALIBRATION`, `calibrationOf`).** Every
-reader counts text at four characters a token, and the Save page shows that unit; the model counts 1.44 tokens for every four
-characters (measured on 79 fully recorded first requests of Anthropic models, research/context-breakdown-2026-10-22.md), so at
-chars/4 the parts covered 74% of a long session's input and the rest read as "Other input". The Report scales each session's
-estimated parts by its provider's factor before the overshoot check (Anthropic 1.44; OpenAI and Google unmeasured, one for one;
-`calibration: {Provider: f}` in `.thinker/config.json` overrides), the thinking kept excepted, since the usage reports it exactly.
-The four thresholds were scaled by the same factor and rounded (12k/30k, 4k/15k, 22k/36k, 72k), so every verdict stands. The
-caption names the factors.
+**Toggles**
+- `--share`: Values/Share (row ÷ week total, `formatShare`); whole-session total keeps value.
+- `--total`: Per session/Total.
+- `--cost`: list-price view.
 
-**The prompt-cache rewrites, in the view and not shown (2026-10-25).** A call whose context the cache mostly did not serve writes the whole
-conversation again: on this machine's six weeks such calls were 54% of all cache-write tokens and, at list, a third of the bill
-(cache writes 34.5%, reads 43%, output 22%; a 1h write costs 200% of an input token, a read 2.5–5%). `transcripts.js:cacheRewrites`
-names each one's cause from the per-call usage of every agent (Claude Code's `message.usage` with the 5m/1h split, Codex's
-`token_count` `last_token_usage`, Gemini's `tokens`): the first call of a session or subagent (unavoidable), after a compaction,
-after a pause over an hour (the 1h cache expired), after a pause of 5 to 60 minutes with the write at the 5-minute TTL (Claude
-Code writes the messages breakpoint at 5m), after a change of model, and mid-conversation with no pause (a context edit by the
-harness or the proxy, or an earlier message changed; on 2026-10-24 half of these were the proxy's own clears). Kept on the
-session's record (`tool-outputs.js`, state version 12, with the session's `turns` and, for Codex and Gemini, `carried` as for
-Claude Code: Codex is counted by its calls where the rollout has them, by the cumulative total else), in the view and `--json`
-as tokens, cost and calls by cause (`rewrites`, `rewriteTotals`), **shown on neither door**: the owner took the table off the
-page and the print the same day (not a metric a person can act on), as the table of the sessions whose agent reports no usage
-(`estimated`, Cursor's four parts by their calls), which stays in the view for the same reason. The compaction-window row and
-the cost replay read the record. The offline replay behind the figures is in research/cost-levers-2026-10-25.md.
+**Colour (parts table only)**
+- Four parts coloured by tokens per prompt vs `report.js:THRESHOLDS`: green ≤ good, red ≥ bad, yellow between.
+- Unscaled: instruction files 8k/20k, custom tools 3k/10k, built-in tools 15k/25k, tool outputs 20k/50k.
+- Good/Bad columns beside each part. Verdict uses tokens per prompt regardless of displayed cell.
+- No colour elsewhere. No percentage in cell; zero cell blank.
+- Command prints same columns, marks ✓ · ✗.
 
-**Cost, the one place dollars are shown.** The Cost toggle (`--cost`) prices each session's tokens at its model's
-list rates (`prices.js:listPrice`: fresh input, cache reads, cache writes and output each at its rate, a cache write by its TTL
-since 2026-10-25, `writeCost`: the one-hour writes Claude Code and pi make at twice the input, the five-minute ones at 1.25 times,
-as the usage reports the split (`transcripts.js:Stats` `cacheWrite1hTokens`, state version 13); until then every write was priced
-at the five-minute rate, a third under on this machine, where writes are a third of the bill; Anthropic's
-from `model-usage.js:relativeRate` at Opus 5.5's input price, OpenAI's and Google's as published on
-`PRICED_ON`; `prices` in `.thinker/config.json` adds or overrides one), so sessions on different models compare on
-one scale; a part's cost is its share of the session's input cost. The rule that nothing is given in dollars
-(2026-10-04) stands everywhere else; the owner asked for this view on 2026-10-22 to weigh model use by price, and
-the page says under the toggle that it is a list price, what a metered key would pay and not a subscription. A
-model without a price is left out of the cost average and named as unpriced, never counted at zero.
+**Sessions without usage**
+- Agents with no usage report (Cursor): excluded from all columns, named as left out. Estimated parts shown only as `estimated`.
 
-Under the tables: the four numbers the Cache tab showed. **The decisions are not on the Report (2026-10-24, the owner's
-call: a table of them under a Total toggle compared spans of different lengths).** They are on Recent activity and
-`thinker context --history`, every decision with three columns beside its date, Before, After and Saved (`report.js:actionEffect`,
-`itemCost`; the history read over the kept report by `report-snapshot.js:historyEffects`, no report made): what the changed
-thing alone cost a prompt, one call to the model, over the window's measured sessions before the decision and over those since
-it was in effect (`effectSpan`: until a revert; a merged pull request from its merge; a thing decided again later until the later
-decision). A section's tokens (recorded on the decision from the edit's preview, `context-suggest.js:sectionTokens`, `tokens:
-{before, after}`, 0 after a removal) count in every call of the sessions that read its file; a skill, MCP server, plugin or
-built-in tool its tokens a call in the calls of the sessions that loaded it (`harness.js` timeline `loaded`); a tool's outputs what
-its results cost the session (`tool-outputs.js:sessionUsage` `by`, a compressed tool's key carrying its level); each side the sum
-over its sessions divided by their prompts, so no row moves with another action or with what the sessions did. Saved is positive
-for a saving and negative for a cost, with its share of what a whole prompt cost before the decision (`whole.before`), not of the
-thing's own size, so a small cut of a large part counts for what it is; the cell is shaded by that share (`page.html` `shadeOf`,
-green or red, a tenth of a prompt the darkest), never coloured text; the caption line, the table's first header row, shows in the cell over Saved what a prompt costs here
-on average (`report.js:promptAverage` over the view's `sessionRows`, `promptAverageHere`, merged for All repositories), the size the
-savings are read against, and `--history` prints the same line first; no text under the table, the hovers explain (the owner's
-asks, 2026-10-24). A Pull request column links the section's PR. The view keeps one row a measured session for all this
-(`sessionRows`: input, prompts, the four parts, calls, files, sources, outputs; not sent to the page). **The rows are lent only
-from a report this code made** (`report-snapshot.js:keptRows`): the installed copy's hooks write the same `report.json` from the
-main checkout, and on 2026-10-24 its rows, without the items, had every row of a worktree's page read "measuring" for an hour;
-now `/api/activity` answers `measuring: true` over a report that is none of this code's or old, starts the same background
-refresh as the Report tab, and the page checks back every five seconds (`page.html:activityCheckBack`); `thinker context
---history` says to run `thinker report --refresh` instead
-(`report.js:cacheMetrics`, from `usage.js:summarize` over the same window), with the saving in dollars first
-(the tokens saved on each model at that model's input list price: the holdout's figure by model where it is
-measured, else the servings acted on), then tokens saved, cache hits and the share acted on. All repositories is
-every repository's report merged (`mergeReports`: the sums and the session counts add). An output's compression among them carries what it measured since (`report.js:outputComparison`, 2026-10-24, the owner's ask): the tool's row under the compression against its row from before (`tool-outputs.js:aggregateOutputs`, one row a setting), the saving a session first and green, or the cost red, with the two periods side by side in the detail and the same two lines under the action in `thinker report`; a call's tokens is what compression acts on, a session's moves with how the sessions used the tool as well.
+**Calibration (`report.js:CALIBRATION`, `calibrationOf`)**
+- Estimates count chars/4; scaled before overshoot check: Anthropic 1.44, OpenAI and Google 1.
+- Override: `calibration: {Provider: f}` in `.thinker/config.json`. Thinking not scaled. Thresholds scaled and rounded by same factor. Caption names factors.
 
-**The page does not work the figures out on a visit (2026-10-24).** Until then every visit to the tab ran `reportView`
-for every repository, and the Report over all repositories took three to four seconds here, again a minute later:
-`usage.js:summarize` alone was two seconds on this repository, half of it the store's safety check run on every note
-read (`store.js:assertSafeNotesPath`, five lstats and two realpaths a read; now checked again only when `.thinker` or
-`.thinker/local` changed, by their mtimes) and a sixth of a second parsing the 14 MB machine log, once per
-repository (now once a process, by the file's size and mtime, `usage.js:parse`); a session's model read from its
-transcript for the summary is kept on disk (`transcripts.js:sessionModel`, `disk-cache.js`). The report itself is
-kept in the repository like the Context report (`report-snapshot.js`, `.thinker/state/report.json`, every window
-asked for under `views`; one file per repository, which every linked worktree reads and refreshes, as the Context
-report's `context-view-<days>.json` is since the same day: worktrees are not a dimension, the sessions are gathered
-over every checkout, and a per-worktree file was the same figures worked out again): `thinker
-report` and `thinker report --refresh` write it, the page reads it and starts `thinker report --refresh --all` in the
-background (every repository in one process) when a kept report is older than `REFRESH_MS` (ten minutes) or was made
-by other code, and says "measured n min ago, updating…" and checks back, as the Save page does. The decisions under
-the tables are read live (`report.js:reportActions`), so one taken on Find Savings a moment ago shows at once; the
-cache's numbers follow the refresh. The Save page's report follows the same rule now: a kept report the code or the
-instruction files have outgrown is shown at once and made again behind it (`context-snapshot.js:lastSnapshot`); the
-transcripts are read on a visit only when there is no kept report at all, or an action dropped it. The background
-refreshes run one at a time (`ui/server.js:serialSpawner`): All repositories started a dozen node processes at once.
-The page picks a repository's checkout by a count of its note files (`store.js:count`), not by reading them.
-A session's transcript is read once for the instruction sections as well (`instruction-value.js:sessionRecord`): what
-the sections need of it is kept on this machine (`disk-cache.js`, `session-activity`: per tool call the files it named,
-its command, the files it edited and which of the code names the sections mention its output held,
-`instruction-sections.js:codeHits`, never the output), and a change to the instruction files is matched against
-that; the transcript is read again only when it grew, or the sections name code they did not name before
-(`coversCode`). Until then every edit of `AGENTS.md`, including the Find Savings page's own Compress and Remove, made
-the next visit re-read every transcript of the window: 340 sessions here, 70 s with the machine under load, and the
-page waited on it. Measured on this repository with the records dropped: 846 ms from the kept activity, 55 ms with the
-records; the kept activity is 18 MB for 348 sessions.
+**Cache rewrites**
+- `transcripts.js:cacheRewrites` names each call's cause from per-call usage.
+- Causes: first call of session/subagent; after compaction; after >1h pause; after 5–60 min pause at 5m TTL; after model change; mid-conversation, no pause.
+- Stored `tool-outputs.js` (v12); in view and `--json` as `rewrites`, `rewriteTotals`. Not shown on pages or print.
 
-**The page is rebuilt in place, never through the spinner, once it is on screen (2026-10-25, the owner's ask: the page
-flashed on every action).** Every refresh of a page already showing the repository and window asked for (an Apply, a Revert or
-Retry, a job finishing under the 5-second poll, a background report landing, a switch back to the tab) keeps the table on screen
-and swaps the new one in when the answer is in (`page.html:swapBody`): the scroll position, the rows opened with See more and the
-action picked in a row's dropdown hold (each keyed by the row's key, `data-dk`, since the rows may have moved), and the body keeps
-its height until the new content has laid out. The Save header says `updating…` meanwhile, on a line of its own with a fixed
-height (`#c-asof`), since the text wrapping the lede moved the table a line under the reader. After an Apply the rows show the
-change at once, from the setting the server wrote (`patchContext`: a skill or tool off, an output compressed) and the decisions
-read again (a section's job under way), before the report is read again behind it, which takes a second or more since the action
-made the kept copy stale. A load overtaken by a later one (the repository or window changed meanwhile) renders nothing; an error
-on an in-place refresh is a toast, the table staying. The spinner is for the first read of a tab and a change of repository or
-window, where what is shown is not what was asked for. Until that day `loadContext`, `loadActivity` and `loadReport` wiped the body
-to "Reading…" on every call, and `pollActivity` called them whenever a job's state moved.
+**Cost (`--cost`, only place dollars appear)**
+- Per session, list rates (`prices.js:listPrice`): fresh input, cache reads, cache writes, output.
+- Cache writes by TTL (`prices.js:writeCost`): 1h = 2× input, 5m = 1.25×. Split from `Stats` `cacheWrite1hTokens` (v13).
+- Anthropic: `model-usage.js:relativeRate` at Opus 5.5 input price. OpenAI/Google: `PRICED_ON`.
+- `prices` in `.thinker/config.json` adds/overrides.
+- Part cost = its share of session input cost.
+- Labelled list price (metered key), not subscription.
+- Unpriced model: left out of average, named, never zero.
 
-**A section change is a pull request (2026-10-24, the owner's ask).** Writing the compressed or removed section to the
-working tree locked nothing in and threw the page to a view above the table. Now the diff opens in a modal over the
-table (`page.html:previewSections`, `openEditModal`), and its one button makes the previewed edit a commit on a branch of
-its own, built from the default branch with a temporary index so the checkout is untouched, pushed, and opened as a
-pull request with `gh` (`instruction-pr.js:openEditPr`; `prAvailable` says when it cannot be: no GitHub origin, no
-`gh`, not logged in, and then the page offers the working-tree write as before, with the reason). The preview keeps each
-section's old and new text (`instruction-edit.js:previewEdit`, `edits`), so the change is applied to the base branch's
-file where that differs from the working tree (`textOnBase`), refused where the section is not found there. **Since 2026-10-25 the preview itself is made from the base
-branch's text** (`instruction-pr.js:baseTexts`, passed to `previewEdit` as `texts` and `base`, by `runSectionJob` and
-`thinker instructions --pr`): the model is shown what is on main, the pull request's parent is the commit the preview was
-read from, and the checkout's branch, uncommitted edits and distance behind the origin play no part. Before, the preview came
-from the working tree and the first pull request's own blank-line collapse made the next change fail with "differs on the base
-branch" until the person pulled; `textOnBase` now ignores blank-line differences as well, for a kept preview. History
-records the decision as `pull request` with `pr` {number, url, branch, state} (`context-suggest.js:applyReviewed`),
-follows the state on GitHub a minute apart at most (`refreshPrStates`, on every read of `/api/activity` and `thinker
-context --history`): **PR pending** while open (the section's row shows the same pill, linked, and cannot be picked
-again), **Merged**, **Rejected** once closed without merging, and a rejected change is suggested again
-(`currentChanges` leaves it out of the decided set) since nothing was followed through on. A merged change this checkout
-has not pulled is `unpulled` (`changeHistory`, 2026-10-25: two sections removed by a merged pull request were offered again on
-the page of a checkout behind `main`, which still had them in its AGENTS.md): the merge commit GitHub names (`prState`
-`commit`, kept as `pr.mergeCommit`; an entry from before it was kept is asked for it once more) is not an ancestor of `HEAD`,
-or, without a commit, a removed section is still in the file; the page shows no row for the section (the owner's call: a
-decided change is not a suggestion), and Recent activity opens with a yellow banner saying to pull the branch (`pullFrom`:
-the pull request's base, else `instruction-pr.js:defaultBranch`, main, master or whatever origin names) and tints the
-decisions waiting on it; `thinker context --history` prints the same line. Until the checkout has the merge (kept as
-`pr.pulledAt`, asked no more). **Close PR** is the entry's
-revert (`revertDecision`, `instruction-pr.js:closePr`: closed with a comment, the branch deleted). `thinker instructions
---compress <id> --pr` is the command.
+**Decisions (not on Report)**
+- Shown on Recent activity and `thinker context --history`. Columns Before, After, Saved (`report.js:actionEffect`, `itemCost`; `report-snapshot.js:historyEffects`).
+- Window (`effectSpan`): until revert; merged PR from merge; until later decision on same thing.
+- Costs per prompt, each side = sum over sessions ÷ their prompts:
+  - Section: `context-suggest.js:sectionTokens` (0 after removal), sessions reading file.
+  - Skill, MCP, plugin, built-in tool: per call in sessions loading it (`harness.js` `loaded`).
+  - Tool output: `tool-outputs.js:sessionUsage` `by`; compressed key carries level.
+- Saved: positive = saving, negative = cost. Share of `whole.before`. Cell shading green/red (`page.html` `shadeOf`); never coloured text.
+- Caption row: prompt average (`report.js:promptAverage`, `promptAverageHere`; merged for All). `--history` prints same line first.
+- No text under table; hovers explain. PR column links PR.
+- `sessionRows` per measured session; not sent to page.
+- Rows lent only from report this code made (`report-snapshot.js:keptRows`). Otherwise `/api/activity` returns `measuring: true`, starts background refresh; page checks every 5 s (`page.html:activityCheckBack`). `thinker context --history` says run `thinker report --refresh`.
+- Cache metrics (`report.js:cacheMetrics`, `usage.js:summarize`): dollars saved first, then tokens saved, cache hits, share acted on.
+- All repos = `mergeReports`.
+- Output compression: `report.js:outputComparison`; tool row vs prior row (`tool-outputs.js:aggregateOutputs`). Saving green first, cost red. Same two lines under action in `thinker report`.
 
-**The change runs in the background, and Recent activity is its own page (2026-10-24, the owner's ask).** A model call of
-some seconds was nothing to hold the person's attention with: until this day Apply on a section opened a modal with a
-spinner, then the diff, then the button for the pull request. Now Apply records the decision at once, a row per section
-sharing one `group` with `job: {state: running, pid, startedAt}` (`context-suggest.js:startSectionJob`, `/api/changes/start`),
-starts the command the person would have typed detached, `thinker instructions --compress|--remove <ids> --pr --job <group>`
-(`--apply` where no pull request can be opened here, `instruction-pr.js:prAvailable`), and the page says once in a toast
-that it started and where to follow it. The command runs `runSectionJob`: the preview, then the pull request (recorded on
-every entry of the group, pending until merged) or the working tree (the files as they were kept under the group for
-Revert), or `job.state: failed` with the reason; a running job whose process is gone, or that recorded none within two
-minutes, is marked failed when the history is next read (`changeHistory`, `jobDied`). A failed job decided nothing: the
-section is suggested again, and **Retry** (`retryJob`, `/api/changes/retry`, `thinker context --retry <n>`) runs the same
-command again over every section of the change. The diff is read in the pull request, or with `git diff`. Save's rows read
-the same decisions: a section under way says *Compressing…* in its pill and cannot be picked, a failed one says so and can.
-The History view of Save went, and the decisions are the page's third tab, **Recent activity**, at the right of the nav
-(`#tab-activity`, `/api/activity`: the history alone, no report, for one repository or all; `thinker context --history`
-prints the same states): a card at the top names what needs the person, then every decision with Retry, Close PR or Revert
-in its row, and the tab's badge counts what is not complete over every repository (`changeHistory` `attention`: a job
-running or failed, a pull request open), asked for every 30 s and every 5 s while a job runs, so a Save row's pill and the
-activity table move on their own when a job finishes (`page.html:pollActivity`). The Report's decisions table under its
-figures is the same function (`historyFigure`). Each row of Recent activity says what the part is and does (2026-10-24, the owner's ask; `part-describe.js`): the kind line tells a built-in tool from a custom one (`Built-in tool`, `Custom tool · MCP server`, `Custom tool · skill`, an output by its tool: `Shell command output`), and under it one line of what the thing does (`Grep output`: text search over files), from a table for Claude Code's own tools and the common shell commands and else from the first sentence of the part's own text (a tool's definition, a skill's `description:`, a section's first line). Both are kept on the decision (`what`, `about`) and worked out from the kind and key for an entry written before (`changeHistory`); `thinker context --history` prints them after the title. The row has no See more and no detail row any more: the pill's hover tells what came of the decision and the Decided cell's the time, the suggested action and what it was worth.
+**Performance and kept report**
+- Page never recomputes on visit.
+- Kept report: `.thinker/state/report.json`, all windows under `views`. One per repo, shared by worktrees.
+- `thinker report` and `--refresh` write it. Page starts `thinker report --refresh --all` in background when older than `REFRESH_MS` (10 min) or made by other code; shows "measured n min ago, updating…".
+- Decisions under tables read live (`report.js:reportActions`).
+- Save page: outgrown kept report shown at once, remade behind (`context-snapshot.js:lastSnapshot`). Transcripts read on visit only if no kept report or action dropped it.
+- Background refreshes run one at a time (`ui/server.js:serialSpawner`).
+- Note counting: `store.js:count`, no file reads. `store.js:assertSafeNotesPath` rechecked only when `.thinker` or `.thinker/local` mtime changes.
+- `usage.js:parse` caches machine log per process (size, mtime). `transcripts.js:sessionModel` cached in `disk-cache.js`.
+- Instruction sections read transcript once (`instruction-value.js:sessionRecord`), kept in `disk-cache.js` as `session-activity` (no output).
+- Re-read only if transcript grew or sections name new code (`coversCode`).
 
-**A section changed inside the window is a new section from then (2026-10-25, the owner's ask).** A compressed section
-kept its id, so the sessions that read the old text counted in its use, and its new size was charged to every session of
-the window. Now each section carries when its lines last changed (`instruction-value.js:sectionAges`, from `git blame -w`
-of the working tree, an uncommitted line as old as the file's last write, kept on this machine by the file's text and HEAD
-since the blame of this repository's AGENTS.md takes two seconds; `changedAtOf`: the newest of the section's lines, blank
-lines apart), and a section whose change falls inside the window (`recent`: some session read the file before it) is
-measured over the sessions since the change alone, `applied` and the judge's verdicts among them; under
-`RARE.minSessions` of those it is unknown (no pill, not suggested) rather than a verdict on one or two sessions. What it
-costs a session is its present size in the share of sessions that read its file, as for any section; over the window it
-cost that in the sessions since the change (`sessionsSince`, the row's Over N days and the savings' `window`). The row says
-`changed <date>` and how many sessions it was measured on; `thinker context` prints the same. A change a person made by
-hand counts the same way, so a line fixed in a section resets its measurement to the sessions since. The same day the
-Find Savings pill stopped saying *compression failed*: a failed change leaves the row its waste pill and its actions, and
-Recent activity carries the failure and the Retry.
+**Page updates (`page.html:swapBody`)**
+- Refreshes keep shown table on screen, swap in new one. Keep scroll, See more rows (`data-dk`), dropdown picks. Body keeps height.
+- Save header shows `updating…` in `#c-asof` (fixed-height line).
+- After Apply: show change at once (`patchContext`), re-read decisions, then report.
+- Overtaken loads render nothing. In-place refresh error = toast, table stays.
+- Spinner only on first read of tab and on repo/window change.
+- `loadContext`, `loadActivity`, `loadReport` must not wipe body to "Reading…".
+
+**Section change is a pull request**
+- Diff opens in modal (`page.html:previewSections`, `openEditModal`). Button:
+  - commits to new branch from default branch via temporary index (checkout untouched);
+  - pushes;
+  - opens PR with `gh` (`instruction-pr.js:openEditPr`).
+- `prAvailable` decides (no GitHub origin, no `gh`, not logged in). If not, page offers working-tree write with reason.
+- Preview from base branch text (`instruction-pr.js:baseTexts`; `runSectionJob`, `thinker instructions --pr`). Parent = commit preview read from. Checkout branch, uncommitted edits, distance behind origin do not matter.
+- Preview keeps old/new (`instruction-edit.js:previewEdit`, `edits`). Applied to base file where differs (`textOnBase`); refused if section not found. `textOnBase` ignores blank-line differences.
+- History records `pull request` with `pr` {number, url, branch, state} (`context-suggest.js:applyReviewed`).
+- PR state refreshed on each `/api/activity` read and `thinker context --history` (`refreshPrStates`, ≤1/min).
+- States:
+  - **PR pending**: open; row pill linked, not pickable.
+  - **Merged**.
+  - **Rejected**: closed unmerged; re-suggested (`currentChanges`).
+  - **Unpulled** (`changeHistory`): merged, not in checkout. Test: merge commit (`pr.mergeCommit`) not ancestor of `HEAD`; without commit, removed section still in file. No row on page. Recent activity shows yellow pull banner (`pullFrom`: PR base, else `instruction-pr.js:defaultBranch`), tints waiting decisions. `thinker context --history` prints same. Cleared when `pr.pulledAt` kept.
+- **Close PR** = revert (`revertDecision`, `instruction-pr.js:closePr`): comment, close, delete branch.
+- Command: `thinker instructions --compress <id> --pr`.
+
+**Background job**
+- Apply records decision at once: shared `group`, `job: {state: running, pid, startedAt}` (`context-suggest.js:startSectionJob`, `/api/changes/start`).
+- Detached: `thinker instructions --compress|--remove <ids> --pr --job <group>`. Uses `--apply` where no PR (`instruction-pr.js:prAvailable`).
+- Page toast says where to follow.
+- `runSectionJob`: preview, then PR (recorded on every group entry, pending until merged) or working tree (files kept under group for Revert). Failure: `job.state: failed` plus reason.
+- Running job with dead process, or no record after 2 min: failed on next history read (`changeHistory`, `jobDied`).
+- Failed job decided nothing: re-suggested.
+- **Retry** (`retryJob`, `/api/changes/retry`, `thinker context --retry <n>`) reruns over every section of change.
+- Diff: in PR, or `git diff`.
+- Save rows: under way shows *Compressing…*, not pickable; failed shows so, pickable.
+- Save's History view removed. Decisions on third tab **Recent activity** (`#tab-activity`, `/api/activity`: history only, one repo or all; `thinker context --history` same states).
+  - Top card: what needs the person.
+  - Rows: Retry, Close PR, or Revert.
+  - Tab badge counts incomplete items across repos (`changeHistory` `attention`: job running/failed, PR open).
+  - Polls every 30 s, every 5 s while job runs (`page.html:pollActivity`).
+- Report's decisions table uses `historyFigure`.
+- Row kind line: `Built-in tool`, `Custom tool · MCP server`, `Custom tool · skill`, or output by tool. Second line: what it does (`part-describe.js`).
+- Stored as `what`, `about` (`changeHistory` derives for older entries). `--history` prints after title.
+- No See more or detail row. Pill hover explains outcome; decided cell hover shows time, action, worth.
+
+**Changed sections are new sections**
+- Sections carry last change date (`instruction-value.js:sectionAges`, `git blame -w`; uncommitted = file write time; cached by text and HEAD; `changedAtOf` = newest line, blanks ignored).
+- Section changed in window (`recent`) measured only over sessions since change (`applied`, judge verdicts). Under `RARE.minSessions` → unknown: no pill, not suggested.
+- Cost: present size × share of sessions reading file; over window, only sessions since change (`sessionsSince`, Over N days, savings `window`).
+- Row says `changed <date>` and sessions measured. `thinker context` prints same.
+- Hand edits count: a line fixed resets measurement.
+- Failed change: row keeps waste pill and actions; Recent activity shows failure and Retry.
 
 ## Internal server
 
