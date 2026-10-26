@@ -214,6 +214,11 @@ test('All on Find Savings and Recent activity are `thinker context --approve|--d
   // Revert on a merged pull request opens one that reverts it (instruction-pr.js:revertPr), on the page and by --revert
   assert.match(page, /e\.revertPr \? \['off', 'Revert PR opened'\]/);
   assert.match(cs, /kind: 'revert-pr'/);
+  // reverted decisions are hidden by default (2026-10-26): the page's caption toggle shows them, as --reverted lists them
+  assert.match(page, /hs = SHOW_REVERTED \? all : all\.filter\(e => !e\.revertedAt\)/);
+  assert.match(page, /data-toggle-reverted/);
+  assert.match(read('commands/context.js'), /filter\(\(\[e\]\) => flags\.reverted \|\| !e\.revertedAt\)/);
+  assert.match(read('commands/context.js'), /--reverted lists/);
   assert.match(read('commands/context.js'), /if \(flags\.retry !== undefined\)/);
   assert.doesNotMatch(page, /\['history', 'History'\]/);
   // the page's rows read the same decisions, for the pill on a section under way, failed or pending on a pull request

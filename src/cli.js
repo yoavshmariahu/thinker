@@ -185,9 +185,9 @@ const HELP = `thinker — knowledge cache for coding agents
                                  to pick from and apply at once (--no-browser: the terminal without the question)
                                  the top changes with their suggested actions: --approve 1,3|all (3:remove picks another action),
                                  --dismiss 2, --history lists the decisions (a change under way, failed, or a pull request to merge
-                                 is said so), --revert <n> takes one back, --retry <n> runs a failed change again; the page's
-                                 Find Savings lists every part with its actions, and Recent activity the decisions with what needs
-                                 you. Once a week the next prompt passes the five on with a link to that page
+                                 is said so; reverted ones only with --reverted), --revert <n> takes one back, --retry <n> runs a
+                                 failed change again; the page's Find Savings lists every part with its actions, and Recent
+                                 activity the decisions with what needs you. Once a week the next prompt passes the five on with a link to that page
                                  (maintain.contextSuggest in .thinker/config.json; false turns it off)
   report [--weeks n] [--cost] [--total] [--share] [--json] [--refresh [--all]]   the Report page in the terminal: the average tokens a session cost here, week by week over the
                                  last 6, by token type (fresh input, cache writes, cache reads, output), by part of the context
