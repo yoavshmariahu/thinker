@@ -279,7 +279,7 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('ui/server.js'), /mergeReports\(xs\.map/);
   // six weeks; the page's Share toggle is the command's --share (every row but the whole-session total as its share of it), on both doors
   assert.match(read('ui/page.html'), /<div class="seg" id="r-view"><button data-view="values" class="on">Values<\/button><button data-view="share">Share<\/button><\/div>/);
-  assert.match(read('commands/report.js'), /share: Boolean\(flags\.share\)/); assert.match(read('cli.js'), /report \[--weeks n\] \[--cost\] \[--total\] \[--share\]/);
+  assert.match(read('commands/report.js'), /share: Boolean\(flags\.share\)/); assert.match(read('cli.js'), /report \[--weeks n\] \[--tokens\] \[--total\] \[--share\]/);
   assert.match(read('report.js'), /share = false \} = \{\}\) \{/);
   assert.equal((read('ui/page.html').match(/\{ cls: 'rep-total', total: true(, key: 'total', thresholds: true)? \}/g) || []).length, 3, 'the three whole-session rows keep their values under Share');
   // the rest of the input by kind (report.js:OTHERS, the breakdown's rows), the prompt-cache rewrites by cause and the sessions
@@ -302,18 +302,21 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('report.js'), /per prompt \(one call to the model\)/);
   assert.match(read('report.js'), /export const REPORT_WEEKS = 6;/);
   assert.match(read('ui/page.html'), /\/api\/report\?repo=\$\{encodeURIComponent\(REPO\)\}&weeks=6/);
-  // a part's cell is green, yellow or red by its tokens a prompt against report.js:THRESHOLDS, which the view carries
-  // (`thresholds`) and the page reads from it; the command marks the same cells ✓ · ✗; the two thresholds sit beside the
-  // part in Good and Bad columns on both doors; the model and token-type tables and the other rows take no colour or mark
-  // (the owner's ask, 2026-10-24; a scale by row until then)
-  assert.match(read('report.js'), /thresholds: THRESHOLDS,/); assert.match(read('report.js'), /verdict\(key, cells\[w\]\.tokens \/ col\.prompts\)/);
+  // a row's cell is green, yellow or red (flat, the owner's ask of 2026-10-24) and its bounds sit beside it in Good and Bad
+  // columns on both doors; the model and token-type tables take no colour or mark
   assert.match(read('ui/page.html'), /x <= t\.good \? 'rep-good' : x >= t\.bad \? 'rep-bad' : 'rep-mid'/);
   assert.match(read('ui/page.html'), /\$\{head\('Part', true\)\}/); assert.match(read('ui/page.html'), /\$\{head\('Provider · model'\)\}/); assert.match(read('ui/page.html'), /\$\{head\('Token type'\)\}/);
   assert.match(read('ui/page.html'), /row\(esc\(p\.name\), p\.cells, \{ key: p\.key, thresholds: true \}\)/);
-  // under Cost (the command's --cost) every row of the parts table has bounds in dollars a priced prompt: report.js:COST_THRESHOLDS,
-  // carried in the view (`costThresholds`) to the page, which colours by the same cost a priced prompt the command marks (2026-10-26)
-  assert.match(read('report.js'), /thresholds: THRESHOLDS, costThresholds: COST_THRESHOLDS,/); assert.match(read('report.js'), /verdict\(key, cells\[w\]\.cost \/ col\.pricedPrompts, COST_THRESHOLDS\)/);
-  assert.match(read('ui/page.html'), /const thr = \(cost \? v\.costThresholds : v\.thresholds\) \|\| \{\}/); assert.match(read('ui/page.html'), /col\.pricedPrompts \? cells\[w\]\.cost \/ col\.pricedPrompts : 0/);
+  // under Cost every row of the parts table has bounds in dollars a priced prompt: report.js:COST_THRESHOLDS, carried in the
+  // view (`costThresholds`) to the page, which colours by the same cost a priced prompt the command marks (2026-10-26).
+  // Cost is the default on both doors (the page's Cost on, the command without --tokens) and Tokens has no bounds (2026-10-26)
+  assert.match(read('report.js'), /costThresholds: COST_THRESHOLDS,/); assert.doesNotMatch(read('report.js'), /thresholds: THRESHOLDS/); assert.match(read('report.js'), /verdict\(key, cells\[w\]\.cost \/ col\.pricedPrompts\)/);
+  assert.match(read('ui/page.html'), /const thr = cost \? v\.costThresholds \|\| \{\} : \{\}/);
+  assert.match(read('ui/page.html'), /<div class="seg" id="r-measure"><button data-m="cost" class="on">Cost<\/button><button data-m="tokens">Tokens<\/button><\/div>/); assert.match(read('ui/page.html'), /RMEASURE = 'cost'/);
+  assert.match(read('commands/report.js'), /cost: !flags\.tokens/); assert.match(read('report.js'), /renderReport\(v, \{ cost = true,/);
+  assert.match(read('ui/page.html'), /if \(!cost\) return '<td class="rep-thr"><\/td><td class="rep-thr"><\/td>'/, 'the bound columns stay, empty, under Tokens');
+  // the table does not move on a toggle: fixed layout, set column widths, the ", n priced" line's room kept (2026-10-26)
+  assert.match(read('ui/page.html'), /\.rep-table \{ table-layout: fixed;/); assert.match(read('ui/page.html'), /\$\{colgroup\(thresholds\)\}<thead>/); assert.match(read('ui/page.html'), /style="visibility:hidden"'\}>, \$\{c\.priced\} priced/); assert.match(read('report.js'), /thresholds && cost \? thr\(key\)/); assert.match(read('ui/page.html'), /col\.pricedPrompts \? cells\[w\]\.cost \/ col\.pricedPrompts : 0/);
   for (const k of ['otherInput', 'output']) { assert.match(read('ui/page.html'), new RegExp(`key: '${k}', thresholds: true`)); assert.match(read('report.js'), new RegExp(`key: '${k}', thresholds: true`)); }
   assert.match(read('ui/page.html'), /cls: 'rep-subrow', key: p\.key, thresholds: true/);
   assert.doesNotMatch(read('ui/page.html'), /SHADE_MIN|rep-up|rep-down/); assert.doesNotMatch(read('report.js'), /TREND_MIN|TREND_BIG|▲/);
@@ -347,9 +350,8 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('ui/page.html'), /<tr class="ctx-caprow"><th colspan="4" class="ctx-cap">\$\{capText\}<\/th><th class="num ctx-avgcell">\$\{avgStat\}<\/th>/, 'the caption is the first header row, the average prompt in the cell over Saved');
   assert.match(read('ui/page.html'), /<th class="num"[^>]*>Before<\/th><th class="num"[^>]*>After<\/th><th class="num"[^>]*>Saved per prompt<\/th><th>Pull request<\/th>/);
   assert.doesNotMatch(read('ui/page.html'), /A section's change runs in the background and <b>o/);
-  // the cost view is the command's --cost: list prices from prices.js, an unpriced model marked on both (the command in its
+  // the cost view, the default on both doors: list prices from prices.js, an unpriced model marked on both (the command in its
   // row's name, the page in the row's kind: the Report's tables carry no prose under them since 2026-10-24, the owner's ask)
-  assert.match(read('commands/report.js'), /cost: Boolean\(flags\.cost\)/);
   assert.match(read('report.js'), /listPrice\(r\.model, \{ config \}\)/);
   assert.match(read('report.js'), /\(unpriced\)/); assert.match(read('ui/page.html'), /sub: m\.priced \? '' : 'no list price'/);
   assert.doesNotMatch(read('ui/page.html'), /class="lede">What a session costs here/); assert.doesNotMatch(read('ui/page.html'), /A model's row is its share/);
