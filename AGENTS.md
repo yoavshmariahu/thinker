@@ -729,13 +729,14 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
 **Toggles**
 - `--share`: Values/Share (row ÷ week total, `formatShare`); whole-session total keeps value.
 - `--total`: Per session/Total.
-- `--cost`: list-price view.
+- Cost (list prices) is the default view on both doors (2026-10-26). `--tokens` / the page's Tokens: tokens instead, no bounds. `--cost` still accepted, no-op.
 
-**Colour (parts table only)**
-- Four parts coloured by tokens per prompt vs `report.js:THRESHOLDS`: green ≤ good, red ≥ bad, yellow between.
-- Unscaled: instruction files 8k/20k, custom tools 3k/10k, built-in tools 15k/25k, tool outputs 20k/50k.
-- Good/Bad columns beside each part. Verdict uses tokens per prompt regardless of displayed cell.
-- No colour elsewhere. No percentage in cell; zero cell blank.
+**Colour (parts table, cost view only)**
+- Every row of the parts table (four parts, Other input and each kind, output, total) coloured by dollars per priced prompt vs `report.js:COST_THRESHOLDS`: green ≤ good, red ≥ bad, yellow between.
+- Four parts: the old token bounds (12k/30k, 4k/15k, 22k/36k, 30k/72k) at ~$0.8/M input. Other rows set on this machine's two weeks to 2026-10-26; total = sum of the rows. First cut, one machine.
+- Good/Bad columns beside each row. Verdict uses cost per priced prompt regardless of displayed cell (Total, Share).
+- Token view: no bounds, columns or colour (owner's call 2026-10-26: models count tokens too differently; `THRESHOLDS` removed).
+- No colour in the model and token-type tables. No percentage in cell; zero cell blank.
 - Command prints same columns, marks ✓ · ✗.
 
 **Sessions without usage**
@@ -743,14 +744,14 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
 
 **Calibration (`report.js:CALIBRATION`, `calibrationOf`)**
 - Estimates count chars/4; scaled before overshoot check: Anthropic 1.44, OpenAI and Google 1.
-- Override: `calibration: {Provider: f}` in `.thinker/config.json`. Thinking not scaled. Thresholds scaled and rounded by same factor. Caption names factors.
+- Override: `calibration: {Provider: f}` in `.thinker/config.json`. Thinking not scaled. Caption names factors.
 
 **Cache rewrites**
 - `transcripts.js:cacheRewrites` names each call's cause from per-call usage.
 - Causes: first call of session/subagent; after compaction; after >1h pause; after 5–60 min pause at 5m TTL; after model change; mid-conversation, no pause.
 - Stored `tool-outputs.js` (v12); in view and `--json` as `rewrites`, `rewriteTotals`. Not shown on pages or print.
 
-**Cost (`--cost`, only place dollars appear)**
+**Cost (default view, only place dollars appear)**
 - Per session, list rates (`prices.js:listPrice`): fresh input, cache reads, cache writes, output.
 - Cache writes by TTL (`prices.js:writeCost`): 1h = 2× input, 5m = 1.25×. Split from `Stats` `cacheWrite1hTokens` (v13).
 - Anthropic: `model-usage.js:relativeRate` at Opus 5.5 input price. OpenAI/Google: `PRICED_ON`.
