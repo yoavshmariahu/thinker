@@ -32,9 +32,17 @@ test('topChanges: the flagged parts by what they save, five at most, nothing off
   assert.deepEqual(c.map(x => x.view), ['instructions', 'outputs', 'builtin', 'custom', 'instructions']);
   assert.equal(topChanges(view(), { max: 2 }).length, 2);
   assert.equal(topChanges(view({ instructions: { sections: [section('Tiny', 10)] }, skills: [], tools: [], outputs: { tools: [] } })).length, 0, 'a saving under minSaving is not worth a line');
-  // what a change is worth over the window is its saving a prompt times the model calls that carried it, not its sessions
-  const withPrompts = topChanges(view({ instructions: { sessions: 40, sections: [{ ...section('Releases', 300), prompts: 4000 }] }, skills: [], tools: [], outputs: { tools: [] } }));
-  assert.deepEqual([withPrompts[0].saving, withPrompts[0].total], [300, 1_200_000]);
+  // What a change is worth over the window is the row's own figure (instruction-value.js: `wastedWindow`), never
+  // recomputed from `saving`: that is the window cost over *every* prompt of the window, so multiplying it by the
+  // calls that carried this part alone divided by the window's prompts twice, and a part carried by half of them
+  // read half of what its own row showed (2026-10-26).
+  const one = (over) => topChanges(view({ instructions: { sessions: 40, sections: [{ ...section('Releases', 300), prompts: 4000, ...over }] }, skills: [], tools: [], outputs: { tools: [] } }))[0];
+  assert.deepEqual([one({ wastedWindow: 9_000_000 }).saving, one({ wastedWindow: 9_000_000 }).total], [300, 9_000_000]);
+  // a report kept by code that counted no window figure still ranks: the old reckoning is the fallback
+  assert.deepEqual([one({}).saving, one({}).total], [300, 1_200_000]);
+  // an output's window figure is its own (tool-outputs.js: `saveModerateWindow`)
+  const out = topChanges(view({ instructions: { sections: [] }, skills: [], tools: [], outputs: { sessions: 40, tools: [{ name: 'Bash:pytest', compressible: true, compression: null, saveModerate: 25_000, saveModerateWindow: 7_000_000, perPrompt: 100_000, perCall: 9000, prompts: 40 }] } }))[0];
+  assert.deepEqual([out.saving, out.total], [25_000, 7_000_000]);
 });
 
 test('scheduleContextSuggestion: kept for the next prompt, at most weekly, after enough sessions; off by config', async () => {
@@ -48,7 +56,9 @@ test('scheduleContextSuggestion: kept for the next prompt, at most weekly, after
   const said = contextSuggestOffer(store, { now: now + 86400_000, env: {}, ui: () => 'http://127.0.0.1:4848/', repoId: 'github.com/o/r' });
   assert.match(said, /^<thinker-context-suggestions>/);
   assert.match(said, /http:\/\/127\.0\.0\.1:4848\/#tab=save&view=all&repo=github\.com%2Fo%2Fr/);
-  assert.match(said, /1\. AGENTS\.md · Releases: ~1\.2M input tokens over the last 30 days; .*Suggested: Compress \(or: remove\)/);
+  // the one cost rule: what it adds to a prompt first, the window total beside it (2026-10-26)
+  assert.match(said, /1\. AGENTS\.md · Releases: ~30k input tokens in every prompt \(~1\.2M over the last 30 days\); .*Suggested: Compress \(or: remove\)/);
+  assert.match(said, /together ~96k input tokens in every prompt here \(~3\.8M over those 30 days\)/);
   assert.match(said, /Do not make any of these changes yourself/);
   assert.equal(contextSuggestOffer(store, { env: {}, ui: () => 'x' }), '', 'said once');
   assert.equal(await scheduleContextSuggestion(store, { now: now + 3 * 86400_000, view: view() }), null, 'weekly');
@@ -113,6 +123,22 @@ test('decisions: approved and dismissed changes are kept as the history and not 
   assert.match(h[1].result, /^Compressed: ~2k → ~700 tokens/);
   assert.deepEqual(currentChanges(store, v, { now }).map(c => c.key).filter(k => [top[0], top[2], top[4]].some(t => t.key === k)), [], 'decided ones are left out');
   assert.equal(currentChanges(store, v, { now: now + 31 * 86400_000 }).length, 5, 'and come back after a month if still flagged');
+});
+
+test('the door a decision came through is recorded on the log line and the entry', async () => {
+  const { approveChanges, dismissChanges, changeHistory, VIA } = await import('../src/context-suggest.js');
+  const store = repo(), now = Date.now();
+  const top = topChanges(view());
+  const edit = { previewEdit: async () => ({ key: 'Releases', file: 'AGENTS.md', tokensBefore: 2000, tokensAfter: 700 }), applyEdit: () => ({ said: 'ok' }) };
+  await approveChanges(store, [top[0]], { edit, via: VIA.page });     // Find Savings
+  await approveChanges(store, [top[1]], { edit, via: VIA.session });  // the weekly suggestion, answered in the session
+  await approveChanges(store, [top[4]], { edit });                    // someone typing the command
+  dismissChanges(store, [top[2]], { now, via: 'nonsense' });          // an unknown door is the command
+  const log = fs.readFileSync(path.join(store.dir, 'log.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l));
+  assert.deepEqual(log.filter(e => e.op === 'context-approve').map(e => e.via), ['page', 'session', 'command']);
+  assert.deepEqual(log.filter(e => e.op === 'context-dismiss').map(e => e.via), ['command']);
+  // the entry keeps it too, so a decision's door survives the log being rotated or read elsewhere
+  assert.deepEqual(changeHistory(store).map(e => e.via), ['command', 'command', 'session', 'page']);
 });
 
 test('the action picked instead of the suggestion: options, totals over the window, and n:act choices', async () => {

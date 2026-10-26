@@ -186,7 +186,13 @@ test('All on Find Savings and Recent activity are `thinker context --approve|--d
   // request can be opened: instruction-pr.js:prAvailable), which finishes the recorded decision (runSectionJob); no modal, no
   // spinner to wait at (the owner's ask, 2026-10-24): the page says once that it started and Recent activity follows it
   const cs = read('context-suggest.js');
-  assert.match(read('ui/server.js'), /startSectionJob\(st, xs, action, \{ pr, spawnFn, cliPath \}\)/);
+  assert.match(read('ui/server.js'), /startSectionJob\(st, xs, action, \{ pr, spawnFn, cliPath, via: VIA\.page \}\)/);
+  // both doors record which one a decision came through (context-suggest.js:VIA), so the funnel can tell a change
+  // accepted on the page from one accepted in the session after the weekly suggestion
+  assert.match(read('ui/server.js'), /approveChanges\(st, picked, \{ via: VIA\.page \}\)/);
+  assert.match(read('ui/server.js'), /dismissChanges\(st, picked, \{ via: VIA\.page \}\)/);
+  assert.match(read('commands/context.js'), /fn\(store, picked, \{ via \}\)/);
+  assert.match(read('context-suggest.js'), /thinker context --days 7 --via session --approve/);
   assert.match(read('ui/server.js'), /const said = \[\], pr = prAvailable\(st\.repo\)\.ok;/);
   assert.match(cs, /\[cliPath, 'instructions', `--\$\{action\}`, ids\.join\(','\), pr \? '--pr' : '--apply', '--job', group\]/);
   assert.match(read('commands/instructions.js'), /runSectionJob\(store, \{ group: flags\.job, ids, action, pr: Boolean\(flags\.pr\) \}\)/);
