@@ -145,142 +145,50 @@ Benchmarks are not in this repo. Artemis (`~/src/artemis`) holds task sets, PR s
 
 ## What `setup` does
 
-The installer (`install.sh`) installs the tool wherever it is run and wires
-it into the agents on this machine (`thinker connect`, below). Every git
-repository on the machine has a cache from then on:
-the first hook, MCP server or cache command in a checkout starts one, empty
-(`store.js:init`, kept out of `git status` through `.git/info/exclude`), and it
-grows from the sessions there. Nothing is built, and nothing is opt-in. **Background
-learning was cut to the sessions on 2026-10-21 (the owner's decision: the cache's
-background spend was not paying for itself, and few people were running it;
-`d84af6795`):** the warm-up that read a repository's merged pull requests into the cache
-went entirely (the command, the page's tab and its build queue, the offer the hooks and
-the MCP server made, the installer's and setup's `--build`, which are accepted and
-ignored), and maintenance mines no pull requests or commits, walks no area history,
-reads no design documents or skill files and merges no duplicates unless the
-repository's `maintain` config turns each on (`maintain.js:DEFAULTS`). What is left on
-by default: the once-per-session distillation, and a maintenance run that re-verifies
-at most 3 stale notes and phrases the new ones. `mine-prs` and `understand` stay,
-unlisted in the help, for Artemis's benchmark caches alone. What the installer does
-show at once is where the agents' context goes, read from their transcripts
-(`context-machine.js`; the Context view below): on a terminal it asks whether to see what to cut first in the browser or there, where the suggestions are a multi-select of the actions the page's rows would take, applied through the same `approveChanges` (`setup/context-ask.js`, `thinker context --machine --ask`, 2026-10-22); in the browser the page opens on All with the same suggestions checked and their actions picked, once, for the person to review and Apply (`context-machine.js:suggestedPicks`, sent with `/api/context` as `suggested`; `page.html:preselectRows`; 2026-10-24). The paragraphs on the build below are
-history: how it ran until then, kept because the mining code is still what Artemis
-builds caches with. Outside a git repository there is nowhere to keep a cache: the CLI's cache
-commands stop with that message (`cli.js:CACHE_COMMANDS`), the MCP server
-offers no tools and says so in its instructions, and the hooks are quiet. A
-prompt an empty cache has nothing for is logged as a request all the same
-(`commands/hooks.js`), so `thinker usage` and the telemetry count the machine
-as active; before 2026-10-12 it was not, and a machine in daily use read as
-idle until its cache had learned something.
+- `install.sh` installs the tool and wires agents on this machine (`thinker connect`).
+- Each git repo gets a cache on first hook, MCP server, or cache command (`store.js:init`), excluded via `.git/info/exclude`. Nothing is built or opt-in.
+- `setup --build` and installer `--build` are accepted and ignored.
+- Maintenance mines no PRs or commits, walks no area history, reads no design docs or skill files. It merges no duplicates unless enabled under `maintain` (`maintain.js:DEFAULTS`).
+- On by default: once-per-session distillation; maintenance re-verifies ≤3 stale notes and phrases new ones.
+- `mine-prs` and `understand` are unlisted, for benchmark caches only.
+- Installer context view (`context-machine.js`): on a terminal, asks browser or terminal review (`setup/context-ask.js`, `thinker context --machine --ask`).
+- Outside a git repo: cache commands stop (`cli.js:CACHE_COMMANDS`), MCP offers no tools, hooks are quiet.
 
-The wiring lives in the agents' own settings, once per machine, since
-2026-10-04 (`clients.js:wiringFiles`, scope `user`): `~/.claude/settings.json`
-and `~/.claude.json`, `~/.codex/hooks.json` and `~/.codex/config.toml`,
-`~/.gemini/settings.json`, `~/.cursor/hooks.json` and `~/.cursor/mcp.json`.
-`thinker connect [--clients …]` writes it and needs no repository; `setup`
-runs it as its first step, and so does the installer. A hook there names no
-`--repo` and reads the checkout from the agent's input (`cwd`, Cursor's
-`workspace_roots`; `commands/hooks.js`); the MCP entry pins no `THINKER_REPO`
-and the server takes the repository from the directory the client starts it
-in, asking a client that declares MCP roots for its workspace when that
-directory is not a repository (`mcp.js`). Before that, `setup` wrote the
-hooks and the MCP entry into each checkout's own files, which the Codex
-desktop app does not read (openai/codex#13025: it loads MCP servers from the
-user's `config.toml` alone), and a fresh worktree had none of them. The
-checkout's machine-local wiring of this copy is taken out by `setup` and by
-the first hook at user scope that runs there (`clients.js:stripRepoWiring`),
-named once at the end of the turn; committed wiring (`--shared`, `.mcp.json`)
-stays, and a hook at user scope yields to a checkout whose own files run this
-copy's hooks (`clients.js:repoWiredByCopy`), so nothing fires twice.
-`thinker uninstall --user` removes the machine-wide wiring; the installer's
-`--uninstall` does that outside a repository. A machine set up before this
-needs no step: the `rewire` that `thinker update` runs wires the user's
-settings for every agent the known checkouts wire to this copy, with the
-options they were set up with (`clients.js:connectFromCheckouts`).
+**Wiring** (user scope, once per machine; `clients.js:wiringFiles`):
+- `~/.claude/settings.json`, `~/.claude.json`, `~/.codex/hooks.json`, `~/.codex/config.toml`, `~/.gemini/settings.json`, `~/.cursor/hooks.json`, `~/.cursor/mcp.json`
+- `thinker connect [--clients …]` writes it; needs no repo. `setup` and installer run it first.
+- Hooks name no `--repo`; they read the checkout from agent input (`cwd`, Cursor `workspace_roots`; `commands/hooks.js`).
+- MCP entry pins no `THINKER_REPO`; uses start directory, or client MCP roots if not a repo (`mcp.js`).
+- `setup` and first user-scope hook remove checkout-local wiring (`clients.js:stripRepoWiring`). Committed `.mcp.json` stays.
+- User-scope hook yields to a checkout whose own files run this copy's hooks (`clients.js:repoWiredByCopy`).
+- Remove machine-wide wiring: `thinker uninstall --user`, or installer `--uninstall` outside a repo.
+- `thinker update` runs `rewire` for known checkouts (`clients.js:connectFromCheckouts`).
 
-`thinker setup` connects the agents (above), adds the repository's own pieces
-(git hooks, Cursor's always-applied rule, Codex's trust in the project,
-`.thinker/`), and then asks whether to build
-the cache from the merged pull requests, since that is the only
-step that spends anything (`setup.js:confirmCacheBuild`). The question defaults
-to no; `--build` answers yes without asking (so does `--yes`, or naming
-`--prs`/`--pr`), `--no-build` answers no and leaves a repository that
-is set up and learns from sessions. Outside a terminal the answer is no.
-Declining, or having no authenticated agent, no longer stops setup: step 1 has
-already run and the footer says how to build later.
+**`thinker setup`:**
+1. Connects agents.
+2. Adds repo pieces: git hooks, Cursor always-applied rule, Codex project trust, `.thinker/`.
+3. Asks whether to build from merged PRs (`setup.js:confirmCacheBuild`). Default: no.
+   - `--build` (also `--yes`, `--prs`/`--pr`) answers yes; `--no-build` answers no. Non-terminal: no.
+   - Declining or no authenticated agent doesn't stop setup; footer says how to build later.
+- Agents: `--clients claude,codex,cursor,gemini`, `all`, or `auto` (default). `--agent` picks the agent for build steps.
+- Prints token/minute estimate before spending (`setup/estimate.js:TOKENS_PER_PR`). Terminal asks first; `--yes` skips.
+- `--shared` is unsupported.
 
-The build itself (`thinker setup --build`, or the installer with `--build`; history, see above):
+**Build** (`thinker setup --build`, or installer `--build`):
+- Distills up to 60 merged PRs of GitHub `origin` into fix records, invariants, conventions (`--prs n`; needs `gh`).
+- Links notes, writes search phrasings (`ops.js:phraseBatches`), drafts behaviors (`behavior-proposals.js:generateBehaviorProposals`).
+- Retry failed batches with `thinker phrase` or `thinker system propose --refresh`; never a second build.
+- Last, optional (`--no-docs`): design docs into system behaviors (`behavior-docs.js`), max 8 (`setup/steps.js:DOCS_LIMIT`), then skill files.
+- No code exploration. `thinker seed` and `setup --areas` are removed; `--areas` and `--no-seed` are ignored.
 
-1. distills up to 60 merged pull requests of the GitHub `origin` into fix
-   records, invariants and conventions (`--prs n`; needs `gh`);
-2. links the notes, writes search phrasings (eight notes per call,
-   `ops.js:phraseBatches`) and drafts behaviors (four source notes per call,
-   `behavior-proposals.js:generateBehaviorProposals`). Both are batched because
-   `claude -p` exits 1 when an answer reaches its output cap, and a failed batch
-   costs its own notes only; the retries are `thinker phrase` and
-   `thinker system propose --refresh`, never a second build;
-3. last and optional (`--no-docs`), reads the checked-in design documents into
-   system behaviors (`behavior-docs.js`), at most eight a build
-   (`setup/steps.js:DOCS_LIMIT`; maintenance reads the rest), then the skill
-   files. Last since 2026-10-12 because it is the least exercised path of a
-   build, so a problem there costs nothing that came before.
-
-On a terminal the build shows one progress bar on its last line
-(`setup/ui.js:progressBar`, fed by `progress.js:buildProgress`): the share
-done, the time left, and the stage's counts (pull requests mined, documents
-read) with the item in hand; the stage headlines and results print above it.
-The page's bar reads the same model from the mining batch's file
-(`ui/server.js:jobProgress`). The agents (`--clients claude,codex,cursor,gemini`, `all`,
-   or `auto`, the default) were connected in step 1.
-
-A build does not explore the code, and no command does: exploration sessions
-(`thinker seed`, `setup --areas n`) were removed in 0.1.22. They cost about 400k
-tokens per area against 14k per pull request and gave few notes back, and a
-"skipped" exploration line read as a failed step to the agents running setup.
-The build says once that its notes come from pull requests; `--areas` and
-`--no-seed` from old scripts are ignored.
-
-Both steps run through an installed agent with its own login (`--agent`
-picks one). Measured on this machine's log: about 14k tokens per
-pull request (`setup/estimate.js:TOKENS_PER_PR`). The estimate is printed
-in tokens and minutes before anything runs, never in dollars: decided 2026-10-04,
-since most agents run on subscriptions and a figure from API list prices told
-people they would spend money they would not. In a terminal `setup`
-asks before spending (`--yes` skips the question). The hooks and MCP entry live in the agents' own settings. Team wiring with
-`--shared` is no longer supported.
-
-To mine more pull requests later (for a benchmark cache: unlisted since 2026-10-21), run `thinker mine-prs` (`thinker learn
---prs` is gone). With no arguments it takes the
-GitHub `origin`, mines what was merged since the last run and then goes
-further back in history, 20 at a time (`--limit n`). Without GitHub, or
-with `--git`, it mines commits from git history; `--fixes` keeps only those
-whose message says they fix something (`prs.js:FIX_LIKE`), the records a
-reviewing agent draws on most; a repository whose work lands by direct commits has
-few pull requests, and this one had 8 to mine against 17 fix commits. With GitHub, mining
-read merged pull requests alone, so a change pushed
-straight to the default branch is never mined there (188 of this repository's 551
-first-parent commits since 2026-09-19 name no pull request). So those commits are listed
-beside the pull requests, unless `mining: { commits: false }` in `.thinker/config.json`
-(or `THINKER_MINE_COMMITS=off`; the variable overrides the config) says otherwise (`prs.js:listMergedChanges`, `commitsOn`):
-a pull request keeps GitHub's description and review comments, a commit is mined from
-its message and diff as with `--git`. On by default without an experiment, at the
-owner's decision (2026-10-19), an exception to the rule below.
-A cache warmed before that read the pull requests alone, and in a repository developed
-mostly by direct commits it stayed small. Maintenance finds such caches without a model
-call (`commits-offer.js:scheduleCommitsOffer`, at most weekly, on a GitHub repository whose
-cache has read some history): when 20 of the last 500 first-parent commits are direct,
-unmined and not chores, the next prompt asks the person once ("thinker found N unmined
-commits", `<thinker-unmined-commits>`) to mine them, no or never; a yes runs `thinker
-mine-prs --direct` (only commits naming no pull request) in the background through their
-agent's login, or the session in a desktop app (`answerCommits`, the MCP `commits` tool,
-`thinker commits --answer`). No waits a month; never stops it on the machine
-(`THINKER_HOME/state/commits-never`); `maintain: { commitsOffer: false }` turns the check
-off. `thinker commits` prints the count. Every
-pull request it
-has looked at is recorded in `.thinker/prs.json`, which is committed with the
-notes, so none is distilled twice, by you or by a teammate. Pull requests merged
-after thinker was set up are distilled by background maintenance (see [The
-learning loop](#the-learning-loop)); `mine-prs` is for history before that.
+**Mining more PRs** (`thinker mine-prs`; unlisted):
+- No args: mines GitHub `origin` merged since last run, then older history, 20 at a time (`--limit n`).
+- Without GitHub, or with `--git`: mines commits. `--fixes` keeps fix-like messages (`prs.js:FIX_LIKE`).
+- Direct default-branch commits are listed beside PRs. Disable: `mining: { commits: false }` in `.thinker/config.json` or `THINKER_MINE_COMMITS=off` (env overrides config).
+- Maintenance may ask once weekly to mine direct commits (`commits-offer.js:scheduleCommitsOffer`). Yes runs `thinker mine-prs --direct` in background.
+  - Answer via `answerCommits`, MCP `commits` tool, or `thinker commits --answer`. `thinker commits` prints count.
+  - Stop asking: `THINKER_HOME/state/commits-never`, or `maintain: { commitsOffer: false }`.
+- Every PR looked at is recorded in `.thinker/prs.json` (committed); none is distilled twice.
 
 ## Project cache builds
 
@@ -547,150 +455,57 @@ rests on, each with a content hash), `source` (agent / human / pr / doc),
 
 ## The learning loop
 
-Each session both consumes and improves the cache:
+- `UserPromptSubmit` hook injects orientation, records served ids.
+- Per session, distiller assesses injected notes:
+  - `confirmed`: conf +0.05.
+  - `contradicted`: conf −0.25, body replaced, retired <0.3.
+  - `unused`: after 5 unconfirmed servings, decays to 0.4.
+- Ignore `.thinker/cochange.json`. Read `cochange` notes as rules (`store.js:KIND_ALIAS`).
 
-1. `UserPromptSubmit` hook injects the orientation bundle and records which
-   note ids were served in this session.
-2. Once per session, the distiller sees the trace **and the injected notes**, and
-   returns new notes plus one assessment per injected note:
-   `confirmed` (the agent acted on the pointer, nothing contradicted it:
-   confidence +0.05), `contradicted` (the trace shows a claim is wrong:
-   confidence −0.25, body replaced by the correction, history kept, retired
-   below 0.3) or `unused` (after five unconfirmed servings, confidence decays
-   towards 0.4). No judge or gold answer is involved; the signal comes from
-   the transcript.
-3. New notes are linked to existing ones that share a symbol-level dep (or
-   several files); `orient` pulls one linked note in beside the best hit
-   when it has relevance of its own.
-4. Co-change is gone (2026-10-04). Co-change notes were acted on 0 of 5
-   times they were served and were archived; the git-mined index that
-   replaced them (edit-hook partner hints, the end-of-session nudge, the
-   `thinker cochange`, the refresh in maintenance,
-   `.thinker/cochange.json`) was never shown to be followed either, and was
-   removed with the module. An older cache's `cochange.json` is ignored, and
-   its `cochange` notes are read as rules (`store.js:KIND_ALIAS`).
+### Archiving
+- `ops.js:archiveNotes`; `thinker archive [--dry|--list|--restore [ids]]`. Ids archive any note.
+- Archived notes leave orientation, edit hook, verification, phrasing. Found by id (`drilldown`, `find`, `lookup`). `rank.js` scores invalid.
+- Each maintenance run archives kinds in `archive.kinds` (none default) and notes unserved `unservedDays` (30) since creation. Report count once.
+- `archived: {at, reason}` is local (`store.js:LOCAL_FIELDS`). Never shared or pushed.
+- Config `archive` in `.thinker/config.json`: `kinds`, `unservedDays`, or `false`.
 
-5. Archiving (`ops.js:archiveNotes`, `thinker archive`): a note that the
-   sessions showed is not worth serving leaves orientation, the edit hook,
-   background verification and phrasing, and stays for `drilldown`, `find`
-   and `lookup` by id; `rank.js` scores it like an
-   invalid note. Two rules, both free: the kinds named in the config (none
-   by default since the collapse to four kinds; before it, location, fix,
-   cochange and convention, which in a week on this repository were acted on
-   0 of 6, 0 of 12, 0 of 5 and 0 of 3 times when served), and a note nobody
-   was served in 30 days since it was made. `archived: {at, reason}` is this checkout's
-   state (`store.js:LOCAL_FIELDS`), never shared or pushed; a shared note's
-   committed file is untouched. Maintenance applies the rules on every run
-   and names the count once; `archive` in `.thinker/config.json` sets
-   `kinds` and `unservedDays` or is `false`. `thinker archive [--dry]`
-   runs the rules by hand, `--list` shows the archive, `--restore [ids]`
-   takes notes back, and ids archive any note by request.
-5b. Duplicates by meaning (`dedupe.js`, 2026-10-19; on by default from then until 2026-10-21,
-   off since with the rest of the background spend: `maintain: { dedupe: true }` or
-   `THINKER_DEDUPE=on` turns it on for a repository): `saveNotes`
-   merges only notes whose title and answers share half their words, so the same fact
-   mined from a pull request and saved from a session in other words stayed two notes
-   (0.30 by that measure) that took both serving slots. Where it is on, maintenance finds candidates for free:
-   each note embedded locally from its title and search text (`dense.js:embed`,
-   all-MiniLM-L6-v2, vectors kept in `.thinker/state/dedupe.json` by text), a pair being
-   two notes on a file in common at a cosine of at least `dedupeThreshold` (0.75). On this
-   repository's 337 notes that took 4 to 6 seconds and gave 21 pairs, 17 of them the same
-   claim or two disagreeing claims about one thing (by hand labels of the top 40; recall
-   below 0.75 is not measured). Up to `dedupePerRun` (3) are judged, one call each through
-   the verify model (`dedupe.js:judgePair`, through the session in a desktop app), shown
-   both notes and the current code of the file they share: `same` and `conflict` are
-   merged into the older note (its id, servings and assessments; both notes' answers and
-   deps; the old body in `history`) with the judge's title and body, a conflict keeping
-   only what the code bears out, and the other is archived as `duplicate of <id>`
-   (`thinker archive --restore` takes it back); `distinct` is remembered and not asked
-   again until either note's text changes. Logged as `op: "dedupe"`; the end-of-turn
-   notice says how many were merged. Checked before it was turned on: on mlflow's mined
-   cache 14 pairs, of whose notes past sessions on its 11 tasks were shown 2, so a paired
-   run there could not have told the two apart; no agent-session experiment was run.
-6. Since 2026-10-21 background upkeep is small: verification is one batch every three days
-   (`verifyEveryDays`), of the stale notes served in the last three days (`verifyServedDays`), at most
-   50 (`verifyPerRun`); a note a session contradicted is verified at the next run. A note nobody was
-   served in 14 days, made longer ago than that, is deleted (`maintain.js:deleteUnused`,
-   `deleteUnusedDays`; behaviors, skill cards and notes a person wrote stay, and a note committed to the
-   repository is archived instead). After an update, `thinker rewire` stops what an older version left
-   running that the new defaults no longer do: a mining batch, the unmined-commits question, queued jobs
-   other than distillation, catch-up and maintenance (`retire-background.js`), unless the repository's
-   config turns mining on. What follows describes the run as it was before.
-   Maintenance runs by itself (`maintain.js:maintain`): the catch-up run that
-   the prompt hooks start at most every ten minutes ends with one maintenance
-   run, and so do the git `post-commit` and `post-merge` hooks that `setup` and the
-   installer put in place (`--no-git-hook` leaves it out). A batch runs at most
-   once every four hours, on the next repository activity after
-   it is due (including explicit `maintain`; `--dry` previews without waiting).
-   Retrieval never spawns verification. By default (since 2026-10-21) a run re-verifies up
-   to 3 stale notes (10 before) and writes
-   phrasings for up to 8 notes that lack them, and that is all it spends on. The
-   steps below run only where the repository's config turns them on: with
-   `maintain: { prs: true }` a run distills up to 3 pull
-   requests merged since maintenance first ran in the repository (older ones
-   are `thinker mine-prs`), walks the focus areas' history (`areas.js`) and
-   schedules the unmined-commits question (`commits-offer.js`). Fixes come first (`prs.js:pickPrs`): a pull
-   request whose title says it fixes something qualifies without a body and
-   takes up to two thirds of a run's slots when other changes wait; a
-   candidate the limit passes over is not recorded as mined and is offered
-   again next run (`learn.js:minePrs`, `deferred`). The record of a fix is
-   what a review draws on most: on 23 real PostHog regressions every bug the
-   cache caught and the diff alone missed rested on a note mined from the fix
-   (`research/bench-history/RESULTS.md`, "Real bugs on PostHog"). Re-verification ahead of time is for notes served in
-   the last 14 days (`verifyServedDays`; 0: all), the most served first; a
-   stale note nobody is reading waits until a later batch after it is served.
-   Dependency hashes and git diffs since each note was verified identify the
-   affected notes; unchanged dependencies cause no verification call. A note
-   re-verified 3 times in a week (`verifyChurn`; 0: never) rests on code under
-   active change: it is left stale, with its ⚠ banner, and named to the user
-   once (`maintain.js:pickStale`), to narrow its pointers or retire it. In the
-   week this was added, 28 of 80 notes maintenance verified had not been served
-   at all, and one note was rewritten 8 times. The tokens the model calls of
-   learning and maintenance reported are summed from the machine's log and a run stops
-   at `dailyTokens` (default 1M tokens a day with Sonnet, about 40 distillations, and 10M
-   with a cheap model; 2M and 50M until 2026-10-21; until 2026-10-04
-   the cap was `dailyCap` in dollars, a key now ignored except that 0 still means no
-   cap). `maintain` in `.thinker/config.json`
-   overrides `enabled`, `dailyTokens`, `verifyPerRun`, `verifyServedDays`,
-   `verifyChurn`, `phrasePerRun`, `prs`, `prsPerRun`, `docs`, `docsPerRun`, `skills`, `skillsPerRun`,
-   `dedupe` (with `docs: true` a run also reads up to
-   three new or changed design documents into behaviors and reconciles the ones a changed
-   document produced: `behavior-docs.js:deriveDocBehaviors`; with `skills: true` it cards up to three
-   new or changed skill files, `skills.js:scanSkills`). What a run did is shown once at the end of the next turn
-   (`maintain.js:maintenanceNotice`), through the same channel as the
-   cache-hit notice. `thinker maintain [--dry]` is one run by hand;
-   `THINKER_NO_LEARN=1` switches it off with the rest of learning.
+### Duplicates (`dedupe.js`)
+- Off by default. `maintain: { dedupe: true }` or `THINKER_DEDUPE=on`.
+- Embeddings: `dense.js:embed`, stored in `.thinker/state/dedupe.json`.
+- Candidates share a file, cosine ≥ `dedupeThreshold` (0.75). ≤ `dedupePerRun` (3) judged via verify model (`dedupe.js:judgePair`).
+- `same`/`conflict`: merge into older note, old body to `history`. `conflict` keeps only code-backed content. Archive other as `duplicate of <id>`.
+- `distinct`: no re-ask until text changes. Logged `op: "dedupe"`.
 
-Learning is on by default in `setup` and the installer. Evals keep
-the cache fixed with `--no-learn` at install time, or `THINKER_NO_LEARN=1` in
-the environment, which also silences hooks that are already installed.
-`learn: {"sessions": false}` in `.thinker/config.json` switches off learning
-from sessions alone (the session distill and the catch-up `learn`), while
-learning from code changes goes on: pull requests and re-verification in
-maintenance, `thinker distill <file>` by
-hand. Each session distilled is a model call, about 10¢ with Sonnet, and in a
-week on this repository 30% of them produced no note; without them there are
-also no assessments, so `thinker usage` counts no servings as acted on. The
-hooks skip a quiet session (`distill.js:quietSession`): nothing served in it
-to assess, no edit, no failed tool call, no correcting prompt, and under eight
-exploration calls; logged as `distill-skipped` with `reason: quiet`.
-`learn.quietExplore` in the config moves the line (0: distill every session);
-`thinker distill <file>` by hand distills regardless. The distiller is asked
-only for the kinds worth a note here (`ops.js:distillKinds`): the kinds this
-checkout serves, plus the kinds review reads from the archive (`REVIEW_KINDS`:
-rule, behavior; behavior is never distilled). A note of a left-out kind that
-comes back anyway is skipped by `saveNotes`.
+### Background upkeep
+- Catch-up (prompt hooks, ≤ every 10 min) ends in one maintenance run. Git `post-commit`/`post-merge` also run it; `--no-git-hook` omits.
+- Batch ≤ every 4 h, on next repo activity. `thinker maintain [--dry]` runs once.
+- Retrieval never spawns verification.
+- Every `verifyEveryDays` (3): re-verify stale notes served in `verifyServedDays` (3), ≤ `verifyPerRun` (50). Contradicted notes verified next run.
+- Each run: ≤3 stale notes re-verified, ≤ `phrasePerRun` (8) phrased. Nothing more. Unchanged deps: no call.
+- `maintain.js:deleteUnused`: delete notes unserved `deleteUnusedDays` (14). Behaviors, skill cards, person-written notes kept. Repo-committed notes archived.
+- `verifyChurn` (default 3/week; 0 never): churning note stays stale with ⚠, named to user once (`maintain.js:pickStale`).
+- `thinker rewire` stops old background work (`retire-background.js`). Exception: repo config enables mining.
+- Output shown once, end of next turn (`maintain.js:maintenanceNotice`).
+- `THINKER_NO_LEARN=1` disables learning and maintenance.
 
-Controls for experiments: `THINKER_NOTES_DIR` (a flat note store for a
-benchmark arm), `THINKER_HOOKS=off` (the user's machine-wide
-hooks do nothing; a checkout's own hooks are unaffected) and `THINKER_MCP=off` (the MCP server offers no
-tools; the control arm of `thinker benchmark`), `THINKER_HOLDOUT`. The
-switches of settled experiments were removed in October 2026 (early modes,
-the router, forced or naive serving, links and co-change off, the guard off,
-cover floors, pointer and snippet limits, the fanout tag, a per-model guide
-above `orient`); what they measured is in `research/bench-history/RESULTS.md`, and what won is
-the only behavior. A harness that needs the order alone passes `cover: {body:
-0, question: 0}` to `rank` and `refreshFirst: false` to `orient`.
+### Optional maintenance (if config enables)
+- `maintain: { prs: true }`: distill ≤ `prsPerRun` (3) recently merged PRs (older: `thinker mine-prs`). Walk focus-area history (`areas.js`). Schedule unmined-commits question (`commits-offer.js`). Fix-titled PRs first, ≤ 2/3 of slots (`prs.js:pickPrs`). Passed-over PRs re-offered (`learn.js:minePrs`).
+- `maintain: { docs: true }`: ≤ `docsPerRun` (3) design docs → behaviors (`behavior-docs.js:deriveDocBehaviors`).
+- `maintain: { skills: true }`: ≤ `skillsPerRun` (3) skill files carded (`skills.js:scanSkills`).
+
+### Token budget
+- Runs stop at `dailyTokens` (default 1M/day Sonnet, 10M/day cheap model). `dailyCap` ignored; 0 = no cap.
+- `maintain` keys: `enabled`, `dailyTokens`, `verifyPerRun`, `verifyServedDays`, `verifyChurn`, `phrasePerRun`, `prs`, `prsPerRun`, `docs`, `docsPerRun`, `skills`, `skillsPerRun`, `dedupe`.
+
+### Session learning
+- On by default. Evals: `--no-learn` at install, or `THINKER_NO_LEARN=1` (also silences installed hooks).
+- `learn: {"sessions": false}` in `.thinker/config.json`: no session learning. Code-change learning continues.
+- Quiet sessions skipped (`distill.js:quietSession`): nothing served, no edit, no failed tool call, no correcting prompt, <8 exploration calls. `learn.quietExplore` sets threshold (0: distill all). `thinker distill <file>` always distills.
+- Distiller asked only for `ops.js:distillKinds` (served kinds + `REVIEW_KINDS`: rule, behavior). Behavior never distilled. `saveNotes` skips others.
+
+### Experiment controls
+- `THINKER_NOTES_DIR`: flat note store. `THINKER_HOOKS=off`: user's machine-wide hooks off. `THINKER_MCP=off`: MCP offers no tools. `THINKER_HOLDOUT`.
+- Order-only harness: `cover: {body: 0, question: 0}` to `rank`; `refreshFirst: false` to `orient`.
 
 ## Report
 
@@ -852,105 +667,46 @@ backup/restore remain supported.
 
 ## Skills
 
-A skill file (SKILL.md under `.claude/skills`, `.agents/skills`, `.codex/skills`, `.cursor/skills`,
-`.github/skills`, `skills/`) gets a note of kind `skill` (`skills.js:scanSkills`, one model call per
-file, by a build, by `thinker skills scan`, and by maintenance where `maintain: { skills: true }` is set;
-off there by default since 2026-10-21): a card that is served like a note and tells the agent to
-invoke the skill, with the file and the code the skill names as deps. Staleness is `ops.js:refresh`
-as for any note; the verification is `skills.js:auditSkill` (through `ops.js:verifyNote`), which
-reads the skill file against the current code and answers holds or broken with the issues. A
-broken skill has status `broken` (a LOCAL_FIELDS entry): not ranked (`rank.js`), not listed by
-`lookup` by kind, left alone by `refresh` and `pickStale`, until its file changes (the scan rewrites
-the card and clears it) or a person reviews it (`skills.js:reviewSkill`; `thinker skills review`,
-the button in the UI). A card whose own file changed is left to the scan, not audited
-(`maintain.js:pickStale`). Sessions grade skills: `transcripts.js` keeps the skill directory on the
-Skill tool call, `skills.js:skillsInvoked` and `skillNotesFor` add the invoked skills to the notes a
-distillation assesses (always assessed, `learning-evidence.js`), a contradiction is accepted at once
-(`learning-pending.js`) and marks the skill broken (`ops.js:attest`), and a session older than the
-skill's present text is not counted (`skillFileTime`). Duplicates: `skills.js:dedupeSkills`, with
-`skills.prefer` in the config as the pin. Skill cards are never distilled (`distillSpec`,
-`distillKinds`, `saveNotes`) or written by an agent. See docs/skills.md.
+- Skill file: `SKILL.md` under `.claude/skills`, `.agents/skills`, `.codex/skills`, `.cursor/skills`, `.github/skills`, `skills/`.
+- Note kind `skill` (`skills.js:scanSkills`). Created by build, `thinker skills scan`, or maintenance with `maintain: { skills: true }` (off by default).
+- Never distill or hand-write skill cards (`distillSpec`, `distillKinds`, `saveNotes`).
+- Staleness: `ops.js:refresh`. Verify: `skills.js:auditSkill` via `ops.js:verifyNote` → `holds` or `broken`.
+- Broken: status `broken`. Excluded from ranking (`rank.js`), `lookup` by kind, `refresh`, `pickStale`.
+  - Clears when the file changes (scan rewrites card) or on `skills.js:reviewSkill` (`thinker skills review`; UI button).
+- Card whose own file changed: left to scan, not audited (`maintain.pickStale`).
+- Session grading:
+  - `transcripts.js` keeps skill dir on Skill tool call.
+  - `skills.js:skillsInvoked`, `skillNotesFor` add invoked skills to distillation notes.
+  - Contradiction marks skill broken (`ops.js:attest`).
+  - Sessions older than the skill's current text are ignored (`skillFileTime`).
+- Duplicates: `skills.js:dedupeSkills`; pin with `skills.prefer` in config.
+- Details: docs/skills.md.
 
-**Skills suggested by the file (off until an experiment, 2026-10-19).** With `harness: { skillSuggest: true }`
-in `.thinker/config.json` (or `THINKER_HARNESS_SKILL_SUGGEST=on`; `=off` wins over the config), the tool
-hook of Claude Code and Codex says, the first time a file is opened or edited in a turn, which skills
-past sessions here read for files like it: `<thinker-skill>Past sessions here used <name> for files like
-this one: read <path></thinker-skill>`, at most two a file and six a turn, each skill once a turn
-(`skill-suggest.js:skillSuggestLines`). The turn, not the session: a session can run for hours over
-several requests, and an earlier turn's skill may be needed again or compacted out of the context, so a
-new turn or a compaction in the transcript (`compactions`) starts the count again (2026-10-19). Why: on PostHog under GPT-6 Astra, switching the 107 skills off
-cut input ~19% at equal passes, but agents then opened 0.6 skills a session against 2.9 and broke more
-minor conventions (0.46 against 0.21 a session); `lookup` over the descriptions was right 42% of the time.
-The evidence (`.thinker/state/skill-evidence.json`, local) is rows by (area, skill), an area being a key of
-the path (`areaKeys`: two directories, the top one, `products/<p>/<layer>`, the kind of file), with organic
-opens, suggested, suggested-then-opened, unread, missed and negative per row and exposures per area, each
-decaying with `harness.skillSuggestHalfLifeDays` (30). The session's opens and edits are credited once,
-idempotently, from the transcript the harness parses (`harness.js:sessionHarness`,
-`harness-codex.js:codexSessionHarness`; `recordSessionSkills` from `commands/learn.js:distillFile`), so
-`learn.sessions`, `THINKER_NO_LEARN` and the quiet skip apply as to the distillation. Scoring
-(`candidates`) counts a (area, skill) only on the sessions where the skill was not read (not opened; a
-suggestion the agent did not follow leaves the session unread): Beta(0.5 + misses + organic opens,
-4 + (unread − misses) + negatives), the best of the file's areas, Thompson-sampled, top two above a
-sample of 0.35. A session that read the skill says nothing about whether it prevents a break; counting
-those as failures, as the first version did, held a skill that prevents most breaks at a 0.4 suggestion
-rate the more it was followed (a simulation of the loop, 2026-10-19). A row made late counts the area's
-earlier sessions as unread unless the skill was `added` to the registry since (`refreshRegistry`), so a skill
-opened once in a busy area does not score as if that were its only session. Organic opens are weak evidence
-of relevance (weight `organic`, 1); a skill whose description shares a word of the path gets a small prior
-(0.25) only when the file's areas have no evidence-backed candidate at all: in a replay of 8 PostHog eval
-tasks none of its 24 picks was a skill the agent went on to open. Misses come from a separate, sampled
-outcome check (`skill-outcome.js:skillOutcomeCheck`, its own switch `harness: { skillOutcome: true }` or
-`THINKER_HARNESS_SKILL_OUTCOME=on`, off by default, never in test mode unless forced by the env), modelled
-on the Artemis conventions grader: once a session, on `harness.skillOutcomeShare` (0.25) of sessions by a hash
-of the id, when the session edited files with candidates, within the daily token cap, one model call through
-`llm.js:complete` (the session queue in a desktop app). It is shown the `git diff` of the files the session
-edited from the commit before its start (plus files it created), the full text of the best three candidates
-and of up to two skills a matching `.claude/rules` file names, those rule files, and the AGENTS.md text
-that applies (process sections left out), and returns violations quoting the rule and its source; a skill's
-break unread is a miss, read a negative, logged as `op: "skill-outcome"`. Asking the end-of-session
-distillation for broken rules instead (the first version) matched the grader on 0 of 30 graded sessions. On 39
-graded PostHog sessions (Sonnet, claude CLI, $0.14 a session) the first prompt found 7 of the grader's 15
-skill-sourced violations by rule, and 3 of 15 clean sessions got a skill violation; the prompt shipped found 13
-of 15 on the 13 sessions with one (16 found, 3 on a rule the grader did not cite); its rate on clean sessions
-was not measured again. A held-out turn (`ops.js:holdoutTurn`) is told nothing and logs `withheld`; the cap of
-six lines a session counts withheld lines too. First use seeds the store from the machine's recent sessions of
-the repository; `thinker skills seed <transcripts...>` seeds from chosen ones (an eval: its training tasks only),
-`thinker skills suggest <file>` previews. The offline checks are in
-`bench/worktrees/eval-support/skill-protocol/` (local). No agent session has been run with it.
+**Skill suggestions (experimental, off).**
+- Enable: `harness: { skillSuggest: true }` or `THINKER_HARNESS_SKILL_SUGGEST=on`. `=off` wins.
+- Hook (`skill-suggest.js:skillSuggestLines`) on first open/edit of a file per turn emits `<thinker-skill>…</thinker-skill>`.
+- Limits: 2 per file, 6 per turn, each skill once per turn. New turn or compaction resets.
+- Evidence: `.thinker/state/skill-evidence.json` (local). Decay: `harness.skillSuggestHalfLifeDays` (30).
+- Credit: `harness.js:sessionHarness`, `harness-codex.js:codexSessionHarness`, `commands/learn.js:recordSessionSkills`. Honors `learn.sessions`, `THINKER_NO_LEARN`.
+- Scoring (`candidates`): count only sessions where the skill was unread. Top two must score above 0.35.
+- Description-word prior (0.25) only when no evidence-backed candidate exists.
+- Misses: `skill-outcome.js:skillOutcomeCheck`. Enable: `harness: { skillOutcome: true }` or `THINKER_HARNESS_SKILL_OUTCOME=on`. Off by default.
+  - Once per session, sampled at `harness.skillOutcomeShare` (0.25). Respects daily token cap.
+  - Logged as `op: "skill-outcome"`.
+- Held-out turn (`ops.js:holdoutTurn`): nothing shown, logs `withheld`. Counts toward the six-line cap.
+- Seeding: `thinker skills seed <transcripts...>`. Preview: `thinker skills suggest <file>`.
 
-**Built-in tools in the harness advice (off until an experiment, 2026-10-20).** With `harness: { builtinTools: true }`
-in `.thinker/config.json` (or `THINKER_HARNESS_BUILTIN_TOOLS=on`; `=off` wins over the config), the harness counts
-Claude Code's own tools as sources beside plugins, skills and MCP servers: their definitions from the transcript's
-`prompt_snapshot` attachment, a call by name as a use (`harness.js:sessionHarness`, `builtinKey`). One called in under
-a tenth of the sessions is advised like any source (`thinker harness`, the Context tab's Built-in tools, where a row
-shows the tool's own description) and goes off as a bare name in `permissions.deny` of
-`.claude/settings.local.json`; `--undo` takes it out. It was never an option of the harness's own in-prompt question
-(2026-10-22, the owner's call: a picker's line has no room for what denying a tool costs, no subagents or no
-`/loop`, and the question offered eight tools by their token counts alone), and since that question was merged
-away (below) it is a Find Savings row like any other, bold and behind a confirmation. Checked with `claude -p` 2.1.304 (2026-10-20): `permissions.deny`
-and `--disallowedTools` both take the definition out of the prompt, Workflow, ScheduleWakeup and ReportFindings
-together ~4k tokens a call. Never offered (`CORE_TOOLS`): the file and shell tools, Skill, AskUserQuestion (the question goes through it), and
-ToolSearch, whose absence puts every deferred definition inline (+29k tokens a call); an allow-list (`--tools`) does the same, so the switch
-is a deny list. Why: on this machine's sessions (Artemis Tokens page, waste view) Artifact (15k tokens) was called in
-1 of 65 sessions that carried it, Workflow in 0 of 535. Not known: whether the desktop app's own tools (Artifact,
-SendFeedback, absent from `-p`) obey the deny list.
+**Built-in tools in harness advice (experimental, off).**
+- Enable: `harness: { builtinTools: true }` or `THINKER_HARNESS_BUILTIN_TOOLS=on`. `=off` wins.
+- Tools used in under 10% of sessions are advised (`thinker harness`).
+- Turn off: add bare name to `permissions.deny` in `.claude/settings.local.json`. `--undo` removes it.
+- Never offered (`CORE_TOOLS`): file and shell tools, Skill, AskUserQuestion, ToolSearch. Use deny list only, never `--tools`.
 
-**One suggestion, not three (2026-10-25, the owner's call).** What thinker puts to the person in their session is
-the weekly context suggestion alone (`context-suggest.js:contextSuggestOffer`, `maintain.contextSuggest`, at most
-every `SUGGEST.everyDays` = 7 days once the repository has 10 sessions to read): a short message, one line per
-change with what it costs and the suggested action, and a link to Find Savings, where every part of the context is
-a row. It already ranked instruction sections, skills, MCP servers, plugins, built-in tools and tool outputs
-against each other by tokens saved, which is why the other two prompt questions went:
-- the harness question (`harness.js:scheduleHarnessSuggestion`, `harnessOffer`, `answerHarness`, the MCP `harness`
-  tool, `thinker harness --suggest/--answer/--recurring/--suggestions`, the machine's `harness-never`, the
-  `/api/harness/suggest` endpoint, the small-skill bundle) was removed on 2026-10-25: a second suggestion of a
-  subset of the same sources, through each agent's picker, which could not explain a section diff and never
-  carried built-in tools. What stays is the advice behind the rows (`harnessAdvice`), switching off
-  (`switchOffNow`, which now applies the chosen labels itself), `undoHarness`, the recall line and the report;
-- the coverage question (`coverage.js`) stays off by default (`maintain.coverage`, false since it shipped) and was
-  held there the same day: it was not effective enough to put to people. It is the only question the hooks can
-  still emit, and only where a repository turns it on.
-A new thing worth suggesting is a row and a line of the weekly message, not a question of its own.
+**Weekly suggestion (only prompt to the user).**
+- `context-suggest.js:contextSuggestOffer`, `maintain.contextSuggest`. At most every 7 days, once the repo has 10 sessions.
+- Do not add new prompt questions. New suggestions go in Find Savings plus one weekly-message line.
+- Removed: harness question and its API/CLI paths. Kept: `harnessAdvice`, `switchOffNow`, `undoHarness`.
+- Coverage (`coverage.js`): off unless `maintain.coverage` is set.
 
 ## Desired behaviors
 
