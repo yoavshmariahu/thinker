@@ -160,14 +160,23 @@ export function mergeViews(list) {
   const skills = graded(skills0, liveCost(skills0));
   // as contextView grades them: built-in tools against their own cost, the custom tools against every custom tool's and skill's
   const tools = tools0.map(r => ({ ...r, ...wasteLevel({ usedShare: r.usedShare, wasted: r.off ? null : r.wasted }, r.group === 'builtin' ? liveCost(tools0.filter(x => x.group === 'builtin')) : liveCost(tools0.filter(x => x.group !== 'builtin').concat(skills))) }));
-  // a tool's rows merged by tool and setting, each weighted by the sessions it was measured over; the row is past
-  // when it is past in every repository, and the rows of one tool are linked again over the merged figures
+  // A tool's rows merged by tool, setting, and whether that setting is the one the repository has now: a row measured
+  // under an earlier setting is a dead period, what it cost unrecoverable and no action left on it, so it is never
+  // merged with a repository where the same setting is live. Grouping on the name and level alone (and taking the row
+  // as past only where every repository called it past, until 2026-10-26) put the month before `mcp:artemis` was
+  // compressed here in with the months of repositories that never compressed it: the merged row came out live, and the
+  // machine's top output suggestion was 33M of savings on a tool already compressed, the action offered being to
+  // uncompress it. The rows of one tool are linked again over the merged figures.
   const allOuts = views.flatMap(v => v.outputs.tools), span = (xs, f) => { const ts = xs.filter(Number.isFinite); return ts.length ? f(...ts) : null; };
-  const outs = linkRows(merge(allOuts, r => r.key || `${r.name}@${r.level || ''}`, 'sessions', ['usedIn', 'sessions', 'prompts', 'window', 'wastedWindow', 'saveModerateWindow'], ['tokens', 'perCall'])
-    .map(t => { const g = allOuts.filter(x => x.name === t.name && (x.level || null) === (t.level || null)), pr = Math.max(1, t.prompts);
+  const outKey = r => `${r.key || `${r.name}@${r.level || ''}`}|${r.past ? 'past' : 'live'}`;
+  const outs = linkRows(merge(allOuts, outKey, 'sessions', ['usedIn', 'sessions', 'prompts', 'window', 'wastedWindow', 'saveModerateWindow'], ['tokens', 'perCall'])
+    .map(t => { const g = allOuts.filter(x => outKey(x) === outKey(t)), pr = Math.max(1, t.prompts);
       // the merged row's unit is its own prompts (the setting's period in each repository), as one repository's row is
       return { ...t, perPrompt: Math.round(t.window / pr), wasted: Math.round(t.wastedWindow / pr), needed: t.window ? Math.max(0, t.window - t.wastedWindow) / t.window : null, saveModerate: Math.round(t.saveModerateWindow / pr),
-        calls: w(g, 'calls', 'sessions'), past: g.every(x => x.past), from: span(g.map(x => x.from), Math.min), to: span(g.map(x => x.to), Math.max) }; }))
+        // every row of the group agrees on this by construction (outKey), and a live row's setting is its own level,
+        // so the action offered and the saving beside it are the same thing in every repository the row covers
+        calls: w(g, 'calls', 'sessions'), past: Boolean(t.past), compression: t.past ? (t.compression ?? null) : (t.level || null),
+        from: span(g.map(x => x.from), Math.min), to: span(g.map(x => x.to), Math.max) }; }))
     .sort((a, b) => b.window - a.window);
   const ivs = list.map(x => ({ x, iv: x.view.instructions })).filter(({ iv }) => iv.file);
   const ivSessions = ivs.reduce((a, { iv }) => a + iv.sessions, 0);
