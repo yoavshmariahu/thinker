@@ -129,7 +129,13 @@
     .rep-table td.rep-good { background: #dcfce7; color: #14532d; }
     .rep-table td.rep-mid { background: #fef9c3; color: #713f12; }
     .rep-table td.rep-bad { background: #fee2e2; color: #7f1d1d; }
-    .rep-table th.rep-thr, .rep-table td.rep-thr { width: 3.4rem; max-width: 3.4rem; padding-left: 0.15rem; padding-right: 0.15rem; text-align: center; font-variant-numeric: tabular-nums; }
+    /* fixed columns (2026-10-26, the owner's ask): flipping Cost / Tokens, Per prompt / Total or Values / Share changes the
+       figures in the cells and nothing else; the name column is wider in the tables without bounds, so the weeks line up in all three */
+    .rep-table { table-layout: fixed; min-width: 50rem; }
+    .rep-table col.rep-name { width: 17rem; }
+    .rep-table col.rep-name.wide { width: 26.2rem; }
+    .rep-table col.rep-thr { width: 4.6rem; }
+    .rep-table th.rep-thr, .rep-table td.rep-thr { overflow: hidden; padding-left: 0.15rem; padding-right: 0.15rem; text-align: center; font-variant-numeric: tabular-nums; }
     .rep-table td.rep-thr { color: #6b7280; font-size: 0.76rem; }
     .rep-table tr.rep-sub td { font-weight: 600; background: #f8f8f7; }
     .rep-table tr.rep-total td { font-weight: 700; border-top: 2px solid #111; border-bottom: 0; }
@@ -1079,12 +1085,16 @@ function renderReport(v) {
   const thr = cost ? v.costThresholds || {} : {}, kCost = n => `$${Number(n.toFixed(3))}`;
   const verdictOf = (key, cells, w) => { const t = key && thr[key], col = v.columns[w], x = t && col.pricedPrompts ? cells[w].cost / col.pricedPrompts : 0; return !x ? '' : x <= t.good ? 'rep-good' : x >= t.bad ? 'rep-bad' : 'rep-mid'; };
   const tcell = (cells, w, title, b, key) => { const a = val(cells, w, b), at = title ? ` title="${esc(title)}"` : '', vd = a ? verdictOf(key, cells, w) : ''; return `<td class="num${vd ? ` ${vd}` : ''}"${at}>${a ? fv(a, b) : ''}</td>`; };
-  const thrCells = key => { const t = key && thr[key]; return `<td class="rep-thr">${t ? `≤ ${kCost(t.good)}` : '–'}</td><td class="rep-thr">${t ? `≥ ${kCost(t.bad)}` : '–'}</td>`; };
+  const thrCells = key => { if (!cost) return '<td class="rep-thr"></td><td class="rep-thr"></td>'; const t = key && thr[key]; return `<td class="rep-thr">${t ? `≤ ${kCost(t.good)}` : '–'}</td><td class="rep-thr">${t ? `≥ ${kCost(t.bad)}` : '–'}</td>`; };
   // a row: `total` keeps its values under Share (the whole-session rows); every other row is shown over the base; `key` names
-  // the row for its colour and bounds; `thresholds` puts the two bound cells in (the parts table's rows, under Cost)
-  const row = (name, cells, { cls = '', sub = '', titles, data = '', total = false, key = null, thresholds = false } = {}) => { const b = total ? null : base; return `<tr class="${cls}"${data}><td class="ctx-name">${name}${sub ? `<span class="ctx-kind">${sub}</span>` : ''}</td>${thresholds && cost ? thrCells(key) : ''}${cells.map((c, w) => tcell(cells, w, titles ? titles(c, w) : '', b, key)).join('')}</tr>`; };
+  // the row for its colour and bounds; `thresholds` puts the two bound cells in (the parts table's rows; empty under Tokens,
+  // so the columns stay where they are)
+  const row = (name, cells, { cls = '', sub = '', titles, data = '', total = false, key = null, thresholds = false } = {}) => { const b = total ? null : base; return `<tr class="${cls}"${data}><td class="ctx-name">${name}${sub ? `<span class="ctx-kind">${sub}</span>` : ''}</td>${thresholds ? thrCells(key) : ''}${cells.map((c, w) => tcell(cells, w, titles ? titles(c, w) : '', b, key)).join('')}</tr>`; };
   const thrHead = `<th class="rep-thr" title="Dollars a priced prompt, at list prices, at or under which the row is green">Good</th><th class="rep-thr" title="Dollars a priced prompt, at list prices, at or over which the row is red; yellow between the two">Bad</th>`;
-  const head = (nameHead, thresholds = false) => `<thead><tr><th>${nameHead}</th>${thresholds && cost ? thrHead : ''}${v.columns.map(c => `<th class="num">Week of ${dlabel(c.t)}<small>${fmt(c.prompts || 0)} prompt${c.prompts === 1 ? '' : 's'}, ${c.sessions} session${c.sessions === 1 ? '' : 's'}${cost && c.priced !== c.sessions ? `, ${c.priced} priced` : ''}</small></th>`).join('')}</tr></thead>`;
+  // the column widths are set (colgroup, .rep-table's fixed layout) and the week's ", n priced" keeps its room under Tokens,
+  // so a toggle changes the figures and never the table's size
+  const colgroup = thresholds => `<colgroup><col class="rep-name${thresholds ? '' : ' wide'}">${thresholds ? '<col class="rep-thr"><col class="rep-thr">' : ''}${v.columns.map(() => '<col>').join('')}</colgroup>`;
+  const head = (nameHead, thresholds = false) => `${colgroup(thresholds)}<thead><tr><th>${nameHead}</th>${thresholds ? thrHead : ''}${v.columns.map(c => `<th class="num">Week of ${dlabel(c.t)}<small>${fmt(c.prompts || 0)} prompt${c.prompts === 1 ? '' : 's'}, ${c.sessions} session${c.sessions === 1 ? '' : 's'}${c.priced !== c.sessions ? `<span${cost ? '' : ' style="visibility:hidden"'}>, ${c.priced} priced</span>` : ''}</small></th>`).join('')}</tr></thead>`;
   const unit = cost ? 'cost at list prices' : 'tokens';
   const sessions = v.columns.reduce((a, c) => a + c.sessions, 0), prompts = v.columns.reduce((a, c) => a + (c.prompts || 0), 0), unmeasured = v.columns.reduce((a, c) => a + c.unmeasured, 0);
   const sub = `${fmt(prompts)} prompts in ${sessions} session${sessions === 1 ? '' : 's'} over ${v.weeks} weeks${unmeasured ? `, ${unmeasured} more whose agent reported no usage (Cursor) left out` : ''}${v.all ? ` · ${v.repos.length} repositories` : ''}`;
@@ -1104,7 +1114,7 @@ function renderReport(v) {
     ...(otherFolded ? [] : rest.map(p => row(`<span class="rep-sub">${esc(p.name)}</span>`, p.cells, { cls: 'rep-subrow', key: p.key, thresholds: true }))),
     ...(output ? [row(esc(output.name), output.cells, { key: 'output', thresholds: true })] : []),
   ];
-  const parts = `<figure class="ctx-figure"><figcaption><b>By part of the context</b> <span class="ctx-sub">where the same tokens went · ${cost ? 'a row is green at or under Good, red at or over Bad, yellow between, in dollars a priced prompt' : 'tokens a prompt, without bounds: models count tokens too differently to judge'}${calNote ? ` · the estimated parts in the model's own tokens (${calNote}; the other providers one for one)` : ''}</span></figcaption>
+  const parts = `<figure class="ctx-figure"><figcaption><b>By part of the context</b> <span class="ctx-sub">where the same tokens went · a row is green at or under Good, red at or over Bad, yellow between, in dollars a priced prompt (Cost only)${calNote ? ` · the estimated parts in the model's own tokens (${calNote}; the other providers one for one)` : ''}</span></figcaption>
     <table class="ctx-table rep-table">${head('Part', true)}<tbody>${[...v.parts.map(p => row(esc(p.name), p.cells, { key: p.key, thresholds: true })), ...otherRows].join('')}${row('Total (the whole session)', v.sessionTotals, { cls: 'rep-total', total: true, key: 'total', thresholds: true })}</tbody></table></figure>`;
   const fold = p => RFOLD.has(p), modelsOf = p => v.models.filter(m => m.provider === p);
   const mtitle = m => (c, w) => `${fmt(c.prompts || 0)} prompts in ${c.sessions} session${c.sessions === 1 ? '' : 's'} on ${m.model} this week${c.prompts ? `, ${cost ? (c.pricedPrompts ? money(c.cost / c.pricedPrompts) : '–') : fmt(c.tokens / c.prompts)} per prompt of its own` : ''}`;

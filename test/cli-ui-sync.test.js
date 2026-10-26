@@ -311,7 +311,9 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('ui/page.html'), /const thr = cost \? v\.costThresholds \|\| \{\} : \{\}/);
   assert.match(read('ui/page.html'), /<div class="seg" id="r-measure"><button data-m="cost" class="on">Cost<\/button><button data-m="tokens">Tokens<\/button><\/div>/); assert.match(read('ui/page.html'), /RMEASURE = 'cost'/);
   assert.match(read('commands/report.js'), /cost: !flags\.tokens/); assert.match(read('report.js'), /renderReport\(v, \{ cost = true,/);
-  assert.match(read('ui/page.html'), /thresholds && cost \? thrCells\(key\)/); assert.match(read('report.js'), /thresholds && cost \? thr\(key\)/); assert.match(read('ui/page.html'), /col\.pricedPrompts \? cells\[w\]\.cost \/ col\.pricedPrompts : 0/);
+  assert.match(read('ui/page.html'), /if \(!cost\) return '<td class="rep-thr"><\/td><td class="rep-thr"><\/td>'/, 'the bound columns stay, empty, under Tokens');
+  // the table does not move on a toggle: fixed layout, set column widths, the ", n priced" line's room kept (2026-10-26)
+  assert.match(read('ui/page.html'), /\.rep-table \{ table-layout: fixed;/); assert.match(read('ui/page.html'), /\$\{colgroup\(thresholds\)\}<thead>/); assert.match(read('ui/page.html'), /style="visibility:hidden"'\}>, \$\{c\.priced\} priced/); assert.match(read('report.js'), /thresholds && cost \? thr\(key\)/); assert.match(read('ui/page.html'), /col\.pricedPrompts \? cells\[w\]\.cost \/ col\.pricedPrompts : 0/);
   for (const k of ['otherInput', 'output']) { assert.match(read('ui/page.html'), new RegExp(`key: '${k}', thresholds: true`)); assert.match(read('report.js'), new RegExp(`key: '${k}', thresholds: true`)); }
   assert.match(read('ui/page.html'), /cls: 'rep-subrow', key: p\.key, thresholds: true/);
   assert.doesNotMatch(read('ui/page.html'), /SHADE_MIN|rep-up|rep-down/); assert.doesNotMatch(read('report.js'), /TREND_MIN|TREND_BIG|▲/);
