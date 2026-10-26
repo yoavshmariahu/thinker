@@ -177,6 +177,7 @@
     .ctx-act { display: flex; align-items: center; justify-content: flex-end; gap: 0.4rem; }
     .ctx-act .sel { padding: 0.22rem 1.4rem 0.22rem 0.5rem; font-size: 0.76rem; max-width: 12rem; }
     .ctx-act .btn { padding: 0.26rem 0.65rem; font-size: 0.76rem; }
+    .btn.ctx-revtoggle { padding: 0.12rem 0.55rem; font-size: 0.74rem; margin-left: 0.4rem; vertical-align: middle; }
     .ctx-act .why { color: #9ca3af; cursor: help; }
     .ctx-detail td { white-space: normal; background: #fff; padding: 0.5rem 0.8rem 0.8rem 2.1rem; }
     /* the detail cell spans every column: at width 0 its text (a code block, a long line) counts for nothing in the auto layout, so opening it moves no column */
@@ -888,7 +889,9 @@ const needOf = e => e.running ? null : e.failed ? `retry it, or pick the section
 const HISTORY_PAGE = TABLE_PAGE, HPAGE = {};
 // `promptAvg` (report.js:promptAverage): what a prompt costs on average here, shown on the caption line in the cell over the
 // Saved column, the size the savings are read against (2026-10-24: a header row of its own took a line; the caption is that row). No text under the table (2026-10-24, the owner's ask): the cells' hovers explain.
-function historyFigure(hs, { many, caption, sub, empty, key = 'history', pageSize = HISTORY_PAGE, promptAvg = null, measuring = false }) {
+// `reverted` is how many reverted decisions `hs` leaves out (hidden by default, 2026-10-26, the owner's ask), `showReverted`
+// whether they are in it: the caption's toggle (data-toggle-reverted) shows or hides them
+function historyFigure(hs, { many, caption, sub, empty, key = 'history', pageSize = HISTORY_PAGE, promptAvg = null, measuring = false, reverted = 0, showReverted = false }) {
   const pages = Math.max(1, Math.ceil(hs.length / pageSize)), page = Math.min(pages - 1, HPAGE[key] || 0), from = page * pageSize, shown = hs.slice(from, from + pageSize);
   const when = t => new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
   const day = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
@@ -924,18 +927,18 @@ function historyFigure(hs, { many, caption, sub, empty, key = 'history', pageSiz
       <td class="num" title="${esc(decidedHint(e))}">${day(e.at)}</td>${effectCells(e)}${prCell(e)}
       <td>${e.pr?.url && e.pending ? `<a class="ctx-pill ${cls}" href="${esc(e.pr.url)}" target="_blank" rel="noopener" title="${esc(hintOf(e))}">${label}</a>` : `<span class="ctx-pill ${cls}" title="${esc(hintOf(e))}">${raw ? label : esc(label)}</span>`}</td>
       <td class="ctx-actcell"><div class="ctx-act">${e.retryable ? `<button class="btn" data-retry="${i}">Retry</button>` : e.revertible ? `<button class="btn ghost" data-revert="${i}"${e.pr?.state === 'merged' ? ` title="Opens a pull request that reverts #${e.pr.number}"` : ''}>${e.pending ? 'Close PR' : 'Revert'}</button>` : ''}</div></td></tr>`; }).join('');
-  const reverted = hs.filter(e => e.revertedAt).length;
   const pager = pagerOf(key, hs.length, page, pageSize).replace(/data-vpage=/g, 'data-page=');
   const avgStat = !promptAvg && measuring ? '<span class="ctx-avg muted" title="The report the savings are read from is being made; this page checks back">measuring…</span>' : promptAvg ? `<span class="ctx-avg" title="${esc(`What a prompt (one call to the model) costs here on average: ${fmt(promptAvg.tokens)} input tokens over ${promptAvg.prompts} prompts in ${promptAvg.sessions} sessions. Saved per prompt is read against it: its share of the prompt, and the shade of its cell.`)}"><span class="ctx-avg-label">Average prompt</span><b>${fmt(promptAvg.perPrompt)}</b> tokens</span>` : '';
   // the caption is the table's first header row when there are rows (the owner's ask, 2026-10-24): the title at the left, the
   // average prompt in the cell over Saved, one line and no height of its own; the figcaption stays for the empty state
-  const capText = `<b>${caption}</b> <span class="ctx-sub">${sub ? `${sub} · ` : ''}${hs.length} decision${hs.length === 1 ? '' : 's'}${reverted ? ` · ${reverted} reverted` : ''}</span>`;
+  const capText = `<b>${caption}</b> <span class="ctx-sub">${sub ? `${sub} · ` : ''}${hs.length} decision${hs.length === 1 ? '' : 's'}${showReverted && reverted ? `, ${reverted} reverted` : ''}</span>${reverted ? ` <button class="btn ghost ctx-revtoggle" data-toggle-reverted title="Reverted decisions are hidden unless shown">${showReverted ? 'Hide reverted' : `Show ${reverted} reverted`}</button>` : ''}`;
   return `<figure class="ctx-figure" data-history>${hs.length ? '' : `<figcaption>${capText}</figcaption>`}
     ${hs.length ? `<table class="ctx-table"><thead><tr class="ctx-caprow"><th colspan="4" class="ctx-cap">${capText}</th><th class="num ctx-avgcell">${avgStat}</th><th colspan="3"></th></tr><tr><th>Change</th><th class="num">Decided</th><th class="num" title="What the changed thing cost a prompt (one call to the model), over the sessions before the decision">Before</th><th class="num" title="What it costs a prompt over the sessions since">After</th><th class="num" title="Before minus after, a prompt, and its share of what a prompt cost before the decision">Saved per prompt</th><th>Pull request</th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table>${pager}` : `<div class="empty">${empty}</div>`}
     </figure>`;
 }
 function wireHistory(root, hs, reload, rerender) {
   if (!root) return;
+  root.querySelectorAll('[data-toggle-reverted]').forEach(b => b.onclick = () => { SHOW_REVERTED = !SHOW_REVERTED; try { localStorage.setItem('thinker-show-reverted', SHOW_REVERTED ? '1' : ''); } catch {} HPAGE.activity = 0; rerender(); });
   root.querySelectorAll('[data-page]').forEach(b => b.onclick = () => { const [key, n] = b.dataset.page.split(':'); HPAGE[key] = Math.max(0, Number(n)); rerender(); });
   root.querySelectorAll('[data-revert]').forEach(b => b.onclick = async () => { const e = hs[Number(b.dataset.revert)]; busy(b, e.pending ? 'Closing…' : 'Reverting…'); try { toast((await api('/api/changes/revert', { repo: e.repo, id: e.id })).said); reload(); pollActivity(); } catch (err) { toast(err.message, true); idle(b); } });
   root.querySelectorAll('[data-retry]').forEach(b => b.onclick = async () => { const e = hs[Number(b.dataset.retry)]; busy(b, 'Starting…'); try { toast((await api('/api/changes/retry', { repo: e.repo, id: e.id })).said); reload(); pollActivity(); } catch (err) { toast(err.message, true); idle(b); } });
@@ -950,6 +953,9 @@ $('#a-repo').onchange = e => { AREPO = e.target.value; e.target.blur(); loadActi
 // as loadContext: the table stays and is rebuilt in place when the same repository is already shown (after a Revert or
 // Retry, when a job finishes, on a tab switch back); the spinner is for the first read and a change of repository
 let ACT_FOR = null, ALOAD = 0;
+// reverted decisions are hidden unless the caption's toggle shows them (remembered in this browser, as `thinker context
+// --history` hides them without --reverted)
+let SHOW_REVERTED = (() => { try { return localStorage.getItem('thinker-show-reverted') === '1'; } catch { return false; } })();
 async function loadActivity() {
   const el = $('#activity-body'), seq = ++ALOAD, inPlace = Boolean(ACT) && ACT_FOR === AREPO;
   if (!inPlace) el.innerHTML = '<div class="empty"><span class="spinner"></span>Reading…</div>';
@@ -978,7 +984,8 @@ function activityCheckBack(d) {
 function renderActivity(d) {
   activityCheckBack(d);
   ACT = d;
-  const el = $('#activity-body'), hs = d.history || [], many = AREPO === 'all';
+  const el = $('#activity-body'), all = d.history || [], many = AREPO === 'all';
+  const reverted = all.filter(e => e.revertedAt).length, hs = SHOW_REVERTED ? all : all.filter(e => !e.revertedAt);
   const needs = hs.filter(e => e.attention && !e.running), running = hs.filter(e => e.running);
   const name = e => `${esc(e.title)}${many && e.repoName ? ` <span class="muted">· ${esc(e.repoName)}</span>` : ''}`;
   const card = needs.length || running.length
@@ -990,7 +997,7 @@ function renderActivity(d) {
   const waiting = hs.filter(e => e.unpulled), byRepo = new Map();
   for (const e of waiting) { const k = `${many ? e.repoName || e.repo : ''}\t${e.pullFrom || 'main'}`; byRepo.set(k, (byRepo.get(k) || 0) + 1); }
   const pullCard = waiting.length ? `<div class="attn wait"><div class="kicker">Pull to apply</div><div class="why">${[...byRepo].map(([k, n]) => { const [r, br] = k.split('\t'); return `${n} merged change${n === 1 ? '' : 's'}${r ? ` in ${esc(r)}` : ''} take${n === 1 ? 's' : ''} effect here once you pull <code>${esc(br)}</code> (<code>git pull origin ${esc(br)}</code>): this checkout does not have the merge yet, so the sections still show in its files. They are tinted below and no longer offered on Find Savings.`; }).join('<br>')}</div></div>` : '';
-  swapBody(el, card + pullCard + historyFigure(hs, { many, caption: 'Decisions', sub: many ? 'every repository' : '', empty: 'No decisions yet. What you apply on Find Savings is listed here, with what came of it.', key: 'activity', promptAvg: d.promptAvg || null, measuring: !!d.measuring }));
+  swapBody(el, card + pullCard + historyFigure(hs, { many, caption: 'Decisions', sub: many ? 'every repository' : '', empty: reverted ? 'Every decision here was reverted.' : 'No decisions yet. What you apply on Find Savings is listed here, with what came of it.', key: 'activity', promptAvg: d.promptAvg || null, measuring: !!d.measuring, reverted, showReverted: SHOW_REVERTED }));
   wireHistory(el.querySelector('[data-history]'), hs, loadActivity, () => renderActivity(d));
   badge(d);
 }

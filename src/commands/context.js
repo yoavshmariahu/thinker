@@ -69,7 +69,8 @@ async function contextCommand({ store, flags, out }) {
   if (flags.history) {
     // a pending pull request is asked after on GitHub first (context-suggest.js:refreshPrStates)
     await refreshPrStates(store);
-    const h = historyEffects(store, changeHistory(store));
+    // numbered over every decision, as --revert and --retry read them; a reverted one is listed only with --reverted
+    const h = historyEffects(store, changeHistory(store)), hidden = flags.reverted ? 0 : h.filter(e => e.revertedAt).length;
     // what a prompt costs on average here, the size each decision's saving is read against (report-snapshot.js:promptAverageHere)
     const avg = promptAverageHere(store);
     // a job under way or failed (context-suggest.js:startSectionJob) is said so; --retry runs a failed one again
@@ -79,7 +80,7 @@ async function contextCommand({ store, flags, out }) {
     const waiting = h.filter(e => e.unpulled), pullLine = waiting.length ? [...new Set(waiting.map(e => e.pullFrom || 'main'))].map(br => { const n = waiting.filter(e => (e.pullFrom || 'main') === br).length; return `${n} merged change${n === 1 ? '' : 's'} take${n === 1 ? 's' : ''} effect here once you pull ${br} (git pull origin ${br}); not offered on Find Savings meanwhile.\n`; }).join('') : '';
     // without a report of this code's kept here, nothing is measured: say what makes one
     const unmeasured = keptRows(store).stale && !avg ? 'Before and after are not measured yet: `thinker report --refresh` makes the report they are read from.\n' : '';
-    out(h.length ? (needs ? `${needs} need${needs === 1 ? 's' : ''} you: a pull request to merge, or a failed change to retry.\n` : '') + pullLine + (avg ? `A prompt here costs ${formatTokens(avg.perPrompt)} tokens on average (${avg.prompts} prompts in ${avg.sessions} sessions).\n` : unmeasured) + h.map((e, i) => `${String(i + 1).padStart(3)}. ${e.at.slice(0, 10)}  ${state(e).padEnd(22)} ${e.title}${e.what ? `  [${e.what}${e.about ? `: ${e.about}` : ''}]` : ''}${e.failed ? `: ${e.job.error}` : e.result ? `: ${e.result}` : ''}${e.pr?.url ? `  ${e.pr.url}` : ''}${effectLine(e)}`).join('\n') + (h.some(e => e.revertible) ? '\n`thinker context --revert <n>` takes a decision back (a pending pull request is closed; a merged one gets a pull request that reverts it).' : '') + (h.some(e => e.retryable) ? '\n`thinker context --retry <n>` runs a failed change again.' : '') : 'No decisions on the suggested changes here yet.');
+    out(h.length ? (needs ? `${needs} need${needs === 1 ? 's' : ''} you: a pull request to merge, or a failed change to retry.\n` : '') + pullLine + (avg ? `A prompt here costs ${formatTokens(avg.perPrompt)} tokens on average (${avg.prompts} prompts in ${avg.sessions} sessions).\n` : unmeasured) + h.map((e, i) => [e, i]).filter(([e]) => flags.reverted || !e.revertedAt).map(([e, i]) => `${String(i + 1).padStart(3)}. ${e.at.slice(0, 10)}  ${state(e).padEnd(22)} ${e.title}${e.what ? `  [${e.what}${e.about ? `: ${e.about}` : ''}]` : ''}${e.failed ? `: ${e.job.error}` : e.result ? `: ${e.result}` : ''}${e.pr?.url ? `  ${e.pr.url}` : ''}${effectLine(e)}`).join('\n') + (hidden ? `${hidden < h.length ? '\n' : ''}${hidden} reverted decision${hidden === 1 ? '' : 's'} not listed: --reverted lists ${hidden === 1 ? 'it' : 'them'}.` : '') + (h.some(e => e.revertible) ? '\n`thinker context --revert <n>` takes a decision back (a pending pull request is closed; a merged one gets a pull request that reverts it).' : '') + (h.some(e => e.retryable) ? '\n`thinker context --retry <n>` runs a failed change again.' : '') : 'No decisions on the suggested changes here yet.');
     return;
   }
   if (flags.retry !== undefined) {
