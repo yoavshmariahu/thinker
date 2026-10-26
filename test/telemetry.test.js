@@ -836,10 +836,10 @@ test('spend telemetry counts the funnel, the decisions and what they measured, a
     const store = new Store(tmpRepo).init();
     const now = Date.now(), day = 86400_000, iso = ms => new Date(now - ms).toISOString();
     store.log({ op: 'context-suggest', changes: 5, saving: 50_000 });
-    store.log({ op: 'context-offer', changes: 5, saving: 50_000, ui: true });
-    store.log({ op: 'context-approve', changes: 2, saving: 30_000, reviewed: true, pr: 42, group: 'g1' });
+    store.log({ op: 'context-offer', changes: 5, saving: 50_000, perPrompt: 1_200, ui: true });
+    store.log({ op: 'context-approve', changes: 2, saving: 30_000, reviewed: true, pr: 42, group: 'g1', via: 'page' });
     store.log({ op: 'context-approve', changes: 1, saving: 4_000 });
-    store.log({ op: 'context-dismiss', changes: 1 });
+    store.log({ op: 'context-dismiss', changes: 1, via: 'session' });
     store.log({ op: 'context-revert', kind: 'off' });
     store.log({ op: 'context-job', group: 'g1', action: 'compress', state: 'started' });
     store.log({ op: 'context-job', group: 'g2', action: 'compress', state: 'failed', error: 'the model said no' });
@@ -874,6 +874,13 @@ test('spend telemetry counts the funnel, the decisions and what they measured, a
     const { actions, savings } = spendMetrics(store, { all: false, now });
     assert.equal(actions.suggested, 5);
     assert.equal(actions.offers, 1); assert.equal(actions.offersInPage, 1);
+    // the changes a summary actually put in a prompt: the denominator of the share accepted, and both readings of
+    // what they were worth (2026-10-26)
+    assert.equal(actions.offeredChanges, 5); assert.equal(actions.offeredPerPrompt, 1_200);
+    // which door each accepted or dismissed change came through; a line logged before the door was recorded counts
+    // as the command
+    assert.deepEqual(actions.approvedBy, { page: 2, command: 1 });
+    assert.deepEqual(actions.dismissedBy, { session: 1 });
     assert.equal(actions.approvals, 2); assert.equal(actions.approvedChanges, 3); assert.equal(actions.approvalsAsPr, 1);
     assert.equal(actions.dismissedChanges, 1); assert.equal(actions.reverts, 1);
     assert.equal(actions.jobsStarted, 1); assert.equal(actions.jobsFailed, 1);

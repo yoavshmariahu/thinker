@@ -83,7 +83,7 @@ function partChanges(view, { all = false } = {}) {
   const out = [], take = r => all || flagged(r);
   for (const s of view.instructions?.sections || []) if (take(s)) out.push({
     kind: 'section', view: 'instructions', waste: s.waste, key: `section:${s.file}:${s.id}`, id: s.id, file: s.file, repo: s.repo,
-    title: `${s.file} · ${s.parent ? `${s.parent}: ` : ''}${s.title}`, saving: s.wasted, text: String(s.text || '').slice(0, 1500),
+    title: `${s.file} · ${s.parent ? `${s.parent}: ` : ''}${s.title}`, saving: s.wasted, windowSaving: s.wastedWindow, text: String(s.text || '').slice(0, 1500),
     why: `${s.usedShare != null ? `needed in ${Math.round(100 * s.usedShare)}% of prompts` : 'rarely acted on'}; ~${formatTokens(s.tokens)} tokens in every model call`,
     action: 'compress or remove the section', sessions: view.instructions?.sessions || 0, prompts: s.prompts || 0, options: [ACTS.compress, ACTS.remove], ...describePart({ kind: 'section', text: s.text }),
   });
@@ -92,12 +92,12 @@ function partChanges(view, { all = false } = {}) {
   const switchOpts = s => s.off ? [ACTS.on] : s.label ? [ACTS.off] : [];
   for (const s of view.skills || []) if (take(s)) out.push({
     kind: 'skill', view: 'custom', waste: s.waste, key: `${s.client}:${s.key}`, sourceKey: s.key, label: s.label, repo: s.repo, off: Boolean(s.off),
-    title: `${s.name} skill`, saving: s.wasted, text: String(s.text || '').slice(0, 1200), why: `${s.usedShare != null ? `needed in ${Math.round(100 * s.usedShare)}% of prompts` : `opened in ${s.used} of ${s.loaded} sessions`}; its listing is in every one`, action: 'switch it off here',
+    title: `${s.name} skill`, saving: s.wasted, windowSaving: s.wastedWindow, text: String(s.text || '').slice(0, 1200), why: `${s.usedShare != null ? `needed in ${Math.round(100 * s.usedShare)}% of prompts` : `opened in ${s.used} of ${s.loaded} sessions`}; its listing is in every one`, action: 'switch it off here',
     sessions: s.loaded || 0, prompts: s.prompts || 0, options: switchOpts(s), ...describePart({ kind: 'skill', text: s.text }),
   });
   for (const s of view.tools || []) if (take(s)) out.push({
     kind: 'tool', view: s.group === 'builtin' ? 'builtin' : 'custom', waste: s.waste, key: `${s.client}:${s.key}`, sourceKey: s.key, label: s.label, repo: s.repo, off: Boolean(s.off),
-    title: `${s.name}${s.kind === 'mcp' ? ' MCP server' : s.kind === 'plugin' ? ' plugin' : ' tool'}`, saving: s.wasted, text: String(s.text || '').slice(0, 1200),
+    title: `${s.name}${s.kind === 'mcp' ? ' MCP server' : s.kind === 'plugin' ? ' plugin' : ' tool'}`, saving: s.wasted, windowSaving: s.wastedWindow, text: String(s.text || '').slice(0, 1200),
     why: `${s.usedShare != null ? `needed in ${Math.round(100 * s.usedShare)}% of prompts` : `used in ${s.used} of ${s.loaded} sessions`}; ~${formatTokens(s.tokens)} tokens in every model call`, action: 'switch it off here',
     builtin: s.group === 'builtin', sessions: s.loaded || 0, prompts: s.prompts || 0, options: switchOpts(s), ...describePart({ kind: 'tool', name: s.name, builtin: s.group === 'builtin', toolKind: s.kind, text: s.text }),
   });
@@ -115,15 +115,20 @@ function partChanges(view, { all = false } = {}) {
   // the tool's current row is the one acted on, measured over the sessions since the setting (its `sessions`)
   for (const t of view.outputs?.tools || []) if (!t.past && (all ? t.compressible : (t.compressible && !t.compression && t.saveModerate > 0))) out.push({
     kind: 'output', view: 'outputs', waste: outWaste(t.saveModerate), key: `output:${t.name}`, name: t.name, repo: t.repo, compression: t.compression || null,
-    title: `${t.name.replace(/^Bash:/, '')} output`, saving: t.saveModerate,
+    title: `${t.name.replace(/^Bash:/, '')} output`, saving: t.saveModerate, windowSaving: t.saveModerateWindow,
     // how much smaller compressing makes this tool's results here: the part past the length cap, from these
     // transcripts (tool-outputs.js); trimming reads and searches round what the agent looked for cuts more
     why: `~${formatTokens(t.perCall)} tokens a call, read again by every call after it${t.wasted != null ? ` (~${formatTokens(t.wasted)} a prompt after the agent last used the result)` : ''}; compressed, ${pctLess(t.saveModerate, t.perPrompt)}`, action: 'compress its output (Claude Code)',
     sessions: t.sessions ?? view.outputs?.sessions ?? 0, prompts: t.prompts || 0, options: levelOpts(t), ...describePart({ kind: 'output', name: t.name, text: toolText(t.name) }),
   });
-  // the first option is the suggestion; `total` is what it could have saved over the report's window: its saving a
-  // prompt times the model calls that carried it (a skill or tool, the calls of the sessions it was loaded in)
-  return out.map(c => ({ ...c, saving: c.saving || 0, default: c.options[0] || null, total: (c.saving || 0) * (c.prompts || c.sessions), days: view.days }));
+  // the first option is the suggestion; `total` is what it could have saved over the report's window, and it is the
+  // row's own figure (instruction-value.js, context-view.js: `wastedWindow`, an output's `saveModerateWindow`) -- its
+  // size in every model call that carried it, times the share of prompts that did not need it. Not recomputed from
+  // `saving`: that is already the window cost over *every* prompt of the window (`perPrompt`), so multiplying it by the
+  // calls that carried this part divided by denom again, and a part carried by half the window's calls read half what
+  // its own row showed (Artifact on this machine: 37M against the table's 68M). One figure, counted once.
+  return out.map(c => ({ ...c, saving: c.saving || 0, default: c.options[0] || null,
+    total: c.windowSaving ?? (c.saving || 0) * (c.prompts || c.sessions), days: view.days }));
 }
 
 const configOn = store => store.config().maintain?.contextSuggest !== false;
@@ -222,10 +227,17 @@ const undoFile = (store, id) => path.join(store.dir, 'state', 'context-suggest-u
 const undoOf = (store, e) => e.decision === 'dismissed' ? { kind: 'dismissed' } : e.pr ? (e.pr.state === 'open' ? { kind: 'pr', number: e.pr.number, branch: e.pr.branch } : e.pr.state === 'merged' ? { kind: 'revert-pr', number: e.pr.number, mergeCommit: e.pr.mergeCommit || null, base: e.pr.base || null } : null) : (e.id && readJson(undoFile(store, e.group || e.id)))
   || (e.decision === 'approved' && (e.kind === 'tool' || e.kind === 'skill') ? { kind: 'off', key: e.key.replace(/^[^:]+:/, '') }
     : e.decision === 'approved' && e.kind === 'output' ? { kind: 'output', name: e.key.replace(/^output:/, '') } : null);
-const entryOf = (store, c, decision, result, now, undo, { group = null, tokens = null } = {}) => {
+// Where a decision was taken (`via`, on the log event and the history entry), so the funnel from a suggestion to a
+// change can be read end to end: `session` is the weekly suggestion approved in the conversation it was passed on in
+// (the command the offer text tells the agent to run), `page` is Find Savings, `setup` the install's multi-select, and
+// `command` someone typing `thinker context --approve` themselves. VIA.session is what says whether a suggestion
+// converted; `page` is what says a person went to the dashboard and acted there.
+export const VIA = { session: 'session', page: 'page', setup: 'setup', command: 'command' };
+const viaOf = v => VIA[String(v)] || VIA.command;
+const entryOf = (store, c, decision, result, now, undo, { group = null, tokens = null, via = null } = {}) => {
   const id = randomBytes(6).toString('hex');
   if (undo && !group) writeJson(undoFile(store, id), undo);
-  return { id, ...(group ? { group } : {}), at: new Date(now).toISOString(), key: c.key, ...(c.keys ? { keys: c.keys } : {}), kind: c.kind, title: c.title, ...(c.what ? { what: c.what } : {}), ...(c.about ? { about: c.about } : {}), ...(c.kind === 'section' && c.file ? { file: c.file } : {}), ...(tokens ? { tokens } : {}), saving: c.saving, total: c.total, days: c.days ?? null, action: c.default?.text || null, act: c.default?.act || null, decision, result: result || null, ...(undo ? { revertible: true } : {}) };
+  return { id, ...(group ? { group } : {}), at: new Date(now).toISOString(), ...(via ? { via } : {}), key: c.key, ...(c.keys ? { keys: c.keys } : {}), kind: c.kind, title: c.title, ...(c.what ? { what: c.what } : {}), ...(c.about ? { about: c.about } : {}), ...(c.kind === 'section' && c.file ? { file: c.file } : {}), ...(tokens ? { tokens } : {}), saving: c.saving, total: c.total, days: c.days ?? null, action: c.default?.text || null, act: c.default?.act || null, decision, result: result || null, ...(undo ? { revertible: true } : {}) };
 };
 // a section's tokens before and after its edit (instruction-edit.js:previewEdit `sections`), kept on the entry so the
 // Report can cost the section a session on each side (report.js:actionEffect)
@@ -247,9 +259,9 @@ export function currentChanges(store, view, { now = Date.now(), max = SUGGEST.ma
   const decided = new Set(changeHistory(store, { now }).filter(h => now - Date.parse(h.at) < DECIDED_DAYS * DAY && !(h.decision === 'dismissed' && h.revertedAt) && !h.rejected && !h.failed).flatMap(h => h.keys || [h.key]));
   return (view.suggestions || topChanges(view, { max: 20 })).filter(c => !decided.has(c.key)).slice(0, max);
 }
-export function dismissChanges(store, changes, { now = Date.now() } = {}) {
-  record(store, changes.map(c => entryOf(store, c, 'dismissed', null, now)));
-  store.log({ op: 'context-dismiss', changes: changes.length });
+export function dismissChanges(store, changes, { now = Date.now(), via = VIA.command } = {}) {
+  record(store, changes.map(c => entryOf(store, c, 'dismissed', null, now, null, { via: viaOf(via) })));
+  store.log({ op: 'context-dismiss', changes: changes.length, via: viaOf(via) });
   return changes.map(c => `${c.title}: dismissed; not suggested again for a month`);
 }
 // a section compressed on the page after its diff was read: the edit applied there, recorded here
@@ -267,18 +279,18 @@ export function recordReviewed(store, change, result, { now = Date.now(), undo =
 // applied together are one job, one pull request, one undo, and a line each (the owner's ask, 2026-10-24: no actions
 // bundled into one row): reverting any one of them puts the whole file back, or closes the pull request, and marks the
 // others reverted with it.
-export function startSectionJob(store, changes, action, { pr = false, now = Date.now(), spawnFn = spawn, cliPath = CLI } = {}) {
+export function startSectionJob(store, changes, action, { pr = false, now = Date.now(), spawnFn = spawn, cliPath = CLI, via = VIA.page } = {}) {
   const ids = [...new Set(changes.map(c => c.id).filter(Boolean))];
   if (!ids.length || !['compress', 'remove'].includes(action)) return { error: 'no section to change' };
   const group = randomBytes(6).toString('hex'), at = new Date(now).toISOString();
-  const es = changes.map(c => ({ ...entryOf(store, { ...c, default: ACTS[action] }, pr ? 'pull request' : 'applied', null, now, null, { group }), section: c.id, file: c.file, job: { state: 'running', action, pr, startedAt: at, pid: null } }));
+  const es = changes.map(c => ({ ...entryOf(store, { ...c, default: ACTS[action] }, pr ? 'pull request' : 'applied', null, now, null, { group, via: viaOf(via) }), section: c.id, file: c.file, job: { state: 'running', action, pr, startedAt: at, pid: null, via: viaOf(via) } }));
   record(store, es);
   const args = [cliPath, 'instructions', `--${action}`, ids.join(','), pr ? '--pr' : '--apply', '--job', group];
   let pid = null;
   try { const child = spawnFn(process.execPath, args, { cwd: store.repo, detached: true, stdio: 'ignore' }); child.on?.('error', () => {}); child.unref?.(); pid = child.pid || null; }
   catch (e) { finishJob(store, group, j => ({ ...j, state: 'failed', error: `could not start: ${String(e.message || e).split('\n')[0]}`, finishedAt: at })); return { error: 'could not start the change', group }; }
   finishJob(store, group, j => ({ ...j, pid }));
-  store.log({ op: 'context-job', group, action, sections: ids.length, pr, state: 'started' });
+  store.log({ op: 'context-job', group, action, sections: ids.length, pr, state: 'started', via: viaOf(via) });
   const n = ids.length, word = `${n} section${n === 1 ? '' : 's'}`;
   return { group, said: action === 'compress' ? `Compressing ${word} in the background: ${pr ? 'a pull request opens with the change when the model is done' : 'the file in your working tree is rewritten when the model is done'}. Follow it under Recent activity.` : `Removing ${word}: ${pr ? 'a pull request opens with the change in a moment' : 'written to your working tree in a moment'}. Follow it under Recent activity.` };
 }
@@ -312,7 +324,7 @@ export async function runSectionJob(store, { group, ids, action, pr = false }, {
       if (r.error) return fail(r.error);
       const prRecord = { number: r.number, url: r.url, branch: r.branch, commit: r.commit, base: r.base, state: 'open', openedAt: done.finishedAt, checkedAt: done.finishedAt };
       finishJob(store, group, j => ({ ...j, ...done }), e => { e.pr = { ...prRecord }; e.decision = 'pull request'; e.result = r.said; e.tokens = sectionTokens(p, e.section) || e.tokens || null; });
-      store.log({ op: 'context-approve', changes: es.length, saving, reviewed: true, pr: r.number, group });
+      store.log({ op: 'context-approve', changes: es.length, saving, reviewed: true, pr: r.number, group, via: viaOf(es[0]?.job?.via) });
       return { said: r.said, pr: prRecord };
     }
     const read = f => { try { return fs.readFileSync(path.join(store.repo, f), 'utf8'); } catch { return null; } };
@@ -321,7 +333,7 @@ export async function runSectionJob(store, { group, ids, action, pr = false }, {
     if (a.error) return fail(a.error);
     writeJson(undoFile(store, group), { kind: 'edit', files: names.map((f, i) => ({ file: f, before: before[i], after: read(f) })) });
     finishJob(store, group, j => ({ ...j, ...done }), e => { e.decision = 'applied'; e.result = a.said; e.tokens = sectionTokens(p, e.section) || e.tokens || null; });
-    store.log({ op: 'context-approve', changes: es.length, saving, reviewed: true, group });
+    store.log({ op: 'context-approve', changes: es.length, saving, reviewed: true, group, via: viaOf(es[0]?.job?.via) });
     return a;
   } catch (err) { return fail(String(err.message || err).split('\n')[0]); }
 }
@@ -397,14 +409,19 @@ export function contextSuggestOffer(store, { now = Date.now(), env = process.env
   const p = st.pending; delete st.pending; st.offeredAt = new Date(now).toISOString();
   writeJson(stateFile(store), st);
   const url = (() => { try { return ui(store); } catch { return null; } })();
-  const total = p.changes.reduce((a, c) => a + (c.total ?? c.saving), 0);
-  store.log({ op: 'context-offer', changes: p.changes.length, saving: total, ui: Boolean(url) });
-  const lines = p.changes.map((c, i) => `${i + 1}. ${c.title}: ~${formatTokens(c.total ?? c.saving)} input tokens over the last ${p.days} days; ${c.why}. Suggested: ${c.default ? c.default.text : 'dismiss, or change it by hand'}${c.options?.length > 1 ? ` (or: ${c.options.slice(1).map(o => o.act).join(', ')})` : ''}`).join('\n');
+  // the one cost rule, in the order the person can check it: what the changes add to every prompt here, and what
+  // that came to over the window. Per prompt first since it is the figure they can hold against a prompt they have
+  // seen; the window total is the same number times the calls that carried it, and alone it reads as a figure nobody
+  // can place (a week of a 25k-token file across 7,600 calls is ~190M, true and useless).
+  const perPrompt = p.changes.reduce((a, c) => a + (c.saving || 0), 0);
+  const total = p.changes.reduce((a, c) => a + (c.total ?? c.saving ?? 0), 0);
+  store.log({ op: 'context-offer', changes: p.changes.length, saving: total, perPrompt, ui: Boolean(url) });
+  const lines = p.changes.map((c, i) => `${i + 1}. ${c.title}: ~${formatTokens(c.saving || 0)} input tokens in every prompt (~${formatTokens(c.total ?? c.saving ?? 0)} over the last ${p.days} days); ${c.why}. Suggested: ${c.default ? c.default.text : 'dismiss, or change it by hand'}${c.options?.length > 1 ? ` (or: ${c.options.slice(1).map(o => o.act).join(', ')})` : ''}`).join('\n');
   const where = url ? `at ${suggestionsUrl(url, repoId)} (thinker's page on this machine, just started)` : 'by running `thinker ui` (Context, All)';
   return `<thinker-context-suggestions>
-thinker read the last ${p.days} days of agent sessions in this repository (${p.sessions} sessions) and found ${p.changes.length === 1 ? 'one change' : `${p.changes.length} changes`} to what loads into every session that would have saved up to ~${formatTokens(total)} input tokens over those days together.
+thinker read the last ${p.days} days of agent sessions in this repository (${p.sessions} sessions) and found ${p.changes.length === 1 ? 'one change' : `${p.changes.length} changes`} to what loads into every session, together ~${formatTokens(perPrompt)} input tokens in every prompt here (~${formatTokens(total)} over those ${p.days} days).
 Before you start on the request, pass this on to the user in a short message starting "${SIGNATURE}:": one line per change below (what it is, what it saves, and the suggested action), then that they can approve or review each ${where}, or reply here with the numbers to approve (or "all"). Keep it under ten lines. Do not make any of these changes yourself, and do not open the files to check them. Then go on with the task.
-If the user later approves some of them in this conversation, run \`thinker context --days 7 --approve <their numbers, comma-separated, or all; a number may take another action after a colon, e.g. 3:remove>\` and tell them in one line what it did.
+If the user later approves some of them in this conversation, run \`thinker context --days 7 --via session --approve <their numbers, comma-separated, or all; a number may take another action after a colon, e.g. 3:remove>\` and tell them in one line what it did.
 ${lines}
 </thinker-context-suggestions>`;
 }
@@ -414,7 +431,7 @@ ${lines}
 // for git diff to review (instruction-edit.js); a skill or tool is switched off for this repository, `thinker harness
 // --undo` turning it back on (context-view.js:switchSources); an output gets moderate compression (diet.js). A change
 // with no default (nothing switches it off) is left for review on the page. Returns one line per change.
-export async function approveChanges(store, changes, { edit } = {}) {
+export async function approveChanges(store, changes, { edit, via = VIA.command } = {}) {
   // a change may carry the action the person picked (`chosen`, one of its options); else its suggestion
   changes = changes.map(c => ({ ...c, default: c.options?.find(o => o.act === c.chosen) || c.default }));
   const { switchSources, setOutputCompression } = await import('./context-view.js');
@@ -448,9 +465,9 @@ export async function approveChanges(store, changes, { edit } = {}) {
   for (const c of changes) {
     let m; try { m = await make(c); } catch (e) { m = { error: String(e.message || e).split('\n')[0] }; }
     said.push(`${c.title}: ${m.error || m.result}`);
-    if (!m.error) record(store, [entryOf(store, c, 'approved', m.result, at, m.undo, { tokens: m.tokens || null })]);
+    if (!m.error) record(store, [entryOf(store, c, 'approved', m.result, at, m.undo, { tokens: m.tokens || null, via: viaOf(via) })]);
   }
-  store.log({ op: 'context-approve', changes: changes.length, saving: changes.reduce((a, c) => a + c.saving, 0) });
+  store.log({ op: 'context-approve', changes: changes.length, saving: changes.reduce((a, c) => a + c.saving, 0), via: viaOf(via) });
   return said;
 }
 

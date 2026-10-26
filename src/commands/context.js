@@ -57,11 +57,14 @@ async function contextCommand({ store, flags, out }) {
   // the top changes (context-suggest.js): approve their suggested actions, dismiss them, or read the decisions so far,
   // as the Context tab's rows and History do
   const top = currentChanges(store, v);
+  // --via names where the decision came from (context-suggest.js:VIA): the weekly suggestion's own command says
+  // `session`, so a suggestion that converted in the conversation is not counted as someone typing the command.
+  const via = typeof flags.via === 'string' ? flags.via : 'command';
   for (const [flag, fn] of [['approve', approveChanges], ['dismiss', dismissChanges]]) {
     if (flags[flag] === undefined) continue;
     const picked = pickChanges(top, flags[flag] === true ? '' : flags[flag]);
     if (!picked.length) { out(`Name the top changes to ${flag}: their numbers (1-${top.length}) or all. \`thinker context\` lists them.`); return; }
-    for (const l of await fn(store, picked)) out(l);
+    for (const l of await fn(store, picked, { via })) out(l);
     return;
   }
   // what a decision saved, attributed to it alone (report.js:actionEffect): the changed thing a prompt (one call to the model) before against since

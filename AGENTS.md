@@ -718,7 +718,9 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
 - **Per prompt** (`tokens`): its size, what it adds to every prompt that carries it. **Needed** (`usedShare`): of those prompts, the share the agent acted on it in. **Over N days** (`window`): per prompt × every prompt that carried it (`prompts`). **Wasted** (`wastedWindow`; `wasted` a prompt): window × (1 − needed). The savings card leads with the window figure. `perPrompt` (window ÷ every prompt of the window) stays in the data for the tab strip, the totals and `wasteLevel`, not in the table.
 - Needed is by prompts, not sessions (the owner's ask the same day; until then `used / loaded` sessions, and a judge's session verdicts for sections). Each transcript tool event carries `turn`, the model call it was made in (`transcripts.js`, Claude Code and Codex). A tool or skill: the calls that called it, `harness.js:readSessionHarness` `usedCalls` and `harness-codex.js` (a typed `/skill` or `$skill` is one), summed as `usedPrompts` capped at the session's calls; Cursor one a session. A section: the calls that fired its triggers, `instruction-value.js:appliedTurns`, over the calls of the sessions that read it since its last change (`promptsSince`; `use()` takes `prompts` and `appliedPrompts`); the judge's verdicts stay as the section's value (`valueOf`), not in the share. An output: the re-reads before the agent last used it, `tool-outputs.js` `needed` = (input − unneeded) / input. `session-harness` and `session-activity` disk caches are v2 for it.
 - Real calls, not a median: `prompts` on every source is the sum of its sessions' model calls; `contextView` `viewPrompts` is the window's. A section changed inside the window costs its present size in every call that read its file; the change governs what its use is measured over, nothing else.
-- All repositories sums `usedPrompts`, `prompts` and `window` (`mergeViews`), never weights one repository's figure by another's sessions. `context-machine.js` and `context-suggest.js` say "needed in N% of prompts"; a change is worth its saving a prompt × the calls that carried it (`total`); `SUGGEST.minSaving` is 15 a prompt (500 a session before).
+- All repositories sums `usedPrompts`, `prompts` and `window` (`mergeViews`), never weights one repository's figure by another's sessions. `context-machine.js` and `context-suggest.js` say "needed in N% of prompts"; `SUGGEST.minSaving` is 15 a prompt (500 a session before).
+- A change's `total` is the row's own window figure, never recomputed (`partChanges` carries `windowSaving`: `wastedWindow`, an output's `saveModerateWindow`). Recomputing it as `saving × prompts` divided by the window's prompts and multiplied by the part's: right only for a part every prompt carries, 0.55× for Artifact here (2026-10-26). A report without the figure falls back to the old reckoning.
+- The weekly message leads per prompt, the window total beside it (`contextSuggestOffer`): a week of a 25k-token file over 7,600 calls is ~190M, true and unplaceable.
 - Until then every figure was tokens × the *median* calls of a session, which weighed every session alike and mixed two denominators (a section was averaged over the sessions that read its file, a tool was not).
 
 **Tables** (each ends on `sessionTotals`; all three sum to same figure)
@@ -935,6 +937,18 @@ ToolSearch, whose absence puts every deferred definition inline (+29k tokens a c
 is a deny list. Why: on this machine's sessions (Artemis Tokens page, waste view) Artifact (15k tokens) was called in
 1 of 65 sessions that carried it, Workflow in 0 of 535. Not known: whether the desktop app's own tools (Artifact,
 SendFeedback, absent from `-p`) obey the deny list.
+
+**The funnel, end to end (2026-10-26).** Every decision records the door it came through (`context-suggest.js:VIA`,
+on the log line and the history entry): `session` (the weekly suggestion answered in the conversation it was passed on
+in — the command the offer text tells the agent to run carries `--via session`), `page` (Find Savings), `setup` (the
+install's multi-select), `command` (typed; also every decision from a client before 0.2.11). Telemetry counts
+`offeredChanges` (what a summary actually put in a prompt, the denominator of the share accepted — a ranked row nobody
+saw is not an offer), `offeredPerPrompt`, and `approvedBy` / `dismissedBy` by door (`spendMetrics`); `suggestedTokens` and `offeredTokens`
+from before this carry the old `total`, so they are not comparable across the release; the dashboard reads
+them in "Suggested, offered and decided", "Where a change was accepted" and "Changes dismissed, by door"
+(`scripts/spend-dashboard.mjs`). What is still not measured: whether the agent passed the summary on at all — the
+message asks it to relay in its own words and nothing records that it did, so an offered change may never have reached
+the person.
 
 **One suggestion, not three (2026-10-25, the owner's call).** What thinker puts to the person in their session is
 the weekly context suggestion alone (`context-suggest.js:contextSuggestOffer`, `maintain.contextSuggest`, at most

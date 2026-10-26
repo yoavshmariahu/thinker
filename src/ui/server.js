@@ -19,7 +19,7 @@
 import { harnessView, harnessSavings, harnessOn, undoHarness, switchOffNow, setHarnessSettings } from '../harness.js';
 import { contextView, mergeViews, switchSources, setOutputCompression } from '../context-view.js';
 import { snapshotView, lastSnapshot, refreshing, dropSnapshots, REFRESH_MS } from '../context-snapshot.js';
-import { approveChanges, dismissChanges, startSectionJob, retryJob, revertDecision, pickChanges, allChanges, changeHistory, refreshPrStates } from '../context-suggest.js';
+import { approveChanges, dismissChanges, startSectionJob, retryJob, revertDecision, pickChanges, allChanges, changeHistory, refreshPrStates, VIA } from '../context-suggest.js';
 import { mergeReports, reportActions, mergePromptAverages, REPORT_WEEKS } from '../report.js';
 import { reportSnapshot, refreshing as reportRefreshing, historyEffects, promptAverageHere, keptRows } from '../report-snapshot.js';
 import { prAvailable } from '../instruction-pr.js';
@@ -263,15 +263,15 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
         const keys = (Array.isArray(b.keys) ? b.keys : [b.key]).map(k => String(k || '')).filter(Boolean);
         const picked = pickChanges(allChanges(changesView(st, Number(b.days) || 7)), keys, b.acts && typeof b.acts === 'object' ? b.acts : {});
         if (!picked.length) r = { error: 'that part is no longer in the report; reload the page' };
-        else if (url.pathname.endsWith('/approve')) r = { said: (await approveChanges(st, picked)).join(' ') };
-        else if (url.pathname.endsWith('/dismiss')) r = { said: dismissChanges(st, picked).join(' ') };
+        else if (url.pathname.endsWith('/approve')) r = { said: (await approveChanges(st, picked, { via: VIA.page })).join(' ') };
+        else if (url.pathname.endsWith('/dismiss')) r = { said: dismissChanges(st, picked, { via: VIA.page }).join(' ') };
         else {
           // one job per action among the picked sections (the rows' dropdowns may differ); a part that is no section is refused
           const secs = picked.filter(c => c.kind === 'section');
           if (secs.length !== picked.length) r = { error: 'only a section is changed this way' };
           else {
             const said = [], pr = prAvailable(st.repo).ok;
-            for (const action of ['compress', 'remove']) { const xs = secs.filter(c => (c.chosen || c.default?.act) === action); if (!xs.length) continue; const j = startSectionJob(st, xs, action, { pr, spawnFn, cliPath }); said.push(j.said || j.error); }
+            for (const action of ['compress', 'remove']) { const xs = secs.filter(c => (c.chosen || c.default?.act) === action); if (!xs.length) continue; const j = startSectionJob(st, xs, action, { pr, spawnFn, cliPath, via: VIA.page }); said.push(j.said || j.error); }
             r = said.length ? { said: said.join(' ') } : { error: 'no action picked' };
           }
         }
