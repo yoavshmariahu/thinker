@@ -189,9 +189,9 @@ const HELP = `thinker — knowledge cache for coding agents
                                  Find Savings lists every part with its actions, and Recent activity the decisions with what needs
                                  you. Once a week the next prompt passes the five on with a link to that page
                                  (maintain.contextSuggest in .thinker/config.json; false turns it off)
-  report [--weeks n] [--cost] [--total] [--share] [--json] [--refresh [--all]]   the Report page in the terminal: the average tokens a session cost here, week by week over the
+  report [--weeks n] [--tokens] [--total] [--share] [--json] [--refresh [--all]]   the Report page in the terminal: the average cost of a prompt here at list prices, week by week over the
                                  last 6, by token type (fresh input, cache writes, cache reads, output), by part of the context
-                                 (instruction files, custom and built-in tools, tool outputs, the rest) and by model under its provider; --cost the same at the providers' list prices, --total each week's
+                                 (instruction files, custom and built-in tools, tool outputs, the rest) and by model under its provider, each part-table row against good and bad bounds in dollars; --tokens the same in tokens, without bounds, --total each week's
                                  sum instead of the average, --share each row as its share of the whole session (the totals stay);
                                  a cell up or down 5% against the first week is marked; then the decisions
                                  taken on the Find Savings page in the window and the cache's numbers, its saving in dollars first
