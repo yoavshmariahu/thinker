@@ -150,7 +150,7 @@ export function changeHistory(store, { now = Date.now(), git = isAncestor } = {}
     // checkout that had not pulled main). Asked until the merge is seen here once, then kept (`pulledAt`). `pullFrom` is
     // the branch to pull: the pull request's base, else the repository's default branch (main, master or whatever origin
     // names), for the banner on Recent activity.
-    if (e.pr?.state === 'merged' && e.kind === 'section' && !e.pr.pulledAt && now - Date.parse(e.pr.at || e.at) < DECIDED_DAYS * DAY) {
+    if (e.pr?.state === 'merged' && e.kind === 'section' && !e.revertedAt && !e.pr.pulledAt && now - Date.parse(e.pr.at || e.at) < DECIDED_DAYS * DAY) {
       const here = inCheckout(store, e, git);
       if (here === true) { e.pr.pulledAt = new Date(now).toISOString(); dirty = true; }
       else if (here === false) unpulled.add(e);
@@ -219,7 +219,7 @@ function record(store, entries) {
 // (the person reads them as separate line items) sharing one undo, under the edit's `group` id: reverting any of them
 // reverts the edit, and every entry of the group with it (revertDecision)
 const undoFile = (store, id) => path.join(store.dir, 'state', 'context-suggest-undo', `${id}.json`);
-const undoOf = (store, e) => e.decision === 'dismissed' ? { kind: 'dismissed' } : e.pr ? (e.pr.state === 'open' ? { kind: 'pr', number: e.pr.number, branch: e.pr.branch } : null) : (e.id && readJson(undoFile(store, e.group || e.id)))
+const undoOf = (store, e) => e.decision === 'dismissed' ? { kind: 'dismissed' } : e.pr ? (e.pr.state === 'open' ? { kind: 'pr', number: e.pr.number, branch: e.pr.branch } : e.pr.state === 'merged' ? { kind: 'revert-pr', number: e.pr.number, mergeCommit: e.pr.mergeCommit || null, base: e.pr.base || null } : null) : (e.id && readJson(undoFile(store, e.group || e.id)))
   || (e.decision === 'approved' && (e.kind === 'tool' || e.kind === 'skill') ? { kind: 'off', key: e.key.replace(/^[^:]+:/, '') }
     : e.decision === 'approved' && e.kind === 'output' ? { kind: 'output', name: e.key.replace(/^output:/, '') } : null);
 const entryOf = (store, c, decision, result, now, undo, { group = null, tokens = null } = {}) => {
@@ -476,6 +476,19 @@ export async function revertDecision(store, id, { now = Date.now(), prs } = {}) 
     writeJson(stateFile(store), st);
     store.log({ op: 'context-revert', kind: 'pr', pr: u.number, sections: 1 + siblings.length });
     return { said: `${e.title}: pull request #${u.number} closed; suggested again${withOthers(siblings)}` };
+  }
+  // a merged pull request is taken back by another: one that reverts its merge, for every section the pull request made
+  if (u.kind === 'revert-pr') {
+    const { revertPr } = prs || await import('./instruction-pr.js');
+    const siblings = st.history.filter(h => h !== e && h.pr?.number === u.number && h.pr.state === 'merged' && !h.revertedAt);
+    const titles = [e, ...siblings].map(h => h.title.replace(/^.*? · /, ''));
+    const r = revertPr(store.repo, { number: u.number, mergeCommit: u.mergeCommit, base: u.base, title: titles.length <= 3 ? titles.join(', ') : `${titles.length} sections` }, { now });
+    if (r.error) return { error: r.error };
+    const at = new Date(now).toISOString();
+    for (const h of [e, ...siblings]) { h.revertPr = { number: r.number, url: r.url, branch: r.branch, base: r.base, openedAt: at }; h.result = `Pull request #${r.number} opened to revert #${u.number}`; h.revertedAt = at; }
+    writeJson(stateFile(store), st);
+    store.log({ op: 'context-revert', kind: 'revert-pr', pr: u.number, revertPr: r.number, sections: 1 + siblings.length });
+    return { said: `${e.title}: pull request #${r.number} opened to revert #${u.number}: ${r.url}${withOthers(siblings)}` };
   }
   if (u.kind === 'off') {
     const { undoHarness } = await import('./harness.js');

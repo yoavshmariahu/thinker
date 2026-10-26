@@ -370,7 +370,7 @@ test('a section job with a pull request: the decision is pending until merged; c
   await job([picked[0]], now + 1000);
   prs.state = () => ({ state: 'merged', at: '2026-10-24T12:00:00Z', commit: 'm1' });
   assert.equal(await refreshPrStates(store, { now: now + 100_000, prs }), 1);
-  assert.equal(changeHistory(store)[0].pr.state, 'merged'); assert.equal(changeHistory(store)[0].revertible, false);
+  assert.equal(changeHistory(store)[0].pr.state, 'merged'); assert.equal(changeHistory(store)[0].revertible, true, 'Revert opens a pull request that reverts it');
   assert.equal(currentChanges(store, view(), { now }).some(c => c.key === 'section:AGENTS.md:Releases'), false, 'merged: decided');
   // the merge commit GitHub named is kept; a checkout without it says so (`unpulled`): the section is still in the file
   // there, and its row says Merged instead of coming back as a suggestion
@@ -383,6 +383,16 @@ test('a section job with a pull request: the decision is pending until merged; c
   assert.equal(changeHistory(store, { now, git: () => null })[0].unpulled, undefined);
   m = changeHistory(store, { now, git: () => true })[0]; assert.equal(m.unpulled, undefined); assert.ok(m.pr.pulledAt);
   assert.equal(changeHistory(store, { now, git: () => { throw new Error('not asked again'); } })[0].unpulled, undefined);
+  // Revert on a merged pull request: a pull request that reverts its merge commit, against the pull request's base
+  const reverts = [];
+  prs.revertPr = (r, o) => { reverts.push(o); return o.number === 7 ? { number: 9, url: 'https://github.com/o/r/pull/9', branch: 'thinker/revert-7', base: 'main' } : { error: 'no' }; };
+  const merged = changeHistory(store)[0];
+  assert.match((await revertDecision(store, merged.id, { now: now + 1500, prs })).said, /pull request #9 opened to revert #7: https:\/\/github.com\/o\/r\/pull\/9$/);
+  assert.deepEqual(reverts, [{ number: 7, mergeCommit: 'm1', base: 'main', title: 'Releases' }]);
+  m = changeHistory(store, { now, git: () => false })[0];
+  assert.equal(m.revertible, false); assert.ok(m.revertedAt); assert.equal(m.revertPr.number, 9); assert.equal(m.unpulled, undefined, 'reverted: nothing to pull');
+  assert.match(m.result, /#9 opened to revert #7/);
+  assert.match((await revertDecision(store, merged.id, { prs })).error, /already reverted/);
   await job([picked[1]], now + 2000);
   const third = changeHistory(store)[0];
   assert.ok(third.group, 'a job is a group, one section or several');

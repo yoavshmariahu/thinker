@@ -194,3 +194,41 @@ export function closePr(repo, number, { gh = ghCli, slug = githubSlug(repo), bra
   if (branch) tryGit(repo, ['update-ref', '-d', `refs/heads/${branch}`]);
   return { ok: true };
 }
+
+// A merged pull request taken back: a pull request that reverts its merge commit on the base as it is now, made as
+// openEditPr makes one (the checkout's index and files are not touched). The revert is a three-way merge of the
+// merge's parent into the base over the merge commit (git merge-tree), so later commits on the base stay. Returns
+// {number, url, branch, said} or {error}.
+export function revertPr(repo, { number, mergeCommit, base: baseGiven, title: prTitle }, { gh = ghCli, slug = githubSlug(repo), now = Date.now() } = {}) {
+  if (!slug) return { error: 'the origin is not on GitHub' };
+  let merge = mergeCommit;
+  if (!merge) merge = prState(repo, number, { gh, slug })?.commit;
+  if (!merge) return { error: `no merge commit known for #${number}` };
+  const baseName = baseGiven || defaultBranch(repo);
+  if (!baseName) return { error: 'no default branch (main or master) to open the pull request against' };
+  const base = baseCommit(repo, baseName);
+  if (!base) return { error: `no commit for ${baseName} here` };
+  if (!tryGit(repo, ['rev-parse', '-q', '--verify', `${merge}^{commit}`])) netGit(repo, ['fetch', '-q', 'origin', merge]);
+  const parent = tryGit(repo, ['rev-parse', '-q', '--verify', `${merge}^1`]);
+  if (!parent) return { error: `the merge commit of #${number} is not here; git fetch, then revert again` };
+  const r = spawnSync('git', ['merge-tree', '--write-tree', `--merge-base=${merge}`, base, parent], { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  if (r.status !== 0) return { error: r.status === 1 ? `#${number} no longer reverts cleanly on ${baseName}; revert it by hand` : `could not build the revert: ${firstLine(r.stderr || r.error)}` };
+  const tree = r.stdout.split('\n')[0].trim();
+  if (tree === tryGit(repo, ['rev-parse', `${base}^{tree}`])) return { error: `#${number} is already undone on ${baseName}` };
+  const title = `Revert #${number}${prTitle ? `: ${prTitle}` : ''}`.slice(0, 120);
+  const body = `Reverts #${number}. Opened from thinker's Recent activity page (\`thinker ui\`).\n\nMerging takes the change back on ${baseName}, and thinker suggests the sections again.`;
+  const branch = `thinker/revert-${number}-${new Date(now).toISOString().slice(0, 10).replace(/-/g, '')}-${randomBytes(3).toString('hex')}`;
+  let commit;
+  try {
+    commit = git(repo, ['commit-tree', tree, '-p', base, '-m', `${title}\n\nThis reverts commit ${merge}.`]);
+    git(repo, ['update-ref', `refs/heads/${branch}`, commit]);
+  } catch (err) { return { error: `could not make the commit: ${firstLine(err)}` }; }
+  const push = netGit(repo, ['push', '-q', '-u', 'origin', `${branch}:${branch}`]);
+  if (!push.ok) { tryGit(repo, ['update-ref', '-d', `refs/heads/${branch}`]); return { error: `could not push ${branch}: ${push.error}` }; }
+  let url;
+  try { url = gh.run(['pr', 'create', '--repo', slug, '--head', branch, '--base', baseName, '--title', title, '--body', body], { cwd: repo }).split('\n').filter(Boolean).pop() || ''; }
+  catch (err) { return { error: `pushed ${branch} but could not open the pull request: ${firstLine(err)}` }; }
+  const opened = Number((url.match(/\/pull\/(\d+)/) || [])[1]) || null;
+  if (!opened) return { error: `pushed ${branch}; gh gave no pull request address (${url || 'nothing'})` };
+  return { number: opened, url, branch, base: baseName, said: `Pull request #${opened} opened to revert #${number}: ${url}` };
+}

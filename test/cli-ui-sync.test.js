@@ -210,7 +210,10 @@ test('All on Find Savings and Recent activity are `thinker context --approve|--d
   assert.match(page, /once you pull <code>\$\{esc\(br\)\}<\/code> \(<code>git pull origin \$\{esc\(br\)\}<\/code>\)/);
   assert.match(page, /e\.unpulled \? \['wait', 'Merged · pull to apply'\]/);
   assert.match(read('commands/context.js'), /once you pull \$\{br\} \(git pull origin \$\{br\}\)/);
-  assert.match(read('commands/context.js'), /merged\$\{e\.unpulled \? ', pull to apply' : ''\}/);
+  assert.match(read('commands/context.js'), /merged\$\{e\.revertPr \? `, revert #\$\{e\.revertPr\.number\}` : e\.unpulled \? ', pull to apply' : ''\}/);
+  // Revert on a merged pull request opens one that reverts it (instruction-pr.js:revertPr), on the page and by --revert
+  assert.match(page, /e\.revertPr \? \['off', 'Revert PR opened'\]/);
+  assert.match(cs, /kind: 'revert-pr'/);
   assert.match(read('commands/context.js'), /if \(flags\.retry !== undefined\)/);
   assert.doesNotMatch(page, /\['history', 'History'\]/);
   // the page's rows read the same decisions, for the pill on a section under way, failed or pending on a pull request
@@ -342,7 +345,7 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('commands/context.js'), /thinker report --refresh` makes the report they are read from/);
   assert.match(read('ui/page.html'), /<span class="ctx-avg-label">Average prompt<\/span><b>\$\{fmt\(promptAvg\.perPrompt\)\}<\/b> tokens/);
   assert.match(read('ui/page.html'), /<tr class="ctx-caprow"><th colspan="4" class="ctx-cap">\$\{capText\}<\/th><th class="num ctx-avgcell">\$\{avgStat\}<\/th>/, 'the caption is the first header row, the average prompt in the cell over Saved');
-  assert.match(read('ui/page.html'), /<th class="num"[^>]*>Before<\/th><th class="num"[^>]*>After<\/th><th class="num"[^>]*>Saved<\/th><th>Pull request<\/th>/);
+  assert.match(read('ui/page.html'), /<th class="num"[^>]*>Before<\/th><th class="num"[^>]*>After<\/th><th class="num"[^>]*>Saved per prompt<\/th><th>Pull request<\/th>/);
   assert.doesNotMatch(read('ui/page.html'), /A section's change runs in the background and <b>o/);
   // the cost view is the command's --cost: list prices from prices.js, an unpriced model marked on both (the command in its
   // row's name, the page in the row's kind: the Report's tables carry no prose under them since 2026-10-24, the owner's ask)
