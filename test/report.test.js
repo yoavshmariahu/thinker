@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
-import { reportView, mergeReports, renderReport, THRESHOLDS, verdict, formatThreshold, weekColumns, weekStart, cacheMetrics, PARTS, BREAKDOWN, TOKEN_TYPES, OTHERS, REWRITES, CALIBRATION, calibrationOf, outputComparison, formatShare, actionEffect, itemCost, effectSpan, withEffects, promptAverage, mergePromptAverages } from '../src/report.js';
+import { reportView, mergeReports, renderReport, THRESHOLDS, COST_THRESHOLDS, verdict, formatThreshold, formatCostThreshold, weekColumns, weekStart, cacheMetrics, PARTS, BREAKDOWN, TOKEN_TYPES, OTHERS, REWRITES, CALIBRATION, calibrationOf, outputComparison, formatShare, actionEffect, itemCost, effectSpan, withEffects, promptAverage, mergePromptAverages } from '../src/report.js';
 import { REWRITE_CAUSES } from '../src/transcripts.js';
 const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-6, `${msg || ''} ${a} ≈ ${b}`);
 import { listPrice, providerOf, costOf, writeCost, formatDollars } from '../src/prices.js';
@@ -200,6 +200,20 @@ test('the report averages each week over its sessions, by part and by model unde
   assert.doesNotMatch(partLines[partLines.findIndex(l => l.startsWith('By model')) + 1], /good/, 'the model table has no threshold columns'); assert.doesNotMatch(text, /▲|▼/);
   assert.match(text, /✓ · ✗: a part at or under its good figure/);
   assert.deepEqual(v.thresholds, THRESHOLDS, 'the view carries the thresholds for the page');
+  // --cost: every row of the parts table has bounds in dollars a priced prompt (COST_THRESHOLDS) and a mark by its cost; the
+  // models and token types still take none
+  assert.deepEqual(v.costThresholds, COST_THRESHOLDS, 'the view carries the cost bounds for the page');
+  const rowKeys = [...PARTS.map(([k]) => k), 'otherInput', ...OTHERS.map(([k]) => k), 'total'];
+  assert.deepEqual(Object.keys(COST_THRESHOLDS).sort(), [...rowKeys].sort(), 'a cost bound for every row of the parts table');
+  for (const t of Object.values(COST_THRESHOLDS)) assert.ok(t.good < t.bad);
+  const sumOf = side => [...PARTS.map(([k]) => k), 'otherInput', 'output'].reduce((a, k) => a + COST_THRESHOLDS[k][side], 0);
+  for (const side of ['good', 'bad']) assert.ok(Math.abs(COST_THRESHOLDS.total[side] - sumOf(side)) < 1e-9, `the whole session's ${side} bound is the rows' sum`);
+  assert.equal(verdict('output', 0.01, COST_THRESHOLDS), 'good'); assert.equal(verdict('output', 0.02, COST_THRESHOLDS), 'mid'); assert.equal(verdict('total', 0.2, COST_THRESHOLDS), 'bad');
+  assert.equal(formatCostThreshold(0.025), '$0.025'); assert.equal(formatCostThreshold(0.01), '$0.01');
+  const costLines = renderReport(v, { cost: true }).join('\n').split('\n'), costRow = n => costLines.find(l => l.trimStart().startsWith(n));
+  assert.match(costRow('Instruction files'), /≤\$0\.01\s+≥\$0\.025/); assert.match(costRow('Model output'), /≤\$0\.01\s+≥\$0\.025/); assert.match(costRow('Model output'), /[✓·✗]/, 'the output is marked by its cost');
+  assert.match(costRow('TOTAL (THE WHOLE SESSION)'), /≤\$0\.076\s+≥\$0\.182/); assert.match(costRow('Other input'), /≤\$0\.01\s+≥\$0\.03/);
+  assert.doesNotMatch(costRow('ANTHROPIC'), /[✓·✗]/); assert.match(costLines.join('\n'), /in dollars a priced prompt/);
   // --share: every row as its share of the whole session, the total rows as they are (the page's Share)
   const shared = renderReport(v, { share: true }).join('\n'), lines = shared.split('\n');
   assert.match(shared, /each row as its share of the whole session/);
@@ -227,6 +241,7 @@ test('the report averages each week over its sessions, by part and by model unde
   assert.match(renderReport(v, { total: true }).join('\n'), /Total tokens over the week's sessions/);
   // every repository's report merged: the sums and the sessions add, the actions name their repository
   const m = mergeReports([{ repo: 'a', name: 'A', view: v }, { repo: 'b', name: 'B', view: v }]);
+  assert.deepEqual(m.costThresholds, COST_THRESHOLDS, 'All repositories carries the cost bounds too');
   assert.deepEqual(m.columns.map(c => c.sessions), [0, 0, 0, 0, 4, 4]);
   assert.equal(m.sessionTotals[last].tokens, 4400); assert.equal(m.columns[last].prompts, 8); assert.equal(m.sessionTotals[last].prompts, 8);
   assert.equal(m.tokenTypes.find(p => p.key === 'cacheRead').cells[last].tokens, 2400); assert.equal(m.others.find(p => p.key === 'output').cells[last].tokens, 400);

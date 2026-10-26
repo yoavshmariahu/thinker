@@ -43,6 +43,30 @@ export const THRESHOLDS = {
   builtin: { good: 22_000, bad: 36_000 },
   outputs: { good: 30_000, bad: 72_000 },
 };
+// What every row of the parts table should cost a prompt at list prices, in dollars (the owner's ask, 2026-10-26: bounds for
+// cost on each line item): the cost view (`--cost`, the page's Cost) shows these in the Good and Bad columns and colours each
+// row by its cost a priced prompt against them, the four parts, the rest of the input and each of its kinds, the output and
+// the whole session alike; the token view keeps THRESHOLDS on the four parts alone. The four parts are their token figures
+// at about $0.8 a million input tokens, what a cached Opus 5.5 call's input cost here (cache reads at $0.40 with the writes
+// at $5–8; 35 and 45 priced sessions of this machine's last two weeks, 2026-10-26: $0.57–0.90). The other rows were set on
+// the same weeks, a prompt costing: the rest of the input $0.008 (9–14k tokens), the output $0.008–0.012 (400–600 tokens at
+// $20 a million), the whole session $0.082; good about where those weeks ran, bad two to three times that. The whole session's
+// figures are the sums of the rows' above it. A first cut on one machine, not calibrated across repositories.
+export const COST_THRESHOLDS = {
+  instructions: { good: 0.01, bad: 0.025 },
+  custom: { good: 0.003, bad: 0.012 },
+  builtin: { good: 0.018, bad: 0.03 },
+  outputs: { good: 0.025, bad: 0.06 },
+  otherInput: { good: 0.01, bad: 0.03 },
+  system: { good: 0.003, bad: 0.008 },
+  agentCalls: { good: 0.003, bad: 0.01 },
+  thinking: { good: 0.002, bad: 0.006 },
+  prompts: { good: 0.002, bad: 0.006 },
+  notes: { good: 0.003, bad: 0.008 },
+  other: { good: 0.002, bad: 0.008 },
+  output: { good: 0.01, bad: 0.025 },
+  total: { good: 0.076, bad: 0.182 },
+};
 // Calibration of the estimated parts (2026-10-25). Every reader counts text at four characters a token (instruction-value.js,
 // harness.js, tool-outputs.js, transcripts.js `carried`), and the Save page shows that unit. The model counts more: on the 79
 // sessions whose first request was fully recorded (research/context-breakdown-2026-10-22.md) an Anthropic model reported
@@ -57,10 +81,12 @@ export const calibrationFor = (provider, config) => { const own = config?.calibr
 export const calibrationOf = (model, client, config) => calibrationFor(providerOf(model, client), config);
 // the factors in force, for the page and the command's caption: the measured ones and any the config sets
 export const calibrations = config => Object.fromEntries([...new Set([...Object.keys(CALIBRATION), ...Object.keys(config?.calibration && typeof config.calibration === 'object' ? config.calibration : {})])].map(p => [p, calibrationFor(p, config)]));
-// 'good' | 'mid' | 'bad' for a part's tokens a prompt; null for a row without a threshold or a cell without a figure
-export const verdict = (key, perPrompt) => { const t = THRESHOLDS[key]; return !t || !perPrompt ? null : perPrompt <= t.good ? 'good' : perPrompt >= t.bad ? 'bad' : 'mid'; };
+// 'good' | 'mid' | 'bad' for a part's tokens a prompt (or a row's dollars a priced prompt against COST_THRESHOLDS); null for a row without a threshold or a cell without a figure
+export const verdict = (key, perPrompt, thresholds = THRESHOLDS) => { const t = thresholds[key]; return !t || !perPrompt ? null : perPrompt <= t.good ? 'good' : perPrompt >= t.bad ? 'bad' : 'mid'; };
 // a threshold as the columns show it: 8k, 20k
 export const formatThreshold = n => n % 1000 ? formatTokens(n) : `${n / 1000}k`;
+// a cost bound as the columns show it, to the tenth of a cent it is set to: $0.025, $0.01
+export const formatCostThreshold = d => `$${Number(d.toFixed(3))}`;
 // the parts of a session's input: the four the Save page measures (instruction-value.js, harness.js, tool-outputs.js),
 // then what the conversation itself costs, read from the transcript (transcripts.js:parseClaude `carried`): the system
 // prompt, the agent's own tool calls (the edits and commands it wrote, read again by every call after), its thinking
@@ -197,7 +223,7 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   const outRows = (() => { try { return toolOutputs(store, sessions, timeline).tools; } catch { return []; } })();
   const actions = reportActions(store, from, sessionRows, now);
   return {
-    weeks, days, from, to: now, pricedOn: PRICED_ON, columns, sessionRows, thresholds: THRESHOLDS,
+    weeks, days, from, to: now, pricedOn: PRICED_ON, columns, sessionRows, thresholds: THRESHOLDS, costThresholds: COST_THRESHOLDS,
     tokenTypes,
     parts: PARTS.map(([key, name]) => ({ key, name, cells: byPart[key] })), others, otherInput, totals, sessionTotals,
     breakdown: BREAKDOWN.map(([key, name]) => ({ key, name, cells: byPart[key] })),
@@ -328,7 +354,7 @@ export function mergeReports(list) {
   const cache = views.map(v => v.cache), sum = k => cache.reduce((a, c) => a + (c[k] || 0), 0), judged = sum('judged');
   const confirmed = cache.reduce((a, c) => a + (c.acted == null ? 0 : c.acted * c.judged), 0);
   return {
-    all: true, weeks: first.weeks, days: first.days, from: first.from, to: first.to, pricedOn: first.pricedOn, thresholds: THRESHOLDS,
+    all: true, weeks: first.weeks, days: first.days, from: first.from, to: first.to, pricedOn: first.pricedOn, thresholds: THRESHOLDS, costThresholds: COST_THRESHOLDS,
     columns: Array.from({ length: n }, (_, w) => ({ t: first.columns[w].t, prompts: views.reduce((a, v) => a + (v.columns[w].prompts || 0), 0), pricedPrompts: views.reduce((a, v) => a + (v.columns[w].pricedPrompts || 0), 0), sessions: views.reduce((a, v) => a + v.columns[w].sessions, 0), priced: views.reduce((a, v) => a + v.columns[w].priced, 0), unmeasured: views.reduce((a, v) => a + v.columns[w].unmeasured, 0) })),
     tokenTypes: TOKEN_TYPES.map(([key, name]) => ({ key, name, cells: sumCells(views.map(v => (v.tokenTypes || []).find(p => p.key === key)?.cells || [])) })),
     parts: PARTS.map(([key, name]) => ({ key, name, cells: sumCells(views.map(v => v.parts.find(p => p.key === key)?.cells || [])) })),
@@ -364,10 +390,11 @@ export function renderReport(v, { cost = false, total = false, share = false } =
   const val = (cells, w, base) => { const a = avg(cells[w], w); if (!a || !base) return a; const t = avg(base[w], w); return t ? a / t : null; };
   const fmtv = (x, base) => x == null ? '–' : base ? formatShare(x) : cost ? formatDollars(x) : formatTokens(x);
   // a part's cell is marked by its tokens a prompt against THRESHOLDS (the page's colours): ✓ at or under Good, ✗ at or over
-  // Bad, · between; the other rows take none
-  const MARK = { good: '✓', mid: '·', bad: '✗' };
-  const mark = (key, cells, w) => { const col = v.columns[w], vd = key && col.prompts ? verdict(key, cells[w].tokens / col.prompts) : null; return vd ? MARK[vd] : ' '; };
-  const W = 11, T = 7, thr = key => { const t = key && THRESHOLDS[key]; return `${(t ? `≤${formatThreshold(t.good)}` : '–').padStart(T)}${(t ? `≥${formatThreshold(t.bad)}` : '–').padStart(T)}`; };
+  // Bad, · between; the other rows take none. Under --cost every row of the parts table is marked by its dollars a priced
+  // prompt against COST_THRESHOLDS, and the two columns show those
+  const MARK = { good: '✓', mid: '·', bad: '✗' }, bounds = cost ? COST_THRESHOLDS : THRESHOLDS, fmtb = cost ? formatCostThreshold : formatThreshold;
+  const mark = (key, cells, w) => { const col = v.columns[w], vd = !key ? null : cost ? (col.pricedPrompts ? verdict(key, cells[w].cost / col.pricedPrompts, COST_THRESHOLDS) : null) : col.prompts ? verdict(key, cells[w].tokens / col.prompts) : null; return vd ? MARK[vd] : ' '; };
+  const W = 11, T = cost ? 8 : 7, thr = key => { const t = key && bounds[key]; return `${(t ? `≤${fmtb(t.good)}` : '–').padStart(T)}${(t ? `≥${fmtb(t.bad)}` : '–').padStart(T)}`; };
   // `key`: the part's key for the mark and the two threshold columns; `thresholds`: the row sits in the table that has them
   const line = (name, cells, bold, base, { key = null, thresholds = false } = {}) => `  ${(bold ? name.toUpperCase() : name).slice(0, 30).padEnd(30)}${thresholds ? thr(key) : ''}${cells.map((c, w) => (val(cells, w, base) ? `${fmtv(val(cells, w, base), base)}${mark(key, cells, w)}` : '').padStart(W)).join('')}`;
   const weeks = v.columns.map(c => `wk ${label(c.t)}`.padStart(W)).join('');
@@ -379,10 +406,10 @@ export function renderReport(v, { cost = false, total = false, share = false } =
   for (const p of v.parts) L.push(line(p.name, p.cells, false, base, { key: p.key, thresholds: true }));
   // the rest of the input as one line, its kinds indented under it; the output after
   const rest = (v.others || []).filter(p => p.key !== 'output'), output = (v.others || []).find(p => p.key === 'output');
-  if (v.otherInput) L.push(line('Other input', v.otherInput, false, base, { thresholds: true }));
-  for (const p of rest) L.push(line(`  ${p.name}`, p.cells, false, base, { thresholds: true }));
-  if (output) L.push(line(output.name, output.cells, false, base, { thresholds: true }));
-  L.push(line('Total (the whole session)', v.sessionTotals, true, null, { thresholds: true }));
+  if (v.otherInput) L.push(line('Other input', v.otherInput, false, base, { key: 'otherInput', thresholds: true }));
+  for (const p of rest) L.push(line(`  ${p.name}`, p.cells, false, base, { key: p.key, thresholds: true }));
+  if (output) L.push(line(output.name, output.cells, false, base, { key: 'output', thresholds: true }));
+  L.push(line('Total (the whole session)', v.sessionTotals, true, null, { key: 'total', thresholds: true }));
   L.push('', 'By model', head);
   for (const p of v.providers) { L.push(line(p.name, p.cells, true, base)); for (const m of v.models.filter(x => x.provider === p.name)) L.push(line(`  ${m.model}${m.priced ? '' : ' (unpriced)'}`, m.cells, false, base)); }
   L.push(line('Total (the whole session)', v.sessionTotals, true));
@@ -391,7 +418,7 @@ export function renderReport(v, { cost = false, total = false, share = false } =
   for (const p of v.tokenTypes || []) L.push(line(p.name, p.cells, false, base));
   L.push(line('Total (the whole session)', v.sessionTotals, true));
   // the rewrites by cause and the estimated sessions stay in the view (--json) and off the print: not actionable (2026-10-25)
-  L.push(`  ✓ · ✗: a part at or under its good figure, between the two, at or over its bad figure, in tokens a prompt whatever the table shows; the rest of the input, the output, the models and the token types take no mark; a zero is left blank. A model row is its share of the ${total ? 'week' : 'average prompt'}; its sessions:` + ` ${v.models.map(m => `${m.model} ${m.cells.map(c => c.sessions).join('/')}`).join(', ')}.`);
+  L.push(`  ✓ · ✗: ${cost ? 'a row of the parts table at or under its good figure, between the two, at or over its bad figure, in dollars a priced prompt whatever the table shows; the models and the token types take no mark' : 'a part at or under its good figure, between the two, at or over its bad figure, in tokens a prompt whatever the table shows; the rest of the input, the output, the models and the token types take no mark'}; a zero is left blank. A model row is its share of the ${total ? 'week' : 'average prompt'}; its sessions:` + ` ${v.models.map(m => `${m.model} ${m.cells.map(c => c.sessions).join('/')}`).join(', ')}.`);
   if (v.unpriced.length) L.push(`  No list price for ${v.unpriced.join(', ')}: their sessions are left out of the cost average.`);
   const c = v.cache;
   L.push('', 'The cache', `  $ saved          ${formatDollars(c.dollarsSaved)}${c.unpricedTokens ? ` (+${formatTokens(c.unpricedTokens)} tokens on unpriced models)` : ''}`, `  tokens saved     ${formatTokens(Math.max(0, c.tokensSaved))} ${c.measured ? 'input tokens, against prompts with the notes withheld' : 'tokens of code the agents did not read'}`, `  cache hits       ${formatTokens(c.hits)} notes served, for ${formatTokens(c.answered)} of ${formatTokens(c.requests)} requests`, `  acted on         ${c.acted == null ? '–' : `${Math.round(100 * c.acted)}%`} of ${formatTokens(c.judged)} servings the sessions were judged on`);
