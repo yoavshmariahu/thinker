@@ -4,12 +4,9 @@ See which instructions, skills and tools consume your coding agent's context wit
 its sessions. Review the suggested cuts, then track the change in **View Report**.
 Back to the [README](../README.md).
 
-```bash
-thinker ui                 # open Find Savings in your browser, over every repository
-thinker ui --here          # this repository alone
-thinker context            # the same report in the terminal
-thinker context --days 7   # focus on the last week
-```
+Open it with `thinker ui`, or from the link in thinker's weekly suggestion in your session: about once a
+week your agent passes on a few lines from thinker naming the changes worth making, and you can approve them
+there by number or review them here. Over every repository at first; pick one from the list.
 
 Start with a costly item your sessions rarely use. Preview the change before applying it;
 [the action table](#what-you-can-cut) explains what changes and how to undo it.
@@ -43,7 +40,7 @@ less of the input price, and the Report prices the token types as the model repo
   *followed* come from a model reading one session against the sections and saying which bore on
   the work and whether the agent followed them; that costs a model call, so it runs on a 25% sample of
   sessions as they end (`instructions: { value: { judge: false } }` in `.thinker/config.json` turns it
-  off, `share` changes the sample; `thinker context --judge n` judges n more by hand). Once five sessions
+  off, `share` changes the sample). Once five sessions
   are judged the share shown is the judged sessions that followed the section. The **?** beside the
   column header says how each kind is counted. A skill is *read* when a session opened it,
   and the sampled outcome check says whether sessions that read it kept its rules, and how often one
@@ -61,15 +58,15 @@ name, each cost summed over the repositories and read against all their prompts 
 
 ## What you can cut
 
-Every action shows what it will do before it does it, and each one is a command too.
+Every action shows what it will do before it does it, and each one can be undone from the page.
 
-| cut | on the page | from the terminal | undo |
-|---|---|---|---|
-| Shorten an instruction section | pick sections, **Compress**, Apply: in the background a model rewrites them to about a third, keeping the rules, commands and paths, and a pull request opens with the change; the page says once that it started, the row says *Compressing…* while it runs, and Recent activity follows it | `thinker instructions --compress <ids> [--pr \| --apply]` | close the unmerged PR (**Close PR** under Recent activity); revert a merged change |
-| Drop an instruction section | pick sections, **Remove**, Apply: a pull request opens with the change in a moment | `thinker instructions --remove <ids> [--pr \| --apply]` | close the unmerged PR; revert a merged change |
-| Switch a skill, MCP server or plugin off | pick them, **Switch off**: off for this repository from the next session, in the agent's own settings, with a backup; a skill switched off still runs as `/name` | `thinker harness --off "<label>"` | **Turn back on**, or `thinker harness --undo` |
-| Switch a built-in tool off | the same, under Built-in tools (their rows in bold): Apply asks first, naming the tools, where the switch is written and how they come back | `thinker context --switch-off <labels> --builtin` | **Turn back on**, **Revert** under Recent activity, or `thinker context --switch-on <keys>` |
-| Compress tool outputs | per tool, **Compress** or **No compression**: a whole-file read becomes the lines around what the session searched for, a test run its counts and distinct failures, a big search its hits per file, long output cut to a cap of about 3k tokens; Claude Code only, through its tool hook | `thinker context --output-compression <tools> --level moderate` (`--level high`, a tighter cap, is for experiments: no agent session has run with it, so the page does not offer it) | the same, `--level off` |
+| cut | on the page | undo |
+|---|---|---|
+| Shorten an instruction section | pick sections, **Compress**, Apply: in the background a model rewrites them to about a third, keeping the rules, commands and paths, and a pull request opens with the change; the page says once that it started, the row says *Compressing…* while it runs, and Recent activity follows it | close the unmerged PR (**Close PR** under Recent activity); revert a merged change |
+| Drop an instruction section | pick sections, **Remove**, Apply: a pull request opens with the change in a moment | close the unmerged PR; revert a merged change |
+| Switch a skill, MCP server or plugin off | pick them, **Switch off**: off for this repository from the next session, in the agent's own settings, with a backup; a skill switched off still runs as `/name` | **Turn back on** |
+| Switch a built-in tool off | the same, under Built-in tools (their rows in bold): Apply asks first, naming the tools, where the switch is written and how they come back | **Turn back on**, or **Revert** under Recent activity |
+| Compress tool outputs | per tool, **Compress** or **No compression**: a whole-file read becomes the lines around what the session searched for, a test run its counts and distinct failures, a big search its hits per file, long output cut to a cap of about 3k tokens; Claude Code only, through its tool hook | **No compression** |
 
 A tool whose compression you set is measured afresh from that moment: its row counts the sessions since
 the setting alone, and says so (*moderate compression since Oct 22, 15 sessions*). Its measurement from
@@ -82,17 +79,15 @@ settings' dates come from the log of every setting made (`diet-settings`), so a 
 Each view opens with a **Potential savings** card: for sections, skills and tools, what the flagged rows cost in the sessions that did not use them (at most); for outputs, what the cap alone would have cut (at least); All sums them.
 
 Compress and Remove run in the background and make a pull request: Apply records the decision and
-starts `thinker instructions --compress <ids> --pr` detached, so nothing holds your attention while the
-model works; the change is one commit on a branch of its own, built from the default branch and pushed
+starts the work detached, so nothing holds your attention while the model works; the change is one commit on a branch of its own, built from the default branch and pushed
 to the origin, and nothing in your working tree changes, whatever branch it is on. You read the diff in
 the pull request. Without a GitHub origin or `gh` logged in, the file in your working tree is rewritten
-instead, uncommitted (`--apply`), for `git diff`. Switching a tool off turns
-thinker's harness on for that repository, which is what reads and writes the agent's settings
-(`thinker harness` lists what is off and `--undo` restores every file from its backup).
+instead, uncommitted, for `git diff`. Switching a tool off writes one key in the agent's own settings
+for that repository, after backing the file up; **Turn back on** restores it.
 
 ## Recent activity
 
-The page's third view, **Recent activity** (the tab at the right of the nav; `thinker context --history`),
+The page's third view, **Recent activity** (the tab at the right of the nav),
 lists every decision taken, newest first, with what came of it, and counts on its badge what is not
 complete: a change still running, one that **Failed** (the reason is in the row, and **Retry** runs the same
 command again), and a pull request **PR pending** until you merge it (**Close PR** closes it and deletes
@@ -100,7 +95,7 @@ its branch; closed without merging, the decision is **Rejected** and the section
 since nothing was followed through on). A card at the top names what needs you. **Revert** is there too:
 a switched-off skill or tool back on, an output's compression back, a section's file written back as it
 was. Sections changed together are a row each but one change: a Retry, Revert or Close PR on one takes
-the others with it. `thinker context --retry <n>` and `--revert <n>` are the same from the terminal.
+the others with it.
 
 ## What the numbers are
 
@@ -114,7 +109,7 @@ promise: cutting a section saves its tokens, and whether the agent then misses i
 
 ## The Report beside it
 
-The page's other view, View Report (`thinker report`; the first view is Find Savings), is the same measurement over time: what a session
+The page's other view, View Report (the first view is Find Savings), is the same measurement over time: what a session
 costs here, week by week over the last six, as the average over each week's sessions. One table by
 type of token (input read fresh, input written to the prompt cache, input read back from it, output), one by
 part of the context (the instruction files, custom tools, built-in tools, tool outputs, the rest of the
@@ -127,6 +122,6 @@ share of that total. A toggle prices the same tokens at the
 providers' list rates, so a switch of model shows in the trend. Under the tables: the actions taken on
 Find Savings in those weeks, by date, to read the weeks against, and the cache's four numbers, its saving in
 dollars first. The report is kept in the checkout and made again in the background when it is older than ten
-minutes (`thinker report --refresh`; `--all` for every repository): the page says when it was measured and shows
-the newer figures when they are ready. The cache itself (the notes learned from your sessions, served to the agent as it works) is
-the command line's: `thinker list`, `show`, `archive`, `system` ([usage and learning](usage.md)).
+minutes: the page says when it was measured and shows
+the newer figures when they are ready. The cache itself (the notes learned from your sessions, served to the agent as it works) looks after
+itself; its numbers are under View Report, and how it learns is in [usage and learning](usage.md).

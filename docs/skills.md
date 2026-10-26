@@ -17,14 +17,7 @@ goes stale when either changes.
 
 A build cards them all, and maintenance cards new and changed skill files a few at a time where
 `maintain: { skills: true }` is set in `.thinker/config.json` (off by default since 2026-10-21;
-`skillsPerRun` sets how many a run). By hand:
-
-```bash
-thinker skills                 # every skill with its state, evidence and issues
-thinker skills scan [--dry]    # card new or changed skill files
-```
-
-A changed file is read again and its card rewritten. A removed file retires its card.
+`skillsPerRun` sets how many a run). A changed file is read again and its card rewritten. A removed file retires its card.
 
 ## Audit
 
@@ -35,19 +28,9 @@ command or flag that is gone, a procedure the code no longer supports, a rule th
 opposite of. A skill that is merely incomplete or silent about a change holds.
 
 A skill the code contradicts is **out of date**. Each issue is recorded on the card (the claim,
-what the code shows instead, where), the maintenance notice names the skill, and `thinker skills`
-and the local page (`thinker ui`) list the issues. An out-of-date skill is not served, and it is not
-audited again: no model call is spent on it until its file changes (someone fixed it; the card is
-rewritten and the skill is back) or a person marks it reviewed:
-
-```bash
-thinker skills audit <id>      # audit one skill now
-thinker skills review <id>     # a person looked at it: serve and audit it again
-```
-
-The same button is on the card in `thinker ui`:
-
-![A skill card found out of date in the local page: the issues, and the button that puts it back](images/skills-out-of-date.png)
+what the code shows instead, where), and the note thinker adds at the end of your agent's next turn names
+the skill. An out-of-date skill is not served, and it is not audited again: no model call is spent on it
+until its file changes (someone fixed it; the card is rewritten and the skill is back).
 
 ## What the sessions say
 
@@ -63,15 +46,14 @@ counted against this one.
 
 The same skill in two roots (one for Claude Code, one for Codex), or two skills whose description
 and card say the same, form a group. One is served; the others are archived as its duplicates and
-restored if the choice changes. The choice, in order: a person's pin, not out of date, more
-confirmations than contradictions from sessions, the root the agents look in first, the newer file.
-
-```bash
-thinker skills prefer <id>     # pin one; kept in skills.prefer of .thinker/config.json
-thinker skills dedupe --dry    # show the groups
-```
+restored if the choice changes. The choice, in order: a person's pin (`skills.prefer` in
+`.thinker/config.json`), not out of date, more confirmations than contradictions from sessions, the root
+the agents look in first, the newer file.
 
 ## What stays as it is
+
+Whether a skill earns its place in every session's context is a separate question, answered on the
+[Find Savings page](context.md): each skill is a row there with its tokens and how often sessions read it.
 
 How-to notes are the cache's own skills, written from sessions and pull requests. They are not
 turned into skill files, and skill files are not turned into how-to notes.

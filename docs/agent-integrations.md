@@ -1,13 +1,11 @@
 # Coding agent compatibility
 
-Thinker supports fifteen clients through `thinker setup --clients auto` (detected
-clients), `--clients all`, or a comma-separated selection. To add the newer adapters:
+Thinker supports fifteen clients. The installer (`npx @zerotimedev/thinker`) wires the ones it finds on the
+machine; its `--clients` option takes `all` or a comma-separated selection
+(`droid,qwen,kiro,cline,kilo,augment,goose` for the newer adapters). This page is the reference for how each
+host is reached; nothing on it needs running by hand.
 
-```sh
-thinker connect --clients droid,qwen,kiro,cline,kilo,augment,goose
-```
-
-Every client is wired machine-wide, in the agent's own files; `thinker update` wires an
+Every client is wired machine-wide, in the agent's own files; the next update wires an
 agent installed later once. Copilot in VS Code needs no client of its own: its Local
 harness runs the Copilot CLI's hook files (`~/.copilot/hooks`), and thinker tells its
 payloads apart (`clients.js:hookClient`, client `vscode`).

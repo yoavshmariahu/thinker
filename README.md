@@ -45,22 +45,26 @@ the agent can take it once you point it there; a blank means the agent gives thi
 | Goose | by hand (`ANTHROPIC_HOST`) | no: its hooks only record, for learning | | |
 
 The compression is the API clearing tool results the agent has finished with, through a local proxy thinker keeps
-running (`thinker proxy status`, `thinker proxy off`); it reaches any agent that speaks the Anthropic Messages API at
+running; it reaches any agent that speaks the Anthropic Messages API at
 a base URL you can set. A section cut benefits every agent that reads the file, whichever agent's sessions
 measured it. Details and the hook events behind each cell: [docs/agent-integrations.md](docs/agent-integrations.md).
 
-## Everyday commands
+## How you use it
 
-```bash
-thinker ui              # Find Savings and View Report in your browser
-thinker context         # find savings in the terminal
-thinker report          # track tokens and costs week by week
-thinker proxy status    # the context proxy: old tool results cleared from the context by the API
-thinker usage --here    # see what this repository's cache costs and saves
-```
+You don't run thinker by hand. Once it is installed there are two ways in:
 
-Reports and notes are stored locally. Learning uses your existing agent's model access.
-See [setup and privacy](docs/setup.md) for details and telemetry controls.
+- **A suggestion in your session.** About once a week, once a repository has ten sessions to read, your
+  agent opens its reply with a short message from thinker: one line per change worth making (what it is,
+  the tokens it would have saved, the suggested action) and a link to the page. Reply with the numbers to
+  approve, or "all", and the agent applies them; or ignore it and keep working.
+- **The page.** `thinker ui` opens Find Savings and View Report in your browser, over every repository on
+  the machine. Every part of the context is a row there, with what it costs, how often sessions use it and
+  what you can cut; changes are previewed, instruction edits open as pull requests, and every cut has an
+  undo. View Report tracks tokens week by week.
+
+Everything else runs by itself: the hooks bring relevant notes into each prompt, sessions are learned from
+when they end, stale notes are re-checked as the code changes, and thinker updates itself. Reports and notes
+are stored locally; learning uses your existing agent's model access. See [setup and privacy](docs/setup.md).
 
 ## Uninstall
 
@@ -69,7 +73,7 @@ thinker uninstall --user --purge   # this repository's hooks and notes, and the 
 rm -rf ~/.thinker                  # the app, the ranking model and the usage log
 ```
 
-To keep thinker but switch it off for one repository, run `thinker disable` there.
+To keep thinker but switch it off for one repository (sensitive content, say), run `thinker disable` there.
 
 ## Results
 
@@ -81,11 +85,10 @@ measured on your own sessions, as the tokens they would save; no benchmark is cl
 
 ## Learn more
 
-- [Where the context goes](docs/context.md): Find Savings and `thinker context`, what each number is, every cut and its undo
-- [Setup, updates and telemetry](docs/setup.md): the local page, updates, test mode, telemetry and opting out
-- [Usage, savings and learning](docs/usage.md): `thinker usage`, the holdout comparison, how sessions are learned from
+- [Find Savings](docs/context.md): the page, what each number is, every cut and its undo
+- [Setup, updates and telemetry](docs/setup.md): what the installer does, updates, telemetry and opting out
+- [Usage, savings and learning](docs/usage.md): what the cache saves, the holdout comparison, how sessions are learned from
 - [Skills](docs/skills.md): skill cards, the audit, what sessions say about a skill, duplicates
-- [Delivery outcomes](docs/delivery-outcomes.md): `thinker impact`, tokens and fixes per merged PR
 - [AGENTS.md](AGENTS.md): how thinker works inside, per-agent support, repository layout
 
 ## License
