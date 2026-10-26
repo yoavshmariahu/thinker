@@ -278,7 +278,7 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('ui/page.html'), /<div class="seg" id="r-view"><button data-view="values" class="on">Values<\/button><button data-view="share">Share<\/button><\/div>/);
   assert.match(read('commands/report.js'), /share: Boolean\(flags\.share\)/); assert.match(read('cli.js'), /report \[--weeks n\] \[--cost\] \[--total\] \[--share\]/);
   assert.match(read('report.js'), /share = false \} = \{\}\) \{/);
-  assert.equal((read('ui/page.html').match(/\{ cls: 'rep-total', total: true(, thresholds: true)? \}/g) || []).length, 3, 'the three whole-session rows keep their values under Share');
+  assert.equal((read('ui/page.html').match(/\{ cls: 'rep-total', total: true(, key: 'total', thresholds: true)? \}/g) || []).length, 3, 'the three whole-session rows keep their values under Share');
   // the rest of the input by kind (report.js:OTHERS, the breakdown's rows), the prompt-cache rewrites by cause and the sessions
   // whose agent reports no usage, on both doors (2026-10-25), from the one view (reportView: rewrites, rewriteTotals, estimated, calibration)
   // the rewrites by cause and the estimated sessions are in the view and on neither door (the owner's call, 2026-10-25)
@@ -286,7 +286,7 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('ui/page.html'), /swapBody\(el, parts \+ models \+ tokenTypes \+ cards\);/); assert.match(read('ui/page.html'), /v\.calibration/);
   // the rest of the input is one row on both doors (reportView `otherInput`), folded by default on the page, its kinds under it
   assert.match(read('ui/page.html'), /RFOLD = new Set\(\['other-input'\]\)/); assert.match(read('ui/page.html'), /data-fold="other-input"/); assert.match(read('ui/page.html'), /v\.otherInput \|\| \[\]/);
-  assert.match(read('report.js'), /line\('Other input', v\.otherInput, false, base, \{ thresholds: true \}\)/); assert.match(read('report.js'), /line\(`  \$\{p\.name\}`, p\.cells/);
+  assert.match(read('report.js'), /line\('Other input', v\.otherInput, false, base, \{ key: 'otherInput', thresholds: true \}\)/); assert.match(read('report.js'), /line\(`  \$\{p\.name\}`, p\.cells/);
   assert.match(read('report.js'), /export const CALIBRATION = \{ Anthropic: 1\.44 \}/, 'one calibration constant, read by the command and sent to the page in the view');
   assert.match(read('report.js'), /export const OTHERS = \[\.\.\.REST_INPUT, 'output'\]/, 'the rows under the four parts are the breakdown\'s kinds');
   // the page's Total toggle is the command's --total
@@ -304,9 +304,15 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   // part in Good and Bad columns on both doors; the model and token-type tables and the other rows take no colour or mark
   // (the owner's ask, 2026-10-24; a scale by row until then)
   assert.match(read('report.js'), /thresholds: THRESHOLDS,/); assert.match(read('report.js'), /verdict\(key, cells\[w\]\.tokens \/ col\.prompts\)/);
-  assert.match(read('ui/page.html'), /const thr = v\.thresholds \|\| \{\}/); assert.match(read('ui/page.html'), /x <= t\.good \? 'rep-good' : x >= t\.bad \? 'rep-bad' : 'rep-mid'/);
+  assert.match(read('ui/page.html'), /x <= t\.good \? 'rep-good' : x >= t\.bad \? 'rep-bad' : 'rep-mid'/);
   assert.match(read('ui/page.html'), /\$\{head\('Part', true\)\}/); assert.match(read('ui/page.html'), /\$\{head\('Provider · model'\)\}/); assert.match(read('ui/page.html'), /\$\{head\('Token type'\)\}/);
   assert.match(read('ui/page.html'), /row\(esc\(p\.name\), p\.cells, \{ key: p\.key, thresholds: true \}\)/);
+  // under Cost (the command's --cost) every row of the parts table has bounds in dollars a priced prompt: report.js:COST_THRESHOLDS,
+  // carried in the view (`costThresholds`) to the page, which colours by the same cost a priced prompt the command marks (2026-10-26)
+  assert.match(read('report.js'), /thresholds: THRESHOLDS, costThresholds: COST_THRESHOLDS,/); assert.match(read('report.js'), /verdict\(key, cells\[w\]\.cost \/ col\.pricedPrompts, COST_THRESHOLDS\)/);
+  assert.match(read('ui/page.html'), /const thr = \(cost \? v\.costThresholds : v\.thresholds\) \|\| \{\}/); assert.match(read('ui/page.html'), /col\.pricedPrompts \? cells\[w\]\.cost \/ col\.pricedPrompts : 0/);
+  for (const k of ['otherInput', 'output']) { assert.match(read('ui/page.html'), new RegExp(`key: '${k}', thresholds: true`)); assert.match(read('report.js'), new RegExp(`key: '${k}', thresholds: true`)); }
+  assert.match(read('ui/page.html'), /cls: 'rep-subrow', key: p\.key, thresholds: true/);
   assert.doesNotMatch(read('ui/page.html'), /SHADE_MIN|rep-up|rep-down/); assert.doesNotMatch(read('report.js'), /TREND_MIN|TREND_BIG|▲/);
   // the decisions table is one function on both pages, the Report's over its window alone
   assert.match(read('ui/page.html'), /historyFigure\(hs, \{ many, caption: 'Decisions'/);
@@ -356,9 +362,9 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('ui/page.html'), /function swapBody\(el, html\)/); assert.match(read('ui/page.html'), /swapBody\(el, h\);/); assert.match(read('ui/page.html'), /swapBody\(el, card \+ pullCard \+ historyFigure\(/);
   assert.match(read('ui/page.html'), /inPlace = Boolean\(CTX\) && CTX_FOR === `\$\{CREPO\}\|\$\{cdays\}`/); assert.match(read('ui/page.html'), /inPlace = Boolean\(ACT\) && ACT_FOR === AREPO/); assert.match(read('ui/page.html'), /inPlace = Boolean\(RPT\) && RPT_FOR === REPO/);
   assert.doesNotMatch(read('ui/page.html'), /Total of these/); assert.doesNotMatch(read('report.js'), /'Total of these'/);
-  assert.equal((read('report.js').match(/line\('Total \(the whole session\)', v\.sessionTotals, true(, null, \{ thresholds: true \})?\)/g) || []).length, 3);
-  assert.equal((read('ui/page.html').match(/row\('Total \(the whole session\)', v\.sessionTotals, \{ cls: 'rep-total', total: true(, thresholds: true)? \}\)/g) || []).length, 3);
-  assert.match(read('ui/page.html'), /\.\.\.otherRows\]\.join/); assert.match(read('report.js'), /for \(const p of rest\) L\.push\(line\(`  \$\{p\.name\}`, p\.cells, false, base, \{ thresholds: true \}\)\);/, 'the kinds under Other input, indented');
+  assert.equal((read('report.js').match(/line\('Total \(the whole session\)', v\.sessionTotals, true(, null, \{ key: 'total', thresholds: true \})?\)/g) || []).length, 3);
+  assert.equal((read('ui/page.html').match(/row\('Total \(the whole session\)', v\.sessionTotals, \{ cls: 'rep-total', total: true(, key: 'total', thresholds: true)? \}\)/g) || []).length, 3);
+  assert.match(read('ui/page.html'), /\.\.\.otherRows\]\.join/); assert.match(read('report.js'), /for \(const p of rest\) L\.push\(line\(`  \$\{p\.name\}`, p\.cells, false, base, \{ key: p\.key, thresholds: true \}\)\);/, 'the kinds under Other input, indented');
   // the same four numbers under both, the dollars first (report.js:cacheMetrics), and the actions from context-suggest.js
   for (const f of ['report.js', 'ui/page.html']) { assert.match(read(f), /\$ saved/); assert.match(read(f), /Tokens saved|tokens saved/); }
   assert.match(read('report.js'), /changeHistory\(store\)\.filter\(e => Date\.parse\(e\.at\) >= from\)/);
