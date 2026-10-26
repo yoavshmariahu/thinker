@@ -402,6 +402,9 @@ function collectDecisions(store, { all = true, now = Date.now() } = {}) {
   return { entries, averages, repositories, withDecisions, withReport };
 }
 
+// the door a decision came through (context-suggest.js:VIA); a log line from before it was recorded says nothing,
+// and counts as the command
+const via = e => ['session', 'page', 'setup', 'command'].includes(e.via) ? e.via : 'command';
 const bump = (map, key, add) => { if (!map.has(key)) map.set(key, {}); const row = map.get(key); for (const [k, v] of Object.entries(add)) row[k] = (row[k] || 0) + v; return row; };
 
 // The two blocks built from one walk of the repositories: `actions` (what was suggested, offered and decided,
@@ -412,9 +415,14 @@ export function spendMetrics(store, { all = true, now = Date.now() } = {}) {
   const since = new Date(now - SPEND_WINDOW_DAYS * DAY_MS).toISOString();
   const a = {
     schemaVersion: 1, windowDays: SPEND_WINDOW_DAYS,
-    suggested: 0, suggestedTokens: 0, offers: 0, offersInPage: 0, offeredTokens: 0,
+    suggested: 0, suggestedTokens: 0, offers: 0, offersInPage: 0, offeredChanges: 0, offeredTokens: 0, offeredPerPrompt: 0,
     approvals: 0, approvedChanges: 0, approvedTokens: 0, approvalsReviewed: 0, approvalsAsPr: 0,
     dismissals: 0, dismissedChanges: 0, reverts: 0, revertedPrs: 0,
+    // the funnel's two ends by the door they came through (context-suggest.js:VIA): `session` is a weekly suggestion
+    // approved in the conversation it was passed on in, `page` a decision taken on Find Savings (the dashboard),
+    // `setup` the install's multi-select, `command` someone typing it. A machine before 0.2.11 logged no door, so its
+    // decisions count under `command`; the counts here are of changes, not of events.
+    approvedBy: {}, dismissedBy: {},
     jobsStarted: 0, jobsRetried: 0, jobsFailed: 0, sectionEdits: 0, sectionPrs: 0,
     harnessOffers: 0, harnessOfferedSources: 0, harnessOfferedTokens: 0,
     harnessAnswers: {}, harnessOffs: 0, harnessSwitchedOff: 0, harnessUndos: 0, harnessUndoneSources: 0,
@@ -426,13 +434,18 @@ export function spendMetrics(store, { all = true, now = Date.now() } = {}) {
   for (const e of readLog(store, { all }).filter(e => e.t >= since)) {
     switch (e.op) {
       case 'context-suggest': a.suggested += e.changes || 0; a.suggestedTokens += e.saving || 0; break;
-      case 'context-offer': a.offers++; a.offeredTokens += e.saving || 0; if (e.ui) a.offersInPage++; break;
+      // what was actually put in front of someone: the message's changes (`offeredChanges`, the denominator of the
+      // acceptance share), what they came to over the window and what they add to a prompt
+      case 'context-offer': a.offers++; a.offeredChanges += e.changes || 0; a.offeredTokens += e.saving || 0;
+        a.offeredPerPrompt += e.perPrompt || 0; if (e.ui) a.offersInPage++; break;
       case 'context-approve':
         a.approvals++; a.approvedChanges += e.changes || 0; a.approvedTokens += e.saving || 0;
+        a.approvedBy[via(e)] = (a.approvedBy[via(e)] || 0) + (e.changes || 0);
         if (e.reviewed) a.approvalsReviewed++;
         if (e.pr) a.approvalsAsPr++;
         break;
-      case 'context-dismiss': a.dismissals++; a.dismissedChanges += e.changes || 0; break;
+      case 'context-dismiss': a.dismissals++; a.dismissedChanges += e.changes || 0;
+        a.dismissedBy[via(e)] = (a.dismissedBy[via(e)] || 0) + (e.changes || 0); break;
       case 'context-revert': a.reverts++; if (e.kind === 'pr') a.revertedPrs++; break;
       case 'context-job':
         if (e.state === 'started') a.jobsStarted++;

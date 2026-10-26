@@ -68,7 +68,7 @@ export async function askMachineReport({ r, recs, store, out = console.log, brow
   const picked = (chosen || []).map(x => x.value);
   if (!picked.length) { out(`  Nothing changed. The suggestions stay on the page${url ? '' : ' (thinker ui)'}.`); return { mode: 'terminal', picked: [], said: [] }; }
   const n = picked.length, calls = picked.filter(p => p.act === 'compress').length;
-  const said = await withSpinner(out, `Applying ${n} change${n === 1 ? '' : 's'}${calls ? ` (${calls} model call${calls === 1 ? '' : 's'} to compress)` : ''}`, () => apply(picked, { edit }));
+  const said = await withSpinner(out, `Applying ${n} change${n === 1 ? '' : 's'}${calls ? ` (${calls} model call${calls === 1 ? '' : 's'} to compress)` : ''}`, () => apply(picked, { edit, via: 'setup' }));
   for (const l of said) out(`  ${c.green('✓')} ${l}`);
   if (picked.some(p => p.act !== 'off')) out(`  ${c.dim('The edited instruction files are uncommitted: review them with git diff, and keep or revert them.')}`);
   return { mode: 'terminal', picked, said };

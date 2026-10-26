@@ -188,7 +188,7 @@ export function pickNote(p) {
 // --approve` (context-suggest.js:approveChanges): a section compressed by a model or removed, written to the working
 // tree uncommitted, a skill or tool switched off there; every decision in that repository's History with its undo.
 // Returns one line per change, named by repository when more than one was touched.
-export async function applyMachinePicks(picks, { edit, approve = approveChanges } = {}) {
+export async function applyMachinePicks(picks, { edit, approve = approveChanges, via } = {}) {
   const byCheckout = new Map();
   for (const p of picks) for (const t of p.targets) {
     if (!byCheckout.has(t.checkout)) byCheckout.set(t.checkout, { name: t.name, changes: [] });
@@ -197,7 +197,7 @@ export async function applyMachinePicks(picks, { edit, approve = approveChanges 
   const said = [], many = byCheckout.size > 1;
   for (const [checkout, g] of byCheckout) {
     let lines;
-    try { const st = new Store(checkout); if (!st.exists()) st.init(); lines = await approve(st, g.changes, { edit }); }
+    try { const st = new Store(checkout); if (!st.exists()) st.init(); lines = await approve(st, g.changes, { edit, via }); }
     catch (e) { lines = [String(e?.message || e).split('\n')[0]]; }
     for (const l of lines) said.push(many ? `${g.name}: ${l}` : l);
   }
