@@ -948,7 +948,10 @@ install's multi-select), `command` (typed; also every decision from a client bef
 saw is not an offer), `offeredPerPrompt`, and `approvedBy` / `dismissedBy` by door (`spendMetrics`); `suggestedTokens` and `offeredTokens`
 from before this carry the old `total`, so they are not comparable across the release; the dashboard reads
 them in "Suggested, offered and decided", "Where a change was accepted" and "Changes dismissed, by door"
-(`scripts/spend-dashboard.mjs`). What is still not measured: whether the agent passed the summary on at all — the
+(`scripts/spend-dashboard.mjs`). Those cards count changes, so one machine deciding many times reads as uptake:
+the band opens with three cards that count machines at the same stages instead ("Devices shown a suggestion,
+and devices that took one", by day, and by device), the per-day one taking the newest report per installation
+so a device identifier that changed between uploads is still one machine. What is still not measured: whether the agent passed the summary on at all — the
 message asks it to relay in its own words and nothing records that it did, so an offered change may never have reached
 the person.
 
