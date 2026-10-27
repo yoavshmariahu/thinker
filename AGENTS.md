@@ -972,6 +972,16 @@ against each other by tokens saved, which is why the other two prompt questions 
   still emit, and only where a repository turns it on.
 A new thing worth suggesting is a row and a line of the weekly message, not a question of its own.
 
+The message is text the agent is asked to relay, not a picker: nothing in the product asks the person a question with
+their agent's own question tool any more. The accept path is their reply (`thinker context --days 7 --via session
+--approve 1,3`) or a row on Find Savings. A reply's numbers are the lines the summary showed, kept as `offered` in
+`<cache>/state/context-suggest.json` for `SUGGEST.answerDays` and read by `offeredChanges`; `--via session` is what
+says so. Resolved against a list recomputed at reply time, as until 2026-10-27, "1" applied whatever ranked first
+then — every session of the window moves each part's cost a prompt, and three sections within 3k tokens reordered on
+one more session, so approving the first line compressed the third. Without `--via session` the numbers are the five
+the command has just printed, which is what someone typing it is looking at; a key names a change either way
+(`pickChanges`). The page sends keys, never numbers.
+
 ## Desired behaviors
 
 Every other kind of note is a claim about the code, and when code and note

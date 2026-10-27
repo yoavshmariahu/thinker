@@ -125,6 +125,24 @@ test('decisions: approved and dismissed changes are kept as the history and not 
   assert.equal(currentChanges(store, v, { now: now + 31 * 86400_000 }).length, 5, 'and come back after a month if still flagged');
 });
 
+test('a reply to the weekly summary means the lines it showed, not the ranking as it is now', async () => {
+  const { scheduleContextSuggestion, contextSuggestOffer, offeredChanges, pickChanges } = await import('../src/context-suggest.js');
+  const store = repo(), now = Date.parse('2026-10-27T10:00:00Z');
+  const sec = (id, wasted) => ({ id, file: 'AGENTS.md', title: id, tokens: 2000, wasted, waste: 'high', usedShare: 0.1, prompts: 100 });
+  const v = secs => ({ days: 7, sessions: 40, instructions: { sessions: 40, sections: secs }, skills: [], tools: [], outputs: { sessions: 40, tools: [] } });
+  await scheduleContextSuggestion(store, { now, view: v([sec('Releases', 30_000), sec('Ports', 29_000), sec('Tests', 28_000)]) });
+  const said = contextSuggestOffer(store, { now, env: {}, ui: () => null });
+  assert.match(said, /1\. AGENTS\.md · Releases/);
+  // the summary's own list is kept for the answer window, and the numbers are its lines
+  const offered = offeredChanges(store, { now });
+  assert.deepEqual(offered.map(c => c.title), ['AGENTS.md · Releases', 'AGENTS.md · Ports', 'AGENTS.md · Tests']);
+  assert.deepEqual(pickChanges(offered, '1').map(c => c.title), ['AGENTS.md · Releases']);
+  // a day later the numbers no longer stand for a list the person is answering
+  assert.equal(offeredChanges(store, { now: now + 4 * 86400_000 }), null);
+  // and nothing is remembered where no summary was passed on
+  assert.equal(offeredChanges(repo(), { now }), null);
+});
+
 test('the door a decision came through is recorded on the log line and the entry', async () => {
   const { approveChanges, dismissChanges, changeHistory, VIA } = await import('../src/context-suggest.js');
   const store = repo(), now = Date.now();
