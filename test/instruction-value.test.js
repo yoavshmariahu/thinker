@@ -333,6 +333,36 @@ test('remove and compress: a diff first, then exactly that text written to the w
   assert.match(applyEdit(store, 'nothing').error, /preview/);
 });
 
+test('all repositories: a tool output measured under an earlier setting never merges with a live one', async () => {
+  const { mergeViews } = await import('../src/context-view.js');
+  const { allChanges } = await import('../src/context-suggest.js');
+  // One repository compressed `cat` a week ago: its uncompressed row is a dead period there (`past`), what it cost
+  // unrecoverable. The other never compressed it, so its uncompressed row is live and worth compressing.
+  const out = (over) => ({ name: 'Bash:cat', kind: 'output', compressible: true, tokens: 500, perCall: 500, calls: 10, usedIn: 4, ...over });
+  const view = (sessions, tools) => ({ days: 30, sessions, prompts: sessions, totals: { outputs: { tokens: 10, perPrompt: 10, window: 10 * sessions } },
+    skills: [], tools: [], instructions: { file: null, sections: [] }, timeline: [], outputs: { sessions, prompts: sessions, tools } });
+  const compressed = view(10, [
+    out({ key: 'Bash:cat', level: null, past: true, compression: 'moderate', sessions: 7, prompts: 700, window: 7_000_000, wastedWindow: 3_000_000, saveModerateWindow: 2_000_000 }),
+    out({ key: 'Bash:cat@moderate', level: 'moderate', past: false, compression: 'moderate', sessions: 3, prompts: 300, window: 30_000, wastedWindow: 9_000, saveModerateWindow: 1_000 }),
+  ]);
+  const never = view(10, [out({ key: 'Bash:cat', level: null, past: false, compression: null, sessions: 10, prompts: 1_000, window: 500_000, wastedWindow: 200_000, saveModerateWindow: 300_000 })]);
+  const v = mergeViews([{ repo: 'a', name: 'A', view: compressed }, { repo: 'b', name: 'B', view: never }]);
+  const rows = v.outputs.tools.filter(t => t.name === 'Bash:cat');
+  assert.equal(rows.length, 3, 'the dead uncompressed period, the live uncompressed one, and the compressed one');
+  const dead = rows.find(t => t.past && !t.level), live = rows.find(t => !t.past && !t.level), now = rows.find(t => t.level === 'moderate');
+  // an output row carries no repository: the page applies one to every repository on the machine (page.html), so the
+  // figures are what matters -- the dead period keeps the one repository's own and never absorbs the live one
+  assert.deepEqual([dead.window, dead.sessions, dead.prompts], [7_000_000, 7, 700]);
+  assert.deepEqual([live.window, live.sessions, live.prompts], [500_000, 10, 1_000]);
+  assert.deepEqual([now.window, now.past], [30_000, false]);
+  // a live row's setting is its own level, so the action offered and the saving beside it are the same thing
+  assert.deepEqual([live.compression, now.compression], [null, 'moderate']);
+  // the dead period is offered no action and counts towards no saving: before 2026-10-26 `every` made this row live,
+  // and the machine's top output suggestion was the 2M of a tool already compressed, to be uncompressed
+  const changes = allChanges(v).filter(c => c.kind === 'output' && c.title.startsWith('cat'));
+  assert.deepEqual(changes.map(c => [c.default?.act, c.total]), [[ 'compress', 300_000 ], [ 'uncompress', 1_000 ]]);
+});
+
 test('all repositories: the timeline joined, sections tagged with their repository, a tool merged by name', async () => {
   const { mergeViews } = await import('../src/context-view.js');
   // a repository's view counts one model call a session here, so its prompts are its sessions
