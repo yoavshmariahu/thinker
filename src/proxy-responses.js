@@ -76,10 +76,13 @@ export function responsesReport(rows, { since } = {}) {
   for (const r of rows) {
     if (r.op !== 'proxy' || r.protocol !== 'responses' || (since && r.at < since)) continue;
     const key = r.injected ? 'clearing' : r.reason === 'holdout' ? 'holdout' : 'unchanged';
-    const s = sides[key] ||= { requests: 0, input: 0, cachedInput: 0, output: 0, removedBytes: 0, errors: 0, reasons: {} };
+    const s = sides[key] ||= { requests: 0, input: 0, cachedInput: 0, output: 0, removedBytes: 0, errors: 0, truncated: 0, reasons: {} };
     s.requests++; s.input += r.input || 0; s.cachedInput += r.read || 0; s.output += r.out || 0;
     s.removedBytes += r.removedBytes || 0;
+    // `errors` is what the API answered; an answer that stopped partway answered 200 and then broke,
+    // so it is counted here rather than left out of both.
     if (r.status >= 400) s.errors++;
+    if (r.truncated) s.truncated++;
     if (r.reason) s.reasons[r.reason] = (s.reasons[r.reason] || 0) + 1;
   }
   return sides;

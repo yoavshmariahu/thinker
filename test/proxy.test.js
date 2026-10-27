@@ -201,6 +201,69 @@ test('a second drop is the agent\'s api_error to retry', async () => {
   } finally { px.server.close(); dead.close(); }
 });
 
+test('a request the agent cancelled is logged as a cancellation, not a failure', async () => {
+  const slow = http.createServer(req => req.resume()); // never answers; the agent gives up first
+  const port = await new Promise(r => slow.listen(0, '127.0.0.1', () => r(slow.address().port)));
+  const px = await proxyTo(`http://127.0.0.1:${port}`);
+  try {
+    await new Promise(resolve => {
+      const req = http.request({ host: '127.0.0.1', port: px.port, path: '/v1/messages', method: 'POST' }, () => {});
+      req.on('error', () => {});
+      req.end(body());
+      setTimeout(() => { req.destroy(); setTimeout(resolve, 300); }, 100);
+    });
+    const errs = rows(px.logFile).filter(x => x.op === 'proxy-error');
+    assert.equal(errs.length, 1, 'one row, whichever stream reported the break first');
+    assert.equal(errs[0].aborted, true, 'the agent left: nothing failed');
+    assert.equal(errs[0].retried, false, 'nobody is waiting for the answer');
+  } finally { px.server.close(); slow.close(); }
+});
+
+test('a name that does not resolve is tried once more before the agent sees an api_error', async () => {
+  const px = await proxyTo('http://thinker-proxy-no-such-host.invalid');
+  try {
+    const r = await send(px.port);
+    assert.equal(r.status, 502);
+    assert.equal(JSON.parse(r.text).error.type, 'api_error');
+    const errs = rows(px.logFile).filter(x => x.op === 'proxy-error');
+    assert.deepEqual(errs.map(x => x.code), ['ENOTFOUND', 'ENOTFOUND']);
+    assert.deepEqual(errs.map(x => x.retried), [true, false], 'the resolver gets a second chance');
+  } finally { px.server.close(); }
+});
+
+test('an answer that stops partway is a failure, and its usage row says the tokens are partial', async () => {
+  const cut = http.createServer((req, res) => {
+    req.resume();
+    req.on('end', () => {
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      res.write(SSE[0]);
+      setTimeout(() => res.socket.destroy(), 30); // the answer stops after the first event
+    });
+  });
+  const port = await new Promise(r => cut.listen(0, '127.0.0.1', () => r(cut.address().port)));
+  const px = await proxyTo(`http://127.0.0.1:${port}`);
+  try {
+    await new Promise(resolve => {
+      const req = http.request({ host: '127.0.0.1', port: px.port, path: '/v1/messages', method: 'POST',
+        headers: { 'content-type': 'application/json', 'anthropic-beta': BETA, 'x-claude-code-session-id': 's1' } }, res => {
+        res.on('data', () => {});
+        res.on('error', () => {});
+        res.on('close', () => setTimeout(resolve, 200));
+      });
+      req.on('error', () => {});
+      req.end(body());
+    });
+    await until(() => rows(px.logFile).some(x => x.op === 'proxy'));
+    const all = rows(px.logFile);
+    const err = all.find(x => x.op === 'proxy-error'), use = all.find(x => x.op === 'proxy');
+    assert.ok(err, 'a dropped answer used to be in no error count at all');
+    assert.equal(err.truncated, true);
+    assert.equal(err.retried, false, 'the agent already has part of the answer');
+    assert.equal(use.truncated, true, 'the tokens on this row are only the ones that arrived');
+    assert.equal(proxyReport(all).clearing.requestsTruncated, 1);
+  } finally { px.server.close(); cut.close(); }
+});
+
 test('the report sums each side of the holdout in billed-equivalent input', () => {
   const report = proxyReport([
     { op: 'proxy', injected: true, session: 'a', input: 10, read: 1000, write: 100, out: 5, cleared: 500, overheadMs: 1 },

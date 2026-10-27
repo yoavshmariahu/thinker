@@ -437,11 +437,24 @@ service is on here and whether a process was alive when the report was built, th
 holdout share it runs with, and the two sides of its own request log — `clearing`
 (the API was asked to clear old tool results) against `holdout` (passed through) —
 each with requests, sessions, the four token types, billed-equivalent input (fresh
-input 1, cache reads 0.1, cache writes 2), tokens cleared, and the proxy's own
-overhead p50/p99 in milliseconds. Plus the same two sides per model id, the errors
-by code with the retries, and the counts of the experimental note injection. The
-`responses` side is the OpenAI Responses protocol, where the proxy removes the text
-itself. Model ids are the provider's published names; no URL, header, prompt or
+input 1, cache reads 0.1, cache writes 2), tokens cleared, how many answers stopped
+partway (`requestsTruncated`, since a side's tokens are the ones that arrived), and
+the proxy's own overhead p50/p99 in milliseconds. Plus the same two sides per model
+id, the errors by code with the retries, and the counts of the experimental note
+injection. The `responses` side is the OpenAI Responses protocol, where the proxy
+removes the text itself; its own `errors` is what the API answered, so an answer
+that stopped partway is counted there as `truncated`.
+
+`errors` is what happened to a request somebody was waiting for. `total` counts
+tries, so a request tried twice is two: `retried` is how many were tried again and
+`failed` (`total` − `retried`) is how many the agent saw fail. `truncated` is the
+answers that stopped partway and reached the agent as a broken stream. A request the
+agent itself cancelled — the person pressed Esc, or its client gave up — is counted
+apart as `cancelled` and is in none of the others, since nothing failed. Until this
+shipped a cancellation was logged as an error and a truncated answer as a complete
+`200`, so earlier reports overstate `total` (34 of the 36 connection resets the
+machines reported in October 2026 were cancellations) and carry neither new count;
+the 30-day window rolls those rows out. Model ids are the provider's published names; no URL, header, prompt or
 response text is read or sent.
 
 `raw_json.actions` (`spendMetrics`) is what people did: the funnel from the machine
