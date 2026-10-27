@@ -192,7 +192,10 @@ test('All on Find Savings and Recent activity are `thinker context --approve|--d
   assert.match(read('ui/server.js'), /approveChanges\(st, picked, \{ via: VIA\.page \}\)/);
   assert.match(read('ui/server.js'), /dismissChanges\(st, picked, \{ via: VIA\.page \}\)/);
   assert.match(read('commands/context.js'), /fn\(store, picked, \{ via \}\)/);
-  assert.match(read('context-suggest.js'), /thinker context --days 7 --via session --approve/);
+  assert.match(read('context-suggest.js'), /thinker context --days \$\{p\.days\} --via session --approve/);
+  // the weekly suggestion is a question the agent puts to the person with its own tool, and a no is recorded too
+  assert.match(read('context-suggest.js'), /ask the user with your \$\{tool\} tool, not in prose/);
+  assert.match(read('context-suggest.js'), /thinker context --days \$\{p\.days\} --via session --dismiss all/);
   assert.match(read('ui/server.js'), /const said = \[\], pr = prAvailable\(st\.repo\)\.ok;/);
   assert.match(cs, /\[cliPath, 'instructions', `--\$\{action\}`, ids\.join\(','\), pr \? '--pr' : '--apply', '--job', group\]/);
   assert.match(read('commands/instructions.js'), /runSectionJob\(store, \{ group: flags\.job, ids, action, pr: Boolean\(flags\.pr\) \}\)/);

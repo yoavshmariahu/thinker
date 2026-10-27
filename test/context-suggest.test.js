@@ -59,7 +59,15 @@ test('scheduleContextSuggestion: kept for the next prompt, at most weekly, after
   // the one cost rule: what it adds to a prompt first, the window total beside it (2026-10-26)
   assert.match(said, /1\. AGENTS\.md · Releases: ~30k input tokens in every prompt \(~1\.2M over the last 30 days\); .*Suggested: Compress \(or: remove\)/);
   assert.match(said, /together ~96k input tokens in every prompt here \(~3\.8M over those 30 days\)/);
-  assert.match(said, /Do not make any of these changes yourself/);
+  assert.match(said, /do not make any of these changes yourself/);
+  // a question the agent must put to the person with its own tool, and an answer either way (2026-10-27)
+  assert.match(said, /ask the user in chat which of these changes to make \(any of them, or none\), and wait for their answer/, 'no question tool: in chat');
+  assert.match(said, /--via session --approve <the numbers they chose/);
+  assert.match(said, /If they choose none, run `thinker context --days 30 --via session --dismiss all`/, 'a no is recorded too');
+  // a built-in tool is named with the page link, never an option: switching one off takes a capability with it
+  assert.doesNotMatch(said, /^\d+\. Workflow tool/m);
+  assert.match(said, /including Workflow tool: switching a built-in tool off takes a capability with it/);
+
   assert.equal(contextSuggestOffer(store, { env: {}, ui: () => 'x' }), '', 'said once');
   assert.equal(await scheduleContextSuggestion(store, { now: now + 3 * 86400_000, view: view() }), null, 'weekly');
   assert.equal((await scheduleContextSuggestion(store, { now: now + 9 * 86400_000, view: view() })).length, 5);
@@ -123,6 +131,17 @@ test('decisions: approved and dismissed changes are kept as the history and not 
   assert.match(h[1].result, /^Compressed: ~2k → ~700 tokens/);
   assert.deepEqual(currentChanges(store, v, { now }).map(c => c.key).filter(k => [top[0], top[2], top[4]].some(t => t.key === k)), [], 'decided ones are left out');
   assert.equal(currentChanges(store, v, { now: now + 31 * 86400_000 }).length, 5, 'and come back after a month if still flagged');
+});
+
+test('an agent with a question tool of its own is told to ask with it', async () => {
+  const store = repo(), now = Date.parse('2026-10-27T10:00:00Z');
+  await scheduleContextSuggestion(store, { now, view: view() });
+  const asked = contextSuggestOffer(store, { now, env: {}, ui: () => null, client: 'claude' });
+  assert.match(asked, /ask the user with your AskUserQuestion tool, not in prose: "Cut what loads into every session here\?" \(header "Context"\)/);
+  assert.match(asked, /let them choose more than one where your tool allows it/);
+  // Codex has no question tool of its own in the table, so it asks in chat (repo-onboard.js:QUESTION_TOOLS)
+  await scheduleContextSuggestion(store, { now, view: view(), force: true });
+  assert.match(contextSuggestOffer(store, { now, env: {}, ui: () => null, client: 'codex' }), /ask the user in chat/);
 });
 
 test('a reply to the weekly summary means the lines it showed, not the ranking as it is now', async () => {

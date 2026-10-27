@@ -972,8 +972,14 @@ against each other by tokens saved, which is why the other two prompt questions 
   still emit, and only where a repository turns it on.
 A new thing worth suggesting is a row and a line of the weekly message, not a question of its own.
 
-The message is text the agent is asked to relay, not a picker: nothing in the product asks the person a question with
-their agent's own question tool any more. The accept path is their reply (`thinker context --days 7 --via session
+It is a question the agent must put to the person, through its own question tool (2026-10-27, the owner's ask;
+`QUESTION_TOOLS` by client, in chat where there is none and for Codex, as `coverage.js` does). Until then it was prose
+the agent was asked to relay, and the three devices shown one decided nothing at all: a relayed message can be skipped
+by the agent, skimmed by the person, and leaves no answer either way, so nothing told "not interested" from "never
+reached them". Both answers are now recorded: the numbers chosen go to `--approve`, nothing chosen to `--dismiss all`,
+so the funnel has a denominator and a no. Built-in tools are named with the page link and never offered as options
+(the rule of 2026-10-22, PR #441: a picker's line has no room for what denying one costs), and with nothing else to
+ask about the block is the page link alone. The accept path is that answer (`thinker context --days 7 --via session
 --approve 1,3`) or a row on Find Savings. A reply's numbers are the lines the summary showed, kept as `offered` in
 `<cache>/state/context-suggest.json` for `SUGGEST.answerDays` and read by `offeredChanges`; `--via session` is what
 says so. Resolved against a list recomputed at reply time, as until 2026-10-27, "1" applied whatever ranked first
