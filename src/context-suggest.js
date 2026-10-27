@@ -378,6 +378,14 @@ export async function scheduleContextSuggestion(store, { now = Date.now(), view,
   return changes;
 }
 export const contextSuggestPending = store => configOn(store) && Boolean(readJson(stateFile(store))?.pending);
+// What the last summary put to the person, while a reply to it is still plausible (`SUGGEST.answerDays`): the basis
+// for the numbers in `thinker context --via session --approve 1,3`. null when none was passed on here, or it is old
+// enough that the numbers more likely mean a list the person has just seen printed.
+export function offeredChanges(store, { now = Date.now(), days = SUGGEST.answerDays } = {}) {
+  const o = readJson(stateFile(store))?.offered;
+  if (!o?.changes?.length || !o.at) return null;
+  return now - Date.parse(o.at) > days * DAY ? null : o.changes;
+}
 
 // The page for the machine: one `thinker ui --background` (cache.js:uiCommand), its address in
 // THINKER_HOME/state/ui.json while it runs; started here when none does, waited for up to uiWaitMs.
@@ -407,6 +415,12 @@ export function contextSuggestOffer(store, { now = Date.now(), env = process.env
   const st = readJson(stateFile(store));
   if (!st?.pending) return '';
   const p = st.pending; delete st.pending; st.offeredAt = new Date(now).toISOString();
+  // The list as it was put to the person, kept for the answer window: they reply with the numbers of the lines they
+  // read, and the ranking moves under them -- every session of the window changes what each part costs a prompt, and
+  // the reply comes minutes to days later. Resolved against a list recomputed at that moment, "1" applied whatever
+  // ranked first then: on this repository's own figures, three sections within 3k tokens of each other reordered on
+  // one more session, so approving the first line compressed the third (2026-10-27).
+  st.offered = { at: st.offeredAt, days: p.days, changes: p.changes };
   writeJson(stateFile(store), st);
   const url = (() => { try { return ui(store); } catch { return null; } })();
   // the one cost rule, in the order the person can check it: what the changes add to every prompt here, and what
