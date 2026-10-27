@@ -808,6 +808,8 @@ test('proxy telemetry reports the service, both sides of its holdout, the models
       { at: at(3400_000), op: 'proxy', session: 's2', model: 'claude-opus-5', injected: false, reason: 'holdout', input: 2000, read: 30_000, write: 8000, out: 900, overheadMs: 1 },
       { at: at(3300_000), op: 'proxy-error', code: 'ECONNRESET', error: 'socket hang up', retried: true },
       { at: at(3200_000), op: 'proxy-error', code: 'ENOTFOUND', error: 'dns', retried: false },
+      { at: at(3100_000), op: 'proxy-error', code: 'ECONNRESET', error: 'socket hang up', retried: false, aborted: true },
+      { at: at(3000_000), op: 'proxy-error', code: 'ECONNRESET', error: 'aborted', retried: false, truncated: true },
       { at: at(40 * 86400_000), op: 'proxy', session: 'old', model: 'claude-opus-5', injected: true, input: 99_999, read: 0, write: 0, out: 0, cleared: 99_999, overheadMs: 2 },
     ];
     fs.writeFileSync(path.join(tmpHome, 'state', 'proxy.jsonl'), rows.map(r => JSON.stringify(r)).join('\n') + '\n');
@@ -822,8 +824,12 @@ test('proxy telemetry reports the service, both sides of its holdout, the models
     assert.equal(p.sides.clearing.billedInput, Math.round(1500 + 0.1 * 30_000 + 2 * 5000));
     assert.equal(p.byModel['claude-opus-5'].clearing.requests, 2);
     assert.equal(p.byModel['claude-opus-5'].holdout.requests, 1);
-    assert.equal(p.errors.total, 2); assert.equal(p.errors.retried, 1);
-    assert.deepEqual(p.errors.byCode, { ECONNRESET: 1, ENOTFOUND: 1 });
+    assert.equal(p.errors.total, 3, 'tries that errored; the cancelled request is not one of them');
+    assert.equal(p.errors.retried, 1);
+    assert.equal(p.errors.failed, 2, 'what the agent saw fail: tries minus the ones tried again');
+    assert.equal(p.errors.cancelled, 1, 'the agent left; nothing failed');
+    assert.equal(p.errors.truncated, 1, 'the answer stopped partway');
+    assert.deepEqual(p.errors.byCode, { ECONNRESET: 2, ENOTFOUND: 1 });
   } finally {
     fs.rmSync(tmpRepo, { recursive: true, force: true }); fs.rmSync(tmpHome, { recursive: true, force: true });
   }

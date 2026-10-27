@@ -317,17 +317,25 @@ const billed = r => Math.round((r.input || 0) + 0.1 * (r.read || 0) + 2 * (r.wri
 // service itself runs (proxy.js:proxyReport) -- requests whose old tool results the API was asked to clear
 // against the holdout share that passed through untouched, which is the proxy's own before and after. Plus the
 // errors by code, the retries, and the same two sides per model. Model ids are the provider's published names.
+// `errors` counts what the API did to a request somebody was waiting for. A request the agent cancelled is
+// counted apart as `cancelled`, since nothing failed; an answer that stopped partway is in `errors` and in
+// `truncated`, since the agent was left with a broken stream. Rows written before this carry neither mark,
+// so their cancellations are still in `errors`; the window rolls them out in 30 days.
+// `total` counts tries, so a request tried twice is two: `retried` is how many were tried again and
+// `failed` (total - retried) is how many the agent saw fail.
 export function proxyMetrics({ home = thinkerHome(), now = Date.now(), env = process.env } = {}) {
   const since = new Date(now - SPEND_WINDOW_DAYS * DAY_MS).toISOString();
   const rows = readProxyRows(proxyLogFile(home, env)).filter(r => !r.at || r.at >= since);
   const state = serviceState(home);
   let cfg = {}; try { cfg = (readMachineConfig(home) || {}).proxy || {}; } catch {}
-  const errors = { total: 0, retried: 0, byCode: {} };
+  const errors = { total: 0, retried: 0, truncated: 0, byCode: {} };
+  let cancelled = 0;
   const byModel = {};
   const notes = { requests: 0, served: 0, replayed: 0 };
   for (const r of rows) {
     if (r.op === 'proxy-error') {
-      errors.total++; if (r.retried) errors.retried++;
+      if (r.aborted) { cancelled++; continue; }
+      errors.total++; if (r.retried) errors.retried++; if (r.truncated) errors.truncated++;
       const code = String(r.code || 'unknown'); errors.byCode[code] = (errors.byCode[code] || 0) + 1;
       continue;
     }
@@ -346,7 +354,7 @@ export function proxyMetrics({ home = thinkerHome(), now = Date.now(), env = pro
       keep: cfg.keep ?? null, trigger: cfg.trigger ?? null,
     },
     sides: proxyReport(rows, { since }),
-    byModel, errors, notes,
+    byModel, errors: { ...errors, failed: errors.total - errors.retried, cancelled }, notes,
   };
 }
 
