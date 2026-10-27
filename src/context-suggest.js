@@ -35,7 +35,7 @@ import { SIGNATURE } from './harness.js';
 import { WASTE, sections, sectionId } from './instruction-value.js';
 import { describePart, describeEntry } from './part-describe.js';
 import { defaultBranch } from './instruction-pr.js';
-import { QUESTION_TOOLS } from './repo-onboard.js';
+import { QUESTION_TOOLS, MCP_CLIENTS } from './repo-onboard.js';
 
 export const SUGGEST = {
   max: 5,
@@ -384,6 +384,34 @@ export const contextSuggestPending = store => configOn(store) && Boolean(readJso
 // What the last summary put to the person, while a reply to it is still plausible (`SUGGEST.answerDays`): the basis
 // for the numbers in `thinker context --via session --approve 1,3`. null when none was passed on here, or it is old
 // enough that the numbers more likely mean a list the person has just seen printed.
+// Whether an answer to the last summary is still expected here: what the MCP `context` tool is offered on, as the
+// coverage tool is on a pending coverage question (mcp-server.js). Cleared by the answer.
+export const contextSuggestAwaiting = (store, opts) => configOn(store) && Boolean(offeredChanges(store, opts));
+
+// The answer, through thinker's own tool (`context`) or the command: the numbers the person chose from the lines the
+// summary showed, or none. thinker resolves them against that list and makes the changes itself, so the agent hands in
+// an answer rather than composing a command -- which is what the harness question did until 2026-10-25, and what the
+// coverage question still does (coverage.js:answerCoverage). `asked` says where they answered: their agent's question
+// tool (picker) or chat, which is how we know the question was put as a question at all.
+export async function answerContextSuggestion(store, choice, { now = Date.now(), asked = 'picker', client = null, edit } = {}) {
+  const offered = offeredChanges(store, { now });
+  if (!offered) return 'There is no thinker suggestion waiting for an answer here. Go on with the task.';
+  const raw = String(choice ?? '').trim();
+  const clear = () => { const st = readJson(stateFile(store)) || {}; delete st.offered; writeJson(stateFile(store), st); };
+  store.log({ op: 'context-answer', asked, client, changes: offered.length, choice: /^(none|no)$/i.test(raw) || !raw ? 'none' : 'some' });
+  if (/^(none|no)$/i.test(raw) || !raw) {
+    const said = dismissChanges(store, offered, { now, via: VIA.session });
+    clear();
+    return `${said.length} change${said.length === 1 ? '' : 's'} left alone; thinker will not suggest ${said.length === 1 ? 'it' : 'them'} again for a month. Go on with the task.`;
+  }
+  const picked = pickChanges(offered, raw);
+  // an answer that names none of the lines is not an answer: the question stays, and the agent is told what to pass
+  if (!picked.length) return `Nothing there matched: pass the numbers of the lines the suggestion showed (1-${offered.length}), comma-separated, or none. The question is still waiting.`;
+  const said = await approveChanges(store, picked, { via: VIA.session, edit });
+  clear();
+  return said.join(' ');
+}
+
 export function offeredChanges(store, { now = Date.now(), days = SUGGEST.answerDays } = {}) {
   const o = readJson(stateFile(store))?.offered;
   if (!o?.changes?.length || !o.at) return null;
@@ -458,7 +486,13 @@ export function contextSuggestOffer(store, { now = Date.now(), env = process.env
   const ask = tool && client !== 'codex'
     ? `Before you start on the request, ask the user with your ${tool} tool, not in prose: "Cut what loads into every session here?" (header "Context"), one question whose options are the changes below, in this order, each labelled by its name and taking its line as the description; let them choose more than one where your tool allows it. If the tool takes fewer options than there are changes, offer the first ones and say the rest are on the page.`
     : `Before you start on the request, ask the user in chat which of these changes to make (any of them, or none), and wait for their answer.`;
-  const after = `Then run \`thinker context --days ${p.days} --via session --approve <the numbers they chose, comma-separated; a number may take another action after a colon, e.g. 3:remove>\` and tell them in one line what it did. If they choose none, run \`thinker context --days ${p.days} --via session --dismiss all\`: thinker does not suggest these again for a month. Then go on with the task.`;
+  // The answer comes back through thinker's own tool where the client speaks MCP (the harness question's way until
+  // 2026-10-25, the coverage question's still): thinker resolves the numbers against the list it showed and makes the
+  // changes, so nothing depends on the agent composing a command line. The command is the fallback and the typed door.
+  const cmd = `thinker context --days ${p.days} --via session`;
+  const after = MCP_CLIENTS.has(client)
+    ? `Then call thinker's \`context\` tool with choice set to the numbers they chose, comma-separated (a number may take another action after a colon, e.g. 3:remove), or none, and asked "${tool && client !== 'codex' ? 'picker' : 'chat'}"; if that tool is not offered, run \`${cmd} --approve <those numbers>\`, or \`${cmd} --dismiss all\` for none. thinker makes the changes and tells you what it did; pass that on in one line. Then go on with the task.`
+    : `Then run \`${cmd} --approve <the numbers they chose, comma-separated; a number may take another action after a colon, e.g. 3:remove>\` and tell them in one line what it did. If they choose none, run \`${cmd} --dismiss all\`: thinker does not suggest these again for a month. Then go on with the task.`;
   return `<thinker-context-suggestions>
 ${lead}
 ${ask} Do not decide for them, do not make any of these changes yourself, and do not open the files to check them.
