@@ -112,7 +112,7 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 |---|---|
 | `src/cli.js` | entry: parsing, help, prelude, handler table |
 | `src/commands/` | `notes.js`, `cache.js`, `learn.js`, `hooks.js`, `setup.js`, `telemetry.js`, `benchmark.js`, `shared.js` |
-| `src/mcp.js` | MCP server: coverage answer tool, `learn_next` queue |
+| `src/mcp.js` | MCP server: `context` and coverage answer tools, `learn_next` queue |
 | `src/setup.js`, `src/setup/` | `runSetup`; `ui.js`, `agents.js`, `estimate.js`, `steps.js`, `pr-benchmark.js` |
 | `src/clients.js`, `src/integrations/` | client adapters, extension handlers (`docs/agent-integrations.md`) |
 | `src/transcripts.js` | transcripts, one event form |
@@ -976,8 +976,14 @@ It is a question the agent must put to the person, through its own question tool
 `QUESTION_TOOLS` by client, in chat where there is none and for Codex, as `coverage.js` does). Until then it was prose
 the agent was asked to relay, and the three devices shown one decided nothing at all: a relayed message can be skipped
 by the agent, skimmed by the person, and leaves no answer either way, so nothing told "not interested" from "never
-reached them". Both answers are now recorded: the numbers chosen go to `--approve`, nothing chosen to `--dismiss all`,
-so the funnel has a denominator and a no. Built-in tools are named with the page link and never offered as options
+reached them". The answer comes back through thinker's own MCP tool, `context` (`answerContextSuggestion`, registered while
+`contextSuggestAwaiting`, as the harness question's tool was until 2026-10-25 and the coverage tool still is): the
+agent hands in the numbers the person chose and thinker resolves them against the list it showed and makes the
+changes, so nothing depends on the agent composing a command line, and a desktop app answers the same way. The
+command (`--via session --approve|--dismiss all`) is the fallback where the client speaks no MCP, and the typed door.
+Both answers are recorded: numbers approve, none dismisses for a month, and `context-answer` keeps whether they
+answered through their agent's question tool or in chat (`actions.answers` in telemetry), so the funnel has a
+denominator, a no, and evidence the question was put as one. Built-in tools are named with the page link and never offered as options
 (the rule of 2026-10-22, PR #441: a picker's line has no room for what denying one costs), and with nothing else to
 ask about the block is the page link alone. The accept path is that answer (`thinker context --days 7 --via session
 --approve 1,3`) or a row on Find Savings. A reply's numbers are the lines the summary showed, kept as `offered` in

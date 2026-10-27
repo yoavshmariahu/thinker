@@ -12,6 +12,7 @@ import { maybeCheckDailyUpdateInBackground } from './update.js';
 import { maybeSendTelemetryInBackground, HOUR_MS } from './telemetry.js';
 import { isDisabledRepo } from './repo-switch.js';
 import { coveragePending, answerCoverage } from './coverage.js';
+import { contextSuggestAwaiting, answerContextSuggestion } from './context-suggest.js';
 import { queueDir, buildRunning, nextRequest, answerRequest, requestText } from './session-llm.js';
 import { anyDesktopApp } from './app-host.js';
 
@@ -86,11 +87,35 @@ const clientName = () => server.server.getClientVersion()?.name || 'mcp';
 
 // The agent's own tools (orient, lookup, find, drilldown, remember, behavior, feedback) were taken out on
 // 2026-10-22, at the owner's decision: the notes reach the agent through the prompt hook, and real sessions
-// rarely called the tools (AGENTS.md, Serving). What is left answers thinker's own questions (coverage, harness) and works the desktop app's
-// learning queue (learn_next), each offered only while it has something to do.
+// rarely called the tools (AGENTS.md, Serving). What is left answers thinker's own questions (the weekly context
+// suggestion, coverage) and works the desktop app's learning queue (learn_next), each offered only while it has
+// something to do.
 function registerTools() {
+  registerContextTool();
   registerCoverageTool();
   registerQueueTools();
+}
+
+// The answer to the weekly context suggestion (context-suggest.js:contextSuggestOffer): offered only while one waits
+// for its answer here, like the coverage tool, and the way the harness question was answered until 2026-10-25. The
+// agent asks the person with its own question tool and hands in what they chose; thinker resolves the numbers against
+// the list it showed and makes the changes, so nothing depends on the agent composing a command line, and the answer
+// is recorded whichever way it goes.
+let contextTool;
+function registerContextTool() {
+  if (contextTool || !store || !contextSuggestAwaiting(store)) return;
+  contextTool = server.registerTool('context', {
+    title: 'Answer a context suggestion',
+    description: 'Only when a thinker-context-suggestions notice tells you to: records the user\'s answer and makes the changes they chose to what loads into every session here.',
+    inputSchema: {
+      choice: z.string().describe('The numbers of the changes the user chose, comma-separated, as the suggestion listed them (a number may name another action after a colon, e.g. 3:remove); or none'),
+      asked: z.enum(['picker', 'chat']).optional().describe('Where the user answered: your question tool (picker) or chat'),
+      ...(late ? { cwd: z.string().optional().describe('Absolute path of the repository') } : {}),
+    },
+  }, async ({ choice, asked, cwd }) => {
+    const { reply } = await ensureBound({ cwd }); if (reply) return reply;
+    return text(await answerContextSuggestion(store, String(choice), { client: clientName(), asked: asked === 'chat' ? 'chat' : 'picker' }));
+  });
 }
 
 // The answer to a coverage suggestion (coverage.js:coverageOffer): offered only while one waits for its answer

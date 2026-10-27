@@ -133,6 +133,39 @@ test('decisions: approved and dismissed changes are kept as the history and not 
   assert.equal(currentChanges(store, v, { now: now + 31 * 86400_000 }).length, 5, 'and come back after a month if still flagged');
 });
 
+test('the answer comes back through thinker\'s own tool: numbers from the list it showed, or none', async () => {
+  const { scheduleContextSuggestion, contextSuggestOffer, contextSuggestAwaiting, answerContextSuggestion, changeHistory } = await import('../src/context-suggest.js');
+  const store = repo(), now = Date.parse('2026-10-27T10:00:00Z');
+  const edit = { previewEdit: async () => ({ key: 'Releases', file: 'AGENTS.md', tokensBefore: 2000, tokensAfter: 700 }), applyEdit: () => ({ said: 'ok' }) };
+  assert.equal(contextSuggestAwaiting(store), false, 'nothing waits before a summary is passed on');
+  await scheduleContextSuggestion(store, { now, view: view() });
+  const said = contextSuggestOffer(store, { now, env: {}, ui: () => null, client: 'claude' });
+  // an MCP client hands the answer in through the tool, not by composing a command
+  assert.match(said, /call thinker's `context` tool with choice set to the numbers they chose/);
+  assert.match(said, /asked "picker"/);
+  assert.equal(contextSuggestAwaiting(store), true, 'and the tool is offered until it is answered');
+  // the numbers are the lines the summary showed; thinker makes the change and says what it did
+  const made = await answerContextSuggestion(store, '1', { now, asked: 'picker', edit });
+  assert.match(made, /Compressed: ~2k → ~700 tokens in AGENTS\.md/);
+  assert.deepEqual(changeHistory(store).map(e => [e.decision, e.via]), [['approved', 'session']]);
+  assert.equal(contextSuggestAwaiting(store), false, 'answered once');
+  assert.match(await answerContextSuggestion(store, '1', { now }), /no thinker suggestion waiting/);
+  // none is an answer too: every change left alone for a month, recorded as a dismissal
+  await scheduleContextSuggestion(store, { now: now + 9 * 86400_000, view: view(), force: true });
+  contextSuggestOffer(store, { now: now + 9 * 86400_000, env: {}, ui: () => null, client: 'claude' });
+  const none = await answerContextSuggestion(store, 'none', { now: now + 9 * 86400_000, asked: 'chat' });
+  assert.match(none, /left alone; thinker will not suggest them again for a month/);
+  // the three still on offer: the approved one is no longer suggested, and the built-in tool was never an option
+  assert.equal(changeHistory(store).filter(e => e.decision === 'dismissed').length, 3);
+  assert.equal(contextSuggestAwaiting(store, { now: now + 9 * 86400_000 }), false);
+  // an answer naming none of the lines leaves the question waiting
+  const other = repo();
+  await scheduleContextSuggestion(other, { now, view: view() });
+  contextSuggestOffer(other, { now, env: {}, ui: () => null, client: 'claude' });
+  assert.match(await answerContextSuggestion(other, 'the first one', { now }), /Nothing there matched/);
+  assert.equal(contextSuggestAwaiting(other, { now }), true);
+});
+
 test('an agent with a question tool of its own is told to ask with it', async () => {
   const store = repo(), now = Date.parse('2026-10-27T10:00:00Z');
   await scheduleContextSuggestion(store, { now, view: view() });
