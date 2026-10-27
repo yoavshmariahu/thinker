@@ -310,12 +310,13 @@ export async function provision({ call = api, config = state, persist = save, re
       description: 'The context proxy, the actions people take on Find Savings to cut what a prompt costs, and what those actions measured as saved. 30 days on the latest snapshot per device. Clients before these blocks send nothing here, which is not zero.' })).id;
     save();
   }
-  if (state.spendDashboardVersion !== 1) {
+  if (state.spendDashboardVersion !== 2) {
     const band = (row, text) => ({ id: -(row + 1000), card_id: null, row, col: 0, size_x: 24, size_y: 3,
       visualization_settings: { virtual_card: { display: 'text' }, text } });
-    const cards = [band(0, '## Where the tokens go, and what people cut\nThree bands: the proxy (what it clears and what that side costs against the held-out side), the actions taken on Find Savings, and what those decisions measured as saved. Every card reads the latest snapshot per known device (installation fallback) and covers 30 days.\n**Read the savings carefully:** a decision is measured by what the changed thing cost a prompt before it against since it, on the same machine, over the repository\'s own kept report. Other changes in that time move it too. Nothing here is a controlled comparison, and a device whose repositories hold no report is counted but not measured.')];
-    // the three bands, in the order the questions are written: proxy (9), actions (8), savings (5)
-    const bands = [[0, 9, 3, '## The proxy'], [9, 17, null, '## What people switched off, compressed or removed'], [17, spendQuestions.length, null, '## What it measured as saved']];
+    const cards = [band(0, '## Where the tokens go, and what people cut\nThree bands: the proxy (what it clears and what that side costs against the held-out side), the actions taken on Find Savings, and what those decisions measured as saved. Every card reads the latest snapshot per known device (installation fallback) and covers 30 days.\n**Machines, not changes:** the second band opens with how many machines were shown a suggestion and how many took one. Every other card counts changes, so one machine deciding many times reads as uptake there.\n**Read the savings carefully:** a decision is measured by what the changed thing cost a prompt before it against since it, on the same machine, over the repository\'s own kept report. Other changes in that time move it too. Nothing here is a controlled comparison, and a device whose repositories hold no report is counted but not measured.')];
+    // the three bands, in the order the questions are written: proxy (9), actions (11, led by who was shown
+    // something and who took it), savings (the rest)
+    const bands = [[0, 9, 3, '## The proxy'], [9, 20, null, '## Who was shown a suggestion, and what people switched off, compressed or removed'], [20, spendQuestions.length, null, '## What it measured as saved']];
     let row = 3;
     for (const [from, to, scalars, title] of bands) {
       if (from) { cards.push(band(row, title)); row += 3; }
@@ -334,7 +335,7 @@ export async function provision({ call = api, config = state, persist = save, re
       if (col) row += 8;
     }
     await api(`/dashboard/${state.spendId}`, 'PUT', { parameters, dashcards: cards });
-    state.spendDashboardVersion = 1; save();
+    state.spendDashboardVersion = 2; save();
   } else {
     const dashboard = await api(`/dashboard/${state.spendId}`);
     await api(`/dashboard/${state.spendId}`, 'PUT', { parameters: [...parameters,
