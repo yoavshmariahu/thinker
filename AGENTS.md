@@ -49,6 +49,7 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 - Enable by default only after an Artemis experiment: plan, owner approval, run. Compare with shipped strategy on same tasks. Report numbers and caveats.
 - Offline replays are not evidence. Measure outcomes in agent sessions.
 - Default-on switch = its own PR citing the experiment.
+- Off behind switches, awaiting an experiment (2026-10-28, `ops.js:servingConfig`, `serving` in `.thinker/config.json`): `denseFallback` (`THINKER_SERVE_DENSE_FALLBACK`) scores the notes with the local embedding model when no note shares a word with the request, serving the best above `denseFloor` (0.35, `pack`'s own `minRel`); `ceRescue` (`THINKER_SERVE_CE_RESCUE`) serves the best candidate the cross-encoder vetoed rather than nothing; `serveStale` (`THINKER_SERVE_STALE`) serves a stale match with its ⚠ banner instead of holding it back, which revises the mutable behavior "the prompt hooks serve no stale note". Environment wins over config. Each answers one measured miss reason; none is on until an Artemis experiment measures it in agent sessions.
 - Owner-approved exception (2026-10-25): Codex proxy tool-output clearing is on by default via install/connect/setup/update. `proxy-codex.js` wires a managed provider without reading credentials. `/codex` routes ChatGPT-account requests to the ChatGPT backend, API-key requests to OpenAI. Custom providers stay as configured. `thinker proxy off` restores prior selection. Savings claims still need an Artemis experiment.
 
 **Telemetry and tests (MANDATORY):**
@@ -324,6 +325,23 @@ Runs with `THINKER_NOTES_DIR` set, which is how benchmark arms serve a
 noteset, log locally by default, so experiments stay out of the machine's
 history; a harness that installs real hooks should set `THINKER_LOG=local`.
 The log holds the first 200 characters of each request.
+
+The hit rate is quoted over the requests the cache was actually asked, not every prompt
+(`usage.js:NOT_ATTEMPTED`): a prompt a cache below its serving threshold was never searched for
+(`too-few-notes`) and a held-out turn whose notes were found and withheld (`held-out`) are both logged
+as requests, so a machine in daily use does not read as idle, but neither is a retrieval failure. On
+production telemetry over the ten days to 2026-10-28 they were 391 and 702 of 4,654 requests, which is
+why `answered / requestsTotal` read 1.5% where the cache's own 3,561 attempts read 2.0%. `attempted` is
+that denominator and `attemptedHitRate` the rate; `hitRate` keeps the old denominator so the series
+stays comparable across the release. The remaining misses are what the levers above address:
+`no-match` 1,983, `ranker-rejected` 949, `only-stale` 556.
+
+A `late` serving (the edit hook, on a file coming into view) is not a request — the agent asked
+nothing — and `ops.js:lateLocked` logs it only when it serves something, so it is counted in neither
+side of the hit rate. It is counted as a delivery (`delivered`, `deliveredLate`, sent as
+`retrieval.deliveries` and `editHookDeliveries`), because without that a device served notes by the
+edit hook alone reported nothing served: on 2026-10-28 one device read 0 of 6 answered having been
+given 3 notes, and on this machine 69 of 143 deliveries over ten days came that way.
 
 `thinker usage [--here] [--days n] [--json]` summarizes it for every
 repository on the machine, with a line per repository (`--here`: this
