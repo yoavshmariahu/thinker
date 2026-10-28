@@ -214,6 +214,33 @@ export function resultsBeforeTurn(messages) {
   for (const m of messages.slice(0, turnStart(messages))) if (m?.role === 'user' && Array.isArray(m.content)) for (const b of m.content) if (b?.type === 'tool_result') chars += textLen(b.content);
   return Math.round(chars * TOKENS_PER_CHAR);
 }
+// Which of the agent's own actions a clear takes, named from the request the proxy is already scanning. The API
+// reports how much it cleared and how many tool uses, never which: the names are the proxy's own reckoning of the
+// same window the edit describes -- every tool use but the newest `keep`, with the size of its result at
+// TOKENS_PER_CHAR. So the agent can be told what the saving was made of, which is the question the figure raises.
+// Aggregated by tool name, biggest first, and the breakdown describes the set cleared out of *this* prompt: it is
+// never added up across requests, since each request clears the same cumulative set again.
+export function clearedActions(messages, keep) {
+  if (!Array.isArray(messages)) return [];
+  const textLen = c => typeof c === 'string' ? c.length : Array.isArray(c) ? c.reduce((a, b) => a + (typeof b?.text === 'string' ? b.text.length : 0), 0) : 0;
+  const uses = [], sizes = new Map();
+  for (const m of messages) {
+    if (!Array.isArray(m?.content)) continue;
+    for (const b of m.content) {
+      if (m.role === 'assistant' && b?.type === 'tool_use') uses.push({ id: b.id, name: String(b.name || 'tool') });
+      if (m.role === 'user' && b?.type === 'tool_result') sizes.set(b.tool_use_id, (sizes.get(b.tool_use_id) || 0) + textLen(b.content));
+    }
+  }
+  const cleared = uses.slice(0, Math.max(0, uses.length - Math.max(0, keep | 0)));
+  const by = new Map();
+  for (const u of cleared) {
+    const e = by.get(u.name) || { name: u.name, calls: 0, tokens: 0 };
+    e.calls++; e.tokens += Math.round((sizes.get(u.id) || 0) * TOKENS_PER_CHAR);
+    by.set(u.name, e);
+  }
+  return [...by.values()].sort((a, b) => b.tokens - a.tokens || b.calls - a.calls);
+}
+
 // The thinking edit, on a request where the tool clear will fire by the proxy's count (the results before the current
 // turn weigh clearAtLeast with the margin; keep turn alone, since a count keeps results of earlier turns and the two
 // clears would part): the thinking of the turns before this one goes, that of the current turn stays (`thinking_turns`,
@@ -255,7 +282,7 @@ export function transformRequest(method, url, headers, body, cfg) {
   const edit = clearEdit(cfg, j.messages), thinking = thinkingEdit(cfg, j.messages);
   const kept = thinking ? edits.filter(e => !(e && e.type === THINKING_EDIT_TYPE)) : edits;
   j.context_management = { ...cm, edits: [...(thinking ? [thinking] : []), ...kept, edit] };
-  return { body: Buffer.from(JSON.stringify(j)), injected: true, model: j.model, keep: edit.keep.value, addBeta: !betaOn(headers), ...(cfg.clearInputs ? { inputs: true } : {}), ...(thinking ? { thinkingKeep: thinking.keep.value } : {}) };
+  return { body: Buffer.from(JSON.stringify(j)), injected: true, model: j.model, keep: edit.keep.value, addBeta: !betaOn(headers), actions: clearedActions(j.messages, edit.keep.value), ...(cfg.clearInputs ? { inputs: true } : {}), ...(thinking ? { thinkingKeep: thinking.keep.value } : {}) };
 }
 // the client's beta header with the edit's beta added
 export const withBeta = value => [value, EDIT_BETA].filter(Boolean).join(',');
@@ -306,10 +333,6 @@ const HOP = ['connection', 'keep-alive', 'proxy-connection', 'transfer-encoding'
 export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes = null, onStandDown = null, compressionDir = logFile ? path.join(path.dirname(logFile), 'compression') : null } = {}) {
   const agents = new Map();
   const log = row => {
-    // What the server cleared, per session, for the card the agent draws a few turns later (compression.js).
-    // Beside the log rather than derived from them: the log is a megabyte within a week, and a card must not
-    // read it on every turn.
-    try { noteCompression(compressionDir, row); } catch { /* a card is never worth a failed request */ }
     if (!logFile) return;
     try { fs.mkdirSync(path.dirname(logFile), { recursive: true }); fs.appendFileSync(logFile, JSON.stringify(row) + '\n'); } catch { /* a log is never worth a failed request */ }
   };
@@ -318,6 +341,13 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
   // agent yet, so the same request goes again untouched -- the retry path that is already there for a dropped
   // connection -- and the proxy stops adding the edit for the rest of its life rather than breaking every call.
   // Only for an upstream that is not Anthropic's: a 400 from the API itself is the agent's own to see.
+  // What the server cleared, per session, for what the agent is told a few turns later (compression.js). Kept
+  // beside the log rather than worked out from it: the log is a megabyte within a week, and nothing that runs on
+  // a turn may read it. The actions are the request's own, which only this side of the exchange knows.
+  const logProxy = (row, actions) => {
+    log(row);
+    try { noteCompression(compressionDir, row, { actions }); } catch { /* a card is never worth a failed request */ }
+  };
   let editRejected = false;
   const watch = authWatch(reason => { log({ at: new Date().toISOString(), op: 'proxy-standdown', reason }); try { onStandDown(reason); } catch { /* the request in hand matters more */ } }, { on: !!onStandDown });
   const server = http.createServer((req, res) => {
@@ -423,9 +453,9 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
             if (recorded) return;
             recorded = true;
             res.removeListener('close', record);
-            if (tap) log({ at: new Date().toISOString(), op: 'proxy', session: t.session || sessionOf(req.headers), model: t.model, status: ures.statusCode,
+            if (tap) logProxy({ at: new Date().toISOString(), op: 'proxy', session: t.session || sessionOf(req.headers), model: t.model, status: ures.statusCode,
               ...(t.protocol === 'responses' ? { protocol: 'responses', removedBytes: t.removedBytes || 0, estimatedRemovedTokens: t.estimatedRemovedTokens || 0, clearedUses: t.clearedUses || 0 } : {}),
-              injected: !!t.injected, ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}), ...(t.thinkingKeep != null ? { thinkingKeep: t.thinkingKeep } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...tap.result() });
+              injected: !!t.injected, ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}), ...(t.thinkingKeep != null ? { thinkingKeep: t.thinkingKeep } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...tap.result() }, t.actions);
           };
           // Codex closes SSE as soon as response.completed arrives, before the HTTP
           // body ends. Record that request too, exactly once, using usage seen so far.

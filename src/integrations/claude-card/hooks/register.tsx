@@ -8,7 +8,8 @@
 import type { Register } from 'claude-code'
 
 export type Note = { title: string; id: string }
-export type Saving = { saved: number; requests: number; uses: number }
+export type Tool = { name: string; calls: number; tokens: number }
+export type Saving = { saved: number; requests: number; uses: number; tools: Tool[] }
 export type Card = { tail: string; titles: string[]; tokens: number; at: number; compression?: Saving }
 
 // Each served note is headed `### [kind] Title  (id: …)` inside a `<thinker-cache>` block; the titles
@@ -100,6 +101,17 @@ export const cardHeader = (n: number, tokens: number) =>
 export const TURNS_AFTER = 3
 export const compressionHeader = (s: Saving) =>
   `context cleared · ~${formatTokens(s.saved)} tokens not re-read over ${s.requests} ${s.requests === 1 ? 'call' : 'calls'}`
+// which of the agent's own actions the saving was made of, as src/compression.js:compressionTools words it.
+// An MCP tool's name reaches the agent with the protocol's prefix and its server run together
+// (`mcp__artemis__get_experiment`); written here as the person reads it, and cut if still too long for the line.
+export const CARD_TOOLS = 3
+export const NAME = 26
+export const shortTool = (name: string) => {
+  const n = String(name || 'tool').replace(/^mcp__/, '').replace(/__/g, '/')
+  return n.length <= NAME ? n : n.slice(0, NAME - 1) + '…'
+}
+export const compressionTools = (s: Saving) =>
+  (s.tools ?? []).slice(0, CARD_TOOLS).map(t => `${shortTool(t.name)} ×${t.calls} (${formatTokens(t.tokens)})`).join(', ')
 
 async function compressionState($: any): Promise<Saving | null> {
   try {
@@ -107,7 +119,7 @@ async function compressionState($: any): Promise<Saving | null> {
     const id = String(await $.session.id()).replace(/[^\w.-]/g, '_')
     if (!id) return null
     const st = JSON.parse(String(await $.fs.read(`${home}/state/compression/${id}.json`)))
-    return st?.saved > 0 && st?.requests > 0 ? { saved: st.saved, requests: st.requests, uses: st.uses || 0 } : null
+    return st?.saved > 0 && st?.requests > 0 ? { saved: st.saved, requests: st.requests, uses: st.uses || 0, tools: Array.isArray(st.tools) ? st.tools : [] } : null
   } catch { return null }
 }
 
@@ -186,6 +198,7 @@ export const register: Register = on => {
           <Box flexDirection="column" borderStyle="round" paddingX={1} marginTop={1}>
             <Text><Text bold>🗜 Thinker</Text><Text dimColor> · {compressionHeader(card.compression)}</Text></Text>
             <Text dimColor>• {card.compression.uses} tool {card.compression.uses === 1 ? 'result' : 'results'} cleared from the prompt</Text>
+            {compressionTools(card.compression) ? <Text dimColor>• out now: {compressionTools(card.compression)}</Text> : null}
           </Box>
         ) : null}
       </Box>

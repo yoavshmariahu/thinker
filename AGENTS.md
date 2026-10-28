@@ -82,7 +82,17 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   counted in the person's turns (`markCompressionTurn` for the hooks, the mod's own counter inside Claude Code).
 - Four doors, one sentence (`compressionHeader`): the Claude Code card mod, the Codex desktop card's second section,
   the Stop hook's line where no mod runs (`usage.js:compressionNotice`), and `thinker proxy report`.
-  `test/claude-card.test.js` holds the mod's copy of the sentence and the wait to `compression.js`.
+  `test/claude-card.test.js` holds the mod's copy of the sentence, the wait and the breakdown to `compression.js`.
+- **The detail is in the prompt, not behind a link** (`compressionBlock`, a `<thinker-compression>` block from the
+  prompt hook; the owner's call, 2026-10-29): the figure's first question is what was cleared, so the agent is told
+  the session's saving, the actions whose results are out of the prompt now by tool, and the last eight clears, and
+  told to read a file again rather than rely on remembering it. Once a session (`told`), the turn it comes due: a
+  block whose figures changed every turn would rewrite the prompt cache the clearing exists to spare.
+- `clearedActions` (`proxy.js`) names those actions from the request the proxy is already scanning -- every tool use
+  but the newest `keep`, its result at `TOKENS_PER_CHAR` -- because the API reports how much and how many it
+  cleared, never which. `saved` sums across requests, `tools` never does: each request clears the same cumulative
+  set, so summing counts one call many times; it is the latest prompt's set. `CARD_TOOLS`/`shortTool` keep an MCP
+  tool's long name from pushing a card's line off the screen.
 
 **The clearing policy: bigger cuts, less often (2026-10-28, the owner's call):**
 - `PROXY_DEFAULTS` is `trigger` 140k, `clearAtLeast` 100k, `keep: 'turn'`/`keepMin` 3, with `clearInputs` and `clearThinking` on. A clear rewrites the prompt cache from the first result it removes (1h write ~200% of an input token, read ~2.5%), so the rewrite is what a clear costs and every later read of what it took is what it saves.

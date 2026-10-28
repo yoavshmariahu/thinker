@@ -298,6 +298,16 @@ plugin on a machine without thinker does nothing.
   hook prints it where no mod runs (`usage.js:compressionNotice`), and `thinker proxy report` prints it for the
   window. Like the cache-hit card's, the figure is gross: a clear also writes the prompt cache again from the
   first result it removed, which `thinker proxy replay` prices.
+  **And the agent is told, in the prompt** (`compressionBlock`, a `<thinker-compression>` block from the prompt
+  hook): the figure's first question is *what* was cleared, so the answer goes into the context rather than behind
+  a link. The block names the session's saving, the actions whose results are out of the prompt right now by tool
+  (`clearedActions` in `proxy.js` works them out from the request the proxy is already scanning -- the API reports
+  how much and how many, never which) and the last eight clears, and it tells the agent to read a file again
+  rather than rely on remembering it. Once a session, the turn the saving comes due: a block whose figures changed
+  every turn would rewrite the prompt cache from wherever it sits, which is the cost the clearing exists to spare.
+  The token total adds up across requests, because each one genuinely leaves those tokens out again; the tool
+  breakdown never does, since every request clears the same cumulative set and summing would count one `Bash` call
+  many times -- it is the set cleared out of the latest prompt.
   **A route of your own is never taken over** (`src/proxy-route.js`, 2026-10-28): plenty of people point Claude Code
   at a model server of their own -- a gateway that routes each request to whichever model it picks -- and its token
   is not Anthropic's, so a proxy in front of it sends that token to `api.anthropic.com` and every call fails

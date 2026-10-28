@@ -17,8 +17,8 @@ import { isDisabledRepo } from '../repo-switch.js';
 import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '../maintain.js';
 import { codeForRequest, orient, HOOK_BUDGET, servesNotes, rememberTask, outcome, looksLikeCorrection, lateNotes, onSightNotes, onSightConfig, onSightOutlines, onSightOutlineConfig, completenessNudge, nudgedForTest, peekTurn, takeTurn, beginTurn, holdoutTurn, isHarnessEvent } from '../ops.js';
 import { recordEvent, traceFile, toolName, toolInput, textOf } from '../transcripts.js';
-import { turnNotice, turnFooterMarkdown, weeklyNotice, compressionNotice } from '../usage.js';
-import { compressionDir, markCompressionTurn } from '../compression.js';
+import { turnNotice, turnFooterMarkdown, weeklyNotice, compressionNotice, formatTokens } from '../usage.js';
+import { compressionBlock, compressionDir, markCompressionTurn } from '../compression.js';
 import { claudeCardActive } from '../claude-card.js';
 import { setupRepo } from '../repo-onboard.js';
 import { coverageOffer, recordAccess } from '../coverage.js';
@@ -209,7 +209,13 @@ async function hookCommand(ctx) {
         // the one suggestion the person gets, instruction sections, skills, MCP servers and tool outputs ranked together
         // one question a prompt: the one-off repair offer first (proxy-offer.js, the owner-approved exception of
         // 2026-10-28 to "one suggestion, not three"), then coverage, then the week's context suggestion
-        const offer = [offersOn ? (proxyOffer(store, { client }) || coverageOffer(store, { client }) || contextSuggestOffer(store, { repoId: repoId(store.repo), client })) : '', work, index, recall].filter(Boolean).join('\n\n');
+        // what the context proxy has cleared out of this session, once the saving is old enough to mean something
+        // (compression.js): not an offer and not a question, a statement of what is no longer in the context and
+        // what it saved, said once a session because a block that changed every turn would rewrite the very
+        // prompt cache the clearing exists to spare
+        let clearing = '';
+        if (offersOn) { try { clearing = compressionBlock(compressionDir(), session, turn, formatTokens); } catch {} }
+        const offer = [offersOn ? (proxyOffer(store, { client }) || coverageOffer(store, { client }) || contextSuggestOffer(store, { repoId: repoId(store.repo), client })) : '', work, index, recall, clearing].filter(Boolean).join('\n\n');
         // Every git repository has a cache, started on first use and empty until it learns; the hooks serve
         // from it once it holds a few notes (ops.js:SERVE_MIN_NOTES). A prompt served nothing is still a
         // request: `thinker usage` and the telemetry count a machine as active by its requests, and a cache in

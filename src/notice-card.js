@@ -5,7 +5,7 @@ import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { desktopApp, subagentHarness } from './app-host.js';
 import { cacheHitSavings, formatTokens } from './usage.js';
-import { compressionDir, compressionHeader, compressionSaving, markCompressionTurn } from './compression.js';
+import { CARD_TOOLS, compressionDir, compressionSaving, compressionTools, markCompressionTurn } from './compression.js';
 
 export function noticeCardOn(store, client, { env = process.env, app = () => desktopApp('codex') } = {}) {
   const cfg = store.config();
@@ -22,8 +22,8 @@ export function noticeCard(store, { client, session, turn, holdout, notes = [], 
     if (holdout || !noticeCardOn(store, client)) return '';
     // what the context proxy's clearing has left out of this session's prompts, once it has had a few turns
     // to pay for itself (compression.js); a session the proxy cleared nothing from shows no such section
-    let saving = null;
-    try { saving = compressionSaving(markCompressionTurn(compressionDir(), session, turn)); } catch {}
+    let saving = null, cleared = null;
+    try { cleared = markCompressionTurn(compressionDir(), session, turn); saving = compressionSaving(cleared); } catch {}
     if (!notes.length && !saving) return '';
     const unique = [...new Map(notes.map(n => [n.id, n])).values()];
     const linked = session && session !== 'unknown' && turn > 0;
@@ -45,7 +45,8 @@ export function noticeCard(store, { client, session, turn, holdout, notes = [], 
     const compressed = !saving ? '' : `  <div class="card">
     <div class="viz-row"><span aria-hidden="true">🗜</span><strong style="font-weight:500">Thinker</strong><span class="viz-badge">Context cleared</span></div>
     <p class="tabular-nums">~${formatTokens(saving.saved)} tokens not re-read · ${saving.requests} ${saving.requests === 1 ? 'call' : 'calls'} · ${saving.uses} tool ${saving.uses === 1 ? 'result' : 'results'} cleared</p>
-    <details><summary class="cursor-interaction">How this is counted</summary>
+    <details><summary class="cursor-interaction">What was cleared, and how this is counted</summary>
+      ${compressionTools(cleared, formatTokens, { limit: CARD_TOOLS }) ? `<p class="text-small">Out of the prompt now, by the action that fetched it: ${escape(compressionTools(cleared, formatTokens, { limit: CARD_TOOLS }))}.</p>` : ''}
       <p class="text-small">The tokens the API left out of each prompt since the clear, added up, as it reported them. Clearing also writes the prompt cache again; <code>thinker proxy replay</code> prices that.</p>
     </details>
   </div>

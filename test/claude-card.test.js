@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { CARD_ENV, claudeCardDir, withCardDir, withoutCardDir, cardDirIn, claudeCardActive } from '../src/claude-card.js';
 import { installClient, uninstallWiring } from '../src/clients.js';
 import { FILE_CAP, MAX_FILES, NOT_READING } from '../src/usage.js';
-import { TURNS_AFTER, compressionHeader } from '../src/compression.js';
+import { CARD_TOOLS, TURNS_AFTER, compressionHeader, compressionTools, shortTool } from '../src/compression.js';
 import { formatTokens } from '../src/model-usage.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -42,6 +42,14 @@ test('the card waits as long as the notice does, and words the saving the same w
   assert.ok(mod, 'the mod exports a header');
   const built = new Function('s', 'formatTokens', `return ${mod[1]};`)(saving, formatTokens);
   assert.equal(built, compressionHeader(saving, formatTokens));
+  // the breakdown, with the same cap, the same name cut and the same wording
+  assert.match(src, new RegExp(`export const CARD_TOOLS = ${CARD_TOOLS}\\n`));
+  const modTools = src.match(/\.slice\(0, CARD_TOOLS\)\.map\(t => (`[^`]+`)\)\.join\(', '\)/);
+  assert.ok(modTools, 'the mod exports the breakdown');
+  const tools = { tools: [{ name: 'Bash', calls: 41, tokens: 1_100_000 }, { name: 'mcp__artemis__get_experiment', calls: 11, tokens: 62_000 }] };
+  const builtTools = tools.tools.map(t => new Function('t', 'formatTokens', 'shortTool', `return ${modTools[1]};`)(t, formatTokens, shortTool)).join(', ');
+  assert.equal(builtTools, compressionTools(tools, formatTokens, { limit: CARD_TOOLS }));
+  assert.ok(builtTools.includes('artemis/get_experiment'), 'an MCP name is written as the person reads it');
 });
 
 test('the settings name one copy\'s card folder and keep every other plugin folder', () => {

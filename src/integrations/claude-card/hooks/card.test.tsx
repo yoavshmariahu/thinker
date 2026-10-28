@@ -1,7 +1,7 @@
 // Run with `claude plugin test src/integrations/claude-card` (npm test runs test/claude-card.test.js).
 import { test, expect, mock } from 'claude-code/testing'
 import type { On } from 'claude-code'
-import { servedNotes, cardHeader, compressionHeader, tailOf, shortTitle, TURNS_AFTER } from './register'
+import { servedNotes, cardHeader, compressionHeader, compressionTools, tailOf, shortTitle, TURNS_AFTER } from './register'
 
 const bundle = `<thinker-cache>
 Notes about this repo from earlier sessions.
@@ -112,11 +112,16 @@ test('a subagent turn keeps no card', async ($, on) => {
 })
 
 // What the context proxy cleared, drawn beside the notes once it has had a few turns to pay for itself.
-const cleared = { session: 'sess-1', saved: 1_200_000, requests: 40, uses: 310 }
+const cleared = { session: 'sess-1', saved: 1_200_000, requests: 40, uses: 310, tools: [{ name: 'Bash', calls: 41, tokens: 1_100_000 }, { name: 'Read', calls: 18, tokens: 380_000 }] }
 
 test('the cleared-context header reads as the command does', () => {
-  expect(compressionHeader({ saved: 1_200_000, requests: 40, uses: 310 })).toBe('context cleared · ~1.2M tokens not re-read over 40 calls')
-  expect(compressionHeader({ saved: 900, requests: 1, uses: 1 })).toBe('context cleared · ~900 tokens not re-read over 1 call')
+  expect(compressionHeader({ saved: 1_200_000, requests: 40, uses: 310, tools: [] })).toBe('context cleared · ~1.2M tokens not re-read over 40 calls')
+  expect(compressionHeader({ saved: 900, requests: 1, uses: 1, tools: [] })).toBe('context cleared · ~900 tokens not re-read over 1 call')
+})
+
+test('the actions the saving was made of are named as compression.js names them', () => {
+  expect(compressionTools(cleared)).toBe('Bash ×41 (1.1M), Read ×18 (380k)')
+  expect(compressionTools({ saved: 1, requests: 1, uses: 0, tools: [] })).toBe('')
 })
 
 test('the saving is not drawn on the turns right after the clear', async ($, on) => {
@@ -133,6 +138,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await mount($, surface, `Answer ${TURNS_AFTER}.`)
     expect((await ui.findAll({ text: /context cleared · ~1.2M tokens not re-read over 40 calls/ })).length).toBeGreaterThan(0)
     expect((await ui.findAll({ text: /310 tool results cleared from the prompt/ })).length).toBeGreaterThan(0)
+    expect((await ui.findAll({ text: /out now: Bash ×41 \(1.1M\), Read ×18 \(380k\)/ })).length).toBeGreaterThan(0)
   })
 }
 
