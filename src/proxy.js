@@ -43,7 +43,19 @@ export const EDIT_BETA = 'context-management-2025-06-27';
 // count's 1.58%, with 17 sessions costlier against 20, and by construction never clears a result of the turn in hand;
 // what the replay cannot see, the agent reading again what was cleared, is the experiment still to run
 // (research/output-lifetime-2026-10-22). The proxy itself stays off until then: nothing points an agent at it.
-export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 100000, keep: 'turn', keepMin: 3, clearAtLeast: 80000, holdout: 0, clearInputs: true, clearThinking: true };
+// Bigger cuts, less often (2026-10-28, the owner's call on the replay below). A clear rewrites the prompt cache
+// from the first result it removes, and a 1h write costs ~200% of an input token against ~2.5% for a read, so what
+// a clear costs is the rewrite and what it saves is every later read of what it took. Clearing from 100k paid that
+// rewrite for the smallest cut it could make. Taking the call text and the earlier thinking with it already helped
+// (they ride the same rewrite); raising the threshold is the other half, and it is where the harm was.
+// `thinker proxy replay`, 264 Claude Code sessions, 1.05B billed-equivalent tokens, $3,750 at list:
+//   100k/80k  +inputs +thinking  +7.8% at list  (<60 req -0.7%, 60-119 +1.2%, 120+ +10.9%, 12 sessions costlier)
+//   140k/100k +inputs +thinking  +7.3% at list  (<60 req -0.1%, 60-119 +0.5%, 120+ +10.2%,  6 sessions costlier)
+//   180k/140k +inputs +thinking  +5.8% at list  (<60 req +0.1%, 60-119 +0.7%, 120+  +8.0%,  4 sessions costlier)
+// 140k gives up half a point of the saving to halve the sessions it can cost, and no long session is costlier.
+// Still not measured, and the reason the holdout stays: the model reading again what was cleared, which the replay
+// cannot see (proxy-replay.js).
+export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keep: 'turn', keepMin: 3, clearAtLeast: 100000, holdout: 0, clearInputs: true, clearThinking: true };
 // Codes worth one more try when nothing of the answer has reached the agent: a dropped connection
 // (a reused keep-alive socket the API had already closed), a connect timeout, and a name that did
 // not resolve, which on a laptop means the resolver is not back yet after a sleep or a network
