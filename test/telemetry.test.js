@@ -6,6 +6,13 @@ import os from 'node:os';
 import http from 'node:http';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+// Removing a temp directory after a CLI that ran with test mode off: `setup` leaves detached children of its
+// own (the telemetry sender, the catch-up and maintenance runs), and one of them writing a file while `rmSync`
+// walks the tree fails the walk with ENOTEMPTY -- which `force` does not cover, since the directory is not
+// missing, it has just gained an entry. Node retries exactly this class for us. Seen in a release validation
+// run on 2026-10-28, where it failed the suite and stopped the release.
+const removeTree = d => fs.rmSync(d, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
+
 import { Store } from '../src/store.js';
 import { telemetryScheduleState } from '../src/telemetry-schedule.js';
 import {
@@ -59,7 +66,7 @@ test('distillation telemetry preserves measured outcomes and unknown provider co
     assert.equal(partial.costUnknownCalls, 1); assert.equal(partial.reportedTokens, 15);
     assert.equal(partial.tokenUnknownCalls, 1);
   } finally {
-    fs.rmSync(tmpRepo, { recursive: true, force: true }); fs.rmSync(tmpHome, { recursive: true, force: true });
+    removeTree(tmpRepo); removeTree(tmpHome);
   }
 });
 
@@ -84,7 +91,7 @@ test('isTelemetryEnabled honors environment flags and config overrides', () => {
     fs.writeFileSync(path.join(tmpHome, 'install.json'), JSON.stringify({ telemetry: false }));
     assert.equal(isTelemetryEnabled({ home: tmpHome }), false);
   } finally {
-    fs.rmSync(tmpHome, { recursive: true, force: true });
+    removeTree(tmpHome);
   }
 });
 
@@ -96,7 +103,7 @@ test('getInstallId generates and persists a valid UUID', () => {
     const id2 = getInstallId(tmpHome);
     assert.equal(id1, id2, 'Install ID should remain stable once generated');
   } finally {
-    fs.rmSync(tmpHome, { recursive: true, force: true });
+    removeTree(tmpHome);
   }
 });
 
@@ -138,8 +145,8 @@ test('buildTelemetryPayload constructs anonymous high-level metrics without sens
     assert.equal(jsonStr.includes('Route handling'), false);
     assert.equal(jsonStr.includes(tmpRepo), false);
   } finally {
-    fs.rmSync(tmpRepo, { recursive: true, force: true });
-    fs.rmSync(tmpHome, { recursive: true, force: true });
+    removeTree(tmpRepo);
+    removeTree(tmpHome);
   }
 });
 
@@ -160,7 +167,7 @@ test('test telemetry can reach loopback only, including in inherited subprocess 
     assert.equal(result.reason, 'test_environment');
     assert.equal(calls, 0);
     assert.equal(fs.existsSync(path.join(home, 'state', 'install-id')), false);
-  } finally { fs.rmSync(home, { recursive: true, force: true }); }
+  } finally { removeTree(home); }
 });
 
 test('sendTelemetry honors rate limit and mock network transmission', async () => {
@@ -199,8 +206,8 @@ test('sendTelemetry honors rate limit and mock network transmission', async () =
     assert.equal(res3.sent, true);
     assert.equal(sentCount, 2);
   } finally {
-    fs.rmSync(tmpRepo, { recursive: true, force: true });
-    fs.rmSync(tmpHome, { recursive: true, force: true });
+    removeTree(tmpRepo);
+    removeTree(tmpHome);
   }
 });
 
@@ -217,8 +224,8 @@ test('sendTelemetry handles network errors gracefully without crashing', async (
     assert.equal(res.sent, false);
     assert.equal(res.error, 'Network offline');
   } finally {
-    fs.rmSync(tmpRepo, { recursive: true, force: true });
-    fs.rmSync(tmpHome, { recursive: true, force: true });
+    removeTree(tmpRepo);
+    removeTree(tmpHome);
   }
 });
 
@@ -241,8 +248,8 @@ test('computeCacheMetrics accurately counts local store notes on fresh install w
   } finally {
     if (origHome) process.env.THINKER_HOME = origHome;
     else delete process.env.THINKER_HOME;
-    fs.rmSync(tmpRepo, { recursive: true, force: true });
-    fs.rmSync(tmpHome, { recursive: true, force: true });
+    removeTree(tmpRepo);
+    removeTree(tmpHome);
   }
 });
 
@@ -270,9 +277,9 @@ test('computeCacheMetrics counts the notes of a cache the log last named days ag
   } finally {
     if (origHome) process.env.THINKER_HOME = origHome;
     else delete process.env.THINKER_HOME;
-    fs.rmSync(tmpRepo, { recursive: true, force: true });
-    fs.rmSync(idleRepo, { recursive: true, force: true });
-    fs.rmSync(tmpHome, { recursive: true, force: true });
+    removeTree(tmpRepo);
+    removeTree(idleRepo);
+    removeTree(tmpHome);
   }
 });
 
@@ -301,8 +308,8 @@ test('buildTelemetryPayload and sendTelemetry tag event type (install vs hourly 
     assert.equal(res.sent, true);
     assert.equal(sentBody.event, 'install');
   } finally {
-    fs.rmSync(tmpRepo, { recursive: true, force: true });
-    fs.rmSync(tmpHome, { recursive: true, force: true });
+    removeTree(tmpRepo);
+    removeTree(tmpHome);
   }
 });
 
@@ -324,8 +331,8 @@ test('sendTelemetry respects user opt-out even when force is true', async () => 
     assert.equal(fetchCalled, false);
   } finally {
     delete process.env.THINKER_TELEMETRY;
-    fs.rmSync(tmpRepo, { recursive: true, force: true });
-    fs.rmSync(tmpHome, { recursive: true, force: true });
+    removeTree(tmpRepo);
+    removeTree(tmpHome);
   }
 });
 
@@ -384,8 +391,8 @@ test('cli setup sends installation telemetry in background', async () => {
     assert.ok(received[0].installId);
   } finally {
     server.close();
-    fs.rmSync(tmpRepo, { recursive: true, force: true });
-    fs.rmSync(tmpHome, { recursive: true, force: true });
+    removeTree(tmpRepo);
+    removeTree(tmpHome);
   }
 });
 
@@ -435,8 +442,8 @@ test('cli setup sends installation telemetry in background upon completion', asy
     assert.ok(received[0].installId);
   } finally {
     server.close();
-    fs.rmSync(tmpRepo, { recursive: true, force: true });
-    fs.rmSync(tmpHome, { recursive: true, force: true });
+    removeTree(tmpRepo);
+    removeTree(tmpHome);
   }
 });
 
@@ -464,7 +471,7 @@ test('scheduleTelemetry and unscheduleTelemetry manage plist file and status', {
     assert.ok(!fs.existsSync(plistPath));
     assert.equal(isTelemetryScheduled(tmp, { plistPath }), false);
   } finally {
-    fs.rmSync(tmp, { recursive: true, force: true });
+    removeTree(tmp);
   }
 });
 
@@ -499,8 +506,8 @@ test('sendTelemetry honors hourly rate limit (HOUR_MS)', async () => {
     assert.equal(res2.sent, true);
     assert.equal(sentCount, 1);
   } finally {
-    fs.rmSync(tmpRepo, { recursive: true, force: true });
-    fs.rmSync(tmpHome, { recursive: true, force: true });
+    removeTree(tmpRepo);
+    removeTree(tmpHome);
   }
 });
 
@@ -532,8 +539,8 @@ test('cli telemetry and telemetry --json run cleanly and show hourly event', () 
     assert.ok(parsed.retrieval);
     assert.equal(parsed.retrieval.schemaVersion, 1);
   } finally {
-    fs.rmSync(tmpRepo, { recursive: true, force: true });
-    fs.rmSync(tmpHome, { recursive: true, force: true });
+    removeTree(tmpRepo);
+    removeTree(tmpHome);
   }
 });
 
@@ -573,8 +580,8 @@ test('telemetry payload captures client adoption breakdown and detected clients'
     assert.equal(payload.clients.sessions.codex, 1);
     assert.equal(payload.clients.sessions.gemini, 0);
   } finally {
-    fs.rmSync(tmpRepo, { recursive: true, force: true });
-    fs.rmSync(tmpHome, { recursive: true, force: true });
+    removeTree(tmpRepo);
+    removeTree(tmpHome);
   }
 });
 
@@ -615,8 +622,8 @@ test('telemetry payload captures retrieval quality metrics, staleness, and guard
     assert.equal(payload.retrieval.servedByKind.map, 1);
     assert.equal(payload.retrieval.servedByKind.rule, 2);
   } finally {
-    fs.rmSync(tmpRepo, { recursive: true, force: true });
-    fs.rmSync(tmpHome, { recursive: true, force: true });
+    removeTree(tmpRepo);
+    removeTree(tmpHome);
   }
 });
 
@@ -658,8 +665,8 @@ test('cache topology metrics aggregate statuses, sources, and dependency granula
     assert.equal(metrics.confidenceBuckets.low, 0);
     assert.equal(metrics.symbolDepRatio, 0.333); // 1 symbol dep out of 3 total deps
   } finally {
-    fs.rmSync(tmpRepo, { recursive: true, force: true });
-    fs.rmSync(tmpHome, { recursive: true, force: true });
+    removeTree(tmpRepo);
+    removeTree(tmpHome);
   }
 });
 
@@ -679,8 +686,8 @@ test('telemetry payload carries re-verification verdicts and doubted passes as 3
     assert.deepEqual(payload.verification, { schemaVersion: 1, windowDays: 30, stillValid: 2, updated: 1, retired: 1, passFlaggedLater: 1, passWhileFlagged: 1 });
     assert.doesNotMatch(JSON.stringify(payload.verification), /n1|n2|n3/, 'counts only, no note ids');
   } finally {
-    fs.rmSync(tmpRepo, { recursive: true, force: true });
-    fs.rmSync(tmpHome, { recursive: true, force: true });
+    removeTree(tmpRepo);
+    removeTree(tmpHome);
   }
 });
 
@@ -699,7 +706,7 @@ test('the payload names the harnesses found and reports no supported agent as no
     assert.equal(payload.clients.harnesses.continue.supported, false);
   } finally {
     for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
-    for (const d of [tmpRepo, tmpHome, h]) fs.rmSync(d, { recursive: true, force: true });
+    for (const d of [tmpRepo, tmpHome, h]) removeTree(d);
   }
 });
 
@@ -719,7 +726,7 @@ test('an applied update starts one report from the new copy, unless telemetry is
     fs.writeFileSync(path.join(tmpHome, 'install.json'), JSON.stringify({ telemetry: false }));
     assert.equal(sendTelemetryAfterUpdate({ cliPath: cli, home: tmpHome, spawnFn, env, testMode: false }), false, 'telemetry off: nothing');
     assert.equal(calls.length, 1);
-  } finally { fs.rmSync(tmpHome, { recursive: true, force: true }); }
+  } finally { removeTree(tmpHome); }
 });
 
 test('telemetry says whether each installed agent runs thinker and how much it was used', async () => {
@@ -769,7 +776,7 @@ test('computeCacheMetrics counts a repository\'s notes once, from its fullest ch
   } finally {
     if (origHome) process.env.THINKER_HOME = origHome;
     else delete process.env.THINKER_HOME;
-    for (const d of [main, old, tmpHome]) fs.rmSync(d, { recursive: true, force: true });
+    for (const d of [main, old, tmpHome]) removeTree(d);
   }
 });
 
@@ -784,14 +791,14 @@ test('computeCacheMetrics counts the repositories with a cache now, not every ch
     a.put({ id: 'n1', kind: 'rule', title: 'Rule', body: 'app.js:run' });
     a.log({ op: 'orient', client: 'claude', task: 'run', served: [] });
     new Store(gone).init().log({ op: 'orient', client: 'claude', task: 'run', served: [] });
-    fs.rmSync(gone, { recursive: true, force: true }); // a test run's temporary checkout, long removed
+    removeTree(gone); // a test run's temporary checkout, long removed
     const metrics = computeCacheMetrics(new Store(live), { home: tmpHome, all: true });
     assert.equal(metrics.repositoriesCount, 1);
     assert.equal(metrics.totalNotes, 1);
   } finally {
     if (origHome) process.env.THINKER_HOME = origHome;
     else delete process.env.THINKER_HOME;
-    for (const d of [live, gone, tmpHome]) fs.rmSync(d, { recursive: true, force: true });
+    for (const d of [live, gone, tmpHome]) removeTree(d);
   }
 });
 
@@ -836,7 +843,7 @@ test('proxy telemetry reports the service, both sides of its holdout, the models
     assert.match(p.standDowns[0].reason, /not Anthropic/);
     assert.equal(p.service.standDown, null, 'this service is on');
   } finally {
-    fs.rmSync(tmpRepo, { recursive: true, force: true }); fs.rmSync(tmpHome, { recursive: true, force: true });
+    removeTree(tmpRepo); removeTree(tmpHome);
   }
 });
 
@@ -927,7 +934,7 @@ test('spend telemetry counts the funnel, the decisions and what they measured, a
     }
     assert.ok(blob.includes('Workflow'), 'the agent\'s own built-in tools are named');
   } finally {
-    fs.rmSync(tmpRepo, { recursive: true, force: true }); fs.rmSync(tmpHome, { recursive: true, force: true });
+    removeTree(tmpRepo); removeTree(tmpHome);
   }
 });
 
@@ -948,6 +955,6 @@ test('a repository that opted out of telemetry contributes no decisions', () => 
     assert.equal(off.savings.repositories.total, 0);
     assert.equal(off.actions.approvals, 1, 'the machine log is the upload\'s own; the decisions of an opted-out repository are not');
   } finally {
-    fs.rmSync(tmpRepo, { recursive: true, force: true });
+    removeTree(tmpRepo);
   }
 });
