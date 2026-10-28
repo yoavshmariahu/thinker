@@ -288,12 +288,12 @@ function opencodeFile(url, home) {
   writeJson(f, next);
   return { file: f, changed: true };
 }
-function claudeFile(url, home, env) {
+function claudeFile(url, home, env, repos) {
   const f = claudeSettings();
   const guard = testGuard('CLAUDE_CONFIG_DIR'); if (guard) return url ? { file: f, skipped: guard } : { file: f, unchanged: true };
   const cur = readJson(f);
   if (url) {
-    const why = claudeBlocker(cur, { home, env });
+    const why = claudeBlocker(cur, { home, env, repos });
     if (why) return { file: f, skipped: why };
     if (cur.env?.[PROXY_ENV] === url) return { file: f, unchanged: true };
     writeJson(f, withProxyUrl(cur, url));
@@ -322,7 +322,9 @@ export function claudeWired(home = thinkerHome()) {
 export function removedByHand({ home = thinkerHome() } = {}) {
   const s = serviceState(home);
   if (!s.enabled || !s.wroteClaude) return null;
-  return claudeWired(home) === false ? `the proxy's URL was taken out of ${claudeSettings()}` : null;
+  // no path in the reason: it is sent with the telemetry (telemetry.js:proxyMetrics), and every reason a
+  // stand-down carries must be a sentence of thinker's own with nothing of this machine in it
+  return claudeWired(home) === false ? 'its URL was taken out of Claude Code\'s settings by hand' : null;
 }
 
 // The proxy steps aside and stays aside: the URL out of every agent's file, the service entry and process gone,
@@ -340,9 +342,9 @@ export function standDown(reason, { home = thinkerHome(), manage, port } = {}) {
 
 // The URL written to (url given) or taken out of (null) every agent's file. Returns what changed and what was left
 // alone with the reason, by agent.
-export function wireAgents(url, { home = thinkerHome(), env = process.env, agents = ['claude', 'pi', 'opencode', 'codex'] } = {}) {
+export function wireAgents(url, { home = thinkerHome(), env = process.env, agents = ['claude', 'pi', 'opencode', 'codex'], repos = [] } = {}) {
   const out = { changed: [], skipped: [], unchanged: [] };
-  const fns = { claude: () => claudeFile(url, home, env), pi: () => piFile(url, home), opencode: () => opencodeFile(url, home), codex: () => wireCodexProxy(url, { home, env }) };
+  const fns = { claude: () => claudeFile(url, home, env, repos), pi: () => piFile(url, home), opencode: () => opencodeFile(url, home), codex: () => wireCodexProxy(url, { home, env }) };
   for (const a of agents) {
     let r; try { r = fns[a](); } catch (e) { r = { skipped: e.message }; }
     if (r.changed) out.changed.push({ agent: a, file: r.file });
@@ -355,14 +357,14 @@ export function wireAgents(url, { home = thinkerHome(), env = process.env, agent
 // `thinker proxy on` (force), `connect`: the port once, the service, the agents' files.
 // A service that stood down (the person's own route, or the setting deleted) stays off until `thinker proxy on`
 // asks for it: rerunning the installer or `thinker connect` does not put it back.
-export async function enableProxyService({ cli, home = thinkerHome(), env = process.env, manage, force = false } = {}) {
+export async function enableProxyService({ cli, home = thinkerHome(), env = process.env, manage, force = false, repos = [] } = {}) {
   const s = serviceState(home);
   if (s.standDown && !force) return { stoodDown: s.standDown, port: s.port, url: s.port ? urlFor(s.port) : null, service: { type: 'none' }, wired: { changed: [], skipped: [], unchanged: [] } };
   const port = s.port || await freePort();
   const ports = [...new Set([...(s.ports || []), port])];
   writeJson(stateFile(home), { ...s, enabled: true, port, ports, since: s.since || new Date().toISOString(), off: undefined, standDown: undefined, wroteClaude: undefined });
   const service = installService({ cli, home, manage });
-  const wired = wireAgents(urlFor(port), { home, env });
+  const wired = wireAgents(urlFor(port), { home, env, repos });
   // whether Claude Code's settings hold the URL, so that its disappearance can be read as the person's answer
   // (`removedByHand`) rather than as a file to write again
   if (claudeWired(home)) writeJson(stateFile(home), { ...serviceState(home), wroteClaude: true });

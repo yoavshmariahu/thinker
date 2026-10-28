@@ -167,7 +167,7 @@ async function rewireCommand(ctx) {
   // that it runs this version's code (rewire is what `thinker update` runs from the new copy)
   // an install from before the service (no state at all, never turned off): on once, as connect would do it
   if (!flags.here && !dry && !isTestMode() && !serviceState().enabled && !serviceState().off) {
-    try { const p = await enableProxyService({ cli }); summary.changed++; summary.files.push(...p.wired.changed.map(x => x.file)); if (!quiet && !flags.json) out(`your settings: context proxy on (${p.url})`); } catch (e) { failed('your settings (proxy)', e); }
+    try { const p = await enableProxyService({ cli, repos }); summary.changed++; summary.files.push(...p.wired.changed.map(x => x.file)); if (!quiet && !flags.json) out(`your settings: context proxy on (${p.url})`); } catch (e) { failed('your settings (proxy)', e); }
   } else if (proxyOn() && !dry) {
     try {
       // the URL taken out of Claude Code's settings by hand is the person's answer: this is where it used to be
@@ -178,7 +178,7 @@ async function rewireCommand(ctx) {
         summary.changed++;
         if (!quiet && !flags.json) out(`your settings: context proxy off, ${gone}; your agents call the API directly (thinker proxy on puts it back)`);
       } else {
-        const w = wireAgents(proxyUrl());
+        const w = wireAgents(proxyUrl(), { repos });
         if (w.changed.length) { summary.changed++; summary.files.push(...w.changed.map(x => x.file)); if (!quiet && !flags.json) out(`your settings: rewired ${w.changed.map(x => x.file).join(', ')} to the context proxy`); }
         restartService({ cli });
       }

@@ -332,7 +332,11 @@ export function proxyMetrics({ home = thinkerHome(), now = Date.now(), env = pro
   let cancelled = 0;
   const byModel = {};
   const notes = { requests: 0, served: 0, replayed: 0 };
+  // how often the proxy stepped aside rather than break a harness routed elsewhere (proxy.js:authWatch,
+  // proxy-service.js:standDown). Reasons are sentences of thinker's own, never a path or a URL of the machine's.
+  const standDowns = [];
   for (const r of rows) {
+    if (r.op === 'proxy-standdown') { standDowns.push({ at: r.at || null, reason: r.reason || null }); continue; }
     if (r.op === 'proxy-error') {
       if (r.aborted) { cancelled++; continue; }
       errors.total++; if (r.retried) errors.retried++; if (r.truncated) errors.truncated++;
@@ -352,7 +356,9 @@ export function proxyMetrics({ home = thinkerHome(), now = Date.now(), env = pro
       on: state.enabled === true, running: alive(state.pid), since: state.since || null, off: state.off || null,
       holdout: cfg.holdout == null ? SERVICE_HOLDOUT : Number(cfg.holdout) || 0,
       keep: cfg.keep ?? null, trigger: cfg.trigger ?? null,
+      standDown: state.standDown ? { at: state.standDown.at || null, reason: state.standDown.reason || null } : null,
     },
+    standDowns,
     sides: proxyReport(rows, { since }),
     byModel, errors: { ...errors, failed: errors.total - errors.retried, cancelled }, notes,
   };

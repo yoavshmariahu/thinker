@@ -811,6 +811,7 @@ test('proxy telemetry reports the service, both sides of its holdout, the models
       { at: at(3100_000), op: 'proxy-error', code: 'ECONNRESET', error: 'socket hang up', retried: false, aborted: true },
       { at: at(3000_000), op: 'proxy-error', code: 'ECONNRESET', error: 'aborted', retried: false, truncated: true },
       { at: at(40 * 86400_000), op: 'proxy', session: 'old', model: 'claude-opus-5', injected: true, input: 99_999, read: 0, write: 0, out: 0, cleared: 99_999, overheadMs: 2 },
+      { at: at(2900_000), op: 'proxy-standdown', reason: 'the agent sent credentials that are not Anthropic\'s' },
     ];
     fs.writeFileSync(path.join(tmpHome, 'state', 'proxy.jsonl'), rows.map(r => JSON.stringify(r)).join('\n') + '\n');
     const p = proxyMetrics({ home: tmpHome, now, env: {} });
@@ -830,6 +831,9 @@ test('proxy telemetry reports the service, both sides of its holdout, the models
     assert.equal(p.errors.cancelled, 1, 'the agent left; nothing failed');
     assert.equal(p.errors.truncated, 1, 'the answer stopped partway');
     assert.deepEqual(p.errors.byCode, { ECONNRESET: 2, ENOTFOUND: 1 });
+    assert.equal(p.standDowns.length, 1, 'the proxy stepping aside is counted, not an error');
+    assert.match(p.standDowns[0].reason, /not Anthropic/);
+    assert.equal(p.service.standDown, null, 'this service is on');
   } finally {
     fs.rmSync(tmpRepo, { recursive: true, force: true }); fs.rmSync(tmpHome, { recursive: true, force: true });
   }
