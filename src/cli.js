@@ -43,7 +43,12 @@ for (let i = 0; i < argv.length; i++) {
   if (argv[i].startsWith('--')) { const k = argv[i].slice(2); const boolean = ['full-repo'].includes(k) || (cmd === 'proxy' && k === 'codex') || (cmd === 'impact' && ['json'].includes(k)) || (cmd === 'system' && ['fixed', 'mutable', 'all', 'json', 'dry', 'again'].includes(k)); const v = !boolean && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true; flags[k] = v; }
   else pos.push(argv[i]);
 }
-const repo = findRepoRoot(flags.repo || process.env.THINKER_REPO || process.cwd());
+// A process can be left in a directory that no longer exists: a worktree removed under it, a build directory
+// swept, or -- until install.sh ran its `npm ci` in a subshell -- the installer's own shell sitting in
+// ~/.thinker/app while an update replaced it. `process.cwd()` throws ENOENT (uv_cwd) then, here, at import,
+// before any command has a chance to run, so every thinker invocation died with a stack trace.
+const workingDir = () => { try { return process.cwd(); } catch { return process.env.HOME || '/'; } };
+const repo = findRepoRoot(flags.repo || process.env.THINKER_REPO || workingDir());
 const store = new Store(repo);
 const out = s => process.stdout.write(s + '\n');
 out.stream = process.stdout; // the spinners and the build's progress bar draw on it (setup/ui.js:onTerminal)
