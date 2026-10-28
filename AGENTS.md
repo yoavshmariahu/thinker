@@ -69,6 +69,21 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 - Whether the answer spoke about the edit at all is recorded on the row (`editAcknowledged`), since a gateway that strips the field looks exactly like a request whose trigger was never met. Nothing is claimed from it yet: whether a conforming API always echoes `applied_edits` when it clears nothing is unverified.
 - The refusal count judges the model calls alone (`MESSAGES_PATH`): an agent sends more than those through the proxy, and a 200 on one of the others reset the count, so three refusals in a row never arrived.
 
+**What the clearing saved is shown, three turns on (2026-10-29):**
+- The proxy cleared and nothing said so. The API answers every cleared request with the tokens it left out of that
+  prompt (`cleared_input_tokens`), and the cleared set is cumulative within a conversation, so adding those up over a
+  session is the whole of the saving: **the tokens the server left out of each prompt since the clear, added up**.
+  Measured, not modelled, and gross like the cache-hit card's -- a clear also writes the prompt cache again, which
+  `thinker proxy replay` prices.
+- Written per session beside the log (`<THINKER_HOME>/state/compression/<session>.json`, `compression.js:noteCompression`
+  from `startProxy`'s `log`), because the log is a megabyte within a week and no card may read it on a turn.
+- Not at the clear: the first cleared call saves nothing anybody would notice, since the saving is every *later* call
+  that reads the shorter prefix, and a card then would show the rewrite and none of the return. `TURNS_AFTER` is 3,
+  counted in the person's turns (`markCompressionTurn` for the hooks, the mod's own counter inside Claude Code).
+- Four doors, one sentence (`compressionHeader`): the Claude Code card mod, the Codex desktop card's second section,
+  the Stop hook's line where no mod runs (`usage.js:compressionNotice`), and `thinker proxy report`.
+  `test/claude-card.test.js` holds the mod's copy of the sentence and the wait to `compression.js`.
+
 **The clearing policy: bigger cuts, less often (2026-10-28, the owner's call):**
 - `PROXY_DEFAULTS` is `trigger` 140k, `clearAtLeast` 100k, `keep: 'turn'`/`keepMin` 3, with `clearInputs` and `clearThinking` on. A clear rewrites the prompt cache from the first result it removes (1h write ~200% of an input token, read ~2.5%), so the rewrite is what a clear costs and every later read of what it took is what it saves.
 - `thinker proxy replay`, 264 Claude Code sessions, 1.05B billed-equivalent tokens, $3,750 at list: results alone at 100k/80k **−0.2%** (−0.8% under 60 requests, −3.6% at 60–119, +0.7% at 120+, 21 sessions costlier); with the call text and the thinking at 100k/80k **+7.8%** (12 costlier); at **140k/100k +7.3%** (−0.1%, +0.5%, +10.2%, 6 costlier, no long session among them); at 180k/140k +5.8%. 140k gives up half a point to halve the sessions it can cost.
@@ -157,6 +172,7 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 | `src/update.js` | self and background updates |
 | `src/usage.js` | usage log summary |
 | `src/proxy*.js`, `src/commands/proxy.js` | context proxy; `thinker proxy on\|off\|status`; `proxy-route.js` leaves a routed harness alone; clearing results, call text and earlier thinking all on by default (2026-10-28), `--no-clear-inputs`, `--no-clear-thinking` off |
+| `src/compression.js` | what the clearing saved, per session, shown as a cache hit is (`TURNS_AFTER`, `compressionHeader`) |
 | `src/report.js`, `src/prices.js`, `src/commands/report.js` | Report page; `thinker report`; `prices.js` only place dollars appear |
 | `src/store.js`, `src/llm.js` | note storage; model access |
 | `src/server/` | `thinker-server`: `index.js`, `repos.js`, `auth.js`, `worker.js` |
