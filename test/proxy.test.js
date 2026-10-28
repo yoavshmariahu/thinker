@@ -4,7 +4,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { startProxy, AUTH_REFUSALS, transformRequest, proxyConfig, proxyReport, heldOut, usageTap, clearEdit, turnToolUses, thinkingEdit, resultsBeforeTurn, EDIT_TYPE, EDIT_BETA, PROXY_DEFAULTS } from '../src/proxy.js';
+import { startProxy, AUTH_REFUSALS, refusesEdit, transformRequest, proxyConfig, proxyReport, heldOut, usageTap, clearEdit, turnToolUses, thinkingEdit, resultsBeforeTurn, EDIT_TYPE, EDIT_BETA, PROXY_DEFAULTS } from '../src/proxy.js';
 
 const BETA = `oauth-2025-04-20,${EDIT_BETA},claude-code-20250219`;
 const body = (extra = {}) => Buffer.from(JSON.stringify({ model: 'claude-opus-5-5', messages: [{ role: 'user', content: 'hi' }],
@@ -395,4 +395,43 @@ test('a gateway that refuses the clearing edit gets the agent\'s own bytes, once
     assert.equal(r.filter(x => x.op === 'proxy-edit-rejected').length, 1);
     assert.deepEqual(r.filter(x => x.op === 'proxy').map(x => x.reason), ['edit-unsupported', 'edit-unsupported']);
   } finally { px.server.close(); server.close(); }
+});
+
+// A gateway answers 400 for its own reasons too. Taking any of them for a refusal of the edit switched the
+// clearing off for good and sent the failing request twice (LiteLLM over a model name, 2026-10-28).
+test('a 400 that is not about the edit reaches the agent as it came, once, and the edit is still added after it', async () => {
+  let seen = 0;
+  const server = http.createServer((req, res) => {
+    req.resume();
+    req.on('end', () => {
+      seen++;
+      res.writeHead(400, { 'content-type': 'application/json' });
+      res.end('{"type":"error","error":{"type":"invalid_request_error","message":"anthropic_messages: Invalid model name passed in model=claude-opus-5-5. Call `/v1/models` to view available models for your key."}}');
+    });
+  });
+  await new Promise(r => server.listen(0, '127.0.0.1', r));
+  const px = await proxyTo(`http://127.0.0.1:${server.address().port}`, { trigger: 0, clearAtLeast: 0 });
+  try {
+    const r1 = await send(px.port, { data: body({ stream: false }) });
+    assert.equal(r1.status, 400, 'the gateway\'s own answer');
+    assert.match(r1.text, /Invalid model name/, 'word for word, nothing invented');
+    assert.equal(seen, 1, 'and sent once, not twice');
+    const r2 = await send(px.port, { data: body({ stream: false }) });
+    assert.equal(r2.status, 400);
+    assert.equal(seen, 2);
+    const r = rows(px.logFile);
+    assert.deepEqual(r.filter(x => x.op === 'proxy-edit-rejected'), [], 'nothing concluded about the edit');
+    assert.deepEqual(r.filter(x => x.op === 'proxy').map(x => x.injected), [true, true], 'the clearing is still being tried');
+  } finally { px.server.close(); server.close(); }
+});
+
+test('refusesEdit: the field or the beta header named, not every 400', () => {
+  assert.equal(refusesEdit('{"error":{"message":"context_management: unsupported"}}'), true);
+  assert.equal(refusesEdit('{"detail":[{"type":"extra_forbidden","loc":["body","context_management"]}]}'), true);
+  assert.equal(refusesEdit('unsupported anthropic-beta: context-management-2025-06-27'), true);
+  assert.equal(refusesEdit('{"error":{"message":"Invalid model name passed in model=claude-opus-5-5"}}'), false);
+  assert.equal(refusesEdit('{"error":{"message":"budget exceeded for key"}}'), false);
+  assert.equal(refusesEdit('{"error":{"message":"tools.0.input_schema: unknown field foo"}}'), false);
+  assert.equal(refusesEdit(''), false);
+  assert.equal(refusesEdit(null), false);
 });

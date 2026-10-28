@@ -57,6 +57,20 @@ export const RETRY_DELAY = { ENOTFOUND: 250, EAI_AGAIN: 250 };
 // than one expired token or one upstream hiccup: a session whose every call fails is broken either way, and the
 // proxy is the one thing in the path that the person did not put there.
 export const AUTH_REFUSALS = 3;
+// How much of a 400 is read before deciding whether it is about the edit: an error body is small, and the point
+// is to decide before the agent sees anything.
+export const REFUSAL_BODY = 16_384;
+// Whether a refusal is about the edit the proxy added, rather than about the agent's own request. Named fields
+// and the words a gateway uses for something it does not know; a 400 that says none of this is the agent's to see.
+const EDIT_WORDS = /context[_-]management|clear_tool_uses|clear_thinking|anthropic-beta|context-management-2025-06-27/i;
+const UNKNOWN_WORDS = /unsupported|unrecognized|unknown|not supported|extra_forbidden|unexpected|invalid.{0,20}field|additionalProperties/i;
+export function refusesEdit(body) {
+  const text = String(body || '').slice(0, REFUSAL_BODY);
+  if (!EDIT_WORDS.test(text)) return false;
+  // the beta header or the field is named: that alone is enough when the gateway says it cannot take it
+  return UNKNOWN_WORDS.test(text) || /context[_-]management/i.test(text);
+}
+
 // The API's model calls: the only requests whose credentials the refusal count may judge.
 export const MESSAGES_PATH = /^\/v1\/messages(\/|\?|$)/;
 // Judged only when the proxy forwards to Anthropic's own API: with an upstream of someone's own (`--upstream`,
@@ -229,6 +243,11 @@ export function usageTap() {
     const u = ev?.message?.usage || ev?.usage;
     if (u) for (const k of ['input_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens', 'output_tokens']) if (u[k] != null) seen[k] = u[k];
     const cm = ev?.context_management || ev?.message?.context_management || ev?.delta?.context_management;
+    // Whether the answer spoke about the edit at all, apart from what it cleared. A gateway that passes the field
+    // on reports `applied_edits`, even empty; one that strips it on the way sends nothing back, and the request
+    // then looks exactly like one whose trigger was never met. Recorded, not yet acted on: whether a conforming
+    // API always echoes the key when it clears nothing is not verified, so no message is built on it.
+    if (cm) seen.acknowledged = true;
     if (cm?.applied_edits) seen.applied = cm.applied_edits;
   };
   return {
@@ -248,7 +267,7 @@ export function usageTap() {
       const cleared = (seen.applied || []).filter(e => e.type === EDIT_TYPE);
       return {
         input: seen.input_tokens, read: seen.cache_read_input_tokens, write: seen.cache_creation_input_tokens, out: seen.output_tokens,
-        cleared: cleared.reduce((a, e) => a + (e.cleared_input_tokens || 0), 0), clearedUses: cleared.reduce((a, e) => a + (e.cleared_tool_uses || 0), 0),
+        cleared: cleared.reduce((a, e) => a + (e.cleared_input_tokens || 0), 0), clearedUses: cleared.reduce((a, e) => a + (e.cleared_tool_uses || 0), 0), editAcknowledged: !!seen.acknowledged,
       };
     },
   };
@@ -328,19 +347,47 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
         };
         ureq = lib.request({ protocol: up.protocol, hostname: up.hostname, port: up.port || undefined, path: base + requestUrl, method: req.method, headers, agent: attempt ? false : agent }, ures => {
           if (judgeAuth) watch.response(ures.statusCode);
-          // the upstream will not take the edit: send the agent's own bytes instead, once (`editRejected`)
+          // A 400 from an upstream that is not Anthropic's may be the gateway refusing the edit the proxy added --
+          // or it may be about the request itself, which is the agent's own to see. The body says which
+          // (`refusesEdit`), so it is read before anything reaches the agent: a refusal of the edit means the same
+          // request goes again untouched, anything else is passed on as it came. Reading the body first is the
+          // whole point. A real router (LiteLLM 1.106.5, 2026-10-28) answered 400 over a model name it did not
+          // know, and taking that for a refusal switched the clearing off for the life of the process and sent
+          // every failing request twice.
           if (t.injected && !editRejected && ures.statusCode === 400 && !res.headersSent && !forwardsToAnthropic(requestCfg.upstream)) {
-            editRejected = true;
-            ures.resume();
-            log({ at: new Date().toISOString(), op: 'proxy-edit-rejected', upstream: up.origin, status: 400 });
-            t = { ...t, body: raw, injected: false, addBeta: false, reason: 'edit-unsupported' };
-            return send(attempt);
+            const parts = [];
+            let read = 0;
+            let ended = false;
+            const decide = () => {
+              const body = Buffer.concat(parts);
+              // not about the edit: the agent's own to see. The bytes are in hand and the stream may already be
+              // over, so `deliver` is told to finish the response itself rather than wait for an 'end' that has been
+              if (!refusesEdit(body)) return deliver(Buffer.from(body), ended);
+              editRejected = true;
+              ures.resume();
+              log({ at: new Date().toISOString(), op: 'proxy-edit-rejected', upstream: up.origin, status: 400, says: String(body).slice(0, 200) });
+              t = { ...t, body: raw, injected: false, addBeta: false, reason: 'edit-unsupported' };
+              send(attempt);
+            };
+            ures.on('data', c => {
+              if (read >= REFUSAL_BODY) return;
+              parts.push(c); read += c.length;
+              if (read >= REFUSAL_BODY) decide();
+            });
+            ures.once('end', () => { ended = true; if (read < REFUSAL_BODY) decide(); });
+            ures.once('error', () => { ended = true; if (read < REFUSAL_BODY) decide(); });
+            return;
           }
+          deliver();
+          function deliver(prefix, done = false) {
           const out = {};
           for (const [k, v] of Object.entries(ures.headers)) if (!['connection', 'keep-alive', 'transfer-encoding'].includes(k)) out[k] = v;
           res.writeHead(ures.statusCode, out);
           const tap = t.reason === 'other' ? null : t.protocol === 'responses' ? responsesUsageTap() : usageTap();
+          if (prefix?.length) { res.write(prefix); tap?.push(prefix); }
+          ures.removeAllListeners('data');
           ures.on('data', c => { res.write(c); tap?.push(c); });
+          if (ures.isPaused?.()) ures.resume();
           const record = () => {
             if (recorded) return;
             recorded = true;
@@ -356,6 +403,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
             record();
             res.end();
           });
+          if (done) { record(); res.end(); }   // the body was read to decide on it: there is no 'end' still to come
           // The answer stopped partway. The agent is left with a broken stream and the row recorded
           // for this request holds only the tokens that arrived, so both say so; before this the
           // request passed for a complete 200 and the drop was in no count at all. Once that row is
@@ -365,6 +413,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
             if (!recorded) { truncated = true; logError(e, { retried: false, truncated: true }); }
             res.destroy();
           });
+          }
         });
         ureq.on('error', e => {
           // Already accounted for: the answer arrived and its usage row is written.
