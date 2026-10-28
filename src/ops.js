@@ -424,6 +424,12 @@ export async function orient(store, { task, file, session, client, budget = HOOK
 //                  nothing at all, so it never reorders a ranking that worked. Note that a dense
 //                  bi-encoder blended into the ranking measured no gain (memory, 2026-10); this is
 //                  the untested different case of no lexical candidate whatsoever.
+//                  `denseFloor` is 0.35, the relevance `pack` already requires of any note it packs
+//                  (rank.js:pack `minRel`), so a densely-found note clears the same bar as every
+//                  other served note rather than a bar invented for it. The cosines of this blend run
+//                  low: a note that answers a request in none of its words scored 0.37 in a check on
+//                  2026-10-28, so a stricter floor would have kept the lever from ever firing. The
+//                  right floor is one of the things the experiment has to settle.
 //   ceRescue       THINKER_SERVE_CE_RESCUE=on|off       when the cross-encoder keeps none of the
 //                  candidates, the best one it turned down is served anyway rather than nothing. The
 //                  cross-encoder's choice being final is what makes it reject everything on 27% of
@@ -432,7 +438,7 @@ export async function orient(store, { task, file, session, client, budget = HOOK
 //                  ⚠ STALE banner it already carries, instead of holding it back. This repository
 //                  declares "the prompt hooks serve no stale note" as a mutable desired behavior, so
 //                  turning it on here revises that behavior and must say so.
-export const SERVING_DEFAULTS = { denseFallback: false, ceRescue: false, serveStale: false, denseFloor: 0.45 };
+export const SERVING_DEFAULTS = { denseFallback: false, ceRescue: false, serveStale: false, denseFloor: 0.35 };
 export function servingConfig(store) {
   const c = store?.config?.().serving;
   const cfg = { ...SERVING_DEFAULTS, ...(c && typeof c === 'object' ? c : {}) };
