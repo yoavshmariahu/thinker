@@ -95,7 +95,11 @@ export function serviceArgs(home = thinkerHome(), state = serviceState(home)) {
   const upstream = proxyThrough(home);
   for (const [key, flag] of [['trigger', '--trigger'], ['keep', '--keep'], ['keepMin', '--keep-min'], ['clearAtLeast', '--clear-at-least']]) if (cfg[key] != null) args.push(flag, String(cfg[key]));
   if (upstream) args.push('--upstream', String(upstream));
-  for (const [key, flag] of [['clearInputs', '--clear-inputs'], ['clearThinking', '--clear-thinking']]) if (cfg[key] === true) args.push(flag); // off until an experiment (proxy.js)
+  // on by default (proxy.js:PROXY_DEFAULTS, 2026-10-28); a machine config that says false keeps that clear off
+  for (const [key, flag] of [['clearInputs', 'clear-inputs'], ['clearThinking', 'clear-thinking']]) {
+    if (cfg[key] === false) args.push(`--no-${flag}`);
+    else if (cfg[key] === true) args.push(`--${flag}`);
+  }
   return args;
 }
 
