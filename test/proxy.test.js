@@ -63,7 +63,7 @@ test('appends the clearing edit after the agent\'s own and streams the answer th
     const sent = JSON.parse(up.seen[0].body);
     assert.equal(sent.context_management.edits[0].type, 'clear_thinking_20251015');
     // clear_tool_inputs rides the same edit, on by default since 2026-10-28
-    assert.deepEqual(sent.context_management.edits[1], { type: EDIT_TYPE, trigger: { type: 'input_tokens', value: 100000 }, keep: { type: 'tool_uses', value: 3 }, clear_at_least: { type: 'input_tokens', value: 80000 }, clear_tool_inputs: true });
+    assert.deepEqual(sent.context_management.edits[1], { type: EDIT_TYPE, trigger: { type: 'input_tokens', value: 140000 }, keep: { type: 'tool_uses', value: 3 }, clear_at_least: { type: 'input_tokens', value: 100000 }, clear_tool_inputs: true });
     assert.equal(up.seen[0].url, '/v1/messages?beta=true');
     assert.equal(up.seen[0].headers['anthropic-beta'], BETA);
     await until(() => rows(px.logFile).length);
@@ -309,7 +309,7 @@ test('a plain JSON answer is read too', () => {
 test('clear-inputs and clear-thinking: on by default and switchable off, the inputs on the edit, the thinking edit only where the tool clear fires by the proxy\'s count', () => {
   const tu = id => ({ type: 'tool_use', id, name: 'Bash', input: { command: 'ls' } });
   const tr = (id, n) => ({ type: 'tool_result', tool_use_id: id, content: 'x'.repeat(n) });
-  const big = Math.ceil(100000 * 4 / 1.44); // 100k tokens of result text by the proxy's count
+  const big = Math.ceil(130000 * 4 / 1.44); // 130k tokens of result text by the proxy's count: over clearAtLeast (100k) by THINKING_MARGIN
   const messages = [
     { role: 'user', content: 'first request' },
     { role: 'assistant', content: [tu('a')] }, { role: 'user', content: [tr('a', big)] },
@@ -329,13 +329,13 @@ test('clear-inputs and clear-thinking: on by default and switchable off, the inp
   assert.equal(proxyConfig({ 'clear-inputs': 'off' }, {}).clearInputs, false);
   assert.equal(proxyConfig({}, { THINKER_PROXY_CLEAR_THINKING: 'no' }).clearThinking, false);
   assert.equal(proxyConfig({}, { THINKER_PROXY_CLEAR_INPUTS: '' }).clearInputs, true, 'an empty variable leaves the default');
-  assert.equal(resultsBeforeTurn(messages), 100000); assert.equal(resultsBeforeTurn(messages.slice(0, 4)), 0, 'the first turn has nothing before it');
-  // the results before the second turn weigh 100k, over clearAtLeast (80k) with the margin: the thinking of the first turn
+  assert.equal(resultsBeforeTurn(messages), 130000); assert.equal(resultsBeforeTurn(messages.slice(0, 4)), 0, 'the first turn has nothing before it');
+  // the results before the second turn weigh 130k, over clearAtLeast (100k) with the margin: the thinking of the first turn
   // goes, the second turn's two assistant messages are kept
   assert.deepEqual(thinkingEdit(on, messages), { type: 'clear_thinking_20251015', keep: { type: 'thinking_turns', value: 2 } });
   assert.equal(thinkingEdit(on, messages.slice(0, 6)).keep.value, 1, 'at least one turn, as the API requires');
   assert.equal(thinkingEdit(on, messages.slice(0, 4)), null, 'in the first turn nothing is clearable');
-  assert.equal(thinkingEdit(proxyConfig({ 'clear-at-least': '90000' }, {}), messages), null, '100k does not clear 90k by the margin of 1.25');
+  assert.equal(thinkingEdit(proxyConfig({ 'clear-at-least': '120000' }, {}), messages), null, '130k does not clear 120k by the margin of 1.25');
   assert.equal(thinkingEdit(proxyConfig({ keep: '3' }, {}), messages), null, 'keep turn alone: a count keeps results of earlier turns');
   // in the request: the proxy's thinking edit first, in place of the agent's `keep: all`, the agent's other edits kept, the clear last
   const body = Buffer.from(JSON.stringify({ model: 'm', messages, context_management: { edits: [{ type: 'clear_thinking_20251015', keep: 'all' }] } }));

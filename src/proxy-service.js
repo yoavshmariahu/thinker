@@ -105,6 +105,9 @@ export function serviceArgs(home = thinkerHome(), state = serviceState(home)) {
 
 // the proxy as a detached process (the hook's way, and the only one where no service manager runs); the pid is kept so
 // `off` can stop it
+// The version of the copy this process runs from, recorded with the flags a running proxy was started with
+export const appVersion = () => { try { return JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version || null; } catch { return null; } };
+
 export function startDetached({ cli, home = thinkerHome() }) {
   const s = serviceState(home);
   if (!s.port) return null;
@@ -113,7 +116,7 @@ export function startDetached({ cli, home = thinkerHome() }) {
   const child = spawn(process.execPath, [cli, ...serviceArgs(home, s)], { detached: true, stdio: ['ignore', fd, fd], env: { ...process.env, THINKER_HOME: home } });
   child.unref();
   try { fs.closeSync(fd); } catch {}
-  writeJson(stateFile(home), { ...s, pid: child.pid, startedAt: new Date().toISOString() });
+  writeJson(stateFile(home), { ...s, pid: child.pid, startedAt: new Date().toISOString(), args: serviceArgs(home, s).join(' '), version: appVersion() });
   return child.pid;
 }
 
@@ -127,7 +130,23 @@ export async function ensureProxy({ cli, home = thinkerHome(), wait = 1500 } = {
   // rather than the URL being written in again on the next update (`removedByHand`)
   const gone = trackClaude({ home }) || removedByHand({ home }) || routeAppeared({ home });
   if (gone) { standDown(gone, { home }); return { on: false, stoodDown: gone }; }
-  if (await isListening(s.port)) return { on: true, running: true };
+  if (await isListening(s.port)) {
+    // A running proxy keeps the flags, the routes and the code it was started with, and nothing replaced it: this
+    // function only ever started one when none was listening. So a new clearing policy, a `--gateway` upstream or
+    // a route added to the proxy reached nobody until the process happened to die. On this machine a proxy from
+    // 2026-10-24 served 0.2.11's flags for four days -- no `/codex` route, so every Codex model call answered 404.
+    // The prompt hook is the quiet moment to replace it: between turns, with no request of the agent's in flight.
+    // A state without the record (every machine, the first time this runs) counts as different, so each is
+    // replaced once and picks up the present policy.
+    const want = serviceArgs(home, s).join(' ');
+    const version = appVersion();
+    if (s.args === want && s.version === version) return { on: true, running: true };
+    const why = s.args === undefined ? 'the first run that records them' : s.version !== version ? `a new version (${s.version || 'unknown'} -> ${version})` : 'the flags changed';
+    if (s.pid) { try { process.kill(s.pid, 'SIGTERM'); } catch {} }
+    const pid = startDetached({ cli, home });
+    const listening = await waitListening(s.port, wait);
+    return { on: true, restarted: true, why, pid, listening };
+  }
   const pid = startDetached({ cli, home });
   const listening = await waitListening(s.port, wait);
   return { on: true, started: true, pid, listening };
