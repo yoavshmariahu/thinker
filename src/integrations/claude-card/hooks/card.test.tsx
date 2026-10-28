@@ -1,7 +1,7 @@
 // Run with `claude plugin test src/integrations/claude-card` (npm test runs test/claude-card.test.js).
 import { test, expect, mock } from 'claude-code/testing'
 import type { On } from 'claude-code'
-import { servedNotes, cardHeader, tailOf, shortTitle } from './register'
+import { servedNotes, cardHeader, compressionHeader, tailOf, shortTitle, TURNS_AFTER } from './register'
 
 const bundle = `<thinker-cache>
 Notes about this repo from earlier sessions.
@@ -16,7 +16,7 @@ const answer = 'Here is how the hash is computed.\n\nIt is SHA-256 of the compac
 
 // what stands beneath the mod in a session: the engine's own drawing and the files; `root` is the
 // session's checkout. (The prompt's notes arrive as a row a hook appends, which a test cannot raise.)
-function engine(on: On, { root = '/r', writes = [] as string[] } = {}) {
+function engine(on: On, { root = '/r', writes = [] as string[], compression = null as any } = {}) {
   mock.store(on)
   mock.env(on, { HOME: '/home/me' })
   on('session.id', () => ({ value: 'sess-1' }))
@@ -26,6 +26,7 @@ function engine(on: On, { root = '/r', writes = [] as string[] } = {}) {
   on('fs.read', ($, e) => {
     if (e.path === '/wt/.git') return { value: 'gitdir: /r/.git/worktrees/wt\n' }
     if (e.path === '/r/.thinker/local/notes/codex-hook.json') return { value: JSON.stringify({ deps: [{ path: 'src/clients.js' }, { path: 'src/small.js' }, { path: '.claude/settings.json' }] }) }
+    if (e.path === '/home/me/.thinker/state/compression/sess-1.json' && compression) return { value: JSON.stringify(compression) }
     return { deny: 'no such file' }
   })
   on('fs.stat', ($, e) => ({ value: { kind: 'file', size: e.path.endsWith('clients.js') ? 100000 : 3600, mtimeMs: 0 } as any }))
@@ -108,4 +109,47 @@ test('a subagent turn keeps no card', async ($, on) => {
   await $.turn.complete({ ...end('s'), agentId: 'a1' })
   const ui = await mount($, 'desktop')
   expect((await ui.findAll({ text: /Thinker/ })).length).toBe(0)
+})
+
+// What the context proxy cleared, drawn beside the notes once it has had a few turns to pay for itself.
+const cleared = { session: 'sess-1', saved: 1_200_000, requests: 40, uses: 310 }
+
+test('the cleared-context header reads as the command does', () => {
+  expect(compressionHeader({ saved: 1_200_000, requests: 40, uses: 310 })).toBe('context cleared · ~1.2M tokens not re-read over 40 calls')
+  expect(compressionHeader({ saved: 900, requests: 1, uses: 1 })).toBe('context cleared · ~900 tokens not re-read over 1 call')
+})
+
+test('the saving is not drawn on the turns right after the clear', async ($, on) => {
+  engine(on, { compression: cleared })
+  for (let i = 0; i < TURNS_AFTER; i++) await $.turn.complete(end(`t${i}`, `Answer ${i}.`))
+  const ui = await mount($, 'desktop', `Answer ${TURNS_AFTER - 1}.`)
+  expect((await ui.findAll({ text: /context cleared/ })).length).toBe(0)
+})
+
+for (const surface of ['terminal', 'desktop'] as const) {
+  test(`a few turns on, the saving is drawn under the answer (${surface})`, async ($, on) => {
+    engine(on, { compression: cleared })
+    for (let i = 0; i <= TURNS_AFTER; i++) await $.turn.complete(end(`t${i}`, `Answer ${i}.`))
+    const ui = await mount($, surface, `Answer ${TURNS_AFTER}.`)
+    expect((await ui.findAll({ text: /context cleared · ~1.2M tokens not re-read over 40 calls/ })).length).toBeGreaterThan(0)
+    expect((await ui.findAll({ text: /310 tool results cleared from the prompt/ })).length).toBeGreaterThan(0)
+  })
+}
+
+test('a session the proxy cleared nothing from draws nothing', async ($, on) => {
+  engine(on)
+  for (let i = 0; i <= TURNS_AFTER + 2; i++) await $.turn.complete(end(`t${i}`, `Answer ${i}.`))
+  const ui = await mount($, 'desktop', `Answer ${TURNS_AFTER + 2}.`)
+  expect((await ui.findAll({ text: /Thinker/ })).length).toBe(0)
+})
+
+test('the notes and the saving are two cards under one answer', async ($, on) => {
+  engine(on, { compression: cleared })
+  on('classic.PostToolUse', () => ({ additionalContext: [bundle] }))
+  for (let i = 0; i < TURNS_AFTER; i++) await $.turn.complete(end(`t${i}`, `Answer ${i}.`))
+  await $.classic.PostToolUse({ tool_name: 'Read', tool_input: {}, tool_response: {}, tool_use_id: 't' } as any)
+  await $.turn.complete(end('last'))
+  const ui = await mount($, 'desktop')
+  expect((await ui.findAll({ text: /Estimated tokens saved: ~7k/ })).length).toBeGreaterThan(0)
+  expect((await ui.findAll({ text: /context cleared/ })).length).toBeGreaterThan(0)
 })

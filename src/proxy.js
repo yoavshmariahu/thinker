@@ -28,6 +28,7 @@ import crypto from 'node:crypto';
 import { transformResponses, responsesUsageTap, responsesReport } from './proxy-responses.js';
 import { CODEX_PROXY_PATH, CODEX_UPSTREAMS } from './proxy-codex.js';
 import { foreignAuth } from './proxy-route.js';
+import { noteCompression } from './compression.js';
 
 export const EDIT_TYPE = 'clear_tool_uses_20250919';
 export const EDIT_BETA = 'context-management-2025-06-27';
@@ -302,9 +303,13 @@ export function usageTap() {
 const HOP = ['connection', 'keep-alive', 'proxy-connection', 'transfer-encoding', 'upgrade', 'host', 'content-length', 'accept-encoding'];
 
 // `notes`: a proxy-notes.js NoteInjector; the notes for an agent with no prompt hook go into the last user turn
-export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes = null, onStandDown = null } = {}) {
+export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes = null, onStandDown = null, compressionDir = logFile ? path.join(path.dirname(logFile), 'compression') : null } = {}) {
   const agents = new Map();
   const log = row => {
+    // What the server cleared, per session, for the card the agent draws a few turns later (compression.js).
+    // Beside the log rather than derived from them: the log is a megabyte within a week, and a card must not
+    // read it on every turn.
+    try { noteCompression(compressionDir, row); } catch { /* a card is never worth a failed request */ }
     if (!logFile) return;
     try { fs.mkdirSync(path.dirname(logFile), { recursive: true }); fs.appendFileSync(logFile, JSON.stringify(row) + '\n'); } catch { /* a log is never worth a failed request */ }
   };

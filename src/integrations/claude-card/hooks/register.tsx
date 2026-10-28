@@ -8,7 +8,8 @@
 import type { Register } from 'claude-code'
 
 export type Note = { title: string; id: string }
-export type Card = { tail: string; titles: string[]; tokens: number; at: number }
+export type Saving = { saved: number; requests: number; uses: number }
+export type Card = { tail: string; titles: string[]; tokens: number; at: number; compression?: Saving }
 
 // Each served note is headed `### [kind] Title  (id: …)` inside a `<thinker-cache>` block; the titles
 // listed under "Other cached titles" were not served.
@@ -92,6 +93,24 @@ async function markSession($: any): Promise<void> {
 export const cardHeader = (n: number, tokens: number) =>
   `${n} ${n === 1 ? 'note' : 'notes'} this turn${tokens ? ` · Estimated tokens saved: ~${formatTokens(tokens)}` : ''}`
 
+// The context proxy's clearing, drawn beside the notes (src/compression.js holds the same rule; the figures
+// are the API's own `cleared_input_tokens`, which the proxy writes per session as it sees them). The wait:
+// the first cleared call saves nothing anybody would notice -- the saving is every later call that reads the
+// shorter prefix -- so the card appears TURNS_AFTER turns on, by when the figure is the clearing's return.
+export const TURNS_AFTER = 3
+export const compressionHeader = (s: Saving) =>
+  `context cleared · ~${formatTokens(s.saved)} tokens not re-read over ${s.requests} ${s.requests === 1 ? 'call' : 'calls'}`
+
+async function compressionState($: any): Promise<Saving | null> {
+  try {
+    const home = (await $.env.get('THINKER_HOME')) || `${await $.env.get('HOME')}/.thinker`
+    const id = String(await $.session.id()).replace(/[^\w.-]/g, '_')
+    if (!id) return null
+    const st = JSON.parse(String(await $.fs.read(`${home}/state/compression/${id}.json`)))
+    return st?.saved > 0 && st?.requests > 0 ? { saved: st.saved, requests: st.requests, uses: st.uses || 0 } : null
+  } catch { return null }
+}
+
 const MAX_CARDS = 300
 export const tailOf = (text: string) => text.replace(/\s+/g, ' ').trim().slice(-160)
 let cards: Card[] | null = null
@@ -103,6 +122,8 @@ async function load($: any): Promise<Card[]> {
 export const register: Register = on => {
   // notes served since the main loop's turn began, prompt-time and late
   let served: Note[] = []
+  // turns since the first one that saw the proxy clear anything in this session; -1 until then
+  let sinceClear = -1
   cards = null
 
   on('session.start', async ($, e, next) => { await markSession($); return next(e) })
@@ -125,10 +146,13 @@ export const register: Register = on => {
     if (e.agentId === undefined) {
       const byId = new Map(served.map(n => [n.id, n]))
       served = []
+      const state = await compressionState($)
+      if (state) sinceClear = sinceClear < 0 ? 0 : sinceClear + 1
+      const compression = state && sinceClear >= TURNS_AFTER ? state : undefined
       const tail = tailOf(e.answer)
-      if (byId.size && tail) {
-        const tokens = await estimate($, [...byId.keys()]).catch(() => 0)
-        const card: Card = { tail, titles: [...byId.values()].map(n => n.title), tokens, at: Date.now() }
+      if ((byId.size || compression) && tail) {
+        const tokens = byId.size ? await estimate($, [...byId.keys()]).catch(() => 0) : 0
+        const card: Card = { tail, titles: [...byId.values()].map(n => n.title), tokens, at: Date.now(), ...(compression ? { compression } : {}) }
         cards = [...(await load($)).filter(c => c.tail !== tail), card].slice(-MAX_CARDS)
         await $.store.set('cards', cards).catch(() => {})
         await markSession($)
@@ -149,13 +173,21 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column">
         {drawn}
-        <Box flexDirection="column" borderStyle="round" paddingX={1} marginTop={1}>
-          <Text><Text bold>🧠 Thinker</Text><Text dimColor> · {cardHeader(card.titles.length, card.tokens)}</Text></Text>
-          {card.titles.slice(0, 3).map((t, i) => (
-            <Text key={'t' + i} dimColor>• {shortTitle(t)}</Text>
-          ))}
-          {card.titles.length > 3 ? <Text dimColor>+{card.titles.length - 3} more</Text> : null}
-        </Box>
+        {card.titles.length ? (
+          <Box flexDirection="column" borderStyle="round" paddingX={1} marginTop={1}>
+            <Text><Text bold>🧠 Thinker</Text><Text dimColor> · {cardHeader(card.titles.length, card.tokens)}</Text></Text>
+            {card.titles.slice(0, 3).map((t, i) => (
+              <Text key={'t' + i} dimColor>• {shortTitle(t)}</Text>
+            ))}
+            {card.titles.length > 3 ? <Text dimColor>+{card.titles.length - 3} more</Text> : null}
+          </Box>
+        ) : null}
+        {card.compression ? (
+          <Box flexDirection="column" borderStyle="round" paddingX={1} marginTop={1}>
+            <Text><Text bold>🗜 Thinker</Text><Text dimColor> · {compressionHeader(card.compression)}</Text></Text>
+            <Text dimColor>• {card.compression.uses} tool {card.compression.uses === 1 ? 'result' : 'results'} cleared from the prompt</Text>
+          </Box>
+        ) : null}
       </Box>
     )
   })

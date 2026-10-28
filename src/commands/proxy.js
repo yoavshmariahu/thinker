@@ -12,6 +12,7 @@ import { cacheBundleIntro } from '../cache-guidance.js';
 import { Store, findRepoRoot } from '../store.js';
 import { thinkerHome } from '../update.js';
 import { formatTokens } from '../model-usage.js';
+import { compressionHeader } from '../compression.js';
 import { enableProxyService, disableProxyService, serviceState, isListening, wiredLines, serviceArgs, proxyUrl, proxyLogFile, standDown, proxyThrough, gatewayHint } from '../proxy-service.js';
 
 // The notes for a request, as the prompt hook serves them (commands/hooks.js): once a session, fresh only,
@@ -107,6 +108,9 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
       out(`${side}: ${s.requests} requests in ${s.sessions} sessions, ${formatTokens(s.billedInput)} billed-equivalent input` +
         `${s.requests ? ` (${formatTokens(Math.round(s.billedInput / s.requests))} a request)` : ''}` +
         `${side === 'clearing' ? `, ${formatTokens(s.cleared)} cleared on ${s.requestsCleared} requests` : ''}; proxy overhead p50 ${s.overheadP50} ms, p99 ${s.overheadP99} ms`);
+      // The same sentence the card draws in a session (compression.js:compressionHeader), so the command and
+      // the card never put a different figure on the same thing.
+      if (side === 'clearing' && s.cleared) out(`  ${compressionHeader({ saved: s.cleared, requests: s.requestsCleared }, formatTokens)}.`);
     }
     return;
   }
