@@ -14,15 +14,20 @@
 // the log path for the rest. The `pre` hook (PreToolUse) asks for a test command to go through it.
 //
 // Everything here is model-free: colour flags, output parsing and grouping. No model call, no note.
-// Both parts are off until an experiment shows they help (AGENTS.md: no new strategy ships on by
-// default); `tests` in .thinker/config.json turns them on.
+//
+// On by default since 2026-10-29, at the owner's decision. What the saving rests on: the agent is
+// already paying the loss. Opus pipes such a run through `tail` and throws away 12 of the 13 causes
+// to keep its context; this hands it all 13 for a fraction of what one truncated log costs. Measured
+// on this repository: a 13-failure run reads 10,493 bytes raw and 513 through the wrapper, both
+// causes kept. No model call, so there is nothing to meter and no judge to trust.
+// `tests: { nudge: false }` in .thinker/config.json turns the rewrite off; the command stays.
 import fs from 'node:fs';
 import path from 'node:path';
 
 // Read like the other switches (ops.js:onSightConfig): the config, or the options a caller
 // passes. No environment knobs.
 export const TESTS = {
-  nudge: false,      // the pre hook answers a shell test command with the wrapped one (off until an experiment)
+  nudge: true,       // the pre hook answers a shell test command with the wrapped one (on by default, 2026-10-29)
   color: true,       // run the command with colour off (and strip what still comes through)
   causes: 10,        // distinct causes printed
   examples: 10,      // test names shown per cause
@@ -75,10 +80,50 @@ export function tokenize(command) {
 // Runners are reached through these, so the word after one is still the program.
 const WRAPPERS = /^(env|time|sudo|nice|xvfb-run|npx|pnpx|poetry|uv|uvx|pipenv|hatch|rye|bundle|dotenv|exec|command|run)$/;
 
+// A shell line is not one command. Agents write `cd packages/web && pytest tests/x.py`,
+// `pytest tests/x.py | tail -50`, `npm test 2>&1 | head -100`, and judging the whole line as one
+// program recognised none of them: the first word is `cd` or the runner's output goes through a
+// pager. So the line is split on its separators and each piece judged on its own. The separator
+// is kept with the piece that follows it, so the line can be put back together exactly.
+const SEPARATORS = ['&&', '||', ';', '|', '&'];
+export function shellSegments(command) {
+  const text = String(command || '');
+  const segs = [];
+  let buf = '', sep = '', quote = '';
+  const push = () => { if (buf.trim()) segs.push({ sep, text: buf.trim() }); buf = ''; };
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quote) { buf += c; if (c === quote) quote = ''; continue; }
+    if (c === '"' || c === "'") { quote = c; buf += c; continue; }
+    if (c === '\\') { buf += c + (text[i + 1] || ''); i++; continue; }
+    const two = text.slice(i, i + 2);
+    if (two === '&&' || two === '||') { push(); sep = two; i++; continue; }
+    // `2>&1` is a redirection, not a background `&`; `|&` is not split either
+    if (c === '|' && text[i + 1] !== '&') { push(); sep = '|'; continue; }
+    if (c === ';') { push(); sep = ';'; continue; }
+    if (c === '&' && text[i - 1] !== '>' && text[i + 1] !== '>') { push(); sep = '&'; continue; }
+    buf += c;
+  }
+  push();
+  return segs;
+}
+export const renderSegments = segs => segs.reduce((line, s, i) => i === 0 ? s.text : line + (s.sep === ';' ? '; ' : ` ${s.sep} `) + s.text, '');
+
+// A line thinker will not take apart: a substitution or a group can put a runner somewhere that
+// rewriting the text would change what runs, and a mangled test command costs the agent its run.
+export const tooIntricate = command => /\$\(|`|\(\s|\)\s*$|\{\s/.test(String(command || ''));
+
 // Which test runner a shell command invokes, judged from the program it runs rather than from any
 // word in the line: `echo pytest` and `node src/cli.js list` are not test runs. Only the runners
 // with a parser below are named; anything else runs unchanged and is reported by its tail.
 export function detectRunner(command) {
+  for (const seg of shellSegments(command)) {
+    const r = runnerOfSegment(seg.text);
+    if (r) return r;
+  }
+  return null;
+}
+function runnerOfSegment(command) {
   const toks = tokenize(command);
   const after = i => toks.slice(i + 1);
   const arg = i => after(i).find(t => !t.startsWith('-') && !t.startsWith('+'));
@@ -477,6 +522,7 @@ export function classifyTestCommand(command) {
   const raw = String(command || '').trim();
   if (!raw) return null;
   if (/\bthinker\b[^|&;]*\btest\b/.test(raw)) return null; // already wrapped
+  if (tooIntricate(raw)) return null; // not taken apart: a mangled command costs the agent its run
   const runner = detectRunner(raw);
   return runner ? { runner, command: raw } : null;
 }
@@ -487,8 +533,30 @@ export function wrapperBin(cli, env = process.env) {
   const onPath = String(env.PATH || '').split(path.delimiter).some(d => d && fs.existsSync(path.join(d, 'thinker')));
   return onPath ? 'thinker' : `node ${JSON.stringify(cli)}`;
 }
-// The command the hook asks for instead: the same run, through the wrapper.
-export const wrappedCommand = (command, bin = 'thinker') => `${bin} test -- ${String(command).trim()}`;
+// What an agent pipes a test run into to cut it down. thinker's summary is already the short form of
+// the run, so a `| tail -50` on top of it hides the very summary it just made: those stages are
+// dropped. A stage that does something else (`tee`), or one carrying a redirection another command
+// may read, is kept and applies to the summary instead.
+const TRUNCATING = /^(tail|head|less|more|grep|egrep|fgrep|rg|ag|sed|awk|cut|wc|sort|uniq|tr|fold|column|jq)$/;
+
+// The command the hook asks for instead: the same run, through the wrapper. Only the piece that
+// holds the runner is wrapped -- prefixing the whole line put the wrapper before `cd packages/web &&`
+// and left the agent's `| tail` cutting thinker's own output down to nothing.
+export function wrappedCommand(command, bin = 'thinker') {
+  const raw = String(command).trim();
+  const segs = shellSegments(raw);
+  const at = segs.findIndex(s => runnerOfSegment(s.text));
+  if (at < 0) return `${bin} test -- ${raw}`;
+  const kept = [];
+  for (let i = 0; i < segs.length; i++) {
+    const s = segs[i];
+    if (i === at) { kept.push({ sep: s.sep, text: `${bin} test -- ${s.text}` }); continue; }
+    const head = (tokenize(s.text)[0] || '').split('/').pop();
+    if (i > at && s.sep === '|' && TRUNCATING.test(head) && !/[<>]/.test(s.text)) continue;
+    kept.push(s);
+  }
+  return renderSegments(kept);
+}
 export const NUDGE_REASON = command =>
   `run this instead: ${command}\nthinker test runs the same command with colour off, keeps the full log in a file, and prints the counts, each distinct failure cause once with a few frames, and the log path.`;
 

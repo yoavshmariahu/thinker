@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import {
   TESTS, testsConfig, detectRunner, runnerOfOutput, machineReadable, parseTestOutput, summarize,
   causeOf, groupCauses, stripAnsi, ansiStripper, classifyTestCommand, wrappedCommand, wrapperBin,
+  shellSegments, renderSegments,
   logPathFor, pruneLogs, NO_COLOR_ENV,
 } from '../src/testing.js';
 import { preToolOutput, rewritesCommands, PRE_TOOL_CLIENTS, installClient } from '../src/clients.js';
@@ -212,12 +213,14 @@ test('the wrapper is named by PATH, or by this copy of cli.js', () => {
 
 // --- the config switch -----------------------------------------------------
 
-test('the whole feature is off until the config turns it on', () => {
+test('the rewrite is on by default, and the config turns it off', () => {
   const store = new Store(gitRepo()).init();
-  assert.equal(TESTS.nudge, false);
-  assert.equal(testsConfig(store).nudge, false);
-  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ tests: { nudge: true, causes: 3 } }));
-  assert.deepEqual(testsConfig(store), { ...TESTS, nudge: true, causes: 3 });
+  assert.equal(TESTS.nudge, true, 'on by default since 2026-10-29');
+  assert.equal(testsConfig(store).nudge, true);
+  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ tests: { nudge: false } }));
+  assert.equal(testsConfig(store).nudge, false, 'a repository can turn the rewrite off');
+  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ tests: { causes: 3 } }));
+  assert.deepEqual(testsConfig(store), { ...TESTS, causes: 3 }, 'the other keys keep the defaults');
   fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ tests: true }));
   assert.equal(testsConfig(store).nudge, true);
   assert.equal(testsConfig(store, { nudge: false }).nudge, false, 'a caller option wins');
@@ -267,13 +270,15 @@ const runHook = (repo, client, ev, env) => execFileSync('node', [CLI, 'hook', 'p
 const bash = (session, command) => ({ session_id: session, hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command } });
 const logLines = store => (fs.existsSync(path.join(store.dir, 'log.jsonl')) ? fs.readFileSync(path.join(store.dir, 'log.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l)) : []);
 
-test('the pre hook says nothing until the config asks for it, then answers each command once', () => {
+test('the pre hook answers each test command once, and a repository can turn it off', () => {
   const repo = gitRepo();
   const store = new Store(repo).init();
   const env = hookEnv();
-  assert.equal(runHook(repo, 'claude', bash('s1', 'pytest tests/test_a.py'), env), '', 'off by default');
+  // a repository that wants its commands left alone says so, and nothing is rewritten
+  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ tests: { nudge: false } }));
+  assert.equal(runHook(repo, 'claude', bash('s0', 'pytest tests/test_a.py'), env), '', 'the config turns the rewrite off');
+  fs.rmSync(path.join(store.dir, 'config.json'));
 
-  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ tests: { nudge: true } }));
   assert.equal(runHook(repo, 'claude', bash('s1', 'ls -la'), env), '', 'not a test command');
   assert.equal(runHook(repo, 'codex', { session_id: 's1', tool_name: 'apply_patch', tool_input: { command: 'pytest tests/' } }, env), '', 'not a shell command');
 
@@ -366,4 +371,42 @@ test('only the last few logs are kept', () => {
   const left = fs.readdirSync(path.join(store.dir, 'state', 'tests'));
   assert.equal(left.length, 3);
   assert.ok(left.every(f => /00-0[567]-000-pytest\.log$/.test(f)), left.join(','));
+});
+
+// --- a shell line is not one command ---------------------------------------
+
+test('a test run is recognised inside the lines agents actually write', () => {
+  for (const [cmd, runner] of [
+    ['cd packages/web && pytest tests/x.py', 'pytest'],
+    ['pytest tests/x.py | tail -50', 'pytest'],
+    ['npm test 2>&1 | head -100', 'script'],
+    ['cd services/api; go test ./...', 'go'],
+    ['pytest a && echo done', 'pytest'],
+  ]) assert.equal(classifyTestCommand(cmd)?.runner, runner, cmd);
+  // a line thinker will not take apart: rewriting it could change what runs
+  for (const cmd of ['pytest $(ls tests)', 'pytest `cat files`', '(cd x && pytest a)'])
+    assert.equal(classifyTestCommand(cmd), null, cmd);
+});
+
+test('every separator survives a round trip, so a rewrite can be put back together', () => {
+  for (const line of [
+    'pytest tests/x.py', 'cd packages/web && pytest tests/x.py', 'pytest a | tail -50',
+    'npm test 2>&1 | head -100', 'cd x; pytest b', 'pytest a && echo done || echo fail',
+    'pytest "a b.py" -k \'one or two\'',
+  ]) assert.equal(renderSegments(shellSegments(line)), line, line);
+});
+
+test('only the piece that holds the runner is wrapped, and a pager over it is dropped', () => {
+  const w = c => wrappedCommand(c, 'thinker');
+  // the whole line used to be prefixed, which put the wrapper before the `cd` and left the agent's
+  // own `| tail` cutting thinker's summary down to nothing
+  assert.equal(w('cd packages/web && pytest tests/x.py'), 'cd packages/web && thinker test -- pytest tests/x.py');
+  assert.equal(w('pytest tests/x.py | tail -50'), 'thinker test -- pytest tests/x.py');
+  assert.equal(w('pytest a | grep FAILED | tail -5'), 'thinker test -- pytest a');
+  assert.equal(w('npm test 2>&1 | head -100'), 'thinker test -- npm test 2>&1');
+  assert.equal(w('cd x && pytest a && echo done'), 'cd x && thinker test -- pytest a && echo done');
+  // a stage that does something other than cut the output down is kept, and so is a redirection
+  // another command may read
+  assert.equal(w('pytest a | tee out.log'), 'thinker test -- pytest a | tee out.log');
+  assert.equal(w('pytest a | tail -5 > out.txt'), 'thinker test -- pytest a | tail -5 > out.txt');
 });
