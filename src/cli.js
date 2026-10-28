@@ -248,7 +248,8 @@ const HELP = `thinker — knowledge cache for coding agents
                                  the checkouts wire (update runs it; the prompt hook does it for its own checkout)
   stats [--here] [--days n] [--json]
                                  machine-wide overview: activity, agents, learning, tokens and repositories; current checkout cache details
-  proxy on|off|status            the context proxy as a service of this machine (on by default from connect/setup; --no-proxy
+  proxy on [--gateway] [--upstream url] | off | status
+                                the context proxy as a service of this machine (on by default from connect/setup; --no-proxy
                                  there leaves it off): clears older tool results for Claude Code, pi, OpenCode and Codex.
                                  Codex uses its existing OpenAI login through HTTP/SSE; custom providers stay as configured.
                                  Off restores the previous provider; status also prints the report of the last 30 days

@@ -12,7 +12,7 @@ import { cacheBundleIntro } from '../cache-guidance.js';
 import { Store, findRepoRoot } from '../store.js';
 import { thinkerHome } from '../update.js';
 import { formatTokens } from '../model-usage.js';
-import { enableProxyService, disableProxyService, serviceState, isListening, wiredLines, serviceArgs, proxyUrl, proxyLogFile, standDown } from '../proxy-service.js';
+import { enableProxyService, disableProxyService, serviceState, isListening, wiredLines, serviceArgs, proxyUrl, proxyLogFile, standDown, proxyThrough } from '../proxy-service.js';
 
 // The notes for a request, as the prompt hook serves them (commands/hooks.js): once a session, fresh only,
 // the holdout turn opened on the session (ops.js:beginTurn), under the same bundle line.
@@ -35,9 +35,14 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
   const logFile = proxyLogFile();
   const cli = path.join(HERE, 'cli.js');
   if (sub === 'on') {
-    const p = await enableProxyService({ cli, force: true });
-    out(`Context proxy on: ${p.url}${p.listening === false ? ' (not listening yet; the next prompt starts it)' : ''}, kept running by ${p.service.type === 'hook' ? 'the prompt hook' : p.service.type}${p.service.reason ? ` (${p.service.reason})` : ''}.`);
-    for (const l of wiredLines(p.wired, p.url)) out(`  ${l}`);
+    // --gateway: sit in front of the model server this machine already routes Claude Code through, instead of
+    // Anthropic's API, so the clearing reaches those sessions too (proxy-route.js:ownGateway). --upstream names one.
+    // --no-gateway goes back to the API. Nothing but these puts the proxy in front of someone's gateway.
+    const gateway = flags.upstream ? String(flags.upstream) : flags.gateway === true ? true : flags.gateway === false || flags['no-gateway'] ? false : undefined;
+    const p = await enableProxyService({ cli, force: true, gateway });
+    if (gateway === true && !p.upstream) { out('thinker proxy on --gateway: no model server of your own was found to forward to (no ANTHROPIC_BASE_URL in your settings, environment or shell files). The proxy forwards to the API as usual.'); }
+    out(`Context proxy on: ${p.url}${p.upstream ? ` -> ${p.upstream}${p.gatewayFrom ? ` (your route, from ${p.gatewayFrom})` : ''}` : ''}${p.listening === false ? ' (not listening yet; the next prompt starts it)' : ''}, kept running by ${p.service.type === 'hook' ? 'the prompt hook' : p.service.type}${p.service.reason ? ` (${p.service.reason})` : ''}.`);
+    for (const l of wiredLines(p.wired, p.url, p.upstream)) out(`  ${l}`);
     for (const u of p.wired.unchanged) if (!u.absent) out(`  ${u.agent}: already pointed at it`);
     out(`Flags of the service: thinker ${serviceArgs().join(' ')} (proxy: { holdout, trigger, keep, keepMin, clearAtLeast } in ${path.join(thinkerHome(), 'config.json')} changes them; thinker proxy off turns it off).`);
     return;
@@ -58,7 +63,8 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
       return;
     }
     const listening = await isListening(s.port);
-    out(`Context proxy on: ${proxyUrl()}, ${listening ? 'listening' : 'NOT listening (the next prompt starts it)'}; flags: thinker ${serviceArgs().join(' ')}.`);
+    const through = proxyThrough();
+    out(`Context proxy on: ${proxyUrl()}${through ? ` -> ${through} (a model server of your own)` : ''}, ${listening ? 'listening' : 'NOT listening (the next prompt starts it)'}; flags: thinker ${serviceArgs().join(' ')}.`);
     flags.days ||= 30;
     pos[0] = 'report';
     return proxyCommand({ pos, flags, out, repo, HERE });
@@ -95,7 +101,7 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
     out(renderReplay(r, formatTokens));
     return;
   }
-  if (sub !== 'serve') { out('usage: thinker proxy on|off|status | thinker proxy [serve] --port n | thinker proxy report [--days n] [--json] | thinker proxy replay [--days n] [--policies spec] [--json]'); process.exitCode = 2; return; }
+  if (sub !== 'serve') { out('usage: thinker proxy on [--gateway] [--upstream url] | off | status | thinker proxy [serve] --port n | thinker proxy report [--days n] [--json] | thinker proxy replay [--days n] [--policies spec] [--json]'); process.exitCode = 2; return; }
   let cfg;
   try { cfg = proxyConfig(flags); } catch (e) { out(`thinker proxy: ${e.message}`); process.exitCode = 2; return; }
   if (!cfg.port) { out('thinker proxy: name a port (--port n, or THINKER_PROXY_PORT).'); process.exitCode = 2; return; }

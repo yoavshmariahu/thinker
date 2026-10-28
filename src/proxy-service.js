@@ -26,7 +26,7 @@ import { thinkerHome } from './update.js';
 import { readMachineConfig } from './repo-switch.js';
 import { isTestMode } from './test-mode.js';
 import { wireCodexProxy } from './proxy-codex.js';
-import { routeEvidence, cloudOn, CLOUD_VARS, BASE_URL_VAR } from './proxy-route.js';
+import { routeEvidence, ownGateway, cloudOn, CLOUD_VARS, BASE_URL_VAR } from './proxy-route.js';
 
 export const SERVICE_HOLDOUT = 0.15;
 export const PROXY_LABEL = 'com.thinker.proxy';
@@ -44,6 +44,16 @@ export const proxyOn = (home = thinkerHome()) => serviceState(home).enabled === 
 export const urlFor = port => `http://127.0.0.1:${port}`;
 export const proxyUrl = (home = thinkerHome()) => { const s = serviceState(home); return s.port ? urlFor(s.port) : null; };
 const ownUrls = (home, s = serviceState(home)) => new Set([...(s.ports || []), s.port].filter(Boolean).map(urlFor));
+const trimUrl = v => String(v || '').replace(/\/+$/, '');
+// Where the proxy sends what it receives. The default is Anthropic's API; a person who routes Claude Code
+// through a model server of their own can have the proxy sit in front of that instead (`thinker proxy on
+// --gateway`, the question in proxy-offer.js), which is the only way the clearing reaches those sessions at all.
+// Kept in the service's own state rather than written into the machine's config.json, which is the person's file;
+// `proxy: { upstream }` there still wins for anyone who set it by hand.
+export const proxyThrough = (home = thinkerHome()) => readMachineConfig(home).proxy?.upstream || serviceState(home).upstream || null;
+// A route of the person's own that the proxy forwards to is not a reason to leave their settings alone: pointing
+// the agent at the proxy keeps every request going to the same place, with the same credentials, plus the edit.
+export const isOwnRoute = (value, home = thinkerHome()) => isOwnUrl(value, home) || (!!value && trimUrl(value) === trimUrl(proxyThrough(home)));
 // a URL this machine's service had, trailing slash or not
 export const isOwnUrl = (value, home = thinkerHome()) => !!value && ownUrls(home).has(String(value).replace(/\/+$/, ''));
 export const logFile = (home = thinkerHome()) => path.join(home, 'state', 'proxy-service.log');
@@ -82,7 +92,9 @@ export function serviceArgs(home = thinkerHome(), state = serviceState(home)) {
   const cfg = readMachineConfig(home).proxy || {};
   const holdout = cfg.holdout == null ? SERVICE_HOLDOUT : Number(cfg.holdout) || 0;
   const args = ['proxy', '--port', String(state.port), '--holdout', String(holdout), '--codex'];
-  for (const [key, flag] of [['trigger', '--trigger'], ['keep', '--keep'], ['keepMin', '--keep-min'], ['clearAtLeast', '--clear-at-least'], ['upstream', '--upstream']]) if (cfg[key] != null) args.push(flag, String(cfg[key]));
+  const upstream = proxyThrough(home);
+  for (const [key, flag] of [['trigger', '--trigger'], ['keep', '--keep'], ['keepMin', '--keep-min'], ['clearAtLeast', '--clear-at-least']]) if (cfg[key] != null) args.push(flag, String(cfg[key]));
+  if (upstream) args.push('--upstream', String(upstream));
   for (const [key, flag] of [['clearInputs', '--clear-inputs'], ['clearThinking', '--clear-thinking']]) if (cfg[key] === true) args.push(flag); // off until an experiment (proxy.js)
   return args;
 }
@@ -223,10 +235,10 @@ export function restartService({ cli, home = thinkerHome(), manage = !isTestMode
 // session, so anything short of certainty leaves the person's settings as they are.
 export function claudeBlocker(settings, { home = thinkerHome(), env = process.env, repos = [] } = {}) {
   const inFile = settings?.env?.[PROXY_ENV];
-  if (inFile && !isOwnUrl(inFile, home)) return `${PROXY_ENV} is already ${inFile} in the settings`;
-  if (env[PROXY_ENV] && !isOwnUrl(env[PROXY_ENV], home)) return `${PROXY_ENV} is ${env[PROXY_ENV]} in your environment`;
+  if (inFile && !isOwnRoute(inFile, home)) return `${PROXY_ENV} is already ${inFile} in the settings`;
+  if (env[PROXY_ENV] && !isOwnRoute(env[PROXY_ENV], home)) return `${PROXY_ENV} is ${env[PROXY_ENV]} in your environment`;
   for (const k of OTHER_ROUTES) if (cloudOn(settings?.env?.[k] || env[k])) return `Claude Code runs on ${k.replace('CLAUDE_CODE_USE_', '').toLowerCase()}, which the proxy does not speak`;
-  const [found] = routeEvidence({ env, repos, isOwn: u => isOwnUrl(u, home), limit: 1 });
+  const [found] = routeEvidence({ env, repos, isOwn: u => isOwnRoute(u, home), limit: 1 });
   return found ? `${found.what} in ${found.where}` : null;
 }
 const setEnv = (settings, value) => {
@@ -383,13 +395,18 @@ export function wireAgents(url, { home = thinkerHome(), env = process.env, agent
 // `thinker proxy on` (force), `connect`: the port once, the service, the agents' files.
 // A service that stood down (the person's own route, or the setting deleted) stays off until `thinker proxy on`
 // asks for it: rerunning the installer or `thinker connect` does not put it back.
-export async function enableProxyService({ cli, home = thinkerHome(), env = process.env, manage, force = false, repos = [] } = {}) {
+export async function enableProxyService({ cli, home = thinkerHome(), env = process.env, manage, force = false, repos = [], gateway } = {}) {
   const s = serviceState(home);
   // `stoodDown` is the reason, as `ensureProxy` returns it
   if (s.standDown && !force) return { stoodDown: s.standDown.reason || 'it stood aside earlier', at: s.standDown.at, port: s.port, url: s.port ? urlFor(s.port) : null, service: { type: 'none' }, wired: { changed: [], skipped: [], unchanged: [] } };
   const port = s.port || await freePort();
   const ports = [...new Set([...(s.ports || []), port])];
-  writeJson(stateFile(home), { ...s, enabled: true, port, ports, since: s.since || new Date().toISOString(), off: undefined, standDown: undefined, wroteClaude: undefined });
+  // `gateway: true` finds the person's own model server and forwards to it; a URL names one; `false` goes back to
+  // Anthropic's API. Only ever set by the person (the flag, or a yes to the question): the proxy never puts itself
+  // in front of a gateway unasked.
+  const found = gateway === true ? ownGateway({ env, repos, isOwn: u => isOwnUrl(u, home) }) : null;
+  const upstream = gateway === true ? found?.url : gateway === false ? undefined : gateway ? trimUrl(gateway) : s.upstream;
+  writeJson(stateFile(home), { ...s, enabled: true, port, ports, since: s.since || new Date().toISOString(), off: undefined, standDown: undefined, wroteClaude: undefined, upstream });
   const service = installService({ cli, home, manage });
   const wired = wireAgents(urlFor(port), { home, env, repos });
   // whether Claude Code's settings hold the URL, so that its disappearance can be read as the person's answer
@@ -400,7 +417,7 @@ export async function enableProxyService({ cli, home = thinkerHome(), env = proc
     listening = ['launchd', 'systemd'].includes(service.type) ? await waitListening(port, 2500) : false;
     if (!listening) listening = (await ensureProxy({ cli, home })).listening !== false;
   }
-  return { port, url: urlFor(port), service, wired, listening };
+  return { port, url: urlFor(port), service, wired, listening, upstream: upstream || null, gatewayFrom: found?.where || null };
 }
 // `thinker proxy off`, `uninstall --user`: the agents' files first (a session started now goes straight to the API),
 // then the service
@@ -408,16 +425,16 @@ export function disableProxyService({ home = thinkerHome(), manage, keepState = 
   const wired = wireAgents(null, { home });
   const removed = uninstallService({ home, manage });
   const s = serviceState(home);
-  if (keepState) writeJson(stateFile(home), { ...s, enabled: false, off: new Date().toISOString(), pid: undefined, wroteClaude: undefined });
+  if (keepState) writeJson(stateFile(home), { ...s, enabled: false, off: new Date().toISOString(), pid: undefined, wroteClaude: undefined, upstream: undefined });
   else fs.rmSync(stateFile(home), { force: true });
   return { wired, removed };
 }
 
 // one line per agent for the commands' output
-export function wiredLines(wired, url) {
+export function wiredLines(wired, url, upstream = null) {
   const lines = [];
   const names = { claude: 'Claude Code', pi: 'pi', opencode: 'OpenCode', codex: 'Codex' };
-  for (const c of wired.changed) lines.push(`${names[c.agent]}: ${url ? `model calls go through the proxy (${url}, ${c.file})` : `the proxy's URL taken out of ${c.file}`}`);
+  for (const c of wired.changed) lines.push(`${names[c.agent]}: ${url ? `model calls go through the proxy (${url}${upstream ? ` on to ${upstream}` : ''}, ${c.file})` : `the proxy's URL taken out of ${c.file}`}`);
   for (const s of wired.skipped) lines.push(`${names[s.agent]}: left as it is, ${s.reason}`);
   return lines;
 }
