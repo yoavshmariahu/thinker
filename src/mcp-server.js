@@ -12,6 +12,7 @@ import { maybeCheckDailyUpdateInBackground } from './update.js';
 import { maybeSendTelemetryInBackground, HOUR_MS } from './telemetry.js';
 import { isDisabledRepo } from './repo-switch.js';
 import { coveragePending, answerCoverage } from './coverage.js';
+import { proxyOfferPending, answerProxyOffer } from './proxy-offer.js';
 import { contextSuggestAwaiting, answerContextSuggestion } from './context-suggest.js';
 import { queueDir, buildRunning, nextRequest, answerRequest, requestText } from './session-llm.js';
 import { anyDesktopApp } from './app-host.js';
@@ -93,6 +94,7 @@ const clientName = () => server.server.getClientVersion()?.name || 'mcp';
 function registerTools() {
   registerContextTool();
   registerCoverageTool();
+  registerProxyTool();
   registerQueueTools();
 }
 
@@ -135,6 +137,21 @@ function registerCoverageTool() {
     const { reply } = await ensureBound({ cwd }); if (reply) return reply;
     return text(await answerCoverage(store, String(choice), { client: clientName(), via: asked === 'chat' ? 'text' : 'picker' }));
   });
+}
+
+// The answer to the one-off offer to turn the context proxy back on (proxy-offer.js): offered only while one
+// waits, and it needs no repository of its own -- the proxy is this machine's, not a checkout's.
+let proxyTool;
+function registerProxyTool() {
+  if (proxyTool || !proxyOfferPending()) return;
+  proxyTool = server.registerTool('proxy', {
+    title: 'Answer the context proxy offer',
+    description: 'Only when a thinker-proxy-offer notice tells you to: records the user\'s answer and turns thinker\'s context clearing back on if they said yes.',
+    inputSchema: {
+      choice: z.string().describe('What the user chose: yes, no, or never'),
+      asked: z.enum(['picker', 'chat']).optional().describe('Where the user answered: your question tool (picker) or chat'),
+    },
+  }, async ({ choice, asked }) => text(await answerProxyOffer(String(choice), { store, client: clientName(), via: asked === 'chat' ? 'text' : 'picker' })));
 }
 
 // Work read through this session (session-llm.js): in a desktop app, learning (session-work.js) or a coverage

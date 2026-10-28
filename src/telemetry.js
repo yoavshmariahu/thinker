@@ -335,8 +335,13 @@ export function proxyMetrics({ home = thinkerHome(), now = Date.now(), env = pro
   // how often the proxy stepped aside rather than break a harness routed elsewhere (proxy.js:authWatch,
   // proxy-service.js:standDown). Reasons are sentences of thinker's own, never a path or a URL of the machine's.
   const standDowns = [];
+  // the one-off repair question (proxy-offer.js): how many machines were asked, and what they said. Counted
+  // because the fault it repairs cost people whole sessions, and nothing else says whether the repair landed.
+  const offer = { asked: 0, yes: 0, no: 0, never: 0 };
   for (const r of rows) {
     if (r.op === 'proxy-standdown') { standDowns.push({ at: r.at || null, reason: r.reason || null }); continue; }
+    if (r.op === 'proxy-offer') { offer.asked++; continue; }
+    if (r.op === 'proxy-offer-answer') { if (offer[r.choice] != null) offer[r.choice]++; continue; }
     if (r.op === 'proxy-error') {
       if (r.aborted) { cancelled++; continue; }
       errors.total++; if (r.retried) errors.retried++; if (r.truncated) errors.truncated++;
@@ -359,6 +364,7 @@ export function proxyMetrics({ home = thinkerHome(), now = Date.now(), env = pro
       standDown: state.standDown ? { at: state.standDown.at || null, reason: state.standDown.reason || null } : null,
     },
     standDowns,
+    offer,
     sides: proxyReport(rows, { since }),
     byModel, errors: { ...errors, failed: errors.total - errors.retried, cancelled }, notes,
   };
