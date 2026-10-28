@@ -69,6 +69,13 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 - Whether the answer spoke about the edit at all is recorded on the row (`editAcknowledged`), since a gateway that strips the field looks exactly like a request whose trigger was never met. Nothing is claimed from it yet: whether a conforming API always echoes `applied_edits` when it clears nothing is unverified.
 - The refusal count judges the model calls alone (`MESSAGES_PATH`): an agent sends more than those through the proxy, and a 200 on one of the others reset the count, so three refusals in a row never arrived.
 
+**The clearing policy: bigger cuts, less often (2026-10-28, the owner's call):**
+- `PROXY_DEFAULTS` is `trigger` 140k, `clearAtLeast` 100k, `keep: 'turn'`/`keepMin` 3, with `clearInputs` and `clearThinking` on. A clear rewrites the prompt cache from the first result it removes (1h write ~200% of an input token, read ~2.5%), so the rewrite is what a clear costs and every later read of what it took is what it saves.
+- `thinker proxy replay`, 264 Claude Code sessions, 1.05B billed-equivalent tokens, $3,750 at list: results alone at 100k/80k **−0.2%** (−0.8% under 60 requests, −3.6% at 60–119, +0.7% at 120+, 21 sessions costlier); with the call text and the thinking at 100k/80k **+7.8%** (12 costlier); at **140k/100k +7.3%** (−0.1%, +0.5%, +10.2%, 6 costlier, no long session among them); at 180k/140k +5.8%. 140k gives up half a point to halve the sessions it can cost.
+- Judge any change to this by replaying transcripts and counting cache **write** tokens, never reads.
+- The 15% holdout stays: the model reading again what was cleared is what the replay cannot see.
+- A running proxy keeps the flags and the code it started with, so `ensureProxy` replaces it when `serviceArgs` or the installed version no longer match what the state records (`args`, `version`), at the prompt hook, between turns. Without it a new policy, a `--gateway` upstream or a new route reaches nobody until the process dies: this machine ran a proxy from 2026-10-24 on 0.2.11's flags for four days, with no `/codex` route, so every Codex model call answered 404.
+
 **Telemetry and tests (MANDATORY):**
 - Set `THINKER_TEST=1` for tests, benchmarks, eval harnesses, scratch experiments, and their setup/install steps (`npm test` sets it).
 - It blocks production telemetry and automatic background work, keeps usage logs local, silences machine-wide hooks, and suppresses coverage offers (hooks, `orient` over MCP).

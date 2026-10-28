@@ -1,12 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'smol-toml';
 import { serviceState, proxyOn, proxyUrl, isOwnUrl, freePort, isListening, serviceArgs, plistText, unitText, claudeBlocker, withProxyUrl, withoutProxyUrl,
-  wireAgents, enableProxyService, disableProxyService, ensureProxy, installService, uninstallService, wiredLines, removedByHand, standDown, claudeWired, trackClaude, routeAppeared, proxyThrough, SERVICE_HOLDOUT, PROXY_ENV, PROXY_LABEL } from '../src/proxy-service.js';
+  wireAgents, enableProxyService, disableProxyService, ensureProxy, installService, uninstallService, wiredLines, appVersion, removedByHand, standDown, claudeWired, trackClaude, routeAppeared, proxyThrough, SERVICE_HOLDOUT, PROXY_ENV, PROXY_LABEL } from '../src/proxy-service.js';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
 const tmp = prefix => fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -326,19 +327,48 @@ test('--gateway with nothing of the person\'s own to forward to', async () => {
   } finally { m.restore(); }
 });
 
+test('a proxy already listening is replaced when its flags or its version moved, and left alone otherwise', async () => {
+  const m = fakeMachine();
+  const server = http.createServer(() => {});
+  try {
+    fs.mkdirSync(path.dirname(m.files.claude), { recursive: true });
+    fs.mkdirSync(path.join(m.home, 'state'), { recursive: true });
+    await new Promise(r => server.listen(0, '127.0.0.1', r));
+    const port = server.address().port;
+    const write = extra => fs.writeFileSync(path.join(m.home, 'state', 'proxy-service.json'), JSON.stringify({ enabled: true, port, ports: [port], wroteClaude: false, ...extra }));
+    // a state from before the record: replaced once, so every machine picks up the present policy
+    write({});
+    const first = await ensureProxy({ cli: CLI, home: m.home, wait: 1 });
+    assert.equal(first.restarted, true);
+    assert.match(first.why, /first run that records them/);
+    // the flags and the version recorded and matching: nothing to do
+    write({ args: serviceArgs(m.home).join(' '), version: appVersion() });
+    assert.deepEqual(await ensureProxy({ cli: CLI, home: m.home, wait: 1 }), { on: true, running: true });
+    // an older thinker started it
+    write({ args: serviceArgs(m.home).join(' '), version: '0.0.1' });
+    const upgraded = await ensureProxy({ cli: CLI, home: m.home, wait: 1 });
+    assert.equal(upgraded.restarted, true);
+    assert.match(upgraded.why, /new version \(0\.0\.1 -> /);
+    // the flags moved under it (a gateway, a clearing policy, the codex route)
+    write({ args: 'proxy --port 1 --holdout 0.15', version: appVersion() });
+    const reflagged = await ensureProxy({ cli: CLI, home: m.home, wait: 1 });
+    assert.equal(reflagged.restarted, true);
+    assert.equal(reflagged.why, 'the flags changed');
+  } finally { server.close(); m.restore(); }
+});
+
 test('a settings file that does not parse is left exactly as it is, never written over', async () => {
   const m = fakeMachine();
   try {
     fs.mkdirSync(path.dirname(m.files.claude), { recursive: true });
-    // what a person's settings file can look like: a comment, or caught half-written
+    // what a person's settings file can look like: a comment in it, or caught half-written
     const theirs = '{\n  // my own gateway\n  "env": { "ANTHROPIC_BASE_URL": "https://gw.corp" },\n  "permissions": { "deny": ["Workflow"] }\n}\n';
     fs.writeFileSync(m.files.claude, theirs);
     const p = await enableProxyService({ cli: CLI, home: m.home, env: m.env, manage: false });
     assert.match(p.wired.skipped.find(s => s.agent === 'claude').reason, /not valid JSON, so thinker left it alone/);
     assert.equal(fs.readFileSync(m.files.claude, 'utf8'), theirs, 'byte for byte');
-    // and on the way out it is still not written
     disableProxyService({ home: m.home, manage: false });
-    assert.equal(fs.readFileSync(m.files.claude, 'utf8'), theirs, 'byte for byte');
+    assert.equal(fs.readFileSync(m.files.claude, 'utf8'), theirs, 'byte for byte on the way out too');
   } finally { m.restore(); }
 });
 
