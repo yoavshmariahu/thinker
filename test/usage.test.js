@@ -298,5 +298,30 @@ test('a request served nothing records why, and the summary counts the reasons',
     const u = summarize(store);
     assert.deepEqual(u.retrieval.emptyReasons, { 'no-match': 2, 'too-few-notes': 2, 'held-out': 1, unrecorded: 1 });
     assert.equal(u.retrieval.emptyShortPrompts, 1, '"what"');
+    // the hit rate's denominator holds only the requests the cache was searched for: the two under
+    // the serving threshold were never asked and the held-out one was withheld on purpose
+    assert.equal(u.requests, 6);
+    assert.equal(u.attempted, 3, 'six requests less two too-few-notes and one held out');
+  } finally { for (const [k, v] of Object.entries(prev)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } }
+});
+
+test('the edit hook delivers notes without a request, and is counted as a delivery', async () => {
+  const home = tmp('thinker-home-');
+  const prev = { THINKER_HOME: process.env.THINKER_HOME, THINKER_LOG: process.env.THINKER_LOG, THINKER_NOTES_DIR: process.env.THINKER_NOTES_DIR };
+  process.env.THINKER_HOME = home; delete process.env.THINKER_LOG; delete process.env.THINKER_NOTES_DIR;
+  try {
+    const store = repoWith({ 'upload-rate-limit': ['a.js'] });
+    // a `late` serving is logged only when it serves something (ops.js:lateLocked returns before the
+    // log when it picks nothing), so it can go in neither side of the hit rate without inventing a hit
+    store.log({ op: 'late', on: 'edit', session: 's1', client: 'claude', files: ['a.js'], served: ['upload-rate-limit'] });
+    store.log({ op: 'orient', session: 's1', client: 'claude', task: 'fix the upload limit', served: [], empty: 'no-match' });
+    const u = summarize(store);
+    assert.equal(u.requests, 1, 'the edit hook asked nothing');
+    assert.equal(u.attempted, 1);
+    assert.equal(u.answered, 0);
+    // but the session was given a note, so the machine must not report nothing served
+    assert.equal(u.delivered, 1);
+    assert.equal(u.deliveredLate, 1);
+    assert.equal(u.servings.file, 1);
   } finally { for (const [k, v] of Object.entries(prev)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } }
 });
