@@ -419,7 +419,35 @@ by session id (`transcripts.js:sessionModel`); the saving is reported by model
 its normalized counters (`llm.js:executeProvider` adds `tokens`; `model-usage.js:tokensOf`),
 which is what the commands print after a run (`~24k tokens`).
 
-## The one-time staleness reset
+## Staleness is a claim about the code, not about the note
+
+A dep's hash moving means the code the note rests on changed. It is not evidence that the note is
+wrong, and it was being used as if it were. Measured 2026-10-28: of the notes marked stale the
+verifier answered `still_valid` on 53% across production (664 of 1,246) and 51% on this machine over
+all history (321 of 627), with 6 of 664 of those passes later doubted — so the verdict is reliable and
+about half of all staleness was never a real change.
+
+The hash itself is right. Checked the same day: of 543 changed deps behind this repository's stale
+notes, only 10 (under 2%) differed by comments or whitespace alone, so a hash that ignored cosmetic
+edits would clear almost nothing. What changed is real code; what does not change is what the note
+claims about it.
+
+What followed from the mark was the problem:
+
+- The hooks withhold every stale note (`freshOnly`). Still true. Serving it with its ⚠ banner instead
+  is the `serveStale` lever, off until an experiment.
+- A withheld note could never be verified. `maintain.js:pickStale` re-verifies the stale notes *served*
+  recently, and a withheld note is never served: withheld → never served → never eligible → stale for
+  good. On this repository that was 318 stale notes with **1** eligible. Being held back is now
+  recorded (`ops.js:orient` sets `heldAt`, a `LOCAL_FIELDS` entry) and counts as the demand it is, so
+  the same 318 fill the batch and clear in about three weeks.
+- A withheld note was then deleted for not being served. `deleteUnused` now keeps a note wanted within
+  the window, and the window is 30 days rather than 14.
+- The backlog those three had already built up (318 of 440 notes here, 1,236 of 2,683 across
+  production) was cleared in one step on upgrade, rather than left to drain through the verifier over
+  weeks: the reset below.
+
+### The one-time staleness reset
 
 `stale-reset.js`, run once per repository by `thinker rewire` after an update, beside
 `retire-background.js`. Every note marked stale is re-baselined: its deps re-hashed against the
@@ -652,7 +680,7 @@ Each session both consumes and improves the cache:
 6. Since 2026-10-21 background upkeep is small: verification is one batch every three days
    (`verifyEveryDays`), of the stale notes served in the last three days (`verifyServedDays`), at most
    50 (`verifyPerRun`); a note a session contradicted is verified at the next run. A note nobody was
-   served in 14 days, made longer ago than that, is deleted (`maintain.js:deleteUnused`,
+   served in 30 days (14 until 2026-10-28), made longer ago than that, is deleted (`maintain.js:deleteUnused`,
    `deleteUnusedDays`; behaviors, skill cards and notes a person wrote stay, and a note committed to the
    repository is archived instead). After an update, `thinker rewire` stops what an older version left
    running that the new defaults no longer do: a mining batch, the unmined-commits question, queued jobs
@@ -679,7 +707,8 @@ Each session both consumes and improves the cache:
    what a review draws on most: on 23 real PostHog regressions every bug the
    cache caught and the diff alone missed rested on a note mined from the fix
    (`research/bench-history/RESULTS.md`, "Real bugs on PostHog"). Re-verification ahead of time is for notes served in
-   the last 14 days (`verifyServedDays`; 0: all), the most served first; a
+   the last 14 days (`verifyServedDays`; 0: all), or held back from a request that recently wanted
+   them (`heldAt`), the most served first; a
    stale note nobody is reading waits until a later batch after it is served.
    Dependency hashes and git diffs since each note was verified identify the
    affected notes; unchanged dependencies cause no verification call. A note

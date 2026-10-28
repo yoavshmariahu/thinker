@@ -392,6 +392,15 @@ export async function orient(store, { task, file, session, client, budget = HOOK
   }
   if (recordUsage) for (const n of packed.included) { n.uses = (n.uses || 0) + 1; n.lastUsed = new Date().toISOString(); if (session) n.servedIn = [...(n.servedIn || []), session].slice(-30); store.put(n); }
   if (recordUsage && session) trackTurn(store, session, packed.included.map(n => n.id));
+  // A stale note the freshness rule just held back was wanted: it matched the request and would have
+  // been served. `heldAt` records that, because being held back is the only evidence of demand such a
+  // note can ever produce, and without it verification could never reach it: maintenance re-verifies
+  // the stale notes *served* recently (maintain.js:pickStale, `verifyServedDays`), and the hooks
+  // refuse to serve a stale note, so withheld -> never served -> never eligible -> still stale. On
+  // this repository on 2026-10-28 that left 318 stale notes with 1 eligible to be verified, while the
+  // verifier was answering `still_valid` on about half of what it did see. Recorded only here, where a
+  // request actually wanted the note; `lastUsed` is left alone, since nothing was served.
+  if (recordUsage) for (const n of held) { n.heldAt = new Date().toISOString(); store.put(n); }
   packed.held = held;
   packed.ceTimedOut = ceTimedOut;
   // anchoring guard: name what the request mentions that the notes do not cover
