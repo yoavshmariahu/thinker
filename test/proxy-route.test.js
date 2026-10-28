@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { routeEvidence, shellRoute, envRoute, foreignAuth, cloudOn, BASE_URL_VAR } from '../src/proxy-route.js';
-import { authWatch, forwardsToAnthropic, AUTH_REFUSALS } from '../src/proxy.js';
+import { routeEvidence, ownGateway, shellRoute, envRoute, foreignAuth, cloudOn, BASE_URL_VAR } from '../src/proxy-route.js';
+import { authWatch, forwardsToAnthropic, AUTH_REFUSALS, MESSAGES_PATH } from '../src/proxy.js';
 
 const OURS = 'http://127.0.0.1:6901';
 const isOwn = u => String(u).replace(/\/+$/, '') === OURS;
@@ -34,8 +34,10 @@ test('a route exported by the shell is found, thinker\'s own URL is not a route'
 });
 
 test('a wrapper or an alias around claude counts, a comment and an unrelated line do not', () => {
-  assert.match(shellRoute('claude() { ANTHROPIC_BASE_URL=https://router.internal command claude "$@"; }', { isOwn }), /https:\/\/router\.internal/);
-  assert.match(shellRoute('export CLAUDE_CODE_USE_BEDROCK=1', { isOwn }), /CLAUDE_CODE_USE_BEDROCK is set/);
+  assert.match(shellRoute('claude() { ANTHROPIC_BASE_URL=https://router.internal command claude "$@"; }', { isOwn }).what, /https:\/\/router\.internal/);
+  assert.equal(shellRoute('claude() { ANTHROPIC_BASE_URL=https://router.internal command claude "$@"; }', { isOwn }).url, 'https://router.internal', 'the URL the proxy could forward to');
+  assert.match(shellRoute('export CLAUDE_CODE_USE_BEDROCK=1', { isOwn }).what, /CLAUDE_CODE_USE_BEDROCK is set/);
+  assert.equal(shellRoute('export CLAUDE_CODE_USE_BEDROCK=1', { isOwn }).url, undefined, 'a cloud route is nothing to forward to');
   assert.equal(shellRoute('  # export ANTHROPIC_BASE_URL=https://gw.corp', { isOwn }), null);
   assert.equal(shellRoute('export EDITOR=vim\nalias gs="git status"', { isOwn }), null);
   assert.equal(shellRoute(`export ANTHROPIC_BASE_URL=${OURS}`, { isOwn }), null, 'ours');
@@ -58,8 +60,9 @@ test('nothing outside the test\'s own directories is read in test mode', () => {
 
 test('an env block: a cloud route, a URL, and what is off', () => {
   assert.equal(envRoute({ [BASE_URL_VAR]: OURS }, { isOwn }), null);
-  assert.match(envRoute({ [BASE_URL_VAR]: 'https://gw.corp' }, { isOwn }), /is https:\/\/gw\.corp/);
-  assert.match(envRoute({ CLAUDE_CODE_USE_VERTEX: '1' }, { isOwn }), /vertex/);
+  assert.match(envRoute({ [BASE_URL_VAR]: 'https://gw.corp' }, { isOwn }).what, /is https:\/\/gw\.corp/);
+  assert.equal(envRoute({ [BASE_URL_VAR]: 'https://gw.corp' }, { isOwn }).url, 'https://gw.corp');
+  assert.match(envRoute({ CLAUDE_CODE_USE_VERTEX: '1' }, { isOwn }).what, /vertex/);
   assert.equal(envRoute({ CLAUDE_CODE_USE_VERTEX: '0' }, { isOwn }), null);
   assert.equal(envRoute(null, { isOwn }), null);
   assert.equal(cloudOn(''), false);
@@ -104,4 +107,24 @@ test('the watch stands the proxy down once: foreign credentials at once, refusal
   const off = authWatch(() => assert.fail('nothing to stand down'), { on: false });
   off.request({ authorization: 'Bearer gw_live_123' });
   for (let i = 0; i < 5; i++) off.response(401);
+});
+
+test('the one route the proxy could forward to: a Messages-API base URL, never a cloud route', () => {
+  const m = fakeHome({ '.zshrc': 'export CLAUDE_CODE_USE_BEDROCK=1\n', '.bashrc': 'export ANTHROPIC_BASE_URL="https://smartrouter.internal/v1/"\n' });
+  try {
+    const g = ownGateway({ env: m.env, isOwn });
+    assert.equal(g.url, 'https://smartrouter.internal/v1', 'the trailing slash goes');
+    assert.equal(g.where, '~/.bashrc', 'the cloud route in ~/.zshrc is not one');
+  } finally { m.rm(); }
+  const cloud = fakeHome({ '.zshrc': 'export CLAUDE_CODE_USE_VERTEX=1\n' });
+  try { assert.equal(ownGateway({ env: cloud.env, isOwn }), null); } finally { cloud.rm(); }
+  const nonsense = fakeHome({ '.zshrc': 'export ANTHROPIC_BASE_URL=$MY_GATEWAY\n' });
+  try { assert.equal(ownGateway({ env: nonsense.env, isOwn }), null, 'not a URL the proxy can read'); } finally { nonsense.rm(); }
+});
+
+test('the refusal count judges the model calls alone', () => {
+  assert.equal(MESSAGES_PATH.test('/v1/messages?beta=true'), true);
+  assert.equal(MESSAGES_PATH.test('/v1/messages/count_tokens'), true);
+  assert.equal(MESSAGES_PATH.test('/api/hello'), false, 'a 200 here used to reset the count');
+  assert.equal(MESSAGES_PATH.test('/v1/organizations/x'), false);
 });

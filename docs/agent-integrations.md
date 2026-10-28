@@ -297,6 +297,15 @@ plugin on a machine without thinker does nothing.
   requests running -- the proxy takes itself out of every agent's settings and says why in `thinker proxy status`
   and at the end of the next turn. The request itself is always forwarded as it came, so what the agent sees is
   the API's own answer.
+  **It can sit in front of your own route, if you ask it to** (2026-10-28): `thinker proxy on --gateway` finds the
+  model server this machine routes Claude Code through and forwards there instead of `api.anthropic.com`
+  (`--upstream <url>` names one; `--no-gateway` goes back to the API; `thinker proxy status` says where it
+  forwards). Your credentials and the destination do not change -- every request still ends at your gateway, with
+  the token it was minted for -- and the clearing edit rides along, which is the only way the compression reaches a
+  routed session at all. Nothing but your asking puts the proxy there. If the gateway refuses the edit (not every
+  router speaks the API's `context-management` beta), the proxy sends that request again exactly as the agent wrote
+  it and stops adding the edit, so the call succeeds and nothing is saved on it; `thinker proxy report` then says
+  `edit-unsupported` rather than claiming no requests.
 - **Codex / Responses tool-output clearing (on by default, 2026-10-25, owner's request):**
   install, `connect`, `setup`, and updates select a managed Codex provider on the shared service
   (`/codex`). It uses the existing ChatGPT or OpenAI API login over HTTP/SSE; custom providers and

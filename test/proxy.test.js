@@ -362,3 +362,37 @@ test('an upstream of the person\'s own is never judged: refusals there stand not
     assert.deepEqual(rows(logFile).filter(r => r.op === 'proxy-standdown'), []);
   } finally { px.server.close(); server.close(); }
 });
+
+// A model server of the person's own need not speak the context-management beta. The edit must not cost them
+// every call: the proxy sends the request again as the agent wrote it, and stops adding the edit.
+test('a gateway that refuses the clearing edit gets the agent\'s own bytes, once, and no edit after that', async () => {
+  const seen = [];
+  const server = http.createServer((req, res) => {
+    const chunks = [];
+    req.on('data', c => chunks.push(c));
+    req.on('end', () => {
+      const body = JSON.parse(Buffer.concat(chunks).toString());
+      const edits = body.context_management?.edits || [];
+      seen.push({ edits: edits.map(e => e.type), beta: req.headers['anthropic-beta'] });
+      if (edits.some(e => e.type === EDIT_TYPE)) { res.writeHead(400, { 'content-type': 'application/json' }); return res.end('{"type":"error","error":{"type":"invalid_request_error","message":"context_management: unsupported"}}'); }
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end('{"id":"m","type":"message","role":"assistant","content":[{"type":"text","text":"ok"}],"usage":{"input_tokens":5,"output_tokens":1}}');
+    });
+  });
+  await new Promise(r => server.listen(0, '127.0.0.1', r));
+  const px = await proxyTo(`http://127.0.0.1:${server.address().port}`, { trigger: 0, clearAtLeast: 0 });
+  try {
+    const first = await send(px.port, { data: body({ stream: false }) });
+    assert.equal(first.status, 200, 'the agent gets an answer, not the refusal');
+    assert.match(first.text, /"ok"/);
+    assert.deepEqual(seen[0].edits.includes(EDIT_TYPE), true, 'the first try carried the edit');
+    assert.deepEqual(seen[1].edits.includes(EDIT_TYPE), false, 'the second went as the agent wrote it');
+    const second = await send(px.port, { data: body({ stream: false }) });
+    assert.equal(second.status, 200);
+    assert.equal(seen.length, 3, 'no second try needed');
+    assert.deepEqual(seen[2].edits.includes(EDIT_TYPE), false, 'and the edit is not added again');
+    const r = rows(px.logFile);
+    assert.equal(r.filter(x => x.op === 'proxy-edit-rejected').length, 1);
+    assert.deepEqual(r.filter(x => x.op === 'proxy').map(x => x.reason), ['edit-unsupported', 'edit-unsupported']);
+  } finally { px.server.close(); server.close(); }
+});

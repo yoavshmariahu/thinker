@@ -74,7 +74,21 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
     const since = flags.days ? new Date(Date.now() - Number(flags.days) * 864e5).toISOString() : undefined;
     const sides = proxyReport(rows, { since });
     if (flags.json) { out(JSON.stringify(sides, null, 2)); return; }
-    if (!Object.keys(sides).length) { out(`No requests through the proxy yet (${logFile}).`); return; }
+    if (!Object.keys(sides).length) {
+      // Requests the proxy passed on without the edit are in neither side of the holdout, so they were reported
+      // as nothing at all -- which read as "no requests yet" for a gateway that refuses the edit (seen in the
+      // container, 2026-10-28). The reasons are what there is to say.
+      const passed = rows.filter(r => r.op === 'proxy' && (!since || r.at >= since) && !r.injected);
+      if (passed.length) {
+        const why = {};
+        for (const r of passed) { const k = r.reason || 'other'; why[k] = (why[k] || 0) + 1; }
+        out(`${passed.length} requests passed through the proxy untouched, none with the clearing edit: ${Object.entries(why).map(([k, n]) => `${k} ${n}`).join(', ')}.`);
+        if (why['edit-unsupported']) out('  edit-unsupported: the model server this proxy forwards to refused the API\'s context-management edit, so the proxy stopped adding it. Nothing is being saved on those requests.');
+        return;
+      }
+      out(`No requests through the proxy yet (${logFile}).`);
+      return;
+    }
     for (const [side, s] of Object.entries(sides)) {
       if (side === 'responses') {
         for (const [name, r] of Object.entries(s)) out(`Responses ${name}: ${r.requests} requests, ${formatTokens(r.input)} input tokens (${formatTokens(r.cachedInput)} cached, included in input), ${formatTokens(r.output)} output tokens; ${r.removedBytes} tool-output bytes removed from requests, ${r.errors} errors` +
