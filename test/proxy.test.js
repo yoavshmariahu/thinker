@@ -249,12 +249,15 @@ test('an answer that stops partway is a failure, and its usage row says the toke
         headers: { 'content-type': 'application/json', 'anthropic-beta': BETA, 'x-claude-code-session-id': 's1' } }, res => {
         res.on('data', () => {});
         res.on('error', () => {});
-        res.on('close', () => setTimeout(resolve, 200));
+        res.on('close', resolve);
       });
       req.on('error', () => {});
       req.end(body());
     });
-    await until(() => rows(px.logFile).some(x => x.op === 'proxy'));
+    // Wait for both rows the assertions below read, rather than 200 ms and a hope: the error row and the
+    // usage row are written independently, so a short wait left `err` undefined and failed on a property
+    // of it instead of saying what was missing.
+    await until(() => { const r = rows(px.logFile); return r.some(x => x.op === 'proxy') && r.some(x => x.op === 'proxy-error'); });
     const all = rows(px.logFile);
     const err = all.find(x => x.op === 'proxy-error'), use = all.find(x => x.op === 'proxy');
     assert.ok(err, 'a dropped answer used to be in no error count at all');

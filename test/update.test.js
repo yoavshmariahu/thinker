@@ -303,7 +303,7 @@ test('applyUpdate updates git installation when clean', async () => {
   }
 });
 
-test('cli update --status and --check run cleanly', () => {
+test('cli update --status, the upgrade alias and branch run cleanly', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-cli-'));
   try {
     const out = execFileSync('node', [CLI, 'update', '--status'], {
@@ -312,12 +312,6 @@ test('cli update --status and --check run cleanly', () => {
     });
     assert.ok(out.includes('Thinker installation:'));
     assert.ok(out.includes('Auto-updates:'));
-
-    const checkOut = execFileSync('node', [CLI, 'update', '--check'], {
-      encoding: 'utf8',
-      env: { ...process.env, THINKER_HOME: tmp },
-    });
-    assert.ok(checkOut.includes('thinker is already up to date') || checkOut.includes('Update available'));
 
     // upgrade alias
     const upgradeOut = execFileSync('node', [CLI, 'upgrade', '--status'], {
@@ -332,6 +326,43 @@ test('cli update --status and --check run cleanly', () => {
       env: { ...process.env, THINKER_HOME: tmp },
     });
     assert.ok(branchOut.includes('On branch') || branchOut.includes('On ref'));
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+// `update --check` on a git install fetches the remote (update.js:checkUpdate). Run through the CLI it
+// fetched this repository's own GitHub origin: seconds of network on every suite run, a 30 s timeout plus a
+// second full fetch as fallback, and a failure whenever the machine is offline. The same path is covered here
+// against a local bare remote, which is both hermetic and a stronger assertion than the old smoke test's
+// "says one thing or the other".
+test('checkUpdate on a git install compares against the remote without reaching the network', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-git-check-'));
+  try {
+    const bareDir = path.join(tmp, 'remote.git'), seedDir = path.join(tmp, 'seed'), localDir = path.join(tmp, 'local');
+    execFileSync('git', ['init', '--bare', '-q', bareDir]);
+    execFileSync('git', ['clone', '-q', bareDir, seedDir]);
+    const seed = (...args) => execFileSync('git', args, { cwd: seedDir });
+    fs.writeFileSync(path.join(seedDir, 'package.json'), JSON.stringify({ name: 'thinker', version: '0.1.0' }));
+    seed('config', 'user.name', 'Test'); seed('config', 'user.email', 'test@example.com');
+    seed('add', '.'); seed('commit', '-m', 'v1'); seed('push', '-q', 'origin', 'HEAD:main');
+    execFileSync('git', ['clone', '-q', '-b', 'main', bareDir, localDir]);
+
+    const install = detectInstall(localDir, tmp);
+    assert.equal(install.type, 'git');
+    const current = await checkUpdate({ home: tmp, rootDir: localDir, install });
+    assert.equal(current.available, false, 'level with the remote: nothing to do');
+    assert.equal(current.targetBranch, 'main');
+    assert.equal(current.isDirty, false);
+
+    fs.writeFileSync(path.join(seedDir, 'file.txt'), 'hello');
+    seed('add', '.'); seed('commit', '-m', 'v2'); seed('push', '-q', 'origin', 'HEAD:main');
+    const behind = await checkUpdate({ home: tmp, rootDir: localDir, install });
+    assert.equal(behind.available, true, 'a commit on the remote is an update');
+    assert.notEqual(behind.latestCommit, behind.currentCommit);
+
+    fs.writeFileSync(path.join(localDir, 'package.json'), JSON.stringify({ name: 'thinker', version: '0.1.0', dirty: true }));
+    assert.equal((await checkUpdate({ home: tmp, rootDir: localDir, install })).isDirty, true, 'an edited checkout is reported dirty');
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }

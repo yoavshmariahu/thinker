@@ -36,7 +36,9 @@ function repo(t) {
   return dir;
 }
 const PROMPT = 'add stricter rate limiting to the upload endpoint in upload.py';
-const hook = (dir, what, client, ev, extra = []) => execFileSync('node', [CLI, 'hook', what, '--client', client, '--repo', dir, ...extra], { input: JSON.stringify(ev), encoding: 'utf8', env: { ...process.env, THINKER_NO_BG_VERIFY: '1', THINKER_HOLDOUT: 'off' } }).trim();
+// Wiring, not ranking: the cross-encoder (dense.js) stays out of these spawns, as in clients.test.js and
+// late.test.js -- it has its own test, and loading it in every spawn is most of what they cost.
+const hook = (dir, what, client, ev, extra = []) => execFileSync('node', [CLI, 'hook', what, '--client', client, '--repo', dir, ...extra], { input: JSON.stringify(ev), encoding: 'utf8', env: { ...process.env, THINKER_NO_BG_VERIFY: '1', THINKER_HOLDOUT: 'off', THINKER_CE: 'off' } }).trim();
 const served = dir => { try { return fs.readFileSync(path.join(dir, '.thinker', 'log.jsonl'), 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l)).filter(r => r.op === 'orient' && r.served?.length); } catch { return []; } };
 
 test('the seven agents are detected by their config directories', t => {

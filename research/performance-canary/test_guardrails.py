@@ -208,14 +208,32 @@ class Guards(unittest.TestCase):
         self.assertIn('exploration/session distillation is forbidden',r.stderr)
         self.assertFalse((self.out/'nonexistent').exists())
 
+    # Child-side helper: wait for a file the supervisor writes on its heartbeat instead of sleeping a fixed
+    # time and hoping. The supervise loop (guardrails.py) mirrors and snapshots once every `heartbeat`
+    # (.05 s here), and under the whole suite's parallel load it is starved well past a tenth of a second:
+    # a fixed .3 s wait failed in a full-suite run on 2026-10-28 ('process-failed') while passing alone.
+    # This returns as soon as the file is there, so the happy path is faster than the sleep it replaces.
+    WAIT = (
+        "import pathlib,time\n"
+        "def wait(name, want=None, timeout=20):\n"
+        "    p=pathlib.Path(name); d=time.monotonic()+timeout\n"
+        "    while time.monotonic()<d:\n"
+        "        try:\n"
+        "            t=p.read_text()\n"
+        "            if want is None or want in t: return t\n"
+        "        except OSError: pass\n"
+        "        time.sleep(.02)\n"
+        "    raise SystemExit('never written by the supervisor: '+name)\n"
+    )
+
     def execute(self, code, seconds=3, **kwargs):
         return supervised([sys.executable, '-u', '-c', code], cwd=self.out, env=os.environ,
                           prefix=self.out / 'fixture', seconds=seconds, batch=self.out, heartbeat=.05, **kwargs)
 
     def test_live_output_and_heartbeat_before_exit(self):
         # The child independently observes disk logs while its parent is still running.
-        code = "import pathlib,time; print('live',flush=True); time.sleep(.2); assert 'live' in pathlib.Path('fixture.events.jsonl').read_text(); assert 'running' in pathlib.Path('fixture.process.json').read_text()"
-        r = self.execute(code)
+        code = self.WAIT + "print('live',flush=True)\nwait('fixture.events.jsonl','live')\nwait('fixture.process.json','running')\n"
+        r = self.execute(code, seconds=30)
         self.assertIsNone(r['reason']); self.assertIn('live', r['stdout'])
 
     def test_timeout_kills_grandchild_and_preserves_partial_output(self):
@@ -261,8 +279,11 @@ class Guards(unittest.TestCase):
 
     def test_native_transcript_is_mirrored_before_exit(self):
         brain = self.out / 'brain'; brain.mkdir()
-        code = "import pathlib,time; p=pathlib.Path('brain/new/.system_generated/logs/transcript.jsonl'); p.parent.mkdir(parents=True); p.write_text(str(pathlib.Path.cwd())); time.sleep(.3); assert pathlib.Path('fixture.transcript.jsonl').read_text()==str(pathlib.Path.cwd())"
-        self.assertIsNone(self.execute(code, native_root=brain)['reason'])
+        code = self.WAIT + ("p=pathlib.Path('brain/new/.system_generated/logs/transcript.jsonl')\n"
+                            "p.parent.mkdir(parents=True)\n"
+                            "p.write_text(str(pathlib.Path.cwd()))\n"
+                            "wait('fixture.transcript.jsonl', str(pathlib.Path.cwd()))\n")
+        self.assertIsNone(self.execute(code, seconds=30, native_root=brain)['reason'])
 
     def test_only_the_wired_arm_gets_the_caches_transports(self):
         """The baseline keeps the server and hooks off; neither arm can be held out."""
