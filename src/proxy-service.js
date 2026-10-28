@@ -431,10 +431,23 @@ export function disableProxyService({ home = thinkerHome(), manage, keepState = 
 }
 
 // one line per agent for the commands' output
-export function wiredLines(wired, url, upstream = null) {
+export function wiredLines(wired, url, upstream = null, { hint = true, home = thinkerHome(), env = process.env, repos = [] } = {}) {
   const lines = [];
   const names = { claude: 'Claude Code', pi: 'pi', opencode: 'OpenCode', codex: 'Codex' };
   for (const c of wired.changed) lines.push(`${names[c.agent]}: ${url ? `model calls go through the proxy (${url}${upstream ? ` on to ${upstream}` : ''}, ${c.file})` : `the proxy's URL taken out of ${c.file}`}`);
   for (const s of wired.skipped) lines.push(`${names[s.agent]}: left as it is, ${s.reason}`);
+  // An agent left alone because it is routed somewhere of the person's own is a dead end without this: the
+  // reason says what thinker saw and nothing says what to do about it (2026-10-28).
+  if (hint && url && wired.skipped.length) { const h = gatewayHint({ home, env, repos }); if (h) lines.push(h); }
   return lines;
+}
+
+// What to tell someone whose agent is routed through a model server of their own. Worked out from this machine,
+// not parsed out of a blocker's message: a cloud route cannot be helped, a gateway that speaks the Messages API
+// can, and the proxy never goes in front of one unasked (enableProxyService). null when there is nothing to say.
+export function gatewayHint({ home = thinkerHome(), env = process.env, repos = [] } = {}) {
+  for (const k of CLOUD_VARS) if (cloudOn(env[k])) return `Claude Code runs on ${k.replace('CLAUDE_CODE_USE_', '').toLowerCase()}, which does not take the API's context-management edit, so the proxy cannot clear old tool results in those sessions.`;
+  const found = ownGateway({ env, repos, isOwn: u => isOwnRoute(u, home) });
+  if (!found?.url) return null;
+  return 'A model server of your own is the route: `thinker proxy on --gateway` puts the proxy in front of it instead of the API, which is how the clearing reaches those sessions. The requests keep going to the same place with the same credentials.';
 }
