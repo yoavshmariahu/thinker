@@ -846,6 +846,8 @@ test('spend telemetry counts the funnel, the decisions and what they measured, a
     store.log({ op: 'context-approve', changes: 2, saving: 30_000, reviewed: true, pr: 42, group: 'g1', via: 'page' });
     store.log({ op: 'context-approve', changes: 1, saving: 4_000 });
     store.log({ op: 'context-dismiss', changes: 1, via: 'session' });
+    store.log({ op: 'context-answer', asked: 'picker', changes: 5, choice: 'some' });
+    store.log({ op: 'context-answer', asked: 'chat', changes: 5, choice: 'none' });
     store.log({ op: 'context-revert', kind: 'off' });
     store.log({ op: 'context-job', group: 'g1', action: 'compress', state: 'started' });
     store.log({ op: 'context-job', group: 'g2', action: 'compress', state: 'failed', error: 'the model said no' });
@@ -887,6 +889,8 @@ test('spend telemetry counts the funnel, the decisions and what they measured, a
     // as the command
     assert.deepEqual(actions.approvedBy, { page: 2, command: 1 });
     assert.deepEqual(actions.dismissedBy, { session: 1 });
+    // the weekly question's answers: where they answered, and whether they chose anything (2026-10-27)
+    assert.deepEqual(actions.answers, { picker: 1, chat: 1, some: 1, none: 1 });
     assert.equal(actions.approvals, 2); assert.equal(actions.approvedChanges, 3); assert.equal(actions.approvalsAsPr, 1);
     assert.equal(actions.dismissedChanges, 1); assert.equal(actions.reverts, 1);
     assert.equal(actions.jobsStarted, 1); assert.equal(actions.jobsFailed, 1);

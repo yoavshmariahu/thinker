@@ -431,6 +431,9 @@ export function spendMetrics(store, { all = true, now = Date.now() } = {}) {
     // `setup` the install's multi-select, `command` someone typing it. A machine before 0.2.11 logged no door, so its
     // decisions count under `command`; the counts here are of changes, not of events.
     approvedBy: {}, dismissedBy: {},
+    // how the weekly question was answered: through the agent's own question tool (`picker`) or in chat, and whether
+    // anything was chosen. An offer with no answer here was never put to the person, or they never replied.
+    answers: { picker: 0, chat: 0, some: 0, none: 0 },
     jobsStarted: 0, jobsRetried: 0, jobsFailed: 0, sectionEdits: 0, sectionPrs: 0,
     harnessOffers: 0, harnessOfferedSources: 0, harnessOfferedTokens: 0,
     harnessAnswers: {}, harnessOffs: 0, harnessSwitchedOff: 0, harnessUndos: 0, harnessUndoneSources: 0,
@@ -451,6 +454,10 @@ export function spendMetrics(store, { all = true, now = Date.now() } = {}) {
         a.approvedBy[via(e)] = (a.approvedBy[via(e)] || 0) + (e.changes || 0);
         if (e.reviewed) a.approvalsReviewed++;
         if (e.pr) a.approvalsAsPr++;
+        break;
+      case 'context-answer':
+        a.answers[e.asked === 'chat' ? 'chat' : 'picker']++;
+        a.answers[e.choice === 'none' ? 'none' : 'some']++;
         break;
       case 'context-dismiss': a.dismissals++; a.dismissedChanges += e.changes || 0;
         a.dismissedBy[via(e)] = (a.dismissedBy[via(e)] || 0) + (e.changes || 0); break;
