@@ -356,3 +356,37 @@ test('a proxy already listening is replaced when its flags or its version moved,
     assert.equal(reflagged.why, 'the flags changed');
   } finally { server.close(); m.restore(); }
 });
+
+test('a settings file that does not parse is left exactly as it is, never written over', async () => {
+  const m = fakeMachine();
+  try {
+    fs.mkdirSync(path.dirname(m.files.claude), { recursive: true });
+    // what a person's settings file can look like: a comment in it, or caught half-written
+    const theirs = '{\n  // my own gateway\n  "env": { "ANTHROPIC_BASE_URL": "https://gw.corp" },\n  "permissions": { "deny": ["Workflow"] }\n}\n';
+    fs.writeFileSync(m.files.claude, theirs);
+    const p = await enableProxyService({ cli: CLI, home: m.home, env: m.env, manage: false });
+    assert.match(p.wired.skipped.find(s => s.agent === 'claude').reason, /not valid JSON, so thinker left it alone/);
+    assert.equal(fs.readFileSync(m.files.claude, 'utf8'), theirs, 'byte for byte');
+    disableProxyService({ home: m.home, manage: false });
+    assert.equal(fs.readFileSync(m.files.claude, 'utf8'), theirs, 'byte for byte on the way out too');
+  } finally { m.restore(); }
+});
+
+test('a route taken over by --gateway is put back when the proxy is taken out', async () => {
+  const m = fakeMachine();
+  try {
+    fs.mkdirSync(path.dirname(m.files.claude), { recursive: true });
+    fs.writeFileSync(m.files.claude, JSON.stringify({ env: { ANTHROPIC_BASE_URL: 'https://smartrouter.internal', ANTHROPIC_AUTH_TOKEN: 'gw-token' }, permissions: { deny: ['Workflow'] } }, null, 2));
+    const g = await enableProxyService({ cli: CLI, home: m.home, env: m.env, manage: false, gateway: 'https://smartrouter.internal' });
+    const after = readJson(m.files.claude);
+    assert.equal(after.env[PROXY_ENV], g.url, 'the agent goes through the proxy');
+    assert.equal(after.env.ANTHROPIC_AUTH_TOKEN, 'gw-token', 'their token is untouched');
+    assert.deepEqual(after.permissions, { deny: ['Workflow'] }, 'and the rest of their settings');
+    assert.equal(serviceState(m.home).replaced.claude, 'https://smartrouter.internal', 'what was replaced is remembered');
+    disableProxyService({ home: m.home, manage: false });
+    const back = readJson(m.files.claude);
+    assert.equal(back.env[PROXY_ENV], 'https://smartrouter.internal', 'their own route is back, not deleted');
+    assert.equal(back.env.ANTHROPIC_AUTH_TOKEN, 'gw-token');
+    assert.equal(serviceState(m.home).replaced, undefined, 'and forgotten once restored');
+  } finally { m.restore(); }
+});
