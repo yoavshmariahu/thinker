@@ -1,7 +1,7 @@
 {
   "name": "thinker",
   "owner": { "name": "zerotime" },
-  "description": "Think ahead. Save context. A knowledge cache for coding agents.",
+  "description": "Think ahead. Save tokens. A knowledge cache for coding agents.",
   "plugins": [
     { "name": "thinker", "source": "./plugins/claude-code", "description": "Notes about the repository from earlier sessions, with each prompt and as files are opened; needs thinker installed (npx @zerotimedev/thinker).", "version": "1.0.0", "category": "productivity" }
   ]

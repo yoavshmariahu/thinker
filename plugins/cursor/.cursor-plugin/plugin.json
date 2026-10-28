@@ -1,7 +1,7 @@
 {
   "name": "thinker",
   "version": "1.0.0",
-  "description": "Think ahead. Save context. Notes about this repository from earlier sessions, delivered with each prompt and as files are opened; sessions distilled into new notes. Runs the thinker installed on this machine (npx @zerotimedev/thinker).",
+  "description": "Think ahead. Save tokens. Notes about this repository from earlier sessions, delivered with each prompt and as files are opened; sessions distilled into new notes. Runs the thinker installed on this machine (npx @zerotimedev/thinker).",
   "author": {
     "name": "zerotime"
   },

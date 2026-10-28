@@ -231,13 +231,13 @@ main() {
   if [ "$fancy" = 1 ]; then
     local sparkle="${yellow}*${reset} ${magenta}~${reset} ${yellow}*${reset}"
     # the same headline and lines as `thinker setup` (src/setup/ui.js:HEADLINE, TAGLINE)
-    box "$cyan" "$sparkle  ${bold}${cyan}Thinker${reset}  $sparkle" "${bold}Think ahead. Save context.${reset}" \
+    box "$cyan" "$sparkle  ${bold}${cyan}Thinker${reset}  $sparkle" "${bold}Think ahead. Save tokens.${reset}" \
       "${magenta}~~~~~~~~~~~~~~~~~~~~~~~~~~~${reset}" "" \
       "${dim}Thinker helps you save tokens with context compression, knowledge caching,${reset}" \
       "${dim}and leaner agent instructions, skills and MCP servers.${reset}"
   else
     say "Thinker"
-    say "Think ahead. Save context."
+    say "Think ahead. Save tokens."
     say "Thinker helps you save tokens with context compression, knowledge caching, and leaner agent instructions, skills and MCP servers."
   fi
   say ""

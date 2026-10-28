@@ -40,7 +40,7 @@ export function box(lines, { title = '', width = 76, borderColor = 'cyan' } = {}
   return [bColor(topBorder), ...formattedLines, bColor(bottomBorder)].join('\n');
 }
 
-export const HEADLINE = 'Think ahead. Save context.';
+export const HEADLINE = 'Think ahead. Save tokens.';
 export const TAGLINE = ['Thinker helps you save tokens with context compression, knowledge caching,', 'and leaner agent instructions, skills and MCP servers.'];
 
 // The opening of `thinker setup` (and of the installer, which draws the same box in shell).
