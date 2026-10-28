@@ -29,7 +29,8 @@
 // reset can be undone.
 import fs from 'node:fs';
 import path from 'node:path';
-import { hashDep } from './deps.js';
+import { hashDep, checkNote } from './deps.js';
+import { refresh } from './ops.js';
 import { gitHead } from './store.js';
 
 // Bump to run a fresh reset on every repository; a repository already at this version is skipped.
@@ -45,7 +46,19 @@ export function resetStaleMarks(store, { dry = false, now = () => new Date().toI
   if (done && Number(done.version) >= RESET_VERSION) return null;
   let notes;
   try { notes = store.list(); } catch { return null; }
-  const stale = notes.filter(n => n.status === 'stale');
+  // Staleness is worked out when a note is checked, not when the code changes, so a cache holds notes
+  // that are stale and not yet marked: clearing only the marked ones would leave those to go stale on
+  // the next prompt and the reset would look as though it had not worked. The statuses are brought up
+  // to date first (`refresh` persists them, as `thinker check` does), and then every stale note is
+  // cleared. A `violated` behavior and a `broken` skill card are other states, not staleness, and are
+  // left alone by both steps.
+  // a dry run writes nothing, so it reads the statuses as they are and counts what it would clear
+  const live = notes.filter(n => !['invalid', 'violated', 'broken'].includes(n.status));
+  if (!dry) {
+    try { refresh(store, live); } catch {}
+    try { notes = store.list(); } catch { return null; }
+  }
+  const stale = (dry ? refreshedQuietly(store, live) : notes).filter(n => n.status === 'stale');
   if (!stale.length) {
     // nothing to clear, but the repository is still marked so the scan does not run again
     if (!dry) writeMarker(file, { at: now(), cleared: [], before: [] });
@@ -70,6 +83,17 @@ export function resetStaleMarks(store, { dry = false, now = () => new Date().toI
     store.log({ op: 'stale-reset', version: RESET_VERSION, cleared: cleared.length, skipped: skipped.length });
   }
   return { cleared, skipped };
+}
+
+// The statuses a check would persist, worked out without writing any of them: what a dry run counts.
+// `checkNote` is the same judgement `refresh` makes, minus the store.put.
+function refreshedQuietly(store, notes) {
+  return notes.map(n => {
+    try {
+      const r = checkNote(store.repo, n, { narrow: true });
+      return r.changed.length ? { ...n, status: 'stale' } : { ...n, status: n.status === 'stale' ? 'fresh' : n.status };
+    } catch { return n; }
+  });
 }
 
 function writeMarker(file, body) {
