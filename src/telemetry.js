@@ -557,6 +557,12 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
   const hitRate = u.requests > 0
     ? Math.round(((u.answered || 0) / u.requests) * 1000) / 1000
     : 0;
+  // the hit rate over the requests the cache was actually searched for (usage.js:NOT_ATTEMPTED).
+  // `hitRate` keeps its old denominator so the series stays comparable across the release; read
+  // `attemptedHitRate` to judge retrieval.
+  const attemptedHitRate = u.attempted > 0
+    ? Math.round(((u.answered || 0) / u.attempted) * 1000) / 1000
+    : 0;
 
   const device = deviceIdentity({ home });
   const tokenSpend = spendMetrics(store, { all });
@@ -624,6 +630,16 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
       requestsTotal: u.requests,
       requestsAnswered: u.answered,
       hitRate,
+      // requests the cache was asked, and the hit rate over them: `requestsTotal` also holds the
+      // requests a cache under its serving threshold was never asked and the ones the holdout
+      // withheld, neither of which retrieval failed at (usage.js:NOT_ATTEMPTED)
+      requestsAttempted: u.attempted,
+      attemptedHitRate,
+      // serving events that put a note in front of an agent, the edit hook's among them. A `late`
+      // serving is not a request and is logged only when it serves, so it is in neither side of the
+      // hit rate; without this a device served notes by the edit hook alone reports nothing served.
+      deliveries: u.delivered,
+      editHookDeliveries: u.deliveredLate,
       emptyRequests: Math.max(0, u.requests - u.answered),
       staleNotesServed: ret.staleServed || 0,
       freshNotesServed: ret.freshServed || 0,
@@ -645,6 +661,9 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
       requestsTotal: u.requests,
       requestsAnswered: u.answered,
       hitRate,
+      requestsAttempted: u.attempted,
+      attemptedHitRate,
+      deliveries: u.delivered,
       servings: {
         prompt: u.servings.prompt,
         file: u.servings.file,
