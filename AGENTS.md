@@ -1103,6 +1103,40 @@ one more session, so approving the first line compressed the third. Without `--v
 the command has just printed, which is what someone typing it is looking at; a key names a change either way
 (`pickChanges`). The page sends keys, never numbers.
 
+## Error reports, with consent (2026-10-29, the owner's ask)
+
+thinker swallows its own failures by design: a hook must never fail a tool call, so each is wrapped in a bare
+`catch {}`, and a command that dies prints a stack to a terminal nobody reads again. A fault that hits many
+machines is therefore invisible: the Codex 404 of 2026-10-24 ran four days on the owner's own machine, and the
+installer leaving a shell with no working directory was found by reading a container log.
+
+`error-report.js` records those failures locally, asks once whether to send them, and sends nothing until the
+person says yes.
+
+- **What a record is.** `{at, op, version, node, platform, name, code, message, frames}`. `recordError` is called
+  from the catch sites that used to swallow (`hook.pre`, `hook.proxy`, and `cli.<command>` from `main().catch`);
+  it never throws, writes one line, and does nothing at all in test mode (`THINKER_ERRORS_TEST` forces it on
+  for the tests). The same failure again counts up (`seen`) instead of filling the file; at most `ERRORS.keep`
+  (20) records, `keepDays` (14).
+- **What it may not carry** (`scrub`, and `test/error-report.test.js` is mostly about this): thinker's own
+  install path becomes `<thinker>` and the repository `<repo>`, the home directory `~`, a credential `<token>`,
+  a URL `<url>`, and any absolute path left keeps its last two segments. So `proxy-service.js:ensureProxy` stays
+  readable — that is the whole value of the record — and the person, their employer's repository and their
+  gateway do not appear.
+- **The question** is the second owner-approved exception to "one suggestion, not three", and the same shape as
+  the first: asked once per machine, after the proxy repair in the hook's one-question chain, through the agent's
+  own question tool, answered through thinker's `errors` MCP tool or `thinker errors --answer yes|no|never`. It is
+  asked only where there is something to send, and never where telemetry is off — one switch covers both. No
+  answer sends nothing: there is no reminder and no default yes.
+- **`thinker errors`** prints the records exactly as they would be sent, which is the only honest way to ask for
+  consent: a person can read what would leave their machine before agreeing. `--send` sends now, `--json` is the
+  data, `--answer` records a decision.
+- **The endpoint** is `/errors` on the metrics API (`infra/metrics/errors.mjs`, `handler.mjs`), one row per error
+  in `error_reports` so one fault can be counted across installs. It refuses a payload that still looks like a
+  path, a URL or a credential (`LOOKS_PRIVATE`, `LOOKS_LIKE_URL`, `LOOKS_LIKE_TOKEN`), so a client with a
+  scrubbing bug cannot store one either. The API was made with quick-create, so `$default` already routes the
+  new path; the table and the `GRANT` need a deploy (`infra/metrics/README.md`).
+
 ## Desired behaviors
 
 Every other kind of note is a claim about the code, and when code and note
