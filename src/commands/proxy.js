@@ -12,7 +12,7 @@ import { cacheBundleIntro } from '../cache-guidance.js';
 import { Store, findRepoRoot } from '../store.js';
 import { thinkerHome } from '../update.js';
 import { formatTokens } from '../model-usage.js';
-import { enableProxyService, disableProxyService, serviceState, isListening, wiredLines, serviceArgs, proxyUrl, proxyLogFile, standDown, proxyThrough } from '../proxy-service.js';
+import { enableProxyService, disableProxyService, serviceState, isListening, wiredLines, serviceArgs, proxyUrl, proxyLogFile, standDown, proxyThrough, gatewayHint } from '../proxy-service.js';
 
 // The notes for a request, as the prompt hook serves them (commands/hooks.js): once a session, fresh only,
 // the holdout turn opened on the session (ops.js:beginTurn), under the same bundle line.
@@ -59,7 +59,10 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
     if (!s.enabled) {
       out(`Context proxy off${s.off ? ` since ${s.off.slice(0, 10)}` : ''} (thinker proxy on turns it on).`);
       // it stood aside by itself (proxy-service.js:standDown): say why, since nothing else will
-      if (s.standDown) out(`  it stepped aside on ${s.standDown.at.slice(0, 10)}: ${s.standDown.reason}. Your agents call the API directly; thinker proxy on puts it back.`);
+      if (s.standDown) {
+        out(`  it stepped aside on ${s.standDown.at.slice(0, 10)}: ${s.standDown.reason}. Your agents call the API directly; thinker proxy on puts it back.`);
+        const h = gatewayHint(); if (h) out(`  ${h}`);
+      }
       return;
     }
     const listening = await isListening(s.port);

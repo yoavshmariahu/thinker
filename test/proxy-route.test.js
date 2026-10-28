@@ -128,3 +128,29 @@ test('the refusal count judges the model calls alone', () => {
   assert.equal(MESSAGES_PATH.test('/api/hello'), false, 'a 200 here used to reset the count');
   assert.equal(MESSAGES_PATH.test('/v1/organizations/x'), false);
 });
+
+// What a person routed through a model server of their own is told. Before 2026-10-28 they were told the
+// agent was "left as it is" and why, which is a dead end: `thinker proxy on` alone stands down again, and
+// `--gateway` is the only thing that works. No path in the hint: it rides a notice whose reason is telemetered.
+test('gatewayHint names the flag that works, says when nothing can, and keeps this machine out of it', async () => {
+  const { gatewayHint, wiredLines } = await import('../src/proxy-service.js');
+  const m = fakeHome({ '.zshrc': `export ${BASE_URL_VAR}="https://litellm.corp/v1"\n` });
+  try {
+    const hint = gatewayHint({ home: m.home, env: m.env });
+    assert.match(hint, /thinker proxy on --gateway/);
+    assert.match(hint, /same place with the same credentials/, 'it says the requests still go where they went');
+    assert.ok(!hint.includes('litellm.corp') && !hint.includes('.zshrc') && !hint.includes(m.home), 'no URL and no path of this machine');
+    // a cloud route cannot be helped at all, and says so instead of offering the flag
+    const cloud = gatewayHint({ home: m.home, env: { ...m.env, CLAUDE_CODE_USE_BEDROCK: '1' } });
+    assert.match(cloud, /bedrock/); assert.match(cloud, /cannot clear/); assert.ok(!/--gateway/.test(cloud));
+    // nothing of the person's own: nothing to say
+    const plain = fakeHome({});
+    try { assert.equal(gatewayHint({ home: plain.home, env: plain.env }), null); } finally { plain.rm(); }
+    // and it rides the lines the commands and setup already print, once, only where an agent was left alone
+    const skipped = { changed: [], skipped: [{ agent: 'claude', file: 'settings.json', reason: `${BASE_URL_VAR} is https://litellm.corp/v1 in the settings` }], unchanged: [] };
+    const lines = wiredLines(skipped, 'http://127.0.0.1:6901', null, { home: m.home, env: m.env });
+    assert.equal(lines.length, 2); assert.match(lines[1], /--gateway/);
+    assert.equal(wiredLines({ changed: [{ agent: 'pi', file: 'f' }], skipped: [], unchanged: [] }, 'http://127.0.0.1:6901', null, { home: m.home, env: m.env }).length, 1, 'nothing skipped, nothing to add');
+    assert.equal(wiredLines(skipped, null, null, { home: m.home, env: m.env }).length, 1, 'taking the URL out is not the moment to offer it');
+  } finally { m.rm(); }
+});
