@@ -206,7 +206,7 @@ test('the URL taken out of Claude Code\'s settings by hand turns the service off
     assert.equal(fs.existsSync(m.files.pi), false, 'the other agents are taken out with it');
     // an install, a connect or the daily rewire does not put it back
     const again = await enableProxyService({ cli: CLI, home: m.home, env: m.env, manage: false });
-    assert.match(again.stoodDown.reason, /taken out of Claude Code/);
+    assert.match(again.stoodDown, /taken out of Claude Code/);
     assert.deepEqual(again.wired.changed, []);
     assert.equal(proxyOn(m.home), false);
     assert.deepEqual(readJson(m.files.claude), { env: { A: '1' } });

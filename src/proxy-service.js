@@ -385,7 +385,8 @@ export function wireAgents(url, { home = thinkerHome(), env = process.env, agent
 // asks for it: rerunning the installer or `thinker connect` does not put it back.
 export async function enableProxyService({ cli, home = thinkerHome(), env = process.env, manage, force = false, repos = [] } = {}) {
   const s = serviceState(home);
-  if (s.standDown && !force) return { stoodDown: s.standDown, port: s.port, url: s.port ? urlFor(s.port) : null, service: { type: 'none' }, wired: { changed: [], skipped: [], unchanged: [] } };
+  // `stoodDown` is the reason, as `ensureProxy` returns it
+  if (s.standDown && !force) return { stoodDown: s.standDown.reason || 'it stood aside earlier', at: s.standDown.at, port: s.port, url: s.port ? urlFor(s.port) : null, service: { type: 'none' }, wired: { changed: [], skipped: [], unchanged: [] } };
   const port = s.port || await freePort();
   const ports = [...new Set([...(s.ports || []), port])];
   writeJson(stateFile(home), { ...s, enabled: true, port, ports, since: s.since || new Date().toISOString(), off: undefined, standDown: undefined, wroteClaude: undefined });
