@@ -42,6 +42,9 @@ export const DIET_LEVELS = {
   moderate: { outputChars: 12000 },
   high: { window: 15, cap: 0.35, searchChars: 3000, perFile: 1, maxFiles: 15, testChars: 1000, outputChars: 4000 },
 };
+// Every number a level or the defaults hold, so `diet: { outputChars: 4000 }` in .thinker/config.json
+// is kept rather than overwritten by the level it is used with (dietConfig keeps them as `given`).
+export const DIET_TUNABLE = new Set([...Object.keys(DIET), ...Object.values(DIET_LEVELS).flatMap(l => Object.keys(l))].filter(k => k !== 'enabled' && k !== 'tools'));
 // the tools whose results the diet can replace (Claude Code's PostToolUse, checked against each one's output shape),
 // and any MCP server's tools (`mcp:<server>`, 2026-10-22: the text of a result capped at the level's length, through
 // `updatedMCPToolOutput`, which Claude Code passes through unchecked; images in it are left as they are).
@@ -109,7 +112,10 @@ export function setDietLevel(store, tools, level) {
 
 export function dietConfig(store, over = {}) {
   const c = store?.config?.().diet;
-  const cfg = { ...DIET, ...(c === true ? { enabled: true } : c && typeof c === 'object' ? c : {}), ...over };
+  const given = c && typeof c === 'object' ? c : {};
+  const cfg = { ...DIET, ...(c === true ? { enabled: true } : given), ...over };
+  // the settings a person named, kept apart: a level's defaults must not overwrite them (set below)
+  cfg.given = Object.fromEntries(Object.entries({ ...given, ...over }).filter(([k]) => DIET_TUNABLE.has(k)));
   if (cfg.tools && typeof cfg.tools === 'object' && c?.enabled === undefined) cfg.enabled = Object.keys(cfg.tools).length > 0;
   const env = process.env.THINKER_DIET;
   if (env === 'on' || env === '1') cfg.enabled = true;
@@ -240,7 +246,7 @@ export function trimTestOutput(store, { repo, command, stdout, stderr, exitCode,
 }
 
 // --- the hook's entry point --------------------------------------------------------------------------
-const stripCd = c => String(c || '').trim().replace(/^cd\s+(?:'[^']*'|"[^"]*"|\S+)\s*&&\s*/, '');
+const stripCd = c => String(c || '').trim().replace(/^cd\s+(?:'[^']*'|"[^"]*"|\S+)\s*(?:&&|;)\s*/, '');
 // `cat file`, `nl file`, `sed -n '1,$p' file`: one repository file, whole
 function wholeRead(c) {
   let m = /^(?:cat|nl|bat)(?:\s+-[A-Za-z]+)*\s+(['"]?)([^\s'"|;&<>]+)\1$/.exec(c); if (m) return m[2];
@@ -288,7 +294,7 @@ export function dietResult(store, { session, repo, cwd, name, input = {}, respon
   // only the tools given a level, at that level's settings
   const level = toolLevel(cfg, name, input);
   if (!level) return null;
-  cfg = { ...cfg, ...DIET_LEVELS[level], level };
+  cfg = { ...cfg, ...DIET_LEVELS[level], ...(cfg.given || {}), level };
   const log = r => { if (r) store.log({ op: 'diet', kind: r.kind, session, turn, client, file: r.file, tool: r.tool, before: r.before, after: r.after }); return r; };
   const skip = (kind, file, why, n) => { store.log({ op: 'diet-skip', kind, session, turn, client, file, why, lines: n }); return null; };
   if (isMcp(name)) {

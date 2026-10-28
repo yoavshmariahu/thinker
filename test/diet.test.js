@@ -227,3 +227,30 @@ test('dietTimeline: the level a tool had at a time, from the diet-settings log, 
   assert.equal(levelOf({ enabled: true }, 'Bash:sed'), 'moderate', 'a config without tools: moderate for every compressible tool');
   assert.equal(levelOf({ enabled: true }, 'Grep'), null);
 });
+
+test('a cd prefix is stripped whichever separator follows it', t => {
+  const dir = repo(t); const store = new Store(dir).init(); on(store, { minLines: 50, window: 4 });
+  rememberTerms(store, 's1', { prompt: 'fix helper_42' });
+  const content = fs.readFileSync(path.join(dir, 'src/big.py'), 'utf8');
+  const cat = sep => dietResult(store, { session: 's1', repo: dir, cwd: dir, name: 'Bash', input: { command: `cd ${dir}${sep} cat src/big.py` }, response: { stdout: content, stderr: '' } });
+  assert.equal(cat(' &&').kind, 'read');
+  assert.equal(cat(';').kind, 'read', 'a cd before a semicolon hid the read before');
+});
+
+test('a setting named in the config survives the tool level, so the cap can be tuned without a release', t => {
+  const dir = repo(t); const store = new Store(dir).init();
+  const out = Array.from({ length: 300 }, (_, i) => `src/generated/file_${i}.py`).join('\n') + '\n';
+  const call = () => dietResult(store, { session: 's1', repo: dir, cwd: dir, name: 'Bash', input: { command: 'ls -R .' }, response: { stdout: out, stderr: '' } });
+  on(store);
+  assert.ok(out.length > 4000 && out.length < 12000, 'the fixture sits between the two caps');
+  assert.equal(call(), null, 'this much output passes under moderate’s 12k cap');
+  on(store, { outputChars: 4000 });
+  assert.equal(dietConfig(store).outputChars, 4000);
+  const r = call();
+  assert.equal(r.kind, 'cap');
+  // the kept head and tail fit the cap; the marker naming the gap is added on top of it
+  assert.ok(r.after < r.before && r.after <= 4000 + 200, `the cap the person set is the cap that is applied, got ${r.after}`);
+  // the rest of the level is untouched by naming one setting
+  on(store, { outputChars: 4000, tools: { Bash: 'high' } });
+  assert.ok(call().after <= 4000 + 200, 'naming one setting leaves the rest of the level alone');
+});
