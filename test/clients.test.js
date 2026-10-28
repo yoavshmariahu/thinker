@@ -12,6 +12,11 @@ import { installGitHooks, mainCheckout } from '../src/git-hooks.js';
 import { knownRepos } from '../src/commands/setup.js';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
+// These tests are about the wiring -- which file each client gets, and that a note reaches the agent
+// through it -- not about ranking, so the cross-encoder (dense.js) stays out: it has its own test.
+// Loading it in each of the 45 hook spawns here was 39 s of the suite, and under parallel load its 8 s
+// deadline (CE_DEADLINE_MS) could expire and change what was served, so the file was flaky as well.
+process.env.THINKER_CE = 'off';
 
 function repo() {
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-clients-')));

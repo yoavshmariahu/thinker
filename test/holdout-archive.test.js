@@ -16,6 +16,10 @@ import { parseTranscript } from '../src/transcripts.js';
 import { holdoutMetrics, buildTelemetryPayload } from '../src/telemetry.js';
 
 process.env.THINKER_TELEMETRY = 'off';
+// The holdout and the archive rules are what is under test, not the ranking, so the cross-encoder
+// (dense.js) stays out: it has its own test, and under load its 8 s deadline could change what was
+// served from one run to the next.
+process.env.THINKER_CE = 'off';
 const CLI = new URL('../src/cli.js', import.meta.url).pathname;
 const git = (repo, ...args) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args], { cwd: repo, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
 function gitRepo() {

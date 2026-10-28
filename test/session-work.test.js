@@ -11,6 +11,9 @@ import { Store } from '../src/store.js';
 import { enqueueJob, pendingJobs, startSessionWork, runSessionWork, markAppSession, recentAppSession, RUN_EVERY_MS } from '../src/session-work.js';
 import { anyDesktopApp } from '../src/app-host.js';
 import { subagentPrompt } from '../src/session-llm.js';
+// Ranking is not what these tests check, so the cross-encoder (dense.js) stays out of the hook spawns:
+// it has its own test, and loading an ONNX session in each spawn is most of what they cost.
+process.env.THINKER_CE = 'off';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
 function repo() {

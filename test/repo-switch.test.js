@@ -11,6 +11,9 @@ import { Store } from '../src/store.js';
 import { setRepoDisabled, isDisabledRepo, disabledRepo, disabledRepos, readMachineConfig } from '../src/repo-switch.js';
 import { discoverRepos } from '../src/machine.js';
 import { createUiServer, machineRepos } from '../src/ui/server.js';
+// Ranking is not what these tests check, so the cross-encoder (dense.js) stays out of the hook spawns:
+// it has its own test, and loading an ONNX session in each spawn is most of what they cost.
+process.env.THINKER_CE = 'off';
 
 const CLI = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'src', 'cli.js');
 const tmp = p => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), p)));
