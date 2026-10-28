@@ -62,7 +62,7 @@ test('maintain verifies stale notes, phrases unphrased ones, and reports once', 
 test('by default maintenance verifies and phrases only: no documents, no skills, no duplicate pass, and never any mining', () => withEnv(async () => {
   assert.equal(DEFAULTS.prs, undefined); assert.equal(DEFAULTS.docs, false); assert.equal(DEFAULTS.skills, false); assert.equal(DEFAULTS.dedupe, false);
   // one verification batch every three days, of the notes served in those days; unused notes deleted after two weeks
-  assert.equal(DEFAULTS.verifyEveryDays, 3); assert.equal(DEFAULTS.verifyServedDays, 3); assert.equal(DEFAULTS.verifyPerRun, 50); assert.equal(DEFAULTS.deleteUnusedDays, 14);
+  assert.equal(DEFAULTS.verifyEveryDays, 3); assert.equal(DEFAULTS.verifyServedDays, 3); assert.equal(DEFAULTS.verifyPerRun, 50); assert.equal(DEFAULTS.deleteUnusedDays, 30);
   const { dir, store } = staleRepo();
   const called = [];
   const fns = { spentToday: () => 0, verify: async () => ({ verdict: 'still_valid', tokens: 0 }), phrase: async (s, n) => ({ done: n, tokens: 0 }),
@@ -225,12 +225,13 @@ test('a failed maintenance batch stays failed through cooldown until a due batch
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }));
 
-test('notes nobody was served in two weeks are deleted; behaviors, skill cards, human notes and committed notes stay', () => withEnv(async () => {
+test('notes nobody was served in a month are deleted; behaviors, skill cards, human notes and committed notes stay', () => withEnv(async () => {
   const { deleteUnused } = await import('../src/maintain.js');
   const { dir, store, a, b } = staleRepo();
-  const day = 86400_000, now = Date.now(), old = new Date(now - 20 * day).toISOString();
+  // the window is 30 days (deleteUnusedDays, raised from 14 on 2026-10-28)
+  const day = 86400_000, now = Date.now(), old = new Date(now - 40 * day).toISOString();
   store.put({ ...a, created: old, lastUsed: new Date(now - 2 * day).toISOString() });        // served lately: kept
-  store.put({ ...b, created: old, lastUsed: new Date(now - 15 * day).toISOString() });       // last served 15 days ago: deleted
+  store.put({ ...b, created: old, lastUsed: new Date(now - 31 * day).toISOString() });       // last served 31 days ago: deleted
   const c = createNote(store, { title: 'Never served helper', kind: 'rule', answers: ['x'], body: 'src/b.py:bar returns 2', deps: [{ path: 'src/b.py', symbol: 'bar' }] }).note;
   store.put({ ...c, created: old });                                                          // never served, old: deleted
   const h = createNote(store, { title: 'Human note', kind: 'rule', answers: ['y'], body: 'src/a.py:foo', deps: [{ path: 'src/a.py', symbol: 'foo' }] }, { source: { type: 'human' } }).note;
@@ -243,3 +244,29 @@ test('notes nobody was served in two weeks are deleted; behaviors, skill cards, 
   assert.ok(store.get(a.id) && store.get(h.id) && store.get(young.id));
   fs.rmSync(dir, { recursive: true, force: true });
 }));
+
+// A stale note the freshness rule holds back can never be served, so until `heldAt` it could never
+// satisfy pickStale's "served recently" gate either: withheld -> never served -> never eligible ->
+// stale for good. On this repository on 2026-10-28 that left 318 stale notes with 1 eligible, while
+// the verifier was answering still_valid on about half of the notes it did reach.
+test('a stale note held back from a request is eligible for verification, and is not deleted as unused', async () => {
+  const { pickStale, DEFAULTS, deleteUnused } = await import('../src/maintain.js');
+  const now = Date.now(), iso = ms => new Date(ms).toISOString();
+  const base = { kind: 'rule', title: 't', body: 'b', status: 'stale', created: iso(now - 90 * 86400_000) };
+  const notes = [
+    { ...base, id: 'held', heldAt: iso(now - 86400_000) },                       // wanted yesterday, withheld
+    { ...base, id: 'served', lastUsed: iso(now - 86400_000) },                   // served yesterday
+    { ...base, id: 'forgotten' },                                                // neither: still waits
+    { ...base, id: 'stale-held-long-ago', heldAt: iso(now - 60 * 86400_000) },   // wanted, but not lately
+  ];
+  const { stale } = pickStale(notes, { ...DEFAULTS, verifyServedDays: 3, verifyPerRun: 10 }, { now });
+  const ids = stale.map(n => n.id).sort();
+  assert.deepEqual(ids, ['held', 'served'], 'being held back counts as demand, as being served does');
+
+  // and the same note is not deleted for not having been served: thinker is what refused to serve it
+  assert.equal(DEFAULTS.deleteUnusedDays, 30);
+  const store = { list: () => notes, isShared: () => false, remove() { throw new Error('must not delete a held note'); }, config: () => ({}) };
+  const removed = deleteUnused(store, { days: 30, dry: true, now });
+  assert.ok(!removed.includes('held'), 'a note wanted within the window is kept');
+  assert.ok(removed.includes('forgotten'), 'a note nobody asked for is still deleted');
+});
