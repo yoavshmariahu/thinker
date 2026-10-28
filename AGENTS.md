@@ -1060,6 +1060,20 @@ against each other by tokens saved, which is why the other two prompt questions 
   still emit, and only where a repository turns it on.
 A new thing worth suggesting is a row and a line of the weekly message, not a question of its own.
 
+**The one exception (2026-10-28, owner-approved): the offer to turn the context proxy back on** (`proxy-offer.js`).
+A one-off repair of a fault thinker caused, not a recurring suggestion: the machines whose harness the proxy broke
+turned it off, `off` is durable by design, and the hint a stand-down prints is said once to someone whose session is
+already failing, so those machines were the ones getting no clearing at all. Asked once per machine, first in the
+hook's one-question chain (`proxyOffer || coverageOffer || contextSuggestOffer`), through the agent's own question
+tool, answered through thinker's `proxy` MCP tool (`mcp-server.js`) or `thinker proxy --answer yes|no|never`. The
+cohort is a machine whose proxy is off and was once on, either before `FIXED_AT` (2026-10-28, so the fault was live
+when they turned it off) or by a stand-down, which only the fixed code does; a cloud route is never asked, since the
+proxy cannot speak those formats and there would be nothing to say yes to. Where the machine routes Claude Code
+through a model server of its own, yes means `--gateway` (`enableProxyService`), the only thing that puts the proxy
+in front of one. Any answer closes it for good -- asking twice is pestering someone thinker already broke once --
+and the counts reach the telemetry as `proxy.offer` (`asked`, `yes`, `no`, `never`). No model call anywhere in it,
+so it works in a desktop app with no CLI signed in.
+
 It is a question the agent must put to the person, through its own question tool (2026-10-27, the owner's ask;
 `QUESTION_TOOLS` by client, in chat where there is none and for Codex, as `coverage.js` does). Until then it was prose
 the agent was asked to relay, and the three devices shown one decided nothing at all: a relayed message can be skipped

@@ -21,6 +21,7 @@ import { turnNotice, turnFooterMarkdown, weeklyNotice } from '../usage.js';
 import { claudeCardActive } from '../claude-card.js';
 import { setupRepo } from '../repo-onboard.js';
 import { coverageOffer, recordAccess } from '../coverage.js';
+import { proxyOffer } from '../proxy-offer.js';
 import { harnessRecall, harnessIndex, harnessOn } from '../harness.js';
 import { contextSuggestOffer, ensureUi, suggestionsUrl } from '../context-suggest.js';
 import { skillSuggestOn, skillSuggestLines, hookSkillFacts } from '../skill-suggest.js';
@@ -205,7 +206,9 @@ async function hookCommand(ctx) {
         const index = harnessHere ? harnessIndex(store, { session, client }) : '';
         // the week's five highest-leverage context changes, one message with the local page's link (context-suggest.js):
         // the one suggestion the person gets, instruction sections, skills, MCP servers and tool outputs ranked together
-        const offer = [offersOn ? (coverageOffer(store, { client }) || contextSuggestOffer(store, { repoId: repoId(store.repo), client })) : '', work, index, recall].filter(Boolean).join('\n\n');
+        // one question a prompt: the one-off repair offer first (proxy-offer.js, the owner-approved exception of
+        // 2026-10-28 to "one suggestion, not three"), then coverage, then the week's context suggestion
+        const offer = [offersOn ? (proxyOffer(store, { client }) || coverageOffer(store, { client }) || contextSuggestOffer(store, { repoId: repoId(store.repo), client })) : '', work, index, recall].filter(Boolean).join('\n\n');
         // Every git repository has a cache, started on first use and empty until it learns; the hooks serve
         // from it once it holds a few notes (ops.js:SERVE_MIN_NOTES). A prompt served nothing is still a
         // request: `thinker usage` and the telemetry count a machine as active by its requests, and a cache in

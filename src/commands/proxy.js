@@ -34,6 +34,12 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
   const sub = pos[0] || 'serve';
   const logFile = proxyLogFile();
   const cli = path.join(HERE, 'cli.js');
+  // the answer to the one-off offer, for a client that speaks no MCP and for anyone typing it
+  if (flags.answer != null || sub === 'answer') {
+    const { answerProxyOffer } = await import('../proxy-offer.js');
+    out(await answerProxyOffer(String(flags.answer === true ? (args[1] || '') : flags.answer ?? args[1] ?? ''), { cli, client: flags.client ? String(flags.client) : undefined, via: flags.via === 'text' ? 'text' : 'picker' }));
+    return;
+  }
   if (sub === 'on') {
     // --gateway: sit in front of the model server this machine already routes Claude Code through, instead of
     // Anthropic's API, so the clearing reaches those sessions too (proxy-route.js:ownGateway). --upstream names one.
