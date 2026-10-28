@@ -401,6 +401,30 @@ by session id (`transcripts.js:sessionModel`); the saving is reported by model
 its normalized counters (`llm.js:executeProvider` adds `tokens`; `model-usage.js:tokensOf`),
 which is what the commands print after a run (`~24k tokens`).
 
+## The one-time staleness reset
+
+`stale-reset.js`, run once per repository by `thinker rewire` after an update, beside
+`retire-background.js`. Every note marked stale is re-baselined: its deps re-hashed against the
+working tree and the `stale` block dropped, which is exactly what a `still_valid` verdict does to the
+record (`ops.js:verifyNote`). Setting the status alone would change nothing, since the next `refresh`
+re-derives staleness from the stored hashes.
+
+Statuses are brought up to date first (`refresh`, as `thinker check` does), because staleness is
+worked out when a note is checked, not when the code changes: a cache holds notes that are stale and
+not yet marked, and clearing only the marked ones would leave those to go stale on the next prompt.
+On this repository 324 notes were marked stale on disk and 325 would clear.
+
+It does not touch `confidence` and does not set `verified`: no model looked at these notes, and a
+reset is not a verification. It records `rebaselined` (a `LOCAL_FIELDS` entry) so the notes it waved
+through stay identifiable. `invalid` notes, a `violated` behavior and a `broken` skill card are left
+alone; only `stale` is cleared. `RESET_VERSION` guards it per repository, and the marker file keeps the
+prior record of every note it touched, so `undoStaleReset` can put them back.
+
+**What it costs.** About half of the cleared notes were going to come back `update` or `invalid`
+(53% `still_valid` across production, 51% here), and they are now served without the ⚠ STALE banner
+that warned the agent. The trade: a withheld note helps nobody, and a wrong one is caught again the
+next time its code changes. Owner's decision, 2026-10-28.
+
 ## What a note is
 
 A note answers a recurring question, not "what this file does":
