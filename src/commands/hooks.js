@@ -89,7 +89,7 @@ async function hookCommand(ctx) {
       try {
         const p = await ensureProxy({ cli });
         if (p.started && ctx.store?.exists()) ctx.store.log({ op: 'proxy-start', pid: p.pid, listening: p.listening });
-        if (p.stoodDown && ctx.store?.exists()) { ctx.store.log({ op: 'proxy-standdown', reason: p.stoodDown }); reportPruned(ctx.store, [`context proxy off: ${p.stoodDown}. Your agents call the API directly again; thinker proxy on puts it back`]); }
+        if (p.stoodDown && ctx.store?.exists()) { ctx.store.log({ op: 'proxy-standdown', reason: p.stoodDown }); reportPruned(ctx.store, [`context proxy off (${p.stoodDown}): your agents call the API directly again, and thinker proxy on puts it back`]); }
       } catch {}
     }
     if (userScope) {

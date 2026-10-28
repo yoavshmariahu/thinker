@@ -17,7 +17,7 @@ import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, un
 import { readLog } from '../usage.js';
 import { isTestMode } from '../test-mode.js';
 import { recordRepair, repairAfterUpdate as rewireAfterUpdate } from '../environment-repair.js';
-import { proxyOn, proxyUrl, wireAgents, restartService, disableProxyService, serviceState, enableProxyService, removedByHand, standDown } from '../proxy-service.js';
+import { proxyOn, proxyUrl, wireAgents, restartService, disableProxyService, serviceState, enableProxyService, removedByHand, trackClaude, routeAppeared, standDown } from '../proxy-service.js';
 
 async function initCommand(ctx) {
   // `init` and `setup` were two ways to set a repository up, and the difference was never clear.
@@ -172,11 +172,11 @@ async function rewireCommand(ctx) {
     try {
       // the URL taken out of Claude Code's settings by hand is the person's answer: this is where it used to be
       // written in again on the day after (proxy-service.js:removedByHand)
-      const gone = removedByHand();
+      const gone = trackClaude() || removedByHand() || routeAppeared();
       if (gone) {
         standDown(gone);
         summary.changed++;
-        if (!quiet && !flags.json) out(`your settings: context proxy off, ${gone}; your agents call the API directly (thinker proxy on puts it back)`);
+        if (!quiet && !flags.json) out(`your settings: context proxy off (${gone}): your agents call the API directly, and thinker proxy on puts it back`);
       } else {
         const w = wireAgents(proxyUrl(), { repos });
         if (w.changed.length) { summary.changed++; summary.files.push(...w.changed.map(x => x.file)); if (!quiet && !flags.json) out(`your settings: rewired ${w.changed.map(x => x.file).join(', ')} to the context proxy`); }

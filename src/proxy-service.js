@@ -109,7 +109,7 @@ export async function ensureProxy({ cli, home = thinkerHome(), wait = 1500 } = {
   if (!s.enabled || !s.port) return { on: false };
   // the setting taken out by hand is an answer, and this is the first thing that runs after it: the service goes,
   // rather than the URL being written in again on the next update (`removedByHand`)
-  const gone = removedByHand({ home });
+  const gone = trackClaude({ home }) || removedByHand({ home }) || routeAppeared({ home });
   if (gone) { standDown(gone, { home }); return { on: false, stoodDown: gone }; }
   if (await isListening(s.port)) return { on: true, running: true };
   const pid = startDetached({ cli, home });
@@ -305,14 +305,29 @@ function claudeFile(url, home, env, repos) {
   return { file: f, changed: true };
 }
 
-// Whether the proxy's URL is in Claude Code's settings now: true, false, or null where the file cannot be judged
-// (test mode without CLAUDE_CONFIG_DIR, an unreadable file)
+// Whether the proxy's URL is in Claude Code's settings now: true, false (the file is there and it is not), or
+// null where the file cannot be judged -- no settings file at all (no Claude Code on this machine), an unreadable
+// one, test mode without CLAUDE_CONFIG_DIR. Null is never read as a removal.
 export function claudeWired(home = thinkerHome()) {
   if (testGuard('CLAUDE_CONFIG_DIR')) return null;
-  const f = claudeSettings();
-  if (!fs.existsSync(f)) return false;
-  let cur; try { cur = JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; }
+  let cur; try { cur = JSON.parse(fs.readFileSync(claudeSettings(), 'utf8')); } catch { return null; }
   return isOwnUrl(cur?.env?.[PROXY_ENV], home);
+}
+
+// A service enabled before this version kept no record of what it wrote (`wroteClaude`), so what the settings
+// hold now becomes the baseline and a later removal reads as the person's answer. Where the URL is not there and
+// no route of the person's own explains its absence, it was taken out before this version arrived: that is the
+// machine the proxy broke, and it steps aside at once.
+export function trackClaude({ home = thinkerHome(), env = process.env } = {}) {
+  const s = serviceState(home);
+  if (!s.enabled || s.wroteClaude !== undefined) return null;
+  const wired = claudeWired(home);
+  if (wired === null) return null;
+  const record = v => writeJson(stateFile(home), { ...serviceState(home), wroteClaude: v });
+  if (wired) { record(true); return null; }
+  let settings = {}; try { settings = JSON.parse(fs.readFileSync(claudeSettings(), 'utf8')) || {}; } catch {}
+  if (claudeBlocker(settings, { home, env })) { record(false); return null; }
+  return 'its URL is not in Claude Code\'s settings: it was taken out';
 }
 
 // The person took the proxy out of Claude Code's settings by hand -- deleted the line, or pointed the agent at a
@@ -325,6 +340,17 @@ export function removedByHand({ home = thinkerHome() } = {}) {
   // no path in the reason: it is sent with the telemetry (telemetry.js:proxyMetrics), and every reason a
   // stand-down carries must be a sentence of thinker's own with nothing of this machine in it
   return claudeWired(home) === false ? 'its URL was taken out of Claude Code\'s settings by hand' : null;
+}
+
+// A route of the person's own that turned up after the wiring: a gateway they have just set up, an export added
+// to a shell file, a policy file that arrived. The prompt hook runs before the model call, so the proxy can step
+// aside before anything fails rather than after the API has refused a request (proxy.js:authWatch is the net for
+// the clients the hook never runs in).
+export function routeAppeared({ home = thinkerHome(), env = process.env } = {}) {
+  const s = serviceState(home);
+  if (!s.enabled || s.wroteClaude !== true) return null;
+  let settings = {}; try { settings = JSON.parse(fs.readFileSync(claudeSettings(), 'utf8')) || {}; } catch { return null; }
+  return claudeBlocker(settings, { home, env });
 }
 
 // The proxy steps aside and stays aside: the URL out of every agent's file, the service entry and process gone,
