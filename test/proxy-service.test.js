@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'smol-toml';
 import { serviceState, proxyOn, proxyUrl, isOwnUrl, freePort, isListening, serviceArgs, plistText, unitText, claudeBlocker, withProxyUrl, withoutProxyUrl,
-  wireAgents, enableProxyService, disableProxyService, ensureProxy, installService, uninstallService, wiredLines, SERVICE_HOLDOUT, PROXY_ENV, PROXY_LABEL } from '../src/proxy-service.js';
+  wireAgents, enableProxyService, disableProxyService, ensureProxy, installService, uninstallService, wiredLines, removedByHand, standDown, claudeWired, trackClaude, routeAppeared, SERVICE_HOLDOUT, PROXY_ENV, PROXY_LABEL } from '../src/proxy-service.js';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
 const tmp = prefix => fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -164,4 +164,118 @@ test('ensureProxy starts the proxy when nothing listens, and leaves a listening 
     if (pid) { try { process.kill(pid, 'SIGTERM'); } catch {} }
     m.restore();
   }
+});
+
+test('a route the person exported in their shell leaves Claude Code alone, the other agents are still wired', async () => {
+  const m = fakeMachine();
+  try {
+    const shellHome = path.join(m.root, 'shell');
+    fs.mkdirSync(shellHome, { recursive: true });
+    fs.writeFileSync(path.join(shellHome, '.zshrc'), 'export ANTHROPIC_BASE_URL=https://router.corp\nexport ANTHROPIC_AUTH_TOKEN=gw-token\n');
+    fs.mkdirSync(path.dirname(m.files.claude), { recursive: true });
+    fs.writeFileSync(m.files.claude, JSON.stringify({ env: { A: '1' } }));
+    const env = { ...m.env, THINKER_ROUTE_HOME: shellHome };
+    const p = await enableProxyService({ cli: CLI, home: m.home, env, manage: false });
+    const claude = p.wired.skipped.find(s => s.agent === 'claude');
+    assert.match(claude.reason, /ANTHROPIC_BASE_URL is set to https:\/\/router\.corp in ~\/\.zshrc/);
+    assert.deepEqual(readJson(m.files.claude), { env: { A: '1' } }, 'nothing written where the person routes elsewhere');
+    assert.deepEqual(p.wired.changed.map(c => c.agent).sort(), ['opencode', 'pi']);
+    assert.equal(serviceState(m.home).wroteClaude, undefined, 'nothing of ours in Claude Code\'s settings to miss later');
+  } finally { m.restore(); }
+});
+
+test('the URL taken out of Claude Code\'s settings by hand turns the service off, and nothing writes it back', async () => {
+  const m = fakeMachine();
+  try {
+    fs.mkdirSync(path.dirname(m.files.claude), { recursive: true });
+    fs.writeFileSync(m.files.claude, JSON.stringify({ env: { A: '1' } }));
+    const p = await enableProxyService({ cli: CLI, home: m.home, env: m.env, manage: false });
+    assert.equal(serviceState(m.home).wroteClaude, true);
+    assert.equal(claudeWired(m.home), true);
+    assert.equal(removedByHand({ home: m.home }), null, 'it is there');
+    // the person deletes the line (or points Claude Code at a gateway of their own)
+    fs.writeFileSync(m.files.claude, JSON.stringify({ env: { A: '1' } }));
+    assert.match(removedByHand({ home: m.home }), /taken out of Claude Code/);
+    // the prompt hook is the first thing to run after that: the service goes rather than the URL coming back
+    const e = await ensureProxy({ cli: CLI, home: m.home, wait: 1 });
+    assert.match(e.stoodDown, /taken out of Claude Code/);
+    assert.equal(e.on, false);
+    const s = serviceState(m.home);
+    assert.equal(s.enabled, false);
+    assert.match(s.standDown.reason, /taken out of Claude Code/);
+    assert.equal(fs.existsSync(m.files.pi), false, 'the other agents are taken out with it');
+    // an install, a connect or the daily rewire does not put it back
+    const again = await enableProxyService({ cli: CLI, home: m.home, env: m.env, manage: false });
+    assert.match(again.stoodDown, /taken out of Claude Code/);
+    assert.deepEqual(again.wired.changed, []);
+    assert.equal(proxyOn(m.home), false);
+    assert.deepEqual(readJson(m.files.claude), { env: { A: '1' } });
+    // only the person asking for it does
+    const forced = await enableProxyService({ cli: CLI, home: m.home, env: m.env, manage: false, force: true });
+    assert.equal(proxyOn(m.home), true);
+    assert.equal(readJson(m.files.claude).env[PROXY_ENV], forced.url);
+    assert.equal(serviceState(m.home).standDown, undefined);
+  } finally { m.restore(); }
+});
+
+test('standDown: the service off with its reason, and no-op for a proxy on another port', async () => {
+  const m = fakeMachine();
+  try {
+    fs.mkdirSync(path.dirname(m.files.claude), { recursive: true });
+    const p = await enableProxyService({ cli: CLI, home: m.home, env: m.env, manage: false });
+    assert.equal(standDown('x', { home: m.home, manage: false, port: p.port + 1 }), null, 'another proxy\'s business');
+    assert.equal(proxyOn(m.home), true);
+    const r = standDown('the API refused the agent\'s credentials', { home: m.home, manage: false, port: p.port });
+    assert.equal(proxyOn(m.home), false);
+    assert.match(r.reason, /refused/);
+    assert.equal(readJson(m.files.claude).env?.[PROXY_ENV], undefined);
+    assert.equal(standDown('again', { home: m.home, manage: false }), null, 'off already');
+  } finally { m.restore(); }
+});
+
+test('a service enabled before the record: the settings now are the baseline, and an absence nothing explains stands it down', async () => {
+  const m = fakeMachine();
+  try {
+    fs.mkdirSync(path.dirname(m.files.claude), { recursive: true });
+    fs.mkdirSync(path.join(m.home, 'state'), { recursive: true });
+    const legacy = extra => fs.writeFileSync(path.join(m.home, 'state', 'proxy-service.json'), JSON.stringify({ enabled: true, port: 6901, ports: [6901], ...extra }));
+    // ours is there: recorded, nothing else happens
+    legacy();
+    fs.writeFileSync(m.files.claude, JSON.stringify({ env: { [PROXY_ENV]: 'http://127.0.0.1:6901' } }));
+    assert.equal(trackClaude({ home: m.home, env: {} }), null);
+    assert.equal(serviceState(m.home).wroteClaude, true);
+    // Claude Code was never wired because the person routes elsewhere: recorded as such, left alone
+    legacy();
+    fs.writeFileSync(m.files.claude, JSON.stringify({ env: { [PROXY_ENV]: 'https://gw.corp' } }));
+    assert.equal(trackClaude({ home: m.home, env: {} }), null);
+    assert.equal(serviceState(m.home).wroteClaude, false);
+    // no settings file at all (no Claude Code here): nothing is concluded
+    legacy();
+    fs.rmSync(m.files.claude);
+    assert.equal(trackClaude({ home: m.home, env: {} }), null);
+    assert.equal(serviceState(m.home).wroteClaude, undefined);
+    // the file is there, our URL is not, and no route explains it: the person took it out before this version
+    legacy();
+    fs.writeFileSync(m.files.claude, JSON.stringify({ env: { A: '1' } }));
+    assert.match(trackClaude({ home: m.home, env: {} }), /taken out/);
+  } finally { m.restore(); }
+});
+
+test('a route the person sets up after the wiring: the next prompt takes the proxy out, before a call fails', async () => {
+  const m = fakeMachine();
+  try {
+    fs.mkdirSync(path.dirname(m.files.claude), { recursive: true });
+    fs.writeFileSync(m.files.claude, JSON.stringify({ env: { A: '1' } }));
+    const p = await enableProxyService({ cli: CLI, home: m.home, env: m.env, manage: false });
+    assert.equal(readJson(m.files.claude).env[PROXY_ENV], p.url);
+    const env = { ...m.env, THINKER_ROUTE_HOME: path.join(m.root, 'shell') };
+    assert.equal(routeAppeared({ home: m.home, env }), null, 'no route of theirs yet');
+    fs.mkdirSync(path.join(m.root, 'shell'), { recursive: true });
+    fs.writeFileSync(path.join(m.root, 'shell', '.zshrc'), 'export ANTHROPIC_BASE_URL=https://smartrouter.internal\n');
+    const why = routeAppeared({ home: m.home, env });
+    assert.match(why, /smartrouter\.internal in ~\/\.zshrc/);
+    standDown(why, { home: m.home, manage: false });
+    assert.equal(proxyOn(m.home), false);
+    assert.equal(readJson(m.files.claude).env?.[PROXY_ENV], undefined, 'their route is the only one left');
+  } finally { m.restore(); }
 });

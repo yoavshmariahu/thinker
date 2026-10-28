@@ -99,7 +99,10 @@ export async function stepConnectClis({ repo = null, cliPath, mcpEntry, userMcpE
   if (proxy && !isTestMode()) {
     try {
       const p = await enableProxyService({ cli: cliPath, home });
-      results.push({ client: 'proxy', status: 'connected', name: 'Context proxy', logs: [`old tool results cleared from context (${p.url}${p.listening === false ? ', not listening yet: the next prompt starts it' : ''})`, ...wiredLines(p.wired, p.url)] });
+      // it stood aside once (a route of the person's own, or the setting taken out): an install does not put it
+      // back, only `thinker proxy on` does (proxy-service.js:standDown)
+      if (p.stoodDown) results.push({ client: 'proxy', status: 'skipped', name: 'Context proxy', detail: `left off (${p.stoodDown}); thinker proxy on turns it back on` });
+      else results.push({ client: 'proxy', status: 'connected', name: 'Context proxy', logs: [`old tool results cleared from context (${p.url}${p.listening === false ? ', not listening yet: the next prompt starts it' : ''})`, ...wiredLines(p.wired, p.url)] });
     } catch (e) { results.push({ client: 'proxy', status: 'error', detail: e.message }); }
   }
 

@@ -284,6 +284,19 @@ plugin on a machine without thinker does nothing.
   pi (`models.json`) and OpenCode (`opencode.json`); Goose, Aider, Cline, Droid, Copilot CLI with your own key, Qwen
   Code on an Anthropic provider and Kilo's CLI take it by hand at the keys above; Codex, Cursor, Gemini CLI, Kiro,
   Windsurf and Auggie have no Anthropic URL to point at it. `thinker proxy status|off|on`, `connect --no-proxy`.
+  **A route of your own is never taken over** (`src/proxy-route.js`, 2026-10-28): plenty of people point Claude Code
+  at a model server of their own -- a gateway that routes each request to whichever model it picks -- and its token
+  is not Anthropic's, so a proxy in front of it sends that token to `api.anthropic.com` and every call fails
+  ("invalid bearer token"). Before writing anything, thinker reads every place Claude Code can take a route from:
+  the settings' `env` block, its own environment, `~/.claude/settings.local.json`, the enterprise policy file, a
+  project's `.claude/settings*.json`, and your shell startup files (a wrapper or an alias naming
+  `ANTHROPIC_BASE_URL` counts). Any route that is not thinker's own leaves Claude Code exactly as it is, with the
+  reason printed. Taking the URL out of the settings by hand is an answer: the next prompt turns the service off
+  instead of writing it back, and an install or an update leaves it off until `thinker proxy on`. And if a routed
+  agent reaches the proxy anyway -- credentials that cannot be Anthropic's, or the API refusing them three
+  requests running -- the proxy takes itself out of every agent's settings and says why in `thinker proxy status`
+  and at the end of the next turn. The request itself is always forwarded as it came, so what the agent sees is
+  the API's own answer.
 - **Codex / Responses tool-output clearing (on by default, 2026-10-25, owner's request):**
   install, `connect`, `setup`, and updates select a managed Codex provider on the shared service
   (`/codex`). It uses the existing ChatGPT or OpenAI API login over HTTP/SSE; custom providers and

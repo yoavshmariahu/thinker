@@ -4,7 +4,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { startProxy, transformRequest, proxyConfig, proxyReport, heldOut, usageTap, clearEdit, turnToolUses, thinkingEdit, resultsBeforeTurn, EDIT_TYPE, EDIT_BETA, PROXY_DEFAULTS } from '../src/proxy.js';
+import { startProxy, AUTH_REFUSALS, transformRequest, proxyConfig, proxyReport, heldOut, usageTap, clearEdit, turnToolUses, thinkingEdit, resultsBeforeTurn, EDIT_TYPE, EDIT_BETA, PROXY_DEFAULTS } from '../src/proxy.js';
 
 const BETA = `oauth-2025-04-20,${EDIT_BETA},claude-code-20250219`;
 const body = (extra = {}) => Buffer.from(JSON.stringify({ model: 'claude-opus-5-5', messages: [{ role: 'user', content: 'hi' }],
@@ -343,4 +343,22 @@ test('clear-inputs and clear-thinking: off by default, the inputs on the edit, t
   // from the environment, and the service passes the two as flags from the machine config
   assert.equal(proxyConfig({}, { THINKER_PROXY_CLEAR_INPUTS: 'on', THINKER_PROXY_CLEAR_THINKING: '1' }).clearThinking, true);
   assert.equal(proxyConfig({}, { THINKER_PROXY_CLEAR_INPUTS: 'off' }).clearInputs, false);
+});
+
+// A proxy somebody pointed at an upstream of their own (`--upstream`, a benchmark arm, a gateway) must never
+// read a refusal there as thinker having broken a routed harness: the credentials are theirs to match.
+test('an upstream of the person\'s own is never judged: refusals there stand nothing down', async () => {
+  const server = http.createServer((req, res) => { req.resume(); req.on('end', () => { res.writeHead(401, { 'content-type': 'application/json' }); res.end('{"type":"error","error":{"type":"authentication_error","message":"invalid bearer token"}}'); }); });
+  await new Promise(r => server.listen(0, '127.0.0.1', r));
+  const stood = [];
+  const logFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-proxy-')), 'proxy.jsonl');
+  const px = await new Promise(r => { const s = startProxy({ ...PROXY_DEFAULTS, upstream: `http://127.0.0.1:${server.address().port}` }, { logFile, onStandDown: reason => stood.push(reason), onListen: a => r({ server: s, port: a.port }) }); });
+  try {
+    for (let i = 0; i < AUTH_REFUSALS + 1; i++) {
+      const r = await send(px.port, { headers: { authorization: 'Bearer gw_live_123' } });
+      assert.equal(r.status, 401, 'the upstream\'s own answer reaches the agent');
+    }
+    assert.deepEqual(stood, []);
+    assert.deepEqual(rows(logFile).filter(r => r.op === 'proxy-standdown'), []);
+  } finally { px.server.close(); server.close(); }
 });
