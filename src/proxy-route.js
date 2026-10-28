@@ -103,11 +103,25 @@ export function routeEvidence({ env = process.env, isOwn = () => false, repos = 
 // The one route of the person's own the proxy could forward to, nearest first: a base URL that speaks the
 // Messages API. A cloud route is not one, and neither is a variable set to something the proxy cannot read as a
 // URL. `{ url, where }` or null.
-export function ownGateway(opts = {}) {
-  for (const e of routeEvidence(opts)) {
-    if (!e.url) continue;
-    try { const u = new URL(e.url); if (['http:', 'https:'].includes(u.protocol)) return { url: e.url.replace(/\/+$/, ''), where: e.where }; } catch {}
+export function ownGateway({ env = process.env, isOwn = () => false, repos = [] } = {}) {
+  const usable = v => { try { return ['http:', 'https:'].includes(new URL(v).protocol); } catch { return false; } };
+  const out = [];
+  // The process environment and the user's own settings.json come first and are not in `routeFiles`: the
+  // environment because a route is read from it, not from a file, and settings.json because it is the file
+  // thinker writes, so `routeEvidence` has no business reading it. For finding a gateway to forward to they are
+  // the two likeliest places of all -- the API's own documentation puts ANTHROPIC_BASE_URL in that env block --
+  // and leaving them out classed such a machine as having no route at all (2026-10-28).
+  if (env[BASE_URL_VAR] && !isOwn(env[BASE_URL_VAR])) out.push({ url: env[BASE_URL_VAR], where: 'your environment' });
+  // in test mode the real file is left unread unless the test names the directory, as everywhere else that
+  // touches an agent's own files (proxy-service.js:testGuard)
+  if (!isTestMode() || env.CLAUDE_CONFIG_DIR) {
+    const claudeDir = env.CLAUDE_CONFIG_DIR || path.join(env.HOME || os.homedir(), '.claude');
+    const settings = path.join(claudeDir, 'settings.json');
+    const inFile = readJson(settings).env?.[BASE_URL_VAR];
+    if (inFile && !isOwn(inFile)) out.push({ url: inFile, where: shortPath(settings, env.HOME || os.homedir()) });
   }
+  for (const e of routeEvidence({ env, isOwn, repos })) if (e.url) out.push(e);
+  for (const e of out) if (usable(e.url)) return { url: String(e.url).replace(/\/+$/, ''), where: e.where };
   return null;
 }
 

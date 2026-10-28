@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { proxyOffer, proxyOfferDue, proxyOfferPending, answerProxyOffer, offerState, FIXED_AT, FIX_PR, ANSWER_DAYS } from '../src/proxy-offer.js';
+import { proxyOffer, proxyOfferDue, proxyOfferPending, answerProxyOffer, offerState, olderThan, FIXED_IN, FIX_PR, ANSWER_DAYS } from '../src/proxy-offer.js';
 
 // a machine whose proxy state and route are the test's own
 function machine({ service = {}, shell = null } = {}) {
@@ -22,7 +22,8 @@ const store = () => { const rows = []; return { log: r => rows.push(r), rows }; 
 test('who is asked: off before the fix, or stood down; not a machine that is on, never was, or was turned off since', () => {
   const cases = [
     [{ enabled: false, off: OFF_BEFORE }, 'plain', 'off while the fault was live'],
-    [{ enabled: false, off: '2026-10-29T10:00:00.000Z' }, null, 'turned off after the fix, on purpose'],
+    [{ enabled: false, off: '2026-10-29T10:00:00.000Z', offVersion: '0.2.13' }, null, 'turned off on a version that already behaves'],
+    [{ enabled: false, off: '2026-10-29T10:00:00.000Z', offVersion: '0.2.11' }, 'plain', 'the fault was live on their copy, whatever the date'],
     [{ enabled: false, off: OFF_BEFORE, standDown: { at: '2026-10-29T09:00:00.000Z', reason: 'its URL was taken out' } }, 'plain', 'a stand-down is the fixed code speaking'],
     [{ enabled: true, port: 6901 }, null, 'it is on'],
     [{}, null, 'it was never on'],
@@ -128,6 +129,21 @@ test('a question nobody answers stops being awaited, and the proxy standing down
   } finally { m.rm(); }
 });
 
-test('the fix date is the cohort line', () => {
-  assert.equal(FIXED_AT, '2026-10-28');
+test('the cohort line is the version that turned it off, not the calendar', () => {
+  assert.equal(FIXED_IN, '0.2.12');
+  assert.equal(olderThan('0.2.11', '0.2.12'), true);
+  assert.equal(olderThan('0.2.12', '0.2.12'), false);
+  assert.equal(olderThan('0.2.13', '0.2.12'), false);
+  assert.equal(olderThan('0.10.0', '0.2.12'), false, 'numbers, not strings');
+  assert.equal(olderThan('0.1.9', '0.2.12'), true);
+});
+
+test('a yes that leaves Claude Code alone says so instead of claiming the clearing is on', async () => {
+  const m = machine({ service: { enabled: false, off: OFF_BEFORE } });
+  try {
+    proxyOffer(store(), { client: 'claude', home: m.home, env: m.env });
+    const reply = await answerProxyOffer('yes', { home: m.home, env: m.env, enableFn: async () => ({ url: 'http://127.0.0.1:6901', wired: { skipped: [{ agent: 'claude', reason: 'settings.json is not valid JSON, so thinker left it alone' }], changed: [], unchanged: [] } }) });
+    assert.match(reply, /Claude Code was left as it is: settings\.json is not valid JSON/);
+    assert.match(reply, /not being cleared/);
+  } finally { m.rm(); }
 });

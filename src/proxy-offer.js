@@ -25,12 +25,21 @@ import { QUESTION_TOOLS, MCP_CLIENTS } from './repo-onboard.js';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), 'cli.js');
 // The release that stopped the proxy taking over someone else's route, and the pull request that did it.
-export const FIXED_AT = '2026-10-28';
+export const FIXED_IN = '0.2.12';
 export const FIX_PR = 'https://github.com/yoavshmariahu/thinker/pull/517';
 // A question nobody answers does not keep thinker's `proxy` tool registered for ever
 export const ANSWER_DAYS = 7;
 // Agents with no way to put a question to the person
 const SILENT = ['windsurf', 'goose', 'augment'];
+
+// `0.2.11` is older than `0.2.12`; anything unparseable counts as older, since the record is only kept by
+// versions that already behave
+export function olderThan(a, b) {
+  const part = v => String(v).split('.').map(n => Number.parseInt(n, 10) || 0);
+  const [x, y] = [part(a), part(b)];
+  for (let i = 0; i < Math.max(x.length, y.length); i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d < 0; }
+  return false;
+}
 
 const stateFile = home => path.join(home, 'state', 'proxy-offer.json');
 export function offerState(home = thinkerHome()) {
@@ -55,7 +64,12 @@ export function proxyOfferDue({ home = thinkerHome(), env = process.env, now = D
   const s = serviceState(home);
   if (s.enabled || !(s.off || s.standDown)) return null;
   const since = s.standDown?.at || s.off || null;
-  if (!s.standDown && !(since && since.slice(0, 10) < FIXED_AT)) return null;
+  // The fault was live on a machine while it ran a version without the fix, which the calendar says nothing
+  // about: someone can hit it tomorrow on an old copy. So the question is which version turned the proxy off
+  // (`disableProxyService` records it). No version recorded means it was turned off before thinker kept that
+  // record -- the backlog this is for. A stand-down is only ever written by the fixed code, and only on the
+  // machines that were routed, so it qualifies whatever the version.
+  if (!s.standDown && s.offVersion && !olderThan(s.offVersion, FIXED_IN)) return null;
   for (const k of CLOUD_VARS) if (cloudOn(env[k])) return null;
   const gateway = ownGateway({ env, isOwn: u => isOwnRoute(u, home) });
   return { kind: gateway ? 'gateway' : 'plain', gateway: gateway || null, since, reason: s.standDown?.reason || null };
@@ -112,5 +126,10 @@ export async function answerProxyOffer(choice, { store, client, via = 'picker', 
   const p = await enableFn({ cli, home, env, force: true, gateway: st.kind === 'gateway' ? true : undefined });
   if (p?.stoodDown) return `thinker's context proxy stayed off: ${p.stoodDown}. Go on with the task.`;
   const where = p?.upstream ? ` and forwards to ${p.upstream}, the model server this machine already uses` : '';
+  // What the wiring actually did, not what was asked for: Claude Code can still be left alone (a route the proxy
+  // was not told to forward to, a settings file that does not parse), and saying "on" then would be a claim that
+  // their sessions are being cleared when nothing of theirs was touched.
+  const left = (p?.wired?.skipped || []).find(x => x.agent === 'claude');
+  if (left) return `Context proxy on: ${p.url}${where}, but Claude Code was left as it is: ${left.reason}. Its sessions are not being cleared. Go on with the task.`;
   return `Context proxy on: ${p?.url}${where}. It clears old tool results from long sessions; \`thinker proxy off\` stops it, \`thinker proxy status\` says what it did. Go on with the task.`;
 }

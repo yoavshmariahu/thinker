@@ -37,6 +37,17 @@ export const OTHER_ROUTES = CLOUD_VARS;
 const stateFile = home => path.join(home, 'state', 'proxy-service.json');
 const readJson = (f, d = {}) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')) || d; } catch { return d; } };
 const writeJson = (f, v) => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify(v, null, 2) + '\n'); };
+// An agent's own file, read in order to write it back. `readJson` answers `{}` for anything it cannot parse, and
+// writing that back replaced a whole settings file -- permissions, hooks, model, every env of the person's -- with
+// thinker's one key. A file with a comment in it, a trailing comma, or one caught half-written by another process
+// is left exactly as it is and named instead. An absent or empty file is a new one and is fine to write.
+const readForWrite = f => {
+  let text;
+  try { text = fs.readFileSync(f, 'utf8'); } catch { return { value: {} }; }
+  if (!text.trim()) return { value: {} };
+  try { const v = JSON.parse(text); return { value: v && typeof v === 'object' ? v : {} }; }
+  catch { return { why: `${path.basename(f)} is not valid JSON, so thinker left it alone` }; }
+};
 
 // { enabled, port, ports (every port the service ever had, so an old URL is still known as ours), since, off, pid }
 export const serviceState = (home = thinkerHome()) => readJson(stateFile(home));
@@ -252,6 +263,21 @@ const setEnv = (settings, value) => {
   if (!Object.keys(e).length) delete out.env;
   return out;
 };
+// Taking over a route of the person's own happens in one case only: they asked the proxy to sit in front of
+// their model server (`--gateway`), so `isOwnRoute` lets the write through. The value replaced is kept here, and
+// unwiring puts it back. Without that, `thinker proxy off` deleted the key -- thinker's own by then -- and their
+// gateway URL was gone from the file: Claude Code would go straight to the API with a token minted for their
+// server, which is the failure of 2026-10-28 all over again, caused by thinker on its way out.
+const rememberReplaced = (home, agent, url) => writeJson(stateFile(home), { ...serviceState(home), replaced: { ...(serviceState(home).replaced || {}), [agent]: url } });
+const takeReplaced = (home, agent) => {
+  const s = serviceState(home);
+  const url = s.replaced?.[agent];
+  if (!url) return null;
+  const replaced = { ...s.replaced }; delete replaced[agent];
+  writeJson(stateFile(home), { ...s, replaced: Object.keys(replaced).length ? replaced : undefined });
+  return url;
+};
+
 export const withProxyUrl = (settings, url) => setEnv(settings, url);
 export const withoutProxyUrl = (settings, home = thinkerHome()) => isOwnUrl(settings?.env?.[PROXY_ENV], home) ? setEnv(settings, null) : settings;
 
@@ -265,7 +291,9 @@ const opencodeDir = () => path.join(process.env.XDG_CONFIG_HOME || path.join(os.
 function piFile(url, home) {
   const f = piModels();
   const guard = testGuard('PI_CODING_AGENT_DIR'); if (guard) return url ? { file: f, skipped: guard } : { file: f, unchanged: true };
-  const cur = readJson(f);
+  const read = readForWrite(f);
+  if (read.why) return { file: f, skipped: read.why, unchanged: !url };
+  const cur = read.value;
   const have = cur.providers?.anthropic?.baseUrl;
   if (url) {
     if (have && !isOwnUrl(have, home)) return { file: f, skipped: `providers.anthropic.baseUrl is already ${have}` };
@@ -286,7 +314,9 @@ function opencodeFile(url, home) {
   const f = path.join(dir, 'opencode.json'), fc = path.join(dir, 'opencode.jsonc');
   const guard = testGuard('XDG_CONFIG_HOME'); if (guard) return url ? { file: f, skipped: guard } : { file: f, unchanged: true };
   if (!fs.existsSync(f) && fs.existsSync(fc)) return { file: fc, skipped: url ? 'the config is opencode.jsonc, which thinker does not rewrite: set provider.anthropic.options.baseURL there' : undefined, unchanged: !url };
-  const cur = readJson(f);
+  const read = readForWrite(f);
+  if (read.why) return { file: f, skipped: read.why, unchanged: !url };
+  const cur = read.value;
   const have = cur.provider?.anthropic?.options?.baseURL;
   if (url) {
     if (have && !isOwnUrl(have, home)) return { file: f, skipped: `provider.anthropic.options.baseURL is already ${have}` };
@@ -307,18 +337,22 @@ function opencodeFile(url, home) {
 function claudeFile(url, home, env, repos) {
   const f = claudeSettings();
   const guard = testGuard('CLAUDE_CONFIG_DIR'); if (guard) return url ? { file: f, skipped: guard } : { file: f, unchanged: true };
-  const cur = readJson(f);
+  const read = readForWrite(f);
+  if (read.why) return { file: f, skipped: read.why, unchanged: !url };
+  const cur = read.value;
   if (url) {
     const why = claudeBlocker(cur, { home, env, repos });
     if (why) return { file: f, skipped: why };
     if (cur.env?.[PROXY_ENV] === url) return { file: f, unchanged: true };
+    const theirs = cur.env?.[PROXY_ENV];
+    if (theirs && !isOwnUrl(theirs, home)) rememberReplaced(home, 'claude', theirs);
     writeJson(f, withProxyUrl(cur, url));
     return { file: f, changed: true };
   }
-  const next = withoutProxyUrl(cur, home);
-  if (next === cur) return { file: f, unchanged: true };
-  writeJson(f, next);
-  return { file: f, changed: true };
+  if (!isOwnUrl(cur.env?.[PROXY_ENV], home)) { takeReplaced(home, 'claude'); return { file: f, unchanged: true }; }
+  const back = takeReplaced(home, 'claude');
+  writeJson(f, setEnv(cur, back || null));
+  return { file: f, changed: true, ...(back ? { restored: back } : {}) };
 }
 
 // Whether the proxy's URL is in Claude Code's settings now: true, false (the file is there and it is not), or
@@ -429,7 +463,9 @@ export function disableProxyService({ home = thinkerHome(), manage, keepState = 
   const wired = wireAgents(null, { home });
   const removed = uninstallService({ home, manage });
   const s = serviceState(home);
-  if (keepState) writeJson(stateFile(home), { ...s, enabled: false, off: new Date().toISOString(), pid: undefined, wroteClaude: undefined, upstream: undefined });
+  // the version that turned it off, so the one-off offer can tell someone who turned it off while the fault of
+  // 2026-10-28 was live from someone who turned it off on a version that already behaves (proxy-offer.js)
+  if (keepState) writeJson(stateFile(home), { ...s, enabled: false, off: new Date().toISOString(), offVersion: appVersion(), pid: undefined, wroteClaude: undefined, upstream: undefined });
   else fs.rmSync(stateFile(home), { force: true });
   return { wired, removed };
 }
