@@ -368,8 +368,9 @@ test('cli setup sends installation telemetry in background', async () => {
       stdio: 'pipe',
     });
 
-    // Wait up to 3 seconds for background telemetry request
-    const deadline = Date.now() + 3000;
+    // The send is a detached `node cli.js telemetry` of its own, so wait for the process, not a guess at
+    // its speed: 3 seconds was enough alone and not under the whole suite, where the release run saw none.
+    const deadline = Date.now() + 30000;
     while (!received.length && Date.now() < deadline) {
       await new Promise(r => setTimeout(r, 50));
     }
@@ -423,7 +424,7 @@ test('cli setup sends installation telemetry in background upon completion', asy
       stdio: 'pipe',
     });
 
-    const deadline = Date.now() + 3000;
+    const deadline = Date.now() + 30000; // the detached sender, as above
     while (!received.length && Date.now() < deadline) {
       await new Promise(r => setTimeout(r, 50));
     }
