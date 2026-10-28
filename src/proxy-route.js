@@ -40,12 +40,14 @@ export const cloudOn = v => v != null && !/^(0|false|)$/i.test(String(v).trim())
 const readJson = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')) || {}; } catch { return {}; } };
 const shortPath = (f, home) => (home && f.startsWith(home + path.sep) ? '~' + f.slice(home.length) : f);
 
-// `{ where, what }` for the route an `env` block holds, or null
+// What route an `env` block holds: `{ what, url }` for a base URL of the person's own, `{ what, cloud }` for a
+// cloud route, or null. `url` is what the proxy can be told to forward to (`ownGateway`), so the two are apart:
+// a gateway speaks the Messages API and can sit behind the proxy; Bedrock, Vertex and Foundry cannot.
 export function envRoute(block, { isOwn = () => false } = {}) {
   if (!block || typeof block !== 'object') return null;
   const url = block[BASE_URL_VAR];
-  if (url && !isOwn(url)) return `${BASE_URL_VAR} is ${url}`;
-  for (const k of CLOUD_VARS) if (cloudOn(block[k])) return `Claude Code runs on ${k.replace('CLAUDE_CODE_USE_', '').toLowerCase()}, which the proxy does not speak`;
+  if (url && !isOwn(url)) return { what: `${BASE_URL_VAR} is ${url}`, url: String(url) };
+  for (const k of CLOUD_VARS) if (cloudOn(block[k])) return { what: `Claude Code runs on ${k.replace('CLAUDE_CODE_USE_', '').toLowerCase()}, which the proxy does not speak`, cloud: k };
   return null;
 }
 
@@ -73,8 +75,8 @@ export function shellRoute(text, { isOwn = () => false } = {}) {
     if (!v) continue;
     const value = new RegExp(`${v}[=\\s:]+["']?([^"'\\s;]+)`).exec(code)?.[1];
     if (value && isOwn(value)) continue;
-    if (v === BASE_URL_VAR && value) return `${BASE_URL_VAR} is set to ${value}`;
-    return `${v} is set`;
+    if (v === BASE_URL_VAR && value) return { what: `${BASE_URL_VAR} is set to ${value}`, url: value };
+    return { what: `${v} is set`, ...(CLOUD_VARS.includes(v) ? { cloud: v } : {}) };
   }
   return null;
 }
@@ -93,9 +95,20 @@ export function routeEvidence({ env = process.env, isOwn = () => false, repos = 
       if (!fs.statSync(file).isFile()) continue;
       what = kind === 'settings' ? envRoute(readJson(file).env, { isOwn }) : shellRoute(fs.readFileSync(file, 'utf8').slice(0, 256_000), { isOwn });
     } catch { continue; }
-    if (what) out.push({ where: shortPath(file, home), what });
+    if (what) out.push({ where: shortPath(file, home), ...what });
   }
   return out;
+}
+
+// The one route of the person's own the proxy could forward to, nearest first: a base URL that speaks the
+// Messages API. A cloud route is not one, and neither is a variable set to something the proxy cannot read as a
+// URL. `{ url, where }` or null.
+export function ownGateway(opts = {}) {
+  for (const e of routeEvidence(opts)) {
+    if (!e.url) continue;
+    try { const u = new URL(e.url); if (['http:', 'https:'].includes(u.protocol)) return { url: e.url.replace(/\/+$/, ''), where: e.where }; } catch {}
+  }
+  return null;
 }
 
 // The request's credentials are not Anthropic's, so forwarding it to api.anthropic.com can only fail: the

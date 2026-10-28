@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'smol-toml';
 import { serviceState, proxyOn, proxyUrl, isOwnUrl, freePort, isListening, serviceArgs, plistText, unitText, claudeBlocker, withProxyUrl, withoutProxyUrl,
-  wireAgents, enableProxyService, disableProxyService, ensureProxy, installService, uninstallService, wiredLines, removedByHand, standDown, claudeWired, trackClaude, routeAppeared, SERVICE_HOLDOUT, PROXY_ENV, PROXY_LABEL } from '../src/proxy-service.js';
+  wireAgents, enableProxyService, disableProxyService, ensureProxy, installService, uninstallService, wiredLines, removedByHand, standDown, claudeWired, trackClaude, routeAppeared, proxyThrough, SERVICE_HOLDOUT, PROXY_ENV, PROXY_LABEL } from '../src/proxy-service.js';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
 const tmp = prefix => fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -277,5 +277,48 @@ test('a route the person sets up after the wiring: the next prompt takes the pro
     standDown(why, { home: m.home, manage: false });
     assert.equal(proxyOn(m.home), false);
     assert.equal(readJson(m.files.claude).env?.[PROXY_ENV], undefined, 'their route is the only one left');
+  } finally { m.restore(); }
+});
+
+test('the proxy in front of a model server of the person\'s own: asked for, named in the flags, and no longer a blocker', async () => {
+  const m = fakeMachine();
+  try {
+    const shellHome = path.join(m.root, 'shell');
+    fs.mkdirSync(shellHome, { recursive: true });
+    fs.writeFileSync(path.join(shellHome, '.zshrc'), 'export ANTHROPIC_BASE_URL=https://smartrouter.internal\n');
+    fs.mkdirSync(path.dirname(m.files.claude), { recursive: true });
+    fs.writeFileSync(m.files.claude, '{}');
+    const env = { ...m.env, THINKER_ROUTE_HOME: shellHome };
+    // unasked, the route is left alone: that is the rule of 2026-10-28
+    const left = await enableProxyService({ cli: CLI, home: m.home, env, manage: false });
+    assert.match(left.wired.skipped.find(s => s.agent === 'claude').reason, /smartrouter/);
+    assert.equal(left.upstream, null);
+    // asked for: the proxy forwards there, so pointing the agent at it keeps every request on the same route
+    const g = await enableProxyService({ cli: CLI, home: m.home, env, manage: false, force: true, gateway: true });
+    assert.equal(g.upstream, 'https://smartrouter.internal');
+    assert.equal(g.gatewayFrom, '~/.zshrc');
+    assert.equal(proxyThrough(m.home), 'https://smartrouter.internal');
+    assert.deepEqual(g.wired.changed.map(c => c.agent), ['claude'], 'the others were already wired by the first run');
+    assert.equal(readJson(m.files.claude).env[PROXY_ENV], g.url);
+    assert.ok(serviceArgs(m.home).join(' ').includes('--upstream https://smartrouter.internal'));
+    assert.equal(claudeBlocker({ env: { [PROXY_ENV]: 'https://smartrouter.internal' } }, { home: m.home, env: {} }), null, 'the route we forward to is not a blocker');
+    assert.equal(routeAppeared({ home: m.home, env }), null, 'nor does the shell file read as a route that appeared');
+    assert.match(claudeBlocker({ env: { [PROXY_ENV]: 'https://other.gw' } }, { home: m.home, env: {} }), /other\.gw/, 'another one still is');
+    assert.ok(wiredLines(g.wired, g.url, g.upstream).some(l => l.includes('on to https://smartrouter.internal')));
+    // off puts the route back to the person's own hands
+    disableProxyService({ home: m.home, manage: false });
+    assert.equal(proxyThrough(m.home), null);
+    assert.equal(readJson(m.files.claude).env?.[PROXY_ENV], undefined);
+  } finally { m.restore(); }
+});
+
+test('--gateway with nothing of the person\'s own to forward to', async () => {
+  const m = fakeMachine();
+  try {
+    const shellHome = path.join(m.root, 'shell');
+    fs.mkdirSync(shellHome, { recursive: true });
+    const p = await enableProxyService({ cli: CLI, home: m.home, env: { ...m.env, THINKER_ROUTE_HOME: shellHome }, manage: false, gateway: true });
+    assert.equal(p.upstream, null, 'the API as usual');
+    assert.equal(serviceArgs(m.home).includes('--upstream'), false);
   } finally { m.restore(); }
 });

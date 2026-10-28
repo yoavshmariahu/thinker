@@ -57,6 +57,8 @@ export const RETRY_DELAY = { ENOTFOUND: 250, EAI_AGAIN: 250 };
 // than one expired token or one upstream hiccup: a session whose every call fails is broken either way, and the
 // proxy is the one thing in the path that the person did not put there.
 export const AUTH_REFUSALS = 3;
+// The API's model calls: the only requests whose credentials the refusal count may judge.
+export const MESSAGES_PATH = /^\/v1\/messages(\/|\?|$)/;
 // Judged only when the proxy forwards to Anthropic's own API: with an upstream of someone's own (`--upstream`,
 // `proxy: { upstream }`) the credentials are theirs to match, not the proxy's to doubt.
 export const forwardsToAnthropic = upstream => { try { return /(^|\.)api\.anthropic\.com$/.test(new URL(upstream).hostname); } catch { return false; } };
@@ -261,6 +263,12 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
     if (!logFile) return;
     try { fs.mkdirSync(path.dirname(logFile), { recursive: true }); fs.appendFileSync(logFile, JSON.stringify(row) + '\n'); } catch { /* a log is never worth a failed request */ }
   };
+  // A model server of the person's own (proxy-service.js:proxyThrough) need not speak the API's
+  // context-management beta. If it refuses the request the edit rides on, nothing of the answer has reached the
+  // agent yet, so the same request goes again untouched -- the retry path that is already there for a dropped
+  // connection -- and the proxy stops adding the edit for the rest of its life rather than breaking every call.
+  // Only for an upstream that is not Anthropic's: a 400 from the API itself is the agent's own to see.
+  let editRejected = false;
   const watch = authWatch(reason => { log({ at: new Date().toISOString(), op: 'proxy-standdown', reason }); try { onStandDown(reason); } catch { /* the request in hand matters more */ } }, { on: !!onStandDown });
   const server = http.createServer((req, res) => {
     let requestUrl = req.url, requestCfg = cfg;
@@ -281,17 +289,21 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
       const raw = Buffer.concat(chunks);
       const t0 = process.hrtime.bigint();
       let t;
-      try { t = transformRequest(req.method, requestUrl, req.headers, raw, requestCfg); } catch { t = { body: raw, reason: 'error' }; }
+      const noEdit = editRejected && !forwardsToAnthropic(requestCfg.upstream);
+      try { t = noEdit ? { body: raw, reason: 'edit-unsupported' } : transformRequest(req.method, requestUrl, req.headers, raw, requestCfg); } catch { t = { body: raw, reason: 'error' }; }
       let n = null;
       if (notes && requestCfg.protocol !== 'responses') { try { n = await notes.transform(req.method, req.url, req.headers, t.body); } catch { n = null; } if (n) { t.body = n.body; t.notes = n; if (t.reason === 'other') t.reason = 'notes'; } }
       const headers = {};
       for (const [k, v] of Object.entries(req.headers)) if (!HOP.includes(k)) headers[k] = v;
       headers.host = up.host;
       if (t.addBeta) headers['anthropic-beta'] = withBeta(req.headers['anthropic-beta']);
-      headers['content-length'] = t.body.length;
+      headers['content-length'] = t.body.length;   // set again in `send`: a retry without the edit sends fewer bytes
       const overheadMs = Number(process.hrtime.bigint() - t0) / 1e6;
-      // the two signs of an agent routed elsewhere (`authWatch`)
-      const judgeAuth = requestCfg.protocol === 'anthropic' && forwardsToAnthropic(requestCfg.upstream);
+      // the two signs of an agent routed elsewhere (`authWatch`), on the model calls alone: an agent sends more
+      // than those through the proxy, and a 200 on one of the others used to reset the refusal count, so three
+      // refusals in a row never arrived and the count never fired (seen in the container on 2026-10-28, three
+      // sessions and three 401s with no stand-down).
+      const judgeAuth = requestCfg.protocol === 'anthropic' && forwardsToAnthropic(requestCfg.upstream) && MESSAGES_PATH.test(requestUrl);
       if (judgeAuth) watch.request(req.headers);
       const base = up.pathname.replace(/\/$/, '');
       let ureq;
@@ -303,6 +315,9 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
       // has already walked away from is not retried at all.
       const send = attempt => {
         const started = Date.now();
+        headers['content-length'] = t.body.length;
+        if (t.addBeta) headers['anthropic-beta'] = withBeta(req.headers['anthropic-beta']);
+        else if (req.headers['anthropic-beta'] != null) headers['anthropic-beta'] = req.headers['anthropic-beta'];
         // One error row per request: a break the agent and the API both notice (the agent leaves, so
         // the proxy drops the upstream request, so that request errors too) is one event, not two.
         let logged = false, recorded = false, truncated = false;
@@ -313,6 +328,14 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
         };
         ureq = lib.request({ protocol: up.protocol, hostname: up.hostname, port: up.port || undefined, path: base + requestUrl, method: req.method, headers, agent: attempt ? false : agent }, ures => {
           if (judgeAuth) watch.response(ures.statusCode);
+          // the upstream will not take the edit: send the agent's own bytes instead, once (`editRejected`)
+          if (t.injected && !editRejected && ures.statusCode === 400 && !res.headersSent && !forwardsToAnthropic(requestCfg.upstream)) {
+            editRejected = true;
+            ures.resume();
+            log({ at: new Date().toISOString(), op: 'proxy-edit-rejected', upstream: up.origin, status: 400 });
+            t = { ...t, body: raw, injected: false, addBeta: false, reason: 'edit-unsupported' };
+            return send(attempt);
+          }
           const out = {};
           for (const [k, v] of Object.entries(ures.headers)) if (!['connection', 'keep-alive', 'transfer-encoding'].includes(k)) out[k] = v;
           res.writeHead(ures.statusCode, out);
