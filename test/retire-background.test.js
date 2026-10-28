@@ -31,9 +31,17 @@ test('an update stops the mining an older version left running, its pending ques
   assert.equal(JSON.parse(fs.readFileSync(path.join(st, 'commits.json'), 'utf8')).pending, undefined);
   assert.ok(!fs.existsSync(path.join(st, 'session-jobs', 'mine.json')));
   assert.ok(fs.existsSync(path.join(st, 'session-jobs', 'distill-x.json')), "a session's distillation stays queued");
-  await new Promise(r => setTimeout(r, 200));
-  let alive = true; try { process.kill(child.pid, 0); } catch { alive = false; }
-  assert.equal(alive, false, 'the mining batch is stopped');
+  // Wait for the process to go rather than 200 ms and a hope: a signalled child can take longer than that
+  // to be reaped under the whole suite's load, and the assertion would then read it as still running.
+  const gone = async (pid, ms = 10_000) => {
+    const t = Date.now();
+    for (;;) {
+      try { process.kill(pid, 0); } catch { return true; }
+      if (Date.now() - t > ms) return false;
+      await new Promise(r => setTimeout(r, 20));
+    }
+  };
+  assert.equal(await gone(child.pid), true, 'the mining batch is stopped');
 });
 
 test('a repository that turned mining on keeps it', t => {

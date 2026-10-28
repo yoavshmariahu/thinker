@@ -20,6 +20,9 @@ import {
   skillOutcomeOn, outcomeSampled, sessionDiff, outcomeGuidance, matchingRules, ruleGlobs, globRegex, skillsNamedIn,
   agentsSections, violationSkill, judgeSkillOutcome, skillOutcomeCheck, OUTCOME_SCHEMA,
 } from '../src/skill-outcome.js';
+// Ranking is not what these tests check, so the cross-encoder (dense.js) stays out of the hook spawns:
+// it has its own test, and loading an ONNX session in each spawn is most of what they cost.
+process.env.THINKER_CE = 'off';
 
 const CLI = new URL('../src/cli.js', import.meta.url).pathname;
 const DAY = 86_400_000;
