@@ -82,3 +82,27 @@ test('no variable in the installer runs into a non-ASCII character', () => {
     .map((line, i) => [i + 1, line]).filter(([, line]) => /\$[A-Za-z_][A-Za-z0-9_]*[^\x00-\x7f]/.test(line));
   assert.deepEqual(hits, []);
 });
+
+// The installer's `spin` runs its command in this shell when there is no terminal, which is how the piped
+// install runs, so a bare `cd` in `install_deps` left the installer sitting in ~/.thinker/app -- a directory the
+// script replaces and an update deletes. Everything after it then ran with no working directory.
+test('install_deps keeps its cd inside a subshell, so the installer never moves', () => {
+  const body = fs.readFileSync(INSTALL, 'utf8').match(/^\s*install_deps\(\).*$/m)[0];
+  assert.match(body, /\(\s*cd "\$home\/app"/, body);
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-home-'));
+  fs.mkdirSync(path.join(home, 'app'), { recursive: true });
+  const probe = execFileSync('bash', ['-c', `set -eu\nhome=$1\n${body.trim().replace('npm ci --omit=dev --ignore-scripts --no-audit --no-fund --silent', 'true')}\ninstall_deps\npwd`, 'probe', home], { encoding: 'utf8' });
+  assert.equal(probe.trim(), process.cwd(), 'the shell is where it started, not in $home/app');
+});
+
+// A thinker command must run from a directory that no longer exists: a worktree removed under it, a build
+// directory swept, or the installer's shell while an update replaces what it is standing in. `process.cwd()`
+// throws ENOENT (uv_cwd) at import time there, so every invocation died with a stack trace.
+test('a command still runs when the working directory has been deleted under it', () => {
+  const cli = path.join(path.dirname(fileURLToPath(import.meta.url)), '../src/cli.js');
+  const gone = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-gone-'));
+  const out = execFileSync('sh', ['-c', `cd "$1" && rmdir "$1" && exec "$2" "$3" version`, 'probe', gone, process.execPath, cli], {
+    encoding: 'utf8', env: { ...process.env, THINKER_TEST: '1' },
+  });
+  assert.match(out, /^thinker \d+\.\d+\.\d+/, out);
+});

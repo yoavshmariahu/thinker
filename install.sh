@@ -341,7 +341,10 @@ EOF
   # ranking by words alone, and the MCP server is left out (thinker connect registers it once npm ci has run).
   if command -v npm >/dev/null; then
     mcp=1
-    install_deps() { cd "$home/app" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund --silent; }
+    # the cd lives in a subshell: `spin` runs its command in this shell when there is no terminal (the piped
+    # install), so a bare cd left the installer sitting in $home/app -- a directory this script replaces and an
+    # update deletes, and every command after it then died on a working directory that was gone (2026-10-28)
+    install_deps() { ( cd "$home/app" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund --silent ); }
     spin "Installing dependencies (the ranking runtime is most of it)" install_deps || die "npm ci failed in $home/app"
     spin "Fetching the ranking model" "$thinker" ranker fetch --quiet || say "  The ranking model could not be fetched (offline?); notes are ranked by words until 'thinker ranker fetch' succeeds."
   else
