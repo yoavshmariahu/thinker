@@ -1,5 +1,7 @@
 # thinker: cut wasted context
 
+![Three ways thinker saves coding agent tokens: context compression, knowledge cache, instruction analysis](docs/images/thinker-token-saving.gif)
+
 Thinker helps your coding agent use fewer tokens. Find what it loads but rarely uses,
 review what to cut, and reuse what it learns about your code.
 
