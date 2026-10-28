@@ -37,7 +37,7 @@ export const DEFAULTS = {
   verifyServedDays: 3,
   // a note nobody has been served in this many days (and older than that) is deleted, archived ones too; a desired
   // behavior, a skill card and a note a person wrote are kept (0: never delete)
-  deleteUnusedDays: 14,
+  deleteUnusedDays: 30,
   verifyChurn: 3,   // a note re-verified this many times in a week is left stale and reported (0: never)
   phrasePerRun: 8,  // notes given phrasings per run (one model call)
   docs: false,      // read design documents that are new or changed into behaviors (behavior-docs.js); off since 2026-10-21
@@ -137,7 +137,10 @@ export function pickStale(notes, cfg, { counts = new Map(), now = Date.now() } =
   const churning = [];
   const stale = notes
     .filter(n => n.status === 'stale' && !n.archived && !(n.verifying && now - Date.parse(n.verifying) < 10 * 60_000))
-    .filter(n => n.contradicted || recent === -Infinity || (n.lastUsed && Date.parse(n.lastUsed) >= recent))
+    // served recently, or held back from a request recently (ops.js:orient `heldAt`): a stale note the
+    // freshness rule withholds can never be served, so `lastUsed` alone deadlocked it out of ever
+    // being verified and it stayed stale for good
+    .filter(n => n.contradicted || recent === -Infinity || (n.lastUsed && Date.parse(n.lastUsed) >= recent) || (n.heldAt && Date.parse(n.heldAt) >= recent))
     // a skill card whose own file changed is rewritten by the skills step of this run (skills.js:scanSkills), not audited
     .filter(n => !(n.kind === 'skill' && n.skill?.file && (n.stale?.changed || []).some(c => c.path === n.skill.file)))
     .filter(n => { if (cfg.verifyChurn > 0 && (counts.get(n.id) || 0) >= cfg.verifyChurn) { churning.push(n); return false; } return true; })
@@ -158,6 +161,11 @@ export function deleteUnused(store, { days = DEFAULTS.deleteUnusedDays, dry = fa
     const made = Date.parse(n.created || ''), used = Date.parse(n.lastUsed || '');
     if (!Number.isFinite(made) || made > cutoff) continue;
     if (Number.isFinite(used) && used > cutoff) continue;
+    // a note a request wanted, which the freshness rule held back (ops.js:orient `heldAt`), is not a
+    // note nobody reads: deleting it would be deleting it for not being served when thinker itself is
+    // what refused to serve it
+    const held = Date.parse(n.heldAt || '');
+    if (Number.isFinite(held) && held > cutoff) continue;
     out.push(n.id);
     if (dry) continue;
     // a note committed to the repository is the team's file: archived here (this checkout's state), never deleted
