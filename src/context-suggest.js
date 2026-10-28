@@ -1,7 +1,9 @@
 // The Context view's five highest-leverage changes (context-view.js), each with a suggested action, put to the person
 // in their coding session. Once a week maintenance reads the report and keeps the top five here; the next prompt's
-// hook starts the local page (`thinker ui`) and tells the agent to pass the five on in a few lines with the link to
-// the Context tab's All. There every part of the context is a row with the actions that can be taken on it (allChanges):
+// hook starts the local page (`thinker ui`) and tells the agent to put the five to the person as a question, with its
+// own question tool, and to record their answer either way (contextSuggestOffer; prose the agent was asked to relay
+// until 2026-10-27). The link goes to the Context tab's All, where every part of the context is a row with the actions
+// that can be taken on it (allChanges):
 // a section compressed or removed after its diff is read, a skill or tool switched off or back on, an output's
 // compression set; the person picks one in the row and applies it, and every decision is kept as the page's Recent
 // activity with a Revert. `thinker context --approve|--dismiss|--history` is the same over the top five.
@@ -33,6 +35,7 @@ import { SIGNATURE } from './harness.js';
 import { WASTE, sections, sectionId } from './instruction-value.js';
 import { describePart, describeEntry } from './part-describe.js';
 import { defaultBranch } from './instruction-pr.js';
+import { QUESTION_TOOLS, MCP_CLIENTS } from './repo-onboard.js';
 
 export const SUGGEST = {
   max: 5,
@@ -378,6 +381,42 @@ export async function scheduleContextSuggestion(store, { now = Date.now(), view,
   return changes;
 }
 export const contextSuggestPending = store => configOn(store) && Boolean(readJson(stateFile(store))?.pending);
+// What the last summary put to the person, while a reply to it is still plausible (`SUGGEST.answerDays`): the basis
+// for the numbers in `thinker context --via session --approve 1,3`. null when none was passed on here, or it is old
+// enough that the numbers more likely mean a list the person has just seen printed.
+// Whether an answer to the last summary is still expected here: what the MCP `context` tool is offered on, as the
+// coverage tool is on a pending coverage question (mcp-server.js). Cleared by the answer.
+export const contextSuggestAwaiting = (store, opts) => configOn(store) && Boolean(offeredChanges(store, opts));
+
+// The answer, through thinker's own tool (`context`) or the command: the numbers the person chose from the lines the
+// summary showed, or none. thinker resolves them against that list and makes the changes itself, so the agent hands in
+// an answer rather than composing a command -- which is what the harness question did until 2026-10-25, and what the
+// coverage question still does (coverage.js:answerCoverage). `asked` says where they answered: their agent's question
+// tool (picker) or chat, which is how we know the question was put as a question at all.
+export async function answerContextSuggestion(store, choice, { now = Date.now(), asked = 'picker', client = null, edit } = {}) {
+  const offered = offeredChanges(store, { now });
+  if (!offered) return 'There is no thinker suggestion waiting for an answer here. Go on with the task.';
+  const raw = String(choice ?? '').trim();
+  const clear = () => { const st = readJson(stateFile(store)) || {}; delete st.offered; writeJson(stateFile(store), st); };
+  store.log({ op: 'context-answer', asked, client, changes: offered.length, choice: /^(none|no)$/i.test(raw) || !raw ? 'none' : 'some' });
+  if (/^(none|no)$/i.test(raw) || !raw) {
+    const said = dismissChanges(store, offered, { now, via: VIA.session });
+    clear();
+    return `${said.length} change${said.length === 1 ? '' : 's'} left alone; thinker will not suggest ${said.length === 1 ? 'it' : 'them'} again for a month. Go on with the task.`;
+  }
+  const picked = pickChanges(offered, raw);
+  // an answer that names none of the lines is not an answer: the question stays, and the agent is told what to pass
+  if (!picked.length) return `Nothing there matched: pass the numbers of the lines the suggestion showed (1-${offered.length}), comma-separated, or none. The question is still waiting.`;
+  const said = await approveChanges(store, picked, { via: VIA.session, edit });
+  clear();
+  return said.join(' ');
+}
+
+export function offeredChanges(store, { now = Date.now(), days = SUGGEST.answerDays } = {}) {
+  const o = readJson(stateFile(store))?.offered;
+  if (!o?.changes?.length || !o.at) return null;
+  return now - Date.parse(o.at) > days * DAY ? null : o.changes;
+}
 
 // The page for the machine: one `thinker ui --background` (cache.js:uiCommand), its address in
 // THINKER_HOME/state/ui.json while it runs; started here when none does, waited for up to uiWaitMs.
@@ -401,12 +440,33 @@ export const suggestionsUrl = (url, repoId) => `${String(url).replace(/#.*$/, ''
 // a session no person is at: `claude -p`, the Agent SDK
 const unattended = (env = process.env) => /^sdk-/.test(env.CLAUDE_CODE_ENTRYPOINT || '');
 // The prompt hook: the pending summary, once, with the page started and its link. `ui` (tests) stands in for
-// ensureUi; `repoId` names the repository on the page (ui/server.js:machineRepos).
-export function contextSuggestOffer(store, { now = Date.now(), env = process.env, ui = ensureUi, repoId } = {}) {
+// ensureUi; `repoId` names the repository on the page (ui/server.js:machineRepos); `client` is the agent, whose own
+// question tool puts it to the person.
+//
+// A question, not prose (2026-10-27, the owner's ask). Until then the block asked the agent to pass the summary on in
+// a short message, and three devices that were shown one decided nothing at all: a relayed message can be skipped by
+// the agent, skimmed by the person, and leaves no answer either way, so there was nothing to tell "not interested"
+// from "never reached them". Asked through the agent's own tool (coverage.js does the same) it takes an answer before
+// the task goes on, and both answers are recorded: the numbers chosen are approved, nothing chosen is a dismissal
+// (`--dismiss all`), so the funnel has a denominator and a no.
+//
+// Built-in tools are left out of the options and named with the page link instead (the owner's rule of 2026-10-22,
+// PR #441): a picker's line has no room for what denying one costs -- no subagents, or no `/loop` -- and on Find
+// Savings such a row is bold and behind a confirmation. With nothing else to ask about, the block is the page link
+// alone and asks nothing.
+export function contextSuggestOffer(store, { now = Date.now(), env = process.env, ui = ensureUi, repoId, client } = {}) {
   if (!configOn(store) || unattended(env)) return '';
   const st = readJson(stateFile(store));
   if (!st?.pending) return '';
   const p = st.pending; delete st.pending; st.offeredAt = new Date(now).toISOString();
+  // what a picker may carry, and what is named with the page link instead (built-in tools, above)
+  const asked = p.changes.filter(c => !c.builtin), builtin = p.changes.filter(c => c.builtin);
+  // The list as it was put to the person, kept for the answer window: they reply with the numbers of the lines they
+  // read, and the ranking moves under them -- every session of the window changes what each part costs a prompt, and
+  // the reply comes minutes to days later. Resolved against a list recomputed at that moment, "1" applied whatever
+  // ranked first then: on this repository's own figures, three sections within 3k tokens of each other reordered on
+  // one more session, so approving the first line compressed the third (2026-10-27).
+  st.offered = { at: st.offeredAt, days: p.days, changes: asked };
   writeJson(stateFile(store), st);
   const url = (() => { try { return ui(store); } catch { return null; } })();
   // the one cost rule, in the order the person can check it: what the changes add to every prompt here, and what
@@ -416,13 +476,29 @@ export function contextSuggestOffer(store, { now = Date.now(), env = process.env
   const perPrompt = p.changes.reduce((a, c) => a + (c.saving || 0), 0);
   const total = p.changes.reduce((a, c) => a + (c.total ?? c.saving ?? 0), 0);
   store.log({ op: 'context-offer', changes: p.changes.length, saving: total, perPrompt, ui: Boolean(url) });
-  const lines = p.changes.map((c, i) => `${i + 1}. ${c.title}: ~${formatTokens(c.saving || 0)} input tokens in every prompt (~${formatTokens(c.total ?? c.saving ?? 0)} over the last ${p.days} days); ${c.why}. Suggested: ${c.default ? c.default.text : 'dismiss, or change it by hand'}${c.options?.length > 1 ? ` (or: ${c.options.slice(1).map(o => o.act).join(', ')})` : ''}`).join('\n');
+  const lines = asked.map((c, i) => `${i + 1}. ${c.title}: ~${formatTokens(c.saving || 0)} input tokens in every prompt (~${formatTokens(c.total ?? c.saving ?? 0)} over the last ${p.days} days); ${c.why}. Suggested: ${c.default ? c.default.text : 'dismiss, or change it by hand'}${c.options?.length > 1 ? ` (or: ${c.options.slice(1).map(o => o.act).join(', ')})` : ''}`).join('\n');
   const where = url ? `at ${suggestionsUrl(url, repoId)} (thinker's page on this machine, just started)` : 'by running `thinker ui` (Context, All)';
+  const lead = `thinker read the last ${p.days} days of agent sessions in this repository (${p.sessions} sessions) and found ${p.changes.length === 1 ? 'one change' : `${p.changes.length} changes`} to what loads into every session, together ~${formatTokens(perPrompt)} input tokens in every prompt here (~${formatTokens(total)} over those ${p.days} days).`;
+  const pageLine = `Every part of the context is a row ${where}, where each change can be reviewed before it is made${builtin.length ? `, including ${builtin.map(c => c.title).join(', ')}: switching a built-in tool off takes a capability with it, so ${builtin.length === 1 ? 'that one is' : 'those are'} decided there, not here` : ''}.`;
+  // nothing a picker may offer: the page link alone, and no question
+  if (!asked.length) return `<thinker-context-suggestions>\n${lead}\n${pageLine}\nMention this to the user in one line starting "${SIGNATURE}:" and go on with the task. Do not make any of these changes yourself.\n</thinker-context-suggestions>`;
+  const tool = QUESTION_TOOLS[client];
+  const ask = tool && client !== 'codex'
+    ? `Before you start on the request, ask the user with your ${tool} tool, not in prose: "Cut what loads into every session here?" (header "Context"), one question whose options are the changes below, in this order, each option labelled with its own number and name as written below ("2. AGENTS.md · Releases") and taking the rest of its line as the description; let them choose more than one where your tool allows it. The numbers are how you hand their answer back, so keep them on the options rather than working them out again. Add a last option "None of these" so saying no is an answer like any other, and keep the whole question to the options your tool allows: where that leaves room for fewer changes than there are, offer the highest ones and say the rest are on the page (Claude Code's AskUserQuestion takes four, so three changes and the none).`
+    : `Before you start on the request, ask the user in chat which of these changes to make (any of them, or none), and wait for their answer.`;
+  // The answer comes back through thinker's own tool where the client speaks MCP (the harness question's way until
+  // 2026-10-25, the coverage question's still): thinker resolves the numbers against the list it showed and makes the
+  // changes, so nothing depends on the agent composing a command line. The command is the fallback and the typed door.
+  const cmd = `thinker context --days ${p.days} --via session`;
+  const after = MCP_CLIENTS.has(client)
+    ? `Then call thinker's \`context\` tool with choice set to the numbers they chose, comma-separated (a number may take another action after a colon, e.g. 3:remove), or none, and asked "${tool && client !== 'codex' ? 'picker' : 'chat'}"; if that tool is not offered, run \`${cmd} --approve <those numbers>\`, or \`${cmd} --dismiss all\` for none. thinker makes the changes and tells you what it did; pass that on in one line. Then go on with the task.`
+    : `Then run \`${cmd} --approve <the numbers they chose, comma-separated; a number may take another action after a colon, e.g. 3:remove>\` and tell them in one line what it did. If they choose none, run \`${cmd} --dismiss all\`: thinker does not suggest these again for a month. Then go on with the task.`;
   return `<thinker-context-suggestions>
-thinker read the last ${p.days} days of agent sessions in this repository (${p.sessions} sessions) and found ${p.changes.length === 1 ? 'one change' : `${p.changes.length} changes`} to what loads into every session, together ~${formatTokens(perPrompt)} input tokens in every prompt here (~${formatTokens(total)} over those ${p.days} days).
-Before you start on the request, pass this on to the user in a short message starting "${SIGNATURE}:": one line per change below (what it is, what it saves, and the suggested action), then that they can approve or review each ${where}, or reply here with the numbers to approve (or "all"). Keep it under ten lines. Do not make any of these changes yourself, and do not open the files to check them. Then go on with the task.
-If the user later approves some of them in this conversation, run \`thinker context --days 7 --via session --approve <their numbers, comma-separated, or all; a number may take another action after a colon, e.g. 3:remove>\` and tell them in one line what it did.
+${lead}
+${ask} Do not decide for them, do not make any of these changes yourself, and do not open the files to check them.
 ${lines}
+${pageLine}
+${after}
 </thinker-context-suggestions>`;
 }
 

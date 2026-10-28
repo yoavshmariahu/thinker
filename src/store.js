@@ -165,7 +165,9 @@ export function adoptLocalLog(store) {
 // With THINKER_NOTES_DIR (benchmark arms) there is one directory of whole notes, as before.
 // `heldAt`: when a request last wanted this note and the freshness rule held it back (ops.js:orient),
 // which is what makes a withheld stale note eligible for verification (maintain.js:pickStale)
-export const LOCAL_FIELDS = ['status', 'stale', 'verifying', 'invalidReason', 'uses', 'lastUsed', 'heldAt', 'servedIn', 'attest', 'outcomes', 'history', 'sync', 'archived', 'violated', 'broken'];
+// `rebaselined`: the one-time staleness reset waved this note through without a model looking at it
+// (stale-reset.js), so the notes it cleared stay identifiable afterwards
+export const LOCAL_FIELDS = ['status', 'stale', 'verifying', 'invalidReason', 'uses', 'lastUsed', 'heldAt', 'servedIn', 'attest', 'outcomes', 'history', 'sync', 'archived', 'violated', 'broken', 'rebaselined'];
 // Shared fields a checkout holds its own value of, without that being a change worth sharing.
 const OVERRIDE_FIELDS = ['confidence', 'verified', 'related'];
 const CONTENT_ORDER = ['id', 'title', 'kind', 'mutability', 'skill', 'answers', 'body', 'applies', 'tags', 'deps', 'source', 'created', 'verified', 'verifiedCommit', 'confidence', 'says', 'search', 'saysFor', 'related'];

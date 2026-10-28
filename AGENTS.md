@@ -49,6 +49,7 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 - Enable by default only after an Artemis experiment: plan, owner approval, run. Compare with shipped strategy on same tasks. Report numbers and caveats.
 - Offline replays are not evidence. Measure outcomes in agent sessions.
 - Default-on switch = its own PR citing the experiment.
+- Off behind switches, awaiting an experiment (2026-10-28, `ops.js:servingConfig`, `serving` in `.thinker/config.json`): `denseFallback` (`THINKER_SERVE_DENSE_FALLBACK`) scores the notes with the local embedding model when no note shares a word with the request, serving the best above `denseFloor` (0.35, `pack`'s own `minRel`); `ceRescue` (`THINKER_SERVE_CE_RESCUE`) serves the best candidate the cross-encoder vetoed rather than nothing; `serveStale` (`THINKER_SERVE_STALE`) serves a stale match with its ⚠ banner instead of holding it back, which revises the mutable behavior "the prompt hooks serve no stale note". Environment wins over config. Each answers one measured miss reason; none is on until an Artemis experiment measures it in agent sessions.
 - Owner-approved exception (2026-10-25): Codex proxy tool-output clearing is on by default via install/connect/setup/update. `proxy-codex.js` wires a managed provider without reading credentials. `/codex` routes ChatGPT-account requests to the ChatGPT backend, API-key requests to OpenAI. Custom providers stay as configured. `thinker proxy off` restores prior selection. Savings claims still need an Artemis experiment.
 
 **Telemetry and tests (MANDATORY):**
@@ -112,7 +113,7 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 |---|---|
 | `src/cli.js` | entry: parsing, help, prelude, handler table |
 | `src/commands/` | `notes.js`, `cache.js`, `learn.js`, `hooks.js`, `setup.js`, `telemetry.js`, `benchmark.js`, `shared.js` |
-| `src/mcp.js` | MCP server: coverage answer tool, `learn_next` queue |
+| `src/mcp.js` | MCP server: `context` and coverage answer tools, `learn_next` queue |
 | `src/setup.js`, `src/setup/` | `runSetup`; `ui.js`, `agents.js`, `estimate.js`, `steps.js`, `pr-benchmark.js` |
 | `src/clients.js`, `src/integrations/` | client adapters, extension handlers (`docs/agent-integrations.md`) |
 | `src/transcripts.js` | transcripts, one event form |
@@ -325,6 +326,23 @@ noteset, log locally by default, so experiments stay out of the machine's
 history; a harness that installs real hooks should set `THINKER_LOG=local`.
 The log holds the first 200 characters of each request.
 
+The hit rate is quoted over the requests the cache was actually asked, not every prompt
+(`usage.js:NOT_ATTEMPTED`): a prompt a cache below its serving threshold was never searched for
+(`too-few-notes`) and a held-out turn whose notes were found and withheld (`held-out`) are both logged
+as requests, so a machine in daily use does not read as idle, but neither is a retrieval failure. On
+production telemetry over the ten days to 2026-10-28 they were 391 and 702 of 4,654 requests, which is
+why `answered / requestsTotal` read 1.5% where the cache's own 3,561 attempts read 2.0%. `attempted` is
+that denominator and `attemptedHitRate` the rate; `hitRate` keeps the old denominator so the series
+stays comparable across the release. The remaining misses are what the levers above address:
+`no-match` 1,983, `ranker-rejected` 949, `only-stale` 556.
+
+A `late` serving (the edit hook, on a file coming into view) is not a request — the agent asked
+nothing — and `ops.js:lateLocked` logs it only when it serves something, so it is counted in neither
+side of the hit rate. It is counted as a delivery (`delivered`, `deliveredLate`, sent as
+`retrieval.deliveries` and `editHookDeliveries`), because without that a device served notes by the
+edit hook alone reported nothing served: on 2026-10-28 one device read 0 of 6 answered having been
+given 3 notes, and on this machine 69 of 143 deliveries over ten days came that way.
+
 `thinker usage [--here] [--days n] [--json]` summarizes it for every
 repository on the machine, with a line per repository (`--here`: this
 repository only). A repository's older local log is moved into the machine's
@@ -414,7 +432,7 @@ notes, only 10 (under 2%) differed by comments or whitespace alone, so a hash th
 edits would clear almost nothing. What changed is real code; what does not change is what the note
 claims about it.
 
-What followed from the mark was the problem, and two of the three steps are fixed:
+What followed from the mark was the problem:
 
 - The hooks withhold every stale note (`freshOnly`). Still true. Serving it with its ⚠ banner instead
   is the `serveStale` lever, off until an experiment.
@@ -425,6 +443,33 @@ What followed from the mark was the problem, and two of the three steps are fixe
   the same 318 fill the batch and clear in about three weeks.
 - A withheld note was then deleted for not being served. `deleteUnused` now keeps a note wanted within
   the window, and the window is 30 days rather than 14.
+- The backlog those three had already built up (318 of 440 notes here, 1,236 of 2,683 across
+  production) was cleared in one step on upgrade, rather than left to drain through the verifier over
+  weeks: the reset below.
+
+### The one-time staleness reset
+
+`stale-reset.js`, run once per repository by `thinker rewire` after an update, beside
+`retire-background.js`. Every note marked stale is re-baselined: its deps re-hashed against the
+working tree and the `stale` block dropped, which is exactly what a `still_valid` verdict does to the
+record (`ops.js:verifyNote`). Setting the status alone would change nothing, since the next `refresh`
+re-derives staleness from the stored hashes.
+
+Statuses are brought up to date first (`refresh`, as `thinker check` does), because staleness is
+worked out when a note is checked, not when the code changes: a cache holds notes that are stale and
+not yet marked, and clearing only the marked ones would leave those to go stale on the next prompt.
+On this repository 324 notes were marked stale on disk and 325 would clear.
+
+It does not touch `confidence` and does not set `verified`: no model looked at these notes, and a
+reset is not a verification. It records `rebaselined` (a `LOCAL_FIELDS` entry) so the notes it waved
+through stay identifiable. `invalid` notes, a `violated` behavior and a `broken` skill card are left
+alone; only `stale` is cleared. `RESET_VERSION` guards it per repository, and the marker file keeps the
+prior record of every note it touched, so `undoStaleReset` can put them back.
+
+**What it costs.** About half of the cleared notes were going to come back `update` or `invalid`
+(53% `still_valid` across production, 51% here), and they are now served without the ⚠ STALE banner
+that warned the agent. The trade: a withheld note helps nobody, and a wrong one is caught again the
+next time its code changes. Owner's decision, 2026-10-28.
 
 ## What a note is
 
@@ -997,6 +1042,28 @@ against each other by tokens saved, which is why the other two prompt questions 
   held there the same day: it was not effective enough to put to people. It is the only question the hooks can
   still emit, and only where a repository turns it on.
 A new thing worth suggesting is a row and a line of the weekly message, not a question of its own.
+
+It is a question the agent must put to the person, through its own question tool (2026-10-27, the owner's ask;
+`QUESTION_TOOLS` by client, in chat where there is none and for Codex, as `coverage.js` does). Until then it was prose
+the agent was asked to relay, and the three devices shown one decided nothing at all: a relayed message can be skipped
+by the agent, skimmed by the person, and leaves no answer either way, so nothing told "not interested" from "never
+reached them". The answer comes back through thinker's own MCP tool, `context` (`answerContextSuggestion`, registered while
+`contextSuggestAwaiting`, as the harness question's tool was until 2026-10-25 and the coverage tool still is): the
+agent hands in the numbers the person chose and thinker resolves them against the list it showed and makes the
+changes, so nothing depends on the agent composing a command line, and a desktop app answers the same way. The
+command (`--via session --approve|--dismiss all`) is the fallback where the client speaks no MCP, and the typed door.
+Both answers are recorded: numbers approve, none dismisses for a month, and `context-answer` keeps whether they
+answered through their agent's question tool or in chat (`actions.answers` in telemetry), so the funnel has a
+denominator, a no, and evidence the question was put as one. Built-in tools are named with the page link and never offered as options
+(the rule of 2026-10-22, PR #441: a picker's line has no room for what denying one costs), and with nothing else to
+ask about the block is the page link alone. The accept path is that answer (`thinker context --days 7 --via session
+--approve 1,3`) or a row on Find Savings. A reply's numbers are the lines the summary showed, kept as `offered` in
+`<cache>/state/context-suggest.json` for `SUGGEST.answerDays` and read by `offeredChanges`; `--via session` is what
+says so. Resolved against a list recomputed at reply time, as until 2026-10-27, "1" applied whatever ranked first
+then — every session of the window moves each part's cost a prompt, and three sections within 3k tokens reordered on
+one more session, so approving the first line compressed the third. Without `--via session` the numbers are the five
+the command has just printed, which is what someone typing it is looking at; a key names a change either way
+(`pickChanges`). The page sends keys, never numbers.
 
 ## Desired behaviors
 

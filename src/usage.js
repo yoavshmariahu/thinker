@@ -129,6 +129,12 @@ export function normalizeClient(client, session = '') {
 }
 
 // fields added to a serving's log line
+// Empty-request reasons (ops.js:EMPTY_REASONS) where the cache was never searched, so the request
+// cannot be counted against retrieval: `too-few-notes` means the hooks did not ask a cache below its
+// serving threshold, and `held-out` means the notes were found and deliberately withheld to measure
+// them. Both are excluded from `attempted`, the hit rate's honest denominator.
+export const NOT_ATTEMPTED = ['too-few-notes', 'held-out'];
+
 export const servedFields = (store, notes, text) => ({ tokens: estTokens(text || ''), est: notes.map(n => { const s = savingOf(store.repo, n); return [s.calls, s.tokens]; }) });
 
 // The log is parsed once a process for its size and mtime: the page's report over every repository summarized
@@ -193,6 +199,17 @@ export function summarize(store, { days, all = false } = {}) {
     scope: all ? 'machine' : repoId(store.repo),
     from: events[0]?.t || null, to: events[events.length - 1]?.t || null, events: events.length,
     requests: 0, answered: 0, sessions: 0,
+    // requests the cache was actually searched for, and deliveries of notes to an agent.
+    // `requests` counts every prompt, including the ones no cache could answer: one against a cache
+    // below its serving threshold (never searched, ops.js:servesNotes) and one the holdout withheld
+    // notes from. Neither is a retrieval failure, so answered/requests reads as a miss rate they did
+    // not earn; `attempted` is the denominator that only holds requests the cache was asked.
+    // `delivered` counts every serving event that put a note in front of an agent, the edit hook's
+    // among them: a `late` serving is no request (the agent asked nothing; the hook fired on a file
+    // edit) and is logged only when it serves something, so it cannot go in either side of the hit
+    // rate without inventing hits. Counted here it keeps a device that was served notes from
+    // reporting nothing (2026-10-28: one device read 0 of 6 answered having been served 3 notes).
+    attempted: 0, delivered: 0, deliveredLate: 0,
     servings: { prompt: 0, file: 0, lookup: 0 }, notesServed: 0, notes: 0, tokensServed: 0,
     assessed: { confirmed: 0, contradicted: 0, unused: 0, pending: 0 },
     learned: { sessions: 0, notes: 0, merged: 0, prs: 0, prNotes: 0 },
@@ -284,10 +301,11 @@ export function summarize(store, { days, all = false } = {}) {
         u.requests++;
         r.requests++;
         u.clients.active[cl] = (u.clients.active[cl] || 0) + 1;
-        if (ids.length) u.answered++;
+        if (ids.length) { u.answered++; u.attempted++; }
         else {
           const why = typeof e.empty === 'string' ? e.empty : e.empty === true ? 'too-few-notes' : e.holdout ? 'held-out' : 'unrecorded';
           u.retrieval.emptyReasons[why] = (u.retrieval.emptyReasons[why] || 0) + 1;
+          if (!NOT_ATTEMPTED.includes(why)) u.attempted++;
           if (e.op === 'orient' && String(e.task || '').trim().split(/\s+/).filter(Boolean).length <= 3) u.retrieval.emptyShortPrompts++;
         }
       }
@@ -300,6 +318,8 @@ export function summarize(store, { days, all = false } = {}) {
         u.retrieval.guardUncoveredTerms += e.uncovered.length;
       }
       if (!ids.length) continue;
+      u.delivered++;
+      if (e.op === 'late') u.deliveredLate++;
       u.servings[e.op === 'orient' ? 'prompt' : e.op === 'late' ? 'file' : 'lookup'] += ids.length;
       r.served += ids.length;
       u.clients.servings[cl] = (u.clients.servings[cl] || 0) + ids.length;
@@ -541,7 +561,12 @@ export function renderUsage(u, { days } = {}) {
   // a checkout the store will not read (gone, moved, or a benchmark arm's symlinked notes) counts no notes
   if (u.unreadable?.length) L.push(`  (${num(u.unreadable.length)} ${u.unreadable.length === 1 ? 'checkout' : 'checkouts'} could not be read; their notes are not counted)`, '');
   L.push('Served');
+  // the hit rate is reported over the requests the cache was asked: the rest were a cache below its
+  // serving threshold, never searched, or a held-out turn (usage.js:NOT_ATTEMPTED)
+  const notAttempted = u.requests - u.attempted;
   L.push(`  requests        ${num(u.requests)}, ${num(u.answered)} answered with notes${u.sessions ? `, in ${num(u.sessions)} sessions` : ''}`);
+  L.push(`  asked the cache ${num(u.attempted)}${u.attempted ? ` (${Math.round((u.answered / u.attempted) * 100)}% answered)` : ''}${notAttempted > 0 ? `; ${num(notAttempted)} not asked (too few notes, or held out)` : ''}`);
+  if (u.deliveredLate) L.push(`  deliveries      ${num(u.delivered)} servings put notes in a session, ${num(u.deliveredLate)} of them on opening a file (no request)`);
   L.push(`  notes served    ${num(servings)} (${num(u.servings.prompt)} with the request, ${num(u.servings.file)} on opening a file, ${num(u.servings.lookup)} by lookup); ${num(u.notesServed)} different notes, ${num(u.notes)} in the cache now`);
   L.push(`  tokens added    ${num(u.tokensServed)}`);
   L.push('', 'What the sessions showed');

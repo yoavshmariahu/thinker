@@ -317,17 +317,25 @@ const billed = r => Math.round((r.input || 0) + 0.1 * (r.read || 0) + 2 * (r.wri
 // service itself runs (proxy.js:proxyReport) -- requests whose old tool results the API was asked to clear
 // against the holdout share that passed through untouched, which is the proxy's own before and after. Plus the
 // errors by code, the retries, and the same two sides per model. Model ids are the provider's published names.
+// `errors` counts what the API did to a request somebody was waiting for. A request the agent cancelled is
+// counted apart as `cancelled`, since nothing failed; an answer that stopped partway is in `errors` and in
+// `truncated`, since the agent was left with a broken stream. Rows written before this carry neither mark,
+// so their cancellations are still in `errors`; the window rolls them out in 30 days.
+// `total` counts tries, so a request tried twice is two: `retried` is how many were tried again and
+// `failed` (total - retried) is how many the agent saw fail.
 export function proxyMetrics({ home = thinkerHome(), now = Date.now(), env = process.env } = {}) {
   const since = new Date(now - SPEND_WINDOW_DAYS * DAY_MS).toISOString();
   const rows = readProxyRows(proxyLogFile(home, env)).filter(r => !r.at || r.at >= since);
   const state = serviceState(home);
   let cfg = {}; try { cfg = (readMachineConfig(home) || {}).proxy || {}; } catch {}
-  const errors = { total: 0, retried: 0, byCode: {} };
+  const errors = { total: 0, retried: 0, truncated: 0, byCode: {} };
+  let cancelled = 0;
   const byModel = {};
   const notes = { requests: 0, served: 0, replayed: 0 };
   for (const r of rows) {
     if (r.op === 'proxy-error') {
-      errors.total++; if (r.retried) errors.retried++;
+      if (r.aborted) { cancelled++; continue; }
+      errors.total++; if (r.retried) errors.retried++; if (r.truncated) errors.truncated++;
       const code = String(r.code || 'unknown'); errors.byCode[code] = (errors.byCode[code] || 0) + 1;
       continue;
     }
@@ -346,7 +354,7 @@ export function proxyMetrics({ home = thinkerHome(), now = Date.now(), env = pro
       keep: cfg.keep ?? null, trigger: cfg.trigger ?? null,
     },
     sides: proxyReport(rows, { since }),
-    byModel, errors, notes,
+    byModel, errors: { ...errors, failed: errors.total - errors.retried, cancelled }, notes,
   };
 }
 
@@ -423,6 +431,9 @@ export function spendMetrics(store, { all = true, now = Date.now() } = {}) {
     // `setup` the install's multi-select, `command` someone typing it. A machine before 0.2.11 logged no door, so its
     // decisions count under `command`; the counts here are of changes, not of events.
     approvedBy: {}, dismissedBy: {},
+    // how the weekly question was answered: through the agent's own question tool (`picker`) or in chat, and whether
+    // anything was chosen. An offer with no answer here was never put to the person, or they never replied.
+    answers: { picker: 0, chat: 0, some: 0, none: 0 },
     jobsStarted: 0, jobsRetried: 0, jobsFailed: 0, sectionEdits: 0, sectionPrs: 0,
     harnessOffers: 0, harnessOfferedSources: 0, harnessOfferedTokens: 0,
     harnessAnswers: {}, harnessOffs: 0, harnessSwitchedOff: 0, harnessUndos: 0, harnessUndoneSources: 0,
@@ -443,6 +454,10 @@ export function spendMetrics(store, { all = true, now = Date.now() } = {}) {
         a.approvedBy[via(e)] = (a.approvedBy[via(e)] || 0) + (e.changes || 0);
         if (e.reviewed) a.approvalsReviewed++;
         if (e.pr) a.approvalsAsPr++;
+        break;
+      case 'context-answer':
+        a.answers[e.asked === 'chat' ? 'chat' : 'picker']++;
+        a.answers[e.choice === 'none' ? 'none' : 'some']++;
         break;
       case 'context-dismiss': a.dismissals++; a.dismissedChanges += e.changes || 0;
         a.dismissedBy[via(e)] = (a.dismissedBy[via(e)] || 0) + (e.changes || 0); break;
@@ -557,6 +572,12 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
   const hitRate = u.requests > 0
     ? Math.round(((u.answered || 0) / u.requests) * 1000) / 1000
     : 0;
+  // the hit rate over the requests the cache was actually searched for (usage.js:NOT_ATTEMPTED).
+  // `hitRate` keeps its old denominator so the series stays comparable across the release; read
+  // `attemptedHitRate` to judge retrieval.
+  const attemptedHitRate = u.attempted > 0
+    ? Math.round(((u.answered || 0) / u.attempted) * 1000) / 1000
+    : 0;
 
   const device = deviceIdentity({ home });
   const tokenSpend = spendMetrics(store, { all });
@@ -624,6 +645,16 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
       requestsTotal: u.requests,
       requestsAnswered: u.answered,
       hitRate,
+      // requests the cache was asked, and the hit rate over them: `requestsTotal` also holds the
+      // requests a cache under its serving threshold was never asked and the ones the holdout
+      // withheld, neither of which retrieval failed at (usage.js:NOT_ATTEMPTED)
+      requestsAttempted: u.attempted,
+      attemptedHitRate,
+      // serving events that put a note in front of an agent, the edit hook's among them. A `late`
+      // serving is not a request and is logged only when it serves, so it is in neither side of the
+      // hit rate; without this a device served notes by the edit hook alone reports nothing served.
+      deliveries: u.delivered,
+      editHookDeliveries: u.deliveredLate,
       emptyRequests: Math.max(0, u.requests - u.answered),
       staleNotesServed: ret.staleServed || 0,
       freshNotesServed: ret.freshServed || 0,
@@ -645,6 +676,9 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
       requestsTotal: u.requests,
       requestsAnswered: u.answered,
       hitRate,
+      requestsAttempted: u.attempted,
+      attemptedHitRate,
+      deliveries: u.delivered,
       servings: {
         prompt: u.servings.prompt,
         file: u.servings.file,

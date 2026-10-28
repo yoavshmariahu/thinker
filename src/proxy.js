@@ -43,6 +43,15 @@ export const EDIT_BETA = 'context-management-2025-06-27';
 // what the replay cannot see, the agent reading again what was cleared, is the experiment still to run
 // (research/output-lifetime-2026-10-22). The proxy itself stays off until then: nothing points an agent at it.
 export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 100000, keep: 'turn', keepMin: 3, clearAtLeast: 80000, holdout: 0, clearInputs: false, clearThinking: false };
+// Codes worth one more try when nothing of the answer has reached the agent: a dropped connection
+// (a reused keep-alive socket the API had already closed), a connect timeout, and a name that did
+// not resolve, which on a laptop means the resolver is not back yet after a sleep or a network
+// change. In October 2026 these were 53 of the 91 errors the machines reported and none was retried,
+// so each one cost the agent a 502 and a retry of its own.
+export const RETRY_CODES = ['ECONNRESET', 'EPIPE', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN'];
+// A name that did not resolve is retried after a moment: an immediate second lookup asks a resolver
+// that is still on its way up and fails the same way.
+export const RETRY_DELAY = { ENOTFOUND: 250, EAI_AGAIN: 250 };
 // Two more things a clear can take with it, off until an experiment (2026-10-25; the replay priced at list over this
 // machine's six weeks, research/cost-levers-2026-10-25.md: the shipped clear alone is break-even in dollars, since every
 // clear writes the whole conversation again at twice the input rate and a Fable read costs 2.5% of an input token):
@@ -254,26 +263,35 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
       const overheadMs = Number(process.hrtime.bigint() - t0) / 1e6;
       const base = up.pathname.replace(/\/$/, '');
       let ureq;
-      // A connection dropped before any answer came back (a reset or a broken pipe: twice in one
-      // 84-request Opus session on 2026-10-20) is tried once more on a fresh connection. The agent's
-      // own retry of the 502 cost it 10 to 40 seconds each time. Nothing has reached the agent yet, so
-      // the second try is invisible to it; a drop after the answer started cannot be retried.
+      // A request that never reached the API (RETRY_CODES: a dropped connection -- a reset or a broken
+      // pipe, twice in one 84-request Opus session on 2026-10-20 -- a connect timeout, or a name that
+      // did not resolve) is tried once more on a fresh connection. The agent's own retry of the 502
+      // cost it 10 to 40 seconds each time. Nothing has reached the agent yet, so the second try is
+      // invisible to it; a drop after the answer started cannot be retried, and a request the agent
+      // has already walked away from is not retried at all.
       const send = attempt => {
         const started = Date.now();
+        // One error row per request: a break the agent and the API both notice (the agent leaves, so
+        // the proxy drops the upstream request, so that request errors too) is one event, not two.
+        let logged = false, recorded = false, truncated = false;
+        const logError = (e, extra) => {
+          if (logged) return;
+          logged = true;
+          log({ at: new Date().toISOString(), op: 'proxy-error', error: e.message, code: e.code, reused: !!ureq.reusedSocket, afterMs: Date.now() - started, ...extra });
+        };
         ureq = lib.request({ protocol: up.protocol, hostname: up.hostname, port: up.port || undefined, path: base + requestUrl, method: req.method, headers, agent: attempt ? false : agent }, ures => {
           const out = {};
           for (const [k, v] of Object.entries(ures.headers)) if (!['connection', 'keep-alive', 'transfer-encoding'].includes(k)) out[k] = v;
           res.writeHead(ures.statusCode, out);
           const tap = t.reason === 'other' ? null : t.protocol === 'responses' ? responsesUsageTap() : usageTap();
           ures.on('data', c => { res.write(c); tap?.push(c); });
-          let recorded = false;
           const record = () => {
             if (recorded) return;
             recorded = true;
             res.removeListener('close', record);
             if (tap) log({ at: new Date().toISOString(), op: 'proxy', session: t.session || sessionOf(req.headers), model: t.model, status: ures.statusCode,
               ...(t.protocol === 'responses' ? { protocol: 'responses', removedBytes: t.removedBytes || 0, estimatedRemovedTokens: t.estimatedRemovedTokens || 0, clearedUses: t.clearedUses || 0 } : {}),
-              injected: !!t.injected, ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}), ...(t.thinkingKeep != null ? { thinkingKeep: t.thinkingKeep } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...tap.result() });
+              injected: !!t.injected, ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}), ...(t.thinkingKeep != null ? { thinkingKeep: t.thinkingKeep } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...tap.result() });
           };
           // Codex closes SSE as soon as response.completed arrives, before the HTTP
           // body ends. Record that request too, exactly once, using usage seen so far.
@@ -282,12 +300,33 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
             record();
             res.end();
           });
-          ures.on('error', () => res.destroy());
+          // The answer stopped partway. The agent is left with a broken stream and the row recorded
+          // for this request holds only the tokens that arrived, so both say so; before this the
+          // request passed for a complete 200 and the drop was in no count at all. Once that row is
+          // written there is nothing to report: the agent closed the stream itself, as Codex does on
+          // response.completed, and the answer it has is the whole one.
+          ures.on('error', e => {
+            if (!recorded) { truncated = true; logError(e, { retried: false, truncated: true }); }
+            res.destroy();
+          });
         });
         ureq.on('error', e => {
-          const retry = !attempt && !res.headersSent && !res.destroyed && ['ECONNRESET', 'EPIPE'].includes(e.code);
-          log({ at: new Date().toISOString(), op: 'proxy-error', error: e.message, code: e.code, reused: !!ureq.reusedSocket, afterMs: Date.now() - started, retried: retry });
-          if (retry) return send(1);
+          // Already accounted for: the answer arrived and its usage row is written.
+          if (recorded) return;
+          // The agent itself went away -- the person pressed Esc, or its client gave up -- so the
+          // proxy destroyed this request and Node reports the reset here. That is a cancellation,
+          // and counting it as an error made 34 of the 36 resets the machines reported in October
+          // 2026 (20 of 20 on one Codex machine) look like failures of the API, which hid the 53
+          // that were real. Nobody is waiting for an answer, so there is nothing to retry or send.
+          const cancelled = res.destroyed && !res.writableFinished;
+          const retry = !attempt && !cancelled && !res.headersSent && RETRY_CODES.includes(e.code);
+          logError(e, { retried: retry, ...(cancelled ? { aborted: true } : {}) });
+          if (retry) {
+            const wait = RETRY_DELAY[e.code] || 0;
+            if (!wait) return send(1);
+            return void setTimeout(() => { if (res.destroyed) return; send(1); }, wait);
+          }
+          if (res.destroyed) return;
           if (res.headersSent) return res.destroy();
           res.writeHead(502, { 'content-type': 'application/json' });
           res.end(JSON.stringify({ type: 'error', error: { type: 'api_error', message: `thinker proxy: the API could not be reached (${e.message})` } }));
@@ -318,8 +357,8 @@ export function proxyReport(rows, { since } = {}) {
     if (r.op !== 'proxy' || (since && r.at < since)) continue;
     const side = r.injected ? 'clearing' : r.reason === 'holdout' ? 'holdout' : null;
     if (!side) continue;
-    const s = sides[side] ||= { requests: 0, sessions: new Set(), input: 0, read: 0, write: 0, out: 0, cleared: 0, clears: 0, overheadMs: [] };
-    s.requests++; if (r.session) s.sessions.add(r.session);
+    const s = sides[side] ||= { requests: 0, sessions: new Set(), input: 0, read: 0, write: 0, out: 0, cleared: 0, clears: 0, truncated: 0, overheadMs: [] };
+    s.requests++; if (r.session) s.sessions.add(r.session); if (r.truncated) s.truncated++;
     s.input += r.input || 0; s.read += r.read || 0; s.write += r.write || 0; s.out += r.out || 0;
     s.cleared += r.cleared || 0; if (r.cleared) s.clears++;
     s.overheadMs.push(r.overheadMs || 0);
@@ -329,6 +368,9 @@ export function proxyReport(rows, { since } = {}) {
     const ms = s.overheadMs.sort((a, b) => a - b);
     outSides[k] = { requests: s.requests, sessions: s.sessions.size, input: s.input, read: s.read, write: s.write, out: s.out,
       billedInput: Math.round(s.input + 0.1 * s.read + 2 * s.write), cleared: s.cleared, requestsCleared: s.clears,
+      // These sums are the tokens that arrived. An answer that stopped partway is counted as a request
+      // and contributes what it got through, so the two sides are read beside this.
+      requestsTruncated: s.truncated,
       overheadP50: ms[Math.floor(ms.length / 2)] ?? 0, overheadP99: ms[Math.min(ms.length - 1, Math.floor(ms.length * 0.99))] ?? 0 };
   }
   const responses = responsesReport(rows, { since });

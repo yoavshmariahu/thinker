@@ -1,4 +1,5 @@
 import { retireBackground } from '../retire-background.js';
+import { resetStaleMarks } from '../stale-reset.js';
 import { Store } from '../store.js';
 // Setting a repository and this machine up: setup, uninstall, the tree-sitter parser (ast), and
 // updating thinker itself (update, upgrade, switch, branch).
@@ -178,6 +179,8 @@ async function rewireCommand(ctx) {
     summary.repos++; refresh(r, 'repo', CLIENTS);
     // the background work an older version started that the new defaults no longer do (retire-background.js)
     try { const done = retireBackground(new Store(r), { dry }); if (done.length && !quiet && !flags.json) out(`${r}: ${dry ? 'would stop' : 'stopped'} old background work: ${done.join('; ')}`); } catch (e) { failed(`${r} (background)`, e); }
+    // the one-time staleness reset (stale-reset.js): once per repository, guarded by its own marker
+    try { const r2 = resetStaleMarks(new Store(r), { dry }); if (r2?.cleared.length && !quiet && !flags.json) out(`${r}: ${dry ? 'would clear' : 'cleared'} the stale mark on ${r2.cleared.length} ${r2.cleared.length === 1 ? 'note' : 'notes'}${r2.skipped.length ? `, ${r2.skipped.length} left stale` : ''}`); } catch (e) { failed(`${r} (stale reset)`, e); }
   }
   if (!dry && summary.changed) store.log({ op: 'rewire', repos: summary.changed, files: summary.files.length });
   // agents the checkouts wire but the user's own settings do not yet: wired there now (clients.js:connectFromCheckouts)

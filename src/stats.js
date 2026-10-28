@@ -25,6 +25,8 @@ export function renderStats(s) {
   const row = (label, value) => L.push(`  ${label.padEnd(20)} ${value}`);
   L.push('Activity');
   row('Requests', `${num(u.requests)} · ${num(u.answered)} answered with notes · ${num(u.sessions)} sessions`);
+  // only the requests the cache was asked can be answered (usage.js:NOT_ATTEMPTED)
+  row('Asked the cache', `${num(u.attempted)}${u.attempted ? ` · ${Math.round((u.answered / u.attempted) * 100)}% answered` : ''}${u.requests - u.attempted > 0 ? ` · ${num(u.requests - u.attempted)} not asked` : ''}`);
   row('Notes delivered', `${num(u.servings.prompt + u.servings.file + u.servings.lookup)} · ${num(u.notesServed)} distinct notes`);
   row('Session assessments', `${num(u.assessed.confirmed)} acted on · ${num(u.assessed.unused)} unused · ${num(u.assessed.contradicted)} contradicted`);
   row('Awaiting assessment', num(u.assessed.pending));

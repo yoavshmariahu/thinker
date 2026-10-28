@@ -255,6 +255,11 @@ export function codeSnippets(repo, notes, budget, { perNote = 2, max = 4, maxLin
 // those that bear on the request; its choice is final. links: pull in one note linked from the best hit.
 export async function orient(store, { task, file, session, client, budget = HOOK_BUDGET, maxNotes = 2, relFloor = 0, refreshFirst = true, recordUsage = true, rerankModel = store.config().rerank, links = true, snippets = false, once = false, freshOnly = false, holdout = false, turn = undefined, deadline = undefined }) {
   const start = Date.now();
+  // the three coverage levers, all off by default (servingConfig above)
+  const serveCfg = servingConfig(store);
+  // serveStale: the hooks hold a stale note back (freshOnly); with the lever on they serve it with
+  // the ⚠ STALE banner renderNote already puts on it, so `held` stays empty and nothing is withheld
+  if (serveCfg.serveStale) freshOnly = false;
   let notes = store.list();
   const cached = notes.length;
   if (once && session) notes = notes.filter(n => !(n.servedIn || []).includes(session));
@@ -323,6 +328,37 @@ export async function orient(store, { task, file, session, client, budget = HOOK
   }
   const deadlineFields = ceDeadline ? { ceDeadline, sinceStartMs: Math.round(performance.now()), load: Number(os.loadavg()[0].toFixed(1)) } : {};
   if (rerankModel && ranked.length) { try { ranked = await rerank(store, ranked, task, file, rerankModel); chosen = true; } catch (e) { store.log({ op: 'rerank-error', error: String(e.message) }); } }
+  // ceRescue: the cross-encoder kept none of the candidates it was given. Its choice is final by
+  // design, which is what makes a request with real lexical matches serve nothing; with the lever on
+  // the best candidate it turned down is served instead. `chosen` is left as the cross-encoder set it,
+  // so a linked note is still not pulled in beside a pick a model ruled on.
+  let rescued = false;
+  if (serveCfg.ceRescue && ce && !ranked.length && lexical.length) {
+    const back = lexical.filter(r => !freshOnly || r.note.status !== 'stale').slice(0, 1);
+    if (back.length) { ranked = back; rescued = true; }
+  }
+  // denseFallback: no note shares a word with the request, so the lexical ranking has nothing to
+  // order. The notes are scored by the local embedding model and the best one above the floor is
+  // served. Entered only on an empty lexical ranking, so a ranking that worked is never reordered.
+  let denseFell = false;
+  if (serveCfg.denseFallback && !ranked.length && notes.length) {
+    try {
+      const sc = await withinDeadline(() => denseScores(notes, task + (file ? ' ' + file : '')));
+      if (sc) {
+        const best = notes.map(n => ({ note: n, rel: sc.get(n.id) ?? 0, aff: 0, score: sc.get(n.id) ?? 0 }))
+          .filter(r => r.rel >= serveCfg.denseFloor)
+          .sort((a, b) => b.rel - a.rel)
+          .slice(0, 1);
+        // the lexical path refreshes its candidates against the working tree; this one must too, or a
+        // stale note would read as fresh and freshOnly could not hold it back
+        if (best.length) {
+          const fresh = refresh(store, [best[0].note]);
+          if (fresh.length) best[0] = { ...best[0], note: fresh[0] };
+          if (!freshOnly || best[0].note.status !== 'stale') { ranked = best; denseFell = true; }
+        }
+      }
+    } catch (e) { store.log({ op: 'dense-error', error: String(e.message).slice(0, 200) }); }
+  }
   // what would have been served had staleness not held it back
   const held = freshOnly ? [...new Set([...heldByLexical, ...ranked.slice(0, maxNotes).filter(r => r.note.status === 'stale').map(r => r.note)])] : [];
   const servable = freshOnly ? ranked.filter(r => r.note.status !== 'stale') : ranked;
@@ -373,8 +409,56 @@ export async function orient(store, { task, file, session, client, budget = HOOK
   }
   addSnippets(store, packed, budget, snippets);
   const empty = packed.included.length ? undefined : emptyReason({ cached, notes, lexical, ranked, ce, freshOnly });
-  if (recordUsage) store.log({ op: 'orient', session, turn, client: client || 'cli', empty, dense: dense ? 'minilm' : undefined, ce: ce || undefined, ...deadlineFields, understood: understood.length ? understood.map(r => Number(r.ce.toFixed(2))) : undefined, task: String(task).slice(0, 200), file, served: packed.included.map(n => n.id), uncovered: packed.uncovered, snippets: packed.snippets?.length || undefined, stale: packed.included.filter(n => n.status === 'stale').map(n => n.id), held: held.length ? held.map(n => n.id) : undefined, durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
+  // the levers that produced this answer, so an experiment can tell a rescued or densely-found serving
+  // apart from an ordinary one (servingConfig); absent when they are off, as they are by default
+  if (recordUsage) store.log({ op: 'orient', session, turn, client: client || 'cli', empty, rescued: rescued || undefined, denseFallback: denseFell || undefined, dense: dense ? 'minilm' : undefined, ce: ce || undefined, ...deadlineFields, understood: understood.length ? understood.map(r => Number(r.ce.toFixed(2))) : undefined, task: String(task).slice(0, 200), file, served: packed.included.map(n => n.id), uncovered: packed.uncovered, snippets: packed.snippets?.length || undefined, stale: packed.included.filter(n => n.status === 'stale').map(n => n.id), held: held.length ? held.map(n => n.id) : undefined, durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
   return packed;
+}
+
+// Three answers to the three reasons a request the cache was asked gets nothing (EMPTY_REASONS below).
+// Measured on production telemetry over the ten days to 2026-10-28: of 3,561 requests the cache was
+// actually searched for, 70 were answered, and the misses were `no-match` 1,983 (56%),
+// `ranker-rejected` 949 (27%) and `only-stale` 556 (16%). Each lever below addresses one of them.
+//
+// All three are off by default and stay off until an Artemis experiment measures them in agent
+// sessions against the shipped strategy on the same tasks: they change the serving pool, the
+// cross-encoder's veto and the freshness rule, which is exactly what a cache-and-serving change may
+// not do by default without evidence (AGENTS.md). Offline replays are not evidence. A switch here
+// going on by default is its own pull request citing its experiment.
+//
+// `serving` in .thinker/config.json, or the environment, which wins over the config:
+//   denseFallback  THINKER_SERVE_DENSE_FALLBACK=on|off  a request no note shares a word with is
+//                  scored by the local embedding model instead (dense.js:denseScores, MiniLM), and
+//                  the best note above `denseFloor` is served. Only when the lexical ranking found
+//                  nothing at all, so it never reorders a ranking that worked. Note that a dense
+//                  bi-encoder blended into the ranking measured no gain (memory, 2026-10); this is
+//                  the untested different case of no lexical candidate whatsoever.
+//                  `denseFloor` is 0.35, the relevance `pack` already requires of any note it packs
+//                  (rank.js:pack `minRel`), so a densely-found note clears the same bar as every
+//                  other served note rather than a bar invented for it. The cosines of this blend run
+//                  low: a note that answers a request in none of its words scored 0.37 in a check on
+//                  2026-10-28, so a stricter floor would have kept the lever from ever firing. The
+//                  right floor is one of the things the experiment has to settle.
+//   ceRescue       THINKER_SERVE_CE_RESCUE=on|off       when the cross-encoder keeps none of the
+//                  candidates, the best one it turned down is served anyway rather than nothing. The
+//                  cross-encoder's choice being final is what makes it reject everything on 27% of
+//                  attempted requests; this trades some of that precision for coverage.
+//   serveStale     THINKER_SERVE_STALE=on|off           the hooks serve a stale note, with the
+//                  ⚠ STALE banner it already carries, instead of holding it back. This repository
+//                  declares "the prompt hooks serve no stale note" as a mutable desired behavior, so
+//                  turning it on here revises that behavior and must say so.
+export const SERVING_DEFAULTS = { denseFallback: false, ceRescue: false, serveStale: false, denseFloor: 0.35 };
+export function servingConfig(store) {
+  const c = store?.config?.().serving;
+  const cfg = { ...SERVING_DEFAULTS, ...(c && typeof c === 'object' ? c : {}) };
+  const e = process.env;
+  const flag = (name, key) => { if (e[name] === 'on') cfg[key] = true; else if (e[name] === 'off') cfg[key] = false; };
+  flag('THINKER_SERVE_DENSE_FALLBACK', 'denseFallback');
+  flag('THINKER_SERVE_CE_RESCUE', 'ceRescue');
+  flag('THINKER_SERVE_STALE', 'serveStale');
+  if (e.THINKER_SERVE_DENSE_FLOOR !== undefined && e.THINKER_SERVE_DENSE_FLOOR !== '') cfg.denseFloor = Number(e.THINKER_SERVE_DENSE_FLOOR);
+  if (!Number.isFinite(cfg.denseFloor)) cfg.denseFloor = SERVING_DEFAULTS.denseFloor;
+  return cfg;
 }
 
 // Why a request was served nothing (logged as `empty`, counted by usage.js, sent as retrieval.emptyReasons):

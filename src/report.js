@@ -314,6 +314,8 @@ export function cacheMetrics(store, { days, config, all = false, usage } = {}) {
     dollarsSaved: dollars, unpricedTokens: Math.round(unpricedTokens), measured,
     tokensSaved: measured ? ho.saved.inputTokens : u.saved?.tokens || 0,
     hits: Object.values(u.servings || {}).reduce((a, b) => a + b, 0), requests: u.requests || 0, answered: u.answered || 0,
+    // the hit rate is quoted over the requests the cache was asked, not every prompt (usage.js:NOT_ATTEMPTED)
+    attempted: u.attempted || 0,
     acted: judged ? (as.confirmed || 0) / judged : null, judged,
   };
 }
@@ -349,7 +351,7 @@ export function mergeReports(list) {
     totals: sumCells(views.map(v => v.totals)), sessionTotals: sumCells(views.map(v => v.sessionTotals)),
     providers, models: modelRows, unpriced: [...new Set(views.flatMap(v => v.unpriced))],
     actions: list.flatMap(x => x.view.actions.map(a => ({ ...a, repo: x.repo, repoName: x.name }))).sort((a, b) => b.at.localeCompare(a.at)),
-    cache: { dollarsSaved: sum('dollarsSaved'), unpricedTokens: sum('unpricedTokens'), measured: cache.some(c => c.measured), tokensSaved: sum('tokensSaved'), hits: sum('hits'), requests: sum('requests'), answered: sum('answered'), acted: judged ? confirmed / judged : null, judged },
+    cache: { dollarsSaved: sum('dollarsSaved'), unpricedTokens: sum('unpricedTokens'), measured: cache.some(c => c.measured), tokensSaved: sum('tokensSaved'), hits: sum('hits'), requests: sum('requests'), answered: sum('answered'), attempted: sum('attempted'), acted: judged ? confirmed / judged : null, judged },
     repos: list.map(x => ({ repo: x.repo, name: x.name })),
   };
 }
@@ -402,6 +404,6 @@ export function renderReport(v, { cost = true, total = false, share = false } = 
   L.push(`  ${cost ? '✓ · ✗: a row of the parts table at or under its good figure, between the two, at or over its bad figure, in dollars a priced prompt whatever the table shows; the models and the token types take no mark; ' : ''}a zero is left blank. A model row is its share of the ${total ? 'week' : 'average prompt'}; its sessions:` + ` ${v.models.map(m => `${m.model} ${m.cells.map(c => c.sessions).join('/')}`).join(', ')}.`);
   if (v.unpriced.length) L.push(`  No list price for ${v.unpriced.join(', ')}: their sessions are left out of the cost average.`);
   const c = v.cache;
-  L.push('', 'The cache', `  $ saved          ${formatDollars(c.dollarsSaved)}${c.unpricedTokens ? ` (+${formatTokens(c.unpricedTokens)} tokens on unpriced models)` : ''}`, `  tokens saved     ${formatTokens(Math.max(0, c.tokensSaved))} ${c.measured ? 'input tokens, against prompts with the notes withheld' : 'tokens of code the agents did not read'}`, `  cache hits       ${formatTokens(c.hits)} notes served, for ${formatTokens(c.answered)} of ${formatTokens(c.requests)} requests`, `  acted on         ${c.acted == null ? '–' : `${Math.round(100 * c.acted)}%`} of ${formatTokens(c.judged)} servings the sessions were judged on`);
+  L.push('', 'The cache', `  $ saved          ${formatDollars(c.dollarsSaved)}${c.unpricedTokens ? ` (+${formatTokens(c.unpricedTokens)} tokens on unpriced models)` : ''}`, `  tokens saved     ${formatTokens(Math.max(0, c.tokensSaved))} ${c.measured ? 'input tokens, against prompts with the notes withheld' : 'tokens of code the agents did not read'}`, `  cache hits       ${formatTokens(c.hits)} notes served, for ${formatTokens(c.answered)} of ${formatTokens(c.attempted)} requests the cache was asked${c.requests > c.attempted ? ` (${formatTokens(c.requests - c.attempted)} not asked: too few notes, or held out)` : ''}`, `  acted on         ${c.acted == null ? '–' : `${Math.round(100 * c.acted)}%`} of ${formatTokens(c.judged)} servings the sessions were judged on`);
   return L;
 }
