@@ -62,6 +62,12 @@ async function tunnel() {
   throw new Error(`Database tunnel did not start. Check ${work}/tunnel.log and AWS login.`);
 }
 
+// requests the cache was actually searched for: `requests_total` also counts the prompts a cache below
+// its serving threshold was never asked and the turns the holdout withheld (usage.js:NOT_ATTEMPTED).
+// Null on clients before 0.2.12, so a hit rate over it leaves those snapshots out rather than
+// crediting them with a miss they did not make.
+const att = "(CASE WHEN jsonb_typeof(raw_json #> '{retrieval,requestsAttempted}') = 'number' THEN (raw_json #>> '{retrieval,requestsAttempted}')::numeric END)";
+
 const diagnosticQuestions = [
   { name: 'Received reports', display: 'scalar', sql: 'SELECT count(*) AS reports FROM reports' },
   { name: 'Installation IDs (not people)', display: 'scalar', sql: 'SELECT count(*) AS installations FROM v_latest_installs' },
@@ -70,7 +76,7 @@ const diagnosticQuestions = [
   { name: 'Report arrivals · UTC', display: 'bar', sql: "SELECT date_trunc('hour', received_at AT TIME ZONE 'UTC') AS hour_utc, count(*) AS reports FROM reports GROUP BY 1 ORDER BY 1", settings: { 'graph.dimensions': ['hour_utc'], 'graph.metrics': ['reports'] } },
   { name: 'Installs, warm-ups and uninstalls · per day UTC', display: 'bar', sql: "SELECT date_trunc('day', received_at AT TIME ZONE 'UTC') AS day_utc, event, count(*) AS reports FROM reports WHERE event IN ('install', 'warmup', 'uninstall') GROUP BY 1, 2 ORDER BY 1", description: 'One report per setup (install), cache build (warmup, one per repository) and uninstall. Clients before this change reported warm-ups as installs.', settings: { 'graph.dimensions': ['day_utc', 'event'], 'graph.metrics': ['reports'], 'stackable.stack_type': 'stacked' } },
   { name: 'Platforms · latest installation snapshots', display: 'bar', sql: 'SELECT platform, count(*) AS installations FROM v_latest_installs GROUP BY 1 ORDER BY 2 DESC', settings: { 'graph.dimensions': ['platform'], 'graph.metrics': ['installations'] } },
-  { name: 'Usage · latest snapshots', display: 'table', sql: 'SELECT sum(requests_total) AS requests, sum(requests_answered) AS answered, round(100.0 * sum(requests_answered) / nullif(sum(requests_total), 0), 1) AS hit_rate_percent, sum(tokens_served) AS tokens_injected, count(*) FILTER (WHERE requests_total > 0) AS installations_with_requests FROM v_latest_installs' },
+  { name: 'Usage · latest snapshots', display: 'table', sql: `SELECT sum(requests_total) AS requests, sum(${att}) AS asked_the_cache, sum(requests_answered) AS answered, round(100.0 * sum(requests_answered) / nullif(sum(${att}), 0), 1) AS hit_rate_percent, sum(tokens_served) AS tokens_injected, count(*) FILTER (WHERE requests_total > 0) AS installations_with_requests FROM v_latest_installs`, description: 'Hit rate is over the requests the cache was asked, not every prompt: a cache below its serving threshold is never searched and a held-out turn is withheld on purpose (usage.js:NOT_ATTEMPTED).' },
   { name: 'Cache inventory · latest snapshots', display: 'table', sql: 'SELECT sum(cache_total_notes) AS notes, round(sum(cache_total_bytes) / 1024.0, 1) AS size_kib, count(*) FILTER (WHERE cache_total_notes > 0) AS installations_with_notes, sum(cache_repositories_count) AS repository_installation_pairs FROM v_latest_installs' },
   { name: 'Note kinds · latest snapshots', display: 'bar', sql: 'SELECT kind, total_notes FROM v_kind_distribution ORDER BY total_notes DESC', settings: { 'graph.dimensions': ['kind'], 'graph.metrics': ['total_notes'] } },
   { name: 'Note assessments · latest snapshots', display: 'bar', sql: "SELECT assessment, sum(amount) AS notes FROM v_latest_installs CROSS JOIN LATERAL (VALUES ('Confirmed', assessed_confirmed), ('Contradicted', assessed_contradicted), ('Unused', assessed_unused), ('Pending', assessed_pending)) AS a(assessment, amount) GROUP BY assessment ORDER BY notes DESC", settings: { 'graph.dimensions': ['assessment'], 'graph.metrics': ['notes'] } },
@@ -88,10 +94,10 @@ const diagnosticQuestions = [
 
 const performanceQuestions = [
   { name: 'Cache requests', display: 'scalar', sql: 'SELECT sum(requests_total) AS cache_requests FROM v_latest_installs', description: 'Orientation and lookup requests in the latest snapshot per installation. Does not count late file notes.' },
-  { name: 'Cache hit rate (%)', display: 'scalar', sql: 'SELECT round(100.0 * sum(requests_answered) / nullif(sum(requests_total), 0), 1) AS hit_rate_percent FROM v_latest_installs', description: 'Share of cache requests that returned at least one note. Weighted by request count. A hit does not prove the note was useful.' },
+  { name: 'Cache hit rate (%)', display: 'scalar', sql: `SELECT round(100.0 * sum(requests_answered) / nullif(sum(${att}), 0), 1) AS hit_rate_percent FROM v_latest_installs`, description: 'Requests that returned at least one note / the requests the cache was actually asked. A cache below its serving threshold is never searched, and a held-out turn has its notes withheld on purpose; neither is counted against retrieval (usage.js:NOT_ATTEMPTED). Weighted by request count. A hit does not prove the note was useful. Clients before 0.2.12 report no attempted count and are left out.' },
   { name: 'Assessed notes confirmed useful (%)', display: 'scalar', sql: 'SELECT round(100.0 * sum(assessed_confirmed) / nullif(sum(assessed_confirmed + assessed_contradicted + assessed_unused), 0), 1) AS useful_percent FROM v_latest_installs', description: 'Confirmed / (confirmed + contradicted + unused). Pending assessments are excluded. Based on the distiller reading agent traces, not an independent accuracy benchmark.' },
   { name: 'Estimated tokens saved before distillation cost', display: 'scalar', sql: 'SELECT sum(net_tokens_saved) AS estimated_tokens_saved FROM v_latest_installs', description: 'Estimated file-reading tokens avoided minus note tokens injected. Does not subtract model tokens used to build or maintain the cache; not measured token or dollar savings.' },
-  { name: 'Cache requests with and without a hit', display: 'bar', sql: "SELECT outcome, sum(amount) AS requests FROM v_latest_installs CROSS JOIN LATERAL (VALUES ('Returned notes', requests_answered), ('No notes returned', requests_total - requests_answered)) AS r(outcome, amount) GROUP BY outcome", settings: { 'graph.dimensions': ['outcome'], 'graph.metrics': ['requests'] } },
+  { name: 'Cache requests with and without a hit', display: 'bar', sql: `SELECT outcome, sum(amount) AS requests FROM v_latest_installs CROSS JOIN LATERAL (VALUES ('Returned notes', requests_answered), ('Asked, no notes returned', coalesce(${att}, requests_total) - requests_answered), ('Cache not asked', requests_total - coalesce(${att}, requests_total))) AS r(outcome, amount) GROUP BY outcome`, settings: { 'graph.dimensions': ['outcome'], 'graph.metrics': ['requests'] }, description: 'Cache not asked: the cache held too few notes to be searched, or the turn was held out. Those prompts are counted as requests so a machine in daily use does not read as idle, but retrieval never ran on them.' },
   { name: 'Distillation runs', display: 'scalar', sql: 'SELECT sum(sessions_distilled) AS runs FROM v_latest_installs', description: 'Recorded distillation completions. A session can be distilled incrementally more than once; these are runs, not distinct sessions.' },
   { name: 'New notes from distillation', display: 'scalar', sql: 'SELECT sum(new_notes) AS new_notes FROM v_latest_installs' },
   { name: 'Existing notes merged during distillation', display: 'scalar', sql: 'SELECT sum(notes_merged) AS notes_merged FROM v_latest_installs' },
@@ -162,13 +168,13 @@ export async function provision({ call = api, config = state, persist = save, re
   state.cards ||= {};
   for (const question of questions) {
     const existingId = state.cards[question.name];
-    if (existingId && (question.spend ? state.spendCardVersion === 1 : question.cache ? state.cacheCardVersion === 5 : question.holdout ? state.holdoutCardVersion === 3 : question.delivery ? state.deliveryCardVersion === 2 : state.cardVersion === 7)) continue;
+    if (existingId && (question.spend ? state.spendCardVersion === 1 : question.cache ? state.cacheCardVersion === 6 : question.holdout ? state.holdoutCardVersion === 3 : question.delivery ? state.deliveryCardVersion === 2 : state.cardVersion === 8)) continue;
     const card = await api(existingId ? `/card/${existingId}` : '/card', existingId ? 'PUT' : 'POST', { name: question.name, display: question.display, description: question.description || null,
       collection_id: state.collectionId, visualization_settings: question.settings || {},
       dataset_query: dataset(question, db.id) });
     state.cards[question.name] = card.id; save();
   }
-  state.cardVersion = 7; state.deliveryCardVersion = 2; state.holdoutCardVersion = 3; state.cacheCardVersion = 5; state.spendCardVersion = 1; save();
+  state.cardVersion = 8; state.deliveryCardVersion = 2; state.holdoutCardVersion = 3; state.cacheCardVersion = 6; state.spendCardVersion = 1; save();
   if (!state.dashboardId) {
     state.dashboardId = (await api('/dashboard', 'POST', { name: 'Thinker telemetry', collection_id: state.collectionId,
       description: 'Live reports, installation activity, and data quality. Installation IDs are not people. Older telemetry may contain test data. Usage fields are rolling snapshots; do not sum all reports.' })).id;
