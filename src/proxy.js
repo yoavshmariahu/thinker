@@ -43,7 +43,7 @@ export const EDIT_BETA = 'context-management-2025-06-27';
 // count's 1.58%, with 17 sessions costlier against 20, and by construction never clears a result of the turn in hand;
 // what the replay cannot see, the agent reading again what was cleared, is the experiment still to run
 // (research/output-lifetime-2026-10-22). The proxy itself stays off until then: nothing points an agent at it.
-export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 100000, keep: 'turn', keepMin: 3, clearAtLeast: 80000, holdout: 0, clearInputs: false, clearThinking: false };
+export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 100000, keep: 'turn', keepMin: 3, clearAtLeast: 80000, holdout: 0, clearInputs: true, clearThinking: true };
 // Codes worth one more try when nothing of the answer has reached the agent: a dropped connection
 // (a reused keep-alive socket the API had already closed), a connect timeout, and a name that did
 // not resolve, which on a laptop means the resolver is not back yet after a sleep or a network
@@ -82,13 +82,18 @@ export function authWatch(onStandDown, { limit = AUTH_REFUSALS, on = true } = {}
     get stoodDown() { return stoodDown; },
   };
 }
-// Two more things a clear can take with it, off until an experiment (2026-10-25; the replay priced at list over this
-// machine's six weeks, research/cost-levers-2026-10-25.md: the shipped clear alone is break-even in dollars, since every
-// clear writes the whole conversation again at twice the input rate and a Fable read costs 2.5% of an input token):
-// `clearInputs` (`--clear-inputs`, THINKER_PROXY_CLEAR_INPUTS=on, `proxy: { clearInputs: true }`): the edit's
+// Two more things a clear can take with it, both on by default since 2026-10-28 (the owner's call: this is the
+// configuration this machine has run since 2026-10-25, and it is what makes clearing pay at all. The replay priced at
+// list over 45 days of this machine's sessions, research/cost-levers-2026-10-25.md and `thinker proxy replay`: the
+// shipped clear of results alone is break-even in dollars, -0.2%, since every clear writes the whole conversation again
+// at twice the input rate and a Fable read costs 2.5% of an input token, while the three together save 7.8% overall and
+// 10.8% on the sessions of 120 calls and more that are 71% of the bill, 2 of 73 of them costlier. An Artemis experiment
+// cannot judge this: its tasks are one turn, and a clear needs a conversation. What the replay cannot see is the model
+// reading again what was cleared, so those figures are an upper bound; the live holdout is the check):
+// `clearInputs` (off again with `--no-clear-inputs`, THINKER_PROXY_CLEAR_INPUTS=off, `proxy: { clearInputs: false }`): the edit's
 // `clear_tool_inputs`, so the text of the agent's own calls (its edits and commands) goes with their results; 2.3% of the
 // bill in the replay, 5.8% on sessions of 120 calls and more, riding the same clear. `clearThinking` (`--clear-thinking`,
-// THINKER_PROXY_CLEAR_THINKING=on, `proxy: { clearThinking: true }`): a `clear_thinking` edit that drops the thinking of
+// THINKER_PROXY_CLEAR_THINKING=off, `proxy: { clearThinking: false }`): a `clear_thinking` edit that drops the thinking of
 // the turns before the current one, sent only on a request where the results before the current turn are, by the
 // proxy's own count, already enough for the tool clear to fire (thinkingEdit), so the two clears break the cache at the
 // same point and never on their own: 5.0% of the bill in the replay, 10.1% on the long sessions; thinking cleared on its
@@ -114,9 +119,18 @@ export function proxyConfig(flags = {}, env = process.env) {
     if (v !== undefined) cfg[key] = v;
   }
   if (String(flags.keep ?? env.THINKER_PROXY_KEEP ?? '').trim() === 'turn') cfg.keep = 'turn';
-  const on = (flag, name) => { const v = flags[flag] ?? env[name]; return v === true || /^(1|on|true|yes)$/i.test(String(v ?? '').trim()); };
-  cfg.clearInputs = on('clear-inputs', 'THINKER_PROXY_CLEAR_INPUTS');
-  cfg.clearThinking = on('clear-thinking', 'THINKER_PROXY_CLEAR_THINKING');
+  // on by default: a flag, `--no-<flag>`, the variable (on|off) or the machine config may say otherwise
+  const onOff = (flag, name, dflt) => {
+    const raw = flags[flag] ?? (flags[`no-${flag}`] ? 'off' : undefined) ?? env[name];
+    if (raw === undefined || raw === '') return dflt;
+    if (raw === true) return true;
+    const s = String(raw).trim();
+    if (/^(1|on|true|yes)$/i.test(s)) return true;
+    if (/^(0|off|false|no)$/i.test(s)) return false;
+    return dflt;
+  };
+  cfg.clearInputs = onOff('clear-inputs', 'THINKER_PROXY_CLEAR_INPUTS', PROXY_DEFAULTS.clearInputs);
+  cfg.clearThinking = onOff('clear-thinking', 'THINKER_PROXY_CLEAR_THINKING', PROXY_DEFAULTS.clearThinking);
   cfg.upstream = flags.upstream || env.THINKER_PROXY_UPSTREAM || cfg.upstream;
   cfg.port = pick('port', 'THINKER_PROXY_PORT');
   cfg.protocol = flags.protocol || env.THINKER_PROXY_PROTOCOL || 'anthropic';
