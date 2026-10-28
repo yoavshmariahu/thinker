@@ -27,6 +27,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { transformResponses, responsesUsageTap, responsesReport } from './proxy-responses.js';
 import { CODEX_PROXY_PATH, CODEX_UPSTREAMS } from './proxy-codex.js';
+import { foreignAuth } from './proxy-route.js';
 
 export const EDIT_TYPE = 'clear_tool_uses_20250919';
 export const EDIT_BETA = 'context-management-2025-06-27';
@@ -52,6 +53,13 @@ export const RETRY_CODES = ['ECONNRESET', 'EPIPE', 'ETIMEDOUT', 'ENOTFOUND', 'EA
 // A name that did not resolve is retried after a moment: an immediate second lookup asks a resolver
 // that is still on its way up and fails the same way.
 export const RETRY_DELAY = { ENOTFOUND: 250, EAI_AGAIN: 250 };
+// How many refusals in a row mean the agent's credentials are not for the endpoint the proxy forwards to, rather
+// than one expired token or one upstream hiccup: a session whose every call fails is broken either way, and the
+// proxy is the one thing in the path that the person did not put there.
+export const AUTH_REFUSALS = 3;
+// Judged only when the proxy forwards to Anthropic's own API: with an upstream of someone's own (`--upstream`,
+// `proxy: { upstream }`) the credentials are theirs to match, not the proxy's to doubt.
+export const forwardsToAnthropic = upstream => { try { return /(^|\.)api\.anthropic\.com$/.test(new URL(upstream).hostname); } catch { return false; } };
 // Two more things a clear can take with it, off until an experiment (2026-10-25; the replay priced at list over this
 // machine's six weeks, research/cost-levers-2026-10-25.md: the shipped clear alone is break-even in dollars, since every
 // clear writes the whole conversation again at twice the input rate and a Fable read costs 2.5% of an input token):
@@ -227,11 +235,25 @@ export function usageTap() {
 const HOP = ['connection', 'keep-alive', 'proxy-connection', 'transfer-encoding', 'upgrade', 'host', 'content-length', 'accept-encoding'];
 
 // `notes`: a proxy-notes.js NoteInjector; the notes for an agent with no prompt hook go into the last user turn
-export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes = null } = {}) {
+export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes = null, onStandDown = null } = {}) {
   const agents = new Map();
   const log = row => {
     if (!logFile) return;
     try { fs.mkdirSync(path.dirname(logFile), { recursive: true }); fs.appendFileSync(logFile, JSON.stringify(row) + '\n'); } catch { /* a log is never worth a failed request */ }
+  };
+  // An agent routed through a gateway of its own that reaches the proxy by mistake (proxy-route.js): its token
+  // was minted for that gateway, so forwarding the request to api.anthropic.com fails every call of every session
+  // of that harness. Two signs, in order of certainty: credentials that are not Anthropic's, and the API refusing
+  // the credentials AUTH_REFUSALS times running. Either one stands the service down (commands/proxy.js:
+  // proxy-service.js:standDown), so the next session goes straight to the API again and nothing writes the URL
+  // back. The request itself is forwarded as it is and the API's own answer reaches the agent: the proxy never
+  // invents a failure, and a session already under way is told the truth by the API.
+  let refusals = 0, stoodDown = false;
+  const standDown = reason => {
+    if (stoodDown || !onStandDown) return;
+    stoodDown = true;
+    log({ at: new Date().toISOString(), op: 'proxy-standdown', reason });
+    try { onStandDown(reason); } catch { /* the request in hand matters more */ }
   };
   const server = http.createServer((req, res) => {
     let requestUrl = req.url, requestCfg = cfg;
@@ -261,6 +283,10 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
       if (t.addBeta) headers['anthropic-beta'] = withBeta(req.headers['anthropic-beta']);
       headers['content-length'] = t.body.length;
       const overheadMs = Number(process.hrtime.bigint() - t0) / 1e6;
+      // the two signs of an agent routed elsewhere (`standDown`): credentials that cannot be Anthropic's, and the
+      // API refusing them again and again
+      const judgeAuth = requestCfg.protocol === 'anthropic' && forwardsToAnthropic(requestCfg.upstream);
+      if (judgeAuth && foreignAuth(req.headers)) standDown('the agent sent credentials that are not Anthropic\'s, so it is routed through a model server of its own');
       const base = up.pathname.replace(/\/$/, '');
       let ureq;
       // A request that never reached the API (RETRY_CODES: a dropped connection -- a reset or a broken
@@ -280,6 +306,10 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
           log({ at: new Date().toISOString(), op: 'proxy-error', error: e.message, code: e.code, reused: !!ureq.reusedSocket, afterMs: Date.now() - started, ...extra });
         };
         ureq = lib.request({ protocol: up.protocol, hostname: up.hostname, port: up.port || undefined, path: base + requestUrl, method: req.method, headers, agent: attempt ? false : agent }, ures => {
+          if (judgeAuth) {
+            if ([401, 403].includes(ures.statusCode)) { if (++refusals >= AUTH_REFUSALS) standDown(`the API refused the agent's credentials on ${refusals} requests running (HTTP ${ures.statusCode})`); }
+            else if (ures.statusCode < 400) refusals = 0;
+          }
           const out = {};
           for (const [k, v] of Object.entries(ures.headers)) if (!['connection', 'keep-alive', 'transfer-encoding'].includes(k)) out[k] = v;
           res.writeHead(ures.statusCode, out);

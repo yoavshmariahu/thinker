@@ -83,7 +83,15 @@ async function hookCommand(ctx) {
     // The context proxy's base URL is in the agent's settings (proxy-service.js): when nothing listens on it (a reboot
     // with no service manager, a crash), every model call of the session would fail, so the prompt hook starts it
     // before the call. One connect when it runs, under a millisecond. The one thing a hook does beside the cache's work.
-    if (userScope && pos[0] === 'prompt' && (!isTestMode() || process.env.THINKER_HOME)) { try { const p = await ensureProxy({ cli }); if (p.started && ctx.store?.exists()) ctx.store.log({ op: 'proxy-start', pid: p.pid, listening: p.listening }); } catch {} }
+    // It also steps aside here: when the proxy's URL is gone from Claude Code's settings, someone took it out, so
+    // the service goes rather than the URL being written back (proxy-service.js:removedByHand).
+    if (userScope && pos[0] === 'prompt' && (!isTestMode() || process.env.THINKER_HOME)) {
+      try {
+        const p = await ensureProxy({ cli });
+        if (p.started && ctx.store?.exists()) ctx.store.log({ op: 'proxy-start', pid: p.pid, listening: p.listening });
+        if (p.stoodDown && ctx.store?.exists()) { ctx.store.log({ op: 'proxy-standdown', reason: p.stoodDown }); reportPruned(ctx.store, [`context proxy off: ${p.stoodDown}. Your agents call the API directly again; thinker proxy on puts it back`]); }
+      } catch {}
+    }
     if (userScope) {
       const cwd = ev.cwd || ev.workspace_roots?.[0] || ev.workspaceRoots?.[0] || ev.workspacePaths?.[0];
       if (cwd) { const r = findRepoRoot(cwd); if (r !== ctx.repo) { const base = ctx; ctx = { ...ctx, repo: r, store: new Store(r), mcpEntry: () => base.mcpEntry(r) }; } }

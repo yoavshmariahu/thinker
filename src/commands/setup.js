@@ -17,7 +17,7 @@ import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, un
 import { readLog } from '../usage.js';
 import { isTestMode } from '../test-mode.js';
 import { recordRepair, repairAfterUpdate as rewireAfterUpdate } from '../environment-repair.js';
-import { proxyOn, proxyUrl, wireAgents, restartService, disableProxyService, serviceState, enableProxyService } from '../proxy-service.js';
+import { proxyOn, proxyUrl, wireAgents, restartService, disableProxyService, serviceState, enableProxyService, removedByHand, standDown } from '../proxy-service.js';
 
 async function initCommand(ctx) {
   // `init` and `setup` were two ways to set a repository up, and the difference was never clear.
@@ -170,9 +170,18 @@ async function rewireCommand(ctx) {
     try { const p = await enableProxyService({ cli }); summary.changed++; summary.files.push(...p.wired.changed.map(x => x.file)); if (!quiet && !flags.json) out(`your settings: context proxy on (${p.url})`); } catch (e) { failed('your settings (proxy)', e); }
   } else if (proxyOn() && !dry) {
     try {
-      const w = wireAgents(proxyUrl());
-      if (w.changed.length) { summary.changed++; summary.files.push(...w.changed.map(x => x.file)); if (!quiet && !flags.json) out(`your settings: rewired ${w.changed.map(x => x.file).join(', ')} to the context proxy`); }
-      restartService({ cli });
+      // the URL taken out of Claude Code's settings by hand is the person's answer: this is where it used to be
+      // written in again on the day after (proxy-service.js:removedByHand)
+      const gone = removedByHand();
+      if (gone) {
+        standDown(gone);
+        summary.changed++;
+        if (!quiet && !flags.json) out(`your settings: context proxy off, ${gone}; your agents call the API directly (thinker proxy on puts it back)`);
+      } else {
+        const w = wireAgents(proxyUrl());
+        if (w.changed.length) { summary.changed++; summary.files.push(...w.changed.map(x => x.file)); if (!quiet && !flags.json) out(`your settings: rewired ${w.changed.map(x => x.file).join(', ')} to the context proxy`); }
+        restartService({ cli });
+      }
     } catch (e) { failed('your settings (proxy)', e); }
   }
   for (const r of repos) {

@@ -26,12 +26,13 @@ import { thinkerHome } from './update.js';
 import { readMachineConfig } from './repo-switch.js';
 import { isTestMode } from './test-mode.js';
 import { wireCodexProxy } from './proxy-codex.js';
+import { routeEvidence, cloudOn, CLOUD_VARS, BASE_URL_VAR } from './proxy-route.js';
 
 export const SERVICE_HOLDOUT = 0.15;
 export const PROXY_LABEL = 'com.thinker.proxy';
-export const PROXY_ENV = 'ANTHROPIC_BASE_URL';
+export const PROXY_ENV = BASE_URL_VAR;
 // Claude Code on a cloud route speaks that provider's format, which the proxy does not read
-export const OTHER_ROUTES = ['CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_USE_VERTEX', 'CLAUDE_CODE_USE_FOUNDRY'];
+export const OTHER_ROUTES = CLOUD_VARS;
 
 const stateFile = home => path.join(home, 'state', 'proxy-service.json');
 const readJson = (f, d = {}) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')) || d; } catch { return d; } };
@@ -106,6 +107,10 @@ export function startDetached({ cli, home = thinkerHome() }) {
 export async function ensureProxy({ cli, home = thinkerHome(), wait = 1500 } = {}) {
   const s = serviceState(home);
   if (!s.enabled || !s.port) return { on: false };
+  // the setting taken out by hand is an answer, and this is the first thing that runs after it: the service goes,
+  // rather than the URL being written in again on the next update (`removedByHand`)
+  const gone = removedByHand({ home });
+  if (gone) { standDown(gone, { home }); return { on: false, stoodDown: gone }; }
   if (await isListening(s.port)) return { on: true, running: true };
   const pid = startDetached({ cli, home });
   const listening = await waitListening(s.port, wait);
@@ -211,14 +216,18 @@ export function restartService({ cli, home = thinkerHome(), manage = !isTestMode
 
 // --- the agents' configuration ---
 
-// Why Claude Code is left alone, or null: a base URL of the person's own (in the settings' env block or the process
-// environment), or a cloud route
-export function claudeBlocker(settings, { home = thinkerHome(), env = process.env } = {}) {
+// Why Claude Code is left alone, or null: a route of the person's own anywhere this machine keeps one -- the
+// settings' env block, the process environment, a shell's startup file, the user's settings.local.json, the
+// enterprise policy file (proxy-route.js:routeEvidence) -- or a cloud route. A gateway that routes to models of
+// its own is the common case, and its token is not Anthropic's: forwarding it would fail every call of every
+// session, so anything short of certainty leaves the person's settings as they are.
+export function claudeBlocker(settings, { home = thinkerHome(), env = process.env, repos = [] } = {}) {
   const inFile = settings?.env?.[PROXY_ENV];
   if (inFile && !isOwnUrl(inFile, home)) return `${PROXY_ENV} is already ${inFile} in the settings`;
   if (env[PROXY_ENV] && !isOwnUrl(env[PROXY_ENV], home)) return `${PROXY_ENV} is ${env[PROXY_ENV]} in your environment`;
-  for (const k of OTHER_ROUTES) if ((settings?.env?.[k] || env[k]) && !/^(0|false|)$/i.test(String(settings?.env?.[k] || env[k]))) return `Claude Code runs on ${k.replace('CLAUDE_CODE_USE_', '').toLowerCase()}, which the proxy does not speak`;
-  return null;
+  for (const k of OTHER_ROUTES) if (cloudOn(settings?.env?.[k] || env[k])) return `Claude Code runs on ${k.replace('CLAUDE_CODE_USE_', '').toLowerCase()}, which the proxy does not speak`;
+  const [found] = routeEvidence({ env, repos, isOwn: u => isOwnUrl(u, home), limit: 1 });
+  return found ? `${found.what} in ${found.where}` : null;
 }
 const setEnv = (settings, value) => {
   const e = { ...(settings.env || {}) };
@@ -296,6 +305,39 @@ function claudeFile(url, home, env) {
   return { file: f, changed: true };
 }
 
+// Whether the proxy's URL is in Claude Code's settings now: true, false, or null where the file cannot be judged
+// (test mode without CLAUDE_CONFIG_DIR, an unreadable file)
+export function claudeWired(home = thinkerHome()) {
+  if (testGuard('CLAUDE_CONFIG_DIR')) return null;
+  const f = claudeSettings();
+  if (!fs.existsSync(f)) return false;
+  let cur; try { cur = JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; }
+  return isOwnUrl(cur?.env?.[PROXY_ENV], home);
+}
+
+// The person took the proxy out of Claude Code's settings by hand -- deleted the line, or pointed the agent at a
+// gateway of their own -- which is an answer: the service does not put it back. Before 2026-10-28 it did: the
+// rewire after the daily update wrote the URL in again and the launchd job restarted the process, so someone
+// whose harness the proxy had broken could delete the setting, kill the process, and have both back the next day.
+export function removedByHand({ home = thinkerHome() } = {}) {
+  const s = serviceState(home);
+  if (!s.enabled || !s.wroteClaude) return null;
+  return claudeWired(home) === false ? `the proxy's URL was taken out of ${claudeSettings()}` : null;
+}
+
+// The proxy steps aside and stays aside: the URL out of every agent's file, the service entry and process gone,
+// the reason kept so `thinker proxy status` and the next turn's notice can say it, and `enableProxyService`
+// leaves it off until someone runs `thinker proxy on`. Called when a route of the person's own turns up after the
+// wiring (proxy.js: credentials that are not Anthropic's, or the API refusing them) and when the setting is taken
+// out by hand. No-op unless this machine's service is the one in question.
+export function standDown(reason, { home = thinkerHome(), manage, port } = {}) {
+  const s = serviceState(home);
+  if (!s.enabled || (port && s.port !== port)) return null;
+  const r = disableProxyService({ home, manage });
+  writeJson(stateFile(home), { ...serviceState(home), standDown: { at: new Date().toISOString(), reason } });
+  return { ...r, reason };
+}
+
 // The URL written to (url given) or taken out of (null) every agent's file. Returns what changed and what was left
 // alone with the reason, by agent.
 export function wireAgents(url, { home = thinkerHome(), env = process.env, agents = ['claude', 'pi', 'opencode', 'codex'] } = {}) {
@@ -310,14 +352,20 @@ export function wireAgents(url, { home = thinkerHome(), env = process.env, agent
   return out;
 }
 
-// `thinker proxy on`, `connect`: the port once, the service, the agents' files
-export async function enableProxyService({ cli, home = thinkerHome(), env = process.env, manage } = {}) {
+// `thinker proxy on` (force), `connect`: the port once, the service, the agents' files.
+// A service that stood down (the person's own route, or the setting deleted) stays off until `thinker proxy on`
+// asks for it: rerunning the installer or `thinker connect` does not put it back.
+export async function enableProxyService({ cli, home = thinkerHome(), env = process.env, manage, force = false } = {}) {
   const s = serviceState(home);
+  if (s.standDown && !force) return { stoodDown: s.standDown, port: s.port, url: s.port ? urlFor(s.port) : null, service: { type: 'none' }, wired: { changed: [], skipped: [], unchanged: [] } };
   const port = s.port || await freePort();
   const ports = [...new Set([...(s.ports || []), port])];
-  writeJson(stateFile(home), { ...s, enabled: true, port, ports, since: s.since || new Date().toISOString(), off: undefined });
+  writeJson(stateFile(home), { ...s, enabled: true, port, ports, since: s.since || new Date().toISOString(), off: undefined, standDown: undefined, wroteClaude: undefined });
   const service = installService({ cli, home, manage });
   const wired = wireAgents(urlFor(port), { home, env });
+  // whether Claude Code's settings hold the URL, so that its disappearance can be read as the person's answer
+  // (`removedByHand`) rather than as a file to write again
+  if (claudeWired(home)) writeJson(stateFile(home), { ...serviceState(home), wroteClaude: true });
   let listening = null;
   if (manage !== false) {
     listening = ['launchd', 'systemd'].includes(service.type) ? await waitListening(port, 2500) : false;
@@ -331,7 +379,7 @@ export function disableProxyService({ home = thinkerHome(), manage, keepState = 
   const wired = wireAgents(null, { home });
   const removed = uninstallService({ home, manage });
   const s = serviceState(home);
-  if (keepState) writeJson(stateFile(home), { ...s, enabled: false, off: new Date().toISOString(), pid: undefined });
+  if (keepState) writeJson(stateFile(home), { ...s, enabled: false, off: new Date().toISOString(), pid: undefined, wroteClaude: undefined });
   else fs.rmSync(stateFile(home), { force: true });
   return { wired, removed };
 }

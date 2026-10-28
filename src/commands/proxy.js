@@ -12,7 +12,7 @@ import { cacheBundleIntro } from '../cache-guidance.js';
 import { Store, findRepoRoot } from '../store.js';
 import { thinkerHome } from '../update.js';
 import { formatTokens } from '../model-usage.js';
-import { enableProxyService, disableProxyService, serviceState, isListening, wiredLines, serviceArgs, proxyUrl, proxyLogFile } from '../proxy-service.js';
+import { enableProxyService, disableProxyService, serviceState, isListening, wiredLines, serviceArgs, proxyUrl, proxyLogFile, standDown } from '../proxy-service.js';
 
 // The notes for a request, as the prompt hook serves them (commands/hooks.js): once a session, fresh only,
 // the holdout turn opened on the session (ops.js:beginTurn), under the same bundle line.
@@ -35,7 +35,7 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
   const logFile = proxyLogFile();
   const cli = path.join(HERE, 'cli.js');
   if (sub === 'on') {
-    const p = await enableProxyService({ cli });
+    const p = await enableProxyService({ cli, force: true });
     out(`Context proxy on: ${p.url}${p.listening === false ? ' (not listening yet; the next prompt starts it)' : ''}, kept running by ${p.service.type === 'hook' ? 'the prompt hook' : p.service.type}${p.service.reason ? ` (${p.service.reason})` : ''}.`);
     for (const l of wiredLines(p.wired, p.url)) out(`  ${l}`);
     for (const u of p.wired.unchanged) if (!u.absent) out(`  ${u.agent}: already pointed at it`);
@@ -51,7 +51,12 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
   }
   if (sub === 'status') {
     const s = serviceState();
-    if (!s.enabled) { out(`Context proxy off${s.off ? ` since ${s.off.slice(0, 10)}` : ''} (thinker proxy on turns it on).`); return; }
+    if (!s.enabled) {
+      out(`Context proxy off${s.off ? ` since ${s.off.slice(0, 10)}` : ''} (thinker proxy on turns it on).`);
+      // it stood aside by itself (proxy-service.js:standDown): say why, since nothing else will
+      if (s.standDown) out(`  it stepped aside on ${s.standDown.at.slice(0, 10)}: ${s.standDown.reason}. Your agents call the API directly; thinker proxy on puts it back.`);
+      return;
+    }
     const listening = await isListening(s.port);
     out(`Context proxy on: ${proxyUrl()}, ${listening ? 'listening' : 'NOT listening (the next prompt starts it)'}; flags: thinker ${serviceArgs().join(' ')}.`);
     flags.days ||= 30;
@@ -107,6 +112,12 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
   } else if (wanted) { out(`thinker proxy: --notes needs a git checkout (${candidate || 'none'}).`); process.exitCode = 2; return; }
   const server = startProxy(cfg, {
     logFile, notes,
+    // the service's own process: a routed harness that reaches it by mistake takes the proxy out of the agents'
+    // settings, so the harness is whole again at the next session (proxy-service.js:standDown; no-op for a proxy
+    // somebody started by hand on another port). `manage: false` leaves this process alone -- the service entry
+    // goes, so nothing starts it again, but the requests in hand are answered rather than cut off, which matters
+    // most where the refusals were an expired token and not a gateway after all.
+    onStandDown: reason => { try { standDown(reason, { port: cfg.port, manage: false }); } catch { /* the request in hand matters more */ } },
     onListen: a => out(cfg.protocol === 'responses'
       ? `Responses proxy on http://127.0.0.1:${a.port} -> ${cfg.upstream}: clears old text tool outputs, preserving the current turn and at least ${cfg.keepMin} newest outputs.\nTriggers at ~${cfg.trigger} tokens and removes at least ~${cfg.clearAtLeast} (request bytes / 4; estimates, not measured savings).${cfg.holdout ? ` ${cfg.holdout * 100}% holdout.` : ''}\nIn a separate Codex provider, set base_url = "http://127.0.0.1:${a.port}" and supports_websockets = false. Keep the existing authentication and model. See docs/codex-proxy.md.\nNo Codex settings were changed. Restart the client after selecting the provider. Native compaction and linked histories pass through unchanged.`
       : `thinker proxy on http://127.0.0.1:${a.port} -> ${cfg.upstream}: clears tool results past ${cfg.trigger} input tokens, keeping ${cfg.keep === 'turn' ? `the current turn's (at least ${cfg.keepMin})` : cfg.keep}, at least ${cfg.clearAtLeast} at a time${cfg.holdout ? `, ${cfg.holdout * 100}% of sessions held out` : ''}.` +
