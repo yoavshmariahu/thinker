@@ -305,28 +305,35 @@ still requires a real PostgreSQL round trip and a live endpoint check.
 AWS references: [private database tunnels](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-sessions-start.html),
 [Lambda RDS TLS certificates](https://docs.aws.amazon.com/lambda/latest/dg/services-rds.html).
 
-## PR delivery and review (delivery schema 1)
+## Pull requests delivered (`prs`, schema 2)
 
-Updated clients include `raw_json.delivery`, a numeric 30-day snapshot independent
-of the outer daily usage `periodHours`. The existing JSONB ingestion preserves it;
-no Lambda or PostgreSQL schema migration is needed. Existing clients without the
-block remain unknown, not zero. `thinker impact sync` refreshes GitHub PR lifecycle
-metadata locally before reporting. Telemetry neither fetches GitHub nor uploads
-PR identities, source excerpts, titles, session IDs or confirmation text.
+Clients from 0.2.15 send `raw_json.prs`, a numeric 30-day snapshot independent of the outer daily usage
+`periodHours`, and the headline numbers are promoted to columns (`prs_merged`, `prs_merged_seen`,
+`prs_merged_assisted`, `prs_worked`, `prs_linked_sessions`, `pr_cleared_tokens`, `pr_reading_tokens`,
+`pr_saved_tokens`, `pr_agent_tokens`). `schema.sql` adds them with `ADD COLUMN IF NOT EXISTS`; no Lambda
+change is needed. A report from before this sends none of them and reads as zero, which is what it was.
+It replaces `raw_json.delivery` (schema 1), the review-era block, whose columns never existed.
 
-**PR delivery & review** includes merged PR observations, weighted mean tokens per
-complete-counter PR, human-confirmed fixes before merge, token coverage and token
-histograms, review decision counts, observed merge duration, cache participation,
-and missing/unassigned evidence. All-time underlying work for merges in the last
-30 days is included; repository overhead covers that same 30-day period.
+- **`prs_merged` is merged *with work recorded on that install*** -- a pull request some session of that
+  machine was on. `prs_merged_seen` is every merged pull request of the repository in the window, for
+  context only. Mixing the two reads as thinker saving nothing on pull requests it never saw.
+- **`pr_cleared_tokens` is measured**: what the API reported leaving out of those sessions' prompts after
+  the context proxy cleared them. **`pr_reading_tokens` is an estimate**: the file reading the cache's notes
+  avoided. `pr_saved_tokens` is the two added, and any published figure must say which is which.
+- **`pr_agent_tokens`** is every prompt and every answer of those sessions added up -- the same shape as the
+  saving, so `pr_saved_tokens / pr_agent_tokens` is a share that means something.
+- `v_pr_delivery` gives one row per device, its latest report, with `saved_per_merged_pr` and
+  `saved_share_of_spend`. Each report is a 30-day window, so these are rates, never a running total.
+- Nothing identifies a pull request: no number, title, URL, branch or author, no repository, no session id.
+  Telemetry never contacts GitHub; the client reads it through the person's own `gh` login.
 
 Queries choose the latest installation snapshot per known device, falling back to
 installation identity. They do not add hourly overlapping uploads. Daily trend
 points likewise select one snapshot per source per day and represent overlapping
-30-day windows, not daily event totals. Two contributors can report the same PR,
-so counts are labeled observations rather than unique global PRs. Separate local
-journals for several worktrees of one repository use the checkout with most linked
-evidence; consolidating exports gives more complete measurements.
+30-day windows, not daily event totals. Two contributors can report the same pull
+request, so counts are labeled observations rather than unique global pull requests.
+Several worktrees of one repository share a journal; where they do not, the checkout
+with the most linked sessions is the one counted.
 
 Token averages use sum of complete PR tokens / complete PR observations, never an
 average of medians. Coverage means complete counters for the recorded linked work,
