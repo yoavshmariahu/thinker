@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 import { CARD_ENV, claudeCardDir, withCardDir, withoutCardDir, cardDirIn, claudeCardActive } from '../src/claude-card.js';
 import { installClient, uninstallWiring } from '../src/clients.js';
 import { FILE_CAP, MAX_FILES, NOT_READING } from '../src/usage.js';
+import { CARD_TOOLS, TURNS_AFTER, compressionHeader, compressionTools, shortTool } from '../src/compression.js';
+import { formatTokens } from '../src/model-usage.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CLI = path.join(ROOT, 'src', 'cli.js');
@@ -28,6 +30,26 @@ test('the card estimates as usage.js:cacheHitSavings does: same file cap, files 
   assert.match(src, new RegExp(`export const FILE_CAP = ${FILE_CAP}\\n`));
   assert.ok(src.includes(`export const NOT_READING = ${NOT_READING}\n`), 'NOT_READING matches usage.js');
   assert.ok(src.includes('st.size / 3.6'), 'tokens per byte match');
+});
+
+test('the card waits as long as the notice does, and words the saving the same way', () => {
+  const src = fs.readFileSync(path.join(MOD, 'hooks', 'register.tsx'), 'utf8');
+  assert.match(src, new RegExp(`export const TURNS_AFTER = ${TURNS_AFTER}\\n`), 'the wait matches compression.js');
+  assert.ok(src.includes('state/compression/${id}.json'), 'the card reads the state the proxy writes');
+  // The two write the same sentence; the mod has its own copy because it runs inside Claude Code.
+  const saving = { saved: 1_234_000, requests: 17 };
+  const mod = src.match(/export const compressionHeader = \(s: Saving\) =>\n  (`[^`]+`)/);
+  assert.ok(mod, 'the mod exports a header');
+  const built = new Function('s', 'formatTokens', `return ${mod[1]};`)(saving, formatTokens);
+  assert.equal(built, compressionHeader(saving, formatTokens));
+  // the breakdown, with the same cap, the same name cut and the same wording
+  assert.match(src, new RegExp(`export const CARD_TOOLS = ${CARD_TOOLS}\\n`));
+  const modTools = src.match(/\.slice\(0, CARD_TOOLS\)\.map\(t => (`[^`]+`)\)\.join\(', '\)/);
+  assert.ok(modTools, 'the mod exports the breakdown');
+  const tools = { tools: [{ name: 'Bash', calls: 41, tokens: 1_100_000 }, { name: 'mcp__artemis__get_experiment', calls: 11, tokens: 62_000 }] };
+  const builtTools = tools.tools.map(t => new Function('t', 'formatTokens', 'shortTool', `return ${modTools[1]};`)(t, formatTokens, shortTool)).join(', ');
+  assert.equal(builtTools, compressionTools(tools, formatTokens, { limit: CARD_TOOLS }));
+  assert.ok(builtTools.includes('artemis/get_experiment'), 'an MCP name is written as the person reads it');
 });
 
 test('the settings name one copy\'s card folder and keep every other plugin folder', () => {
