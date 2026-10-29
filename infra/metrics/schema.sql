@@ -42,6 +42,18 @@ ALTER TABLE reports ADD COLUMN IF NOT EXISTS device_id TEXT
   CHECK (device_id IS NULL OR device_id ~ '^v1:[a-f0-9]{64}$');
 CREATE INDEX IF NOT EXISTS idx_reports_device_ts ON reports (device_id, timestamp DESC)
   WHERE device_id IS NOT NULL;
+-- Pull requests the install's sessions produced, and what thinker saved on them (src/delivery.js).
+-- `cleared` is measured (tokens the API left out of those prompts); `reading` is the cache's estimate of
+-- file reading avoided; `saved` is the two added. Nothing here names a pull request or a repository.
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS prs_merged BIGINT DEFAULT 0;
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS prs_merged_seen BIGINT DEFAULT 0;
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS prs_merged_assisted BIGINT DEFAULT 0;
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS prs_worked BIGINT DEFAULT 0;
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS prs_linked_sessions BIGINT DEFAULT 0;
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS pr_cleared_tokens BIGINT DEFAULT 0;
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS pr_reading_tokens BIGINT DEFAULT 0;
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS pr_saved_tokens BIGINT DEFAULT 0;
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS pr_agent_tokens BIGINT DEFAULT 0;
 CREATE INDEX IF NOT EXISTS idx_reports_install_ts ON reports (install_id, timestamp DESC, file_key);
 CREATE INDEX IF NOT EXISTS idx_reports_ts ON reports (timestamp);
 CREATE INDEX IF NOT EXISTS idx_reports_event ON reports (event);
@@ -65,6 +77,17 @@ SELECT date_trunc('hour', timestamp AT TIME ZONE 'UTC') AS hour_utc,
        count(*) AS reports_count, count(DISTINCT install_id) AS unique_installs,
        sum(requests_total) AS total_requests, sum(tokens_served) AS total_tokens_served
 FROM reports GROUP BY 1;
+
+-- One row per device, its latest report: what thinker is worth per merged pull request out there.
+-- Each report is a 30-day window, so these are rates, never a running total.
+CREATE OR REPLACE VIEW v_pr_delivery AS
+SELECT device_id, install_id, timestamp, version,
+       prs_merged, prs_merged_seen, prs_merged_assisted, prs_worked, prs_linked_sessions,
+       pr_cleared_tokens, pr_reading_tokens, pr_saved_tokens, pr_agent_tokens,
+       CASE WHEN prs_merged > 0 THEN pr_saved_tokens::double precision / prs_merged END AS saved_per_merged_pr,
+       CASE WHEN pr_agent_tokens > 0 THEN pr_saved_tokens::double precision / pr_agent_tokens END AS saved_share_of_spend
+FROM v_latest_devices
+WHERE prs_worked > 0;
 
 CREATE OR REPLACE VIEW cache_kinds AS
 SELECT r.file_key, r.install_id, k.key AS kind, k.value::bigint AS count

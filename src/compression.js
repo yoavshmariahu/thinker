@@ -151,3 +151,33 @@ export function compressionBlock(dir, session, turn, format, { turnsAfter = TURN
   try { write(fileFor(dir, session), { ...state, turns: undefined, told: true }); } catch { /* better said twice than not at all */ }
   return text;
 }
+
+// What the clearing saved in each session, from the proxy's own log rather than from the state above.
+//
+// The state files are a card's working memory: at most MAX_FILES of them, pruned after PRUNE_AGE, because
+// the card is drawn in the session that paid for the clear. A pull request merges days later, so by the time
+// anybody asks what was saved on it those files are gone. The log is the durable record -- one row per
+// request, `cleared` on the ones the API cleared something from -- so a figure about a pull request is read
+// from there, and the state is only consulted for what the log's tail no longer reaches.
+const LOG_TAIL = 16 * 1024 * 1024;   // a day of heavy use is ~50 KB of rows; the tail covers months
+
+export function clearedBySession(file, { since = '' } = {}) {
+  const out = new Map();
+  if (!file) return out;
+  let text = '';
+  try {
+    const size = fs.statSync(file).size, start = Math.max(0, size - LOG_TAIL);
+    const fd = fs.openSync(file, 'r');
+    try { const buf = Buffer.alloc(size - start); if (buf.length) fs.readSync(fd, buf, 0, buf.length, start); text = buf.toString('utf8'); }
+    finally { fs.closeSync(fd); }
+    if (start) text = text.slice(text.indexOf('\n') + 1);
+  } catch { return out; }
+  for (const line of text.split('\n')) {
+    if (!line) continue;
+    let r; try { r = JSON.parse(line); } catch { continue; }
+    if (r.op !== 'proxy' || !r.session || !(r.cleared > 0) || (since && r.at && r.at < since)) continue;
+    const prev = out.get(r.session) || { cleared: 0, requests: 0 };
+    out.set(r.session, { cleared: prev.cleared + r.cleared, requests: prev.requests + 1 });
+  }
+  return out;
+}

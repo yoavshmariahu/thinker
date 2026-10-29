@@ -27,6 +27,18 @@ const metrics = {
   notes_merged: 'effectiveness.lifecycle.notesMerged',
   prs_mined: 'effectiveness.lifecycle.prsMined',
   stale_verified: 'effectiveness.lifecycle.staleVerified',
+  // Pull requests the install's sessions produced, and what thinker saved on them (src/delivery-telemetry.js).
+  // Counts and tokens only; the rest of the block stays in raw_json. Reports from before 0.2.15 carry none
+  // of these and read as zero, which is what they were.
+  prs_merged: 'prs.merged',
+  prs_merged_seen: 'prs.mergedSeen',
+  prs_merged_assisted: 'prs.mergedAssisted',
+  prs_worked: 'prs.worked',
+  prs_linked_sessions: 'prs.linkedSessions',
+  pr_cleared_tokens: 'prs.clearedTokens',
+  pr_reading_tokens: 'prs.readingTokens',
+  pr_saved_tokens: 'prs.savedTokens',
+  pr_agent_tokens: 'prs.agentTokens',
 };
 
 export class InvalidReport extends Error {}

@@ -21,6 +21,7 @@ import { writeSystemMarkdown } from './behavior.js';
 import { isTestMode } from './test-mode.js';
 import { takeContradictions } from './learning-pending.js';
 import { pruneState } from './state-prune.js';
+import { syncPrs, ghAvailable, WINDOW_DAYS as DELIVERY_WINDOW_DAYS } from './delivery.js';
 
 export const DEFAULTS = {
   enabled: true,    // `maintain: { enabled: false }` in .thinker/config.json switches it off
@@ -58,8 +59,14 @@ export const DEFAULTS = {
   dedupePerRun: DEDUPE_DEFAULTS.perRun,       // candidate pairs judged per run (one model call each)
   dedupeThreshold: DEDUPE_DEFAULTS.threshold, // cosine of the local embeddings, for notes resting on a file in common
   archive: true,    // take notes the sessions showed are not worth serving out of serving and upkeep (ops.js:archiveNotes; `archive` in the config sets the rules)
+  // read the repository's pull requests from GitHub, so `thinker prs` and the telemetry know what the
+  // sessions here delivered (delivery.js). Free: the person's own `gh` login, read-only, no model call and
+  // no token. At most once a day, and only back to the last sync. `maintain: { prSync: false }` turns it
+  // off. Not `prs`, which is the mining step: that one writes notes and calls a model, and this one does not.
+  prSync: true,
 };
 export const MAINTENANCE_INTERVAL_MS = 4 * 60 * 60_000;
+export const PRS_SYNC_INTERVAL_MS = 24 * 60 * 60_000;
 const LOCK_MS = 15 * 60_000;
 
 // The daily default for a distillation model that is not in the cheap class (Haiku, Luna, Flash):
@@ -208,7 +215,7 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
     state.startedAt = new Date(now).toISOString();
     fs.writeFileSync(stateFile(store), JSON.stringify(state));
   }
-  const r = { verified: 0, updated: 0, retired: 0, churning: [], archived: 0, merged: 0, phrased: 0, docs: 0, unstated: 0, skills: 0, skillsBroken: 0, tokens: 0, capped: false, errors: 0 };
+  const r = { verified: 0, updated: 0, retired: 0, churning: [], archived: 0, merged: 0, phrased: 0, docs: 0, unstated: 0, skills: 0, skillsBroken: 0, prSynced: 0, tokens: 0, capped: false, errors: 0 };
   const spent = (fns.spentToday || spentToday)(store);
   const cap = withinDailyCap(store, { spentFn: () => spent }).cap;
   const afford = () => !cap || cap - spent - r.tokens > 0;
@@ -224,6 +231,27 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
     const notes = (fns.refresh || refresh)(store, store.list(), { narrow: true, persist: !dry }); // --dry writes nothing, statuses included
     // 1e. notes nobody was served in two weeks are deleted (deleteUnused): free, and they cost upkeep for nothing
     if (cfg.deleteUnusedDays > 0) { try { r.deleted = deleteUnused(store, { days: cfg.deleteUnusedDays, dry, now }).length; } catch { r.errors++; } }
+    // 1f. the repository's pull requests, so what a session delivered is known without anybody typing a
+    // command (delivery.js). Free and model-free: the person's own gh login, read-only. Once a day, back to
+    // the last sync, so the usual run is one listing page and a detail call for the branches worked on here.
+    // A test never reaches GitHub; a test that injects its own reader is testing this step and does.
+    const syncFn = fns.syncPrs || (isTestMode() ? null : syncPrs);
+    if (cfg.prSync !== false && !dry && syncFn) {
+      const last = Date.parse(state.prsSyncedAt || '');
+      if (!Number.isFinite(last) || now - last >= PRS_SYNC_INTERVAL_MS) {
+        try {
+          if (fns.syncPrs || ghAvailable(store.repo)) {
+            // The first sync covers the whole report window, so a fresh install is not reporting a third of
+            // what it delivered; later ones go back only to the last one.
+            const days = Math.min(DELIVERY_WINDOW_DAYS, Number.isFinite(last) ? Math.max(2, Math.ceil((now - last) / 86400_000) + 1) : DELIVERY_WINDOW_DAYS);
+            r.prSynced = (await syncFn(store, { days, now })).synced;
+          }
+        } catch { r.errors++; }
+        // Recorded whether it worked or not: a repository with no GitHub origin must not try every run.
+        state.prsSyncedAt = new Date(now).toISOString();
+        try { fs.writeFileSync(stateFile(store), JSON.stringify(state)); } catch {}
+      }
+    }
     // the verification batch is due every `verifyEveryDays`, or at once for a note a session contradicted
     const lastBatch = Date.parse(state.verifiedAt || '');
     // (a dry run previews the next batch, due or not)

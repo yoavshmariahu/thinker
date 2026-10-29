@@ -203,6 +203,8 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 | `src/guard.js` | anchoring guard |
 | `src/update.js` | self and background updates |
 | `src/usage.js` | usage log summary |
+| `src/delivery.js`, `src/delivery-journal.js`, `src/commands/prs.js` | `thinker prs`: the pull requests the sessions here produced, what each cost and what was saved on it |
+| `src/delivery-telemetry.js` | the same as counts and tokens, for the telemetry payload's `prs` block |
 | `src/proxy*.js`, `src/commands/proxy.js` | context proxy; `thinker proxy on\|off\|status`; `proxy-route.js` leaves a routed harness alone; clearing results, call text and earlier thinking all on by default (2026-10-28), `--no-clear-inputs`, `--no-clear-thinking` off |
 | `src/compression.js` | what the clearing saved, per session, shown as a cache hit is (`TURNS_AFTER`, `compressionHeader`) |
 | `src/report.js`, `src/prices.js`, `src/commands/report.js` | Report page; `thinker report`; `prices.js` only place dollars appear |
@@ -383,6 +385,49 @@ unrelated PRs remain available to other builds. Git history uses directory
 pathspecs; GitHub uses the listed changed paths with bounded scans. All projects
 share the repository's notes. Retrieval and automatic maintenance do not
 load the project file; existing dependency paths provide retrieval relevance.
+
+## Pull requests delivered (`thinker prs`, 2026-10-29)
+
+What a pull request cost and what thinker saved on it. The question behind it: of the work people actually
+ship, how much of it did thinker pay for. Nothing here calls a model or spends a token.
+
+- **A session belongs to one pull request**, by evidence in this order (`delivery.js:linkFor`): a person's own
+  `thinker prs link` (which may `--split` one session between two); a commit the session was sitting on that
+  is one of the pull request's (`commit`); the session's branch matching its head ref (`branch`). A branch
+  used twice goes to the pull request whose life the session falls inside. A session matching nothing is
+  listed as unlinked, never dropped and never guessed at.
+- **Two savings, kept apart**, because they are not the same kind of evidence. `cleared` is **measured**: the
+  tokens the API left out of that session's prompts after the context proxy cleared them. `reading` is an
+  **estimate**: one read per file behind each note the session was seen to act on, which is exactly what
+  `usage.js` counts for the machine, so the two doors can never disagree. `total` adds them, and every door
+  says which is which.
+- **The clearing is read from the proxy's own log** (`compression.js:clearedBySession`), not from the card's
+  state files: those are at most 200, pruned after two days, because a card is drawn in the session that paid
+  for the clear. A pull request merges days later, so by then they are gone. The state file is still consulted
+  for what the log's tail no longer reaches, and the larger of the two wins.
+- **`merged` means merged with work recorded here**, not merged in the repository. On this repository a
+  7-day window held 90 merged pull requests and 22 the machine's own sessions worked on; counting all 90
+  would have read as thinker saving nothing on 68 pull requests it never saw. The repository's total is
+  carried beside it as `mergedSeen`, for context only.
+- **Agent tokens are every prompt and every answer added up**, which is the same shape as the saving: the
+  cleared tokens are also per-prompt and summed over calls. So saved ÷ spent is a figure that means something.
+- **GitHub is read through the person's own `gh` login, read-only** (`delivery.js:syncPrs`), and from the
+  listing alone: it already carries the branch, the head, the base, the merge commit and the times, which is
+  everything the linking and the figures need. A pull request's own page and its commit list cost a call each
+  and are read only when one is named (`--pr n`). A page at a time, newest first, stopping at the window
+  (`MAX_PAGES` 20): not `gh api --paginate`, which follows the link header to the end of the repository's
+  history. Reading a month of this repository was over two minutes when every matched pull request cost a
+  detail call and a commits call; it is six seconds for 541 pull requests now. Maintenance does it once a
+  day, the whole window the first time and back to the last sync after (`maintain.js`,
+  `maintain: { prSync: false }`; not `maintain.prs`, which is the mining step). It is free, so it is not a
+  background spend in the sense of the rule above.
+- **The journal** is `<log dir>/delivery/<digest>.jsonl`, per repository, gitignored, three record kinds
+  (`observation`, `pr`, `link`). Sessions, servings and model calls stay in the usage log; nothing is copied.
+- **What leaves the machine** (`delivery-telemetry.js`, payload `prs`) is counts and token totals. Never a
+  pull request's number, title, URL, branch or author, never a repository, never a session id. The metrics
+  API promotes the headline numbers to columns and `v_pr_delivery` reads saved per merged pull request.
+- This replaced `thinker impact`, the review-era delivery tracker (findings, review runs, decisions), removed
+  with the rest of `thinker review`'s remains on 2026-10-29. Its journal (`<log dir>/impact/`) has no reader.
 
 ## Usage history
 

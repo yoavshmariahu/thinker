@@ -1,5 +1,5 @@
 import { isTestMode } from '../test-mode.js';
-import { gitContext, tryImpact } from '../impact-journal.js';
+import { gitContext, tryDelivery } from '../delivery-journal.js';
 // The hook entrypoints the agents call (clients.js installs them): prompt, tool and stop, with the
 // background catch-up they start. JSON on stdin, the client's answer on stdout.
 import { noticeCard } from '../notice-card.js';
@@ -156,7 +156,7 @@ async function hookCommand(ctx) {
       // inference in flight would otherwise keep the process alive past the host's limit
       let exitNow = false;
       await (async () => {
-        if (store.exists() && session !== 'unknown') tryImpact(store, { op: 'impact-observation', session, ...gitContext(repo) });
+        if (store.exists() && session !== 'unknown') tryDelivery(store, { op: 'observation', session, client, ...gitContext(repo) });
         if (parks || client === 'cursor' || client === 'agy') takePending(store.dir, session);
         // the turn's prompt hook ran: the tool hook's fallback for Cursor modes without one stays out of it
         if (client === 'cursor') { const f = orientedFile(store.dir, ev.generation_id || session); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, ''); }
@@ -394,7 +394,7 @@ async function hookCommand(ctx) {
     // what the session has cost so far, for the holdout comparison (usage.js:holdoutOf): the turn's cost is the
     // difference from the line of the turn before, so each line carries the turn number the prompt hook opened
     const t = holdoutTurn(store, session);
-    if (session !== 'unknown' && ev.transcript_path && fs.existsSync(ev.transcript_path)) { try { const p = parseTranscript(ev.transcript_path); const record = { op: 'session', session, turn: t.turn || undefined, client, model: p.model || ev.modelName || undefined, holdout: t.holdout || undefined, ...gitContext(repo), ...(p.stats || {}) }; store.log(record); tryImpact(store, record); } catch {} }
+    if (session !== 'unknown' && ev.transcript_path && fs.existsSync(ev.transcript_path)) { try { const p = parseTranscript(ev.transcript_path); const record = { op: 'session', session, turn: t.turn || undefined, client, model: p.model || ev.modelName || undefined, holdout: t.holdout || undefined, ...gitContext(repo), ...(p.stats || {}) }; store.log(record); } catch {} }
     if (noticeOn(store)) {
       // once a week, what the notes saved over the last 30 days (usage.js:weeklyNotice); not on a held-out turn
       // where the card mod runs, the turn's notes are its card under the answer (claude-card.js)

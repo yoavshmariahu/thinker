@@ -11,7 +11,7 @@ import { ensureTelemetryScheduled, reportTelemetrySchedule } from './telemetry-s
 import { maybeSendTelemetryInBackground } from './telemetry.js';
 import { commands as projectCommands } from './commands/project.js';
 import { commands as noteCommands } from './commands/notes.js';
-import { commands as impactCommands } from './commands/impact.js';
+import { commands as prsCommands } from './commands/prs.js';
 import { commands as cacheCommands } from './commands/cache.js';
 import { commands as skillsCommands } from './commands/skills.js';
 import { commands as learnCommands } from './commands/learn.js';
@@ -43,7 +43,7 @@ const dashdash = argv.indexOf('--');
 const after = dashdash >= 0 ? argv.splice(dashdash).slice(1) : [];
 const flags = {}; const pos = [];
 for (let i = 0; i < argv.length; i++) {
-  if (argv[i].startsWith('--')) { const k = argv[i].slice(2); const boolean = ['full-repo'].includes(k) || (cmd === 'proxy' && k === 'codex') || (cmd === 'impact' && ['json'].includes(k)) || (cmd === 'system' && ['fixed', 'mutable', 'all', 'json', 'dry', 'again'].includes(k)); const v = !boolean && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true; flags[k] = v; }
+  if (argv[i].startsWith('--')) { const k = argv[i].slice(2); const boolean = ['full-repo'].includes(k) || (cmd === 'proxy' && k === 'codex') || (cmd === 'prs' && ['json', 'detail'].includes(k)) || (cmd === 'system' && ['fixed', 'mutable', 'all', 'json', 'dry', 'again'].includes(k)); const v = !boolean && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true; flags[k] = v; }
   else pos.push(argv[i]);
 }
 // A process can be left in a directory that no longer exists: a worktree removed under it, a build directory
@@ -227,12 +227,17 @@ const HELP = `thinker — knowledge cache for coding agents
                                  log path. The exit code is the test command's. pytest, jest, vitest, go test,
                                  cargo test and node --test are parsed; any other runner is passed through and
                                  reported by the last lines of its log
-  impact [--days n] [--pr n] [--json]   delivery outcomes: tokens per PR and confirmed bugs fixed before merge
-  impact sync [--days n] [--pr n]      read PR lifecycle and commits through gh (no posting)
-  impact link --session id --pr n     attribute a session; --split 12:0.4,13:0.6 splits its tokens
-  impact export | impact import <file.json>   transfer evidence from CI or another machine
-  impact finding <id> --pr n --validity confirmed|dismissed|duplicate|pending --evidence reason
-         [--resolution fixed|open|accepted-risk|not-applicable] [--fix sha] [--duplicate-of id]
+  prs [--days n] [--pr n] [--detail] [--json]
+                                 the pull requests this machine's sessions produced: what each cost in agent
+                                 tokens and what thinker saved on it -- the tokens the context proxy had the
+                                 API leave out of its prompts (measured) and the file reading its notes
+                                 avoided (an estimate). A session is matched to a pull request by the commits
+                                 it sat on and by its branch
+  prs sync [--days n] [--pr n]   read the pull requests from GitHub through your own gh login, read-only.
+                                 The listing covers them all; only the ones your own sessions worked on cost
+                                 a second call
+  prs link --session id --pr n   say by hand which pull request a session belongs to; --split 12:0.4,13:0.6
+                                 divides one session between two
   ui [--port n] [--no-open] [--tab save|report|activity] [--here] [--refresh]
                                  open the local page, from any directory, over every repository on the machine (--here: this
                                  checkout alone), on Find Savings (--tab save): where the agents' context goes in each
@@ -319,7 +324,7 @@ function unknownFlags(c, given, help = HELP) {
 const CACHE_COMMANDS = ['tools', 'symbols', 'orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'session-work', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback', 'skills', 'instructions', 'context', 'explain', 'report', 'test'];
 
 // One handler per command, in src/commands/; each gets the context below and nothing else of this file.
-const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...skillsCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...testingCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...coverageCommands, ...symbolsCommands, ...switchCommands, ...externalCommands, ...harnessCommands, ...instructionsCommands, ...contextCommands, ...explainCommands, ...reportCommands, ...proxyCommands, ...errorCommands };
+const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...skillsCommands, ...prsCommands, ...learnCommands, ...hookCommands, ...testingCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...coverageCommands, ...symbolsCommands, ...switchCommands, ...externalCommands, ...harnessCommands, ...instructionsCommands, ...contextCommands, ...explainCommands, ...reportCommands, ...proxyCommands, ...errorCommands };
 // Commands that still answer in a repository thinker is switched off for (repo-switch.js): the machine-wide
 // ones, the ones about the install itself, and the switch. `hook` keeps quiet by itself.
 const OFF_COMMANDS = ['version', 'enable', 'disable', 'ui', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'stats', 'ast', 'ranker', 'hook', 'serve', 'proxy', 'errors', undefined];
@@ -363,7 +368,7 @@ async function main() {
     if (!store.exists()) store.init();
   }
   // symbol boundaries by tree-sitter where its grammars are installed (`thinker ast install`), else by regex
-  if (!['update', 'upgrade', 'switch', 'branch', 'serve', 'ast', 'usage', 'impact', 'stats', 'telemetry', 'help', 'version', 'served', 'spent', 'guide', 'proxy', 'test', 'report', undefined].includes(cmd)) await initAst();
+  if (!['update', 'upgrade', 'switch', 'branch', 'serve', 'ast', 'usage', 'prs', 'stats', 'telemetry', 'help', 'version', 'served', 'spent', 'guide', 'proxy', 'test', 'report', undefined].includes(cmd)) await initAst();
 
   const handler = COMMANDS[cmd];
   if (!handler) { out(HELP); return; }

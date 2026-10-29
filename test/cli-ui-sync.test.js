@@ -512,3 +512,25 @@ test('Recent activity rows and `thinker context --history` say what the part is 
   assert.match(read('context-suggest.js'), /\.\.\.describeEntry\(e\)/);
   for (const kind of ['section', 'skill', 'tool', 'output']) assert.match(read('context-suggest.js'), new RegExp(`describePart\\(\\{ kind: '${kind}'`));
 });
+
+test('`thinker prs` is one door, and its help says what the figures are (2026-10-29)', async () => {
+  const { WINDOW_DAYS } = await import('../src/delivery.js');
+  const { DEFAULTS } = await import('../src/maintain.js');
+  const cli = read('cli.js'), cmd = read('commands/prs.js');
+  // The command's window default is the module's, so help, report and telemetry cover the same days.
+  assert.match(cmd, /flags\.days === undefined \? WINDOW_DAYS/);
+  assert.equal(WINDOW_DAYS, 30);
+  // There is no page tab for it yet, so the help carries the whole explanation: both savings, and that one
+  // is measured and the other an estimate. A figure nobody can place is worse than no figure.
+  assert.match(cli, /prs \[--days n\] \[--pr n\] \[--detail\] \[--json\]/);
+  assert.match(cli, /prs sync \[--days n\] \[--pr n\]/);
+  assert.match(cli, /prs link --session id --pr n/);
+  for (const phrase of [/\(measured\)/, /\(an estimate\)/]) assert.match(cli, phrase);
+  // No page reads it, so nothing on the page may claim to.
+  assert.doesNotMatch(read('ui/page.html'), /api\/prs|thinker prs/);
+  // Maintenance keeps it current by itself; the switch named in the docs is the one the code reads.
+  assert.equal(DEFAULTS.prSync, true);
+  assert.equal(DEFAULTS.prs, undefined, 'maintain.prs is the mining switch; the sync has its own');
+  assert.match(read('maintain.js'), /cfg\.prSync !== false/);
+  assert.match(fs.readFileSync(path.join(SRC, '..', 'docs', 'usage.md'), 'utf8'), /\{ prSync: false \}/);
+});

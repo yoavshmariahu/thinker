@@ -168,13 +168,13 @@ export async function provision({ call = api, config = state, persist = save, re
   state.cards ||= {};
   for (const question of questions) {
     const existingId = state.cards[question.name];
-    if (existingId && (question.spend ? state.spendCardVersion === 1 : question.cache ? state.cacheCardVersion === 6 : question.holdout ? state.holdoutCardVersion === 3 : question.delivery ? state.deliveryCardVersion === 2 : state.cardVersion === 8)) continue;
+    if (existingId && (question.spend ? state.spendCardVersion === 1 : question.cache ? state.cacheCardVersion === 6 : question.holdout ? state.holdoutCardVersion === 3 : question.delivery ? state.deliveryCardVersion === 3 : state.cardVersion === 8)) continue;
     const card = await api(existingId ? `/card/${existingId}` : '/card', existingId ? 'PUT' : 'POST', { name: question.name, display: question.display, description: question.description || null,
       collection_id: state.collectionId, visualization_settings: question.settings || {},
       dataset_query: dataset(question, db.id) });
     state.cards[question.name] = card.id; save();
   }
-  state.cardVersion = 8; state.deliveryCardVersion = 2; state.holdoutCardVersion = 3; state.cacheCardVersion = 6; state.spendCardVersion = 1; save();
+  state.cardVersion = 8; state.deliveryCardVersion = 3; state.holdoutCardVersion = 3; state.cacheCardVersion = 6; state.spendCardVersion = 1; save();
   if (!state.dashboardId) {
     state.dashboardId = (await api('/dashboard', 'POST', { name: 'Thinker telemetry', collection_id: state.collectionId,
       description: 'Live reports, installation activity, and data quality. Installation IDs are not people. Older telemetry may contain test data. Usage fields are rolling snapshots; do not sum all reports.' })).id;
@@ -244,13 +244,13 @@ export async function provision({ call = api, config = state, persist = save, re
     }
   }
   if (!state.deliveryId) {
-    state.deliveryId = (await api('/dashboard', 'POST', { name: 'PR delivery & review', collection_id: state.collectionId,
-      description: 'Observed tokens per merged PR, confirmed fixes, elapsed merge timing and coverage. Aggregate 30-day snapshots; no causal improvement claim.' })).id;
+    state.deliveryId = (await api('/dashboard', 'POST', { name: 'Pull requests delivered', collection_id: state.collectionId,
+      description: 'What people shipped with thinker and what it saved on it: merged pull requests worked on, tokens cleared (measured) and reading avoided (estimate), what each cost. Aggregate 30-day snapshots per device; no causal improvement claim.' })).id;
     save();
   }
-  if (state.deliveryDashboardVersion !== 1) {
+  if (state.deliveryDashboardVersion !== 2) {
     const cards = [{ id: -1, card_id: null, row: 0, col: 0, size_x: 24, size_y: 4,
-      visualization_settings: { virtual_card: { display: 'text' }, text: '## What did we ship, and what did Thinker help catch?\n30-day snapshots from updated clients after PR metadata is synced. No data means not measured, not zero bugs or zero tokens.\n**Attribution:** counts are PR observations, not unique team PRs. Latest snapshot per known device (installation fallback); several contributors can observe the same PR. Complete counters cover linked recorded work only. Comparative improvement is not established.' } }];
+      visualization_settings: { virtual_card: { display: 'text' }, text: '## What did people ship with Thinker, and what did it save them?\n30-day snapshots from clients on 0.2.15 and later. No data means not measured, not zero.\n**The two savings are not the same evidence.** *Cleared* is measured: the tokens the API reported leaving out of those prompts after the context proxy cleared them. *Reading avoided* is the cache own estimate: one read per file behind each note a session acted on. Any figure that adds them says so.\n**Attribution:** counts are pull request observations, not unique team pull requests -- latest snapshot per known device (installation fallback), and several contributors can observe the same one. *Merged with thinker* counts only pull requests a recorded session worked on; the repository other merges are shown apart. Comparative improvement is not established: nobody is running without Thinker to compare against.' } }];
     deliveryQuestions.forEach((q, i) => {
       const scalar = i < 4, j = i - 4;
       cards.push({ id: -(i + 2), card_id: state.cards[q.name], row: scalar ? 4 : 8 + Math.floor(j / 2) * 8,
@@ -258,7 +258,7 @@ export async function provision({ call = api, config = state, persist = save, re
         parameter_mappings: mappings(state.cards[q.name]) });
     });
     await api(`/dashboard/${state.deliveryId}`, 'PUT', { parameters, dashcards: cards });
-    state.deliveryDashboardVersion = 1; save();
+    state.deliveryDashboardVersion = 2; save();
   } else {
     const dashboard = await api(`/dashboard/${state.deliveryId}`);
     await api(`/dashboard/${state.deliveryId}`, 'PUT', { parameters: [...parameters,

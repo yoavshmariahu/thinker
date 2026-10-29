@@ -1,23 +1,81 @@
-// Queries consume numeric 30-day snapshots only. No repository or PR identity is uploaded.
+// Pull requests delivered: what the people using thinker shipped, and what thinker saved on it.
+//
+// Reads `raw_json.prs` (src/delivery-telemetry.js), a 30-day snapshot on the latest report per device
+// (installation fallback), so overlapping hourly uploads are never added. A client before 0.2.15 sends no
+// such block and is left out, which is not zero. Two figures, never blended in a card title:
+// `clearedTokens` is measured (what the API left out of those prompts) and `readingTokens` is the cache's
+// estimate of file reading avoided. Nothing here identifies a pull request, a repository or a session.
 export const deliverySource = `(SELECT DISTINCT ON (coalesce('device:' || device_id, 'install:' || install_id)) *
   FROM v_latest_installs
   ORDER BY coalesce('device:' || device_id, 'install:' || install_id), timestamp DESC, received_at DESC, file_key DESC) delivery_snapshots`;
-export const deliveryField = name => `(CASE WHEN raw_json #>> '{delivery,schemaVersion}' = '1' AND raw_json #>> '{delivery,windowDays}' = '30' AND jsonb_typeof(raw_json #> '{delivery,${name}}') = 'number' THEN (raw_json #>> '{delivery,${name}}')::numeric END)`;
+const valid = "raw_json #>> '{prs,schemaVersion}' = '2' AND raw_json #>> '{prs,windowDays}' = '30'";
+export const deliveryField = name => `(CASE WHEN ${valid} AND jsonb_typeof(raw_json #> '{prs,${name}}') = 'number' THEN (raw_json #>> '{prs,${name}}')::numeric END)`;
 const sum = name => `sum(${deliveryField(name)})`;
-const valid = "raw_json #>> '{delivery,schemaVersion}' = '1' AND raw_json #>> '{delivery,windowDays}' = '30'";
 const rate = (a, b) => `round(${sum(a)} / nullif(${sum(b)}, 0), 1)`;
 const daily = `(SELECT DISTINCT ON (date_trunc('day', received_at AT TIME ZONE 'UTC'), coalesce('device:' || device_id, 'install:' || install_id)) *
   FROM reports ORDER BY date_trunc('day', received_at AT TIME ZONE 'UTC'), coalesce('device:' || device_id, 'install:' || install_id), received_at DESC, file_key DESC) daily_snapshots`;
+
+const overlap = 'Each point is a 30-day rolling snapshot, the latest per reporting device per UTC day. Adjacent points overlap: never add them.';
+const observation = 'The same team pull request can appear on several devices, so these are observations, not unique global pull requests.';
+const twoKinds = 'Cleared is measured: the tokens the API reported leaving out of those prompts. Reading avoided is the cache\'s estimate: one read per file behind each note a session acted on. They are added only where the card says so.';
+
 export const deliveryQuestions = [
-  { name: 'Merged PR observations · 30 days', display: 'scalar', sql: `SELECT ${sum('mergedPrs')} AS merged_pr_observations FROM ${deliverySource}`, description: 'Rolling 30-day PR observations from the latest snapshot per device (installation fallback). The same team PR can appear on several devices; this is not a unique global PR count.' },
-  { name: 'Average tokens per measured merged PR', display: 'scalar', sql: `SELECT ${rate('completePrTokens', 'completeTokenPrs')} AS tokens_per_measured_pr FROM ${deliverySource}`, description: 'Sum of complete-counter PR tokens / number of those PR observations. Includes recorded coding and review calls. Missing contributor or subagent work may remain; shared learning overhead is separate. Not an average of medians.' },
-  { name: 'Confirmed bugs fixed before merge · 30 days', display: 'scalar', sql: `SELECT ${sum('bugsCaughtAndFixed')} AS confirmed_fixed_observations FROM ${deliverySource}`, description: 'Human-confirmed findings linked locally to a fixing commit in the PR, after the finding and before merge. A finding disappearing or a thread resolving does not count. Devices may overlap.' },
-  { name: 'Merged PR token coverage (%)', display: 'scalar', sql: `SELECT round(100 * ${sum('completeTokenPrs')} / nullif(${sum('mergedPrs')}, 0), 1) AS complete_counter_percent FROM ${deliverySource}`, description: 'Merged PR observations with complete counters for linked recorded sessions / all observed merges. This does not prove every contributor or subagent was recorded.' },
-  { name: 'PR token distribution · complete counters', display: 'bar', sql: `SELECT bucket.label AS token_range, sum(CASE WHEN jsonb_typeof(raw_json #> ARRAY['delivery','tokenBuckets',bucket.idx::text,'count']) = 'number' THEN (raw_json #>> ARRAY['delivery','tokenBuckets',bucket.idx::text,'count'])::numeric END) AS pr_observations FROM ${deliverySource} CROSS JOIN (VALUES (0, '0–100k'), (1, '100k–250k'), (2, '250k–500k'), (3, '500k–1M'), (4, '1M–2M'), (5, 'Over 2M')) bucket(idx,label) WHERE ${valid} GROUP BY bucket.idx, bucket.label ORDER BY bucket.idx`, settings: { 'graph.dimensions': ['token_range'], 'graph.metrics': ['pr_observations'] } },
-  { name: 'Review finding decisions · 30 days', display: 'bar', sql: `SELECT outcome, sum(amount) AS findings FROM ${deliverySource} CROSS JOIN LATERAL (VALUES ('Confirmed', ${deliveryField('confirmedFindings')}), ('Dismissed', ${deliveryField('dismissedFindings')}), ('Duplicate', ${deliveryField('duplicateFindings')}), ('Pending', ${deliveryField('pendingFindings')})) f(outcome, amount) WHERE ${valid} GROUP BY outcome`, settings: { 'graph.dimensions': ['outcome'], 'graph.metrics': ['findings'] }, description: 'Decision counts on PRs in the reporting window, including open PRs. Confirmed findings can still be unfixed; pending findings are not bugs caught.' },
-  { name: 'PR tokens over time · rolling 30-day mean', display: 'line', sql: `SELECT date_trunc('day', received_at AT TIME ZONE 'UTC') AS day_utc, ${rate('completePrTokens', 'completeTokenPrs')} AS tokens_per_measured_pr, ${sum('completeTokenPrs')} AS measured_pr_observations FROM ${daily} WHERE ${valid} GROUP BY 1 ORDER BY 1`, settings: { 'graph.dimensions': ['day_utc'], 'graph.metrics': ['tokens_per_measured_pr'] }, description: 'Each point is a 30-day rolling snapshot, latest per reporting device per UTC day. Adjacent points overlap: do not sum them. Observed trend, not measured Thinker improvement.' },
-  { name: 'Merge timing · observed hours', display: 'table', sql: `SELECT ${rate('openToMergeHours', 'openToMergeSamples')} AS average_open_to_merge_hours, ${sum('openToMergeSamples')} AS open_to_merge_samples, ${rate('readyToMergeHours', 'readyToMergeSamples')} AS average_ready_to_merge_hours, ${sum('readyToMergeSamples')} AS ready_to_merge_samples FROM ${deliverySource}`, description: 'Elapsed wall-clock time, not human effort or time saved. Ready timing requires an observed ready_for_review event; missing readiness remains unknown.' },
-  { name: 'Delivery participation and cache-supported fixes', display: 'table', sql: `SELECT ${sum('cacheAssistedPrs')} AS cache_assisted_merges, ${sum('reviewedPrs')} AS reviewed_merges, ${sum('cacheSupportedFixes')} AS cache_supported_fixed_bugs, ${sum('agentTokens')} AS known_agent_tokens, ${sum('reviewTokens')} AS known_review_tokens, ${sum('overheadTokens')} AS repository_overhead_tokens FROM ${deliverySource}`, description: 'Cache assistance means notes were served, not proof of causation. Cache-supported fixes reference a cached note, not proof a baseline review would miss them. Token totals may be partial.' },
-  { name: 'Delivery measurement coverage', display: 'table', sql: `SELECT count(*) AS latest_reporting_sources, count(*) FILTER (WHERE ${valid}) AS sources_with_delivery_instrumentation, ${sum('repositoriesWithPrData')} AS repository_observations_with_pr_data, ${sum('unreadableRepositories')} AS unreadable_repository_observations, ${sum('unassignedSessions')} AS unassigned_sessions, ${sum('unassignedReviews')} AS unassigned_reviews, ${sum('overheadUnknownCalls')} AS overhead_calls_without_counters, max(timestamp) FILTER (WHERE ${valid}) AS latest_delivery_snapshot FROM ${deliverySource}` },
-  { name: 'Delivery by reporting source', display: 'table', fullWidth: true, sql: `SELECT coalesce(device_id, 'Unknown') AS device_id, install_id, timestamp AS snapshot_time, ${deliveryField('mergedPrs')} AS merged_pr_observations, ${deliveryField('completeTokenPrs')} AS complete_counter_prs, round(${deliveryField('completePrTokens')} / nullif(${deliveryField('completeTokenPrs')}, 0), 1) AS mean_tokens_per_pr, ${deliveryField('bugsCaughtAndFixed')} AS confirmed_fixed_observations, ${deliveryField('pendingFindings')} AS pending_findings, ${deliveryField('openOrAbandonedTokens')} AS open_or_abandoned_tokens FROM ${deliverySource} WHERE ${valid} ORDER BY timestamp DESC` },
-].map((q, i) => ({ ...q, delivery: true, sql: q.display !== 'scalar' ? q.sql : q.sql + ` HAVING ${sum(['mergedPrs', 'completeTokenPrs', 'bugsCaughtAndFixed', 'mergedPrs'][i])} ${i === 1 || i === 3 ? '> 0' : 'IS NOT NULL'}` }));
+  { name: 'Merged pull requests worked on with thinker · 30 days', display: 'scalar',
+    sql: `SELECT ${sum('merged')} AS merged_with_thinker FROM ${deliverySource}`,
+    description: `Merged pull requests that some session on that machine was recorded working on. The repository's other merges are counted apart (seen) and are not in this figure. ${observation}` },
+
+  { name: 'Tokens saved per merged pull request', display: 'scalar',
+    sql: `SELECT ${rate('savedTokens', 'merged')} AS saved_per_merged_pr FROM ${deliverySource}`,
+    description: `Cleared plus reading avoided, over the merged pull requests worked on with thinker. ${twoKinds}` },
+
+  { name: 'Saved as a share of what those pull requests cost (%)', display: 'scalar',
+    sql: `SELECT round(100 * ${sum('savedTokens')} / nullif(${sum('agentTokens')}, 0), 1) AS saved_percent FROM ${deliverySource}`,
+    description: `Agent tokens are every prompt and every answer of those sessions added up -- the same shape as the saving, so the share means something. ${twoKinds}` },
+
+  { name: 'Merged pull requests where thinker saved something (%)', display: 'scalar',
+    sql: `SELECT round(100 * ${sum('mergedAssisted')} / nullif(${sum('merged')}, 0), 1) AS assisted_percent FROM ${deliverySource}`,
+    description: 'Of the merged pull requests worked on with thinker, those with a clearing or an acted-on note behind them. A pull request with neither is counted in the denominator.' },
+
+  { name: 'What was saved, measured against estimated', display: 'bar',
+    sql: `SELECT kind, sum(amount) AS tokens FROM ${deliverySource}
+      CROSS JOIN LATERAL (VALUES ('Cleared (measured)', ${deliveryField('clearedTokens')}), ('Reading avoided (estimate)', ${deliveryField('readingTokens')})) k(kind, amount)
+      WHERE ${valid} GROUP BY kind ORDER BY kind`,
+    settings: { 'graph.dimensions': ['kind'], 'graph.metrics': ['tokens'] },
+    description: twoKinds },
+
+  { name: 'Saved per merged pull request · distribution', display: 'bar',
+    sql: `SELECT bucket.label AS saved_range, sum(CASE WHEN jsonb_typeof(raw_json #> ARRAY['prs','savedBuckets',bucket.idx::text,'count']) = 'number' THEN (raw_json #>> ARRAY['prs','savedBuckets',bucket.idx::text,'count'])::numeric END) AS merged_prs
+      FROM ${deliverySource}
+      CROSS JOIN (VALUES (0, 'Under 10k'), (1, '10k–50k'), (2, '50k–200k'), (3, '200k–1M'), (4, 'Over 1M')) bucket(idx,label)
+      WHERE ${valid} GROUP BY bucket.idx, bucket.label ORDER BY bucket.idx`,
+    settings: { 'graph.dimensions': ['saved_range'], 'graph.metrics': ['merged_prs'] },
+    description: `Merged pull requests worked on with thinker, by what was saved on each. The first bucket holds those where nothing was saved. ${observation}` },
+
+  { name: 'Saved per merged pull request over time', display: 'line',
+    sql: `SELECT date_trunc('day', received_at AT TIME ZONE 'UTC') AS day_utc, ${rate('savedTokens', 'merged')} AS saved_per_merged_pr, ${sum('merged')} AS merged_prs
+      FROM ${daily} WHERE ${valid} GROUP BY 1 ORDER BY 1`,
+    settings: { 'graph.dimensions': ['day_utc'], 'graph.metrics': ['saved_per_merged_pr'] },
+    description: `${overlap} An observed trend, not a measured improvement: nobody is running without thinker to compare against.` },
+
+  { name: 'What a merged pull request costs and takes', display: 'table',
+    sql: `SELECT ${rate('agentTokens', 'merged')} AS mean_agent_tokens_per_merged_pr, ${sum('completeTokenPrs')} AS merged_prs_with_complete_counters, ${sum('merged')} AS merged_prs,
+      ${rate('hoursToMerge', 'hoursToMergeSamples')} AS mean_hours_open_to_merged, ${sum('hoursToMergeSamples')} AS timing_samples
+      FROM ${deliverySource}`,
+    description: 'Elapsed wall-clock time, not human effort and not time saved. A session whose agent reported no counters adds nothing to the tokens and leaves that pull request without complete counters.' },
+
+  { name: 'Reach: how much of what people ship is recorded', display: 'table',
+    sql: `SELECT count(*) AS latest_reporting_devices, count(*) FILTER (WHERE ${valid}) AS devices_sending_pr_data,
+      ${sum('repositoriesWithPrs')} AS repository_observations_with_prs, ${sum('worked')} AS pull_requests_worked_on, ${sum('merged')} AS merged_with_thinker, ${sum('mergedSeen')} AS merged_in_those_repositories,
+      ${sum('linkedSessions')} AS sessions_linked_to_a_pr, ${sum('unlinkedSessions')} AS sessions_on_no_pr, ${sum('unreadableRepositories')} AS unreadable_repository_observations,
+      max(timestamp) FILTER (WHERE ${valid}) AS latest_snapshot
+      FROM ${deliverySource}`,
+    description: 'A session on no pull request is work that happened outside one, or a pull request GitHub was never read for. Merged in those repositories is every merge, including the ones no session here touched: the gap is how much of a team\'s work one machine sees.' },
+
+  { name: 'Delivery by reporting device', display: 'table', fullWidth: true,
+    sql: `SELECT coalesce(device_id, 'Unknown') AS device_id, install_id, timestamp AS snapshot_time,
+      ${deliveryField('merged')} AS merged_with_thinker, ${deliveryField('mergedSeen')} AS merged_seen, ${deliveryField('mergedAssisted')} AS merged_assisted,
+      ${deliveryField('clearedTokens')} AS cleared_tokens, ${deliveryField('readingTokens')} AS reading_tokens, ${deliveryField('agentTokens')} AS agent_tokens,
+      round(${deliveryField('savedTokens')} / nullif(${deliveryField('merged')}, 0), 1) AS saved_per_merged_pr,
+      ${deliveryField('unlinkedSessions')} AS sessions_on_no_pr
+      FROM ${deliverySource} WHERE ${valid} ORDER BY timestamp DESC` },
+].map((q, i) => ({ ...q, delivery: true, sql: q.display !== 'scalar' ? q.sql : q.sql + ` HAVING ${sum(['merged', 'merged', 'agentTokens', 'merged'][i])} > 0` }));
