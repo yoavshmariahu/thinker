@@ -139,6 +139,16 @@ test('CLI and page expose the shared Claude Code, Codex and Cursor harness repor
   // the words are written once for the machine, never per repository, and never in the background
   assert.match(read('part-explain.js'), /export function partKey/);
   assert.doesNotMatch(read('maintain.js'), /explainParts|part-explain/);
+  // and both doors show them: `thinker context --cards` is the card view in the terminal, from the same list in the
+  // same order as the page (part-explain.js:viewParts), so a terminal-only machine is told what a part is too
+  assert.match(read('commands/context.js'), /if \(flags\.cards\)/);
+  assert.match(read('commands/context.js'), /viewParts, readExplains/);
+  assert.match(read('commands/context.js'), /thinker context --cards/);
+  assert.match(read('cli.js'), /context \[--days n\] \[--cards\]/, 'the card view is in the help of `thinker context`');
+  assert.match(read('cli.js'), /^  explain \[--days n\]/m, '`thinker explain`, the command behind the cards, is in the help');
+  // a card someone asked for in a desktop app is answered by the session's own model, so the queued job must survive
+  // the next update: rewire dropped it before (retire-background.js), which left that door dead
+  assert.match(read('retire-background.js'), /KEPT_JOBS = new Set\(\['distill', 'learn', 'maintain', 'explain'\]\)/);
   // every view opens with its Potential savings card
   assert.match(page, /const savingsCard = /);
   for (const k of ['all', 'instructions', 'custom', 'builtin', 'outputs']) assert.match(page, new RegExp(`savings: sav\\.${k}`), k);

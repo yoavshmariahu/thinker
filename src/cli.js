@@ -177,12 +177,14 @@ const HELP = `thinker — knowledge cache for coding agents
                                  --pr opens a pull request with it (a branch pushed to the origin; the Find Savings page's Apply runs
                                  this in the background and follows it under Recent activity, --job naming the decision it recorded),
                                  --apply writes it to AGENTS.md in the working tree, uncommitted
-  context [--days n] [--json] [--verbose] [--refresh] [--judge n] [--switch-off <labels> [--builtin]] [--switch-on <keys>] [--output-compression <tools> --level high|moderate|off]
+  context [--days n] [--cards] [--json] [--verbose] [--refresh] [--judge n] [--switch-off <labels> [--builtin]] [--switch-on <keys>] [--output-compression <tools> --level high|moderate|off]
           [--machine [--repos n] [--top n] [--ask [--no-browser]]]
                                  where the agents' context goes here and what each part is worth: every section of AGENTS.md (its
                                  tokens, the sessions it applied to, and the judged share it bore on and was followed), every skill
                                  (read in, kept its rules), every other tool loaded; --judge n judges n recent sessions now (model
                                  calls); a 25% sample is judged as sessions end (instructions: { value: { judge: false, share } } in .thinker/config.json)
+                                 --cards says what each part is, why you would change it and what you would lose, as the page's
+                                 cards do, in the same order (\`thinker explain\` writes those words; this view spends nothing)
                                  --refresh keeps the report for the page, which reads it instead of the transcripts (it runs this in the background)
                                  --switch-off turns the harness on here and switches those tools off (--builtin: built-in tools too);
                                  --switch-on turns them back on; --output-compression sets how much of a tool's results Claude Code keeps
@@ -197,6 +199,14 @@ const HELP = `thinker — knowledge cache for coding agents
                                  failed change again; the page's Find Savings lists every part with its actions, and Recent
                                  activity the decisions with what needs you. Once a week the next prompt passes the five on with a link to that page
                                  (maintain.contextSuggest in .thinker/config.json; false turns it off)
+  explain [--days n] [--limit n] [--keys <k1,k2>] [--all] [--model m] [--json]
+                                 writes what each part of the context is and why you would change it, in plain words a person who
+                                 has never thought about an agent's prompt can read: one small-model call per six parts, kept for
+                                 this machine, since a built-in tool is the same tool in every repository. These are the words under
+                                 the Find Savings cards and \`thinker context --cards\`; the page asks for the parts it is showing,
+                                 and by hand this writes the ones with none, heaviest waste first (--limit, or --keys for exactly
+                                 those, --all over every repository the page merges). With no agent CLI signed in, as in a desktop
+                                 app, it is queued for the session's own model; maintain.dailyTokens stops it at the day's cap
   report [--weeks n] [--tokens] [--total] [--share] [--json] [--refresh [--all]]   the Report page in the terminal: the average cost of a prompt here at list prices, week by week over the
                                  last 6, by token type (fresh input, cache writes, cache reads, output), by part of the context
                                  (instruction files, custom and built-in tools, tool outputs, the rest) and by model under its provider, each part-table row against good and bad bounds in dollars; --tokens the same in tokens, without bounds, --total each week's
