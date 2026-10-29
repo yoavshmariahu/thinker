@@ -605,8 +605,9 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
 
     cacheSize,
 
-    // 30-day outcome snapshots, regardless of the usage snapshot periodHours.
-    delivery: deliveryMetrics(store, { all }),
+    // The pull requests this machine's sessions produced and what thinker saved on them, 30 days
+    // regardless of the usage snapshot's periodHours (delivery-telemetry.js). Counts and tokens only.
+    prs: deliveryMetrics(store, { all }),
 
     // Prompts served notes against prompts held out, 30 days (holdoutMetrics).
     holdout: holdoutMetrics(store, { all }),
