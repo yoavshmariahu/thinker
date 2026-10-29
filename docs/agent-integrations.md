@@ -284,6 +284,30 @@ plugin on a machine without thinker does nothing.
   pi (`models.json`) and OpenCode (`opencode.json`); Goose, Aider, Cline, Droid, Copilot CLI with your own key, Qwen
   Code on an Anthropic provider and Kilo's CLI take it by hand at the keys above; Codex, Cursor, Gemini CLI, Kiro,
   Windsurf and Auggie have no Anthropic URL to point at it. `thinker proxy status|off|on`, `connect --no-proxy`.
+  **What it saved is shown in the session** (`src/compression.js`, 2026-10-29), the way the notes a turn was
+  served are: the API answers every cleared request with the tokens it left out of that prompt, and the cleared
+  set is cumulative within a conversation, so adding those up over a session is the whole of the saving, measured
+  rather than modelled -- *the tokens the server left out of each prompt since the clear, added up*. The proxy
+  writes them per session beside its log (`<THINKER_HOME>/state/compression/<session>.json`) so no card has to
+  read the log, which is a megabyte within a week. It is shown three turns after the first clear
+  (`TURNS_AFTER`), not at the clear: the first cleared call saves nothing anybody would notice, since the saving
+  is every *later* call that reads the shorter prefix, and a card at that moment would show the cache rewrite and
+  none of the return. Four doors, one sentence between them (`compressionHeader`, held together by
+  `test/claude-card.test.js`): the Claude Code card mod draws it under the answer beside the notes
+  (`src/integrations/claude-card`), the Codex desktop card as a second section (`src/notice-card.js`), the Stop
+  hook prints it where no mod runs (`usage.js:compressionNotice`), and `thinker proxy report` prints it for the
+  window. Like the cache-hit card's, the figure is gross: a clear also writes the prompt cache again from the
+  first result it removed, which `thinker proxy replay` prices.
+  **And the agent is told, in the prompt** (`compressionBlock`, a `<thinker-compression>` block from the prompt
+  hook): the figure's first question is *what* was cleared, so the answer goes into the context rather than behind
+  a link. The block names the session's saving, the actions whose results are out of the prompt right now by tool
+  (`clearedActions` in `proxy.js` works them out from the request the proxy is already scanning -- the API reports
+  how much and how many, never which) and the last eight clears, and it tells the agent to read a file again
+  rather than rely on remembering it. Once a session, the turn the saving comes due: a block whose figures changed
+  every turn would rewrite the prompt cache from wherever it sits, which is the cost the clearing exists to spare.
+  The token total adds up across requests, because each one genuinely leaves those tokens out again; the tool
+  breakdown never does, since every request clears the same cumulative set and summing would count one `Bash` call
+  many times -- it is the set cleared out of the latest prompt.
   **A route of your own is never taken over** (`src/proxy-route.js`, 2026-10-28): plenty of people point Claude Code
   at a model server of their own -- a gateway that routes each request to whichever model it picks -- and its token
   is not Anthropic's, so a proxy in front of it sends that token to `api.anthropic.com` and every call fails
