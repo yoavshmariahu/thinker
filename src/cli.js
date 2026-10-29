@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { Store, findRepoRoot, isGitCheckout } from './store.js';
 import { initAst } from './ast.js';
 import { thinkerHome, maybeCheckDailyUpdateInBackground, checkPendingNotice } from './update.js';
+import { recordError } from './error-report.js';
 import { ensureTelemetryScheduled, reportTelemetrySchedule } from './telemetry-schedule.js';
 import { maybeSendTelemetryInBackground } from './telemetry.js';
 import { commands as projectCommands } from './commands/project.js';
@@ -28,6 +29,7 @@ import { commands as instructionsCommands } from './commands/instructions.js';
 import { commands as contextCommands } from './commands/context.js';
 import { commands as reportCommands } from './commands/report.js';
 import { commands as proxyCommands } from './commands/proxy.js';
+import { commands as errorCommands } from './commands/errors.js';
 import { commands as testingCommands } from './commands/testing.js';
 import { isDisabledRepo, OFF_MESSAGE } from './repo-switch.js';
 
@@ -253,6 +255,10 @@ const HELP = `thinker — knowledge cache for coding agents
                                  the checkouts wire (update runs it; the prompt hook does it for its own checkout)
   stats [--here] [--days n] [--json]
                                  machine-wide overview: activity, agents, learning, tokens and repositories; current checkout cache details
+  errors [--list] [--send] [--answer yes|no|never] [--json]
+                                what thinker itself has failed at on this machine, exactly as it would be
+                                 sent to its developers. Nothing is sent until you answer yes; never stops
+                                 the question coming back
   proxy on [--gateway] [--upstream url] | off | status
                                 the context proxy as a service of this machine (on by default from connect/setup; --no-proxy
                                  there leaves it off): clears older tool results for Claude Code, pi, OpenCode and Codex.
@@ -302,10 +308,10 @@ function unknownFlags(c, given, help = HELP) {
 const CACHE_COMMANDS = ['tools', 'symbols', 'orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'session-work', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback', 'skills', 'instructions', 'context', 'report', 'test'];
 
 // One handler per command, in src/commands/; each gets the context below and nothing else of this file.
-const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...skillsCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...testingCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...coverageCommands, ...symbolsCommands, ...switchCommands, ...externalCommands, ...harnessCommands, ...instructionsCommands, ...contextCommands, ...reportCommands, ...proxyCommands };
+const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...skillsCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...testingCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...coverageCommands, ...symbolsCommands, ...switchCommands, ...externalCommands, ...harnessCommands, ...instructionsCommands, ...contextCommands, ...reportCommands, ...proxyCommands, ...errorCommands };
 // Commands that still answer in a repository thinker is switched off for (repo-switch.js): the machine-wide
 // ones, the ones about the install itself, and the switch. `hook` keeps quiet by itself.
-const OFF_COMMANDS = ['version', 'enable', 'disable', 'ui', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'stats', 'ast', 'ranker', 'hook', 'serve', 'proxy', undefined];
+const OFF_COMMANDS = ['version', 'enable', 'disable', 'ui', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'stats', 'ast', 'ranker', 'hook', 'serve', 'proxy', 'errors', undefined];
 
 async function main() {
   if (flags.help || ['help', '--help', '-h'].includes(cmd)) { out(HELP); return; }
@@ -354,6 +360,9 @@ async function main() {
 }
 
 main().catch(e => {
+  // thinker's own failures were invisible: a stack on a terminal nobody reads again. The record is
+  // local, scrubbed and sent only with the person's consent (error-report.js).
+  try { recordError(`cli.${process.argv[2] || 'none'}`, e); } catch {}
   console.error(e);
   process.exit(1);
 });

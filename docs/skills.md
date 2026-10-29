@@ -57,3 +57,44 @@ Whether a skill earns its place in every session's context is a separate questio
 
 How-to notes are the cache's own skills, written from sessions and pull requests. They are not
 turned into skill files, and skill files are not turned into how-to notes.
+
+## Future work: ranking the list itself, not suggesting skills per file
+
+Not built, and not planned work — a note of where the evidence points, so the next attempt does not
+start from the one that failed.
+
+Every skill a host knows about sits in the prompt as a name and a description, in every call of
+every session. On PostHog under GPT-6 Astra that list was about **19% of input**: switching all 107
+skills off cut input by that much at equal passes, but the agents then opened 0.6 skills a session
+against 2.9 and broke more minor conventions (0.46 against 0.21 a session). So the list earns
+something, and paying for all of it in every call is what to attack — not whether to have skills.
+
+What has already been tried, and what it measured:
+
+- **Suggesting a skill per file** (`skill-suggest.js`, off since 2026-10-19). The tool hook names the
+  skills past sessions read for files like this one. In a replay of the sessions that missed a skill
+  it named the needed one in **1 of 19**. It leaves the list in the prompt untouched, so it cannot
+  save anything either; it can only add.
+- **Asking the model to find the skill** (`lookup` over the descriptions): right **42%** of the time.
+- **Keeping the names and dropping the descriptions**: matched the unmodified harness at **12 of 15**
+  passes in the offline comparison of 2026-10-19 — the strongest result of the three, and the one
+  nobody has followed up. The names are a small fraction of the list's tokens; the descriptions are
+  the bulk of it.
+
+So the lever worth trying is the *shape of the list*, ranked: every skill keeps its name, and only
+the skills this repository's sessions actually open keep a full description. The evidence for the
+ranking already exists and costs nothing — `.thinker/state/skill-evidence.json` holds (area, skill)
+rows with organic opens, decayed, which `skill-suggest.js:candidates` already scores.
+
+The open question is the mechanism, and it is the reason this is a note rather than a branch. A host
+reads a skill's description from its own file, so thinker would have to change those files, and that
+is a person's repository: the only acceptable shape is the one Find Savings already uses for an
+instruction section — a diff, in a pull request, reversible ([context.md](context.md)) — never a
+quiet rewrite. Before any of that is worth building, two things need settling, both cheap:
+
+1. Does shortening a description actually shrink what the host puts in the prompt, per host? Measure
+   it the way the built-in tool definitions were measured (`claude -p`, count the prompt), not from
+   the file sizes.
+2. Does the 12-of-15 names-only result hold when the *ranking* decides which descriptions stay,
+   rather than dropping all of them? One offline comparison on 15 tasks is where that number comes
+   from, and every lever in this project that looked good offline has since come back worse live.

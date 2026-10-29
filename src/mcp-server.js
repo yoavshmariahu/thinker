@@ -13,6 +13,7 @@ import { maybeSendTelemetryInBackground, HOUR_MS } from './telemetry.js';
 import { isDisabledRepo } from './repo-switch.js';
 import { coveragePending, answerCoverage } from './coverage.js';
 import { proxyOfferPending, answerProxyOffer } from './proxy-offer.js';
+import { errorOfferPending, answerErrorOffer } from './error-report.js';
 import { contextSuggestAwaiting, answerContextSuggestion } from './context-suggest.js';
 import { queueDir, buildRunning, nextRequest, answerRequest, requestText } from './session-llm.js';
 import { anyDesktopApp } from './app-host.js';
@@ -95,6 +96,7 @@ function registerTools() {
   registerContextTool();
   registerCoverageTool();
   registerProxyTool();
+  registerErrorsTool();
   registerQueueTools();
 }
 
@@ -152,6 +154,20 @@ function registerProxyTool() {
       asked: z.enum(['picker', 'chat']).optional().describe('Where the user answered: your question tool (picker) or chat'),
     },
   }, async ({ choice, asked }) => text(await answerProxyOffer(String(choice), { store, client: clientName(), via: asked === 'chat' ? 'text' : 'picker' })));
+}
+
+// The answer to the one-off question about sending error reports (error-report.js): offered only while one
+// waits. It needs no repository either -- the failures are the install's, not a checkout's.
+let errorsTool;
+function registerErrorsTool() {
+  if (errorsTool || !errorOfferPending()) return;
+  errorsTool = server.registerTool('errors', {
+    title: 'Answer the error-report question',
+    description: 'Only when a thinker-error-report notice tells you to: records whether the user agrees to send thinker\'s own error reports to its developers.',
+    inputSchema: {
+      choice: z.string().describe('What the user chose: yes, no, or never'),
+    },
+  }, async ({ choice }) => text(await answerErrorOffer(String(choice), { store, client: clientName() })));
 }
 
 // Work read through this session (session-llm.js): in a desktop app, learning (session-work.js) or a coverage
