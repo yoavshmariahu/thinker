@@ -368,9 +368,16 @@ export async function orient(store, { task, file, session, client, budget = HOOK
   let denseFell = false;
   if (serveCfg.denseFallback && !ranked.length && notes.length) {
     try {
-      const sc = await withinDeadline(() => denseScores(notes, task + (file ? ' ' + file : '')));
+      // the statuses the lexical ranking refuses outright (rank.js scores them -1 and drops them):
+      // `invalid`, a `broken` skill card and an archived note. This path does not go through that
+      // ranking, so it has to apply the same rule itself - without it the lever served a skill card
+      // the code contradicts, which is exactly what `broken` means it must not do (caught by
+      // test/skills.test.js when the lever went on by default, 2026-10-30). Staleness is the
+      // `freshOnly` check below, and a `violated` behavior is served with its banner as elsewhere.
+      const eligible = notes.filter(n => !['invalid', 'broken'].includes(n.status) && !n.archived);
+      const sc = eligible.length ? await withinDeadline(() => denseScores(eligible, task + (file ? ' ' + file : ''))) : null;
       if (sc) {
-        const best = notes.map(n => ({ note: n, rel: sc.get(n.id) ?? 0, aff: 0, score: sc.get(n.id) ?? 0 }))
+        const best = eligible.map(n => ({ note: n, rel: sc.get(n.id) ?? 0, aff: 0, score: sc.get(n.id) ?? 0 }))
           .filter(r => r.rel >= serveCfg.denseFloor)
           .sort((a, b) => b.rel - a.rel)
           .slice(0, 1);
@@ -445,11 +452,21 @@ export async function orient(store, { task, file, session, client, budget = HOOK
 // actually searched for, 70 were answered, and the misses were `no-match` 1,983 (56%),
 // `ranker-rejected` 949 (27%) and `only-stale` 556 (16%). Each lever below addresses one of them.
 //
-// All three are off by default and stay off until an Artemis experiment measures them in agent
-// sessions against the shipped strategy on the same tasks: they change the serving pool, the
-// cross-encoder's veto and the freshness rule, which is exactly what a cache-and-serving change may
-// not do by default without evidence (AGENTS.md). Offline replays are not evidence. A switch here
-// going on by default is its own pull request citing its experiment.
+// **All three are on by default since 2026-10-30, by the owner's decision, with no experiment behind
+// them.** That is an exception to the rule that a serving change ships off until an Artemis
+// experiment measures it (AGENTS.md), taken knowingly: what is measured is the misses above, each
+// lever's target; what is not measured is whether serving those notes helps or hurts a session. The
+// rule's own reason for existing - a change that reads plausible and costs passes, as the bundle of
+// 2026-10-28 did - is unaddressed here, so the figures from the attempt that follows are the first
+// evidence either way, and `serving: { denseFallback: false, ceRescue: false, serveStale: false }`
+// in .thinker/config.json, or `THINKER_SERVE_*=off`, is how a repository or a benchmark arm backs
+// out. What the experiment still has to settle, when it is run: whether each lever pays, which the
+// paired arms measure one at a time, and `denseFloor`.
+//
+// Why it was defensible to go first anyway: the levers answer measured miss reasons rather than a
+// guess, each is entered only where the shipped path has already served nothing (so no ranking that
+// worked is reordered), each costs nothing when it does not fire, and the holdout
+// (`holdoutTurn`) keeps a share of turns untouched for comparison.
 //
 // `serving` in .thinker/config.json, or the environment, which wins over the config:
 //   denseFallback  THINKER_SERVE_DENSE_FALLBACK=on|off  a request no note shares a word with is
@@ -470,9 +487,16 @@ export async function orient(store, { task, file, session, client, budget = HOOK
 //                  attempted requests; this trades some of that precision for coverage.
 //   serveStale     THINKER_SERVE_STALE=on|off           the hooks serve a stale note, with the
 //                  ⚠ STALE banner it already carries, instead of holding it back. This repository
-//                  declares "the prompt hooks serve no stale note" as a mutable desired behavior, so
-//                  turning it on here revises that behavior and must say so.
-export const SERVING_DEFAULTS = { denseFallback: false, ceRescue: false, serveStale: false, denseFloor: 0.35 };
+//                  declared "the prompt hooks serve no stale note" as a mutable desired behavior;
+//                  turning it on revised that behavior, whose note now states that they do
+//                  (`.thinker/notes/the-prompt-hooks-serve-no-stale-note.json`, history kept). With
+//                  it on, `held` stays empty, so `heldAt` is no longer set: a stale note reaches the
+//                  verification batch through `lastUsed` instead, having been served
+//                  (maintain.js:pickStale takes either), and the `only-stale` miss reason cannot
+//                  fire. Half of all staleness was never a real change (AGENTS.md), and a note whose
+//                  files are gone is retired rather than served stale (`anchorsGone`), so what this
+//                  serves is a note about code that moved, banner and all, not a note known wrong.
+export const SERVING_DEFAULTS = { denseFallback: true, ceRescue: true, serveStale: true, denseFloor: 0.35 };
 export function servingConfig(store) {
   const c = store?.config?.().serving;
   const cfg = { ...SERVING_DEFAULTS, ...(c && typeof c === 'object' ? c : {}) };

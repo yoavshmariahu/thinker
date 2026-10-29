@@ -58,7 +58,9 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 - Enable by default only after an Artemis experiment: plan, owner approval, run. Compare with shipped strategy on same tasks. Report numbers and caveats.
 - Offline replays are not evidence. Measure outcomes in agent sessions.
 - Default-on switch = its own PR citing the experiment.
-- Off behind switches, awaiting an experiment (2026-10-28, `ops.js:servingConfig`, `serving` in `.thinker/config.json`): `denseFallback` (`THINKER_SERVE_DENSE_FALLBACK`) scores the notes with the local embedding model when no note shares a word with the request, serving the best above `denseFloor` (0.35, `pack`'s own `minRel`); `ceRescue` (`THINKER_SERVE_CE_RESCUE`) serves the best candidate the cross-encoder vetoed rather than nothing; `serveStale` (`THINKER_SERVE_STALE`) serves a stale match with its ⚠ banner instead of holding it back, which revises the mutable behavior "the prompt hooks serve no stale note". Environment wins over config. Each answers one measured miss reason; none is on until an Artemis experiment measures it in agent sessions.
+- **Owner-approved exception (2026-10-30): the three coverage levers are on by default with no experiment** (`ops.js:servingConfig`, `SERVING_DEFAULTS`, `serving` in `.thinker/config.json`; environment wins over config): `denseFallback` (`THINKER_SERVE_DENSE_FALLBACK`) scores the notes with the local embedding model when no note shares a word with the request, serving the best above `denseFloor` (0.35, `pack`'s own `minRel`); `ceRescue` (`THINKER_SERVE_CE_RESCUE`) serves the best candidate the cross-encoder vetoed rather than nothing; `serveStale` (`THINKER_SERVE_STALE`) serves a stale match with its ⚠ banner instead of holding it back, which revised the mutable behavior "the prompt hooks serve no stale note" (the note now says they do).
+- What that exception trades, written down so nobody reads a number into it: each lever answers a **measured** miss reason (of 3,561 attempted requests in the ten days to 2026-10-28: `no-match` 56%, `ranker-rejected` 27%, `only-stale` 16%), and each fires only where the shipped path already served nothing, so no ranking that worked is reordered. What is **not** measured is whether serving those notes helps or hurts a session — the thing the rule above exists to catch, and the thing the bundle of 2026-10-28 got wrong. `serving: { … : false }` or `THINKER_SERVE_*=off` backs any of them out per repository or per benchmark arm.
+- The experiment is still owed, and when it is run it must measure each lever on its own arm against the shipped strategy, plus the three together, and settle `denseFloor`. Note the harness gap found 2026-10-30: Artemis's mined caches are anchored **at** their task set's base (posthog `a3b3c3685b`, mlflow `1bb65f1c63`), so no note is ever stale in those runs and `serveStale` fires on nothing there; measuring it needs `dulwich-swerebench-v2` (per-task bases, months after its cache's anchor) or a cache built at a deliberately older anchor.
 - Owner-approved exception (2026-10-25): Codex proxy tool-output clearing is on by default via install/connect/setup/update. `proxy-codex.js` wires a managed provider without reading credentials. `/codex` routes ChatGPT-account requests to the ChatGPT backend, API-key requests to OpenAI. Custom providers stay as configured. `thinker proxy off` restores prior selection. Savings claims still need an Artemis experiment.
 
 **The proxy never takes over someone else's route (MANDATORY, 2026-10-28):**
@@ -464,8 +466,9 @@ claims about it.
 
 What followed from the mark was the problem:
 
-- The hooks withhold every stale note (`freshOnly`). Still true. Serving it with its ⚠ banner instead
-  is the `serveStale` lever, off until an experiment.
+- The hooks withheld every stale note (`freshOnly`). Not any more: the `serveStale` lever serves it with
+  its ⚠ banner instead, and is on by default since 2026-10-30 (the owner's call, no experiment; see the
+  serving rule above for what that trades).
 - A withheld note could never be verified. `maintain.js:pickStale` re-verifies the stale notes *served*
   recently, and a withheld note is never served: withheld → never served → never eligible → stale for
   good. On this repository that was 318 stale notes with **1** eligible. Being held back is now
@@ -1261,7 +1264,8 @@ readable; new behaviors stay local.
   2026-10-03: a review never writes to the cache; verification never rewrites
   or retires a behavior; serving and assessment never rewrite a shared note's
   committed file; `THINKER_TELEMETRY=off` and test runs send no telemetry (all
-  fixed); the prompt hooks serve no stale note (mutable).
+  fixed); the prompt hooks serve a stale note with its banner, and never one whose files are gone
+  (mutable, revised 2026-10-30 when `serveStale` went on by default).
 - **Serving.** A behavior is served like an invariant: at orientation with a
   small kind prior, by the edit hook when a file it rests on is edited
   (`ops.js:lateNotes`, first among the rules), and in `thinker review`'s

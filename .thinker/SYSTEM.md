@@ -266,11 +266,11 @@ When staged review is enabled, `thinker review --staged --strict` runs on commit
 
 Upheld at: `src/review.js:reviewImpl`, `src/cli.js:HELP`
 
-### The prompt hooks serve no stale note
+### The prompt hooks serve a stale note with its banner, and never one whose files are gone
 
 *mutable; id `the-prompt-hooks-serve-no-stale-note`; **unverified***
 
-At prompt time a note whose deps no longer match the working tree is held back, not served: src/ops.js:orient with `freshOnly` takes stale notes out of the servable set and logs them as `held`. Reading or withholding a note never launches verification. src/maintain.js:maintain runs a batch at most once every four hours on the next repository activity, using changed dependencies and diffs since each note was verified, subject to recent-use, churn and token limits. Once fresh again the note can be served on a later turn. Meanwhile the agent can explicitly request stale notes through `orient` or `lookup`, with the STALE banner. Manual `thinker verify` remains immediate.
+At prompt time a note whose deps no longer match the working tree is served, carrying the ⚠ STALE banner that names which deps changed and how: src/ops.js:orient clears `freshOnly` when the `serveStale` lever is on, which it is by default since 2026-10-30 (src/ops.js:SERVING_DEFAULTS; `serving: { serveStale: false }` in .thinker/config.json or THINKER_SERVE_STALE=off holds them back again, and `held` is what the log then calls them). Half of all staleness was never a real change - the verifier answered still_valid on 53% of stale notes across production - so withholding them served nobody, and a withheld note could not be verified either. What is never served is a note whose anchor files have all been deleted: src/ops.js:anchorsGone retires it as `invalid` at the next refresh, with no model call. Reading or withholding a note still never launches verification; src/maintain.js:maintain runs a batch every three days over the stale notes served recently, and a served stale note reaches it through `lastUsed`. Manual `thinker verify` remains immediate.
 
 Upheld at: `src/ops.js:orient`, `src/maintain.js:maintain`
 

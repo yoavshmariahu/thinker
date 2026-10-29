@@ -7,6 +7,9 @@ import { Store } from '../src/store.js';
 import { createNote, lateNotes, rememberTask, completenessNudge, orient, lookup, takeTurn } from '../src/ops.js';
 import { rank } from '../src/rank.js';
 process.env.THINKER_CE = 'off'; // these tests are about the lexical path; the cross-encoder (dense.js) has its own test
+// serveStale is on by default since 2026-10-30 (ops.js:SERVING_DEFAULTS). The withholding it switches
+// off still exists behind THINKER_SERVE_STALE=off, and the test below is what pins that path.
+process.env.THINKER_SERVE_STALE = 'off';
 
 function setup() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-late-'));
@@ -205,7 +208,7 @@ test('a request of one content word is a turn of conversation, not a task: nothi
   assert.ok(rank([st], { query: 'status', mode: 'lookup' }).length, 'lookup by one word is answered');
 });
 
-test('the prompt hook holds stale notes for the next batch and lists them for lookup', async () => {
+test('with serveStale off the prompt hook holds stale notes for the next batch and lists them for lookup', async () => {
   const { dir, store, cp } = setup();
   const file = path.join(dir, 'src/a.py');
   const original = fs.readFileSync(file, 'utf8');

@@ -97,7 +97,10 @@ test('the hooks of a held-out turn serve nothing, and every stop logs the sessio
   const dir = gitRepo(); const store = new Store(dir).init();
   fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ ...store.config(), minNotes: 1 })); // one note serves here (ops.js:SERVE_MIN_NOTES)
   createNote(store, { title: 'fetchRows reads the rows table', kind: 'gotcha', answers: ['how are rows fetched'], body: 'src/a.js:fetchRows reads the rows table; saveRows must run after it', deps: [{ path: 'src/a.js', symbol: 'fetchRows' }] });
-  const env = { ...process.env };
+  // this test measures the holdout accounting, not the coverage levers: with denseFallback or ceRescue
+  // on (the default since 2026-10-30) the second turn's request is answered by one of them, and the
+  // comparison then counts a served turn where this test needs an unserved one
+  const env = { ...process.env, THINKER_SERVE_DENSE_FALLBACK: 'off', THINKER_SERVE_CE_RESCUE: 'off', THINKER_SERVE_STALE: 'off' };
   const transcript = path.join(dir, 'h1.jsonl');
   const row = j => JSON.stringify(j) + '\n';
   const turn = (prompt, answer, input) => row({ type: 'user', message: { role: 'user', content: prompt } })
