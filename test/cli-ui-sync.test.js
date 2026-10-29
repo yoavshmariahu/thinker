@@ -129,12 +129,25 @@ test('CLI and page expose the shared Claude Code, Codex and Cursor harness repor
   assert.match(read('ui/server.js'), /url\.pathname === '\/api\/explain'/);
   assert.match(read('ui/server.js'), /'--keys', keys\.join\(','\), \.\.\.\(want === 'all' \? \['--all'\] : \[\]\)\]/);
   // the page names the parts it is showing and the page after them; nothing is written for the rest, and nothing asks
-  assert.match(page, /const here = rows\.slice\(from, from \+ TABLE_PAGE \* 2\)/);
+  assert.match(page, /rows\.slice\(from, from \+ TABLE_PAGE \* 2\)/);
   assert.match(page, /function explainAhead\(\)/);
+  // and the words arrive on their own, by key, patched into the cards where they stand: the page must never poll the
+  // whole report for them (1.3 MB and five tables redrawn every four seconds, to 2026-10-29)
+  assert.match(read('ui/server.js'), /if \(keys\.length\) return json\(res, 200, \{ explains:/);
+  assert.match(page, /\/api\/explain\?repo=\$\{encodeURIComponent\(CREPO\)\}&days=\$\{cdays\}&keys=/);
+  assert.match(page, /function putExplains\(got\)/);
+  assert.match(page, /class="pcard-ex" data-ek=/);
+  assert.doesNotMatch(page, /EXPLAIN_TIMER = setTimeout\([\s\S]{0,400}api\(`\/api\/context\?repo=\$\{encodeURIComponent\(CREPO\)\}&days=\$\{cdays\}`\)/);
   assert.doesNotMatch(page, /pc-offer|explainOffer|No explanation has been written/);
   // and the paragraph over each table went with it: the card says what a part is, the grey line says what an action does
   assert.doesNotMatch(page, /ctx-apply|note: `/);
-  assert.match(read('ui/server.js'), /attachExplains\(describeParts\(view\), have\)/);
+  assert.match(read('ui/server.js'), /attachExplains\(describeParts\(shown\), have\)/);
+  // the ranked changes and the timeline are the kept report's, for the command and the weekly suggestion: the page
+  // reads neither, so neither is sent (411 KB of the 1.3 MB this machine answered with, to 2026-10-29)
+  assert.match(read('ui/server.js'), /const \{ suggestions, timeline, \.\.\.shown \} = view;/);
+  // and waiting for a newer report asks for the stamp alone, not the report
+  assert.match(read('ui/server.js'), /if \(stamp\) return json\(res, 200, \{ asOf:/);
+  assert.match(page, /&stamp=1`\)/);
   assert.match(read('commands/explain.js'), /explainParts/);
   // the words are written once for the machine, never per repository, and never in the background
   assert.match(read('part-explain.js'), /export function partKey/);
