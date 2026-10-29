@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
-import { topChanges, scheduleContextSuggestion, contextSuggestOffer, contextSuggestPending, ensureUi, uiFile, SUGGEST } from '../src/context-suggest.js';
+import { topChanges, scheduleContextSuggestion, contextSuggestOffer, contextSuggestPending, offeredPicks, ensureUi, uiFile, SUGGEST } from '../src/context-suggest.js';
 
 const tmp = p => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), p)));
 function repo() {
@@ -55,13 +55,15 @@ test('scheduleContextSuggestion: kept for the next prompt, at most weekly, after
   assert.equal(c.length, 5); assert.equal(contextSuggestPending(store), true);
   const said = contextSuggestOffer(store, { now: now + 86400_000, env: {}, ui: () => 'http://127.0.0.1:4848/', repoId: 'github.com/o/r' });
   assert.match(said, /^<thinker-context-suggestions>/);
-  assert.match(said, /http:\/\/127\.0\.0\.1:4848\/#tab=save&view=all&repo=github\.com%2Fo%2Fr/);
+  // the link says which door sent them, and the page opens with these very changes checked (`from=suggestion`)
+  assert.match(said, /http:\/\/127\.0\.0\.1:4848\/#tab=save&view=all&repo=github\.com%2Fo%2Fr&from=suggestion/);
+  assert.match(said, /these changes come already checked with the actions suggested below/);
   // the one cost rule: what it adds to a prompt first, the window total beside it (2026-10-26)
   assert.match(said, /1\. AGENTS\.md · Releases: ~30k input tokens in every prompt \(~1\.2M over the last 30 days\); .*Suggested: Compress \(or: remove\)/);
   assert.match(said, /together ~96k input tokens in every prompt here \(~3\.8M over those 30 days\)/);
   assert.match(said, /do not make any of these changes yourself/);
   // a question the agent must put to the person with its own tool, and an answer either way (2026-10-27)
-  assert.match(said, /ask the user in chat, in a line opening "🧠 thinker:" so they can see the question comes from thinker, which of these changes to make \(any of them, or none\), and wait for their answer/, 'no question tool: in chat, and the line says whose question it is');
+  assert.match(said, /ask the user in chat, in a line opening "🧠 thinker:" so they can see the question comes from thinker, which of these changes to make \(any of them, or none\), with the page's address for the detail \(http:\/\/127\.0\.0\.1:4848\/#tab=save&view=all&repo=github\.com%2Fo%2Fr&from=suggestion\), and wait for their answer/, 'no question tool: in chat, with the link, and the line says whose question it is');
   assert.match(said, /--via session --approve <the numbers they chose/);
   assert.match(said, /If they choose none, run `thinker context --days 30 --via session --dismiss all`/, 'a no is recorded too');
   // a built-in tool is named with the page link, never an option: switching one off takes a capability with it
@@ -186,11 +188,32 @@ test('an agent with a question tool of its own is told to ask with it', async ()
   // one of the four that never said who was asking)
   assert.match(asked, /ask the user with your AskUserQuestion tool, not in prose: "thinker found these changes to what loads into every session here\. Make any\?" \(header "thinker"\), the question and the header exactly as written here so they can see thinker is asking and not you/);
   assert.match(asked, /let them choose more than one where your tool allows it/);
+  // and the question carries the page's address, since the picker is all of the block the person sees: a line is a
+  // title and two figures, and the detail -- the section's text, a compression's diff -- is on the page
+  const withPage = (() => { const st = repo(); return scheduleContextSuggestion(st, { now, view: view() }).then(() => contextSuggestOffer(st, { now, env: {}, ui: () => 'http://127.0.0.1:4848/', repoId: 'r1', client: 'claude' })); })();
+  assert.match(await withPage, /Make any\? To see each one in full first, with its diff: http:\/\/127\.0\.0\.1:4848\/#tab=save&view=all&repo=r1&from=suggestion" \(header "thinker"\)/);
   // Codex has no question tool of its own in the table, so it asks in chat (repo-onboard.js:QUESTION_TOOLS), where
   // the line opens with thinker's signature since there is no header to carry the label
   await scheduleContextSuggestion(store, { now, view: view(), force: true });
   const chat = contextSuggestOffer(store, { now, env: {}, ui: () => null, client: 'codex' });
   assert.match(chat, /ask the user in chat, in a line opening "🧠 thinker:" so they can see the question comes from thinker/);
+});
+
+test('the page checks the rows the question numbered, with the actions it suggested, for as long as the numbers stand', async () => {
+  const store = repo(), now = Date.parse('2026-10-27T10:00:00Z');
+  assert.deepEqual(offeredPicks(store, { now }), [], 'nothing offered yet, nothing to check');
+  await scheduleContextSuggestion(store, { now, view: view() });
+  contextSuggestOffer(store, { now, env: {}, ui: () => 'http://127.0.0.1:4848/', client: 'claude' });
+  // the suggested action of each line, by the row's key as the page knows it (page.html:preselectRows); the built-in
+  // tool the question could not offer is not checked for them either
+  assert.deepEqual(offeredPicks(store, { now }), [
+    { kind: 'section', key: 'section:AGENTS.md:Releases', repo: null, act: 'compress' },
+    { kind: 'output', key: 'output:Bash:pytest', repo: null, act: 'compress' },
+    { kind: 'skill', key: 'claude:skill:deploy', repo: null, act: 'off' },
+    { kind: 'section', key: 'section:AGENTS.md:Ports', repo: null, act: 'compress' },
+  ]);
+  // past the answer window the numbers no longer stand for that list, and neither do the checks
+  assert.deepEqual(offeredPicks(store, { now: now + (SUGGEST.answerDays + 1) * 86400_000 }), []);
 });
 
 test('a reply to the weekly summary means the lines it showed, not the ranking as it is now', async () => {

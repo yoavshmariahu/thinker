@@ -236,7 +236,7 @@ by default: the once-per-session distillation, and a maintenance run that re-ver
 at most 3 stale notes and phrases the new ones. `mine-prs` and `understand` stay,
 unlisted in the help, for Artemis's benchmark caches alone. What the installer does
 show at once is where the agents' context goes, read from their transcripts
-(`context-machine.js`; the Context view below): on a terminal it asks whether to see what to cut first in the browser or there, where the suggestions are a multi-select of the actions the page's rows would take, applied through the same `approveChanges` (`setup/context-ask.js`, `thinker context --machine --ask`, 2026-10-22); in the browser the page opens on All with the same suggestions checked and their actions picked, once, for the person to review and Apply (`context-machine.js:suggestedPicks`, sent with `/api/context` as `suggested`; `page.html:preselectRows`; 2026-10-24). The paragraphs on the build below are
+(`context-machine.js`; the Context view below): on a terminal it asks whether to see what to cut first in the browser or there, where the suggestions are a multi-select of the actions the page's rows would take, applied through the same `approveChanges` (`setup/context-ask.js`, `thinker context --machine --ask`, 2026-10-22); in the browser the page opens on All with the same suggestions checked and their actions picked, once, for the person to review and Apply (`context-machine.js:suggestedPicks`, sent with `/api/context` as `suggested`; `page.html:preselectRows`; 2026-10-24), and since 2026-10-29 the terminal's multi-select comes checked the same way. The paragraphs on the build below are
 history: how it ran until then, kept because the mining code is still what Artemis
 builds caches with. Outside a git repository there is nowhere to keep a cache: the CLI's cache
 commands stop with that message (`cli.js:CACHE_COMMANDS`), the MCP server
@@ -1068,6 +1068,19 @@ then — every session of the window moves each part's cost a prompt, and three 
 one more session, so approving the first line compressed the third. Without `--via session` the numbers are the five
 the command has just printed, which is what someone typing it is looking at; a key names a change either way
 (`pickChanges`). The page sends keys, never numbers.
+
+**The question carries the page, and the page opens on what was asked (2026-10-29, the owner's ask).** A line of the
+summary is a title, two figures and a share; the section's text, the skill's description and the diff a compression
+would make are not in it, so the question itself names the page address (`contextSuggestOffer`'s `question`, and the
+chat fallback's clause) rather than leaving it to a line of the block the person never sees. That link says which door
+sent them (`suggestionsUrl(url, repoId, { from: 'suggestion' })`), and the page opens with **those** changes checked and
+each row's dropdown on the action the question suggested (`offeredPicks` → `/api/context` `offered` →
+`page.html:preselectRows` on `from=suggestion`), so reviewing is the same decision with the detail in front of them and
+Apply is the answer. Not the page's own ranking (`suggestedPicks`, which `from=setup` uses): it is recomputed on arrival
+and carries no tool output, so it would check rows the question never showed. A link followed after `SUGGEST.answerDays`
+brings no list, as the numbers no longer stand either, and the suggestions stand in for it. The installer's terminal
+multi-select comes checked too, as the browser answer's page always did: unchecking what should be kept is the work,
+`n` clears them all and Esc applies nothing (`setup/context-ask.js`).
 
 ## Error reports, with consent (2026-10-29, the owner's ask)
 

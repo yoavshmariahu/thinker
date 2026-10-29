@@ -45,15 +45,20 @@ test('in the terminal: the summary, the choice, the cuts with the page\'s addres
   await tick();
   assert.ok(out.some(l => /^Where your agents' context goes, from 10 sessions/.test(l)), 'the summary came first');
   assert.ok(out.some(l => /^Cut first/.test(l)), 'then the cuts');
-  assert.ok(out.some(l => l.includes('http://127.0.0.1:7777/#tab=save&view=all')), 'and the page\'s address');
+  assert.ok(out.some(l => l.includes('http://127.0.0.1:7777/#tab=save&view=all&from=setup')), 'and the page\'s address, which opens with the same suggestions checked');
   assert.ok(!out.some(l => /thinker instructions --remove|thinker harness --off/.test(l)), 'no commands to type');
   const drawn = stdout.writes.join('');
   assert.ok(drawn.includes('Switch off the built-in tool "Artifact" in 2 repositories'), drawn);
   assert.ok(drawn.includes('Remove the AGENTS.md section "API views" in r1'), drawn);
   assert.ok(drawn.includes('needed in 0% of prompts'), drawn);
   assert.ok(drawn.includes('Switch off the built-in tool "Workflow"') && drawn.includes('nothing switches it off per repository'), 'a suggestion with no action is a disabled row');
-  stdin.emit('keypress', 'a', { name: 'a' });           // every row
-  stdin.emit('keypress', null, { name: 'return' });
+  // the suggestions come checked, as they do on the page (page.html:preselectRows): unchecking is the work, and
+  // Enter is the Apply
+  assert.match(drawn, /\[x\].*Switch off the built-in tool "Artifact"/);
+  assert.match(drawn, /\[x\].*Remove the AGENTS\.md section "API views"/);
+  assert.ok(out.some(l => /Apply the checked\?/.test(l)), out.join('\n'));
+  assert.match(drawn, /n clears all, Enter applies the checked/);
+  stdin.emit('keypress', null, { name: 'return' });     // the checked rows, nothing else pressed
   const res = await p;
   assert.equal(res.mode, 'terminal'); assert.equal(opened.length, 0);
   assert.equal(applied.length, 1); assert.deepEqual(applied[0].map(x => [x.title, x.act]), [['Artifact', 'off'], ['API views', 'remove']]);
@@ -66,7 +71,7 @@ test('Esc skips: nothing applied; the browser choice opens the page and prints n
   let out = [], stdin = new Stdin(), stdout = new Stdout(), applied = 0;
   let p = askMachineReport({ r, recs, store, out: l => out.push(l), stdin, stdout, browser: true, ui: () => null, apply: async () => { applied++; return []; } });
   stdin.emit('keypress', 't', { name: 't' }); await tick();
-  stdin.emit('keypress', null, { name: 'escape' });
+  stdin.emit('keypress', null, { name: 'escape' });     // checked or not, Esc applies nothing
   let res = await p;
   assert.equal(applied, 0); assert.deepEqual(res.picked, []);
   assert.ok(out.some(l => /Nothing changed\. The suggestions stay on the page \(thinker ui\)/.test(l)), out.join('\n'));
@@ -88,6 +93,18 @@ test('Esc skips: nothing applied; the browser choice opens the page and prints n
   stdin.emit('keypress', null, { name: 'escape' });
   await p;
   assert.equal(applied, 0);
+});
+
+test('n clears the checked suggestions, and Enter then applies nothing', async () => {
+  const { r, recs } = report(), out = [], stdin = new Stdin(), stdout = new Stdout();
+  let applied = 0;
+  const p = askMachineReport({ r, recs, store, out: l => out.push(l), stdin, stdout, browser: false, ui: () => null, apply: async () => { applied++; return []; } });
+  await tick();
+  stdin.emit('keypress', 'n', { name: 'n' });
+  stdin.emit('keypress', null, { name: 'return' });
+  const res = await p;
+  assert.equal(applied, 0); assert.deepEqual(res.picked, []);
+  assert.ok(out.some(l => /Nothing changed/.test(l)), out.join('\n'));
 });
 
 test('the browser is offered on a display, not in tests, CI or over ssh', () => {

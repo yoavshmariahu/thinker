@@ -452,10 +452,13 @@ const hashRepo = () => { const r = H().get('repo'); return r === 'here' ? '' : r
 const hashTab = () => { let t = H().get('tab'); if (t === 'changes') t = 'save'; if (t === 'cache') t = 'report'; if (t === 'save' && H().get('view') === 'history') t = 'activity'; return ['report', 'activity'].includes(t) ? t : 'save'; };
 // the repositories with a cache (/api/repos); REPO is the one picked for Report, CREPO for Save
 let REPOS = [], REPO = hashTab() === 'report' ? hashRepo() : 'all';
-// setup opens the page once (from=setup); a hint in the corner says how to come back to it, then fades, and All
-// comes with the suggested savings checked (preselectRows), once
-const FROM_SETUP = H().get('from') === 'setup';
-let PRESELECT = FROM_SETUP;
+// Which door sent the person (context-suggest.js:suggestionsUrl): `setup` the installer, which also gets a hint in
+// the corner saying how to come back to the page, then fades; `suggestion` the link in the weekly question thinker
+// had their agent ask. Either way All comes with that door's savings checked (preselectRows), once, so the decision
+// they were already shown is the one in front of them.
+const FROM = H().get('from');
+const FROM_SETUP = FROM === 'setup';
+let PRESELECT = FROM_SETUP || FROM === 'suggestion';
 if (FROM_SETUP) {
   setTimeout(() => $('#hint').classList.add('show'), 600);
   setTimeout(() => $('#hint').classList.remove('show'), 8600);
@@ -527,7 +530,7 @@ let CTX_FOR = null, CLOAD = 0;
 async function loadContext() {
   const el = $('#context-body'), seq = ++CLOAD, inPlace = Boolean(CTX) && CTX_FOR === `${CREPO}|${cdays}`;
   if (inPlace) { const a = $('#c-asof'); if (a && !/updating/.test(a.textContent)) a.textContent = `${a.textContent.replace(/\s*$/, '')}${a.textContent.trim() ? ', ' : ''}updating…`; }
-  else { el.innerHTML = `<div class="empty">${LOGO_SPIN}Reading the transcripts…</div>`; $('#c-sort-wrap').hidden = true; }
+  else el.innerHTML = `<div class="empty">${LOGO_SPIN}Reading the transcripts…</div>`;
   try {
     if (!REPOS.length) await fetchRepos();
     if (!CREPO || (CREPO !== 'all' && !REPOS.some(r => r.id === CREPO))) CREPO = REPO !== 'all' && REPOS.some(r => r.id === REPO) ? REPO : REPOS.find(r => r.current)?.id || REPOS[0]?.id || '';
@@ -623,6 +626,11 @@ const PREACT = new Map(); let PRESUGGESTED = false;
 // the suggested action: the rows the installer's terminal picker lists (context-machine.js:suggestedPicks, sent as
 // `suggested` with the report), so both doors offer the same picks. Nothing is applied until the person presses Apply;
 // a changed check is theirs from then on.
+//
+// From the weekly question's link (from=suggestion) the checked rows are the lines that question numbered
+// (context-suggest.js:offeredPicks, sent as `offered`), not these: that ranking is recomputed here and leaves tool
+// outputs out, so it would check rows the person was never asked about. A link older than the answer window brings
+// no list, and the suggestions stand in for it.
 function preselectRows(rows, suggested) {
   for (const s of suggested) {
     const r = rows.find(r => r.key === s.key && (!s.repo || !r.repo || r.repo === s.repo) && r.options.some(([a]) => a === s.act));
@@ -985,7 +993,7 @@ function renderContext(v) {
   // one table at a time: every part on All, then one kind each (the decisions are the Recent activity page since 2026-10-24)
   const all = contextRows(v), of = view => all.filter(r => r.view === view), perPrompt = rs => rs.reduce((a, r) => a + (r.off ? 0 : r.perPrompt), 0);
   // opened by the installer: All's suggested savings come checked, once (the person's checks hold from then on)
-  if (PRESELECT && all.length) { PRESELECT = false; preselectRows(all, v.suggested || []); }
+  if (PRESELECT && all.length) { PRESELECT = false; preselectRows(all, (FROM === 'suggestion' && v.offered?.length ? v.offered : v.suggested) || []); }
   const VIEWS = [['all', 'All'], ['instructions', 'Instruction files'], ['custom', 'Custom tools'], ['builtin', 'Built-in tools'], ['outputs', 'Tool outputs']];
   const num = k => `${fmt(k === 'all' ? perPrompt(all) : t[k]?.perPrompt || 0)} <span>a prompt</span>`;
   h += `<div class="vtabs" id="c-view" role="tablist">${VIEWS.map(([k, name]) => `<button role="tab" data-view="${k}" aria-selected="${CVIEW === k}" class="${CVIEW === k ? 'on' : ''}"><span class="vt-name">${name}</span><span class="vt-num" id="vt-${k}">${num(k)}</span></button>`).join('')}</div>`;

@@ -435,9 +435,21 @@ export function ensureUi(store, { home = thinkerHome(), spawnFn = spawn, waitMs 
   for (let t = 0; t < waitMs; t += 100) { sleep(100); const u = running(); if (u) return u; }
   return null;
 }
-// the address of the Context tab's All for this repository (a page started by an older version keeps its key in
-// the address; it is dropped, that version's server takes the Host check alone)
-export const suggestionsUrl = (url, repoId) => `${String(url).replace(/#.*$/, '')}#tab=save&view=all${repoId ? `&repo=${encodeURIComponent(repoId)}` : ''}`;
+// The address of the Context tab's All for this repository (a page started by an older version keeps its key in
+// the address; it is dropped, that version's server takes the Host check alone). `from` says which door sent the
+// person, and the page opens with that door's suggestions checked (page.html:preselectRows): `setup` the
+// installer's, `suggestion` the lines the weekly question numbered (offeredPicks).
+export const suggestionsUrl = (url, repoId, { from } = {}) => `${String(url).replace(/#.*$/, '')}#tab=save&view=all${repoId ? `&repo=${encodeURIComponent(repoId)}` : ''}${from ? `&from=${from}` : ''}`;
+
+// The changes the last summary put to the person, as the rows for the page to check with their suggested actions
+// (ui/server.js `offered`, page.html:preselectRows on `from=suggestion`). The same keys and actions the prompt
+// numbered, not the ranking recomputed on arrival: `suggestedPicks` ranks by what a part wastes a prompt and never
+// carries a tool output, so a link that preselected those would check rows the question never showed. Kept for the
+// answer window, as the numbers are (offeredChanges); after that the page checks nothing of its own accord.
+export function offeredPicks(store, { now = Date.now() } = {}) {
+  const changes = offeredChanges(store, { now }) || [];
+  return changes.map(c => ({ kind: c.kind, key: c.key, repo: c.repo || null, act: c.default?.act || c.options?.[0]?.act || null })).filter(p => p.key && p.act);
+}
 
 // a session no person is at: `claude -p`, the Agent SDK
 const unattended = (env = process.env) => /^sdk-/.test(env.CLAUDE_CODE_ENTRYPOINT || '');
@@ -479,25 +491,33 @@ export function contextSuggestOffer(store, { now = Date.now(), env = process.env
   const total = p.changes.reduce((a, c) => a + (c.total ?? c.saving ?? 0), 0);
   store.log({ op: 'context-offer', changes: p.changes.length, saving: total, perPrompt, ui: Boolean(url) });
   const lines = asked.map((c, i) => `${i + 1}. ${c.title}: ~${formatTokens(c.saving || 0)} input tokens in every prompt (~${formatTokens(c.total ?? c.saving ?? 0)} over the last ${p.days} days); ${c.why}. Suggested: ${c.default ? c.default.text : 'dismiss, or change it by hand'}${c.options?.length > 1 ? ` (or: ${c.options.slice(1).map(o => o.act).join(', ')})` : ''}`).join('\n');
-  const where = url ? `at ${suggestionsUrl(url, repoId)} (thinker's page on this machine, just started)` : 'by running `thinker ui` (Context, All)';
+  // The page is where the detail is, so its address goes in the question itself and not only in the block: what the
+  // person is asked is which of five lines to act on, and a line is a title, a figure and a share -- not the section's
+  // text, the skill's description or the diff a compression would make. The link opens on the very changes they were
+  // asked about, already checked with the actions suggested here (`from=suggestion`, offeredPicks), so reviewing them
+  // is the same decision made with the detail in front of them rather than a second hunt through the rows.
+  const page = url ? suggestionsUrl(url, repoId, { from: 'suggestion' }) : null;
+  const where = page ? `at ${page} (thinker's page on this machine, just started)` : 'by running `thinker ui` (Context, All)';
   const lead = `thinker read the last ${p.days} days of agent sessions in this repository (${p.sessions} sessions) and found ${p.changes.length === 1 ? 'one change' : `${p.changes.length} changes`} to what loads into every session, together ~${formatTokens(perPrompt)} input tokens in every prompt here (~${formatTokens(total)} over those ${p.days} days).`;
-  const pageLine = `Every part of the context is a row ${where}, where each change can be reviewed before it is made${builtin.length ? `, including ${builtin.map(c => c.title).join(', ')}: switching a built-in tool off takes a capability with it, so ${builtin.length === 1 ? 'that one is' : 'those are'} decided there, not here` : ''}.`;
+  const pageLine = `Every part of the context is a row ${where}, where these changes come already checked with the actions suggested below: each one can be reviewed in full -- a section's diff before it is written -- and nothing is applied until Apply is pressed${builtin.length ? `, including ${builtin.map(c => c.title).join(', ')}: switching a built-in tool off takes a capability with it, so ${builtin.length === 1 ? 'that one is' : 'those are'} decided there, not here` : ''}.`;
   // nothing a picker may offer: the page link alone, and no question
   if (!asked.length) return `<thinker-context-suggestions>\n${lead}\n${pageLine}\nMention this to the user in one line starting "${SIGNATURE}:" and go on with the task. Do not make any of these changes yourself.\n</thinker-context-suggestions>`;
   const tool = QUESTION_TOOLS[client];
   // The question says it is thinker's (askThrough, and the name in the question text for the chat fallback, which
   // has no header): this is the question that cuts what the person loads into every session, and until 2026-10-29
-  // it was the only one of the four that never said who was asking.
+  // it was the only one of the four that never said who was asking. It carries the page's address too, since the
+  // picker is all of this block the person ever sees.
+  const question = `thinker found these changes to what loads into every session here. Make any?${page ? ` To see each one in full first, with its diff: ${page}` : ''}`;
   const ask = tool && client !== 'codex'
-    ? `Before you start on the request, ${askThrough(tool, 'thinker found these changes to what loads into every session here. Make any?')}: one question whose options are the changes below, in this order, each option labelled with its own number and name as written below ("2. AGENTS.md · Releases") and taking the rest of its line as the description; let them choose more than one where your tool allows it. The numbers are how you hand their answer back, so keep them on the options rather than working them out again. Add a last option "None of these" so saying no is an answer like any other, and keep the whole question to the options your tool allows: where that leaves room for fewer changes than there are, offer the highest ones and say the rest are on the page (Claude Code's AskUserQuestion takes four, so three changes and the none).`
-    : `Before you start on the request, ${askInChat('which of these changes to make (any of them, or none), and wait for their answer.')}`;
+    ? `Before you start on the request, ${askThrough(tool, question)}: one question whose options are the changes below, in this order, each option labelled with its own number and name as written below ("2. AGENTS.md · Releases") and taking the rest of its line as the description; let them choose more than one where your tool allows it. The numbers are how you hand their answer back, so keep them on the options rather than working them out again. Add a last option "None of these" so saying no is an answer like any other, and keep the whole question to the options your tool allows: where that leaves room for fewer changes than there are, offer the highest ones and say the rest are on the page (Claude Code's AskUserQuestion takes four, so three changes and the none).`
+    : `Before you start on the request, ${askInChat(`which of these changes to make (any of them, or none), with the page's address for the detail${page ? ` (${page})` : ''}, and wait for their answer.`)}`;
   // The answer comes back through thinker's own tool where the client speaks MCP (the harness question's way until
   // 2026-10-25, the coverage question's still): thinker resolves the numbers against the list it showed and makes the
   // changes, so nothing depends on the agent composing a command line. The command is the fallback and the typed door.
   const cmd = `thinker context --days ${p.days} --via session`;
   const after = MCP_CLIENTS.has(client)
-    ? `Then call thinker's \`context\` tool with choice set to the numbers they chose, comma-separated (a number may take another action after a colon, e.g. 3:remove), or none, and asked "${tool && client !== 'codex' ? 'picker' : 'chat'}"; if that tool is not offered, run \`${cmd} --approve <those numbers>\`, or \`${cmd} --dismiss all\` for none. thinker makes the changes and tells you what it did; pass that on in one line. Then go on with the task.`
-    : `Then run \`${cmd} --approve <the numbers they chose, comma-separated; a number may take another action after a colon, e.g. 3:remove>\` and tell them in one line what it did. If they choose none, run \`${cmd} --dismiss all\`: thinker does not suggest these again for a month. Then go on with the task.`;
+    ? `Then call thinker's \`context\` tool with choice set to the numbers they chose, comma-separated (a number may take another action after a colon, e.g. 3:remove), or none, and asked "${tool && client !== 'codex' ? 'picker' : 'chat'}"; if that tool is not offered, run \`${cmd} --approve <those numbers>\`, or \`${cmd} --dismiss all\` for none. thinker makes the changes and tells you what it did; pass that on in one line opening "${SIGNATURE}:". Then go on with the task.`
+    : `Then run \`${cmd} --approve <the numbers they chose, comma-separated; a number may take another action after a colon, e.g. 3:remove>\` and tell them in one line opening "${SIGNATURE}:" what it did. If they choose none, run \`${cmd} --dismiss all\`: thinker does not suggest these again for a month. Then go on with the task.`;
   return `<thinker-context-suggestions>
 ${lead}
 ${ask} Do not decide for them, do not make any of these changes yourself, and do not open the files to check them.

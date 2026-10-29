@@ -106,6 +106,8 @@ test('the report for all repositories works from a directory that is no checkout
   const c = await call(port, '/api/context?repo=all&days=7', {});
   assert.equal(c.status, 200, c.body);
   assert.deepEqual(JSON.parse(c.body).suggested, [], 'an array, empty with nothing read');
+  // and the rows the weekly question put to the person (context-suggest.js:offeredPicks), which its link opens checked
+  assert.deepEqual(JSON.parse(c.body).offered, [], 'an array, empty where no summary was offered');
   assert.ok(!fs.existsSync(path.join(cwd, '.thinker')), 'nothing created outside a checkout');
 });
 

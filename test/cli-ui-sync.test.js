@@ -183,9 +183,22 @@ test('the Save tab and `thinker context` show one report, and its controls are t
   // (context-machine.js:suggestedPicks, sent with the report as `suggested`; page.html:preselectRows on from=setup)
   assert.match(machine, /export function suggestedPicks\(view/); assert.match(machine, /const act = suggestedAct\(x\), key = suggestedKey\(x\)/);
   assert.match(read('ui/server.js'), /suggested: suggestedPicks\(view\)/);
-  assert.match(read('ui/page.html'), /const FROM_SETUP = H\(\)\.get\('from'\) === 'setup'/);
-  assert.match(read('ui/page.html'), /preselectRows\(all, v\.suggested \|\| \[\]\)/);
+  assert.match(read('ui/page.html'), /const FROM_SETUP = FROM === 'setup'/);
+  assert.match(read('ui/page.html'), /preselectRows\(all, \(FROM === 'suggestion' && v\.offered\?\.length \? v\.offered : v\.suggested\) \|\| \[\]\)/);
   assert.match(read('setup/context-ask.js'), /suggested savings already checked/);
+  // and the terminal picker comes checked as that page does, so both answers to the installer's question start from
+  // the same suggestions (2026-10-29)
+  assert.match(read('setup/context-ask.js'), /value: p, picked: true/);
+  assert.match(read('setup/context-ask.js'), /suggestionsUrl\(url, null, \{ from: 'setup' \}\)/);
+  // The link in the weekly question opens the page on the lines that question numbered, checked, with the action it
+  // suggested for each (context-suggest.js:offeredPicks, sent with the report as `offered`): one door's suggestion,
+  // not the page's own ranking of it, which leaves tool outputs out.
+  const suggest = read('context-suggest.js');
+  assert.match(suggest, /export const suggestionsUrl = \(url, repoId, \{ from \} = \{\}\)/);
+  assert.match(suggest, /suggestionsUrl\(url, repoId, \{ from: 'suggestion' \}\)/);
+  assert.match(suggest, /export function offeredPicks\(store/);
+  assert.match(read('ui/server.js'), /offered = offeredPicks\(one\)/);
+  assert.match(read('ui/server.js'), /suggested: suggestedPicks\(view\), offered,/);
   assert.match(read('commands/context.js'), /machineContext\(store, \{ days, limit/);
   assert.match(machine, /mergeViews\(views\)/); assert.match(read('ui/server.js'), /mergeViews\(xs\.map/);
   assert.match(machine, /writeSnapshot\(st, d, v/); assert.match(machine, /refreshCheckouts\(store/);
@@ -323,6 +336,13 @@ test('over the wire: a section\'s Apply records the decision running and starts 
   const pg = page(t, dir), p = await pg.start();
   const id = (await p.get('/api/repos')).repos[0].id;
   await p.get(`/api/context?repo=${encodeURIComponent(id)}&days=7`); // the report the server resolves the rows in
+  // The link in the weekly question opens on the rows that question numbered, checked (page.html:preselectRows on
+  // `from=suggestion`): the server hands them over with the report as `offered`, by the same keys the rows carry.
+  const { scheduleContextSuggestion, contextSuggestOffer } = await import('../src/context-suggest.js');
+  const sec = { id: 'tests', file: 'AGENTS.md', title: 'Tests', tokens: 2000, wasted: 9000, waste: 'high', usedShare: 0.1, prompts: 100 };
+  await scheduleContextSuggestion(new Store(dir), { view: { days: 7, sessions: 40, instructions: { sessions: 40, sections: [sec] }, skills: [], tools: [], outputs: { tools: [] } }, force: true });
+  contextSuggestOffer(new Store(dir), { env: {}, ui: () => null, client: 'claude' });
+  assert.deepEqual((await p.get(`/api/context?repo=${encodeURIComponent(id)}&days=7`)).offered, [{ kind: 'section', key: 'section:AGENTS.md:tests', repo: null, act: 'compress' }]);
   assert.deepEqual(await p.get(`/api/activity?repo=${encodeURIComponent(id)}`), { history: [], promptAvg: null, measuring: true, attention: 0, running: 0 }, 'no report kept yet: measuring, and the refresh started');
   // Apply on two rows, one compressed and one removed: one job each, the command started detached in the checkout
   const r = await p.post('/api/changes/start', { repo: id, keys: ['section:AGENTS.md:tests', 'section:AGENTS.md:style'], acts: { 'section:AGENTS.md:tests': 'compress', 'section:AGENTS.md:style': 'remove' }, days: 7 });
@@ -354,6 +374,16 @@ test('over the wire: a section\'s Apply records the decision running and starts 
   const rv = await p.post('/api/changes/revert', { repo: id, id: done.id });
   assert.equal(rv.status, 200); assert.match(rv.said, /written back as it was$/);
   assert.equal(fs.readFileSync(path.join(dir, 'AGENTS.md'), 'utf8'), '# R\n\n## Tests\n\nRun `npm test`.\n\n## Style\n\nShort lines.\n');
+});
+
+test('the page touches no element it no longer renders', () => {
+  // Find Savings hid a Sort control that went with the one ordering (2026-10-29) and kept setting `hidden` on it:
+  // the first load of the tab threw before it ever asked for the report, and the page sat on "Reading the
+  // transcripts..." for good. A reference to an id the page never writes is that bug, whatever the id.
+  const html = read('ui/page.html');
+  const ids = new Set([...html.matchAll(/id="([a-zA-Z0-9_-]+)"/g)].map(m => m[1]));
+  const missing = [...new Set([...html.matchAll(/\$\('#([a-zA-Z0-9_-]+)'\)/g)].map(m => m[1]))].filter(id => !ids.has(id));
+  assert.deepEqual(missing, [], `the page sets properties on ids it never renders: ${missing.join(', ')}`);
 });
 
 test('the Report tab and `thinker report` show one report: the same weeks, parts, prices and trend rule', () => {
