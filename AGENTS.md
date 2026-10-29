@@ -386,110 +386,19 @@ load the project file; existing dependency paths provide retrieval relevance.
 
 ## Usage history
 
-Every serving, assessment, distillation, verification and mining run is
-appended to one file for the machine, `~/.thinker/log.jsonl` (under
-`THINKER_HOME`). Each line names its repository by the origin in
-`.git/config` (`github.com/owner/repo`), so worktrees and further clones of
-a repository count as that repository; a checkout without an origin is
-named by its path. `THINKER_LOG` changes
-that: a path, `local` (the repository's own `.thinker/log.jsonl`) or `off`.
-Runs with `THINKER_NOTES_DIR` set, which is how benchmark arms serve a
-noteset, log locally by default, so experiments stay out of the machine's
-history; a harness that installs real hooks should set `THINKER_LOG=local`.
-The log holds the first 200 characters of each request.
-
-The hit rate is quoted over the requests the cache was actually asked, not every prompt
-(`usage.js:NOT_ATTEMPTED`): a prompt a cache below its serving threshold was never searched for
-(`too-few-notes`) and a held-out turn whose notes were found and withheld (`held-out`) are both logged
-as requests, so a machine in daily use does not read as idle, but neither is a retrieval failure. On
-production telemetry over the ten days to 2026-10-28 they were 391 and 702 of 4,654 requests, which is
-why `answered / requestsTotal` read 1.5% where the cache's own 3,561 attempts read 2.0%. `attempted` is
-that denominator and `attemptedHitRate` the rate; `hitRate` keeps the old denominator so the series
-stays comparable across the release. The remaining misses are what the levers above address:
-`no-match` 1,983, `ranker-rejected` 949, `only-stale` 556.
-
-A `late` serving (the edit hook, on a file coming into view) is not a request — the agent asked
-nothing — and `ops.js:lateLocked` logs it only when it serves something, so it is counted in neither
-side of the hit rate. It is counted as a delivery (`delivered`, `deliveredLate`, sent as
-`retrieval.deliveries` and `editHookDeliveries`), because without that a device served notes by the
-edit hook alone reported nothing served: on 2026-10-28 one device read 0 of 6 answered having been
-given 3 notes, and on this machine 69 of 143 deliveries over ten days came that way.
-
-`thinker usage [--here] [--days n] [--json]` summarizes it for every
-repository on the machine, with a line per repository (`--here`: this
-repository only). A repository's older local log is moved into the machine's
-log the first time thinker runs there, and kept as
-`.thinker/state/log-before-shared.jsonl`. The summary covers notes served and how, what the
-sessions did with them, what was learned and what it cost, and an estimate of
-the tool calls and tokens saved. The estimate counts only servings a session
-was seen to act on (`confirmed`), as one read per file the note rests on (at
-most 5) at the file's size (at most 6,000 tokens). It is not a measurement;
-measured effects are in `research/bench-history/RESULTS.md`.
-
-A dep that is not code a session would have read counts as nothing
-(`usage.js:countsAsReading`): the agents' own configuration (`.claude/`,
-`.codex/`, `.cursor/`, `.gemini/`, `.mcp.json`), git's internals, `.thinker/`
-itself, and build or run output. Every note must rest on an existing file
-(`ops.js:createNote`), so a note about the permission classifier or about
-duplicate hooks rests on `.claude/settings.local.json` for want of anywhere
-better; what it saves is a wrong action, not a read, and crediting it with the
-size of that file made the turn notice claim reading nobody would have done.
-Such notes keep their anchors and are ranked and served exactly as before —
-only the estimate ignores them, and `cacheHitSavings` reports how many deps it
-passed over as `uncounted`. The floor that gives a note whose files are missing
-one read's worth is not applied when every dep was passed over this way, and
-the turn notice then names the notes and stops rather than printing `~0 tokens
-of code`. On this repository 29 of 754 deps stopped counting. The limit is that
-nothing distinguishes a note *about* a file from a note about the behaviour
-around it: a gotcha resting on a real 525-token script still counts as that
-script's size.
-
-Build and run output is refused as an anchor outright
-(`deps.js:TRANSIENT`: `node_modules/`, `dist/`, `coverage/`, `.next/`,
-`__pycache__/`, `bench/runs/`, `.thinker/`, `*.log`, `*.tmp`), since the next
-run rewrites or removes it. One served note here rested on nothing but a
-223-byte benchmark log that git ignores. The check is at creation only, so
-notes already stored keep their deps — but `deps.js:checkNote` refuses to call
-such a dep stale, re-hashing it in place instead: the next run rewrites the
-file, so a changed hash says nothing about whether the claim still holds. The
-two notes explaining that `.thinker/` files rewrite themselves were both
-permanently stale, from `.thinker/` files rewriting themselves, and took a
-verify slot each time. Agent configuration is a valid anchor and is not
-covered: a note about what is in `.claude/settings.json` still goes stale when
-that file changes; a note left with no other anchor is
-refused with `no resolvable dependencies`. Agent configuration is deliberately
-not refused — those notes are worth keeping.
-
-Model work is also logged as `op: "model"`, with `purpose`, `phase` (init / learning /
-maintenance), provider, resolved model, raw usage, normalized token counters and
-reported cost. Input totals include provider cache reads and writes; these are separate
-from thinker's own estimated savings. Operation summaries marked `metered` are not
-charged again. `usage --json` exposes `spending` by phase, purpose, model and repository,
-plus `saved.netAfterSpend` (estimated reading avoided minus notes injected minus reported
-model tokens). Missing counters/costs stay unknown. Since 2026-10-21 there is also
-`saved.netAfterWeightedSpend`, with the same work as tokens of the agents' model
-(`spending.weighted.agentTokens`; not on the page, whose four cards are tokens saved, cache hits, the share
-acted on and active notes, since the saving is a lower bound and the upkeep every call), each call weighed by its model's relative rate per token
-(`model-usage.js:relativeRate`, Opus 5.5 input = 1, from Anthropic's list; output 5×, cache reads a tenth or
-less) over the input rate of the models the saving was made on, so a Haiku distillation counts for a
-fortieth of an Opus read; a model without a rate counts one for one, and the purposes of removed features
-(Jev, review, exploration; `retiredPurpose`) are left out. Ratios, never shown as money. Legacy logs lack setup exploration
-and token counts, so this comparison is partial, not measured financial ROI. See
-`src/model-usage.js` for provider normalization.
-
-Nothing is given in dollars (decided 2026-10-04; `prices.js` and the dollar balance
-went with it): the agents run on subscriptions as often as on metered keys, and a
-figure from API list prices told most people what they would not pay. A cost the
-provider itself reported stays in the log and in `usage --json` as data
-(`spending.reportedCost`, `unknownCostCalls`), never estimated from tokens and never
-shown. The end-of-session assessment still records the model the session ran on, read
-from its transcript (`transcripts.js:parseTranscript` returns `model`: Claude Code's
-`message.model`, Codex's `turn_context`, Gemini's message `model`; Cursor names none),
-on the `attest` line; for assessments written before that, `usage` finds the transcript
-by session id (`transcripts.js:sessionModel`); the saving is reported by model
-(`saved.byModel`, `unknown` for sessions that named none). Every model answer carries
-its normalized counters (`llm.js:executeProvider` adds `tokens`; `model-usage.js:tokensOf`),
-which is what the commands print after a run (`~24k tokens`).
+- Runs append to `~/.thinker/log.jsonl` (under `THINKER_HOME`). Repo key: origin in `.git/config`; no origin: path.
+- `THINKER_LOG`: path, `local` (`.thinker/log.jsonl`), or `off`.
+- `THINKER_NOTES_DIR` runs log locally by default. Harnesses installing real hooks MUST set `THINKER_LOG=local`.
+- Log keeps first 200 chars of each request.
+- Use `attemptedHitRate`; `hitRate` is legacy.
+- `late` servings (edit hook) are logged only when they serve (`ops.js:lateLocked`).
+- `thinker usage [--here] [--days n] [--json]`.
+- Savings count only `confirmed` servings. Estimate, not measurement.
+- Not counted as reading (`usage.js:countsAsReading`): `.claude/`, `.codex/`, `.cursor/`, `.gemini/`, `.mcp.json`, git internals, `.thinker/`, build/run output.
+- Anchors MUST be existing files (`ops.js:createNote`).
+- Build/run output is refused as anchor (`deps.js:TRANSIENT`): `node_modules/`, `dist/`, `coverage/`, `.next/`, `__pycache__/`, `bench/runs/`, `.thinker/`, `*.log`, `*.tmp`.
+- Agent configuration is a valid anchor. A note with no other anchor is refused.
+- MUST NOT show dollar costs or estimate cost from tokens. Provider-reported cost is data only.
 
 ## Staleness is a claim about the code, not about the note
 
@@ -1294,82 +1203,28 @@ from 7 to 11 of 15, and an input-class checklist to 12 of 15.
 
 ## Supported agents
 
-| agent | notes for the request | notes about files being edited (installed by default; `--no-late` leaves it out) | MCP tools | written to (user scope) |
+| agent | request notes | edited-file notes | MCP | user files |
 |---|---|---|---|---|
-| Claude Code, and the Code tab of the Claude desktop app | added to each prompt | yes | yes | `~/.claude/settings.json`, `~/.claude.json` |
-| Codex CLI and the Codex desktop app | added to each prompt | yes | yes | `~/.codex/hooks.json`, `~/.codex/config.toml` |
-| Gemini CLI | added to each prompt | yes | yes | `~/.gemini/settings.json` |
-| Cursor | added to each prompt (`additional_context`), with first-tool fallback for `agent -p` and the `orient` tool | yes | yes (approved by setup) | `~/.cursor/hooks.json`, `~/.cursor/mcp.json`, and `.cursor/rules/thinker.mdc` in the checkout |
-| Pi, Windsurf, Copilot CLI (and Copilot in VS Code), OpenCode, Factory Droid, Qwen Code, Kiro CLI, Cline, Kilo Code, Auggie, Goose | see `docs/agent-integrations.md` (Auggie has no prompt hook, Kiro's V3 engine alone reads global hooks, Goose's hooks only record) | | | each agent's own files, machine-wide |
+| Claude Code (incl. desktop) | each prompt | yes | yes | `~/.claude/settings.json`, `~/.claude.json` |
+| Codex CLI (incl. desktop) | each prompt | yes | yes | `~/.codex/hooks.json`, `~/.codex/config.toml` |
+| Gemini CLI | each prompt | yes | yes | `~/.gemini/settings.json` |
+| Cursor | each prompt (`additional_context`); first-tool fallback for `agent -p` | yes | yes (needs approval) | `~/.cursor/hooks.json`, `~/.cursor/mcp.json`, `.cursor/rules/thinker.mdc` |
+| Pi, Windsurf, Copilot CLI, OpenCode, Factory Droid, Qwen Code, Kiro CLI, Cline, Kilo Code, Auggie, Goose | see `docs/agent-integrations.md` | | | agent's own files |
 
-- Three more doors to the same hooks (2026-10-22; docs/agent-integrations.md, "Plugins, the pi package and
-  the proxy"): host plugins for Claude Code, Codex and Cursor under `plugins/`, each a shim running the
-  installed copy's `thinker hook … --plugin`, which yields where the host's settings already run the hooks
-  (`clients.js:pluginYields`), with a marketplace file per host at the repository root; the pi package
-  (`npm/pi/thinker.js` in `@zerotimedev/thinker`), a pointer to the installed copy that yields to
-  `connect`'s extension; and `thinker proxy --notes` (`proxy-notes.js`), the notes in the last user turn of
-  an Anthropic or OpenAI chat request for an agent with no prompt hook (Goose, Aider), replayed at the same
-  turn on every later request of the conversation so the prompt cache holds, off until an experiment.
-- The desktop apps run the same engines as the CLIs and read the same user
-  settings. The Claude desktop app's Code tab reads hooks and MCP servers from
-  the user's and the project's files alike; the Codex desktop app reads MCP
-  servers from the user's `config.toml` only (openai/codex#13025, open since
-  2026-02), which is why the wiring is machine-wide. Whether it starts the MCP
-  server in the thread's directory is not verified: if not, the server asks
-  for MCP roots, and failing that offers nothing there.
-- One copy of thinker per checkout (`clients.js:pruneInstalls`). A hook names
-  the copy it runs (`node "<install>/src/cli.js" hook …`), and so does an MCP
-  entry; two copies wired into one checkout (an install left behind, a smoke-test
-  copy, hooks in both of Claude Code's settings files) both fire on every prompt,
-  serve the notes twice and bring the old copy's notice and state format back.
-  `setup` takes every other copy's hooks out of the files of the client
-  they install and point its MCP entry at the new copy; for Claude Code the hooks
-  live in one settings file, so installing `--local` empties the shared one and
-  the other way round. The prompt hook does the same on every prompt for copies
-  that are gone or older by their `package.json` than the one running
-  (`olderOnly`): a copy of the same version is left, or two copies would take
-  each other out, and a newer copy is left to do the cleaning. What was removed
-  is logged (`op: "prune"`) and said once at the end of the turn through the
-  maintenance notice. Only the entries go; the old copy's files are not deleted.
-- The wiring follows the installed version (`clients.js:refreshWiring`). The
-  hook and MCP entries are written in the shape the version that ran `setup`
-  knew; a later version that adds an event (`SessionEnd` for the final distill
-  of a session) or changes a command rewrites them from what is there:
-  `inferWiring` reads from each client's files whether hooks, late notes,
-  learning and the MCP entry were installed and which Claude settings file
-  holds them, and `installClient` is run again with those options. Only
-  entries that run this copy (by the script's install root) are rewritten;
-  entries of another copy, alive (a development checkout) or gone (a deleted
-  worktree: the benchmark checkouts pointed at one, and rewriting them would
-  have given them live hooks), and hand-tuned commands (an env prefix, a
-  `--budget`: a benchmark arm's) are left alone and named. Checkouts under the
-  temp directory are not visited. Git hooks of this copy are rewritten the same way.
-  `thinker update` runs `thinker rewire` from the new copy after an update, for
-  every checkout the machine's log names that is still set up; the prompt hook
-  runs it for its own checkout on every prompt (`mergeJson` and
-  `installGitHooks` leave an unchanged file untouched, so a client watching its
-  settings file sees nothing); `thinker rewire [--here] [--dry]` is the command
-  by hand. Before 2026-10-04 nothing did this, and this repository ran without
-  `SessionEnd` and `PostToolUse` hooks for weeks after both were added.
-- Cursor's `beforeSubmitPrompt` hook returns `{"continue": true, "additional_context": "..."}`
-  at prompt time (since 2026-10-15); in headless modes (`agent -p`) where `beforeSubmitPrompt`
-  does not fire, `postToolUse` orients from the transcript on the first tool call. An
-  always-applied rule also tells the agent to call `orient`.
-- Codex reads a project's `.codex/` only once the project is trusted, runs a
-  hook only once it is reviewed, and asks before each MCP tool call. `setup`
-  takes care of all three: the MCP server is registered with
-  `default_tools_approval_mode = "approve"`, and the project and thinker's
-  hooks are marked as trusted in Codex's own `config.toml` (`CODEX_HOME`,
-  `~/.codex`). In a terminal they ask first; `--yes` skips the question,
-  `--no-trust` leaves it to you, and without a terminal nothing is marked
-  unless `--yes` is given. The hook entry is the hash Codex 0.157 stores
-  (see [What Codex stores as trust](#what-codex-stores-as-trust)); if a later
-  Codex changes it, Codex asks for the review as before. `uninstall` takes the hook entries out again.
-- Cursor loads an MCP server only once it is approved; `setup` does that
-  through Cursor's CLI when it is installed.
-- Gemini CLI also drives agent mode in Gemini Code Assist, which reads the
-  same MCP configuration. Google AI Studio is a web app and cannot run local
-  hooks or MCP servers, so it is not supported.
+- Edited-file notes are on by default; `--no-late` omits them.
+- Plugins under `plugins/` run `thinker hook … --plugin` and yield to host hooks (`clients.js:pluginYields`).
+- Pi: `npm/pi/thinker.js`. `thinker proxy --notes` (`proxy-notes.js`) serves agents without prompt hooks (Goose, Aider); off by default.
+- One copy per checkout (`clients.js:pruneInstalls`). `setup` removes other copies' hooks and repoints MCP. Claude Code `--local` empties the shared settings file.
+- Prompt hook prunes gone or older copies (`olderOnly`), logs `op: "prune"`. Never delete old copy's files.
+- Wiring follows installed version (`clients.js:refreshWiring`, `inferWiring`, `installClient`). Rewrite only this copy's entries; leave hand-tuned commands. Skip temp-dir checkouts.
+- `thinker update` runs `thinker rewire`. Manual: `thinker rewire [--here] [--dry]`.
+- Cursor: `beforeSubmitPrompt` returns `additional_context`. Headless `agent -p` uses `postToolUse`; agent must call `orient`.
+- Codex: `setup` sets `default_tools_approval_mode = "approve"` and trusts project and hooks in `config.toml` (`CODEX_HOME`, default `~/.codex`).
+  - `--yes` skips the trust prompt; `--no-trust` leaves trust to the user.
+  - Without a terminal, nothing is marked unless `--yes`.
+  - `uninstall` removes hook entries.
+- Cursor MCP: `setup` approves via Cursor's CLI when installed.
+- Google AI Studio: unsupported.
 
 ### What Codex stores as trust
 
