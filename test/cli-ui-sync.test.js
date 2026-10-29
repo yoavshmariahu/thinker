@@ -547,3 +547,20 @@ test('`thinker prs` is one door, and its help says what the figures are (2026-10
   assert.match(read('maintain.js'), /cfg\.prSync !== false/);
   assert.match(fs.readFileSync(path.join(SRC, '..', 'docs', 'usage.md'), 'utf8'), /\{ prSync: false \}/);
 });
+
+// Every element the page's script reaches for is in its own markup. #537 took the sort control out and left
+// `loadContext` hiding it, on a line above the try, so Find Savings threw on `$('#c-sort-wrap').hidden` before it
+// fetched anything and sat on its spinner for good -- a page that renders nothing, with nothing in the catch to say
+// so. One dead selector in a load path costs the whole page, and nothing but a browser was looking.
+test('the page reaches for no element it does not define', () => {
+  const page = read('ui/page.html');
+  const ids = new Set([...page.matchAll(/\bid="([^"]+)"/g)].map(m => m[1]));
+  const reached = new Set([
+    ...[...page.matchAll(/\$\('#([A-Za-z0-9_-]+)'\)/g)].map(m => m[1]),
+    ...[...page.matchAll(/getElementById\('([A-Za-z0-9_-]+)'\)/g)].map(m => m[1]),
+    ...[...page.matchAll(/querySelector\('#([A-Za-z0-9_-]+)'\)/g)].map(m => m[1]),
+  ]);
+  // an id built from a variable (`#c-${k}`) ends at the brace and is the view divs', which renderContext writes
+  const dangling = [...reached].filter(k => !ids.has(k) && !k.endsWith('-'));
+  assert.deepEqual(dangling, [], `page.html reaches for ${dangling.join(', ')}, which its markup does not define`);
+});
