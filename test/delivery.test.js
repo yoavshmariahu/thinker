@@ -63,8 +63,9 @@ test('a session is matched to the pull request of its branch, and carries its sa
   assert.equal(r.summary.saved.total, 129_000);
   assert.equal(r.summary.sessions.unlinked, 0);
   const text = renderDelivery(r, { detail: true });
-  assert.match(text, /cleared\s+120k tokens left out of their prompts \(measured\)/);
-  assert.match(text, /reading avoided\s+9k tokens of files not read \(estimate\)/);
+  assert.match(text, /cleared\s+120k tokens the API left out of their prompts \(measured\)/);
+  assert.match(text, /reading avoided\s+9k tokens of files the notes meant nobody read \(estimate\)/);
+  assert.match(text, /Merged with work recorded here: 1 of 1 merged in the repository/);
 });
 
 test('the branch alone links a session whose commits GitHub has not seen', t => {

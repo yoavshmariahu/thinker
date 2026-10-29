@@ -31,6 +31,7 @@ const metrics = {
   // Counts and tokens only; the rest of the block stays in raw_json. Reports from before 0.2.15 carry none
   // of these and read as zero, which is what they were.
   prs_merged: 'prs.merged',
+  prs_merged_seen: 'prs.mergedSeen',
   prs_merged_assisted: 'prs.mergedAssisted',
   prs_worked: 'prs.worked',
   prs_linked_sessions: 'prs.linkedSessions',

@@ -13,7 +13,8 @@ import { execFileSync } from 'node:child_process';
 import { repoId } from './store.js';
 import { readLog, sessionKey, savingOf } from './usage.js';
 import { formatTokens } from './model-usage.js';
-import { compressionDir, readCompression } from './compression.js';
+import { compressionDir, readCompression, clearedBySession } from './compression.js';
+import { proxyLogFile } from './proxy-service.js';
 import { thinkerHome } from './update.js';
 import { appendDelivery, readDelivery, positiveInteger } from './delivery-journal.js';
 
@@ -31,7 +32,7 @@ const hours = (from, to) => from && to ? Math.max(0, (Date.parse(to) - Date.pars
 // One pass over the usage log. The servings carry their own estimate (`est`, written when they were served);
 // only the ones the end-of-session assessment marked `confirmed` are counted, exactly as `usage.js` counts
 // them for the machine as a whole, so the two can never disagree about what a note saved.
-export function sessionsOf(store, { since = '', log = null, home = thinkerHome() } = {}) {
+export function sessionsOf(store, { since = '', log = null, home = thinkerHome(), env = process.env } = {}) {
   const events = (log || readLog(store)).filter(e => e.origin === repoId(store.repo) && e.t >= since);
   const sessions = new Map(), verdicts = new Map();
   const of = key => {
@@ -61,21 +62,33 @@ export function sessionsOf(store, { since = '', log = null, home = thinkerHome()
       if (finite(e.turns)) x.prompts = Math.max(x.prompts, e.turns);
     }
   }
-  const dir = compressionDir(home);
+  const cleared = clearedFor({ home, env, since });
   for (const x of sessions.values()) {
     let calls = 0, tokens = 0, servings = 0, actedOn = 0;
     for (const [id, est] of x.notes) if (verdicts.get(x.id)?.get(id) === 'confirmed') { servings++; actedOn++; calls += est[0] || 0; tokens += est[1] || 0; }
     x.reading = { calls, tokens, servings };
     x.served = x.notes.size; x.actedOn = actedOn;
-    let cleared = 0;
-    try { cleared = readCompression(dir, x.id)?.saved || 0; } catch { cleared = 0; }
-    x.cleared = finite(cleared) ? cleared : 0;
+    x.cleared = cleared(x.id);
     x.branches = [...x.branches]; x.heads = [...x.heads];
   }
   return sessions;
 }
 
 const safeGet = (store, id) => { try { return store.get(id); } catch { return null; } };
+
+// What the context proxy's clearing saved in a session: the proxy's own log first, since it is the durable
+// record, and the card's state file only where the log's tail no longer reaches (compression.js).
+export function clearedFor({ home = thinkerHome(), env = process.env, since = '' } = {}) {
+  let logged = new Map();
+  try { for (const [id, row] of clearedBySession(proxyLogFile(home, env), { since })) logged.set(sessionKey(id), row.cleared); } catch { logged = new Map(); }
+  const dir = compressionDir(home);
+  return id => {
+    let state = 0;
+    try { state = readCompression(dir, id)?.saved || 0; } catch { state = 0; }
+    const a = logged.get(id) || 0;
+    return Math.max(finite(a) ? a : 0, finite(state) ? state : 0);
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Which pull request a session belongs to.
@@ -113,10 +126,11 @@ export function deliveryReport(store, { days = WINDOW_DAYS, pr, now = Date.now()
   }
   // An observation is the only record of a session that served nothing and was never assessed.
   const sessions = sessionsOf(store, { since, log, home });
+  const cleared = clearedFor({ home, since });
   for (const e of events) {
     if (e.op !== 'observation' || !e.session || e.t < since) continue;
     const key = sessionKey(e.session);
-    if (!sessions.has(key)) sessions.set(key, { id: key, client: e.client || null, model: null, firstAt: e.t, lastAt: e.t, branches: [], heads: [], notes: new Map(), tokens: null, prompts: 0, complete: false, reading: { calls: 0, tokens: 0, servings: 0 }, served: 0, actedOn: 0, cleared: readClearedQuietly(home, key) });
+    if (!sessions.has(key)) sessions.set(key, { id: key, client: e.client || null, model: null, firstAt: e.t, lastAt: e.t, branches: [], heads: [], notes: new Map(), tokens: null, prompts: 0, complete: false, reading: { calls: 0, tokens: 0, servings: 0 }, served: 0, actedOn: 0, cleared: cleared(key) });
     const x = sessions.get(key);
     x.lastAt = x.lastAt && x.lastAt > e.t ? x.lastAt : e.t;
     if (e.branch && !x.branches.includes(e.branch)) x.branches.push(e.branch);
@@ -160,7 +174,11 @@ export function deliveryReport(store, { days = WINDOW_DAYS, pr, now = Date.now()
   }
 
   const selected = all.filter(p => pr !== undefined ? p.number === pr : (p.mergedAt || p.closedAt || p.updatedAt || p.sessions.at(-1)?.lastAt || '') >= since);
-  const merged = selected.filter(p => p.mergedAt && (pr !== undefined || p.mergedAt >= since));
+  const inWindow = selected.filter(p => p.mergedAt && (pr !== undefined || p.mergedAt >= since));
+  // Every figure below is about the pull requests this machine actually worked on. The repository's other
+  // pull requests are counted once, as `mergedSeen`, so a quiet week here cannot read as a cheap week there:
+  // a merged pull request no session of this machine touched says nothing about what thinker is worth.
+  const merged = inWindow.filter(p => p.sessions.length);
   const worked = selected.filter(p => p.sessions.length);
   const sum = (list, f) => list.reduce((n, p) => n + f(p), 0);
   return {
@@ -170,8 +188,9 @@ export function deliveryReport(store, { days = WINDOW_DAYS, pr, now = Date.now()
     prs: selected.sort((a, b) => b.number - a.number),
     summary: {
       merged: merged.length,
+      mergedSeen: inWindow.length,
       mergedAssisted: merged.filter(p => p.assisted).length,
-      open: selected.filter(p => p.state === 'OPEN').length,
+      open: selected.filter(p => p.state === 'OPEN' && p.sessions.length).length,
       worked: worked.length,
       saved: {
         cleared: sum(merged, p => p.saved.cleared),
@@ -191,7 +210,7 @@ export function deliveryReport(store, { days = WINDOW_DAYS, pr, now = Date.now()
 
 const blank = p => ({ state: 'UNKNOWN', ...p, sessions: [], tokens: { agent: 0, prompts: 0, unknownSessions: 0, complete: false }, saved: { cleared: 0, reading: { calls: 0, tokens: 0, servings: 0 }, total: 0 }, notes: { served: 0, actedOn: 0 } });
 const summary = x => ({ id: x.id, client: x.client, model: x.model, lastAt: x.lastAt, tokens: finite(x.tokens) ? x.tokens : null, prompts: x.prompts, complete: !!x.complete, cleared: x.cleared, reading: x.reading.tokens, served: x.served, actedOn: x.actedOn });
-const readClearedQuietly = (home, key) => { try { return readCompression(compressionDir(home), key)?.saved || 0; } catch { return 0; } };
+
 
 // ---------------------------------------------------------------------------
 // A person's own word on where a session belongs.
@@ -266,20 +285,21 @@ export async function syncPrs(store, { pr, days = WINDOW_DAYS, request = null, n
 export function renderDelivery(r, { detail = false } = {}) {
   const n = v => v == null ? 'unknown' : formatTokens(Math.round(v));
   const s = r.summary, L = [`Pull requests · ${r.scope} · last ${r.windowDays} days`, ''];
-  L.push(`Merged: ${s.merged}${s.merged ? ` · ${s.mergedAssisted} with something thinker saved` : ''}`);
-  L.push(`Open with work recorded: ${s.open}`);
-  L.push('', 'Saved on the merged pull requests');
-  L.push(`  cleared         ${n(s.saved.cleared)} tokens left out of their prompts (measured)`);
-  L.push(`  reading avoided ${n(s.saved.reading)} tokens of files not read (estimate)`);
-  L.push(`  together        ${n(s.saved.total)} tokens${s.merged ? ` · ${n(s.medianSavedPerMergedPr)} on the median merged pull request` : ''}`);
+  L.push(`Merged with work recorded here: ${s.merged}${s.mergedSeen ? ` of ${s.mergedSeen} merged in the repository` : ''}`);
+  L.push(`Still open: ${s.open}`);
+  L.push('', `Saved on those ${s.merged} merged pull ${s.merged === 1 ? 'request' : 'requests'}`);
+  L.push(`  cleared         ${n(s.saved.cleared)} tokens the API left out of their prompts (measured)`);
+  L.push(`  reading avoided ${n(s.saved.reading)} tokens of files the notes meant nobody read (estimate)`);
+  L.push(`  together        ${n(s.saved.total)} tokens${s.merged ? ` · ${n(s.medianSavedPerMergedPr)} on the median one` : ''}`);
   L.push('', 'What they cost');
-  L.push(`  agent tokens    ${n(s.tokens.agent)} over ${s.sessions.linked} linked ${s.sessions.linked === 1 ? 'session' : 'sessions'} · ${s.tokens.complete}/${s.merged} merged with complete counters`);
-  L.push(`  median merged   ${n(s.medianTokensPerMergedPr)} tokens · ${s.medianHoursToMerge == null ? 'unknown' : s.medianHoursToMerge.toFixed(1) + 'h'} from opened to merged`);
+  L.push(`  agent tokens    ${n(s.tokens.agent)} over ${s.sessions.linked} linked ${s.sessions.linked === 1 ? 'session' : 'sessions'}: every prompt and every answer added up, the same way the saving is`);
+  L.push(`  median merged   ${n(s.medianTokensPerMergedPr)} tokens · ${s.medianHoursToMerge == null ? 'unknown' : s.medianHoursToMerge.toFixed(1) + 'h'} from opened to merged · ${s.tokens.complete}/${s.merged} with complete counters`);
   if (s.sessions.unlinked) L.push('', `${s.sessions.unlinked} ${s.sessions.unlinked === 1 ? 'session belongs' : 'sessions belong'} to no pull request yet. thinker prs sync reads them from GitHub; thinker prs link --session <id> --pr <n> says so by hand.`);
-  if (detail) for (const p of r.prs) {
+  // Only the pull requests some session here worked on: the repository's others have nothing to say.
+  if (detail) for (const p of r.prs.filter(p => p.sessions.length || r.prs.length === 1)) {
     L.push('', `#${p.number} ${p.title || ''} · ${p.state}`, p.url || '');
-    L.push(`  saved      ${n(p.saved.total)} tokens = ${n(p.saved.cleared)} cleared + ${n(p.saved.reading.tokens)} reading avoided (${p.saved.reading.servings} servings acted on)`);
-    L.push(`  cost       ${n(p.tokens.agent)} agent tokens over ${p.sessions.length} ${p.sessions.length === 1 ? 'session' : 'sessions'}${p.tokens.complete ? '' : ' · incomplete counters'}`);
+    L.push(`  saved      ${n(p.saved.total)} tokens = ${n(p.saved.cleared)} cleared + ${n(p.saved.reading.tokens)} reading avoided (${p.saved.reading.servings} ${p.saved.reading.servings === 1 ? 'serving' : 'servings'} acted on)`);
+    L.push(`  cost       ${n(p.tokens.agent)} agent tokens over ${p.sessions.length} ${p.sessions.length === 1 ? 'session' : 'sessions'}${p.sessions.length && !p.tokens.complete ? ' · incomplete counters' : ''}`);
     L.push(`  notes      ${p.notes.served} served · ${p.notes.actedOn} acted on`);
     for (const x of p.sessions) L.push(`    ${x.id}  ${n(x.tokens)} tokens · ${n(x.cleared)} cleared · ${n(x.reading)} reading · ${Math.round(x.share * 100)}% (${x.link})`);
   }

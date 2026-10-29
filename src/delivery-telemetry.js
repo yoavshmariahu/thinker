@@ -32,7 +32,7 @@ export function deliveryMetrics(store, { all = true, now = Date.now(), home } = 
   const out = {
     schemaVersion: 2, windowDays: WINDOW_DAYS,
     repositories: 0, repositoriesWithPrs: 0, unreadableRepositories: 0,
-    merged: 0, mergedAssisted: 0, open: 0, worked: 0,
+    merged: 0, mergedSeen: 0, mergedAssisted: 0, open: 0, worked: 0,
     clearedTokens: 0, readingTokens: 0, savedTokens: 0,
     agentTokens: 0, completeTokenPrs: 0,
     linkedSessions: 0, unlinkedSessions: 0,
@@ -50,11 +50,11 @@ export function deliveryMetrics(store, { all = true, now = Date.now(), home } = 
       if (report.warnings.length) out.unreadableRepositories++;
       if (report.prs.length) out.repositoriesWithPrs++;
       const s = report.summary;
-      out.merged += s.merged; out.mergedAssisted += s.mergedAssisted; out.open += s.open; out.worked += s.worked;
+      out.merged += s.merged; out.mergedSeen += s.mergedSeen; out.mergedAssisted += s.mergedAssisted; out.open += s.open; out.worked += s.worked;
       out.clearedTokens += s.saved.cleared; out.readingTokens += s.saved.reading; out.savedTokens += s.saved.total;
       out.agentTokens += s.tokens.agent; out.completeTokenPrs += s.tokens.complete;
       out.linkedSessions += s.sessions.linked; out.unlinkedSessions += s.sessions.unlinked;
-      for (const p of report.prs.filter(p => p.mergedAt && p.mergedAt >= report.since)) {
+      for (const p of report.prs.filter(p => p.sessions.length && p.mergedAt && p.mergedAt >= report.since)) {
         out.savedBuckets.find(b => b.upper === null || p.saved.total <= b.upper).count++;
         if (typeof p.hoursToMerge === 'number' && Number.isFinite(p.hoursToMerge)) { out.hoursToMerge += p.hoursToMerge; out.hoursToMergeSamples++; }
       }
