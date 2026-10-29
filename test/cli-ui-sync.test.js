@@ -243,6 +243,14 @@ test('All on Find Savings and Recent activity are `thinker context --approve|--d
   assert.match(read('context-suggest.js'), /\$\{cmd\} --dismiss all/);
   assert.match(read('ui/server.js'), /const said = \[\], pr = prAvailable\(st\.repo\)\.ok;/);
   assert.match(cs, /\[cliPath, 'instructions', `--\$\{action\}`, ids\.join\(','\), pr \? '--pr' : '--apply', '--job', group\]/);
+  // and so does every other door, since 2026-10-29: the weekly suggestion answered in the session (the MCP `context`
+  // tool), `thinker context --approve` and the installer's picks all approve through approveChanges, which sends a
+  // section to the same job rather than compressing it inline, so no door holds a person's session through the model
+  // call or writes the file without a pull request. Only a switch-off or a compression level is made where it is asked.
+  assert.match(cs, /const secs = changes\.filter\(c => act\(c\)\);/);
+  assert.match(cs, /const j = startSectionJob\(store, xs, action, \{ pr: open, now, spawnFn, cliPath, via \}\);/);
+  assert.match(cs, /const open = pr \?\? prAvailable\(store\.repo\)\.ok;/);
+  assert.doesNotMatch(cs.split('export async function approveChanges')[1].split('\n}')[0], /previewEdit|applyEdit/);
   assert.match(read('commands/instructions.js'), /runSectionJob\(store, \{ group: flags\.job, ids, action, pr: Boolean\(flags\.pr\) \}\)/);
   assert.match(read('cli.js'), /instructions \[--remove <id> \| --compress <id> \[--pr \| --apply\] \[--job <id>\]\]/);
   const page = read('ui/page.html');

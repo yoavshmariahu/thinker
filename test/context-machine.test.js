@@ -159,12 +159,19 @@ test('machineChanges: a section never applied is removed in its repository, a to
   assert.equal(pickLine(p2[2]), 'Switch off the MCP server "x"');
   assert.deepEqual(await applyMachinePicks([p2[2]]), [], 'and nothing to apply');
   assert.equal(pickLine(p2[1]), 'Remove the built-in tool "Artifact" in 2 repositories'.replace('Remove', 'Switch off'));
-  assert.match(pickNote(p2[0]), /needed in 40% of prompts, a model call$/);
-  // applied: the removal in repository a through approveChanges, recorded in that repository's history, nothing in b
-  const said = await applyMachinePicks([sec]);
-  assert.equal(said.length, 1); assert.match(said[0], /^AGENTS\.md · API views: Removed: ~\d+ → ~\d+ tokens in AGENTS\.md, uncommitted$/);
-  assert.ok(!fs.readFileSync(path.join(a, 'AGENTS.md'), 'utf8').includes('API views'), 'the section is gone from the working tree');
-  assert.equal(changeHistory(new Store(a)).length, 1); assert.equal(changeHistory(new Store(a))[0].decision, 'approved');
+  assert.match(pickNote(p2[0]), /needed in 40% of prompts, a model call in the background$/);
+  // applied: the section left to a job of its own in repository a (context-suggest.js:startSectionJob, as the page's
+  // Apply does), recorded there as running at once, so an install does not sit through a model call per repository;
+  // nothing in b
+  const spawned = [];
+  const said = await applyMachinePicks([sec], { pr: false, cliPath: '/x/cli.js', spawnFn: (c, args, o) => { spawned.push([args, o.cwd, o.detached]); return { pid: process.pid, on() {}, unref() {} }; } });
+  assert.equal(said.length, 1); assert.match(said[0], /^Removing 1 section: written to your working tree in a moment\./);
+  assert.deepEqual(spawned.length, 1);
+  assert.deepEqual(spawned[0][0].slice(0, 5), ['/x/cli.js', 'instructions', '--remove', sec.id, '--apply']);
+  assert.deepEqual([spawned[0][1], spawned[0][2]], [a, true], 'in its own repository, detached');
+  assert.ok(fs.readFileSync(path.join(a, 'AGENTS.md'), 'utf8').includes('API views'), 'the job\'s own process writes the file, not this one');
+  const [e] = changeHistory(new Store(a));
+  assert.equal(changeHistory(new Store(a)).length, 1); assert.equal(e.decision, 'applied'); assert.equal(e.running, true); assert.equal(e.act, 'remove');
   assert.equal(changeHistory(new Store(b)).length, 0);
   // several repositories: each line named, each store its own; a failure is a line, not a throw
   const calls = [];

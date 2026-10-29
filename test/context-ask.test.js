@@ -58,7 +58,7 @@ test('in the terminal: the summary, the choice, the cuts with the page\'s addres
   assert.equal(res.mode, 'terminal'); assert.equal(opened.length, 0);
   assert.equal(applied.length, 1); assert.deepEqual(applied[0].map(x => [x.title, x.act]), [['Artifact', 'off'], ['API views', 'remove']]);
   assert.ok(out.some(l => /Artifact: done/.test(l)) && out.some(l => /API views: done/.test(l)), out.join('\n'));
-  assert.ok(out.some(l => /uncommitted: review them with git diff/.test(l)));
+  assert.ok(out.some(l => /A section's rewrite goes on in the background/.test(l)));
 });
 
 test('Esc skips: nothing applied; the browser choice opens the page and prints no list; --no-browser asks no choice', async () => {

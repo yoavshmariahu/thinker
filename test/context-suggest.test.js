@@ -107,13 +107,21 @@ test('approveChanges: each approved change gets its suggested action; pickChange
   assert.equal(pickChanges(changes, 'all').length, 5);
   assert.deepEqual(pickChanges(changes, changes[1].key), [changes[1]]);
   assert.equal(pickChanges(changes, '').length, 0);
-  const store = repo(), calls = [];
-  const edit = { previewEdit: async (s, id, action, o) => { calls.push(['preview', id, action]); return { key: id, file: 'AGENTS.md', tokensBefore: 2000, tokensAfter: 700 }; }, applyEdit: (s, key) => { calls.push(['apply', key]); return { said: 'ok' }; } };
-  const said = await approveChanges(store, [changes[0], changes[1]], { edit });
-  assert.deepEqual(calls, [['preview', 'Releases', 'compress'], ['apply', 'Releases']]);
-  assert.match(said[0], /Compressed: ~2k → ~700 tokens in AGENTS\.md, uncommitted/);
+  // A section goes to a background job whichever door approved it (startSectionJob), as the page's Apply does: no door
+  // holds the person's session through the model call, and the change becomes a pull request. Everything else is a line
+  // in a config file, so it is made here and done.
+  const store = repo(), spawned = [];
+  const spawnFn = (cmd, args, opts) => { spawned.push(args); return { pid: process.pid, on() {}, unref() {} }; };
+  const said = await approveChanges(store, [changes[0], changes[1]], { pr: true, spawnFn, cliPath: '/x/cli.js' });
+  assert.equal(spawned.length, 1);
+  assert.deepEqual(spawned[0].slice(0, 5), ['/x/cli.js', 'instructions', '--compress', 'Releases', '--pr']);
+  assert.match(said[0], /^Compressing 1 section in the background: a pull request opens with the change when the model is done\./);
   assert.match(said[1], /Compressed from the next tool call/);
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(store.dir, 'config.json'), 'utf8')).diet?.tools, { 'Bash:pytest': 'moderate' });
+  // one job per action, so the rows' own choices are kept (the page splits them the same way)
+  const two = await approveChanges(repo(), pickChanges(changes, '1:remove,5'), { pr: false, spawnFn: (c, a) => { spawned.push(a); return { pid: process.pid, on() {}, unref() {} }; }, cliPath: '/x/cli.js' });
+  assert.deepEqual(spawned.slice(1).map(a => a.slice(2, 5)), [['--compress', 'Ports', '--apply'], ['--remove', 'Releases', '--apply']]);
+  assert.equal(two.length, 2);
 });
 
 test('decisions: approved and dismissed changes are kept as the history and not suggested again for a month', async () => {
@@ -123,20 +131,20 @@ test('decisions: approved and dismissed changes are kept as the history and not 
   const top = currentChanges(store, v, { now });
   assert.equal(top.length, 5);
   dismissChanges(store, [top[2]], { now });
-  const edit = { previewEdit: async () => ({ key: 'Releases', file: 'AGENTS.md', tokensBefore: 2000, tokensAfter: 700 }), applyEdit: () => ({ said: 'ok' }) };
-  await approveChanges(store, [top[0]], { edit });
+  await approveChanges(store, [top[1]], { now });
   recordReviewed(store, top[4], 'Compressed it in AGENTS.md', { now });
   const h = changeHistory(store);
   assert.deepEqual(h.map(e => e.decision), ['applied after review', 'approved', 'dismissed']);
-  assert.match(h[1].result, /^Compressed: ~2k → ~700 tokens/);
-  assert.deepEqual(currentChanges(store, v, { now }).map(c => c.key).filter(k => [top[0], top[2], top[4]].some(t => t.key === k)), [], 'decided ones are left out');
+  assert.match(h[1].result, /^Compressed from the next tool call/);
+  assert.deepEqual(currentChanges(store, v, { now }).map(c => c.key).filter(k => [top[1], top[2], top[4]].some(t => t.key === k)), [], 'decided ones are left out');
   assert.equal(currentChanges(store, v, { now: now + 31 * 86400_000 }).length, 5, 'and come back after a month if still flagged');
 });
 
 test('the answer comes back through thinker\'s own tool: numbers from the list it showed, or none', async () => {
   const { scheduleContextSuggestion, contextSuggestOffer, contextSuggestAwaiting, answerContextSuggestion, changeHistory } = await import('../src/context-suggest.js');
   const store = repo(), now = Date.parse('2026-10-27T10:00:00Z');
-  const edit = { previewEdit: async () => ({ key: 'Releases', file: 'AGENTS.md', tokensBefore: 2000, tokensAfter: 700 }), applyEdit: () => ({ said: 'ok' }) };
+  const spawned = [];
+  const job = { pr: true, cliPath: '/x/cli.js', spawnFn: (c, a) => { spawned.push(a); return { pid: process.pid, on() {}, unref() {} }; } };
   assert.equal(contextSuggestAwaiting(store), false, 'nothing waits before a summary is passed on');
   await scheduleContextSuggestion(store, { now, view: view() });
   const said = contextSuggestOffer(store, { now, env: {}, ui: () => null, client: 'claude' });
@@ -144,10 +152,13 @@ test('the answer comes back through thinker\'s own tool: numbers from the list i
   assert.match(said, /call thinker's `context` tool with choice set to the numbers they chose/);
   assert.match(said, /asked "picker"/);
   assert.equal(contextSuggestAwaiting(store), true, 'and the tool is offered until it is answered');
-  // the numbers are the lines the summary showed; thinker makes the change and says what it did
-  const made = await answerContextSuggestion(store, '1', { now, asked: 'picker', edit });
-  assert.match(made, /Compressed: ~2k → ~700 tokens in AGENTS\.md/);
-  assert.deepEqual(changeHistory(store).map(e => [e.decision, e.via]), [['approved', 'session']]);
+  // the numbers are the lines the summary showed; thinker makes the change and says what it did. A section is a model
+  // call and an edit to a file, so the session is not held through it: the job is started and becomes a pull request
+  // (startSectionJob), which is what the page's Apply does and what every door has done since 2026-10-29.
+  const made = await answerContextSuggestion(store, '1', { now, asked: 'picker', ...job });
+  assert.match(made, /^Compressing 1 section in the background: a pull request opens with the change when the model is done\./);
+  assert.deepEqual(spawned[0].slice(0, 5), ['/x/cli.js', 'instructions', '--compress', 'Releases', '--pr']);
+  assert.deepEqual(changeHistory(store).map(e => [e.decision, e.via, e.running]), [['pull request', 'session', true]]);
   assert.equal(contextSuggestAwaiting(store), false, 'answered once');
   assert.match(await answerContextSuggestion(store, '1', { now }), /no thinker suggestion waiting/);
   // none is an answer too: every change left alone for a month, recorded as a dismissal
@@ -196,16 +207,18 @@ test('a reply to the weekly summary means the lines it showed, not the ranking a
 });
 
 test('the door a decision came through is recorded on the log line and the entry', async () => {
-  const { approveChanges, dismissChanges, changeHistory, VIA } = await import('../src/context-suggest.js');
+  const { allChanges, approveChanges, dismissChanges, changeHistory, VIA } = await import('../src/context-suggest.js');
   const store = repo(), now = Date.now();
-  const top = topChanges(view());
-  const edit = { previewEdit: async () => ({ key: 'Releases', file: 'AGENTS.md', tokensBefore: 2000, tokensAfter: 700 }), applyEdit: () => ({ said: 'ok' }) };
-  await approveChanges(store, [top[0]], { edit, via: VIA.page });     // Find Savings
-  await approveChanges(store, [top[1]], { edit, via: VIA.session });  // the weekly suggestion, answered in the session
-  await approveChanges(store, [top[4]], { edit });                    // someone typing the command
-  dismissChanges(store, [top[2]], { now, via: 'nonsense' });          // an unknown door is the command
+  const top = topChanges(view()), by = k => allChanges(view()).find(c => c.key === k);
+  const job = { pr: false, spawnFn: () => ({ pid: process.pid, on() {}, unref() {} }), cliPath: '/x/cli.js' };
+  await approveChanges(store, [top[1]], { via: VIA.page });                                      // Find Savings
+  await approveChanges(store, [{ ...by('output:Read'), chosen: 'uncompress' }], { via: VIA.session }); // answered in the session
+  await approveChanges(store, [top[0]], { ...job, via: VIA.command });                           // someone typing the command
+  dismissChanges(store, [top[2]], { now, via: 'nonsense' });                                     // an unknown door is the command
   const log = fs.readFileSync(path.join(store.dir, 'log.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l));
-  assert.deepEqual(log.filter(e => e.op === 'context-approve').map(e => e.via), ['page', 'session', 'command']);
+  assert.deepEqual(log.filter(e => e.op === 'context-approve').map(e => e.via), ['page', 'session']);
+  // a section's own approval is logged when its job finishes; the job it starts carries the door it came through
+  assert.deepEqual(log.filter(e => e.op === 'context-job').map(e => e.via), ['command']);
   assert.deepEqual(log.filter(e => e.op === 'context-dismiss').map(e => e.via), ['command']);
   // the entry keeps it too, so a decision's door survives the log being rotated or read elsewhere
   assert.deepEqual(changeHistory(store).map(e => e.via), ['command', 'command', 'session', 'page']);
@@ -219,11 +232,11 @@ test('the action picked instead of the suggestion: options, totals over the wind
   assert.deepEqual(pickChanges(cs, '1:remove, 2').map(c => c.chosen ?? null), ['remove', null]);
   assert.equal(pickChanges(cs, '3:remove')[0].chosen, undefined, 'an action the change does not have is ignored');
   assert.equal(pickChanges(cs, cs[0].key, { [cs[0].key]: 'remove' })[0].chosen, 'remove');
-  const store = repo(), calls = [];
-  const edit = { previewEdit: async (s, id, action) => { calls.push(action); return { key: id, file: 'AGENTS.md', tokensBefore: 2000, tokensAfter: 0 }; }, applyEdit: () => ({ said: 'ok' }) };
-  const said = await approveChanges(store, pickChanges(cs, '1:remove,2'), { edit });
-  assert.deepEqual(calls, ['remove']);
-  assert.match(said[0], /Removed/); assert.match(said[1], /Compressed from the next tool call/);
+  const store = repo(), spawned = [];
+  const said = await approveChanges(store, pickChanges(cs, '1:remove,2'), { pr: false, cliPath: '/x/cli.js', spawnFn: (c, a) => { spawned.push(a); return { pid: process.pid, on() {}, unref() {} }; } });
+  assert.deepEqual(spawned.length, 1);
+  assert.deepEqual(spawned[0].slice(0, 6), ['/x/cli.js', 'instructions', '--remove', 'Releases', '--apply', '--job']);
+  assert.match(said[0], /^Removing 1 section/); assert.match(said[1], /Compressed from the next tool call/);
 });
 
 test('compress: a rewrite over a third of the section is sent back once with the limit', async () => {
@@ -247,12 +260,14 @@ test('an output change has one action, and its card says how much smaller compre
 });
 
 test('revert: an output\'s compression goes back off, a section\'s file is written back unless edited since, a dismissal is withdrawn', async () => {
-  const { approveChanges, dismissChanges, revertDecision, changeHistory, currentChanges } = await import('../src/context-suggest.js');
+  const { approveChanges, runSectionJob, dismissChanges, revertDecision, changeHistory, currentChanges } = await import('../src/context-suggest.js');
   const store = repo(), cs = topChanges(view());
   fs.writeFileSync(path.join(store.repo, 'AGENTS.md'), '# A\n\n## Releases\n\nlong text\n');
   const edit = { previewEdit: async () => ({ key: 'k', file: 'AGENTS.md', files: ['AGENTS.md'], tokensBefore: 2000, tokensAfter: 700 }), applyEdit: () => { fs.writeFileSync(path.join(store.repo, 'AGENTS.md'), '# A\n\n## Releases\n\nshort\n'); return { said: 'ok' }; } };
-  const said = await approveChanges(store, [cs[0], cs[1]], { edit });
-  assert.deepEqual(said, ['AGENTS.md · Releases: Compressed: ~2k → ~700 tokens in AGENTS.md, uncommitted', 'pytest output: Compressed from the next tool call']);
+  const said = await approveChanges(store, [cs[0], cs[1]], { pr: false, cliPath: '/x/cli.js', spawnFn: () => ({ pid: process.pid, on() {}, unref() {} }) });
+  assert.deepEqual(said, ['Compressing 1 section in the background: the file in your working tree is rewritten when the model is done. Follow it under Recent activity.', 'pytest output: Compressed from the next tool call']);
+  // the job's own process writes the file and keeps it as it was for the Revert below
+  await runSectionJob(store, { group: changeHistory(store).find(e => e.kind === 'section').group, ids: ['Releases'], action: 'compress', pr: false }, { edit });
   dismissChanges(store, [cs[2]]);
   let h = changeHistory(store);
   assert.ok(h.every(e => e.id && e.revertible));

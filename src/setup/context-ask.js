@@ -38,7 +38,7 @@ export const ASK_WHERE = [
 
 // `r`, `recs`: context-machine.js:machineContext and recommendations. `browser`: whether the browser can be offered.
 // Returns what happened: { mode: 'printed' | 'browser' | 'terminal', picked, said }.
-export async function askMachineReport({ r, recs, store, out = console.log, browser = canOpenBrowser(), stdin = process.stdin, stdout = process.stdout, ui = ensureUi, open = openContextPage, apply = applyMachinePicks, select = selectMenu, multi = multiSelect, edit } = {}) {
+export async function askMachineReport({ r, recs, store, out = console.log, browser = canOpenBrowser(), stdin = process.stdin, stdout = process.stdout, ui = ensureUi, open = openContextPage, apply = applyMachinePicks, select = selectMenu, multi = multiSelect, ...opts } = {}) {
   const interactive = Boolean(stdin?.isTTY && stdout?.isTTY);
   if (!interactive || !r.view) { for (const l of renderMachineReport(r, recs)) out(l); return { mode: 'printed' }; }
   for (const l of renderMachineSummary(r)) out(l);
@@ -61,15 +61,15 @@ export async function askMachineReport({ r, recs, store, out = console.log, brow
   if (!picks.length) return { mode: 'terminal', picked: [], said: [] };
   out('');
   const chosen = await multi({
-    header: `  ${c.bold('Apply now?')} ${c.dim('A section is edited in its file, uncommitted, for git diff; a skill or tool is switched off for that repository from the next session. Each can be reverted from the page\'s History.')}`,
+    header: `  ${c.bold('Apply now?')} ${c.dim('A skill or tool is switched off for that repository from the next session; a section is rewritten in the background and opens a pull request in its own repository (the file where there is no GitHub origin). Each can be followed and reverted from the page\'s Recent activity.')}`,
     hint: '↑/↓ move, Space picks, a picks all, Enter applies the picked, Esc skips',
     items: all.map(p => p.targets.length ? { label: pickLine(p), note: `· ${pickNote(p)}`, value: p } : { label: pickLine(p), note: '· nothing switches it off per repository; its figures are on the page', disabled: true, value: p }), out, stdin, stdout,
   });
   const picked = (chosen || []).map(x => x.value);
   if (!picked.length) { out(`  Nothing changed. The suggestions stay on the page${url ? '' : ' (thinker ui)'}.`); return { mode: 'terminal', picked: [], said: [] }; }
   const n = picked.length, calls = picked.filter(p => p.act === 'compress').length;
-  const said = await withSpinner(out, `Applying ${n} change${n === 1 ? '' : 's'}${calls ? ` (${calls} model call${calls === 1 ? '' : 's'} to compress)` : ''}`, () => apply(picked, { edit, via: 'setup' }));
+  const said = await withSpinner(out, `Applying ${n} change${n === 1 ? '' : 's'}${calls ? `, ${calls} of them a rewrite started in the background` : ''}`, () => apply(picked, { via: 'setup', ...opts }));
   for (const l of said) out(`  ${c.green('✓')} ${l}`);
-  if (picked.some(p => p.act !== 'off')) out(`  ${c.dim('The edited instruction files are uncommitted: review them with git diff, and keep or revert them.')}`);
+  if (picked.some(p => p.act !== 'off')) out(`  ${c.dim('A section\'s rewrite goes on in the background: its pull request, or the file it wrote, is on the page under Recent activity.')}`);
   return { mode: 'terminal', picked, said };
 }

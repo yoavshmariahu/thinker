@@ -7,7 +7,9 @@
 // a section compressed or removed after its diff is read, a skill or tool switched off or back on, an output's
 // compression set; the person picks one in the row and applies it, and every decision is kept as the page's Recent
 // activity with a Revert. `thinker context --approve|--dismiss|--history` is the same over the top five.
-// Nothing is changed until the person chooses. Ranking and scheduling make no model call; compressing a section does.
+// Nothing is changed until the person chooses. Ranking and scheduling make no model call; compressing a section does,
+// and that call happens in a job of its own whichever door the person answered through (approveChanges), so none of
+// them -- the session, the command, the installer -- waits it out or writes the file without a pull request.
 //
 //   topChanges                    the ranking (context-view.js keeps it on the report)
 //   allChanges                    every part as a change with its options: the page's rows, whatever their waste
@@ -34,7 +36,7 @@ import { formatTokens } from './model-usage.js';
 import { SIGNATURE } from './harness.js';
 import { WASTE, sections, sectionId } from './instruction-value.js';
 import { describePart, describeEntry } from './part-describe.js';
-import { defaultBranch } from './instruction-pr.js';
+import { defaultBranch, prAvailable } from './instruction-pr.js';
 import { QUESTION_TOOLS, MCP_CLIENTS } from './repo-onboard.js';
 
 export const SUGGEST = {
@@ -393,7 +395,7 @@ export const contextSuggestAwaiting = (store, opts) => configOn(store) && Boolea
 // an answer rather than composing a command -- which is what the harness question did until 2026-10-25, and what the
 // coverage question still does (coverage.js:answerCoverage). `asked` says where they answered: their agent's question
 // tool (picker) or chat, which is how we know the question was put as a question at all.
-export async function answerContextSuggestion(store, choice, { now = Date.now(), asked = 'picker', client = null, edit } = {}) {
+export async function answerContextSuggestion(store, choice, { now = Date.now(), asked = 'picker', client = null, ...job } = {}) {
   const offered = offeredChanges(store, { now });
   if (!offered) return 'There is no thinker suggestion waiting for an answer here. Go on with the task.';
   const raw = String(choice ?? '').trim();
@@ -407,7 +409,7 @@ export async function answerContextSuggestion(store, choice, { now = Date.now(),
   const picked = pickChanges(offered, raw);
   // an answer that names none of the lines is not an answer: the question stays, and the agent is told what to pass
   if (!picked.length) return `Nothing there matched: pass the numbers of the lines the suggestion showed (1-${offered.length}), comma-separated, or none. The question is still waiting.`;
-  const said = await approveChanges(store, picked, { via: VIA.session, edit });
+  const said = await approveChanges(store, picked, { via: VIA.session, now, ...job });
   clear();
   return said.join(' ');
 }
@@ -502,17 +504,41 @@ ${after}
 </thinker-context-suggestions>`;
 }
 
-// The person approved these changes (`thinker context --approve 1,3|all`, the page's Approve): each one's default,
-// made as the Context tab makes it. A section is compressed by a model and written to the working tree, uncommitted,
-// for git diff to review (instruction-edit.js); a skill or tool is switched off for this repository, `thinker harness
-// --undo` turning it back on (context-view.js:switchSources); an output gets moderate compression (diet.js). A change
-// with no default (nothing switches it off) is left for review on the page. Returns one line per change.
-export async function approveChanges(store, changes, { edit, via = VIA.command } = {}) {
+// The person approved these changes (`thinker context --approve 1,3|all`, the page's Approve, the answer to the weekly
+// suggestion, the installer's picks): each one's default, made as the Context tab makes it. A skill or tool is switched
+// off for this repository, `thinker harness --undo` turning it back on (context-view.js:switchSources); an output gets
+// moderate compression (diet.js). Both are a line in a config file, so they are made here and done.
+//
+// A section is neither: it takes a model call to compress and it edits a file people read, so it goes to the background
+// as a job and becomes a pull request (startSectionJob), whichever door the person answered through -- the owner's rule
+// of 2026-10-24, which until 2026-10-29 only the page kept. Through the other doors a section was compressed inline:
+// the agent's own session (the MCP `context` tool), the command and the installer each waited out the model call before
+// the person's turn went on -- in a desktop app with no CLI signed in that call queues for a subagent of the very
+// session that is blocked on it -- and the rewrite landed in the working tree, uncommitted, with no pull request, no
+// Retry and nothing in Recent activity to follow. The job writes the working tree only where no pull request can be
+// opened (instruction-pr.js:prAvailable), as the page's Apply does.
+//
+// A change with no default (nothing switches it off) is left for review on the page. Returns one line per change, and
+// one per section job, since a job's sections share a pull request and an undo.
+export async function approveChanges(store, changes, { via = VIA.command, pr, spawnFn = spawn, cliPath = CLI, now = Date.now() } = {}) {
   // a change may carry the action the person picked (`chosen`, one of its options); else its suggestion
   changes = changes.map(c => ({ ...c, default: c.options?.find(o => o.act === c.chosen) || c.default }));
   const { switchSources, setOutputCompression } = await import('./context-view.js');
-  const { previewEdit, applyEdit } = edit || await import('./instruction-edit.js');
-  const said = [], at = Date.now();
+  const said = [], at = now;
+  // the sections to the background, one job per action (the rows' dropdowns may differ), a pull request where one can be
+  // opened here; `pr` is given by a caller that knows already, and by the tests
+  const act = c => (c.kind === 'section' && ['compress', 'remove'].includes(c.default?.act) ? c.default.act : null);
+  const secs = changes.filter(c => act(c));
+  if (secs.length) {
+    const open = pr ?? prAvailable(store.repo).ok;
+    for (const action of ['compress', 'remove']) {
+      const xs = secs.filter(c => act(c) === action);
+      if (!xs.length) continue;
+      const j = startSectionJob(store, xs, action, { pr: open, now, spawnFn, cliPath, via });
+      said.push(j.said || `${xs.map(c => c.title).join(', ')}: ${j.error}`);
+    }
+    changes = changes.filter(c => !act(c));
+  }
   // each change made returns what it did, in a line, and how to take it back (revertDecision); a failure is said, not kept
   const make = async c => {
     if (!c.default) return { error: 'nothing switches it off' };
@@ -527,14 +553,6 @@ export async function approveChanges(store, changes, { edit, via = VIA.command }
       const r = switchSources(store, { keys: [c.sourceKey || c.name], on: true });
       return /^Turned back on/.test(r) ? { result: 'Turned back on from the next session on', undo: c.label ? { kind: 'on', label: c.label, builtin: Boolean(c.builtin) } : null } : { error: r };
     }
-    if (c.default.act === 'compress' || c.default.act === 'remove') {
-      const p = await previewEdit(store, c.id, c.default.act);
-      if (p.error) return { error: p.error };
-      const files = p.files || [p.file], read = f => { try { return fs.readFileSync(path.join(store.repo, f), 'utf8'); } catch { return null; } };
-      const before = files.map(read), a = applyEdit(store, p.key);
-      if (a.error) return { error: a.error };
-      return { result: `${c.default.act === 'remove' ? 'Removed' : 'Compressed'}: ~${formatTokens(p.tokensBefore)} → ~${formatTokens(p.tokensAfter)} tokens in ${p.file}, uncommitted`, undo: { kind: 'edit', files: files.map((f, i) => ({ file: f, before: before[i], after: read(f) })) }, tokens: sectionTokens(p, c.id) };
-    }
     const r = switchSources(store, { labels: [c.label], builtin: Boolean(c.builtin) });
     return /^Switched off here/.test(r) && !/Not switched off/.test(r) ? { result: 'Switched off from the next session on', undo: { kind: 'off', key: c.sourceKey || c.name } } : { error: r.replace(/^Not switched off: /, '') };
   };
@@ -543,7 +561,8 @@ export async function approveChanges(store, changes, { edit, via = VIA.command }
     said.push(`${c.title}: ${m.error || m.result}`);
     if (!m.error) record(store, [entryOf(store, c, 'approved', m.result, at, m.undo, { tokens: m.tokens || null, via: viaOf(via) })]);
   }
-  store.log({ op: 'context-approve', changes: changes.length, saving: changes.reduce((a, c) => a + c.saving, 0), via: viaOf(via) });
+  // a section's own approval is logged when its job finishes (runSectionJob), with the pull request it opened
+  if (changes.length) store.log({ op: 'context-approve', changes: changes.length, saving: changes.reduce((a, c) => a + c.saving, 0), via: viaOf(via) });
   return said;
 }
 
