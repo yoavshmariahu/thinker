@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { InvalidReport } from './report.mjs';
 import { normalizeMessage } from './messages.mjs';
+import { normalizeErrorReport } from './errors.mjs';
 
 const HEADERS = {
   'Content-Type': 'application/json',
@@ -9,7 +10,7 @@ const HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type, X-Thinker-Version',
 };
 
-export function createHandler(write, writeMessage) {
+export function createHandler(write, writeMessage, writeErrors) {
   return async function handler(event, context = {}) {
     context.callbackWaitsForEmptyEventLoop = false;
     const reply = (statusCode, body) => ({ statusCode, headers: HEADERS, body: body ? JSON.stringify(body) : '' });
@@ -30,6 +31,20 @@ export function createHandler(write, writeMessage) {
         if (err instanceof InvalidReport) return reply(422, { error: err.message });
         console.error('Failed to save message:', err.code || err.name);
         return reply(err.code === 'MESSAGE_CONFLICT' ? 409 : 500, { error: 'Unable to save message. Please try again.' });
+      }
+    }
+    // thinker's own failures, sent only by an install whose person agreed to it (src/error-report.js).
+    // One row per error (error_reports), so the same fault can be counted across installs.
+    if (event.rawPath === '/errors' || event.path === '/errors') {
+      try {
+        const report = normalizeErrorReport(data);
+        const id = event.requestContext?.requestId || context.awsRequestId || randomUUID();
+        await writeErrors(`errors/${id}`, report, new Date().toISOString());
+        return reply(202, { status: 'accepted', count: report.errors.length });
+      } catch (err) {
+        if (err instanceof InvalidReport) return reply(422, { error: err.message });
+        console.error('Failed to record error report:', err.code || err.name);
+        return reply(500, { error: 'Failed to record error report' });
       }
     }
     const key = `metrics/live/${event.requestContext?.requestId || context.awsRequestId || randomUUID()}.json`;

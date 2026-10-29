@@ -23,6 +23,7 @@ import { claudeCardActive } from '../claude-card.js';
 import { setupRepo } from '../repo-onboard.js';
 import { coverageOffer, recordAccess } from '../coverage.js';
 import { proxyOffer } from '../proxy-offer.js';
+import { errorOffer, recordError, sendErrors, errorConsent } from '../error-report.js';
 import { harnessRecall, harnessIndex, harnessOn } from '../harness.js';
 import { contextSuggestOffer, ensureUi, suggestionsUrl } from '../context-suggest.js';
 import { skillSuggestOn, skillSuggestLines, hookSkillFacts } from '../skill-suggest.js';
@@ -98,7 +99,9 @@ async function hookCommand(ctx) {
           let hint = null; try { hint = gatewayHint(); } catch {}
           reportPruned(ctx.store, [`context proxy off (${p.stoodDown}): your agents call the API directly again, and thinker proxy on puts it back${hint ? `. ${hint}` : ''}`]);
         }
-      } catch {}
+      } catch (e) { recordError('hook.proxy', e, { repo: ctx.repo }); }
+      // consent already given: whatever was recorded since goes out, once, in the background
+      if (errorConsent() === 'yes') sendErrors({ store: ctx.store }).catch(() => {});
     }
     if (userScope) {
       const cwd = ev.cwd || ev.workspace_roots?.[0] || ev.workspaceRoots?.[0] || ev.workspacePaths?.[0];
@@ -215,7 +218,7 @@ async function hookCommand(ctx) {
         // prompt cache the clearing exists to spare
         let clearing = '';
         if (offersOn) { try { clearing = compressionBlock(compressionDir(), session, turn, formatTokens); } catch {} }
-        const offer = [offersOn ? (proxyOffer(store, { client }) || coverageOffer(store, { client }) || contextSuggestOffer(store, { repoId: repoId(store.repo), client })) : '', work, index, recall, clearing].filter(Boolean).join('\n\n');
+        const offer = [offersOn ? (proxyOffer(store, { client }) || errorOffer(store, { client }) || coverageOffer(store, { client }) || contextSuggestOffer(store, { repoId: repoId(store.repo), client })) : '', work, index, recall, clearing].filter(Boolean).join('\n\n');
         // Every git repository has a cache, started on first use and empty until it learns; the hooks serve
         // from it once it holds a few notes (ops.js:SERVE_MIN_NOTES). A prompt served nothing is still a
         // request: `thinker usage` and the telemetry count a machine as active by its requests, and a cache in
@@ -271,7 +274,7 @@ async function hookCommand(ctx) {
         command: command.slice(0, 300), suggest: suggestion.slice(0, 300), how: rewritesCommands(client) ? 'rewrite' : 'deny' });
       const o = preToolOutput(client, { command: suggestion, reason: NUDGE_REASON(suggestion) });
       if (o) out(o);
-    } catch { /* a pre-tool hook never blocks the tool call */ }
+    } catch (e) { /* a pre-tool hook never blocks the tool call */ recordError('hook.pre', e, { repo: ctx.repo }); }
   } else if (pos[0] === 'tool') {
     // After a tool call: the agent opened files; serve notes anchored to them, once each.
     if (!store.exists()) return;

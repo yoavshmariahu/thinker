@@ -122,3 +122,70 @@ test('migration rolls back when a row cannot be persisted or verified', async ()
     assert.ok(!commands.includes('COMMIT'));
   }
 });
+
+// --- error reports ---------------------------------------------------------
+// thinker's own failures, from installs whose person agreed to send them (src/error-report.js).
+// The endpoint's job is to refuse anything that still names a person, a machine or a repository:
+// the client scrubs, but a client with a bug must not be able to store one here either.
+
+const errorPayload = {
+  installId: 'installation', version: '0.2.13', platform: 'darwin',
+  errors: [{ at: '2026-10-29T10:00:00Z', op: 'hook.pre', name: 'TypeError', code: 'ERR_X',
+    message: 'cannot read properties of undefined', node: '24.15.0', seen: 2,
+    frames: ['at wrappedCommand (<thinker>/src/testing.js:491:9)'] }],
+};
+
+test('an error report is stored as one row per error', async () => {
+  const { normalizeErrorReport, insertErrorReport } = await import('../infra/metrics/errors.mjs');
+  const report = normalizeErrorReport({ ...errorPayload, errors: [errorPayload.errors[0], { ...errorPayload.errors[0], op: 'cli.update', seen: 0 }] });
+  assert.equal(report.errors.length, 2);
+  assert.equal(report.errors[1].seen, 1, 'a nonsense count becomes one');
+  const queries = [];
+  await insertErrorReport({ query: (sql, params) => { queries.push({ sql, params }); return { rowCount: 2 }; } }, 'errors/req-1', report, '2026-10-29T10:00:01Z');
+  assert.equal(queries.length, 1, 'one statement for the whole report');
+  assert.match(queries[0].sql, /INSERT INTO error_reports/);
+  assert.match(queries[0].sql, /ON CONFLICT \(file_key, idx\) DO NOTHING/, 'a resend stores nothing twice');
+  assert.equal(queries[0].params.length, 28, '14 columns × 2 rows, all parameterized');
+  assert.deepEqual(queries[0].params.slice(0, 3), ['errors/req-1', 0, 'installation']);
+});
+
+test('an error report that still names a person, a machine or a credential is refused', async () => {
+  const { normalizeErrorReport } = await import('../infra/metrics/errors.mjs');
+  const bad = extra => () => normalizeErrorReport({ ...errorPayload, errors: [{ ...errorPayload.errors[0], ...extra }] });
+  for (const [what, extra] of [
+    ['a home path in the message', { message: "ENOENT open '/Users/jane/src/acme/notes.json'" }],
+    ['a home path in a frame', { frames: ['at x (/home/jane/.thinker/app/src/a.js:1:1)'] }],
+    ['a URL', { message: 'POST https://gw.corp.internal/v1/messages failed' }],
+    ['a token', { message: 'refused key sk-ant-api03-abcdefgh12345' }],
+    ['a server path', { message: 'cannot read /var/data/customer-x/db' }],
+  ]) assert.throws(bad(extra), /carries machine detail/, what);
+  // and the shape itself is checked
+  assert.throws(() => normalizeErrorReport({ ...errorPayload, errors: [] }), /1 to 20 errors/);
+  assert.throws(() => normalizeErrorReport({ ...errorPayload, installId: 'no spaces allowed' }), /install ID/);
+  assert.throws(() => normalizeErrorReport({ ...errorPayload, version: 'latest' }), /version/);
+  assert.throws(() => normalizeErrorReport({ ...errorPayload, errors: [{ ...errorPayload.errors[0], at: 'never' }] }), /error time/);
+});
+
+test('POST /errors accepts a report, and a bad one answers 422 without storing it', async () => {
+  const stored = [];
+  const handler = createHandler(() => { throw new Error('metrics writer must not be used'); },
+    () => { throw new Error('message writer must not be used'); },
+    (key, report) => { stored.push({ key, report }); });
+  const post = body => handler({ rawPath: '/errors', requestContext: { http: { method: 'POST' }, requestId: 'req-9' }, body: JSON.stringify(body) }, {});
+
+  const ok = await post(errorPayload);
+  assert.equal(ok.statusCode, 202);
+  assert.deepEqual(JSON.parse(ok.body), { status: 'accepted', count: 1 });
+  assert.equal(stored.length, 1);
+  assert.equal(stored[0].key, 'errors/req-9');
+  assert.equal(stored[0].report.errors[0].op, 'hook.pre');
+
+  const refused = await post({ ...errorPayload, errors: [{ ...errorPayload.errors[0], message: 'open /Users/jane/x/y' }] });
+  assert.equal(refused.statusCode, 422);
+  assert.match(JSON.parse(refused.body).error, /machine detail/);
+  assert.equal(stored.length, 1, 'nothing was stored');
+
+  // the other routes are untouched by the new one
+  const metrics = await handler({ rawPath: '/metrics', requestContext: { http: { method: 'POST' } }, body: '{}' }, {});
+  assert.equal(metrics.statusCode, 500, 'the metrics writer is still the one that runs there');
+});

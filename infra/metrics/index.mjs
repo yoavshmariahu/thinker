@@ -1,6 +1,7 @@
 import pg from 'pg';
 import { insertReport } from './report.mjs';
 import { insertMessage } from './messages.mjs';
+import { insertErrorReport } from './errors.mjs';
 import { createHandler } from './handler.mjs';
 
 let pool;
@@ -19,4 +20,5 @@ function database() {
 }
 
 export const handler = createHandler((key, data, receivedAt) => insertReport(database(), key, data, receivedAt),
-  data => insertMessage(database(), data));
+  data => insertMessage(database(), data),
+  (key, report, receivedAt) => insertErrorReport(database(), key, report, receivedAt));
