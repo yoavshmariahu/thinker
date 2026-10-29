@@ -241,7 +241,9 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
       if (!Number.isFinite(last) || now - last >= PRS_SYNC_INTERVAL_MS) {
         try {
           if (fns.syncPrs || ghAvailable(store.repo)) {
-            const days = Math.min(DELIVERY_WINDOW_DAYS, Math.max(2, Number.isFinite(last) ? Math.ceil((now - last) / 86400_000) + 1 : 7));
+            // The first sync covers the whole report window, so a fresh install is not reporting a third of
+            // what it delivered; later ones go back only to the last one.
+            const days = Math.min(DELIVERY_WINDOW_DAYS, Number.isFinite(last) ? Math.max(2, Math.ceil((now - last) / 86400_000) + 1) : DELIVERY_WINDOW_DAYS);
             r.prSynced = (await syncFn(store, { days, now })).synced;
           }
         } catch { r.errors++; }

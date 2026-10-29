@@ -135,34 +135,42 @@ test('the window holds: an older pull request is left out, and --pr brings it ba
   assert.equal(deliveryReport(store, { now, home, pr: 50 }).prs.length, 1);
 });
 
-test('sync reads the listing once and pays for detail only on the pull requests worked on here', async t => {
+test('a sync of the window is one GitHub call, and one pull request named brings its commits', async t => {
   const { store, home } = fixture(t);
   execFileSync('git', ['init', '-q'], { cwd: store.repo });
   execFileSync('git', ['remote', 'add', 'origin', 'https://github.com/private/repo.git'], { cwd: store.repo });
-  session(store, { id: 's8', branch: 'agent/mine', head: 'm1' });
+  session(store, { id: 's8', branch: 'agent/mine', head: 'mid1' });
   const calls = [];
   const listing = [
-    { number: 60, title: 'Mine', html_url: 'u60', state: 'closed', merged_at: at(2), created_at: at(20), updated_at: at(2), head: { ref: 'agent/mine', sha: 'm1' }, base: { sha: 'b' }, merge_commit_sha: 'mc', user: { login: 'me' } },
+    { number: 60, title: 'Mine', html_url: 'u60', state: 'closed', merged_at: at(2), created_at: at(20), updated_at: at(2), head: { ref: 'agent/mine', sha: 'tip1' }, base: { sha: 'b' }, merge_commit_sha: 'mc', user: { login: 'me' } },
     { number: 61, title: 'Theirs', html_url: 'u61', state: 'open', merged_at: null, created_at: at(10), updated_at: at(3), head: { ref: 'other/branch', sha: 't1' }, base: { sha: 'b' }, user: { login: 'them' } },
+    { number: 59, title: 'Stale', html_url: 'u59', state: 'closed', merged_at: at(24 * 60), created_at: at(24 * 70), updated_at: at(24 * 60), head: { ref: 'old/branch', sha: 'o1' }, base: { sha: 'b' }, user: { login: 'them' } },
   ];
-  const request = async endpoint => {
-    calls.push(endpoint);
+  const request = async (endpoint, opts) => {
+    calls.push([endpoint, opts?.paginate ? 'paginate' : 'one']);
     if (endpoint.startsWith('repos/private/repo/pulls?')) return endpoint.includes('page=1') ? listing : [];
-    if (/pulls\/60\/commits/.test(endpoint)) return [{ sha: 'm1' }];
+    if (/pulls\/60\/commits/.test(endpoint)) return [[{ sha: 'mid1' }, { sha: 'tip1' }]];
     if (/pulls\/60$/.test(endpoint)) return { ...listing[0], additions: 10, deletions: 2, changed_files: 3 };
     throw new Error(`unexpected ${endpoint}`);
   };
   const r = await syncPrs(store, { request, now, home });
-  assert.equal(r.synced, 2);
-  assert.equal(r.detailed, 2);                                   // one detail call and one commits call, for #60 alone
-  assert.ok(!calls.some(c => /pulls\/61/.test(c)), 'a pull request nobody here worked on costs no extra call');
+  assert.equal(r.synced, 2, 'the pull request outside the window is left out');
+  assert.equal(r.detailed, 0);
+  assert.deepEqual(calls, [['repos/private/repo/pulls?state=all&sort=updated&direction=desc&per_page=100&page=1', 'one']],
+    'a hundred pull requests cost one gh process, and no pull request costs one of its own');
 
-  const report = deliveryReport(store, { now, home });
-  const mine = report.prs.find(p => p.number === 60);
-  assert.equal(mine.state, 'MERGED');
+  // The listing alone links it: the session is on its branch, though its own commit is not in the listing.
+  const first = deliveryReport(store, { now, home });
+  assert.equal(first.prs.find(p => p.number === 60).sessions[0].link, 'branch');
+  assert.equal(first.prs.find(p => p.number === 61).sessions.length, 0);
+
+  // Naming one pull request buys its commits, and the match becomes certain.
+  await syncPrs(store, { pr: 60, request, now, home });
+  assert.equal(calls.length, 3);
+  const after = deliveryReport(store, { now, home });
+  const mine = after.prs.find(p => p.number === 60);
+  assert.equal(mine.sessions[0].link, 'commit');
   assert.equal(mine.changedFiles, 3);
-  assert.equal(mine.sessions.length, 1);
-  assert.equal(report.prs.find(p => p.number === 61).sessions.length, 0);
 });
 
 test('the saved buckets cover every merged pull request exactly once', () => {

@@ -411,11 +411,16 @@ ship, how much of it did thinker pay for. Nothing here calls a model or spends a
   carried beside it as `mergedSeen`, for context only.
 - **Agent tokens are every prompt and every answer added up**, which is the same shape as the saving: the
   cleared tokens are also per-prompt and summed over calls. So saved ÷ spent is a figure that means something.
-- **GitHub is read through the person's own `gh` login, read-only**, and in two passes (`delivery.js:syncPrs`):
-  the listing carries everything but the commits and the diff size, and those cost a second call only for a
-  pull request some session here worked on. So the calls follow the person's work, not the repository's
-  traffic. Maintenance does this once a day, back to the last sync (`maintain.js`, `maintain: { prSync: false }`
-  turns it off); it is free, so it is not a background spend in the sense of the rule above.
+- **GitHub is read through the person's own `gh` login, read-only** (`delivery.js:syncPrs`), and from the
+  listing alone: it already carries the branch, the head, the base, the merge commit and the times, which is
+  everything the linking and the figures need. A pull request's own page and its commit list cost a call each
+  and are read only when one is named (`--pr n`). A page at a time, newest first, stopping at the window
+  (`MAX_PAGES` 20): not `gh api --paginate`, which follows the link header to the end of the repository's
+  history. Reading a month of this repository was over two minutes when every matched pull request cost a
+  detail call and a commits call; it is six seconds for 541 pull requests now. Maintenance does it once a
+  day, the whole window the first time and back to the last sync after (`maintain.js`,
+  `maintain: { prSync: false }`; not `maintain.prs`, which is the mining step). It is free, so it is not a
+  background spend in the sense of the rule above.
 - **The journal** is `<log dir>/delivery/<digest>.jsonl`, per repository, gitignored, three record kinds
   (`observation`, `pr`, `link`). Sessions, servings and model calls stay in the usage log; nothing is copied.
 - **What leaves the machine** (`delivery-telemetry.js`, payload `prs`) is counts and token totals. Never a

@@ -21,6 +21,9 @@ import { appendDelivery, readDelivery, positiveInteger } from './delivery-journa
 export const WINDOW_DAYS = 30;
 // Savings per merged pull request, for the shape of the distribution in the telemetry.
 export const SAVED_BUCKETS = [10_000, 50_000, 200_000, 1_000_000, null];
+// Pages of the pull request listing one sync will read. A month of a very busy repository, and a ceiling on
+// a step that runs by itself: the listing is sorted newest first, so what is cut off is the oldest.
+export const MAX_PAGES = 20;
 
 const finite = n => typeof n === 'number' && Number.isFinite(n) && n >= 0;
 const median = xs => { const a = xs.filter(finite).sort((x, y) => x - y); return a.length ? (a[Math.floor(a.length / 2)] + a[Math.floor((a.length - 1) / 2)]) / 2 : null; };
@@ -96,10 +99,15 @@ export function clearedFor({ home = thinkerHome(), env = process.env, since = ''
 // In order of how much the evidence is worth. A person's own link beats anything read from git; a commit the
 // session was sitting on is proof it was working there; a branch name is strong but can be reused, so the
 // pull request whose life the session falls inside is preferred over a later one with the same branch.
+// Commits a session sitting there is proof it was working on this pull request. The listing gives the head
+// and the merge commit; the whole list comes only with `--pr n`. The base is where the branch started, so a
+// session there says nothing.
+const prCommits = p => [...(p.commits || []), p.head, p.mergeCommit].filter(sha => sha && sha !== p.base);
+
 export function linkFor(session, prs, links) {
   const manual = links.get(session.id);
   if (manual) return manual.map(a => ({ ...a, how: 'manual' }));
-  const byCommit = prs.filter(p => (p.commits || []).some(sha => sha !== p.base && session.heads.includes(sha)));
+  const byCommit = prs.filter(p => prCommits(p).some(sha => session.heads.includes(sha)));
   if (byCommit.length === 1) return [{ pr: byCommit[0].number, share: 1, how: 'commit' }];
   const byBranch = prs.filter(p => p.branch && session.branches.includes(p.branch));
   const pool = byCommit.length > 1 ? byCommit : byBranch;
@@ -233,51 +241,57 @@ export function linkSession(store, session, allocations, { home = thinkerHome() 
 // ---------------------------------------------------------------------------
 // Reading the pull requests, through the person's own gh login. Read-only: nothing is ever posted.
 
-export const githubReader = repo => endpoint => JSON.parse(execFileSync('gh', ['api', endpoint], { cwd: repo, encoding: 'utf8', timeout: 30_000, maxBuffer: 20 * 1024 * 1024 }));
+// `gh api --paginate` follows the link header in one process. Every call here is a process of its own, and
+// a process is most of what a call costs: 30 days of this repository is four pages of listing, which was
+// four spawns and most of a minute before the flag.
+export const githubReader = repo => (endpoint, { paginate = false } = {}) =>
+  JSON.parse(execFileSync('gh', ['api', ...(paginate ? ['--paginate', '--slurp'] : []), endpoint], { cwd: repo, encoding: 'utf8', timeout: 120_000, maxBuffer: 64 * 1024 * 1024 }));
 
 export function ghAvailable(repo) {
   try { execFileSync('gh', ['auth', 'status'], { cwd: repo, stdio: 'ignore', timeout: 15_000 }); return true; } catch { return false; }
 }
 
-// Two passes, so the number of GitHub calls follows the person's own work and not the repository's traffic.
-// The listing already carries everything but the commits and the diff size, and those are only wanted for a
-// pull request some session of this machine was on: one extra call each, for a handful of pull requests.
+// The listing alone, which already carries the branch, the head, the base, the merge commit and the times --
+// everything the linking and the figures need. A pull request's own page and its commit list are read only
+// when one is named (`--pr n`), where the cost is a single call and the commits make the match certain.
+// Without that a month of this repository was one page call and two more per pull request, over two minutes,
+// which is no good for a step that runs by itself; it is now a call per hundred pull requests, about six
+// seconds for five hundred.
 export async function syncPrs(store, { pr, days = WINDOW_DAYS, request = null, now = Date.now(), home = thinkerHome() } = {}) {
   const origin = repoId(store.repo), slug = origin.replace(/^github\.com\//, '');
   if (!/^github\.com\/[^/]+\/[^/]+$/.test(origin)) throw new Error('Reading pull requests needs a github.com origin');
   request = request || githubReader(store.repo);
   const since = new Date(now - positiveInteger(days, 'days') * 86400_000).toISOString();
   const root = `repos/${slug}`;
-  const listed = [];
-  if (pr !== undefined) listed.push(await request(`${root}/pulls/${positiveInteger(pr, 'PR')}`));
-  else for (let page = 1; ; page++) {
-    const batch = await request(`${root}/pulls?state=all&sort=updated&direction=desc&per_page=100&page=${page}`);
-    listed.push(...batch.filter(p => p.updated_at >= since));
-    if (batch.length < 100 || batch.at(-1).updated_at < since) break;
+  let listed = [], commitsOf = new Map();
+  if (pr !== undefined) {
+    const one = await request(`${root}/pulls/${positiveInteger(pr, 'PR')}`);
+    listed = [one];
+    try { commitsOf.set(one.number, (await request(`${root}/pulls/${one.number}/commits?per_page=100`, { paginate: true })).flat().map(c => c.sha)); } catch { /* the branch and the head still link it */ }
+  } else {
+    // Newest first, a page at a time, stopping at the window. Not `--paginate`: that follows the link header
+    // to the end of the repository's history, which on a busy one is hundreds of pages for a month of work.
+    for (let page = 1; page <= MAX_PAGES; page++) {
+      const batch = await request(`${root}/pulls?state=all&sort=updated&direction=desc&per_page=100&page=${page}`);
+      listed.push(...batch.filter(p => p.updated_at >= since));
+      if (batch.length < 100 || batch.at(-1).updated_at < since) break;
+    }
   }
-  const paginate = async endpoint => { const all = []; for (let page = 1; ; page++) { const batch = await request(`${endpoint}?per_page=100&page=${page}`); all.push(...batch); if (batch.length < 100) return all; } };
-  const branches = new Set(), heads = new Set();
-  for (const x of sessionsOf(store, { since, home }).values()) { x.branches.forEach(b => branches.add(b)); x.heads.forEach(h => heads.add(h)); }
-  let synced = 0, detailed = 0;
-  for (const item of listed) {
-    const mine = pr !== undefined || branches.has(item.head?.ref) || heads.has(item.head?.sha);
-    let p = item, commits = null;
-    if (mine && item.additions === undefined) { p = await request(`${root}/pulls/${item.number}`); detailed++; }
-    if (mine) { commits = (await paginate(`${root}/pulls/${p.number}/commits`)).map(c => c.sha); detailed++; }
+  let synced = 0;
+  for (const p of listed) {
     appendDelivery(store, { op: 'pr', pr: {
       number: p.number, title: p.title, url: p.html_url,
       state: p.merged_at ? 'MERGED' : String(p.state).toUpperCase(),
       createdAt: p.created_at, updatedAt: p.updated_at, mergedAt: p.merged_at, closedAt: p.closed_at,
       base: p.base?.sha, head: p.head?.sha, branch: p.head?.ref,
       mergeCommit: p.merged_at ? p.merge_commit_sha : null,
-      ...(commits ? { commits } : {}),
-      additions: p.additions, deletions: p.deletions, changedFiles: p.changed_files,
+      ...(commitsOf.has(p.number) ? { commits: commitsOf.get(p.number) } : {}),
+      ...(p.additions === undefined ? {} : { additions: p.additions, deletions: p.deletions, changedFiles: p.changed_files }),
       author: p.user?.login,
-      detail: mine,
     } });
     synced++;
   }
-  return { synced, detailed };
+  return { synced, detailed: commitsOf.size };
 }
 
 // ---------------------------------------------------------------------------

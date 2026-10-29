@@ -280,7 +280,7 @@ test('maintenance reads the pull requests once a day, and records the attempt ev
   const first = await maintain(store, dir, { fns, now });
   assert.equal(first.prSynced, 3);
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].days, 7, 'the first sync looks back a week');
+  assert.equal(calls[0].days, 30, 'the first sync covers the whole report window');
 
   // A run four hours later is due for maintenance but not for GitHub.
   const soon = now + 5 * 3600_000;
