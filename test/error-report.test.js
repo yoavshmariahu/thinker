@@ -18,14 +18,30 @@ const home = () => fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-errors-'));
 // recordError and the question are quiet in test mode by default, as the hooks are
 // and the endpoint is an isolated one, never the production URL, even behind a mocked fetch
 const ENDPOINT = 'https://example.test/metrics';
-const live = fn => {
-  process.env.THINKER_ERRORS_TEST = '1'; process.env.THINKER_TELEMETRY_URL = ENDPOINT;
-  try { return fn(); } finally { delete process.env.THINKER_ERRORS_TEST; delete process.env.THINKER_TELEMETRY_URL; }
+// The switches this file's subject reads, every one of them, set to what the test means and put back
+// after. A machine that keeps its own telemetry off (THINKER_TELEMETRY=off, which `isTelemetryEnabled`
+// honours) failed three of these for a configuration of the developer's machine, not a fault in the
+// code; and THINKER_TEST is set here rather than taken from the runner, so `node --test` on this file
+// alone says the same as `npm test`.
+const SWITCHES = {
+  THINKER_TEST: '1', THINKER_ERRORS_TEST: '1', THINKER_TELEMETRY_URL: ENDPOINT,
+  THINKER_TELEMETRY: undefined, THINKER_NO_TELEMETRY: undefined, THINKER_NO_LEARN: undefined,
 };
-const liveAsync = async fn => {
-  process.env.THINKER_ERRORS_TEST = '1'; process.env.THINKER_TELEMETRY_URL = ENDPOINT;
-  try { return await fn(); } finally { delete process.env.THINKER_ERRORS_TEST; delete process.env.THINKER_TELEMETRY_URL; }
+const settled = (fn, over = {}) => {
+  const was = {};
+  for (const [k, v] of Object.entries({ ...SWITCHES, ...over })) {
+    was[k] = process.env[k];
+    if (v === undefined) delete process.env[k]; else process.env[k] = v;
+  }
+  const restore = () => { for (const [k, v] of Object.entries(was)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } };
+  try {
+    const r = fn();
+    if (r && typeof r.then === 'function') return r.then(x => { restore(); return x; }, e => { restore(); throw e; });
+    restore(); return r;
+  } catch (e) { restore(); throw e; }
 };
+const live = fn => settled(fn);
+const liveAsync = fn => settled(fn);
 // telemetry has to be on for the question to be due: the one switch covers both
 const telemetryOn = h => {
   fs.mkdirSync(path.join(h, 'state'), { recursive: true });
@@ -75,12 +91,12 @@ test('the same failure again counts up instead of filling the file', () => live(
   assert.equal(readErrors(h).length, ERRORS.keep);
 }));
 
-test('recording is silent in test mode, so a benchmark records nothing', () => {
+test('recording is silent in test mode, so a benchmark records nothing', () => settled(() => {
   const h = home();
-  recordError('hook.pre', new Error('x'), { home: h }); // THINKER_TEST=1 is set by the suite
+  recordError('hook.pre', new Error('x'), { home: h }); // test mode, and THINKER_ERRORS_TEST not lifting it
   assert.equal(readErrors(h).length, 0);
   assert.equal(fs.existsSync(errorsFile(h)), false);
-});
+}, { THINKER_ERRORS_TEST: undefined }));
 
 test('the question is asked once, only where there is something to send, and never without telemetry', () => live(() => {
   const h = home();
@@ -184,9 +200,7 @@ test('a test run never posts a report to production, whatever the consent says',
   // sender of these reports did not, so a benchmark with a yes on file would have posted for real.
   const h = home();
   telemetryOn(h);
-  process.env.THINKER_ERRORS_TEST = '1';
-  process.env.THINKER_TELEMETRY_URL = 'https://metrics.zerotime.dev/metrics';
-  try {
+  return settled(async () => {
     recordError('hook.pre', new Error('x'), { home: h });
     fs.writeFileSync(stateFile(h), JSON.stringify({ consent: 'yes' }));
     const real = globalThis.fetch;
@@ -200,7 +214,7 @@ test('a test run never posts a report to production, whatever the consent says',
       assert.equal((await sendErrors({ home: h })).sent, true);
       assert.equal(called, 1);
     } finally { globalThis.fetch = real; }
-  } finally { delete process.env.THINKER_ERRORS_TEST; delete process.env.THINKER_TELEMETRY_URL; }
+  }, { THINKER_TELEMETRY_URL: 'https://metrics.zerotime.dev/metrics' });
 });
 
 test('the endpoint is the metrics endpoint\'s sibling', () => {
