@@ -86,6 +86,38 @@ test('a symbol dep the change altered keeps its stored hash in the deps checkNot
   assert.equal(checkNote(dir, store.get(n.id), { narrow: true }).changed.length, 1, 'still seen as changed');
 });
 
+// A note whose files are all gone is dead, not stale: `file removed` is a change no verifier can
+// judge, the hooks withhold a stale note so it is never served and so never reaches the verification
+// batch, and the one-time reset re-hashes a gone file to `missing` and puts it straight back. One
+// user had 13 such notes of 68. Retired here, with no model call.
+test('a note whose anchor files are all gone is retired, not left stale for ever', () => {
+  const dir = gitRepo();
+  const store = new Store(dir).init();
+  const gone = createNote(store, { title: 'rows are fetched through fetchRows', kind: 'map', answers: ['where are rows fetched'], body: 'src/a.js:fetchRows is the only reader.', deps: [{ path: 'src/a.js', symbol: 'fetchRows' }, { path: 'src/b.js' }] }, { source: { type: 'agent' } }).note;
+  const half = createNote(store, { title: 'saveRows writes rows', kind: 'map', answers: ['where are rows written'], body: 'src/a.js:saveRows writes them.', deps: [{ path: 'src/a.js', symbol: 'saveRows' }] }, { source: { type: 'agent' } }).note;
+  const mine = createNote(store, { title: 'build.sh is the build', kind: 'howto', answers: ['how do I build'], body: 'build.sh runs the build.', deps: [{ path: 'build.sh' }] }, { source: { type: 'human' } }).note;
+  // b.js was never there, so the first note already rests on a file that is gone; take a.js away too
+  fs.rmSync(path.join(dir, 'src/a.js'));
+  const after = refresh(store, store.list());
+  const by = id => after.find(n => n.id === id);
+  assert.equal(by(gone.id).status, 'invalid');
+  assert.match(by(gone.id).invalidReason, /anchors removed/);
+  assert.equal(by(gone.id).stale, undefined);
+  assert.equal(store.get(gone.id).status, 'invalid', 'persisted');
+  assert.equal(by(half.id).status, 'invalid', 'its one file is gone too');
+  // a note a person wrote is theirs to decide on
+  fs.rmSync(path.join(dir, 'build.sh'));
+  assert.equal(refresh(store, store.list()).find(n => n.id === mine.id).status, 'stale');
+  // a file that merely changed is still only stale
+  const other = new Store(dir);
+  fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'src/a.js'), A.replace('return 1;', 'return 9;'));
+  const back = createNote(other.init(), { title: 'other returns three', kind: 'rule', answers: ['what does other return'], body: 'src/a.js:other returns 3.', deps: [{ path: 'src/a.js', symbol: 'other' }] }, { source: { type: 'agent' } }).note;
+  fs.writeFileSync(path.join(dir, 'src/a.js'), A.replace('return 3;', 'return 4;'));
+  assert.equal(refresh(other, [other.get(back.id)])[0].status, 'stale');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 test('fix-like commit messages', () => {
   for (const s of ['fix: the hook double-served', 'Fixes #12: crash on empty prompt', 'regression in rank since 0.1.9', 'serving: a stale note was served twice (fixed)', 'flaky test on CI']) assert.ok(FIX_LIKE.test(s), s);
   for (const s of ['docs: holdout', 'bench: posthog runs', 'release thinker 0.1.10', 'setup: one command sets a repository up', 'Serve no stale note from the prompt hooks', 'revert "notes: faster"']) assert.ok(!FIX_LIKE.test(s), s);

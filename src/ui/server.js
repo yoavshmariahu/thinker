@@ -217,29 +217,40 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
           if (stale && !refreshing(st)) refreshFn(st.repo);
           return { at: last.at, view: last.view, refreshing: stale || refreshing(st) };
         };
+        // `stamp`: when the figures were measured and whether a newer set is coming, and nothing else. The page asks
+        // this every few seconds while a refresh runs and reads the whole report only once `asOf` has moved; until
+        // 2026-10-29 that poll fetched the merged report itself (1.3 MB on this machine, a dozen times over) and threw
+        // all of it away whenever the answer was "not yet". Nothing below the stamp is worked out for one.
+        const stamp = url.searchParams.get('stamp') === '1';
         let view, at, busy, offered;
         // every repository on the machine, merged (context-view.js:mergeViews); a repository that fails to read is left out
         if (want === 'all') {
           const xs = repos().flatMap(r => { try { return [{ r, s: read(open(r.checkout)) }]; } catch { return []; } });
-          view = mergeViews(xs.map(({ r, s }) => ({ repo: r.id, name: r.name, view: s.view })));
           at = Math.min(...xs.map(x => x.s.at)); busy = xs.some(x => x.s.refreshing);
-          offered = xs.flatMap(({ r, s: _s }) => { try { return offeredPicks(open(r.checkout)).map(x => ({ ...x, repo: x.repo || r.id })); } catch { return []; } });
+          if (!stamp) {
+            view = mergeViews(xs.map(({ r, s }) => ({ repo: r.id, name: r.name, view: s.view })));
+            offered = xs.flatMap(({ r, s: _s }) => { try { return offeredPicks(open(r.checkout)).map(x => ({ ...x, repo: x.repo || r.id })); } catch { return []; } });
+          }
         } else {
           const one = storeFor(want); if (!one) return json(res, 400, { error: 'unknown repository' });
           ({ view, at, refreshing: busy } = read(one));
-          offered = offeredPicks(one);
+          if (!stamp) offered = offeredPicks(one);
         }
+        if (stamp) return json(res, 200, { asOf: Number.isFinite(at) ? at : Date.now(), refreshing: !!busy });
         // the suggested savings (context-machine.js:suggestedPicks, the rows the installer's terminal picker lists): the page
         // the installer opens comes with them checked. Imported here, not at the top: context-machine.js imports this module.
         // `offered` is what the weekly question numbered in the session (context-suggest.js:offeredPicks), which the link
         // in that question opens checked instead of these: the rows the person was actually asked about, with the actions
         // it suggested for them.
         const { suggestedPicks } = await import('../context-machine.js');
+        // the ranked changes and the week-by-week timeline stay on this side: they are the kept report's, for the command
+        // and the weekly suggestion (context-suggest.js), and the page reads neither -- 411 KB of the 1.3 MB sent here
+        const { suggestions, timeline, ...shown } = view;
         // and what each part is in full, in the words a small model wrote for it once (part-explain.js): what it is,
         // why someone would make the change offered on it, and what they would lose by making it. The cards are those
         // words; the numbers go around them. `explainMissing` is what has none yet, so the page can offer to write them.
         const have = readExplains();
-        return json(res, 200, { ...attachExplains(describeParts(view), have), suggested: suggestedPicks(view), offered, explainMissing: missingExplains(view, have).length, asOf: Number.isFinite(at) ? at : Date.now(), refreshing: !!busy });
+        return json(res, 200, { ...attachExplains(describeParts(shown), have), suggested: suggestedPicks(view), offered, explainMissing: missingExplains(view, have).length, asOf: Number.isFinite(at) ? at : Date.now(), refreshing: !!busy });
       }
       // The plain-words explanation of every part (part-explain.js), which a small model writes once and the machine
       // keeps: GET says how many are missing, POST writes them. A person asks for it by opening the cards and agreeing
@@ -250,6 +261,10 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
         const d = Number(url.searchParams.get('days')) || 30;
         if (req.method === 'GET') {
           const have = readExplains();
+          // `keys`: the words written for exactly these parts, a few hundred bytes. The cards are filled in from this
+          // while they are being written, in place, rather than by reading the whole report again every four seconds.
+          const keys = String(url.searchParams.get('keys') || '').split(',').map(k => k.trim()).filter(Boolean).slice(0, 200);
+          if (keys.length) return json(res, 200, { explains: Object.fromEntries(keys.filter(k => have[k]).map(k => [k, have[k]])) });
           const view = want === 'all' ? null : (lastSnapshot(one, d)?.view || null);
           return json(res, 200, { have: Object.keys(have).length, missing: view ? missingExplains(view, have).length : null });
         }

@@ -45,6 +45,11 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 **Desktop apps (MANDATORY):**
 - Every model-backed feature must work in Claude Desktop, Codex app, Cursor, and anywhere no agent CLI is signed in.
 - Those sessions have no CLI login: model calls queue in `.thinker/state`; a background subagent answers via `learn_next` (`session-work.js`, `session-llm.js`).
+- A queued job gets `session-work.js:MAX_ATTEMPTS` (5) tries and is then given up on, dropped, and
+  named once at the end of a turn (`maintain.js:reportGaveUp`). It used to retry for ever on a
+  24-hour backoff with nothing said: one job on a user's machine reached ten attempts, and the only
+  trace was a line in `state/session-work.log`. The work is not lost — the next session's hook queues
+  the distillation again, `thinker learn` runs the catch-up by hand.
 - "Sign in a CLI" alone does not finish a feature.
 - Tests cover the desktop path (`appFn`, missing CLI login) beside the CLI path.
 
@@ -288,12 +293,11 @@ The build itself (`thinker setup --build`, or the installer with `--build`; hist
 
 1. distills up to 60 merged pull requests of the GitHub `origin` into fix
    records, invariants and conventions (`--prs n`; needs `gh`);
-2. links the notes, writes search phrasings (eight notes per call,
-   `ops.js:phraseBatches`) and drafts behaviors (four source notes per call,
-   `behavior-proposals.js:generateBehaviorProposals`). Both are batched because
+2. links the notes and writes search phrasings (eight notes per call,
+   `ops.js:phraseBatches`); it also drafted behaviors, until that step and
+   `thinker system propose` went on 2026-10-30 (below). Batched because
    `claude -p` exits 1 when an answer reaches its output cap, and a failed batch
-   costs its own notes only; the retries are `thinker phrase` and
-   `thinker system propose --refresh`, never a second build;
+   costs its own notes only; the retry is `thinker phrase`, never a second build;
 3. last and optional (`--no-docs`), reads the checked-in design documents into
    system behaviors (`behavior-docs.js`), at most eight a build
    (`setup/steps.js:DOCS_LIMIT`; maintenance reads the rest), then the skill
@@ -472,6 +476,17 @@ What followed from the mark was the problem:
 - The backlog those three had already built up (318 of 440 notes here, 1,236 of 2,683 across
   production) was cleared in one step on upgrade, rather than left to drain through the verifier over
   weeks: the reset below.
+- A note whose files are all **gone** was treated as stale, and stale is the one thing it is not
+  (2026-10-30): `file removed` is not a change a verifier can judge, there being no code left to read,
+  so the note went round that same loop for ever — withheld, never served, never eligible — and the
+  reset puts it straight back, since re-hashing a gone file gives `missing` again. Thinker refuses such
+  a note at creation already (`ops.js:createNote`: an anchor must be an existing file), so `refresh`
+  now applies the same rule to one whose files went away afterwards: `status: 'invalid'`,
+  `invalidReason: 'anchors removed: …'`, logged `retire-gone`, no model call
+  (`ops.js:anchorsGone`). Nothing that was being served stops being served. A desired behavior, a
+  skill card and a note a person wrote are left alone — those are a person's to decide on, and they
+  stay stale with their banner. Found in a user's cache: 13 of 68 notes pointed at deleted files, nine
+  of them at a `docs/design/` directory that no longer existed.
 
 ### The one-time staleness reset
 
@@ -724,8 +739,9 @@ Each session both consumes and improves the cache:
    steps below run only where the repository's config turns them on: with
    `maintain: { prs: true }` a run distills up to 3 pull
    requests merged since maintenance first ran in the repository (older ones
-   are `thinker mine-prs`), walks the focus areas' history (`areas.js`) and
-   schedules the unmined-commits question (`commits-offer.js`). Fixes come first (`prs.js:pickPrs`): a pull
+   are `thinker mine-prs`) and schedules the unmined-commits question
+   (`commits-offer.js`). It walks no focus areas: the walk went with the warm-up on
+   2026-10-21, and the list it walked went on 2026-10-30 (below). Fixes come first (`prs.js:pickPrs`): a pull
    request whose title says it fixes something qualifies without a body and
    takes up to two thirds of a run's slots when other changes wait; a
    candidate the limit passes over is not recorded as mined and is offered
@@ -1207,22 +1223,22 @@ readable; new behaviors stay local.
   checkout's state (`store.js:LOCAL_FIELDS`).
 - **Who writes one.** A person: `thinker system add file.json [--fixed]`, or
   `thinker system promote <id> [--fixed]` for a note that already states a
-  rule (`thinker system propose` lists the rule notes, the ones the sessions
-  acted on first). A build's drafts, and behaviors agents saved with the
-  `remember` tool before it was removed, are listed as *proposed* until
+  rule (`thinker list` shows the notes and their kinds). Behaviors agents saved
+  with the `remember` tool before it was removed are listed as *proposed* until
   `thinker system accept <id>`. Distillation and PR mining are not offered the kind
   (`distill.js:distillSpec`, `prs.js`), archiving never takes one
   (`ops.js:archiveReason`).
-- **Build proposals** (history: the build ran until 2026-10-21). `thinker setup --build` drafted up to twelve
-  high-signal PR/document rule notes into desired behavior
-  candidates in `.thinker/local/behavior-proposals.json`. The model sees each
-  note's source and current symbol code; outputs are restricted to the note's
-  existing symbol deps. `thinker system propose` shows drafts and their
-  provenance; `thinker system accept proposal-<note-id>` creates an active
-  behavior only after a person reviews it. The draft is not served or reviewed
-  as a requirement. Acceptance refuses a changed source note or code. The
-  stage runs on every cache build; it returns no drafts if no suitable source
-  notes exist.
+- **Build proposals, and `thinker system propose`, are gone (2026-10-30, the owner's call).** The last
+  step of a cache build drafted up to twelve high-signal rule notes into desired behavior candidates in
+  `.thinker/local/behavior-proposals.json` (`behavior-proposals.js`), and `thinker system propose` was
+  the only place a draft was ever shown: no notice, no page row, no prompt line. The build went on
+  2026-10-21, so no draft has been written since, and a user's drafts from the day they installed were
+  still sitting unreviewed eleven days later, in a cache whose state they were reading by hand. The
+  module, the subcommand, its `--refresh`, the drafts in the workbench (`behavior-workbench.js`), the
+  `proposal-` ids in `accept` and `behavior.js:proposeBehaviors` are all removed; `thinker system
+  propose` says so and points at `thinker list`. `thinker rewire` drops the leftover drafts file
+  (`retire-background.js`). `promote`, `accept` for an agent-saved behavior, `add`, `edit`, `rm`,
+  `docs` and `md` are untouched.
 - **Verification** (`ops.js:verifyBehavior`, through `verifyNote`): when a dep
   changes the question is whether the code still upholds the behavior.
   `holds` re-baselines; `moved` re-points the deps at where the behavior is

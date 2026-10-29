@@ -108,6 +108,7 @@
     .pcard-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.6rem; }
     .pcard-top label { display: flex; align-items: baseline; gap: 0.45rem; font-size: 1.02rem; font-weight: 600; letter-spacing: -0.02em; cursor: pointer; min-width: 0; overflow-wrap: anywhere; }
     .pcard .ctx-kind { margin-top: -0.35rem; }
+    .pcard-ex { display: flex; flex-direction: column; gap: 0.6rem; }
     .pcard-q { display: flex; flex-direction: column; gap: 0.12rem; }
     .pcard-q h4 { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; }
     .pcard-q p { font-size: 0.88rem; line-height: 1.5; color: #1f2937; }
@@ -542,7 +543,7 @@ async function loadContext() {
     const want = `${CREPO}|${cdays}`;
     const [v, d] = await Promise.all([api(`/api/context?repo=${encodeURIComponent(CREPO)}&days=${cdays}`), api(`/api/activity?repo=${encodeURIComponent(CREPO)}`).catch(e => ({ error: e.message, history: [] }))]);
     if (seq !== CLOAD || want !== `${CREPO}|${cdays}`) return;
-    CHIST = d; CTX_FOR = want;
+    CHIST = d; CTX_FOR = want; CDREW = Date.now();
     renderContext(v); contextAsOf(v);
   } catch (e) { if (inPlace && seq === CLOAD) { toast(`Could not read the context: ${e.message}`, true); contextAsOf(CTX); } else if (seq === CLOAD) el.innerHTML = `<div class="empty">Could not read the context: ${esc(e.message)}</div>`; }
 }
@@ -566,7 +567,12 @@ function swapBody(el, html) {
 }
 // The report is kept and made again in the background (context-snapshot.js): the page says when it was measured
 // and, while a newer one is being made, checks back and shows it, unless the person has picked rows to act on.
-let CPOLL = null;
+// All repositories reads the oldest of the fourteen kept reports, so every single repository whose refresh lands moves
+// `asOf` on: redrawing at each one read the whole report and drew all five tables again, once per repository, while
+// the person was trying to read it (2026-10-29). So a newer set is taken when the refreshes have finished, and while
+// they are still landing at most every COALESCE_MS -- the line says `updating…` throughout either way.
+let CPOLL = null, CDREW = 0;
+const COALESCE_MS = 30_000;
 const sinceMeasured = t => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 48 * 60 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`; };
 function contextAsOf(v) {
   const el = $('#c-asof'); clearTimeout(CPOLL);
@@ -576,10 +582,17 @@ function contextAsOf(v) {
   if (tries > 24) { if (el) el.textContent = `measured ${sinceMeasured(v.asOf)}`; return; }
   CPOLL = setTimeout(async () => {
     if (CREPO !== want[0] || cdays !== want[1]) return;
-    let n; try { n = await api(`/api/context?repo=${encodeURIComponent(CREPO)}&days=${cdays}`); } catch { return; }
+    // the stamp alone (when it was measured, whether a newer set is coming): the report itself is read only once
+    // `asOf` has moved, so waiting for a refresh costs a few hundred bytes a poll instead of the whole report
+    let n; try { n = await api(`/api/context?repo=${encodeURIComponent(CREPO)}&days=${cdays}&stamp=1`); } catch { return; }
     if (CREPO !== want[0] || cdays !== want[1]) return;
     const picked = Object.values(PICKS).some(m => m.size);
-    if (n.asOf > v.asOf && !picked) { renderContext(n); contextAsOf(n); }
+    if (n.asOf > v.asOf && !picked && (!n.refreshing || Date.now() - CDREW > COALESCE_MS)) {
+      let full; try { full = await api(`/api/context?repo=${encodeURIComponent(CREPO)}&days=${cdays}`); } catch { return; }
+      if (CREPO !== want[0] || cdays !== want[1]) return;
+      CDREW = Date.now(); renderContext(full); contextAsOf(full);
+    }
+    else if (n.asOf > v.asOf && !picked) contextAsOf({ ...v, refreshing: n.refreshing, tries });
     else if (n.asOf > v.asOf) { if (el) el.textContent = `newer figures ready, shown on reload`; }
     else contextAsOf({ ...v, refreshing: n.refreshing, tries });
   }, 5000);
@@ -587,10 +600,13 @@ function contextAsOf(v) {
 // an old link to Top suggested (view=suggested) opens All, which lists every part; view=history opens Recent activity (show)
 let CVIEW = ['all', 'instructions', 'custom', 'builtin', 'outputs'].includes(H().get('view')) ? H().get('view') : 'all', CTX = null;
 // the decisions (/api/activity), read with the report: the pull request pending on a section, or the job under way or failed on it
-let CHIST = { history: [] };
+// `null` until the first report is in: the activity poll draws Save again when a decision has moved, and an empty
+// starting history differed from every real one, so the very first poll always re-read the whole report a second
+// time while the first read was still in flight (two 1.3 MB answers and two renders on every visit, to 2026-10-29)
+let CHIST = null;
 // a merged pull request this checkout has not pulled yet (`unpulled`, context-suggest.js:changeHistory) is one too: its
 // section is still in the file here, and its row is left out rather than coming back as a suggestion
-const decisionOn = (repo, key) => (CHIST.history || []).find(e => (e.pending || e.running || e.failed || e.unpulled) && (!repo || e.repo === repo) && (e.keys || [e.key]).includes(key)) || null;
+const decisionOn = (repo, key) => (CHIST?.history || []).find(e => (e.pending || e.running || e.failed || e.unpulled) && (!repo || e.repo === repo) && (e.keys || [e.key]).includes(key)) || null;
 const dlabel = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 // a small markdown reader for the team's own file: headings, lists, code, tables as text, inline code, bold, links' text
 function md(text) {
@@ -833,16 +849,23 @@ const WHY_HEAD = { section: "Why you'd shorten it", skill: "Why you'd switch it 
 
 // One part, as a card: what it is and why you would change it first, the figures under them, the action last.
 // The data attributes are the table's, so one wireTable drives both (picks, See more, the action, Apply).
+const explainQ = (head, text) => `<div class="pcard-q"><h4>${esc(head)}</h4><p>${esc(text)}</p></div>`;
+// what fills the explanation block of a card: the three answers once they are written, and until then what the part
+// is in one clause with the spinner beside it. Both cardOf and putExplains write it, so a card filled in while it is
+// on screen reads exactly as one drawn with its words already in hand.
+function explainBlock(r) {
+  const e = r.explain;
+  if (e) return `${explainQ('What it is', e.what)}${explainQ(WHY_HEAD[r.kind] || WHY_HEAD.tool, e.why)}${e.keep ? explainQ("What you'd lose", e.keep) : ''}`;
+  return `<div class="pcard-none">${r.about ? `${esc(r.about)}. ` : ''}${r.explainKey && EXPLAIN_ASKED.has(r.explainKey) ? '<span class="spinner"></span>Writing what this is and why you would change it\u2026' : ''}</div>`;
+}
 function cardOf(r, i, view, { picks, maxWaste, allWaste, days }) {
   const on = picks.has(pickKey(r)), [pc, pt] = r.pill || (r.off ? ['off', 'off'] : []);
-  const dk = esc(`${view}\t${pickKey(r)}`), e = r.explain;
+  const dk = esc(`${view}\t${pickKey(r)}`);
   const kind = [view === 'all' || r.kind === 'skill' || r.kind === 'tool' ? r.kindLabel : '', r.sub].filter(Boolean).join(' \u00b7 ');
-  const q = (head, text) => `<div class="pcard-q"><h4>${esc(head)}</h4><p>${esc(text)}</p></div>`;
   return `<article class="pcard${on ? ' ctx-picked' : ''}${r.off || r.past ? ' ctx-off' : ''}" data-row="${i}">
     <div class="pcard-top"><label><input type="checkbox" data-pick="${view}" data-k="${esc(pickKey(r))}" data-i="${i}"${r.options.length ? '' : ' disabled'}${on ? ' checked' : ''} aria-label="Pick ${esc(r.name)}"> ${esc(r.name)}</label>${pt ? r.pr?.url ? `<a class="ctx-pill ${pc}" href="${esc(r.pr.url)}" target="_blank" rel="noopener">${esc(pt)}</a>` : `<span class="ctx-pill ${pc}">${r.rawPill ? pt : esc(pt)}</span>` : ''}</div>
     ${kind ? `<span class="ctx-kind">${esc(kind)}</span>` : ''}
-    ${e ? `${q('What it is', e.what)}${q(WHY_HEAD[r.kind] || WHY_HEAD.tool, e.why)}${e.keep ? q("What you'd lose", e.keep) : ''}`
-       : `<div class="pcard-none">${r.about ? `${esc(r.about)}. ` : ''}${r.explainKey && EXPLAIN_ASKED.has(r.explainKey) ? '<span class="spinner"></span>Writing what this is and why you would change it\u2026' : ''}</div>`}
+    <div class="pcard-ex" data-ek="${esc(r.explainKey || '')}">${explainBlock(r)}</div>
     <div class="pcard-nums">
       <div><b>${fmt(r.tokens)}</b><span>${r.unit ? 'in each result' : 'in every call'}</span></div>
       <div><b>${r.acted == null ? '\u2013' : `${Math.round(100 * r.acted)}%`}</b><span>of calls needed it</span></div>
@@ -872,10 +895,14 @@ function modeControl() {
 const EXPLAIN_ASKED = new Set();
 let EXPLAIN_TIMER = null, EXPLAIN_TRIES = 0;
 const VROWS = {};
-function explainAhead() {
-  if (CMODE !== 'cards' || !CTX) return;
+// the cards on the two pages in view that have no words yet
+const explainWanted = () => {
+  if (CMODE !== 'cards' || !CTX) return [];
   const rows = VROWS[CVIEW] || [], from = (VPAGE[CVIEW] || 0) * TABLE_PAGE;
-  const here = rows.slice(from, from + TABLE_PAGE * 2).filter(r => r.explainKey && !r.explain);
+  return rows.slice(from, from + TABLE_PAGE * 2).filter(r => r.explainKey && !r.explain);
+};
+function explainAhead() {
+  const here = explainWanted();
   const want = here.filter(r => !EXPLAIN_ASKED.has(r.explainKey)).map(r => r.explainKey);
   if (want.length) {
     want.forEach(k => EXPLAIN_ASKED.add(k));
@@ -884,13 +911,36 @@ function explainAhead() {
   }
   if (here.length) explainLater();
 }
-// one timer, whatever is outstanding; it stops as soon as the cards in view are all explained
+// The words arrive on their own and are written into the cards where they stand (2026-10-29). Until then this
+// polled the whole report every four seconds and drew all five tables again for each answer -- 1.3 MB and a full
+// re-render per poll on this machine, for ninety polls, which is what made the page feel slow while it filled in.
+// Nothing here blocks the first render: a card is drawn with what the part is in one clause and fills in later.
 function explainLater() {
   if (EXPLAIN_TIMER || EXPLAIN_TRIES > 90) return;
   EXPLAIN_TIMER = setTimeout(async () => {
     EXPLAIN_TIMER = null; EXPLAIN_TRIES++;
-    try { const v = await api(`/api/context?repo=${encodeURIComponent(CREPO)}&days=${cdays}`); CTX = v; renderContext(v); } catch { explainLater(); }
+    const want = explainWanted().map(r => r.explainKey);
+    if (!want.length) return;
+    let got = null;
+    try { got = await api(`/api/explain?repo=${encodeURIComponent(CREPO)}&days=${cdays}&keys=${encodeURIComponent(want.join(','))}`); } catch {}
+    if (got?.explains && Object.keys(got.explains).length) putExplains(got.explains);
+    if (explainWanted().length) explainLater();
   }, 4000);
+}
+// What came back goes onto the report the page holds (so a later render keeps it), onto the rows of every view, and
+// into the block of each card showing that part -- the card's own numbers, picks, open detail and dropdown are left
+// exactly as they are.
+function putExplains(got) {
+  for (const xs of [CTX?.instructions?.sections, CTX?.skills, CTX?.tools, CTX?.outputs?.tools]) {
+    for (const x of xs || []) if (got[x.explainKey]) x.explain = got[x.explainKey];
+  }
+  for (const rows of Object.values(VROWS)) {
+    for (const r of rows || []) {
+      if (!got[r.explainKey]) continue;
+      r.explain = got[r.explainKey];
+      document.querySelectorAll(`.pcard-ex[data-ek="${CSS.escape(r.explainKey)}"]`).forEach(el => { el.innerHTML = explainBlock(r); });
+    }
+  }
 }
 
 // beside the Apply: what is picked, what it costs a call and over the window

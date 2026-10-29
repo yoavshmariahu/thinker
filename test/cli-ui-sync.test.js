@@ -10,11 +10,9 @@ import http from 'node:http';
 import { execFileSync, spawn } from 'node:child_process';
 import { Store } from '../src/store.js';
 import { createUiServer } from '../src/ui/server.js';
-import { activityAreas } from '../src/areas.js';
 import { DEFAULT_DISTILL_MODEL } from '../src/llm.js';
 import { DEFAULT_DEPTH, DEFAULT_PRS, DEPTHS } from '../src/setup/estimate.js';
 import { buildModel } from '../src/setup/models.js';
-import { areasConfig, refreshAreas } from '../src/areas.js';
 
 const SRC = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'src');
 const read = f => fs.readFileSync(path.join(SRC, f), 'utf8');
@@ -129,12 +127,25 @@ test('CLI and page expose the shared Claude Code, Codex and Cursor harness repor
   assert.match(read('ui/server.js'), /url\.pathname === '\/api\/explain'/);
   assert.match(read('ui/server.js'), /'--keys', keys\.join\(','\), \.\.\.\(want === 'all' \? \['--all'\] : \[\]\)\]/);
   // the page names the parts it is showing and the page after them; nothing is written for the rest, and nothing asks
-  assert.match(page, /const here = rows\.slice\(from, from \+ TABLE_PAGE \* 2\)/);
+  assert.match(page, /rows\.slice\(from, from \+ TABLE_PAGE \* 2\)/);
   assert.match(page, /function explainAhead\(\)/);
+  // and the words arrive on their own, by key, patched into the cards where they stand: the page must never poll the
+  // whole report for them (1.3 MB and five tables redrawn every four seconds, to 2026-10-29)
+  assert.match(read('ui/server.js'), /if \(keys\.length\) return json\(res, 200, \{ explains:/);
+  assert.match(page, /\/api\/explain\?repo=\$\{encodeURIComponent\(CREPO\)\}&days=\$\{cdays\}&keys=/);
+  assert.match(page, /function putExplains\(got\)/);
+  assert.match(page, /class="pcard-ex" data-ek=/);
+  assert.doesNotMatch(page, /EXPLAIN_TIMER = setTimeout\([\s\S]{0,400}api\(`\/api\/context\?repo=\$\{encodeURIComponent\(CREPO\)\}&days=\$\{cdays\}`\)/);
   assert.doesNotMatch(page, /pc-offer|explainOffer|No explanation has been written/);
   // and the paragraph over each table went with it: the card says what a part is, the grey line says what an action does
   assert.doesNotMatch(page, /ctx-apply|note: `/);
-  assert.match(read('ui/server.js'), /attachExplains\(describeParts\(view\), have\)/);
+  assert.match(read('ui/server.js'), /attachExplains\(describeParts\(shown\), have\)/);
+  // the ranked changes and the timeline are the kept report's, for the command and the weekly suggestion: the page
+  // reads neither, so neither is sent (411 KB of the 1.3 MB this machine answered with, to 2026-10-29)
+  assert.match(read('ui/server.js'), /const \{ suggestions, timeline, \.\.\.shown \} = view;/);
+  // and waiting for a newer report asks for the stamp alone, not the report
+  assert.match(read('ui/server.js'), /if \(stamp\) return json\(res, 200, \{ asOf:/);
+  assert.match(page, /&stamp=1`\)/);
   assert.match(read('commands/explain.js'), /explainParts/);
   // the words are written once for the machine, never per repository, and never in the background
   assert.match(read('part-explain.js'), /export function partKey/);
@@ -557,4 +568,21 @@ test('the Report tab and `thinker report` show the same pull request band, in to
   assert.doesNotMatch(page.slice(page.indexOf('const prBand')), /money\(/, 'the band never prices its tokens');
   // a kept report made before the band must be remade, so report-snapshot hashes what the band is computed from
   for (const f of ['delivery.js', 'compression.js']) assert.ok(read('report-snapshot.js').includes(`'${f}'`), `${f} is in the report's code key`);
+});
+
+// Every element the page's script reaches for is in its own markup. #537 took the sort control out and left
+// `loadContext` hiding it, on a line above the try, so Find Savings threw on `$('#c-sort-wrap').hidden` before it
+// fetched anything and sat on its spinner for good -- a page that renders nothing, with nothing in the catch to say
+// so. One dead selector in a load path costs the whole page, and nothing but a browser was looking.
+test('the page reaches for no element it does not define', () => {
+  const page = read('ui/page.html');
+  const ids = new Set([...page.matchAll(/\bid="([^"]+)"/g)].map(m => m[1]));
+  const reached = new Set([
+    ...[...page.matchAll(/\$\('#([A-Za-z0-9_-]+)'\)/g)].map(m => m[1]),
+    ...[...page.matchAll(/getElementById\('([A-Za-z0-9_-]+)'\)/g)].map(m => m[1]),
+    ...[...page.matchAll(/querySelector\('#([A-Za-z0-9_-]+)'\)/g)].map(m => m[1]),
+  ]);
+  // an id built from a variable (`#c-${k}`) ends at the brace and is the view divs', which renderContext writes
+  const dangling = [...reached].filter(k => !ids.has(k) && !k.endsWith('-'));
+  assert.deepEqual(dangling, [], `page.html reaches for ${dangling.join(', ')}, which its markup does not define`);
 });
