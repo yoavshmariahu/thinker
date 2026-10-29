@@ -109,7 +109,7 @@ test('the question is asked once, only where there is something to send, and nev
 
   const text = errorOffer(store, { client: 'claude', home: h });
   assert.match(text, /<thinker-error-report>/);
-  assert.match(text, /AskUserQuestion/, 'put as a question through the agent\'s own tool');
+  assert.match(text, /AskUserQuestion tool, not in prose: "Send thinker's error reports to its developers\?" \(header "thinker"\)/, 'put as a question through the agent\'s own tool, labelled as thinker\'s');
   assert.match(text, /hook\.pre/);
   assert.match(text, /thinker errors --list/, 'the person can read what would be sent');
   assert.match(text, /No answer sends nothing/);

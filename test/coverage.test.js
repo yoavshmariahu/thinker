@@ -71,7 +71,7 @@ test('at most weekly: one question queued, said once, dropped when nobody answer
   assert.ok(coveragePending(store, { home }));
   const ask = coverageOffer(store, { client: 'claude', home, now: T0 + DAY });
   assert.match(ask, /<thinker-coverage-suggestion>/);
-  assert.match(ask, /AskUserQuestion tool, not in prose/);
+  assert.match(ask, /AskUserQuestion tool, not in prose: "Build more of thinker's cache for these directories\?" \(header "thinker"\)/);
   assert.match(ask, /over two such questions/, 'four options at most per question');
   assert.match(ask, /"src\/api": about [\d.]+k? tokens; 0 of 4 code files covered; worked in by 6 sessions/);
   assert.match(ask, /`coverage` tool with choice set to the chosen directories/);
@@ -124,7 +124,7 @@ test('Codex, with no question tool outside plan mode, is told to ask in chat and
   activity(store, ['src/api/a.js']);
   scheduleSuggestion(store, { now: T0, home });
   const ask = coverageOffer(store, { client: 'codex', home, now: T0 });
-  assert.match(ask, /ask the user in chat which of these directories/);
+  assert.match(ask, /ask the user in chat, in a line opening "🧠 thinker:" so they can see the question comes from thinker, which of these directories/);
   assert.match(ask, /asked "chat"/);
   assert.doesNotMatch(ask, /AskUserQuestion/);
 });

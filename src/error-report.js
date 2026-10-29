@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { thinkerHome } from './update.js';
 import { isTestMode } from './test-mode.js';
 import { isTelemetryEnabled, getTelemetryEndpoint, getInstallId, isTestTelemetryBlocked } from './telemetry.js';
-import { QUESTION_TOOLS } from './repo-onboard.js';
+import { QUESTION_TOOLS, askThrough, askInChat } from './repo-onboard.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const INSTALL_DIR = path.resolve(HERE, '..');
@@ -134,8 +134,8 @@ export function errorOffer(store, { client, home = thinkerHome(), now = Date.now
   const tool = QUESTION_TOOLS[client];
   const one = due.errors[due.errors.length - 1];
   const ask = tool
-    ? `Ask the user with your ${tool} tool, not in prose: "Send thinker's error reports to its developers?" (header "Reports"), options "Yes", "No" and "Never ask again".`
-    : `Ask the user: "Send thinker's error reports to its developers?" — yes, no, or never.`;
+    ? `${askThrough(tool, "Send thinker's error reports to its developers?")}, options "Yes", "No" and "Never ask again".`
+    : `${askInChat('whether to send thinker\'s error reports to its developers: yes, no, or never.')}`;
   writeState(home, { ...readState(home), asked: new Date(now).toISOString(), client: client || null, count: due.errors.length });
   return [
     '<thinker-error-report>',

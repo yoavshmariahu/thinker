@@ -37,7 +37,7 @@ import { SIGNATURE } from './harness.js';
 import { WASTE, sections, sectionId } from './instruction-value.js';
 import { describePart, describeEntry } from './part-describe.js';
 import { defaultBranch, prAvailable } from './instruction-pr.js';
-import { QUESTION_TOOLS, MCP_CLIENTS } from './repo-onboard.js';
+import { QUESTION_TOOLS, MCP_CLIENTS, askThrough, askInChat } from './repo-onboard.js';
 
 export const SUGGEST = {
   max: 5,
@@ -485,9 +485,12 @@ export function contextSuggestOffer(store, { now = Date.now(), env = process.env
   // nothing a picker may offer: the page link alone, and no question
   if (!asked.length) return `<thinker-context-suggestions>\n${lead}\n${pageLine}\nMention this to the user in one line starting "${SIGNATURE}:" and go on with the task. Do not make any of these changes yourself.\n</thinker-context-suggestions>`;
   const tool = QUESTION_TOOLS[client];
+  // The question says it is thinker's (askThrough, and the name in the question text for the chat fallback, which
+  // has no header): this is the question that cuts what the person loads into every session, and until 2026-10-29
+  // it was the only one of the four that never said who was asking.
   const ask = tool && client !== 'codex'
-    ? `Before you start on the request, ask the user with your ${tool} tool, not in prose: "Cut what loads into every session here?" (header "Context"), one question whose options are the changes below, in this order, each option labelled with its own number and name as written below ("2. AGENTS.md · Releases") and taking the rest of its line as the description; let them choose more than one where your tool allows it. The numbers are how you hand their answer back, so keep them on the options rather than working them out again. Add a last option "None of these" so saying no is an answer like any other, and keep the whole question to the options your tool allows: where that leaves room for fewer changes than there are, offer the highest ones and say the rest are on the page (Claude Code's AskUserQuestion takes four, so three changes and the none).`
-    : `Before you start on the request, ask the user in chat which of these changes to make (any of them, or none), and wait for their answer.`;
+    ? `Before you start on the request, ${askThrough(tool, 'thinker found these changes to what loads into every session here. Make any?')}: one question whose options are the changes below, in this order, each option labelled with its own number and name as written below ("2. AGENTS.md · Releases") and taking the rest of its line as the description; let them choose more than one where your tool allows it. The numbers are how you hand their answer back, so keep them on the options rather than working them out again. Add a last option "None of these" so saying no is an answer like any other, and keep the whole question to the options your tool allows: where that leaves room for fewer changes than there are, offer the highest ones and say the rest are on the page (Claude Code's AskUserQuestion takes four, so three changes and the none).`
+    : `Before you start on the request, ${askInChat('which of these changes to make (any of them, or none), and wait for their answer.')}`;
   // The answer comes back through thinker's own tool where the client speaks MCP (the harness question's way until
   // 2026-10-25, the coverage question's still): thinker resolves the numbers against the list it showed and makes the
   // changes, so nothing depends on the agent composing a command line. The command is the fallback and the typed door.

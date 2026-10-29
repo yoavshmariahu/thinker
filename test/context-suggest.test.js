@@ -61,7 +61,7 @@ test('scheduleContextSuggestion: kept for the next prompt, at most weekly, after
   assert.match(said, /together ~96k input tokens in every prompt here \(~3\.8M over those 30 days\)/);
   assert.match(said, /do not make any of these changes yourself/);
   // a question the agent must put to the person with its own tool, and an answer either way (2026-10-27)
-  assert.match(said, /ask the user in chat which of these changes to make \(any of them, or none\), and wait for their answer/, 'no question tool: in chat');
+  assert.match(said, /ask the user in chat, in a line opening "🧠 thinker:" so they can see the question comes from thinker, which of these changes to make \(any of them, or none\), and wait for their answer/, 'no question tool: in chat, and the line says whose question it is');
   assert.match(said, /--via session --approve <the numbers they chose/);
   assert.match(said, /If they choose none, run `thinker context --days 30 --via session --dismiss all`/, 'a no is recorded too');
   // a built-in tool is named with the page link, never an option: switching one off takes a capability with it
@@ -181,11 +181,16 @@ test('an agent with a question tool of its own is told to ask with it', async ()
   const store = repo(), now = Date.parse('2026-10-27T10:00:00Z');
   await scheduleContextSuggestion(store, { now, view: view() });
   const asked = contextSuggestOffer(store, { now, env: {}, ui: () => null, client: 'claude' });
-  assert.match(asked, /ask the user with your AskUserQuestion tool, not in prose: "Cut what loads into every session here\?" \(header "Context"\)/);
+  // the question says it is thinker's, in the text and in the header, and the agent may not reword either
+  // (2026-10-29, the owner's ask: this is the question that cuts what loads into every session, and it was the
+  // one of the four that never said who was asking)
+  assert.match(asked, /ask the user with your AskUserQuestion tool, not in prose: "thinker found these changes to what loads into every session here\. Make any\?" \(header "thinker"\), the question and the header exactly as written here so they can see thinker is asking and not you/);
   assert.match(asked, /let them choose more than one where your tool allows it/);
-  // Codex has no question tool of its own in the table, so it asks in chat (repo-onboard.js:QUESTION_TOOLS)
+  // Codex has no question tool of its own in the table, so it asks in chat (repo-onboard.js:QUESTION_TOOLS), where
+  // the line opens with thinker's signature since there is no header to carry the label
   await scheduleContextSuggestion(store, { now, view: view(), force: true });
-  assert.match(contextSuggestOffer(store, { now, env: {}, ui: () => null, client: 'codex' }), /ask the user in chat/);
+  const chat = contextSuggestOffer(store, { now, env: {}, ui: () => null, client: 'codex' });
+  assert.match(chat, /ask the user in chat, in a line opening "🧠 thinker:" so they can see the question comes from thinker/);
 });
 
 test('a reply to the weekly summary means the lines it showed, not the ranking as it is now', async () => {

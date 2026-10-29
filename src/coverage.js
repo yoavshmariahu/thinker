@@ -20,7 +20,7 @@ import { createHash } from 'node:crypto';
 import { areaOf } from './areas.js';
 import { thinkerHome } from './update.js';
 import { codeFiles, batchFiles, filesRead } from './understand.js';
-import { QUESTION_TOOLS, MCP_CLIENTS, SUBAGENT_TOOLS, subagentHarness, desktopApp } from './repo-onboard.js';
+import { QUESTION_TOOLS, MCP_CLIENTS, SUBAGENT_TOOLS, subagentHarness, desktopApp, askThrough, askInChat } from './repo-onboard.js';
 import { QUEUE_ENV, queueDir, markBuild, buildRunning, subagentPrompt } from './session-llm.js';
 import { selectAndAuthenticateAgent, getAgentLoginCommand } from './setup/agents.js';
 import { formatTokens } from './model-usage.js';
@@ -173,8 +173,8 @@ export function coverageOffer(store, { client, home, now = Date.now() } = {}) {
     ? `Then call thinker's \`coverage\` tool with choice set to the chosen directories, comma-separated (or none, or never) and asked "${tool ? 'picker' : 'chat'}"; if that tool is not available, run \`${answerCommand(store.repo, tool ? 'picker' : 'text', client)}\`. thinker builds the chosen ones in the background. Then go on with the task.`
     : `Then run \`${answerCommand(store.repo, 'text', client)}\` with the answer: thinker builds the chosen ones in the background. Then go on with the task.`;
   const ask = tool && client !== 'codex'
-    ? `Before you start on the request, ask the user with your ${tool} tool, not in prose: "Build more of thinker's cache for these directories?" (header "Cache"), a multiple-choice question whose options are the directories below, in this order, each with its line as the description. If the tool takes at most four options in a question, ask them over two such questions. ${reply}`
-    : `Before you start on the request, ask the user in chat which of these directories (any, none, or never) to build cache notes for. ${reply}`;
+    ? `Before you start on the request, ${askThrough(tool, "Build more of thinker's cache for these directories?")}: a multiple-choice question whose options are the directories below, in this order, each with its line as the description. If the tool takes at most four options in a question, ask them over two such questions. ${reply}`
+    : `Before you start on the request, ${askInChat('which of these directories (any, none, or never) to build cache notes for.')} ${reply}`;
   return `<thinker-coverage-suggestion>\n${lead}\n${ask}\n${options}\n${after}\n</thinker-coverage-suggestion>`;
 }
 

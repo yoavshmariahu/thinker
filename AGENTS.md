@@ -1131,7 +1131,15 @@ and the counts reach the telemetry as `proxy.offer` (`asked`, `yes`, `no`, `neve
 so it works in a desktop app with no CLI signed in.
 
 It is a question the agent must put to the person, through its own question tool (2026-10-27, the owner's ask;
-`QUESTION_TOOLS` by client, in chat where there is none and for Codex, as `coverage.js` does). Until then it was prose
+`QUESTION_TOOLS` by client, in chat where there is none and for Codex, as `coverage.js` does), **and it says it is
+thinker asking** (2026-10-29, the owner's ask): the person sees their own agent's picker, so a question that reads as
+the agent's own idea leaves them deciding what to cut out of their context without knowing who asked or what will act
+on the answer -- and of the four questions thinker has an agent ask, the one that cuts waste was the only one whose
+text never named it ("Cut what loads into every session here?", header "Context"). Every offer now builds its
+instruction from one clause (`repo-onboard.js:askThrough`, `askInChat`, `QUESTION_HEADER` = `thinker`), which carries
+the name in the question and in the header and tells the agent to reword neither; the chat fallback opens the line
+with `SIGNATURE`, there being no header to carry it. A fifth question goes through the same helper, and
+`test/cli-ui-sync.test.js` holds that for all four modules. Until then it was prose
 the agent was asked to relay, and the three devices shown one decided nothing at all: a relayed message can be skipped
 by the agent, skimmed by the person, and leaves no answer either way, so nothing told "not interested" from "never
 reached them". The answer comes back through thinker's own MCP tool, `context` (`answerContextSuggestion`, registered while
