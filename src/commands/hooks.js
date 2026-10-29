@@ -17,11 +17,13 @@ import { isDisabledRepo } from '../repo-switch.js';
 import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '../maintain.js';
 import { codeForRequest, orient, HOOK_BUDGET, servesNotes, rememberTask, outcome, looksLikeCorrection, lateNotes, onSightNotes, onSightConfig, onSightOutlines, onSightOutlineConfig, completenessNudge, nudgedForTest, peekTurn, takeTurn, beginTurn, holdoutTurn, isHarnessEvent } from '../ops.js';
 import { recordEvent, traceFile, toolName, toolInput, textOf } from '../transcripts.js';
-import { turnNotice, turnFooterMarkdown, weeklyNotice } from '../usage.js';
+import { turnNotice, turnFooterMarkdown, weeklyNotice, compressionNotice, formatTokens } from '../usage.js';
+import { compressionBlock, compressionDir, markCompressionTurn } from '../compression.js';
 import { claudeCardActive } from '../claude-card.js';
 import { setupRepo } from '../repo-onboard.js';
 import { coverageOffer, recordAccess } from '../coverage.js';
 import { proxyOffer } from '../proxy-offer.js';
+import { errorOffer, recordError, sendErrors, errorConsent } from '../error-report.js';
 import { harnessRecall, harnessIndex, harnessOn } from '../harness.js';
 import { contextSuggestOffer, ensureUi, suggestionsUrl } from '../context-suggest.js';
 import { skillSuggestOn, skillSuggestLines, hookSkillFacts } from '../skill-suggest.js';
@@ -97,7 +99,9 @@ async function hookCommand(ctx) {
           let hint = null; try { hint = gatewayHint(); } catch {}
           reportPruned(ctx.store, [`context proxy off (${p.stoodDown}): your agents call the API directly again, and thinker proxy on puts it back${hint ? `. ${hint}` : ''}`]);
         }
-      } catch {}
+      } catch (e) { recordError('hook.proxy', e, { repo: ctx.repo }); }
+      // consent already given: whatever was recorded since goes out, once, in the background
+      if (errorConsent() === 'yes') sendErrors({ store: ctx.store }).catch(() => {});
     }
     if (userScope) {
       const cwd = ev.cwd || ev.workspace_roots?.[0] || ev.workspaceRoots?.[0] || ev.workspacePaths?.[0];
@@ -208,7 +212,13 @@ async function hookCommand(ctx) {
         // the one suggestion the person gets, instruction sections, skills, MCP servers and tool outputs ranked together
         // one question a prompt: the one-off repair offer first (proxy-offer.js, the owner-approved exception of
         // 2026-10-28 to "one suggestion, not three"), then coverage, then the week's context suggestion
-        const offer = [offersOn ? (proxyOffer(store, { client }) || coverageOffer(store, { client }) || contextSuggestOffer(store, { repoId: repoId(store.repo), client })) : '', work, index, recall].filter(Boolean).join('\n\n');
+        // what the context proxy has cleared out of this session, once the saving is old enough to mean something
+        // (compression.js): not an offer and not a question, a statement of what is no longer in the context and
+        // what it saved, said once a session because a block that changed every turn would rewrite the very
+        // prompt cache the clearing exists to spare
+        let clearing = '';
+        if (offersOn) { try { clearing = compressionBlock(compressionDir(), session, turn, formatTokens); } catch {} }
+        const offer = [offersOn ? (proxyOffer(store, { client }) || errorOffer(store, { client }) || coverageOffer(store, { client }) || contextSuggestOffer(store, { repoId: repoId(store.repo), client })) : '', work, index, recall, clearing].filter(Boolean).join('\n\n');
         // Every git repository has a cache, started on first use and empty until it learns; the hooks serve
         // from it once it holds a few notes (ops.js:SERVE_MIN_NOTES). A prompt served nothing is still a
         // request: `thinker usage` and the telemetry count a machine as active by its requests, and a cache in
@@ -264,7 +274,7 @@ async function hookCommand(ctx) {
         command: command.slice(0, 300), suggest: suggestion.slice(0, 300), how: rewritesCommands(client) ? 'rewrite' : 'deny' });
       const o = preToolOutput(client, { command: suggestion, reason: NUDGE_REASON(suggestion) });
       if (o) out(o);
-    } catch { /* a pre-tool hook never blocks the tool call */ }
+    } catch (e) { /* a pre-tool hook never blocks the tool call */ recordError('hook.pre', e, { repo: ctx.repo }); }
   } else if (pos[0] === 'tool') {
     // After a tool call: the agent opened files; serve notes anchored to them, once each.
     if (!store.exists()) return;
@@ -389,7 +399,11 @@ async function hookCommand(ctx) {
       // once a week, what the notes saved over the last 30 days (usage.js:weeklyNotice); not on a held-out turn
       // where the card mod runs, the turn's notes are its card under the answer (claude-card.js)
       const carded = client === 'claude' && claudeCardActive(session);
-      const notice = [served.length && !carded ? turnNotice(store.repo, served.map(id => store.get(id)).filter(Boolean)) : '', NO_LEARN ? '' : maintenanceNotice(store), t.holdout ? '' : weeklyNotice(store)].filter(Boolean).join('\n');
+      // what the context proxy's clearing left out of this session's prompts, a few turns after the clear
+      // (compression.js); the card mod draws it where it runs, as it does the turn's notes
+      let compression = '';
+      try { compression = carded ? '' : compressionNotice(markCompressionTurn(compressionDir(), session, t.turn)); } catch {}
+      const notice = [served.length && !carded ? turnNotice(store.repo, served.map(id => store.get(id)).filter(Boolean)) : '', compression, NO_LEARN ? '' : maintenanceNotice(store), t.holdout ? '' : weeklyNotice(store)].filter(Boolean).join('\n');
       const o = stopOutput(client, notice); if (o) out(o);
     }
     // Claude Code: its transcript. Other agents: the trace the hooks recorded,

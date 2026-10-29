@@ -17,6 +17,7 @@ export { formatTokens };
 import { estTokens } from './rank.js';
 import { Store, logFile, adoptLocalLog, repoId } from './store.js';
 import { sessionModel } from './transcripts.js';
+import { compressionHeader, compressionSaving } from './compression.js';
 
 export const FILE_CAP = 6000;   // tokens one read of a large file returns (about 2000 lines)
 export const MAX_FILES = 5;
@@ -91,6 +92,15 @@ export function turnNotice(repo, notes) {
   if (!tokens) return `🧠 thinker: ${noun}`;
   const files = calls ? `${calls} ${calls === 1 ? 'file' : 'files'}, ` : '';
   return `🧠 thinker: ${noun} (pointing at ${files}~${formatTokens(tokens)} tokens of code)`;
+}
+
+// The context proxy's saving, said the way a cache hit is said (compression.js). Nothing until the clearing
+// has had a few turns to pay for itself, and nothing at all where no clear happened: a notice describes what
+// genuinely took place, never what a default might have done.
+export function compressionNotice(state) {
+  const s = compressionSaving(state);
+  if (!s) return '';
+  return `\u{1F5DC} thinker: ${compressionHeader(s, formatTokens)}`;
 }
 
 export function turnFooterMarkdown(repo, notes) {

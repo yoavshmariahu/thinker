@@ -69,6 +69,31 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 - Whether the answer spoke about the edit at all is recorded on the row (`editAcknowledged`), since a gateway that strips the field looks exactly like a request whose trigger was never met. Nothing is claimed from it yet: whether a conforming API always echoes `applied_edits` when it clears nothing is unverified.
 - The refusal count judges the model calls alone (`MESSAGES_PATH`): an agent sends more than those through the proxy, and a 200 on one of the others reset the count, so three refusals in a row never arrived.
 
+**What the clearing saved is shown, three turns on (2026-10-29):**
+- The proxy cleared and nothing said so. The API answers every cleared request with the tokens it left out of that
+  prompt (`cleared_input_tokens`), and the cleared set is cumulative within a conversation, so adding those up over a
+  session is the whole of the saving: **the tokens the server left out of each prompt since the clear, added up**.
+  Measured, not modelled, and gross like the cache-hit card's -- a clear also writes the prompt cache again, which
+  `thinker proxy replay` prices.
+- Written per session beside the log (`<THINKER_HOME>/state/compression/<session>.json`, `compression.js:noteCompression`
+  from `startProxy`'s `log`), because the log is a megabyte within a week and no card may read it on a turn.
+- Not at the clear: the first cleared call saves nothing anybody would notice, since the saving is every *later* call
+  that reads the shorter prefix, and a card then would show the rewrite and none of the return. `TURNS_AFTER` is 3,
+  counted in the person's turns (`markCompressionTurn` for the hooks, the mod's own counter inside Claude Code).
+- Four doors, one sentence (`compressionHeader`): the Claude Code card mod, the Codex desktop card's second section,
+  the Stop hook's line where no mod runs (`usage.js:compressionNotice`), and `thinker proxy report`.
+  `test/claude-card.test.js` holds the mod's copy of the sentence, the wait and the breakdown to `compression.js`.
+- **The detail is in the prompt, not behind a link** (`compressionBlock`, a `<thinker-compression>` block from the
+  prompt hook; the owner's call, 2026-10-29): the figure's first question is what was cleared, so the agent is told
+  the session's saving, the actions whose results are out of the prompt now by tool, and the last eight clears, and
+  told to read a file again rather than rely on remembering it. Once a session (`told`), the turn it comes due: a
+  block whose figures changed every turn would rewrite the prompt cache the clearing exists to spare.
+- `clearedActions` (`proxy.js`) names those actions from the request the proxy is already scanning -- every tool use
+  but the newest `keep`, its result at `TOKENS_PER_CHAR` -- because the API reports how much and how many it
+  cleared, never which. `saved` sums across requests, `tools` never does: each request clears the same cumulative
+  set, so summing counts one call many times; it is the latest prompt's set. `CARD_TOOLS`/`shortTool` keep an MCP
+  tool's long name from pushing a card's line off the screen.
+
 **The clearing policy: bigger cuts, less often (2026-10-28, the owner's call):**
 - `PROXY_DEFAULTS` is `trigger` 140k, `clearAtLeast` 100k, `keep: 'turn'`/`keepMin` 3, with `clearInputs` and `clearThinking` on. A clear rewrites the prompt cache from the first result it removes (1h write ~200% of an input token, read ~2.5%), so the rewrite is what a clear costs and every later read of what it took is what it saves.
 - `thinker proxy replay`, 264 Claude Code sessions, 1.05B billed-equivalent tokens, $3,750 at list: results alone at 100k/80k **−0.2%** (−0.8% under 60 requests, −3.6% at 60–119, +0.7% at 120+, 21 sessions costlier); with the call text and the thinking at 100k/80k **+7.8%** (12 costlier); at **140k/100k +7.3%** (−0.1%, +0.5%, +10.2%, 6 costlier, no long session among them); at 180k/140k +5.8%. 140k gives up half a point to halve the sessions it can cost.
@@ -157,6 +182,7 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 | `src/update.js` | self and background updates |
 | `src/usage.js` | usage log summary |
 | `src/proxy*.js`, `src/commands/proxy.js` | context proxy; `thinker proxy on\|off\|status`; `proxy-route.js` leaves a routed harness alone; clearing results, call text and earlier thinking all on by default (2026-10-28), `--no-clear-inputs`, `--no-clear-thinking` off |
+| `src/compression.js` | what the clearing saved, per session, shown as a cache hit is (`TURNS_AFTER`, `compressionHeader`) |
 | `src/report.js`, `src/prices.js`, `src/commands/report.js` | Report page; `thinker report`; `prices.js` only place dollars appear |
 | `src/store.js`, `src/llm.js` | note storage; model access |
 | `src/server/` | `thinker-server`: `index.js`, `repos.js`, `auth.js`, `worker.js` |
@@ -1071,7 +1097,7 @@ A new thing worth suggesting is a row and a line of the weekly message, not a qu
 A one-off repair of a fault thinker caused, not a recurring suggestion: the machines whose harness the proxy broke
 turned it off, `off` is durable by design, and the hint a stand-down prints is said once to someone whose session is
 already failing, so those machines were the ones getting no clearing at all. Asked once per machine, first in the
-hook's one-question chain (`proxyOffer || coverageOffer || contextSuggestOffer`), through the agent's own question
+hook's one-question chain (`proxyOffer || errorOffer || coverageOffer || contextSuggestOffer`), through the agent's own question
 tool, answered through thinker's `proxy` MCP tool (`mcp-server.js`) or `thinker proxy --answer yes|no|never`. The
 cohort is a machine whose proxy is off and was once on, either before `FIXED_AT` (2026-10-28, so the fault was live
 when they turned it off) or by a stand-down, which only the fixed code does; a cloud route is never asked, since the
@@ -1102,6 +1128,40 @@ then — every session of the window moves each part's cost a prompt, and three 
 one more session, so approving the first line compressed the third. Without `--via session` the numbers are the five
 the command has just printed, which is what someone typing it is looking at; a key names a change either way
 (`pickChanges`). The page sends keys, never numbers.
+
+## Error reports, with consent (2026-10-29, the owner's ask)
+
+thinker swallows its own failures by design: a hook must never fail a tool call, so each is wrapped in a bare
+`catch {}`, and a command that dies prints a stack to a terminal nobody reads again. A fault that hits many
+machines is therefore invisible: the Codex 404 of 2026-10-24 ran four days on the owner's own machine, and the
+installer leaving a shell with no working directory was found by reading a container log.
+
+`error-report.js` records those failures locally, asks once whether to send them, and sends nothing until the
+person says yes.
+
+- **What a record is.** `{at, op, version, node, platform, name, code, message, frames}`. `recordError` is called
+  from the catch sites that used to swallow (`hook.pre`, `hook.proxy`, and `cli.<command>` from `main().catch`);
+  it never throws, writes one line, and does nothing at all in test mode (`THINKER_ERRORS_TEST` forces it on
+  for the tests). The same failure again counts up (`seen`) instead of filling the file; at most `ERRORS.keep`
+  (20) records, `keepDays` (14).
+- **What it may not carry** (`scrub`, and `test/error-report.test.js` is mostly about this): thinker's own
+  install path becomes `<thinker>` and the repository `<repo>`, the home directory `~`, a credential `<token>`,
+  a URL `<url>`, and any absolute path left keeps its last two segments. So `proxy-service.js:ensureProxy` stays
+  readable — that is the whole value of the record — and the person, their employer's repository and their
+  gateway do not appear.
+- **The question** is the second owner-approved exception to "one suggestion, not three", and the same shape as
+  the first: asked once per machine, after the proxy repair in the hook's one-question chain, through the agent's
+  own question tool, answered through thinker's `errors` MCP tool or `thinker errors --answer yes|no|never`. It is
+  asked only where there is something to send, and never where telemetry is off — one switch covers both. No
+  answer sends nothing: there is no reminder and no default yes.
+- **`thinker errors`** prints the records exactly as they would be sent, which is the only honest way to ask for
+  consent: a person can read what would leave their machine before agreeing. `--send` sends now, `--json` is the
+  data, `--answer` records a decision.
+- **The endpoint** is `/errors` on the metrics API (`infra/metrics/errors.mjs`, `handler.mjs`), one row per error
+  in `error_reports` so one fault can be counted across installs. It refuses a payload that still looks like a
+  path, a URL or a credential (`LOOKS_PRIVATE`, `LOOKS_LIKE_URL`, `LOOKS_LIKE_TOKEN`), so a client with a
+  scrubbing bug cannot store one either. The API was made with quick-create, so `$default` already routes the
+  new path; the table and the `GRANT` need a deploy (`infra/metrics/README.md`).
 
 ## Desired behaviors
 

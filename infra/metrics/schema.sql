@@ -85,4 +85,28 @@ CREATE TABLE IF NOT EXISTS website_messages (
   received_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_website_messages_received ON website_messages (received_at DESC);
+
+-- thinker's own failures, from installs whose person agreed to send them (src/error-report.js).
+-- One row per error, so the same fault across installs can be counted. The client scrubs paths,
+-- URLs and credentials before sending and errors.mjs refuses anything that still looks like one,
+-- so there is nothing here that names a person, a machine or a repository.
+CREATE TABLE IF NOT EXISTS error_reports (
+  file_key TEXT NOT NULL,
+  idx INT NOT NULL,
+  install_id TEXT NOT NULL,
+  version TEXT,
+  platform TEXT,
+  node_version TEXT,
+  occurred_at TIMESTAMPTZ NOT NULL,
+  op TEXT NOT NULL,
+  name TEXT NOT NULL,
+  code TEXT,
+  message TEXT NOT NULL,
+  seen INT NOT NULL DEFAULT 1,
+  frames JSONB NOT NULL DEFAULT '[]'::jsonb,
+  received_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (file_key, idx)
+);
+CREATE INDEX IF NOT EXISTS idx_error_reports_received ON error_reports (received_at DESC);
+CREATE INDEX IF NOT EXISTS idx_error_reports_fault ON error_reports (op, name, version);
 COMMIT;
