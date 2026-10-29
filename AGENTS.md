@@ -838,6 +838,25 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
 - The weekly message leads per prompt, the window total beside it (`contextSuggestOffer`): a week of a 25k-token file over 7,600 calls is ~190M, true and unplaceable.
 - Until then every figure was tokens × the *median* calls of a session, which weighed every session alike and mixed two denominators (a section was averaged over the sessions that read its file, a tool was not).
 
+**Pull requests on the Report (2026-10-30)**
+- A band under the cache's cards, on the page and in `thinker report` alike: four cards (merged with work
+  here, tokens saved on them, saved as a share of what they cost, the median one) and a table of the merged
+  pull requests, newest first -- number, title, sessions, its cost, cleared, reading avoided, saved, share.
+  12 rows on the page behind *Show all*, 10 in the command, which points at `thinker prs` for the rest.
+- `report.js:prSavings` folds `delivery.js:deliveryReport` into the view as `prs`, so both doors read one
+  computation and the page recomputes nothing on a visit. `mergePrSavings` is All repositories: counts and
+  tokens add (a pull request belongs to one repository, a session to one pull request), medians are taken
+  again over every row rather than averaged, and each row carries its repository, since two repositories
+  both number from 1.
+- **Tokens, under Cost as much as under Tokens, and no dollar figure anywhere in the band.** Only one of the
+  two savings converts: reading avoided is fresh input nobody paid for, but a cleared token was mostly being
+  read from the prompt cache at a fortieth of the input price, and the clear writes that cache again at twice
+  it. Priced at the input rate this machine's 202M cleared tokens read as thousands of dollars, where
+  `thinker proxy replay` over 264 real sessions put the whole clearing at +7.3% of session cost. The band
+  says so in a line and names the replay. Do not add a dollar column without replaying first.
+- `report-snapshot.js`'s code key hashes `delivery.js` and `compression.js` too, so a kept report made before
+  the band is remade rather than served without it.
+
 **Tables** (each ends on `sessionTotals`; all three sum to same figure)
 1. Parts (`report.js:PARTS`): instruction files, custom tools, built-in tools, tool outputs; then **Other input** row (`otherInput`, folded, kinds via `OTHERS`); then output.
 2. Models (`prices.js:providerOf`): grouped by provider; provider subtotal folds models. Each model over every prompt of week.
