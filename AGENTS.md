@@ -944,6 +944,7 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
 - `loadContext`, `loadActivity`, `loadReport` must not wipe body to "Reading…".
 
 **Section change is a pull request**
+- Every door, not only the page (2026-10-29): `context-suggest.js:approveChanges` sends a section (`compress`/`remove`) to `startSectionJob` and makes nothing itself but a switch-off or a compression level. So the weekly suggestion answered in the session (the MCP `context` tool), `thinker context --approve` and the installer's multi-select all record the decision at once, start the detached `thinker instructions … --job`, and open a PR. Until then only the page did: the other three ran `previewEdit`/`applyEdit` inline, holding the person's turn through the model call — in a desktop app that call queues for a subagent of the session blocked on it — and wrote the file uncommitted with no PR, no Retry and nothing in Recent activity.
 - Diff opens in modal (`page.html:previewSections`, `openEditModal`). Button:
   - commits to new branch from default branch via temporary index (checkout untouched);
   - pushes;

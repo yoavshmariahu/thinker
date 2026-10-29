@@ -182,13 +182,14 @@ export function pickLine(p) {
 // what the row costs and how often it was used, beside the line
 export function pickNote(p) {
   const share = p.usedShare ?? (p.of ? p.used / p.of : null), use = share != null ? `needed in ${Math.round(100 * share)}% of prompts` : 'use unknown';
-  return `~${formatTokens(p.wasted)} tokens a prompt, ${use}${p.act === 'compress' ? ', a model call' : ''}`;
+  return `~${formatTokens(p.wasted)} tokens a prompt, ${use}${p.act === 'compress' ? ', a model call in the background' : ''}`;
 }
 // The picks made, each in its repository, through the function behind the page's Apply and `thinker context
-// --approve` (context-suggest.js:approveChanges): a section compressed by a model or removed, written to the working
-// tree uncommitted, a skill or tool switched off there; every decision in that repository's History with its undo.
+// --approve` (context-suggest.js:approveChanges): a skill or tool switched off there and done with, a section left to a
+// job of its own in that repository, which opens a pull request there (or writes the file where it cannot), so an
+// install never waits out a model call per repository; every decision in that repository's History with its undo.
 // Returns one line per change, named by repository when more than one was touched.
-export async function applyMachinePicks(picks, { edit, approve = approveChanges, via } = {}) {
+export async function applyMachinePicks(picks, { approve = approveChanges, via, ...opts } = {}) {
   const byCheckout = new Map();
   for (const p of picks) for (const t of p.targets) {
     if (!byCheckout.has(t.checkout)) byCheckout.set(t.checkout, { name: t.name, changes: [] });
@@ -197,7 +198,7 @@ export async function applyMachinePicks(picks, { edit, approve = approveChanges,
   const said = [], many = byCheckout.size > 1;
   for (const [checkout, g] of byCheckout) {
     let lines;
-    try { const st = new Store(checkout); if (!st.exists()) st.init(); lines = await approve(st, g.changes, { edit, via }); }
+    try { const st = new Store(checkout); if (!st.exists()) st.init(); lines = await approve(st, g.changes, { via, ...opts }); }
     catch (e) { lines = [String(e?.message || e).split('\n')[0]]; }
     for (const l of lines) said.push(many ? `${g.name}: ${l}` : l);
   }
