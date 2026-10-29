@@ -178,6 +178,31 @@ test('the list prints the records as they would be sent, and says where consent 
   assert.match(errorsReport({ home: h }), /Error reports: on/);
 }));
 
+test('a test run never posts a report to production, whatever the consent says', async () => {
+  // THINKER_ERRORS_TEST=1 lets a test write records; it must not also let them leave the machine.
+  // The usage report has refused this since it shipped (telemetry.js:isTestTelemetryBlocked) and the
+  // sender of these reports did not, so a benchmark with a yes on file would have posted for real.
+  const h = home();
+  telemetryOn(h);
+  process.env.THINKER_ERRORS_TEST = '1';
+  process.env.THINKER_TELEMETRY_URL = 'https://metrics.zerotime.dev/metrics';
+  try {
+    recordError('hook.pre', new Error('x'), { home: h });
+    fs.writeFileSync(stateFile(h), JSON.stringify({ consent: 'yes' }));
+    const real = globalThis.fetch;
+    let called = 0;
+    globalThis.fetch = async () => { called++; return { ok: true, status: 202 }; };
+    try {
+      assert.deepEqual(await sendErrors({ home: h }), { sent: false, reason: 'test_environment' });
+      assert.equal(called, 0, 'nothing left the machine');
+      // a loopback endpoint is the isolated one a test is allowed to use
+      process.env.THINKER_TELEMETRY_URL = 'http://127.0.0.1:8098/metrics';
+      assert.equal((await sendErrors({ home: h })).sent, true);
+      assert.equal(called, 1);
+    } finally { globalThis.fetch = real; }
+  } finally { delete process.env.THINKER_ERRORS_TEST; delete process.env.THINKER_TELEMETRY_URL; }
+});
+
 test('the endpoint is the metrics endpoint\'s sibling', () => {
   assert.equal(errorsEndpoint('https://x.example/metrics'), 'https://x.example/errors');
   assert.equal(errorsEndpoint('https://x.example/stage/metrics'), 'https://x.example/stage/errors');

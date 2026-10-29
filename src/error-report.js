@@ -18,7 +18,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { thinkerHome } from './update.js';
 import { isTestMode } from './test-mode.js';
-import { isTelemetryEnabled, getTelemetryEndpoint, getInstallId } from './telemetry.js';
+import { isTelemetryEnabled, getTelemetryEndpoint, getInstallId, isTestTelemetryBlocked } from './telemetry.js';
 import { QUESTION_TOOLS } from './repo-onboard.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -179,6 +179,11 @@ export async function sendErrors({
 } = {}) {
   if (errorConsent(home) !== 'yes') return { sent: false, reason: 'no consent' };
   if (!isTelemetryEnabled({ home, store })) return { sent: false, reason: 'disabled' };
+  // A test, a benchmark or an eval harness never reaches production, as the usage report does not
+  // (telemetry.js:isTestTelemetryBlocked): THINKER_ERRORS_TEST=1 lets the records be written so the
+  // path can be exercised, and without this that same run would have posted them for real. Only a
+  // real fetch is judged; a test's own fetchFn is its own business.
+  if (fetchFn === globalThis.fetch && isTestTelemetryBlocked(endpoint)) return { sent: false, reason: 'test_environment' };
   const all = readErrors(home, { now });
   const unsent = all.filter(r => !r.sent);
   if (!unsent.length) return { sent: false, reason: 'nothing to send' };
