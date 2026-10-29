@@ -116,7 +116,7 @@ thinker prs link --session <id> --split 42:0.4,43:0.6
 
 **Reading the pull requests** uses your own `gh` login, read-only; nothing is ever posted. Maintenance
 does it once a day in the background, so the report is current without you running anything; `maintain:
-{ prs: false }` in `.thinker/config.json` turns that off and leaves `thinker prs sync` to you.
+{ prSync: false }` in `.thinker/config.json` turns that off and leaves `thinker prs sync` to you.
 
 Everything is local. The counts and token totals reach the telemetry if telemetry is on
 (`telemetry: false` in `.thinker/config.json`, or `THINKER_TELEMETRY=off`); a pull request's number,

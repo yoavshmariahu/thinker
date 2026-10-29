@@ -414,7 +414,7 @@ ship, how much of it did thinker pay for. Nothing here calls a model or spends a
 - **GitHub is read through the person's own `gh` login, read-only**, and in two passes (`delivery.js:syncPrs`):
   the listing carries everything but the commits and the diff size, and those cost a second call only for a
   pull request some session here worked on. So the calls follow the person's work, not the repository's
-  traffic. Maintenance does this once a day, back to the last sync (`maintain.js`, `maintain: { prs: false }`
+  traffic. Maintenance does this once a day, back to the last sync (`maintain.js`, `maintain: { prSync: false }`
   turns it off); it is free, so it is not a background spend in the sense of the rule above.
 - **The journal** is `<log dir>/delivery/<digest>.jsonl`, per repository, gitignored, three record kinds
   (`observation`, `pr`, `link`). Sessions, servings and model calls stay in the usage log; nothing is copied.

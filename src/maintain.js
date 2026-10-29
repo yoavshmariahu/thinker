@@ -61,8 +61,9 @@ export const DEFAULTS = {
   archive: true,    // take notes the sessions showed are not worth serving out of serving and upkeep (ops.js:archiveNotes; `archive` in the config sets the rules)
   // read the repository's pull requests from GitHub, so `thinker prs` and the telemetry know what the
   // sessions here delivered (delivery.js). Free: the person's own `gh` login, read-only, no model call and
-  // no token. At most once a day, and only back to the last sync. `maintain: { prs: false }` turns it off.
-  prs: true,
+  // no token. At most once a day, and only back to the last sync. `maintain: { prSync: false }` turns it
+  // off. Not `prs`, which is the mining step: that one writes notes and calls a model, and this one does not.
+  prSync: true,
 };
 export const MAINTENANCE_INTERVAL_MS = 4 * 60 * 60_000;
 export const PRS_SYNC_INTERVAL_MS = 24 * 60 * 60_000;
@@ -214,7 +215,7 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
     state.startedAt = new Date(now).toISOString();
     fs.writeFileSync(stateFile(store), JSON.stringify(state));
   }
-  const r = { verified: 0, updated: 0, retired: 0, churning: [], archived: 0, merged: 0, phrased: 0, docs: 0, unstated: 0, skills: 0, skillsBroken: 0, prs: 0, tokens: 0, capped: false, errors: 0 };
+  const r = { verified: 0, updated: 0, retired: 0, churning: [], archived: 0, merged: 0, phrased: 0, docs: 0, unstated: 0, skills: 0, skillsBroken: 0, prSynced: 0, tokens: 0, capped: false, errors: 0 };
   const spent = (fns.spentToday || spentToday)(store);
   const cap = withinDailyCap(store, { spentFn: () => spent }).cap;
   const afford = () => !cap || cap - spent - r.tokens > 0;
@@ -233,13 +234,15 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
     // 1f. the repository's pull requests, so what a session delivered is known without anybody typing a
     // command (delivery.js). Free and model-free: the person's own gh login, read-only. Once a day, back to
     // the last sync, so the usual run is one listing page and a detail call for the branches worked on here.
-    if (cfg.prs !== false && !dry && !isTestMode()) {
+    // A test never reaches GitHub; a test that injects its own reader is testing this step and does.
+    const syncFn = fns.syncPrs || (isTestMode() ? null : syncPrs);
+    if (cfg.prSync !== false && !dry && syncFn) {
       const last = Date.parse(state.prsSyncedAt || '');
       if (!Number.isFinite(last) || now - last >= PRS_SYNC_INTERVAL_MS) {
         try {
-          if (ghAvailable(store.repo)) {
+          if (fns.syncPrs || ghAvailable(store.repo)) {
             const days = Math.min(DELIVERY_WINDOW_DAYS, Math.max(2, Number.isFinite(last) ? Math.ceil((now - last) / 86400_000) + 1 : 7));
-            r.prs = (await (fns.syncPrs || syncPrs)(store, { days, now })).synced;
+            r.prSynced = (await syncFn(store, { days, now })).synced;
           }
         } catch { r.errors++; }
         // Recorded whether it worked or not: a repository with no GitHub origin must not try every run.
