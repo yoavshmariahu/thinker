@@ -142,6 +142,23 @@ export function createNote(store, input, { source = { type: 'agent' }, reuseId =
   return { note, dropped };
 }
 
+// A note whose anchor files have all been deleted is not a stale note, it is a dead one. `file removed`
+// is not a change a verifier can judge - there is no code left to read - so the note stays stale for
+// good: withheld by the hooks (`freshOnly`), therefore never served, therefore never eligible for the
+// verification batch (maintain.js:pickStale), and a one-time reset puts it straight back (stale-reset.js
+// re-hashes a gone file to `missing` again). Thinker refuses such a note at creation already
+// (`createNote`: an anchor must be an existing file); this applies the same rule to one whose files went
+// away afterwards, with no model call. Nothing that was being served stops being served: these notes
+// were already withheld. A desired behavior and a skill card are a person's own, and so is a note someone
+// wrote by hand - those are left for a person to decide on. Returns the gone paths, or null.
+export function anchorsGone(note, changed) {
+  if (['behavior', 'skill'].includes(note.kind) || note.source?.type === 'human') return null;
+  const paths = [...new Set((note.deps || []).map(d => d.path).filter(p => p && !TRANSIENT.test(p)))];
+  if (!paths.length) return null;
+  const removed = new Set(changed.filter(c => c.reason === 'file removed').map(c => c.path));
+  return paths.every(p => removed.has(p)) ? paths : null;
+}
+
 // Recompute staleness for notes against the working tree. Persists status
 // changes. Returns notes with fresh status.
 export function refresh(store, notes = store.list(), { persist = true, narrow = false } = {}) {
@@ -153,6 +170,14 @@ export function refresh(store, notes = store.list(), { persist = true, narrow = 
     const { changed, deps, upgraded } = checkNote(store.repo, n, { narrow });
     const wasStale = n.status === 'stale';
     if (changed.length) {
+      // every file the note rests on is gone: retired here rather than left stale for good (above)
+      const gone = anchorsGone(n, changed);
+      if (gone) {
+        const next = { ...n, status: 'invalid', invalidReason: `anchors removed: ${gone.slice(0, 3).join(', ')}` };
+        delete next.stale;
+        if (persist) { store.put(next); store.log({ op: 'retire-gone', id: next.id, kind: next.kind, paths: gone.slice(0, 10) }); }
+        return next;
+      }
       const stale = { since: n.stale?.since || new Date().toISOString(), changed };
       // a whole-file dep narrowed to definitions (checkNote with narrow) is kept although the note
       // stays stale: the changed definitions carry their hash from the verified commit, so they

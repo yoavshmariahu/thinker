@@ -107,8 +107,7 @@ const HELP = `thinker — knowledge cache for coding agents
   system promote <id…> [--fixed | --mutable]
                                  make a note that states a rule (invariant, convention, gotcha) a desired behavior
   system accept <id…> [--fixed | --mutable]
-                                 accept a proposed behavior (a build draft, or one an agent saved)
-  system propose [--refresh]     review behavior drafts and rule notes that could be promoted; --refresh drafts them again
+                                 accept a behavior an agent saved before the tool was removed
   system docs [--dry] [--again] [--limit n]
                                  read the design documents checked into the repository (READMEs beside the code,
                                  design and docs/ files) and save the rules they state as mutable behaviors, each

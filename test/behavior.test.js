@@ -12,7 +12,7 @@ import { Store, sharedContent, LOCAL_FIELDS, KINDS } from '../src/store.js';
 import { hashDep } from '../src/deps.js';
 import { createNote, verifyNote, refresh, lookup, archiveReason, distillKinds, noteUnreported } from '../src/ops.js';
 import { distillSpec } from '../src/distill.js';
-import { listBehaviors, renderBehaviors, renderSystemMarkdown, promoteBehavior, proposeBehaviors, addBehavior, behaviorState } from '../src/behavior.js';
+import { listBehaviors, renderBehaviors, renderSystemMarkdown, promoteBehavior, addBehavior, behaviorState } from '../src/behavior.js';
 import { maintenanceNotice } from '../src/maintain.js';
 
 const cli = fileURLToPath(new URL('../src/cli.js', import.meta.url));
@@ -133,11 +133,10 @@ test('verification: a behavior broken in a working tree or on a branch is violat
   assert.ok(moved.history.at(-1).prevDeps.length >= 2); // the body's own pointers were deps too
 });
 
-test('promote makes a rule note a behavior, propose lists the candidates, and the markdown is written', t => {
+test('promote makes a rule note a behavior, and the markdown is written', t => {
   const { repo, store } = fixture(t);
   const inv = createNote(store, { title: 'invoke validates first', kind: 'invariant', answers: ['why validate first'], body: 'core.py:Command.invoke calls core.py:validate first.', deps: [{ path: 'src/core.py', symbol: 'Command.invoke' }], confidence: 0.6 }, { source: { type: 'agent', ref: 's1' } }).note;
   createNote(store, { title: 'where tests live', kind: 'location', answers: ['where are tests'], body: 'src/cli.py:entry', deps: [{ path: 'src/cli.py' }] }, { source: { type: 'agent' } });
-  assert.deepEqual(proposeBehaviors(store).map(c => c.id), [inv.id]);
   const p = promoteBehavior(store, inv.id, { mutability: 'fixed' });
   assert.equal(p.note.kind, 'behavior'); assert.equal(p.note.mutability, 'fixed'); assert.equal(p.note.source.type, 'human'); assert.equal(p.note.source.promoted, 'rule');
   assert.ok(p.note.confidence >= 0.8);

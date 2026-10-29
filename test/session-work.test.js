@@ -8,7 +8,8 @@ import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store } from '../src/store.js';
-import { enqueueJob, pendingJobs, startSessionWork, runSessionWork, markAppSession, recentAppSession, RUN_EVERY_MS } from '../src/session-work.js';
+import { enqueueJob, pendingJobs, startSessionWork, runSessionWork, markAppSession, recentAppSession, RUN_EVERY_MS, MAX_ATTEMPTS } from '../src/session-work.js';
+import { maintenanceNotice } from '../src/maintain.js';
 import { anyDesktopApp } from '../src/app-host.js';
 import { subagentPrompt } from '../src/session-llm.js';
 // Ranking is not what these tests check, so the cross-encoder (dense.js) stays out of the hook spawns:
@@ -92,6 +93,33 @@ test('failed jobs survive, back off across repeated hooks, and are acknowledged 
   assert.equal(Date.parse(job.nextAttemptAt), now + 3 * RUN_EVERY_MS);
   run({ now: Date.parse(job.nextAttemptAt), spawnFn: () => ({ status: 0 }) });
   assert.deepEqual(pendingJobs(store), []);
+});
+
+// A job that fails for a reason retrying does not fix retried for ever with a 24-hour backoff and
+// told nobody: one on a user's machine reached ten attempts before a person reading the state file
+// found it. It is given up on instead, and said once at the end of a turn.
+test('a job that keeps failing is given up on after MAX_ATTEMPTS and named once', () => {
+  const store = repo();
+  enqueueJob(store, 'distill-s1', ['distill', '/t/s1.jsonl']);
+  let time = Date.now(), lines = [];
+  const run = () => runSessionWork(store, { cli: '/unused', out: l => lines.push(l), now: () => time, spawnFn: () => ({ status: 1 }) });
+  for (let i = 1; i < MAX_ATTEMPTS; i++) {
+    assert.equal(run(), 1, `attempt ${i} runs`);
+    const job = pendingJobs(store)[0];
+    assert.equal(job.attempts, i);
+    time = Date.parse(job.nextAttemptAt);
+  }
+  assert.equal(run(), 1, 'the last attempt runs');
+  assert.deepEqual(pendingJobs(store), [], 'given up on: the job is gone, not waiting for ever');
+  assert.match(lines.at(-1), new RegExp(`failed ${MAX_ATTEMPTS} times; given up on`));
+  const notice = maintenanceNotice(store);
+  assert.match(notice, /given up on/);
+  assert.match(notice, /distill/);
+  assert.equal(maintenanceNotice(store), '', 'said once');
+  // the work itself is not lost: the next session's hook queues it again
+  enqueueJob(store, 'distill-s1', ['distill', '/t/s1.jsonl']);
+  assert.equal(pendingJobs(store).length, 1);
+  assert.equal(pendingJobs(store)[0].attempts, undefined, 'and it starts over');
 });
 
 test('signals and spawn errors retain jobs, while unrelated ready jobs still run', () => {

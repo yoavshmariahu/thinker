@@ -7,7 +7,6 @@ import { refresh } from '../ops.js';
 import { subsystemForFile } from '../topology.js';
 import { exportCache, importCache } from '../transfer.js';
 import { summarize, renderUsage } from '../usage.js';
-import { areasConfig, notesByArea } from '../areas.js';
 import { stats, renderStats } from '../stats.js';
 
 async function exportCommand(ctx) {
@@ -115,22 +114,9 @@ async function usageCommand(ctx) {
   const { flags, store, out } = ctx;
   const days = Number(flags.days) || undefined;
   const u = summarize(store, { days, all: !flags.here });
-  if (flags.json) { out(JSON.stringify({ ...u, areas: areasLine(store, { json: true }) }, null, 2)); return; }
+  if (flags.json) { out(JSON.stringify(u, null, 2)); return; }
   out(renderUsage(u, { days }));
-  const a = areasLine(store); if (a) out('\n' + a);
   return;
-}
-
-// The coverage line: the focus areas this cache warms (areas.js) and how many notes point into
-// each; the generic build has none to report.
-export function areasLine(store, { json = false } = {}) {
-  if (!store.exists()) return json ? null : '';
-  const a = areasConfig(store);
-  if (a.source === 'all' || !a.directories.length) return json ? { source: 'all' } : '';
-  const by = notesByArea(store.list(), a.directories);
-  const walk = a.walk * a.directories.length;
-  if (json) return { ...a, notes: by, walk };
-  return `Focus areas (${a.source === 'activity' ? 'from your commits, refreshed daily' : a.source === 'prs' ? 'from your pull requests, refreshed daily' : 'chosen'}): ${a.directories.map(d => `${d} (${by[d]} ${by[d] === 1 ? 'note' : 'notes'})`).join(', ')}\n  older history read: ${Math.min(a.walked, walk)} of ${walk} changes${a.walked >= walk ? ' (warm)' : ''}`;
 }
 
 // `thinker ui`: the local page (ui/server.js) until Ctrl+C, from any directory: the Save tab first (where the

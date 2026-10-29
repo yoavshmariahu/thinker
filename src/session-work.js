@@ -10,8 +10,17 @@ import { randomUUID } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import { QUEUE_ENV, queueDir, markBuild, buildRunning, subagentPrompt } from './session-llm.js';
 import { SUBAGENT_TOOLS } from './app-host.js';
+import { reportGaveUp } from './maintain.js';
 
 export const JOBS_PER_RUN = 4;
+// Attempts a job gets before thinker gives up on it. A job that fails once fails for a reason that is
+// often gone by the next run (no subagent answered, the app was closed), so it is retried with a
+// backoff; a job that has failed this many times is failing for a reason retrying does not fix, and
+// retrying for ever told nobody anything - one such job on a user's machine reached ten attempts
+// unseen, which is how we learned this. Given up: the job is dropped and said once at the end of a
+// turn (maintain.js:reportGaveUp). The work itself is not lost: a distillation is queued again by the
+// next session's hook, and `thinker learn` runs the catch-up by hand.
+export const MAX_ATTEMPTS = 5;
 // a run at most this often: each asks the agent for a subagent
 export const RUN_EVERY_MS = 30 * 60_000;
 // the repository was worked in an app this recently: maintenance a commit starts waits for an app session
@@ -103,15 +112,23 @@ export function runSessionWork(store, { cli, limit = JOBS_PER_RUN, spawnFn = spa
     try { r = spawnFn(process.execPath, [cli, ...record.args], { cwd: store.repo, stdio: 'inherit', env: process.env }); }
     catch (error) { r = { error }; }
     const ok = r.status === 0 && !r.error && !r.signal;
+    let gaveUp = false;
     if (ok) fs.rmSync(claim, { force: true });
     else {
       record.lastError = String(r.error?.message || (r.signal ? `terminated by ${r.signal}` : `exited with ${r.status}`)).slice(0, 300);
-      record.nextAttemptAt = new Date(clock() + retryDelay(record.attempts)).toISOString();
-      writeAtomic(claim, record);
-      fs.renameSync(claim, claim.replace(/\.running$/, '.retry'));
-      out(`learning job ${record.key} failed: ${record.lastError}; retained for retry after ${record.nextAttemptAt}`);
+      gaveUp = record.attempts >= MAX_ATTEMPTS;
+      if (gaveUp) {
+        fs.rmSync(claim, { force: true });
+        out(`learning job ${record.key} failed ${record.attempts} times; given up on: ${record.lastError}`);
+        try { reportGaveUp(store, [`a background learning job failed ${record.attempts} times and was given up on (${record.args[0]}: ${record.lastError.slice(0, 120)})`]); } catch {}
+      } else {
+        record.nextAttemptAt = new Date(clock() + retryDelay(record.attempts)).toISOString();
+        writeAtomic(claim, record);
+        fs.renameSync(claim, claim.replace(/\.running$/, '.retry'));
+        out(`learning job ${record.key} failed: ${record.lastError}; retained for retry after ${record.nextAttemptAt}`);
+      }
     }
-    store.log({ op: 'session-job', key: record.key, ok, attempts: record.attempts, ...(ok ? {} : { error: record.lastError, nextAttemptAt: record.nextAttemptAt }) });
+    store.log({ op: 'session-job', key: record.key, ok, attempts: record.attempts, ...(ok ? {} : { error: record.lastError, ...(gaveUp ? { gaveUp: true } : { nextAttemptAt: record.nextAttemptAt }) }) });
     done++;
   }
   return done;

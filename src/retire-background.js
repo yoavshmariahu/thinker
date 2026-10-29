@@ -6,6 +6,8 @@
 //   - an unmined-commits question waiting for the next prompt is dropped (commits-offer.js state);
 //   - a queued job that is not a distillation, a catch-up, a maintenance run or an explanation is dropped
 //     (session-work.js queue).
+//   - the focus-area list the warm-up scoped itself by is dropped from the config (areas.js);
+//   - the behavior drafts its last step wrote are dropped, with `thinker system propose` (2026-10-30).
 // A repository whose config turns mining on keeps all of it.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -28,6 +30,22 @@ export function retireBackground(store, { dry = false } = {}) {
   if (a?.kind === 'mining') { if (!dry) cancelActivity(store.dir, a.pid); done.push(`stopped a mining batch (${a.completed}/${a.total})`); }
   const commits = path.join(store.dir, 'state', 'commits.json'), st = readJson(commits);
   if (st?.pending) { if (!dry) { delete st.pending; fs.writeFileSync(commits, JSON.stringify(st)); } done.push('dropped the unmined-commits question'); }
+  // The focus areas of the removed warm-up (areas.js): nothing has refreshed or walked them since
+  // 2026-10-21, and the saved list was read as a live setting - a user reported theirs as out of date
+  // in October 2026, listing a directory that no longer existed. A repository that turns mining on
+  // keeps it (the early return above), since `mine-prs` still scopes itself by it.
+  const cfgFile = path.join(store.dir, 'config.json');
+  const raw = readJson(cfgFile);
+  if (raw && raw.areas) {
+    if (!dry) { delete raw.areas; fs.writeFileSync(cfgFile, JSON.stringify(raw, null, 2) + '\n'); }
+    done.push('dropped the focus-area list of the removed warm-up');
+  }
+  // the build's behavior drafts, with `thinker system propose` (2026-10-30): nothing lists them now
+  const drafts = path.join(store.localDir || path.join(store.dir, 'local'), 'behavior-proposals.json');
+  if (fs.existsSync(drafts)) {
+    if (!dry) fs.rmSync(drafts, { force: true });
+    done.push('dropped the unreviewed behavior drafts of the removed cache build');
+  }
   for (const j of pendingJobs(store)) {
     if (j.running || KEPT_JOBS.has(j.args?.[0])) continue;
     if (!dry) fs.rmSync(j.file, { force: true });

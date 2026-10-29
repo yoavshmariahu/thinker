@@ -346,6 +346,17 @@ export function reportPruned(store, lines) {
   try { fs.mkdirSync(path.dirname(stateFile(store)), { recursive: true }); fs.writeFileSync(stateFile(store), JSON.stringify(state)); } catch {}
 }
 
+// A background learning job thinker has given up on (session-work.js): said once at the end of a turn.
+// A job that retried for ever and told nobody is how one failing job on a user's machine reached ten
+// attempts unseen; the person can run it themselves, or leave it.
+export function reportGaveUp(store, lines) {
+  const state = readState(store);
+  const u = state.unreported || {};
+  u.gaveUp = [...new Set([...(u.gaveUp || []), ...lines])];
+  state.unreported = u;
+  try { fs.mkdirSync(path.dirname(stateFile(store)), { recursive: true }); fs.writeFileSync(stateFile(store), JSON.stringify(state)); } catch {}
+}
+
 export function maintenanceNotice(store, { now = new Date() } = {}) {
   const state = readState(store);
   const u = state.unreported;
@@ -373,6 +384,7 @@ export function maintenanceNotice(store, { now = new Date() } = {}) {
   }
   if (u.revised?.length) parts.push(`${u.revised.length} desired ${u.revised.length === 1 ? 'behavior revised' : 'behaviors revised'}; see thinker system`);
   if (u.violated?.length) parts.push(`${u.violated.length} desired ${u.violated.length === 1 ? 'behavior is violated' : 'behaviors are violated'}; see thinker system`);
+  if (u.gaveUp?.length) parts.push(...u.gaveUp);
   if (u.churning?.length) parts.push(`${u.churning.length} ${u.churning.length === 1 ? 'note' : 'notes'} repeatedly stale; narrow pointers or retire them`);
   if (!parts.length) return '';
   delete state.unreported;
