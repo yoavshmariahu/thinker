@@ -19,7 +19,7 @@
 import { harnessView, harnessSavings, harnessOn, undoHarness, switchOffNow, setHarnessSettings } from '../harness.js';
 import { contextView, mergeViews, switchSources, setOutputCompression } from '../context-view.js';
 import { snapshotView, lastSnapshot, refreshing, dropSnapshots, REFRESH_MS } from '../context-snapshot.js';
-import { approveChanges, dismissChanges, startSectionJob, retryJob, revertDecision, pickChanges, allChanges, changeHistory, refreshPrStates, VIA } from '../context-suggest.js';
+import { approveChanges, dismissChanges, startSectionJob, retryJob, revertDecision, pickChanges, allChanges, changeHistory, refreshPrStates, offeredPicks, VIA } from '../context-suggest.js';
 import { mergeReports, reportActions, mergePromptAverages, REPORT_WEEKS } from '../report.js';
 import { reportSnapshot, refreshing as reportRefreshing, historyEffects, promptAverageHere, keptRows } from '../report-snapshot.js';
 import { prAvailable } from '../instruction-pr.js';
@@ -217,24 +217,29 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
           if (stale && !refreshing(st)) refreshFn(st.repo);
           return { at: last.at, view: last.view, refreshing: stale || refreshing(st) };
         };
-        let view, at, busy;
+        let view, at, busy, offered;
         // every repository on the machine, merged (context-view.js:mergeViews); a repository that fails to read is left out
         if (want === 'all') {
           const xs = repos().flatMap(r => { try { return [{ r, s: read(open(r.checkout)) }]; } catch { return []; } });
           view = mergeViews(xs.map(({ r, s }) => ({ repo: r.id, name: r.name, view: s.view })));
           at = Math.min(...xs.map(x => x.s.at)); busy = xs.some(x => x.s.refreshing);
+          offered = xs.flatMap(({ r, s: _s }) => { try { return offeredPicks(open(r.checkout)).map(x => ({ ...x, repo: x.repo || r.id })); } catch { return []; } });
         } else {
           const one = storeFor(want); if (!one) return json(res, 400, { error: 'unknown repository' });
           ({ view, at, refreshing: busy } = read(one));
+          offered = offeredPicks(one);
         }
         // the suggested savings (context-machine.js:suggestedPicks, the rows the installer's terminal picker lists): the page
         // the installer opens comes with them checked. Imported here, not at the top: context-machine.js imports this module.
+        // `offered` is what the weekly question numbered in the session (context-suggest.js:offeredPicks), which the link
+        // in that question opens checked instead of these: the rows the person was actually asked about, with the actions
+        // it suggested for them.
         const { suggestedPicks } = await import('../context-machine.js');
         // and what each part is in full, in the words a small model wrote for it once (part-explain.js): what it is,
         // why someone would make the change offered on it, and what they would lose by making it. The cards are those
         // words; the numbers go around them. `explainMissing` is what has none yet, so the page can offer to write them.
         const have = readExplains();
-        return json(res, 200, { ...attachExplains(describeParts(view), have), suggested: suggestedPicks(view), explainMissing: missingExplains(view, have).length, asOf: Number.isFinite(at) ? at : Date.now(), refreshing: !!busy });
+        return json(res, 200, { ...attachExplains(describeParts(view), have), suggested: suggestedPicks(view), offered, explainMissing: missingExplains(view, have).length, asOf: Number.isFinite(at) ? at : Date.now(), refreshing: !!busy });
       }
       // The plain-words explanation of every part (part-explain.js), which a small model writes once and the machine
       // keeps: GET says how many are missing, POST writes them. A person asks for it by opening the cards and agreeing

@@ -3,9 +3,10 @@
 // are an arrow-key multi-select of the actions the page's rows would take (Compress or Remove a section, Switch off a
 // skill or tool), made through the function behind the page's Apply and `thinker context --approve`
 // (context-suggest.js:approveChanges), with the page's address beside them for the detail. In the browser the page
-// opens on All with the same suggestions checked (context-machine.js:suggestedPicks, page.html:preselectRows). Nothing is changed until
-// the person picks rows and presses Enter; Esc, or Enter with nothing picked, skips. Without a terminal to ask in the
-// report is printed as `thinker context --machine` prints it.
+// opens on All with the same suggestions checked (context-machine.js:suggestedPicks, page.html:preselectRows), and in
+// the terminal they come checked too: unchecking what should be kept is the work, not finding what thinker meant.
+// Nothing is changed until the person presses Enter; Esc, or Enter with nothing left checked, skips. Without a
+// terminal to ask in the report is printed as `thinker context --machine` prints it.
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -57,13 +58,17 @@ export async function askMachineReport({ r, recs, store, out = console.log, brow
   const all = machineChanges(r, recs), picks = all.filter(p => p.targets.length);
   // the page for the detail: every part with its figures, started now for this machine, gone once idle
   let url = null; try { url = ui(store); } catch {}
-  if (url) out(`  Every part with its figures, and the decisions so far: ${c.cyan(suggestionsUrl(url))}`);
+  if (url) out(`  Every part with its figures, and the decisions so far: ${c.cyan(suggestionsUrl(url, null, { from: 'setup' }))} (the same suggestions checked there)`);
   if (!picks.length) return { mode: 'terminal', picked: [], said: [] };
   out('');
+  // The suggestions come checked, as they do on the page the browser answer opens (page.html:preselectRows): the
+  // question is whether to make the changes thinker suggests, so the work is unchecking the ones they want kept, not
+  // finding the ones it meant. Nothing is applied by arriving here -- Esc skips, `n` clears them all, and Enter is
+  // the Apply.
   const chosen = await multi({
-    header: `  ${c.bold('Apply now?')} ${c.dim('A skill or tool is switched off for that repository from the next session; a section is rewritten in the background and opens a pull request in its own repository (the file where there is no GitHub origin). Each can be followed and reverted from the page\'s Recent activity.')}`,
-    hint: '↑/↓ move, Space picks, a picks all, Enter applies the picked, Esc skips',
-    items: all.map(p => p.targets.length ? { label: pickLine(p), note: `· ${pickNote(p)}`, value: p } : { label: pickLine(p), note: '· nothing switches it off per repository; its figures are on the page', disabled: true, value: p }), out, stdin, stdout,
+    header: `  ${c.bold('Apply the checked?')} ${c.dim('A skill or tool is switched off for that repository from the next session; a section is rewritten in the background and opens a pull request in its own repository (the file where there is no GitHub origin). Each can be followed and reverted from the page\'s Recent activity.')}`,
+    hint: '↑/↓ move, Space unchecks, n clears all, Enter applies the checked, Esc skips',
+    items: all.map(p => p.targets.length ? { label: pickLine(p), note: `· ${pickNote(p)}`, value: p, picked: true } : { label: pickLine(p), note: '· nothing switches it off per repository; its figures are on the page', disabled: true, value: p }), out, stdin, stdout,
   });
   const picked = (chosen || []).map(x => x.value);
   if (!picked.length) { out(`  Nothing changed. The suggestions stay on the page${url ? '' : ' (thinker ui)'}.`); return { mode: 'terminal', picked: [], said: [] }; }
