@@ -193,6 +193,8 @@
     .ctx-about { display: block; font-size: 0.76rem; color: #6b7280; margin-top: 0.1rem; }
     .ctx-more { background: none; border: 0; padding: 0; margin-left: 0.5rem; font: inherit; font-size: 0.74rem; color: #6b7280; cursor: pointer; white-space: nowrap; }
     .ctx-more:hover { color: #111; text-decoration: underline; }
+    .pr-more { display: block; margin: 0.55rem 0 0.1rem 0.1rem; }
+    .pr-repo { color: #9ca3af; font-size: 0.74rem; white-space: nowrap; }
     .ctx-pill { font-size: 0.68rem; border-radius: 999px; padding: 0.1rem 0.5rem; font-weight: 600; white-space: nowrap; }
     .ctx-pill.high { background: #fee2e2; color: #991b1b; }
     .ctx-pill.medium { background: #fef9c3; color: #854d0e; }
@@ -1224,6 +1226,8 @@ function reportAsOf(v) {
     else reportAsOf({ ...v, refreshing: n.refreshing, tries });
   }, 5000);
 }
+// Merged pull requests the band lists before the fold opens the rest.
+const PR_ROWS = 12;
 function renderReport(v) {
   RPT = v;
   const cost = RMEASURE === 'cost', sum = RMODE === 'sum', share = RVIEW === 'share', el = $('#report-body');
@@ -1286,9 +1290,31 @@ function renderReport(v) {
     ${card('Cache hits', fmt(c.hits), `notes served, for ${fmt(c.answered)} of ${fmt(c.attempted)} requests the cache was asked${c.requests > c.attempted ? ` (${fmt(c.requests - c.attempted)} not asked)` : ''}`)}
     ${card('Acted on', c.acted == null ? '–' : `${Math.round(100 * c.acted)}%`, `of ${fmt(c.judged)} servings the sessions were judged on`)}
   </div></div>`;
+  // What was shipped here, and how much of it thinker paid for (report.js:prSavings, the same figures as
+  // `thinker prs`). In tokens under Cost as much as under Tokens, and the caption says why: the clearing's
+  // worth in dollars is not its tokens at the input rate, since what it takes out of a prompt was being read
+  // from the prompt cache and the clear writes that cache again. `thinker proxy replay` is what prices it.
+  const pr = v.prs;
+  const prRows = pr ? (RFOLD.has('pr-all') ? pr.rows : pr.rows.slice(0, PR_ROWS)) : [];
+  const prShare = x => x == null ? '<span class="muted">–</span>' : `${(100 * x).toFixed(x < 0.01 ? 2 : 1)}%`;
+  // In All repositories two repositories both number from 1, so the row says which; inline, since a line of
+  // its own doubles the height of every row in the table.
+  const prName = r => `${r.url ? `<a href="${esc(r.url)}" target="_blank" rel="noreferrer noopener">#${r.number}</a>` : `#${r.number}`}${r.title ? ` ${esc(r.title)}` : ''}${r.repoName ? ` <span class="pr-repo">${esc(r.repoName)}</span>` : ''}`;
+  const prTable = !prRows.length ? '' : `<figure class="ctx-figure"><figcaption><b>Merged, newest first</b> <span class="ctx-sub">what each pull request cost in agent tokens -- every prompt and every answer of its sessions added up -- and what never had to sit in those prompts. A row with no saving had no clearing and no note it acted on.</span></figcaption>
+    <table class="ctx-table"><thead><tr><th>Pull request</th><th class="num">Sessions</th><th class="num">Its cost</th><th class="num">Cleared</th><th class="num">Reading avoided</th><th class="num">Saved</th><th class="num">Share</th></tr></thead>
+    <tbody>${prRows.map(r => `<tr><td class="ctx-name">${prName(r)}</td><td class="num">${r.sessions}</td><td class="num"${r.complete ? '' : ' title="a session of this pull request reported no counters, so its cost is partial"'}>${fmt(r.agent)}${r.complete ? '' : '<span class="ctx-kind">partial</span>'}</td><td class="num">${r.cleared ? fmt(r.cleared) : '<span class="muted">–</span>'}</td><td class="num">${r.reading ? fmt(r.reading) : '<span class="muted">–</span>'}</td><td class="num">${r.saved ? fmt(r.saved) : '<span class="muted">–</span>'}</td><td class="num">${prShare(r.share)}</td></tr>`).join('')}</tbody></table>
+    ${pr.rows.length > PR_ROWS ? `<button class="ctx-more pr-more" data-fold="pr-all" aria-expanded="${RFOLD.has('pr-all')}">${RFOLD.has('pr-all') ? `Show the newest ${PR_ROWS}` : `Show all ${fmt(pr.rows.length)}`}</button>` : ''}</figure>`;
+  const prBand = !pr || !pr.merged ? '' : `<div class="section"><div class="kicker">Pull requests, over the same ${v.weeks} weeks</div>
+    <p class="lede">Of the work shipped here, how much of it did thinker pay for. In tokens, not dollars, under either toggle: reading avoided is input nobody paid for, but a cleared token was mostly being read from the prompt cache at a fraction of the input price, and the clear writes that cache again -- <code>thinker proxy replay</code> is what prices a clear.</p>
+    <div class="cards four" style="margin-top:0.6rem">
+    ${card('Merged with work here', fmt(pr.merged), `of ${fmt(pr.mergedSeen)} merged in ${v.all ? 'those repositories' : 'the repository'}; the rest no session here touched`, [['Still open', fmt(pr.open)], ['Sessions on one', fmt(pr.sessions.linked)], ['Sessions on none', fmt(pr.sessions.unlinked)]])}
+    ${card('Tokens saved on them', fmt(pr.saved.total), 'that never had to sit in a prompt', [['Cleared (measured)', fmt(pr.saved.cleared)], ['Reading avoided (estimate)', fmt(pr.saved.reading)]], true)}
+    ${card('Share of what they cost', prShare(pr.share), `against ${fmt(pr.agent)} agent tokens, the same shape: every prompt and every answer added up`, [[`${fmt(pr.mergedAssisted)} of ${fmt(pr.merged)}`, 'saved something']], true)}
+    ${card('On the median one', fmt(pr.medianSaved || 0), 'tokens saved', [['Its cost', pr.medianAgent == null ? '–' : fmt(pr.medianAgent)], ['Opened to merged', pr.medianHours == null ? '–' : `${pr.medianHours < 10 ? pr.medianHours.toFixed(1) : Math.round(pr.medianHours)}h`]])}
+  </div>${prTable}</div>`;
   // the prompt-cache rewrites by cause and the sessions whose agent reports no usage are in the view (rewrites, estimated) and
   // not on the page: not what a person can act on (the owner's call, 2026-10-25)
-  swapBody(el, parts + models + tokenTypes + cards); // the token types last (the owner's order, 2026-10-24)
+  swapBody(el, parts + models + tokenTypes + cards + prBand); // the token types last (the owner's order, 2026-10-24)
   el.querySelectorAll('[data-fold]').forEach(b => b.onclick = () => { const p = b.dataset.fold; RFOLD.has(p) ? RFOLD.delete(p) : RFOLD.add(p); renderReport(v); });
 }
 // first view: the tab the URL names, else Save (where the agents' context goes is the front door, since
