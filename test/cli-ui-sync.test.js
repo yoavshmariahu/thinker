@@ -107,12 +107,38 @@ test('CLI and page expose the shared Claude Code, Codex and Cursor harness repor
   assert.doesNotMatch(page, /\['high', 'High compression'\]/); assert.doesNotMatch(read('context-suggest.js'), /text: 'High compression'/);
   assert.match(page, /const levelOpts = s => s\.compression \? \[\['uncompress', 'No compression'\]\] : \[\['compress', 'Compress'\]\]/);
   assert.match(read('commands/context.js'), /\['high', 'moderate'\]\.includes\(flags\.level\)/);
-  // a built-in tool is switched off from its row through the same route, after the page's confirmation names what goes,
-  // where it is written (harness.js: permissions.deny of .claude/settings.local.json) and how it comes back
+  // a built-in tool is switched off from its row through the same route. Every Apply is read back first (2026-10-29):
+  // one entry a change, naming the part, what the action does to it, and what the agent did with it. A built-in tool's
+  // entry still names what goes, where it is written (harness.js: permissions.deny of .claude/settings.local.json) and
+  // how it comes back, and the review carries its own paragraph saying the agent loses the ability, not the description.
   assert.match(page, /bold: s\.kind === 'tool'/);
-  assert.match(page, /confirmDialog\(\{\s*title: `Switch off \$\{builtins\.length/);
-  assert.match(page, /permissions\.deny<\/code> of <code>\.claude\/settings\.local\.json<\/code> in this repository/);
-  assert.match(page, /<b>Revert<\/b> under Recent activity, <b>Turn back on<\/b> in the tool's row, or <code>thinker harness --undo<\/code>/);
+  assert.match(page, /title: `Apply \$\{items\.length === 1 \? 'this change' : `these \$\{items\.length\} changes`\}\?`/);
+  assert.match(page, /permissions\.deny of \.claude\/settings\.local\.json in this repository/);
+  assert.match(page, /Revert under Recent activity, Turn back on in the tool's row, or thinker harness --undo brings it back/);
+  assert.match(page, /rev-warn[\s\S]{0,260}The agent loses the ability, not just the description/);
+  // what every action does, in the row and in the review: one entry a change, keyed by the kind and the action
+  for (const k of ['section:compress', 'section:remove', 'skill:off', 'tool:off', 'builtin:off', 'output:compress', 'output:uncompress']) assert.match(page, new RegExp(`'${k}': \\[`), k);
+  assert.match(page, /const effectOf = /);
+  // and what each part is, in one line, from the same place Recent activity takes it (part-describe.js)
+  assert.match(read('ui/server.js'), /describePart\(\{ kind: 'section'/);
+  assert.match(page, /class="ctx-about"/);
+  // the cards are the page's default and `thinker explain` is the command behind them: one writer of the words
+  // (part-explain.js), one place they are kept, and the page's button runs that command and nothing else
+  assert.match(page, /let CMODE = [\s\S]{0,120}'table' \? 'table' : 'cards'/);
+  assert.match(page, /function cardOf\(/);
+  assert.match(read('ui/server.js'), /url\.pathname === '\/api\/explain'/);
+  assert.match(read('ui/server.js'), /'--keys', keys\.join\(','\), \.\.\.\(want === 'all' \? \['--all'\] : \[\]\)\]/);
+  // the page names the parts it is showing and the page after them; nothing is written for the rest, and nothing asks
+  assert.match(page, /const here = rows\.slice\(from, from \+ TABLE_PAGE \* 2\)/);
+  assert.match(page, /function explainAhead\(\)/);
+  assert.doesNotMatch(page, /pc-offer|explainOffer|No explanation has been written/);
+  // and the paragraph over each table went with it: the card says what a part is, the grey line says what an action does
+  assert.doesNotMatch(page, /ctx-apply|note: `/);
+  assert.match(read('ui/server.js'), /attachExplains\(describeParts\(view\), have\)/);
+  assert.match(read('commands/explain.js'), /explainParts/);
+  // the words are written once for the machine, never per repository, and never in the background
+  assert.match(read('part-explain.js'), /export function partKey/);
+  assert.doesNotMatch(read('maintain.js'), /explainParts|part-explain/);
   // every view opens with its Potential savings card
   assert.match(page, /const savingsCard = /);
   for (const k of ['all', 'instructions', 'custom', 'builtin', 'outputs']) assert.match(page, new RegExp(`savings: sav\\.${k}`), k);
@@ -355,8 +381,10 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.doesNotMatch(read('ui/page.html'), /SHADE_MIN|rep-up|rep-down/); assert.doesNotMatch(read('report.js'), /TREND_MIN|TREND_BIG|▲/);
   // the decisions table is one function on both pages, the Report's over its window alone
   assert.match(read('ui/page.html'), /historyFigure\(hs, \{ many, caption: 'Decisions'/);
-  // one Sort control in the header, the view's orderings (CSORTS), instead of one in every table's caption
-  assert.match(read('ui/page.html'), /id="c-sort" aria-label="Sort"/);
+  // One ordering, most wasted first (the owner's call, 2026-10-29), so the Sort control went: the page writes the
+  // explanations for the cards in view and the page after them, which is only a promise while the order holds still.
+  assert.doesNotMatch(read('ui/page.html'), /id="c-sort"|CSORTS/);
+  assert.match(read('ui/page.html'), /const VSORT = \{ all: 'wasted', instructions: 'wasted', custom: 'wasted', builtin: 'wasted', outputs: 'wasted' \}/);
   assert.doesNotMatch(read('ui/page.html'), /data-vsort/);
   // every table on the page shows 20 rows a page
   assert.match(read('ui/page.html'), /const TABLE_PAGE = 20, VPAGE = \{\};/);

@@ -23,6 +23,8 @@ import { approveChanges, dismissChanges, startSectionJob, retryJob, revertDecisi
 import { mergeReports, reportActions, mergePromptAverages, REPORT_WEEKS } from '../report.js';
 import { reportSnapshot, refreshing as reportRefreshing, historyEffects, promptAverageHere, keptRows } from '../report-snapshot.js';
 import { prAvailable } from '../instruction-pr.js';
+import { describePart } from '../part-describe.js';
+import { attachExplains, readExplains, missingExplains } from '../part-explain.js';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -196,6 +198,15 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
       // kept in the checkout (context-snapshot.js): made now only when there is none, made again in the background
       // when it is old, the page told when it was made and whether a newer one is coming
       if (req.method === 'GET' && url.pathname === '/api/context') {
+        // what each part is, in one line (part-describe.js, as Recent activity names it): "Artifact: drafts a document
+        // or page". The same call, not a second table; the rows carry it as `about` and the page prints it under the name.
+        const describeParts = v => ({
+          ...v,
+          instructions: { ...v.instructions, sections: (v.instructions?.sections || []).map(x => ({ ...x, about: describePart({ kind: 'section', text: x.text }).about })) },
+          skills: (v.skills || []).map(x => ({ ...x, about: describePart({ kind: 'skill', text: x.text }).about })),
+          tools: (v.tools || []).map(x => ({ ...x, about: describePart({ kind: 'tool', name: x.name, toolKind: x.kind, builtin: x.group === 'builtin', text: x.text }).about })),
+          outputs: { ...v.outputs, tools: (v.outputs?.tools || []).map(x => ({ ...x, about: describePart({ kind: 'output', name: x.name, text: x.text }).about })) },
+        });
         const d = Number(url.searchParams.get('days')) || 30;
         // the last report kept is shown at once, even one the code or the files it rests on have outgrown, and made again
         // behind it; the transcripts are read now only when there is none (a first visit, or after an action dropped it)
@@ -219,7 +230,35 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
         // the suggested savings (context-machine.js:suggestedPicks, the rows the installer's terminal picker lists): the page
         // the installer opens comes with them checked. Imported here, not at the top: context-machine.js imports this module.
         const { suggestedPicks } = await import('../context-machine.js');
-        return json(res, 200, { ...view, suggested: suggestedPicks(view), asOf: Number.isFinite(at) ? at : Date.now(), refreshing: !!busy });
+        // and what each part is in full, in the words a small model wrote for it once (part-explain.js): what it is,
+        // why someone would make the change offered on it, and what they would lose by making it. The cards are those
+        // words; the numbers go around them. `explainMissing` is what has none yet, so the page can offer to write them.
+        const have = readExplains();
+        return json(res, 200, { ...attachExplains(describeParts(view), have), suggested: suggestedPicks(view), explainMissing: missingExplains(view, have).length, asOf: Number.isFinite(at) ? at : Date.now(), refreshing: !!busy });
+      }
+      // The plain-words explanation of every part (part-explain.js), which a small model writes once and the machine
+      // keeps: GET says how many are missing, POST writes them. A person asks for it by opening the cards and agreeing
+      // to the spend -- nothing here is written in the background, since it is the only thing on this page that costs.
+      if (url.pathname === '/api/explain') {
+        const one = want === 'all' ? store : storeFor(want);
+        if (!one) return json(res, 400, { error: 'unknown repository' });
+        const d = Number(url.searchParams.get('days')) || 30;
+        if (req.method === 'GET') {
+          const have = readExplains();
+          const view = want === 'all' ? null : (lastSnapshot(one, d)?.view || null);
+          return json(res, 200, { have: Object.keys(have).length, missing: view ? missingExplains(view, have).length : null });
+        }
+        if (req.method === 'POST') {
+          // the page names the parts it is showing and the ones on the page after it; a comma joins them for one
+          // argument, so a key holding one is left out rather than splitting into two that match nothing
+          const body = await readBody(req);
+          const keys = (Array.isArray(body.keys) ? body.keys : []).map(String).filter(k => k && k.length < 200 && !k.includes(',')).slice(0, 80);
+          if (!keys.length) return json(res, 400, { error: 'no parts named' });
+          const args = ['explain', '--quiet', '--repo', one.repo, '--days', String(d), '--keys', keys.join(','), ...(want === 'all' ? ['--all'] : [])];
+          // one run at a time over the whole page (serialSpawner), and the same request is never started twice
+          const started = background(`explain:${want}:${d}:${keys.join(',')}`, () => child(args, one.repo));
+          return json(res, 200, { started, keys: keys.length });
+        }
       }
       // Recent activity (context-suggest.js:changeHistory, as `thinker context --history`): every decision taken, for one
       // repository or each of them, newest first, with what needs the person counted (`attention`: a change running or
