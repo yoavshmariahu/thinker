@@ -7,6 +7,8 @@
 // the repositories the agents worked in lately, merged, with what to cut first (context-machine.js): what the
 // installer runs, from the sessions that ran before thinker was installed; it needs no repository. --ask is the
 // installer's question: browser or terminal, and in the terminal the suggestions to pick from (setup/context-ask.js).
+// --cards is the Save page's card view here: what each part is, why you would change it and what you would lose
+// (part-explain.js), the same parts in the same order as the table, with the words `thinker explain` wrote.
 import { historyEffects, promptAverageHere, keptRows } from '../report-snapshot.js';
 import { contextView, switchSources, setOutputCompression } from '../context-view.js';
 import { judgeRecent, findRepoSessions } from '../instruction-value.js';
@@ -103,6 +105,43 @@ async function contextCommand({ store, flags, out }) {
     return;
   }
   if (flags.json) { out(JSON.stringify(v, null, 2)); return; }
+  // --cards: the page's own cards in the terminal (part-explain.js). The page shows these words under every row and
+  // the table here showed none of them, so the two doors answered differently about the same part. One source for
+  // both: `viewParts` is the page's list in the page's order (most wasted first), and the explanations are the ones
+  // kept for the machine -- this prints what is there and names the command for what is not, never spending itself.
+  if (flags.cards) {
+    const { viewParts, readExplains } = await import('../part-explain.js');
+    const have = readExplains(), all = viewParts(v);
+    // as many as the tables print, and --verbose for the rest: the page pages through them, a terminal would scroll
+    const parts = flags.verbose ? all : all.slice(0, 12);
+    const KINDS = { section: 'instruction section', skill: 'skill', output: 'tool output', tool: 'tool' };
+    const wrap = (label, text, w = 94) => {
+      const lines = []; let line = `      ${label}${label ? ' ' : ''}`;
+      for (const word of String(text).split(' ')) {
+        if (line.length + word.length > w && line.trim()) { lines.push(line); line = '        '; }
+        line += `${word} `;
+      }
+      return [...lines, line].map(l => l.replace(/\s+$/, ''));
+    };
+    out(`What each part of the context here is, and why you would change it (${parts.length === all.length ? `${all.length} part${all.length === 1 ? '' : 's'}` : `the ${parts.length} most wasted of ${all.length}, --verbose for the rest`}, over ${days} days):\n`);
+    let missing = 0;
+    parts.forEach((x, i) => {
+      const e = have[x.key];
+      if (!e) missing++;
+      out(`${pad(i + 1, 3)}. ${x.name} — ${KINDS[x.kind] || KINDS.tool}, ~${formatTokens(x.tokens)} ${x.kind === 'output' ? 'a result' : 'a prompt'}${x.wastedWindow ? `, ~${formatTokens(x.wastedWindow)} wasted over ${days} days` : ''}`);
+      if (x.about) for (const l of wrap('', x.about)) out(l);
+      if (e) {
+        for (const l of wrap('What this is:', e.what)) out(l);
+        for (const l of wrap('Why you would change it:', e.why)) out(l);
+        if (e.keep) for (const l of wrap('What you would lose:', e.keep)) out(l);
+      }
+      out('');
+    });
+    if (missing) out(`${missing} of these ${missing === 1 ? 'has' : 'have'} no explanation yet: \`thinker explain\` writes them, six parts to a model call, kept for this machine (in a desktop app it is queued for the session's own model).`);
+    else out('Every part here is explained.');
+    out('`thinker context` is the same parts as a table, with the figures; `thinker ui` is the same cards on the page.');
+    return;
+  }
   const iv = v.instructions, t = v.totals;
   // the unit is a prompt, one call to the model, as the Report counts it (report.js): a part's tokens in the calls
   // that carried it, over every prompt of the window
@@ -150,6 +189,7 @@ async function contextCommand({ store, flags, out }) {
     for (const s of v.tools.slice(0, flags.verbose ? undefined : 20)) out(`  ${pad(s.tokens, 6)} ${pad(pct(s.usedShare), 7)} ${pad(formatTokens(s.window), 7)} ${pad(formatTokens(s.wastedWindow || 0), 7)}  ${s.client === 'claude' ? '' : `${s.client}: `}${s.name} ${s.kind}${s.off ? ' (off)' : s.suggested ? ' (rarely used)' : ''}`);
     out('');
   }
+  out('`thinker context --cards` says what each part is and why you would change it, as the page does.');
   out(`Change a section as a pull request: thinker instructions --compress <id> --pr (or --remove).${v.harnessOn ? ' Switch a skill or tool off here: thinker harness --off "<label>".' : ' Switching skills and tools off needs the harness (thinker harness --enabled on).'}`);
 }
 

@@ -182,7 +182,7 @@ export async function explainParts(store, parts, { model, phase, per = PER_BATCH
   return { explains: written, saved, tokens, failed, lastError };
 }
 
-// The page and `thinker context` read the stored words back onto the rows they belong to.
+// The page and `thinker context --cards` read the stored words back onto the rows they belong to.
 // Each row carries its key as well as its words: the page asks for the parts of the page it is showing, and of the
 // one after it, by key (ui/server.js `/api/explain`), so what is written is what someone is about to read.
 export function attachExplains(view, have = readExplains()) {

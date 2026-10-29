@@ -4,7 +4,8 @@
 // focus-area walk and the unmined-commits question are off unless `maintain: { prs: true }` (`maintain.prs`).
 //   - a mining batch still running from before the update is stopped (activity.js:cancelActivity);
 //   - an unmined-commits question waiting for the next prompt is dropped (commits-offer.js state);
-//   - a queued job that is not a distillation, a catch-up or a maintenance run is dropped (session-work.js queue).
+//   - a queued job that is not a distillation, a catch-up, a maintenance run or an explanation is dropped
+//     (session-work.js queue).
 // A repository whose config turns mining on keeps all of it.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -12,7 +13,10 @@ import { activity, cancelActivity } from './activity.js';
 import { maintainConfig } from './maintain.js';
 import { pendingJobs } from './session-work.js';
 
-const KEPT_JOBS = new Set(['distill', 'learn', 'maintain']);
+// `explain` is kept because it is the only way the words under the Save page's cards are ever written in a desktop
+// app (part-explain.js, commands/explain.js): the hooks there have no agent CLI to call, so a person asking for a
+// card queues this job and waits for the session's own model. Dropping it at the next update made that path dead.
+const KEPT_JOBS = new Set(['distill', 'learn', 'maintain', 'explain']);
 const readJson = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
 
 export function retireBackground(store, { dry = false } = {}) {

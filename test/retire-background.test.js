@@ -24,6 +24,10 @@ test('an update stops the mining an older version left running, its pending ques
   fs.writeFileSync(path.join(st, 'commits.json'), JSON.stringify({ pending: { count: 30 }, answers: [] }));
   fs.writeFileSync(path.join(st, 'session-jobs', 'mine.json'), JSON.stringify({ key: 'mine', args: ['mine-prs', '--quiet'], t: new Date().toISOString() }));
   fs.writeFileSync(path.join(st, 'session-jobs', 'distill-x.json'), JSON.stringify({ key: 'distill-x', args: ['distill', 'f.jsonl'], t: new Date().toISOString() }));
+  // In a desktop app this is the only way the words under the Save page's cards are ever written: no agent CLI is
+  // signed in, so the person's request waits here for the session's own model (commands/explain.js). An update that
+  // dropped it left that door dead, and nobody would have seen why: the page simply never filled in.
+  fs.writeFileSync(path.join(st, 'session-jobs', 'explain.json'), JSON.stringify({ key: 'explain', args: ['explain', '--repo', store.repo], t: new Date().toISOString() }));
   assert.equal(retireBackground(store, { dry: true }).length, 3);
   assert.ok(fs.existsSync(path.join(st, 'session-jobs', 'mine.json')), 'dry changes nothing');
   const done = retireBackground(store);
@@ -31,6 +35,7 @@ test('an update stops the mining an older version left running, its pending ques
   assert.equal(JSON.parse(fs.readFileSync(path.join(st, 'commits.json'), 'utf8')).pending, undefined);
   assert.ok(!fs.existsSync(path.join(st, 'session-jobs', 'mine.json')));
   assert.ok(fs.existsSync(path.join(st, 'session-jobs', 'distill-x.json')), "a session's distillation stays queued");
+  assert.ok(fs.existsSync(path.join(st, 'session-jobs', 'explain.json')), 'a card someone asked for in a desktop app stays queued');
   // Wait for the process to go rather than 200 ms and a hope: a signalled child can take longer than that
   // to be reaped under the whole suite's load, and the assertion would then read it as still running.
   const gone = async (pid, ms = 10_000) => {
