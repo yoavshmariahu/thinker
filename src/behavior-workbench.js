@@ -1,27 +1,22 @@
 // Defining the desired behaviors of a system together with a person: what is waiting for a decision,
-// and the decisions. Two things wait: drafts the build wrote from the strongest rule notes
-// (behavior-proposals.js, a file beside the notes) and behaviors an agent saved with `remember` before it was removed
-// (behavior.js:proposed). Neither is a requirement until a person accepts it, as written or
-// edited. `thinker system` (the terminal) and `thinker ui` (the local page) are the two ways
-// in; both call only what is here.
+// and the decisions. What waits is a behavior an agent saved with `remember` before that tool was
+// removed (behavior.js:proposed); it is not a requirement until a person accepts it, as written or
+// edited. The build's own drafts went with `thinker system propose` on 2026-10-30 (the owner's call:
+// the build that wrote them was removed on 2026-10-21, nothing has surfaced a draft since, and the
+// drafts one user had were sitting unreviewed from the day they installed). `thinker system` (the
+// terminal) and `thinker ui` (the local page) are the two ways in; both call only what is here.
 import { listBehaviors, isBehavior, proposed, promoteBehavior, writeSystemMarkdown } from './behavior.js';
 import { docSource, rememberDiscarded } from './behavior-docs.js';
-import { listBehaviorProposals, acceptBehaviorProposal, discardBehaviorProposal } from './behavior-proposals.js';
 import { createNote, MUTABILITY } from './ops.js';
 
 const pointers = deps => (deps || []).map(d => `${d.path}${d.symbol ? ':' + d.symbol : ''}`);
 
-// Everything a person can decide on, drafts first (they carry their evidence), then agent proposals.
+// Everything a person can decide on: the behaviors an agent saved.
 export function pendingBehaviors(store) {
-  const drafts = listBehaviorProposals(store).map(p => ({
-    id: p.id, origin: 'draft', title: p.title, body: p.body, mutability: p.mutability || 'mutable',
-    reason: p.reason, evidence: p.source?.ref || p.source?.type || p.sourceId, sourceId: p.sourceId, pointers: pointers(p.deps),
-  }));
-  const agent = store.list().filter(n => isBehavior(n) && proposed(n) && n.status !== 'invalid').map(n => ({
+  return store.list().filter(n => isBehavior(n) && proposed(n) && n.status !== 'invalid').map(n => ({
     id: n.id, origin: 'agent', title: n.title, body: n.body, mutability: n.mutability || 'mutable',
     reason: 'Saved by an agent during a session', evidence: n.source?.session ? `session ${String(n.source.session).slice(0, 8)}` : (n.source?.type || 'agent'), pointers: pointers(n.deps),
   }));
-  return [...drafts, ...agent];
 }
 
 // The behaviors in force, with what a person needs to judge them.
@@ -36,7 +31,6 @@ export function activeBehaviors(store) {
 // Accept a pending behavior, optionally rewritten. `edit`: { title, body }.
 export function acceptPending(store, id, { mutability = 'mutable', edit = null } = {}) {
   if (!MUTABILITY.includes(mutability)) return { error: `mutability must be one of ${MUTABILITY.join(', ')}` };
-  if (String(id).startsWith('proposal-')) return acceptBehaviorProposal(store, id, { fixed: mutability === 'fixed', edit });
   const n = store.get(id);
   if (!n || !isBehavior(n) || !proposed(n)) return { error: 'no such proposed behavior' };
   if (edit && (edit.title || edit.body)) {
@@ -47,7 +41,6 @@ export function acceptPending(store, id, { mutability = 'mutable', edit = null }
 }
 
 export function discardPending(store, id) {
-  if (String(id).startsWith('proposal-')) return discardBehaviorProposal(store, id);
   const n = store.get(id);
   // a behavior read from a design document is in force without a person's yes, so a person can take it out
   if (!n || !isBehavior(n) || !(proposed(n) || docSource(n))) return { error: 'no such proposed behavior' };
@@ -88,7 +81,6 @@ export function editBehavior(store, id, { title, body, mutability } = {}) {
 // the agent's `behavior` tool: the person asked for it). One read from a design document is
 // remembered, so it stays out when the document changes.
 export function removeBehavior(store, id) {
-  if (String(id).startsWith('proposal-')) return discardBehaviorProposal(store, id);
   const n = store.get(id);
   if (!n || !isBehavior(n)) return { error: 'no such behavior' };
   rememberDiscarded(store, n);

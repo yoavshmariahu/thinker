@@ -9,7 +9,6 @@ import { Store } from '../src/store.js';
 import { hashDep } from '../src/deps.js';
 import { createNote } from '../src/ops.js';
 import { pendingBehaviors, activeBehaviors, acceptPending, discardPending, editBehavior } from '../src/behavior-workbench.js';
-import { listBehaviorProposals } from '../src/behavior-proposals.js';
 import { createUiServer } from '../src/ui/server.js';
 
 const GUARD = `export function guard(input) {\n  if (!input) throw new Error('input required');\n  return input.trim();\n}\n\nexport function other() {\n  return 1;\n}\n`;
@@ -24,33 +23,36 @@ function fixture(t) {
   git('add', '-A'); git('commit', '-qm', 'init');
   const store = new Store(repo).init();
   const dep = symbol => hashDep(repo, { path: 'src/guard.js', symbol });
-  // one behavior a person wrote, one an agent saved and nobody accepted, and the rule a draft came from
+  // one behavior a person wrote, one an agent saved and nobody accepted, and a rule note
   store.put({ id: 'guard-rejects-empty', title: 'guard rejects empty input', kind: 'behavior', mutability: 'fixed', answers: [], body: 'src/guard.js:guard throws on empty input.', deps: [dep('guard')], source: { type: 'human' }, confidence: 0.9, status: 'fresh' });
   store.put({ id: 'guard-trims', title: 'guard trims what it returns', kind: 'behavior', mutability: 'mutable', answers: [], body: 'src/guard.js:guard returns trimmed input.', deps: [dep('guard')], source: { type: 'agent', session: 'abc12345' }, confidence: 0.7, status: 'fresh' });
   const rule = { id: 'other-returns-one', title: 'other returns one', kind: 'rule', answers: [], body: 'src/guard.js:other returns 1; callers count on it.', deps: [dep('other')], source: { type: 'pr', ref: 'o/r#7' }, confidence: 0.8, status: 'fresh' };
   store.put(rule);
-  fs.writeFileSync(path.join(store.localDir, 'behavior-proposals.json'), JSON.stringify({ proposals: [{ id: 'proposal-other-returns-one', sourceId: rule.id, sourceHash: 'x', source: rule.source, title: 'other always returns one', body: 'Callers rely on src/guard.js:other returning 1.', answers: [], deps: [{ path: 'src/guard.js', symbol: 'other' }], reason: 'The fix says so.', mutability: 'mutable' }] }));
   return { repo, store, git };
 }
 
-test('what waits for a decision: build drafts and agent proposals, accepted as written or edited, or discarded', t => {
+test('what waits for a decision: the behaviors an agent saved, accepted as written or edited, or discarded', t => {
   const { store } = fixture(t);
-  const pending = pendingBehaviors(store);
-  assert.deepEqual(pending.map(p => [p.id, p.origin]), [['proposal-other-returns-one', 'draft'], ['guard-trims', 'agent']]);
+  assert.deepEqual(pendingBehaviors(store).map(p => [p.id, p.origin]), [['guard-trims', 'agent']]);
   assert.deepEqual(activeBehaviors(store).map(b => b.id), ['guard-rejects-empty']);
 
-  // an edited draft is the person's: it needs only to point at code that exists
-  const r = acceptPending(store, 'proposal-other-returns-one', { mutability: 'fixed', edit: { title: 'other returns exactly one', body: 'Every caller relies on src/guard.js:other returning 1.' } });
+  // an edited proposal is the person's: it needs only to point at code that exists
+  const r = acceptPending(store, 'guard-trims', { mutability: 'fixed', edit: { title: 'guard trims its answer', body: 'src/guard.js:guard returns trimmed input.' } });
   assert.ok(!r.error, r.error);
   assert.equal(r.note.mutability, 'fixed');
   assert.equal(r.note.source.type, 'human');
-  assert.equal(r.note.title, 'other returns exactly one');
-  assert.equal(listBehaviorProposals(store).length, 0, 'the draft leaves the list');
+  assert.equal(r.note.title, 'guard trims its answer');
+  assert.equal(pendingBehaviors(store).length, 0, 'it leaves the list');
 
-  assert.ok(!discardPending(store, 'guard-trims').error);
-  assert.equal(store.get('guard-trims'), null);
-  assert.equal(pendingBehaviors(store).length, 0);
+  // accepted, it is a person's behavior and no longer waiting: only `thinker system rm` takes it out
   assert.match(discardPending(store, 'guard-trims').error, /no such/);
+
+  // another one an agent saved, discarded instead of accepted
+  store.put({ id: 'guard-logs', title: 'guard logs what it rejects', kind: 'behavior', mutability: 'mutable', answers: [], body: 'src/guard.js:guard logs the input it rejects.', deps: [], source: { type: 'agent', session: 'def67890' }, confidence: 0.7, status: 'fresh' });
+  assert.deepEqual(pendingBehaviors(store).map(p => p.id), ['guard-logs']);
+  assert.ok(!discardPending(store, 'guard-logs').error);
+  assert.equal(store.get('guard-logs'), null);
+  assert.equal(pendingBehaviors(store).length, 0);
 });
 
 test('switching fixed and mutable leaves a stale behavior stale; new words are re-anchored with history', t => {

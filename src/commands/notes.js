@@ -3,8 +3,7 @@
 // re-hashing, archiving, phrasing, links). Each takes the dispatcher's context (cli.js).
 import fs from 'node:fs';
 import path from 'node:path';
-import { listBehaviors, renderBehaviors, addBehavior, promoteBehavior, proposeBehaviors, writeSystemMarkdown } from '../behavior.js';
-import { listBehaviorProposals, acceptBehaviorProposal, generateBehaviorProposals } from '../behavior-proposals.js';
+import { listBehaviors, renderBehaviors, addBehavior, promoteBehavior, writeSystemMarkdown } from '../behavior.js';
 import { annotateFanout } from '../codegraph.js';
 import { disabledTools, SWITCHABLE_TOOLS } from '../cache-guidance.js';
 import { formatTokens } from '../model-usage.js';
@@ -67,24 +66,15 @@ async function systemCommand(ctx) {
   } else if (sub === 'promote' || sub === 'accept') {
     if (!pos.length) { out(`usage: thinker system ${sub} <id…> [--fixed | --mutable]`); process.exit(1); }
     for (const id of pos) {
-      const r = sub === 'accept' && id.startsWith('proposal-')
-        ? acceptBehaviorProposal(store, id, { fixed: mutability === 'fixed' })
-        : promoteBehavior(store, id, { mutability: mutability || 'mutable' });
+      const r = promoteBehavior(store, id, { mutability: mutability || 'mutable' });
       out(r.error ? `${id}: ${r.error}` : r.unchanged ? `${id}: already a ${r.note.mutability} behavior` : `${id}: now a ${r.note.mutability} behavior`);
     }
   } else if (sub === 'propose') {
-    // --refresh drafts them again from the rule notes of merged changes: the step a cache build ends with
-    if (flags.refresh) {
-      try {
-        const r = await generateBehaviorProposals(store, { model: flags.model });
-        out(`${r.proposals.length} behavior drafts from ${r.sources} source notes${r.failed ? ` (${r.failed} source notes not read: ${String(r.lastError?.message || '').slice(0, 120)})` : ''}`);
-      } catch (e) { out(`behavior drafts failed: ${String(e.message).slice(0, 200)}`); process.exitCode = 1; return; }
-    }
-    const drafts = listBehaviorProposals(store);
-    for (const p of drafts) out(`${p.id}\n  ${p.title}\n  ${p.body}\n  Evidence: ${p.source?.ref || p.source?.type || p.sourceId}; ${p.reason}\n  Accept: thinker system accept ${p.id}`);
-    const c = proposeBehaviors(store);
-    for (const x of c) out(`${x.kind.padEnd(10)} ${x.id.padEnd(45)} acted on ${x.confirmed}×, served ${x.uses}×  ${x.title}`);
-    out(c.length ? `${c.length} rule notes; thinker system promote <id> [--fixed] makes one a desired behavior` : drafts.length ? `${drafts.length} behavior drafts awaiting acceptance` : 'no behavior candidates yet');
+    // Removed 2026-10-30 (the owner's call). It listed two things: drafts written by the last step of a
+    // cache build, and the rule notes a person could promote. The build went on 2026-10-21, so no draft
+    // has been written since, nothing ever surfaced the ones already on disk, and the drafts one user had
+    // were sitting unreviewed from the day they installed. `thinker list` shows the notes, kind and all.
+    out('thinker system propose is gone: the cache build that drafted behaviors was removed on 2026-10-21, so there was nothing left to review here.\nthinker list shows the notes in this cache; thinker system promote <id> [--fixed] makes a rule note a desired behavior.');
   } else if (sub === 'docs') {
     // the behaviors the checked-in design documents state (behavior-docs.js): the step a cache build starts with
     const { deriveDocBehaviors, docBehaviorsLine } = await import('../behavior-docs.js');

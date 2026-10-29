@@ -87,13 +87,6 @@ export function promoteBehavior(store, id, { mutability = 'mutable' } = {}) {
 }
 export const acceptBehavior = (store, id, opts) => promoteBehavior(store, id, opts);
 
-// Candidates for promotion: the notes that state rules, the ones the sessions acted on most first.
-export function proposeBehaviors(store, { kinds = ['rule'], limit = 20 } = {}) {
-  return store.list().filter(n => kinds.includes(n.kind) && n.status !== 'invalid')
-    .map(n => ({ id: n.id, title: n.title, kind: n.kind, confidence: n.confidence ?? 0.7, confirmed: n.attest?.confirmed || 0, uses: n.uses || 0, source: n.source?.type || 'agent' }))
-    .sort((a, b) => b.confirmed - a.confirmed || b.uses - a.uses || b.confidence - a.confidence).slice(0, limit);
-}
-
 // What the MCP lookup returns for the kind as a whole: the list, each with its state, before the bodies.
 export function behaviorsSummary(rows) {
   return rows.map(r => `- ${r.state}${r.state === 'violated' ? ` (since ${r.since || '?'})` : ''} [${r.mutability}${r.proposed ? ', proposed' : ''}] ${r.title}  (id: ${r.id})`).join('\n');

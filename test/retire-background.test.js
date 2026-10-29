@@ -56,3 +56,26 @@ test('a repository that turned mining on keeps it', t => {
   fs.writeFileSync(path.join(store.dir, 'state', 'commits.json'), JSON.stringify({ pending: { count: 30 } }));
   assert.deepEqual(retireBackground(store), []);
 });
+
+// The two leftovers of the removed warm-up a user could still see in October 2026: a focus-area list
+// naming a directory that no longer existed, printed as "refreshed daily" when nothing had refreshed
+// it since 2026-10-21, and behavior drafts nothing surfaced after the build that wrote them went.
+test('an update drops the focus-area list and the behavior drafts the warm-up left behind', t => {
+  const { store } = repo(t);
+  const cfgFile = path.join(store.dir, 'config.json');
+  fs.writeFileSync(cfgFile, JSON.stringify({ version: 1, distillModel: 'sonnet', areas: { directories: ['docs/design'], source: 'activity', walked: 40 } }));
+  fs.mkdirSync(store.localDir, { recursive: true });
+  const drafts = path.join(store.localDir, 'behavior-proposals.json');
+  fs.writeFileSync(drafts, JSON.stringify({ proposals: [{ id: 'proposal-x', title: 'never log tokens' }] }));
+
+  assert.equal(retireBackground(store, { dry: true }).length, 2);
+  assert.ok(JSON.parse(fs.readFileSync(cfgFile, 'utf8')).areas, 'dry changes nothing');
+
+  const done = retireBackground(store);
+  assert.equal(done.length, 2);
+  const cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf8'));
+  assert.equal(cfg.areas, undefined);
+  assert.equal(cfg.distillModel, 'sonnet', 'the rest of the config is untouched');
+  assert.ok(!fs.existsSync(drafts));
+  assert.deepEqual(retireBackground(store), [], 'nothing to do the second time');
+});
