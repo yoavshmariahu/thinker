@@ -56,7 +56,7 @@ test('the question is put through the agent\'s own tool, once, and names the fix
   try {
     const first = proxyOffer(st, { client: 'claude', home: m.home, env: m.env });
     assert.match(first, /^<thinker-proxy-offer>/);
-    assert.match(first, /AskUserQuestion tool, not in prose/);
+    assert.match(first, /AskUserQuestion tool, not in prose: "Turn thinker's context clearing back on\?" \(header "thinker"\)/);
     assert.match(first, /smartrouter\.internal/, 'it says what the route is');
     assert.match(first, new RegExp(FIX_PR.replace(/[/.]/g, '\\$&')), 'and links the fix');
     assert.match(first, /thinker's `proxy` tool with choice set to yes, no or never/);

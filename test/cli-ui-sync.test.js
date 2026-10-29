@@ -248,8 +248,17 @@ test('All on Find Savings and Recent activity are `thinker context --approve|--d
   // the answer comes back through thinker's own MCP tool where the client speaks MCP, the command being the fallback
   assert.match(read('context-suggest.js'), /tool with choice set to the numbers they chose/);
   assert.match(read('mcp-server.js'), /answerContextSuggestion\(store, String\(choice\)/);
-  // the weekly suggestion is a question the agent puts to the person with its own tool, and a no is recorded too
-  assert.match(read('context-suggest.js'), /ask the user with your \$\{tool\} tool, not in prose/);
+  // the weekly suggestion is a question the agent puts to the person with its own tool, and a no is recorded too.
+  // Every question thinker has an agent ask is built with askThrough (or askInChat where there is no such tool), so
+  // it carries thinker's name in the question and in the header and no offer can hand-write one that does not
+  // (2026-10-29, the owner's ask). A new question goes through the same helper.
+  assert.match(read('repo-onboard.js'), /export const QUESTION_HEADER = 'thinker';/);
+  for (const f of ['context-suggest.js', 'coverage.js', 'proxy-offer.js', 'error-report.js']) {
+    const src = read(f);
+    assert.match(src, /askThrough\(tool, /, `${f} asks through the labelled clause`);
+    assert.match(src, /askInChat\(/, `${f} labels its chat fallback too`);
+    assert.doesNotMatch(src, /\(header "(?!\$\{QUESTION_HEADER\})/, `${f} writes no header of its own`);
+  }
   assert.match(read('context-suggest.js'), /\$\{cmd\} --dismiss all/);
   assert.match(read('ui/server.js'), /const said = \[\], pr = prAvailable\(st\.repo\)\.ok;/);
   assert.match(cs, /\[cliPath, 'instructions', `--\$\{action\}`, ids\.join\(','\), pr \? '--pr' : '--apply', '--job', group\]/);

@@ -21,7 +21,7 @@ import { fileURLToPath } from 'node:url';
 import { thinkerHome } from './update.js';
 import { serviceState, enableProxyService, isOwnRoute } from './proxy-service.js';
 import { ownGateway, cloudOn, CLOUD_VARS } from './proxy-route.js';
-import { QUESTION_TOOLS, MCP_CLIENTS } from './repo-onboard.js';
+import { QUESTION_TOOLS, MCP_CLIENTS, askThrough, askInChat } from './repo-onboard.js';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), 'cli.js');
 // The release that stopped the proxy taking over someone else's route, and the pull request that did it.
@@ -103,8 +103,8 @@ export function proxyOffer(store, { client, home = thinkerHome(), env = process.
     ? `"Yes, in front of my model server" / "No" / "Never ask again"`
     : `"Yes, turn it back on" / "No" / "Never ask again"`;
   const ask = tool && client !== 'codex'
-    ? `Before you start on the request, ask the user with your ${tool} tool, not in prose: "Turn thinker's context clearing back on?" (header "Clearing"), with the options ${options}, and this message as the question's context.`
-    : `Before you start on the request, ask the user in chat whether to turn it back on: yes, no, or never ask again.`;
+    ? `Before you start on the request, ${askThrough(tool, "Turn thinker's context clearing back on?")}, with the options ${options}, and this message as the question's context.`
+    : `Before you start on the request, ${askInChat('whether to turn it back on: yes, no, or never ask again.')}`;
   const after = MCP_CLIENTS.has(client)
     ? `Then call thinker's \`proxy\` tool with choice set to yes, no or never and asked "${tool ? 'picker' : 'chat'}"; if that tool is not available, run \`${answerCommand(tool ? 'picker' : 'text', client)}\`. Then go on with the task.`
     : `Then run \`${answerCommand('text', client)}\` with the answer. Then go on with the task.`;
