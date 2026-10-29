@@ -402,7 +402,7 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   // whose agent reports no usage, on both doors (2026-10-25), from the one view (reportView: rewrites, rewriteTotals, estimated, calibration)
   // the rewrites by cause and the estimated sessions are in the view and on neither door (the owner's call, 2026-10-25)
   for (const re of [/Prompt cache rewrites/, /Sessions whose agent reported no usage/]) { assert.doesNotMatch(read('ui/page.html'), re); assert.doesNotMatch(read('report.js').replace(/\/\/[^\n]*/g, ''), re); }
-  assert.match(read('ui/page.html'), /swapBody\(el, parts \+ models \+ tokenTypes \+ cards\);/); assert.match(read('ui/page.html'), /v\.calibration/);
+  assert.match(read('ui/page.html'), /swapBody\(el, parts \+ models \+ tokenTypes \+ cards \+ prBand\);/); assert.match(read('ui/page.html'), /v\.calibration/);
   // the rest of the input is one row on both doors (reportView `otherInput`), folded by default on the page, its kinds under it
   assert.match(read('ui/page.html'), /RFOLD = new Set\(\['other-input'\]\)/); assert.match(read('ui/page.html'), /data-fold="other-input"/); assert.match(read('ui/page.html'), /v\.otherInput \|\| \[\]/);
   assert.match(read('report.js'), /line\('Other input', v\.otherInput, false, base, \{ key: 'otherInput', thresholds: true \}\)/); assert.match(read('report.js'), /line\(`  \$\{p\.name\}`, p\.cells/);
@@ -479,7 +479,7 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('report.js'), /export const TOKEN_TYPES = \[\['fresh', 'Input, fresh'\], \['cacheWrite', 'Input, written to cache'\], \['cacheRead', 'Input, read from cache'\], \['output', 'Model output'\]\];/);
   assert.match(read('report.js'), /export const OTHERS = \[\.\.\.REST_INPUT, 'output'\]\.map\(k => BREAKDOWN\.find/, 'the rest of the input by kind, then the output (2026-10-25)');
   assert.match(read('report.js'), /'By token type \(as the model reported them/); assert.match(read('ui/page.html'), /<b>By token type<\/b>/);
-  assert.match(read('ui/page.html'), /swapBody\(el, parts \+ models \+ tokenTypes \+ cards\);/, 'the token types last, no decisions on the Report');
+  assert.match(read('ui/page.html'), /swapBody\(el, parts \+ models \+ tokenTypes \+ cards \+ prBand\);/, 'the token types last, no decisions on the Report');
   // every page is rebuilt in place once on screen (2026-10-25): the three renders go through swapBody, which keeps the scroll and
   // the open rows, and a load of what is already shown does not wipe the body to the spinner
   assert.match(read('ui/page.html'), /function swapBody\(el, html\)/); assert.match(read('ui/page.html'), /swapBody\(el, h\);/); assert.match(read('ui/page.html'), /swapBody\(el, card \+ pullCard \+ historyFigure\(/);
@@ -526,11 +526,35 @@ test('`thinker prs` is one door, and its help says what the figures are (2026-10
   assert.match(cli, /prs sync \[--days n\] \[--pr n\]/);
   assert.match(cli, /prs link --session id --pr n/);
   for (const phrase of [/\(measured\)/, /\(an estimate\)/]) assert.match(cli, phrase);
-  // No page reads it, so nothing on the page may claim to.
-  assert.doesNotMatch(read('ui/page.html'), /api\/prs|thinker prs/);
+  // The page's second door is the Report tab's band, which reads the figures off the report view that
+  // report.js already computed (prSavings). There is no endpoint of its own, and nothing on the page
+  // recomputes them on a visit.
+  assert.match(read('ui/page.html'), /const pr = v\.prs;/);
+  assert.doesNotMatch(read('ui/page.html'), /api\/prs/);
   // Maintenance keeps it current by itself; the switch named in the docs is the one the code reads.
   assert.equal(DEFAULTS.prSync, true);
   assert.equal(DEFAULTS.prs, undefined, 'maintain.prs is the mining switch; the sync has its own');
   assert.match(read('maintain.js'), /cfg\.prSync !== false/);
   assert.match(fs.readFileSync(path.join(SRC, '..', 'docs', 'usage.md'), 'utf8'), /\{ prSync: false \}/);
+});
+
+test('the Report tab and `thinker report` show the same pull request band, in tokens under either toggle (2026-10-30)', async () => {
+  const page = read('ui/page.html'), rep = read('report.js');
+  // one source for both doors: the band is computed in report.js and carried on the view, never recomputed on a page
+  assert.match(rep, /prs: prSavings\(store, \{ days, now \}\)/);
+  assert.match(page, /const pr = v\.prs;/);
+  // the same four cards, in the same order, on the page and in the command
+  for (const phrase of ['Merged with work here', 'Share of what they cost', 'On the median one']) assert.ok(page.includes(phrase), `page card: ${phrase}`);
+  for (const phrase of ['merged with work here', 'share of their cost', 'on the median one']) assert.ok(rep.includes(phrase), `command line: ${phrase}`);
+  // the same seven columns, in the same order
+  for (const c of ['Sessions', 'Its cost', 'Cleared', 'Reading avoided', 'Saved', 'Share']) assert.ok(page.includes(`>${c}</th>`), `page column: ${c}`);
+  // the command's columns are 11 characters wide, so the same six are abbreviated, in the same order
+  const head = rep.slice(rep.indexOf("'Merged, newest first'"), rep.indexOf("'Merged, newest first'") + 400);
+  for (const c of ['sessions', 'its cost', 'cleared', 'reading', 'saved', 'share']) assert.ok(head.includes(`'${c}'`), `command column: ${c}`);
+  assert.ok(head.indexOf("'cleared'") < head.indexOf("'reading'") && head.indexOf("'reading'") < head.indexOf("'saved'"), 'in the page\'s order');
+  // tokens under Cost as much as under Tokens, and both doors say why rather than quietly pricing a cleared token
+  assert.ok(page.includes('thinker proxy replay') && rep.includes('thinker proxy replay'), 'both name what prices a clear');
+  assert.doesNotMatch(page.slice(page.indexOf('const prBand')), /money\(/, 'the band never prices its tokens');
+  // a kept report made before the band must be remade, so report-snapshot hashes what the band is computed from
+  for (const f of ['delivery.js', 'compression.js']) assert.ok(read('report-snapshot.js').includes(`'${f}'`), `${f} is in the report's code key`);
 });
