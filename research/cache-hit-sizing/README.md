@@ -2,6 +2,11 @@
 
 Author: Codex, 2026-10-30. Product code: `ea0a4b800` (merged PR #547).
 
+Follow-up: [revised per-hit estimates including context carry](carry.md) counts
+observed request membership for 28 confirmed hits, charges the carried note text,
+and reports clearing, reading-size, and overlap sensitivity. The initial audit
+below explains why a global multiplier or distillation-input size was insufficient.
+
 The current cache-hit estimate omits discovery and the repeated input from keeping
 discovered context in later prompts. That makes it incomplete, but does **not**
 establish that its final number is too low. It also counts entire dependency files
