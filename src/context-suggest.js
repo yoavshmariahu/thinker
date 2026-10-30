@@ -1,3 +1,4 @@
+import { readScopedState, writeScopedState, machineUndoDir } from './scoped-state.js';
 // The Context view's five highest-leverage changes (context-view.js), each with a suggested action, put to the person
 // in their coding session. Once a week maintenance reads the report and keeps the top five here; the next prompt's
 // hook starts the local page (`thinker ui`) and tells the agent to put the five to the person as a question, with its
@@ -140,7 +141,8 @@ const configOn = store => store.config().maintain?.contextSuggest !== false;
 
 // The decisions on the changes (<cache>/state/context-suggest.json `history`, newest first): approved (its suggested
 // action made), applied after review, or dismissed, with what came of it.
-const readState = store => readJson(stateFile(store)) || {};
+const readState = store => readScopedState(stateFile(store), 'history');
+const writeState = (store, state) => writeScopedState(stateFile(store), 'history', state);
 // each entry with an id (entries written before ids are given one, once) and whether Revert can take it back; an entry
 // made a pull request carries `pr` {number, url, branch, state, openedAt, at} and is `pending` while the pull request
 // is open, `rejected` once it was closed without merging (refreshPrStates keeps the state). An entry a background job
@@ -166,9 +168,9 @@ export function changeHistory(store, { now = Date.now(), git = isAncestor } = {}
       else if (here === false) unpulled.add(e);
     }
   }
-  if (dirty) writeJson(stateFile(store), st);
+  if (dirty) writeState(store, st);
   const pullFrom = unpulled.size ? (defaultBranch(store.repo) || 'main') : null;
-  return h.map(e => {
+  return (h.some(e => e.scope === 'machine') ? h.sort((a, b) => b.at.localeCompare(a.at)) : h).map(e => {
     const running = e.job?.state === 'running', failed = e.job?.state === 'failed', pending = e.pr?.state === 'open';
     // what the part is and does (part-describe.js), worked out for an entry written before they were kept
     return { ...e, ...describeEntry(e), revertible: !e.revertedAt && !running && !failed && Boolean(undoOf(store, e)), ...(e.pr ? { pending, rejected: e.pr.state === 'closed', ...(unpulled.has(e) ? { unpulled: true, pullFrom: e.pr.base || pullFrom } : {}) } : {}), ...(e.job ? { running, failed, retryable: failed && !e.revertedAt } : {}), attention: running ? 'running' : failed && !e.revertedAt ? 'failed' : pending ? 'pr' : null };
@@ -216,19 +218,20 @@ export async function refreshPrStates(store, { now = Date.now(), prs, force = fa
     changed++;
     store.log({ op: 'context-pr', pr: e.pr.number, state: r.state });
   }
-  writeJson(stateFile(store), st);
+  writeState(store, st);
   return changed;
 }
 function record(store, entries) {
   const st = readState(store);
-  st.history = [...entries, ...(st.history || [])].slice(0, HISTORY_KEPT);
-  writeJson(stateFile(store), st);
+  const all = [...entries, ...(st.history || [])];
+  st.history = [...all.filter(e => e.scope !== 'machine').slice(0, HISTORY_KEPT), ...all.filter(e => e.scope === 'machine').sort((a, b) => b.at.localeCompare(a.at)).slice(0, HISTORY_KEPT)];
+  writeState(store, st);
 }
 // what a decision undoes by, kept beside the history (a section's text before and after can be large); a switch-off or
 // compression approved before these were kept is undone by its key. Sections written by one edit are one entry each
 // (the person reads them as separate line items) sharing one undo, under the edit's `group` id: reverting any of them
 // reverts the edit, and every entry of the group with it (revertDecision)
-const undoFile = (store, id) => path.join(store.dir, 'state', 'context-suggest-undo', `${id}.json`);
+const undoFile = (store, id) => path.join(id.startsWith('machine-') ? machineUndoDir() : path.join(store.dir, 'state', 'context-suggest-undo'), `${id}.json`);
 const undoOf = (store, e) => e.decision === 'dismissed' ? { kind: 'dismissed' } : e.pr ? (e.pr.state === 'open' ? { kind: 'pr', number: e.pr.number, branch: e.pr.branch } : e.pr.state === 'merged' ? { kind: 'revert-pr', number: e.pr.number, mergeCommit: e.pr.mergeCommit || null, base: e.pr.base || null } : null) : (e.id && readJson(undoFile(store, e.group || e.id)))
   || (e.decision === 'approved' && (e.kind === 'tool' || e.kind === 'skill') ? { kind: 'off', key: e.key.replace(/^[^:]+:/, '') }
     : e.decision === 'approved' && e.kind === 'output' ? { kind: 'output', name: e.key.replace(/^output:/, '') } : null);
@@ -240,9 +243,9 @@ const undoOf = (store, e) => e.decision === 'dismissed' ? { kind: 'dismissed' } 
 export const VIA = { session: 'session', page: 'page', setup: 'setup', command: 'command' };
 const viaOf = v => VIA[String(v)] || VIA.command;
 const entryOf = (store, c, decision, result, now, undo, { group = null, tokens = null, via = null } = {}) => {
-  const id = randomBytes(6).toString('hex');
+  const id = (c.scope === 'machine' ? 'machine-' : '') + randomBytes(6).toString('hex');
   if (undo && !group) writeJson(undoFile(store, id), undo);
-  return { id, ...(group ? { group } : {}), at: new Date(now).toISOString(), ...(via ? { via } : {}), key: c.key, ...(c.keys ? { keys: c.keys } : {}), kind: c.kind, title: c.title, ...(c.what ? { what: c.what } : {}), ...(c.about ? { about: c.about } : {}), ...(c.kind === 'section' && c.file ? { file: c.file } : {}), ...(tokens ? { tokens } : {}), saving: c.saving, total: c.total, days: c.days ?? null, action: c.default?.text || null, act: c.default?.act || null, decision, result: result || null, ...(undo ? { revertible: true } : {}) };
+  return { id, ...(c.scope === 'machine' ? { scope: 'machine' } : {}), ...(group ? { group } : {}), at: new Date(now).toISOString(), ...(via ? { via } : {}), key: c.key, ...(c.keys ? { keys: c.keys } : {}), kind: c.kind, title: c.title, ...(c.what ? { what: c.what } : {}), ...(c.about ? { about: c.about } : {}), ...(c.kind === 'section' && c.file ? { file: c.file } : {}), ...(tokens ? { tokens } : {}), saving: c.saving, total: c.total, days: c.days ?? null, action: c.default?.text || null, act: c.default?.act || null, decision, result: result || null, ...(undo ? { revertible: true } : {}) };
 };
 // a section's tokens before and after its edit (instruction-edit.js:previewEdit `sections`), kept on the entry so the
 // Report can cost the section a session on each side (report.js:actionEffect)
@@ -303,7 +306,7 @@ export function startSectionJob(store, changes, action, { pr = false, now = Date
 function finishJob(store, group, fn, also) {
   const st = readState(store), es = (st.history || []).filter(e => e.group === group && e.job);
   for (const e of es) { e.job = fn(e.job); also?.(e); }
-  writeJson(stateFile(store), st);
+  writeState(store, st);
   return es;
 }
 // the command's side (`thinker instructions … --job <group>`): the change made and the job's entries finished
@@ -363,23 +366,23 @@ export function retryJob(store, id, { now = Date.now(), spawnFn = spawn, cliPath
 // `view` is the report (context-view.js:contextView), given by tests; read here otherwise.
 export async function scheduleContextSuggestion(store, { now = Date.now(), view, force = false } = {}) {
   if (!configOn(store)) return null;
-  const st = readJson(stateFile(store)) || {};
+  const st = readState(store);
   if (st.pending && !force) {
     // never passed on (no prompt here since): dropped after a while, so a stale summary is not given
-    if (now - Date.parse(st.pending.at) > SUGGEST.answerDays * DAY) { delete st.pending; writeJson(stateFile(store), st); }
+    if (now - Date.parse(st.pending.at) > SUGGEST.answerDays * DAY) { delete st.pending; writeState(store, st); }
     return null;
   }
   if (!force && st.checkedAt && now - Date.parse(st.checkedAt) < (st.firstAt ? SUGGEST.everyDays : 1) * DAY) return null;
   view ??= (await import('./context-view.js')).contextView(store, { days: SUGGEST.days });
   st.checkedAt = new Date(now).toISOString();
-  if (!force && (view.sessions || 0) < SUGGEST.firstSessions) { writeJson(stateFile(store), st); return null; }
+  if (!force && (view.sessions || 0) < SUGGEST.firstSessions) { writeState(store, st); return null; }
   st.firstAt ||= st.checkedAt;
   const changes = currentChanges(store, view, { now });
   if (changes.length) {
     st.pending = { at: st.checkedAt, days: view.days, sessions: view.sessions, changes };
     store.log({ op: 'context-suggest', changes: changes.length, saving: changes.reduce((a, c) => a + c.saving, 0) });
   }
-  writeJson(stateFile(store), st);
+  writeState(store, st);
   return changes;
 }
 export const contextSuggestPending = store => configOn(store) && Boolean(readJson(stateFile(store))?.pending);
@@ -399,7 +402,7 @@ export async function answerContextSuggestion(store, choice, { now = Date.now(),
   const offered = offeredChanges(store, { now });
   if (!offered) return 'There is no thinker suggestion waiting for an answer here. Go on with the task.';
   const raw = String(choice ?? '').trim();
-  const clear = () => { const st = readJson(stateFile(store)) || {}; delete st.offered; writeJson(stateFile(store), st); };
+  const clear = () => { const st = readState(store); delete st.offered; writeState(store, st); };
   store.log({ op: 'context-answer', asked, client, changes: offered.length, choice: /^(none|no)$/i.test(raw) || !raw ? 'none' : 'some' });
   if (/^(none|no)$/i.test(raw) || !raw) {
     const said = dismissChanges(store, offered, { now, via: VIA.session });
@@ -470,7 +473,7 @@ const unattended = (env = process.env) => /^sdk-/.test(env.CLAUDE_CODE_ENTRYPOIN
 // alone and asks nothing.
 export function contextSuggestOffer(store, { now = Date.now(), env = process.env, ui = ensureUi, repoId, client } = {}) {
   if (!configOn(store) || unattended(env)) return '';
-  const st = readJson(stateFile(store));
+  const st = readState(store);
   if (!st?.pending) return '';
   const p = st.pending; delete st.pending; st.offeredAt = new Date(now).toISOString();
   // what a picker may carry, and what is named with the page link instead (built-in tools, above)
@@ -481,7 +484,7 @@ export function contextSuggestOffer(store, { now = Date.now(), env = process.env
   // ranked first then: on this repository's own figures, three sections within 3k tokens of each other reordered on
   // one more session, so approving the first line compressed the third (2026-10-27).
   st.offered = { at: st.offeredAt, days: p.days, changes: asked };
-  writeJson(stateFile(store), st);
+  writeState(store, st);
   const url = (() => { try { return ui(store); } catch { return null; } })();
   // the one cost rule, in the order the person can check it: what the changes add to every prompt here, and what
   // that came to over the window. Per prompt first since it is the figure they can hold against a prompt they have
@@ -545,7 +548,7 @@ ${after}
 // one per section job, since a job's sections share a pull request and an undo.
 export async function approveChanges(store, changes, { via = VIA.command, pr, spawnFn = spawn, cliPath = CLI, now = Date.now() } = {}) {
   // a change may carry the action the person picked (`chosen`, one of its options); else its suggestion
-  changes = changes.map(c => ({ ...c, default: c.options?.find(o => o.act === c.chosen) || c.default }));
+  changes = changes.map(c => ({ ...c, ...(c.kind === 'tool' ? { scope: 'machine' } : {}), default: c.options?.find(o => o.act === c.chosen) || c.default }));
   const { switchSources, setOutputCompression } = await import('./context-view.js');
   const said = [], at = now;
   // the sections to the background, one job per action (the rows' dropdowns may differ), a pull request where one can be
@@ -574,12 +577,13 @@ export async function approveChanges(store, changes, { via = VIA.command, pr, sp
     }
     if (c.default.act === 'on') {
       const r = switchSources(store, { keys: [c.sourceKey || c.name], on: true });
-      return /^Turned back on/.test(r) ? { result: 'Turned back on from the next session on', undo: c.label ? { kind: 'on', label: c.label, builtin: Boolean(c.builtin) } : null } : { error: r };
+      return /^Turned back on/.test(r) ? { result: 'Turned back on from the next session on', undo: c.label ? { kind: 'on', label: c.label, builtin: Boolean(c.builtin), global: c.kind === 'tool' } : null } : { error: r };
     }
-    const r = switchSources(store, { labels: [c.label], builtin: Boolean(c.builtin) });
-    return /^Switched off here/.test(r) && !/Not switched off/.test(r) ? { result: 'Switched off from the next session on', undo: { kind: 'off', key: c.sourceKey || c.name } } : { error: r.replace(/^Not switched off: /, '') };
+    const r = switchSources(store, { labels: [c.label], builtin: Boolean(c.builtin), global: c.kind === 'tool' });
+    return /^Switched off here/.test(r) && !/Not switched off/.test(r) ? { result: c.scope === 'machine' ? 'Switched off across all repositories from the next session on' : 'Switched off from the next session on', undo: { kind: 'off', key: c.sourceKey || c.name } } : { error: r.replace(/^Not switched off: /, '') };
   };
   for (const c of changes) {
+    if (c.scope === 'machine' && c.default?.act === 'off' && changeHistory(store).find(e => e.scope === 'machine' && e.key === c.key && !e.revertedAt)?.act === 'off') { said.push(`${c.title}: already switched off across all repositories`); continue; }
     let m; try { m = await make(c); } catch (e) { m = { error: String(e.message || e).split('\n')[0] }; }
     said.push(`${c.title}: ${m.error || m.result}`);
     if (!m.error) record(store, [entryOf(store, c, 'approved', m.result, at, m.undo, { tokens: m.tokens || null, via: viaOf(via) })]);
@@ -608,7 +612,7 @@ export async function revertDecision(store, id, { now = Date.now(), prs } = {}) 
     // every section of the pull request is closed with it
     const siblings = st.history.filter(h => h !== e && h.pr?.number === u.number && h.pr.state === 'open');
     for (const h of [e, ...siblings]) { h.pr.state = 'closed'; h.pr.at = new Date(now).toISOString(); h.result = `Pull request #${u.number} closed without merging: suggested again`; h.revertedAt = h.pr.at; }
-    writeJson(stateFile(store), st);
+    writeState(store, st);
     store.log({ op: 'context-revert', kind: 'pr', pr: u.number, sections: 1 + siblings.length });
     return { said: `${e.title}: pull request #${u.number} closed; suggested again${withOthers(siblings)}` };
   }
@@ -621,7 +625,7 @@ export async function revertDecision(store, id, { now = Date.now(), prs } = {}) 
     if (r.error) return { error: r.error };
     const at = new Date(now).toISOString();
     for (const h of [e, ...siblings]) { h.revertPr = { number: r.number, url: r.url, branch: r.branch, base: r.base, openedAt: at }; h.result = `Pull request #${r.number} opened to revert #${u.number}`; h.revertedAt = at; }
-    writeJson(stateFile(store), st);
+    writeState(store, st);
     store.log({ op: 'context-revert', kind: 'revert-pr', pr: u.number, revertPr: r.number, sections: 1 + siblings.length });
     return { said: `${e.title}: pull request #${r.number} opened to revert #${u.number}: ${r.url}${withOthers(siblings)}` };
   }
@@ -634,7 +638,7 @@ export async function revertDecision(store, id, { now = Date.now(), prs } = {}) 
     setOutputCompression(store, [u.name], u.level || 'off');
   } else if (u.kind === 'on') {
     const { switchSources } = await import('./context-view.js');
-    const r = switchSources(store, { labels: [u.label], builtin: Boolean(u.builtin) });
+    const r = switchSources(store, { labels: [u.label], builtin: Boolean(u.builtin), global: Boolean(u.global) });
     if (!/^Switched off here/.test(r) || /Not switched off/.test(r)) return { error: r.replace(/^Not switched off: /, '') };
   } else if (u.kind === 'edit') {
     for (const f of u.files) { let now; try { now = fs.readFileSync(path.join(store.repo, f.file), 'utf8'); } catch { now = null; } if (now !== f.after) return { error: `${f.file} changed since; git diff shows what to undo by hand` }; }
@@ -644,7 +648,7 @@ export async function revertDecision(store, id, { now = Date.now(), prs } = {}) 
   const s2 = readState(store), x = s2.history.find(h => h.id === id);
   const siblings = u.kind === 'edit' && e.group ? s2.history.filter(h => h !== x && h.group === e.group && !h.revertedAt) : [];
   for (const h of [x, ...siblings]) h.revertedAt = new Date(now).toISOString();
-  writeJson(stateFile(store), s2);
+  writeState(store, s2);
   try { fs.rmSync(undoFile(store, e.group || id), { force: true }); } catch {}
   store.log({ op: 'context-revert', kind: u.kind, ...(siblings.length ? { sections: 1 + siblings.length } : {}) });
   return { said: `${e.title}: ${{ off: 'turned back on from the next session on', on: 'switched off again from the next session on', output: u.level && u.level !== 'off' ? `${u.level} compression again` : 'compression off', edit: 'written back as it was', dismissed: 'suggested again' }[u.kind]}${withOthers(siblings)}` };

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 // Codex records the visible skill catalog and deferred MCP namespace descriptions, not always
 // the full tool schemas. Count only recorded text; settings are control metadata, never load evidence.
 import fs from 'node:fs';
@@ -27,7 +28,7 @@ export function codexHarnessConfig(repo, { home = os.homedir(), env = process.en
     const text = readText(file); if (!text) continue;
     // An invalid layer makes the effective configuration unknown. Do not offer edits against it.
     const j = parse(text), scope = file === user ? 'user' : 'project';
-    for (const [name, s] of Object.entries(j.mcp_servers || {})) servers.set(name, { name, scope, off: s.enabled === undefined ? (servers.get(name)?.off || false) : s.enabled === false });
+    for (const [name, s] of Object.entries(j.mcp_servers || {})) servers.set(name, { name, scope, off: s.enabled === undefined ? (servers.get(name)?.off || false) : s.enabled === false, config: { ...(servers.get(name)?.config || {}), ...s } });
     for (const [id, p] of Object.entries(j.plugins || {})) plugins.set(id, { id, name: id.split('@')[0], scope, off: p.enabled === undefined ? (plugins.get(id)?.off || false) : p.enabled === false });
     if (j.skills?.config) skills.clear(); // TOML config arrays replace the inherited array.
     for (const s of j.skills?.config || []) if (s.path) skills.set(path.resolve(path.dirname(file), s.path), s.enabled);
@@ -199,7 +200,9 @@ export function codexHarnessUsage(repo, sessions, options = {}) {
 // values (including quoted keys, inline tables and arrays). The harness owns backups and atomic writes.
 export function editCodexSetting(text, source, undo) {
   const j = text ? parse(text) : {}, kind = source.kind;
-  let target, created = false, inherited;
+  let target, created = false, inherited, seeded;
+  const canonical = value => Array.isArray(value) ? value.map(canonical) : value && typeof value === 'object' ? Object.fromEntries(Object.keys(value).sort().map(k => [k, canonical(value[k])])) : value;
+  const fingerprint = value => createHash('sha256').update(JSON.stringify(canonical(value))).digest('hex');
   if (kind === 'skill') {
     j.skills ||= {};
     if (!j.skills.config && !undo) { inherited = source.inheritedSkills || []; j.skills.config = structuredClone(inherited); }
@@ -208,11 +211,27 @@ export function editCodexSetting(text, source, undo) {
     if (!target && undo) return { text, prev: undefined };
     // Codex matches a skill switch by its SKILL.md path, not its directory
     if (!target) { created = true; j.skills.config.push(target = { path: path.join(source.dir, 'SKILL.md') }); }
-  } else { const group = kind === 'mcp' ? 'mcp_servers' : 'plugins'; j[group] ||= {}; target = j[group][source.id || source.name] ||= {}; }
+  } else {
+    const group = kind === 'mcp' ? 'mcp_servers' : 'plugins', id = source.id || source.name;
+    j[group] ||= {};
+    if (!j[group][id] && source.inheritedConfig && !undo) {
+      // A disabled MCP entry still needs a valid transport. Preserve the project's full configuration
+      // in the user layer; the undo keeps only its fingerprint, never credentials.
+      j[group][id] = structuredClone(source.inheritedConfig);
+      seeded = true;
+    }
+    target = j[group][id] ||= {};
+    if (undo?.seeded) {
+      if (fingerprint(target) !== undo.seeded) throw new Error('the global server configuration changed since; left unchanged');
+      delete j[group][id];
+      if (!Object.keys(j[group]).length) delete j[group];
+      return { text: stringify(j) };
+    }
+  }
   const prev = target.enabled;
   if (undo) { if (target.enabled !== false) return { text, prev }; if (undo.created && kind === 'skill' && Object.keys(target).every(k => ['path', 'enabled'].includes(k))) j.skills.config = j.skills.config.filter(s => s !== target); else if (undo.prev === undefined) delete target.enabled; else target.enabled = undo.prev; }
   else target.enabled = false;
   if (undo?.inherited && JSON.stringify(j.skills?.config) === JSON.stringify(undo.inherited)) delete j.skills.config;
   if (j.skills && !Object.keys(j.skills).length) delete j.skills;
-  return { text: stringify(j), prev, created, inherited };
+  return { text: stringify(j), prev, created, inherited, ...(seeded ? { seeded: fingerprint(target) } : {}) };
 }

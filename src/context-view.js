@@ -207,11 +207,11 @@ export function mergeViews(list) {
 // The Context tab's actions on tools, as the command line takes them (`thinker context --switch-off|--switch-on`,
 // `--output-compression <tools> --level high|moderate|off`). Switching off is the person's choice made there, so
 // it turns on what it needs in this repository: the harness, and built-in tool switching for a built-in tool.
-export function switchSources(store, { labels = [], keys = [], on = false, builtin = false } = {}) {
+export function switchSources(store, { labels = [], keys = [], on = false, builtin = false, global = false } = {}) {
   if (on) return undoHarness(store, { names: keys });
   if (!labels.length) return 'nothing chosen';
   setHarnessSettings(store, { enabled: true, ...(builtin ? { builtinTools: true } : {}) });
-  return switchOffNow(store, labels.join(','), { via: 'context', any: true });
+  return switchOffNow(store, labels.join(','), { via: 'context', any: true, global });
 }
 export function setOutputCompression(store, tools, level) {
   const can = tools.filter(compressible), cannot = tools.filter(t => !compressible(t));

@@ -1,3 +1,5 @@
+import { discoverRepos } from './machine.js';
+import { readScopedState, writeScopedState } from './scoped-state.js';
 // What an agent's harness loads into every session, against what the sessions use: MCP servers,
 // plugins and skills that cost context each time and are never called. "thinker loads what this
 // repo needs, notes and tools alike": the notes are the cache, the tools are this report.
@@ -201,7 +203,8 @@ export function claudeHarnessConfig(repo, { home = os.homedir(), managedFile = M
   const managed = (managedFile && json(managedFile)) || {};
   // the settings files from the least to the most specific, so a later one's value wins
   const settings = [['user', cp.settings], ['project', path.join(repo, '.claude', 'settings.json')], ['local', path.join(repo, '.claude', 'settings.local.json')]].map(([scope, f]) => [scope, json(f) || {}]);
-  const offMcp = new Set([...(project.disabledMcpServers || []), ...settings.flatMap(([, j]) => j.disabledMcpjsonServers || [])].map(serverKey));
+  const deniedServers = settings.flatMap(([, j]) => j.permissions?.deny || []).flatMap(n => /^mcp__(.+)__\*$/.exec(n)?.slice(1) || []);
+  const offMcp = new Set([...deniedServers, ...(project.disabledMcpServers || []), ...settings.flatMap(([, j]) => j.disabledMcpjsonServers || [])].map(serverKey));
   const servers = new Map();
   for (const [scope, list] of [['user', claudeJson.mcpServers], ['local', project.mcpServers], ['project', json(path.join(repo, '.mcp.json'))?.mcpServers]]) {
     for (const name of Object.keys(list || {})) servers.set(serverKey(name), { name, scope: managed.allowManagedMcpServersOnly ? 'managed' : scope, off: offMcp.has(serverKey(name)) });
@@ -405,8 +408,8 @@ function writeTheirs(f, v) {
   fs.chmodSync(tmp, mode);
   fs.renameSync(tmp, target);
 }
-export const readHarnessState = store => readJson(stateFile(store)) || {};
-const saveState = (store, st) => writeJson(stateFile(store), st);
+export const readHarnessState = store => readScopedState(stateFile(store), 'applied');
+const saveState = (store, st) => writeScopedState(stateFile(store), 'applied', st);
 
 // What the question needs of a source, and nothing that could hold a secret.
 const pick = s => ({ client: s.client, dir: s.dir, evidenceKeys: s.evidenceKeys, key: s.key, name: s.name, kind: s.kind, scope: s.scope, id: s.id, how: s.how, skills: s.skills, tokens: s.tokens, used: s.used, loaded: s.loaded, texts: s.texts });
@@ -467,14 +470,30 @@ const addTo = (list, v) => { const a = Array.isArray(list) ? list : []; return a
 // goes off in this checkout (its settings.local.json), an MCP server in the repository, every worktree
 // with it (its entry in ~/.claude.json, keyed by the main checkout). A skill some settings file already
 // overrides is left as that file says ("off" is stronger than what thinker writes).
-function apply(repo, s, { userHome, home, now, backups, overrides = {} }) {
-  if (s.client === 'codex') return applyCodex(repo, s, { home, userHome, now, backups });
+function apply(repo, s, { userHome, home, now, backups, overrides = {}, global = false }) {
+  if (s.client === 'codex') {
+    const ctx = { home, userHome, now, backups }, primary = applyCodex(repo, s, { ...ctx, global });
+    if (global) {
+      // A project can explicitly enable a server/plugin over the user default. Cover the existing
+      // checkouts too, keeping these overrides under the same machine-wide undo record.
+      const known = readJson(path.join(home || thinkerHome(), 'state', 'machine-checkouts.json'))?.checkouts
+        || discoverRepos({ repo }, { home: userHome }).flatMap(r => r.checkouts || [r.checkout]);
+      primary.overrides = [];
+      for (const checkout of new Set([repo, ...known])) {
+        if (!checkout || !fs.existsSync(checkout)) continue;
+        const cfg = codexHarnessConfig(checkout, { home: userHome });
+        const setting = s.kind === 'mcp' ? cfg.servers.get(s.name) : cfg.plugins.get(s.id || s.name);
+        if (setting && !setting.off) primary.overrides.push({ ...applyCodex(checkout, s, ctx), repo: checkout });
+      }
+    }
+    return primary;
+  }
   // the app's switch, flipped by the agent from the line the answer returns; nothing for thinker to write
   if (s.how === 'desktop-connector') return { key: 'desktop-connector', id: s.id, name: s.name };
   if (s.client === 'cursor') return editCursorMcp({ name: s.name, thinkerHome: home || thinkerHome(), home: userHome, write: writeTheirs });
-  const local = path.join(repo, '.claude', 'settings.local.json'), claudeJson = claudePaths(userHome).json;
+  const local = global ? claudePaths(userHome).settings : path.join(repo, '.claude', 'settings.local.json'), claudeJson = claudePaths(userHome).json;
   const ctx = { home, now, backups }, fresh = !fs.existsSync(local);
-  const done = u => { if (u.file === local && fresh) excludeFromGit(repo, local); return u; };
+  const done = u => { if (!global && u.file === local && fresh) excludeFromGit(repo, local); return u; };
   if (s.how === 'plugin') { let prev; editJson(local, j => { j.enabledPlugins ||= {}; prev = j.enabledPlugins[s.id]; j.enabledPlugins[s.id] = false; }, ctx); return done({ file: local, key: 'enabledPlugins', id: s.id, prev }); }
   if (s.how === 'skills' || s.how === 'skill') {
     const names = (s.how === 'skills' ? s.skills : [s.name]).filter(n => overrides[n] === undefined);
@@ -493,6 +512,15 @@ function apply(repo, s, { userHome, home, now, backups, overrides = {} }) {
     }, ctx);
     return done({ file: local, key: 'skillOverrides', ids: names, ...(plugin ? { plugin: { id: plugin, prev } } : {}) });
   }
+  // A user-level deny removes this server's tools across every project, including project-defined
+  // servers, without removing credentials or touching its route. Bare-name denies remove definitions.
+  // https://code.claude.com/docs/en/permissions#tool-name-wildcards
+  if (global && ['mcp', 'mcpjson', 'tool'].includes(s.how)) {
+    const id = s.how === 'tool' ? s.name : `mcp__${s.name}__*`;
+    let added = false;
+    editJson(local, j => { const p = j.permissions ||= {}; added = !(p.deny || []).includes(id); p.deny = addTo(p.deny, id); }, ctx);
+    return { file: local, key: 'permissions.deny', id, added };
+  }
   if (s.how === 'mcpjson') { editJson(local, j => { j.disabledMcpjsonServers = addTo(j.disabledMcpjsonServers, s.name); }, ctx); return done({ file: local, key: 'disabledMcpjsonServers', id: s.name }); }
   if (s.how === 'tool') { editJson(local, j => { (j.permissions ||= {}).deny = addTo(j.permissions.deny, s.name); }, ctx); return done({ file: local, key: 'permissions.deny', id: s.name }); }
   if (s.how === 'mcp') {
@@ -509,13 +537,14 @@ function apply(repo, s, { userHome, home, now, backups, overrides = {} }) {
 // 2026-10-19: switched off in the project's file, all 107 of PostHog's skills stayed listed; in the user's file
 // they left the prompt, 7.3k tokens to 2.8k). Each entry names this checkout's file, so it switches off only here.
 const codexUserConfig = userHome => path.join(process.env.CODEX_HOME || path.join(userHome || os.homedir(), '.codex'), 'config.toml');
-function applyCodex(repo, s, { home, userHome, now, backups }, undo) {
-  const user = s.kind === 'skill';
-  const file = user ? (undo?.file || codexUserConfig(userHome)) : codexConfigFile(repo);
+function applyCodex(repo, s, { home, userHome, now, backups, global = false }, undo) {
+  const user = global || s.kind === 'skill' || undo?.global;
+  const file = undo?.file || (user ? codexUserConfig(userHome) : codexConfigFile(repo));
   const existing = fs.existsSync(file) ? file : path.dirname(file);
   if (!user && fs.existsSync(existing) && !fs.realpathSync(existing).startsWith(fs.realpathSync(repo) + path.sep)) throw new Error('project Codex config points outside this checkout; left unchanged');
   const before = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
-  const changed = editCodexSetting(before, s, undo);
+  const effective = global && s.kind === 'mcp' && !undo ? codexHarnessConfig(repo, { home: userHome }).servers.get(s.name)?.config : null;
+  const changed = editCodexSetting(before, effective ? { ...s, inheritedConfig: effective } : s, undo);
   if (before && !backups.has(file)) {
     const dir = path.join(home || thinkerHome(), 'state', 'harness-backups', new Date(now).toISOString().replace(/[:.]/g, '-'));
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -531,7 +560,7 @@ function applyCodex(repo, s, { home, userHome, now, backups }, undo) {
     if (fs.readFileSync(file, 'utf8') !== changed.text) throw new Error('Codex config was rewritten; try again');
     if (!before && !user) excludeFromGit(repo, file);
   }
-  return { file, key: 'codex', source: { kind: s.kind, name: s.name, id: s.id, dir: s.dir }, prev: changed.prev, created: changed.created, inherited: changed.inherited };
+  return { file, key: 'codex', global, ...(changed.seeded ? { seeded: changed.seeded } : {}), source: { kind: s.kind, name: s.name, id: s.id, dir: s.dir }, prev: changed.prev, created: changed.created, inherited: changed.inherited };
 }
 
 // `thinker harness --undo`: every source the answers switched off here, turned back on.
@@ -545,7 +574,7 @@ export function undoHarness(store, { home, userHome = os.homedir(), now = Date.n
   for (const a of [...applied].reverse()) {
     const u = a.undo;
     try {
-      if (u.key === 'codex') { applyCodex(store.repo, u.source, ctx, u); back.unshift(a.name); continue; }
+      if (u.key === 'codex') { for (const o of u.overrides || []) applyCodex(o.repo, o.source, ctx, o); applyCodex(store.repo, u.source, ctx, u); back.unshift(a.name); continue; }
       if (u.key === 'desktop-connector') { app.unshift(a.name); continue; }
       if (u.key === 'cursor') { editCursorMcp({ name: u.name, thinkerHome: home || thinkerHome(), home: userHome, write: writeTheirs }, true); back.unshift(a.name); continue; }
       editJson(u.file, j => {
@@ -555,7 +584,7 @@ export function undoHarness(store, { home, userHome = os.homedir(), now = Date.n
           if (u.plugin && j.enabledPlugins?.[u.plugin.id] === false) { if (u.plugin.prev === undefined) delete j.enabledPlugins[u.plugin.id]; else j.enabledPlugins[u.plugin.id] = u.plugin.prev; }
         }
         else if (u.key === 'disabledMcpjsonServers') j.disabledMcpjsonServers = (j.disabledMcpjsonServers || []).filter(n => n !== u.id);
-        else if (u.key === 'permissions.deny') { if (j.permissions?.deny) j.permissions.deny = j.permissions.deny.filter(n => n !== u.id); }
+        else if (u.key === 'permissions.deny') { if (u.added !== false && j.permissions?.deny) j.permissions.deny = j.permissions.deny.filter(n => n !== u.id); }
         else if (u.key === 'disabledMcpServers') { const p = j.projects?.[u.project]; if (p) p.disabledMcpServers = (p.disabledMcpServers || []).filter(n => n !== u.id); }
       }, u.key === 'disabledMcpServers' ? { ...ctx, part: j => j.projects?.[u.project] } : ctx);
       back.unshift(a.name);
@@ -823,7 +852,7 @@ export function setHarnessSettings(store, { enabled, recall, builtinTools } = {}
 // (context-view.js:switchSources, context-suggest.js:approveChanges). Every source thinker can switch off
 // here is a candidate; what the labels do not name is left alone. `any`: a source by its label whether or
 // not the advice would name it (the Context view's switches).
-export function switchOffNow(store, labels, { home, userHome = os.homedir(), now = Date.now(), via = 'cli', usage, any = false } = {}) {
+export function switchOffNow(store, labels, { home, userHome = os.homedir(), now = Date.now(), via = 'cli', usage, any = false, global = false } = {}) {
   if (!harnessOn(store)) return OFF_MESSAGE;
   const picks = pickSources(usage || harnessUsage(store.repo), { any });
   if (!picks.length) return 'Nothing here is worth switching off; nothing changed.';
@@ -834,7 +863,8 @@ export function switchOffNow(store, labels, { home, userHome = os.homedir(), now
   const st = readHarnessState(store), at = new Date(now).toISOString();
   const backups = new Map(), done = [], failed = [], overrides = claudeHarnessConfig(store.repo, { home: userHome }).overrides;
   for (const s of chosen) {
-    try { done.push({ client: s.client || 'claude', evidenceKeys: s.evidenceKeys, key: s.key, members: s.members, name: s.name, kind: s.kind, tokens: s.tokens, at, undo: apply(store.repo, s, { userHome, home, now, backups, overrides }), cards: cardsFor(s, { repo: store.repo }) }); }
+    if ((st.applied || []).some(a => a.scope === 'machine' && a.key === s.key && (a.client || 'claude') === (s.client || 'claude'))) continue;
+    try { done.push({ ...(global ? { scope: 'machine' } : {}), client: s.client || 'claude', evidenceKeys: s.evidenceKeys, key: s.key, members: s.members, name: s.name, kind: s.kind, tokens: s.tokens, at, undo: apply(store.repo, s, { userHome, home, now, backups, overrides, global }), cards: cardsFor(s, { repo: store.repo }).map(c => global ? { ...c, back: `\`thinker harness --undo ${s.key}\` brings it back across repositories from the next session` } : c) }); }
     catch (e) { failed.push(`${s.name} (${e.message})`); }
   }
   (st.applied ||= []).push(...done);
@@ -842,7 +872,7 @@ export function switchOffNow(store, labels, { home, userHome = os.homedir(), now
   const tokens = done.reduce((t, d) => t + d.tokens, 0);
   store.log({ op: 'harness-off', via, chosen: chosen.length, switched: done.length, tokens });
   const files = done.filter(d => d.undo.key !== 'desktop-connector'), desk = done.filter(d => d.undo.key === 'desktop-connector');
-  const line = files.length ? `Switched off here from the next session on${files.some(d => d.client === 'cursor') ? ' (the Cursor ones in every repository)' : ''}: ${files.map(d => d.name).join(', ')}, about ${formatTokens(files.reduce((t, d) => t + d.tokens, 0))} tokens a session. \`thinker harness --undo\` turns them back on${backups.size ? `; what the files said before is under ${path.dirname([...backups.values()][0])}` : ''}.` : '';
+  const line = files.length ? `Switched off here${global ? ' and in every repository' : ''} from the next session on${files.some(d => d.client === 'cursor') ? ' (the Cursor ones in every repository)' : ''}: ${files.map(d => d.name).join(', ')}, about ${formatTokens(files.reduce((t, d) => t + d.tokens, 0))} tokens a session. \`thinker harness --undo\` turns them back on${backups.size ? `; what the files said before is under ${path.dirname([...backups.values()][0])}` : ''}.` : '';
   // the desktop app's connectors: the agent flips the app's switch, one call each, which the user approves
   const app = desk.length ? `Now switch off the desktop app's connector${desk.length === 1 ? '' : 's'} chosen: call ${CONNECTOR_TOOL} with ${desk.map(d => `connector ${JSON.stringify(d.undo.id)} (${d.name})`).join(', ')} and enabled false, one call each. The app keeps ${desk.length === 1 ? 'it' : 'them'} off in every new session on this machine; the + menu → Connectors turns ${desk.length === 1 ? 'it' : 'them'} back on.` : '';
   return [line, app, failed.length ? `Not switched off: ${failed.join('; ')}.` : ''].filter(Boolean).join(' ');

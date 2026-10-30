@@ -20,7 +20,7 @@ import { harnessView, harnessSavings, harnessOn, undoHarness, switchOffNow, setH
 import { contextView, mergeViews, switchSources, setOutputCompression } from '../context-view.js';
 import { snapshotView, lastSnapshot, refreshing, dropSnapshots, REFRESH_MS } from '../context-snapshot.js';
 import { approveChanges, dismissChanges, startSectionJob, retryJob, revertDecision, pickChanges, allChanges, changeHistory, refreshPrStates, offeredPicks, VIA } from '../context-suggest.js';
-import { mergeReports, reportActions, mergePromptAverages, REPORT_WEEKS } from '../report.js';
+import { mergeReports, reportActions, withEffects, mergePromptAverages, REPORT_WEEKS } from '../report.js';
 import { reportSnapshot, refreshing as reportRefreshing, historyEffects, promptAverageHere, keptRows } from '../report-snapshot.js';
 import { prAvailable } from '../instruction-pr.js';
 import { describePart } from '../part-describe.js';
@@ -287,13 +287,21 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
       if (req.method === 'GET' && url.pathname === '/api/activity') {
         const stores = storesFor(want); if (!stores) return json(res, 400, { error: 'unknown repository' });
         // a pending pull request is asked after on GitHub first (context-suggest.js:refreshPrStates, a minute apart at most)
-        const xs = [];
+        const xs = [], machine = new Map(), sessionRows = [];
         // each decision with what it saved, over the report kept in its checkout (report-snapshot.js:historyEffects), and what
         // a prompt costs on average there (promptAverageHere), the size the savings are read against
         // a kept report that is none of this code's, or old, is made again in the background (as the Report tab does), and the
         // answer says so (`measuring`), so the page checks back instead of showing "measuring" until the Report tab is visited
         const avgs = []; let measuring = false;
-        for (const [r, st] of stores) { try { await refreshPrStates(st); xs.push(...historyEffects(st, changeHistory(st)).map(h => ({ ...h, repo: r.id, repoName: r.name }))); avgs.push(promptAverageHere(st)); if (keptRows(st).stale) { measuring = true; if (!reportRefreshing(st)) refreshReportFn(st.repo); } } catch {} }
+        for (const [r, st] of stores) { try {
+          await refreshPrStates(st);
+          const entries = changeHistory(st), kept = keptRows(st);
+          for (const h of entries.filter(h => h.scope === 'machine')) if (!machine.has(h.id)) machine.set(h.id, { ...h, repo: r.id, repoName: 'All repositories' });
+          xs.push(...historyEffects(st, entries.filter(h => h.scope !== 'machine')).map(h => ({ ...h, repo: r.id, repoName: r.name })));
+          sessionRows.push(...kept.rows); avgs.push(promptAverageHere(st));
+          if (kept.stale) { measuring = true; if (!reportRefreshing(st)) refreshReportFn(st.repo); }
+        } catch {} }
+        xs.push(...withEffects([...machine.values()], sessionRows));
         const history = xs.sort((a, b) => b.at.localeCompare(a.at));
         return json(res, 200, { history, promptAvg: mergePromptAverages(avgs), measuring, attention: history.filter(h => h.attention).length, running: history.filter(h => h.running).length });
       }

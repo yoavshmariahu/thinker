@@ -26,7 +26,7 @@ test('lifetime savings use shared report values and captions in CLI, page and fo
   assert.equal(c.tokenLabel, 'Estimated input tokens saved');
   assert.deepEqual(c.coverage, { hits: 1, fallback: 1, sessions: 1, requests: 100 });
   for (const file of ['report.js', 'ui/page.html']) {
-    assert.match(read(file), /c\.tokenDescription/);
+    if (file === 'report.js') assert.match(read(file), /c\.tokenDescription/);
     assert.match(read(file), /c\.dollarsLabel/);
     assert.doesNotMatch(read(file), /Math\.max\(0, c\.(tokensSaved|dollarsSaved)\)/, 'negative net estimates must stay visible');
   }
@@ -128,7 +128,7 @@ test('CLI and page expose the shared Claude Code, Codex and Cursor harness repor
   // how it comes back, and the review carries its own paragraph saying the agent loses the ability, not the description.
   assert.match(page, /bold: s\.kind === 'tool'/);
   assert.match(page, /title: `Apply \$\{items\.length === 1 \? 'this change' : `these \$\{items\.length\} changes`\}\?`/);
-  assert.match(page, /permissions\.deny of \.claude\/settings\.local\.json in this repository/);
+  assert.match(page, /switched off across all repositories/);
   assert.match(page, /Revert under Recent activity, Turn back on in the tool's row, or thinker harness --undo brings it back/);
   assert.match(page, /rev-warn[\s\S]{0,260}The agent loses the ability, not just the description/);
   // what every action does, in the row and in the review: one entry a change, keyed by the kind and the action
@@ -480,14 +480,14 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   // here (promptAverageHere), the size the savings are read against; no text under the table
   assert.doesNotMatch(read('report.js'), /Recent improvements|reportTop/);
   assert.doesNotMatch(read('ui/page.html'), /Recent improvements|Saved with thinker|compact: true/);
-  assert.match(read('ui/server.js'), /historyEffects\(st, changeHistory\(st\)\)/);
+  assert.match(read('ui/server.js'), /historyEffects\(st, entries\.filter/);
   assert.match(read('ui/server.js'), /promptAvg: mergePromptAverages\(avgs\)/);
   assert.match(read('commands/context.js'), /historyEffects\(store, changeHistory\(store\)\)/);
   assert.match(read('commands/context.js'), /A prompt here costs \$\{formatTokens\(avg\.perPrompt\)\} tokens on average/);
   assert.match(read('ui/page.html'), /promptAvg: d\.promptAvg \|\| null/);
   // a kept report none of this code's is not read for the savings; the activity API starts the refresh and the page checks back
   assert.match(read('report-snapshot.js'), /export function keptRows/);
-  assert.match(read('ui/server.js'), /if \(keptRows\(st\)\.stale\) \{ measuring = true; if \(!reportRefreshing\(st\)\) refreshReportFn\(st\.repo\); \}/);
+  assert.match(read('ui/server.js'), /if \(kept\.stale\) \{ measuring = true; if \(!reportRefreshing\(st\)\) refreshReportFn\(st\.repo\); \}/);
   assert.match(read('ui/page.html'), /function activityCheckBack/);
   // the page's script parses (2026-10-24: a second `let APOLL` left the whole page blank, which no test caught)
   for (const [, src] of read('ui/page.html').matchAll(/<script>([\s\S]*?)<\/script>/g)) assert.doesNotThrow(() => new Function(src));
@@ -511,7 +511,7 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   // every page is rebuilt in place once on screen (2026-10-25): the three renders go through swapBody, which keeps the scroll and
   // the open rows, and a load of what is already shown does not wipe the body to the spinner
   assert.match(read('ui/page.html'), /function swapBody\(el, html\)/); assert.match(read('ui/page.html'), /swapBody\(el, h\);/); assert.match(read('ui/page.html'), /swapBody\(el, card \+ pullCard \+ historyFigure\(/);
-  assert.match(read('ui/page.html'), /inPlace = Boolean\(CTX\) && CTX_FOR === `\$\{CREPO\}\|\$\{cdays\}`/); assert.match(read('ui/page.html'), /inPlace = Boolean\(ACT\) && ACT_FOR === AREPO/); assert.match(read('ui/page.html'), /inPlace = Boolean\(RPT\) && RPT_FOR === REPO/);
+  assert.match(read('ui/page.html'), /inPlace = Boolean\(CTX\) && CTX_FOR === `\$\{CREPO\}\|\$\{cdays\}`/); assert.match(read('ui/page.html'), /inPlace = prs \? Boolean\(APR\) && APR_FOR === AREPO : Boolean\(ACT\) && ACT_FOR === AREPO/); assert.match(read('ui/page.html'), /inPlace = Boolean\(RPT\) && RPT_FOR === REPO/);
   assert.doesNotMatch(read('ui/page.html'), /Total of these/); assert.doesNotMatch(read('report.js'), /'Total of these'/);
   assert.equal((read('report.js').match(/line\('Total \(the whole session\)', v\.sessionTotals, true(, null, \{ key: 'total', thresholds: true \})?\)/g) || []).length, 3);
   assert.equal((read('ui/page.html').match(/row\('Total \(the whole session\)', v\.sessionTotals, \{ cls: 'rep-total', total: true(, key: 'total', thresholds: true)? \}\)/g) || []).length, 3);
@@ -581,7 +581,7 @@ test('automatic PR comments reuse the update cadence and expose their defaults a
   assert.match(read('commands/prs.js'), /runAutomaticPrComments\(store, \{ dry: !!flags\.dry \}\)/);
 });
 
-test('the Report tab and `thinker report` show the same pull request band, in tokens under either toggle (2026-10-30)', async () => {
+test('Report summaries and Recent activity PR savings share the CLI report data, in tokens under either toggle (2026-10-30)', async () => {
   const page = read('ui/page.html'), rep = read('report.js');
   // one source for both doors: the band is computed in report.js and carried on the view, never recomputed on a page
   assert.match(rep, /prs: prSavings\(store, \{ days, now \}\)/);
@@ -596,7 +596,7 @@ test('the Report tab and `thinker report` show the same pull request band, in to
   for (const c of ['sessions', 'its cost', 'cleared', 'reading', 'saved', 'share']) assert.ok(head.includes(`'${c}'`), `command column: ${c}`);
   assert.ok(head.indexOf("'cleared'") < head.indexOf("'reading'") && head.indexOf("'reading'") < head.indexOf("'saved'"), 'in the page\'s order');
   // Both doors describe the PR figures in tokens.
-  assert.ok(page.includes('Tokens spent and saved on merged pull requests'));
+  assert.doesNotMatch(page, /Tokens spent and saved on merged pull requests|Of the work shipped here/);
   assert.ok(rep.includes('tokens spent and saved on merged work'));
   assert.doesNotMatch(page.slice(page.indexOf('const prBand')), /money\(/, 'the band never prices its tokens');
   // a kept report made before the band must be remade, so report-snapshot hashes what the band is computed from
@@ -618,4 +618,18 @@ test('the page reaches for no element it does not define', () => {
   // an id built from a variable (`#c-${k}`) ends at the brace and is the view divs', which renderContext writes
   const dangling = [...reached].filter(k => !ids.has(k) && !k.endsWith('-'));
   assert.deepEqual(dangling, [], `page.html reaches for ${dangling.join(', ')}, which its markup does not define`);
+});
+
+
+test('Recent activity defaults to Action savings; PR savings uses the report data independently', () => {
+  const page = read('ui/page.html');
+  assert.match(page, /let AVIEW = 'actions'/);
+  assert.match(page, /data-view="actions" class="on" aria-selected="true"/);
+  assert.match(page, /data-view="prs" aria-selected="false"/);
+  const report = page.slice(page.indexOf('function renderReport('));
+  assert.doesNotMatch(report, /prTable|prRows|metric-label|c\.tokenDescription|c\.dollarsDescription/);
+  assert.match(page, /function renderActivityPrs\(v\)/);
+  assert.match(page, /const want = AREPO, d = await api\(prs \? `\/api\/report/);
+  assert.match(page, /r\.kind === 'tool' \? \[r\.repo \|\| r\.repoIds\?\.\[0\]/, 'one request per tool, not per repository');
+  assert.match(read('context-suggest.js'), /global: c\.kind === 'tool'/, 'CLI approvals use the same machine-wide tool scope');
 });

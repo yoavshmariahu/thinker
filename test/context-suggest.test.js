@@ -153,7 +153,7 @@ test('the answer comes back through thinker\'s own tool: numbers from the list i
   // an MCP client hands the answer in through the tool, not by composing a command
   assert.match(said, /call thinker's `context` tool with choice set to the numbers they chose/);
   assert.match(said, /asked "picker"/);
-  assert.equal(contextSuggestAwaiting(store), true, 'and the tool is offered until it is answered');
+  assert.equal(contextSuggestAwaiting(store, { now }), true, 'and the tool is offered until it is answered');
   // the numbers are the lines the summary showed; thinker makes the change and says what it did. A section is a model
   // call and an edit to a file, so the session is not held through it: the job is started and becomes a pull request
   // (startSectionJob), which is what the page's Apply does and what every door has done since 2026-10-29.

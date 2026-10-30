@@ -843,10 +843,12 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
 - The weekly message leads per prompt, the window total beside it (`contextSuggestOffer`): a week of a 25k-token file over 7,600 calls is ~190M, true and unplaceable.
 - Until then every figure was tokens × the *median* calls of a session, which weighed every session alike and mixed two denominators (a section was averaged over the sessions that read its file, a tool was not).
 
-**Pull requests on the Report (2026-10-30)**
-- A band under the cache's cards, on the page and in `thinker report` alike: four cards (merged with work
-  here, tokens saved on them, saved as a share of what they cost, the median one) and a table of the merged
-  pull requests, newest first -- number, title, sessions, its cost, cleared, reading avoided, saved, share.
+**Pull request savings (2026-10-30)**
+- View Report keeps four PR summary cards under the cache cards: merged with work here, tokens saved,
+  share of their cost, and the median one. Both sets of cards show labels and values, without descriptions.
+  The PR list lives in Recent activity under **PR savings**, beside the default **Action savings** tab.
+  It reads the same `/api/report` data and lists merged PRs newest first: number, title, sessions, cost,
+  cleared, reading avoided, saved, share. `thinker report` still prints both summaries and the list.
   12 rows on the page behind *Show all*, 10 in the command, which points at `thinker prs` for the rest.
 - `report.js:prSavings` folds `delivery.js:deliveryReport` into the view as `prs`, so both doors read one
   computation and the page recomputes nothing on a visit. `mergePrSavings` is All repositories: counts and
@@ -858,7 +860,8 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   read from the prompt cache at a fortieth of the input price, and the clear writes that cache again at twice
   it. Priced at the input rate this machine's 202M cleared tokens read as thousands of dollars, where
   `thinker proxy replay` over 264 real sessions put the whole clearing at +7.3% of session cost. The band
-  says so in a line and names the replay. Do not add a dollar column without replaying first.
+  keeps token figures; its former explanatory paragraph was removed at the owner's request. Do not add
+  a dollar column without replaying first.
 - `report-snapshot.js`'s code key hashes `delivery.js` and `compression.js` too, so a kept report made before
   the band is remade rather than served without it.
 
@@ -928,6 +931,17 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
 - `usage.js:parse` caches machine log per process (size, mtime). `transcripts.js:sessionModel` cached in `disk-cache.js`.
 - Instruction sections read transcript once (`instruction-value.js:sessionRecord`), kept in `disk-cache.js` as `session-activity` (no output).
 - Re-read only if transcript grew or sections name new code (`coversCode`).
+
+**Tool switches across repositories (2026-10-30, the owner's request)**
+- Approving a tool switch from Find Savings or `thinker context --approve` uses machine settings, with
+  one shared action and undo in `THINKER_HOME/state/machine-actions` (`scoped-state.js`). Skills and
+  instruction sections retain their existing scopes. The page submits one request per tool.
+- Claude Code uses user-level permission denies for built-in tools and MCP server tools. Codex uses
+  user config, with existing project enable overrides covered by the same undo; a project-only MCP
+  server needs its valid transport carried into the disabled user entry. Undo keeps a fingerprint,
+  never its credentials, and refuses to discard a server entry changed since the switch.
+- Recent activity shows a shared action once and measures it over the selected repositories' sessions.
+  Old repository-specific actions remain history. Revert is available from any repository.
 
 **Page updates (`page.html:swapBody`)**
 - Refreshes keep shown table on screen, swap in new one. Keep scroll, See more rows (`data-dk`), dropdown picks. Body keeps height.
