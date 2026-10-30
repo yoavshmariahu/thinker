@@ -60,12 +60,15 @@ add_to_path() {
       if ! grep -qsF "fish_add_path \"$dir\"" "$rc"; then mkdir -p "$(dirname "$rc")" && printf '\n# thinker\n%s\n' "fish_add_path \"$dir\"" >> "$rc" || rc=""; fi ;;
   esac
   # bash: .bashrc, and the login file a login bash reads, the first that exists (creating .bash_profile would
-  # hide a .profile; made only on macOS). A Linux .bashrc returns early when not interactive, so the end of it
+  # hide a .profile; made only on macOS). With no login file on Linux, create .profile.
+  # A Linux .bashrc returns early when not interactive, so the end of it
   # is not enough for `bash -l`.
   local files="$HOME/.bashrc"
   login=""
   for f in .bash_profile .bash_login .profile; do if [ -e "$HOME/$f" ]; then login="$HOME/$f"; break; fi; done
-  [ -z "$login" ] && [ "$(uname)" = Darwin ] && login="$HOME/.bash_profile"
+  if [ -z "$login" ]; then
+    if [ "$(uname)" = Darwin ]; then login="$HOME/.bash_profile"; else login="$HOME/.profile"; fi
+  fi
   [ -n "$login" ] && files="$login $files"
   [ "$(basename "${SHELL:-}")" = bash ] && rc="${files%% *}"
   [ "$(basename "${SHELL:-}")" = zsh ] && files="$rc $files"
