@@ -161,8 +161,8 @@ export function compressionBlock(dir, session, turn, format, { turnsAfter = TURN
 // from there, and the state is only consulted for what the log's tail no longer reaches.
 const LOG_TAIL = 16 * 1024 * 1024;   // a day of heavy use is ~50 KB of rows; the tail covers months
 
-export function clearedBySession(file, { since = '' } = {}) {
-  const out = new Map();
+export function compressionRecords(file) {
+  const out = [];
   if (!file) return out;
   let text = '';
   try {
@@ -175,7 +175,15 @@ export function clearedBySession(file, { since = '' } = {}) {
   for (const line of text.split('\n')) {
     if (!line) continue;
     let r; try { r = JSON.parse(line); } catch { continue; }
-    if (r.op !== 'proxy' || !r.session || !(r.cleared > 0) || (since && r.at && r.at < since)) continue;
+    if (r.op === 'proxy' && r.session) out.push(r);
+  }
+  return out;
+}
+
+export function clearedBySession(file, { since = '' } = {}) {
+  const out = new Map();
+  for (const r of compressionRecords(file)) {
+    if (!(r.cleared > 0) || (since && r.at && r.at < since)) continue;
     const prev = out.get(r.session) || { cleared: 0, requests: 0 };
     out.set(r.session, { cleared: prev.cleared + r.cleared, requests: prev.requests + 1 });
   }

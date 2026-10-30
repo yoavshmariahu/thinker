@@ -95,6 +95,12 @@
     /* a table wider than the box scrolls inside it, never past its border -- but a scroll container anchors a sticky
        header to itself instead of to the page, so the figure only becomes one at the widths where the table cannot fit.
        Above that the headers stay under the view tabs while the table scrolls (ctx-table thead th below). */
+    .savings-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+    .savings-dot { margin-right: .5rem; }
+    .savings-table thead th { position: static; }
+    .savings-counts { color: #777; font-size: .78rem; }
+    .savings-note { color: #777; font-size: .75rem; line-height: 1.6; margin: .85rem 0 0; }
+    .metrics-toggle { margin-top: 1.2rem; }
     .ctx-figure { margin: 1rem 0 0; padding: 1rem 1.1rem 0.9rem; border: 1px solid #e5e7eb; border-radius: 12px; background: #fcfcfb; }
     @media (max-width: 1040px) { .ctx-figure { overflow-x: auto; } }
     /* The cards: what a part is and why you would change it, in words, with the figures under them. The table is the
@@ -341,7 +347,7 @@
       <div class="ctx-top"><div><h1>View Report</h1></div>
       <div class="controls">
         <select class="sel" id="r-repo" aria-label="Repository"></select>
-        <div class="seg" id="r-mode"><button data-mode="avg" class="on">Per prompt</button><button data-mode="sum">Total</button></div>
+        <div class="seg" id="r-mode"><button data-mode="avg">Per prompt</button><button data-mode="sum" class="on">Total</button></div>
         <div class="seg" id="r-measure"><button data-m="cost" class="on">Cost</button><button data-m="tokens">Tokens</button></div>
         <div class="seg" id="r-view"><button data-view="values" class="on">Values</button><button data-view="share">Share</button></div>
       </div></div>
@@ -353,10 +359,15 @@
          as `thinker context --history`) -->
     <section id="tab-activity" hidden>
       <div class="ctx-top"><div><h1>Recent activity</h1>
-      <p class="lede">What was changed from Find Savings, what came of it, and what still needs you: a change under way, one that failed, a pull request to merge</p></div>
+      <p class="lede">Savings from actions and merged pull requests, and what still needs you</p></div>
       <div class="controls">
         <select class="sel" id="a-repo" aria-label="Repository"></select>
       </div></div>
+      <div class="vtabs" id="a-view" role="tablist" aria-label="Savings">
+        <button role="tab" data-view="actions" class="on" aria-selected="true" aria-controls="activity-body"><span class="vt-name">Action savings</span></button>
+        <button role="tab" data-view="prs" aria-selected="false" aria-controls="activity-prs"><span class="vt-name">PR savings</span></button>
+      </div>
+      <div id="activity-prs" class="section" hidden></div>
       <div id="activity-body" class="section"><div class="empty"><span class="spinner"></span>Reading…</div></div>
     </section>
   </main>
@@ -513,7 +524,7 @@ function show(tab) {
 }
 function segOn(sel, on) { document.querySelectorAll(sel + ' button').forEach(b => b.classList.toggle('on', b === on)); }
 function card(kicker, num, label, rows, gain) {
-  return `<div class="card"><div class="kicker">${kicker}</div><div class="metric-num${gain ? ' gain' : ''}">${num}</div><div class="metric-label">${label}</div>${rows && rows.length ? `<ul class="metric-rows">${rows.map(([a, b]) => `<li><span>${esc(a)}</span><span>${esc(b)}</span></li>`).join('')}</ul>` : ''}</div>`;
+  return `<div class="card"><div class="kicker">${kicker}</div><div class="metric-num${gain ? ' gain' : ''}">${num}</div>${label ? `<div class="metric-label">${label}</div>` : ''}${rows && rows.length ? `<ul class="metric-rows">${rows.map(([a, b]) => `<li><span>${esc(a)}</span><span>${esc(b)}</span></li>`).join('')}</ul>` : ''}</div>`;
 }
 
 // ---- Save: where the context goes in one repository (context-view.js:contextView, as `thinker context`) ----
@@ -687,8 +698,8 @@ const ACT_EFFECT = {
   'section:remove': ['opens a pull request', 'The section is taken out of the instruction file. It opens a pull request for you to read: nothing changes in your checkout, and nothing takes effect until you merge it.'],
   'skill:off': ['reversible', 'New sessions in this repository stop loading its name and description. You can still run it yourself by typing /name, and Turn back on undoes this at any time.'],
   'skill:on': ['reversible', 'New sessions in this repository load it again.'],
-  'tool:off': ['reversible', 'New sessions in this repository stop loading its definition, so the agent cannot call it. Sessions already open keep it. Turn back on, or Revert under Recent activity, undoes this.'],
-  'builtin:off': ['the agent loses it', "The tool goes into permissions.deny of .claude/settings.local.json in this repository, so new Claude Code sessions here have no definition of it and cannot call it at all. Sessions already open keep it. Revert under Recent activity, Turn back on in the tool's row, or thinker harness --undo brings it back."],
+  'tool:off': ['reversible', 'New sessions across all repositories stop loading its definition, so the agent cannot call it. Sessions already open keep it. Turn back on, or Revert under Recent activity, undoes this.'],
+  'builtin:off': ['the agent loses it', "The tool is switched off across all repositories, so new Claude Code sessions have no definition of it and cannot call it at all. Sessions already open keep it. Revert under Recent activity, Turn back on in the tool's row, or thinker harness --undo brings it back."],
   'tool:on': ['reversible', 'New sessions in this repository load it again.'],
   'output:compress': ['reversible', 'Long results are trimmed before the model reads them: whole-file reads to the lines round what the agent searched for, test runs to their failures, big searches to their hits, anything long to about 3k tokens. No compression puts it back.'],
   'output:uncompress': ['costs more', 'Results go back to their full length, and every later call in the session reads all of it again.'],
@@ -998,16 +1009,15 @@ async function applyRows(view, items, btn) {
   };
   if (!await confirmDialog({
     title: `Apply ${items.length === 1 ? 'this change' : `these ${items.length} changes`}?`, ok: items.length === 1 ? 'Apply it' : `Apply ${items.length}`,
-    body: `<ul class="rev-list">${items.map(entry).join('')}</ul>${builtins.length ? `<p class="rev-warn">${builtins.length === 1 ? 'One of these is' : `${builtins.length} of these are`} Claude Code's own tool${builtins.length === 1 ? '' : 's'}. The agent loses the ability, not just the description, in every new session here \u2014 until you turn it back on.</p>` : ''}`,
+    body: `<ul class="rev-list">${items.map(entry).join('')}</ul>${builtins.length ? `<p class="rev-warn">${builtins.length === 1 ? 'One of these is' : `${builtins.length} of these are`} Claude Code's own tool${builtins.length === 1 ? '' : 's'}. The agent loses the ability, not just the description, in every new session across all repositories \u2014 until you turn it back on.</p>` : ''}`,
   })) return;
   if (btn) busy(btn, 'Applying…');
   try {
     const said = []; let failed = false;
     if (rest.length) {
-      // in All repositories a merged skill or tool applies to each repository it came from (context-view.js:mergeViews
-      // `repoIds`), an output to every repository
+      // Tools use one machine-wide switch. Skills keep their repository scope; outputs apply to each repository.
       const byRepo = new Map();
-      for (const { r, act } of rest) for (const repo of r.repo ? [r.repo] : r.repoIds?.length ? r.repoIds : (CTX?.repos || []).map(x => x.repo)) { if (!byRepo.has(repo)) byRepo.set(repo, { keys: [], acts: {} }); const g = byRepo.get(repo); g.keys.push(r.key); g.acts[r.key] = act; }
+      for (const { r, act } of rest) for (const repo of (r.kind === 'tool' ? [r.repo || r.repoIds?.[0] || (CREPO !== 'all' ? CREPO : CTX?.repos?.[0]?.repo)] : r.repo ? [r.repo] : r.repoIds?.length ? r.repoIds : (CTX?.repos || []).map(x => x.repo)).filter(Boolean)) { if (!byRepo.has(repo)) byRepo.set(repo, { keys: [], acts: {} }); const g = byRepo.get(repo); g.keys.push(r.key); g.acts[r.key] = act; }
       // one repository failing (a checkout gone since the report) is said in its line; the others are still made
       for (const [repo, g] of byRepo) { try { said.push((await api('/api/changes/approve', { repo, ...g, days: cdays })).said); } catch (err) { failed = true; said.push(`${REPOS.find(x => x.id === repo)?.name || repo}: ${err.message}`); } }
     }
@@ -1128,7 +1138,7 @@ function historyFigure(hs, { many, caption, sub, empty, key = 'history', pageSiz
   ].filter(Boolean).join(' ');
   const decidedHint = e => [when(e.at), e.action ? `Suggested: ${e.action}` : '', e.total ? `Worth ~${fmt(e.total)} input tokens over the ${e.days || 7} days before it was decided${e.saving ? ` (~${fmt(e.saving)} a prompt)` : ''}` : e.saving ? `Worth ~${fmt(e.saving)} input tokens a prompt when it was decided` : ''].filter(Boolean).join(' · ');
   const rows = shown.map((e, k) => { const i = from + k, [cls, label, raw] = doneOf(e); return `<tr class="${e.revertedAt || e.rejected ? 'ctx-off' : e.attention && !e.running ? 'act-attn' : e.unpulled ? 'act-wait' : ''}">
-      <td class="ctx-name"><b>${esc(e.title)}</b><span class="ctx-kind">${esc([e.what || CH_KIND[e.kind] || e.kind, many ? e.repoName : ''].filter(Boolean).join(' · '))}</span>${e.about ? `<span class="ctx-about">${esc(e.about)}</span>` : ''}</td>
+      <td class="ctx-name"><b>${esc(e.title)}</b><span class="ctx-kind">${esc([e.what || CH_KIND[e.kind] || e.kind, e.scope === 'machine' ? 'All repositories' : many ? e.repoName : ''].filter(Boolean).join(' · '))}</span>${e.about ? `<span class="ctx-about">${esc(e.about)}</span>` : ''}</td>
       <td class="num" title="${esc(decidedHint(e))}">${day(e.at)}</td>${effectCells(e)}${prCell(e)}
       <td>${e.pr?.url && e.pending ? `<a class="ctx-pill ${cls}" href="${esc(e.pr.url)}" target="_blank" rel="noopener" title="${esc(hintOf(e))}">${label}</a>` : `<span class="ctx-pill ${cls}" title="${esc(hintOf(e))}">${raw ? label : esc(label)}</span>`}</td>
       <td class="ctx-actcell"><div class="ctx-act">${e.retryable ? `<button class="btn" data-retry="${i}">Retry</button>` : e.revertible ? `<button class="btn ghost" data-revert="${i}"${e.pr?.state === 'merged' ? ` title="Opens a pull request that reverts #${e.pr.number}"` : ''}>${e.pending ? 'Close PR' : 'Revert'}</button>` : ''}</div></td></tr>`; }).join('');
@@ -1152,8 +1162,16 @@ function wireHistory(root, hs, reload, rerender) {
 // Every decision kept, for one repository or all (the default: the page is the machine's), with what still needs the person
 // at the top; the badge on the tab counts those, asked for every ACT_POLL_MS, and every ACT_FAST_MS while a change runs,
 // so a row's pill moves from under way to pending or failed without a reload.
+let AVIEW = 'actions', APR = null, APR_FOR = null, APRPOLL = null, APR_ALL = false;
 let AREPO = hashTab() === 'activity' ? hashRepo() : 'all', ACT = null, APOLL = null;
 const ACT_POLL_MS = 30_000, ACT_FAST_MS = 5_000;
+document.querySelectorAll('#a-view button').forEach(b => b.onclick = () => {
+  AVIEW = b.dataset.view;
+  document.querySelectorAll('#a-view button').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-selected', String(x === b)); });
+  $('#activity-body').hidden = AVIEW !== 'actions';
+  $('#activity-prs').hidden = AVIEW !== 'prs';
+  loadActivity();
+});
 $('#a-repo').onchange = e => { AREPO = e.target.value; e.target.blur(); loadActivity(); };
 // as loadContext: the table stays and is rebuilt in place when the same repository is already shown (after a Revert or
 // Retry, when a job finishes, on a tab switch back); the spinner is for the first read and a change of repository
@@ -1162,16 +1180,18 @@ let ACT_FOR = null, ALOAD = 0;
 // --history` hides them without --reverted)
 let SHOW_REVERTED = (() => { try { return localStorage.getItem('thinker-show-reverted') === '1'; } catch { return false; } })();
 async function loadActivity() {
-  const el = $('#activity-body'), seq = ++ALOAD, inPlace = Boolean(ACT) && ACT_FOR === AREPO;
+  const prs = AVIEW === 'prs', el = $(prs ? '#activity-prs' : '#activity-body'), seq = ++ALOAD, inPlace = prs ? Boolean(APR) && APR_FOR === AREPO : Boolean(ACT) && ACT_FOR === AREPO;
+  clearTimeout(APRPOLL);
   if (!inPlace) el.innerHTML = '<div class="empty"><span class="spinner"></span>Reading…</div>';
   try {
     if (!REPOS.length) await fetchRepos();
     if (!AREPO) AREPO = REPOS.find(r => r.current)?.id || 'all';
     else if (AREPO !== 'all' && !REPOS.some(r => r.id === AREPO)) AREPO = 'all';
     $('#a-repo').innerHTML = `<option value="all"${AREPO === 'all' ? ' selected' : ''}>All repositories</option>` + REPOS.map(r => `<option value="${esc(r.id)}"${r.id === AREPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
-    const want = AREPO, d = await api(`/api/activity?repo=${encodeURIComponent(AREPO)}`);
+    const want = AREPO, d = await api(prs ? `/api/report?repo=${encodeURIComponent(AREPO)}&weeks=6` : `/api/activity?repo=${encodeURIComponent(AREPO)}`);
     if (seq !== ALOAD || want !== AREPO) return;
-    ACT_FOR = want; renderActivity(d);
+    if (prs) { APR_FOR = want; renderActivityPrs(d); }
+    else { ACT_FOR = want; renderActivity(d); }
   } catch (e) { if (seq !== ALOAD) return; if (inPlace) toast(`Could not read the activity: ${e.message}`, true); else el.innerHTML = `<div class="empty">Could not read the activity: ${esc(e.message)}</div>`; }
 }
 // while the report the savings are read from is being made again (`measuring`), check back and show it (as reportAsOf does)
@@ -1180,9 +1200,9 @@ function activityCheckBack(d) {
   clearTimeout(AMPOLL); if (!d.measuring) return;
   const want = AREPO, tries = (d.tries || 0) + 1; if (tries > 24) return;
   AMPOLL = setTimeout(async () => {
-    if (AREPO !== want || TAB !== 'activity') return;
+    if (AREPO !== want || TAB !== 'activity' || AVIEW !== 'actions') return;
     let n; try { n = await api(`/api/activity?repo=${encodeURIComponent(AREPO)}`); } catch { return; }
-    if (AREPO !== want || TAB !== 'activity') return;
+    if (AREPO !== want || TAB !== 'activity' || AVIEW !== 'actions') return;
     if (!n.measuring || n.promptAvg) renderActivity(n); else activityCheckBack({ ...n, tries });
   }, 5000);
 }
@@ -1206,6 +1226,33 @@ function renderActivity(d) {
   wireHistory(el.querySelector('[data-history]'), hs, loadActivity, () => renderActivity(d));
   badge(d);
 }
+// PR savings reads the same kept report as View Report, with its own repository and expansion state.
+const prShare = x => x == null ? '<span class="muted">–</span>' : `${(100 * x).toFixed(x < 0.01 ? 2 : 1)}%`;
+function renderActivityPrs(v) {
+  APR = v;
+  const el = $('#activity-prs'), pr = v.prs;
+  const prRows = pr ? (APR_ALL ? pr.rows : pr.rows.slice(0, PR_ROWS)) : [];
+  // In All repositories two repositories both number from 1, so the row says which; inline, since a line of
+  // its own doubles the height of every row in the table.
+  const prName = r => `${r.url ? `<a href="${esc(r.url)}" target="_blank" rel="noreferrer noopener">#${r.number}</a>` : `#${r.number}`}${r.title ? ` ${esc(r.title)}` : ''}${r.repoName ? ` <span class="pr-repo">${esc(r.repoName)}</span>` : ''}`;
+  const prTable = !prRows.length ? '<div class="empty">No merged pull requests with recorded work in this window.</div>' : `<figure class="ctx-figure"><figcaption><b>Merged, newest first</b> <span class="ctx-sub">what each pull request cost in agent tokens -- every prompt and every answer of its sessions added up -- and what never had to sit in those prompts. A row with no saving had no clearing and no note it acted on.</span></figcaption>
+    <table class="ctx-table"><thead><tr><th>Pull request</th><th class="num">Sessions</th><th class="num">Its cost</th><th class="num">Cleared</th><th class="num">Reading avoided</th><th class="num">Saved</th><th class="num">Share</th></tr></thead>
+    <tbody>${prRows.map(r => `<tr><td class="ctx-name">${prName(r)}</td><td class="num">${r.sessions}</td><td class="num"${r.complete ? '' : ' title="a session of this pull request reported no counters, so its cost is partial"'}>${fmt(r.agent)}${r.complete ? '' : '<span class="ctx-kind">partial</span>'}</td><td class="num">${r.cleared ? fmt(r.cleared) : '<span class="muted">–</span>'}</td><td class="num">${r.reading ? fmt(r.reading) : '<span class="muted">–</span>'}</td><td class="num">${r.saved ? fmt(r.saved) : '<span class="muted">–</span>'}</td><td class="num">${prShare(r.share)}</td></tr>`).join('')}</tbody></table>
+    ${pr.rows.length > PR_ROWS ? `<button class="ctx-more pr-more" data-pr-all aria-expanded="${APR_ALL}">${APR_ALL ? `Show the newest ${PR_ROWS}` : `Show all ${fmt(pr.rows.length)}`}</button>` : ''}</figure>`;
+  swapBody(el, `<div class="kicker">Pull requests, over ${v.weeks || 6} weeks</div>` + prTable);
+  el.querySelector('[data-pr-all]')?.addEventListener('click', () => { APR_ALL = !APR_ALL; renderActivityPrs(v); });
+  clearTimeout(APRPOLL);
+  if (v.refreshing && (v.tries || 0) < 24) {
+    const want = AREPO, seq = ALOAD;
+    APRPOLL = setTimeout(async () => {
+      if (TAB !== 'activity' || AVIEW !== 'prs' || AREPO !== want || seq !== ALOAD) return;
+      try {
+        const n = await api(`/api/report?repo=${encodeURIComponent(want)}&weeks=6`);
+        if (TAB === 'activity' && AVIEW === 'prs' && AREPO === want && seq === ALOAD) renderActivityPrs({ ...n, tries: (v.tries || 0) + 1 });
+      } catch {}
+    }, 5000);
+  }
+}
 // the badge on the Recent activity tab: what needs the person over every repository, red; grey while something only runs
 function badge(d) {
   const b = $('#act-badge'), n = d.attention || 0;
@@ -1220,8 +1267,8 @@ async function pollActivity() {
     // what the open page shows follows: Recent activity is drawn again, and a Save row's pill, when a change finished
     // the state of each decision of the repository shown (under way, pending, failed): when one moved, the page is drawn
     // again in place (loadActivity, loadContext), so a Save row's pill goes from Compressing… to PR pending where it stands
-    const sig = (hs, repo) => JSON.stringify((hs || []).filter(e => repo === 'all' || e.repo === repo).map(e => [e.id, Boolean(e.running), Boolean(e.pending), Boolean(e.failed), e.attention]));
-    if (TAB === 'activity' && ACT && sig(ACT.history, AREPO) !== sig(d.history, AREPO)) loadActivity();
+    const sig = (hs, repo) => JSON.stringify((hs || []).filter(e => repo === 'all' || e.scope === 'machine' || e.repo === repo).map(e => [e.id, Boolean(e.running), Boolean(e.pending), Boolean(e.failed), e.attention]));
+    if (TAB === 'activity' && AVIEW === 'actions' && ACT && sig(ACT.history, AREPO) !== sig(d.history, AREPO)) loadActivity();
     if (TAB === 'save' && CHIST && sig(CHIST.history, CREPO) !== sig(d.history, CREPO) && !Object.values(PICKS).some(m => m.size)) loadContext();
   }
   APOLL = setTimeout(pollActivity, d?.running ? ACT_FAST_MS : ACT_POLL_MS);
@@ -1232,7 +1279,7 @@ async function fetchRepos() {
   REPOS = r.repos;
 }
 // ---- Report (report.js:reportView, as `thinker report`): the average a prompt (one call to the model) cost each week, by token type, by part and by model ----
-let RPT = null, RMEASURE = 'cost', RMODE = 'avg', RVIEW = 'values', RFOLD = new Set(['other-input']); // the rest of the input folded until opened (2026-10-25)
+let RPT = null, RMEASURE = 'cost', RMODE = 'sum', RVIEW = 'values', RMORE = false, RFOLD = new Set(['other-input']); // the rest of the input folded until opened (2026-10-25)
 // Values / Share is the command's --share (report.js:renderReport): every row but the whole-session total as its share of that
 // total in the week, so the relative contributions and their trend can be read; the total rows keep their values
 document.querySelectorAll('#r-view button').forEach(b => b.onclick = () => { RVIEW = b.dataset.view; segOn('#r-view', b); if (RPT) renderReport(RPT); });
@@ -1326,45 +1373,25 @@ function renderReport(v) {
     ...(otherFolded ? [] : rest.map(p => row(`<span class="rep-sub">${esc(p.name)}</span>`, p.cells, { cls: 'rep-subrow', key: p.key, thresholds: true }))),
     ...(output ? [row(esc(output.name), output.cells, { key: 'output', thresholds: true })] : []),
   ];
-  const parts = `<figure class="ctx-figure"><figcaption><b>By part of the context</b> <span class="ctx-sub">where the same tokens went · a row is green at or under Good, red at or over Bad, yellow between, in dollars a priced prompt (Cost only)${calNote ? ` · the estimated parts in the model's own tokens (${calNote}; the other providers one for one)` : ''}</span></figcaption>
+  const parts = `<figure class="ctx-figure"><figcaption><b>${cost ? 'Cost' : 'Tokens'} by context</b> <span class="ctx-sub">${sum ? 'Weekly totals' : 'Per prompt'} · ${share ? 'share of recorded usage' : cost ? 'at list prices' : 'tokens read and written'}</span></figcaption>
     <table class="ctx-table rep-table">${head('Part', true)}<tbody>${[...v.parts.map(p => row(esc(p.name), p.cells, { key: p.key, thresholds: true })), ...otherRows].join('')}${row('Total (the whole session)', v.sessionTotals, { cls: 'rep-total', total: true, key: 'total', thresholds: true })}</tbody></table></figure>`;
   const fold = p => RFOLD.has(p), modelsOf = p => v.models.filter(m => m.provider === p);
   const mtitle = m => (c, w) => `${fmt(c.prompts || 0)} prompts in ${c.sessions} session${c.sessions === 1 ? '' : 's'} on ${m.model} this week${c.prompts ? `, ${cost ? (c.pricedPrompts ? money(c.cost / c.pricedPrompts) : '–') : fmt(c.tokens / c.prompts)} per prompt of its own` : ''}`;
   const models = `<figure class="ctx-figure"><figcaption><b>By model</b> <span class="ctx-sub">each model's share of the ${sum ? 'week' : 'average prompt'}, its provider's subtotal above its models</span></figcaption>
     <table class="ctx-table rep-table">${head('Provider · model')}<tbody>${v.providers.map(p => row(`<button class="rep-fold" data-fold="${esc(p.name)}" aria-expanded="${!fold(p.name)}">${fold(p.name) ? '▸' : '▾'}</button> ${esc(p.name)}`, p.cells, { cls: 'rep-sub', sub: `${modelsOf(p.name).length} model${modelsOf(p.name).length === 1 ? '' : 's'}` }) + (fold(p.name) ? '' : modelsOf(p.name).map(m => row(`<span class="rep-indent">${esc(m.model)}</span>`, m.cells, { cls: m.priced ? '' : 'ctx-off', sub: m.priced ? '' : 'no list price', titles: mtitle(m) })).join(''))).join('')}${row('Total (the whole session)', v.sessionTotals, { cls: 'rep-total', total: true })}</tbody></table></figure>`;
-  // the cache's numbers over the same window (usage.js:summarize), its saving in dollars first
-  const c = v.cache;
-  const cards = `<div class="section"><div class="kicker">The cache, over the same ${v.weeks} weeks</div><div class="cards four" style="margin-top:0.6rem">
-    ${card(c.dollarsLabel || '$ saved', money(c.dollarsSaved), (c.dollarsDescription || `${c.measured ? 'the input tokens saved against held-out prompts' : 'the code the agents did not read'}, at each model's list input price`) + `${c.unpricedTokens ? `; ${fmt(c.unpricedTokens)} tokens on unpriced models not counted` : ''}`, null, true)}
-    ${card(c.tokenLabel || 'Tokens saved', fmt(c.tokensSaved), c.tokenDescription || (c.measured ? 'input tokens, against prompts with the notes withheld' : 'tokens of code the agents did not read'), null, true)}
-    ${card('Cache hits', fmt(c.hits), `notes served, for ${fmt(c.answered)} of ${fmt(c.attempted)} requests the cache was asked${c.requests > c.attempted ? ` (${fmt(c.requests - c.attempted)} not asked)` : ''}`)}
-    ${card('Acted on', c.acted == null ? '–' : `${Math.round(100 * c.acted)}%`, `of ${fmt(c.judged)} servings the sessions were judged on`)}
-  </div></div>`;
-  // What was shipped here, and how much of it thinker paid for (report.js:prSavings, the same figures as
-  // `thinker prs`). In tokens under Cost as much as under Tokens: the clearing's
-  // worth in dollars is not its tokens at the input rate, since what it takes out of a prompt was being read
-  // from the prompt cache and the clear writes that cache again. `thinker proxy replay` is what prices it.
-  const pr = v.prs;
-  const prRows = pr ? (RFOLD.has('pr-all') ? pr.rows : pr.rows.slice(0, PR_ROWS)) : [];
-  const prShare = x => x == null ? '<span class="muted">–</span>' : `${(100 * x).toFixed(x < 0.01 ? 2 : 1)}%`;
-  // In All repositories two repositories both number from 1, so the row says which; inline, since a line of
-  // its own doubles the height of every row in the table.
-  const prName = r => `${r.url ? `<a href="${esc(r.url)}" target="_blank" rel="noreferrer noopener">#${r.number}</a>` : `#${r.number}`}${r.title ? ` ${esc(r.title)}` : ''}${r.repoName ? ` <span class="pr-repo">${esc(r.repoName)}</span>` : ''}`;
-  const prTable = !prRows.length ? '' : `<figure class="ctx-figure"><figcaption><b>Merged, newest first</b> <span class="ctx-sub">what each pull request cost in agent tokens -- every prompt and every answer of its sessions added up -- and what never had to sit in those prompts. A row with no saving had no clearing and no note it acted on.</span></figcaption>
-    <table class="ctx-table"><thead><tr><th>Pull request</th><th class="num">Sessions</th><th class="num">Its cost</th><th class="num">Cleared</th><th class="num">Reading avoided</th><th class="num">Saved</th><th class="num">Share</th></tr></thead>
-    <tbody>${prRows.map(r => `<tr><td class="ctx-name">${prName(r)}</td><td class="num">${r.sessions}</td><td class="num"${r.complete ? '' : ' title="a session of this pull request reported no counters, so its cost is partial"'}>${fmt(r.agent)}${r.complete ? '' : '<span class="ctx-kind">partial</span>'}</td><td class="num">${r.cleared ? fmt(r.cleared) : '<span class="muted">–</span>'}</td><td class="num">${r.reading ? fmt(r.reading) : '<span class="muted">–</span>'}</td><td class="num">${r.saved ? fmt(r.saved) : '<span class="muted">–</span>'}</td><td class="num">${prShare(r.share)}</td></tr>`).join('')}</tbody></table>
-    ${pr.rows.length > PR_ROWS ? `<button class="ctx-more pr-more" data-fold="pr-all" aria-expanded="${RFOLD.has('pr-all')}">${RFOLD.has('pr-all') ? `Show the newest ${PR_ROWS}` : `Show all ${fmt(pr.rows.length)}`}</button>` : ''}</figure>`;
-  const prBand = !pr || !pr.merged ? '' : `<div class="section"><div class="kicker">Pull requests, over the same ${v.weeks} weeks</div>
-    <p class="lede">Tokens spent and saved on merged pull requests, with savings from cleared context and avoided reading.</p>
-    <div class="cards four" style="margin-top:0.6rem">
-    ${card('Merged with work here', fmt(pr.merged), `of ${fmt(pr.mergedSeen)} merged in ${v.all ? 'those repositories' : 'the repository'}; the rest no session here touched`, [['Still open', fmt(pr.open)], ['Sessions on one', fmt(pr.sessions.linked)], ['Sessions on none', fmt(pr.sessions.unlinked)]])}
-    ${card('Tokens saved on them', fmt(pr.saved.total), 'that never had to sit in a prompt', [['Cleared (measured)', fmt(pr.saved.cleared)], ['Reading avoided (estimate)', fmt(pr.saved.reading)]], true)}
-    ${card('Share of what they cost', prShare(pr.share), `against ${fmt(pr.agent)} agent tokens, the same shape: every prompt and every answer added up`, [[`${fmt(pr.mergedAssisted)} of ${fmt(pr.merged)}`, 'saved something']], true)}
-    ${card('On the median one', fmt(pr.medianSaved || 0), 'tokens saved', [['Its cost', pr.medianAgent == null ? '–' : fmt(pr.medianAgent)], ['Opened to merged', pr.medianHours == null ? '–' : `${pr.medianHours < 10 ? pr.medianHours.toFixed(1) : Math.round(pr.medianHours)}h`]])}
-  </div>${prTable}</div>`;
-  // the prompt-cache rewrites by cause and the sessions whose agent reports no usage are in the view (rewrites, estimated) and
-  // not on the page: not what a person can act on (the owner's call, 2026-10-25)
-  swapBody(el, parts + models + tokenTypes + cards + prBand); // the token types last (the owner's order, 2026-10-24)
+  const series = (v.savings || []).slice().sort((a, b) => Number(b.key === 'compression') - Number(a.key === 'compression')).map(s => ({ ...s, color: s.key === 'compression' ? '#6366f1' : '#07866c', values: s.cells.map((c, w) => {
+    if (!(cost ? c.pricedEvents : c.events)) return null;
+    const amount = cost ? c.cost : c.tokens, col = v.columns[w], total = v.sessionTotals[w];
+    const denominator = share ? (cost ? total?.cost : total?.tokens) : sum ? 1 : (cost ? col.pricedPrompts : col.prompts);
+    return denominator ? amount / denominator : null;
+  }) }));
+  const number = n => share ? `${Number((n * 100).toFixed(2))}%` : cost ? money(n) : fmt(n);
+  const unpricedSavings = series.some(s => s.cells.some(c => c.unpricedTokens));
+  const effectiveness = `<figure class="ctx-figure savings-figure"><figcaption><b>Cache/compression effectiveness</b><span class="ctx-sub">Weekly ${share ? 'savings as a share of recorded usage' : `${cost ? 'value at list prices' : 'tokens saved'}${sum ? '' : ' per prompt'}`}</span></figcaption>
+    <table class="ctx-table rep-table savings-table">${colgroup(false)}<thead><tr><th>Savings</th>${v.columns.map((c, w) => `<th class="num">${dlabel(c.t)}${w === v.columns.length - 1 ? " *" : ""}</th>`).join('')}</tr></thead><tbody>${series.map(s => `<tr><td><span class="savings-dot" style="background:${s.color}"></span>${esc(s.name)} <span class="ctx-sub">${s.key === 'cache' ? 'estimated' : 'gross'}</span></td>${s.values.map(n => `<td class="num">${n == null ? '–' : esc(number(n))}</td>`).join('')}</tr>`).join('')}<tr class="savings-counts"><td>Cache hits · notes served</td>${v.columns.map((_, w) => `<td class="num">${fmt(series.find(s => s.key === 'cache')?.cells[w]?.hits || 0)}</td>`).join('')}</tr></tbody></table>
+    <p class="savings-note">Cache: avoided reading minus note context. Compression: avoided cache reads, before cache rewrite costs; Codex token counts are estimated. ${unpricedSavings && cost ? 'Unpriced models are excluded. ' : ''}* Current week so far. Gaps mean no measurements.</p></figure>`;
+  swapBody(el, parts + effectiveness + `<button class="btn metrics-toggle" id="more-metrics" aria-expanded="${RMORE}" aria-controls="extra-metrics">${RMORE ? 'See fewer metrics' : 'See more metrics'} <span aria-hidden="true">${RMORE ? '▴' : '▾'}</span></button><div id="extra-metrics"${RMORE ? '' : ' hidden'}>${models}${tokenTypes}</div>`);
+  $('#more-metrics').onclick = () => { RMORE = !RMORE; renderReport(v); $('#more-metrics').focus(); };
   el.querySelectorAll('[data-fold]').forEach(b => b.onclick = () => { const p = b.dataset.fold; RFOLD.has(p) ? RFOLD.delete(p) : RFOLD.add(p); renderReport(v); });
 }
 // first view: the tab the URL names, else Save (where the agents' context goes is the front door, since

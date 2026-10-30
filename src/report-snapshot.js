@@ -20,7 +20,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 // the readers behind the report: a snapshot made by other code is not this code's report
 let codeKey;
-const code = () => codeKey ||= crypto.createHash('sha256').update(['report.js', 'instruction-value.js', 'instruction-sections.js', 'harness.js', 'harness-codex.js', 'tool-outputs.js', 'transcripts.js', 'usage.js', 'cache-savings.js', 'prices.js', 'model-usage.js', 'delivery.js', 'compression.js']
+const code = () => codeKey ||= crypto.createHash('sha256').update(['report.js', 'report-savings.js', 'instruction-value.js', 'instruction-sections.js', 'harness.js', 'harness-codex.js', 'tool-outputs.js', 'transcripts.js', 'usage.js', 'cache-savings.js', 'prices.js', 'model-usage.js', 'delivery.js', 'compression.js']
   .map(f => { try { return fs.readFileSync(path.join(HERE, f), 'utf8'); } catch { return f; } }).join('\0')).digest('hex').slice(0, 16);
 
 export const reportFile = store => path.join(store.dir, 'state', 'report.json');

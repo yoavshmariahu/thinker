@@ -23,6 +23,10 @@ import { listPrice, providerOf, costOf, costOfInputSavings, writeCost, formatDol
 import { formatTokens } from './model-usage.js';
 import { REWRITE_CAUSES } from './transcripts.js';
 import { deliveryReport } from './delivery.js';
+import { repoId } from './store.js';
+import { compressionRecords } from './compression.js';
+import { proxyLogFile } from './proxy-service.js';
+import { weeklySavings, mergeSavings, savingsValue } from './report-savings.js';
 
 export const REPORT_WEEKS = 6;
 // What every row of the parts table should cost a prompt at list prices, in dollars (the owner's ask, 2026-10-26: bounds for
@@ -204,6 +208,10 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   // `thinker report --json` and outputComparison
   const outRows = (() => { try { return toolOutputs(store, sessions, timeline).tools; } catch { return []; } })();
   const actions = reportActions(store, from, sessionRows, now);
+  const cacheReadings = [];
+  const usage = summarize(store, { days, now, onSaving: r => cacheReadings.push(r) });
+  const proxyRows = process.env.THINKER_TEST === '1' && !process.env.THINKER_HOME && !process.env.THINKER_PROXY_LOG ? [] : compressionRecords(proxyLogFile());
+  const savings = weeklySavings({ columns, now, config, cache: cacheReadings, events: readLog(store), compression: proxyRows, sessions, origin: repoId(store.repo), ownership: readLog(store, { all: true }) });
   return {
     weeks, days, from, to: now, pricedOn: PRICED_ON, columns, sessionRows, costThresholds: COST_THRESHOLDS,
     tokenTypes,
@@ -212,7 +220,7 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
     rewrites: REWRITES.map(([key, name]) => ({ key, name, cells: byCause[key] })), rewriteTotals, estimated,
     calibration: calibrations(config),
     providers, models: modelRows, unpriced: [...unpriced],
-    actions, outputRows: outRows, cache: cacheMetrics(store, { days, config }),
+    actions, outputRows: outRows, savings, cache: cacheMetrics(store, { days, config, usage }),
     prs: prSavings(store, { days, now }),
   };
 }
@@ -405,6 +413,7 @@ export function mergeReports(list) {
       tokenDescription: cache.every(c => c.measured) ? 'versus prompts with the notes withheld' : 'Avoided reading and observed re-reads, minus note context; holdout comparisons where available.',
       coverage: cache.some(c => c.coverage) ? Object.fromEntries(['hits', 'fallback', 'sessions', 'requests'].map(k => [k, cache.reduce((n, c) => n + (c.coverage?.[k] || 0), 0)])) : null,
       dollarsDescription: cache.some(c => !c.measured) ? 'Total from cache hits, including repeated reads and subtracting note context; holdout comparisons where available.' : null },
+    savings: mergeSavings(views, n),
     prs: mergePrSavings(list),
     repos: list.map(x => ({ repo: x.repo, name: x.name })),
   };
@@ -482,6 +491,9 @@ export function renderReport(v, { cost = true, total = false, share = false } = 
   // the rewrites by cause and the estimated sessions stay in the view (--json) and off the print: not actionable (2026-10-25)
   L.push(`  ${cost ? '✓ · ✗: a row of the parts table at or under its good figure, between the two, at or over its bad figure, in dollars a priced prompt whatever the table shows; the models and the token types take no mark; ' : ''}a zero is left blank. A model row is its share of the ${total ? 'week' : 'average prompt'}; its sessions:` + ` ${v.models.map(m => `${m.model} ${m.cells.map(c => c.sessions).join('/')}`).join(', ')}.`);
   if (v.unpriced.length) L.push(`  No list price for ${v.unpriced.join(', ')}: their sessions are left out of the cost average.`);
+  L.push('', 'Cache/compression effectiveness', ' '.repeat(32) + weeks);
+  for (const s of v.savings || []) L.push(`  ${s.name.padEnd(30)}${s.cells.map((c, w) => fmtv(savingsValue(c, v.columns[w], v.sessionTotals[w], { cost, total, share }), share).padStart(W)).join('')}`);
+  L.push('  Cache: estimated avoided reading minus note context. Compression: gross avoided cache reads; cache rewrites not deducted. Missing observations: –.');
   const c = v.cache;
   L.push('', 'The cache', `  ${(c.dollarsLabel || '$ saved').padEnd(16)} ${formatDollars(c.dollarsSaved)}${c.unpricedTokens ? ` (+${formatTokens(c.unpricedTokens)} tokens on unpriced models)` : ''}`, `  tokens saved     ${formatTokens(c.tokensSaved)} ${c.tokenDescription || (c.measured ? 'input tokens, against prompts with the notes withheld' : 'tokens of code the agents did not read')}`, `  cache hits       ${formatTokens(c.hits)} notes served, for ${formatTokens(c.answered)} of ${formatTokens(c.attempted)} requests the cache was asked${c.requests > c.attempted ? ` (${formatTokens(c.requests - c.attempted)} not asked: too few notes, or held out)` : ''}`, `  acted on         ${c.acted == null ? '–' : `${Math.round(100 * c.acted)}%`} of ${formatTokens(c.judged)} servings the sessions were judged on`);
   if (c.dollarsDescription) L.push(`  dollar basis     ${c.dollarsDescription}`);

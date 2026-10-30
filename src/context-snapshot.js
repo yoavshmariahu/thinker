@@ -1,3 +1,6 @@
+import os from 'node:os';
+import { thinkerHome } from './update.js';
+import { claudePaths } from './harness.js';
 // The Context tab's report, worked out ahead of time. contextView reads every transcript of the window: a second
 // or four a repository on this machine, about fifteen for All repositories, on every visit to the tab. So the
 // report is kept in the checkout's state (`.thinker/state/context-view-<days>.json`) and the page reads that:
@@ -18,14 +21,14 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 // the readers behind the report: a snapshot made by other code is not this code's report
 let codeKey;
-const code = () => codeKey ||= crypto.createHash('sha256').update(['context-view.js', 'instruction-value.js', 'instruction-sections.js', 'harness.js', 'harness-codex.js', 'tool-outputs.js', 'diet.js', 'context-suggest.js']
+const code = () => codeKey ||= crypto.createHash('sha256').update(['context-view.js', 'instruction-value.js', 'instruction-sections.js', 'harness.js', 'harness-codex.js', 'tool-outputs.js', 'diet.js', 'context-suggest.js', 'scoped-state.js']
   .map(f => { try { return fs.readFileSync(path.join(HERE, f), 'utf8'); } catch { return f; } }).join('\0')).digest('hex').slice(0, 16);
 // where the report's switches and sections come from, by content (a directory by its size and mtime): the config is
 // the repository's (store.dir, shared by its worktrees), the rest the checkout's, so a worktree with the same files
 // reads the repository's report and one whose instruction file differs has it made again
 const INPUTS = ['.thinker/config.json', '.claude/settings.json', '.claude/settings.local.json', 'AGENTS.md', 'CLAUDE.md'];
-const inputs = store => INPUTS.map(f => {
-  const p = f.startsWith('.thinker/') ? path.join(store.dir, f.slice('.thinker/'.length)) : path.join(store.repo, f);
+const inputs = store => [...INPUTS, claudePaths().settings, path.join(process.env.CODEX_HOME || path.join(os.homedir(), '.codex'), 'config.toml'), path.join(thinkerHome(), 'state', 'machine-actions', 'harness.json')].map(f => {
+  const p = path.isAbsolute(f) ? f : f.startsWith('.thinker/') ? path.join(store.dir, f.slice('.thinker/'.length)) : path.join(store.repo, f);
   try { const s = fs.statSync(p); return s.isDirectory() ? `${f}\t${s.size}\t${Math.round(s.mtimeMs)}` : `${f}\t${crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex').slice(0, 16)}`; } catch { return `${f}\t-`; }
 }).join('\n');
 
