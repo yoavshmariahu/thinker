@@ -1,0 +1,274 @@
+{
+  "warning": "Purposive examples. Path substring matching can include unrelated output and miss indirect reads. Current deps may differ from original deps. No necessity, sufficiency, or savings claim.",
+  "results": [
+    {
+      "id": "cli-ui-sync-test-asserts-page-html-server-js-strings-match-c",
+      "noteSha256": "3c87d0006fae141c892db997aed8fb49ebe59d45959ffdedf9529961c816d25c",
+      "transcriptSha256": "4087dc75004a839f9ff09814f7fe6018b2cff6f807d678547bcae576f3d644f0",
+      "format": "claude",
+      "model": "claude-fable-5-1",
+      "totalTools": 63,
+      "toolsBeforeCreation": 63,
+      "untimedTools": 0,
+      "currentFileEstimate": 18000,
+      "candidateReadCalls": 11,
+      "candidateReadTokens": 17313,
+      "candidates": [
+        {
+          "event": 10,
+          "tool": "Bash:grep",
+          "named": [
+            "src/ui/page.html"
+          ],
+          "tokens": 4439
+        },
+        {
+          "event": 11,
+          "tool": "Bash:sed",
+          "named": [
+            "src/ui/page.html"
+          ],
+          "tokens": 2055
+        },
+        {
+          "event": 12,
+          "tool": "Bash:sed",
+          "named": [
+            "src/ui/page.html"
+          ],
+          "tokens": 692
+        },
+        {
+          "event": 13,
+          "tool": "Bash:sed",
+          "named": [
+            "src/ui/page.html"
+          ],
+          "tokens": 3014
+        },
+        {
+          "event": 14,
+          "tool": "Bash:sed",
+          "named": [
+            "src/ui/page.html"
+          ],
+          "tokens": 2494
+        },
+        {
+          "event": 18,
+          "tool": "Bash:sed",
+          "named": [
+            "src/ui/page.html"
+          ],
+          "tokens": 1367
+        },
+        {
+          "event": 19,
+          "tool": "Bash:sed",
+          "named": [
+            "src/ui/page.html"
+          ],
+          "tokens": 733
+        },
+        {
+          "event": 58,
+          "tool": "Bash:grep",
+          "named": [
+            "src/ui/page.html"
+          ],
+          "tokens": 6
+        },
+        {
+          "event": 60,
+          "tool": "Bash:grep",
+          "named": [
+            "test/cli-ui-sync.test.js"
+          ],
+          "tokens": 299
+        },
+        {
+          "event": 71,
+          "tool": "Bash:grep",
+          "named": [
+            "src/ui/page.html"
+          ],
+          "tokens": 1383
+        },
+        {
+          "event": 72,
+          "tool": "Bash:sed",
+          "named": [
+            "src/ui/page.html"
+          ],
+          "tokens": 831
+        }
+      ]
+    },
+    {
+      "id": "context-proxy-must-never-take-over-a-route-that-is-not-its-o",
+      "noteSha256": "eb9dc4db4226b38392b4167fe96b5aeb932de75dd3d040e75b3821266ec332dd",
+      "transcriptSha256": "c651e2c8f56ae2a03db6cde56af17d45b1a722b22c46331ac5e1b67cf7ee85c7",
+      "format": "claude",
+      "model": "claude-opus-5",
+      "totalTools": 488,
+      "toolsBeforeCreation": 92,
+      "untimedTools": 0,
+      "currentFileEstimate": 20577,
+      "candidateReadCalls": 10,
+      "candidateReadTokens": 10311,
+      "candidates": [
+        {
+          "event": 3,
+          "tool": "Bash:cat",
+          "named": [
+            "src/proxy-service.js"
+          ],
+          "tokens": 5116
+        },
+        {
+          "event": 4,
+          "tool": "Bash:grep",
+          "named": [
+            "src/proxy-service.js"
+          ],
+          "tokens": 11
+        },
+        {
+          "event": 5,
+          "tool": "Bash:grep",
+          "named": [
+            "src/proxy-service.js"
+          ],
+          "tokens": 1693
+        },
+        {
+          "event": 12,
+          "tool": "Bash:sed",
+          "named": [
+            "src/commands/hooks.js"
+          ],
+          "tokens": 1177
+        },
+        {
+          "event": 48,
+          "tool": "Bash:grep",
+          "named": [
+            "src/commands/hooks.js"
+          ],
+          "tokens": 327
+        },
+        {
+          "event": 60,
+          "tool": "Bash:cat",
+          "named": [
+            "src/proxy-service.js"
+          ],
+          "tokens": 501
+        },
+        {
+          "event": 70,
+          "tool": "Bash:sed",
+          "named": [
+            "src/telemetry.js"
+          ],
+          "tokens": 699
+        },
+        {
+          "event": 71,
+          "tool": "Bash:sed",
+          "named": [
+            "src/telemetry.js"
+          ],
+          "tokens": 639
+        },
+        {
+          "event": 96,
+          "tool": "Bash:grep",
+          "named": [
+            "src/proxy-service.js"
+          ],
+          "tokens": 135
+        },
+        {
+          "event": 104,
+          "tool": "Bash:cat",
+          "named": [
+            "src/proxy-route.js"
+          ],
+          "tokens": 13
+        }
+      ]
+    },
+    {
+      "id": "report-savings-are-computed-from-per-session-rows-kept-in-th",
+      "noteSha256": "a76b6544b024509c7860d749013972cb325d95b8ff92196a66c53e546974bd09",
+      "transcriptSha256": "a0e152bcb52fd6be1ee148cdc46f02723eea2638fb066224f4f1d8be4b74497e",
+      "format": "claude",
+      "model": "claude-fable-5-1",
+      "totalTools": 201,
+      "toolsBeforeCreation": 40,
+      "untimedTools": 0,
+      "currentFileEstimate": 12000,
+      "candidateReadCalls": 7,
+      "candidateReadTokens": 11833,
+      "candidates": [
+        {
+          "event": 3,
+          "tool": "Bash:grep",
+          "named": [
+            "src/report.js"
+          ],
+          "tokens": 466
+        },
+        {
+          "event": 4,
+          "tool": "Bash:sed",
+          "named": [
+            "src/report.js"
+          ],
+          "tokens": 3008
+        },
+        {
+          "event": 5,
+          "tool": "Bash:sed",
+          "named": [
+            "src/report.js"
+          ],
+          "tokens": 1804
+        },
+        {
+          "event": 9,
+          "tool": "Bash:sed",
+          "named": [
+            "src/report.js"
+          ],
+          "tokens": 2097
+        },
+        {
+          "event": 10,
+          "tool": "Bash:grep",
+          "named": [
+            "src/ui/server.js"
+          ],
+          "tokens": 1522
+        },
+        {
+          "event": 12,
+          "tool": "Bash:sed",
+          "named": [
+            "src/ui/server.js"
+          ],
+          "tokens": 2933
+        },
+        {
+          "event": 28,
+          "tool": "Bash:grep",
+          "named": [
+            "src/ui/server.js"
+          ],
+          "tokens": 3
+        }
+      ]
+    }
+  ]
+}
