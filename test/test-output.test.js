@@ -210,4 +210,3 @@ test('every separator survives a round trip, so a rewrite can be put back togeth
     'pytest "a b.py" -k \'one or two\'',
   ]) assert.equal(renderSegments(shellSegments(line)), line, line);
 });
-
