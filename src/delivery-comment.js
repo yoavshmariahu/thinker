@@ -7,31 +7,33 @@ import { repoId } from './store.js';
 import { thinkerHome } from './update.js';
 import { deliveryFile, digest, positiveInteger } from './delivery-journal.js';
 import { deliveryReport, githubReader, syncPrs, WINDOW_DAYS } from './delivery.js';
-import { grossSavingsCost, formatDollars, PRICED_ON } from './prices.js';
+import { grossSavingsCost, formatDollars } from './prices.js';
+import { formatTokens } from './model-usage.js';
 
 // Same author on two machines must not replace one machine's figures with the other's.
 export const commentMarker = (home = thinkerHome()) => `<!-- thinker-pr-savings:v1:${digest([os.hostname(), path.resolve(home)])} -->`;
 
 export function renderSavingsComment(report, pr, marker, { config } = {}) {
-  const n = value => Math.round(value).toLocaleString('en-US');
   const cost = grossSavingsCost(pr.sessions, { config });
   const estimate = cost.total === null
-    ? '**Estimated gross API cost avoided: unavailable** — no price is known for the recorded models.'
-    : `**Estimated gross API cost avoided: ~${formatDollars(cost.total)} USD${cost.unpricedTokens ? ' (partial)' : ''}** — ${formatDollars(cost.cleared)} from clearing + ${formatDollars(cost.reading)} from avoided reading.`;
+    ? 'Cost estimate unavailable: model prices unknown.'
+    : `**~${formatDollars(cost.total)} USD estimated gross API value avoided${cost.unpricedTokens ? ' (partial)' : ''}.**`;
+  const savings = [
+    ...(pr.saved.cleared ? [`**${formatTokens(pr.saved.cleared)} tokens cleared** (measured)`] : []),
+    ...(pr.saved.reading.tokens ? [`**${formatTokens(pr.saved.reading.tokens)} tokens of reading avoided** (estimated)`] : []),
+  ];
   return [
     marker,
-    '### Thinker savings',
+    '### 🧠 thinker saved you some tokens!',
     '',
-    `- **${n(pr.saved.cleared)} prompt tokens avoided through context clearing** — measured from the API's reports, summed across requests.`,
-    `- **${n(pr.saved.reading.tokens)} file-reading tokens avoided through reused notes** — estimated from notes the agent was recorded acting on.`,
+    savings.join(' · '),
     '',
     estimate,
-    ...(cost.unpricedTokens ? [`${n(cost.unpricedTokens)} avoided tokens have no known price and are excluded from the dollar estimate.`] : []),
-    `Clearing is valued at the cache-read rate; avoided reading at the input rate, using the last recorded model per session. Rates: Thinker's ${PRICED_ON} list-price table, with repository price overrides where configured.`,
+    ...(cost.unpricedTokens ? [`${formatTokens(cost.unpricedTokens)} tokens excluded from pricing (unknown rates).`] : []),
     '',
-    `Based on ${pr.sessions.length} linked ${pr.sessions.length === 1 ? 'session' : 'sessions'} recorded on this machine in the last ${report.windowDays} days (${report.since.slice(0, 10)} to ${report.generatedAt.slice(0, 10)}, UTC). These are session totals attributed to this PR, not measurements of individual commits. Other machines and unrecorded work are not included.`,
+    `From ${pr.sessions.length} linked ${pr.sessions.length === 1 ? 'session' : 'sessions'} on this machine · ${report.since.slice(0, 10)}–${report.generatedAt.slice(0, 10)} UTC.`,
     '',
-    'This is a gross API-price equivalent, not net savings or a measured bill reduction: prompt-cache rewrite costs are not deducted, nor are learning costs. Subscription charges may be unchanged.',
+    '*Session totals, not PR-only savings. Cost excludes rewrite and learning overhead; not a measured bill reduction.*',
   ].join('\n');
 }
 
