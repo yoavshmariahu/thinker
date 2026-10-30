@@ -50,14 +50,14 @@ test('preview refreshes the PR but publishes nothing, and discloses evidence wit
   assert.equal(result.action, 'preview');
   assert.equal(f.writes.length, 0);
   assert.equal(f.reads.length, 3);
-  assert.match(result.body, /120,000 prompt tokens.*measured/);
-  assert.match(result.body, /9,000 file-reading tokens.*estimated/);
-  assert.match(result.body, /1 linked session.*last 30 days/);
-  assert.match(result.body, /session totals attributed to this PR/);
-  assert.match(result.body, /rewrite costs are not deducted/);
+  assert.match(result.body, /thinker saved you some tokens!/);
+  assert.match(result.body, /120k tokens cleared.*measured/);
+  assert.match(result.body, /9k tokens of reading avoided.*estimated/);
+  assert.match(result.body, /1 linked session on this machine/);
+  assert.match(result.body, /Session totals, not PR-only savings/);
+  assert.match(result.body, /Cost excludes rewrite and learning overhead/);
   assert.ok(result.body.includes(`~${formatDollars(120000 * 0.5 / 1e6 + 9000 * 5 / 1e6)} USD`));
-  assert.match(result.body, /cache-read rate.*input rate/);
-  assert.match(result.body, /not net savings or a measured bill reduction/);
+  assert.match(result.body, /not a measured bill reduction/);
   for (const secret of [f.dir, os.hostname(), 'private-session-id', 'private-note', 'commit1']) assert.ok(!result.body.includes(secret), secret);
 });
 
@@ -89,13 +89,13 @@ test('preview identifies unavailable and partial pricing rather than reporting m
   const f = fixture(t);
   f.store.log({ op: 'attest', t: at(0), session: 'private-session-id', model: 'private-model', applied: [] });
   const unavailable = await commentOnPr(f.store, { ...f.options, dry: true });
-  assert.match(unavailable.body, /cost avoided: unavailable/);
-  assert.match(unavailable.body, /129,000 avoided tokens have no known price/);
+  assert.match(unavailable.body, /Cost estimate unavailable/);
+  assert.match(unavailable.body, /129k tokens excluded from pricing/);
   f.store.log({ op: 'orient', t: at(0), session: 'second-session', branch: 'fix', served: ['n2'], est: [[1, 10000]] });
   f.store.log({ op: 'attest', t: at(0), session: 'second-session', model: 'claude-opus-5', applied: [{ id: 'n2', verdict: 'confirmed' }] });
   const partial = await commentOnPr(f.store, { ...f.options, dry: true });
-  assert.match(partial.body, /~\$0\.05 USD \(partial\)/);
-  assert.match(partial.body, /129,000 avoided tokens have no known price/);
+  assert.match(partial.body, /~\$0\.05 USD estimated gross API value avoided \(partial\)/);
+  assert.match(partial.body, /129k tokens excluded from pricing/);
 });
 
 test('posting, identical rerun and later savings use one paginated comment with POST then PATCH', async t => {
@@ -109,7 +109,7 @@ test('posting, identical rerun and later savings use one paginated comment with 
   fs.writeFileSync(path.join(f.home, 'state', 'compression', 'private-session-id.json'), JSON.stringify({ saved: 150000 }));
   const updated = await commentOnPr(f.store, f.options);
   assert.equal(updated.action, 'updated');
-  assert.match(updated.body, /150,000 prompt tokens/);
+  assert.match(updated.body, /150k tokens cleared/);
   assert.equal(f.writes[1].endpoint, 'repos/owner/repo/issues/comments/99');
   assert.equal(f.writes[1].method, 'PATCH');
   assert.equal(f.comments.length, 1);
@@ -152,7 +152,7 @@ test('missing PR and invalid window fail before GitHub; wider windows include ol
   const later = now + 60 * 86400_000;
   await assert.rejects(commentOnPr(f.store, { ...f.options, now: later }), /No recorded sessions/);
   const preview = await commentOnPr(f.store, { ...f.options, now: later, days: 90, dry: true });
-  assert.match(preview.body, /last 90 days/);
+  assert.ok(preview.body.includes(new Date(later - 90 * 86400_000).toISOString().slice(0, 10)));
 });
 
 test('concurrent runs refuse a held lock and errors release it for retry', async t => {
