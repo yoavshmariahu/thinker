@@ -4,6 +4,7 @@
     "beforeSubmitPrompt": [{ "command": "./bin/prompt.sh", "timeout": 15 }],
     "postToolUse": [{ "command": "./bin/tool.sh", "timeout": 10 }],
     "afterShellExecution": [{ "command": "./bin/tool.sh", "timeout": 10 }],
+    "beforeShellExecution": [{ "command": "./bin/pre.sh", "timeout": 10 }],
     "stop": [{ "command": "./bin/stop.sh", "timeout": 10 }],
     "sessionEnd": [{ "command": "./bin/stop.sh", "timeout": 10 }]
   }

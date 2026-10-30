@@ -1,26 +1,32 @@
 import { isTestMode } from '../test-mode.js';
+import { gitContext, tryDelivery } from '../delivery-journal.js';
 // The hook entrypoints the agents call (clients.js installs them): prompt, tool and stop, with the
 // background catch-up they start. JSON on stdin, the client's answer on stdout.
 import { noticeCard } from '../notice-card.js';
 import { ceConfig } from '../dense.js';
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { cacheBundleIntro, disabledTools } from '../cache-guidance.js';
-import { pluginYields, pruneInstalls, prunedLines, refreshWiring, stripRepoWiring, repoRunsHooks, normalizeHookEvent, hookClient, sessionOf, toolFiles, seenFiles, seenHits, searchedIdentifier, promptOutput, toolOutput, stopOutput, parkPending, takePending, orientedFile, agyTurnPrompt } from '../clients.js';
+import { pluginYields, pruneInstalls, prunedLines, refreshWiring, stripRepoWiring, repoRunsHooks, normalizeHookEvent, hookClient, sessionOf, toolFiles, seenFiles, seenHits, searchedIdentifier, promptOutput, toolOutput, stopOutput, preToolOutput, rewritesCommands, PRE_TOOL_CLIENTS, parkPending, takePending, orientedFile, agyTurnPrompt } from '../clients.js';
+import { testsConfig, classifyTestCommand, wrappedCommand, wrapperBin, NUDGE_REASON } from '../testing.js';
 import { dietConfig, dietResult, rememberTerms } from '../diet.js';
 import { parseTranscript, batchDue } from '../distill.js';
-import { Store, findRepoRoot } from '../store.js';
+import { Store, findRepoRoot, repoId } from '../store.js';
 import { isDisabledRepo } from '../repo-switch.js';
 import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '../maintain.js';
-import { codeForRequest, orient, HOOK_BUDGET, servesNotes, rememberTask, lateNotes, onSightNotes, onSightConfig, onSightOutlines, onSightOutlineConfig, peekTurn, takeTurn, beginTurn, holdoutTurn, isHarnessEvent } from '../ops.js';
+import { codeForRequest, orient, HOOK_BUDGET, servesNotes, rememberTask, outcome, looksLikeCorrection, lateNotes, onSightNotes, onSightConfig, onSightOutlines, onSightOutlineConfig, completenessNudge, nudgedForTest, peekTurn, takeTurn, beginTurn, holdoutTurn, isHarnessEvent } from '../ops.js';
 import { recordEvent, traceFile, toolName, toolInput, textOf } from '../transcripts.js';
 import { turnNotice, turnFooterMarkdown, weeklyNotice, compressionNotice, formatTokens } from '../usage.js';
 import { compressionBlock, compressionDir, markCompressionTurn } from '../compression.js';
 import { claudeCardActive } from '../claude-card.js';
 import { setupRepo } from '../repo-onboard.js';
-import { recordError } from '../error-report.js';
+import { coverageOffer, recordAccess } from '../coverage.js';
+import { proxyOffer } from '../proxy-offer.js';
+import { errorOffer, recordError, sendErrors, errorConsent } from '../error-report.js';
 import { harnessRecall, harnessIndex, harnessOn } from '../harness.js';
+import { contextSuggestOffer, ensureUi, suggestionsUrl } from '../context-suggest.js';
+import { skillSuggestOn, skillSuggestLines, hookSkillFacts } from '../skill-suggest.js';
 import { snapshotCursorInventory } from '../harness-cursor.js';
 import { sectionsForEvent, sectionsConfig } from '../instruction-sections.js';
 import { retireTrimmedCopy } from '../trimmed-copy-retired.js';
@@ -28,6 +34,7 @@ import { thinkerHome } from '../update.js';
 import { desktopApp, subagentHarness } from '../app-host.js';
 import { enqueueJob, markAppSession, pendingJobs, startSessionWork } from '../session-work.js';
 import { isWorkerPrompt, isWorkerTool } from '../session-llm.js';
+import { ensureShellPath } from '../shell-path.js';
 import { ensureProxy, gatewayHint } from '../proxy-service.js';
 
 // Whether the wiring checks are due where `file` keeps their stamp: a different copy or version of thinker than the
@@ -48,9 +55,6 @@ function exitAfterOutput() { process.stdout.end(() => process.exit(0)); }
 
 async function hookCommand(ctx) {
   const { pos, flags, readStdin, sessionLearning, HERE, NO_LEARN } = ctx;
-  // Retired test-command interception: old installations may still call this entrypoint.
-  // Return before reading input, initializing a cache or doing any background work.
-  if (pos[0] === 'pre') return;
   let printed = false;
   const out = s => { printed = true; ctx.out(s); };
   const cli = path.join(HERE, 'cli.js');
@@ -68,6 +72,8 @@ async function hookCommand(ctx) {
     if (client === 'cursor-import') return;
     // a host plugin's hook yields to the host's own settings where they run thinker's hooks (clients.js:pluginYields)
     if (flags.plugin && pluginYields(client)) return;
+    // the pre hook runs before every shell command: it decides as early as it can
+    if (pos[0] === 'pre' && !PRE_TOOL_CLIENTS.includes(client)) return;
     // A hook at user scope (--user: the agent's own settings, read in every checkout) takes the
     // checkout from the agent's input. Every git checkout has a cache, started here on first use;
     // outside one the hooks do nothing. Where the checkout's own files run thinker hooks too (set up
@@ -94,6 +100,8 @@ async function hookCommand(ctx) {
           reportPruned(ctx.store, [`context proxy off (${p.stoodDown}): your agents call the API directly again, and thinker proxy on puts it back${hint ? `. ${hint}` : ''}`]);
         }
       } catch (e) { recordError('hook.proxy', e, { repo: ctx.repo }); }
+      // consent already given: whatever was recorded since goes out, once, in the background
+      if (errorConsent() === 'yes') sendErrors({ store: ctx.store }).catch(() => {});
     }
     if (userScope) {
       const cwd = ev.cwd || ev.workspace_roots?.[0] || ev.workspaceRoots?.[0] || ev.workspacePaths?.[0];
@@ -148,6 +156,7 @@ async function hookCommand(ctx) {
       // inference in flight would otherwise keep the process alive past the host's limit
       let exitNow = false;
       await (async () => {
+        if (store.exists() && session !== 'unknown') tryDelivery(store, { op: 'observation', session, client, ...gitContext(repo) });
         if (parks || client === 'cursor' || client === 'agy') takePending(store.dir, session);
         // the turn's prompt hook ran: the tool hook's fallback for Cursor modes without one stays out of it
         if (client === 'cursor') { const f = orientedFile(store.dir, ev.generation_id || session); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, ''); }
@@ -163,6 +172,8 @@ async function hookCommand(ctx) {
           try { const pruned = pruneInstalls(repo, { cli, mcpEntry: mcpEntry(), olderOnly: true }); if (pruned.length) { store.log({ op: 'prune', removed: pruned }); reportPruned(store, prunedLines(pruned)); } } catch {}
           // and the entries of this copy are rewritten when this version writes them differently (a new event, a changed command)
           try { const w = refreshWiring(repo, { cli, mcpEntry: mcpEntry() }); if (w.changed.length) { store.log({ op: 'rewire', repos: 1, files: w.changed }); reportPruned(store, [`rewrote ${w.changed.join(', ')} for this version of thinker`]); } } catch {}
+          // thinker on PATH for bash too, once per machine, on an install from before the installer wrote it there (shell-path.js)
+          if (!isTestMode()) { try { const d = ensureShellPath(); if (d?.length) store.log({ op: 'shell-path', files: d }); } catch {} }
         }
         // from a hook at user scope, the user's own files, checked once per copy and version for the machine
         if (store.exists() && userScope && wiringDue(path.join(thinkerHome(), 'state', 'wiring-checked-user.json'), cli)) { try { const w = refreshWiring(null, { scope: 'user', cli, mcpEntry: ctx.userMcpEntry() }); if (w.changed.length) { store.log({ op: 'rewire', scope: 'user', files: w.changed }); reportPruned(store, [`rewrote ${w.changed.join(', ')} for this version of thinker`]); } } catch {} }
@@ -183,6 +194,10 @@ async function hookCommand(ctx) {
         // queued learning of an app session (session-work.js): the runner starts and the agent is told to start
         // its subagent; the ancestry is walked only when jobs wait
         const work = !isTestMode() && !NO_LEARN && pendingJobs(store).length && desktopApp(subagentHarness(client)) ? startSessionWork(store, { cli, harness: subagentHarness(client) }) : '';
+        // a weekly suggestion of directories to cover (coverage.js)
+        // never in a benchmark or test session (THINKER_TEST=1): an offer there is noise in the agent's context and an
+        // eval runner marks the session invalid for it (2026-10-18); THINKER_OFFERS=on restores them, for the tests of the offers
+        const offersOn = !isTestMode() || process.env.THINKER_OFFERS === 'on';
         // a trimmed copy of AGENTS.md an older version kept for this checkout goes (trimmed-copy-retired.js): four stats
         try { retireTrimmedCopy(store); } catch {}
         // a switched-off tool this request looks like it needs (harness.js:harnessRecall). Not an offer: a line for the
@@ -193,13 +208,17 @@ async function hookCommand(ctx) {
         const recall = harnessHere ? await harnessRecall(store, ev.prompt || '', { session, client }) : '';
         // the names of the switched-off skills, once a session (harness.js:harnessIndex; off until an experiment), not an offer either
         const index = harnessHere ? harnessIndex(store, { session, client }) : '';
+        // the week's five highest-leverage context changes, one message with the local page's link (context-suggest.js):
+        // the one suggestion the person gets, instruction sections, skills, MCP servers and tool outputs ranked together
+        // one question a prompt: the one-off repair offer first (proxy-offer.js, the owner-approved exception of
+        // 2026-10-28 to "one suggestion, not three"), then coverage, then the week's context suggestion
         // what the context proxy has cleared out of this session, once the saving is old enough to mean something
         // (compression.js): not an offer and not a question, a statement of what is no longer in the context and
         // what it saved, said once a session because a block that changed every turn would rewrite the very
         // prompt cache the clearing exists to spare
         let clearing = '';
-        try { clearing = compressionBlock(compressionDir(), session, turn, formatTokens); } catch {}
-        const offer = [work, index, recall, clearing].filter(Boolean).join('\n\n');
+        if (offersOn) { try { clearing = compressionBlock(compressionDir(), session, turn, formatTokens); } catch {} }
+        const offer = [offersOn ? (proxyOffer(store, { client }) || errorOffer(store, { client }) || coverageOffer(store, { client }) || contextSuggestOffer(store, { repoId: repoId(store.repo), client })) : '', work, index, recall, clearing].filter(Boolean).join('\n\n');
         // Every git repository has a cache, started on first use and empty until it learns; the hooks serve
         // from it once it holds a few notes (ops.js:SERVE_MIN_NOTES). A prompt served nothing is still a
         // request: `thinker usage` and the telemetry count a machine as active by its requests, and a cache in
@@ -218,6 +237,8 @@ async function hookCommand(ctx) {
         if (!servesNotes(store)) {
           store.log({ op: 'orient', session: session === 'unknown' ? undefined : session, client, task: String(ev.prompt || '').slice(0, 200), served: [], empty: 'too-few-notes' });
           const code = codeFor([]); if (offer || code) emit([offer, code].filter(Boolean).join('\n\n')); return; }
+        // outcome signal: a correction-shaped follow-up counts against the notes served earlier in this session
+        if (session !== 'unknown' && looksLikeCorrection(ev.prompt)) outcome(store, { session, turn: turn > 1 ? turn - 1 : undefined, positive: false, reason: 'correction prompt: ' + String(ev.prompt).slice(0, 80) });
         if (session !== 'unknown') rememberTask(store, session, ev.prompt);
         // a held-out turn is served nothing by the hooks, and what it would have been served is logged (ops.js:beginTurn)
         const r = await orient(store, { task: ev.prompt || '', session: session === 'unknown' ? undefined : session, client, budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout, turn: turn || undefined, deadline: ceConfig(store).deadlineMs ?? undefined });
@@ -230,6 +251,30 @@ async function hookCommand(ctx) {
       })();
       if (client === 'cursor' || client === 'cline' || client === 'agy') out(promptOutput(client, said));
       if (exitNow) exitAfterOutput();
+    } else if (pos[0] === 'pre') {
+    // Before a shell command runs: a test run is answered with the same run through `thinker test`,
+    // which keeps the log in a file and prints the failures grouped by cause (testing.js). Off
+    // unless `tests: { nudge: true }` in .thinker/config.json. The hook must never fail a tool
+    // call, so everything here is inside a try and nothing is printed on an error.
+    try {
+      if (!store.exists() || !PRE_TOOL_CLIENTS.includes(client)) return;
+      if (!testsConfig(store).nudge) return;
+      // shell commands only (Codex also fires this event for apply_patch and its MCP calls);
+      // Cursor's beforeShellExecution names no tool and carries the command at the top level
+      const name = toolName(ev.tool_name);
+      if (name && name !== 'Bash') return;
+      const command = toolInput(name, ev.tool_input).command || (typeof ev.command === 'string' ? ev.command : '');
+      if (!command) return;
+      if (!classifyTestCommand(command)) return;
+      // once per command per session: the agent re-issues what it was given, and answering that
+      // again would loop
+      if (nudgedForTest(store, session, command)) return;
+      const suggestion = wrappedCommand(command, wrapperBin(cli));
+      store.log({ op: 'test-nudge', session: session === 'unknown' ? undefined : session, client,
+        command: command.slice(0, 300), suggest: suggestion.slice(0, 300), how: rewritesCommands(client) ? 'rewrite' : 'deny' });
+      const o = preToolOutput(client, { command: suggestion, reason: NUDGE_REASON(suggestion) });
+      if (o) out(o);
+    } catch (e) { /* a pre-tool hook never blocks the tool call */ recordError('hook.pre', e, { repo: ctx.repo }); }
   } else if (pos[0] === 'tool') {
     // After a tool call: the agent opened files; serve notes anchored to them, once each.
     if (!store.exists()) return;
@@ -237,6 +282,8 @@ async function hookCommand(ctx) {
     // Cursor reports a shell command's output in afterShellExecution, not in postToolUse
     if (ev.hook_event_name === 'afterShellExecution') { if (flags.record) recordEvent(store.dir, session, { t: 'tool', name: 'Bash', input: { command: ev.command }, result: ev.output }); out('{}'); return; }
     if (flags.record && !(client === 'cursor' && toolName(ev.tool_name) === 'Bash')) { const name = toolName(ev.tool_name); recordEvent(store.dir, session, { t: 'tool', name, input: toolInput(name, ev.tool_input), result: ev.tool_response ?? ev.tool_output ?? ev.output }); }
+    // which directories the session works in, counted for the weekly coverage suggestion (coverage.js)
+    try { recordAccess(store, session, toolFiles(ev, repo)); } catch {}
     // Copilot failure hooks require a different output/exit protocol. Record the
     // failure but keep prompt context for the next successful tool result.
     if (client === 'copilot' && ev.error) { if (flags.record) learnInBackground(ctx, client); return; }
@@ -304,6 +351,11 @@ async function hookCommand(ctx) {
         if (o.text) parts.push(o.text);
       }
     }
+    // the skills past sessions here opened for files like the one first opened or edited (skill-suggest.js; off
+    // unless harness.skillSuggest): a held-out turn logs what it withheld and says nothing
+    if ((client === 'claude' || client === 'codex') && skillSuggestOn(store)) {
+      try { const f = hookSkillFacts(ev, repo, toolFiles(ev, repo)); const line = skillSuggestLines(store, { session, client, files: f.files, opened: f.opened, holdout: t.holdout, turn: t.turn || undefined, transcript: ev.transcript_path }); if (line) parts.push(line); } catch {}
+    }
     const card = noticeCard(store, { client, session, ...t, notes: peekTurn(store, session).map(id => store.get(id)).filter(Boolean) });
     if (card) parts.push(card);
     // Antigravity's PostToolUse accepts only {} on stdout: park late notes for the next PreInvocation in the turn.
@@ -326,6 +378,13 @@ async function hookCommand(ctx) {
       if (client === 'cursor') out('{}');
       return;
     }
+    // completeness nudge (once per session, never when already continuing from a stop hook)
+    if (flags.nudge && !ev.stop_hook_active) {
+      let changed = [];
+      try { changed = execFileSync('git', ['status', '--porcelain', '--untracked-files=all'], { cwd: repo }).toString().split('\n').map(l => l.slice(3).trim()).filter(f => f && !f.startsWith('.thinker') && !f.startsWith('.mcp.json') && !f.startsWith('.claude/')); } catch {}
+      const n = completenessNudge(store, { session, changed });
+      if (n.text) { out(JSON.stringify({ decision: client === 'agy' ? 'continue' : 'block', reason: n.text })); return; }
+    }
     if (client === 'cursor') out('{}');
     if (client === 'agy') out('{"decision":"allow"}');
     if (client === 'agy' && ev.fullyIdle === false) return;
@@ -335,7 +394,7 @@ async function hookCommand(ctx) {
     // what the session has cost so far, for the holdout comparison (usage.js:holdoutOf): the turn's cost is the
     // difference from the line of the turn before, so each line carries the turn number the prompt hook opened
     const t = holdoutTurn(store, session);
-    if (session !== 'unknown' && ev.transcript_path && fs.existsSync(ev.transcript_path)) { try { const p = parseTranscript(ev.transcript_path); const record = { op: 'session', session, turn: t.turn || undefined, client, model: p.model || ev.modelName || undefined, holdout: t.holdout || undefined, ...(p.stats || {}) }; store.log(record); } catch {} }
+    if (session !== 'unknown' && ev.transcript_path && fs.existsSync(ev.transcript_path)) { try { const p = parseTranscript(ev.transcript_path); const record = { op: 'session', session, turn: t.turn || undefined, client, model: p.model || ev.modelName || undefined, holdout: t.holdout || undefined, ...gitContext(repo), ...(p.stats || {}) }; store.log(record); } catch {} }
     if (noticeOn(store)) {
       // once a week, what the notes saved over the last 30 days (usage.js:weeklyNotice); not on a held-out turn
       // where the card mod runs, the turn's notes are its card under the answer (claude-card.js)
