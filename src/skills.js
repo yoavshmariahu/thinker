@@ -1,3 +1,4 @@
+import { verificationChanges } from './freshness.js';
 // Skills as cached knowledge. A skill is a file (SKILL.md) an agent pulls into its context by name;
 // its instructions rest on code that moves, so it decays like any note. Each skill file in the
 // checkout gets a `skill` note: a short card (what the skill is for, when to invoke it, what it
@@ -210,12 +211,12 @@ export async function auditSkill(store, note, { model, completeFn = complete } =
   const abs = file && repoFile(repo, file);
   const now = new Date().toISOString();
   if (!abs || !fs.existsSync(abs)) {
-    const next = { ...note, status: 'invalid', invalidReason: 'skill file removed', verified: now }; delete next.stale; delete next.verifying;
+    const next = { ...note, status: 'invalid', invalidReason: 'skill file removed', verified: now }; delete next.stale; delete next.recheck; delete next.verifying;
     store.put(next); store.log({ op: 'verify', id: note.id, kind: 'skill', verdict: 'invalid' });
     return { note: next, verdict: 'invalid', reason: 'skill file removed', tokens: 0 };
   }
   const text = fs.readFileSync(abs, 'utf8');
-  const changed = (note.stale?.changed || []).filter(c => c.path !== file);
+  const changed = verificationChanges(note).filter(c => c.path !== file);
   const code = (note.deps || []).filter(d => d.path !== file);
   const paths = [...new Set(changed.map(c => c.path))];
   const diff = gitDiffFor(repo, note.verifiedCommit, paths);
@@ -240,7 +241,7 @@ export async function auditSkill(store, note, { model, completeFn = complete } =
   if (verdict === 'broken') next = markSkillBroken(store, note, { reason: String(v.reason || '').trim(), issues, source: 'audit', changed });
   else {
     next = { ...note, deps: rehash(repo, note.deps), status: 'fresh', verified: now, verifiedCommit: gitHead(repo), confidence: Math.min(1, (note.confidence ?? 0.8) + 0.05) };
-    delete next.stale; delete next.verifying;
+    delete next.stale; delete next.recheck; delete next.verifying;
     store.put(next);
   }
   store.log({ op: 'verify', id: note.id, kind: 'skill', verdict, issues: issues.length || undefined, cost: res.cost, metered: true, changed: changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`) });
@@ -258,7 +259,7 @@ export function markSkillBroken(store, note, { reason = '', issues = [], source 
     broken: { at: note.broken?.at || now, commit: head, reason: reason || note.broken?.reason || '', source, ...(session ? { session } : {}),
       issues: [...prior, ...issues.map(i => ({ ...i, at: now, source }))].slice(-12),
       changed: changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`) } };
-  delete next.stale; delete next.verifying;
+  delete next.stale; delete next.recheck; delete next.verifying;
   store.put(next);
   noteUnreported(store, 'brokenSkills', { id: note.id, title: note.title, name: note.skill?.name, file: note.skill?.file, reason: next.broken.reason, issues: next.broken.issues.length });
   store.log({ op: 'skill', id: note.id, action: 'broken', source, session, issues: issues.length, reason: String(reason).slice(0, 200) });
@@ -273,7 +274,7 @@ export function reviewSkill(store, id) {
   const now = new Date().toISOString();
   const next = { ...n, deps: rehash(store.repo, n.deps), status: 'fresh', verified: now, verifiedCommit: gitHead(store.repo),
     history: [...(n.history || []), { at: now, reason: 'reviewed by a person', ...(n.broken ? { broken: n.broken } : {}) }].slice(-5) };
-  delete next.broken; delete next.stale; delete next.verifying; delete next.invalidReason;
+  delete next.broken; delete next.stale; delete next.recheck; delete next.verifying; delete next.invalidReason;
   if (next.archived?.reason?.startsWith('duplicate of')) delete next.archived;
   store.put(next);
   store.log({ op: 'skill', id, action: 'reviewed' });

@@ -400,10 +400,10 @@
             <li><b>On each request</b> a hook picks the lexical candidates, then a local ranking model reads the request against them and serves up to two notes, only those it scores relevant. The agent starts at the code instead of searching for it.</li>
             <li><b>On each file edit</b> the rules resting on that file are served, so a trap on that code is in view while it is changed.</li>
             <li><b>On demand</b>, the MCP tool <code>lookup</code> answers one open question or fetches a note the hook listed; skill cards are among the notes.</li>
-            <li><b>Never stale.</b> Every serving re-hashes the dependencies of every note against your working tree. A note whose code changed is held back, re-verified with the next batch (every three days), and served again once it is fresh.</li>
+            <li><b>Changes queue a recheck.</b> Serving checks candidate notes against your working tree. Ordinary code edits leave notes usable pending verification. Missing anchors and reported contradictions are held back until resolved.</li>
             <li><b>Once per session.</b> A note is served once, not for one-word turns, and not at all when nothing fits.</li>
           </ul>
-          <p>The cache keeps itself: each session is distilled once when it ends, stale notes that were served are re-verified every three days, notes the sessions never acted on are archived, and a note nobody was served in two weeks is deleted.</p>
+          <p>The cache keeps itself: each session is distilled once when it ends, pending and stale notes used or requested recently are re-verified every three days, notes the sessions never acted on are archived, and a note nobody was served in two weeks is deleted.</p>
         </div>
 
         <div class="faq-item">

@@ -40,7 +40,7 @@ test('one card per turn deduplicates notes and files, escapes titles and preserv
   const html = fs.readFileSync(first, 'utf8');
   assert.match(html, /2 notes this turn · 1 file · Estimated tokens saved: ~1k/);
   assert.match(html, /&lt;script&gt;untrusted&lt;\/script&gt;/);
-  assert.match(html, /dependency changed; verify before use/);
+  assert.match(html, /verify before use/);
   assert.match(html, /actual token savings are not measured/);
   assert.doesNotMatch(html, /<script>|<!doctype|<html|<body/);
   const second = ref(noticeCard(store, { ...args, turn: 2 }));

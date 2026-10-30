@@ -1,3 +1,4 @@
+import { needsVerification, verificationChanges } from './freshness.js';
 // Desired behaviors of the system: notes of kind `behavior`. A person writes one (or accepts one an
 // agent proposed), and from then on the code must conform to it, never the other way round:
 // verification (ops.js:verifyBehavior) answers holds / broken / moved and never retires or rewrites
@@ -18,7 +19,7 @@ export const proposed = n => !['human', 'pr', 'doc'].includes(n?.source?.type);
 export function behaviorState(n) {
   if (n.status === 'invalid') return 'retired';
   if (n.status === 'violated') return 'violated';
-  if (n.status === 'stale') return 'unverified';
+  if (needsVerification(n)) return 'unverified';
   return 'holds';
 }
 
@@ -27,7 +28,7 @@ const ORDER = { violated: 0, unverified: 1, holds: 2, retired: 3 };
 export function listBehaviors(store, { all = false } = {}) {
   const notes = refresh(store, store.list().filter(isBehavior));
   return notes.filter(n => all || n.status !== 'invalid')
-    .map(n => ({ note: n, id: n.id, title: n.title, mutability: n.mutability || 'mutable', state: behaviorState(n), proposed: proposed(n), shared: store.isShared(n.id), revised: n.revised ? { at: n.revised.at, commit: String(n.revised.commit || '').slice(0, 10), reason: n.revised.reason || '' } : null, since: n.violated?.commit ? String(n.violated.commit).slice(0, 10) : '', reason: n.violated?.reason || (n.stale?.changed || []).map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`).join(', ') }))
+    .map(n => ({ note: n, id: n.id, title: n.title, mutability: n.mutability || 'mutable', state: behaviorState(n), proposed: proposed(n), shared: store.isShared(n.id), revised: n.revised ? { at: n.revised.at, commit: String(n.revised.commit || '').slice(0, 10), reason: n.revised.reason || '' } : null, since: n.violated?.commit ? String(n.violated.commit).slice(0, 10) : '', reason: n.violated?.reason || verificationChanges(n).map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`).join(', ') }))
     .sort((a, b) => ORDER[a.state] - ORDER[b.state] || Number(a.mutability === 'mutable') - Number(b.mutability === 'mutable') || a.title.localeCompare(b.title));
 }
 

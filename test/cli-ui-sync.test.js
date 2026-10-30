@@ -100,6 +100,12 @@ function page(t, dir) {
   };
 }
 
+test('CLI and page agree that ordinary edits stay usable pending verification', () => {
+  assert.match(read('cli.js'), /ordinary edits stay usable pending verification/);
+  assert.match(read('ui/page.html'), /Ordinary code edits leave notes usable pending verification/);
+  assert.match(read('ui/page.html'), /Missing anchors and reported contradictions are held back/);
+});
+
 test('CLI and page expose the shared Claude Code, Codex and Cursor harness report and qualified undo controls', () => {
   assert.match(read('commands/harness.js'), /harnessUsage\(repo/);
   assert.match(read('ui/server.js'), /harnessView\(/);

@@ -1,5 +1,6 @@
 // Core operations shared by the MCP server and the CLI.
 import fs from 'node:fs';
+import { needsVerification, verificationChanges, missingAnchor, canServe } from './freshness.js';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -159,8 +160,8 @@ export function anchorsGone(note, changed) {
   return paths.every(p => removed.has(p)) ? paths : null;
 }
 
-// Recompute staleness for notes against the working tree. Persists status
-// changes. Returns notes with fresh status.
+// Code edits queue verification without withholding the note. Missing anchors and explicit
+// contradictions still withhold it. Old hash-only stale records migrate here without rebaselining.
 export function refresh(store, notes = store.list(), { persist = true, narrow = false } = {}) {
   return notes.map(n => {
     if (n.status === 'invalid') return n;
@@ -168,27 +169,36 @@ export function refresh(store, notes = store.list(), { persist = true, narrow = 
     // change alone does not put it back into audit
     if (n.status === 'broken') return n;
     const { changed, deps, upgraded } = checkNote(store.repo, n, { narrow });
-    const wasStale = n.status === 'stale';
+    const wasWaiting = needsVerification(n);
     if (changed.length) {
       // every file the note rests on is gone: retired here rather than left stale for good (above)
       const gone = anchorsGone(n, changed);
       if (gone) {
         const next = { ...n, status: 'invalid', invalidReason: `anchors removed: ${gone.slice(0, 3).join(', ')}` };
         delete next.stale;
+        delete next.recheck;
         if (persist) { store.put(next); store.log({ op: 'retire-gone', id: next.id, kind: next.kind, paths: gone.slice(0, 10) }); }
         return next;
       }
-      const stale = { since: n.stale?.since || new Date().toISOString(), changed };
+      const status = n.contradicted || missingAnchor(changed) ? 'stale' : 'pending';
+      const field = status === 'stale' ? 'stale' : 'recheck';
+      const waiting = { since: n.recheck?.since || n.stale?.since || new Date().toISOString(), changed };
       // a whole-file dep narrowed to definitions (checkNote with narrow) is kept although the note
-      // stays stale: the changed definitions carry their hash from the verified commit, so they
+      // awaits verification: the changed definitions carry their hash from the verified commit, so they
       // still read as changed, and the verification sees symbols rather than the file
-      const next = { ...n, status: 'stale', stale, ...(upgraded ? { deps } : {}) };
-      if (persist && (!wasStale || upgraded || JSON.stringify(n.stale?.changed) !== JSON.stringify(changed))) store.put(next);
+      const next = { ...n, status, [field]: waiting, ...(upgraded ? { deps } : {}) };
+      delete next[field === 'stale' ? 'recheck' : 'stale'];
+      if (persist && (n.status !== status || upgraded || JSON.stringify(n[field]?.changed) !== JSON.stringify(changed))) store.put(next);
       return next;
     }
     // a contradicted note stays stale with no code change: only its verification clears it
-    if (wasStale && n.contradicted) return n;
-    if (wasStale) { const next = { ...n, status: 'fresh', deps }; delete next.stale; if (persist) store.put(next); return next; }
+    if (n.contradicted) {
+      const next = { ...n, status: 'stale', stale: { since: n.stale?.since || n.recheck?.since || new Date().toISOString(), changed: [] } };
+      delete next.recheck;
+      if (persist && (n.status !== 'stale' || n.recheck || n.stale?.changed?.length)) store.put(next);
+      return next;
+    }
+    if (wasWaiting) { const next = { ...n, status: 'fresh', deps }; delete next.stale; delete next.recheck; if (persist) store.put(next); return next; }
     // the parser now hashes a dep the regex hashed, and both see the same block: keep the parser's hash
     if (upgraded) { const next = { ...n, deps }; if (persist) store.put(next); return next; }
     return n;
@@ -269,7 +279,7 @@ export function codeSnippets(repo, notes, budget, { perNote = 2, max = 4, maxLin
 // once: a note already served in this session is not served again. The prompt hooks pass it: what
 // they served on an earlier turn is in the agent's context, and serving it again on "status?" or
 // a follow-up only adds tokens. An agent calling `orient` itself asks anew and gets everything.
-// freshOnly: a stale note is held back until a four-hour maintenance batch verifies it.
+// freshOnly: stale notes are held back; pending notes remain usable until scheduled verification.
 // The prompt hooks pass it: a stale note takes
 // the slot and the tokens of a fresh one, and its ⚠ banner is a claim the agent has to check or
 // ignore. Over three days on this repository 43 of 154 hook servings were stale. The agent's own
@@ -326,7 +336,7 @@ export async function orient(store, { task, file, session, client, budget = HOOK
   const heldByLexical = freshOnly ? ranked.slice(0, maxNotes).filter(r => r.note.status === 'stale').map(r => r.note) : [];
   // the understanding pool's pick (dense.js:UNDERSTANDING_POOL), when it is on: whatever the other notes hold
   let understood = [];
-  const pool = (freshOnly ? poolRanked.filter(r => r.note.status !== 'stale') : poolRanked).filter(r => r.score > 0 && (r.rel > 0 || r.aff > 0));
+  const pool = poolRanked.filter(r => canServe(r.note, { allowStale: !freshOnly })).filter(r => r.score > 0 && (r.rel > 0 || r.aff > 0));
   // The hook's deadline (dense.js:CE_DEADLINE_MS), in ms since its process started: the cross-encoder runs only
   // within what is left of it. Reached past it (a loaded machine: Node took 0.6 s to start and the lexical
   // ranking 7 s of wall clock on 2026-10-24), the model is not loaded (`skipped`); not answered by it, the
@@ -345,7 +355,7 @@ export async function orient(store, { task, file, session, client, budget = HOOK
     try { understood = (await withinDeadline(() => ceRerank(pool, task, { ...ceCfg, ...ceCfg.understanding }))) || []; } catch (e) { store.log({ op: 'ce-error', error: String(e.message).slice(0, 200) }); }
   }
   if (ceCfg.enabled && ranked.length && maxNotes <= 2) {
-    if (freshOnly) ranked = ranked.filter(r => r.note.status !== 'stale');
+    ranked = ranked.filter(r => canServe(r.note, { allowStale: !freshOnly }));
     try {
       const re = await withinDeadline(() => ceRerank(ranked, task, ceCfg));
       if (re) { ranked = re; chosen = true; ce = ranked.map(r => Number(r.ce.toFixed(2))); if (ranked.some(r => r.fallback)) ce.push('fallback'); maxNotes = Math.min(maxNotes, ceCfg.maxNotes || maxNotes); }
@@ -359,7 +369,7 @@ export async function orient(store, { task, file, session, client, budget = HOOK
   // so a linked note is still not pulled in beside a pick a model ruled on.
   let rescued = false;
   if (serveCfg.ceRescue && ce && !ranked.length && lexical.length) {
-    const back = lexical.filter(r => !freshOnly || r.note.status !== 'stale').slice(0, 1);
+    const back = lexical.filter(r => canServe(r.note, { allowStale: !freshOnly })).slice(0, 1);
     if (back.length) { ranked = back; rescued = true; }
   }
   // denseFallback: no note shares a word with the request, so the lexical ranking has nothing to
@@ -379,14 +389,14 @@ export async function orient(store, { task, file, session, client, budget = HOOK
         if (best.length) {
           const fresh = refresh(store, [best[0].note]);
           if (fresh.length) best[0] = { ...best[0], note: fresh[0] };
-          if (!freshOnly || best[0].note.status !== 'stale') { ranked = best; denseFell = true; }
+          if (canServe(best[0].note, { allowStale: !freshOnly })) { ranked = best; denseFell = true; }
         }
       }
     } catch (e) { store.log({ op: 'dense-error', error: String(e.message).slice(0, 200) }); }
   }
   // what would have been served had staleness not held it back
   const held = freshOnly ? [...new Set([...heldByLexical, ...ranked.slice(0, maxNotes).filter(r => r.note.status === 'stale').map(r => r.note)])] : [];
-  const servable = freshOnly ? ranked.filter(r => r.note.status !== 'stale') : ranked;
+  const servable = ranked.filter(r => canServe(r.note, { allowStale: !freshOnly }));
   let top = servable.slice(0, maxNotes).filter((r, i) => i < 2 || r.rel >= relFloor * servable[0].rel);
   // cross-note links: pull in one note linked from the best hit when it has
   // at least some lexical relevance of its own and is not already selected
@@ -609,7 +619,7 @@ function lateLocked(store, { session, client, rel, on, perEvent, perSession, min
   notes = notes.filter(n => RULE_KINDS.includes(n.kind));
   // relevance is measured among all notes: among these few the best one would always score 1
   if (st.task && notes.length) { const score = new Map(rank(store.list(), { query: st.task, mode: 'lookup' }).map(r => [r.note.id, r.rel])); notes = notes.filter(n => (score.get(n.id) || 0) >= minRel); }
-  notes = refresh(store, notes);
+  notes = refresh(store, notes).filter(n => canServe(n));
   notes.sort((a, b) => (LATE_PRIORITY[a.kind] ?? 9) - (LATE_PRIORITY[b.kind] ?? 9) || (b.confidence ?? 0.7) - (a.confidence ?? 0.7));
   const pick = notes.slice(0, Math.min(perEvent, perSession - st.late.length));
   if (!pick.length) return { text: '', included: [] };
@@ -665,7 +675,7 @@ function sightLocked(store, { session, client, rel, cfg, turn }) {
     st.sighted.push(f);
     let on = cands.filter(n => !pick.includes(n) && (n.deps || []).some(d => d.path === f));
     if (!on.length) continue;
-    on = refresh(store, on).filter(n => n.status !== 'stale'); // as the hooks elsewhere: no stale note
+    on = refresh(store, on).filter(n => canServe(n)); // as the hooks elsewhere: no stale note
     on.sort((a, b) => (score.get(b.id) || 0) - (score.get(a.id) || 0) || (LATE_PRIORITY[a.kind] ?? 9) - (LATE_PRIORITY[b.kind] ?? 9) || (b.confidence ?? 0.7) - (a.confidence ?? 0.7));
     const take = on.slice(0, Math.min(cfg.perFile, room() - pick.length));
     if (take.length) { pick.push(...take); files.push(f); }
@@ -858,7 +868,7 @@ export async function lookup(store, { query, client, budget = 2500, maxNotes = 3
   // only what may be returned is checked against the working tree (see orient)
   const fresh = new Map(refresh(store, candidates.slice(0, Math.max(REFRESH_CANDIDATES, maxNotes || 0)).map(r => r.note)).map(n => [n.id, n]));
   candidates = candidates.map(r => fresh.has(r.note.id) ? { ...r, note: fresh.get(r.note.id) } : r);
-  const packed = pack(candidates, budget, { minRel: 0.15 });
+  const packed = pack(candidates.filter(r => canServe(r.note, { allowStale: true })), budget, { minRel: 0.15 });
   if (holdout) {
     store.log({ op: 'lookup', session, turn, client: client || 'cli', query: String(query || '').slice(0, 200), kind, served: [], holdout: true, withheld: packed.included.map(n => n.id), durationMs: Date.now() - start });
     return { text: '', included: [], omitted: [], tokens: 0, holdout: true, withheld: packed.included };
@@ -1151,14 +1161,14 @@ export function cleanBody(body, title) {
   return lines.join('\n').trim();
 }
 
-// Re-verify a stale note with a small model, using the diff of its changed
+// Re-verify a pending or stale note with a small model, using the diff of its changed
 // dependencies plus the current text of each dependency symbol.
 export async function verifyNote(store, note, { model } = {}) {
   if (note.kind === 'behavior') return verifyBehavior(store, note, { model });
   if (note.kind === 'skill') return auditSkill(store, note, { model }); // the skill file against the code (skills.js)
   const repo = store.repo;
   model = model || store.config().verifyModel || 'haiku';
-  const changed = note.stale?.changed || [];
+  const changed = verificationChanges(note);
   const paths = [...new Set(changed.map(c => c.path))];
   const diff = gitDiffFor(repo, note.verifiedCommit, paths);
   const current = (note.deps || []).map(d => `--- ${d.path}${d.symbol ? ' :: ' + d.symbol : ''} ---\n${symbolText(repo, d, 120) ?? '(missing)'}`).join('\n\n');
@@ -1180,7 +1190,7 @@ export async function verifyNote(store, note, { model } = {}) {
   // drop deps whose files disappeared; count references again for the symbols that changed
   next.deps = dropShadowedFileDeps((next.deps || []).filter(d => !d.missing));
   if (v.verdict !== 'invalid') { const ch = new Set(changed.map(c => `${c.path}|${c.symbol || ''}`)); next.deps = next.deps.map(d => ch.has(`${d.path}|${d.symbol || ''}`) ? annotateFanout(repo, [d], { max: 1 })[0] : d); }
-  delete next.verifying; delete next.contradicted;
+  delete next.verifying; delete next.recheck; delete next.stale; delete next.contradicted;
   store.put(next);
   store.log({ op: 'verify', id: note.id, verdict: v.verdict, contradicted: note.contradicted ? true : undefined, cost: res.cost, metered: true, changed: changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`) });
   return { note: next, verdict: v.verdict, reason: v.reason, cost: res.cost, tokens: tokensOf(res) };
@@ -1219,7 +1229,7 @@ export function onDefaultBranch(repo, paths = []) {
 export async function verifyBehavior(store, note, { model } = {}) {
   const repo = store.repo;
   model = model || store.config().verifyModel || 'haiku';
-  const changed = note.stale?.changed || [];
+  const changed = verificationChanges(note);
   const paths = [...new Set(changed.map(c => c.path))];
   const diff = gitDiffFor(repo, note.verifiedCommit, paths);
   const current = (note.deps || []).map(d => `--- ${d.path}${d.symbol ? ' :: ' + d.symbol : ''} ---\n${symbolText(repo, d, 120) ?? '(missing)'}`).join('\n\n');
@@ -1257,7 +1267,7 @@ export async function verifyBehavior(store, note, { model } = {}) {
   }
   if (!next) { verdict = 'holds'; next = { ...note, deps: rehash(note.deps), status: 'fresh', verified: now, verifiedCommit: head }; }
   if (verdict !== 'broken') delete next.violated;
-  delete next.stale; delete next.verifying;
+  delete next.stale; delete next.recheck; delete next.verifying;
   store.put(next);
   store.log({ op: 'verify', id: note.id, kind: 'behavior', verdict, merged, cost: res.cost, metered: true, changed: changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`) });
   return { note: next, verdict, reason: v.reason, cost: res.cost, tokens: tokensOf(res) };

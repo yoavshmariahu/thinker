@@ -63,7 +63,8 @@ You don't run thinker by hand. Once it is installed there are two ways in:
   undo. View Report tracks tokens week by week.
 
 Everything else runs by itself: the hooks bring relevant notes into each prompt, sessions are learned from
-when they end, stale notes are re-checked as the code changes, and thinker updates itself. Reports and notes
+when they end, code edits queue a recheck while notes stay usable, and thinker updates itself. Missing
+anchors and reported contradictions are held back until resolved. Reports and notes
 are stored locally; learning uses your existing agent's model access. See [setup and privacy](docs/setup.md).
 
 ## Uninstall

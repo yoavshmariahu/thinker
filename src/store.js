@@ -167,7 +167,7 @@ export function adoptLocalLog(store) {
 // which is what makes a withheld stale note eligible for verification (maintain.js:pickStale)
 // `rebaselined`: the one-time staleness reset waved this note through without a model looking at it
 // (stale-reset.js), so the notes it cleared stay identifiable afterwards
-export const LOCAL_FIELDS = ['status', 'stale', 'verifying', 'invalidReason', 'uses', 'lastUsed', 'heldAt', 'servedIn', 'attest', 'outcomes', 'history', 'sync', 'archived', 'violated', 'broken', 'rebaselined'];
+export const LOCAL_FIELDS = ['status', 'stale', 'recheck', 'verifying', 'invalidReason', 'uses', 'lastUsed', 'heldAt', 'servedIn', 'attest', 'outcomes', 'history', 'sync', 'archived', 'violated', 'broken', 'rebaselined'];
 // Shared fields a checkout holds its own value of, without that being a change worth sharing.
 const OVERRIDE_FIELDS = ['confidence', 'verified', 'related'];
 const CONTENT_ORDER = ['id', 'title', 'kind', 'mutability', 'skill', 'answers', 'body', 'applies', 'tags', 'deps', 'source', 'created', 'verified', 'verifiedCommit', 'confidence', 'says', 'search', 'saysFor', 'related'];
@@ -386,7 +386,7 @@ export class Store {
     const live = raw && ov.base !== digest(sharedContent(raw)) && Object.keys(ov.pending || {}).length;
     if (!live && !ov.superseded) return false;
     const next = { id: ov.id, base: live ? digest(sharedContent(raw)) : ov.base, state: ov.state || {}, pending: live ? {} : ov.pending || {} };
-    if (live) for (const k of ['status', 'stale', 'verifying', 'invalidReason', ...OVERRIDE_FIELDS]) delete next.state[k];
+    if (live) for (const k of ['status', 'stale', 'recheck', 'verifying', 'invalidReason', ...OVERRIDE_FIELDS]) delete next.state[k];
     writeJson(file, next);
     return true;
   }
@@ -422,7 +422,7 @@ export class Store {
     let pending = ov.pending || {};
     if (ov.base !== digest(content)) {
       pending = {};
-      for (const k of ['status', 'stale', 'verifying', 'invalidReason', ...OVERRIDE_FIELDS]) delete state[k];
+      for (const k of ['status', 'stale', 'recheck', 'verifying', 'invalidReason', ...OVERRIDE_FIELDS]) delete state[k];
     }
     const note = { ...content, ...pending, status: 'fresh', ...state };
     for (const k of Object.keys(note)) if (note[k] === null) delete note[k];
