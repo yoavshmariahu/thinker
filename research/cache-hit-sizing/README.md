@@ -7,6 +7,16 @@ observed request membership for 28 confirmed hits, charges the carried note text
 and reports clearing, reading-size, and overlap sensitivity. The initial audit
 below explains why a global multiplier or distillation-input size was insufficient.
 
+Visual review: [before](before.jpg) and [proposed](after.jpg) are browser screenshots
+of the existing aggregate token-savings card rendered with the same 28-hit audit
+subset. These are isolated component previews, not the full live Report. The
+existing page's CSS, `card`, `fmt`, and escaping functions are used by `preview.mjs`.
+The proposed wording and coverage rows exist only in the preview. Generate both
+pages with `THINKER_TEST=1 node research/cache-hit-sizing/preview.mjs /tmp/thinker-savings-preview`.
+No production UI or accounting change is included. Shipping still requires shared
+lifetime accounting for the report/footer and an explicit fallback for sessions
+without the request evidence this diagnostic used.
+
 The current cache-hit estimate omits discovery and the repeated input from keeping
 discovered context in later prompts. That makes it incomplete, but does **not**
 establish that its final number is too low. It also counts entire dependency files
