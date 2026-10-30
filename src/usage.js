@@ -287,7 +287,7 @@ export function summarize(store, { days, all = false } = {}) {
       emptyReasons: {},
       emptyShortPrompts: 0,
     },
-    saved: { calls: 0, tokens: 0, servings: 0, byModel: {}, input: { tokens: 0, covered: 0, fallback: 0, sessions: 0, requests: 0, gross: 0, overhead: 0, fallbackTokens: 0 } },
+    saved: { calls: 0, tokens: 0, servings: 0, byModel: {}, input: { byModel: {}, tokens: 0, covered: 0, fallback: 0, sessions: 0, requests: 0, gross: 0, overhead: 0, fallbackTokens: 0 } },
     holdout: null,
     repos: [], top: [],
   };
@@ -439,8 +439,12 @@ export function summarize(store, { days, all = false } = {}) {
     const confirmed = [...x.records.values()].filter(n => verdicts.get(key)?.get(n.id) === 'confirmed');
     if (confirmed.length) {
       const requests = x.named ? lifetimeRequests(sessionTranscriptFile(x.repo, x.session)) : [];
-      const input = inputSavings(confirmed, requests, { clears: sessionClears(sessionKey(x.session), requests) });
-      for (const k of Object.keys(u.saved.input)) u.saved.input[k] += input[k];
+      const input = inputSavings(confirmed, requests, { clears: sessionClears(sessionKey(x.session), requests), model: x.model });
+      for (const k of Object.keys(u.saved.input)) if (k !== 'byModel') u.saved.input[k] += input[k];
+      for (const [model, counts] of Object.entries(input.byModel)) {
+        const total = u.saved.input.byModel[model] ||= Object.fromEntries(Object.keys(counts).map(k => [k, 0]));
+        for (const [k, n] of Object.entries(counts)) total[k] += n;
+      }
     }
   }
   u.notesServed = distinct.size;
