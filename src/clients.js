@@ -49,7 +49,13 @@ export const CLIENTS = ['claude', 'codex', 'cursor', 'gemini', 'pi', 'windsurf',
 
 export function mergeJson(file, patch) {
   let cur = {};
-  try { cur = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
+  try { cur = JSON.parse(fs.readFileSync(file, 'utf8')); }
+  catch (e) {
+    // A parse/read failure is not an empty configuration. Replacing it would drop
+    // the user's gateway, credentials, permissions and unrelated integrations.
+    if (e.code !== 'ENOENT') throw new Error(`Cannot read ${file} as JSON; left unchanged. Correct the file before connecting.`);
+  }
+  if (!cur || typeof cur !== 'object' || Array.isArray(cur)) throw new Error(`Expected a JSON object in ${file}; left unchanged.`);
   const next = patch(cur);
   // nor one whose content is unchanged: ~/.claude.json is written by Claude Code in its own layout
   if (JSON.stringify(next) === JSON.stringify(cur)) return;

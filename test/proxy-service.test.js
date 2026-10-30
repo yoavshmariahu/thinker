@@ -235,6 +235,24 @@ test('a route the person exported in their shell leaves Claude Code alone, the o
   } finally { m.restore(); }
 });
 
+for (const gateway of [undefined, 'https://gateway.example']) test(`automatic reconnect respects manual removal before the next prompt (gateway: ${Boolean(gateway)})`, async () => {
+  const m = fakeMachine();
+  try {
+    fs.mkdirSync(path.dirname(m.files.claude), { recursive: true });
+    const original = { env: { A: '1', ...(gateway ? { [PROXY_ENV]: gateway, ANTHROPIC_AUTH_TOKEN: 'fixture' } : {}) } };
+    fs.writeFileSync(m.files.claude, JSON.stringify(original));
+    await enableProxyService({ cli: CLI, home: m.home, env: m.env, manage: false, gateway });
+    assert.equal(claudeWired(m.home), true);
+    fs.writeFileSync(m.files.claude, JSON.stringify(original));
+    const result = await enableProxyService({ cli: CLI, home: m.home, env: m.env, manage: false });
+    assert.deepEqual(readJson(m.files.claude), original, 'connect must not restore the proxy URL before the prompt hook can see its removal');
+    assert.match(result.stoodDown, /taken out/);
+    assert.equal(proxyOn(m.home), false);
+    const forced = await enableProxyService({ cli: CLI, home: m.home, env: m.env, manage: false, force: true, gateway });
+    assert.equal(readJson(m.files.claude).env[PROXY_ENV], forced.url, 'explicit proxy on can still enable it');
+  } finally { m.restore(); }
+});
+
 test('the URL taken out of Claude Code\'s settings by hand turns the service off, and nothing writes it back', async () => {
   const m = fakeMachine();
   try {
