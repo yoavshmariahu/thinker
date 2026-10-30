@@ -418,7 +418,11 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('report.js'), /prs, prWeekly: weeklyPrStats\(prs, columns, now\)/);
   assert.match(read('report.js'), /for \(const w of v\.prWeekly\)/);
   assert.match(read('ui/page.html'), /const weeks = v\.prWeekly;/);
-  assert.match(read('ui/page.html'), /parts \+ effectiveness \+ prStatsChart\(v\) \+ `<button/, 'PR charts are always outside the collapsed metrics');
+  assert.doesNotMatch(read('ui/page.html'), /prStatsChart|pr-charts|pr-chart/);
+  const prTable = read('ui/page.html').split('function prStatsTable(v) {')[1].split('function renderReport(v)')[0];
+  assert.match(prTable, /<table class="ctx-table rep-table savings-table"/);
+  assert.doesNotMatch(prTable, /<svg/);
+  assert.match(read('ui/page.html'), /parts \+ effectiveness \+ prStatsTable\(v\) \+ `<button/, 'PR table is always outside the collapsed metrics');
   // both doors read report.js:reportView; the page's All repositories is mergeReports, as the command has no All
   assert.match(read('commands/report.js'), /reportView\(store, \{ weeks \}\)/);
   // the page reads the report kept in each checkout (report-snapshot.js), made by the same function
