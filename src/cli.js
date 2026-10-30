@@ -31,16 +31,11 @@ import { commands as explainCommands } from './commands/explain.js';
 import { commands as reportCommands } from './commands/report.js';
 import { commands as proxyCommands } from './commands/proxy.js';
 import { commands as errorCommands } from './commands/errors.js';
-import { commands as testingCommands } from './commands/testing.js';
 import { isDisabledRepo, OFF_MESSAGE } from './repo-switch.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
 const cmd = argv.shift();
-// Everything after a bare `--` is a command line of its own, taken as given: `thinker test --
-// pytest -q tests/x.py` must not read pytest's flags as thinker's.
-const dashdash = argv.indexOf('--');
-const after = dashdash >= 0 ? argv.splice(dashdash).slice(1) : [];
 const flags = {}; const pos = [];
 for (let i = 0; i < argv.length; i++) {
   if (argv[i].startsWith('--')) { const k = argv[i].slice(2); const boolean = ['full-repo'].includes(k) || (cmd === 'proxy' && k === 'codex') || (cmd === 'prs' && ['json', 'detail'].includes(k)) || (cmd === 'system' && ['fixed', 'mutable', 'all', 'json', 'dry', 'again'].includes(k)); const v = !boolean && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true; flags[k] = v; }
@@ -216,16 +211,8 @@ const HELP = `thinker — knowledge cache for coding agents
                                  this in the background; --all for every repository the page lists, in one run)
   guide                          the cache usage guidance an install writes into an agent's instructions
   export [file.tgz] [--dir d]    back the cache up to a .tgz; --dir writes every note whole, one <id>.json each, into d
-  hook <prompt|pre|tool|stop [--nudge]> [--client c]   hook entrypoints (JSON on stdin): prompt = notes for the request,
-                                 pre = a test command rewritten to run through thinker test (off unless the config
-                                 says tests.nudge), tool = notes about files being edited, stop = nudge + distill
-  test -- <command>              run the test command with colour off, keep the whole log in a file under
-                                 .thinker/state/tests/, and print only what a reader needs: the counts, the
-                                 failures grouped by distinct cause (each once, with example test names and a
-                                 few frames in this repository's files), the warnings as one number, and the
-                                 log path. The exit code is the test command's. pytest, jest, vitest, go test,
-                                 cargo test and node --test are parsed; any other runner is passed through and
-                                 reported by the last lines of its log
+  hook <prompt|tool|stop> [--client c]   hook entrypoints (JSON on stdin): prompt = notes for the request,
+                                 tool = notes about files being edited, stop = distill
   prs [--days n] [--pr n] [--detail] [--json]
                                  the pull requests this machine's sessions produced: what each cost in agent
                                  tokens and what thinker saved on it -- the tokens the context proxy had the
@@ -320,15 +307,22 @@ function unknownFlags(c, given, help = HELP) {
 // Commands that read or maintain a cache, and so need a git checkout to keep it in. Not `setup`,
 // `mine-prs`, `import`, `add`, `record`, `distill`: those build one. Not `hook` (quiet outside a
 // checkout) and not `ui`, the machine-wide page.
-const CACHE_COMMANDS = ['tools', 'symbols', 'orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'session-work', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback', 'skills', 'instructions', 'context', 'explain', 'report', 'test'];
+const CACHE_COMMANDS = ['tools', 'symbols', 'orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'session-work', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback', 'skills', 'instructions', 'context', 'explain', 'report'];
 
 // One handler per command, in src/commands/; each gets the context below and nothing else of this file.
-const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...skillsCommands, ...prsCommands, ...learnCommands, ...hookCommands, ...testingCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...coverageCommands, ...symbolsCommands, ...switchCommands, ...externalCommands, ...harnessCommands, ...instructionsCommands, ...contextCommands, ...explainCommands, ...reportCommands, ...proxyCommands, ...errorCommands };
+const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...skillsCommands, ...prsCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...coverageCommands, ...symbolsCommands, ...switchCommands, ...externalCommands, ...harnessCommands, ...instructionsCommands, ...contextCommands, ...explainCommands, ...reportCommands, ...proxyCommands, ...errorCommands };
 // Commands that still answer in a repository thinker is switched off for (repo-switch.js): the machine-wide
 // ones, the ones about the install itself, and the switch. `hook` keeps quiet by itself.
 const OFF_COMMANDS = ['version', 'enable', 'disable', 'ui', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'stats', 'ast', 'ranker', 'hook', 'serve', 'proxy', 'errors', undefined];
 
 async function main() {
+  // Retired entrypoints must not initialize a cache, schedule work or execute a command.
+  if (cmd === 'hook' && pos[0] === 'pre') return;
+  if (cmd === 'test') {
+    process.stderr.write('thinker: the test wrapper has been removed. Run your test command directly.\n');
+    process.exitCode = 2;
+    return;
+  }
   if (flags.help || ['help', '--help', '-h'].includes(cmd)) { out(HELP); return; }
   // the server owns stdout from its first byte, and checks for a switched-off repository itself
   if (cmd === 'mcp') { await import('./mcp.js'); return; }
@@ -367,11 +361,11 @@ async function main() {
     if (!store.exists()) store.init();
   }
   // symbol boundaries by tree-sitter where its grammars are installed (`thinker ast install`), else by regex
-  if (!['update', 'upgrade', 'switch', 'branch', 'serve', 'ast', 'usage', 'prs', 'stats', 'telemetry', 'help', 'version', 'served', 'spent', 'guide', 'proxy', 'test', 'report', undefined].includes(cmd)) await initAst();
+  if (!['update', 'upgrade', 'switch', 'branch', 'serve', 'ast', 'usage', 'prs', 'stats', 'telemetry', 'help', 'version', 'served', 'spent', 'guide', 'proxy', 'report', undefined].includes(cmd)) await initAst();
 
   const handler = COMMANDS[cmd];
   if (!handler) { out(HELP); return; }
-  await handler({ cmd, pos, after, flags, repo, store, out, readStdin, learnOn, sessionLearning, mcpEntry, userMcpEntry, HERE, NO_LEARN });
+  await handler({ cmd, pos, flags, repo, store, out, readStdin, learnOn, sessionLearning, mcpEntry, userMcpEntry, HERE, NO_LEARN });
 }
 
 main().catch(e => {

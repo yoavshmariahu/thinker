@@ -9,7 +9,7 @@
 //     and every gold hunk 149 of 166; a file with no hit, or where the hits cover most of it, is
 //     passed whole);
 //   - a test run: the counts and each distinct failure cause once, the full log kept in a file
-//     (testing.js, as `thinker test` prints it);
+//     (test-output.js);
 //   - a large search: the hits grouped per file, a few per file.
 // Everything else passes untouched. `diet` in .thinker/config.json turns it on; THINKER_DIET=on|off
 // overrides it for an experiment arm.
@@ -18,7 +18,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { outlineText } from './codegraph.js';
 import { sessionState, locked } from './ops.js';
-import { classifyTestCommand, parseTestOutput, summarize, stripAnsi, testsConfig, logPathFor, pruneLogs } from './testing.js';
+import { classifyTestCommand, parseTestOutput, summarize, stripAnsi, testsConfig, logPathFor, pruneLogs } from './test-output.js';
 import { textOf } from './transcripts.js';
 import { bashProgram, toolKey } from './tool-outputs.js';
 

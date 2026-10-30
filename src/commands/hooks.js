@@ -6,16 +6,15 @@ import { noticeCard } from '../notice-card.js';
 import { ceConfig } from '../dense.js';
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawn, execFileSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { cacheBundleIntro, disabledTools } from '../cache-guidance.js';
-import { pluginYields, pruneInstalls, prunedLines, refreshWiring, stripRepoWiring, repoRunsHooks, normalizeHookEvent, hookClient, sessionOf, toolFiles, seenFiles, seenHits, searchedIdentifier, promptOutput, toolOutput, stopOutput, preToolOutput, rewritesCommands, PRE_TOOL_CLIENTS, parkPending, takePending, orientedFile, agyTurnPrompt } from '../clients.js';
-import { testsConfig, classifyTestCommand, wrappedCommand, wrapperBin, NUDGE_REASON } from '../testing.js';
+import { pluginYields, pruneInstalls, prunedLines, refreshWiring, stripRepoWiring, repoRunsHooks, normalizeHookEvent, hookClient, sessionOf, toolFiles, seenFiles, seenHits, searchedIdentifier, promptOutput, toolOutput, stopOutput, parkPending, takePending, orientedFile, agyTurnPrompt } from '../clients.js';
 import { dietConfig, dietResult, rememberTerms } from '../diet.js';
 import { parseTranscript, batchDue } from '../distill.js';
 import { Store, findRepoRoot, repoId } from '../store.js';
 import { isDisabledRepo } from '../repo-switch.js';
 import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '../maintain.js';
-import { codeForRequest, orient, HOOK_BUDGET, servesNotes, rememberTask, outcome, looksLikeCorrection, lateNotes, onSightNotes, onSightConfig, onSightOutlines, onSightOutlineConfig, completenessNudge, nudgedForTest, peekTurn, takeTurn, beginTurn, holdoutTurn, isHarnessEvent } from '../ops.js';
+import { codeForRequest, orient, HOOK_BUDGET, servesNotes, rememberTask, outcome, looksLikeCorrection, lateNotes, onSightNotes, onSightConfig, onSightOutlines, onSightOutlineConfig, peekTurn, takeTurn, beginTurn, holdoutTurn, isHarnessEvent } from '../ops.js';
 import { recordEvent, traceFile, toolName, toolInput, textOf } from '../transcripts.js';
 import { turnNotice, turnFooterMarkdown, weeklyNotice, compressionNotice, formatTokens } from '../usage.js';
 import { compressionBlock, compressionDir, markCompressionTurn } from '../compression.js';
@@ -26,7 +25,6 @@ import { proxyOffer } from '../proxy-offer.js';
 import { errorOffer, recordError, sendErrors, errorConsent } from '../error-report.js';
 import { harnessRecall, harnessIndex, harnessOn } from '../harness.js';
 import { contextSuggestOffer, ensureUi, suggestionsUrl } from '../context-suggest.js';
-import { skillSuggestOn, skillSuggestLines, hookSkillFacts } from '../skill-suggest.js';
 import { snapshotCursorInventory } from '../harness-cursor.js';
 import { sectionsForEvent, sectionsConfig } from '../instruction-sections.js';
 import { retireTrimmedCopy } from '../trimmed-copy-retired.js';
@@ -55,6 +53,9 @@ function exitAfterOutput() { process.stdout.end(() => process.exit(0)); }
 
 async function hookCommand(ctx) {
   const { pos, flags, readStdin, sessionLearning, HERE, NO_LEARN } = ctx;
+  // Retired test-command interception: old installations may still call this entrypoint.
+  // Return before reading input, initializing a cache or doing any background work.
+  if (pos[0] === 'pre') return;
   let printed = false;
   const out = s => { printed = true; ctx.out(s); };
   const cli = path.join(HERE, 'cli.js');
@@ -72,8 +73,6 @@ async function hookCommand(ctx) {
     if (client === 'cursor-import') return;
     // a host plugin's hook yields to the host's own settings where they run thinker's hooks (clients.js:pluginYields)
     if (flags.plugin && pluginYields(client)) return;
-    // the pre hook runs before every shell command: it decides as early as it can
-    if (pos[0] === 'pre' && !PRE_TOOL_CLIENTS.includes(client)) return;
     // A hook at user scope (--user: the agent's own settings, read in every checkout) takes the
     // checkout from the agent's input. Every git checkout has a cache, started here on first use;
     // outside one the hooks do nothing. Where the checkout's own files run thinker hooks too (set up
@@ -251,30 +250,6 @@ async function hookCommand(ctx) {
       })();
       if (client === 'cursor' || client === 'cline' || client === 'agy') out(promptOutput(client, said));
       if (exitNow) exitAfterOutput();
-    } else if (pos[0] === 'pre') {
-    // Before a shell command runs: a test run is answered with the same run through `thinker test`,
-    // which keeps the log in a file and prints the failures grouped by cause (testing.js). Off
-    // unless `tests: { nudge: true }` in .thinker/config.json. The hook must never fail a tool
-    // call, so everything here is inside a try and nothing is printed on an error.
-    try {
-      if (!store.exists() || !PRE_TOOL_CLIENTS.includes(client)) return;
-      if (!testsConfig(store).nudge) return;
-      // shell commands only (Codex also fires this event for apply_patch and its MCP calls);
-      // Cursor's beforeShellExecution names no tool and carries the command at the top level
-      const name = toolName(ev.tool_name);
-      if (name && name !== 'Bash') return;
-      const command = toolInput(name, ev.tool_input).command || (typeof ev.command === 'string' ? ev.command : '');
-      if (!command) return;
-      if (!classifyTestCommand(command)) return;
-      // once per command per session: the agent re-issues what it was given, and answering that
-      // again would loop
-      if (nudgedForTest(store, session, command)) return;
-      const suggestion = wrappedCommand(command, wrapperBin(cli));
-      store.log({ op: 'test-nudge', session: session === 'unknown' ? undefined : session, client,
-        command: command.slice(0, 300), suggest: suggestion.slice(0, 300), how: rewritesCommands(client) ? 'rewrite' : 'deny' });
-      const o = preToolOutput(client, { command: suggestion, reason: NUDGE_REASON(suggestion) });
-      if (o) out(o);
-    } catch (e) { /* a pre-tool hook never blocks the tool call */ recordError('hook.pre', e, { repo: ctx.repo }); }
   } else if (pos[0] === 'tool') {
     // After a tool call: the agent opened files; serve notes anchored to them, once each.
     if (!store.exists()) return;
@@ -351,11 +326,6 @@ async function hookCommand(ctx) {
         if (o.text) parts.push(o.text);
       }
     }
-    // the skills past sessions here opened for files like the one first opened or edited (skill-suggest.js; off
-    // unless harness.skillSuggest): a held-out turn logs what it withheld and says nothing
-    if ((client === 'claude' || client === 'codex') && skillSuggestOn(store)) {
-      try { const f = hookSkillFacts(ev, repo, toolFiles(ev, repo)); const line = skillSuggestLines(store, { session, client, files: f.files, opened: f.opened, holdout: t.holdout, turn: t.turn || undefined, transcript: ev.transcript_path }); if (line) parts.push(line); } catch {}
-    }
     const card = noticeCard(store, { client, session, ...t, notes: peekTurn(store, session).map(id => store.get(id)).filter(Boolean) });
     if (card) parts.push(card);
     // Antigravity's PostToolUse accepts only {} on stdout: park late notes for the next PreInvocation in the turn.
@@ -377,13 +347,6 @@ async function hookCommand(ctx) {
       try { fs.rmSync(traceFile(store.dir, session), { force: true }); } catch {}
       if (client === 'cursor') out('{}');
       return;
-    }
-    // completeness nudge (once per session, never when already continuing from a stop hook)
-    if (flags.nudge && !ev.stop_hook_active) {
-      let changed = [];
-      try { changed = execFileSync('git', ['status', '--porcelain', '--untracked-files=all'], { cwd: repo }).toString().split('\n').map(l => l.slice(3).trim()).filter(f => f && !f.startsWith('.thinker') && !f.startsWith('.mcp.json') && !f.startsWith('.claude/')); } catch {}
-      const n = completenessNudge(store, { session, changed });
-      if (n.text) { out(JSON.stringify({ decision: client === 'agy' ? 'continue' : 'block', reason: n.text })); return; }
     }
     if (client === 'cursor') out('{}');
     if (client === 'agy') out('{"decision":"allow"}');

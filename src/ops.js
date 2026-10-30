@@ -595,21 +595,6 @@ export function rememberTask(store, session, task) {
   if (!session || !String(task || '').trim() || !store.exists()) return;
   locked(store, session, () => { const { st, save } = sessionState(store, session); st.task = String(task).slice(0, 2000); save(); });
 }
-// The test commands the pre hook has already answered in this session (testing.js). It answers
-// each one once: the agent re-issues the command it was given, and a hook that answered that one
-// too would loop. At most a few dozen are remembered, which is more test runs than a session makes.
-export function nudgedForTest(store, session, command) {
-  if (!session || session === 'unknown' || !store.exists()) return false;
-  const key = String(command).replace(/\s+/g, ' ').trim().slice(0, 500);
-  return locked(store, session, () => {
-    const { st, save } = sessionState(store, session);
-    st.testNudged ||= [];
-    if (st.testNudged.includes(key)) return true;
-    st.testNudged = [...st.testNudged, key].slice(-50);
-    save();
-    return false;
-  });
-}
 export function lateNotes(store, { session, client, files, edited = false, perEvent = 2, perSession = 3, minRel = 0.35, turn = undefined }) {
   if (!edited) return { text: '', included: [] };
   const on = 'edit';
@@ -812,20 +797,6 @@ function outlinesLocked(store, { session, client, order, identifier, turn, cfg }
   // a file-keyed serving, as the notes are, with its own `on` so a replay counts it apart from them
   store.log({ op: 'late', on: 'outline', session, turn, client: client || 'cli', files, served: [], defined: identifier && where ? identifier : undefined, ...servedFields(store, [], text) });
   return { text, files };
-}
-
-// --- completeness nudge -------------------------------------------------------
-// At the end of a session that edited files: rule notes on the edited files that were never served.
-export function completenessNudge(store, { session, changed }) {
-  const { st, save } = sessionState(store, session);
-  if (st.nudged || !changed.length) return { text: '' };
-  const lines = [];
-  const rules = store.list().filter(n => RULE_KINDS.includes(n.kind) && n.status !== 'invalid' && !(n.servedIn || []).includes(session) && (n.deps || []).some(d => changed.includes(d.path))).slice(0, 3);
-  for (const n of rules) { lines.push(`Rule not yet seen this session, [${n.kind}] ${n.title}: ${n.body.split('\n').slice(0, 4).join(' ').slice(0, 400)}`); n.servedIn = [...(n.servedIn || []), session].slice(-30); store.put(n); }
-  if (!lines.length) return { text: '' };
-  st.nudged = true; save();
-  store.log({ op: 'nudge', session, changed, lines: lines.length });
-  return { text: `Before finishing, check completeness against the rules this repository's notes state:\n- ${lines.slice(0, 6).join('\n- ')}\nFor each item decide whether your change needs it. Make the additional edits if so; if not, say why in one line, then finish.` };
 }
 
 // --- outcome signals -----------------------------------------------------

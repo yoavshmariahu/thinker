@@ -17,18 +17,18 @@ test('the three host plugins carry one and the same hook shim, and every hook ru
   assert.equal(read('codex/plugin.json').name, 'thinker');
   assert.equal(read('cursor/.cursor-plugin/plugin.json').name, 'thinker');
   const claude = hooksOf('claude-code/hooks/hooks.json');
-  assert.deepEqual(claude.map(([ev]) => ev), ['UserPromptSubmit', 'PostToolUse', 'PreToolUse', 'Stop', 'SessionEnd']);
-  for (const [, cmd] of claude) assert.match(cmd, /^node "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/hook\.mjs" claude (prompt --record|tool --late --record|pre|stop)$/);
+  assert.deepEqual(claude.map(([ev]) => ev), ['UserPromptSubmit', 'PostToolUse', 'Stop', 'SessionEnd']);
+  for (const [, cmd] of claude) assert.match(cmd, /^node "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/hook\.mjs" claude (prompt --record|tool --late --record|stop)$/);
   const codex = hooksOf('codex/hooks/hooks.json');
-  assert.deepEqual(codex.map(([ev]) => ev), ['UserPromptSubmit', 'PostToolUse', 'PreToolUse', 'Stop']);
-  for (const [, cmd] of codex) assert.match(cmd, /^node "\$PLUGIN_ROOT\/bin\/hook\.mjs" codex (prompt --record|tool --late --record|pre|stop --record)$/);
+  assert.deepEqual(codex.map(([ev]) => ev), ['UserPromptSubmit', 'PostToolUse', 'Stop']);
+  for (const [, cmd] of codex) assert.match(cmd, /^node "\$PLUGIN_ROOT\/bin\/hook\.mjs" codex (prompt --record|tool --late --record|stop --record)$/);
   // Cursor runs scripts from the plugin root; each hands its event to the shim
   const cursor = hooksOf('cursor/hooks/hooks.json');
-  assert.deepEqual(cursor.map(([ev]) => ev), ['beforeSubmitPrompt', 'postToolUse', 'afterShellExecution', 'beforeShellExecution', 'stop', 'sessionEnd']);
+  assert.deepEqual(cursor.map(([ev]) => ev), ['beforeSubmitPrompt', 'postToolUse', 'afterShellExecution', 'stop', 'sessionEnd']);
   for (const [, cmd] of cursor) {
     const script = path.join(root, 'cursor', cmd);
     assert.ok(fs.statSync(script).mode & 0o111, `${cmd} is executable`);
-    assert.match(fs.readFileSync(script, 'utf8'), /exec node "\$\(dirname "\$0"\)\/hook\.mjs" cursor (prompt --record|tool --late --record|pre|stop --record)\n$/);
+    assert.match(fs.readFileSync(script, 'utf8'), /exec node "\$\(dirname "\$0"\)\/hook\.mjs" cursor (prompt --record|tool --late --record|stop --record)\n$/);
   }
   // the marketplaces point at the plugin directories
   assert.equal(JSON.parse(fs.readFileSync('.claude-plugin/marketplace.json', 'utf8')).plugins[0].source, './plugins/claude-code');

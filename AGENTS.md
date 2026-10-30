@@ -106,27 +106,9 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 - The 15% holdout stays: the model reading again what was cleared is what the replay cannot see.
 - A running proxy keeps the flags and the code it started with, so `ensureProxy` replaces it when `serviceArgs` or the installed version no longer match what the state records (`args`, `version`), at the prompt hook, between turns. Without it a new policy, a `--gateway` upstream or a new route reaches nobody until the process dies: this machine ran a proxy from 2026-10-24 on 0.2.11's flags for four days, with no `/codex` route, so every Codex model call answered 404.
 
-**A failing test run is rewritten through `thinker test` (2026-10-29, the owner's call):**
-- The `pre` hook (PreToolUse) answers a shell test command with the same run through `thinker test`
-  (`testing.js:wrappedCommand`, `classifyTestCommand`), which runs it with colour off, streams the log to
-  `.thinker/state/tests/` and prints the counts, each distinct failure cause once with a few frames, and the
-  log path. `tests: { nudge: false }` in `.thinker/config.json` turns the rewrite off; the command stays.
-- Why it is on without an agent experiment: the agent is already paying the loss. The stage-0 diagnostic over
-  662 sessions and 910 test runs found selection is not the problem (no full suites, 2 redundant re-runs) and
-  the cost is the single catastrophic failing run -- 50k to 100k tokens, 80-88% of a session's whole tool
-  output, about 30% ANSI escapes, its ~70 failures collapsing to ~13 distinct causes -- which Opus already
-  pipes through `tail`, keeping one cause and throwing away the rest. On this repository a 13-failure run
-  reads 10,493 bytes raw and 513 through the wrapper, with both causes kept. Model-free throughout: colour
-  flags, parsing, grouping. No model call, nothing to meter, no judge.
-- The exit code is passed through (`commands/testing.js`), because agents branch on it: 1 for the failing
-  run, 0 for the passing one.
-- A shell line is split on its separators and only the piece holding the runner is wrapped
-  (`shellSegments`, `renderSegments`): prefixing the whole line put the wrapper before `cd packages/web &&`
-  and left the agent's own `| tail -50` cutting thinker's summary down to nothing. A pipeline stage that only
-  cuts the output down (`tail`, `head`, `grep`, …) is dropped, since the summary is already the short form;
-  a stage doing something else (`tee`) or carrying a redirection another command may read is kept.
-- A line with a substitution or a group (`$(…)`, backticks, `( … )`) is never rewritten (`tooIntricate`): a
-  mangled command costs the agent its test run, which is worse than reading a long log.
+**Hooks never run or rewrite test commands (MANDATORY, 2026-10-30):**
+- Thinker is the cache and context reduction harness. The test wrapper and its automatic command interception have been removed.
+- Legacy `hook pre` calls do nothing; wiring refresh removes those hooks while preserving other hooks.
 
 **Telemetry and tests (MANDATORY):**
 - Set `THINKER_TEST=1` for tests, benchmarks, eval harnesses, scratch experiments, and their setup/install steps (`npm test` sets it).
@@ -204,7 +186,6 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 | `src/maintain.js` | background maintenance, daily cap |
 | `src/skills.js`, `src/commands/skills.js` | SKILL.md cards; `thinker skills` (`docs/skills.md`) |
 | `src/instruction-value.js`, `src/context-view.js`, `src/commands/context.js` | `thinker context`, Context tab |
-| `src/testing.js`, `src/commands/testing.js` | `thinker test -- <command>`; the `pre` hook rewrites a test run to it (on by default, 2026-10-29) |
 | `src/guard.js` | anchoring guard |
 | `src/update.js` | self and background updates |
 | `src/usage.js` | usage log summary |
@@ -1009,52 +990,11 @@ skill's present text is not counted (`skillFileTime`). Duplicates: `skills.js:de
 `skills.prefer` in the config as the pin. Skill cards are never distilled (`distillSpec`,
 `distillKinds`, `saveNotes`) or written by an agent. See docs/skills.md.
 
-**Skills suggested by the file (off until an experiment, 2026-10-19).** With `harness: { skillSuggest: true }`
-in `.thinker/config.json` (or `THINKER_HARNESS_SKILL_SUGGEST=on`; `=off` wins over the config), the tool
-hook of Claude Code and Codex says, the first time a file is opened or edited in a turn, which skills
-past sessions here read for files like it: `<thinker-skill>Past sessions here used <name> for files like
-this one: read <path></thinker-skill>`, at most two a file and six a turn, each skill once a turn
-(`skill-suggest.js:skillSuggestLines`). The turn, not the session: a session can run for hours over
-several requests, and an earlier turn's skill may be needed again or compacted out of the context, so a
-new turn or a compaction in the transcript (`compactions`) starts the count again (2026-10-19). Why: on PostHog under GPT-6 Astra, switching the 107 skills off
-cut input ~19% at equal passes, but agents then opened 0.6 skills a session against 2.9 and broke more
-minor conventions (0.46 against 0.21 a session); `lookup` over the descriptions was right 42% of the time.
-The evidence (`.thinker/state/skill-evidence.json`, local) is rows by (area, skill), an area being a key of
-the path (`areaKeys`: two directories, the top one, `products/<p>/<layer>`, the kind of file), with organic
-opens, suggested, suggested-then-opened, unread, missed and negative per row and exposures per area, each
-decaying with `harness.skillSuggestHalfLifeDays` (30). The session's opens and edits are credited once,
-idempotently, from the transcript the harness parses (`harness.js:sessionHarness`,
-`harness-codex.js:codexSessionHarness`; `recordSessionSkills` from `commands/learn.js:distillFile`), so
-`learn.sessions`, `THINKER_NO_LEARN` and the quiet skip apply as to the distillation. Scoring
-(`candidates`) counts a (area, skill) only on the sessions where the skill was not read (not opened; a
-suggestion the agent did not follow leaves the session unread): Beta(0.5 + misses + organic opens,
-4 + (unread − misses) + negatives), the best of the file's areas, Thompson-sampled, top two above a
-sample of 0.35. A session that read the skill says nothing about whether it prevents a break; counting
-those as failures, as the first version did, held a skill that prevents most breaks at a 0.4 suggestion
-rate the more it was followed (a simulation of the loop, 2026-10-19). A row made late counts the area's
-earlier sessions as unread unless the skill was `added` to the registry since (`refreshRegistry`), so a skill
-opened once in a busy area does not score as if that were its only session. Organic opens are weak evidence
-of relevance (weight `organic`, 1); a skill whose description shares a word of the path gets a small prior
-(0.25) only when the file's areas have no evidence-backed candidate at all: in a replay of 8 PostHog eval
-tasks none of its 24 picks was a skill the agent went on to open. Misses come from a separate, sampled
-outcome check (`skill-outcome.js:skillOutcomeCheck`, its own switch `harness: { skillOutcome: true }` or
-`THINKER_HARNESS_SKILL_OUTCOME=on`, off by default, never in test mode unless forced by the env), modelled
-on the Artemis conventions grader: once a session, on `harness.skillOutcomeShare` (0.25) of sessions by a hash
-of the id, when the session edited files with candidates, within the daily token cap, one model call through
-`llm.js:complete` (the session queue in a desktop app). It is shown the `git diff` of the files the session
-edited from the commit before its start (plus files it created), the full text of the best three candidates
-and of up to two skills a matching `.claude/rules` file names, those rule files, and the AGENTS.md text
-that applies (process sections left out), and returns violations quoting the rule and its source; a skill's
-break unread is a miss, read a negative, logged as `op: "skill-outcome"`. Asking the end-of-session
-distillation for broken rules instead (the first version) matched the grader on 0 of 30 graded sessions. On 39
-graded PostHog sessions (Sonnet, claude CLI, $0.14 a session) the first prompt found 7 of the grader's 15
-skill-sourced violations by rule, and 3 of 15 clean sessions got a skill violation; the prompt shipped found 13
-of 15 on the 13 sessions with one (16 found, 3 on a rule the grader did not cite); its rate on clean sessions
-was not measured again. A held-out turn (`ops.js:holdoutTurn`) is told nothing and logs `withheld`; the cap of
-six lines a session counts withheld lines too. First use seeds the store from the machine's recent sessions of
-the repository; `thinker skills seed <transcripts...>` seeds from chosen ones (an eval: its training tasks only),
-`thinker skills suggest <file>` previews. The offline checks are in
-`bench/worktrees/eval-support/skill-protocol/` (local). No agent session has been run with it.
+**Removed session interventions (owner's decision, 2026-10-30):**
+- `thinker test` and automatic test rewriting are removed; legacy `hook pre` calls do nothing.
+- Stop hooks never block completion to demand more edits or checks.
+- Per-file skill recommendations, their evidence collector/seed/preview commands, and their model-backed outcome judge are removed.
+- `thinker prs`, note learning/refresh, instruction-file analysis/judging, questions, and other product behavior retain their existing implementations.
 
 **Built-in tools in the harness advice (off until an experiment, 2026-10-20).** With `harness: { builtinTools: true }`
 in `.thinker/config.json` (or `THINKER_HARNESS_BUILTIN_TOOLS=on`; `=off` wins over the config), the harness counts
