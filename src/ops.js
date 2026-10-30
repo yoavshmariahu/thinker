@@ -799,20 +799,6 @@ function outlinesLocked(store, { session, client, order, identifier, turn, cfg }
   return { text, files };
 }
 
-// --- completeness nudge -------------------------------------------------------
-// At the end of a session that edited files: rule notes on the edited files that were never served.
-export function completenessNudge(store, { session, changed }) {
-  const { st, save } = sessionState(store, session);
-  if (st.nudged || !changed.length) return { text: '' };
-  const lines = [];
-  const rules = store.list().filter(n => RULE_KINDS.includes(n.kind) && n.status !== 'invalid' && !(n.servedIn || []).includes(session) && (n.deps || []).some(d => changed.includes(d.path))).slice(0, 3);
-  for (const n of rules) { lines.push(`Rule not yet seen this session, [${n.kind}] ${n.title}: ${n.body.split('\n').slice(0, 4).join(' ').slice(0, 400)}`); n.servedIn = [...(n.servedIn || []), session].slice(-30); store.put(n); }
-  if (!lines.length) return { text: '' };
-  st.nudged = true; save();
-  store.log({ op: 'nudge', session, changed, lines: lines.length });
-  return { text: `Before finishing, check completeness against the rules this repository's notes state:\n- ${lines.slice(0, 6).join('\n- ')}\nFor each item decide whether your change needs it. Make the additional edits if so; if not, say why in one line, then finish.` };
-}
-
 // --- outcome signals -----------------------------------------------------
 // Session-level outcome applied to every note served in that session. Weaker
 // than a contradiction (the signal is noisy): -0.1 per negative, +0.03 per positive.

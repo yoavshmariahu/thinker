@@ -71,7 +71,7 @@ something, and paying for all of it in every call is what to attack — not whet
 
 What has already been tried, and what it measured:
 
-- **Suggesting a skill per file** (`skill-suggest.js`, off since 2026-10-19). The tool hook names the
+- **Suggesting a skill per file** (removed on 2026-10-30). The tool hook names the
   skills past sessions read for files like this one. In a replay of the sessions that missed a skill
   it named the needed one in **1 of 19**. It leaves the list in the prompt untouched, so it cannot
   save anything either; it can only add.
@@ -83,8 +83,8 @@ What has already been tried, and what it measured:
 
 So the lever worth trying is the *shape of the list*, ranked: every skill keeps its name, and only
 the skills this repository's sessions actually open keep a full description. The evidence for the
-ranking already exists and costs nothing — `.thinker/state/skill-evidence.json` holds (area, skill)
-rows with organic opens, decayed, which `skill-suggest.js:candidates` already scores.
+ranking was previously recorded in `.thinker/state/skill-evidence.json` as (area, skill) rows.
+The recommender and its evidence collector were removed on 2026-10-30; this is historical research.
 
 The open question is the mechanism, and it is the reason this is a note rather than a branch. A host
 reads a skill's description from its own file, so thinker would have to change those files, and that

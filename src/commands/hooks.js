@@ -6,7 +6,7 @@ import { noticeCard } from '../notice-card.js';
 import { ceConfig } from '../dense.js';
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawn, execFileSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { cacheBundleIntro, disabledTools } from '../cache-guidance.js';
 import { pluginYields, pruneInstalls, prunedLines, refreshWiring, stripRepoWiring, repoRunsHooks, normalizeHookEvent, hookClient, sessionOf, toolFiles, seenFiles, seenHits, searchedIdentifier, promptOutput, toolOutput, stopOutput, parkPending, takePending, orientedFile, agyTurnPrompt } from '../clients.js';
 import { dietConfig, dietResult, rememberTerms } from '../diet.js';
@@ -14,7 +14,7 @@ import { parseTranscript, batchDue } from '../distill.js';
 import { Store, findRepoRoot, repoId } from '../store.js';
 import { isDisabledRepo } from '../repo-switch.js';
 import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '../maintain.js';
-import { codeForRequest, orient, HOOK_BUDGET, servesNotes, rememberTask, outcome, looksLikeCorrection, lateNotes, onSightNotes, onSightConfig, onSightOutlines, onSightOutlineConfig, completenessNudge, peekTurn, takeTurn, beginTurn, holdoutTurn, isHarnessEvent } from '../ops.js';
+import { codeForRequest, orient, HOOK_BUDGET, servesNotes, rememberTask, outcome, looksLikeCorrection, lateNotes, onSightNotes, onSightConfig, onSightOutlines, onSightOutlineConfig, peekTurn, takeTurn, beginTurn, holdoutTurn, isHarnessEvent } from '../ops.js';
 import { recordEvent, traceFile, toolName, toolInput, textOf } from '../transcripts.js';
 import { turnNotice, turnFooterMarkdown, weeklyNotice, compressionNotice, formatTokens } from '../usage.js';
 import { compressionBlock, compressionDir, markCompressionTurn } from '../compression.js';
@@ -25,7 +25,6 @@ import { proxyOffer } from '../proxy-offer.js';
 import { errorOffer, recordError, sendErrors, errorConsent } from '../error-report.js';
 import { harnessRecall, harnessIndex, harnessOn } from '../harness.js';
 import { contextSuggestOffer, ensureUi, suggestionsUrl } from '../context-suggest.js';
-import { skillSuggestOn, skillSuggestLines, hookSkillFacts } from '../skill-suggest.js';
 import { snapshotCursorInventory } from '../harness-cursor.js';
 import { sectionsForEvent, sectionsConfig } from '../instruction-sections.js';
 import { retireTrimmedCopy } from '../trimmed-copy-retired.js';
@@ -327,11 +326,6 @@ async function hookCommand(ctx) {
         if (o.text) parts.push(o.text);
       }
     }
-    // the skills past sessions here opened for files like the one first opened or edited (skill-suggest.js; off
-    // unless harness.skillSuggest): a held-out turn logs what it withheld and says nothing
-    if ((client === 'claude' || client === 'codex') && skillSuggestOn(store)) {
-      try { const f = hookSkillFacts(ev, repo, toolFiles(ev, repo)); const line = skillSuggestLines(store, { session, client, files: f.files, opened: f.opened, holdout: t.holdout, turn: t.turn || undefined, transcript: ev.transcript_path }); if (line) parts.push(line); } catch {}
-    }
     const card = noticeCard(store, { client, session, ...t, notes: peekTurn(store, session).map(id => store.get(id)).filter(Boolean) });
     if (card) parts.push(card);
     // Antigravity's PostToolUse accepts only {} on stdout: park late notes for the next PreInvocation in the turn.
@@ -353,13 +347,6 @@ async function hookCommand(ctx) {
       try { fs.rmSync(traceFile(store.dir, session), { force: true }); } catch {}
       if (client === 'cursor') out('{}');
       return;
-    }
-    // completeness nudge (once per session, never when already continuing from a stop hook)
-    if (flags.nudge && !ev.stop_hook_active) {
-      let changed = [];
-      try { changed = execFileSync('git', ['status', '--porcelain', '--untracked-files=all'], { cwd: repo }).toString().split('\n').map(l => l.slice(3).trim()).filter(f => f && !f.startsWith('.thinker') && !f.startsWith('.mcp.json') && !f.startsWith('.claude/')); } catch {}
-      const n = completenessNudge(store, { session, changed });
-      if (n.text) { out(JSON.stringify({ decision: client === 'agy' ? 'continue' : 'block', reason: n.text })); return; }
     }
     if (client === 'cursor') out('{}');
     if (client === 'agy') out('{"decision":"allow"}');

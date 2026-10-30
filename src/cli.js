@@ -211,8 +211,8 @@ const HELP = `thinker — knowledge cache for coding agents
                                  this in the background; --all for every repository the page lists, in one run)
   guide                          the cache usage guidance an install writes into an agent's instructions
   export [file.tgz] [--dir d]    back the cache up to a .tgz; --dir writes every note whole, one <id>.json each, into d
-  hook <prompt|tool|stop [--nudge]> [--client c]   hook entrypoints (JSON on stdin): prompt = notes for the request,
-                                 tool = notes about files being edited, stop = nudge + distill
+  hook <prompt|tool|stop> [--client c]   hook entrypoints (JSON on stdin): prompt = notes for the request,
+                                 tool = notes about files being edited, stop = distill
   prs [--days n] [--pr n] [--detail] [--json]
                                  the pull requests this machine's sessions produced: what each cost in agent
                                  tokens and what thinker saved on it -- the tokens the context proxy had the

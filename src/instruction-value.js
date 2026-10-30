@@ -28,7 +28,7 @@ import { complete, DEFAULT_DISTILL_MODEL } from './llm.js';
 import { tokensOf } from './model-usage.js';
 import { isTestMode } from './test-mode.js';
 import { withinDailyCap } from './maintain.js';
-import { outcomeSampled, sessionDiff, ruleGlobs, globRegex } from './skill-outcome.js';
+import { outcomeSampled, sessionDiff, ruleGlobs, globRegex } from './instruction-evidence.js';
 import { execFileSync } from 'node:child_process';
 import { checkouts } from './harness.js';
 

@@ -23,8 +23,6 @@ import { understand, UNDERSTAND_DEFAULTS } from '../understand.js';
 import { areasConfig } from '../areas.js';
 import { enqueueJob, recentAppSession, runSessionWork } from '../session-work.js';
 import { isWorkerPrompt } from '../session-llm.js';
-import { skillSuggestOn, recordSessionSkills } from '../skill-suggest.js';
-import { skillOutcomeOn, skillOutcomeCheck } from '../skill-outcome.js';
 import { instructionValueCheck, valueConfig } from '../instruction-value.js';
 
 async function learnCommand(ctx) {
@@ -198,12 +196,6 @@ export async function distillFile(ctx, file, { minExplore, dry, model, quiet, in
   async function distillEventsToNotes() {
   const markSeen = () => { if (incremental && !batch && !dry) { fs.mkdirSync(stateDir, { recursive: true }); fs.writeFileSync(stateFile, JSON.stringify({ ...state, line: lineCount, at: new Date().toISOString() })); } };
   if (events.some(e => e.t === 'prompt' && isWorkerPrompt(e.text))) { markSeen(); return; }
-  // the skills the session opened for the files it edited (skill-suggest.js; off unless harness.skillSuggest):
-  // no model call, credited once per session whatever the distillation below decides
-  if (!batch && !dry && skillSuggestOn(store)) { try { recordSessionSkills(store, file, { session }); } catch {} }
-  // on a sample of sessions, which rules of those skills the change broke, and whether the skill was read
-  // (skill-outcome.js; its own switch, off by default): one model call, through the session in a desktop app
-  if (!batch && !dry && skillOutcomeOn(store)) { try { await skillOutcomeCheck(store, file, { session, phase }); } catch (e) { store.log({ op: 'skill-outcome', session, failed: String(e.message || e).slice(0, 160) }); } }
   // on a sample of sessions, which sections of the instruction file bore on the work and whether the agent followed
   // them (instruction-value.js; off by default): one model call, through the session in a desktop app
   if (!batch && !dry && valueConfig(store).judge) { try { await instructionValueCheck(store, file, { session, phase }); } catch (e) { store.log({ op: 'instruction-value', session, failed: String(e.message || e).slice(0, 160) }); } }
