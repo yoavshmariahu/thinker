@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parse } from 'smol-toml';
 import { serviceState, proxyOn, proxyUrl, isOwnUrl, freePort, isListening, serviceArgs, plistText, unitText, claudeBlocker, withProxyUrl, withoutProxyUrl,
   wireAgents, enableProxyService, disableProxyService, ensureProxy, installService, uninstallService, wiredLines, appVersion, removedByHand, standDown, claudeWired, trackClaude, routeAppeared, proxyThrough, SERVICE_HOLDOUT, PROXY_ENV, PROXY_LABEL } from '../src/proxy-service.js';
@@ -165,6 +165,53 @@ test('ensureProxy starts the proxy when nothing listens, and leaves a listening 
     const removed = uninstallService({ home: m.home, manage: false });
     if (svc.path) assert.deepEqual(removed, [svc.path]);
   } finally {
+    if (pid) { try { process.kill(pid, 'SIGTERM'); } catch {} }
+    m.restore();
+  }
+});
+
+test('ensureProxy waits for the listener to record ownership before reporting startup complete', { timeout: 15000 }, async () => {
+  const m = fakeMachine();
+  let pending, pid;
+  try {
+    const port = await freePort();
+    fs.mkdirSync(path.join(m.home, 'state'), { recursive: true });
+    fs.writeFileSync(path.join(m.home, 'state/proxy-service.json'), JSON.stringify({ enabled: true, port, ports: [port], wroteClaude: false }));
+    const child = path.join(m.root, 'delayed-proxy.mjs');
+    const probed = path.join(m.root, 'probed'), release = path.join(m.root, 'release'), owner = path.join(m.root, 'pid');
+    fs.writeFileSync(child, `
+      import net from 'node:net';
+      import fs from 'node:fs';
+      import { recordProxyListening } from ${JSON.stringify(pathToFileURL(path.join(path.dirname(CLI), 'proxy-service.js')).href)};
+      fs.writeFileSync(${JSON.stringify(owner)}, String(process.pid));
+      const server = net.createServer(socket => { socket.end(); fs.writeFileSync(${JSON.stringify(probed)}, 'yes'); });
+      server.listen(${port}, '127.0.0.1', () => {
+        const timer = setInterval(() => {
+          if (!fs.existsSync(${JSON.stringify(release)})) return;
+          clearInterval(timer);
+          recordProxyListening(${port});
+        }, 10);
+      });
+    `);
+    pending = ensureProxy({ cli: child, home: m.home, wait: 8000, restartFn: () => false });
+    const deadline = Date.now() + 8000;
+    while (!fs.existsSync(probed) && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 20));
+    assert.ok(fs.existsSync(probed), 'the child accepted the startup probe');
+    pid = Number(fs.readFileSync(owner, 'utf8'));
+    assert.equal(await Promise.race([
+      pending.then(() => 'returned'),
+      new Promise(resolve => setTimeout(() => resolve('waiting'), 100)),
+    ]), 'waiting', 'a listening socket alone must not finish startup');
+    assert.equal(serviceState(m.home).pid, undefined, 'only the listener may claim ownership');
+    fs.writeFileSync(release, 'yes');
+    assert.deepEqual(await pending, { on: true, started: true, pid, listening: true });
+    assert.equal(serviceState(m.home).pid, pid);
+    assert.deepEqual(await ensureProxy({ cli: child, home: m.home }), { on: true, running: true });
+  } finally {
+    // Release a delayed child even when an assertion failed, then stop only that fixture.
+    fs.writeFileSync(path.join(m.root, 'release'), 'yes');
+    await pending;
+    pid ||= Number(fs.existsSync(path.join(m.root, 'pid')) && fs.readFileSync(path.join(m.root, 'pid'), 'utf8'));
     if (pid) { try { process.kill(pid, 'SIGTERM'); } catch {} }
     m.restore();
   }
@@ -340,6 +387,7 @@ test('a proxy already listening is replaced when its flags or its version moved,
     write({});
     const first = await ensureProxy({ cli: CLI, home: m.home, wait: 1 });
     assert.equal(first.restarted, true);
+    assert.equal(first.listening, false, 'the existing listener cannot establish readiness for the new child');
     assert.match(first.why, /first run that records them/);
     // the flags and the version recorded and matching: nothing to do
     write({ args: serviceArgs(m.home).join(' '), version: appVersion() });
@@ -348,11 +396,13 @@ test('a proxy already listening is replaced when its flags or its version moved,
     write({ args: serviceArgs(m.home).join(' '), version: '0.0.1' });
     const upgraded = await ensureProxy({ cli: CLI, home: m.home, wait: 1 });
     assert.equal(upgraded.restarted, true);
+    assert.equal(upgraded.listening, false);
     assert.match(upgraded.why, /new version \(0\.0\.1 -> /);
     // the flags moved under it (a gateway, a clearing policy, the codex route)
     write({ args: 'proxy --port 1 --holdout 0.15', version: appVersion() });
     const reflagged = await ensureProxy({ cli: CLI, home: m.home, wait: 1 });
     assert.equal(reflagged.restarted, true);
+    assert.equal(reflagged.listening, false);
     assert.equal(reflagged.why, 'the flags changed');
   } finally { server.close(); m.restore(); }
 });
@@ -431,6 +481,21 @@ test('a managed restart never spawns a detached competitor, and the listening pr
     assert.deepEqual(await ensureProxy({ cli: CLI, home: m.home }), { on: true, running: true });
     recordProxyListening(port + 1, { home: m.home, pid: 999 });
     assert.equal(serviceState(m.home).pid, 123456, 'a manually started proxy on another port does not claim the service');
+  } finally { server.close(); m.restore(); }
+});
+
+test('a managed listener without its startup record times out without claiming readiness', async () => {
+  const m = fakeMachine(), server = http.createServer();
+  try {
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    const port = server.address().port;
+    fs.mkdirSync(path.join(m.home, 'state'), { recursive: true });
+    fs.writeFileSync(path.join(m.home, 'state/proxy-service.json'), JSON.stringify({ enabled: true, port, wroteClaude: false }));
+    const result = await ensureProxy({ cli: CLI, home: m.home, wait: 1, restartFn: () => true });
+    assert.equal(result.managed, true);
+    assert.equal(result.pid, undefined, 'no detached competitor was spawned');
+    assert.equal(result.listening, false, 'timeout does not bypass the ownership check');
+    assert.equal(serviceState(m.home).pid, undefined, 'the parent must not invent an owner');
   } finally { server.close(); m.restore(); }
 });
 

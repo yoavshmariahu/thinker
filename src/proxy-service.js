@@ -99,10 +99,23 @@ export function freePort() {
 }
 
 // up to `wait` ms for something to listen on the port
-export async function waitListening(port, wait, { step = 50 } = {}) {
+export async function waitListening(port, wait, { step = 50, ready = () => true } = {}) {
   const t0 = Date.now();
-  while (Date.now() - t0 < wait) { if (await isListening(port, { timeout: 200 })) return true; await new Promise(r => setTimeout(r, step)); }
-  return isListening(port, { timeout: 200 });
+  while (Date.now() - t0 < wait) { if (await isListening(port, { timeout: 200 }) && ready()) return true; await new Promise(r => setTimeout(r, step)); }
+  return await isListening(port, { timeout: 200 }) && ready();
+}
+
+// The OS accepts connections before the child's `listening` callback has recorded its
+// ownership. Wait for both: `off` needs the PID, and the next hook needs the flags and
+// version to avoid restarting a process that has only just started. A detached child
+// that failed to bind must not borrow readiness from some other listener on the port.
+function waitProxyStarted(home, port, wait, pid) {
+  const args = serviceArgs(home).join(' '), version = appVersion();
+  return waitListening(port, wait, { ready: () => {
+    const s = serviceState(home);
+    return s.enabled === true && s.port === port && Number.isSafeInteger(s.pid) && s.pid > 0 &&
+      (pid === undefined || s.pid === pid) && s.args === args && s.version === version;
+  } });
 }
 
 export function isListening(port, { timeout = 400 } = {}) {
@@ -176,22 +189,22 @@ export async function ensureProxy({ cli, home = thinkerHome(), wait = 1500, rest
     // caused repeated EADDRINUSE crashes, and could inherit the invoking agent's network sandbox.
     saveNetworkEnv(home, process.env);
     if (restartFn({ cli, home, managedOnly: true })) {
-      const listening = await waitListening(s.port, wait);
+      const listening = await waitProxyStarted(home, s.port, wait);
       return { on: true, restarted: true, why, managed: true, listening };
     }
     if (process.env.CODEX_SANDBOX_NETWORK_DISABLED === '1') return { on: true, running: true, deferred: 'network-restricted hook' };
     if (s.pid) { try { process.kill(s.pid, 'SIGTERM'); } catch {} }
     const pid = startDetached({ cli, home });
-    const listening = await waitListening(s.port, wait);
+    const listening = await waitProxyStarted(home, s.port, wait, pid);
     return { on: true, restarted: true, why, pid, listening };
   }
   saveNetworkEnv(home, process.env);
   if (restartFn({ cli, home, managedOnly: true })) {
-    const listening = await waitListening(s.port, wait);
+    const listening = await waitProxyStarted(home, s.port, wait);
     return { on: true, started: true, managed: true, listening };
   }
   const pid = startDetached({ cli, home });
-  const listening = await waitListening(s.port, wait);
+  const listening = await waitProxyStarted(home, s.port, wait, pid);
   return { on: true, started: true, pid, listening };
 }
 
