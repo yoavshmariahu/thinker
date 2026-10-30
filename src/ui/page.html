@@ -1335,13 +1335,13 @@ function renderReport(v) {
   // the cache's numbers over the same window (usage.js:summarize), its saving in dollars first
   const c = v.cache;
   const cards = `<div class="section"><div class="kicker">The cache, over the same ${v.weeks} weeks</div><div class="cards four" style="margin-top:0.6rem">
-    ${card('$ saved', money(Math.max(0, c.dollarsSaved)), c.dollarsDescription || `${c.measured ? 'the input tokens saved against held-out prompts' : 'the code the agents did not read'}, at each model's list input price${c.unpricedTokens ? `; ${fmt(c.unpricedTokens)} tokens on unpriced models not counted` : ''}`, null, true)}
-    ${card(c.tokenLabel || 'Tokens saved', fmt(c.tokensSaved), c.tokenDescription || (c.measured ? 'input tokens, against prompts with the notes withheld' : 'tokens of code the agents did not read'), c.coverage ? [['Hits with lifetime data', fmt(c.coverage.hits)], ['One-read fallback', fmt(c.coverage.fallback)]] : null, true)}
+    ${card(c.dollarsLabel || '$ saved', money(Math.max(0, c.dollarsSaved)), c.dollarsDescription || `${c.measured ? 'the input tokens saved against held-out prompts' : 'the code the agents did not read'}, at each model's list input price${c.unpricedTokens ? `; ${fmt(c.unpricedTokens)} tokens on unpriced models not counted` : ''}`, null, true)}
+    ${card(c.tokenLabel || 'Tokens saved', fmt(c.tokensSaved), c.tokenDescription || (c.measured ? 'input tokens, against prompts with the notes withheld' : 'tokens of code the agents did not read'), null, true)}
     ${card('Cache hits', fmt(c.hits), `notes served, for ${fmt(c.answered)} of ${fmt(c.attempted)} requests the cache was asked${c.requests > c.attempted ? ` (${fmt(c.requests - c.attempted)} not asked)` : ''}`)}
     ${card('Acted on', c.acted == null ? '–' : `${Math.round(100 * c.acted)}%`, `of ${fmt(c.judged)} servings the sessions were judged on`)}
   </div></div>`;
   // What was shipped here, and how much of it thinker paid for (report.js:prSavings, the same figures as
-  // `thinker prs`). In tokens under Cost as much as under Tokens, and the caption says why: the clearing's
+  // `thinker prs`). In tokens under Cost as much as under Tokens: the clearing's
   // worth in dollars is not its tokens at the input rate, since what it takes out of a prompt was being read
   // from the prompt cache and the clear writes that cache again. `thinker proxy replay` is what prices it.
   const pr = v.prs;
@@ -1355,7 +1355,7 @@ function renderReport(v) {
     <tbody>${prRows.map(r => `<tr><td class="ctx-name">${prName(r)}</td><td class="num">${r.sessions}</td><td class="num"${r.complete ? '' : ' title="a session of this pull request reported no counters, so its cost is partial"'}>${fmt(r.agent)}${r.complete ? '' : '<span class="ctx-kind">partial</span>'}</td><td class="num">${r.cleared ? fmt(r.cleared) : '<span class="muted">–</span>'}</td><td class="num">${r.reading ? fmt(r.reading) : '<span class="muted">–</span>'}</td><td class="num">${r.saved ? fmt(r.saved) : '<span class="muted">–</span>'}</td><td class="num">${prShare(r.share)}</td></tr>`).join('')}</tbody></table>
     ${pr.rows.length > PR_ROWS ? `<button class="ctx-more pr-more" data-fold="pr-all" aria-expanded="${RFOLD.has('pr-all')}">${RFOLD.has('pr-all') ? `Show the newest ${PR_ROWS}` : `Show all ${fmt(pr.rows.length)}`}</button>` : ''}</figure>`;
   const prBand = !pr || !pr.merged ? '' : `<div class="section"><div class="kicker">Pull requests, over the same ${v.weeks} weeks</div>
-    <p class="lede">Of the work shipped here, how much of it did thinker pay for. In tokens, not dollars, under either toggle: reading avoided is input nobody paid for, but a cleared token was mostly being read from the prompt cache at a fraction of the input price, and the clear writes that cache again -- <code>thinker proxy replay</code> is what prices a clear.</p>
+    <p class="lede">Tokens spent and saved on merged pull requests, with savings from cleared context and avoided reading.</p>
     <div class="cards four" style="margin-top:0.6rem">
     ${card('Merged with work here', fmt(pr.merged), `of ${fmt(pr.mergedSeen)} merged in ${v.all ? 'those repositories' : 'the repository'}; the rest no session here touched`, [['Still open', fmt(pr.open)], ['Sessions on one', fmt(pr.sessions.linked)], ['Sessions on none', fmt(pr.sessions.unlinked)]])}
     ${card('Tokens saved on them', fmt(pr.saved.total), 'that never had to sit in a prompt', [['Cleared (measured)', fmt(pr.saved.cleared)], ['Reading avoided (estimate)', fmt(pr.saved.reading)]], true)}

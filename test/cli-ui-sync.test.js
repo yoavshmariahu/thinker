@@ -27,7 +27,7 @@ test('lifetime savings use shared report values and captions in CLI, page and fo
   assert.deepEqual(c.coverage, { hits: 1, fallback: 1, sessions: 1, requests: 100 });
   for (const file of ['report.js', 'ui/page.html']) {
     assert.match(read(file), /c\.tokenDescription/);
-    assert.match(read(file), /c\.coverage/);
+    assert.match(read(file), /c\.dollarsLabel/);
     assert.doesNotMatch(read(file), /Math\.max\(0, c\.tokensSaved\)/, 'negative net estimates must stay visible');
   }
   assert.match(read('commands/hooks.js'), /sessionInputSavings/);
@@ -580,8 +580,9 @@ test('the Report tab and `thinker report` show the same pull request band, in to
   const head = rep.slice(rep.indexOf("'Merged, newest first'"), rep.indexOf("'Merged, newest first'") + 400);
   for (const c of ['sessions', 'its cost', 'cleared', 'reading', 'saved', 'share']) assert.ok(head.includes(`'${c}'`), `command column: ${c}`);
   assert.ok(head.indexOf("'cleared'") < head.indexOf("'reading'") && head.indexOf("'reading'") < head.indexOf("'saved'"), 'in the page\'s order');
-  // tokens under Cost as much as under Tokens, and both doors say why rather than quietly pricing a cleared token
-  assert.ok(page.includes('thinker proxy replay') && rep.includes('thinker proxy replay'), 'both name what prices a clear');
+  // Both doors describe the PR figures in tokens.
+  assert.ok(page.includes('Tokens spent and saved on merged pull requests'));
+  assert.ok(rep.includes('tokens spent and saved on merged work'));
   assert.doesNotMatch(page.slice(page.indexOf('const prBand')), /money\(/, 'the band never prices its tokens');
   // a kept report made before the band must be remade, so report-snapshot hashes what the band is computed from
   for (const f of ['delivery.js', 'compression.js']) assert.ok(read('report-snapshot.js').includes(`'${f}'`), `${f} is in the report's code key`);

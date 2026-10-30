@@ -25,9 +25,8 @@ would have done to the hypothetical reading, not a counterfactual replay. Missin
 historical clearing records remain a limitation. Paraphrases of a note after
 compaction are not counted unless the rendered note is still identifiable.
 
-The card shows **Hits with lifetime data** and **One-read fallback**. Claude
-Desktop, Codex, Cursor and other clients work without a model login: where their
-transcripts do not expose request membership, they retain a one-read estimate
+Coverage counts remain available in the JSON report. Claude Desktop, Codex, Cursor
+and other clients work without a model login: where their transcripts do not expose request membership, they retain a one-read estimate
 minus the first note injection. No fixed lifetime multiplier or model call fills
 the missing evidence. Negative totals remain visible. Unknown message bodies are
 not guessed; additional note text in them may be missing from the overhead.
@@ -39,8 +38,9 @@ aggregate report includes confirmed notes only. A retried Stop hook does not
 repeat an unchanged lifetime total. Transcripts are cached by file size and mtime;
 persisted results contain times and note sizes, not transcript text.
 
-The dollar card continues to price initial reading, with a caption saying re-reads
-are not priced. Repeated input must not be valued as fresh input indiscriminately.
+The **Initial-read savings** card prices initial reading at model list prices;
+its caption says repeated reads are excluded. Repeated input must not be valued
+as fresh input indiscriminately.
 Existing holdout comparisons retain precedence when sufficiently populated; a
 machine-wide mixture of measured and estimated repository totals is labeled
 estimated. Provider clearing savings remain separate.

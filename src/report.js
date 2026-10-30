@@ -348,6 +348,7 @@ export function cacheMetrics(store, { days, config, all = false, usage } = {}) {
     }
   } else for (const [m, x] of Object.entries(u.saved?.byModel || {})) { const p = priceIn(m); if (p == null) unpricedTokens += x.tokens; else dollars += x.tokens * p / 1e6; }
   return {
+    dollarsLabel: measured ? 'Estimated $ saved' : 'Initial-read savings',
     dollarsSaved: dollars, unpricedTokens: Math.round(unpricedTokens), measured,
     tokensSaved: measured ? ho.saved.inputTokens : lifetime?.tokens ?? u.saved?.tokens ?? 0,
     tokenLabel: measured ? 'Tokens saved' : 'Estimated input tokens saved',
@@ -355,7 +356,7 @@ export function cacheMetrics(store, { days, config, all = false, usage } = {}) {
       ? 'Avoided reading and subsequent re-reads, minus cached-note context.'
       : lifetime ? 'One-read estimate minus note context; lifetime data unavailable.' : 'tokens of code the agents did not read',
     coverage: lifetime ? { hits: lifetime.covered, fallback: lifetime.fallback, sessions: lifetime.sessions, requests: lifetime.requests } : null,
-    dollarsDescription: !measured && lifetime?.covered ? 'Initial reading only; re-reads are not priced.' : null,
+    dollarsDescription: !measured ? 'Estimated at model list prices. Repeated reads are excluded.' : null,
     hits: Object.values(u.servings || {}).reduce((a, b) => a + b, 0), requests: u.requests || 0, answered: u.answered || 0,
     // the hit rate is quoted over the requests the cache was asked, not every prompt (usage.js:NOT_ATTEMPTED)
     attempted: u.attempted || 0,
@@ -394,11 +395,11 @@ export function mergeReports(list) {
     totals: sumCells(views.map(v => v.totals)), sessionTotals: sumCells(views.map(v => v.sessionTotals)),
     providers, models: modelRows, unpriced: [...new Set(views.flatMap(v => v.unpriced))],
     actions: list.flatMap(x => x.view.actions.map(a => ({ ...a, repo: x.repo, repoName: x.name }))).sort((a, b) => b.at.localeCompare(a.at)),
-    cache: { dollarsSaved: sum('dollarsSaved'), unpricedTokens: sum('unpricedTokens'), measured: cache.every(c => c.measured), tokensSaved: sum('tokensSaved'), hits: sum('hits'), requests: sum('requests'), answered: sum('answered'), attempted: sum('attempted'), acted: judged ? confirmed / judged : null, judged,
+    cache: { dollarsLabel: cache.every(c => !c.measured) ? 'Initial-read savings' : cache.every(c => c.measured) ? 'Estimated $ saved' : 'Estimated $ saved (partial)', dollarsSaved: sum('dollarsSaved'), unpricedTokens: sum('unpricedTokens'), measured: cache.every(c => c.measured), tokensSaved: sum('tokensSaved'), hits: sum('hits'), requests: sum('requests'), answered: sum('answered'), attempted: sum('attempted'), acted: judged ? confirmed / judged : null, judged,
       tokenLabel: cache.every(c => c.measured) ? 'Tokens saved' : 'Estimated input tokens saved',
       tokenDescription: cache.every(c => c.measured) ? 'versus prompts with the notes withheld' : 'Avoided reading and observed re-reads, minus note context; holdout comparisons where available.',
       coverage: cache.some(c => c.coverage) ? Object.fromEntries(['hits', 'fallback', 'sessions', 'requests'].map(k => [k, cache.reduce((n, c) => n + (c.coverage?.[k] || 0), 0)])) : null,
-      dollarsDescription: cache.some(c => c.dollarsDescription) ? 'Initial reading and holdout comparisons; re-reads are not priced.' : null },
+      dollarsDescription: cache.every(c => !c.measured) ? 'Estimated at model list prices. Repeated reads are excluded.' : cache.some(c => !c.measured) ? 'Initial reads and holdout comparisons, at model list prices. Repeated reads outside holdout comparisons are excluded.' : null },
     prs: mergePrSavings(list),
     repos: list.map(x => ({ repo: x.repo, name: x.name })),
   };
@@ -477,8 +478,7 @@ export function renderReport(v, { cost = true, total = false, share = false } = 
   L.push(`  ${cost ? '✓ · ✗: a row of the parts table at or under its good figure, between the two, at or over its bad figure, in dollars a priced prompt whatever the table shows; the models and the token types take no mark; ' : ''}a zero is left blank. A model row is its share of the ${total ? 'week' : 'average prompt'}; its sessions:` + ` ${v.models.map(m => `${m.model} ${m.cells.map(c => c.sessions).join('/')}`).join(', ')}.`);
   if (v.unpriced.length) L.push(`  No list price for ${v.unpriced.join(', ')}: their sessions are left out of the cost average.`);
   const c = v.cache;
-  L.push('', 'The cache', `  $ saved          ${formatDollars(c.dollarsSaved)}${c.unpricedTokens ? ` (+${formatTokens(c.unpricedTokens)} tokens on unpriced models)` : ''}`, `  tokens saved     ${formatTokens(c.tokensSaved)} ${c.tokenDescription || (c.measured ? 'input tokens, against prompts with the notes withheld' : 'tokens of code the agents did not read')}`, `  cache hits       ${formatTokens(c.hits)} notes served, for ${formatTokens(c.answered)} of ${formatTokens(c.attempted)} requests the cache was asked${c.requests > c.attempted ? ` (${formatTokens(c.requests - c.attempted)} not asked: too few notes, or held out)` : ''}`, `  acted on         ${c.acted == null ? '–' : `${Math.round(100 * c.acted)}%`} of ${formatTokens(c.judged)} servings the sessions were judged on`);
-  if (c.coverage) L.push(`  coverage         ${c.coverage.hits} hits with lifetime data; ${c.coverage.fallback} one-read fallback`);
+  L.push('', 'The cache', `  ${(c.dollarsLabel || '$ saved').padEnd(16)} ${formatDollars(c.dollarsSaved)}${c.unpricedTokens ? ` (+${formatTokens(c.unpricedTokens)} tokens on unpriced models)` : ''}`, `  tokens saved     ${formatTokens(c.tokensSaved)} ${c.tokenDescription || (c.measured ? 'input tokens, against prompts with the notes withheld' : 'tokens of code the agents did not read')}`, `  cache hits       ${formatTokens(c.hits)} notes served, for ${formatTokens(c.answered)} of ${formatTokens(c.attempted)} requests the cache was asked${c.requests > c.attempted ? ` (${formatTokens(c.requests - c.attempted)} not asked: too few notes, or held out)` : ''}`, `  acted on         ${c.acted == null ? '–' : `${Math.round(100 * c.acted)}%`} of ${formatTokens(c.judged)} servings the sessions were judged on`);
   if (c.dollarsDescription) L.push(`  dollar basis     ${c.dollarsDescription}`);
   // What was shipped here and how much of it thinker paid for, the same figures as the page's band and as
   // `thinker prs` (prSavings). Tokens under --tokens and without it alike: see prSavings for why there is no
@@ -486,7 +486,7 @@ export function renderReport(v, { cost = true, total = false, share = false } = 
   const pr = v.prs;
   if (pr?.merged) {
     const share = x => x == null ? '–' : `${(100 * x).toFixed(x < 0.01 ? 2 : 1)}%`;
-    L.push('', 'Pull requests (tokens, not dollars: `thinker proxy replay` is what prices a clear)',
+    L.push('', 'Pull requests (tokens spent and saved on merged work)',
       `  merged with work here  ${pr.merged} of ${pr.mergedSeen} merged in the repositor${pr.mergedSeen === 1 ? 'y' : 'ies'}${pr.open ? `, ${pr.open} still open` : ''}`,
       `  saved on them          ${formatTokens(pr.saved.total)} that never sat in a prompt: ${formatTokens(pr.saved.cleared)} cleared (measured), ${formatTokens(pr.saved.reading)} reading avoided (estimate)`,
       `  share of their cost    ${share(pr.share)} of ${formatTokens(pr.agent)} agent tokens; ${pr.mergedAssisted} of ${pr.merged} saved something`,
