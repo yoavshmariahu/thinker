@@ -218,9 +218,9 @@ export function knownRepos(store, { all = false } = {}) {
   return [...repos.values()].map(r => ({ ...r, checkouts: [...r.checkouts] }));
 }
 
-export function summarize(store, { days, all = false } = {}) {
-  const since = days ? new Date(Date.now() - days * 86400_000).toISOString() : '';
-  const events = readLog(store, { all }).filter(e => e.t >= since);
+export function summarize(store, { days, all = false, onSaving, now = Date.now() } = {}) {
+  const since = days ? new Date(now - days * 86400_000).toISOString() : '';
+  const events = readLog(store, { all }).filter(e => e.t >= since && Date.parse(e.t) <= now);
   // The machine's log spans every checkout thinker has run in: some are gone, some moved, and a
   // benchmark arm may point .thinker/notes at a noteset through a symlink, which the store refuses
   // to read. A summary of 400 repositories must not die for one of them, so a checkout that cannot
@@ -439,7 +439,7 @@ export function summarize(store, { days, all = false } = {}) {
     const confirmed = [...x.records.values()].filter(n => verdicts.get(key)?.get(n.id) === 'confirmed');
     if (confirmed.length) {
       const requests = x.named ? lifetimeRequests(sessionTranscriptFile(x.repo, x.session)) : [];
-      const input = inputSavings(confirmed, requests, { clears: sessionClears(sessionKey(x.session), requests), model: x.model });
+      const input = inputSavings(confirmed, requests, { clears: sessionClears(sessionKey(x.session), requests), model: x.model, until: now, onSaving });
       for (const k of Object.keys(u.saved.input)) if (k !== 'byModel') u.saved.input[k] += input[k];
       for (const [model, counts] of Object.entries(input.byModel)) {
         const total = u.saved.input.byModel[model] ||= Object.fromEntries(Object.keys(counts).map(k => [k, 0]));

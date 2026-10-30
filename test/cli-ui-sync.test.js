@@ -27,7 +27,7 @@ test('lifetime savings use shared report values and captions in CLI, page and fo
   assert.deepEqual(c.coverage, { hits: 1, fallback: 1, sessions: 1, requests: 100 });
   for (const file of ['report.js', 'ui/page.html']) {
     if (file === 'report.js') assert.match(read(file), /c\.tokenDescription/);
-    assert.match(read(file), /c\.dollarsLabel/);
+    if (file === 'report.js') assert.match(read(file), /c\.dollarsLabel/);
     assert.doesNotMatch(read(file), /Math\.max\(0, c\.(tokensSaved|dollarsSaved)\)/, 'negative net estimates must stay visible');
   }
   assert.match(read('commands/hooks.js'), /sessionInputSavings/);
@@ -430,7 +430,7 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   // whose agent reports no usage, on both doors (2026-10-25), from the one view (reportView: rewrites, rewriteTotals, estimated, calibration)
   // the rewrites by cause and the estimated sessions are in the view and on neither door (the owner's call, 2026-10-25)
   for (const re of [/Prompt cache rewrites/, /Sessions whose agent reported no usage/]) { assert.doesNotMatch(read('ui/page.html'), re); assert.doesNotMatch(read('report.js').replace(/\/\/[^\n]*/g, ''), re); }
-  assert.match(read('ui/page.html'), /swapBody\(el, parts \+ models \+ tokenTypes \+ cards \+ prBand\);/); assert.match(read('ui/page.html'), /v\.calibration/);
+  assert.match(read('ui/page.html'), /swapBody\(el, parts \+ effectiveness \+/); assert.match(read('ui/page.html'), /v\.calibration/);
   // the rest of the input is one row on both doors (reportView `otherInput`), folded by default on the page, its kinds under it
   assert.match(read('ui/page.html'), /RFOLD = new Set\(\['other-input'\]\)/); assert.match(read('ui/page.html'), /data-fold="other-input"/); assert.match(read('ui/page.html'), /v\.otherInput \|\| \[\]/);
   assert.match(read('report.js'), /line\('Other input', v\.otherInput, false, base, \{ key: 'otherInput', thresholds: true \}\)/); assert.match(read('report.js'), /line\(`  \$\{p\.name\}`, p\.cells/);
@@ -507,7 +507,7 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('report.js'), /export const TOKEN_TYPES = \[\['fresh', 'Input, fresh'\], \['cacheWrite', 'Input, written to cache'\], \['cacheRead', 'Input, read from cache'\], \['output', 'Model output'\]\];/);
   assert.match(read('report.js'), /export const OTHERS = \[\.\.\.REST_INPUT, 'output'\]\.map\(k => BREAKDOWN\.find/, 'the rest of the input by kind, then the output (2026-10-25)');
   assert.match(read('report.js'), /'By token type \(as the model reported them/); assert.match(read('ui/page.html'), /<b>By token type<\/b>/);
-  assert.match(read('ui/page.html'), /swapBody\(el, parts \+ models \+ tokenTypes \+ cards \+ prBand\);/, 'the token types last, no decisions on the Report');
+  assert.match(read('ui/page.html'), /swapBody\(el, parts \+ effectiveness \+/, 'the token types last, no decisions on the Report');
   // every page is rebuilt in place once on screen (2026-10-25): the three renders go through swapBody, which keeps the scroll and
   // the open rows, and a load of what is already shown does not wipe the body to the spinner
   assert.match(read('ui/page.html'), /function swapBody\(el, html\)/); assert.match(read('ui/page.html'), /swapBody\(el, h\);/); assert.match(read('ui/page.html'), /swapBody\(el, card \+ pullCard \+ historyFigure\(/);
@@ -516,8 +516,8 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.equal((read('report.js').match(/line\('Total \(the whole session\)', v\.sessionTotals, true(, null, \{ key: 'total', thresholds: true \})?\)/g) || []).length, 3);
   assert.equal((read('ui/page.html').match(/row\('Total \(the whole session\)', v\.sessionTotals, \{ cls: 'rep-total', total: true(, key: 'total', thresholds: true)? \}\)/g) || []).length, 3);
   assert.match(read('ui/page.html'), /\.\.\.otherRows\]\.join/); assert.match(read('report.js'), /for \(const p of rest\) L\.push\(line\(`  \$\{p\.name\}`, p\.cells, false, base, \{ key: p\.key, thresholds: true \}\)\);/, 'the kinds under Other input, indented');
-  // the same four numbers under both, the dollars first (report.js:cacheMetrics), and the actions from context-suggest.js
-  for (const f of ['report.js', 'ui/page.html']) { assert.match(read(f), /\$ saved/); assert.match(read(f), /Tokens saved|tokens saved/); }
+  // Both doors show the weekly savings series from the shared report.
+  for (const f of ['report.js', 'ui/page.html']) assert.match(read(f), /Cache\/compression effectiveness/);
   assert.match(read('report.js'), /changeHistory\(store\)\.filter\(e => Date\.parse\(e\.at\) >= from\)/);
   // the page's tabs: Save (was Context, the chart gone) and Report (was Cache); the old names still open them
   assert.match(read('ui/page.html'), /data-tab="save">Find Savings</);
@@ -560,7 +560,7 @@ test('`thinker prs` is one door, and its help says what the figures are (2026-10
   // The page's second door is the Report tab's band, which reads the figures off the report view that
   // report.js already computed (prSavings). There is no endpoint of its own, and nothing on the page
   // recomputes them on a visit.
-  assert.match(read('ui/page.html'), /const pr = v\.prs;/);
+  assert.match(read('ui/page.html'), /pr = v\.prs;/);
   assert.doesNotMatch(read('ui/page.html'), /api\/prs/);
   // Maintenance keeps it current by itself; the switch named in the docs is the one the code reads.
   assert.equal(DEFAULTS.prSync, true);
@@ -585,9 +585,12 @@ test('Report summaries and Recent activity PR savings share the CLI report data,
   const page = read('ui/page.html'), rep = read('report.js');
   // one source for both doors: the band is computed in report.js and carried on the view, never recomputed on a page
   assert.match(rep, /prs: prSavings\(store, \{ days, now \}\)/);
-  assert.match(page, /const pr = v\.prs;/);
-  // the same four cards, in the same order, on the page and in the command
-  for (const phrase of ['Merged with work here', 'Share of what they cost', 'On the median one']) assert.ok(page.includes(phrase), `page card: ${phrase}`);
+  assert.match(page, /pr = v\.prs;/);
+  // PR details live in Recent activity; the report now charts weekly savings.
+  assert.doesNotMatch(page, /const cards =|const prBand =/);
+  assert.match(page, /v\.savings \|\| \[\]/);
+  assert.match(page, /See more metrics/);
+  assert.match(page, /RMORE = false/);
   for (const phrase of ['merged with work here', 'share of their cost', 'on the median one']) assert.ok(rep.includes(phrase), `command line: ${phrase}`);
   // the same seven columns, in the same order
   for (const c of ['Sessions', 'Its cost', 'Cleared', 'Reading avoided', 'Saved', 'Share']) assert.ok(page.includes(`>${c}</th>`), `page column: ${c}`);
@@ -598,7 +601,7 @@ test('Report summaries and Recent activity PR savings share the CLI report data,
   // Both doors describe the PR figures in tokens.
   assert.doesNotMatch(page, /Tokens spent and saved on merged pull requests|Of the work shipped here/);
   assert.ok(rep.includes('tokens spent and saved on merged work'));
-  assert.doesNotMatch(page.slice(page.indexOf('const prBand')), /money\(/, 'the band never prices its tokens');
+  assert.doesNotMatch(page.slice(page.indexOf('function renderActivityPrs('), page.indexOf('function renderActivityPrs(') + 1500), /money\(/, 'PR rows remain in tokens');
   // a kept report made before the band must be remade, so report-snapshot hashes what the band is computed from
   for (const f of ['delivery.js', 'compression.js']) assert.ok(read('report-snapshot.js').includes(`'${f}'`), `${f} is in the report's code key`);
 });

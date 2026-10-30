@@ -146,7 +146,7 @@ export function sessionClears(session, requests) {
 
 // Records are deduplicated by session-note by the caller. Historical records without file
 // sizes share one conservative reading bucket: their largest estimate, not a sum of overlaps.
-export function inputSavings(notes, requests = [], { clears = [], until = Date.now(), model } = {}) {
+export function inputSavings(notes, requests = [], { clears = [], until = Date.now(), model, onSaving } = {}) {
   const hits = notes.map(n => ({ ...n, requests: requests.filter(r => r.at >= Date.parse(n.at) && r.at <= until && Number.isFinite(r.notes[n.id])) }));
   const covered = hits.filter(h => h.requests.length);
   const fallback = hits.filter(h => !h.requests.length);
@@ -161,6 +161,8 @@ export function inputSavings(notes, requests = [], { clears = [], until = Date.n
     const total = Math.max(0, r.input || 0), write = Math.min(total, Math.max(0, r.cacheWrite || 0));
     const read = Math.min(total - write, Math.max(0, r.cacheRead || 0));
     const write1h = Math.min(write, Math.max(0, r.cacheWrite1h || 0));
+    const entry = { tokens, fresh: total ? tokens * (total - read - write) / total : tokens, cacheRead: total ? tokens * read / total : 0, cacheWrite: total ? tokens * write / total : 0, cacheWrite1h: total ? tokens * write1h / total : 0 };
+    onSaving?.({ at: r.at, model: m, ...entry });
     b.tokens += tokens;
     b.fresh += total ? tokens * (total - read - write) / total : tokens;
     b.cacheRead += total ? tokens * read / total : 0;
@@ -186,7 +188,7 @@ export function inputSavings(notes, requests = [], { clears = [], until = Date.n
     account(avoided - carried, r);
   }
   const once = fallback.reduce((s, h) => s + (h.tokens || 0) - (h.noteTokens || 0), 0);
-  if (fallback.length) account(once);
+  for (const h of fallback) account((h.tokens || 0) - (h.noteTokens || 0), { at: Date.parse(h.at) });
   return { byModel, tokens: Math.round(gross - overhead + once), gross, overhead, fallbackTokens: Math.round(once),
     covered: covered.length, fallback: fallback.length, sessions: covered.length ? 1 : 0, requests: calls };
 }
